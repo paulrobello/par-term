@@ -27,6 +27,23 @@
 //! arguments, etc.). Users should treat session log files as potentially
 //! sensitive and store them accordingly.
 //!
+//! # Heuristic Redaction Limitations
+//!
+//! The password-prompt detection is **heuristic** and relies on a fixed list of known
+//! prompt strings (see [`PASSWORD_PROMPT_PATTERNS`]). It **cannot** guarantee that all
+//! sensitive input is redacted. Scenarios where credentials may still be captured include:
+//!
+//! - Custom or localised password prompts not in the pattern list
+//! - Credentials pasted into the terminal (no echo-suppress signal)
+//! - API keys or tokens typed as command arguments (e.g. `curl -H "Authorization: Bearer <token>"`)
+//! - Multi-factor authentication codes entered outside of recognised prompt patterns
+//! - Applications that suppress echo without emitting a matching prompt string
+//!
+//! **Recommendation**: If you regularly work with sensitive credentials in the terminal
+//! (vault access, production API keys, SSH passphrases, etc.), **disable session logging**
+//! for those sessions. Session logging can be toggled per-profile or globally via the
+//! par-term settings. Do not rely solely on redaction as a security control.
+//!
 //! [`set_redact_passwords`]: SessionLogger::set_redact_passwords
 //! [`set_echo_suppressed`]: SessionLogger::set_echo_suppressed
 

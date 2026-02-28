@@ -88,16 +88,44 @@ pub struct Tab {
     /// Whether this tab has unread activity since last viewed
     pub(crate) has_activity: bool,
     /// Scroll state for this tab.
-    /// Legacy field: each pane has its own scroll state. Will be removed in a future version.
+    ///
+    /// Legacy field: each pane has its own scroll state via `PaneManager`.
+    /// This field continues to be the authoritative scroll state for single-pane
+    /// tabs and the "active pane" fallback for split layouts. It is read in
+    /// ~10 sites including `url_hover.rs`, `pane_render.rs`, and `prettifier_cells.rs`.
+    ///
+    /// TODO(migration): Remove this field once all pane-aware code reads scroll state
+    /// exclusively from `PaneManager::active_pane().scroll_state`. Track progress at
+    /// https://github.com/paulrobello/par-term/issues — needs issue.
     pub(crate) scroll_state: ScrollState,
     /// Mouse state for this tab.
-    /// Legacy field: each pane has its own mouse state. Will be removed in a future version.
+    ///
+    /// Legacy field: each pane has its own mouse state via `PaneManager`.
+    /// Currently the authoritative store for URL detection, hover state, and
+    /// mouse tracking mode. Read in ~15 sites.
+    ///
+    /// TODO(migration): Remove this field once mouse state is read exclusively from
+    /// `PaneManager::active_pane().mouse`. Track progress at
+    /// https://github.com/paulrobello/par-term/issues — needs issue.
     pub(crate) mouse: MouseState,
     /// Bell state for this tab.
-    /// Legacy field: each pane has its own bell state. Will be removed in a future version.
+    ///
+    /// Legacy field: each pane has its own bell state via `PaneManager`.
+    /// Currently used in ~7 sites including `notifications.rs` and `triggers.rs`.
+    ///
+    /// TODO(migration): Remove this field once bell state is read exclusively from
+    /// `PaneManager::active_pane().bell`. Track progress at
+    /// https://github.com/paulrobello/par-term/issues — needs issue.
     pub(crate) bell: BellState,
     /// Render cache for this tab.
-    /// Legacy field: each pane has its own render cache. Will be removed in a future version.
+    ///
+    /// Legacy field: each pane has its own render cache via `PaneManager`.
+    /// Currently the authoritative render cache for single-pane tabs and used
+    /// as fallback for the active pane in ~17 sites.
+    ///
+    /// TODO(migration): Remove this field once all rendering code reads cache state
+    /// exclusively from `PaneManager::active_pane().cache`. Track progress at
+    /// https://github.com/paulrobello/par-term/issues — needs issue.
     pub(crate) cache: RenderCache,
     /// Async task for refresh polling
     pub(crate) refresh_task: Option<JoinHandle<()>>,
@@ -202,6 +230,14 @@ impl Tab {
     ///   dimensions instead of config.cols/rows. This ensures the shell starts
     ///   with the correct dimensions when the renderer has already calculated
     ///   the grid size accounting for tab bar height.
+    ///
+    /// # REFACTOR
+    /// `Tab::new()` and `Tab::new_from_profile()` share ~80% identical initialization
+    /// logic (terminal creation, coprocess setup, session logging, struct construction).
+    /// A future refactor should extract shared steps into a private `Tab::new_internal()`
+    /// helper that both constructors delegate to, keeping only their divergent logic
+    /// (shell command resolution for `new_from_profile`, tab title and working directory
+    /// handling) in the respective public methods.
     pub fn new(
         id: TabId,
         tab_number: usize,
@@ -414,6 +450,13 @@ impl Tab {
     /// * `_runtime` - Tokio runtime (unused but kept for API consistency)
     /// * `profile` - Profile configuration to use
     /// * `grid_size` - Optional (cols, rows) override for initial terminal size
+    ///
+    /// # REFACTOR
+    /// `Tab::new_from_profile()` and `Tab::new()` share ~80% identical initialization
+    /// logic. See the `Tab::new()` doc comment for the proposed `new_internal()` extraction
+    /// approach. This constructor's unique logic is: SSH command detection, per-profile
+    /// login_shell override, per-profile SHELL env-var injection, and title derivation
+    /// from `profile.tab_name` vs `profile.name`.
     pub fn new_from_profile(
         id: TabId,
         config: &Config,

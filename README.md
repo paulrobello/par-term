@@ -12,6 +12,15 @@ A cross-platform, GPU-accelerated terminal emulator frontend built with Rust, po
 
 ![par-term screenshot](https://raw.githubusercontent.com/paulrobello/par-term/main/screenshot.png)
 
+## Getting Started
+
+New to par-term? The [Getting Started Guide](docs/GETTING_STARTED.md) walks you through installation, essential keyboard shortcuts, fonts, and split panes — everything you need to be productive in under 10 minutes.
+
+- **[Getting Started Guide](docs/GETTING_STARTED.md)** — Install, launch, and configure par-term
+- **[Installation](#installation)** — Platform-specific install instructions below
+- **[Configuration Reference](docs/CONFIG_REFERENCE.md)** — All 200+ configuration options
+- **[Keyboard Shortcuts](docs/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
+
 ## What's New in 0.24.0
 
 ### 🔒 Security & Safety
@@ -759,8 +768,10 @@ Essential feature for emacs/vim users.
 ## Documentation
 
 ### Getting Started
-- **[Quick Start Guide](QUICK_START_FONTS.md)** - Get up and running with custom fonts.
-- **[Examples](examples/README.md)** - Comprehensive configuration examples.
+- **[Getting Started Guide](docs/GETTING_STARTED.md)** - Install, launch, and configure par-term in under 10 minutes.
+- **[Quick Start Fonts Guide](QUICK_START_FONTS.md)** - Get up and running with custom fonts.
+- **[Configuration Examples](examples/README.md)** - Annotated YAML configuration examples.
+- **[Environment Variables](docs/ENVIRONMENT_VARIABLES.md)** - All recognized environment variables.
 
 ### Features
 - **[Keyboard Shortcuts](docs/KEYBOARD_SHORTCUTS.md)** - Complete keyboard shortcut reference.
@@ -796,6 +807,8 @@ Essential feature for emacs/vim users.
 
 ### Technical
 - **[Architecture Overview](docs/ARCHITECTURE.md)** - High-level system architecture and components.
+- **[API Documentation Index](docs/API.md)** - Public types across all workspace crates.
+- **[Environment Variables](docs/ENVIRONMENT_VARIABLES.md)** - Runtime environment variable reference.
 - **[Core Library](https://github.com/paulrobello/par-term-emu-core-rust)** - Documentation for the underlying terminal engine.
 
 ## Installation

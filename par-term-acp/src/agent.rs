@@ -566,6 +566,24 @@ impl Drop for Agent {
 ///
 /// Safe directories include `/tmp`, the par-term shaders directory, and the
 /// par-term config directory (for `.config-update.json`).
+///
+/// # TOCTOU (Time-of-Check / Time-of-Use) Risk
+///
+/// This function calls [`std::fs::canonicalize`] to resolve symlinks and `..` components
+/// before checking whether the path falls within a safe root. This mitigates the most
+/// common path-traversal vectors (e.g. `/tmp/../etc/passwd`).
+///
+/// However, a residual TOCTOU race remains: between the `canonicalize` call here and
+/// the actual file write performed by the agent tool, a symlink could be created at the
+/// target path that redirects the write to an unsafe location. This race is inherent to
+/// any permission check that is separate from the I/O operation itself.
+///
+/// **Why accepted**: This is a standard limitation of filesystem-based access checks
+/// in CLI tooling. The safe roots are locations the user already controls (`/tmp`,
+/// their own config directory), and an attacker who can race a symlink creation in
+/// those directories already has equivalent local access. The canonicalize step is
+/// kept as a defense-in-depth measure against accidental traversal, not as a
+/// security boundary against a local adversary.
 fn is_safe_write_path(tool_call: &serde_json::Value, safe_paths: &SafePaths) -> bool {
     // Try to extract the path from various locations in the tool_call JSON.
     // Claude Code puts it in rawInput.file_path, rawInput.path, or the title

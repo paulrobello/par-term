@@ -6,6 +6,69 @@
 //! # Sub-modules
 //!
 //! - [`default_impl`] — `impl Default for Config`
+//!
+//! # Future Refactoring Note
+//!
+//! The `Config` struct is intentionally kept as a single flat struct for
+//! serde compatibility. Splitting it into sub-structs (e.g. `FontConfig`,
+//! `WindowConfig`, `ShaderConfig`, `InputConfig`, `TabConfig`, `TerminalConfig`)
+//! would be a breaking change to the YAML serialisation format unless a
+//! custom `Serialize`/`Deserialize` implementation is provided that flattens
+//! the sub-structs back to the top level.
+//!
+//! Logical groupings of fields are documented with section comments inside
+//! the struct. The current sections and their candidate sub-struct names are:
+//!
+//! | Section comment              | Candidate sub-struct  |
+//! |------------------------------|-----------------------|
+//! | Window & Display             | `WindowConfig`        |
+//! | Inline Image Settings        | `ImageConfig`         |
+//! | File Transfer Settings       | `FileTransferConfig`  |
+//! | Background Shader Settings   | `ShaderConfig`        |
+//! | Cursor Shader Settings       | `CursorShaderConfig`  |
+//! | Keyboard Input               | `InputConfig`         |
+//! | Selection & Clipboard        | `SelectionConfig`     |
+//! | Mouse Behavior               | `MouseConfig`         |
+//! | Word Selection               | `WordSelectionConfig` |
+//! | Copy Mode                    | `CopyModeConfig`      |
+//! | Scrollback & Cursor          | `ScrollbackConfig`    |
+//! | Unicode Width Settings       | `UnicodeConfig`       |
+//! | Cursor Enhancements          | `CursorConfig`        |
+//! | Scrollbar                    | `ScrollbarConfig`     |
+//! | Theme & Colors               | `ThemeConfig`         |
+//! | Screenshot                   | `ScreenshotConfig`    |
+//! | Shell Behavior               | `ShellConfig`         |
+//! | Semantic History             | `SemanticHistoryConfig`|
+//! | Scrollbar (GUI)              | `ScrollbarUiConfig`   |
+//! | Command Separator Lines      | `CommandSeparatorConfig`|
+//! | Clipboard Sync Limits        | `ClipboardConfig`     |
+//! | Command History              | `CommandHistoryConfig`|
+//! | Notifications                | `NotificationConfig`  |
+//! | SSH Settings                 | `SshConfig`           |
+//! | Tab Settings                 | `TabConfig`           |
+//! | Tab Bar Colors               | `TabBarColorsConfig`  |
+//! | Split Pane Settings          | `PaneConfig`          |
+//! | tmux Integration             | `TmuxConfig`          |
+//! | Focus/Blur Power Saving      | `PowerConfig`         |
+//! | Shader Hot Reload            | `ShaderWatchConfig`   |
+//! | Per-Shader Configuration     | `ShaderOverridesConfig`|
+//! | Keybindings                  | `KeybindingsConfig`   |
+//! | Shader Installation          | `ShaderInstallConfig` |
+//! | Update Checking              | `UpdateConfig`        |
+//! | Window Arrangements          | `ArrangementConfig`   |
+//! | Search Settings              | `SearchConfig`        |
+//! | Session Logging              | `SessionLogConfig`    |
+//! | Debug Logging                | `DebugConfig`         |
+//! | Badge Settings               | `BadgeConfig`         |
+//! | Status Bar Settings          | `StatusBarConfig`     |
+//! | Progress Bar Settings        | `ProgressBarConfig`   |
+//! | Triggers & Automation        | `AutomationConfig`    |
+//! | Snippets & Actions           | `SnippetsConfig`      |
+//! | Content Prettifier           | `PrettifierConfig`    |
+//! | UI State                     | `UiStateConfig`       |
+//! | Dynamic Profile Sources      | `ProfileSourcesConfig`|
+//! | Security                     | `SecurityConfig`      |
+//! | AI Inspector                 | `AiInspectorConfig`   |
 
 mod default_impl;
 
@@ -56,6 +119,8 @@ pub struct Config {
     // ========================================================================
     // Window & Display (GUI-specific)
     // ========================================================================
+
+    // --- Terminal Size ---
     /// Number of columns in the terminal
     #[serde(default = "crate::defaults::cols")]
     pub cols: usize,
@@ -64,6 +129,7 @@ pub struct Config {
     #[serde(default = "crate::defaults::rows")]
     pub rows: usize,
 
+    // --- Font Settings ---
     /// Font size in points
     #[serde(default = "crate::defaults::font_size")]
     pub font_size: f32,

@@ -1,4 +1,11 @@
 /// URL and file path detection and handling utilities
+//
+// # Error Handling Convention
+//
+// Public functions in this module return `Result<(), String>` (simple string
+// errors for UI display) rather than `anyhow::Error`. New helper functions
+// added to this module should follow the same `Result<T, String>` pattern so
+// callers can surface the error message directly to the user without conversion.
 use regex::Regex;
 use std::sync::OnceLock;
 
@@ -379,6 +386,20 @@ pub fn open_url(url: &str, link_handler_command: &str) -> Result<(), String> {
 /// * `editor_cmd` - Editor command template with placeholders: `{file}`, `{line}`, `{col}`.
 ///   Only used when mode is `Custom`.
 /// * `cwd` - Optional working directory for resolving relative paths
+///
+/// # Security Note
+///
+/// The `path` argument originates from terminal output (e.g. a URL or filename detected
+/// in the scrollback buffer). It is **user-supplied and not sanitized beyond shell escaping**.
+/// The function applies [`shell_escape`] to all substituted values before constructing the
+/// shell command, which prevents typical shell metacharacter injection (backticks, `$()`,
+/// semicolons, etc.) via a maliciously crafted filename.
+///
+/// **Trust assumption**: this function trusts that the path was identified by the URL/semantic
+/// detector from the user's own terminal session. It does not validate that the path points to
+/// a benign file — opening a path in an editor is the intended action. If this assumption
+/// changes (e.g. paths arrive from an untrusted external source), additional validation should
+/// be applied before calling this function.
 pub fn open_file_in_editor(
     path: &str,
     line: Option<usize>,

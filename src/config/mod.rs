@@ -1,7 +1,19 @@
 //! Terminal configuration management.
 //!
-//! Re-exports all configuration types from the `par-term-config` crate.
+//! Re-exports all configuration types from the `par-term-config` sub-crate.
 //! All configuration types, defaults, and utilities are defined in `par-term-config`.
+//!
+//! # Re-exports from `par-term-config`
+//!
+//! This module is a thin facade: it re-exports every public type from `par-term-config`
+//! so the rest of the main crate can write `crate::config::Config` instead of
+//! `par_term_config::Config`. This keeps call sites insulated from the sub-crate
+//! boundary and makes future refactoring easier (types can be relocated inside
+//! `par-term-config` without touching every call site in the main crate).
+//!
+//! Direct dependencies on `par-term-config` types should route through this module
+//! rather than importing from `par_term_config` directly, unless the code is
+//! inside a sub-crate that already depends on `par-term-config` explicitly.
 
 // --- Modules ---
 pub use par_term_config::automation;

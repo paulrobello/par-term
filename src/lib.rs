@@ -1,4 +1,26 @@
 // Library exports for testing and potential library use
+//
+// # Mutex Usage Policy
+//
+// par-term uses three mutex types for different concurrency scenarios.
+// New code should follow these rules:
+//
+//   - `tokio::sync::Mutex`    — use for terminal/async state accessed from both
+//                               async tasks and sync event-loop code. Access via
+//                               `try_lock()` from sync contexts (non-blocking) and
+//                               `.await` or `blocking_lock()` from std threads.
+//
+//   - `parking_lot::Mutex`    — use for sync-only state where you need a fast,
+//                               non-async lock (e.g. upload error field, watcher state).
+//                               Never call `blocking_lock()` on a tokio mutex from
+//                               within an async context — use parking_lot instead.
+//
+//   - `std::sync::Mutex`      — acceptable for simple, short-lived locks in code
+//                               that cannot depend on parking_lot (e.g. platform
+//                               FFI modules). Prefer parking_lot for new code.
+//
+// See `docs/MUTEX_PATTERNS.md` for detailed patterns, deadlock avoidance rules,
+// and examples showing correct lock acquisition in each context.
 
 /// Application version (root crate version, for use by sub-crates).
 /// Sub-crates should receive this via parameter rather than using

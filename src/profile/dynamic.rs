@@ -173,9 +173,20 @@ fn fetch_profiles_inner(
                 source.url
             );
         }
-        crate::debug_info!(
+        // SECURITY: Profile is being fetched over plain HTTP, not HTTPS.
+        // A network-level attacker (e.g. on the same LAN or via a MITM proxy) could
+        // intercept the response and inject a malicious profile that affects shell
+        // execution.  HTTP is not blocked — only this warning is emitted.
+        // Use HTTPS URLs in dynamic_profile_sources whenever possible.
+        crate::debug_error!(
             "DYNAMIC_PROFILE",
-            "Warning: {} uses insecure HTTP. Consider using HTTPS.",
+            "SECURITY WARNING: {} is using insecure HTTP (not HTTPS). \
+             A MITM attacker could inject malicious profiles. Use HTTPS.",
+            source.url
+        );
+        log::warn!(
+            "par-term dynamic profile: fetching '{}' over insecure HTTP. \
+             Consider switching to HTTPS to prevent MITM injection of profiles.",
             source.url
         );
     }

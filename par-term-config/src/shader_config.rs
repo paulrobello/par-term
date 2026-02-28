@@ -4,6 +4,51 @@
 //! 1. User overrides (from config.yaml shader_configs)
 //! 2. Shader metadata defaults (from embedded YAML in shader files)
 //! 3. Global defaults (from defaults.rs / Config struct)
+//!
+//! # Three-Tier Resolution Chain
+//!
+//! Shader configuration follows a three-tier priority system, from highest to lowest:
+//!
+//! ```text
+//! Tier 1 — User override  (config.yaml → shader_configs / cursor_shader_configs)
+//!     ↓ (field absent → fall through)
+//! Tier 2 — Shader metadata  (embedded YAML header inside the .glsl file)
+//!     ↓ (field absent → fall through)
+//! Tier 3 — Global defaults  (Config struct fields, e.g. custom_shader_animation_speed)
+//! ```
+//!
+//! Each field is resolved independently through this chain: a user override for
+//! `animation_speed` doesn't block metadata defaults from supplying `brightness`.
+//!
+//! ## How Each Tier Is Populated
+//!
+//! - **Tier 1** (`ShaderConfig` / `CursorShaderConfig`): loaded from `config.yaml`
+//!   under the `shader_configs` / `cursor_shader_configs` maps, keyed by shader name.
+//!   All fields are `Option<T>` — absent means "don't override".
+//!
+//! - **Tier 2** (`ShaderMetadata` / `CursorShaderMetadata`): parsed by
+//!   `parse_shader_metadata()` / `parse_cursor_shader_metadata()` from a YAML block
+//!   embedded at the top of the `.glsl` file. Cached in
+//!   `ShaderMetadataCache` / `CursorShaderMetadataCache` (in `shader_metadata.rs`)
+//!   so disk reads happen only once per shader file per session.
+//!
+//! - **Tier 3** (`Config` fields): the global `Config` struct holds scalar defaults
+//!   for every shader parameter (e.g., `custom_shader_animation_speed: f32`). These
+//!   are always present and act as the final fallback.
+//!
+//! ## Entry Points
+//!
+//! - [`resolve_shader_config`]: resolve a background shader config.
+//! - [`resolve_cursor_shader_config`]: resolve a cursor shader config.
+//! - [`ResolvedShaderConfig::for_shader`]: convenience wrapper that looks up the user
+//!   override by shader name and delegates to `resolve_shader_config`.
+//!
+//! ## Caching
+//!
+//! Metadata parsing is cached via `ShaderMetadataCache` to avoid re-reading `.glsl`
+//! files on every frame. The cache is held in `WindowState` and populated lazily
+//! on first use of each shader. Config resolution itself is not cached — it is cheap
+//! (a few `Option::and_then` calls) and runs only when the active shader changes.
 
 use crate::config::Config;
 use crate::types::{
