@@ -104,6 +104,7 @@ impl WindowState {
     ///   1. Calling `self.tmux_state.tmux_sync.tick()` (or equivalent) each frame.
     ///   2. Collecting the returned `Vec<SyncAction>`.
     ///   3. Passing them to `self.process_sync_actions()`.
+    ///
     /// Tracked in AUDIT.md as ARC-011 / QA-003. Create a GitHub issue to assign a
     /// milestone before implementing.
     // TODO(dead_code): Wire up or remove process_sync_actions by v0.26 (see TmuxSync integration)

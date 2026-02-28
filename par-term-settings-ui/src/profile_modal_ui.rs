@@ -474,8 +474,6 @@ impl ProfileModalUI {
         }
     }
 
-    /// Render the profile list/edit UI inline (no egui::Window wrapper).
-    ///
     // =========================================================================
     // Public UI Entry Points (modal window + inline embed)
     // =========================================================================

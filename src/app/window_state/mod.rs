@@ -126,7 +126,6 @@ pub struct WindowState {
     // =========================================================================
     // Core infrastructure — foundational subsystems required by all other groups
     // =========================================================================
-
     /// Global configuration loaded from `~/.config/par-term/config.yaml`
     pub(crate) config: Config,
     /// The winit window handle (None briefly during initialization)
@@ -141,7 +140,6 @@ pub struct WindowState {
     // =========================================================================
     // Tab & built-in UI bars — multi-tab coordination and top/bottom bar widgets
     // =========================================================================
-
     /// Tab manager for handling multiple terminal tabs
     pub(crate) tab_manager: TabManager,
     /// Tab bar UI
@@ -152,7 +150,6 @@ pub struct WindowState {
     // =========================================================================
     // Window flags — miscellaneous window-level boolean state
     // =========================================================================
-
     /// Whether window is currently in fullscreen mode
     pub(crate) is_fullscreen: bool,
     /// Whether terminal session recording is active
@@ -165,7 +162,6 @@ pub struct WindowState {
     // =========================================================================
     // egui overlay layer — settings window / modal GUI framework
     // =========================================================================
-
     /// egui context for GUI rendering
     pub(crate) egui_ctx: Option<egui::Context>,
     /// egui-winit state for event handling
@@ -181,7 +177,6 @@ pub struct WindowState {
     // =========================================================================
     // Specialized UI sub-system state bundles (already extracted into own types)
     // =========================================================================
-
     /// Shader hot-reload watcher, metadata caches, and reload-error state
     pub(crate) shader_state: crate::app::shader_state::ShaderState,
     /// Overlay / modal / side-panel UI state
@@ -196,7 +191,6 @@ pub struct WindowState {
     // =========================================================================
     // Render loop scheduling — event-driven render and font-rebuild flags
     // =========================================================================
-
     /// Whether we need to render next frame
     pub(crate) needs_redraw: bool,
     /// Set when an agent/MCP config update was applied — signals WindowManager to
@@ -212,7 +206,6 @@ pub struct WindowState {
     // =========================================================================
     // Focus & power saving — window focus state and FPS throttling
     // =========================================================================
-
     /// Whether the window currently has focus
     pub(crate) is_focused: bool,
 
@@ -222,7 +215,6 @@ pub struct WindowState {
     // Prevents the first click after a window-focus event from being forwarded
     // to the PTY, which can cause tmux/mouse-aware apps to clear the clipboard.
     // =========================================================================
-
     /// Track if we blocked a mouse press for UI — also block the corresponding release
     pub(crate) ui_consumed_mouse_press: bool,
     /// Eat the first mouse click after window focus to prevent forwarding to PTY.
@@ -241,7 +233,6 @@ pub struct WindowState {
     // =========================================================================
     // Performance modes — flicker reduction and throughput batching
     // =========================================================================
-
     /// When cursor was last hidden (for `reduce_flicker` feature)
     pub(crate) cursor_hidden_since: Option<std::time::Instant>,
     /// Whether we have pending terminal updates deferred due to cursor being hidden
@@ -252,7 +243,6 @@ pub struct WindowState {
     // =========================================================================
     // File watchers — config-file and MCP request watchers
     // =========================================================================
-
     /// Config file watcher for automatic reload (e.g., when ACP agent modifies config.yaml)
     pub(crate) config_watcher: Option<crate::config::watcher::ConfigWatcher>,
     /// Watcher for `.config-update.json` written by the MCP server
@@ -263,7 +253,6 @@ pub struct WindowState {
     // =========================================================================
     // Pending window-manager actions — one-shot flags consumed by WindowManager
     // =========================================================================
-
     /// Flag to signal that the settings window should be opened.
     /// Set by keyboard handlers and consumed by the window manager.
     pub(crate) open_settings_window_requested: bool,
@@ -301,7 +290,6 @@ pub struct WindowState {
     // =========================================================================
     // Feature state — per-feature state bundles
     // =========================================================================
-
     /// Whether keyboard input is broadcast to all panes in current tab
     pub(crate) broadcast_input: bool,
     /// Badge state for session information display
@@ -314,7 +302,6 @@ pub struct WindowState {
     // =========================================================================
     // Self-update flow — in-app update dialog and install state
     // =========================================================================
-
     /// Whether to show the update dialog overlay (set when user clicks the update widget)
     pub(crate) show_update_dialog: bool,
     /// Last update check result (for update dialog)
@@ -332,7 +319,6 @@ pub struct WindowState {
     // =========================================================================
     // Trigger management — RunCommand process tracking and regex caching
     // =========================================================================
-
     /// PIDs of spawned trigger commands with their spawn time, for resource management
     pub(crate) trigger_spawned_processes: std::collections::HashMap<u32, std::time::Instant>,
     /// Compiled regex cache for prettify trigger patterns (command_filter and block_end).
@@ -342,7 +328,6 @@ pub struct WindowState {
     // =========================================================================
     // Keybinding & smart selection caches
     // =========================================================================
-
     /// Keybinding registry for user-defined keyboard shortcuts
     pub(crate) keybinding_registry: KeybindingRegistry,
     /// Cache for compiled smart selection regex patterns
@@ -351,14 +336,12 @@ pub struct WindowState {
     // =========================================================================
     // tmux integration — tmux session/pane state machine
     // =========================================================================
-
     /// tmux integration state (session, sync, pane mappings, prefix key)
     pub(crate) tmux_state: crate::app::tmux_state::TmuxState,
 
     // =========================================================================
     // Session history — recently closed tab undo queue
     // =========================================================================
-
     /// Recently closed tab metadata for session undo (reopen closed tab)
     pub(crate) closed_tabs: std::collections::VecDeque<super::tab_ops::ClosedTabInfo>,
 }

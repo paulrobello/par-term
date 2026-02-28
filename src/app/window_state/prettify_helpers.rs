@@ -134,8 +134,7 @@ pub(crate) fn preprocess_claude_code_segment(lines: &mut Vec<(String, usize)>) {
     /// Matches Claude Code line-number prefixes: leading whitespace + digits + space.
     /// Examples: "    1 ", "   10 ", "  100 "
     static LINE_NUMBER_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
-        regex::Regex::new(r"^\s+\d+\s")
-            .expect("LINE_NUMBER_RE is a valid static regex pattern")
+        regex::Regex::new(r"^\s+\d+\s").expect("LINE_NUMBER_RE is a valid static regex pattern")
     });
 
     /// Captures the line-number prefix for stripping.
