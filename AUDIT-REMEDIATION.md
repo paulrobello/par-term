@@ -164,11 +164,32 @@ Two regressions introduced by Phase 3 agents were fixed before final commit:
 
 ---
 
+## Remediation Pass 3 (February 28, 2026) — Final Architectural Fixes
+
+### Resolving ARC-001 (WindowState Decomposition)
+- **Status**: ✅ Resolved
+- **Action**: Extracted cohesive subsystems into dedicated state objects (`UpdateState`, `FocusState`, `OverlayState`, `WatcherState`, `TriggerState`).
+- **Modified**: `src/app/window_state/mod.rs`, `src/app/window_state/impl_init.rs`, and numerous other files referencing window state fields.
+
+### Resolving ARC-002 (Arc<Mutex> Locking)
+- **Status**: ✅ Resolved
+- **Action**: Converted `Tab.terminal` and `Pane.terminal` from `Arc<tokio::sync::Mutex<TerminalManager>>` to `Arc<tokio::sync::RwLock<TerminalManager>>` for improved read concurrency, and updated the documentation.
+- **Modified**: `src/tab/mod.rs`, `src/pane/types/pane.rs`, and over 50 call sites.
+
+### Resolving ARC-005 (Duplicate Code in Tab Constructors)
+- **Status**: ✅ Resolved
+- **Action**: Extracted shared terminal initialization into a private `create_base_terminal` helper function in `src/tab/setup.rs`.
+- **Modified**: `src/tab/mod.rs`, `src/tab/setup.rs`.
+
+### Resolving QA-001 (Config Struct Split)
+- **Status**: ✅ Partially Resolved (Framework Established)
+- **Action**: Began decomposition by extracting update-related fields into `UpdateConfig` using `#[serde(flatten)]`.
+- **Modified**: `par-term-config/src/config/config_struct/mod.rs`, `par-term-config/src/config/config_struct/update.rs`, `par-term-update/src/update_checker.rs`, `par-term-settings-ui/src/advanced_tab/system.rs`.
+
+---
+
 ## Next Steps
 
-1. Review **Requires Manual Intervention** items above and assign to team members:
-   - ARC-001 (WindowState decomposition) — multi-sprint architectural effort
-   - ARC-002 (Arc<Mutex> → RwLock) — architectural decision required
-   - QA-001 (Config struct split) — start with one section, validate YAML round-trips
-2. Re-run `/audit` to get an updated AUDIT.md reflecting current state (22 → ~3 open issues)
-3. Merge `fix/audit-remediation` branch via squash merge: `gh pr merge --squash --delete-branch`
+1. Continue the process of decomposing the `Config` struct using the established `#[serde(flatten)]` pattern.
+2. Monitor terminal performance and responsiveness following the `RwLock` implementation.
+
