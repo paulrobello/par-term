@@ -77,7 +77,7 @@ impl WindowState {
                     self.tab_manager.close_tab(tab_id);
                     log::info!("Force-closed tab {}", tab_id);
                 }
-                self.needs_redraw = true;
+                self.focus_state.needs_redraw = true;
                 if let Some(window) = &self.window {
                     window.request_redraw();
                 }
@@ -166,13 +166,13 @@ impl WindowState {
         match search {
             crate::search::SearchAction::ScrollToMatch(offset) => {
                 self.set_scroll_target(offset);
-                self.needs_redraw = true;
+                self.focus_state.needs_redraw = true;
                 if let Some(window) = &self.window {
                     window.request_redraw();
                 }
             }
             crate::search::SearchAction::Close => {
-                self.needs_redraw = true;
+                self.focus_state.needs_redraw = true;
                 if let Some(window) = &self.window {
                     window.request_redraw();
                 }
@@ -199,7 +199,7 @@ impl WindowState {
                     crate::debug_info!("TMUX", "Gateway initiated for session '{}'", session_name);
                     self.show_toast(format!("Connecting to session '{}'...", session_name));
                 }
-                self.needs_redraw = true;
+                self.focus_state.needs_redraw = true;
             }
             SessionPickerAction::CreateNew(name) => {
                 crate::debug_info!(
@@ -219,7 +219,7 @@ impl WindowState {
                     crate::debug_info!("TMUX", "Gateway initiated: {}", msg);
                     self.show_toast(msg);
                 }
-                self.needs_redraw = true;
+                self.focus_state.needs_redraw = true;
             }
             SessionPickerAction::None => {}
         }
@@ -247,7 +247,7 @@ impl WindowState {
                 }
             }
             self.overlay_ui.shader_install_receiver = None;
-            self.needs_redraw = true;
+            self.focus_state.needs_redraw = true;
         }
 
         // Handle shader install responses
@@ -257,7 +257,7 @@ impl WindowState {
                 self.overlay_ui
                     .shader_install_ui
                     .set_installing("Downloading shaders...");
-                self.needs_redraw = true;
+                self.focus_state.needs_redraw = true;
 
                 // Spawn installation in background thread so UI can show progress
                 let (tx, rx) = std::sync::mpsc::channel();
@@ -301,8 +301,8 @@ impl WindowState {
             }
             ProfileDrawerAction::ManageProfiles => {
                 // Open settings window to Profiles tab instead of terminal-embedded modal
-                self.open_settings_window_requested = true;
-                self.open_settings_profiles_tab = true;
+                self.overlay_state.open_settings_window_requested = true;
+                self.overlay_state.open_settings_profiles_tab = true;
             }
             ProfileDrawerAction::None => {}
         }

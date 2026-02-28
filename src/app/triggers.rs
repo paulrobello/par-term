@@ -216,12 +216,12 @@ impl WindowState {
 
                     // Clean up old process entries (assume completed after timeout)
                     let now = Instant::now();
-                    self.trigger_spawned_processes.retain(|_pid, spawn_time| {
+                    self.trigger_state.trigger_spawned_processes.retain(|_pid, spawn_time| {
                         now.duration_since(*spawn_time).as_secs() < PROCESS_CLEANUP_AGE_SECS
                     });
 
                     // Check process limit to prevent resource exhaustion
-                    if self.trigger_spawned_processes.len() >= MAX_TRIGGER_PROCESSES {
+                    if self.trigger_state.trigger_spawned_processes.len() >= MAX_TRIGGER_PROCESSES {
                         log::warn!(
                             "Trigger {} RunCommand DENIED: max concurrent processes ({}) reached",
                             trigger_id,
@@ -254,7 +254,7 @@ impl WindowState {
                                 args
                             );
                             // Track the spawned process for resource management
-                            self.trigger_spawned_processes.insert(pid, Instant::now());
+                            self.trigger_state.trigger_spawned_processes.insert(pid, Instant::now());
                         }
                         Err(e) => {
                             log::error!("RunCommand failed to spawn '{}': {}", command, e);
@@ -512,11 +512,11 @@ impl WindowState {
         // Patterns that are already cached are skipped; invalid patterns are logged once.
         for (trigger_id, _row, payload) in &pending {
             if let Some(ref filter) = payload.command_filter
-                && !self.trigger_regex_cache.contains_key(filter.as_str())
+                && !self.trigger_state.trigger_regex_cache.contains_key(filter.as_str())
             {
                 match regex::Regex::new(filter) {
                     Ok(re) => {
-                        self.trigger_regex_cache.insert(filter.clone(), re);
+                        self.trigger_state.trigger_regex_cache.insert(filter.clone(), re);
                     }
                     Err(e) => {
                         log::error!(
@@ -529,11 +529,11 @@ impl WindowState {
                 }
             }
             if let Some(ref block_end) = payload.block_end
-                && !self.trigger_regex_cache.contains_key(block_end.as_str())
+                && !self.trigger_state.trigger_regex_cache.contains_key(block_end.as_str())
             {
                 match regex::Regex::new(block_end) {
                     Ok(re) => {
-                        self.trigger_regex_cache.insert(block_end.clone(), re);
+                        self.trigger_state.trigger_regex_cache.insert(block_end.clone(), re);
                     }
                     Err(e) => {
                         log::error!(
@@ -573,7 +573,7 @@ impl WindowState {
             if let Some(ref filter) = payload.command_filter {
                 // Use the pre-compiled regex from the cache (populated before this loop).
                 // If the pattern was invalid it was logged above and not inserted — skip.
-                if let Some(re) = self.trigger_regex_cache.get(filter.as_str()) {
+                if let Some(re) = self.trigger_state.trigger_regex_cache.get(filter.as_str()) {
                     match preceding_command.as_deref() {
                         Some(cmd) if re.is_match(cmd) => {}
                         _ => {
@@ -598,7 +598,7 @@ impl WindowState {
                     let block_end_re = payload
                         .block_end
                         .as_deref()
-                        .and_then(|pat| self.trigger_regex_cache.get(pat));
+                        .and_then(|pat| self.trigger_state.trigger_regex_cache.get(pat));
                     Self::narrow_block_scope(range.0, range.1, block_end_re, &lines_by_abs)
                 } else {
                     range

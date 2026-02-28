@@ -12,19 +12,19 @@ impl WindowState {
     /// Returns true if enough time has elapsed since the last frame and rendering should proceed.
     /// Updates last_render_time and resets needs_redraw on success.
     pub(super) fn should_render_frame(&mut self) -> bool {
-        let target_fps = if self.config.pause_refresh_on_blur && !self.is_focused {
+        let target_fps = if self.config.pause_refresh_on_blur && !self.focus_state.is_focused {
             self.config.unfocused_fps
         } else {
             self.config.max_fps
         };
         let frame_interval = std::time::Duration::from_millis((1000 / target_fps.max(1)) as u64);
-        if let Some(last_render) = self.last_render_time
+        if let Some(last_render) = self.focus_state.last_render_time
             && last_render.elapsed() < frame_interval
         {
             return false;
         }
-        self.last_render_time = Some(std::time::Instant::now());
-        self.needs_redraw = false;
+        self.focus_state.last_render_time = Some(std::time::Instant::now());
+        self.focus_state.needs_redraw = false;
         true
     }
 

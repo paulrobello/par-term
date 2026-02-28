@@ -348,7 +348,7 @@ impl WindowState {
             // Reset scroll to bottom when switching pane focus so the
             // newly-focused pane doesn't inherit the previous pane's scroll offset.
             self.set_scroll_target(0);
-            self.needs_redraw = true;
+            self.focus_state.needs_redraw = true;
         }
 
         // --- 5d. Prettifier Gutter Click ---
@@ -371,7 +371,7 @@ impl WindowState {
                         if let Some(ref mut p) = tab.prettifier {
                             p.toggle_block(block_id);
                         }
-                        self.needs_redraw = true;
+                        self.focus_state.needs_redraw = true;
                         true
                     } else {
                         false
@@ -495,7 +495,7 @@ impl WindowState {
             // Sync pane resize to tmux if gateway is active
             // Pass whether this was a horizontal divider (affects height) or vertical (affects width)
             self.sync_pane_resize_to_tmux(is_horizontal);
-            self.needs_redraw = true;
+            self.focus_state.needs_redraw = true;
             self.request_redraw();
             return;
         } else if self
@@ -509,7 +509,7 @@ impl WindowState {
                 tab.mouse.dragging_divider = None;
                 log::debug!("Ended divider drag (no info)");
             }
-            self.needs_redraw = true;
+            self.focus_state.needs_redraw = true;
             self.request_redraw();
             return;
         }

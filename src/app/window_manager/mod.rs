@@ -120,7 +120,7 @@ impl WindowManager {
     pub fn get_focused_window_id(&self) -> Option<WindowId> {
         // Find the window that has focus
         for (window_id, window_state) in &self.windows {
-            if window_state.is_focused {
+            if window_state.focus_state.is_focused {
                 return Some(*window_id);
             }
         }

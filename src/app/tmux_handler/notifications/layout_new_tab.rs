@@ -105,7 +105,7 @@ impl WindowState {
                                 }
 
                                 self.request_pane_refresh(pane_ids);
-                                self.needs_redraw = true;
+                                self.focus_state.needs_redraw = true;
                             }
                             Err(e) => {
                                 crate::debug_error!(

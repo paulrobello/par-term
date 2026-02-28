@@ -268,3 +268,22 @@ pub(crate) fn apply_login_shell_flag(shell_args: &mut Option<Vec<String>>, confi
 pub(crate) fn apply_login_shell_flag(_shell_args: &mut Option<Vec<String>>, _config: &Config) {
     // No-op on Windows
 }
+
+/// Create and configure a new TerminalManager based on grid size and config.
+/// Returns (terminal, cols, rows).
+pub(crate) fn create_base_terminal(
+    config: &Config,
+    grid_size: Option<(usize, usize)>,
+) -> anyhow::Result<(TerminalManager, usize, usize)> {
+    // Use provided grid size if available, otherwise fall back to config
+    let (cols, rows) = grid_size.unwrap_or((config.cols, config.rows));
+
+    // Create terminal with scrollback from config
+    let mut terminal =
+        TerminalManager::new_with_scrollback(cols, rows, config.scrollback_lines)?;
+
+    // Apply common terminal configuration
+    configure_terminal_from_config(&mut terminal, config);
+
+    Ok((terminal, cols, rows))
+}

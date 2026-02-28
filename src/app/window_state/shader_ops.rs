@@ -170,7 +170,7 @@ impl WindowState {
                         self.shader_state.cursor_shader_reload_result = Some(None);
                     }
                 }
-                self.needs_redraw = true;
+                self.focus_state.needs_redraw = true;
                 self.request_redraw();
                 true
             }

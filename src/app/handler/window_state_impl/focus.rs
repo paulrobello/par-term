@@ -10,11 +10,11 @@ use std::sync::Arc;
 impl WindowState {
     /// Handle window focus change for power saving
     pub(crate) fn handle_focus_change(&mut self, focused: bool) {
-        if self.is_focused == focused {
+        if self.focus_state.is_focused == focused {
             return; // No change
         }
 
-        self.is_focused = focused;
+        self.focus_state.is_focused = focused;
 
         log::info!(
             "Window focus changed: {}",
@@ -27,14 +27,14 @@ impl WindowState {
         // zero-char selection that clears the system clipboard.
         if focused {
             let suppressed_recent_unfocused_click = self
-                .focus_click_suppressed_while_unfocused_at
+                .focus_state.focus_click_suppressed_while_unfocused_at
                 .is_some_and(|t| t.elapsed() <= std::time::Duration::from_millis(500));
 
-            self.focus_click_pending = !suppressed_recent_unfocused_click;
-            self.focus_click_suppressed_while_unfocused_at = None;
+            self.focus_state.focus_click_pending = !suppressed_recent_unfocused_click;
+            self.focus_state.focus_click_suppressed_while_unfocused_at = None;
         } else {
-            self.focus_click_pending = false;
-            self.focus_click_suppressed_while_unfocused_at = None;
+            self.focus_state.focus_click_pending = false;
+            self.focus_state.focus_click_suppressed_while_unfocused_at = None;
         }
 
         // Update renderer focus state for unfocused cursor styling
@@ -114,7 +114,7 @@ impl WindowState {
         }
 
         // Request a redraw when focus changes
-        self.needs_redraw = true;
+        self.focus_state.needs_redraw = true;
         self.request_redraw();
     }
 }

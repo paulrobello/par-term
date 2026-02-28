@@ -168,7 +168,7 @@ impl WindowState {
     /// 2. Applies shader-related config changes
     /// 3. Reinitializes shader watcher if shader paths changed
     pub(crate) fn check_config_reload(&mut self) {
-        let Some(watcher) = &self.config_watcher else {
+        let Some(watcher) = &self.watcher_state.config_watcher else {
             return;
         };
         let Some(_event) = watcher.try_recv() else {
@@ -256,7 +256,7 @@ impl WindowState {
                     }
                 }
 
-                self.needs_redraw = true;
+                self.focus_state.needs_redraw = true;
                 debug_info!("CONFIG", "Config reloaded successfully");
             }
             Err(e) => {
@@ -485,7 +485,7 @@ impl WindowState {
                     // Flush any pending agent text on status change.
                     self.overlay_ui.ai_inspector.chat.flush_agent_message();
                     self.overlay_ui.ai_inspector.agent_status = status;
-                    self.needs_redraw = true;
+                    self.focus_state.needs_redraw = true;
                 }
                 AgentMessage::SessionUpdate(update) => {
                     match &update {
@@ -529,7 +529,7 @@ impl WindowState {
                         _ => {}
                     }
                     self.overlay_ui.ai_inspector.chat.handle_update(update);
-                    self.needs_redraw = true;
+                    self.focus_state.needs_redraw = true;
                 }
                 AgentMessage::PermissionRequest {
                     request_id,
@@ -594,7 +594,7 @@ impl WindowState {
                         self.overlay_ui.ai_inspector.chat.add_system_message(format!(
                                 "Blocked screenshot request (`{description}`) because \"Allow Agent Screenshots\" is disabled in Settings > Assistant > Permissions."
                             ));
-                        self.needs_redraw = true;
+                        self.focus_state.needs_redraw = true;
                         continue;
                     }
                     self.overlay_ui
@@ -610,7 +610,7 @@ impl WindowState {
                                 .collect(),
                             resolved: false,
                         });
-                    self.needs_redraw = true;
+                    self.focus_state.needs_redraw = true;
                 }
                 AgentMessage::PromptStarted => {
                     self.agent_state.agent_skill_failure_detected = false;
@@ -619,12 +619,12 @@ impl WindowState {
                     if !self.agent_state.pending_send_handles.is_empty() {
                         self.agent_state.pending_send_handles.pop_front();
                     }
-                    self.needs_redraw = true;
+                    self.focus_state.needs_redraw = true;
                 }
                 AgentMessage::PromptComplete => {
                     saw_prompt_complete_this_tick = true;
                     self.overlay_ui.ai_inspector.chat.flush_agent_message();
-                    self.needs_redraw = true;
+                    self.focus_state.needs_redraw = true;
                 }
                 AgentMessage::ConfigUpdate { updates, reply } => {
                     pending_config_updates.push((updates, reply));
@@ -638,7 +638,7 @@ impl WindowState {
                         .ai_inspector
                         .chat
                         .add_auto_approved(description);
-                    self.needs_redraw = true;
+                    self.focus_state.needs_redraw = true;
                 }
             }
         }
@@ -649,7 +649,7 @@ impl WindowState {
                 self.config_changed_by_agent = true;
             }
             let _ = reply.send(result);
-            self.needs_redraw = true;
+            self.focus_state.needs_redraw = true;
         }
 
         // Track recoverable local backend tool failures during the current
@@ -721,7 +721,7 @@ impl WindowState {
                         .add_system_message(format!("Inline config_update fallback failed: {e}"));
                 }
             }
-            self.needs_redraw = true;
+            self.focus_state.needs_redraw = true;
         }
 
         // Detect other inline XML-style tool markup (we only auto-apply
@@ -743,7 +743,7 @@ impl WindowState {
                 self.overlay_ui.ai_inspector.chat.add_system_message(format!(
                     "Agent emitted inline tool markup (`{function_name}`) instead of a structured ACP tool call."
                 ));
-                self.needs_redraw = true;
+                self.focus_state.needs_redraw = true;
                 break;
             }
         }
@@ -890,7 +890,7 @@ impl WindowState {
                 }
             });
             self.agent_state.pending_send_handles.push_back(handle);
-            self.needs_redraw = true;
+            self.focus_state.needs_redraw = true;
         }
 
         // Auto-execute new CommandSuggestion messages when terminal access is enabled.
@@ -975,7 +975,7 @@ impl WindowState {
                             } else {
                                 "Auto-context sent command metadata to the agent.".to_string()
                             });
-                            self.needs_redraw = true;
+                            self.focus_state.needs_redraw = true;
                             let agent = agent.clone();
                             let content = vec![ContentBlock::Text { text: context }];
                             self.runtime.spawn(async move {

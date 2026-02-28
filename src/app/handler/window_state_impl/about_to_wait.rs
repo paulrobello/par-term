@@ -54,7 +54,7 @@ impl WindowState {
 
         // Check for tmux control mode notifications
         if self.check_tmux_notifications() {
-            self.needs_redraw = true;
+            self.focus_state.needs_redraw = true;
         }
 
         // Update window title with shell integration info (CWD, exit code)
@@ -65,7 +65,7 @@ impl WindowState {
 
         // Check for automatic profile switching based on hostname detection (OSC 7)
         if self.check_auto_profile_switch() {
-            self.needs_redraw = true;
+            self.focus_state.needs_redraw = true;
         }
 
         // --- POWER SAVING & SMART REDRAW LOGIC ---
@@ -78,7 +78,7 @@ impl WindowState {
 
         // Calculate frame interval based on focus state for power saving
         // When pause_refresh_on_blur is enabled and window is unfocused, use slower refresh rate
-        let frame_interval_ms = if self.config.pause_refresh_on_blur && !self.is_focused {
+        let frame_interval_ms = if self.config.pause_refresh_on_blur && !self.focus_state.is_focused {
             // Use unfocused FPS (e.g., 10 FPS = 100ms interval)
             1000 / self.config.unfocused_fps.max(1)
         } else {
@@ -89,7 +89,7 @@ impl WindowState {
 
         // Check if enough time has passed since last render for FPS throttling
         let time_since_last_render = self
-            .last_render_time
+            .focus_state.last_render_time
             .map(|t| now.duration_since(t))
             .unwrap_or(frame_interval); // If no last render, allow immediate render
         let can_render = time_since_last_render >= frame_interval;
@@ -113,13 +113,13 @@ impl WindowState {
 
             if cursor_hidden {
                 // Track when cursor was first hidden
-                if self.cursor_hidden_since.is_none() {
-                    self.cursor_hidden_since = Some(now);
+                if self.focus_state.cursor_hidden_since.is_none() {
+                    self.focus_state.cursor_hidden_since = Some(now);
                 }
 
                 // Check bypass conditions
                 let delay_expired = self
-                    .cursor_hidden_since
+                    .focus_state.cursor_hidden_since
                     .map(|t| {
                         now.duration_since(t)
                             >= std::time::Duration::from_millis(
@@ -129,16 +129,16 @@ impl WindowState {
                     .unwrap_or(false);
 
                 // Bypass for UI interactions (modals + resize overlay)
-                let any_ui_visible = self.any_modal_ui_visible() || self.resize_overlay_visible;
+                let any_ui_visible = self.any_modal_ui_visible() || self.overlay_state.resize_overlay_visible;
 
                 // Delay unless bypass conditions met
                 !delay_expired && !any_ui_visible
             } else {
                 // Cursor visible - clear tracking and allow render
-                if self.cursor_hidden_since.is_some() {
-                    self.cursor_hidden_since = None;
-                    self.flicker_pending_render = false;
-                    self.needs_redraw = true; // Render accumulated updates
+                if self.focus_state.cursor_hidden_since.is_some() {
+                    self.focus_state.cursor_hidden_since = None;
+                    self.focus_state.flicker_pending_render = false;
+                    self.focus_state.needs_redraw = true; // Render accumulated updates
                 }
                 false
             }
@@ -148,8 +148,8 @@ impl WindowState {
 
         // Schedule wake at delay expiry if delaying
         if should_delay_for_flicker {
-            self.flicker_pending_render = true;
-            if let Some(hidden_since) = self.cursor_hidden_since {
+            self.focus_state.flicker_pending_render = true;
+            if let Some(hidden_since) = self.focus_state.cursor_hidden_since {
                 let delay =
                     std::time::Duration::from_millis(self.config.reduce_flicker_delay_ms as u64);
                 let render_time = hidden_since + delay;
@@ -157,11 +157,11 @@ impl WindowState {
                     next_wake = render_time;
                 }
             }
-        } else if self.flicker_pending_render {
+        } else if self.focus_state.flicker_pending_render {
             // Delay ended - trigger accumulated render
-            self.flicker_pending_render = false;
+            self.focus_state.flicker_pending_render = false;
             if can_render {
-                self.needs_redraw = true;
+                self.focus_state.needs_redraw = true;
             }
         }
 
@@ -170,33 +170,33 @@ impl WindowState {
         // Uses a longer interval than flicker reduction for better throughput during bulk output.
         let should_delay_for_throughput = if self.config.maximize_throughput {
             // Initialize batch start time if not set
-            if self.throughput_batch_start.is_none() {
-                self.throughput_batch_start = Some(now);
+            if self.focus_state.throughput_batch_start.is_none() {
+                self.focus_state.throughput_batch_start = Some(now);
             }
 
             let interval =
                 std::time::Duration::from_millis(self.config.throughput_render_interval_ms as u64);
             let batch_start = self
-                .throughput_batch_start
+                .focus_state.throughput_batch_start
                 .expect("throughput_batch_start is Some: set to Some on the line above when None");
 
             // Check if interval has elapsed
             if now.duration_since(batch_start) >= interval {
-                self.throughput_batch_start = Some(now); // Reset for next batch
+                self.focus_state.throughput_batch_start = Some(now); // Reset for next batch
                 false // Allow render
             } else {
                 true // Delay render
             }
         } else {
             // Clear tracking when disabled
-            if self.throughput_batch_start.is_some() {
-                self.throughput_batch_start = None;
+            if self.focus_state.throughput_batch_start.is_some() {
+                self.focus_state.throughput_batch_start = None;
             }
             false
         };
 
         // Schedule wake for throughput mode
-        if should_delay_for_throughput && let Some(batch_start) = self.throughput_batch_start {
+        if should_delay_for_throughput && let Some(batch_start) = self.focus_state.throughput_batch_start {
             let interval =
                 std::time::Duration::from_millis(self.config.throughput_render_interval_ms as u64);
             let render_time = batch_start + interval;
@@ -211,7 +211,7 @@ impl WindowState {
         // 1. Cursor Blinking
         // Wake up exactly when the cursor needs to toggle visibility or fade.
         // Skip cursor blinking when unfocused with pause_refresh_on_blur to save power.
-        if self.config.cursor_blink && (self.is_focused || !self.config.pause_refresh_on_blur) {
+        if self.config.cursor_blink && (self.focus_state.is_focused || !self.config.pause_refresh_on_blur) {
             if self.cursor_anim.cursor_blink_timer.is_none() {
                 let blink_interval =
                     std::time::Duration::from_millis(self.config.cursor_blink_interval);
@@ -222,7 +222,7 @@ impl WindowState {
                 if now >= next_blink {
                     // Time to toggle: trigger redraw (if throttle allows) and schedule next phase
                     if can_render {
-                        self.needs_redraw = true;
+                        self.focus_state.needs_redraw = true;
                     }
                     let blink_interval =
                         std::time::Duration::from_millis(self.config.cursor_blink_interval);
@@ -239,7 +239,7 @@ impl WindowState {
         if let Some(tab) = self.tab_manager.active_tab() {
             if tab.scroll_state.animation_start.is_some() {
                 if can_render {
-                    self.needs_redraw = true;
+                    self.focus_state.needs_redraw = true;
                 }
                 let next_frame = now + frame_interval;
                 if next_frame < next_wake {
@@ -251,7 +251,7 @@ impl WindowState {
             // Maintain frame rate during the visual flash fade-out.
             if tab.bell.visual_flash.is_some() {
                 if can_render {
-                    self.needs_redraw = true;
+                    self.focus_state.needs_redraw = true;
                 }
                 let next_frame = now + frame_interval;
                 if next_frame < next_wake {
@@ -267,24 +267,24 @@ impl WindowState {
                 || tab.scroll_state.dragging)
                 && tab.mouse.button_pressed
             {
-                self.needs_redraw = true;
+                self.focus_state.needs_redraw = true;
             }
         }
 
         // 5. Resize Overlay
         // Check if the resize overlay should be hidden (timer expired).
-        if self.resize_overlay_visible
-            && let Some(hide_time) = self.resize_overlay_hide_time
+        if self.overlay_state.resize_overlay_visible
+            && let Some(hide_time) = self.overlay_state.resize_overlay_hide_time
         {
             if now >= hide_time {
                 // Hide the overlay
-                self.resize_overlay_visible = false;
-                self.resize_overlay_hide_time = None;
-                self.needs_redraw = true;
+                self.overlay_state.resize_overlay_visible = false;
+                self.overlay_state.resize_overlay_hide_time = None;
+                self.focus_state.needs_redraw = true;
             } else {
                 // Overlay still visible - request redraw and schedule wake
                 if can_render {
-                    self.needs_redraw = true;
+                    self.focus_state.needs_redraw = true;
                 }
                 if hide_time < next_wake {
                     next_wake = hide_time;
@@ -294,18 +294,18 @@ impl WindowState {
 
         // 5b. Toast Notification
         // Check if the toast notification should be hidden (timer expired).
-        if self.toast_message.is_some()
-            && let Some(hide_time) = self.toast_hide_time
+        if self.overlay_state.toast_message.is_some()
+            && let Some(hide_time) = self.overlay_state.toast_hide_time
         {
             if now >= hide_time {
                 // Hide the toast
-                self.toast_message = None;
-                self.toast_hide_time = None;
-                self.needs_redraw = true;
+                self.overlay_state.toast_message = None;
+                self.overlay_state.toast_hide_time = None;
+                self.focus_state.needs_redraw = true;
             } else {
                 // Toast still visible - request redraw and schedule wake
                 if can_render {
-                    self.needs_redraw = true;
+                    self.focus_state.needs_redraw = true;
                 }
                 if hide_time < next_wake {
                     next_wake = hide_time;
@@ -315,13 +315,13 @@ impl WindowState {
 
         // 5c. Pane Identification Overlay
         // Check if the pane index overlay should be hidden (timer expired).
-        if let Some(hide_time) = self.pane_identify_hide_time {
+        if let Some(hide_time) = self.overlay_state.pane_identify_hide_time {
             if now >= hide_time {
-                self.pane_identify_hide_time = None;
-                self.needs_redraw = true;
+                self.overlay_state.pane_identify_hide_time = None;
+                self.focus_state.needs_redraw = true;
             } else {
                 if can_render {
-                    self.needs_redraw = true;
+                    self.focus_state.needs_redraw = true;
                 }
                 if hide_time < next_wake {
                     next_wake = hide_time;
@@ -330,10 +330,10 @@ impl WindowState {
         }
 
         // 5b. Session undo expiry: prune closed tab metadata that has timed out
-        if !self.closed_tabs.is_empty() && self.config.session_undo_timeout_secs > 0 {
+        if !self.overlay_state.closed_tabs.is_empty() && self.config.session_undo_timeout_secs > 0 {
             let timeout =
                 std::time::Duration::from_secs(self.config.session_undo_timeout_secs as u64);
-            self.closed_tabs
+            self.overlay_state.closed_tabs
                 .retain(|info| now.duration_since(info.closed_at) < timeout);
         }
 
@@ -344,11 +344,11 @@ impl WindowState {
             && renderer.needs_continuous_render()
         {
             if can_render {
-                self.needs_redraw = true;
+                self.focus_state.needs_redraw = true;
             }
             // Schedule next frame at the appropriate interval
             let next_frame = self
-                .last_render_time
+                .focus_state.last_render_time
                 .map(|t| t + frame_interval)
                 .unwrap_or(now);
             // Ensure we don't schedule in the past
@@ -366,7 +366,7 @@ impl WindowState {
         // Force continuous redraws when shader install dialog is visible (for spinner animation)
         // and when installation is in progress (to check for completion)
         if self.overlay_ui.shader_install_ui.visible {
-            self.needs_redraw = true;
+            self.focus_state.needs_redraw = true;
             // Schedule frequent redraws for smooth spinner animation
             let next_frame = now + std::time::Duration::from_millis(16); // ~60fps
             if next_frame < next_wake {
@@ -381,7 +381,7 @@ impl WindowState {
         let has_active_file_transfers = !self.file_transfer_state.active_uploads.is_empty()
             || !self.file_transfer_state.recent_transfers.is_empty();
         if has_active_file_transfers {
-            self.needs_redraw = true;
+            self.focus_state.needs_redraw = true;
             // Schedule 1 FPS rendering for progress bar updates
             let next_frame = now + std::time::Duration::from_secs(1);
             if next_frame < next_wake {
@@ -402,12 +402,12 @@ impl WindowState {
         // Respect combined delay (throughput mode OR flicker reduction),
         // but bypass delays for active file transfers that need UI feedback.
         let mut redraw_requested = false;
-        if self.needs_redraw
+        if self.focus_state.needs_redraw
             && (!should_delay_render || has_active_file_transfers)
             && let Some(window) = &self.window
         {
             window.request_redraw();
-            self.needs_redraw = false;
+            self.focus_state.needs_redraw = false;
             redraw_requested = true;
         }
 
@@ -425,10 +425,10 @@ impl WindowState {
             // Important: keep this independent from max_fps. Using frame interval here
             // causes idle focused windows to wake at render cadence (e.g., 60Hz), which
             // burns CPU even when nothing is changing.
-            if !self.needs_redraw && !redraw_requested {
+            if !self.focus_state.needs_redraw && !redraw_requested {
                 const FOCUSED_IDLE_SPIN_SLEEP_MS: u64 = 50;
                 const UNFOCUSED_IDLE_SPIN_SLEEP_MS: u64 = 100;
-                let max_idle_spin_sleep = if self.is_focused {
+                let max_idle_spin_sleep = if self.focus_state.is_focused {
                     std::time::Duration::from_millis(FOCUSED_IDLE_SPIN_SLEEP_MS)
                 } else {
                     std::time::Duration::from_millis(UNFOCUSED_IDLE_SPIN_SLEEP_MS)

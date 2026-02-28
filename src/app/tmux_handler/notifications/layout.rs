@@ -322,7 +322,7 @@ impl WindowState {
             }
         }
 
-        self.needs_redraw = true;
+        self.focus_state.needs_redraw = true;
     }
 
     /// Case 2: Some panes closed — remove them from native tree, update layout.
@@ -413,7 +413,7 @@ impl WindowState {
             self.tmux_state.tmux_pane_to_native_pane
         );
 
-        self.needs_redraw = true;
+        self.focus_state.needs_redraw = true;
         self.request_redraw();
     }
 
@@ -487,7 +487,7 @@ impl WindowState {
             self.tmux_state.tmux_pane_to_native_pane
         );
 
-        self.needs_redraw = true;
+        self.focus_state.needs_redraw = true;
         self.request_redraw();
     }
 
@@ -546,7 +546,7 @@ impl WindowState {
                     }
 
                     self.request_pane_refresh(pane_ids);
-                    self.needs_redraw = true;
+                    self.focus_state.needs_redraw = true;
                 }
                 Err(e) => {
                     crate::debug_error!(

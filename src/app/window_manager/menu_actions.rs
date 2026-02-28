@@ -253,7 +253,7 @@ impl WindowManager {
                     && let Some(window_state) = self.windows.get_mut(&window_id)
                 {
                     window_state.overlay_ui.clipboard_history_ui.toggle();
-                    window_state.needs_redraw = true;
+                    window_state.focus_state.needs_redraw = true;
                 }
             }
             MenuAction::ToggleFullscreen => {
@@ -431,7 +431,7 @@ impl WindowManager {
                         .overlay_ui
                         .remote_shell_install_ui
                         .show_dialog();
-                    window_state.needs_redraw = true;
+                    window_state.focus_state.needs_redraw = true;
                 }
             }
         }

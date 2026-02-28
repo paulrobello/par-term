@@ -259,29 +259,29 @@ impl ApplicationHandler for WindowManager {
         let mut config_changed_by_agent = false;
 
         for window_state in self.windows.values_mut() {
-            if window_state.open_settings_window_requested {
-                window_state.open_settings_window_requested = false;
+            if window_state.overlay_state.open_settings_window_requested {
+                window_state.overlay_state.open_settings_window_requested = false;
                 open_settings = true;
             }
-            if window_state.open_settings_profiles_tab {
-                window_state.open_settings_profiles_tab = false;
+            if window_state.overlay_state.open_settings_profiles_tab {
+                window_state.overlay_state.open_settings_profiles_tab = false;
                 open_settings_profiles_tab = true;
             }
 
             // Check for arrangement restore request from keybinding
-            if let Some(name) = window_state.pending_arrangement_restore.take() {
+            if let Some(name) = window_state.overlay_state.pending_arrangement_restore.take() {
                 arrangement_restore_name = Some(name);
             }
 
             // Check for dynamic profile reload request from keybinding
-            if window_state.reload_dynamic_profiles_requested {
-                window_state.reload_dynamic_profiles_requested = false;
+            if window_state.overlay_state.reload_dynamic_profiles_requested {
+                window_state.overlay_state.reload_dynamic_profiles_requested = false;
                 reload_dynamic_profiles = true;
             }
 
             // Check if profiles menu needs updating (from profile modal save)
-            if window_state.profiles_menu_needs_update {
-                window_state.profiles_menu_needs_update = false;
+            if window_state.overlay_state.profiles_menu_needs_update {
+                window_state.overlay_state.profiles_menu_needs_update = false;
                 // Get a copy of the profiles for menu update
                 profiles_to_update = Some(window_state.overlay_ui.profile_manager.to_vec());
             }
@@ -334,7 +334,7 @@ impl ApplicationHandler for WindowManager {
                     &update.url,
                     &update.conflict_resolution,
                 );
-                window_state.profiles_menu_needs_update = true;
+                window_state.overlay_state.profiles_menu_needs_update = true;
             }
 
             log::info!(

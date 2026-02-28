@@ -119,7 +119,7 @@ impl WindowState {
                     self.overlay_ui
                         .quit_confirmation_ui
                         .show_confirmation(tab_count);
-                    self.needs_redraw = true;
+                    self.focus_state.needs_redraw = true;
                     if let Some(window) = &self.window {
                         window.request_redraw();
                     }
@@ -258,11 +258,11 @@ impl WindowState {
                     }
 
                     // Update resize overlay state
-                    self.resize_dimensions =
+                    self.overlay_state.resize_dimensions =
                         Some((physical_size.width, physical_size.height, cols, rows));
-                    self.resize_overlay_visible = true;
+                    self.overlay_state.resize_overlay_visible = true;
                     // Hide overlay 1 second after resize stops
-                    self.resize_overlay_hide_time =
+                    self.overlay_state.resize_overlay_hide_time =
                         Some(std::time::Instant::now() + std::time::Duration::from_secs(1));
 
                     // Notify tmux of the new size if gateway mode is active
@@ -301,14 +301,14 @@ impl WindowState {
                 // we're still unfocused as a focus-click too, then avoid double-arming the
                 // later focus event path.
                 let is_focus_click_press = state == ElementState::Pressed
-                    && (self.focus_click_pending || !self.is_focused);
+                    && (self.focus_state.focus_click_pending || !self.focus_state.is_focused);
                 if is_focus_click_press {
-                    self.focus_click_pending = false;
-                    if !self.is_focused {
-                        self.focus_click_suppressed_while_unfocused_at =
+                    self.focus_state.focus_click_pending = false;
+                    if !self.focus_state.is_focused {
+                        self.focus_state.focus_click_suppressed_while_unfocused_at =
                             Some(std::time::Instant::now());
                     }
-                    self.ui_consumed_mouse_press = true; // Also suppress the release
+                    self.focus_state.ui_consumed_mouse_press = true; // Also suppress the release
                     if let Some(window) = &self.window {
                         window.request_redraw();
                     }
@@ -319,20 +319,20 @@ impl WindowState {
 
                     if state == ElementState::Pressed {
                         if ui_wants_pointer {
-                            self.ui_consumed_mouse_press = true;
+                            self.focus_state.ui_consumed_mouse_press = true;
                             if let Some(window) = &self.window {
                                 window.request_redraw();
                             }
                         } else {
-                            self.ui_consumed_mouse_press = false;
+                            self.focus_state.ui_consumed_mouse_press = false;
                             self.begin_clipboard_image_click_guard(button, state);
                             self.handle_mouse_button(button, state);
                             self.finish_clipboard_image_click_guard(button, state);
                         }
                     } else {
                         // Release: block if we consumed the press OR if UI wants pointer
-                        if self.ui_consumed_mouse_press || ui_wants_pointer {
-                            self.ui_consumed_mouse_press = false;
+                        if self.focus_state.ui_consumed_mouse_press || ui_wants_pointer {
+                            self.focus_state.ui_consumed_mouse_press = false;
                             if let Some(window) = &self.window {
                                 window.request_redraw();
                             }
@@ -428,7 +428,7 @@ impl WindowState {
                     if let Err(e) = self.save_config_debounced() {
                         log::error!("Failed to save config after theme change: {}", e);
                     }
-                    self.needs_redraw = true;
+                    self.focus_state.needs_redraw = true;
                     self.request_redraw();
                 }
             }

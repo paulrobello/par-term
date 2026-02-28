@@ -305,8 +305,8 @@ impl WindowManager {
                 let install_type = self.detect_installation_type();
                 if let Some(ws) = self.windows.get_mut(&window_id) {
                     ws.status_bar_ui.update_available_version = update_version;
-                    ws.last_update_result = update_result_clone;
-                    ws.installation_type = install_type;
+                    ws.update_state.last_result = update_result_clone;
+                    ws.update_state.installation_type = install_type;
                 }
 
                 // Set start time on first window creation (for CLI timers)
@@ -724,8 +724,8 @@ impl WindowManager {
                 let install_type = self.detect_installation_type();
                 if let Some(ws) = self.windows.get_mut(&window_id) {
                     ws.status_bar_ui.update_available_version = update_version;
-                    ws.last_update_result = update_result_clone;
-                    ws.installation_type = install_type;
+                    ws.update_state.last_result = update_result_clone;
+                    ws.update_state.installation_type = install_type;
                 }
 
                 if self.start_time.is_none() {

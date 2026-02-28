@@ -136,7 +136,7 @@ impl WindowState {
                 // Play new tab alert sound if configured
                 self.play_alert_sound(crate::config::AlertEvent::NewTab);
 
-                self.needs_redraw = true;
+                self.focus_state.needs_redraw = true;
                 self.request_redraw();
             }
             Err(e) => {
@@ -162,7 +162,7 @@ impl WindowState {
             self.overlay_ui
                 .close_confirmation_ui
                 .show_for_tab(tab_id, &tab_title, &command_name);
-            self.needs_redraw = true;
+            self.focus_state.needs_redraw = true;
             self.request_redraw();
             return false; // Don't close yet, waiting for confirmation
         }
@@ -207,9 +207,9 @@ impl WindowState {
                             custom_color,
                             hidden_tab: Some(hidden_tab),
                         };
-                        self.closed_tabs.push_front(info);
-                        while self.closed_tabs.len() > self.config.session_undo_max_entries {
-                            self.closed_tabs.pop_back();
+                        self.overlay_state.closed_tabs.push_front(info);
+                        while self.overlay_state.closed_tabs.len() > self.config.session_undo_max_entries {
+                            self.overlay_state.closed_tabs.pop_back();
                         }
                         is_empty
                     } else {
@@ -238,9 +238,9 @@ impl WindowState {
                         custom_color: tab.custom_color,
                         hidden_tab: None,
                     };
-                    self.closed_tabs.push_front(info);
-                    while self.closed_tabs.len() > self.config.session_undo_max_entries {
-                        self.closed_tabs.pop_back();
+                    self.overlay_state.closed_tabs.push_front(info);
+                    while self.overlay_state.closed_tabs.len() > self.config.session_undo_max_entries {
+                        self.overlay_state.closed_tabs.pop_back();
                     }
                 }
 
@@ -309,7 +309,7 @@ impl WindowState {
                 }
             }
 
-            self.needs_redraw = true;
+            self.focus_state.needs_redraw = true;
             self.request_redraw();
             is_last
         } else {
@@ -324,11 +324,11 @@ impl WindowState {
             let timeout =
                 std::time::Duration::from_secs(self.config.session_undo_timeout_secs as u64);
             let now = std::time::Instant::now();
-            self.closed_tabs
+            self.overlay_state.closed_tabs
                 .retain(|info| now.duration_since(info.closed_at) < timeout);
         }
 
-        let info = match self.closed_tabs.pop_front() {
+        let info = match self.overlay_state.closed_tabs.pop_front() {
             Some(info) => info,
             None => {
                 self.show_toast("No recently closed tabs");
@@ -344,7 +344,7 @@ impl WindowState {
             );
             self.show_toast("Cannot reopen tab: max tabs limit reached");
             // Put the info back so the user can try again after closing another tab
-            self.closed_tabs.push_front(info);
+            self.overlay_state.closed_tabs.push_front(info);
             return;
         }
 
@@ -390,7 +390,7 @@ impl WindowState {
 
             self.play_alert_sound(crate::config::AlertEvent::NewTab);
             self.show_toast("Tab restored (session preserved)");
-            self.needs_redraw = true;
+            self.focus_state.needs_redraw = true;
             self.request_redraw();
         } else {
             // Metadata-only: create a new tab from CWD (existing behavior)
@@ -457,7 +457,7 @@ impl WindowState {
 
                     self.play_alert_sound(crate::config::AlertEvent::NewTab);
                     self.show_toast("Tab restored");
-                    self.needs_redraw = true;
+                    self.focus_state.needs_redraw = true;
                     self.request_redraw();
                 }
                 Err(e) => {
@@ -534,14 +534,14 @@ impl WindowState {
     /// Move current tab left
     pub fn move_tab_left(&mut self) {
         self.tab_manager.move_active_tab_left();
-        self.needs_redraw = true;
+        self.focus_state.needs_redraw = true;
         self.request_redraw();
     }
 
     /// Move current tab right
     pub fn move_tab_right(&mut self) {
         self.tab_manager.move_active_tab_right();
-        self.needs_redraw = true;
+        self.focus_state.needs_redraw = true;
         self.request_redraw();
     }
 
@@ -567,7 +567,7 @@ impl WindowState {
                         self.config.inactive_tab_fps,
                     );
                 }
-                self.needs_redraw = true;
+                self.focus_state.needs_redraw = true;
                 self.request_redraw();
             }
             Ok(None) => {
@@ -600,7 +600,7 @@ impl WindowState {
                         self.config.inactive_tab_fps,
                     );
                 }
-                self.needs_redraw = true;
+                self.focus_state.needs_redraw = true;
                 self.request_redraw();
             }
             Ok(None) => {

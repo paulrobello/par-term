@@ -94,7 +94,7 @@ impl WindowState {
                 // Update badge with profile information
                 self.apply_profile_badge(&profile);
 
-                self.needs_redraw = true;
+                self.focus_state.needs_redraw = true;
                 self.request_redraw();
             }
             Err(e) => {
@@ -167,7 +167,7 @@ impl WindowState {
     /// Toggle the profile drawer visibility
     pub fn toggle_profile_drawer(&mut self) {
         self.overlay_ui.profile_drawer_ui.toggle();
-        self.needs_redraw = true;
+        self.focus_state.needs_redraw = true;
         self.request_redraw();
     }
 
@@ -183,7 +183,7 @@ impl WindowState {
         self.overlay_ui.profile_manager = ProfileManager::from_profiles(profiles);
         self.save_profiles();
         // Signal that the profiles menu needs to be updated
-        self.profiles_menu_needs_update = true;
+        self.overlay_state.profiles_menu_needs_update = true;
     }
 
     /// Check for automatic profile switching based on hostname, SSH command, and directory detection

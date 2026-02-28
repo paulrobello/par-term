@@ -12,7 +12,7 @@ impl WindowState {
                 && let Key::Named(NamedKey::Escape) = &event.logical_key
             {
                 self.overlay_ui.search_ui.close();
-                self.needs_redraw = true;
+                self.focus_state.needs_redraw = true;
                 return true;
             }
             // While search is visible, let egui handle most keys
@@ -44,7 +44,7 @@ impl WindowState {
                 self.overlay_ui
                     .search_ui
                     .init_from_config(self.config.search_case_sensitive, self.config.search_regex);
-                self.needs_redraw = true;
+                self.focus_state.needs_redraw = true;
                 log::debug!("Search UI opened");
                 return true;
             }

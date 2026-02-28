@@ -28,7 +28,8 @@ use crate::terminal::TerminalManager;
 pub use manager::TabManager;
 use par_term_emu_core_rust::coprocess::CoprocessId;
 pub(crate) use setup::{
-    apply_login_shell_flag, build_shell_env, configure_terminal_from_config, get_shell_command,
+    apply_login_shell_flag, build_shell_env, configure_terminal_from_config, create_base_terminal,
+    get_shell_command,
 };
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
@@ -276,16 +277,17 @@ impl Tab {
     /// * `params` — Constructor-specific values (title, working_directory, etc.)
     /// * `terminal` — Fully configured `TerminalManager` with PTY already spawned
     /// * `config` — Global config (used for coprocesses, session logging, prettifier)
-    /// * `trigger_security` — Pre-computed security map from `terminal.sync_triggers()`
     /// * `session_title` — Human-readable title written to the session log file header
     fn new_internal(
         params: TabInitParams,
         terminal: TerminalManager,
         config: &Config,
-        trigger_security: std::collections::HashMap<u64, bool>,
         session_title: String,
     ) -> anyhow::Result<Self> {
         let cols = params.cols;
+
+        // Sync triggers from config into the core TriggerRegistry
+        let trigger_security = terminal.sync_triggers(&config.triggers);
 
         // Auto-start configured coprocesses via the PtySession's built-in manager
         let mut coprocess_ids = Vec::with_capacity(config.coprocesses.len());
@@ -459,15 +461,8 @@ impl Tab {
         working_directory: Option<String>,
         grid_size: Option<(usize, usize)>,
     ) -> anyhow::Result<Self> {
-        // Use provided grid size if available, otherwise fall back to config
-        let (cols, rows) = grid_size.unwrap_or((config.cols, config.rows));
-
-        // Create terminal with scrollback from config
-        let mut terminal =
-            TerminalManager::new_with_scrollback(cols, rows, config.scrollback_lines)?;
-
-        // Apply common terminal configuration
-        configure_terminal_from_config(&mut terminal, config);
+        // Create and configure terminal
+        let (mut terminal, cols, _) = create_base_terminal(config, grid_size)?;
 
         // Determine working directory:
         // 1. If explicitly provided (e.g., from tab_inherit_cwd), use that
@@ -490,9 +485,6 @@ impl Tab {
             shell_env.as_ref(),
         )?;
 
-        // Sync triggers from config into the core TriggerRegistry
-        let trigger_security = terminal.sync_triggers(&config.triggers);
-
         // Generate initial title based on current tab count, not unique ID
         let title = format!("Tab {}", tab_number);
 
@@ -508,7 +500,6 @@ impl Tab {
             },
             terminal,
             config,
-            trigger_security,
             format!("Tab {}", tab_number),
         )
     }
@@ -544,15 +535,8 @@ impl Tab {
         profile: &Profile,
         grid_size: Option<(usize, usize)>,
     ) -> anyhow::Result<Self> {
-        // Use provided grid size if available, otherwise fall back to config
-        let (cols, rows) = grid_size.unwrap_or((config.cols, config.rows));
-
-        // Create terminal with scrollback from config
-        let mut terminal =
-            TerminalManager::new_with_scrollback(cols, rows, config.scrollback_lines)?;
-
-        // Apply common terminal configuration
-        configure_terminal_from_config(&mut terminal, config);
+        // Create and configure terminal
+        let (mut terminal, cols, _) = create_base_terminal(config, grid_size)?;
 
         // Determine working directory: profile overrides config startup directory
         let effective_startup_dir = config.get_effective_startup_directory();
@@ -609,9 +593,6 @@ impl Tab {
             shell_env.as_ref(),
         )?;
 
-        // Sync triggers from config into the core TriggerRegistry
-        let trigger_security = terminal.sync_triggers(&config.triggers);
-
         // Generate title: use profile tab_name or profile name
         let title = profile
             .tab_name
@@ -638,7 +619,6 @@ impl Tab {
             },
             terminal,
             config,
-            trigger_security,
             session_title,
         )
     }

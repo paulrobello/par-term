@@ -12,19 +12,19 @@ impl WindowState {
                 match &event.logical_key {
                     Key::Named(NamedKey::Escape) => {
                         self.overlay_ui.command_history_ui.close();
-                        self.needs_redraw = true;
+                        self.focus_state.needs_redraw = true;
                         return true;
                     }
                     Key::Named(NamedKey::ArrowUp) => {
                         self.overlay_ui.command_history_ui.select_previous();
-                        self.needs_redraw = true;
+                        self.focus_state.needs_redraw = true;
                         return true;
                     }
                     Key::Named(NamedKey::ArrowDown) => {
                         self.overlay_ui
                             .command_history_ui
                             .select_next(self.overlay_ui.command_history.len());
-                        self.needs_redraw = true;
+                        self.focus_state.needs_redraw = true;
                         return true;
                     }
                     Key::Named(NamedKey::Enter) => {
@@ -34,7 +34,7 @@ impl WindowState {
                             self.overlay_ui.command_history_ui.close();
                             self.paste_text(&command);
                         }
-                        self.needs_redraw = true;
+                        self.focus_state.needs_redraw = true;
                         return true;
                     }
                     _ => {}
@@ -70,7 +70,7 @@ impl WindowState {
             .command_history_ui
             .update_entries(self.overlay_ui.command_history.entries());
         self.overlay_ui.command_history_ui.toggle();
-        self.needs_redraw = true;
+        self.focus_state.needs_redraw = true;
         log::debug!(
             "Command history UI toggled: {}",
             self.overlay_ui.command_history_ui.visible

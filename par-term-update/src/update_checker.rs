@@ -84,17 +84,17 @@ impl UpdateChecker {
     /// Check if it's time to perform an update check based on config
     pub fn should_check(&self, config: &Config) -> bool {
         // Never check if disabled
-        if config.update_check_frequency == UpdateCheckFrequency::Never {
+        if config.updates.update_check_frequency == UpdateCheckFrequency::Never {
             return false;
         }
 
         // Get duration since last check based on config
-        let Some(check_interval_secs) = config.update_check_frequency.as_seconds() else {
+        let Some(check_interval_secs) = config.updates.update_check_frequency.as_seconds() else {
             return false;
         };
 
         // Check if we have a last check timestamp
-        let Some(ref last_check_str) = config.last_update_check else {
+        let Some(ref last_check_str) = config.updates.last_update_check else {
             // Never checked before, should check
             return true;
         };
@@ -128,7 +128,7 @@ impl UpdateChecker {
     /// (to save the new last_update_check timestamp).
     pub fn check_now(&self, config: &Config, force: bool) -> (UpdateCheckResult, bool) {
         // Check if disabled
-        if config.update_check_frequency == UpdateCheckFrequency::Never && !force {
+        if config.updates.update_check_frequency == UpdateCheckFrequency::Never && !force {
             return (UpdateCheckResult::Disabled, false);
         }
 
@@ -207,7 +207,7 @@ impl UpdateChecker {
         // Compare versions
         if latest_version > current_version {
             // Check if user skipped this version
-            if let Some(ref skipped) = config.skipped_version
+            if let Some(ref skipped) = config.updates.skipped_version
                 && (skipped == version_str || skipped == &release_info.version)
             {
                 return UpdateCheckResult::UpToDate;
@@ -348,40 +348,34 @@ mod tests {
     #[test]
     fn test_should_check_never() {
         let checker = UpdateChecker::new("0.0.0");
-        let config = Config {
-            update_check_frequency: UpdateCheckFrequency::Never,
-            ..Default::default()
-        };
+        let mut config = Config::default();
+        config.updates.update_check_frequency = UpdateCheckFrequency::Never;
         assert!(!checker.should_check(&config));
     }
 
     #[test]
     fn test_should_check_no_previous() {
         let checker = UpdateChecker::new("0.0.0");
-        let config = Config {
-            update_check_frequency: UpdateCheckFrequency::Weekly,
-            last_update_check: None,
-            ..Default::default()
-        };
+        let mut config = Config::default();
+        config.updates.update_check_frequency = UpdateCheckFrequency::Weekly;
+        config.updates.last_update_check = None;
         assert!(checker.should_check(&config));
     }
 
     #[test]
     fn test_should_check_time_elapsed() {
         let checker = UpdateChecker::new("0.0.0");
-        let mut config = Config {
-            update_check_frequency: UpdateCheckFrequency::Daily,
-            ..Default::default()
-        };
+        let mut config = Config::default();
+        config.updates.update_check_frequency = UpdateCheckFrequency::Daily;
 
         // Set last check to 2 days ago
         let two_days_ago = Utc::now() - chrono::Duration::days(2);
-        config.last_update_check = Some(two_days_ago.to_rfc3339());
+        config.updates.last_update_check = Some(two_days_ago.to_rfc3339());
         assert!(checker.should_check(&config));
 
         // Set last check to 1 hour ago
         let one_hour_ago = Utc::now() - chrono::Duration::hours(1);
-        config.last_update_check = Some(one_hour_ago.to_rfc3339());
+        config.updates.last_update_check = Some(one_hour_ago.to_rfc3339());
         assert!(!checker.should_check(&config));
     }
 

@@ -24,7 +24,7 @@ impl WindowState {
         match crate::config::watcher::ConfigWatcher::new(&config_path, 500) {
             Ok(watcher) => {
                 debug_info!("CONFIG", "Config watcher initialized");
-                self.config_watcher = Some(watcher);
+                self.watcher_state.config_watcher = Some(watcher);
             }
             Err(e) => {
                 debug_info!("CONFIG", "Failed to initialize config watcher: {}", e);
@@ -50,7 +50,7 @@ impl WindowState {
         match crate::config::watcher::ConfigWatcher::new(&update_path, 200) {
             Ok(watcher) => {
                 debug_info!("CONFIG", "Config-update watcher initialized");
-                self.config_update_watcher = Some(watcher);
+                self.watcher_state.config_update_watcher = Some(watcher);
             }
             Err(e) => {
                 debug_info!(
@@ -88,7 +88,7 @@ impl WindowState {
         match crate::config::watcher::ConfigWatcher::new(&request_path, 100) {
             Ok(watcher) => {
                 debug_info!("CONFIG", "Screenshot-request watcher initialized");
-                self.screenshot_request_watcher = Some(watcher);
+                self.watcher_state.screenshot_request_watcher = Some(watcher);
             }
             Err(e) => {
                 debug_info!(
@@ -105,7 +105,7 @@ impl WindowState {
     /// When the MCP server writes `.config-update.json`, this reads it,
     /// applies the updates in-memory, saves to disk, and removes the file.
     pub(crate) fn check_config_update_file(&mut self) {
-        let Some(watcher) = &self.config_update_watcher else {
+        let Some(watcher) = &self.watcher_state.config_update_watcher else {
             return;
         };
         if watcher.try_recv().is_none() {
@@ -135,7 +135,7 @@ impl WindowState {
                 } else {
                     self.config_changed_by_agent = true;
                 }
-                self.needs_redraw = true;
+                self.focus_state.needs_redraw = true;
             }
             Err(e) => {
                 log::error!("CONFIG: invalid JSON in config-update file: {e}");
@@ -152,7 +152,7 @@ impl WindowState {
     /// active terminal renderer output and writes a response to
     /// `.screenshot-response.json`.
     pub(crate) fn check_screenshot_request_file(&mut self) {
-        let Some(watcher) = &self.screenshot_request_watcher else {
+        let Some(watcher) = &self.watcher_state.screenshot_request_watcher else {
             return;
         };
         if watcher.try_recv().is_none() {

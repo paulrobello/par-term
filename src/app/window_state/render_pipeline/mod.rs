@@ -412,7 +412,7 @@ impl WindowState {
 
             // Collect pane bounds for identify overlay (before egui borrow)
             let pane_identify_bounds: Vec<(usize, crate::pane::PaneBounds)> =
-                if self.pane_identify_hide_time.is_some() {
+                if self.overlay_state.pane_identify_hide_time.is_some() {
                     self.tab_manager
                         .active_tab()
                         .and_then(|tab| tab.pane_manager())
@@ -461,8 +461,8 @@ impl WindowState {
                     // Resize overlay (centered)
                     egui_overlays::render_resize_overlay(
                         ctx,
-                        self.resize_overlay_visible,
-                        self.resize_dimensions,
+                        self.overlay_state.resize_overlay_visible,
+                        self.overlay_state.resize_dimensions,
                     );
 
                     // Copy mode status bar overlay (bottom-left)
@@ -492,7 +492,7 @@ impl WindowState {
                     // Toast notification (top-center)
                     egui_overlays::render_toast_overlay(
                         ctx,
-                        self.toast_message.as_deref(),
+                        self.overlay_state.toast_message.as_deref(),
                     );
 
                     // Scrollbar mark tooltip (near mouse pointer)
@@ -531,7 +531,7 @@ impl WindowState {
                         if status_bar_action
                             == Some(crate::status_bar::StatusBarAction::ShowUpdateDialog)
                         {
-                            self.show_update_dialog = true;
+                            self.update_state.show_dialog = true;
                         }
                     }
 
@@ -580,59 +580,59 @@ impl WindowState {
                     actions.ssh_connect = self.overlay_ui.ssh_connect_ui.show(ctx);
 
                     // Render update dialog overlay
-                    if self.show_update_dialog {
+                    if self.update_state.show_dialog {
                         // Poll for update install completion
-                        if let Some(ref rx) = self.update_install_receiver
+                        if let Some(ref rx) = self.update_state.install_receiver
                             && let Ok(result) = rx.try_recv()
                         {
                             match result {
                                 Ok(update_result) => {
-                                    self.update_install_status = Some(format!(
+                                    self.update_state.install_status = Some(format!(
                                         "Updated to v{}! Restart par-term to use the new version.",
                                         update_result.new_version
                                     ));
-                                    self.update_installing = false;
+                                    self.update_state.installing = false;
                                     self.status_bar_ui.update_available_version = None;
                                 }
                                 Err(e) => {
-                                    self.update_install_status =
+                                    self.update_state.install_status =
                                         Some(format!("Update failed: {}", e));
-                                    self.update_installing = false;
+                                    self.update_state.installing = false;
                                 }
                             }
-                            self.update_install_receiver = None;
+                            self.update_state.install_receiver = None;
                         }
 
-                        if let Some(ref update_result) = self.last_update_result {
+                        if let Some(ref update_result) = self.update_state.last_result {
                             let dialog_action = crate::update_dialog::render(
                                 ctx,
                                 update_result,
                                 env!("CARGO_PKG_VERSION"),
-                                self.installation_type,
-                                self.update_installing,
-                                self.update_install_status.as_deref(),
+                                self.update_state.installation_type,
+                                self.update_state.installing,
+                                self.update_state.install_status.as_deref(),
                             );
                             match dialog_action {
                                 crate::update_dialog::UpdateDialogAction::Dismiss => {
-                                    if !self.update_installing {
-                                        self.show_update_dialog = false;
-                                        self.update_install_status = None;
+                                    if !self.update_state.installing {
+                                        self.update_state.show_dialog = false;
+                                        self.update_state.install_status = None;
                                     }
                                 }
                                 crate::update_dialog::UpdateDialogAction::SkipVersion(v) => {
-                                    self.config.skipped_version = Some(v);
-                                    self.show_update_dialog = false;
+                                    self.config.updates.skipped_version = Some(v);
+                                    self.update_state.show_dialog = false;
                                     self.status_bar_ui.update_available_version = None;
-                                    self.update_install_status = None;
+                                    self.update_state.install_status = None;
                                     actions.save_config = true;
                                 }
                                 crate::update_dialog::UpdateDialogAction::InstallUpdate(v) => {
-                                    if !self.update_installing {
-                                        self.update_installing = true;
-                                        self.update_install_status =
+                                    if !self.update_state.installing {
+                                        self.update_state.installing = true;
+                                        self.update_state.install_status =
                                             Some("Downloading update...".to_string());
                                         let (tx, rx) = std::sync::mpsc::channel();
-                                        self.update_install_receiver = Some(rx);
+                                        self.update_state.install_receiver = Some(rx);
                                         let version = v.clone();
                                         let current_version = crate::VERSION.to_string();
                                         std::thread::spawn(move || {
@@ -647,7 +647,7 @@ impl WindowState {
                             }
                         } else {
                             // No update result, close dialog
-                            self.show_update_dialog = false;
+                            self.update_state.show_dialog = false;
                         }
                     }
 

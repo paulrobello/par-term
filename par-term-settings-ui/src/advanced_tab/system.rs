@@ -72,7 +72,7 @@ pub(super) fn show_updates_section(
         ui.horizontal(|ui| {
             ui.label("Check for updates:");
 
-            let current = settings.config.update_check_frequency;
+            let current = settings.config.updates.update_check_frequency;
             egui::ComboBox::from_id_salt("advanced_update_check_frequency")
                 .selected_text(current.display_name())
                 .show_ui(ui, |ui| {
@@ -85,7 +85,7 @@ pub(super) fn show_updates_section(
                     ] {
                         if ui
                             .selectable_value(
-                                &mut settings.config.update_check_frequency,
+                                &mut settings.config.updates.update_check_frequency,
                                 freq,
                                 freq.display_name(),
                             )
@@ -98,14 +98,14 @@ pub(super) fn show_updates_section(
                 });
         });
 
-        if let Some(ref last_check) = settings.config.last_update_check {
+        if let Some(ref last_check) = settings.config.updates.last_update_check {
             ui.horizontal(|ui| {
                 ui.label("Last checked:");
                 ui.label(format_timestamp(last_check));
             });
         }
 
-        if let Some(skipped) = settings.config.skipped_version.clone() {
+        if let Some(skipped) = settings.config.updates.skipped_version.clone() {
             ui.add_space(4.0);
             ui.horizontal(|ui| {
                 ui.label(
@@ -114,7 +114,7 @@ pub(super) fn show_updates_section(
                         .color(egui::Color32::GRAY),
                 );
                 if ui.small_button("Clear").clicked() {
-                    settings.config.skipped_version = None;
+                    settings.config.updates.skipped_version = None;
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }

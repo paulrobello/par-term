@@ -77,7 +77,7 @@ impl WindowState {
                     }
                     // Invalidate tab cache
                     tab.cache.cells = None;
-                    self.needs_redraw = true;
+                    self.focus_state.needs_redraw = true;
                     self.request_redraw();
                 }
                 Ok(None) => {
@@ -164,7 +164,7 @@ impl WindowState {
                     }
                     // Invalidate tab cache
                     tab.cache.cells = None;
-                    self.needs_redraw = true;
+                    self.focus_state.needs_redraw = true;
                     self.request_redraw();
                 }
                 Ok(None) => {
@@ -208,7 +208,7 @@ impl WindowState {
                 &tab_title,
                 &command_name,
             );
-            self.needs_redraw = true;
+            self.focus_state.needs_redraw = true;
             self.request_redraw();
             return false; // Don't close yet, waiting for confirmation
         }
@@ -227,7 +227,7 @@ impl WindowState {
                 // Last pane closed, close the tab
                 return self.close_current_tab_immediately();
             }
-            self.needs_redraw = true;
+            self.focus_state.needs_redraw = true;
             self.request_redraw();
             return false;
         }
@@ -271,7 +271,7 @@ impl WindowState {
             && tab.has_multiple_panes()
         {
             tab.navigate_pane(direction);
-            self.needs_redraw = true;
+            self.focus_state.needs_redraw = true;
             self.request_redraw();
         }
     }
@@ -298,7 +298,7 @@ impl WindowState {
             && let Some(focused_id) = pm.focused_pane_id()
         {
             pm.resize_split(focused_id, delta);
-            self.needs_redraw = true;
+            self.focus_state.needs_redraw = true;
             self.request_redraw();
         }
     }

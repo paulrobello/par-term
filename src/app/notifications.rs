@@ -313,7 +313,7 @@ impl WindowState {
 
         // Skip desktop notification if window is focused and suppression is enabled
         // (unless force is set, e.g. for trigger-generated notifications)
-        if !force && self.config.suppress_notifications_when_focused && self.is_focused {
+        if !force && self.config.suppress_notifications_when_focused && self.focus_state.is_focused {
             log::debug!(
                 "Suppressing desktop notification (window is focused): {}",
                 title

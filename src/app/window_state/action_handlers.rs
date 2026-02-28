@@ -30,7 +30,7 @@ impl WindowState {
                 if let Some(tab) = self.tab_manager.active_tab_mut() {
                     tab.cache.cells = None;
                 }
-                self.needs_redraw = true;
+                self.focus_state.needs_redraw = true;
                 if let Some(window) = &self.window {
                     window.request_redraw();
                 }
@@ -80,7 +80,7 @@ impl WindowState {
             }
             TabBarAction::Reorder(id, target_index) => {
                 if self.tab_manager.move_tab_to_index(id, target_index) {
-                    self.needs_redraw = true;
+                    self.focus_state.needs_redraw = true;
                     if let Some(window) = &self.window {
                         window.request_redraw();
                     }
@@ -266,7 +266,7 @@ impl WindowState {
                         }
                     });
                 }
-                self.needs_redraw = true;
+                self.focus_state.needs_redraw = true;
             }
             InspectorAction::ConnectAgent(identity) => {
                 self.connect_agent(&identity);
@@ -289,7 +289,7 @@ impl WindowState {
                 }
                 self.overlay_ui.ai_inspector.agent_status = AgentStatus::Disconnected;
                 self.agent_state.pending_agent_context_replay = None;
-                self.needs_redraw = true;
+                self.focus_state.needs_redraw = true;
             }
             InspectorAction::RevokeAlwaysAllowSelections => {
                 if let Some(identity) = self
@@ -312,7 +312,7 @@ impl WindowState {
                         "Cannot reset permissions: no connected agent identity.".to_string(),
                     );
                 }
-                self.needs_redraw = true;
+                self.focus_state.needs_redraw = true;
             }
             InspectorAction::SendPrompt(text) => {
                 // Reset one-shot local backend recovery for each user prompt.
@@ -380,11 +380,11 @@ impl WindowState {
                     });
                     self.agent_state.pending_send_handles.push_back(handle);
                 }
-                self.needs_redraw = true;
+                self.focus_state.needs_redraw = true;
             }
             InspectorAction::SetTerminalAccess(enabled) => {
                 self.config.ai_inspector_agent_terminal_access = enabled;
-                self.needs_redraw = true;
+                self.focus_state.needs_redraw = true;
             }
             InspectorAction::RespondPermission {
                 request_id,
@@ -438,7 +438,7 @@ impl WindowState {
                         break;
                     }
                 }
-                self.needs_redraw = true;
+                self.focus_state.needs_redraw = true;
             }
             InspectorAction::SetAgentMode(mode_id) => {
                 let is_yolo = mode_id == "bypassPermissions";
@@ -455,7 +455,7 @@ impl WindowState {
                         }
                     });
                 }
-                self.needs_redraw = true;
+                self.focus_state.needs_redraw = true;
             }
             InspectorAction::CancelPrompt => {
                 if let Some(agent) = &self.agent_state.agent {
@@ -472,7 +472,7 @@ impl WindowState {
                     .ai_inspector
                     .chat
                     .add_system_message("Cancelled.".to_string());
-                self.needs_redraw = true;
+                self.focus_state.needs_redraw = true;
             }
             InspectorAction::CancelQueuedPrompt => {
                 if self.overlay_ui.ai_inspector.chat.cancel_last_pending() {
@@ -485,7 +485,7 @@ impl WindowState {
                         .chat
                         .add_system_message("Queued message cancelled.".to_string());
                 }
-                self.needs_redraw = true;
+                self.focus_state.needs_redraw = true;
             }
             InspectorAction::ClearChat => {
                 let reconnect_identity = self
@@ -512,7 +512,7 @@ impl WindowState {
                             .to_string(),
                     );
                 }
-                self.needs_redraw = true;
+                self.focus_state.needs_redraw = true;
             }
             InspectorAction::None => {}
         }
@@ -565,7 +565,7 @@ impl WindowState {
                         .pending_install_shell_integration = false;
                     self.overlay_ui.integrations_ui.error_message = None;
                     self.overlay_ui.integrations_ui.success_message = None;
-                    self.needs_redraw = true;
+                    self.focus_state.needs_redraw = true;
                     return;
                 }
             }
@@ -597,7 +597,7 @@ impl WindowState {
                         self.overlay_ui.integrations_ui.installing = false;
                         self.overlay_ui.integrations_ui.error_message = None;
                         self.overlay_ui.integrations_ui.success_message = None;
-                        self.needs_redraw = true;
+                        self.focus_state.needs_redraw = true;
                         return; // Wait for user decision
                     }
                     Ok(_) => {}
@@ -628,7 +628,7 @@ impl WindowState {
                 self.overlay_ui
                     .integrations_ui
                     .set_installing("Installing shaders...");
-                self.needs_redraw = true;
+                self.focus_state.needs_redraw = true;
                 self.request_redraw();
 
                 match crate::shader_installer::install_shaders_with_manifest(
@@ -664,7 +664,7 @@ impl WindowState {
                 self.overlay_ui
                     .integrations_ui
                     .set_installing("Installing shell integration...");
-                self.needs_redraw = true;
+                self.focus_state.needs_redraw = true;
                 self.request_redraw();
 
                 match crate::shell_integration_installer::install(None) {
@@ -720,7 +720,7 @@ impl WindowState {
                 .integrations_ui
                 .pending_install_shell_integration = false;
 
-            self.needs_redraw = true;
+            self.focus_state.needs_redraw = true;
         }
 
         // Handle "Skip" - just close the dialog for this session

@@ -1,7 +1,9 @@
 //! Constructor and async initialization for `WindowState`.
 
 use super::impl_agent::merge_custom_ai_inspector_agents;
-use super::{ConfigSaveState, WindowState};
+use super::{
+    ConfigSaveState, FocusState, OverlayState, TriggerState, UpdateState, WatcherState, WindowState,
+};
 use crate::badge::BadgeState;
 use crate::config::Config;
 use crate::input::InputHandler;
@@ -64,42 +66,17 @@ impl WindowState {
             is_shutting_down: false,
             window_index: 1, // Will be set by WindowManager when window is created
 
-            needs_redraw: true,
+            focus_state: FocusState::default(),
+
             config_changed_by_agent: false,
             pending_font_rebuild: false,
             config_save_state: ConfigSaveState::default(),
 
-            is_focused: true, // Assume focused on creation
-            last_render_time: None,
+            watcher_state: WatcherState::default(),
 
-            cursor_hidden_since: None,
-            flicker_pending_render: false,
-
-            throughput_batch_start: None,
-
-            config_watcher: None,
-            config_update_watcher: None,
-            screenshot_request_watcher: None,
-
-            open_settings_window_requested: false,
-            pending_arrangement_restore: None,
-            reload_dynamic_profiles_requested: false,
-
-            open_settings_profiles_tab: false,
-            profiles_menu_needs_update: true, // Update menu on startup
-            ui_consumed_mouse_press: false,
-            focus_click_pending: false,
-            focus_click_suppressed_while_unfocused_at: None,
             clipboard_image_click_guard: None,
 
-            resize_overlay_visible: false,
-            resize_overlay_hide_time: None,
-            resize_dimensions: None,
-
-            toast_message: None,
-            toast_hide_time: None,
-            pane_identify_hide_time: None,
-            closed_tabs: std::collections::VecDeque::new(),
+            overlay_state: OverlayState::default(),
 
             keybinding_registry,
 
@@ -115,18 +92,9 @@ impl WindowState {
 
             file_transfer_state: crate::app::file_transfers::FileTransferState::default(),
 
-            show_update_dialog: false,
+            update_state: UpdateState::default(),
 
-            last_update_result: None,
-            installation_type: par_term_settings_ui::InstallationType::StandaloneBinary,
-
-            update_installing: false,
-            update_install_status: None,
-            update_install_receiver: None,
-
-            trigger_spawned_processes: std::collections::HashMap::new(),
-
-            trigger_regex_cache: std::collections::HashMap::new(),
+            trigger_state: TriggerState::default(),
         }
     }
 
@@ -356,7 +324,7 @@ impl WindowState {
         if self.config.should_prompt_integrations(crate::VERSION) {
             log::info!("Integrations not installed - showing welcome dialog");
             self.overlay_ui.integrations_ui.show_dialog();
-            self.needs_redraw = true;
+            self.focus_state.needs_redraw = true;
             window.request_redraw();
         }
 

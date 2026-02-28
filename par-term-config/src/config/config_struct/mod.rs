@@ -91,6 +91,9 @@
 //! section per PR. Tracked as QA-001 in AUDIT.md.
 
 mod default_impl;
+mod update;
+
+pub use update::UpdateConfig;
 
 use crate::config::acp::CustomAcpAgentConfig;
 use crate::snippets::{CustomActionConfig, SnippetConfig};
@@ -102,7 +105,7 @@ use crate::types::{
     ProgressBarStyle, SemanticHistoryEditorMode, SessionLogFormat, ShaderConfig,
     ShaderInstallPrompt, ShellExitAction, SmartSelectionRule, StartupDirectoryMode,
     StatusBarPosition, TabBarMode, TabBarPosition, TabStyle, TabTitleMode, ThinStrokesMode,
-    UnfocusedCursorStyle, UpdateCheckFrequency, VsyncMode, WindowType,
+    UnfocusedCursorStyle, VsyncMode, WindowType,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -1527,25 +1530,9 @@ pub struct Config {
     // ========================================================================
     // Update Checking
     // ========================================================================
-    /// How often to check for new par-term releases
-    /// - never: Disable automatic update checks
-    /// - daily: Check once per day
-    /// - weekly: Check once per week (default)
-    /// - monthly: Check once per month
-    #[serde(default = "crate::defaults::update_check_frequency")]
-    pub update_check_frequency: UpdateCheckFrequency,
-
-    /// ISO 8601 timestamp of the last update check (auto-managed)
-    #[serde(default)]
-    pub last_update_check: Option<String>,
-
-    /// Version that user chose to skip notifications for
-    #[serde(default)]
-    pub skipped_version: Option<String>,
-
-    /// Last version we notified the user about (prevents repeat notifications)
-    #[serde(default)]
-    pub last_notified_version: Option<String>,
+    /// Configuration for automatic update checking
+    #[serde(flatten)]
+    pub updates: UpdateConfig,
 
     // ========================================================================
     // Window Arrangements

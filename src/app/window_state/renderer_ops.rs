@@ -66,7 +66,7 @@ impl WindowState {
         self.apply_cursor_shader_config(&mut renderer, &params);
 
         self.renderer = Some(renderer);
-        self.needs_redraw = true;
+        self.focus_state.needs_redraw = true;
 
         // Re-apply AI Inspector panel inset to the new renderer.
         // The old renderer had the correct content_inset_right but the new one
@@ -111,7 +111,7 @@ impl WindowState {
         }
 
         // Request redraw
-        self.needs_redraw = true;
+        self.focus_state.needs_redraw = true;
         self.request_redraw();
     }
 
@@ -204,11 +204,11 @@ impl WindowState {
                     new_cols,
                     new_rows
                 );
-                self.needs_redraw = true;
+                self.focus_state.needs_redraw = true;
             } else if (current_width - self.overlay_ui.last_inspector_width).abs() >= 1.0 {
                 // Logical width changed but physical grid didn't resize
                 // (could happen with very small changes below cell width threshold)
-                self.needs_redraw = true;
+                self.focus_state.needs_redraw = true;
             }
         }
 

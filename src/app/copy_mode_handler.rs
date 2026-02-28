@@ -39,7 +39,7 @@ impl WindowState {
         self.copy_mode
             .enter(cursor_col, cursor_row, cols, rows, scrollback_len);
         self.sync_copy_mode_selection();
-        self.needs_redraw = true;
+        self.focus_state.needs_redraw = true;
         self.request_redraw();
         crate::debug_info!(
             "COPY_MODE",
@@ -59,7 +59,7 @@ impl WindowState {
         }
         // Scroll back to bottom
         self.set_scroll_target(0);
-        self.needs_redraw = true;
+        self.focus_state.needs_redraw = true;
         self.request_redraw();
         crate::debug_info!("COPY_MODE", "Exited copy mode");
     }
@@ -247,12 +247,12 @@ impl WindowState {
                 // === Search ===
                 "/" => {
                     self.copy_mode.start_search(SearchDirection::Forward);
-                    self.needs_redraw = true;
+                    self.focus_state.needs_redraw = true;
                     self.request_redraw();
                 }
                 "?" => {
                     self.copy_mode.start_search(SearchDirection::Backward);
-                    self.needs_redraw = true;
+                    self.focus_state.needs_redraw = true;
                     self.request_redraw();
                 }
                 "n" => {
@@ -324,7 +324,7 @@ impl WindowState {
                         tab.mouse.selection = None;
                         tab.cache.cells = None;
                     }
-                    self.needs_redraw = true;
+                    self.focus_state.needs_redraw = true;
                     self.request_redraw();
                 } else {
                     self.exit_copy_mode();
@@ -372,7 +372,7 @@ impl WindowState {
         match &event.logical_key {
             Key::Named(NamedKey::Escape) => {
                 self.copy_mode.cancel_search();
-                self.needs_redraw = true;
+                self.focus_state.needs_redraw = true;
                 self.request_redraw();
             }
             Key::Named(NamedKey::Enter) => {
@@ -381,14 +381,14 @@ impl WindowState {
             }
             Key::Named(NamedKey::Backspace) => {
                 self.copy_mode.search_backspace();
-                self.needs_redraw = true;
+                self.focus_state.needs_redraw = true;
                 self.request_redraw();
             }
             Key::Character(ch) => {
                 for c in ch.chars() {
                     self.copy_mode.search_input(c);
                 }
-                self.needs_redraw = true;
+                self.focus_state.needs_redraw = true;
                 self.request_redraw();
             }
             _ => {}
@@ -437,7 +437,7 @@ impl WindowState {
             crate::debug_info!("COPY_MODE", "Search found '{}' at {}:{}", query, line, col);
         } else {
             self.show_toast("Pattern not found");
-            self.needs_redraw = true;
+            self.focus_state.needs_redraw = true;
             self.request_redraw();
         }
     }
@@ -541,7 +541,7 @@ impl WindowState {
 
         self.sync_copy_mode_selection();
         self.follow_copy_mode_cursor();
-        self.needs_redraw = true;
+        self.focus_state.needs_redraw = true;
         self.request_redraw();
     }
 
@@ -599,7 +599,7 @@ impl WindowState {
                             tab.mouse.selection = None;
                             tab.cache.cells = None;
                         }
-                        self.needs_redraw = true;
+                        self.focus_state.needs_redraw = true;
                         self.request_redraw();
                     }
                     self.show_toast(msg);

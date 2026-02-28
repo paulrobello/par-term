@@ -13,17 +13,17 @@ impl WindowState {
                 match &event.logical_key {
                     Key::Named(NamedKey::Escape) => {
                         self.overlay_ui.clipboard_history_ui.visible = false;
-                        self.needs_redraw = true;
+                        self.focus_state.needs_redraw = true;
                         return true;
                     }
                     Key::Named(NamedKey::ArrowUp) => {
                         self.overlay_ui.clipboard_history_ui.select_previous();
-                        self.needs_redraw = true;
+                        self.focus_state.needs_redraw = true;
                         return true;
                     }
                     Key::Named(NamedKey::ArrowDown) => {
                         self.overlay_ui.clipboard_history_ui.select_next();
-                        self.needs_redraw = true;
+                        self.focus_state.needs_redraw = true;
                         return true;
                     }
                     Key::Named(NamedKey::Enter) => {
@@ -41,7 +41,7 @@ impl WindowState {
                                 // Enter: Paste directly
                                 self.paste_text(&content);
                             }
-                            self.needs_redraw = true;
+                            self.focus_state.needs_redraw = true;
                         }
                         return true;
                     }
@@ -92,7 +92,7 @@ impl WindowState {
         }
 
         self.overlay_ui.clipboard_history_ui.toggle();
-        self.needs_redraw = true;
+        self.focus_state.needs_redraw = true;
         log::debug!(
             "Clipboard history UI toggled: {}",
             self.overlay_ui.clipboard_history_ui.visible
@@ -106,17 +106,17 @@ impl WindowState {
                 match &event.logical_key {
                     Key::Named(NamedKey::Escape) => {
                         self.overlay_ui.paste_special_ui.close();
-                        self.needs_redraw = true;
+                        self.focus_state.needs_redraw = true;
                         return true;
                     }
                     Key::Named(NamedKey::ArrowUp) => {
                         self.overlay_ui.paste_special_ui.select_previous();
-                        self.needs_redraw = true;
+                        self.focus_state.needs_redraw = true;
                         return true;
                     }
                     Key::Named(NamedKey::ArrowDown) => {
                         self.overlay_ui.paste_special_ui.select_next();
-                        self.needs_redraw = true;
+                        self.focus_state.needs_redraw = true;
                         return true;
                     }
                     Key::Named(NamedKey::Enter) => {
@@ -124,7 +124,7 @@ impl WindowState {
                         if let Some(result) = self.overlay_ui.paste_special_ui.apply_selected() {
                             self.overlay_ui.paste_special_ui.close();
                             self.paste_text(&result);
-                            self.needs_redraw = true;
+                            self.focus_state.needs_redraw = true;
                         }
                         return true;
                     }

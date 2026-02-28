@@ -138,7 +138,7 @@ impl WindowState {
             if let Some(tab) = self.tab_manager.active_tab_mut() {
                 tab.cache.cells = None;
             }
-            self.needs_redraw = true;
+            self.focus_state.needs_redraw = true;
 
             log::info!("Cycled cursor style to {:?}", self.config.cursor_style);
 

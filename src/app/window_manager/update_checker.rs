@@ -128,13 +128,14 @@ impl WindowManager {
                     // Only notify if we haven't already notified about this version
                     let already_notified = self
                         .config
+                        .updates
                         .last_notified_version
                         .as_ref()
                         .is_some_and(|v| v == &version_str);
 
                     if !already_notified {
                         notify_update_available(info);
-                        self.config.last_notified_version = Some(version_str);
+                        self.config.updates.last_notified_version = Some(version_str);
                         config_changed = true;
                     }
                 }
@@ -159,12 +160,12 @@ impl WindowManager {
             let result_clone = self.last_update_result.clone();
             for ws in self.windows.values_mut() {
                 ws.status_bar_ui.update_available_version = version.clone();
-                ws.last_update_result = result_clone.clone();
+                ws.update_state.last_result = result_clone.clone();
             }
 
             // Save config with updated timestamp if check was successful
             if config_changed {
-                self.config.last_update_check = Some(current_timestamp());
+                self.config.updates.last_update_check = Some(current_timestamp());
                 if let Err(e) = self.config.save() {
                     log::warn!("Failed to save config after update check: {}", e);
                 }
@@ -173,6 +174,7 @@ impl WindowManager {
             // Schedule next check based on frequency
             self.next_update_check = self
                 .config
+                .updates
                 .update_check_frequency
                 .as_seconds()
                 .map(|secs| now + Duration::from_secs(secs));
@@ -213,12 +215,12 @@ impl WindowManager {
         let result_clone = self.last_update_result.clone();
         for ws in self.windows.values_mut() {
             ws.status_bar_ui.update_available_version = version.clone();
-            ws.last_update_result = result_clone.clone();
+            ws.update_state.last_result = result_clone.clone();
         }
 
         // Save config with updated timestamp
         if should_save {
-            self.config.last_update_check = Some(current_timestamp());
+            self.config.updates.last_update_check = Some(current_timestamp());
             if let Err(e) = self.config.save() {
                 log::warn!("Failed to save config after update check: {}", e);
             }

@@ -219,18 +219,18 @@ impl WindowManager {
                     renderer.set_transparency_affects_only_default_background(
                         config.transparency_affects_only_default_background,
                     );
-                    window_state.needs_redraw = true;
+                    window_state.focus_state.needs_redraw = true;
                 }
 
                 // Update text opacity mode if changed
                 if changes.keep_text_opaque {
                     renderer.set_keep_text_opaque(config.keep_text_opaque);
-                    window_state.needs_redraw = true;
+                    window_state.focus_state.needs_redraw = true;
                 }
 
                 if changes.link_underline_style {
                     renderer.set_link_underline_style(config.link_underline_style);
-                    window_state.needs_redraw = true;
+                    window_state.focus_state.needs_redraw = true;
                 }
 
                 // Update vsync mode if changed
@@ -289,7 +289,7 @@ impl WindowManager {
                         }
                         tab.cache.cells = None; // Invalidate cache to redraw cursor
                     }
-                    window_state.needs_redraw = true;
+                    window_state.focus_state.needs_redraw = true;
                 }
 
                 // Apply cursor enhancement changes
@@ -306,7 +306,7 @@ impl WindowManager {
                     );
                     renderer.update_cursor_boost(config.cursor_boost, config.cursor_boost_color);
                     renderer.update_unfocused_cursor_style(config.unfocused_cursor_style);
-                    window_state.needs_redraw = true;
+                    window_state.focus_state.needs_redraw = true;
                 }
 
                 // Apply command separator changes
@@ -318,7 +318,7 @@ impl WindowManager {
                         config.command_separator_exit_color,
                         config.command_separator_color,
                     );
-                    window_state.needs_redraw = true;
+                    window_state.focus_state.needs_redraw = true;
                 }
 
                 // Apply background changes (mode, color, or image)
@@ -340,7 +340,7 @@ impl WindowManager {
                         config.background_image_opacity,
                         config.background_image_enabled,
                     );
-                    window_state.needs_redraw = true;
+                    window_state.focus_state.needs_redraw = true;
                 }
 
                 // Apply per-pane background changes to existing panes
@@ -379,17 +379,17 @@ impl WindowManager {
                         }
                     }
                     renderer.mark_dirty();
-                    window_state.needs_redraw = true;
+                    window_state.focus_state.needs_redraw = true;
                 }
 
                 // Apply inline image settings changes
                 if changes.image_scaling_mode {
                     renderer.update_image_scaling_mode(config.image_scaling_mode);
-                    window_state.needs_redraw = true;
+                    window_state.focus_state.needs_redraw = true;
                 }
                 if changes.image_preserve_aspect_ratio {
                     renderer.update_image_preserve_aspect_ratio(config.image_preserve_aspect_ratio);
-                    window_state.needs_redraw = true;
+                    window_state.focus_state.needs_redraw = true;
                 }
 
                 // Apply theme changes
@@ -532,7 +532,7 @@ impl WindowManager {
                     updated |= renderer.update_font_thin_strokes(config.font_thin_strokes);
                     updated |= renderer.update_minimum_contrast(config.minimum_contrast);
                     if updated {
-                        window_state.needs_redraw = true;
+                        window_state.focus_state.needs_redraw = true;
                     }
                 } else {
                     window_state.pending_font_rebuild = true;
@@ -596,7 +596,7 @@ impl WindowManager {
                         tab.cache.cells = None;
                     }
                 }
-                window_state.needs_redraw = true;
+                window_state.focus_state.needs_redraw = true;
             }
 
             // Queue font rebuild if needed
@@ -670,7 +670,7 @@ impl WindowManager {
             if let Some(tab) = window_state.tab_manager.active_tab_mut() {
                 tab.cache.cells = None;
             }
-            window_state.needs_redraw = true;
+            window_state.focus_state.needs_redraw = true;
         }
 
         if ai_agent_list_changed
@@ -724,7 +724,7 @@ impl WindowManager {
             if let Some(renderer) = &mut window_state.renderer {
                 match renderer.reload_shader_from_source(source) {
                     Ok(()) => {
-                        window_state.needs_redraw = true;
+                        window_state.focus_state.needs_redraw = true;
                         if let Some(window) = &window_state.window {
                             window.request_redraw();
                         }
@@ -756,7 +756,7 @@ impl WindowManager {
             if let Some(renderer) = &mut window_state.renderer {
                 match renderer.reload_cursor_shader_from_source(source) {
                     Ok(()) => {
-                        window_state.needs_redraw = true;
+                        window_state.focus_state.needs_redraw = true;
                         if let Some(window) = &window_state.window {
                             window.request_redraw();
                         }

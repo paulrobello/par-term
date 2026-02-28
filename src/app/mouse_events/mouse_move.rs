@@ -199,7 +199,7 @@ impl WindowState {
             if let Some(tab) = self.tab_manager.active_tab_mut() {
                 tab.drag_divider(divider_index, position.0 as f32, position.1 as f32);
             }
-            self.needs_redraw = true;
+            self.focus_state.needs_redraw = true;
             self.request_redraw();
             return; // Exit early: divider dragging takes precedence
         }

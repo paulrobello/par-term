@@ -45,7 +45,7 @@ impl WindowState {
             renderer.clear_all_cells();
         }
         self.invalidate_tab_cache();
-        self.needs_redraw = true;
+        self.focus_state.needs_redraw = true;
         self.request_redraw();
     }
 

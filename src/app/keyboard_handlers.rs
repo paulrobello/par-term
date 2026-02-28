@@ -50,7 +50,7 @@ impl WindowState {
 
         if is_f12 || is_cmd_comma {
             // Signal to window manager to open settings window
-            self.open_settings_window_requested = true;
+            self.overlay_state.open_settings_window_requested = true;
             log::info!("Settings window requested");
 
             // Request redraw to trigger event processing
