@@ -305,6 +305,11 @@ pub struct CellRenderer {
 }
 
 impl CellRenderer {
+    // Too many arguments: CellRenderer::new must initialise GPU resources from font family,
+    // font sizing, grid geometry, and scrollbar config in a single wgpu async context.
+    // A builder pattern is the right long-term fix; deferred because the single call site
+    // constructs all arguments from Config fields and gains no clarity from an intermediate
+    // builder.
     #[allow(clippy::too_many_arguments)]
     pub async fn new(
         window: Arc<Window>,

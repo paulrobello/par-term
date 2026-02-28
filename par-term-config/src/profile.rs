@@ -82,6 +82,14 @@ pub struct DynamicProfileSource {
     /// How to resolve conflicts when a remote profile ID matches a local one
     #[serde(default)]
     pub conflict_resolution: ConflictResolution,
+
+    /// Whether plain HTTP (non-HTTPS) URLs are permitted for this source.
+    ///
+    /// This field is populated at runtime from the global `allow_http_profiles`
+    /// config option and is never read from or written to the config file.
+    /// Defaults to `false` (HTTP is refused) to match the global config default.
+    #[serde(skip)]
+    pub allow_http: bool,
 }
 
 impl Default for DynamicProfileSource {
@@ -94,6 +102,7 @@ impl Default for DynamicProfileSource {
             fetch_timeout_secs: default_fetch_timeout_secs(),
             enabled: true,
             conflict_resolution: ConflictResolution::default(),
+            allow_http: false,
         }
     }
 }
@@ -129,6 +138,7 @@ mod tests {
             fetch_timeout_secs: 15,
             enabled: false,
             conflict_resolution: ConflictResolution::RemoteWins,
+            allow_http: false,
         };
 
         let yaml = serde_yml::to_string(&source).expect("serialize");

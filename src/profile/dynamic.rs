@@ -162,8 +162,16 @@ fn fetch_profiles_inner(
 ) -> anyhow::Result<(Vec<par_term_config::Profile>, Option<String>)> {
     use ureq::tls::{RootCerts, TlsConfig, TlsProvider};
 
-    // Warn if using HTTP with auth headers (credential leaking risk)
+    // Enforce HTTPS-only policy for dynamic profile URLs (unless the user has
+    // explicitly opted in to HTTP via `allow_http_profiles: true` in the config).
+    //
+    // SECURITY: Profile data fetched over plain HTTP can be intercepted and
+    // replaced by a network-level attacker (MITM). A malicious profile could
+    // influence shell execution, environment, or other terminal behaviour.
+    // HTTPS is the default requirement; HTTP is an explicit opt-in.
     if !source.url.starts_with("https://") && !source.url.starts_with("file://") {
+        // Always refuse auth headers over HTTP regardless of the opt-in flag,
+        // because credentials would be transmitted in the clear.
         if source.headers.keys().any(|k| {
             let lower = k.to_lowercase();
             lower == "authorization" || lower.contains("token") || lower.contains("secret")
@@ -173,11 +181,18 @@ fn fetch_profiles_inner(
                 source.url
             );
         }
-        // SECURITY: Profile is being fetched over plain HTTP, not HTTPS.
-        // A network-level attacker (e.g. on the same LAN or via a MITM proxy) could
-        // intercept the response and inject a malicious profile that affects shell
-        // execution.  HTTP is not blocked — only this warning is emitted.
-        // Use HTTPS URLs in dynamic_profile_sources whenever possible.
+
+        if !source.allow_http {
+            // HTTP is not opted-in — refuse the fetch with a clear error.
+            anyhow::bail!(
+                "Dynamic profile URL '{}' uses insecure HTTP. \
+                 Set `allow_http_profiles: true` in your config to allow HTTP (not recommended). \
+                 Use HTTPS to prevent MITM injection of profiles.",
+                source.url
+            );
+        }
+
+        // User has explicitly opted in to HTTP — warn but proceed.
         crate::debug_error!(
             "DYNAMIC_PROFILE",
             "SECURITY WARNING: {} is using insecure HTTP (not HTTPS). \
@@ -185,8 +200,9 @@ fn fetch_profiles_inner(
             source.url
         );
         log::warn!(
-            "par-term dynamic profile: fetching '{}' over insecure HTTP. \
-             Consider switching to HTTPS to prevent MITM injection of profiles.",
+            "par-term dynamic profile: fetching '{}' over insecure HTTP \
+             (allow_http_profiles is enabled). MITM injection of profiles is possible. \
+             Switch to HTTPS when possible.",
             source.url
         );
     }
@@ -596,6 +612,7 @@ mod tests {
             fetch_timeout_secs: 15,
             enabled: false,
             conflict_resolution: ConflictResolution::RemoteWins,
+            allow_http: false,
         };
 
         let yaml = serde_yml::to_string(&source).expect("serialize");

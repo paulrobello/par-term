@@ -1,4 +1,23 @@
-//! HTTP client helper with native-tls support.
+//! HTTP client helper with native-tls support for the self-update subsystem.
+//!
+//! # Security Design
+//!
+//! All network requests made by the self-update subsystem go through
+//! [`validate_update_url`] before any network I/O occurs. Two invariants are
+//! enforced:
+//!
+//! 1. **HTTPS only** — plain HTTP, `file://`, and any other non-HTTPS scheme are
+//!    rejected unconditionally. This prevents a network-level attacker from
+//!    downgrading the connection and serving a malicious binary.
+//!
+//! 2. **Host allowlist** — only the four GitHub hostnames in [`ALLOWED_HOSTS`] are
+//!    accepted. This prevents a compromised DNS server or a SSRF-style redirect from
+//!    pointing the updater at an attacker-controlled server.
+//!
+//! Additionally, response bodies are capped at [`MAX_API_RESPONSE_SIZE`] (API calls)
+//! and [`MAX_DOWNLOAD_SIZE`] (binary downloads) to prevent memory exhaustion, and
+//! downloaded binaries are checked for the correct platform magic bytes via
+//! [`validate_binary_content`].
 
 use std::time::Duration;
 use ureq::Agent;
@@ -16,7 +35,9 @@ pub const MAX_DOWNLOAD_SIZE: u64 = 50 * 1024 * 1024;
 /// Allowlisted hostnames for update-related network requests.
 ///
 /// Only requests to GitHub's primary API and CDN hosts are permitted.
-/// Any other host is rejected regardless of the URL path.
+/// Any other host is rejected regardless of the URL path, preventing SSRF
+/// or DNS-rebinding attacks that could redirect update traffic to an
+/// attacker-controlled server.
 const ALLOWED_HOSTS: &[&str] = &[
     "github.com",
     "api.github.com",

@@ -83,6 +83,9 @@ impl TabBarUI {
     }
 
     /// Render a single tab as a full-width row in the vertical tab bar.
+    // Too many arguments: each parameter represents a distinct tab attribute (identity,
+    // display state, and visual config). They cannot be bundled further without creating a
+    // per-call DTO that would be constructed and immediately dropped at the single call site.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn render_vertical_tab(
         &mut self,
@@ -313,6 +316,8 @@ impl TabBarUI {
     }
 
     /// Render a single tab with specified width and return any action triggered plus the tab rect.
+    // Too many arguments: same structure as render_vertical_tab — each parameter is a
+    // distinct tab attribute needed by the rendering path. Grouping is deferred.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn render_tab_with_width(
         &mut self,

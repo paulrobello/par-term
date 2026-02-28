@@ -198,6 +198,17 @@ tempfile = "3.25"
 [target.'cfg(target_os = "windows")'.build-dependencies]
 winres = "0.1"
 
+# Integration tests live in tests/ as individual binaries (one per .rs file).
+# Logical groupings by filename prefix:
+#   script_*          — scripting engine tests (ScriptManager, observer, protocol, process)
+#   shader_*          — shader configuration and hot-reload watcher tests
+#   tab_*             — tab bar UI, color, and stability tests
+#   *_notification_*  — activity and session notification tests
+#   config_tests      — general configuration loading and validation
+#   automation_*      — automation / trigger configuration tests
+#
+# Future: migrate each group into tests/<group>/mod.rs when the number of files
+# in a group exceeds ~5, using the Rust 2018+ integration test submodule pattern.
 [lib]
 name = "par_term"
 path = "src/lib.rs"

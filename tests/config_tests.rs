@@ -967,13 +967,31 @@ fn test_startup_directory_yaml_serialization() {
 // Variable Substitution Tests
 // ============================================================================
 
-/// Helper to safely set an env var in tests (unsafe in Rust 2024 edition).
+/// Helper to set an environment variable in tests.
+///
+/// # Safety
+///
+/// `std::env::set_var` is `unsafe` in Rust 2024 because modifying the process
+/// environment is not thread-safe. This is acceptable here because:
+/// - Cargo's default test harness runs tests on multiple threads, but each test
+///   that calls this helper uses a unique, test-specific env var name (prefixed
+///   with `PAR_TERM_TEST_`) that is not read by other concurrently-running tests.
+/// - The env var is set and removed within the same test body, minimising the
+///   window during which it is visible to other threads.
+/// - These are unit tests only; they never run in production.
 unsafe fn set_test_var(key: &str, val: &str) {
+    // SAFETY: See function-level safety comment.
     unsafe { std::env::set_var(key, val) };
 }
 
-/// Helper to safely remove an env var in tests.
+/// Helper to remove an environment variable in tests.
+///
+/// # Safety
+///
+/// Same reasoning as `set_test_var`: the variable being removed is a
+/// test-specific key that is not shared with concurrently-running tests.
 unsafe fn remove_test_var(key: &str) {
+    // SAFETY: See set_test_var safety comment.
     unsafe { std::env::remove_var(key) };
 }
 

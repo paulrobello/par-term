@@ -6,6 +6,10 @@ use anyhow::Result;
 /// Initialize the custom shader renderer if configured.
 ///
 /// Returns (renderer, shader_path) tuple where both are Some if initialization succeeded.
+// Too many arguments: the shader renderer is initialised from config fields that are
+// conceptually unrelated (geometry, paths, animation, opacity). A dedicated init-config
+// struct is the right long-term fix; deferred because this function is called in only
+// one place and the arguments map directly to Config fields.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn init_custom_shader(
     cell_renderer: &CellRenderer,
@@ -87,6 +91,8 @@ pub(super) fn init_custom_shader(
 /// Initialize the cursor shader renderer if configured.
 ///
 /// Returns (renderer, shader_path) tuple where both are Some if initialization succeeded.
+// Too many arguments: same pattern as init_custom_shader — parameters are cursor-shader
+// config fields passed from a single call site. Deferred to a config struct later.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn init_cursor_shader(
     cell_renderer: &CellRenderer,
@@ -299,7 +305,6 @@ impl Renderer {
     ///
     /// # Returns
     /// Ok(()) if successful, Err with error message if compilation fails
-    #[allow(clippy::too_many_arguments)]
     pub fn set_cursor_shader_enabled(
         &mut self,
         enabled: bool,
@@ -483,6 +488,10 @@ impl Renderer {
     /// renderer instance.
     ///
     /// Returns Ok(()) on success, or Err with error message on failure.
+    // Too many arguments: the custom shader requires 9 independent parameters covering
+    // its path, opacity, animation, content mode, brightness, and texture channels.
+    // A ShaderEnableParams builder struct would clean this up but is deferred since
+    // this method is called from a single hot-reload handler.
     #[allow(clippy::too_many_arguments)]
     pub fn set_custom_shader_enabled(
         &mut self,

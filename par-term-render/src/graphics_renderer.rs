@@ -542,6 +542,10 @@ impl GraphicsRenderer {
     /// * `window_height` - Window height in pixels
     /// * `pane_origin_x` - X pixel coordinate of the pane's content origin
     /// * `pane_origin_y` - Y pixel coordinate of the pane's content origin
+    // Too many arguments: the GPU render call requires device, queue, render pass, and
+    // pane geometry all at once because they cannot be held across the render pass borrow.
+    // Grouping geometry into a struct is deferred since this function is called from a
+    // single render pipeline step.
     #[allow(clippy::too_many_arguments)]
     pub fn render_for_pane(
         &mut self,

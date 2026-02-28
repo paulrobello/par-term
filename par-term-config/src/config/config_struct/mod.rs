@@ -69,6 +69,26 @@
 //! | Dynamic Profile Sources      | `ProfileSourcesConfig`|
 //! | Security                     | `SecurityConfig`      |
 //! | AI Inspector                 | `AiInspectorConfig`   |
+//!
+//! # How to safely split the struct
+//!
+//! Use `#[serde(flatten)]` on each sub-struct field. This instructs serde to
+//! (de)serialise the sub-struct fields as if they were top-level fields, preserving
+//! full compatibility with existing YAML config files:
+//!
+//! ```ignore
+//! pub struct Config {
+//!     #[serde(flatten)]
+//!     pub window: WindowConfig,
+//!     #[serde(flatten)]
+//!     pub font: FontConfig,
+//!     // …
+//! }
+//! ```
+//!
+//! Each sub-struct must derive `Serialize, Deserialize` and carry its own
+//! `#[serde(default)]` fields. The split can be done incrementally — one
+//! section per PR. Tracked as QA-001 in AUDIT.md.
 
 mod default_impl;
 
@@ -1845,6 +1865,19 @@ pub struct Config {
     /// Set to `true` to restore the unrestricted pre-0.24 behaviour.
     #[serde(default = "crate::defaults::bool_false")]
     pub allow_all_env_vars: bool,
+
+    /// Allow dynamic profile sources to be fetched over plain HTTP (not HTTPS).
+    ///
+    /// When `false` (the default), any `dynamic_profile_sources` entry whose URL
+    /// uses the `http://` scheme will be refused with an error at fetch time.
+    /// This prevents a network-level attacker from injecting malicious profiles
+    /// via a man-in-the-middle attack on an untrusted network.
+    ///
+    /// Set to `true` only if you must fetch profiles from a server that does not
+    /// support HTTPS (e.g., an internal dev server without TLS). A warning will
+    /// still be logged in that case.
+    #[serde(default = "crate::defaults::bool_false")]
+    pub allow_http_profiles: bool,
 
     // ========================================================================
     // AI Inspector

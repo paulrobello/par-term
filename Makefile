@@ -9,6 +9,13 @@ ACP_IDLE_TIMEOUT ?= 6
 ACP_TRANSCRIPT ?= /tmp/par-term-acp-harness.log
 ACP_SMOKE_PROMPT ?= create a new background only shader that uses a procedural checker patern and has an effect that looks like its being pulled into some kind of vortex, then set that shader as the active shader
 
+# Debug log path used by run-debug / run-trace targets
+DEBUG_LOG := /tmp/par_term_debug.log
+
+# Base cargo run invocation — override LOG_LEVEL and DEBUG_LEVEL per target
+# Usage: $(RUN_WITH_LOG) where callers set RUST_LOG / DEBUG_LEVEL before calling
+RUN_BASE := cargo run
+
 # Default target
 .DEFAULT_GOAL := help
 
@@ -101,17 +108,17 @@ run-release:
 # Run with error level logging
 run-error:
 	@echo "Running par-term (error level logs)..."
-	RUST_LOG=error cargo run
+	RUST_LOG=error $(RUN_BASE)
 
 # Run with warning level logging
 run-warn:
 	@echo "Running par-term (warn level logs)..."
-	RUST_LOG=warn cargo run
+	RUST_LOG=warn $(RUN_BASE)
 
 # Run with info level logging (default)
 run-info:
 	@echo "Running par-term (info level logs)..."
-	RUST_LOG=info cargo run
+	RUST_LOG=info $(RUN_BASE)
 
 # Run with performance logging to file
 run-perf:
@@ -126,27 +133,27 @@ run-perf:
 # Run with debug level logging (uses custom DEBUG_LEVEL for file logging)
 run-debug:
 	@echo "Running par-term with DEBUG_LEVEL=3..."
-	@echo "Debug log: /tmp/par_term_debug.log"
+	@echo "Debug log: $(DEBUG_LOG)"
 	@echo ""
-	@echo "💡 In another terminal, run: make tail-log"
+	@echo "In another terminal, run: make tail-log"
 	@echo ""
-	RUST_LOG=debug DEBUG_LEVEL=3 cargo run
+	RUST_LOG=debug DEBUG_LEVEL=3 $(RUN_BASE)
 
 # Run with trace level logging (most verbose, uses custom DEBUG_LEVEL)
 run-trace:
 	@echo "Running par-term with DEBUG_LEVEL=4 (trace)..."
-	@echo "Debug log: /tmp/par_term_debug.log"
+	@echo "Debug log: $(DEBUG_LOG)"
 	@echo ""
-	@echo "💡 In another terminal, run: make tail-log"
+	@echo "In another terminal, run: make tail-log"
 	@echo ""
-	RUST_LOG=trace DEBUG_LEVEL=4 cargo run
+	RUST_LOG=trace DEBUG_LEVEL=4 $(RUN_BASE)
 
 # Run release build with debug logging
 run-release-debug: release
 	@echo "Running release build with DEBUG_LEVEL=3..."
-	@echo "Debug log: /tmp/par_term_debug.log"
+	@echo "Debug log: $(DEBUG_LOG)"
 	@echo ""
-	@echo "💡 In another terminal, run: make tail-log"
+	@echo "In another terminal, run: make tail-log"
 	@echo ""
 	RUST_LOG=debug DEBUG_LEVEL=3 ./target/release/par-term
 
@@ -427,79 +434,79 @@ test-text-shaping: test-fonts benchmark-shaping
 
 # Monitor the debug log
 tail-log:
-	@if [ ! -f /tmp/par_term_debug.log ]; then \
-		echo "❌ Debug log not found."; \
+	@if [ ! -f $(DEBUG_LOG) ]; then \
+		echo "Debug log not found."; \
 		echo ""; \
 		echo "Start par-term with: make run-debug"; \
 		exit 1; \
 	fi
-	@echo "📝 Monitoring /tmp/par_term_debug.log..."
+	@echo "Monitoring $(DEBUG_LOG)..."
 	@echo "Press Ctrl+C to stop"
 	@echo ""
-	tail -f /tmp/par_term_debug.log
+	tail -f $(DEBUG_LOG)
 
 # Watch log with graphics filtering
 watch-graphics:
-	@if [ ! -f /tmp/par_term_debug.log ]; then \
-		echo "❌ Debug log not found."; \
+	@if [ ! -f $(DEBUG_LOG) ]; then \
+		echo "Debug log not found."; \
 		echo ""; \
 		echo "Start par-term with: make run-debug"; \
 		exit 1; \
 	fi
-	@echo "📝 Monitoring /tmp/par_term_debug.log (graphics only)..."
+	@echo "Monitoring $(DEBUG_LOG) (graphics only)..."
 	@echo "Press Ctrl+C to stop"
 	@echo ""
-	tail -f /tmp/par_term_debug.log | grep -i --line-buffered "graphics\|terminal\|animation\|sixel\|kitty"
+	tail -f $(DEBUG_LOG) | grep -i --line-buffered "graphics\|terminal\|animation\|sixel\|kitty"
 
 # Test graphics with debug logging
 test-graphics:
-	@echo "🎨 Graphics Testing Mode"
+	@echo "Graphics Testing Mode"
 	@echo ""
 	@echo "Starting par-term with DEBUG_LEVEL=4..."
 	@echo ""
-	@echo "📝 Debug log: /tmp/par_term_debug.log"
+	@echo "Debug log: $(DEBUG_LOG)"
 	@echo ""
-	@echo "💡 In another terminal, run:"
+	@echo "In another terminal, run:"
 	@echo "   make tail-log         (all logs)"
 	@echo "   make watch-graphics   (graphics only)"
 	@echo ""
-	@echo "🧪 In par-term, run test:"
+	@echo "In par-term, run test:"
 	@echo "   bash /tmp/test_par_term_graphics.sh"
 	@echo ""
-	DEBUG_LEVEL=4 cargo run
+	DEBUG_LEVEL=4 $(RUN_BASE)
 
 # Clean debug logs
 clean-logs:
 	@echo "Cleaning debug logs..."
-	@rm -f /tmp/par_term_debug.log
-	@echo "✅ Debug logs cleaned"
+	@rm -f $(DEBUG_LOG)
+	@echo "Debug logs cleaned"
 
 # Show recent graphics-related logs
 show-graphics-logs:
-	@if [ ! -f /tmp/par_term_debug.log ]; then \
-		echo "❌ Debug log not found."; \
+	@if [ ! -f $(DEBUG_LOG) ]; then \
+		echo "Debug log not found."; \
 		echo ""; \
 		echo "Start par-term with: make run-debug"; \
 		exit 1; \
 	fi
 	@echo "Recent graphics-related logs:"
 	@echo ""
-	@grep -i "graphics\|terminal\|animation\|sixel" /tmp/par_term_debug.log | tail -30
+	@grep -i "graphics\|terminal\|animation\|sixel" $(DEBUG_LOG) | tail -30
 
 # Test animations specifically
 test-animations:
-	@echo "🎬 Animation Testing Mode"
+	@echo "Animation Testing Mode"
 	@echo ""
 	@echo "Starting par-term with DEBUG_LEVEL=4..."
 	@echo ""
-	@echo "📝 Debug log: /tmp/par_term_debug.log"
+	@echo "Debug log: $(DEBUG_LOG)"
 	@echo ""
-	@echo "💡 In another terminal, run: make watch-graphics"
+	@echo "In another terminal, run: make watch-graphics"
 	@echo ""
-	@echo "🧪 In par-term, run:"
+	@echo "In par-term, run:"
 	@echo "   uv run python ../par-term-emu-core-rust/scripts/test_kitty_animation.py"
 	@echo ""
-	DEBUG_LEVEL=4 cargo run
+	DEBUG_LEVEL=4 $(RUN_BASE)
 
 # === Profiling Targets ===
 

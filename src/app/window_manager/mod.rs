@@ -85,7 +85,13 @@ impl WindowManager {
 
         let mut dynamic_profile_manager = crate::profile::DynamicProfileManager::new();
         if !config.dynamic_profile_sources.is_empty() {
-            dynamic_profile_manager.start(&config.dynamic_profile_sources, &runtime);
+            // Propagate the global `allow_http_profiles` flag into each source so
+            // `fetch_profiles_inner` can enforce or relax the HTTPS requirement.
+            let mut sources = config.dynamic_profile_sources.clone();
+            for src in &mut sources {
+                src.allow_http = config.allow_http_profiles;
+            }
+            dynamic_profile_manager.start(&sources, &runtime);
         }
 
         Self {

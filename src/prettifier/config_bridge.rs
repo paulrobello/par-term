@@ -103,6 +103,7 @@ pub fn create_pipeline_from_config(
         terminal_width,
         cell_width_px: cell_dims.map(|(w, _)| w),
         cell_height_px: cell_dims.map(|(_, h)| h),
+        allowed_commands: resolved.allowed_commands.clone(),
         ..Default::default()
     };
     Some(PrettifierPipeline::new(

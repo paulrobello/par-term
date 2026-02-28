@@ -342,6 +342,7 @@ impl Default for Config {
             collapsed_settings_sections: Vec::new(),
             dynamic_profile_sources: Vec::new(),
             allow_all_env_vars: crate::defaults::bool_false(),
+            allow_http_profiles: crate::defaults::bool_false(),
             ai_inspector_enabled: crate::defaults::ai_inspector_enabled(),
             ai_inspector_open_on_startup: crate::defaults::ai_inspector_open_on_startup(),
             ai_inspector_width: crate::defaults::ai_inspector_width(),

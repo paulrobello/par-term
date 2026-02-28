@@ -33,7 +33,21 @@ pub fn configure_metal_layer_for_performance(window: &winit::window::Window) -> 
             _ => anyhow::bail!("Not a macOS AppKit window"),
         };
 
-        // SAFETY: We're on the main thread (required by winit), NSView pointer is valid
+        // SAFETY: `ns_view_ptr` is a non-null NSView pointer obtained from winit's AppKit
+        // window handle. winit guarantees the pointer is valid and that this function is
+        // called on the main thread (required by AppKit/Objective-C). Casting to
+        // `*mut NSView` and creating a shared reference is valid because the type matches
+        // and the pointer is aligned and properly initialized by the runtime.
+        //
+        // `msg_send![view, layer]` is a safe Objective-C message on a valid NSView;
+        // it returns a retained `AnyObject` whose lifetime is managed by `Retained<T>`.
+        // `msg_send![metal_layer_ptr, class]` returns the metaclass object — non-null
+        // for any live Objective-C object. Dereferencing `class_obj` is safe because
+        // every Objective-C object has an associated class.
+        //
+        // The `setOpaque:`, `setOpacity:`, `setDisplaySyncEnabled:`, and
+        // `displaySyncEnabled` messages are only sent after verifying the layer is a
+        // `CAMetalLayer` by name check, so the Metal-specific selectors are valid.
         unsafe {
             // Cast to NSView
             let ns_view = ns_view_ptr as *mut NSView;

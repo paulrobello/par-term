@@ -84,6 +84,25 @@ pub struct PrettifierYamlConfig {
     #[serde(default)]
     pub custom_renderers: Vec<CustomRendererConfig>,
 
+    /// Allowlist of command names (basename or full path) that `ExternalCommandRenderer`
+    /// is permitted to execute.
+    ///
+    /// When non-empty, any custom renderer `render_command` whose basename or full path
+    /// does not match an entry here will be refused at render time and a warning logged.
+    ///
+    /// When empty (the default), all commands defined in `custom_renderers` are allowed
+    /// to execute but a security warning is emitted for each execution to alert operators.
+    ///
+    /// Example:
+    /// ```yaml
+    /// content_prettifier:
+    ///   allowed_commands:
+    ///     - bat
+    ///     - /usr/local/bin/protoc
+    /// ```
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub allowed_commands: Vec<String>,
+
     /// Claude Code integration settings.
     #[serde(default)]
     pub claude_code_integration: ClaudeCodeConfig,
@@ -107,6 +126,7 @@ impl Default for PrettifierYamlConfig {
             clipboard: ClipboardConfig::default(),
             renderers: RenderersConfig::default(),
             custom_renderers: Vec::new(),
+            allowed_commands: Vec::new(),
             claude_code_integration: ClaudeCodeConfig::default(),
             detection_rules: HashMap::new(),
             cache: CacheConfig::default(),
@@ -514,6 +534,9 @@ pub struct ResolvedPrettifierConfig {
     pub clipboard: ClipboardConfig,
     pub renderers: RenderersConfig,
     pub custom_renderers: Vec<CustomRendererConfig>,
+    /// Allowlist of permitted command names for `ExternalCommandRenderer`.
+    /// Propagated from `PrettifierYamlConfig::allowed_commands`.
+    pub allowed_commands: Vec<String>,
     pub claude_code_integration: ClaudeCodeConfig,
     pub detection_rules: HashMap<String, FormatDetectionRulesConfig>,
     pub cache: CacheConfig,
@@ -567,6 +590,7 @@ pub fn resolve_prettifier_config(
         clipboard: global_config.clipboard.clone(),
         renderers,
         custom_renderers: global_config.custom_renderers.clone(),
+        allowed_commands: global_config.allowed_commands.clone(),
         claude_code_integration,
         detection_rules: global_config.detection_rules.clone(),
         cache: global_config.cache.clone(),

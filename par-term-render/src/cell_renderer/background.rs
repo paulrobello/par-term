@@ -562,6 +562,9 @@ impl CellRenderer {
     /// `self.bg_state.pane_bg_uniform_cache.get(path)` inside the render pass.
     ///
     /// The texture entry must already be loaded into `bg_state.pane_bg_cache`.
+    // Too many arguments: binds pane geometry (x, y, w, h) together with texture
+    // display parameters (mode, opacity, darken) in a single GPU bind group preparation.
+    // A PaneBgParams struct is the right fix; deferred since this function has one call site.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn prepare_pane_bg_bind_group(
         &mut self,
