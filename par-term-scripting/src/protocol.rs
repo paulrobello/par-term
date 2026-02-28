@@ -43,11 +43,13 @@
 //!
 //! ## Implementation Status
 //!
-//! As of the current version:
-//! - `Log`, `SetPanel`, `ClearPanel`: **Implemented** (safe, always allowed)
-//! - `WriteText`, `RunCommand`, `ChangeConfig`: **Not yet implemented**
-//!   - These require the permission infrastructure described above
-//!   - See `par-term-scripting/SECURITY.md` for full implementation requirements
+//! All commands are implemented:
+//! - `Log`, `SetPanel`, `ClearPanel`: Safe, always allowed
+//! - `Notify`, `SetBadge`, `SetVariable`: Safe, always allowed
+//! - `WriteText`: Requires `allow_write_text`, rate-limited, VT sequences stripped
+//! - `RunCommand`: Requires `allow_run_command`, rate-limited, denylist-checked,
+//!   tokenised without shell invocation
+//! - `ChangeConfig`: Requires `allow_change_config`, allowlisted keys only
 //!
 //! ## Dispatcher Responsibility
 //!

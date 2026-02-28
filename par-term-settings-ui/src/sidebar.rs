@@ -937,6 +937,13 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "restart",
             "restart policy",
             "restart delay",
+            // Permissions
+            "permission",
+            "allow",
+            "write text",
+            "run command",
+            "change config",
+            "rate limit",
         ],
         SettingsTab::Snippets => &[
             "snippet",

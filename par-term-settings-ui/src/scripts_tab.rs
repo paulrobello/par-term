@@ -309,6 +309,11 @@ fn show_scripts_section(
                 settings.temp_script_restart_policy = script.restart_policy;
                 settings.temp_script_restart_delay_ms = script.restart_delay_ms;
                 settings.temp_script_subscriptions = script.subscriptions.join(", ");
+                settings.temp_script_allow_write_text = script.allow_write_text;
+                settings.temp_script_allow_run_command = script.allow_run_command;
+                settings.temp_script_allow_change_config = script.allow_change_config;
+                settings.temp_script_write_text_rate_limit = script.write_text_rate_limit;
+                settings.temp_script_run_command_rate_limit = script.run_command_rate_limit;
             }
 
             ui.add_space(4.0);
@@ -334,6 +339,11 @@ fn show_scripts_section(
                 settings.temp_script_restart_policy = RestartPolicy::Never;
                 settings.temp_script_restart_delay_ms = 0;
                 settings.temp_script_subscriptions = String::new();
+                settings.temp_script_allow_write_text = false;
+                settings.temp_script_allow_run_command = false;
+                settings.temp_script_allow_change_config = false;
+                settings.temp_script_write_text_rate_limit = 0;
+                settings.temp_script_run_command_rate_limit = 0;
             }
         },
     );
@@ -421,6 +431,69 @@ fn show_script_edit_form(
 
         ui.add_space(4.0);
 
+        // Permissions section
+        ui.label(egui::RichText::new("Permissions").strong().small());
+        ui.indent("script_permissions", |ui| {
+            ui.checkbox(
+                &mut settings.temp_script_allow_write_text,
+                "Allow WriteText",
+            )
+            .on_hover_text(
+                "Allow this script to inject text into the active PTY. \
+                 VT/ANSI escape sequences are stripped before writing.",
+            );
+
+            if settings.temp_script_allow_write_text {
+                ui.indent("write_text_rate", |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label("Rate limit (writes/sec, 0 = default 10/s):");
+                        ui.add(
+                            egui::DragValue::new(
+                                &mut settings.temp_script_write_text_rate_limit,
+                            )
+                            .range(0..=100)
+                            .speed(1.0),
+                        );
+                    });
+                });
+            }
+
+            ui.checkbox(
+                &mut settings.temp_script_allow_run_command,
+                "Allow RunCommand",
+            )
+            .on_hover_text(
+                "Allow this script to spawn external processes. \
+                 Commands are checked against the denylist and tokenised without shell invocation.",
+            );
+
+            if settings.temp_script_allow_run_command {
+                ui.indent("run_command_rate", |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label("Rate limit (runs/sec, 0 = default 1/s):");
+                        ui.add(
+                            egui::DragValue::new(
+                                &mut settings.temp_script_run_command_rate_limit,
+                            )
+                            .range(0..=10)
+                            .speed(1.0),
+                        );
+                    });
+                });
+            }
+
+            ui.checkbox(
+                &mut settings.temp_script_allow_change_config,
+                "Allow ChangeConfig",
+            )
+            .on_hover_text(
+                "Allow this script to modify runtime configuration values. \
+                 Only allowlisted keys (font_size, window_opacity, etc.) may be changed.",
+            );
+        });
+
+        ui.add_space(4.0);
+
         // Save / Cancel
         ui.horizontal(|ui| {
             let can_save = !settings.temp_script_name.trim().is_empty()
@@ -452,12 +525,16 @@ fn show_script_edit_form(
                     restart_policy: settings.temp_script_restart_policy,
                     restart_delay_ms: settings.temp_script_restart_delay_ms,
                     subscriptions,
-                    env_vars: std::collections::HashMap::new(),
-                    allow_write_text: false,
-                    allow_run_command: false,
-                    allow_change_config: false,
-                    write_text_rate_limit: 0,
-                    run_command_rate_limit: 0,
+                    env_vars: if let Some(i) = edit_index {
+                        settings.config.scripts[i].env_vars.clone()
+                    } else {
+                        std::collections::HashMap::new()
+                    },
+                    allow_write_text: settings.temp_script_allow_write_text,
+                    allow_run_command: settings.temp_script_allow_run_command,
+                    allow_change_config: settings.temp_script_allow_change_config,
+                    write_text_rate_limit: settings.temp_script_write_text_rate_limit,
+                    run_command_rate_limit: settings.temp_script_run_command_rate_limit,
                 };
 
                 if let Some(i) = edit_index {

@@ -43,6 +43,10 @@ enum PendingScriptAction {
 /// escape sequences inside quotes are **not** handled — the intent is purely to
 /// separate tokens, not to emulate a full shell parser.
 ///
+/// **Limitations**: Single quotes (`'arg with spaces'`) and backslash escapes
+/// (`arg\ with\ spaces`) are not supported.  Scripts should use double quotes
+/// for arguments containing whitespace.
+///
 /// Returns `None` if the string is empty or contains only whitespace.
 fn tokenise_command(command: &str) -> Option<(String, Vec<String>)> {
     let mut tokens: Vec<String> = Vec::new();
@@ -441,6 +445,10 @@ impl WindowManager {
                     }
 
                     // ── WriteText ───────────────────────────────────────────────
+                    // NOTE: Uses `try_write()` for the terminal lock.  If the
+                    // lock is held (e.g. by the PTY reader), the write is
+                    // silently skipped this frame.  The script receives no
+                    // failure signal — it may retry on the next event cycle.
                     PendingScriptAction::WriteText { text, config_index } => {
                         // Permission check (copy value to release config borrow)
                         let allow = ws
@@ -501,6 +509,10 @@ impl WindowManager {
                     }
 
                     // ── RunCommand ──────────────────────────────────────────────
+                    // NOTE: Spawned processes run fire-and-forget with
+                    // stdout/stderr discarded (`Stdio::null()`).  Scripts that
+                    // need command output should read it from the PTY stream
+                    // or use a side-channel (e.g. writing to a temp file).
                     PendingScriptAction::RunCommand {
                         command,
                         config_index,
