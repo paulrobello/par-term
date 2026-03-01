@@ -22,10 +22,8 @@ impl WindowState {
 
         // try_lock: intentional — copy mode initialization in sync event loop.
         // On miss: copy mode is not entered this keypress. User can try again.
-        let Some((cursor_col, cursor_row, cols, rows, scrollback_len)) = self
-            .tab_manager
-            .active_tab()
-            .and_then(|tab| {
+        let Some((cursor_col, cursor_row, cols, rows, scrollback_len)) =
+            self.tab_manager.active_tab().and_then(|tab| {
                 tab.try_with_terminal_mut(|term| {
                     let (col, row) = term.cursor_position();
                     let (cols, rows) = term.dimensions();
@@ -56,7 +54,7 @@ impl WindowState {
         // Clear selection (per-pane aware)
         self.with_active_tab_mut(|tab| {
             tab.selection_mouse_mut().selection = None;
-            tab.cache.cells = None; // Invalidate cache
+            tab.active_cache_mut().cells = None; // Invalidate cache
         });
         // Scroll back to bottom
         self.set_scroll_target(0);
@@ -323,7 +321,7 @@ impl WindowState {
                     self.copy_mode.selection_anchor = None;
                     self.with_active_tab_mut(|tab| {
                         tab.selection_mouse_mut().selection = None;
-                        tab.cache.cells = None;
+                        tab.active_cache_mut().cells = None;
                     });
                     self.focus_state.needs_redraw = true;
                     self.request_redraw();
@@ -544,19 +542,23 @@ impl WindowState {
 
     /// Synchronize the copy mode visual selection with the tab's mouse selection
     fn sync_copy_mode_selection(&mut self) {
-        let scroll_offset = self.with_active_tab(|t| t.scroll_state.offset).unwrap_or(0);
+        let scroll_offset = self
+            .with_active_tab(|t| t.active_scroll_state().offset)
+            .unwrap_or(0);
 
         let selection = self.copy_mode.compute_selection(scroll_offset);
 
         self.with_active_tab_mut(|tab| {
             tab.selection_mouse_mut().selection = selection;
-            tab.cache.cells = None; // Invalidate cache to re-render selection
+            tab.active_cache_mut().cells = None; // Invalidate cache to re-render selection
         });
     }
 
     /// Scroll the viewport to follow the copy mode cursor if it moved offscreen
     fn follow_copy_mode_cursor(&mut self) {
-        let current_offset = self.with_active_tab(|t| t.scroll_state.offset).unwrap_or(0);
+        let current_offset = self
+            .with_active_tab(|t| t.active_scroll_state().offset)
+            .unwrap_or(0);
 
         if let Some(new_offset) = self.copy_mode.required_scroll_offset(current_offset) {
             self.set_scroll_target(new_offset);
@@ -586,7 +588,7 @@ impl WindowState {
                         self.copy_mode.selection_anchor = None;
                         self.with_active_tab_mut(|tab| {
                             tab.selection_mouse_mut().selection = None;
-                            tab.cache.cells = None;
+                            tab.active_cache_mut().cells = None;
                         });
                         self.focus_state.needs_redraw = true;
                         self.request_redraw();

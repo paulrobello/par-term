@@ -207,7 +207,7 @@ impl WindowState {
             let scroll_offset = self
                 .tab_manager
                 .active_tab()
-                .map(|t| t.scroll_state.offset)
+                .map(|t| t.active_scroll_state().offset)
                 .unwrap_or(0);
             renderer.update_scrollbar(scroll_offset, visible_lines, total_lines, &scrollback_marks);
 
@@ -335,7 +335,7 @@ impl WindowState {
             let visual_bell_flash = self
                 .tab_manager
                 .active_tab()
-                .and_then(|t| t.bell.visual_flash);
+                .and_then(|t| t.active_bell().visual_flash);
             let visual_bell_intensity = if let Some(flash_start) = visual_bell_flash {
                 let elapsed = flash_start.elapsed().as_millis();
                 if elapsed < VISUAL_BELL_FLASH_DURATION_MS {
@@ -348,7 +348,7 @@ impl WindowState {
                 } else {
                     // Flash complete - clear it
                     if let Some(tab) = self.tab_manager.active_tab_mut() {
-                        tab.bell.visual_flash = None;
+                        tab.active_bell_mut().visual_flash = None;
                     }
                     0.0
                 }
@@ -401,13 +401,13 @@ impl WindowState {
                 if self.config.scrollbar_mark_tooltips && self.config.scrollbar_command_marks {
                     self.tab_manager
                         .active_tab()
-                        .map(|tab| tab.mouse.position)
+                        .map(|tab| tab.active_mouse().position)
                         .and_then(|(mx, my)| {
                             renderer.scrollbar_mark_at_position(
-                            mx as f32,
-                            my as f32,
-                            SCROLLBAR_MARK_HIT_RADIUS_PX,
-                        )
+                                mx as f32,
+                                my as f32,
+                                SCROLLBAR_MARK_HIT_RADIUS_PX,
+                            )
                         })
                         .cloned()
                 } else {
@@ -744,7 +744,12 @@ impl WindowState {
                 let (cache_gen, cache_has_cells) = self
                     .tab_manager
                     .active_tab()
-                    .map(|t| (t.cache.generation, t.cache.cells.is_some()))
+                    .map(|t| {
+                        (
+                            t.active_cache().generation,
+                            t.active_cache().cells.is_some(),
+                        )
+                    })
                     .unwrap_or((0, false));
                 log::info!(
                     "PERF: FPS={:.1} Frame={:.2}ms CellGen={:.2}ms({}) URLDetect={:.2}ms Anim={:.2}ms Graphics={:.2}ms egui={:.2}ms UpdateCells={:.2}ms ActualRender={:.2}ms Total={:.2}ms Cells={} Gen={} Cache={}",
@@ -841,14 +846,14 @@ impl WindowState {
                     if focused_pane_scrollback_len > 0
                         && let Some(tab) = self.tab_manager.active_tab_mut()
                     {
-                        tab.cache.scrollback_len = focused_pane_scrollback_len;
+                        tab.active_cache_mut().scrollback_len = focused_pane_scrollback_len;
                     }
 
                     // Get hovered divider index for hover color rendering
                     let hovered_divider_index = self
                         .tab_manager
                         .active_tab()
-                        .and_then(|t| t.mouse.hovered_divider_index);
+                        .and_then(|t| t.active_mouse().hovered_divider_index);
 
                     // Render split panes
                     Self::render_split_panes_with_data(

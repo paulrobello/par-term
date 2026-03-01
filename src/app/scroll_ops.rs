@@ -7,21 +7,22 @@ use super::window_state::WindowState;
 impl WindowState {
     /// Return the scrollback length for the active terminal.
     ///
-    /// `tab.cache.scrollback_len` is updated every render frame: for single-pane
+    /// `tab.active_cache().scrollback_len` is updated every render frame: for single-pane
     /// mode by the normal PTY-reader path; for split-pane mode by the pane data
     /// gather loop which caches the focused pane's value.  This means we never
     /// need to lock the terminal here and won't get a spurious 0 on lock contention.
     pub(crate) fn get_active_scrollback_len(&self) -> usize {
         self.tab_manager
             .active_tab()
-            .map(|t| t.cache.scrollback_len)
+            .map(|t| t.active_cache().scrollback_len)
             .unwrap_or(0)
     }
 
     pub(crate) fn scroll_up_page(&mut self) {
         // Calculate page size based on visible lines
         let scrollback_len = self.get_active_scrollback_len();
-        let Some(target_offset) = self.with_active_tab(|t| t.scroll_state.target_offset) else {
+        let Some(target_offset) = self.with_active_tab(|t| t.active_scroll_state().target_offset)
+        else {
             return;
         };
 
@@ -37,7 +38,8 @@ impl WindowState {
 
     pub(crate) fn scroll_down_page(&mut self) {
         // Calculate page size based on visible lines
-        let Some(target_offset) = self.with_active_tab(|t| t.scroll_state.target_offset) else {
+        let Some(target_offset) = self.with_active_tab(|t| t.active_scroll_state().target_offset)
+        else {
             return;
         };
 
@@ -64,8 +66,8 @@ impl WindowState {
 
     pub(crate) fn scroll_to_previous_mark(&mut self) {
         let Some((scrollback_len, current_top)) = self.with_active_tab(|tab| {
-            let scrollback_len = tab.cache.scrollback_len;
-            let current_top = scrollback_len.saturating_sub(tab.scroll_state.offset);
+            let scrollback_len = tab.active_cache().scrollback_len;
+            let current_top = scrollback_len.saturating_sub(tab.active_scroll_state().offset);
             (scrollback_len, current_top)
         }) else {
             return;
@@ -77,7 +79,9 @@ impl WindowState {
         let prev = self
             .tab_manager
             .active_tab()
-            .and_then(|tab| tab.try_with_terminal_mut(|term| term.scrollback_previous_mark(current_top)))
+            .and_then(|tab| {
+                tab.try_with_terminal_mut(|term| term.scrollback_previous_mark(current_top))
+            })
             .flatten();
 
         if let Some(line) = prev {
@@ -88,8 +92,8 @@ impl WindowState {
 
     pub(crate) fn scroll_to_next_mark(&mut self) {
         let Some((scrollback_len, current_top)) = self.with_active_tab(|tab| {
-            let scrollback_len = tab.cache.scrollback_len;
-            let current_top = scrollback_len.saturating_sub(tab.scroll_state.offset);
+            let scrollback_len = tab.active_cache().scrollback_len;
+            let current_top = scrollback_len.saturating_sub(tab.active_scroll_state().offset);
             (scrollback_len, current_top)
         }) else {
             return;
@@ -99,7 +103,9 @@ impl WindowState {
         let next = self
             .tab_manager
             .active_tab()
-            .and_then(|tab| tab.try_with_terminal_mut(|term| term.scrollback_next_mark(current_top)))
+            .and_then(|tab| {
+                tab.try_with_terminal_mut(|term| term.scrollback_next_mark(current_top))
+            })
             .flatten();
 
         if let Some(line) = next {

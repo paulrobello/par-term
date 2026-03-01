@@ -52,7 +52,7 @@ pub(super) fn apply_prettifier_cell_substitution(
         return prettifier_graphics;
     }
 
-    let scroll_off = tab.scroll_state.offset;
+    let scroll_off = tab.active_scroll_state().offset;
     let gutter_w = tab.gutter_manager.gutter_width;
 
     // Track which blocks we've already collected graphics from

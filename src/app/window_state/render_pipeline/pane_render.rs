@@ -83,7 +83,7 @@ pub(super) fn gather_pane_render_data(
         - effective_padding
         - sizing.status_bar_height;
 
-    let tab_scroll_offset = tab.scroll_state.offset;
+    let tab_scroll_offset = tab.active_scroll_state().offset;
 
     let pm = tab.pane_manager.as_mut()?;
 

@@ -90,67 +90,48 @@ pub struct Tab {
     pub(crate) title: String,
     /// Whether this tab has unread activity since last viewed
     pub(crate) has_activity: bool,
-    /// Scroll state for this tab.
+    /// Scroll state for this tab (single-pane mode) or fallback for split-pane mode.
     ///
-    /// LEGACY: Used by ~10 call sites — migration target is
-    /// `PaneManager::active_pane().scroll_state`.
+    /// External callers MUST use [`Tab::active_scroll_state`] and
+    /// [`Tab::active_scroll_state_mut`] instead of accessing this field directly.
+    /// Those accessors route through the focused pane in split-pane mode so that
+    /// per-pane scroll state is correctly isolated.
     ///
-    /// Known callers that must be updated before this field can be removed:
-    /// - `src/app/url_hover.rs` — reads scroll offset for URL hit-testing
-    /// - `src/renderer/pane_render.rs` — passes scroll state to cell renderer
-    /// - `src/prettifier/prettifier_cells.rs` — computes gutter scroll position
-    /// - `src/search/` — applies scroll offset to search result positions
-    /// - `src/tab_bar_ui/` — reads scroll state for activity indicator
-    ///
-    /// Migration plan: add `scroll_state: ScrollState` to the `Pane` struct,
-    /// update each call site to call `tab.pane_manager.as_ref().map_or(&tab.scroll_state,
-    /// |pm| &pm.active_pane().scroll_state)`, then remove this field once all sites
-    /// have been migrated and the pane split path is fully tested.
+    /// This field serves as the fallback when no pane manager is active (i.e.
+    /// the tab is running in single-pane mode). It remains here until per-pane
+    /// `Pane::scroll_state` is the sole source of truth and the fallback can be
+    /// removed (see AUD-002 / AUD-062).
     pub(crate) scroll_state: ScrollState,
-    /// Mouse state for this tab.
+    /// Mouse state for this tab (single-pane mode) or fallback for split-pane mode.
     ///
-    /// LEGACY: Used by ~15 call sites — migration target is
-    /// `PaneManager::active_pane().mouse`.
+    /// External callers MUST use [`Tab::active_mouse`] / [`Tab::active_mouse_mut`]
+    /// for general mouse state, or [`Tab::selection_mouse`] /
+    /// [`Tab::selection_mouse_mut`] for selection-specific state.
     ///
-    /// Known callers that must be updated before this field can be removed:
-    /// - `src/app/input_events.rs` — writes mouse position and button state
-    /// - `src/app/url_hover.rs` — reads hover URL and mouse position
-    /// - `src/app/window_state/mod.rs` — polls mouse tracking mode
-    /// - `src/renderer/pane_render.rs` — reads mouse position for cursor rendering
-    /// - `src/selection.rs` — reads/writes selection anchor via mouse state
-    ///
-    /// Migration plan: add `mouse: MouseState` to the `Pane` struct, route all
-    /// write operations through `PaneManager::active_pane_mut().mouse`, then remove
-    /// this field once all sites are migrated.
+    /// This field serves as the fallback when no pane manager is active. It will
+    /// be removed once all call sites use the per-pane `Pane::mouse` field and the
+    /// split-pane path is fully validated (see AUD-002 / AUD-062).
     pub(crate) mouse: MouseState,
-    /// Bell state for this tab.
+    /// Bell state for this tab (single-pane mode) or fallback for split-pane mode.
     ///
-    /// LEGACY: Used by ~7 call sites — migration target is
-    /// `PaneManager::active_pane().bell`.
+    /// External callers MUST use [`Tab::active_bell`] / [`Tab::active_bell_mut`]
+    /// instead of accessing this field directly. The accessor routes through the
+    /// focused pane in split-pane mode.
     ///
-    /// Known callers that must be updated before this field can be removed:
-    /// - `src/app/notifications.rs` — reads bell state to dispatch OS notifications
-    /// - `src/app/triggers.rs` — triggers bell on pattern match
-    /// - `src/audio_bell.rs` — reads bell state to decide whether to play audio
-    ///
-    /// Migration plan: add `bell: BellState` to the `Pane` struct, update write
-    /// sites to target `PaneManager::active_pane_mut().bell`, then remove this field.
+    /// This field serves as the fallback when no pane manager is active and will
+    /// be removed once per-pane `Pane::bell` is the sole source of truth
+    /// (see AUD-002 / AUD-062).
     pub(crate) bell: BellState,
-    /// Render cache for this tab.
+    /// Render cache for this tab (single-pane mode) or fallback for split-pane mode.
     ///
-    /// LEGACY: Used by ~17 call sites — migration target is
-    /// `PaneManager::active_pane().cache`.
+    /// External callers MUST use [`Tab::active_cache`] / [`Tab::active_cache_mut`]
+    /// instead of accessing this field directly, except for prettifier fields that
+    /// are explicitly tab-level (e.g. `prettifier_command_start_line`), where direct
+    /// access is intentional and documented inline to avoid borrow conflicts.
     ///
-    /// Known callers that must be updated before this field can be removed:
-    /// - `src/cell_renderer.rs` — reads glyph atlas and dirty flags
-    /// - `src/renderer/pane_render.rs` — checks dirty flag before re-rendering
-    /// - `src/app/config_updates.rs` — invalidates cache on theme/font change
-    /// - `src/custom_shader_renderer.rs` — reads shader cache for background pass
-    /// - `src/prettifier/prettifier_cells.rs` — reads prettifier render cache
-    ///
-    /// Migration plan: add `cache: RenderCache` to the `Pane` struct, update each
-    /// call site to use `tab.pane_manager.as_ref().map_or(&tab.cache,
-    /// |pm| &pm.active_pane().cache)`, then remove this field.
+    /// This field serves as the fallback when no pane manager is active and will
+    /// be removed once per-pane `Pane::cache` is the sole source of truth
+    /// (see AUD-002 / AUD-062).
     pub(crate) cache: RenderCache,
     /// Async task for refresh polling
     pub(crate) refresh_task: Option<JoinHandle<()>>,
@@ -673,10 +654,7 @@ impl Tab {
     /// Called from the sync winit event loop. On contention, returns `None` so the
     /// caller can gracefully skip the operation and retry on the next frame.
     #[inline]
-    pub(crate) fn try_with_terminal<R>(
-        &self,
-        f: impl FnOnce(&TerminalManager) -> R,
-    ) -> Option<R> {
+    pub(crate) fn try_with_terminal<R>(&self, f: impl FnOnce(&TerminalManager) -> R) -> Option<R> {
         // try_lock: intentional — called from the sync event loop; skip on contention.
         self.terminal.try_read().ok().map(|guard| f(&guard))
     }
@@ -696,7 +674,10 @@ impl Tab {
         f: impl FnOnce(&mut TerminalManager) -> R,
     ) -> Option<R> {
         // try_lock: intentional — called from the sync event loop; skip on contention.
-        self.terminal.try_write().ok().map(|mut guard| f(&mut guard))
+        self.terminal
+            .try_write()
+            .ok()
+            .map(|mut guard| f(&mut guard))
     }
 
     /// Get the mouse state for selection operations.
@@ -726,6 +707,118 @@ impl Tab {
             &mut focused_pane.mouse
         } else {
             &mut self.mouse
+        }
+    }
+
+    // =========================================================================
+    // AUD-002 / AUD-062: Per-pane state accessors
+    //
+    // These accessors route through the focused pane in split-pane mode and
+    // fall back to the tab-level field in single-pane mode.  All external
+    // callers should use these methods rather than the fields directly so that:
+    //
+    //   1. Split-pane behaviour is correct today (each pane has isolated state).
+    //   2. Removing the tab-level fallback fields in a future clean-up step
+    //      only requires deleting the `else` branch here — no call site changes.
+    //
+    // The tab-level fields (scroll_state, mouse, cache, bell) are kept as the
+    // single-pane fallback until per-pane state is validated as the sole source
+    // of truth across the entire codebase.
+    // =========================================================================
+
+    /// Active scroll state — focused pane in split mode, tab-level otherwise.
+    #[inline]
+    pub(crate) fn active_scroll_state(&self) -> &ScrollState {
+        if let Some(ref pm) = self.pane_manager
+            && let Some(pane) = pm.focused_pane()
+        {
+            &pane.scroll_state
+        } else {
+            &self.scroll_state
+        }
+    }
+
+    /// Mutable active scroll state — focused pane in split mode, tab-level otherwise.
+    #[inline]
+    pub(crate) fn active_scroll_state_mut(&mut self) -> &mut ScrollState {
+        if let Some(ref mut pm) = self.pane_manager
+            && let Some(pane) = pm.focused_pane_mut()
+        {
+            &mut pane.scroll_state
+        } else {
+            &mut self.scroll_state
+        }
+    }
+
+    /// Active mouse state — focused pane in split mode, tab-level otherwise.
+    #[inline]
+    pub(crate) fn active_mouse(&self) -> &MouseState {
+        if let Some(ref pm) = self.pane_manager
+            && let Some(pane) = pm.focused_pane()
+        {
+            &pane.mouse
+        } else {
+            &self.mouse
+        }
+    }
+
+    /// Mutable active mouse state — focused pane in split mode, tab-level otherwise.
+    #[inline]
+    pub(crate) fn active_mouse_mut(&mut self) -> &mut MouseState {
+        if let Some(ref mut pm) = self.pane_manager
+            && let Some(pane) = pm.focused_pane_mut()
+        {
+            &mut pane.mouse
+        } else {
+            &mut self.mouse
+        }
+    }
+
+    /// Active render cache — focused pane in split mode, tab-level otherwise.
+    #[inline]
+    pub(crate) fn active_cache(&self) -> &RenderCache {
+        if let Some(ref pm) = self.pane_manager
+            && let Some(pane) = pm.focused_pane()
+        {
+            &pane.cache
+        } else {
+            &self.cache
+        }
+    }
+
+    /// Mutable active render cache — focused pane in split mode, tab-level otherwise.
+    #[inline]
+    pub(crate) fn active_cache_mut(&mut self) -> &mut RenderCache {
+        if let Some(ref mut pm) = self.pane_manager
+            && let Some(pane) = pm.focused_pane_mut()
+        {
+            &mut pane.cache
+        } else {
+            &mut self.cache
+        }
+    }
+
+    /// Active bell state — focused pane in split mode, tab-level otherwise.
+    #[inline]
+    pub(crate) fn active_bell(&self) -> &BellState {
+        if let Some(ref pm) = self.pane_manager
+            && let Some(pane) = pm.focused_pane()
+        {
+            &pane.bell
+        } else {
+            &self.bell
+        }
+    }
+
+    /// Mutable active bell state — focused pane in split mode, tab-level otherwise.
+    #[inline]
+    pub(crate) fn active_bell_mut(&mut self) -> &mut BellState {
+        if let Some(ref mut pm) = self.pane_manager
+            && let Some(pane) = pm.focused_pane_mut()
+        {
+            &mut pane.bell
+        } else {
+            &mut self.bell
         }
     }
 

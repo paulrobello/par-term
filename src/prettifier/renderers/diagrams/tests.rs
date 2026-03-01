@@ -1,6 +1,7 @@
 //! Tests for the diagram renderer.
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod tests {
     use crate::config::prettifier::DiagramRendererConfig;
     use crate::prettifier::traits::{ContentRenderer, RendererConfig, ThemeColors};

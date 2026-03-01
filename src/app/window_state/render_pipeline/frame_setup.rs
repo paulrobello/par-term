@@ -45,7 +45,7 @@ impl WindowState {
     /// Tick scroll animations, refresh tab titles, and rebuild renderer if font settings changed.
     pub(super) fn update_animations(&mut self) {
         let animation_running = if let Some(tab) = self.tab_manager.active_tab_mut() {
-            tab.scroll_state.update_animation()
+            tab.active_scroll_state_mut().update_animation()
         } else {
             false
         };
@@ -102,7 +102,7 @@ impl WindowState {
                         term.set_cell_dimensions(cell_width as u32, cell_height as u32);
                         let _ = term.resize_with_pixels(new_cols, new_rows, width_px, height_px);
                     }
-                    tab.cache.cells = None;
+                    tab.active_cache_mut().cells = None;
                 }
                 crate::debug_info!(
                     "TAB_SYNC",

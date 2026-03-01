@@ -28,7 +28,7 @@ impl WindowState {
                     renderer.clear_all_cells();
                 }
                 if let Some(tab) = self.tab_manager.active_tab_mut() {
-                    tab.cache.cells = None;
+                    tab.active_cache_mut().cells = None;
                 }
                 self.focus_state.needs_redraw = true;
                 if let Some(window) = &self.window {

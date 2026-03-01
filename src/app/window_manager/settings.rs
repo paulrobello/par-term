@@ -287,7 +287,7 @@ impl WindowManager {
                         if let Ok(mut term) = tab.terminal.try_write() {
                             term.set_cursor_style(term_style);
                         }
-                        tab.cache.cells = None; // Invalidate cache to redraw cursor
+                        tab.active_cache_mut().cells = None; // Invalidate cache to redraw cursor
                     }
                     window_state.focus_state.needs_redraw = true;
                 }
@@ -593,7 +593,7 @@ impl WindowManager {
                             let _ =
                                 term.resize_with_pixels(new_cols, new_rows, width_px, height_px);
                         }
-                        tab.cache.cells = None;
+                        tab.active_cache_mut().cells = None;
                     }
                 }
                 window_state.focus_state.needs_redraw = true;
@@ -668,7 +668,7 @@ impl WindowManager {
 
             // Invalidate cache
             if let Some(tab) = window_state.tab_manager.active_tab_mut() {
-                tab.cache.cells = None;
+                tab.active_cache_mut().cells = None;
             }
             window_state.focus_state.needs_redraw = true;
         }

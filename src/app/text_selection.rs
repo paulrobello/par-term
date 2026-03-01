@@ -31,7 +31,7 @@ impl WindowState {
                 focused_pane.scroll_state.offset,
             ))
         } else {
-            Some((Arc::clone(&tab.terminal), tab.scroll_state.offset))
+            Some((Arc::clone(&tab.terminal), tab.active_scroll_state().offset))
         }
     }
 
@@ -324,7 +324,7 @@ impl WindowState {
         }
         let selection = tab.selection_mouse().selection.as_ref()?;
         let (start, _end) = selection.normalized();
-        let start_row = start.1 + tab.scroll_state.offset;
+        let start_row = start.1 + tab.active_scroll_state().offset;
 
         let block = pipeline.block_at_row(start_row)?;
 

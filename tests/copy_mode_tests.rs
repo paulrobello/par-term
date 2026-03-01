@@ -549,7 +549,7 @@ fn compute_selection_respects_scroll_offset() {
     // cursor_row = 112 - 50 = 62
     let sel = s.compute_selection(50).unwrap();
     assert_eq!(sel.start.1, 62); // anchor row
-    assert_eq!(sel.end.1, 62);   // cursor row (same position, no movement)
+    assert_eq!(sel.end.1, 62); // cursor row (same position, no movement)
 }
 
 #[test]
@@ -557,7 +557,7 @@ fn compute_selection_selection_can_go_backwards() {
     let mut s = make_state(); // col=10, line=112
     s.toggle_visual_char();
     s.move_left(); // col → 9
-    s.move_up();   // line → 111
+    s.move_up(); // line → 111
 
     let sel = s.compute_selection(0).unwrap();
     // anchor at (10, 12), cursor now at (9, 11) in screen-relative
@@ -822,7 +822,11 @@ fn status_text_visual_line_mode_contains_visual_line() {
     let mut s = make_state();
     s.toggle_visual_line();
     let text = s.status_text();
-    assert!(text.contains("VISUAL LINE"), "Expected VISUAL LINE in '{}'", text);
+    assert!(
+        text.contains("VISUAL LINE"),
+        "Expected VISUAL LINE in '{}'",
+        text
+    );
 }
 
 #[test]
@@ -830,7 +834,11 @@ fn status_text_visual_block_mode_contains_visual_block() {
     let mut s = make_state();
     s.toggle_visual_block();
     let text = s.status_text();
-    assert!(text.contains("VISUAL BLOCK"), "Expected VISUAL BLOCK in '{}'", text);
+    assert!(
+        text.contains("VISUAL BLOCK"),
+        "Expected VISUAL BLOCK in '{}'",
+        text
+    );
 }
 
 #[test]

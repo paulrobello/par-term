@@ -1,6 +1,7 @@
 //! Tab management keyboard shortcuts (new, close, navigate, move, number-switch).
 
 use crate::app::window_state::WindowState;
+use crate::platform::{primary_modifier, primary_modifier_with_shift};
 use winit::event::{ElementState, KeyEvent};
 use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::{Key, NamedKey};
@@ -15,26 +16,29 @@ impl WindowState {
             return false;
         }
 
-        let ctrl = self.input_handler.modifiers.state().control_key();
-        let shift = self.input_handler.modifiers.state().shift_key();
-        let alt = self.input_handler.modifiers.state().alt_key();
+        let mods = self.input_handler.modifiers.state();
+        let ctrl = mods.control_key();
+        let shift = mods.shift_key();
+        let alt = mods.alt_key();
 
-        // macOS: Cmd is the primary modifier (doesn't conflict with terminal control codes)
+        // macOS: Cmd is the primary modifier (doesn't conflict with terminal control codes).
         // Windows/Linux: Ctrl+Shift is used to avoid conflicts with Ctrl+T (transpose),
         // Ctrl+W (delete word), Ctrl+N (next history), etc.
-        #[cfg(target_os = "macos")]
-        let cmd = self.input_handler.modifiers.state().super_key();
+        //
+        // `primary_modifier`/`primary_modifier_with_shift` from `crate::platform` encapsulate
+        // the per-platform modifier selection so each shortcut needs no inline `#[cfg]` block.
 
         // New Tab: Cmd+T (macOS) / Ctrl+Shift+T (other)
-        #[cfg(target_os = "macos")]
-        let is_new_tab = cmd
-            && !shift
-            && !alt
-            && matches!(event.logical_key, Key::Character(ref c) if c.eq_ignore_ascii_case("t"));
-        #[cfg(not(target_os = "macos"))]
-        let is_new_tab = ctrl
-            && shift
-            && !alt
+        let is_new_tab = {
+            #[cfg(target_os = "macos")]
+            {
+                primary_modifier(&mods)
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                primary_modifier_with_shift(&mods)
+            }
+        } && !alt
             && matches!(event.logical_key, Key::Character(ref c) if c.eq_ignore_ascii_case("t"));
 
         if is_new_tab {
@@ -43,16 +47,17 @@ impl WindowState {
         }
 
         // Close Tab: Cmd+W (macOS) / Ctrl+Shift+W (other)
-        // Ctrl+W is "delete word backward" in terminals, must not be intercepted on non-macOS
-        #[cfg(target_os = "macos")]
-        let is_close = cmd
-            && !shift
-            && !alt
-            && matches!(event.logical_key, Key::Character(ref c) if c.eq_ignore_ascii_case("w"));
-        #[cfg(not(target_os = "macos"))]
-        let is_close = ctrl
-            && shift
-            && !alt
+        // Ctrl+W is "delete word backward" in terminals, must not be intercepted on non-macOS.
+        let is_close = {
+            #[cfg(target_os = "macos")]
+            {
+                primary_modifier(&mods)
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                primary_modifier_with_shift(&mods)
+            }
+        } && !alt
             && matches!(event.logical_key, Key::Character(ref c) if c.eq_ignore_ascii_case("w"));
 
         if is_close {
@@ -65,12 +70,7 @@ impl WindowState {
         }
 
         // Next Tab: Cmd+Shift+] (macOS) / Ctrl+Shift+] (other)
-        #[cfg(target_os = "macos")]
-        let is_next_bracket =
-            cmd && shift && matches!(event.logical_key, Key::Character(ref c) if c.as_str() == "]");
-        #[cfg(not(target_os = "macos"))]
-        let is_next_bracket = ctrl
-            && shift
+        let is_next_bracket = primary_modifier_with_shift(&mods)
             && matches!(event.logical_key, Key::Character(ref c) if c.as_str() == "]");
 
         if is_next_bracket {
@@ -80,12 +80,7 @@ impl WindowState {
         }
 
         // Previous Tab: Cmd+Shift+[ (macOS) / Ctrl+Shift+[ (other)
-        #[cfg(target_os = "macos")]
-        let is_prev_bracket =
-            cmd && shift && matches!(event.logical_key, Key::Character(ref c) if c.as_str() == "[");
-        #[cfg(not(target_os = "macos"))]
-        let is_prev_bracket = ctrl
-            && shift
+        let is_prev_bracket = primary_modifier_with_shift(&mods)
             && matches!(event.logical_key, Key::Character(ref c) if c.as_str() == "[");
 
         if is_prev_bracket {
@@ -109,12 +104,8 @@ impl WindowState {
         }
 
         // Move Tab Left: Cmd+Shift+Left (macOS) / Ctrl+Shift+Left (other)
-        #[cfg(target_os = "macos")]
-        let is_move_left =
-            cmd && shift && matches!(event.logical_key, Key::Named(NamedKey::ArrowLeft));
-        #[cfg(not(target_os = "macos"))]
-        let is_move_left =
-            ctrl && shift && matches!(event.logical_key, Key::Named(NamedKey::ArrowLeft));
+        let is_move_left = primary_modifier_with_shift(&mods)
+            && matches!(event.logical_key, Key::Named(NamedKey::ArrowLeft));
 
         if is_move_left {
             self.move_tab_left();
@@ -123,12 +114,8 @@ impl WindowState {
         }
 
         // Move Tab Right: Cmd+Shift+Right (macOS) / Ctrl+Shift+Right (other)
-        #[cfg(target_os = "macos")]
-        let is_move_right =
-            cmd && shift && matches!(event.logical_key, Key::Named(NamedKey::ArrowRight));
-        #[cfg(not(target_os = "macos"))]
-        let is_move_right =
-            ctrl && shift && matches!(event.logical_key, Key::Named(NamedKey::ArrowRight));
+        let is_move_right = primary_modifier_with_shift(&mods)
+            && matches!(event.logical_key, Key::Named(NamedKey::ArrowRight));
 
         if is_move_right {
             self.move_tab_right();
@@ -140,7 +127,7 @@ impl WindowState {
         // macOS: Cmd+1-9 / Windows/Linux: Alt+1-9
         // (Ctrl+1-9 don't conflict, but Alt+1-9 is the convention on Linux/Windows)
         #[cfg(target_os = "macos")]
-        let is_tab_switch_mod = cmd && !shift;
+        let is_tab_switch_mod = primary_modifier(&mods);
         #[cfg(not(target_os = "macos"))]
         let is_tab_switch_mod = alt && !shift && !ctrl;
 

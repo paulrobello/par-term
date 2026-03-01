@@ -294,7 +294,7 @@ impl WindowState {
                     );
                     if sound_id == "bell" || sound_id.is_empty() {
                         if let Some(tab) = self.tab_manager.active_tab()
-                            && let Some(ref audio_bell) = tab.bell.audio
+                            && let Some(ref audio_bell) = tab.active_bell().audio
                         {
                             audio_bell.play(volume);
                         }

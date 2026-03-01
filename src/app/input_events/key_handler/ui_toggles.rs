@@ -14,21 +14,15 @@ impl WindowState {
             return false;
         }
 
-        let shift = self.input_handler.modifiers.state().shift_key();
+        let mods = self.input_handler.modifiers.state();
 
         // Assistant panel toggle: Cmd+I (macOS) / Ctrl+Shift+I (other)
         #[cfg(target_os = "macos")]
-        let is_inspector = {
-            let cmd = self.input_handler.modifiers.state().super_key();
-            cmd && !shift
-                && matches!(event.logical_key, Key::Character(ref c) if c.eq_ignore_ascii_case("i"))
-        };
+        let is_inspector = crate::platform::primary_modifier(&mods)
+            && matches!(event.logical_key, Key::Character(ref c) if c.eq_ignore_ascii_case("i"));
         #[cfg(not(target_os = "macos"))]
-        let is_inspector = {
-            let ctrl = self.input_handler.modifiers.state().control_key();
-            ctrl && shift
-                && matches!(event.logical_key, Key::Character(ref c) if c.eq_ignore_ascii_case("i"))
-        };
+        let is_inspector = crate::platform::primary_modifier_with_shift(&mods)
+            && matches!(event.logical_key, Key::Character(ref c) if c.eq_ignore_ascii_case("i"));
 
         if is_inspector {
             let just_opened = self.overlay_ui.ai_inspector.toggle();

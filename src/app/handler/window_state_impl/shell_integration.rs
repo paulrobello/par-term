@@ -18,12 +18,12 @@ impl WindowState {
         };
 
         // Skip if scrolled (scrollback indicator takes priority)
-        if tab.scroll_state.offset != 0 {
+        if tab.active_scroll_state().offset != 0 {
             return;
         }
 
         // Skip if hovering over URL (URL tooltip takes priority)
-        if tab.mouse.hovered_url.is_some() {
+        if tab.active_mouse().hovered_url.is_some() {
             return;
         }
 

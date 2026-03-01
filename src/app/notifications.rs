@@ -51,7 +51,7 @@ impl WindowState {
             // On miss: bell detection is skipped this frame. The bell event will be seen
             // on the next poll. A one-frame delay in bell feedback is imperceptible.
             if let Ok(term) = tab.terminal.try_write() {
-                (term.bell_count(), tab.bell.last_count)
+                (term.bell_count(), tab.active_bell().last_count)
             } else {
                 return;
             }
@@ -78,7 +78,7 @@ impl WindowState {
                 if alert_cfg.enabled
                     && alert_cfg.volume > 0
                     && let Some(tab) = self.tab_manager.active_tab()
-                    && let Some(ref audio_bell) = tab.bell.audio
+                    && let Some(ref audio_bell) = tab.active_bell().audio
                 {
                     log::info!(
                         "  Playing alert sound for bell at {}% volume",
@@ -88,7 +88,7 @@ impl WindowState {
                 }
             } else if self.config.notification_bell_sound > 0 {
                 if let Some(tab) = self.tab_manager.active_tab()
-                    && let Some(ref audio_bell) = tab.bell.audio
+                    && let Some(ref audio_bell) = tab.active_bell().audio
                 {
                     log::info!(
                         "  Playing audio bell at {}% volume",
@@ -106,7 +106,7 @@ impl WindowState {
             if self.config.notification_bell_visual {
                 log::info!("  Triggering visual bell flash");
                 if let Some(tab) = self.tab_manager.active_tab_mut() {
-                    tab.bell.visual_flash = Some(std::time::Instant::now());
+                    tab.active_bell_mut().visual_flash = Some(std::time::Instant::now());
                 }
                 // Request immediate redraw to show flash
                 if let Some(window) = &self.window {
@@ -131,7 +131,7 @@ impl WindowState {
 
             // Update last count
             if let Some(tab) = self.tab_manager.active_tab_mut() {
-                tab.bell.last_count = current_bell_count;
+                tab.active_bell_mut().last_count = current_bell_count;
             }
         }
     }
@@ -142,7 +142,7 @@ impl WindowState {
             && alert_cfg.enabled
             && alert_cfg.volume > 0
             && let Some(tab) = self.tab_manager.active_tab()
-            && let Some(ref audio_bell) = tab.bell.audio
+            && let Some(ref audio_bell) = tab.active_bell().audio
         {
             log::info!(
                 "Playing alert sound for {:?} at {}% volume",
@@ -322,61 +322,7 @@ impl WindowState {
             return;
         }
 
-        // Send desktop notification
-        #[cfg(not(target_os = "macos"))]
-        {
-            use notify_rust::Notification;
-            let notification_title = if !title.is_empty() {
-                title
-            } else {
-                "Terminal Notification"
-            };
-
-            if let Err(e) = Notification::new()
-                .summary(notification_title)
-                .body(message)
-                .timeout(notify_rust::Timeout::Milliseconds(3000))
-                .show()
-            {
-                log::warn!("Failed to send desktop notification: {}", e);
-            }
-        }
-
-        #[cfg(target_os = "macos")]
-        {
-            // macOS notifications via osascript
-            let notification_title = if !title.is_empty() {
-                title
-            } else {
-                "Terminal Notification"
-            };
-
-            // Escape backslashes, quotes, and newlines for AppleScript string safety
-            // Order matters: escape backslashes FIRST, then quotes, then newlines
-            let escaped_title = notification_title
-                .replace('\\', "\\\\")
-                .replace('"', "\\\"")
-                .replace('\n', "\\n")
-                .replace('\r', "\\r");
-            let escaped_message = message
-                .replace('\\', "\\\\")
-                .replace('"', "\\\"")
-                .replace('\n', "\\n")
-                .replace('\r', "\\r");
-
-            // Use osascript to display notification
-            let script = format!(
-                r#"display notification "{}" with title "{}""#,
-                escaped_message, escaped_title
-            );
-
-            if let Err(e) = std::process::Command::new("osascript")
-                .arg("-e")
-                .arg(&script)
-                .output()
-            {
-                log::warn!("Failed to send macOS desktop notification: {}", e);
-            }
-        }
+        // Send desktop notification via the platform abstraction layer
+        crate::platform::deliver_desktop_notification(title, message, 3000);
     }
 }

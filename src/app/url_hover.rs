@@ -26,7 +26,7 @@ impl WindowState {
             // which is preferable to clearing all highlights and causing a visible flicker.
             if let Ok(term) = tab.terminal.try_read() {
                 let (cols, rows) = term.dimensions();
-                let scroll_offset = tab.scroll_state.offset;
+                let scroll_offset = tab.active_scroll_state().offset;
                 let visible_cells =
                     term.get_cells_with_scrollback(scroll_offset, None, false, None);
 
@@ -74,7 +74,7 @@ impl WindowState {
         let had_hovered_url = self
             .tab_manager
             .active_tab()
-            .is_some_and(|t| t.mouse.hovered_url.is_some());
+            .is_some_and(|t| t.active_mouse().hovered_url.is_some());
         if had_hovered_url && let Some(window) = &self.window {
             window.set_cursor(winit::window::CursorIcon::Text);
             let title = self.format_title(&self.config.window_title);
@@ -83,8 +83,8 @@ impl WindowState {
 
         // Clear and rebuild detected URLs
         if let Some(tab) = self.tab_manager.active_tab_mut() {
-            tab.mouse.detected_urls.clear();
-            tab.mouse.hovered_url = None;
+            tab.active_mouse_mut().detected_urls.clear();
+            tab.active_mouse_mut().hovered_url = None;
 
             // Extract text from each visible line and detect URLs
             for row in 0..rows {
@@ -121,7 +121,7 @@ impl WindowState {
 
                 // Detect regex-based URLs in this line and convert byte offsets to columns
                 let regex_urls = url_detection::detect_urls_in_line(&line, absolute_row);
-                tab.mouse
+                tab.active_mouse_mut()
                     .detected_urls
                     .extend(regex_urls.into_iter().map(|mut url| {
                         url.start_col = map_byte_to_col(url.start_col);
@@ -132,12 +132,12 @@ impl WindowState {
                 // Detect OSC 8 hyperlinks in this row (already use column indices)
                 let osc8_urls =
                     url_detection::detect_osc8_hyperlinks(row_cells, absolute_row, &hyperlink_urls);
-                tab.mouse.detected_urls.extend(osc8_urls);
+                tab.active_mouse_mut().detected_urls.extend(osc8_urls);
 
                 // Detect file paths for semantic history (if enabled)
                 if self.config.semantic_history_enabled {
                     let file_paths = url_detection::detect_file_paths_in_line(&line, absolute_row);
-                    tab.mouse
+                    tab.active_mouse_mut()
                         .detected_urls
                         .extend(file_paths.into_iter().map(|mut fp| {
                             crate::debug_trace!(
@@ -170,7 +170,7 @@ impl WindowState {
             return;
         };
 
-        if tab.mouse.detected_urls.is_empty() {
+        if tab.active_mouse().detected_urls.is_empty() {
             return;
         }
 
@@ -187,10 +187,10 @@ impl WindowState {
         let c = self.config.link_highlight_color;
         let url_color = [c[0], c[1], c[2], 255];
 
-        let scroll_offset = tab.scroll_state.offset;
+        let scroll_offset = tab.active_scroll_state().offset;
 
         // Apply color styling to cells that are part of URLs
-        for url in &tab.mouse.detected_urls {
+        for url in &tab.active_mouse().detected_urls {
             // Convert absolute row (with scroll offset) to viewport-relative row
             if url.row < scroll_offset {
                 continue; // URL is above the visible area

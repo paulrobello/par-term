@@ -139,7 +139,7 @@ impl WindowState {
                 if self.config.notification_bell_visual
                     && let Some(tab) = self.tab_manager.active_tab_mut()
                 {
-                    tab.bell.visual_flash = Some(std::time::Instant::now());
+                    tab.active_bell_mut().visual_flash = Some(std::time::Instant::now());
                 }
                 return false;
             }
@@ -214,7 +214,7 @@ impl WindowState {
                 if self.config.notification_bell_visual
                     && let Some(tab) = self.tab_manager.active_tab_mut()
                 {
-                    tab.bell.visual_flash = Some(std::time::Instant::now());
+                    tab.active_bell_mut().visual_flash = Some(std::time::Instant::now());
                 }
 
                 false

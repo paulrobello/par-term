@@ -46,14 +46,9 @@ impl WindowState {
 
         // Cmd+R (macOS) or Ctrl+R (Linux/Windows): Toggle command history UI
         if event.state == ElementState::Pressed {
-            #[cfg(target_os = "macos")]
-            let modifier = self.input_handler.modifiers.state().super_key();
-            #[cfg(not(target_os = "macos"))]
-            let modifier = self.input_handler.modifiers.state().control_key();
-
-            if modifier
-                && !self.input_handler.modifiers.state().shift_key()
-                && !self.input_handler.modifiers.state().alt_key()
+            let mods = self.input_handler.modifiers.state();
+            if crate::platform::primary_modifier(&mods)
+                && !mods.alt_key()
                 && matches!(event.logical_key, Key::Character(ref c) if c.as_str() == "r" || c.as_str() == "R")
             {
                 self.toggle_command_history();

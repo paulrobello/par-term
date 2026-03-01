@@ -1,53 +1,10 @@
-//! Session logging and recording for terminal sessions.
+//! Core [`SessionLogger`] struct, state management, and recording methods.
 //!
-//! This module provides automatic session logging with support for multiple formats:
-//! - Plain text: Simple output without escape sequences
-//! - HTML: Rendered output with colors preserved
-//! - Asciicast: asciinema-compatible format for replay/sharing
-//!
-//! # Security: Sensitive Data Filtering
-//!
-//! Session logs capture raw terminal I/O, which may include passwords and other
-//! credentials typed at prompts (sudo, ssh, gpg, etc.). To mitigate this risk,
-//! the logger supports **password prompt detection** via [`set_redact_passwords`]:
-//!
-//! When enabled, the logger monitors terminal output for common password prompt
-//! patterns. When a prompt is detected, subsequent keyboard input is replaced
-//! with `[INPUT REDACTED - echo off]` until the user presses Enter (completing
-//! the password entry). This is a heuristic approach and cannot guarantee
-//! detection of all sensitive input scenarios.
-//!
-//! Additionally, callers can explicitly signal that echo is suppressed (e.g.,
-//! because the PTY has disabled echo for a password prompt) by calling
-//! [`set_echo_suppressed`]. This provides a second layer of protection when
-//! terminal mode information is available.
-//!
-//! **WARNING**: Even with password redaction enabled, session logs may still
-//! contain sensitive data (API keys pasted into the terminal, tokens in command
-//! arguments, etc.). Users should treat session log files as potentially
-//! sensitive and store them accordingly.
-//!
-//! # Heuristic Redaction Limitations
-//!
-//! The password-prompt detection is **heuristic** and relies on a fixed list of known
-//! prompt strings (see [`PASSWORD_PROMPT_PATTERNS`]). It **cannot** guarantee that all
-//! sensitive input is redacted. Scenarios where credentials may still be captured include:
-//!
-//! - Custom or localised password prompts not in the pattern list
-//! - Credentials pasted into the terminal (no echo-suppress signal)
-//! - API keys or tokens typed as command arguments (e.g. `curl -H "Authorization: Bearer <token>"`)
-//! - Multi-factor authentication codes entered outside of recognised prompt patterns
-//! - Applications that suppress echo without emitting a matching prompt string
-//!
-//! **Recommendation**: If you regularly work with sensitive credentials in the terminal
-//! (vault access, production API keys, SSH passphrases, etc.), **disable session logging**
-//! for those sessions. Session logging can be toggled per-profile or globally via the
-//! par-term settings. Do not rely solely on redaction as a security control.
-//!
-//! [`set_redact_passwords`]: SessionLogger::set_redact_passwords
-//! [`set_echo_suppressed`]: SessionLogger::set_echo_suppressed
+//! See the [module-level documentation](super) for information about security
+//! considerations and password redaction.
 
 use crate::config::SessionLogFormat;
+use crate::session_logger::writers::{html_escape, strip_ansi_escapes};
 use anyhow::{Context, Result};
 use chrono::{Local, Utc};
 use par_term_emu_core_rust::terminal::{RecordingEvent, RecordingEventType, RecordingSession};
@@ -58,14 +15,14 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 /// Marker text written to the log when input is redacted during a password prompt.
-const REDACTION_MARKER: &str = "[INPUT REDACTED - echo off]";
+pub(super) const REDACTION_MARKER: &str = "[INPUT REDACTED - echo off]";
 
 /// Common password prompt patterns (case-insensitive matching).
 ///
 /// These patterns are matched against terminal output (after stripping ANSI
 /// escape sequences) to detect when the user is being asked for a password.
 /// The match is performed on the last line of each output chunk.
-const PASSWORD_PROMPT_PATTERNS: &[&str] = &[
+pub(super) const PASSWORD_PROMPT_PATTERNS: &[&str] = &[
     "password:",
     "password for",
     "passwd:",
@@ -95,36 +52,36 @@ const PASSWORD_PROMPT_PATTERNS: &[&str] = &[
 /// The logger captures PTY output with timestamps and can export
 /// to multiple formats. It uses buffered writes for performance.
 ///
-/// See the [module-level documentation](self) for information about
+/// See the [module-level documentation](super) for information about
 /// sensitive data filtering.
 pub struct SessionLogger {
     /// Whether logging is currently active
-    active: bool,
+    pub(super) active: bool,
     /// The log format to use
-    format: SessionLogFormat,
+    pub(super) format: SessionLogFormat,
     /// Output file path
-    output_path: PathBuf,
+    pub(super) output_path: PathBuf,
     /// Buffered writer for the log file
-    writer: Option<BufWriter<File>>,
+    pub(super) writer: Option<BufWriter<File>>,
     /// Recording session data (for asciicast format)
-    recording: Option<RecordingSession>,
+    pub(super) recording: Option<RecordingSession>,
     /// Recording start time (for relative timestamps)
-    start_time: std::time::Instant,
+    pub(super) start_time: std::time::Instant,
     /// Terminal dimensions
-    dimensions: (usize, usize),
+    pub(super) dimensions: (usize, usize),
     /// Session title
-    title: Option<String>,
+    pub(super) title: Option<String>,
     /// Whether password redaction is enabled (heuristic prompt detection)
-    redact_passwords: bool,
+    pub(super) redact_passwords: bool,
     /// Whether the logger has detected a password prompt in recent output
     /// and is currently suppressing input recording.
-    password_prompt_active: bool,
+    pub(super) password_prompt_active: bool,
     /// Whether echo is externally known to be suppressed (e.g., PTY echo off).
     /// When true, input is always redacted regardless of prompt detection.
-    echo_suppressed: bool,
+    pub(super) echo_suppressed: bool,
     /// Whether a redaction marker has already been emitted for the current
     /// suppression period (to avoid flooding the log with repeated markers).
-    redaction_marker_emitted: bool,
+    pub(super) redaction_marker_emitted: bool,
 }
 
 impl SessionLogger {
@@ -473,7 +430,7 @@ impl SessionLogger {
         }
     }
 
-    fn write_html_header(&mut self) -> Result<()> {
+    pub(super) fn write_html_header(&mut self) -> Result<()> {
         let header = format!(
             r#"<!DOCTYPE html>
 <html>
@@ -510,7 +467,7 @@ impl SessionLogger {
         Ok(())
     }
 
-    fn write_html_footer(&mut self) -> Result<()> {
+    pub(super) fn write_html_footer(&mut self) -> Result<()> {
         let footer = r#"
 </pre>
 </body>
@@ -524,7 +481,7 @@ impl SessionLogger {
         Ok(())
     }
 
-    fn write_asciicast(&mut self) -> Result<()> {
+    pub(super) fn write_asciicast(&mut self) -> Result<()> {
         if let Some(ref recording) = self.recording {
             // Write asciicast v2 format
             // Header line (JSON object)
@@ -601,365 +558,7 @@ impl Drop for SessionLogger {
 /// `parking_lot` is sufficient and avoids the overhead of `tokio::sync::Mutex`.
 pub type SharedSessionLogger = Arc<Mutex<Option<SessionLogger>>>;
 
-/// Create a new shared session logger
+/// Create a new shared session logger.
 pub fn create_shared_logger() -> SharedSessionLogger {
     Arc::new(Mutex::new(None))
-}
-
-// === Helper functions ===
-
-/// Strip ANSI escape sequences from text
-fn strip_ansi_escapes(data: &[u8]) -> String {
-    let text = String::from_utf8_lossy(data);
-    let mut result = String::with_capacity(text.len());
-    let mut chars = text.chars().peekable();
-
-    while let Some(c) = chars.next() {
-        if c == '\x1b' {
-            // ESC sequence - skip until we hit the terminator
-            if let Some(&next) = chars.peek() {
-                if next == '[' {
-                    // CSI sequence - skip until we hit a letter
-                    chars.next(); // consume '['
-                    while let Some(&c) = chars.peek() {
-                        chars.next();
-                        if c.is_ascii_alphabetic() || c == '@' || c == '`' {
-                            break;
-                        }
-                    }
-                } else if next == ']' {
-                    // OSC sequence - skip until BEL or ST
-                    chars.next(); // consume ']'
-                    while let Some(c) = chars.next() {
-                        if c == '\x07' {
-                            break;
-                        }
-                        if c == '\x1b'
-                            && let Some(&'\\') = chars.peek()
-                        {
-                            chars.next();
-                            break;
-                        }
-                    }
-                } else if next == '(' || next == ')' || next == '*' || next == '+' {
-                    // Character set designation - skip one more char
-                    chars.next();
-                    chars.next();
-                } else {
-                    // Other ESC sequence - skip one char
-                    chars.next();
-                }
-            }
-        } else {
-            result.push(c);
-        }
-    }
-
-    result
-}
-
-/// Escape HTML special characters
-fn html_escape(text: &str) -> String {
-    let mut result = String::with_capacity(text.len());
-    for c in text.chars() {
-        match c {
-            '<' => result.push_str("&lt;"),
-            '>' => result.push_str("&gt;"),
-            '&' => result.push_str("&amp;"),
-            '"' => result.push_str("&quot;"),
-            '\'' => result.push_str("&#39;"),
-            _ => result.push(c),
-        }
-    }
-    result
-}
-
-/// Check if the given output text contains a password prompt pattern.
-///
-/// This is exposed for testing purposes. The check is case-insensitive
-/// and matches against the last non-empty line of the output.
-pub fn contains_password_prompt(output: &str) -> bool {
-    let last_line = output
-        .lines()
-        .rev()
-        .find(|line| !line.trim().is_empty())
-        .unwrap_or("")
-        .to_ascii_lowercase();
-
-    if last_line.is_empty() {
-        return false;
-    }
-
-    PASSWORD_PROMPT_PATTERNS
-        .iter()
-        .any(|pattern| last_line.contains(pattern))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use tempfile::TempDir;
-
-    #[test]
-    fn test_strip_ansi_escapes() {
-        // Simple text
-        assert_eq!(strip_ansi_escapes(b"hello world"), "hello world");
-
-        // CSI sequence (color)
-        assert_eq!(strip_ansi_escapes(b"\x1b[32mgreen\x1b[0m"), "green");
-
-        // OSC sequence (title)
-        assert_eq!(strip_ansi_escapes(b"\x1b]0;title\x07text"), "text");
-
-        // Multiple sequences
-        assert_eq!(
-            strip_ansi_escapes(b"\x1b[1;32mBold Green\x1b[0m Normal"),
-            "Bold Green Normal"
-        );
-    }
-
-    #[test]
-    fn test_html_escape() {
-        assert_eq!(html_escape("<script>"), "&lt;script&gt;");
-        assert_eq!(html_escape("a & b"), "a &amp; b");
-        assert_eq!(html_escape("\"quoted\""), "&quot;quoted&quot;");
-    }
-
-    #[test]
-    fn test_session_logger_plain() {
-        let temp_dir = TempDir::new().unwrap();
-        let mut logger = SessionLogger::new(
-            SessionLogFormat::Plain,
-            temp_dir.path(),
-            (80, 24),
-            Some("Test Session".to_string()),
-        )
-        .unwrap();
-
-        logger.start().unwrap();
-        logger.record_output(b"Hello, World!\n");
-        logger.record_output(b"\x1b[32mGreen text\x1b[0m\n");
-        let path = logger.stop().unwrap();
-
-        let content = std::fs::read_to_string(&path).unwrap();
-        assert!(content.contains("Hello, World!"));
-        assert!(content.contains("Green text"));
-        assert!(!content.contains("\x1b")); // No escape sequences
-    }
-
-    #[test]
-    fn test_session_logger_asciicast() {
-        let temp_dir = TempDir::new().unwrap();
-        let mut logger = SessionLogger::new(
-            SessionLogFormat::Asciicast,
-            temp_dir.path(),
-            (80, 24),
-            Some("Test Session".to_string()),
-        )
-        .unwrap();
-
-        logger.start().unwrap();
-        logger.record_output(b"Hello\n");
-        std::thread::sleep(std::time::Duration::from_millis(10));
-        logger.record_output(b"World\n");
-        let path = logger.stop().unwrap();
-
-        let content = std::fs::read_to_string(&path).unwrap();
-        let lines: Vec<&str> = content.lines().collect();
-
-        // First line should be header
-        assert!(lines[0].contains("\"version\":2"));
-        assert!(lines[0].contains("\"width\":80"));
-        assert!(lines[0].contains("\"height\":24"));
-
-        // Should have output events
-        assert!(lines.len() >= 3);
-    }
-
-    #[test]
-    fn test_password_prompt_detection() {
-        assert!(contains_password_prompt("Password:"));
-        assert!(contains_password_prompt("[sudo] password for user:"));
-        assert!(contains_password_prompt("Enter passphrase for key:"));
-        assert!(contains_password_prompt("Enter PIN:"));
-        assert!(contains_password_prompt("some output\nPassword:"));
-        assert!(contains_password_prompt("Verification code:"));
-        assert!(contains_password_prompt("(current) UNIX password:"));
-        // Case insensitive
-        assert!(contains_password_prompt("PASSWORD:"));
-        assert!(contains_password_prompt("Enter Password:"));
-        // Should not match normal output
-        assert!(!contains_password_prompt("user@host:~$"));
-        assert!(!contains_password_prompt("Hello, World!"));
-        assert!(!contains_password_prompt("ls -la"));
-    }
-
-    #[test]
-    fn test_password_prompt_with_ansi_escapes() {
-        // Password prompt with ANSI color codes
-        let data = b"\x1b[1;31m[sudo] password for user:\x1b[0m ";
-        let stripped = strip_ansi_escapes(data);
-        assert!(contains_password_prompt(&stripped));
-    }
-
-    #[test]
-    fn test_input_redaction_on_password_prompt() {
-        let temp_dir = TempDir::new().unwrap();
-        let mut logger = SessionLogger::new(
-            SessionLogFormat::Asciicast,
-            temp_dir.path(),
-            (80, 24),
-            Some("Test Session".to_string()),
-        )
-        .unwrap();
-
-        logger.start().unwrap();
-
-        // Normal output and input (should be recorded)
-        logger.record_output(b"user@host:~$ ");
-        logger.record_input(b"sudo ls\r");
-
-        // Password prompt output
-        logger.record_output(b"[sudo] password for user: ");
-
-        // Password input (should be redacted)
-        logger.record_input(b"s");
-        logger.record_input(b"e");
-        logger.record_input(b"c");
-        logger.record_input(b"r");
-        logger.record_input(b"e");
-        logger.record_input(b"t");
-        // Enter completes the password
-        logger.record_input(b"\r");
-
-        // Normal output after password
-        logger.record_output(b"\nfile1  file2  file3\n");
-        logger.record_input(b"echo done\r");
-
-        let path = logger.stop().unwrap();
-
-        let content = std::fs::read_to_string(&path).unwrap();
-
-        // The actual password ("secret") should NOT appear in the log
-        // Check that no input event contains the password characters individually
-        assert!(
-            !content.contains("secret"),
-            "Password text 'secret' should not appear in the log"
-        );
-        // The redaction marker SHOULD appear
-        assert!(
-            content.contains(REDACTION_MARKER),
-            "Redaction marker should appear in the log"
-        );
-        // Normal input should still appear
-        assert!(
-            content.contains("sudo ls"),
-            "Normal input before prompt should be recorded"
-        );
-        assert!(
-            content.contains("echo done"),
-            "Normal input after password should be recorded"
-        );
-    }
-
-    #[test]
-    fn test_input_redaction_via_echo_suppressed() {
-        let temp_dir = TempDir::new().unwrap();
-        let mut logger = SessionLogger::new(
-            SessionLogFormat::Asciicast,
-            temp_dir.path(),
-            (80, 24),
-            Some("Test Session".to_string()),
-        )
-        .unwrap();
-
-        logger.start().unwrap();
-
-        // Normal input
-        logger.record_input(b"ls\r");
-
-        // Externally signal echo off
-        logger.set_echo_suppressed(true);
-        logger.record_input(b"mysecret");
-        logger.record_input(b"\r");
-
-        // Echo back on
-        logger.set_echo_suppressed(false);
-        logger.record_input(b"whoami\r");
-
-        let path = logger.stop().unwrap();
-
-        let content = std::fs::read_to_string(&path).unwrap();
-
-        assert!(!content.contains("mysecret"), "Secret should not appear");
-        assert!(
-            content.contains(REDACTION_MARKER),
-            "Redaction marker should appear"
-        );
-        assert!(content.contains("whoami"), "Normal input should appear");
-    }
-
-    #[test]
-    fn test_redaction_disabled() {
-        let temp_dir = TempDir::new().unwrap();
-        let mut logger = SessionLogger::new(
-            SessionLogFormat::Asciicast,
-            temp_dir.path(),
-            (80, 24),
-            Some("Test Session".to_string()),
-        )
-        .unwrap();
-
-        logger.set_redact_passwords(false);
-        logger.start().unwrap();
-
-        // Even with a password prompt, input should NOT be redacted
-        logger.record_output(b"Password: ");
-        logger.record_input(b"mysecret\r");
-
-        let path = logger.stop().unwrap();
-
-        let content = std::fs::read_to_string(&path).unwrap();
-        // With redaction disabled, the password IS recorded (user's choice)
-        assert!(
-            content.contains("mysecret"),
-            "With redaction disabled, input should be recorded"
-        );
-        assert!(
-            !content.contains(REDACTION_MARKER),
-            "No redaction marker when disabled"
-        );
-    }
-
-    #[test]
-    fn test_redaction_marker_emitted_once_per_period() {
-        let temp_dir = TempDir::new().unwrap();
-        let mut logger = SessionLogger::new(
-            SessionLogFormat::Asciicast,
-            temp_dir.path(),
-            (80, 24),
-            Some("Test Session".to_string()),
-        )
-        .unwrap();
-
-        logger.start().unwrap();
-        logger.record_output(b"Password: ");
-
-        // Multiple input events during password entry
-        logger.record_input(b"a");
-        logger.record_input(b"b");
-        logger.record_input(b"c");
-        logger.record_input(b"\r");
-
-        let path = logger.stop().unwrap();
-
-        let content = std::fs::read_to_string(&path).unwrap();
-
-        // Count occurrences of the redaction marker
-        let marker_count = content.matches(REDACTION_MARKER).count();
-        assert_eq!(
-            marker_count, 1,
-            "Redaction marker should appear exactly once per password entry"
-        );
-    }
 }

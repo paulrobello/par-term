@@ -76,7 +76,7 @@ impl WindowState {
                         renderer.clear_all_cells();
                     }
                     // Invalidate tab cache
-                    tab.cache.cells = None;
+                    tab.active_cache_mut().cells = None;
                     self.focus_state.needs_redraw = true;
                     self.request_redraw();
                 }
@@ -163,7 +163,7 @@ impl WindowState {
                         renderer.clear_all_cells();
                     }
                     // Invalidate tab cache
-                    tab.cache.cells = None;
+                    tab.active_cache_mut().cells = None;
                     self.focus_state.needs_redraw = true;
                     self.request_redraw();
                 }

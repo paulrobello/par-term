@@ -246,7 +246,7 @@ impl WindowState {
         // 2. Smooth Scrolling & Animations
         // If a scroll interpolation or terminal animation is active, use calculated frame interval.
         if let Some(tab) = self.tab_manager.active_tab() {
-            if tab.scroll_state.animation_start.is_some() {
+            if tab.active_scroll_state().animation_start.is_some() {
                 if can_render {
                     self.focus_state.needs_redraw = true;
                 }
@@ -258,7 +258,7 @@ impl WindowState {
 
             // 3. Visual Bell Feedback
             // Maintain frame rate during the visual flash fade-out.
-            if tab.bell.visual_flash.is_some() {
+            if tab.active_bell().visual_flash.is_some() {
                 if can_render {
                     self.focus_state.needs_redraw = true;
                 }
@@ -272,8 +272,8 @@ impl WindowState {
             // Ensure high responsiveness during mouse dragging (text selection or scrollbar).
             // Always allow these for responsiveness, even if throttled.
             let sm = tab.selection_mouse();
-            if (sm.is_selecting || sm.selection.is_some() || tab.scroll_state.dragging)
-                && tab.mouse.button_pressed
+            if (sm.is_selecting || sm.selection.is_some() || tab.active_scroll_state().dragging)
+                && tab.active_mouse().button_pressed
             {
                 self.focus_state.needs_redraw = true;
             }
@@ -412,9 +412,7 @@ impl WindowState {
         // Respect combined delay (throughput mode OR flicker reduction),
         // but bypass delays for active file transfers that need UI feedback.
         let mut redraw_requested = false;
-        if self.focus_state.needs_redraw
-            && (!should_delay_render || has_active_file_transfers)
-        {
+        if self.focus_state.needs_redraw && (!should_delay_render || has_active_file_transfers) {
             self.request_redraw();
             self.focus_state.needs_redraw = false;
             redraw_requested = true;

@@ -62,6 +62,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Extracted shared initialization logic for tabs and panes.
 - Unified GLSL transpiler templates and added WGSL injection validation.
 - De-duplicated `Makefile` variables and targets.
+- Added per-pane state accessors on `Tab` (`active_scroll_state`, `active_mouse`, `active_cache`, `active_bell` + mut variants) routing through `PaneManager` in split-pane mode; updated ~30 call sites (AUD-002/AUD-062).
+- Created `src/platform/` module consolidating platform-specific notification delivery and modifier key detection, reducing `#[cfg]` blocks across 8 files (AUD-060).
+- Split 8 large files (>800 lines) into focused sub-modules: `json.rs`, `toml.rs`, `yaml.rs`, `log.rs` renderers; `boundary.rs`; `session_logger.rs`; `shader_context.rs`; `profile/dynamic.rs` (AUD-011/012/015/016/018/019/023/024).
+- Created `TerminalAccess`, `UIElement`, and `EventHandler` traits in `src/traits.rs` (AUD-040/041/042).
+- Added 128 new tests: coordinate translation, pane bounds, and tests extracted during file splits (AUD-050/053).
 
 ### Documentation
 - Added legacy field migration plans for `Tab` struct.

@@ -59,7 +59,7 @@ impl WindowState {
                 term.set_cell_dimensions(cell_width as u32, cell_height as u32);
                 term.set_theme(self.config.load_theme());
             }
-            tab.cache.cells = None;
+            tab.active_cache_mut().cells = None;
         }
 
         // Apply cursor shader configuration
@@ -96,7 +96,7 @@ impl WindowState {
 
             // Invalidate cached cells to force full re-render
             if let Some(tab) = self.tab_manager.active_tab_mut() {
-                tab.cache.cells = None;
+                tab.active_cache_mut().cells = None;
             }
         }
 
@@ -194,7 +194,7 @@ impl WindowState {
                         term.set_cell_dimensions(cell_width as u32, cell_height as u32);
                         let _ = term.resize_with_pixels(new_cols, new_rows, width_px, height_px);
                     }
-                    tab.cache.cells = None;
+                    tab.active_cache_mut().cells = None;
                 }
 
                 crate::debug_info!(
@@ -257,7 +257,7 @@ impl WindowState {
                     term.set_cell_dimensions(cell_width as u32, cell_height as u32);
                     let _ = term.resize_with_pixels(new_cols, new_rows, width_px, height_px);
                 }
-                tab.cache.cells = None;
+                tab.active_cache_mut().cells = None;
             }
         }
     }

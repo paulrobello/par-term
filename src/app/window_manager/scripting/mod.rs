@@ -616,5 +616,4 @@ impl WindowManager {
             }
         }
     }
-
 }

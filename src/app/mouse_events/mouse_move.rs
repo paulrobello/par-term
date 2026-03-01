@@ -8,7 +8,7 @@ impl WindowState {
     pub(crate) fn handle_mouse_move(&mut self, position: (f64, f64)) {
         // Update mouse position in active tab (always needed for egui)
         if let Some(tab) = self.tab_manager.active_tab_mut() {
-            tab.mouse.position = position;
+            tab.active_mouse_mut().position = position;
         }
 
         // If a protected image-clipboard click turns into a drag, restore normal terminal
@@ -56,10 +56,10 @@ impl WindowState {
                 .active_tab()
                 .map(|t| {
                     (
-                        t.scroll_state.offset,
-                        t.cache.terminal_title.clone(),
-                        t.mouse.detected_urls.clone(),
-                        t.mouse.hovered_url.clone(),
+                        t.active_scroll_state().offset,
+                        t.active_cache().terminal_title.clone(),
+                        t.active_mouse().detected_urls.clone(),
+                        t.active_mouse().hovered_url.clone(),
                     )
                 })
                 .unwrap_or((0, String::new(), Vec::new(), None));
@@ -71,7 +71,7 @@ impl WindowState {
                 // Hovering over a new/different URL
                 if hovered_url.as_ref() != Some(&url.url) {
                     if let Some(tab) = self.tab_manager.active_tab_mut() {
-                        tab.mouse.hovered_url = Some(url.url.clone());
+                        tab.active_mouse_mut().hovered_url = Some(url.url.clone());
                     }
                     if let Some(window) = &self.window {
                         // Visual feedback: hand pointer + URL tooltip in title
@@ -84,7 +84,7 @@ impl WindowState {
             } else if hovered_url.is_some() {
                 // Mouse left a URL area: restore default state
                 if let Some(tab) = self.tab_manager.active_tab_mut() {
-                    tab.mouse.hovered_url = None;
+                    tab.active_mouse_mut().hovered_url = None;
                 }
                 if let Some(window) = &self.window {
                     window.set_cursor(winit::window::CursorIcon::Text);
@@ -111,26 +111,14 @@ impl WindowState {
                 && let Some(focused_pane) = pm.focused_pane()
             {
                 // Split pane mode: only report motion inside the focused pane
+                let btn = tab.active_mouse().button_pressed;
                 self.pixel_to_pane_cell(position.0, position.1, &focused_pane.bounds)
-                    .map(|(col, row)| {
-                        (
-                            Arc::clone(&focused_pane.terminal),
-                            col,
-                            row,
-                            tab.mouse.button_pressed,
-                        )
-                    })
+                    .map(|(col, row)| (Arc::clone(&focused_pane.terminal), col, row, btn))
             } else {
                 // Single pane mode: use tab's terminal with global coordinates
+                let btn = tab.active_mouse().button_pressed;
                 self.pixel_to_cell(position.0, position.1)
-                    .map(|(col, row)| {
-                        (
-                            Arc::clone(&tab.terminal),
-                            col,
-                            row,
-                            tab.mouse.button_pressed,
-                        )
-                    })
+                    .map(|(col, row)| (Arc::clone(&tab.terminal), col, row, btn))
             };
 
             if let Some((terminal_arc, col, row, button_pressed)) = resolved {
@@ -173,12 +161,12 @@ impl WindowState {
         let is_dragging = self
             .tab_manager
             .active_tab()
-            .map(|t| t.scroll_state.dragging)
+            .map(|t| t.active_scroll_state().dragging)
             .unwrap_or(false);
 
         if is_dragging {
             if let Some(tab) = self.tab_manager.active_tab_mut() {
-                tab.scroll_state.last_activity = std::time::Instant::now();
+                tab.active_scroll_state_mut().last_activity = std::time::Instant::now();
             }
             self.drag_scrollbar_to(position.1 as f32);
             return; // Exit early: scrollbar dragging takes precedence over selection
@@ -189,7 +177,7 @@ impl WindowState {
         let divider_dragging = self
             .tab_manager
             .active_tab()
-            .and_then(|t| t.mouse.dragging_divider);
+            .and_then(|t| t.active_mouse().dragging_divider);
 
         if let Some(divider_index) = divider_dragging {
             // Actively dragging a divider
@@ -211,17 +199,18 @@ impl WindowState {
         let was_hovering = self
             .tab_manager
             .active_tab()
-            .is_some_and(|t| t.mouse.divider_hover);
+            .is_some_and(|t| t.active_mouse().divider_hover);
 
         if is_on_divider != was_hovering {
             // Hover state changed
             if let Some(tab) = self.tab_manager.active_tab_mut() {
-                tab.mouse.divider_hover = is_on_divider;
-                tab.mouse.hovered_divider_index = if is_on_divider {
+                let new_idx = if is_on_divider {
                     tab.find_divider_at(position.0 as f32, position.1 as f32)
                 } else {
                     None
                 };
+                tab.active_mouse_mut().divider_hover = is_on_divider;
+                tab.active_mouse_mut().hovered_divider_index = new_idx;
             }
             if let Some(window) = &self.window {
                 if is_on_divider {
@@ -270,7 +259,7 @@ impl WindowState {
             .map(|t| {
                 let sm = t.selection_mouse();
                 (
-                    t.mouse.button_pressed,
+                    t.active_mouse().button_pressed,
                     sm.click_count,
                     sm.is_selecting,
                     sm.click_position,

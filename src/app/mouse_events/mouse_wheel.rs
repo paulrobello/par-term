@@ -51,7 +51,7 @@ impl WindowState {
             let mouse_position = self
                 .tab_manager
                 .active_tab()
-                .map(|t| t.mouse.position)
+                .map(|t| t.active_mouse().position)
                 .unwrap_or((0.0, 0.0));
 
             // Map pixel position to cell coordinates (pane-relative if split panes exist)
@@ -131,7 +131,8 @@ impl WindowState {
 
         // Calculate new scroll target (positive delta = scroll up = increase offset)
         let new_target = if let Some(tab) = self.tab_manager.active_tab_mut() {
-            tab.scroll_state.apply_scroll(scroll_lines, scrollback_len)
+            tab.active_scroll_state_mut()
+                .apply_scroll(scroll_lines, scrollback_len)
         } else {
             return;
         };
@@ -143,7 +144,7 @@ impl WindowState {
     /// Set scroll target and initiate smooth interpolation animation.
     pub(crate) fn set_scroll_target(&mut self, new_offset: usize) {
         let target_set = if let Some(tab) = self.tab_manager.active_tab_mut() {
-            tab.scroll_state.set_target(new_offset)
+            tab.active_scroll_state_mut().set_target(new_offset)
         } else {
             false
         };
@@ -158,13 +159,13 @@ impl WindowState {
         let drag_offset = self
             .tab_manager
             .active_tab()
-            .map(|t| t.scroll_state.drag_offset)
+            .map(|t| t.active_scroll_state().drag_offset)
             .unwrap_or(0.0);
 
         let current_offset = self
             .tab_manager
             .active_tab()
-            .map(|t| t.scroll_state.offset)
+            .map(|t| t.active_scroll_state().offset)
             .unwrap_or(0);
 
         if let Some(renderer) = &self.renderer {
@@ -174,10 +175,10 @@ impl WindowState {
             {
                 // Instant update for dragging (no animation)
                 if let Some(tab) = self.tab_manager.active_tab_mut() {
-                    tab.scroll_state.offset = new_offset;
-                    tab.scroll_state.target_offset = new_offset;
-                    tab.scroll_state.animated_offset = new_offset as f64;
-                    tab.scroll_state.animation_start = None;
+                    tab.active_scroll_state_mut().offset = new_offset;
+                    tab.active_scroll_state_mut().target_offset = new_offset;
+                    tab.active_scroll_state_mut().animated_offset = new_offset as f64;
+                    tab.active_scroll_state_mut().animation_start = None;
                 }
 
                 self.request_redraw();

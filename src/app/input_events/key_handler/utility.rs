@@ -28,15 +28,18 @@ impl WindowState {
             let cleared = if let Some(tab) = self.tab_manager.active_tab_mut() {
                 // try_lock: intentional — keyboard shortcut handler in sync event loop.
                 // On miss: scrollback is not cleared this keypress. User can press again.
-                if let Ok(mut term) = tab.terminal.try_write() {
+                let did_clear = if let Ok(mut term) = tab.terminal.try_write() {
                     term.clear_scrollback();
                     term.clear_scrollback_metadata();
-                    tab.cache.scrollback_len = 0;
-                    tab.trigger_marks.clear();
                     true
                 } else {
                     false
+                };
+                if did_clear {
+                    tab.active_cache_mut().scrollback_len = 0;
+                    tab.trigger_marks.clear();
                 }
+                did_clear
             } else {
                 false
             };
@@ -136,7 +139,7 @@ impl WindowState {
 
             // Force cell regen to reflect cursor style change
             if let Some(tab) = self.tab_manager.active_tab_mut() {
-                tab.cache.cells = None;
+                tab.active_cache_mut().cells = None;
             }
             self.focus_state.needs_redraw = true;
 

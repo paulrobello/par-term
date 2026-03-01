@@ -10,7 +10,7 @@ impl WindowState {
         let mouse_position = self
             .tab_manager
             .active_tab()
-            .map(|t| t.mouse.position)
+            .map(|t| t.active_mouse().position)
             .unwrap_or((0.0, 0.0));
 
         let suppress_terminal_mouse_click = self
@@ -143,11 +143,13 @@ impl WindowState {
             && let Some((col, row)) = self.pixel_to_cell(mouse_position.0, mouse_position.1)
             && let Some(tab) = self.tab_manager.active_tab()
         {
-            let adjusted_row = row + tab.scroll_state.offset;
+            let adjusted_row = row + tab.active_scroll_state().offset;
 
-            if let Some(item) =
-                url_detection::find_url_at_position(&tab.mouse.detected_urls, col, adjusted_row)
-            {
+            if let Some(item) = url_detection::find_url_at_position(
+                &tab.active_mouse().detected_urls,
+                col,
+                adjusted_row,
+            ) {
                 match &item.item_type {
                     url_detection::DetectedItemType::Url => {
                         if let Err(e) =
@@ -203,7 +205,7 @@ impl WindowState {
         {
             // Only move cursor if we're at the bottom of scrollback (current view)
             // and not on the alternate screen (where apps handle their own cursor)
-            let at_bottom = tab.scroll_state.offset == 0;
+            let at_bottom = tab.active_scroll_state().offset == 0;
             // try_lock: intentional — double-click cursor-position query in sync loop.
             // On miss: defaults to (alt_screen=true, col=0) which skips the arrow-key
             // reposition logic. The cursor stays where it was — acceptable UX.
@@ -255,7 +257,7 @@ impl WindowState {
             // ButtonEvent mode only reports motion when button_pressed is true,
             // so we must set this even though the click was consumed by tracking.
             if let Some(tab) = self.tab_manager.active_tab_mut() {
-                tab.mouse.button_pressed = state == ElementState::Pressed;
+                tab.active_mouse_mut().button_pressed = state == ElementState::Pressed;
             }
             return; // Exit early: terminal app handled the input
         }
@@ -267,7 +269,7 @@ impl WindowState {
             if let Some(tab) = self.tab_manager.active_tab_mut() {
                 // Fully consume the protected click so it doesn't become a local
                 // selection anchor and affect the next drag-selection gesture.
-                tab.mouse.button_pressed = false;
+                tab.active_mouse_mut().button_pressed = false;
                 tab.selection_mouse_mut().is_selecting = false;
             }
             return;
@@ -277,7 +279,7 @@ impl WindowState {
         // This is set AFTER special handlers (URL click, Option+click, mouse tracking) to avoid
         // triggering selection when those features handle the click
         if let Some(tab) = self.tab_manager.active_tab_mut() {
-            tab.mouse.button_pressed = state == ElementState::Pressed;
+            tab.active_mouse_mut().button_pressed = state == ElementState::Pressed;
         }
 
         if state == ElementState::Pressed {
@@ -297,20 +299,20 @@ impl WindowState {
             && renderer.scrollbar_track_contains_x(mouse_x)
         {
             if let Some(tab) = self.tab_manager.active_tab_mut() {
-                tab.scroll_state.dragging = true;
-                tab.scroll_state.last_activity = std::time::Instant::now();
+                tab.active_scroll_state_mut().dragging = true;
+                tab.active_scroll_state_mut().last_activity = std::time::Instant::now();
 
                 let thumb_bounds = renderer.scrollbar_thumb_bounds();
                 if renderer.scrollbar_contains_point(mouse_x, mouse_y) {
                     // Clicked on thumb: track offset from thumb top for precise dragging
-                    tab.scroll_state.drag_offset = thumb_bounds
+                    tab.active_scroll_state_mut().drag_offset = thumb_bounds
                         .map(|(thumb_top, thumb_height)| {
                             (mouse_y - thumb_top).clamp(0.0, thumb_height)
                         })
                         .unwrap_or(0.0);
                 } else {
                     // Clicked on track: center thumb on mouse position
-                    tab.scroll_state.drag_offset = thumb_bounds
+                    tab.active_scroll_state_mut().drag_offset = thumb_bounds
                         .map(|(_, thumb_height)| thumb_height / 2.0)
                         .unwrap_or(0.0);
                 }
@@ -326,7 +328,7 @@ impl WindowState {
             && let Some(divider_idx) = tab.find_divider_at(mouse_x, mouse_y)
         {
             // Start divider drag
-            tab.mouse.dragging_divider = Some(divider_idx);
+            tab.active_mouse_mut().dragging_divider = Some(divider_idx);
             log::debug!("Started dragging divider {}", divider_idx);
             return; // Exit early: divider drag started
         }
@@ -365,7 +367,7 @@ impl WindowState {
                 .unwrap_or(24);
             let handled = if let Some(tab) = self.tab_manager.active_tab_mut() {
                 if let Some(ref pipeline) = tab.prettifier {
-                    let scroll_offset = tab.scroll_state.offset;
+                    let scroll_offset = tab.active_scroll_state().offset;
                     let indicators = tab.gutter_manager.indicators_for_viewport(
                         pipeline,
                         scroll_offset,
@@ -474,25 +476,25 @@ impl WindowState {
         let is_dragging = self
             .tab_manager
             .active_tab()
-            .map(|t| t.scroll_state.dragging)
+            .map(|t| t.active_scroll_state().dragging)
             .unwrap_or(false);
 
         if is_dragging && let Some(tab) = self.tab_manager.active_tab_mut() {
-            tab.scroll_state.dragging = false;
-            tab.scroll_state.drag_offset = 0.0;
+            tab.active_scroll_state_mut().dragging = false;
+            tab.active_scroll_state_mut().drag_offset = 0.0;
             return;
         }
 
         // End divider drag
         let divider_info = self.tab_manager.active_tab().and_then(|t| {
-            let idx = t.mouse.dragging_divider?;
+            let idx = t.active_mouse().dragging_divider?;
             let divider = t.get_divider(idx)?;
             Some((idx, divider.is_horizontal))
         });
 
         if let Some((_divider_idx, is_horizontal)) = divider_info {
             if let Some(tab) = self.tab_manager.active_tab_mut() {
-                tab.mouse.dragging_divider = None;
+                tab.active_mouse_mut().dragging_divider = None;
                 log::debug!("Ended divider drag");
             }
             // Sync pane resize to tmux if gateway is active
@@ -504,12 +506,12 @@ impl WindowState {
         } else if self
             .tab_manager
             .active_tab()
-            .and_then(|t| t.mouse.dragging_divider)
+            .and_then(|t| t.active_mouse().dragging_divider)
             .is_some()
         {
             // Fallback: divider was being dragged but we couldn't get info
             if let Some(tab) = self.tab_manager.active_tab_mut() {
-                tab.mouse.dragging_divider = None;
+                tab.active_mouse_mut().dragging_divider = None;
                 log::debug!("Ended divider drag (no info)");
             }
             self.focus_state.needs_redraw = true;

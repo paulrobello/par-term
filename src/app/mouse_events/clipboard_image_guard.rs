@@ -23,7 +23,7 @@ impl WindowState {
         let press_position = self
             .tab_manager
             .active_tab()
-            .map(|t| t.mouse.position)
+            .map(|t| t.active_mouse().position)
             .unwrap_or((0.0, 0.0));
 
         let mut clipboard = match arboard::Clipboard::new() {
@@ -70,7 +70,7 @@ impl WindowState {
         let release_position = self
             .tab_manager
             .active_tab()
-            .map(|t| t.mouse.position)
+            .map(|t| t.active_mouse().position)
             .unwrap_or((0.0, 0.0));
 
         let dx = release_position.0 - guard.press_position.0;
@@ -185,7 +185,7 @@ impl WindowState {
 
         if self.try_send_mouse_event(0, true) {
             if let Some(tab) = self.tab_manager.active_tab_mut() {
-                tab.mouse.button_pressed = true;
+                tab.active_mouse_mut().button_pressed = true;
             }
             crate::debug_log!(
                 "MOUSE",

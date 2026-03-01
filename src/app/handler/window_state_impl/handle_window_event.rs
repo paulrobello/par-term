@@ -227,26 +227,30 @@ impl WindowState {
                         // On miss: this tab's terminal keeps its old dimensions; the cell
                         // cache is still invalidated below so rendering uses the correct
                         // grid size. The terminal size will be fixed on the next resize event.
-                        if let Ok(mut term) = tab.terminal.try_write() {
+                        let new_scrollback_len = if let Ok(mut term) = tab.terminal.try_write() {
                             let _ = term.resize_with_pixels(cols, rows, width_px, height_px);
-                            tab.cache.scrollback_len = term.scrollback_len();
+                            Some(term.scrollback_len())
                         } else {
                             crate::debug::record_try_lock_failure("resize");
+                            None
+                        };
+                        if let Some(sl) = new_scrollback_len {
+                            tab.active_cache_mut().scrollback_len = sl;
                         }
                         // Invalidate cell cache to force regeneration
-                        tab.cache.cells = None;
+                        tab.active_cache_mut().cells = None;
                     }
 
                     // Update scrollbar for active tab
                     if let Some(tab) = self.tab_manager.active_tab() {
-                        let total_lines = rows + tab.cache.scrollback_len;
+                        let total_lines = rows + tab.active_cache().scrollback_len;
                         // try_lock: intentional — scrollbar mark update during Resized event.
                         // On miss: scrollbar renders without marks this frame. Cosmetic only.
                         let marks = tab
                             .try_with_terminal(|term| term.scrollback_marks())
                             .unwrap_or_default();
                         renderer.update_scrollbar(
-                            tab.scroll_state.offset,
+                            tab.active_scroll_state().offset,
                             rows,
                             total_lines,
                             &marks,
@@ -397,7 +401,7 @@ impl WindowState {
                         if let Ok(mut term) = tab.terminal.try_write() {
                             term.set_theme(theme.clone());
                         }
-                        tab.cache.cells = None;
+                        tab.active_cache_mut().cells = None;
                     }
                 }
 

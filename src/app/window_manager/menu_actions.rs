@@ -159,7 +159,8 @@ impl WindowManager {
                     if let Ok(mut clipboard) = arboard::Clipboard::new() {
                         if let Ok(text) = clipboard.get_text() {
                             window_state
-                                .egui.pending_events
+                                .egui
+                                .pending_events
                                 .push(egui::Event::Paste(text));
                             return;
                         }
@@ -229,15 +230,18 @@ impl WindowManager {
                 {
                     // Clear scrollback in active tab
                     let cleared = if let Some(tab) = window_state.tab_manager.active_tab_mut() {
-                        if let Ok(mut term) = tab.terminal.try_write() {
+                        let did_clear = if let Ok(mut term) = tab.terminal.try_write() {
                             term.clear_scrollback();
                             term.clear_scrollback_metadata();
-                            tab.cache.scrollback_len = 0;
-                            tab.trigger_marks.clear();
                             true
                         } else {
                             false
+                        };
+                        if did_clear {
+                            tab.active_cache_mut().scrollback_len = 0;
+                            tab.trigger_marks.clear();
                         }
+                        did_clear
                     } else {
                         false
                     };

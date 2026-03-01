@@ -11,9 +11,7 @@
 
 use par_term_config::KeyBinding;
 use par_term_keybindings::{
-    KeyCombo,
-    key_combo_to_bytes,
-    parse_key_sequence,
+    KeyCombo, key_combo_to_bytes, parse_key_sequence,
     parser::{ParsedKey, parse_key_combo},
 };
 use winit::keyboard::NamedKey;
@@ -317,8 +315,8 @@ fn parse_all_function_keys() {
     ];
 
     for (key_str, expected_named) in &expected {
-        let combo = parse_key_combo(key_str)
-            .unwrap_or_else(|_| panic!("Failed to parse {}", key_str));
+        let combo =
+            parse_key_combo(key_str).unwrap_or_else(|_| panic!("Failed to parse {}", key_str));
         assert_eq!(
             combo.key,
             ParsedKey::Named(*expected_named),
@@ -474,7 +472,12 @@ fn bytes_for_all_arrow_keys() {
     ];
     for (key, expected) in &cases {
         let combo = parse_key_combo(key).unwrap();
-        assert_eq!(&key_combo_to_bytes(&combo).unwrap(), expected, "Failed for {}", key);
+        assert_eq!(
+            &key_combo_to_bytes(&combo).unwrap(),
+            expected,
+            "Failed for {}",
+            key
+        );
     }
 }
 
@@ -489,7 +492,12 @@ fn bytes_for_f1_through_f4_use_ss3_prefix() {
     ];
     for (key, expected) in &cases {
         let combo = parse_key_combo(key).unwrap();
-        assert_eq!(&key_combo_to_bytes(&combo).unwrap(), expected, "Failed for {}", key);
+        assert_eq!(
+            &key_combo_to_bytes(&combo).unwrap(),
+            expected,
+            "Failed for {}",
+            key
+        );
     }
 }
 
@@ -508,7 +516,12 @@ fn bytes_for_f5_through_f12_use_csi_prefix() {
     ];
     for (key, expected) in &cases {
         let combo = parse_key_combo(key).unwrap();
-        assert_eq!(&key_combo_to_bytes(&combo).unwrap(), expected, "Failed for {}", key);
+        assert_eq!(
+            &key_combo_to_bytes(&combo).unwrap(),
+            expected,
+            "Failed for {}",
+            key
+        );
     }
 }
 
@@ -524,7 +537,12 @@ fn bytes_for_navigation_keys() {
     ];
     for (key, expected) in &cases {
         let combo = parse_key_combo(key).unwrap();
-        assert_eq!(&key_combo_to_bytes(&combo).unwrap(), expected, "Failed for {}", key);
+        assert_eq!(
+            &key_combo_to_bytes(&combo).unwrap(),
+            expected,
+            "Failed for {}",
+            key
+        );
     }
 }
 

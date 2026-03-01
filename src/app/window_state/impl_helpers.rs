@@ -27,7 +27,7 @@ impl WindowState {
     #[inline]
     pub(crate) fn invalidate_tab_cache(&mut self) {
         if let Some(tab) = self.tab_manager.active_tab_mut() {
-            tab.cache.cells = None;
+            tab.active_cache_mut().cells = None;
         }
     }
 
@@ -73,10 +73,7 @@ impl WindowState {
     /// Use this instead of the inline `if let Some(tab) = self.tab_manager.active_tab_mut() { ... }`
     /// pattern (AUD-030).
     #[inline]
-    pub(crate) fn with_active_tab_mut<R>(
-        &mut self,
-        f: impl FnOnce(&mut Tab) -> R,
-    ) -> Option<R> {
+    pub(crate) fn with_active_tab_mut<R>(&mut self, f: impl FnOnce(&mut Tab) -> R) -> Option<R> {
         self.tab_manager.active_tab_mut().map(f)
     }
 
@@ -309,12 +306,12 @@ impl WindowState {
         };
 
         // No scrollbar needed if no scrollback available
-        if tab.cache.scrollback_len == 0 {
+        if tab.active_cache().scrollback_len == 0 {
             return false;
         }
 
         // Always show when dragging or moving
-        if tab.scroll_state.dragging {
+        if tab.active_scroll_state().dragging {
             return true;
         }
 
@@ -324,7 +321,7 @@ impl WindowState {
         }
 
         // If scrolled away from bottom, keep visible
-        if tab.scroll_state.offset > 0 || tab.scroll_state.target_offset > 0 {
+        if tab.active_scroll_state().offset > 0 || tab.active_scroll_state().target_offset > 0 {
             return true;
         }
 
@@ -333,16 +330,19 @@ impl WindowState {
             let padding = 32.0; // px hover band
             let width = window.inner_size().width as f64;
             let near_right = self.config.scrollbar_position != "left"
-                && (width - tab.mouse.position.0) <= padding;
-            let near_left =
-                self.config.scrollbar_position == "left" && tab.mouse.position.0 <= padding;
+                && (width - tab.active_mouse().position.0) <= padding;
+            let near_left = self.config.scrollbar_position == "left"
+                && tab.active_mouse().position.0 <= padding;
             if near_left || near_right {
                 return true;
             }
         }
 
         // Otherwise, hide after delay
-        tab.scroll_state.last_activity.elapsed().as_millis()
+        tab.active_scroll_state()
+            .last_activity
+            .elapsed()
+            .as_millis()
             < self.config.scrollbar_autohide_delay as u128
     }
 

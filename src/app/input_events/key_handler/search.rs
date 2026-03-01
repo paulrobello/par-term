@@ -23,20 +23,15 @@ impl WindowState {
         // macOS: Cmd+F / Windows/Linux: Ctrl+Shift+F
         // (Ctrl+F is "forward character" in readline, must not be intercepted on non-macOS)
         if event.state == ElementState::Pressed {
-            let shift = self.input_handler.modifiers.state().shift_key();
+            let mods = self.input_handler.modifiers.state();
 
+            // On macOS: Cmd+F (no Shift). On Windows/Linux: Ctrl+Shift+F.
             #[cfg(target_os = "macos")]
-            let is_search = {
-                let cmd = self.input_handler.modifiers.state().super_key();
-                cmd && !shift
-                    && matches!(event.logical_key, Key::Character(ref c) if c.eq_ignore_ascii_case("f"))
-            };
+            let is_search = crate::platform::primary_modifier(&mods)
+                && matches!(event.logical_key, Key::Character(ref c) if c.eq_ignore_ascii_case("f"));
             #[cfg(not(target_os = "macos"))]
-            let is_search = {
-                let ctrl = self.input_handler.modifiers.state().control_key();
-                ctrl && shift
-                    && matches!(event.logical_key, Key::Character(ref c) if c.eq_ignore_ascii_case("f"))
-            };
+            let is_search = crate::platform::primary_modifier_with_shift(&mods)
+                && matches!(event.logical_key, Key::Character(ref c) if c.eq_ignore_ascii_case("f"));
 
             if is_search {
                 self.overlay_ui.search_ui.open();

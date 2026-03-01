@@ -262,8 +262,7 @@ fn test_expand_link_handler_multi_word_command() {
 #[test]
 fn test_expand_link_handler_no_placeholder() {
     // If command has no {url}, it still works - the URL just doesn't appear
-    let parts =
-        expand_link_handler("my-browser", "https://example.com").expect("should succeed");
+    let parts = expand_link_handler("my-browser", "https://example.com").expect("should succeed");
     assert_eq!(parts, vec!["my-browser"]);
 }
 
@@ -306,9 +305,8 @@ fn test_expand_link_handler_url_with_spaces_stays_single_arg() {
 #[test]
 fn test_expand_link_handler_url_with_shell_metacharacters() {
     // Shell metacharacters in URLs must not cause issues
-    let parts =
-        expand_link_handler("open {url}", "https://example.com/search?q=foo&bar=baz|cat")
-            .expect("should succeed");
+    let parts = expand_link_handler("open {url}", "https://example.com/search?q=foo&bar=baz|cat")
+        .expect("should succeed");
     assert_eq!(parts.len(), 2);
     assert_eq!(parts[1], "https://example.com/search?q=foo&bar=baz|cat");
 }

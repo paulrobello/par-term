@@ -79,7 +79,7 @@ impl WindowState {
                                 let _ = term
                                     .resize_with_pixels(new_cols, new_rows, width_px, height_px);
                             }
-                            tab.cache.cells = None;
+                            tab.active_cache_mut().cells = None;
                         }
                     }
                     log::info!(
@@ -300,7 +300,7 @@ impl WindowState {
                             let _ =
                                 term.resize_with_pixels(new_cols, new_rows, width_px, height_px);
                         }
-                        tab.cache.cells = None;
+                        tab.active_cache_mut().cells = None;
                     }
                     log::info!(
                         "Tab bar visibility changed (position={:?}), resized remaining tabs to {}x{}",
@@ -374,7 +374,7 @@ impl WindowState {
                 );
 
                 // Invalidate cell cache so content is re-rendered
-                tab.cache.cells = None;
+                tab.active_cache_mut().cells = None;
 
                 // try_lock: intentional — tab switch resize in sync event loop.
                 // On miss: the newly active tab uses previous dimensions until next Resized.
@@ -507,7 +507,7 @@ impl WindowState {
                         term.set_cell_dimensions(cell_width as u32, cell_height as u32);
                         let _ = term.resize_with_pixels(new_cols, new_rows, width_px, height_px);
                     }
-                    tab.cache.cells = None;
+                    tab.active_cache_mut().cells = None;
                 }
             }
         }

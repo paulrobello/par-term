@@ -180,11 +180,7 @@ impl WindowState {
         // Check for Cmd+Shift+P (macOS) or Ctrl+Shift+P (Windows/Linux)
         let is_p = matches!(event.logical_key, Key::Character(ref c) if c.to_lowercase() == "p");
         let modifiers = self.input_handler.modifiers.state();
-
-        #[cfg(target_os = "macos")]
-        let is_cmd_shift = modifiers.super_key() && modifiers.shift_key();
-        #[cfg(not(target_os = "macos"))]
-        let is_cmd_shift = modifiers.control_key() && modifiers.shift_key();
+        let is_cmd_shift = crate::platform::primary_modifier_with_shift(&modifiers);
 
         if is_p && is_cmd_shift {
             self.toggle_profile_drawer();

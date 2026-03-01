@@ -14,41 +14,7 @@ pub(super) fn notify_update_available(info: &UpdateInfo) {
         "You have v{}. Check Settings > Advanced > Updates.",
         current
     );
-
-    #[cfg(not(target_os = "macos"))]
-    {
-        use notify_rust::Notification;
-        let _ = Notification::new()
-            .summary(&summary)
-            .body(&body)
-            .appname("par-term")
-            .timeout(notify_rust::Timeout::Milliseconds(8000))
-            .show();
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        // Escape backslashes, quotes, and newlines for AppleScript string safety
-        // Order matters: escape backslashes FIRST, then quotes, then newlines
-        let escaped_body = body
-            .replace('\\', "\\\\")
-            .replace('"', "\\\"")
-            .replace('\n', "\\n")
-            .replace('\r', "\\r");
-        let escaped_summary = summary
-            .replace('\\', "\\\\")
-            .replace('"', "\\\"")
-            .replace('\n', "\\n")
-            .replace('\r', "\\r");
-        let script = format!(
-            r#"display notification "{}" with title "{}""#,
-            escaped_body, escaped_summary,
-        );
-        let _ = std::process::Command::new("osascript")
-            .arg("-e")
-            .arg(&script)
-            .spawn();
-    }
+    crate::platform::deliver_desktop_notification(&summary, &body, 8000);
 }
 
 /// Convert a main-crate UpdateCheckResult to the settings-ui crate's type.
@@ -262,32 +228,10 @@ impl WindowManager {
     /// Send a test desktop notification (for debugging notification support).
     pub fn send_test_notification(&self) {
         log::info!("Sending test notification");
-
-        #[cfg(not(target_os = "macos"))]
-        {
-            use notify_rust::Notification;
-            if let Err(e) = Notification::new()
-                .summary("par-term Test Notification")
-                .body("If you see this, notifications are working!")
-                .timeout(notify_rust::Timeout::Milliseconds(5000))
-                .show()
-            {
-                log::warn!("Failed to send test notification: {}", e);
-            }
-        }
-
-        #[cfg(target_os = "macos")]
-        {
-            // macOS notifications via osascript
-            let script = r#"display notification "If you see this, notifications are working!" with title "par-term Test Notification""#;
-
-            if let Err(e) = std::process::Command::new("osascript")
-                .arg("-e")
-                .arg(script)
-                .output()
-            {
-                log::warn!("Failed to send macOS test notification: {}", e);
-            }
-        }
+        crate::platform::deliver_desktop_notification(
+            "par-term Test Notification",
+            "If you see this, notifications are working!",
+            5000,
+        );
     }
 }

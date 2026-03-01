@@ -26,4 +26,3 @@ pub(crate) struct EguiState {
     /// should check this flag first.
     pub(crate) initialized: bool,
 }
-

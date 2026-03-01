@@ -16,7 +16,7 @@ impl WindowState {
             return false;
         };
 
-        let mouse_position = tab.mouse.position;
+        let mouse_position = tab.active_mouse().position;
 
         // Get the correct terminal and cell coordinates based on whether split panes exist
         let (terminal_arc, col, row) = if let Some(ref pm) = tab.pane_manager

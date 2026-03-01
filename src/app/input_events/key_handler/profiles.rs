@@ -45,7 +45,8 @@ impl WindowState {
         let modifiers = self.input_handler.modifiers.state();
         let mut parts = Vec::new();
 
-        // Add modifier keys (in canonical order)
+        // Add modifier keys (in canonical order).
+        // On macOS Cmd is reported as super_key(); on Windows/Linux the primary modifier is Ctrl.
         #[cfg(target_os = "macos")]
         {
             if modifiers.super_key() {

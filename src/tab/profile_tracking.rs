@@ -10,7 +10,8 @@ use crate::ui_constants::VISUAL_BELL_FLASH_DURATION_MS;
 impl Tab {
     /// Check if the visual bell is currently active (within flash duration)
     pub fn is_bell_active(&self) -> bool {
-        if let Some(flash_start) = self.bell.visual_flash {
+        // Use active_bell() to route through the focused pane in split-pane mode.
+        if let Some(flash_start) = self.active_bell().visual_flash {
             flash_start.elapsed().as_millis() < VISUAL_BELL_FLASH_DURATION_MS
         } else {
             false
