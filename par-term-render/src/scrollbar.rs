@@ -5,6 +5,19 @@ use wgpu::BindGroupLayout;
 /// Pre-allocating this many GPU buffers avoids per-frame allocation churn.
 const MAX_SCROLLBAR_MARKS: usize = 256;
 
+/// Parameters for updating the scrollbar position and mark overlays each frame.
+pub struct ScrollbarUpdateParams<'a> {
+    pub scroll_offset: usize,
+    pub visible_lines: usize,
+    pub total_lines: usize,
+    pub window_width: u32,
+    pub window_height: u32,
+    pub content_offset_y: f32,
+    pub content_inset_bottom: f32,
+    pub content_inset_right: f32,
+    pub marks: &'a [par_term_config::ScrollbackMark],
+}
+
 /// Minimum scrollbar thumb height in pixels.
 /// Prevents the thumb from becoming too small to click when scrollback is very long.
 const MIN_SCROLLBAR_THUMB_HEIGHT_PX: f32 = 20.0;
@@ -251,34 +264,22 @@ impl Scrollbar {
         }
     }
 
-    /// Update scrollbar position and visibility
+    /// Update scrollbar position and visibility.
     ///
-    /// # Arguments
-    /// * `scroll_offset` - Current scroll offset (0 = at bottom)
-    /// * `visible_lines` - Number of lines visible on screen
-    /// * `total_lines` - Total number of lines including scrollback
-    /// * `window_width` - Window width in pixels
-    /// * `window_height` - Window height in pixels
-    /// * `content_offset_y` - Top inset in pixels (e.g., tab bar at top)
-    /// * `content_inset_bottom` - Bottom inset in pixels (e.g., status bar)
-    /// * `content_inset_right` - Right inset in pixels (e.g., AI Inspector panel)
-    // Too many arguments: the scrollbar update requires scroll position, viewport size,
-    // window dimensions, and all four content insets in one call to compute accurate
-    // geometry without a partial-update API. A ScrollbarParams struct is deferred.
-    #[allow(clippy::too_many_arguments)]
-    pub fn update(
-        &mut self,
-        queue: &Queue,
-        scroll_offset: usize,
-        visible_lines: usize,
-        total_lines: usize,
-        window_width: u32,
-        window_height: u32,
-        content_offset_y: f32,
-        content_inset_bottom: f32,
-        content_inset_right: f32,
-        marks: &[par_term_config::ScrollbackMark],
-    ) {
+    /// All geometry and scroll-state parameters are passed via [`ScrollbarUpdateParams`].
+    pub fn update(&mut self, queue: &Queue, params: ScrollbarUpdateParams<'_>) {
+        let ScrollbarUpdateParams {
+            scroll_offset,
+            visible_lines,
+            total_lines,
+            window_width,
+            window_height,
+            content_offset_y,
+            content_inset_bottom,
+            content_inset_right,
+            marks,
+        } = params;
+
         // Store parameters for hit testing
         self.scroll_offset = scroll_offset;
         self.visible_lines = visible_lines;
@@ -411,9 +412,6 @@ impl Scrollbar {
         }
     }
 
-    // Too many arguments: mark preparation needs all the same geometry as update() to
-    // position marks correctly. Shares the deferred ScrollbarParams refactor.
-    #[allow(clippy::too_many_arguments)]
     fn prepare_marks(
         &mut self,
         queue: &Queue,

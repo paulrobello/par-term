@@ -1,4 +1,4 @@
-use crate::cell_renderer::{Cell, CellRenderer, PaneViewport};
+use crate::cell_renderer::{Cell, CellRenderer, CellRendererConfig, PaneViewport};
 use crate::custom_shader_renderer::CustomShaderRenderer;
 use crate::graphics_renderer::GraphicsRenderer;
 use anyhow::Result;
@@ -301,49 +301,49 @@ impl Renderer {
         let rows = (available_height / char_height).max(1.0) as usize;
 
         // Create cell renderer with font fallback support (owns scrollbar)
+        let bg_path = if background_image_enabled {
+            background_image_path
+        } else {
+            None
+        };
+        log::info!(
+            "Renderer::new: background_image_enabled={}, path={:?}",
+            background_image_enabled,
+            bg_path
+        );
         let cell_renderer = CellRenderer::new(
             window.clone(),
-            font_family,
-            font_family_bold,
-            font_family_italic,
-            font_family_bold_italic,
-            font_ranges,
-            font_size,
-            cols,
-            rows,
-            window_padding,
-            line_spacing,
-            char_spacing,
-            scrollbar_position,
-            scrollbar_width,
-            scrollbar_thumb_color,
-            scrollbar_track_color,
-            enable_text_shaping,
-            enable_ligatures,
-            enable_kerning,
-            font_antialias,
-            font_hinting,
-            font_thin_strokes,
-            minimum_contrast,
-            vsync_mode,
-            power_preference,
-            window_opacity,
-            background_color,
-            {
-                let bg_path = if background_image_enabled {
-                    background_image_path
-                } else {
-                    None
-                };
-                log::info!(
-                    "Renderer::new: background_image_enabled={}, path={:?}",
-                    background_image_enabled,
-                    bg_path
-                );
-                bg_path
+            CellRendererConfig {
+                font_family,
+                font_family_bold,
+                font_family_italic,
+                font_family_bold_italic,
+                font_ranges,
+                font_size,
+                cols,
+                rows,
+                window_padding,
+                line_spacing,
+                char_spacing,
+                scrollbar_position,
+                scrollbar_width,
+                scrollbar_thumb_color,
+                scrollbar_track_color,
+                enable_text_shaping,
+                enable_ligatures,
+                enable_kerning,
+                font_antialias,
+                font_hinting,
+                font_thin_strokes,
+                minimum_contrast,
+                vsync_mode,
+                power_preference,
+                window_opacity,
+                background_color,
+                background_image_path: bg_path,
+                background_image_mode,
+                background_image_opacity,
             },
-            background_image_mode,
-            background_image_opacity,
         )
         .await?;
 
@@ -373,32 +373,36 @@ impl Renderer {
         // Create custom shader renderer if configured
         let (mut custom_shader_renderer, initial_shader_path) = shaders::init_custom_shader(
             &cell_renderer,
-            size.width,
-            size.height,
-            window_padding,
-            custom_shader_path,
-            custom_shader_enabled,
-            custom_shader_animation,
-            custom_shader_animation_speed,
-            window_opacity,
-            custom_shader_full_content,
-            custom_shader_brightness,
-            custom_shader_channel_paths,
-            custom_shader_cubemap_path,
-            use_background_as_channel0,
+            shaders::CustomShaderInitParams {
+                size_width: size.width,
+                size_height: size.height,
+                window_padding,
+                path: custom_shader_path,
+                enabled: custom_shader_enabled,
+                animation: custom_shader_animation,
+                animation_speed: custom_shader_animation_speed,
+                window_opacity,
+                full_content: custom_shader_full_content,
+                brightness: custom_shader_brightness,
+                channel_paths: custom_shader_channel_paths,
+                cubemap_path: custom_shader_cubemap_path,
+                use_background_as_channel0,
+            },
         );
 
         // Create cursor shader renderer if configured (separate from background shader)
         let (mut cursor_shader_renderer, initial_cursor_shader_path) = shaders::init_cursor_shader(
             &cell_renderer,
-            size.width,
-            size.height,
-            window_padding,
-            cursor_shader_path,
-            cursor_shader_enabled,
-            cursor_shader_animation,
-            cursor_shader_animation_speed,
-            window_opacity,
+            shaders::CursorShaderInitParams {
+                size_width: size.width,
+                size_height: size.height,
+                window_padding,
+                path: cursor_shader_path,
+                enabled: cursor_shader_enabled,
+                animation: cursor_shader_animation,
+                animation_speed: cursor_shader_animation_speed,
+                window_opacity,
+            },
         );
 
         // Sync DPI scale factor to shader renderers for cursor sizing

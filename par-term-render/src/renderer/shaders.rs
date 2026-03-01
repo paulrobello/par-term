@@ -3,30 +3,70 @@ use crate::cell_renderer::CellRenderer;
 use crate::custom_shader_renderer::CustomShaderRenderer;
 use anyhow::Result;
 
+/// Parameters for initialising the background custom shader renderer.
+pub struct CustomShaderInitParams<'a> {
+    pub size_width: u32,
+    pub size_height: u32,
+    pub window_padding: f32,
+    pub path: Option<&'a str>,
+    pub enabled: bool,
+    pub animation: bool,
+    pub animation_speed: f32,
+    pub window_opacity: f32,
+    pub full_content: bool,
+    pub brightness: f32,
+    pub channel_paths: &'a [Option<std::path::PathBuf>; 4],
+    pub cubemap_path: Option<&'a std::path::Path>,
+    pub use_background_as_channel0: bool,
+}
+
+/// Parameters for initialising the cursor shader renderer.
+pub struct CursorShaderInitParams<'a> {
+    pub size_width: u32,
+    pub size_height: u32,
+    pub window_padding: f32,
+    pub path: Option<&'a str>,
+    pub enabled: bool,
+    pub animation: bool,
+    pub animation_speed: f32,
+    pub window_opacity: f32,
+}
+
+/// Parameters for enabling/updating the background custom shader at runtime.
+pub struct CustomShaderEnableParams<'a> {
+    pub enabled: bool,
+    pub shader_path: Option<&'a str>,
+    pub window_opacity: f32,
+    pub animation_enabled: bool,
+    pub animation_speed: f32,
+    pub full_content: bool,
+    pub brightness: f32,
+    pub channel_paths: &'a [Option<std::path::PathBuf>; 4],
+    pub cubemap_path: Option<&'a std::path::Path>,
+}
+
 /// Initialize the custom shader renderer if configured.
 ///
 /// Returns (renderer, shader_path) tuple where both are Some if initialization succeeded.
-// Too many arguments: the shader renderer is initialised from config fields that are
-// conceptually unrelated (geometry, paths, animation, opacity). A dedicated init-config
-// struct is the right long-term fix; deferred because this function is called in only
-// one place and the arguments map directly to Config fields.
-#[allow(clippy::too_many_arguments)]
 pub(super) fn init_custom_shader(
     cell_renderer: &CellRenderer,
-    size_width: u32,
-    size_height: u32,
-    window_padding: f32,
-    custom_shader_path: Option<&str>,
-    custom_shader_enabled: bool,
-    custom_shader_animation: bool,
-    custom_shader_animation_speed: f32,
-    window_opacity: f32,
-    custom_shader_full_content: bool,
-    custom_shader_brightness: f32,
-    custom_shader_channel_paths: &[Option<std::path::PathBuf>; 4],
-    custom_shader_cubemap_path: Option<&std::path::Path>,
-    use_background_as_channel0: bool,
+    params: CustomShaderInitParams<'_>,
 ) -> (Option<CustomShaderRenderer>, Option<String>) {
+    let CustomShaderInitParams {
+        size_width,
+        size_height,
+        window_padding,
+        path: custom_shader_path,
+        enabled: custom_shader_enabled,
+        animation: custom_shader_animation,
+        animation_speed: custom_shader_animation_speed,
+        window_opacity,
+        full_content: custom_shader_full_content,
+        brightness: custom_shader_brightness,
+        channel_paths: custom_shader_channel_paths,
+        cubemap_path: custom_shader_cubemap_path,
+        use_background_as_channel0,
+    } = params;
     if !custom_shader_enabled {
         return (None, None);
     }
@@ -39,16 +79,18 @@ pub(super) fn init_custom_shader(
     match CustomShaderRenderer::new(
         cell_renderer.device(),
         cell_renderer.queue(),
-        cell_renderer.surface_format(),
-        &path,
-        size_width,
-        size_height,
-        custom_shader_animation,
-        custom_shader_animation_speed,
-        window_opacity,
-        custom_shader_full_content,
-        custom_shader_channel_paths,
-        custom_shader_cubemap_path,
+        crate::custom_shader_renderer::CustomShaderRendererConfig {
+            surface_format: cell_renderer.surface_format(),
+            shader_path: &path,
+            width: size_width,
+            height: size_height,
+            animation_enabled: custom_shader_animation,
+            animation_speed: custom_shader_animation_speed,
+            window_opacity,
+            full_content_mode: custom_shader_full_content,
+            channel_paths: custom_shader_channel_paths,
+            cubemap_path: custom_shader_cubemap_path,
+        },
     ) {
         Ok(mut renderer) => {
             renderer.update_cell_dimensions(
@@ -91,20 +133,20 @@ pub(super) fn init_custom_shader(
 /// Initialize the cursor shader renderer if configured.
 ///
 /// Returns (renderer, shader_path) tuple where both are Some if initialization succeeded.
-// Too many arguments: same pattern as init_custom_shader — parameters are cursor-shader
-// config fields passed from a single call site. Deferred to a config struct later.
-#[allow(clippy::too_many_arguments)]
 pub(super) fn init_cursor_shader(
     cell_renderer: &CellRenderer,
-    size_width: u32,
-    size_height: u32,
-    window_padding: f32,
-    cursor_shader_path: Option<&str>,
-    cursor_shader_enabled: bool,
-    cursor_shader_animation: bool,
-    cursor_shader_animation_speed: f32,
-    window_opacity: f32,
+    params: CursorShaderInitParams<'_>,
 ) -> (Option<CustomShaderRenderer>, Option<String>) {
+    let CursorShaderInitParams {
+        size_width,
+        size_height,
+        window_padding,
+        path: cursor_shader_path,
+        enabled: cursor_shader_enabled,
+        animation: cursor_shader_animation,
+        animation_speed: cursor_shader_animation_speed,
+        window_opacity,
+    } = params;
     log::debug!(
         "[cursor-shader] Init: enabled={}, path={:?}, animation={}, speed={}",
         cursor_shader_enabled,
@@ -129,16 +171,18 @@ pub(super) fn init_cursor_shader(
     match CustomShaderRenderer::new(
         cell_renderer.device(),
         cell_renderer.queue(),
-        cell_renderer.surface_format(),
-        &path,
-        size_width,
-        size_height,
-        cursor_shader_animation,
-        cursor_shader_animation_speed,
-        window_opacity,
-        true, // Full content mode (cursor shader always uses full content)
-        &empty_channels,
-        None, // Cursor shaders don't use cubemaps
+        crate::custom_shader_renderer::CustomShaderRendererConfig {
+            surface_format: cell_renderer.surface_format(),
+            shader_path: &path,
+            width: size_width,
+            height: size_height,
+            animation_enabled: cursor_shader_animation,
+            animation_speed: cursor_shader_animation_speed,
+            window_opacity,
+            full_content_mode: true, // Cursor shader always uses full content
+            channel_paths: &empty_channels,
+            cubemap_path: None, // Cursor shaders don't use cubemaps
+        },
     ) {
         Ok(mut renderer) => {
             let cell_w = cell_renderer.cell_width();
@@ -343,16 +387,18 @@ impl Renderer {
                 match CustomShaderRenderer::new(
                     self.cell_renderer.device(),
                     self.cell_renderer.queue(),
-                    self.cell_renderer.surface_format(),
-                    &shader_path_full,
-                    self.size.width,
-                    self.size.height,
-                    animation_enabled,
-                    animation_speed,
-                    window_opacity,
-                    true, // Full content mode (cursor shader always uses full content)
-                    &empty_channels,
-                    None, // Cursor shaders don't use cubemaps
+                    crate::custom_shader_renderer::CustomShaderRendererConfig {
+                        surface_format: self.cell_renderer.surface_format(),
+                        shader_path: &shader_path_full,
+                        width: self.size.width,
+                        height: self.size.height,
+                        animation_enabled,
+                        animation_speed,
+                        window_opacity,
+                        full_content_mode: true, // Cursor shader always uses full content
+                        channel_paths: &empty_channels,
+                        cubemap_path: None, // Cursor shaders don't use cubemaps
+                    },
                 ) {
                     Ok(mut renderer) => {
                         // Sync cell dimensions for cursor position calculation
@@ -488,23 +534,21 @@ impl Renderer {
     /// renderer instance.
     ///
     /// Returns Ok(()) on success, or Err with error message on failure.
-    // Too many arguments: the custom shader requires 9 independent parameters covering
-    // its path, opacity, animation, content mode, brightness, and texture channels.
-    // A ShaderEnableParams builder struct would clean this up but is deferred since
-    // this method is called from a single hot-reload handler.
-    #[allow(clippy::too_many_arguments)]
     pub fn set_custom_shader_enabled(
         &mut self,
-        enabled: bool,
-        shader_path: Option<&str>,
-        window_opacity: f32,
-        animation_enabled: bool,
-        animation_speed: f32,
-        full_content: bool,
-        brightness: f32,
-        channel_paths: &[Option<std::path::PathBuf>; 4],
-        cubemap_path: Option<&std::path::Path>,
+        params: CustomShaderEnableParams<'_>,
     ) -> Result<(), String> {
+        let CustomShaderEnableParams {
+            enabled,
+            shader_path,
+            window_opacity,
+            animation_enabled,
+            animation_speed,
+            full_content,
+            brightness,
+            channel_paths,
+            cubemap_path,
+        } = params;
         match (enabled, shader_path) {
             (true, Some(path)) => {
                 // Check if the shader path has changed
@@ -550,16 +594,18 @@ impl Renderer {
                 match CustomShaderRenderer::new(
                     self.cell_renderer.device(),
                     self.cell_renderer.queue(),
-                    self.cell_renderer.surface_format(),
-                    &shader_path_full,
-                    self.size.width,
-                    self.size.height,
-                    animation_enabled,
-                    animation_speed,
-                    window_opacity,
-                    full_content,
-                    channel_paths,
-                    cubemap_path,
+                    crate::custom_shader_renderer::CustomShaderRendererConfig {
+                        surface_format: self.cell_renderer.surface_format(),
+                        shader_path: &shader_path_full,
+                        width: self.size.width,
+                        height: self.size.height,
+                        animation_enabled,
+                        animation_speed,
+                        window_opacity,
+                        full_content_mode: full_content,
+                        channel_paths,
+                        cubemap_path,
+                    },
                 ) {
                     Ok(mut renderer) => {
                         // Sync cell dimensions for cursor position calculation

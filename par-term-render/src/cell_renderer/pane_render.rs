@@ -4,6 +4,33 @@ use anyhow::Result;
 use par_term_config::{SeparatorMark, color_u8x4_rgb_to_f32, color_u8x4_rgb_to_f32_a};
 use par_term_fonts::text_shaper::ShapingOptions;
 
+/// Parameters for rendering a single pane to a surface texture view.
+pub struct PaneRenderViewParams<'a> {
+    pub viewport: &'a PaneViewport,
+    pub cells: &'a [Cell],
+    pub cols: usize,
+    pub rows: usize,
+    pub cursor_pos: Option<(usize, usize)>,
+    pub cursor_opacity: f32,
+    pub show_scrollbar: bool,
+    pub clear_first: bool,
+    pub skip_background_image: bool,
+    pub separator_marks: &'a [SeparatorMark],
+    pub pane_background: Option<&'a par_term_config::PaneBackground>,
+}
+
+/// Parameters for building GPU instance buffers for a pane.
+pub(super) struct PaneInstanceBuildParams<'a> {
+    pub viewport: &'a PaneViewport,
+    pub cells: &'a [Cell],
+    pub cols: usize,
+    pub rows: usize,
+    pub cursor_pos: Option<(usize, usize)>,
+    pub cursor_opacity: f32,
+    pub skip_solid_background: bool,
+    pub separator_marks: &'a [SeparatorMark],
+}
+
 impl CellRenderer {
     /// Render a single pane's content within a viewport to an existing surface texture
     ///
@@ -22,34 +49,37 @@ impl CellRenderer {
     /// * `clear_first` - If true, clears the viewport region before rendering
     /// * `skip_background_image` - If true, skip rendering the background image. Use this
     ///   when the background image has already been rendered full-screen (for split panes).
-    #[allow(dead_code, clippy::too_many_arguments)]
+    #[allow(dead_code)]
     pub fn render_pane_to_view(
         &mut self,
         surface_view: &wgpu::TextureView,
-        viewport: &PaneViewport,
-        cells: &[Cell],
-        cols: usize,
-        rows: usize,
-        cursor_pos: Option<(usize, usize)>,
-        cursor_opacity: f32,
-        show_scrollbar: bool,
-        clear_first: bool,
-        skip_background_image: bool,
-        separator_marks: &[SeparatorMark],
-        pane_background: Option<&par_term_config::PaneBackground>,
+        p: PaneRenderViewParams<'_>,
     ) -> Result<()> {
-        // Build instance buffers for this pane's cells
-        // Skip solid background fill if background (shader/image) was already rendered full-screen
-        self.build_pane_instance_buffers(
+        let PaneRenderViewParams {
             viewport,
             cells,
             cols,
             rows,
             cursor_pos,
             cursor_opacity,
+            show_scrollbar,
+            clear_first,
             skip_background_image,
             separator_marks,
-        )?;
+            pane_background,
+        } = p;
+        // Build instance buffers for this pane's cells
+        // Skip solid background fill if background (shader/image) was already rendered full-screen
+        self.build_pane_instance_buffers(PaneInstanceBuildParams {
+            viewport,
+            cells,
+            cols,
+            rows,
+            cursor_pos,
+            cursor_opacity,
+            skip_solid_background: skip_background_image,
+            separator_marks,
+        })?;
 
         // Pre-update per-pane background uniform buffer and bind group if needed (must happen
         // before the render pass). Buffers are allocated once and reused across frames.
@@ -61,13 +91,15 @@ impl CellRenderer {
         {
             self.prepare_pane_bg_bind_group(
                 path.as_str(),
-                viewport.x,
-                viewport.y,
-                viewport.width,
-                viewport.height,
-                pane_bg.mode,
-                pane_bg.opacity,
-                pane_bg.darken,
+                super::background::PaneBgBindGroupParams {
+                    pane_x: viewport.x,
+                    pane_y: viewport.y,
+                    pane_width: viewport.width,
+                    pane_height: viewport.height,
+                    mode: pane_bg.mode,
+                    opacity: pane_bg.opacity,
+                    darken: pane_bg.darken,
+                },
             );
             true
         } else {
@@ -189,22 +221,17 @@ impl CellRenderer {
     /// # Arguments
     /// * `skip_solid_background` - If true, skip adding a solid background fill for the viewport.
     ///   Use when a custom shader or background image was already rendered full-screen.
-    // Too many arguments: passes viewport, cell data, grid dimensions, cursor state,
-    // and a background-skip flag as independent parameters to the GPU instance builder.
-    // A RenderPassParams struct is the right fix; deferred since the function has one
-    // call site and the arguments map directly to distinct render concepts.
-    #[allow(clippy::too_many_arguments)]
-    fn build_pane_instance_buffers(
-        &mut self,
-        viewport: &PaneViewport,
-        cells: &[Cell],
-        cols: usize,
-        rows: usize,
-        cursor_pos: Option<(usize, usize)>,
-        cursor_opacity: f32,
-        skip_solid_background: bool,
-        separator_marks: &[SeparatorMark],
-    ) -> Result<()> {
+    fn build_pane_instance_buffers(&mut self, p: PaneInstanceBuildParams<'_>) -> Result<()> {
+        let PaneInstanceBuildParams {
+            viewport,
+            cells,
+            cols,
+            rows,
+            cursor_pos,
+            cursor_opacity,
+            skip_solid_background,
+            separator_marks,
+        } = p;
         let _shaping_options = ShapingOptions {
             enable_ligatures: self.font.enable_ligatures,
             enable_kerning: self.font.enable_kerning,
@@ -628,9 +655,18 @@ impl CellRenderer {
 
                     let (final_left, final_top, final_w, final_h) =
                         if chars.len() == 1 && block_chars::should_snap_to_boundaries(char_type) {
-                            block_chars::snap_glyph_to_cell(
-                                glyph_left, glyph_top, render_w, render_h, x0, y0, x1, y1, 3.0, 0.5,
-                            )
+                            block_chars::snap_glyph_to_cell(block_chars::SnapGlyphParams {
+                                glyph_left,
+                                glyph_top,
+                                render_w,
+                                render_h,
+                                cell_x0: x0,
+                                cell_y0: y0,
+                                cell_x1: x1,
+                                cell_y1: y1,
+                                snap_threshold: 3.0,
+                                extension: 0.5,
+                            })
                         } else {
                             (glyph_left, glyph_top, render_w, render_h)
                         };

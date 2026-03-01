@@ -12,6 +12,18 @@ use crate::selection::SelectionMode;
 use par_term_emu_core_rust::cursor::CursorStyle as TermCursorStyle;
 use std::sync::Arc;
 
+/// Parameters for [`WindowState::extract_tab_cells`].
+pub(super) struct TabCellsParams {
+    pub scroll_offset: usize,
+    pub mouse_selection: Option<crate::selection::Selection>,
+    pub cache_cells: Option<Arc<Vec<crate::cell_renderer::Cell>>>,
+    pub cache_generation: u64,
+    pub cache_scroll_offset: usize,
+    pub cache_cursor_pos: Option<(usize, usize)>,
+    pub cache_selection: Option<crate::selection::Selection>,
+    pub terminal: Arc<tokio::sync::RwLock<par_term_terminal::TerminalManager>>,
+}
+
 /// Data returned by `extract_tab_cells`.
 pub(super) struct TabCellsSnapshot {
     /// Rendered cell grid (with selection marks, cursor blink applied)
@@ -34,18 +46,20 @@ impl WindowState {
     /// terminal write-lock is held by another thread (e.g., PTY reader during
     /// a large upload).  Returns `None` when no cached cells are available and
     /// the lock is unavailable.
-    #[allow(clippy::too_many_arguments)]
     pub(super) fn extract_tab_cells(
         &mut self,
-        scroll_offset: usize,
-        mouse_selection: Option<crate::selection::Selection>,
-        cache_cells: Option<Arc<Vec<crate::cell_renderer::Cell>>>,
-        cache_generation: u64,
-        cache_scroll_offset: usize,
-        cache_cursor_pos: Option<(usize, usize)>,
-        cache_selection: Option<crate::selection::Selection>,
-        terminal: Arc<tokio::sync::RwLock<par_term_terminal::TerminalManager>>,
+        p: TabCellsParams,
     ) -> Option<TabCellsSnapshot> {
+        let TabCellsParams {
+            scroll_offset,
+            mouse_selection,
+            cache_cells,
+            cache_generation,
+            cache_scroll_offset,
+            cache_cursor_pos,
+            cache_selection,
+            terminal,
+        } = p;
         if let Ok(term) = terminal.try_write() {
             // Get current generation to check if terminal content has changed
             let current_generation = term.update_generation();

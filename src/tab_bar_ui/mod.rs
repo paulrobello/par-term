@@ -26,6 +26,7 @@ pub use state::TabBarUI;
 use crate::config::{Config, TabBarMode, TabBarPosition};
 use crate::tab::{TabId, TabManager};
 use crate::ui_constants::{TAB_DRAW_SHRINK_Y, TAB_SPACING};
+use tab_rendering::TabRenderParams;
 
 /// Width reserved for the profile chevron (▾) button in the tab bar split button.
 /// Accounts for the button min_size (14px) plus egui button frame padding (~4px each side).
@@ -133,20 +134,23 @@ impl TabBarUI {
                                 let is_bell_active = tab.is_bell_active();
                                 let (tab_action, tab_rect) = self.render_vertical_tab(
                                     ui,
-                                    tab.id,
-                                    index,
-                                    &tab.title,
-                                    tab.custom_icon
-                                        .as_deref()
-                                        .or(tab.profile.profile_icon.as_deref()),
-                                    tab.custom_icon.as_deref(),
-                                    is_active,
-                                    tab.has_activity,
-                                    is_bell_active,
-                                    tab.custom_color,
-                                    config,
-                                    tab_height,
-                                    tab_count,
+                                    TabRenderParams {
+                                        id: tab.id,
+                                        index,
+                                        title: &tab.title,
+                                        profile_icon: tab
+                                            .custom_icon
+                                            .as_deref()
+                                            .or(tab.profile.profile_icon.as_deref()),
+                                        custom_icon: tab.custom_icon.as_deref(),
+                                        is_active,
+                                        has_activity: tab.has_activity,
+                                        is_bell_active,
+                                        custom_color: tab.custom_color,
+                                        config,
+                                        tab_size: tab_height,
+                                        tab_count,
+                                    },
                                 );
                                 self.tab_rects.push((tab.id, tab_rect));
 

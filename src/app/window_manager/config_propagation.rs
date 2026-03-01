@@ -328,15 +328,17 @@ impl WindowManager {
                         Some(
                             renderer
                                 .set_custom_shader_enabled(
-                                    config.custom_shader_enabled,
-                                    config.custom_shader.as_deref(),
-                                    config.window_opacity,
-                                    config.custom_shader_animation,
-                                    resolved.animation_speed,
-                                    resolved.full_content,
-                                    resolved.brightness,
-                                    &resolved.channel_paths(),
-                                    resolved.cubemap_path().map(|p| p.as_path()),
+                                    par_term_render::renderer::shaders::CustomShaderEnableParams {
+                                        enabled: config.custom_shader_enabled,
+                                        shader_path: config.custom_shader.as_deref(),
+                                        window_opacity: config.window_opacity,
+                                        animation_enabled: config.custom_shader_animation,
+                                        animation_speed: resolved.animation_speed,
+                                        full_content: resolved.full_content,
+                                        brightness: resolved.brightness,
+                                        channel_paths: &resolved.channel_paths(),
+                                        cubemap_path: resolved.cubemap_path().map(|p| p.as_path()),
+                                    },
                                 )
                                 .err(),
                         )

@@ -15,7 +15,7 @@ mod font;
 mod instance_buffers;
 mod instance_builders;
 mod layout;
-mod pane_render;
+pub(crate) mod pane_render;
 pub mod pipeline;
 pub mod render;
 mod settings;
@@ -23,6 +23,7 @@ mod surface;
 pub mod types;
 // Re-export public types for external use
 pub use types::{Cell, PaneViewport};
+pub(crate) use pane_render::PaneRenderViewParams;
 // Re-export internal types for use within the cell_renderer module
 pub(crate) use types::{BackgroundInstance, GlyphInfo, RowCacheEntry, TextInstance};
 // Re-export instance buffer constants so mod.rs can reference them
@@ -214,45 +215,75 @@ pub struct CellRenderer {
     pub(crate) gutter_indicators: Vec<(usize, [f32; 4])>,
 }
 
+/// Configuration for [`CellRenderer::new`].
+///
+/// Bundles all font, grid, scrollbar, and background parameters so the
+/// constructor does not exceed the `clippy::too_many_arguments` threshold.
+pub struct CellRendererConfig<'a> {
+    pub font_family: Option<&'a str>,
+    pub font_family_bold: Option<&'a str>,
+    pub font_family_italic: Option<&'a str>,
+    pub font_family_bold_italic: Option<&'a str>,
+    pub font_ranges: &'a [par_term_config::FontRange],
+    pub font_size: f32,
+    pub cols: usize,
+    pub rows: usize,
+    pub window_padding: f32,
+    pub line_spacing: f32,
+    pub char_spacing: f32,
+    pub scrollbar_position: &'a str,
+    pub scrollbar_width: f32,
+    pub scrollbar_thumb_color: [f32; 4],
+    pub scrollbar_track_color: [f32; 4],
+    pub enable_text_shaping: bool,
+    pub enable_ligatures: bool,
+    pub enable_kerning: bool,
+    pub font_antialias: bool,
+    pub font_hinting: bool,
+    pub font_thin_strokes: par_term_config::ThinStrokesMode,
+    pub minimum_contrast: f32,
+    pub vsync_mode: par_term_config::VsyncMode,
+    pub power_preference: par_term_config::PowerPreference,
+    pub window_opacity: f32,
+    pub background_color: [u8; 3],
+    pub background_image_path: Option<&'a str>,
+    pub background_image_mode: par_term_config::BackgroundImageMode,
+    pub background_image_opacity: f32,
+}
+
 impl CellRenderer {
-    // Too many arguments: CellRenderer::new must initialise GPU resources from font family,
-    // font sizing, grid geometry, and scrollbar config in a single wgpu async context.
-    // A builder pattern is the right long-term fix; deferred because the single call site
-    // constructs all arguments from Config fields and gains no clarity from an intermediate
-    // builder.
-    #[allow(clippy::too_many_arguments)]
-    pub async fn new(
-        window: Arc<Window>,
-        font_family: Option<&str>,
-        font_family_bold: Option<&str>,
-        font_family_italic: Option<&str>,
-        font_family_bold_italic: Option<&str>,
-        font_ranges: &[par_term_config::FontRange],
-        font_size: f32,
-        cols: usize,
-        rows: usize,
-        window_padding: f32,
-        line_spacing: f32,
-        char_spacing: f32,
-        scrollbar_position: &str,
-        scrollbar_width: f32,
-        scrollbar_thumb_color: [f32; 4],
-        scrollbar_track_color: [f32; 4],
-        enable_text_shaping: bool,
-        enable_ligatures: bool,
-        enable_kerning: bool,
-        font_antialias: bool,
-        font_hinting: bool,
-        font_thin_strokes: par_term_config::ThinStrokesMode,
-        minimum_contrast: f32,
-        vsync_mode: par_term_config::VsyncMode,
-        power_preference: par_term_config::PowerPreference,
-        window_opacity: f32,
-        background_color: [u8; 3],
-        background_image_path: Option<&str>,
-        background_image_mode: par_term_config::BackgroundImageMode,
-        background_image_opacity: f32,
-    ) -> Result<Self> {
+    pub async fn new(window: Arc<Window>, config: CellRendererConfig<'_>) -> Result<Self> {
+        let CellRendererConfig {
+            font_family,
+            font_family_bold,
+            font_family_italic,
+            font_family_bold_italic,
+            font_ranges,
+            font_size,
+            cols,
+            rows,
+            window_padding,
+            line_spacing,
+            char_spacing,
+            scrollbar_position,
+            scrollbar_width,
+            scrollbar_thumb_color,
+            scrollbar_track_color,
+            enable_text_shaping,
+            enable_ligatures,
+            enable_kerning,
+            font_antialias,
+            font_hinting,
+            font_thin_strokes,
+            minimum_contrast,
+            vsync_mode,
+            power_preference,
+            window_opacity,
+            background_color,
+            background_image_path,
+            background_image_mode,
+            background_image_opacity,
+        } = config;
         // Platform-specific backend selection for better VM compatibility
         // Windows: Use DX12 (Vulkan may not work in VMs like Parallels)
         // macOS: Use Metal (native)

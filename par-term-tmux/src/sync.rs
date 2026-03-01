@@ -1,158 +1,139 @@
-//! Bidirectional state synchronization between tmux and par-term
+//! Bidirectional state synchronization between tmux and par-term.
 //!
-//! This module handles:
-//! - Mapping tmux windows to par-term tabs
-//! - Mapping tmux panes to par-term split panes
-//! - Syncing layout changes
-//! - Routing input/output to correct panes
+//! This module is the coordinating entry point.  The underlying state is
+//! split into focused sub-modules:
+//!
+//! - [`pane_sync`] — pane ID mappings and pause/resume output buffering
+//! - [`window_sync`] — window↔tab ID mappings
+//!
+//! [`TmuxSync`] delegates to both and drives notification processing.
 
+use crate::pane_sync::PaneSyncState;
 use crate::session::TmuxNotification;
 use crate::types::{TmuxPaneId, TmuxWindowId};
+use crate::window_sync::WindowSyncState;
 use par_term_config::{PaneId, TabId};
 use std::collections::HashMap;
 
-/// Synchronizes state between tmux and par-term
+/// Synchronizes state between tmux and par-term.
 pub struct TmuxSync {
-    /// Mapping from tmux window IDs to par-term tab IDs
-    window_to_tab: HashMap<TmuxWindowId, TabId>,
-    /// Reverse mapping from tab IDs to tmux window IDs
-    tab_to_window: HashMap<TabId, TmuxWindowId>,
-    /// Mapping from tmux pane IDs to par-term pane IDs
-    pane_to_native: HashMap<TmuxPaneId, PaneId>,
-    /// Reverse mapping from native pane IDs to tmux pane IDs
-    native_to_pane: HashMap<PaneId, TmuxPaneId>,
+    window: WindowSyncState,
+    pane: PaneSyncState,
     /// Whether sync is enabled
     enabled: bool,
-    /// Whether output is paused (for slow connections)
-    paused: bool,
-    /// Buffered output during pause, keyed by pane ID
-    pause_buffer: HashMap<TmuxPaneId, Vec<u8>>,
 }
 
 impl TmuxSync {
-    /// Create a new sync manager
+    /// Create a new sync manager.
     pub fn new() -> Self {
         Self {
-            window_to_tab: HashMap::new(),
-            tab_to_window: HashMap::new(),
-            pane_to_native: HashMap::new(),
-            native_to_pane: HashMap::new(),
+            window: WindowSyncState::new(),
+            pane: PaneSyncState::new(),
             enabled: false,
-            paused: false,
-            pause_buffer: HashMap::new(),
         }
     }
 
-    /// Enable synchronization
+    /// Enable synchronization.
     pub fn enable(&mut self) {
         self.enabled = true;
     }
 
-    /// Disable synchronization
+    /// Disable synchronization.
     pub fn disable(&mut self) {
         self.enabled = false;
     }
 
-    /// Check if sync is enabled
+    /// Check if sync is enabled.
     pub fn is_enabled(&self) -> bool {
         self.enabled
     }
 
-    /// Map a tmux window to a par-term tab
+    // =========================================================================
+    // Window mapping delegation
+    // =========================================================================
+
+    /// Map a tmux window to a par-term tab.
     pub fn map_window(&mut self, window_id: TmuxWindowId, tab_id: TabId) {
-        self.window_to_tab.insert(window_id, tab_id);
-        self.tab_to_window.insert(tab_id, window_id);
+        self.window.map_window(window_id, tab_id);
     }
 
-    /// Unmap a tmux window
+    /// Unmap a tmux window.
     pub fn unmap_window(&mut self, window_id: TmuxWindowId) {
-        if let Some(tab_id) = self.window_to_tab.remove(&window_id) {
-            self.tab_to_window.remove(&tab_id);
-        }
+        self.window.unmap_window(window_id);
     }
 
-    /// Get the tab ID for a tmux window
+    /// Get the tab ID for a tmux window.
     pub fn get_tab(&self, window_id: TmuxWindowId) -> Option<TabId> {
-        self.window_to_tab.get(&window_id).copied()
+        self.window.get_tab(window_id)
     }
 
-    /// Get the tmux window ID for a tab
+    /// Get the tmux window ID for a tab.
     pub fn get_window(&self, tab_id: TabId) -> Option<TmuxWindowId> {
-        self.tab_to_window.get(&tab_id).copied()
+        self.window.get_window(tab_id)
     }
 
-    /// Map a tmux pane to a native pane
+    // =========================================================================
+    // Pane mapping delegation
+    // =========================================================================
+
+    /// Map a tmux pane to a native pane.
     pub fn map_pane(&mut self, tmux_pane_id: TmuxPaneId, native_pane_id: PaneId) {
-        self.pane_to_native.insert(tmux_pane_id, native_pane_id);
-        self.native_to_pane.insert(native_pane_id, tmux_pane_id);
+        self.pane.map_pane(tmux_pane_id, native_pane_id);
     }
 
-    /// Unmap a tmux pane
+    /// Unmap a tmux pane.
     pub fn unmap_pane(&mut self, tmux_pane_id: TmuxPaneId) {
-        if let Some(native_id) = self.pane_to_native.remove(&tmux_pane_id) {
-            self.native_to_pane.remove(&native_id);
-        }
+        self.pane.unmap_pane(tmux_pane_id);
     }
 
-    /// Get the native pane ID for a tmux pane
+    /// Get the native pane ID for a tmux pane.
     pub fn get_native_pane(&self, tmux_pane_id: TmuxPaneId) -> Option<PaneId> {
-        self.pane_to_native.get(&tmux_pane_id).copied()
+        self.pane.get_native_pane(tmux_pane_id)
     }
 
-    /// Get the tmux pane ID for a native pane
+    /// Get the tmux pane ID for a native pane.
     pub fn get_tmux_pane(&self, native_pane_id: PaneId) -> Option<TmuxPaneId> {
-        self.native_to_pane.get(&native_pane_id).copied()
+        self.pane.get_tmux_pane(native_pane_id)
     }
 
     // =========================================================================
     // Pause/Continue Handling (for slow connections)
     // =========================================================================
 
-    /// Check if output is currently paused
+    /// Check if output is currently paused.
     pub fn is_paused(&self) -> bool {
-        self.paused
+        self.pane.is_paused()
     }
 
-    /// Enter paused state - output will be buffered until continue
+    /// Enter paused state — output will be buffered until continue.
     pub fn pause(&mut self) {
-        self.paused = true;
-        log::info!("tmux output paused (slow connection)");
+        self.pane.pause();
     }
 
-    /// Exit paused state and return buffered output
+    /// Exit paused state and return buffered output.
     ///
-    /// Returns a map of pane ID -> buffered data
+    /// Returns a map of pane ID -> buffered data.
     pub fn resume(&mut self) -> HashMap<TmuxPaneId, Vec<u8>> {
-        self.paused = false;
-        let buffered = std::mem::take(&mut self.pause_buffer);
-        log::info!(
-            "tmux output resumed, flushing {} panes with buffered data",
-            buffered.len()
-        );
-        buffered
+        self.pane.resume()
     }
 
-    /// Buffer output for a pane during pause
+    /// Buffer output for a pane during pause.
     ///
-    /// Returns true if data was buffered, false if not paused
+    /// Returns true if data was buffered, false if not paused.
     pub fn buffer_output(&mut self, pane_id: TmuxPaneId, data: &[u8]) -> bool {
-        if !self.paused {
-            return false;
-        }
-
-        self.pause_buffer
-            .entry(pane_id)
-            .or_default()
-            .extend_from_slice(data);
-        true
+        self.pane.buffer_output(pane_id, data)
     }
 
-    /// Get the total size of buffered data
+    /// Get the total size of buffered data.
     pub fn buffered_size(&self) -> usize {
-        self.pause_buffer.values().map(|v| v.len()).sum()
+        self.pane.buffered_size()
     }
 
-    /// Process notifications and generate sync actions
+    // =========================================================================
+    // Notification processing
+    // =========================================================================
+
+    /// Process notifications and generate sync actions.
     ///
     /// Returns a list of actions to perform on the par-term side.
     /// In gateway mode, notifications come from `TerminalManager::drain_tmux_notifications()`.
@@ -218,12 +199,10 @@ impl TmuxSync {
         actions
     }
 
-    /// Clear all mappings
+    /// Clear all mappings.
     pub fn clear(&mut self) {
-        self.window_to_tab.clear();
-        self.tab_to_window.clear();
-        self.pane_to_native.clear();
-        self.native_to_pane.clear();
+        self.window.clear();
+        self.pane.clear();
     }
 }
 
@@ -232,6 +211,10 @@ impl Default for TmuxSync {
         Self::new()
     }
 }
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
@@ -537,7 +520,7 @@ mod tests {
     }
 }
 
-/// Actions to perform on the par-term side based on tmux notifications
+/// Actions to perform on the par-term side based on tmux notifications.
 #[derive(Debug, Clone)]
 pub enum SyncAction {
     /// Create a new tab for a tmux window

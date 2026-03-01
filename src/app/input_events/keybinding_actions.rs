@@ -569,15 +569,17 @@ impl WindowState {
                 resolve_shader_config(shader_override.as_ref(), metadata.as_ref(), &self.config);
 
             let _ = renderer.set_custom_shader_enabled(
-                self.config.custom_shader_enabled,
-                self.config.custom_shader.as_deref(),
-                self.config.window_opacity,
-                self.config.custom_shader_animation,
-                resolved.animation_speed,
-                resolved.full_content,
-                resolved.brightness,
-                &resolved.channel_paths(),
-                resolved.cubemap_path().map(|p| p.as_path()),
+                par_term_render::renderer::shaders::CustomShaderEnableParams {
+                    enabled: self.config.custom_shader_enabled,
+                    shader_path: self.config.custom_shader.as_deref(),
+                    window_opacity: self.config.window_opacity,
+                    animation_enabled: self.config.custom_shader_animation,
+                    animation_speed: resolved.animation_speed,
+                    full_content: resolved.full_content,
+                    brightness: resolved.brightness,
+                    channel_paths: &resolved.channel_paths(),
+                    cubemap_path: resolved.cubemap_path().map(|p| p.as_path()),
+                },
             );
         }
 

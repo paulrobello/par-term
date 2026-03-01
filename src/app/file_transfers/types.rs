@@ -15,10 +15,6 @@ use std::collections::VecDeque;
 /// UI-friendly information about an active file transfer
 #[derive(Debug, Clone)]
 pub(crate) struct TransferInfo {
-    /// Unique transfer identifier
-    // TODO(dead_code): Expose id in the overlay tooltip or diagnostic log, or remove by v0.26
-    #[allow(dead_code)] // Protocol data: populated from FileTransfer for diagnostics
-    pub id: u64,
     /// Display filename
     pub filename: String,
     /// Transfer direction
@@ -27,19 +23,11 @@ pub(crate) struct TransferInfo {
     pub bytes_transferred: usize,
     /// Total expected bytes (None if unknown)
     pub total_bytes: Option<usize>,
-    /// When the transfer started (unix millis)
-    // TODO(dead_code): Use started_at to display elapsed time in the overlay, or remove by v0.26
-    #[allow(dead_code)] // Protocol data: populated from FileTransfer for diagnostics
-    pub started_at: u64,
 }
 
 /// A completed download awaiting the save dialog
 #[derive(Debug)]
 pub(crate) struct PendingSave {
-    /// Transfer ID
-    // TODO(dead_code): Use id in save-failure error messages, or remove by v0.26
-    #[allow(dead_code)] // Protocol data: correlates save with transfer for diagnostics
-    pub id: u64,
     /// Suggested filename
     pub filename: String,
     /// The downloaded data
@@ -48,12 +36,7 @@ pub(crate) struct PendingSave {
 
 /// An upload request awaiting the file picker
 #[derive(Debug)]
-pub(crate) struct PendingUpload {
-    /// Upload format (e.g., "base64")
-    // TODO(dead_code): Use format to support non-base64 upload encodings, or remove by v0.26
-    #[allow(dead_code)] // Protocol data: stored for future multi-format upload support
-    pub format: String,
-}
+pub(crate) struct PendingUpload {}
 
 /// Tracks a background upload being written to the PTY in chunks.
 pub(crate) struct ActiveUpload {

@@ -8,6 +8,7 @@
 
 mod block_elements;
 mod box_drawing;
+mod box_drawing_data;
 mod geometric_shapes;
 mod snapping;
 pub(super) mod types;
@@ -16,7 +17,7 @@ pub(super) mod types;
 pub use block_elements::get_geometric_block;
 pub use box_drawing::get_box_drawing_geometry;
 pub use geometric_shapes::get_geometric_shape_rect;
-pub use snapping::snap_glyph_to_cell;
+pub use snapping::{SnapGlyphParams, snap_glyph_to_cell};
 pub use types::{BlockCharType, BoxDrawingGeometry, GeometricBlock, PixelRect, ranges};
 
 /// Classify a character for rendering optimization
@@ -304,14 +305,18 @@ mod tests {
     #[test]
     fn test_snap_glyph_to_cell_basic() {
         // Glyph that's close to cell boundaries should snap
-        let (left, top, w, h) = snap_glyph_to_cell(
-            10.5, 20.5, // glyph position (slightly off from cell)
-            7.8, 15.8, // glyph size (slightly smaller than cell)
-            10.0, 20.0, // cell top-left
-            18.0, 36.0, // cell bottom-right
-            3.0,  // snap threshold
-            0.5,  // extension
-        );
+        let (left, top, w, h) = snap_glyph_to_cell(SnapGlyphParams {
+            glyph_left: 10.5,
+            glyph_top: 20.5,
+            render_w: 7.8,
+            render_h: 15.8,
+            cell_x0: 10.0,
+            cell_y0: 20.0,
+            cell_x1: 18.0,
+            cell_y1: 36.0,
+            snap_threshold: 3.0,
+            extension: 0.5,
+        });
 
         // Should snap left to cell boundary minus extension
         assert!((left - 9.5).abs() < 0.01);
@@ -328,14 +333,18 @@ mod tests {
         // Glyph that's far from cell boundaries and midpoints should not snap
         // Cell: x=[10, 20], y=[20, 40], middle_x=15, middle_y=30
         // Glyph: x=[12, 17], y=[24, 34] - all edges >2 pixels from boundaries/midpoints
-        let (left, top, w, h) = snap_glyph_to_cell(
-            12.0, 24.0, // glyph position (away from edges and midpoints)
-            5.0, 10.0, // glyph size (ends at x=17, y=34)
-            10.0, 20.0, // cell top-left
-            20.0, 40.0, // cell bottom-right (midpoints at 15, 30)
-            1.5,  // snap threshold (narrow)
-            0.5,  // extension
-        );
+        let (left, top, w, h) = snap_glyph_to_cell(SnapGlyphParams {
+            glyph_left: 12.0,
+            glyph_top: 24.0,
+            render_w: 5.0,
+            render_h: 10.0,
+            cell_x0: 10.0,
+            cell_y0: 20.0,
+            cell_x1: 20.0,
+            cell_y1: 40.0,
+            snap_threshold: 1.5,
+            extension: 0.5,
+        });
 
         // Should not change anything since glyph is far from boundaries
         assert_eq!(left, 12.0);
@@ -347,14 +356,18 @@ mod tests {
     #[test]
     fn test_snap_glyph_middle_snap() {
         // Test snapping to middle boundaries (for half-block characters)
-        let (_left, top, _w, h) = snap_glyph_to_cell(
-            10.0, 20.0, // glyph at cell corner
-            8.0, 9.8, // glyph ends near vertical middle (30 - 0.2 = 29.8)
-            10.0, 20.0, // cell top-left
-            18.0, 40.0, // cell bottom-right (middle at y=30)
-            1.0,  // snap threshold
-            0.0,  // no extension for this test
-        );
+        let (_left, top, _w, h) = snap_glyph_to_cell(SnapGlyphParams {
+            glyph_left: 10.0,
+            glyph_top: 20.0,
+            render_w: 8.0,
+            render_h: 9.8,
+            cell_x0: 10.0,
+            cell_y0: 20.0,
+            cell_x1: 18.0,
+            cell_y1: 40.0,
+            snap_threshold: 1.0,
+            extension: 0.0,
+        });
 
         // Height should snap to middle
         assert!((top + h - 30.0).abs() < 0.01);

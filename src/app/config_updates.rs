@@ -26,29 +26,15 @@ pub(crate) struct ConfigChanges {
     pub shader_use_background_as_channel0: bool,
 
     // Cursor shader
-    // TODO(dead_code): Implement live reload for cursor_shader_config or remove by v0.26
-    #[allow(dead_code)] // Detected but not yet consumed by a live-reload handler
-    pub cursor_shader_config: bool,
     pub cursor_shader_path: bool,
     pub cursor_shader_enabled: bool,
     pub cursor_shader_animation: bool,
     pub cursor_shader_speed: bool,
-    // TODO(dead_code): Implement live reload for cursor_shader_hides_cursor or remove by v0.26
-    #[allow(dead_code)] // Detected but not yet consumed by a live-reload handler
-    pub cursor_shader_hides_cursor: bool,
-    // TODO(dead_code): Implement live reload for cursor_shader_disable_in_alt_screen or remove by v0.26
-    #[allow(dead_code)] // Detected but not yet consumed by a live-reload handler
     pub cursor_shader_disable_in_alt_screen: bool,
 
     // Window
     pub window_title: bool,
     pub window_decorations: bool,
-    // TODO(dead_code): Implement live window_type change handling or remove by v0.26
-    #[allow(dead_code)] // Requires restart; no live handler yet
-    pub window_type: bool,
-    // TODO(dead_code): Implement live target_monitor change handling or remove by v0.26
-    #[allow(dead_code)] // Requires restart; no live handler yet
-    pub target_monitor: bool,
     pub lock_window_size: bool,
     pub show_window_number: bool,
     pub max_fps: bool,
@@ -72,15 +58,6 @@ pub(crate) struct ConfigChanges {
 
     // Unicode normalization form
     pub normalization_form: bool,
-
-    // Anti-idle keep-alive
-    // TODO(dead_code): Implement live anti-idle config change handling or remove by v0.26
-    #[allow(dead_code)] // Detected but not yet consumed by a live-reload handler
-    pub anti_idle_enabled: bool,
-    #[allow(dead_code)] // Detected but not yet consumed by a live-reload handler
-    pub anti_idle_seconds: bool,
-    #[allow(dead_code)] // Detected but not yet consumed by a live-reload handler
-    pub anti_idle_code: bool,
 
     // Background (mode, image, and solid color)
     pub bg_mode: bool,
@@ -120,11 +97,6 @@ pub(crate) struct ConfigChanges {
 
     // Command separator lines
     pub command_separator: bool,
-
-    // Dynamic profile sources
-    // TODO(dead_code): Implement live dynamic_profile_sources change handling or remove by v0.26
-    #[allow(dead_code)] // Detected but not yet consumed by a live-reload handler
-    pub dynamic_profile_sources: bool,
 
     // Per-pane backgrounds
     pub pane_backgrounds: bool,
@@ -176,13 +148,6 @@ impl ConfigChanges {
                 old_override != new_override
             },
 
-            cursor_shader_config: new.cursor_shader_color != old.cursor_shader_color
-                || (new.cursor_shader_trail_duration - old.cursor_shader_trail_duration).abs()
-                    > f32::EPSILON
-                || (new.cursor_shader_glow_radius - old.cursor_shader_glow_radius).abs()
-                    > f32::EPSILON
-                || (new.cursor_shader_glow_intensity - old.cursor_shader_glow_intensity).abs()
-                    > f32::EPSILON,
             cursor_shader_path: new.cursor_shader != old.cursor_shader,
             cursor_shader_enabled: new.cursor_shader_enabled != old.cursor_shader_enabled,
             cursor_shader_animation: new.cursor_shader_animation != old.cursor_shader_animation,
@@ -190,15 +155,11 @@ impl ConfigChanges {
                 - old.cursor_shader_animation_speed)
                 .abs()
                 > f32::EPSILON,
-            cursor_shader_hides_cursor: new.cursor_shader_hides_cursor
-                != old.cursor_shader_hides_cursor,
             cursor_shader_disable_in_alt_screen: new.cursor_shader_disable_in_alt_screen
                 != old.cursor_shader_disable_in_alt_screen,
 
             window_title: new.window_title != old.window_title,
             window_decorations: new.window_decorations != old.window_decorations,
-            window_type: new.window_type != old.window_type,
-            target_monitor: new.target_monitor != old.target_monitor,
             lock_window_size: new.lock_window_size != old.lock_window_size,
             show_window_number: new.show_window_number != old.show_window_number,
             max_fps: new.max_fps != old.max_fps,
@@ -226,10 +187,6 @@ impl ConfigChanges {
                 || new.unicode.ambiguous_width != old.unicode.ambiguous_width,
 
             normalization_form: new.unicode.normalization_form != old.unicode.normalization_form,
-
-            anti_idle_enabled: new.anti_idle_enabled != old.anti_idle_enabled,
-            anti_idle_seconds: new.anti_idle_seconds != old.anti_idle_seconds,
-            anti_idle_code: new.anti_idle_code != old.anti_idle_code,
 
             bg_mode: new.background_mode != old.background_mode,
             bg_color: new.background_color != old.background_color,
@@ -287,8 +244,6 @@ impl ConfigChanges {
                     > f32::EPSILON
                 || new.command_separator_exit_color != old.command_separator_exit_color
                 || new.command_separator_color != old.command_separator_color,
-
-            dynamic_profile_sources: new.dynamic_profile_sources != old.dynamic_profile_sources,
 
             pane_backgrounds: new.pane_backgrounds != old.pane_backgrounds,
 

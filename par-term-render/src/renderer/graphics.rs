@@ -388,10 +388,12 @@ impl Renderer {
                 self.cell_renderer.queue(),
                 &mut render_pass,
                 &positioned,
-                self.size.width as f32,
-                self.size.height as f32,
-                ox,
-                oy,
+                crate::graphics_renderer::PaneRenderGeometry {
+                    window_width: self.size.width as f32,
+                    window_height: self.size.height as f32,
+                    pane_origin_x: ox,
+                    pane_origin_y: oy,
+                },
             )?;
         }
 

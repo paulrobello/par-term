@@ -1,8 +1,8 @@
 //! Integration tests for block character rendering utilities.
 
 use par_term::cell_renderer::block_chars::{
-    BlockCharType, GeometricBlock, classify_char, get_geometric_block, should_render_geometrically,
-    should_snap_to_boundaries, snap_glyph_to_cell,
+    BlockCharType, GeometricBlock, SnapGlyphParams, classify_char, get_geometric_block,
+    should_render_geometrically, should_snap_to_boundaries, snap_glyph_to_cell,
 };
 
 /// Test that box drawing characters are correctly classified
@@ -190,14 +190,18 @@ fn test_geometric_to_pixel_rect() {
 #[test]
 fn test_snap_glyph_near_boundaries() {
     // Glyph that's close to all four cell boundaries
-    let (left, top, w, h) = snap_glyph_to_cell(
-        10.5, 20.5, // glyph slightly offset from cell
-        9.0, 19.0, // glyph slightly smaller than cell
-        10.0, 20.0, // cell top-left
-        20.0, 40.0, // cell bottom-right
-        2.0,  // snap threshold
-        0.5,  // extension
-    );
+    let (left, top, w, h) = snap_glyph_to_cell(SnapGlyphParams {
+        glyph_left: 10.5,
+        glyph_top: 20.5,
+        render_w: 9.0,
+        render_h: 19.0,
+        cell_x0: 10.0,
+        cell_y0: 20.0,
+        cell_x1: 20.0,
+        cell_y1: 40.0,
+        snap_threshold: 2.0,
+        extension: 0.5,
+    });
 
     // Should snap to boundaries with extension
     assert!(
@@ -221,14 +225,18 @@ fn test_snap_glyph_near_boundaries() {
 /// Test that glyphs far from boundaries are not snapped
 #[test]
 fn test_snap_glyph_far_from_boundaries() {
-    let (left, top, w, h) = snap_glyph_to_cell(
-        15.0, 28.0, // glyph centered in cell
-        3.0, 5.0, // small glyph
-        10.0, 20.0, // cell top-left
-        20.0, 40.0, // cell bottom-right
-        2.0,  // snap threshold
-        0.5,  // extension
-    );
+    let (left, top, w, h) = snap_glyph_to_cell(SnapGlyphParams {
+        glyph_left: 15.0,
+        glyph_top: 28.0,
+        render_w: 3.0,
+        render_h: 5.0,
+        cell_x0: 10.0,
+        cell_y0: 20.0,
+        cell_x1: 20.0,
+        cell_y1: 40.0,
+        snap_threshold: 2.0,
+        extension: 0.5,
+    });
 
     // Should not change - glyph is far from boundaries
     assert_eq!(left, 15.0, "Left should not change");
@@ -241,14 +249,18 @@ fn test_snap_glyph_far_from_boundaries() {
 #[test]
 fn test_snap_glyph_middle_boundaries() {
     // Glyph that ends near vertical middle
-    let (_left, top, _w, h) = snap_glyph_to_cell(
-        10.0, 20.0, // glyph at top-left
-        10.0, 9.5, // height ends near middle (20 + 9.5 = 29.5, middle is 30)
-        10.0, 20.0, // cell top-left
-        20.0, 40.0, // cell bottom-right (middle at y=30)
-        1.0,  // snap threshold
-        0.0,  // no extension
-    );
+    let (_left, top, _w, h) = snap_glyph_to_cell(SnapGlyphParams {
+        glyph_left: 10.0,
+        glyph_top: 20.0,
+        render_w: 10.0,
+        render_h: 9.5,
+        cell_x0: 10.0,
+        cell_y0: 20.0,
+        cell_x1: 20.0,
+        cell_y1: 40.0,
+        snap_threshold: 1.0,
+        extension: 0.0,
+    });
 
     // Height should snap to reach middle
     assert!(

@@ -11,6 +11,7 @@ use crate::ui_constants::{
 use super::CHEVRON_RESERVED;
 use super::TabBarAction;
 use super::state::TabBarUI;
+use super::tab_rendering::TabRenderParams;
 
 impl TabBarUI {
     /// Render the tab bar in horizontal layout (top or bottom)
@@ -134,20 +135,23 @@ impl TabBarUI {
                                     let is_bell_active = tab.is_bell_active();
                                     let (tab_action, tab_rect) = self.render_tab_with_width(
                                         ui,
-                                        tab.id,
-                                        index,
-                                        &tab.title,
-                                        tab.custom_icon
-                                            .as_deref()
-                                            .or(tab.profile.profile_icon.as_deref()),
-                                        tab.custom_icon.as_deref(),
-                                        is_active,
-                                        tab.has_activity,
-                                        is_bell_active,
-                                        tab.custom_color,
-                                        config,
-                                        tab_width,
-                                        tab_count,
+                                        TabRenderParams {
+                                            id: tab.id,
+                                            index,
+                                            title: &tab.title,
+                                            profile_icon: tab
+                                                .custom_icon
+                                                .as_deref()
+                                                .or(tab.profile.profile_icon.as_deref()),
+                                            custom_icon: tab.custom_icon.as_deref(),
+                                            is_active,
+                                            has_activity: tab.has_activity,
+                                            is_bell_active,
+                                            custom_color: tab.custom_color,
+                                            config,
+                                            tab_size: tab_width,
+                                            tab_count,
+                                        },
                                     );
                                     self.tab_rects.push((tab.id, tab_rect));
 
@@ -183,20 +187,23 @@ impl TabBarUI {
                         let is_bell_active = tab.is_bell_active();
                         let (tab_action, tab_rect) = self.render_tab_with_width(
                             ui,
-                            tab.id,
-                            index,
-                            &tab.title,
-                            tab.custom_icon
-                                .as_deref()
-                                .or(tab.profile.profile_icon.as_deref()),
-                            tab.custom_icon.as_deref(),
-                            is_active,
-                            tab.has_activity,
-                            is_bell_active,
-                            tab.custom_color,
-                            config,
-                            tab_width,
-                            tab_count,
+                            TabRenderParams {
+                                id: tab.id,
+                                index,
+                                title: &tab.title,
+                                profile_icon: tab
+                                    .custom_icon
+                                    .as_deref()
+                                    .or(tab.profile.profile_icon.as_deref()),
+                                custom_icon: tab.custom_icon.as_deref(),
+                                is_active,
+                                has_activity: tab.has_activity,
+                                is_bell_active,
+                                custom_color: tab.custom_color,
+                                config,
+                                tab_size: tab_width,
+                                tab_count,
+                            },
                         );
                         self.tab_rects.push((tab.id, tab_rect));
 

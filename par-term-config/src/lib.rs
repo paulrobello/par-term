@@ -14,6 +14,8 @@
 pub mod automation;
 pub mod cell;
 pub mod config;
+pub mod layout_constants;
+pub mod shell_detection;
 pub mod defaults;
 pub mod error;
 pub mod profile;

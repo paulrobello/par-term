@@ -52,6 +52,7 @@
 //! R-31 (gpu_submit stabilization).
 
 use super::super::{preprocess_claude_code_segment, reconstruct_markdown_from_cells};
+use super::tab_snapshot;
 use super::FrameRenderData;
 use crate::app::window_state::WindowState;
 use std::sync::Arc;
@@ -100,7 +101,7 @@ impl WindowState {
         };
 
         // Extract terminal cells using the focused tab_snapshot helper.
-        let snap = self.extract_tab_cells(
+        let snap = self.extract_tab_cells(tab_snapshot::TabCellsParams {
             scroll_offset,
             mouse_selection,
             cache_cells,
@@ -108,8 +109,8 @@ impl WindowState {
             cache_scroll_offset,
             cache_cursor_pos,
             cache_selection,
-            terminal.clone(),
-        )?;
+            terminal: terminal.clone(),
+        })?;
 
         let mut cells = snap.cells;
         let current_cursor_pos = snap.cursor_pos;

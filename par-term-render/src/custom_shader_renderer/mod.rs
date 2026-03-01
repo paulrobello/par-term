@@ -163,27 +163,39 @@ pub struct CustomShaderRenderer {
     pub(crate) content_inset_right: f32,
 }
 
+/// Parameters for creating a new [`CustomShaderRenderer`].
+pub struct CustomShaderRendererConfig<'a> {
+    pub surface_format: TextureFormat,
+    pub shader_path: &'a Path,
+    pub width: u32,
+    pub height: u32,
+    pub animation_enabled: bool,
+    pub animation_speed: f32,
+    pub window_opacity: f32,
+    pub full_content_mode: bool,
+    pub channel_paths: &'a [Option<std::path::PathBuf>; 4],
+    pub cubemap_path: Option<&'a Path>,
+}
+
 impl CustomShaderRenderer {
-    /// Create a new custom shader renderer from a GLSL shader file
-    // Too many arguments: initialising the renderer requires GPU device/queue/format,
-    // shader path, size, animation settings, opacity, content mode, and texture channels.
-    // A CustomShaderConfig struct is the right approach; deferred since there is one call
-    // site and the parameters map directly to Config fields.
-    #[allow(clippy::too_many_arguments)]
+    /// Create a new custom shader renderer from a GLSL shader file.
     pub fn new(
         device: &Device,
         queue: &Queue,
-        surface_format: TextureFormat,
-        shader_path: &Path,
-        width: u32,
-        height: u32,
-        animation_enabled: bool,
-        animation_speed: f32,
-        window_opacity: f32,
-        full_content_mode: bool,
-        channel_paths: &[Option<std::path::PathBuf>; 4],
-        cubemap_path: Option<&Path>,
+        config: CustomShaderRendererConfig<'_>,
     ) -> Result<Self> {
+        let CustomShaderRendererConfig {
+            surface_format,
+            shader_path,
+            width,
+            height,
+            animation_enabled,
+            animation_speed,
+            window_opacity,
+            full_content_mode,
+            channel_paths,
+            cubemap_path,
+        } = config;
         // Load the GLSL shader
         let glsl_source = std::fs::read_to_string(shader_path)
             .with_context(|| format!("Failed to read shader file: {}", shader_path.display()))?;

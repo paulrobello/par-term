@@ -600,18 +600,18 @@ impl CellRenderer {
                 let (final_left, final_top, final_w, final_h) =
                     if chars.len() == 1 && block_chars::should_snap_to_boundaries(char_type) {
                         // Snap threshold of 3 pixels, extension of 0.5 pixels
-                        block_chars::snap_glyph_to_cell(
+                        block_chars::snap_glyph_to_cell(block_chars::SnapGlyphParams {
                             glyph_left,
                             glyph_top,
                             render_w,
                             render_h,
-                            x0,
-                            y0,
-                            x1,
-                            y1,
-                            GLYPH_SNAP_THRESHOLD_PX,
-                            GLYPH_SNAP_EXTENSION_PX,
-                        )
+                            cell_x0: x0,
+                            cell_y0: y0,
+                            cell_x1: x1,
+                            cell_y1: y1,
+                            snap_threshold: GLYPH_SNAP_THRESHOLD_PX,
+                            extension: GLYPH_SNAP_EXTENSION_PX,
+                        })
                     } else {
                         (glyph_left, glyph_top, render_w, render_h)
                     };

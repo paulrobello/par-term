@@ -30,6 +30,28 @@ struct GpuUploadResult {
     hovered_mark: Option<crate::scrollback_metadata::ScrollbackMark>,
 }
 
+/// Parameters for [`WindowState::update_gpu_renderer_state`].
+struct GpuStateUpdateParams<'a> {
+    tab_manager: &'a mut crate::tab::TabManager,
+    config: &'a crate::config::Config,
+    cursor_anim: &'a crate::app::cursor_anim_state::CursorAnimState,
+    window: &'a Option<std::sync::Arc<winit::window::Window>>,
+    debug: &'a crate::app::debug_state::DebugState,
+    cells: &'a [crate::cell_renderer::Cell],
+    current_cursor_pos: Option<(usize, usize)>,
+    cursor_style: Option<par_term_emu_core_rust::cursor::CursorStyle>,
+    progress_snapshot: &'a Option<ProgressBarSnapshot>,
+    prettifier_graphics: &'a [prettifier_cells::PrettifierGraphic],
+    scroll_offset: usize,
+    visible_lines: usize,
+    scrollback_len: usize,
+    total_lines: usize,
+    is_alt_screen: bool,
+    scrollback_marks: &'a [crate::scrollback_metadata::ScrollbackMark],
+    status_bar_height: f32,
+    custom_status_bar_height: f32,
+}
+
 impl WindowState {
     /// Run prettifier cell substitution, egui overlays, and GPU render pass.
     /// Returns collected post-render actions to handle after the renderer borrow is released.
@@ -134,24 +156,26 @@ impl WindowState {
         let gpu_result = if let Some(renderer) = &mut self.renderer {
             Some(Self::update_gpu_renderer_state(
                 renderer,
-                &mut self.tab_manager,
-                &self.config,
-                &self.cursor_anim,
-                &self.window,
-                &self.debug,
-                &cells,
-                current_cursor_pos,
-                cursor_style,
-                &progress_snapshot,
-                &prettifier_graphics,
-                scroll_offset,
-                visible_lines,
-                scrollback_len,
-                total_lines,
-                is_alt_screen,
-                &scrollback_marks,
-                status_bar_height,
-                custom_status_bar_height,
+                GpuStateUpdateParams {
+                    tab_manager: &mut self.tab_manager,
+                    config: &self.config,
+                    cursor_anim: &self.cursor_anim,
+                    window: &self.window,
+                    debug: &self.debug,
+                    cells: &cells,
+                    current_cursor_pos,
+                    cursor_style,
+                    progress_snapshot: &progress_snapshot,
+                    prettifier_graphics: &prettifier_graphics,
+                    scroll_offset,
+                    visible_lines,
+                    scrollback_len,
+                    total_lines,
+                    is_alt_screen,
+                    scrollback_marks: &scrollback_marks,
+                    status_bar_height,
+                    custom_status_bar_height,
+                },
             ))
         } else {
             None
@@ -323,14 +347,16 @@ impl WindowState {
                     // Render split panes
                     Self::render_split_panes_with_data(
                         renderer,
-                        pane_data,
-                        dividers,
-                        pane_titles,
-                        focused_viewport,
-                        &self.config,
-                        split_egui,
-                        hovered_divider_index,
-                        show_scrollbar,
+                        pane_render::SplitPaneRenderParams {
+                            pane_data,
+                            dividers,
+                            pane_titles,
+                            focused_viewport,
+                            config: &self.config,
+                            egui_data: split_egui,
+                            hovered_divider_index,
+                            show_scrollbar,
+                        },
                     )
                 } else {
                     // Fallback to single pane render
@@ -398,28 +424,30 @@ impl WindowState {
     /// - Visual bell flash intensity
     ///
     /// Returns timing measurements and the computed renderer sizing for use in phase 4.
-    #[allow(clippy::too_many_arguments)]
     fn update_gpu_renderer_state(
         renderer: &mut Renderer,
-        tab_manager: &mut crate::tab::TabManager,
-        config: &crate::config::Config,
-        cursor_anim: &crate::app::cursor_anim_state::CursorAnimState,
-        window: &Option<std::sync::Arc<winit::window::Window>>,
-        debug: &crate::app::debug_state::DebugState,
-        cells: &[crate::cell_renderer::Cell],
-        current_cursor_pos: Option<(usize, usize)>,
-        cursor_style: Option<par_term_emu_core_rust::cursor::CursorStyle>,
-        progress_snapshot: &Option<ProgressBarSnapshot>,
-        prettifier_graphics: &[prettifier_cells::PrettifierGraphic],
-        scroll_offset: usize,
-        visible_lines: usize,
-        scrollback_len: usize,
-        total_lines: usize,
-        is_alt_screen: bool,
-        scrollback_marks: &[crate::scrollback_metadata::ScrollbackMark],
-        status_bar_height: f32,
-        custom_status_bar_height: f32,
+        p: GpuStateUpdateParams<'_>,
     ) -> GpuUploadResult {
+        let GpuStateUpdateParams {
+            tab_manager,
+            config,
+            cursor_anim,
+            window,
+            debug,
+            cells,
+            current_cursor_pos,
+            cursor_style,
+            progress_snapshot,
+            prettifier_graphics,
+            scroll_offset,
+            visible_lines,
+            scrollback_len,
+            total_lines,
+            is_alt_screen,
+            scrollback_marks,
+            status_bar_height,
+            custom_status_bar_height,
+        } = p;
         let mut debug_update_cells_time = std::time::Duration::ZERO;
         #[allow(unused_assignments)]
         let mut debug_graphics_time = std::time::Duration::ZERO;
@@ -651,7 +679,6 @@ impl WindowState {
     /// Takes pre-captured state values and updates `actions` with deferred UI responses.
     /// Returns the egui output (`FullOutput` + `Context`) needed by the wgpu render call,
     /// or `None` if the egui context/window is not yet initialised for this window.
-    #[allow(clippy::too_many_arguments)]
     fn render_egui_frame(
         &mut self,
         actions: &mut PostRenderActions,

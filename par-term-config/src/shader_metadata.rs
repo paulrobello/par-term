@@ -33,23 +33,45 @@
 //! to [`crate::shader_config::resolve_shader_config`] and
 //! [`crate::shader_config::resolve_cursor_shader_config`], which merge it with
 //! the user override (Tier 1) and global defaults (Tier 3).
-//!
-//! # Duplication Note
-//!
-//! `parse_shader_metadata` and `parse_cursor_shader_metadata` share identical
-//! YAML-block extraction logic (finding `/*! par-term shader metadata ... */`),
-//! differing only in their output type (`ShaderMetadata` vs `CursorShaderMetadata`).
-//! Likewise, `ShaderMetadataCache` and `CursorShaderMetadataCache` are structurally
-//! identical, differing only in their cached type. A future refactor could unify
-//! these using a generic `MetadataCache<T: for<'de> serde::Deserialize<'de>>` type,
-//! but the current duplication is contained and the types are unlikely to diverge.
 
-use crate::types::ShaderMetadata;
+use crate::types::{CursorShaderMetadata, ShaderMetadata};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 /// Marker string that identifies the start of shader metadata block
 const METADATA_MARKER: &str = "/*! par-term shader metadata";
+
+// ============================================================================
+// Shared YAML extraction
+// ============================================================================
+
+/// Extract the YAML block content from a GLSL shader source string.
+///
+/// Looks for a `/*! par-term shader metadata ... */` block and returns the
+/// trimmed YAML text inside it, or `None` if no such block is found.
+///
+/// # Arguments
+/// * `source` - The GLSL shader source code
+///
+/// # Returns
+/// * `Some(&str)` pointing into `source` with the trimmed YAML content
+/// * `None` if no metadata block is present
+fn extract_yaml_block(source: &str) -> Option<&str> {
+    let start_marker = source.find(METADATA_MARKER)?;
+
+    let yaml_start = source[start_marker + METADATA_MARKER.len()..]
+        .find('\n')
+        .map(|i| start_marker + METADATA_MARKER.len() + i + 1)?;
+
+    let yaml_end = source[yaml_start..].find("*/")?;
+    let yaml_content = &source[yaml_start..yaml_start + yaml_end];
+
+    Some(yaml_content.trim())
+}
+
+// ============================================================================
+// Background Shader Metadata Functions
+// ============================================================================
 
 /// Parse shader metadata from GLSL source code.
 ///
@@ -63,22 +85,8 @@ const METADATA_MARKER: &str = "/*! par-term shader metadata";
 /// * `Some(ShaderMetadata)` if metadata was found and parsed successfully
 /// * `None` if no metadata block was found or parsing failed
 pub fn parse_shader_metadata(source: &str) -> Option<ShaderMetadata> {
-    // Find the metadata block marker
-    let start_marker = source.find(METADATA_MARKER)?;
+    let yaml_trimmed = extract_yaml_block(source)?;
 
-    // Find the start of YAML content (after the marker line)
-    let yaml_start = source[start_marker + METADATA_MARKER.len()..]
-        .find('\n')
-        .map(|i| start_marker + METADATA_MARKER.len() + i + 1)?;
-
-    // Find the closing */
-    let yaml_end = source[yaml_start..].find("*/")?;
-    let yaml_content = &source[yaml_start..yaml_start + yaml_end];
-
-    // Trim trailing whitespace from each line and the whole block
-    let yaml_trimmed = yaml_content.trim();
-
-    // Parse the YAML
     match serde_yaml_ng::from_str(yaml_trimmed) {
         Ok(metadata) => {
             log::debug!("Parsed shader metadata: {:?}", metadata);
@@ -147,12 +155,9 @@ pub fn format_metadata_block(metadata: &ShaderMetadata) -> Result<String, String
 pub fn update_shader_metadata(source: &str, metadata: &ShaderMetadata) -> Result<String, String> {
     let new_block = format_metadata_block(metadata)?;
 
-    // Check if there's an existing metadata block
     if let Some(start_pos) = source.find(METADATA_MARKER) {
-        // Find the end of the metadata block
         if let Some(end_offset) = source[start_pos..].find("*/") {
             let end_pos = start_pos + end_offset + 2; // Include the */
-            // Replace the existing block
             let mut result = String::with_capacity(source.len());
             result.push_str(&source[..start_pos]);
             result.push_str(&new_block);
@@ -161,7 +166,6 @@ pub fn update_shader_metadata(source: &str, metadata: &ShaderMetadata) -> Result
         }
     }
 
-    // No existing block, insert at the beginning
     Ok(format!("{}\n\n{}", new_block, source))
 }
 
@@ -174,14 +178,11 @@ pub fn update_shader_metadata(source: &str, metadata: &ShaderMetadata) -> Result
 /// # Returns
 /// Ok(()) if successful, Err with error message otherwise
 pub fn update_shader_metadata_file(path: &Path, metadata: &ShaderMetadata) -> Result<(), String> {
-    // Read the current file content
     let source = std::fs::read_to_string(path)
         .map_err(|e| format!("Failed to read shader file '{}': {}", path.display(), e))?;
 
-    // Update the metadata
     let updated_source = update_shader_metadata(&source, metadata)?;
 
-    // Write back to the file
     std::fs::write(path, updated_source)
         .map_err(|e| format!("Failed to write shader file '{}': {}", path.display(), e))?;
 
@@ -189,128 +190,9 @@ pub fn update_shader_metadata_file(path: &Path, metadata: &ShaderMetadata) -> Re
     Ok(())
 }
 
-/// Cache for parsed shader metadata.
-///
-/// Avoids re-parsing shader files on every access while still allowing
-/// invalidation for hot reload scenarios.
-#[derive(Debug, Default)]
-pub struct ShaderMetadataCache {
-    /// Cached metadata by shader filename (not full path)
-    cache: HashMap<String, Option<ShaderMetadata>>,
-    /// The shaders directory path
-    shaders_dir: Option<PathBuf>,
-}
-
-impl ShaderMetadataCache {
-    /// Create a new empty metadata cache.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Create a new metadata cache with a specific shaders directory.
-    pub fn with_shaders_dir(shaders_dir: PathBuf) -> Self {
-        Self {
-            cache: HashMap::new(),
-            shaders_dir: Some(shaders_dir),
-        }
-    }
-
-    /// Set the shaders directory path.
-    pub fn set_shaders_dir(&mut self, shaders_dir: PathBuf) {
-        self.shaders_dir = Some(shaders_dir);
-    }
-
-    /// Get metadata for a shader, loading and caching if necessary.
-    ///
-    /// # Arguments
-    /// * `shader_name` - Filename of the shader (e.g., "crt.glsl")
-    ///
-    /// # Returns
-    /// * `Some(&ShaderMetadata)` if metadata was found
-    /// * `None` if no metadata was found or the shader couldn't be read
-    pub fn get(&mut self, shader_name: &str) -> Option<&ShaderMetadata> {
-        // Check if already cached
-        if self.cache.contains_key(shader_name) {
-            return self.cache.get(shader_name).and_then(|m| m.as_ref());
-        }
-
-        // Load and cache
-        let metadata = self.load_metadata(shader_name);
-        self.cache.insert(shader_name.to_string(), metadata);
-        self.cache.get(shader_name).and_then(|m| m.as_ref())
-    }
-
-    /// Get metadata without caching (always reads from disk).
-    ///
-    /// Useful for hot reload scenarios where you want fresh data.
-    pub fn get_fresh(&self, shader_name: &str) -> Option<ShaderMetadata> {
-        self.load_metadata(shader_name)
-    }
-
-    /// Load metadata from a shader file.
-    fn load_metadata(&self, shader_name: &str) -> Option<ShaderMetadata> {
-        let path = self.resolve_shader_path(shader_name)?;
-        parse_shader_metadata_from_file(&path)
-    }
-
-    /// Resolve a shader name to its full path.
-    fn resolve_shader_path(&self, shader_name: &str) -> Option<PathBuf> {
-        let shader_path = PathBuf::from(shader_name);
-
-        // If it's an absolute path, use it directly
-        if shader_path.is_absolute() && shader_path.exists() {
-            return Some(shader_path);
-        }
-
-        // Otherwise, resolve relative to shaders directory
-        if let Some(ref shaders_dir) = self.shaders_dir {
-            let full_path = shaders_dir.join(shader_name);
-            if full_path.exists() {
-                return Some(full_path);
-            }
-        }
-
-        // Try the default shaders directory
-        let default_path = crate::config::Config::shader_path(shader_name);
-        if default_path.exists() {
-            return Some(default_path);
-        }
-
-        None
-    }
-
-    /// Invalidate cached metadata for a specific shader.
-    ///
-    /// Call this when a shader file has been modified (hot reload).
-    pub fn invalidate(&mut self, shader_name: &str) {
-        self.cache.remove(shader_name);
-        log::debug!("Invalidated metadata cache for: {}", shader_name);
-    }
-
-    /// Invalidate all cached metadata.
-    ///
-    /// Call this when the shaders directory might have changed.
-    pub fn invalidate_all(&mut self) {
-        self.cache.clear();
-        log::debug!("Invalidated all metadata cache entries");
-    }
-
-    /// Check if metadata is cached for a shader.
-    pub fn is_cached(&self, shader_name: &str) -> bool {
-        self.cache.contains_key(shader_name)
-    }
-
-    /// Get the number of cached entries.
-    pub fn cache_size(&self) -> usize {
-        self.cache.len()
-    }
-}
-
 // ============================================================================
 // Cursor Shader Metadata Functions
 // ============================================================================
-
-use crate::types::CursorShaderMetadata;
 
 /// Parse cursor shader metadata from GLSL source code.
 ///
@@ -324,22 +206,8 @@ use crate::types::CursorShaderMetadata;
 /// * `Some(CursorShaderMetadata)` if metadata was found and parsed successfully
 /// * `None` if no metadata block was found or parsing failed
 pub fn parse_cursor_shader_metadata(source: &str) -> Option<CursorShaderMetadata> {
-    // Find the metadata block marker
-    let start_marker = source.find(METADATA_MARKER)?;
+    let yaml_trimmed = extract_yaml_block(source)?;
 
-    // Find the start of YAML content (after the marker line)
-    let yaml_start = source[start_marker + METADATA_MARKER.len()..]
-        .find('\n')
-        .map(|i| start_marker + METADATA_MARKER.len() + i + 1)?;
-
-    // Find the closing */
-    let yaml_end = source[yaml_start..].find("*/")?;
-    let yaml_content = &source[yaml_start..yaml_start + yaml_end];
-
-    // Trim trailing whitespace from each line and the whole block
-    let yaml_trimmed = yaml_content.trim();
-
-    // Parse the YAML as CursorShaderMetadata
     match serde_yaml_ng::from_str(yaml_trimmed) {
         Ok(metadata) => {
             log::debug!("Parsed cursor shader metadata: {:?}", metadata);
@@ -417,12 +285,9 @@ pub fn update_cursor_shader_metadata(
 ) -> Result<String, String> {
     let new_block = format_cursor_metadata_block(metadata)?;
 
-    // Check if there's an existing metadata block
     if let Some(start_pos) = source.find(METADATA_MARKER) {
-        // Find the end of the metadata block
         if let Some(end_offset) = source[start_pos..].find("*/") {
             let end_pos = start_pos + end_offset + 2; // Include the */
-            // Replace the existing block
             let mut result = String::with_capacity(source.len());
             result.push_str(&source[..start_pos]);
             result.push_str(&new_block);
@@ -431,7 +296,6 @@ pub fn update_cursor_shader_metadata(
         }
     }
 
-    // No existing block, insert at the beginning
     Ok(format!("{}\n\n{}", new_block, source))
 }
 
@@ -447,14 +311,11 @@ pub fn update_cursor_shader_metadata_file(
     path: &Path,
     metadata: &CursorShaderMetadata,
 ) -> Result<(), String> {
-    // Read the current file content
     let source = std::fs::read_to_string(path)
         .map_err(|e| format!("Failed to read shader file '{}': {}", path.display(), e))?;
 
-    // Update the metadata
     let updated_source = update_cursor_shader_metadata(&source, metadata)?;
 
-    // Write back to the file
     std::fs::write(path, updated_source)
         .map_err(|e| format!("Failed to write shader file '{}': {}", path.display(), e))?;
 
@@ -462,19 +323,45 @@ pub fn update_cursor_shader_metadata_file(
     Ok(())
 }
 
-/// Cache for parsed cursor shader metadata.
+// ============================================================================
+// Generic MetadataCache<T>
+// ============================================================================
+
+/// Generic cache for parsed shader metadata.
 ///
 /// Avoids re-parsing shader files on every access while still allowing
 /// invalidation for hot reload scenarios.
-#[derive(Debug, Default)]
-pub struct CursorShaderMetadataCache {
-    /// Cached metadata by shader filename (not full path)
-    cache: HashMap<String, Option<CursorShaderMetadata>>,
-    /// The shaders directory path
+///
+/// `T` must be deserializable from YAML via serde. Use the type aliases
+/// [`ShaderMetadataCache`] and [`CursorShaderMetadataCache`] for the two
+/// concrete cache types used by par-term.
+#[derive(Debug)]
+pub struct MetadataCache<T>
+where
+    T: for<'de> serde::Deserialize<'de>,
+{
+    /// Cached metadata by shader filename (not full path).
+    cache: HashMap<String, Option<T>>,
+    /// The shaders directory path.
     shaders_dir: Option<PathBuf>,
 }
 
-impl CursorShaderMetadataCache {
+impl<T> Default for MetadataCache<T>
+where
+    T: for<'de> serde::Deserialize<'de>,
+{
+    fn default() -> Self {
+        Self {
+            cache: HashMap::new(),
+            shaders_dir: None,
+        }
+    }
+}
+
+impl<T> MetadataCache<T>
+where
+    T: for<'de> serde::Deserialize<'de>,
+{
     /// Create a new empty metadata cache.
     pub fn new() -> Self {
         Self::default()
@@ -493,21 +380,22 @@ impl CursorShaderMetadataCache {
         self.shaders_dir = Some(shaders_dir);
     }
 
-    /// Get metadata for a cursor shader, loading and caching if necessary.
+    /// Get metadata for a shader, loading and caching if necessary.
     ///
     /// # Arguments
-    /// * `shader_name` - Filename of the shader (e.g., "cursor_glow.glsl")
+    /// * `shader_name` - Filename of the shader (e.g., "crt.glsl")
     ///
     /// # Returns
-    /// * `Some(&CursorShaderMetadata)` if metadata was found
+    /// * `Some(&T)` if metadata was found
     /// * `None` if no metadata was found or the shader couldn't be read
-    pub fn get(&mut self, shader_name: &str) -> Option<&CursorShaderMetadata> {
-        // Check if already cached
+    pub fn get(&mut self, shader_name: &str) -> Option<&T>
+    where
+        T: std::fmt::Debug,
+    {
         if self.cache.contains_key(shader_name) {
             return self.cache.get(shader_name).and_then(|m| m.as_ref());
         }
 
-        // Load and cache
         let metadata = self.load_metadata(shader_name);
         self.cache.insert(shader_name.to_string(), metadata);
         self.cache.get(shader_name).and_then(|m| m.as_ref())
@@ -516,26 +404,40 @@ impl CursorShaderMetadataCache {
     /// Get metadata without caching (always reads from disk).
     ///
     /// Useful for hot reload scenarios where you want fresh data.
-    pub fn get_fresh(&self, shader_name: &str) -> Option<CursorShaderMetadata> {
+    pub fn get_fresh(&self, shader_name: &str) -> Option<T> {
         self.load_metadata(shader_name)
     }
 
-    /// Load metadata from a shader file.
-    fn load_metadata(&self, shader_name: &str) -> Option<CursorShaderMetadata> {
+    /// Load metadata from a shader file by parsing YAML from its embedded block.
+    fn load_metadata(&self, shader_name: &str) -> Option<T> {
         let path = self.resolve_shader_path(shader_name)?;
-        parse_cursor_shader_metadata_from_file(&path)
+        let source = std::fs::read_to_string(&path)
+            .map_err(|e| {
+                log::warn!("Failed to read shader file '{}': {}", path.display(), e);
+            })
+            .ok()?;
+        let yaml_trimmed = extract_yaml_block(&source)?;
+        match serde_yaml_ng::from_str(yaml_trimmed) {
+            Ok(metadata) => Some(metadata),
+            Err(e) => {
+                log::warn!(
+                    "Failed to parse shader metadata YAML from '{}': {}",
+                    path.display(),
+                    e
+                );
+                None
+            }
+        }
     }
 
     /// Resolve a shader name to its full path.
     fn resolve_shader_path(&self, shader_name: &str) -> Option<PathBuf> {
         let shader_path = PathBuf::from(shader_name);
 
-        // If it's an absolute path, use it directly
         if shader_path.is_absolute() && shader_path.exists() {
             return Some(shader_path);
         }
 
-        // Otherwise, resolve relative to shaders directory
         if let Some(ref shaders_dir) = self.shaders_dir {
             let full_path = shaders_dir.join(shader_name);
             if full_path.exists() {
@@ -543,7 +445,6 @@ impl CursorShaderMetadataCache {
             }
         }
 
-        // Try the default shaders directory
         let default_path = crate::config::Config::shader_path(shader_name);
         if default_path.exists() {
             return Some(default_path);
@@ -557,10 +458,7 @@ impl CursorShaderMetadataCache {
     /// Call this when a shader file has been modified (hot reload).
     pub fn invalidate(&mut self, shader_name: &str) {
         self.cache.remove(shader_name);
-        log::debug!(
-            "Invalidated cursor shader metadata cache for: {}",
-            shader_name
-        );
+        log::debug!("Invalidated metadata cache for: {}", shader_name);
     }
 
     /// Invalidate all cached metadata.
@@ -568,7 +466,7 @@ impl CursorShaderMetadataCache {
     /// Call this when the shaders directory might have changed.
     pub fn invalidate_all(&mut self) {
         self.cache.clear();
-        log::debug!("Invalidated all cursor shader metadata cache entries");
+        log::debug!("Invalidated all metadata cache entries");
     }
 
     /// Check if metadata is cached for a shader.
@@ -582,9 +480,36 @@ impl CursorShaderMetadataCache {
     }
 }
 
+// ============================================================================
+// Type aliases — preserve the original public API
+// ============================================================================
+
+/// Cache for parsed background shader metadata.
+///
+/// See [`MetadataCache`] for full documentation.
+pub type ShaderMetadataCache = MetadataCache<ShaderMetadata>;
+
+/// Cache for parsed cursor shader metadata.
+///
+/// See [`MetadataCache`] for full documentation.
+pub type CursorShaderMetadataCache = MetadataCache<CursorShaderMetadata>;
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_extract_yaml_block_present() {
+        let source = "/*! par-term shader metadata\nname: test\n*/\nvoid main() {}";
+        let yaml = extract_yaml_block(source);
+        assert_eq!(yaml, Some("name: test"));
+    }
+
+    #[test]
+    fn test_extract_yaml_block_absent() {
+        let source = "// no metadata\nvoid main() {}";
+        assert!(extract_yaml_block(source).is_none());
+    }
 
     #[test]
     fn test_parse_metadata_basic() {

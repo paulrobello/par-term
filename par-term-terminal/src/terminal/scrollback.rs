@@ -289,13 +289,15 @@ impl TerminalManager {
             if let Some(line) = grid.scrollback_line(line_idx) {
                 Self::push_line_from_slice(
                     line,
-                    cols,
-                    &mut row_cells,
-                    0,     // screen_row (unused for our purposes)
-                    None,  // no selection
-                    false, // not rectangular
-                    None,  // no cursor
-                    &self.theme,
+                    &mut crate::terminal::rendering::RowRenderContext {
+                        cols,
+                        dest: &mut row_cells,
+                        screen_row: 0, // screen_row (unused for our purposes)
+                        selection: None,
+                        rectangular: false,
+                        cursor: None,
+                        theme: &self.theme,
+                    },
                 );
             } else {
                 Self::push_empty_cells(cols, &mut row_cells);

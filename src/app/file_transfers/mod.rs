@@ -64,7 +64,6 @@ fn transfer_to_info(ft: &FileTransfer) -> TransferInfo {
     };
 
     TransferInfo {
-        id: ft.id,
         filename: if ft.filename.is_empty() {
             format!("transfer-{}", ft.id)
         } else {
@@ -73,7 +72,6 @@ fn transfer_to_info(ft: &FileTransfer) -> TransferInfo {
         direction: ft.direction,
         bytes_transferred,
         total_bytes,
-        started_at: ft.started_at,
     }
 }
 
@@ -154,7 +152,6 @@ impl WindowState {
                     self.file_transfer_state
                         .pending_saves
                         .push_back(PendingSave {
-                            id: ft.id,
                             filename: filename.clone(),
                             data: ft.data,
                         });
@@ -209,10 +206,10 @@ impl WindowState {
             // On miss: upload requests are deferred to the next poll. No user data is lost.
             if let Ok(term) = terminal_arc.try_write() {
                 let upload_requests = term.poll_upload_requests();
-                for format in upload_requests {
+                for _format in upload_requests {
                     self.file_transfer_state
                         .pending_uploads
-                        .push_back(PendingUpload { format });
+                        .push_back(PendingUpload {});
                     self.deliver_notification(
                         "Upload Requested",
                         "Remote application is requesting a file upload",
@@ -313,12 +310,10 @@ impl WindowState {
             self.file_transfer_state
                 .active_transfers
                 .push(TransferInfo {
-                    id: upload.id,
                     filename: upload.filename.clone(),
                     direction: TransferDirection::Upload,
                     bytes_transferred,
                     total_bytes: Some(upload.file_size),
-                    started_at: upload.started_at,
                 });
         }
 

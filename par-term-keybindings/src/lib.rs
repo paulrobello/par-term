@@ -10,6 +10,7 @@
 
 mod matcher;
 pub mod parser;
+pub mod platform;
 
 pub use matcher::KeybindingMatcher;
 pub use parser::KeyCombo;

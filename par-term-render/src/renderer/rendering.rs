@@ -280,17 +280,19 @@ impl Renderer {
             );
             self.cell_renderer.render_pane_to_view(
                 &surface_view,
-                &pane.viewport,
-                pane.cells,
-                pane.grid_size.0,
-                pane.grid_size.1,
-                pane.cursor_pos,
-                pane.cursor_opacity,
-                pane.show_scrollbar,
-                false,                // Don't clear - we already cleared the surface
-                has_background_image, // Skip background image if already rendered full-screen
-                &separator_marks,
-                pane.background.as_ref(),
+                crate::cell_renderer::PaneRenderViewParams {
+                    viewport: &pane.viewport,
+                    cells: pane.cells,
+                    cols: pane.grid_size.0,
+                    rows: pane.grid_size.1,
+                    cursor_pos: pane.cursor_pos,
+                    cursor_opacity: pane.cursor_opacity,
+                    show_scrollbar: pane.show_scrollbar,
+                    clear_first: false, // Don't clear - we already cleared the surface
+                    skip_background_image: has_background_image,
+                    separator_marks: &separator_marks,
+                    pane_background: pane.background.as_ref(),
+                },
             )?;
         }
 
@@ -327,7 +329,7 @@ impl Renderer {
     ///
     /// # Returns
     /// `true` if rendering was performed, `false` if skipped
-    #[allow(dead_code, clippy::too_many_arguments)]
+    #[allow(dead_code)]
     pub fn render_split_panes(
         &mut self,
         panes: &[PaneRenderInfo<'_>],
@@ -475,17 +477,19 @@ impl Renderer {
             );
             self.cell_renderer.render_pane_to_view(
                 &surface_view,
-                &pane.viewport,
-                pane.cells,
-                pane.grid_size.0,
-                pane.grid_size.1,
-                pane.cursor_pos,
-                pane.cursor_opacity,
-                pane.show_scrollbar,
-                false, // Don't clear - we already cleared the surface
-                has_background_image || has_custom_shader, // Skip background if already rendered
-                &separator_marks,
-                pane.background.as_ref(),
+                crate::cell_renderer::PaneRenderViewParams {
+                    viewport: &pane.viewport,
+                    cells: pane.cells,
+                    cols: pane.grid_size.0,
+                    rows: pane.grid_size.1,
+                    cursor_pos: pane.cursor_pos,
+                    cursor_opacity: pane.cursor_opacity,
+                    show_scrollbar: pane.show_scrollbar,
+                    clear_first: false, // Don't clear - we already cleared the surface
+                    skip_background_image: has_background_image || has_custom_shader,
+                    separator_marks: &separator_marks,
+                    pane_background: pane.background.as_ref(),
+                },
             )?;
         }
 

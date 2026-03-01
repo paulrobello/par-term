@@ -27,12 +27,14 @@
 //! The core library (par-term-emu-core-rust) provides the control mode parser.
 
 mod commands;
+pub mod pane_sync;
 pub mod parser_bridge;
 pub mod prefix;
 mod session;
 pub mod status_format;
 mod sync;
 mod types;
+pub mod window_sync;
 
 pub use commands::TmuxCommand;
 pub use parser_bridge::ParserBridge;

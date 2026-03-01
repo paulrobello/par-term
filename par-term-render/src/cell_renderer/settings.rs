@@ -13,15 +13,17 @@ impl CellRenderer {
         let right_inset = self.grid.content_inset_right + self.grid.egui_right_inset;
         self.scrollbar.update(
             &self.queue,
-            scroll_offset,
-            visible_lines,
-            total_lines,
-            self.config.width,
-            self.config.height,
-            self.grid.content_offset_y,
-            self.grid.content_inset_bottom + self.grid.egui_bottom_inset,
-            right_inset,
-            marks,
+            crate::scrollbar::ScrollbarUpdateParams {
+                scroll_offset,
+                visible_lines,
+                total_lines,
+                window_width: self.config.width,
+                window_height: self.config.height,
+                content_offset_y: self.grid.content_offset_y,
+                content_inset_bottom: self.grid.content_inset_bottom + self.grid.egui_bottom_inset,
+                content_inset_right: right_inset,
+                marks,
+            },
         );
     }
 
@@ -55,15 +57,17 @@ impl CellRenderer {
 
         self.scrollbar.update(
             &self.queue,
-            scroll_offset,
-            visible_lines,
-            total_lines,
-            self.config.width,
-            self.config.height,
-            pane_content_offset_y,
-            pane_bottom_inset,
-            pane_right_inset,
-            marks,
+            crate::scrollbar::ScrollbarUpdateParams {
+                scroll_offset,
+                visible_lines,
+                total_lines,
+                window_width: self.config.width,
+                window_height: self.config.height,
+                content_offset_y: pane_content_offset_y,
+                content_inset_bottom: pane_bottom_inset,
+                content_inset_right: pane_right_inset,
+                marks,
+            },
         );
     }
 
