@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 97 copy mode state machine tests covering motions, visual modes, selection, marks, search, and edge cases.
 
 ### Fixed
+- Fixed semantic file-path highlighting bleeding across tmux pane separators: the file-path detection regex now stops at Unicode box-drawing characters (U+2500–U+257F), so the link highlight colour is no longer applied to cells in the adjacent tmux pane.
 - Fixed drag-selection often failing to copy text to clipboard due to `try_write()` race condition; mouse-release copy now uses `blocking_write()` to guarantee the selection is captured.
 - Fixed clicking between tmux panes overwriting clipboard contents via accidental micro-selections; pane-focus clicks are now fully consumed before reaching selection-anchor code.
 - Fixed text selection in split-pane mode reading from the wrong terminal buffer; selection now correctly reads from the focused pane's terminal.

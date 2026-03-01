@@ -56,14 +56,14 @@ fn file_path_regex() -> &'static Regex {
             r#"(?x)
             (?:
                 # Home-relative paths (~/...)
-                ~/[^\s:,;'"<>|)\]}\[\(\x00-\x1f]+
+                ~/[^\s:,;'"<>|)\]}\[\(\x00-\x1f\u{2500}-\u{257F}]+
                 |
                 # Relative paths starting with ./ or ../
-                \.\.?/[^\s:,;'"<>|)\]}\[\(\x00-\x1f]+
+                \.\.?/[^\s:,;'"<>|)\]}\[\(\x00-\x1f\u{2500}-\u{257F}]+
                 |
                 # Absolute paths: must be at start of string or after whitespace
                 # Require at least two path components to reduce false positives
-                (?:^|\s)/[^\s:,;'"<>|)\]}\[\(\x00-\x1f]+/[^\s:,;'"<>|)\]}\[\(\x00-\x1f]+
+                (?:^|\s)/[^\s:,;'"<>|)\]}\[\(\x00-\x1f\u{2500}-\u{257F}]+/[^\s:,;'"<>|)\]}\[\(\x00-\x1f\u{2500}-\u{257F}]+
             )
             # Optional line/column number in various formats
             (?:

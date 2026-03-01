@@ -209,6 +209,40 @@ fn test_byte_offset_to_column_mapping_with_multibyte() {
     assert_eq!(end_col, cols, "End column should be 8 (end of line)");
 }
 
+/// Verify that file path detection stops at tmux pane separator characters (box-drawing).
+/// The │ (U+2502) character is used by tmux to draw vertical pane dividers. Without
+/// this guard, a file path in the left pane would be detected as extending through the
+/// separator into the right pane, causing the link highlight color to bleed across panes.
+#[test]
+fn test_file_path_stops_at_tmux_box_drawing_separator() {
+    // Simulate a terminal row spanning two tmux panes:
+    // left pane: "• Bash(cat /Users/probello/.claude/projects/file"
+    // separator:  "│"
+    // right pane: "to) Compiling..."
+    let text = "cat /Users/probello/.claude/projects/file│to) Compiling";
+    let paths = detect_file_paths_in_line(text, 0);
+    assert_eq!(paths.len(), 1, "Should detect exactly one path");
+    assert_eq!(
+        paths[0].url, "/Users/probello/.claude/projects/file",
+        "Path should not include the box-drawing separator or right-pane content"
+    );
+    // end_col must be at the │ character, not past it
+    let end_byte = paths[0].end_col;
+    assert!(
+        !text[..end_byte].contains('│'),
+        "Detected path must end before the tmux separator"
+    );
+}
+
+/// Verify home-relative paths also stop at box-drawing separators.
+#[test]
+fn test_home_path_stops_at_tmux_box_drawing_separator() {
+    let text = "~/Documents/file.txt│right_pane_content";
+    let paths = detect_file_paths_in_line(text, 0);
+    assert_eq!(paths.len(), 1);
+    assert_eq!(paths[0].url, "~/Documents/file.txt");
+}
+
 // --- ensure_url_scheme tests ---
 
 #[test]
