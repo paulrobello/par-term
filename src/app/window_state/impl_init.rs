@@ -38,8 +38,10 @@ impl WindowState {
         // Discover available ACP agents
         let config_dir = dirs::config_dir().unwrap_or_default().join("par-term");
         let discovered_agents = discover_agents(&config_dir);
-        let available_agents =
-            merge_custom_ai_inspector_agents(discovered_agents, &config.ai_inspector_custom_agents);
+        let available_agents = merge_custom_ai_inspector_agents(
+            discovered_agents,
+            &config.ai_inspector.ai_inspector_custom_agents,
+        );
 
         Self {
             config,

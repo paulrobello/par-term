@@ -165,8 +165,8 @@ impl TabBarUI {
                                 // Zero spacing between + and ▾
                                 ui.spacing_mut().item_spacing.x = 0.0;
 
-                                let show_chevron_v =
-                                    !profiles.is_empty() || config.ai_inspector_enabled;
+                                let show_chevron_v = !profiles.is_empty()
+                                    || config.ai_inspector.ai_inspector_enabled;
                                 let chevron_space = if show_chevron_v {
                                     CHEVRON_RESERVED
                                 } else {

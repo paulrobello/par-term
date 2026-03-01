@@ -10,7 +10,7 @@ impl WindowState {
             return false;
         }
 
-        if !self.config.ai_inspector_enabled {
+        if !self.config.ai_inspector.ai_inspector_enabled {
             return false;
         }
 

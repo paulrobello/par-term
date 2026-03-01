@@ -98,7 +98,7 @@ impl WindowState {
         let discovered_agents = discover_agents(&config_dir);
         self.agent_state.available_agents = merge_custom_ai_inspector_agents(
             discovered_agents,
-            &self.config.ai_inspector_custom_agents,
+            &self.config.ai_inspector.ai_inspector_custom_agents,
         );
     }
 
@@ -146,7 +146,7 @@ impl WindowState {
                 std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("par-term"));
             let agent = Agent::new(agent_config.clone(), tx, safe_paths, mcp_server_bin);
             agent.auto_approve.store(
-                self.config.ai_inspector_auto_approve,
+                self.config.ai_inspector.ai_inspector_auto_approve,
                 std::sync::atomic::Ordering::Relaxed,
             );
             let agent = Arc::new(tokio::sync::Mutex::new(agent));
@@ -175,11 +175,11 @@ impl WindowState {
                     list_directory: true,
                     find: true,
                 },
-                terminal: self.config.ai_inspector_agent_terminal_access,
+                terminal: self.config.ai_inspector.ai_inspector_agent_terminal_access,
                 config: true,
             };
 
-            let auto_approve = self.config.ai_inspector_auto_approve;
+            let auto_approve = self.config.ai_inspector.ai_inspector_auto_approve;
             let runtime = self.runtime.clone();
             runtime.spawn(async move {
                 let mut agent = agent.lock().await;
@@ -199,11 +199,11 @@ impl WindowState {
 
     /// Auto-connect to the configured agent if auto-launch is enabled and no agent is connected.
     pub(crate) fn try_auto_connect_agent(&mut self) {
-        if self.config.ai_inspector_auto_launch
+        if self.config.ai_inspector.ai_inspector_auto_launch
             && self.overlay_ui.ai_inspector.agent_status == AgentStatus::Disconnected
             && self.agent_state.agent.is_none()
         {
-            let identity = self.config.ai_inspector_agent.clone();
+            let identity = self.config.ai_inspector.ai_inspector_agent.clone();
             if !identity.is_empty() {
                 log::info!("ACP: auto-connecting to agent '{}'", identity);
                 self.connect_agent(&identity);

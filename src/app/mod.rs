@@ -41,7 +41,7 @@ pub mod url_hover;
 pub mod window_manager;
 pub mod window_state;
 
-pub use window_manager::WindowManager;
+pub(crate) use window_manager::WindowManager;
 
 /// Main application entry point
 pub struct App {

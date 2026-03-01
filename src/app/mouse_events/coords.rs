@@ -200,7 +200,7 @@ impl WindowState {
 
 #[cfg(test)]
 mod tests {
-    use super::{pixel_to_cell_raw, pixel_to_pane_cell_raw, PaneBoundsRaw};
+    use super::{PaneBoundsRaw, pixel_to_cell_raw, pixel_to_pane_cell_raw};
 
     // ── pixel_to_cell_raw ─────────────────────────────────────────────────
 

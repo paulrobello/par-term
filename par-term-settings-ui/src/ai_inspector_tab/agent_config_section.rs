@@ -68,13 +68,18 @@ pub(super) fn show_custom_agents_section(
                 ui.add_space(6.0);
 
                 let mut remove_index: Option<usize> = None;
-                for i in 0..settings.config.ai_inspector_custom_agents.len() {
+                for i in 0..settings
+                    .config
+                    .ai_inspector
+                    .ai_inspector_custom_agents
+                    .len()
+                {
                     let mut changed = false;
                     let mut request_remove = false;
 
                     ui.group(|ui| {
                         ui.push_id(format!("custom_agent_{i}"), |ui| {
-                            let agent = &mut settings.config.ai_inspector_custom_agents[i];
+                            let agent = &mut settings.config.ai_inspector.ai_inspector_custom_agents[i];
 
                             ui.horizontal(|ui| {
                                 ui.strong(format!("Agent {}", i + 1));
@@ -371,23 +376,38 @@ pub(super) fn show_custom_agents_section(
                 }
 
                 if let Some(idx) = remove_index {
-                    settings.config.ai_inspector_custom_agents.remove(idx);
+                    settings
+                        .config
+                        .ai_inspector
+                        .ai_inspector_custom_agents
+                        .remove(idx);
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
 
-                if settings.config.ai_inspector_custom_agents.is_empty() {
+                if settings
+                    .config
+                    .ai_inspector
+                    .ai_inspector_custom_agents
+                    .is_empty()
+                {
                     ui.label("No custom agents defined.");
                 }
 
                 if ui.button("Add Custom Agent").clicked() {
                     settings
                         .config
+                        .ai_inspector
                         .ai_inspector_custom_agents
                         .push(CustomAcpAgentConfig {
                             identity: format!(
                                 "custom.agent.{}",
-                                settings.config.ai_inspector_custom_agents.len() + 1
+                                settings
+                                    .config
+                                    .ai_inspector
+                                    .ai_inspector_custom_agents
+                                    .len()
+                                    + 1
                             ),
                             name: "Custom ACP Agent".to_string(),
                             short_name: "custom".to_string(),
@@ -437,15 +457,16 @@ pub(super) fn show_permissions_section(
             collapsed,
             |ui| {
                 let yolo_response = ui
-                    .checkbox(&mut settings.config.ai_inspector_auto_approve, "Yolo Mode")
-                    .on_hover_text(
-                        "Auto-approve all agent permission requests. Use with caution!",
-                    );
+                    .checkbox(
+                        &mut settings.config.ai_inspector.ai_inspector_auto_approve,
+                        "Yolo Mode",
+                    )
+                    .on_hover_text("Auto-approve all agent permission requests. Use with caution!");
                 if yolo_response.changed() {
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
-                if settings.config.ai_inspector_auto_approve {
+                if settings.config.ai_inspector.ai_inspector_auto_approve {
                     ui.colored_label(
                         egui::Color32::from_rgb(255, 193, 7),
                         "Most agent permission requests will be auto-approved \
@@ -457,7 +478,10 @@ pub(super) fn show_permissions_section(
 
                 let terminal_access_response = ui
                     .checkbox(
-                        &mut settings.config.ai_inspector_agent_terminal_access,
+                        &mut settings
+                            .config
+                            .ai_inspector
+                            .ai_inspector_agent_terminal_access,
                         "Allow Terminal Access",
                     )
                     .on_hover_text(
@@ -469,7 +493,11 @@ pub(super) fn show_permissions_section(
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
-                if settings.config.ai_inspector_agent_terminal_access {
+                if settings
+                    .config
+                    .ai_inspector
+                    .ai_inspector_agent_terminal_access
+                {
                     ui.colored_label(
                         egui::Color32::from_rgb(255, 152, 0),
                         "Agent can write commands to the terminal",
@@ -480,7 +508,10 @@ pub(super) fn show_permissions_section(
 
                 let screenshot_access_response = ui
                     .checkbox(
-                        &mut settings.config.ai_inspector_agent_screenshot_access,
+                        &mut settings
+                            .config
+                            .ai_inspector
+                            .ai_inspector_agent_screenshot_access,
                         "Allow Agent Screenshots",
                     )
                     .on_hover_text(
@@ -493,7 +524,11 @@ pub(super) fn show_permissions_section(
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
-                if settings.config.ai_inspector_agent_screenshot_access {
+                if settings
+                    .config
+                    .ai_inspector
+                    .ai_inspector_agent_screenshot_access
+                {
                     ui.colored_label(
                         egui::Color32::from_rgb(255, 193, 7),
                         "Screenshot requests still require per-request approval in chat",

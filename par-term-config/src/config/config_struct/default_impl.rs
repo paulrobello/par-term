@@ -9,12 +9,15 @@ use crate::types::{
     BackgroundImageMode, BackgroundMode, CursorStyle, DividerStyle, DroppedFileQuoteStyle,
     ImageScalingMode, InstallPromptState, IntegrationVersions, LogLevel, ModifierRemapping,
     OptionKeyMode, PaneTitlePosition, PowerPreference, ProgressBarPosition, ProgressBarStyle,
-    SemanticHistoryEditorMode, SessionLogFormat, ShaderInstallPrompt, ShellExitAction,
-    StatusBarPosition, TabBarMode, TabBarPosition, TabStyle, TabTitleMode, ThinStrokesMode,
-    UnfocusedCursorStyle, VsyncMode, WindowType, default_smart_selection_rules,
+    SemanticHistoryEditorMode, SessionLogFormat, ShaderInstallPrompt, ShellExitAction, TabBarMode,
+    TabBarPosition, TabStyle, TabTitleMode, ThinStrokesMode, UnfocusedCursorStyle, VsyncMode,
+    WindowType, default_smart_selection_rules,
 };
 
-use super::{Config, CopyModeConfig, SearchConfig, SshConfig, UnicodeConfig};
+use super::{
+    AiInspectorConfig, Config, CopyModeConfig, SearchConfig, SshConfig, StatusBarConfig,
+    UnicodeConfig,
+};
 
 impl Default for Config {
     fn default() -> Self {
@@ -292,23 +295,7 @@ impl Default for Config {
             badge_right_margin: crate::defaults::badge_right_margin(),
             badge_max_width: crate::defaults::badge_max_width(),
             badge_max_height: crate::defaults::badge_max_height(),
-            status_bar_enabled: crate::defaults::bool_false(),
-            status_bar_position: StatusBarPosition::default(),
-            status_bar_height: crate::defaults::status_bar_height(),
-            status_bar_bg_color: crate::defaults::status_bar_bg_color(),
-            status_bar_bg_alpha: crate::defaults::status_bar_bg_alpha(),
-            status_bar_fg_color: crate::defaults::status_bar_fg_color(),
-            status_bar_font: String::new(),
-            status_bar_font_size: crate::defaults::status_bar_font_size(),
-            status_bar_separator: crate::defaults::status_bar_separator(),
-            status_bar_auto_hide_fullscreen: crate::defaults::bool_true(),
-            status_bar_auto_hide_mouse_inactive: crate::defaults::bool_false(),
-            status_bar_mouse_inactive_timeout: crate::defaults::status_bar_mouse_inactive_timeout(),
-            status_bar_system_poll_interval: crate::defaults::status_bar_system_poll_interval(),
-            status_bar_git_poll_interval: crate::defaults::status_bar_git_poll_interval(),
-            status_bar_time_format: crate::defaults::status_bar_time_format(),
-            status_bar_git_show_status: crate::defaults::bool_true(),
-            status_bar_widgets: crate::status_bar::default_widgets(),
+            status_bar: StatusBarConfig::default(),
             progress_bar_enabled: crate::defaults::bool_true(),
             progress_bar_style: ProgressBarStyle::default(),
             progress_bar_position: ProgressBarPosition::default(),
@@ -329,23 +316,7 @@ impl Default for Config {
             dynamic_profile_sources: Vec::new(),
             allow_all_env_vars: crate::defaults::bool_false(),
             allow_http_profiles: crate::defaults::bool_false(),
-            ai_inspector_enabled: crate::defaults::ai_inspector_enabled(),
-            ai_inspector_open_on_startup: crate::defaults::ai_inspector_open_on_startup(),
-            ai_inspector_width: crate::defaults::ai_inspector_width(),
-            ai_inspector_default_scope: crate::defaults::ai_inspector_default_scope(),
-            ai_inspector_view_mode: crate::defaults::ai_inspector_view_mode(),
-            ai_inspector_live_update: crate::defaults::ai_inspector_live_update(),
-            ai_inspector_show_zones: crate::defaults::ai_inspector_show_zones(),
-            ai_inspector_agent: crate::defaults::ai_inspector_agent(),
-            ai_inspector_auto_launch: crate::defaults::ai_inspector_auto_launch(),
-            ai_inspector_auto_context: crate::defaults::ai_inspector_auto_context(),
-            ai_inspector_context_max_lines: crate::defaults::ai_inspector_context_max_lines(),
-            ai_inspector_auto_approve: crate::defaults::ai_inspector_auto_approve(),
-            ai_inspector_agent_terminal_access: crate::defaults::ai_inspector_agent_terminal_access(
-            ),
-            ai_inspector_agent_screenshot_access:
-                crate::defaults::ai_inspector_agent_screenshot_access(),
-            ai_inspector_custom_agents: Vec::new(),
+            ai_inspector: AiInspectorConfig::default(),
         }
     }
 }

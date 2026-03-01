@@ -60,8 +60,8 @@ pub mod session;
 // Re-export the main public types at the crate root for convenience
 pub use agent::{Agent, AgentMessage, AgentStatus};
 pub use agents::{AgentConfig, discover_agents};
-pub use permissions::SafePaths;
 pub use jsonrpc::{IncomingMessage, JsonRpcClient, Request, Response, RpcError};
+pub use permissions::SafePaths;
 pub use protocol::{
     ClientCapabilities, ClientInfo, ContentBlock, FsCapabilities, FsFindParams,
     FsListDirectoryParams, FsReadParams, FsWriteParams, InitializeParams, InitializeResult,

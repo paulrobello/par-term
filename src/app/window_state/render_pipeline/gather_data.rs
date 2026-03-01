@@ -51,9 +51,9 @@
 //! Extraction is deferred as a follow-on to R-32 and is a prerequisite of
 //! R-31 (gpu_submit stabilization).
 
-use super::super::{preprocess_claude_code_segment, reconstruct_markdown_from_cells};
-use super::tab_snapshot;
 use super::FrameRenderData;
+use super::claude_code_bridge::ClaudeCodePrettifierBridge;
+use super::tab_snapshot;
 use crate::app::window_state::WindowState;
 use std::sync::Arc;
 
@@ -326,222 +326,36 @@ impl WindowState {
                     pane.cache.prettifier_feed_scroll_offset = scroll_offset;
                 }
 
-                // Heuristic Claude Code session detection from visible output.
-                // One-time: scan for signature patterns if not yet detected.
-                if !pipeline.claude_code().is_active() {
-                    'detect: for row_idx in 0..visible_lines {
-                        let start = row_idx * grid_cols;
-                        let end = (start + grid_cols).min(cells.len());
-                        if start >= cells.len() {
-                            break;
-                        }
-                        let row_text: String = cells[start..end]
-                            .iter()
-                            .map(|c| {
-                                let g = c.grapheme.as_str();
-                                if g.is_empty() || g == "\0" { " " } else { g }
-                            })
-                            .collect();
-                        // Look for Claude Code signature patterns in output.
-                        if row_text.contains("Claude Code")
-                            || row_text.contains("claude.ai/code")
-                            || row_text.contains("Tips for getting the best")
-                            || (row_text.contains("Model:")
-                                && (row_text.contains("Opus")
-                                    || row_text.contains("Sonnet")
-                                    || row_text.contains("Haiku")))
-                        {
-                            crate::debug_info!(
-                                "PRETTIFIER",
-                                "Claude Code session detected from output heuristic"
-                            );
-                            pipeline.mark_claude_code_active();
-                            break 'detect;
-                        }
-                    }
-                }
-
-                let is_claude_session = pipeline.claude_code().is_active();
-
-                if is_claude_session {
-                    // Clear blocks when visible content changes. Claude Code
-                    // rewrites the screen in-place (e.g., permission prompts,
-                    // progress updates) without growing scrollback, so we hash
-                    // a sample of visible rows to detect viewport-level changes.
-                    let viewport_hash = {
-                        use std::hash::{Hash, Hasher};
-                        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-                        // Sample every 4th row for speed; enough to catch redraws.
-                        for row_idx in (0..visible_lines).step_by(4) {
-                            let start = row_idx * grid_cols;
-                            let end = (start + grid_cols).min(cells.len());
-                            if start >= cells.len() {
-                                break;
-                            }
-                            for c in &cells[start..end] {
-                                c.grapheme.as_str().hash(&mut hasher);
-                            }
-                        }
-                        scrollback_len.hash(&mut hasher);
-                        scroll_offset.hash(&mut hasher);
-                        hasher.finish()
-                    };
-                    // R-32: access via pane_manager (distinct field from tab.prettifier/pipeline).
-                    let cached_hash = tab
-                        .pane_manager
-                        .as_ref()
-                        .and_then(|pm| pm.focused_pane())
-                        .map(|p| p.cache.prettifier_feed_last_hash)
-                        .unwrap_or(0);
-                    let viewport_changed = viewport_hash != cached_hash;
-                    if viewport_changed {
-                        if let Some(ref mut pm) = tab.pane_manager
-                            && let Some(pane) = pm.focused_pane_mut()
-                        {
-                            pane.cache.prettifier_feed_last_hash = viewport_hash;
-                        }
-                        if !pipeline.active_blocks().is_empty() {
-                            pipeline.clear_blocks();
-                            crate::debug_log!(
-                                "PRETTIFIER",
-                                "CC viewport changed, cleared all blocks"
-                            );
-                        }
-                    }
-
-                    // Claude Code session: segment the viewport by action bullets
-                    // (⏺) and collapse markers. Each segment is submitted independently
-                    // so detection sees focused content blocks rather than the entire
-                    // viewport (which mixes UI chrome with markdown and causes false
-                    // positives). Deduplication in handle_block prevents duplicates.
-                    pipeline.reset_boundary();
-
-                    crate::debug_log!(
-                        "PRETTIFIER",
-                        "per-frame feed (CC): scanning {} visible lines, viewport_changed={}, scrollback={}, scroll_offset={}",
+                // Delegate Claude Code session detection, viewport hashing, and
+                // segment submission to `ClaudeCodePrettifierBridge`.
+                // `tab.prettifier` is borrowed above as `pipeline`; `tab.pane_manager`
+                // is a distinct struct field — NLL permits the simultaneous borrows.
+                let is_claude_session = {
+                    let mut bridge = ClaudeCodePrettifierBridge {
+                        pipeline,
+                        pane_manager: &mut tab.pane_manager,
+                        cells: &cells,
                         visible_lines,
-                        viewport_changed,
+                        grid_cols,
                         scrollback_len,
-                        scroll_offset
-                    );
-
-                    // Collect all rows with raw + reconstructed text.
-                    let mut rows: Vec<(String, String, usize)> = Vec::new(); // (raw, recon, abs_row)
-
-                    for row_idx in 0..visible_lines {
-                        let absolute_row = scrollback_len.saturating_sub(scroll_offset) + row_idx;
-                        let start = row_idx * grid_cols;
-                        let end = (start + grid_cols).min(cells.len());
-                        if start >= cells.len() {
-                            break;
+                        scroll_offset,
+                    };
+                    bridge.detect_session();
+                    let active = bridge.pipeline.claude_code().is_active();
+                    if active {
+                        let viewport_hash = bridge.compute_viewport_hash();
+                        let cached_hash = bridge.cached_viewport_hash();
+                        let viewport_changed = viewport_hash != cached_hash;
+                        if viewport_changed {
+                            bridge.store_viewport_hash(viewport_hash);
                         }
-
-                        let row_text: String = cells[start..end]
-                            .iter()
-                            .map(|c| {
-                                let g = c.grapheme.as_str();
-                                if g.is_empty() || g == "\0" { " " } else { g }
-                            })
-                            .collect();
-
-                        let line = reconstruct_markdown_from_cells(&cells[start..end]);
-                        rows.push((row_text, line, absolute_row));
+                        bridge.segment_and_submit(viewport_changed);
                     }
+                    active
+                    // bridge is dropped here, releasing borrows on pipeline and pane_manager
+                };
 
-                    // Split into segments at action bullets (⏺) and collapse markers.
-                    // Each segment is the content between two boundaries.
-                    let mut segments: Vec<Vec<(String, usize)>> = Vec::new();
-                    let mut current: Vec<(String, usize)> = Vec::new();
-
-                    for (raw, recon, abs_row) in &rows {
-                        let trimmed = raw.trim();
-                        // Collapse markers — boundary, include the line in the
-                        // preceding segment so row alignment is preserved (skipping
-                        // it would cause the overlay to render wrong content at this row).
-                        if raw.contains("(ctrl+o to expand)") {
-                            current.push((recon.clone(), *abs_row));
-                            segments.push(std::mem::take(&mut current));
-                            continue;
-                        }
-                        // Action bullets (⏺) start a new segment
-                        if trimmed.starts_with('⏺') || trimmed.starts_with("● ") {
-                            if !current.is_empty() {
-                                segments.push(std::mem::take(&mut current));
-                            }
-                            // Include this line in the new segment
-                            current.push((recon.clone(), *abs_row));
-                            continue;
-                        }
-                        // Horizontal rules (─────) are boundaries
-                        if trimmed.len() > 10 && trimmed.chars().all(|c| c == '─' || c == '━') {
-                            if !current.is_empty() {
-                                segments.push(std::mem::take(&mut current));
-                            }
-                            continue;
-                        }
-                        current.push((recon.clone(), *abs_row));
-                    }
-                    if !current.is_empty() {
-                        segments.push(current);
-                    }
-
-                    crate::debug_log!(
-                        "PRETTIFIER",
-                        "CC segmentation: {} total rows -> {} segments",
-                        rows.len(),
-                        segments.len()
-                    );
-
-                    // Submit each segment that has enough content for detection.
-                    // Short segments (tool call one-liners) are skipped.
-                    // The pipeline's handle_block() deduplicates by content hash,
-                    // so resubmitting the same segment on successive frames is cheap.
-                    let min_segment_lines = 5;
-                    let mut submitted = 0usize;
-                    let mut skipped_short = 0usize;
-                    let mut skipped_empty = 0usize;
-                    for mut segment in segments {
-                        let non_empty =
-                            segment.iter().filter(|(l, _)| !l.trim().is_empty()).count();
-                        if non_empty < min_segment_lines {
-                            skipped_short += 1;
-                            continue;
-                        }
-
-                        let pre_len = segment.len();
-                        preprocess_claude_code_segment(&mut segment);
-                        if segment.is_empty() {
-                            skipped_empty += 1;
-                            continue;
-                        }
-
-                        crate::debug_log!(
-                            "PRETTIFIER",
-                            "CC segment: {} lines (was {} before preprocess), rows={}..{}, first={:?}",
-                            segment.len(),
-                            pre_len,
-                            segment.first().map(|(_, r)| *r).unwrap_or(0),
-                            segment.last().map(|(_, r)| *r + 1).unwrap_or(0),
-                            segment
-                                .first()
-                                .map(|(l, _)| &l[..l.floor_char_boundary(60)])
-                        );
-
-                        submitted += 1;
-                        pipeline.submit_command_output(
-                            std::mem::take(&mut segment),
-                            Some("claude".to_string()),
-                        );
-                    }
-
-                    crate::debug_log!(
-                        "PRETTIFIER",
-                        "CC segmentation complete: submitted={}, skipped_short={}, skipped_empty={}",
-                        submitted,
-                        skipped_short,
-                        skipped_empty
-                    );
-                } else {
+                if !is_claude_session {
                     // Non-Claude session: submit the entire visible content as a
                     // single block. This gives the detector full context (avoids
                     // splitting markdown at blank lines) and reduces block churn.
@@ -640,7 +454,7 @@ impl WindowState {
                             }
                         }
                     }
-                } // end if needs_feed
+                } // end if !is_claude_session
             } // end if let Some(tab) pipeline-borrow scope
         } // end if let Some(tab) = self.tab_manager.active_tab_mut()
 

@@ -134,7 +134,7 @@ impl WindowState {
                 true
             }
             "toggle_ai_inspector" => {
-                if self.config.ai_inspector_enabled {
+                if self.config.ai_inspector.ai_inspector_enabled {
                     let just_opened = self.overlay_ui.ai_inspector.toggle();
                     self.sync_ai_inspector_width();
                     if just_opened {

@@ -31,7 +31,7 @@ pub use permissions::{
     PermissionOption, PermissionOutcome, RequestPermissionParams, RequestPermissionResponse,
 };
 pub use session::{
-    AgentCommand, ModeEntry, ModelsInfo, ModesInfo, ModelEntry, PlanEntry, PlanInfo,
+    AgentCommand, ModeEntry, ModelEntry, ModelsInfo, ModesInfo, PlanEntry, PlanInfo,
     SessionLoadParams, SessionNewParams, SessionPromptParams, SessionPromptResult, SessionResult,
     SessionUpdate, SessionUpdateParams, ToolCallInfo, ToolCallUpdateInfo,
 };

@@ -7,10 +7,10 @@
 
 // Re-export the public API so callers can continue to use `self_updater::*`.
 pub use crate::binary_ops::{
-    cleanup_old_binary, compute_data_hash, get_asset_name, get_binary_download_url,
-    get_checksum_asset_name, get_download_urls, DownloadUrls,
+    DownloadUrls, cleanup_old_binary, compute_data_hash, get_asset_name, get_binary_download_url,
+    get_checksum_asset_name, get_download_urls,
 };
-pub use crate::install_methods::{detect_installation, InstallationType};
+pub use crate::install_methods::{InstallationType, detect_installation};
 
 use crate::binary_ops::verify_download;
 use crate::install_methods::{install_macos_bundle, install_standalone};

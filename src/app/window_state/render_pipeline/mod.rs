@@ -10,6 +10,7 @@
 //! - `egui_overlays`: standalone egui overlay renderers (FPS, resize, toast, tooltip, pane-id)
 //! - `types`: shared data-transfer types (`RendererSizing`, `FrameRenderData`, `PostRenderActions`)
 
+mod claude_code_bridge;
 mod egui_overlays;
 mod frame_setup;
 mod gather_data;
@@ -17,6 +18,7 @@ mod gpu_submit;
 mod pane_render;
 mod post_render;
 mod prettifier_cells;
+mod renderer_ops;
 mod tab_snapshot;
 mod types;
 mod viewport;

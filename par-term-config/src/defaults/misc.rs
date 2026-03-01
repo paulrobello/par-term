@@ -305,40 +305,6 @@ pub fn progress_bar_opacity() -> f32 {
     0.8
 }
 
-// ── Status bar ─────────────────────────────────────────────────────────────
-
-pub fn status_bar_height() -> f32 {
-    22.0
-}
-
-pub fn status_bar_bg_alpha() -> f32 {
-    0.95
-}
-
-pub fn status_bar_font_size() -> f32 {
-    12.0
-}
-
-pub fn status_bar_separator() -> String {
-    " \u{2502} ".to_string() // " │ "
-}
-
-pub fn status_bar_mouse_inactive_timeout() -> f32 {
-    3.0
-}
-
-pub fn status_bar_system_poll_interval() -> f32 {
-    2.0
-}
-
-pub fn status_bar_git_poll_interval() -> f32 {
-    5.0
-}
-
-pub fn status_bar_time_format() -> String {
-    "%H:%M:%S".to_string()
-}
-
 // ── Unicode ────────────────────────────────────────────────────────────────
 
 pub fn unicode_version() -> par_term_emu_core_rust::UnicodeVersion {
@@ -462,62 +428,4 @@ pub fn tmux_status_bar_left() -> String {
 
 pub fn tmux_status_bar_right() -> String {
     "{pane} | {time:%H:%M}".to_string()
-}
-
-// ── AI Inspector ───────────────────────────────────────────────────────────
-
-pub fn ai_inspector_enabled() -> bool {
-    true
-}
-
-pub fn ai_inspector_width() -> f32 {
-    300.0
-}
-
-pub fn ai_inspector_open_on_startup() -> bool {
-    false
-}
-
-pub fn ai_inspector_default_scope() -> String {
-    "visible".to_string()
-}
-
-pub fn ai_inspector_view_mode() -> String {
-    "tree".to_string()
-}
-
-pub fn ai_inspector_live_update() -> bool {
-    false
-}
-
-pub fn ai_inspector_show_zones() -> bool {
-    true
-}
-
-pub fn ai_inspector_agent() -> String {
-    "claude.com".to_string()
-}
-
-pub fn ai_inspector_auto_launch() -> bool {
-    false
-}
-
-pub fn ai_inspector_auto_context() -> bool {
-    false
-}
-
-pub fn ai_inspector_context_max_lines() -> usize {
-    200
-}
-
-pub fn ai_inspector_auto_approve() -> bool {
-    false
-}
-
-pub fn ai_inspector_agent_terminal_access() -> bool {
-    false
-}
-
-pub fn ai_inspector_agent_screenshot_access() -> bool {
-    true
 }

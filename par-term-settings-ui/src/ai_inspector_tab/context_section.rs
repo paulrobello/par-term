@@ -10,7 +10,7 @@ use std::collections::HashSet;
 /// Build the combined agent list (built-in + active custom agents).
 pub(super) fn combined_available_agents(settings: &SettingsUI) -> Vec<(String, String)> {
     let mut combined = settings.available_agent_ids.clone();
-    for custom in &settings.config.ai_inspector_custom_agents {
+    for custom in &settings.config.ai_inspector.ai_inspector_custom_agents {
         if custom.active == Some(false) {
             continue;
         }
@@ -45,7 +45,7 @@ pub(super) fn show_panel_section(
         collapsing_section(ui, "Panel", "ai_inspector_panel", true, collapsed, |ui| {
             if ui
                 .checkbox(
-                    &mut settings.config.ai_inspector_enabled,
+                    &mut settings.config.ai_inspector.ai_inspector_enabled,
                     "Enable Assistant Panel",
                 )
                 .on_hover_text("Show Assistant panel toggle keybinding (Cmd+I / Ctrl+Shift+I)")
@@ -57,7 +57,7 @@ pub(super) fn show_panel_section(
 
             if ui
                 .checkbox(
-                    &mut settings.config.ai_inspector_open_on_startup,
+                    &mut settings.config.ai_inspector.ai_inspector_open_on_startup,
                     "Open on startup",
                 )
                 .on_hover_text("Automatically open the Assistant panel when a new window opens")
@@ -73,8 +73,11 @@ pub(super) fn show_panel_section(
                 ui.label("Default width:");
                 if ui
                     .add(
-                        egui::Slider::new(&mut settings.config.ai_inspector_width, 200.0..=600.0)
-                            .suffix("px"),
+                        egui::Slider::new(
+                            &mut settings.config.ai_inspector.ai_inspector_width,
+                            200.0..=600.0,
+                        )
+                        .suffix("px"),
                     )
                     .changed()
                 {
@@ -88,7 +91,7 @@ pub(super) fn show_panel_section(
             ui.horizontal(|ui| {
                 ui.label("Default scope:");
                 egui::ComboBox::from_id_salt("ai_scope")
-                    .selected_text(&settings.config.ai_inspector_default_scope)
+                    .selected_text(&settings.config.ai_inspector.ai_inspector_default_scope)
                     .show_ui(ui, |ui| {
                         for scope in &[
                             "visible",
@@ -100,7 +103,7 @@ pub(super) fn show_panel_section(
                         ] {
                             if ui
                                 .selectable_value(
-                                    &mut settings.config.ai_inspector_default_scope,
+                                    &mut settings.config.ai_inspector.ai_inspector_default_scope,
                                     scope.to_string(),
                                     *scope,
                                 )
@@ -118,12 +121,12 @@ pub(super) fn show_panel_section(
             ui.horizontal(|ui| {
                 ui.label("Default view:");
                 egui::ComboBox::from_id_salt("ai_view")
-                    .selected_text(&settings.config.ai_inspector_view_mode)
+                    .selected_text(&settings.config.ai_inspector.ai_inspector_view_mode)
                     .show_ui(ui, |ui| {
                         for mode in &["cards", "timeline", "tree", "list_detail"] {
                             if ui
                                 .selectable_value(
-                                    &mut settings.config.ai_inspector_view_mode,
+                                    &mut settings.config.ai_inspector.ai_inspector_view_mode,
                                     mode.to_string(),
                                     *mode,
                                 )
@@ -139,7 +142,10 @@ pub(super) fn show_panel_section(
             ui.add_space(4.0);
 
             if ui
-                .checkbox(&mut settings.config.ai_inspector_live_update, "Live update")
+                .checkbox(
+                    &mut settings.config.ai_inspector.ai_inspector_live_update,
+                    "Live update",
+                )
                 .on_hover_text("Automatically refresh panel content when terminal changes")
                 .changed()
             {
@@ -149,7 +155,7 @@ pub(super) fn show_panel_section(
 
             if ui
                 .checkbox(
-                    &mut settings.config.ai_inspector_show_zones,
+                    &mut settings.config.ai_inspector.ai_inspector_show_zones,
                     "Show zone content",
                 )
                 .on_hover_text(
@@ -190,16 +196,16 @@ pub(super) fn show_agent_section(
                 // Find display name for the currently selected agent
                 let selected_display = all_agents
                     .iter()
-                    .find(|(id, _)| *id == settings.config.ai_inspector_agent)
+                    .find(|(id, _)| *id == settings.config.ai_inspector.ai_inspector_agent)
                     .map(|(_, name)| name.as_str())
-                    .unwrap_or(&settings.config.ai_inspector_agent);
+                    .unwrap_or(&settings.config.ai_inspector.ai_inspector_agent);
                 egui::ComboBox::from_id_salt("ai_agent")
                     .selected_text(selected_display)
                     .show_ui(ui, |ui| {
                         for (agent_id, agent_name) in &all_agents {
                             if ui
                                 .selectable_value(
-                                    &mut settings.config.ai_inspector_agent,
+                                    &mut settings.config.ai_inspector.ai_inspector_agent,
                                     agent_id.clone(),
                                     agent_name,
                                 )
@@ -216,12 +222,10 @@ pub(super) fn show_agent_section(
 
             if ui
                 .checkbox(
-                    &mut settings.config.ai_inspector_auto_launch,
+                    &mut settings.config.ai_inspector.ai_inspector_auto_launch,
                     "Auto-launch agent",
                 )
-                .on_hover_text(
-                    "Automatically connect to the configured agent when the panel opens",
-                )
+                .on_hover_text("Automatically connect to the configured agent when the panel opens")
                 .changed()
             {
                 settings.has_changes = true;
@@ -230,7 +234,7 @@ pub(super) fn show_agent_section(
 
             if ui
                 .checkbox(
-                    &mut settings.config.ai_inspector_auto_context,
+                    &mut settings.config.ai_inspector.ai_inspector_auto_context,
                     "Auto-send context",
                 )
                 .on_hover_text(
@@ -248,7 +252,7 @@ pub(super) fn show_agent_section(
                 ui.label("Max context lines:");
                 if ui
                     .add(egui::Slider::new(
-                        &mut settings.config.ai_inspector_context_max_lines,
+                        &mut settings.config.ai_inspector.ai_inspector_context_max_lines,
                         50..=1000,
                     ))
                     .changed()

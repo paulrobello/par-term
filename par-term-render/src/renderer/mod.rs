@@ -7,6 +7,7 @@ use winit::dpi::PhysicalSize;
 mod egui_render;
 pub mod graphics;
 pub mod params;
+mod render_orchestrator;
 mod render_passes;
 mod rendering;
 pub mod shaders;

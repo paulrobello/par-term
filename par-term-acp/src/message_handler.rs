@@ -10,8 +10,8 @@ use std::sync::atomic::AtomicBool;
 
 use tokio::sync::mpsc;
 
-use super::agent::{AgentMessage};
-use super::jsonrpc::{JsonRpcClient, IncomingMessage, RpcError};
+use super::agent::AgentMessage;
+use super::jsonrpc::{IncomingMessage, JsonRpcClient, RpcError};
 use super::permissions::SafePaths;
 use super::protocol::{ConfigUpdateParams, SessionUpdate, SessionUpdateParams};
 

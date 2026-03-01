@@ -8,10 +8,10 @@ use par_term::status_bar::config::{
 #[test]
 fn test_default_config_has_status_bar_fields() {
     let config = Config::default();
-    assert!(!config.status_bar_enabled);
-    assert_eq!(config.status_bar_height, 22.0);
-    assert_eq!(config.status_bar_bg_color, [30, 30, 30]);
-    assert!(!config.status_bar_widgets.is_empty());
+    assert!(!config.status_bar.status_bar_enabled);
+    assert_eq!(config.status_bar.status_bar_height, 22.0);
+    assert_eq!(config.status_bar.status_bar_bg_color, [30, 30, 30]);
+    assert!(!config.status_bar.status_bar_widgets.is_empty());
 }
 
 #[test]
@@ -84,7 +84,7 @@ status_bar_widgets:
     order: 0
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).expect("deserialize");
-    assert!(config.status_bar_enabled);
-    assert_eq!(config.status_bar_height, 28.0);
-    assert_eq!(config.status_bar_widgets.len(), 2);
+    assert!(config.status_bar.status_bar_enabled);
+    assert_eq!(config.status_bar.status_bar_height, 28.0);
+    assert_eq!(config.status_bar.status_bar_widgets.len(), 2);
 }

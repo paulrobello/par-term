@@ -46,10 +46,7 @@ impl WindowState {
     /// terminal write-lock is held by another thread (e.g., PTY reader during
     /// a large upload).  Returns `None` when no cached cells are available and
     /// the lock is unavailable.
-    pub(super) fn extract_tab_cells(
-        &mut self,
-        p: TabCellsParams,
-    ) -> Option<TabCellsSnapshot> {
+    pub(super) fn extract_tab_cells(&mut self, p: TabCellsParams) -> Option<TabCellsSnapshot> {
         let TabCellsParams {
             scroll_offset,
             mouse_selection,

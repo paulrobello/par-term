@@ -64,7 +64,7 @@ impl TabBarUI {
                 }
 
                 // Assistant panel toggle (only when enabled in config)
-                if config.ai_inspector_enabled {
+                if config.ai_inspector.ai_inspector_enabled {
                     ui.separator();
                     if ui
                         .selectable_label(false, "  Assistant Panel")

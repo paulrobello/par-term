@@ -573,11 +573,7 @@ impl CellRenderer {
     /// `self.bg_state.pane_bg_uniform_cache.get(path)` inside the render pass.
     ///
     /// The texture entry must already be loaded into `bg_state.pane_bg_cache`.
-    pub(crate) fn prepare_pane_bg_bind_group(
-        &mut self,
-        path: &str,
-        p: PaneBgBindGroupParams,
-    ) {
+    pub(crate) fn prepare_pane_bg_bind_group(&mut self, path: &str, p: PaneBgBindGroupParams) {
         let PaneBgBindGroupParams {
             pane_x,
             pane_y,

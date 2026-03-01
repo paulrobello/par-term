@@ -54,7 +54,7 @@ impl WindowManager {
                 && let Some(agent) = &window_state.agent_state.agent
             {
                 let agent = agent.clone();
-                let auto_approve = config.ai_inspector_auto_approve;
+                let auto_approve = config.ai_inspector.ai_inspector_auto_approve;
                 let mode = if auto_approve {
                     "bypassPermissions"
                 } else {

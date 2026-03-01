@@ -14,16 +14,16 @@
 pub mod automation;
 pub mod cell;
 pub mod config;
-pub mod layout_constants;
-pub mod shell_detection;
 pub mod defaults;
 pub mod error;
+pub mod layout_constants;
 pub mod profile;
 pub mod profile_types;
 pub mod scripting;
 pub mod scrollback_mark;
 pub mod shader_config;
 pub mod shader_metadata;
+pub mod shell_detection;
 pub mod snapshot_types;
 pub mod snippets;
 pub mod status_bar;
@@ -38,8 +38,8 @@ pub use error::ConfigError;
 // Re-export main types for convenience
 pub use cell::Cell;
 pub use config::{
-    ALLOWED_ENV_VARS, Config, CustomAcpAgentActionConfig, CustomAcpAgentConfig, is_env_var_allowed,
-    substitute_variables, substitute_variables_with_allowlist,
+    ALLOWED_ENV_VARS, AiInspectorConfig, Config, CustomAcpAgentActionConfig, CustomAcpAgentConfig,
+    StatusBarConfig, is_env_var_allowed, substitute_variables, substitute_variables_with_allowlist,
 };
 pub use scrollback_mark::ScrollbackMark;
 pub use themes::{Color, Theme};

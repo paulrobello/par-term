@@ -28,7 +28,8 @@ pub mod theme_methods;
 
 pub use acp::{CustomAcpAgentActionConfig, CustomAcpAgentConfig};
 pub use config_struct::{
-    Config, CopyModeConfig, SearchConfig, SshConfig, UnicodeConfig, UpdateConfig,
+    AiInspectorConfig, Config, CopyModeConfig, SearchConfig, SshConfig, StatusBarConfig,
+    UnicodeConfig, UpdateConfig,
 };
 pub use env_vars::{
     ALLOWED_ENV_VARS, is_env_var_allowed, substitute_variables, substitute_variables_with_allowlist,

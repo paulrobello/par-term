@@ -108,15 +108,6 @@ pub fn badge_color() -> [u8; 3] {
     [255, 0, 0] // Red text (matches iTerm2 default)
 }
 
-// Status bar colors
-pub fn status_bar_bg_color() -> [u8; 3] {
-    [30, 30, 30]
-}
-
-pub fn status_bar_fg_color() -> [u8; 3] {
-    [200, 200, 200]
-}
-
 // Pane colors
 pub fn pane_divider_color() -> [u8; 3] {
     [80, 80, 80] // Subtle gray divider

@@ -274,24 +274,24 @@ impl StatusBarUI {
     ///
     /// Returns 0 if the status bar is hidden or disabled.
     pub fn height(&self, config: &Config, is_fullscreen: bool) -> f32 {
-        if !config.status_bar_enabled || self.should_hide(config, is_fullscreen) {
+        if !config.status_bar.status_bar_enabled || self.should_hide(config, is_fullscreen) {
             0.0
         } else {
-            config.status_bar_height
+            config.status_bar.status_bar_height
         }
     }
 
     /// Determine whether the status bar should be hidden right now.
     pub fn should_hide(&self, config: &Config, is_fullscreen: bool) -> bool {
-        if !config.status_bar_enabled {
+        if !config.status_bar.status_bar_enabled {
             return true;
         }
-        if config.status_bar_auto_hide_fullscreen && is_fullscreen {
+        if config.status_bar.status_bar_auto_hide_fullscreen && is_fullscreen {
             return true;
         }
-        if config.status_bar_auto_hide_mouse_inactive {
+        if config.status_bar.status_bar_auto_hide_mouse_inactive {
             let elapsed = self.last_mouse_activity.elapsed().as_secs_f32();
-            if elapsed > config.status_bar_mouse_inactive_timeout {
+            if elapsed > config.status_bar.status_bar_mouse_inactive_timeout {
                 return true;
             }
         }
@@ -306,7 +306,7 @@ impl StatusBarUI {
 
     /// Start or stop the system monitor and git poller based on enabled widgets.
     pub fn sync_monitor_state(&self, config: &Config) {
-        if !config.status_bar_enabled {
+        if !config.status_bar.status_bar_enabled {
             if self.system_monitor.is_running() {
                 self.system_monitor.stop();
             }
@@ -318,25 +318,28 @@ impl StatusBarUI {
 
         // System monitor
         let needs_monitor = config
+            .status_bar
             .status_bar_widgets
             .iter()
             .any(|w| w.enabled && w.id.needs_system_monitor());
 
         if needs_monitor && !self.system_monitor.is_running() {
             self.system_monitor
-                .start(config.status_bar_system_poll_interval);
+                .start(config.status_bar.status_bar_system_poll_interval);
         } else if !needs_monitor && self.system_monitor.is_running() {
             self.system_monitor.stop();
         }
 
         // Git branch poller
         let needs_git = config
+            .status_bar
             .status_bar_widgets
             .iter()
             .any(|w| w.enabled && w.id == config::WidgetId::GitBranch);
 
         if needs_git && !self.git_poller.is_running() {
-            self.git_poller.start(config.status_bar_git_poll_interval);
+            self.git_poller
+                .start(config.status_bar.status_bar_git_poll_interval);
         } else if !needs_git && self.git_poller.is_running() {
             self.git_poller.stop();
         }
@@ -353,7 +356,7 @@ impl StatusBarUI {
         session_vars: &SessionVariables,
         is_fullscreen: bool,
     ) -> (f32, Option<StatusBarAction>) {
-        if !config.status_bar_enabled || self.should_hide(config, is_fullscreen) {
+        if !config.status_bar.status_bar_enabled || self.should_hide(config, is_fullscreen) {
             return (0.0, None);
         }
 
@@ -368,11 +371,11 @@ impl StatusBarUI {
         // Validate time format — update last-known-good on success, fall back on failure
         {
             use chrono::format::strftime::StrftimeItems;
-            let valid = !config.status_bar_time_format.is_empty()
-                && StrftimeItems::new(&config.status_bar_time_format)
+            let valid = !config.status_bar.status_bar_time_format.is_empty()
+                && StrftimeItems::new(&config.status_bar.status_bar_time_format)
                     .all(|item| !matches!(item, chrono::format::Item::Error));
             if valid {
-                self.last_valid_time_format = config.status_bar_time_format.clone();
+                self.last_valid_time_format = config.status_bar.status_bar_time_format.clone();
             }
         }
 
@@ -385,20 +388,20 @@ impl StatusBarUI {
             git_ahead: git_status.ahead,
             git_behind: git_status.behind,
             git_dirty: git_status.dirty,
-            git_show_status: config.status_bar_git_show_status,
+            git_show_status: config.status_bar.status_bar_git_show_status,
             time_format: self.last_valid_time_format.clone(),
             update_available_version: self.update_available_version.clone(),
         };
 
-        let bar_height = config.status_bar_height;
-        let [bg_r, bg_g, bg_b] = config.status_bar_bg_color;
-        let bg_alpha = (config.status_bar_bg_alpha * 255.0) as u8;
+        let bar_height = config.status_bar.status_bar_height;
+        let [bg_r, bg_g, bg_b] = config.status_bar.status_bar_bg_color;
+        let bg_alpha = (config.status_bar.status_bar_bg_alpha * 255.0) as u8;
         let bg_color = egui::Color32::from_rgba_unmultiplied(bg_r, bg_g, bg_b, bg_alpha);
 
-        let [fg_r, fg_g, fg_b] = config.status_bar_fg_color;
+        let [fg_r, fg_g, fg_b] = config.status_bar.status_bar_fg_color;
         let fg_color = egui::Color32::from_rgb(fg_r, fg_g, fg_b);
-        let font_size = config.status_bar_font_size;
-        let separator = &config.status_bar_separator;
+        let font_size = config.status_bar.status_bar_font_size;
+        let separator = &config.status_bar.status_bar_separator;
         let sep_color = fg_color.linear_multiply(0.4);
 
         // Use an egui::Area with a fixed size so the status bar stops before
@@ -412,7 +415,7 @@ impl StatusBarUI {
         let content_width = (viewport.width() - scrollbar_reserved - h_margin * 2.0).max(0.0);
         let content_height = (bar_height - v_margin * 2.0).max(0.0);
 
-        let bar_pos = match config.status_bar_position {
+        let bar_pos = match config.status_bar.status_bar_position {
             StatusBarPosition::Top => egui::pos2(0.0, 0.0),
             StatusBarPosition::Bottom => egui::pos2(0.0, viewport.height() - bar_height),
         };
@@ -458,7 +461,7 @@ impl StatusBarUI {
 
                         // === Left section ===
                         let left_widgets = sorted_widgets_for_section(
-                            &config.status_bar_widgets,
+                            &config.status_bar.status_bar_widgets,
                             StatusBarSection::Left,
                         );
                         let mut first = true;
@@ -476,7 +479,7 @@ impl StatusBarUI {
 
                         // === Center section ===
                         let center_widgets = sorted_widgets_for_section(
-                            &config.status_bar_widgets,
+                            &config.status_bar.status_bar_widgets,
                             StatusBarSection::Center,
                         );
                         if !center_widgets.is_empty() {
@@ -502,7 +505,7 @@ impl StatusBarUI {
 
                         // === Right section ===
                         let right_widgets = sorted_widgets_for_section(
-                            &config.status_bar_widgets,
+                            &config.status_bar.status_bar_widgets,
                             StatusBarSection::Right,
                         );
                         if !right_widgets.is_empty() {

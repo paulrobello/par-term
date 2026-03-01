@@ -199,7 +199,10 @@ impl WindowState {
                         .unwrap_or("Permission requested")
                         .to_string();
                     if is_terminal_screenshot_permission_tool(&tool_call)
-                        && !self.config.ai_inspector_agent_screenshot_access
+                        && !self
+                            .config
+                            .ai_inspector
+                            .ai_inspector_agent_screenshot_access
                     {
                         let deny_option_id = options
                             .iter()
@@ -548,7 +551,7 @@ impl WindowState {
         }
 
         // Auto-execute new CommandSuggestion messages when terminal access is enabled.
-        if self.config.ai_inspector_agent_terminal_access {
+        if self.config.ai_inspector.ai_inspector_agent_terminal_access {
             let new_messages = &self.overlay_ui.ai_inspector.chat.messages[msg_count_before..];
             let commands_to_run: Vec<String> = new_messages
                 .iter()
@@ -595,7 +598,7 @@ impl WindowState {
                 // Auto-context feeding: send latest command info to agent
                 if had_commands
                     && current_count > 0
-                    && self.config.ai_inspector_auto_context
+                    && self.config.ai_inspector.ai_inspector_auto_context
                     && self.overlay_ui.ai_inspector.agent_status == AgentStatus::Connected
                     && let Some((cmd, exit_code, duration_ms)) = history.last()
                 {
@@ -651,7 +654,7 @@ impl WindowState {
             let snapshot = crate::ai_inspector::snapshot::SnapshotData::gather(
                 &term,
                 &self.overlay_ui.ai_inspector.scope,
-                self.config.ai_inspector_context_max_lines,
+                self.config.ai_inspector.ai_inspector_context_max_lines,
             );
             self.overlay_ui.ai_inspector.snapshot = Some(snapshot);
             self.overlay_ui.ai_inspector.needs_refresh = false;

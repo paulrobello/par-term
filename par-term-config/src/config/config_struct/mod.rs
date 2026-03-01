@@ -67,20 +67,23 @@
 //! | Security                     | `SecurityConfig`       |
 //! | AI Inspector                 | `AiInspectorConfig`    |
 
+mod ai_inspector_config;
 mod copy_mode_config;
 mod default_impl;
 mod search_config;
 mod ssh_config;
+mod status_bar_config;
 mod unicode_config;
 mod update;
 
+pub use ai_inspector_config::AiInspectorConfig;
 pub use copy_mode_config::CopyModeConfig;
 pub use search_config::SearchConfig;
 pub use ssh_config::SshConfig;
+pub use status_bar_config::StatusBarConfig;
 pub use unicode_config::UnicodeConfig;
 pub use update::UpdateConfig;
 
-use crate::config::acp::CustomAcpAgentConfig;
 use crate::snippets::{CustomActionConfig, SnippetConfig};
 use crate::types::{
     AlertEvent, AlertSoundConfig, BackgroundImageMode, BackgroundMode, CursorShaderConfig,
@@ -88,9 +91,9 @@ use crate::types::{
     ImageScalingMode, InstallPromptState, IntegrationVersions, KeyBinding, LogLevel,
     ModifierRemapping, OptionKeyMode, PaneTitlePosition, PowerPreference, ProgressBarPosition,
     ProgressBarStyle, SemanticHistoryEditorMode, SessionLogFormat, ShaderConfig,
-    ShaderInstallPrompt, ShellExitAction, SmartSelectionRule, StartupDirectoryMode,
-    StatusBarPosition, TabBarMode, TabBarPosition, TabStyle, TabTitleMode, ThinStrokesMode,
-    UnfocusedCursorStyle, VsyncMode, WindowType,
+    ShaderInstallPrompt, ShellExitAction, SmartSelectionRule, StartupDirectoryMode, TabBarMode,
+    TabBarPosition, TabStyle, TabTitleMode, ThinStrokesMode, UnfocusedCursorStyle, VsyncMode,
+    WindowType,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -1599,73 +1602,11 @@ pub struct Config {
     // ========================================================================
     // Status Bar Settings
     // ========================================================================
-    /// Enable the status bar
-    #[serde(default = "crate::defaults::bool_false")]
-    pub status_bar_enabled: bool,
-
-    /// Status bar position (top or bottom)
-    #[serde(default)]
-    pub status_bar_position: StatusBarPosition,
-
-    /// Status bar height in pixels
-    #[serde(default = "crate::defaults::status_bar_height")]
-    pub status_bar_height: f32,
-
-    /// Status bar background color [R, G, B] (0-255)
-    #[serde(default = "crate::defaults::status_bar_bg_color")]
-    pub status_bar_bg_color: [u8; 3],
-
-    /// Status bar background alpha (0.0-1.0)
-    #[serde(default = "crate::defaults::status_bar_bg_alpha")]
-    pub status_bar_bg_alpha: f32,
-
-    /// Status bar foreground (text) color [R, G, B] (0-255)
-    #[serde(default = "crate::defaults::status_bar_fg_color")]
-    pub status_bar_fg_color: [u8; 3],
-
-    /// Status bar font family (empty string = use terminal font)
-    #[serde(default)]
-    pub status_bar_font: String,
-
-    /// Status bar font size in points
-    #[serde(default = "crate::defaults::status_bar_font_size")]
-    pub status_bar_font_size: f32,
-
-    /// Separator string between widgets
-    #[serde(default = "crate::defaults::status_bar_separator")]
-    pub status_bar_separator: String,
-
-    /// Auto-hide the status bar when in fullscreen mode
-    #[serde(default = "crate::defaults::bool_true")]
-    pub status_bar_auto_hide_fullscreen: bool,
-
-    /// Auto-hide the status bar when mouse is inactive
-    #[serde(default = "crate::defaults::bool_false")]
-    pub status_bar_auto_hide_mouse_inactive: bool,
-
-    /// Timeout in seconds before hiding status bar after last mouse activity
-    #[serde(default = "crate::defaults::status_bar_mouse_inactive_timeout")]
-    pub status_bar_mouse_inactive_timeout: f32,
-
-    /// Polling interval in seconds for system monitor data (CPU, memory, network)
-    #[serde(default = "crate::defaults::status_bar_system_poll_interval")]
-    pub status_bar_system_poll_interval: f32,
-
-    /// Polling interval in seconds for git branch detection
-    #[serde(default = "crate::defaults::status_bar_git_poll_interval")]
-    pub status_bar_git_poll_interval: f32,
-
-    /// Time format string for the Clock widget (chrono strftime syntax)
-    #[serde(default = "crate::defaults::status_bar_time_format")]
-    pub status_bar_time_format: String,
-
-    /// Show ahead/behind and dirty indicators on the Git Branch widget
-    #[serde(default = "crate::defaults::bool_true")]
-    pub status_bar_git_show_status: bool,
-
-    /// Widget configuration list
-    #[serde(default = "crate::status_bar::default_widgets")]
-    pub status_bar_widgets: Vec<crate::status_bar::StatusBarWidgetConfig>,
+    /// Status bar settings (see [`StatusBarConfig`]).
+    ///
+    /// All `status_bar_*` fields are flattened here for YAML backward-compatibility.
+    #[serde(flatten)]
+    pub status_bar: StatusBarConfig,
 
     // ========================================================================
     // Progress Bar Settings (OSC 9;4 and OSC 934)
@@ -1794,66 +1735,9 @@ pub struct Config {
     // ========================================================================
     // AI Inspector
     // ========================================================================
-    /// Enable AI Inspector side panel
-    #[serde(default = "crate::defaults::ai_inspector_enabled")]
-    pub ai_inspector_enabled: bool,
-
-    /// Open the AI Inspector panel automatically on startup
-    #[serde(default = "crate::defaults::ai_inspector_open_on_startup")]
-    pub ai_inspector_open_on_startup: bool,
-
-    /// Width of the AI Inspector panel in pixels
-    #[serde(default = "crate::defaults::ai_inspector_width")]
-    pub ai_inspector_width: f32,
-
-    /// Default capture scope: "visible", "scrollback", or "selection"
-    #[serde(default = "crate::defaults::ai_inspector_default_scope")]
-    pub ai_inspector_default_scope: String,
-
-    /// View mode for inspector results: "cards" or "raw"
-    #[serde(default = "crate::defaults::ai_inspector_view_mode")]
-    pub ai_inspector_view_mode: String,
-
-    /// Automatically refresh inspector when terminal content changes
-    #[serde(default = "crate::defaults::ai_inspector_live_update")]
-    pub ai_inspector_live_update: bool,
-
-    /// Show semantic zone overlays on terminal content
-    #[serde(default = "crate::defaults::ai_inspector_show_zones")]
-    pub ai_inspector_show_zones: bool,
-
-    /// AI agent identifier for inspector queries
-    #[serde(default = "crate::defaults::ai_inspector_agent")]
-    pub ai_inspector_agent: String,
-
-    /// Automatically launch AI agent when inspector opens
-    #[serde(default = "crate::defaults::ai_inspector_auto_launch")]
-    pub ai_inspector_auto_launch: bool,
-
-    /// Automatically include terminal context with AI queries
-    #[serde(default = "crate::defaults::ai_inspector_auto_context")]
-    pub ai_inspector_auto_context: bool,
-
-    /// Maximum number of terminal lines to include as AI context
-    #[serde(default = "crate::defaults::ai_inspector_context_max_lines")]
-    pub ai_inspector_context_max_lines: usize,
-
-    /// Automatically approve AI-suggested actions without confirmation
-    #[serde(default = "crate::defaults::ai_inspector_auto_approve")]
-    pub ai_inspector_auto_approve: bool,
-
-    /// Allow the AI agent to write input to the terminal (drive terminal)
-    #[serde(default = "crate::defaults::ai_inspector_agent_terminal_access")]
-    pub ai_inspector_agent_terminal_access: bool,
-
-    /// Allow the AI agent to request terminal screenshots (permission-gated per request)
-    #[serde(default = "crate::defaults::ai_inspector_agent_screenshot_access")]
-    pub ai_inspector_agent_screenshot_access: bool,
-
-    /// Additional ACP agents defined directly in `config.yaml`.
+    /// AI Inspector side panel settings (see [`AiInspectorConfig`]).
     ///
-    /// Entries here are merged into discovered agents and override agents with
-    /// the same `identity`.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub ai_inspector_custom_agents: Vec<CustomAcpAgentConfig>,
+    /// All `ai_inspector_*` fields are flattened here for YAML backward-compatibility.
+    #[serde(flatten)]
+    pub ai_inspector: AiInspectorConfig,
 }

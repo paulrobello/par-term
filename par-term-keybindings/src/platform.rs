@@ -16,11 +16,7 @@ use winit::keyboard::{KeyCode, NamedKey};
 /// - macOS: `CmdOrCtrl` maps to Super (Cmd key).
 /// - All other platforms: `CmdOrCtrl` maps to Ctrl.
 #[inline]
-pub fn resolve_cmd_or_ctrl(
-    cmd_or_ctrl: bool,
-    ctrl: bool,
-    super_key: bool,
-) -> (bool, bool) {
+pub fn resolve_cmd_or_ctrl(cmd_or_ctrl: bool, ctrl: bool, super_key: bool) -> (bool, bool) {
     if cmd_or_ctrl {
         #[cfg(target_os = "macos")]
         {

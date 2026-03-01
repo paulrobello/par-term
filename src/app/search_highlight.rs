@@ -86,7 +86,7 @@ impl WindowState {
 /// # Arguments
 /// * `term` - The terminal manager
 /// * `visible_lines` - Number of visible terminal rows
-pub fn get_current_screen_lines(
+pub(crate) fn get_current_screen_lines(
     term: &crate::terminal::TerminalManager,
     visible_lines: usize,
 ) -> Vec<String> {
@@ -109,7 +109,7 @@ pub fn get_current_screen_lines(
 ///
 /// # Returns
 /// Iterator of (absolute_line_index, line_text) pairs where line 0 is the oldest scrollback line.
-pub fn get_all_searchable_lines(
+pub(crate) fn get_all_searchable_lines(
     term: &crate::terminal::TerminalManager,
     visible_lines: usize,
 ) -> impl Iterator<Item = (usize, String)> {

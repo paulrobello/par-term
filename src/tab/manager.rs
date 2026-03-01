@@ -8,7 +8,7 @@ use std::sync::Arc;
 use tokio::runtime::Runtime;
 
 /// Manages multiple terminal tabs within a single window
-pub struct TabManager {
+pub(crate) struct TabManager {
     /// All tabs in this window, in order
     tabs: Vec<Tab>,
     /// Currently active tab ID

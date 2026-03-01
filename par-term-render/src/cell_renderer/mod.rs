@@ -9,21 +9,22 @@ use par_term_fonts::font_manager::FontManager;
 
 pub mod atlas;
 pub mod background;
+mod bg_instance_builder;
 pub mod block_chars;
 mod cursor;
 mod font;
 mod instance_buffers;
-mod instance_builders;
 mod layout;
 pub(crate) mod pane_render;
 pub mod pipeline;
 pub mod render;
 mod settings;
 mod surface;
+mod text_instance_builder;
 pub mod types;
 // Re-export public types for external use
-pub use types::{Cell, PaneViewport};
 pub(crate) use pane_render::PaneRenderViewParams;
+pub use types::{Cell, PaneViewport};
 // Re-export internal types for use within the cell_renderer module
 pub(crate) use types::{BackgroundInstance, GlyphInfo, RowCacheEntry, TextInstance};
 // Re-export instance buffer constants so mod.rs can reference them

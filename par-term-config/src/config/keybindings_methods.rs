@@ -49,6 +49,7 @@ impl Config {
         let default_widgets = crate::status_bar::default_widgets();
 
         let existing_ids: std::collections::HashSet<crate::status_bar::WidgetId> = self
+            .status_bar
             .status_bar_widgets
             .iter()
             .map(|w| w.id.clone())
@@ -61,7 +62,7 @@ impl Config {
                     "Adding new default status bar widget: {:?}",
                     default_widget.id
                 );
-                self.status_bar_widgets.push(default_widget);
+                self.status_bar.status_bar_widgets.push(default_widget);
                 added_count += 1;
             }
         }

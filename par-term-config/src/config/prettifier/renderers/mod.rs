@@ -20,7 +20,9 @@ mod toggle;
 // Re-export everything so external callers can use flat paths like
 // `config::prettifier::RenderersConfig` without knowing the sub-module layout.
 pub use collection::{RenderersConfig, RenderersConfigOverride};
-pub use custom::{CustomRendererConfig, FormatDetectionRulesConfig, RuleOverride, UserDetectionRule};
+pub use custom::{
+    CustomRendererConfig, FormatDetectionRulesConfig, RuleOverride, UserDetectionRule,
+};
 pub use diagrams::DiagramRendererConfig;
 pub use diff_log::DiffRendererConfig;
 pub use toggle::{RendererToggle, RendererToggleOverride};

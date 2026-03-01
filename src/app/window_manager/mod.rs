@@ -35,7 +35,7 @@ use tokio::runtime::Runtime;
 use winit::window::WindowId;
 
 /// Manages multiple terminal windows and shared resources
-pub struct WindowManager {
+pub(crate) struct WindowManager {
     /// Per-window state indexed by window ID
     pub(crate) windows: HashMap<WindowId, WindowState>,
     /// Native menu manager

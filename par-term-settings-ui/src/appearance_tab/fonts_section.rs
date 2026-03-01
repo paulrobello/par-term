@@ -451,4 +451,3 @@ pub(super) fn show_font_rendering_section(
         );
     }
 }
-

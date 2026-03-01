@@ -355,7 +355,7 @@ fn resolve_par_term_binary(
 fn discover_and_merge_agents(config: &Config) -> Vec<AgentConfig> {
     let config_dir = Config::config_dir();
     let discovered = discover_agents(&config_dir);
-    merge_custom_agents(discovered, &config.ai_inspector_custom_agents)
+    merge_custom_agents(discovered, &config.ai_inspector.ai_inspector_custom_agents)
 }
 
 fn merge_custom_agents(
