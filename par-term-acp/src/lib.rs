@@ -9,11 +9,12 @@
 //!
 //! - [`agent`] - Agent lifecycle management (spawn, handshake, message routing dispatch)
 //! - [`agents`] - Agent discovery and configuration loading
+//! - [`message_handler`] - Background async task that routes incoming JSON-RPC messages to the UI
 //! - [`protocol`] - ACP message types (initialize, session, permission, etc.)
 //! - [`jsonrpc`] - JSON-RPC 2.0 client implementation
 //! - [`fs_ops`] - Low-level filesystem operations (read, write, list, find)
 //! - [`fs_tools`] - RPC handler functions for `fs/*` tool calls from the agent
-//! - [`permissions`] - Permission request dispatch, auto-approval logic, and `is_safe_write_path`
+//! - [`permissions`] - Permission request dispatch, auto-approval logic, `SafePaths`, and `is_safe_write_path`
 //! - [`session`] - Session-new parameter builders (MCP server descriptor, Claude wrapper metadata)
 //!
 //! # Example
@@ -51,13 +52,15 @@ pub mod fs_ops;
 pub mod fs_tools;
 pub mod harness;
 pub mod jsonrpc;
+pub mod message_handler;
 pub mod permissions;
 pub mod protocol;
 pub mod session;
 
 // Re-export the main public types at the crate root for convenience
-pub use agent::{Agent, AgentMessage, AgentStatus, SafePaths};
+pub use agent::{Agent, AgentMessage, AgentStatus};
 pub use agents::{AgentConfig, discover_agents};
+pub use permissions::SafePaths;
 pub use jsonrpc::{IncomingMessage, JsonRpcClient, Request, Response, RpcError};
 pub use protocol::{
     ClientCapabilities, ClientInfo, ContentBlock, FsCapabilities, FsFindParams,

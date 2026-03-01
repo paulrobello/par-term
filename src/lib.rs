@@ -67,7 +67,14 @@ pub mod platform;
 pub mod prettifier;
 pub mod profile;
 pub mod profile_drawer_ui;
-pub mod profile_modal_ui;
+pub mod profile_modal_ui {
+    //! Profile management modal UI — re-exported from `par-term-settings-ui`.
+    //!
+    //! The authoritative implementation lives in `par-term-settings-ui::profile_modal_ui`.
+    //! This module is a thin re-export so that downstream code (including integration
+    //! tests) can continue to use `par_term::profile_modal_ui` as the import path.
+    pub use par_term_settings_ui::profile_modal_ui::*;
+}
 pub mod progress_bar;
 pub mod quit_confirmation_ui;
 pub mod remote_shell_install_ui;

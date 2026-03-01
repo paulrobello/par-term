@@ -1,6 +1,8 @@
 //! Permission request dispatch and approval logic for ACP.
 //!
 //! This module contains:
+//! - [`SafePaths`]: application-level policy struct defining directories that
+//!   are considered safe for agent write operations.
 //! - [`is_safe_write_path`]: checks whether a write tool call targets a
 //!   directory that can be auto-approved without user confirmation.
 //! - [`handle_permission_request`]: the full `session/request_permission`
@@ -11,10 +13,23 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
-use super::agent::{AgentMessage, SafePaths};
+use super::agent::AgentMessage;
 use super::jsonrpc::{JsonRpcClient, RpcError};
 use super::protocol::{PermissionOutcome, RequestPermissionParams, RequestPermissionResponse};
 use tokio::sync::mpsc;
+
+/// Directories considered safe for agent writes (auto-approved).
+///
+/// This is an application-level security policy struct — it defines which
+/// filesystem locations the agent may write to without prompting the user.
+/// It is separate from the protocol-level permission types in [`super::protocol`].
+#[derive(Debug, Clone)]
+pub struct SafePaths {
+    /// Directory for par-term configuration files.
+    pub config_dir: PathBuf,
+    /// Directory for user shader files.
+    pub shaders_dir: PathBuf,
+}
 
 /// Extract the file path from a tool_call JSON and check if it is in a safe
 /// directory that can be auto-approved for writes.

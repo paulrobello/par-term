@@ -1,4 +1,4 @@
-use super::{ShellLifecycleEvent, TerminalManager};
+use super::TerminalManager;
 use crate::scrollback_metadata::{CommandSnapshot, LineMetadata, ScrollbackMark};
 use par_term_emu_core_rust::shell_integration::ShellIntegrationMarker;
 use par_term_emu_core_rust::terminal::Terminal;
@@ -43,30 +43,17 @@ impl TerminalManager {
                 let abs_line = cursor_line.unwrap_or(scrollback_len + cursor_row);
 
                 // Track cursor position at CommandStart (B) for command text extraction.
-                let prev_marker = self.last_shell_marker;
-                if marker != prev_marker {
-                    let cursor_col = term.cursor().col;
-                    match marker {
-                        Some(ShellIntegrationMarker::CommandStart) => {
-                            self.command_start_pos = Some((abs_line, cursor_col));
-                        }
-                        _ => {
-                            if let Some((start_abs_line, start_col)) = self.command_start_pos.take()
-                            {
-                                let text = Self::extract_command_text(
-                                    &term,
-                                    start_abs_line,
-                                    start_col,
-                                    scrollback_len,
-                                );
-                                if !text.is_empty() {
-                                    self.captured_command_text = Some((start_abs_line, text));
-                                }
-                            }
-                        }
-                    }
-                    self.last_shell_marker = marker;
-                }
+                // Delegate the state transition to MarkerTracker, providing a closure
+                // that captures `term` and `scrollback_len` for text extraction.
+                let cursor_col = term.cursor().col;
+                self.marker_tracker.process_marker_transition(
+                    marker,
+                    abs_line,
+                    cursor_col,
+                    |start_abs_line, start_col| {
+                        Self::extract_command_text(&term, start_abs_line, start_col, scrollback_len)
+                    },
+                );
 
                 // Only pass history/exit info for CommandFinished events.
                 let is_finished = matches!(marker, Some(ShellIntegrationMarker::CommandFinished));
@@ -88,23 +75,21 @@ impl TerminalManager {
                     "command_executed" => {
                         let cmd_text = event_command
                             .clone()
-                            .or_else(|| self.captured_command_text.as_ref().map(|(_, t)| t.clone()))
+                            .or_else(|| {
+                                self.marker_tracker
+                                    .captured_command_text
+                                    .as_ref()
+                                    .map(|(_, t)| t.clone())
+                            })
                             .unwrap_or_default();
                         if !cmd_text.is_empty() {
                             term.start_command_execution(cmd_text.clone());
-                            self.shell_lifecycle_events
-                                .push(ShellLifecycleEvent::CommandStarted {
-                                    command: cmd_text,
-                                    absolute_line: abs_line,
-                                });
+                            self.marker_tracker.push_command_started(cmd_text, abs_line);
                         }
                     }
                     "command_finished" => {
                         term.end_command_execution(*exit_code);
-                        self.shell_lifecycle_events
-                            .push(ShellLifecycleEvent::CommandFinished {
-                                absolute_line: abs_line,
-                            });
+                        self.marker_tracker.push_command_finished(abs_line);
                     }
                     _ => {}
                 }
@@ -117,7 +102,7 @@ impl TerminalManager {
 
         // If we captured command text, apply it to the mark at the command's
         // absolute line.
-        if let Some((abs_line, cmd)) = self.captured_command_text.take() {
+        if let Some((abs_line, cmd)) = self.marker_tracker.take_captured_command_text() {
             self.scrollback_metadata.set_mark_command_at(abs_line, cmd);
         }
     }
@@ -319,14 +304,12 @@ impl TerminalManager {
     /// Clear scrollback metadata (prompt marks, command history, timestamps).
     pub fn clear_scrollback_metadata(&mut self) {
         self.scrollback_metadata.clear();
-        self.last_shell_marker = None;
-        self.command_start_pos = None;
-        self.captured_command_text = None;
+        self.marker_tracker.reset();
     }
 
     /// Drain queued shell lifecycle events for the prettifier pipeline.
-    pub fn drain_shell_lifecycle_events(&mut self) -> Vec<ShellLifecycleEvent> {
-        std::mem::take(&mut self.shell_lifecycle_events)
+    pub fn drain_shell_lifecycle_events(&mut self) -> Vec<super::ShellLifecycleEvent> {
+        self.marker_tracker.drain_events()
     }
 
     /// Search for text in the visible screen.

@@ -2,7 +2,6 @@ use crate::scrollback_metadata::ScrollbackMetadata;
 use anyhow::Result;
 use par_term_config::Theme;
 use par_term_emu_core_rust::pty_session::PtySession;
-use par_term_emu_core_rust::shell_integration::ShellIntegrationMarker;
 use par_term_emu_core_rust::terminal::Terminal;
 use parking_lot::Mutex;
 use std::sync::Arc;
@@ -26,6 +25,7 @@ pub use par_term_emu_core_rust::terminal::{ClipboardEntry, ClipboardSlot};
 pub mod clipboard;
 pub mod graphics;
 pub mod hyperlinks;
+pub(crate) mod marker_tracking;
 pub mod rendering;
 pub mod scrollback;
 pub mod spawn;
@@ -43,18 +43,8 @@ pub struct TerminalManager {
     pub(crate) theme: Theme,
     /// Scrollback metadata for shell integration markers
     pub(crate) scrollback_metadata: ScrollbackMetadata,
-    /// Previous shell integration marker for detecting transitions
-    last_shell_marker: Option<ShellIntegrationMarker>,
-    /// Absolute line and column at CommandStart (B marker) for extracting command text.
-    /// Stored as (absolute_line, col) where absolute_line = scrollback_len + cursor_row
-    /// at the time the B marker was seen. Using absolute line rather than grid row
-    /// ensures we can still find the command text even after it scrolls into scrollback.
-    command_start_pos: Option<(usize, usize)>,
-    /// Command text captured from the terminal (waiting to be applied to a mark).
-    /// Stored as (absolute_line, text) so we can target the correct mark.
-    captured_command_text: Option<(usize, String)>,
-    /// Shell lifecycle events queued for the prettifier pipeline.
-    shell_lifecycle_events: Vec<ShellLifecycleEvent>,
+    /// Shell lifecycle marker state machine (OSC 133 tracking).
+    pub(crate) marker_tracker: marker_tracking::MarkerTracker,
 }
 
 impl TerminalManager {
@@ -80,10 +70,7 @@ impl TerminalManager {
             dimensions: (cols, rows),
             theme: Theme::default(),
             scrollback_metadata: ScrollbackMetadata::new(),
-            last_shell_marker: None,
-            command_start_pos: None,
-            captured_command_text: None,
-            shell_lifecycle_events: Vec::new(),
+            marker_tracker: marker_tracking::MarkerTracker::new(),
         })
     }
 
