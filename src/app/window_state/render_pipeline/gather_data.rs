@@ -18,8 +18,8 @@
 //! - `cells`, `current_generation`, `scroll_offset`, `scrollback_len` are
 //!   computed early and consumed/mutated by every downstream phase.
 //! - The prettifier pipeline phases borrow `tab.prettifier` mutably while
-//!   other phases read `tab.cache` and `tab.terminal` — simultaneous borrows
-//!   that force sequential access patterns.
+//!   other phases access the focused pane's cache via `tab.pane_manager` —
+//!   distinct struct fields, so NLL allows simultaneous borrows (R-32).
 //!
 //! ## Proposed `ClaudeCodePrettifierBridge` struct (future extraction)
 //!
@@ -48,8 +48,8 @@
 //! }
 //! ```
 //!
-//! Extraction is deferred because it requires refactoring `tab.cache` field
-//! access patterns and is a prerequisite of R-31 (gpu_submit stabilization).
+//! Extraction is deferred as a follow-on to R-32 and is a prerequisite of
+//! R-31 (gpu_submit stabilization).
 
 use super::super::{preprocess_claude_code_segment, reconstruct_markdown_from_cells};
 use super::FrameRenderData;
@@ -242,15 +242,32 @@ impl WindowState {
                         command,
                         absolute_line,
                     } => {
-                        // Use tab.cache directly: prettifier is tab-level, accessing
-                        // active_cache_mut() while tab.prettifier is borrowed would conflict.
-                        tab.cache.prettifier_command_start_line = Some(*absolute_line);
-                        tab.cache.prettifier_command_text = Some(command.clone());
+                        // Access the focused pane's cache directly (R-32).
+                        // `tab.prettifier` is borrowed as `pipeline` above; `tab.pane_manager`
+                        // is a distinct struct field so NLL allows both borrows simultaneously.
+                        if let Some(ref mut pm) = tab.pane_manager
+                            && let Some(pane) = pm.focused_pane_mut()
+                        {
+                            pane.cache.prettifier_command_start_line = Some(*absolute_line);
+                            pane.cache.prettifier_command_text = Some(command.clone());
+                        }
                         pipeline.on_command_start(command);
                     }
                     par_term_terminal::ShellLifecycleEvent::CommandFinished { absolute_line } => {
-                        if let Some(start) = tab.cache.prettifier_command_start_line.take() {
-                            let cmd_text = tab.cache.prettifier_command_text.take();
+                        // Extract the cached start line and command text from the focused pane.
+                        // `tab.pane_manager` is a distinct field from `tab.prettifier` (borrowed
+                        // as `pipeline` above) — NLL permits the simultaneous borrows.
+                        let (start, cmd_text) = if let Some(ref mut pm) = tab.pane_manager
+                            && let Some(pane) = pm.focused_pane_mut()
+                        {
+                            (
+                                pane.cache.prettifier_command_start_line.take(),
+                                pane.cache.prettifier_command_text.take(),
+                            )
+                        } else {
+                            (None, None)
+                        };
+                        if let Some(start) = start {
                             // Read full command output from scrollback so the
                             // prettified block covers the entire output, not just
                             // the visible portion. This ensures scrolling through
@@ -283,22 +300,30 @@ impl WindowState {
         // from scrollback on CommandFinished instead.
         //
         // Note: We check the cache conditions first (before borrowing `pipeline`) to avoid
-        // simultaneous borrow conflicts between `tab.prettifier` and `tab.active_cache_mut()`.
-        // The prettifier is a tab-level concept so we access tab.cache directly here.
+        // simultaneous borrow conflicts between `tab.prettifier` and the focused pane cache.
+        // After R-32, per-pane cache is accessed via `tab.pane_manager` (a distinct field from
+        // `tab.prettifier`), so NLL permits simultaneous borrows inside the pipeline block.
         if let Some(tab) = self.tab_manager.active_tab_mut() {
             // Check conditions that don't need pipeline borrow
             let needs_feed = tab.prettifier.as_ref().is_some_and(|p| p.is_enabled())
                 && !is_alt_screen
-                && (current_generation != tab.cache.prettifier_feed_generation
-                    || scroll_offset != tab.cache.prettifier_feed_scroll_offset);
+                && (current_generation != tab.active_cache().prettifier_feed_generation
+                    || scroll_offset != tab.active_cache().prettifier_feed_scroll_offset);
 
             if needs_feed
                 && let Some(ref mut pipeline) = tab.prettifier
                 && pipeline.detection_scope()
                     != crate::prettifier::boundary::DetectionScope::CommandOutput
             {
-                tab.cache.prettifier_feed_generation = current_generation;
-                tab.cache.prettifier_feed_scroll_offset = scroll_offset;
+                // Update the focused pane's cache feed tracking fields.
+                // `tab.prettifier` is borrowed above as `pipeline`; `tab.pane_manager`
+                // is a distinct struct field — NLL allows the simultaneous borrows.
+                if let Some(ref mut pm) = tab.pane_manager
+                    && let Some(pane) = pm.focused_pane_mut()
+                {
+                    pane.cache.prettifier_feed_generation = current_generation;
+                    pane.cache.prettifier_feed_scroll_offset = scroll_offset;
+                }
 
                 // Heuristic Claude Code session detection from visible output.
                 // One-time: scan for signature patterns if not yet detected.
@@ -360,9 +385,20 @@ impl WindowState {
                         scroll_offset.hash(&mut hasher);
                         hasher.finish()
                     };
-                    let viewport_changed = viewport_hash != tab.cache.prettifier_feed_last_hash;
+                    // R-32: access via pane_manager (distinct field from tab.prettifier/pipeline).
+                    let cached_hash = tab
+                        .pane_manager
+                        .as_ref()
+                        .and_then(|pm| pm.focused_pane())
+                        .map(|p| p.cache.prettifier_feed_last_hash)
+                        .unwrap_or(0);
+                    let viewport_changed = viewport_hash != cached_hash;
                     if viewport_changed {
-                        tab.cache.prettifier_feed_last_hash = viewport_hash;
+                        if let Some(ref mut pm) = tab.pane_manager
+                            && let Some(pane) = pm.focused_pane_mut()
+                        {
+                            pane.cache.prettifier_feed_last_hash = viewport_hash;
+                        }
                         if !pipeline.active_blocks().is_empty() {
                             pipeline.clear_blocks();
                             crate::debug_log!(
@@ -550,14 +586,28 @@ impl WindowState {
                             hasher.finish()
                         };
 
-                        if content_hash == tab.cache.prettifier_feed_last_hash {
+                        // R-32: read/write the focused pane's cache via tab.pane_manager
+                        // (distinct field from tab.prettifier/pipeline — NLL allows it).
+                        let cached_last_hash = tab
+                            .pane_manager
+                            .as_ref()
+                            .and_then(|pm| pm.focused_pane())
+                            .map(|p| p.cache.prettifier_feed_last_hash)
+                            .unwrap_or(0);
+
+                        if content_hash == cached_last_hash {
                             // Identical content — skip entirely.
                             crate::debug_trace!(
                                 "PRETTIFIER",
                                 "per-frame feed (non-CC): content unchanged, skipping"
                             );
                         } else {
-                            let elapsed = tab.cache.prettifier_feed_last_time.elapsed();
+                            let elapsed = tab
+                                .pane_manager
+                                .as_ref()
+                                .and_then(|pm| pm.focused_pane())
+                                .map(|p| p.cache.prettifier_feed_last_time.elapsed())
+                                .unwrap_or_default();
                             let throttle = std::time::Duration::from_millis(150);
                             let has_block = !pipeline.active_blocks().is_empty();
 
@@ -578,8 +628,13 @@ impl WindowState {
                                     scrollback_len,
                                     scroll_offset
                                 );
-                                tab.cache.prettifier_feed_last_hash = content_hash;
-                                tab.cache.prettifier_feed_last_time = std::time::Instant::now();
+                                if let Some(ref mut pm) = tab.pane_manager
+                                    && let Some(pane) = pm.focused_pane_mut()
+                                {
+                                    pane.cache.prettifier_feed_last_hash = content_hash;
+                                    pane.cache.prettifier_feed_last_time =
+                                        std::time::Instant::now();
+                                }
                                 pipeline.submit_command_output(lines, None);
                             }
                         }

@@ -23,15 +23,11 @@ pub(crate) use profile_state::TabProfileState;
 pub(crate) use scripting_state::TabScriptingState;
 pub(crate) use tmux_state::TabTmuxState;
 
-use crate::app::bell::BellState;
-use crate::app::mouse::MouseState;
-use crate::app::render_cache::RenderCache;
 use crate::config::Config;
 use crate::pane::PaneManager;
 use crate::prettifier::gutter::GutterManager;
 use crate::prettifier::pipeline::PrettifierPipeline;
 use crate::profile::Profile;
-use crate::scroll_state::ScrollState;
 use crate::session_logger::{SessionLogger, SharedSessionLogger, create_shared_logger};
 use crate::tab::initial_text::build_initial_text_payload;
 use crate::terminal::TerminalManager;
@@ -93,55 +89,17 @@ pub struct Tab {
     pub(crate) terminal: Arc<RwLock<TerminalManager>>,
     /// Pane manager for split pane support.
     ///
+    /// Always `Some` — initialised with a single primary pane at tab creation
+    /// (R-32).  The primary pane shares `Tab::terminal`'s `Arc` so no extra
+    /// shell process is spawned.  Additional panes are added on the first user
+    /// split; the pane count transitions from 1 → 2.
+    ///
     /// Not behind a Mutex — accessed only from the sync winit event loop on the main thread.
     pub(crate) pane_manager: Option<PaneManager>,
     /// Tab title (from OSC sequences or fallback)
     pub(crate) title: String,
     /// Whether this tab has unread activity since last viewed
     pub(crate) has_activity: bool,
-    /// Scroll state for this tab (single-pane mode) or fallback for split-pane mode.
-    ///
-    /// External callers MUST use [`Tab::active_scroll_state`] and
-    /// [`Tab::active_scroll_state_mut`] instead of accessing this field directly.
-    /// Those accessors route through the focused pane in split-pane mode so that
-    /// per-pane scroll state is correctly isolated.
-    ///
-    /// This field serves as the fallback when no pane manager is active (i.e.
-    /// the tab is running in single-pane mode). It remains here until per-pane
-    /// `Pane::scroll_state` is the sole source of truth and the fallback can be
-    /// removed (see AUD-002 / AUD-062).
-    pub(crate) scroll_state: ScrollState,
-    /// Mouse state for this tab (single-pane mode) or fallback for split-pane mode.
-    ///
-    /// External callers MUST use [`Tab::active_mouse`] / [`Tab::active_mouse_mut`]
-    /// for general mouse state, or [`Tab::selection_mouse`] /
-    /// [`Tab::selection_mouse_mut`] for selection-specific state.
-    ///
-    /// This field serves as the fallback when no pane manager is active. It will
-    /// be removed once all call sites use the per-pane `Pane::mouse` field and the
-    /// split-pane path is fully validated (see AUD-002 / AUD-062).
-    pub(crate) mouse: MouseState,
-    /// Bell state for this tab (single-pane mode) or fallback for split-pane mode.
-    ///
-    /// External callers MUST use [`Tab::active_bell`] / [`Tab::active_bell_mut`]
-    /// instead of accessing this field directly. The accessor routes through the
-    /// focused pane in split-pane mode.
-    ///
-    /// This field serves as the fallback when no pane manager is active and will
-    /// be removed once per-pane `Pane::bell` is the sole source of truth
-    /// (see AUD-002 / AUD-062).
-    pub(crate) bell: BellState,
-    /// Render cache for this tab (single-pane mode) or fallback for split-pane mode.
-    ///
-    /// External callers MUST use [`Tab::active_cache`] / [`Tab::active_cache_mut`]
-    /// instead of accessing this field directly, except for prettifier fields that
-    /// are explicitly tab-level (e.g. `prettifier_command_start_line`), where direct
-    /// access is intentional and documented inline to avoid borrow conflicts.
-    ///
-    /// This field serves as the fallback when no pane manager is active and will
-    /// be removed once per-pane `Pane::cache` is the sole source of truth
-    /// (see AUD-002 / AUD-062).
-    pub(crate) cache: RenderCache,
     /// Async task for refresh polling
     pub(crate) refresh_task: Option<JoinHandle<()>>,
     /// Working directory when tab was created (for inheriting).
@@ -332,16 +290,22 @@ impl Tab {
             });
         }
 
+        // Always create a PaneManager with one primary pane that wraps `tab.terminal`
+        // (R-32). This eliminates the fallback scroll_state/mouse/bell/cache fields
+        // that were used when pane_manager was None (single-pane mode).
+        let is_active = Arc::new(AtomicBool::new(false));
+        let pane_manager = PaneManager::new_with_existing_terminal(
+            Arc::clone(&terminal),
+            params.working_directory.clone(),
+            Arc::clone(&is_active),
+        );
+
         Ok(Self {
             id: params.id,
             terminal,
-            pane_manager: None, // Created on first split
+            pane_manager: Some(pane_manager),
             title: params.title,
             has_activity: false,
-            scroll_state: ScrollState::new(),
-            mouse: MouseState::new(),
-            bell: BellState::new(),
-            cache: RenderCache::new(),
             refresh_task: None,
             working_directory: params.working_directory,
             custom_color: None,
@@ -364,7 +328,7 @@ impl Tab {
             ),
             gutter_manager: GutterManager::new(),
             was_alt_screen: false,
-            is_active: Arc::new(AtomicBool::new(false)),
+            is_active,
             shutdown_fast: false,
         })
     }
@@ -631,16 +595,19 @@ impl Tab {
         // Create a dummy TerminalManager without spawning a shell
         let terminal =
             TerminalManager::new_with_scrollback(80, 24, 100).expect("stub terminal creation");
+        let terminal = Arc::new(RwLock::new(terminal));
+        let is_active = Arc::new(AtomicBool::new(false));
+        let pane_manager = PaneManager::new_with_existing_terminal(
+            Arc::clone(&terminal),
+            None,
+            Arc::clone(&is_active),
+        );
         Self {
             id,
-            terminal: Arc::new(RwLock::new(terminal)),
-            pane_manager: None,
+            terminal,
+            pane_manager: Some(pane_manager),
             title: format!("Tab {}", tab_number),
             has_activity: false,
-            scroll_state: ScrollState::new(),
-            mouse: MouseState::new(),
-            bell: BellState::new(),
-            cache: RenderCache::new(),
             refresh_task: None,
             working_directory: None,
             custom_color: None,
@@ -657,7 +624,7 @@ impl Tab {
             prettifier: None,
             gutter_manager: GutterManager::new(),
             was_alt_screen: false,
-            is_active: Arc::new(AtomicBool::new(false)),
+            is_active,
             shutdown_fast: false,
         }
     }

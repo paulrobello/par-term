@@ -20,8 +20,15 @@ impl WindowState {
             }
 
             ShellExitAction::Close => {
-                // Original behavior: close exited panes and their tabs
+                // Detect exited panes across all tabs.
+                // After R-32, pane_manager is always Some, so we always use the pane path.
+                // The primary pane (single-pane tabs) wraps tab.terminal; when it exits
+                // close_exited_panes() returns tab_should_close=true just as before.
                 let mut tabs_needing_resize: Vec<crate::tab::TabId> = Vec::new();
+
+                // Collect (tab_id, tab_title, exit_notified) for single-pane tabs that exit,
+                // so we can fire the session-ended notification before closing.
+                let mut single_pane_exiting: Vec<(crate::tab::TabId, String, bool)> = Vec::new();
 
                 let tabs_to_close: Vec<crate::tab::TabId> = self
                     .tab_manager
@@ -31,25 +38,47 @@ impl WindowState {
                         if tab.tmux.tmux_gateway_active || tab.tmux.tmux_pane_id.is_some() {
                             return None;
                         }
-                        if tab.pane_manager.is_some() {
-                            let (closed_panes, tab_should_close) = tab.close_exited_panes();
-                            if !closed_panes.is_empty() {
-                                log::info!(
-                                    "Tab {}: closed {} exited pane(s)",
+                        // pane_manager is always Some after R-32.
+                        let (closed_panes, tab_should_close) = tab.close_exited_panes();
+                        if !closed_panes.is_empty() {
+                            log::info!(
+                                "Tab {}: closed {} exited pane(s)",
+                                tab.id,
+                                closed_panes.len()
+                            );
+                            if !tab_should_close {
+                                tabs_needing_resize.push(tab.id);
+                            }
+                        }
+                        if tab_should_close {
+                            // Record metadata for notification (single-pane exit path).
+                            // Previously this was handled by the legacy pane_manager.is_none()
+                            // check; now we capture it here while the tab is still alive.
+                            if !tab.has_multiple_panes() {
+                                single_pane_exiting.push((
                                     tab.id,
-                                    closed_panes.len()
-                                );
-                                if !tab_should_close {
-                                    tabs_needing_resize.push(tab.id);
-                                }
+                                    tab.title.clone(),
+                                    tab.activity.exit_notified,
+                                ));
+                                tab.activity.exit_notified = true;
                             }
-                            if tab_should_close {
-                                return Some(tab.id);
-                            }
+                            return Some(tab.id);
                         }
                         None
                     })
                     .collect();
+
+                // Send session-ended notifications for single-pane tabs before closing them.
+                if self.config.notification_session_ended {
+                    for (_tab_id, tab_title, exit_notified) in &single_pane_exiting {
+                        if !exit_notified {
+                            log::info!("Shell in tab '{}' has exited", tab_title);
+                            let title = format!("Session Ended: {}", tab_title);
+                            let message = "The shell process has exited".to_string();
+                            self.deliver_notification(&title, &message);
+                        }
+                    }
+                }
 
                 if !tabs_needing_resize.is_empty()
                     && let Some(renderer) = &self.renderer
@@ -87,51 +116,6 @@ impl WindowState {
                         return true;
                     } else {
                         let _ = self.tab_manager.close_tab(*tab_id);
-                    }
-                }
-
-                // Also check legacy single-pane tabs
-                let (shell_exited, active_tab_id, tab_count, tab_title, exit_notified) = {
-                    if let Some(tab) = self.tab_manager.active_tab() {
-                        // try_lock: intentional — shell exit check during RedrawRequested
-                        // in the sync event loop. On miss: treat as still running so the tab
-                        // stays open until the next frame resolves the exit.
-                        let exited = tab.pane_manager.is_none()
-                            && tab
-                                .try_with_terminal_mut(|term| !term.is_running())
-                                .unwrap_or(false);
-                        (
-                            exited,
-                            Some(tab.id),
-                            self.tab_manager.tab_count(),
-                            tab.title.clone(),
-                            tab.activity.exit_notified,
-                        )
-                    } else {
-                        (false, None, 0, String::new(), false)
-                    }
-                };
-
-                if shell_exited {
-                    log::info!("Shell in active tab has exited");
-                    if self.config.notification_session_ended && !exit_notified {
-                        if let Some(tab) = self.tab_manager.active_tab_mut() {
-                            tab.activity.exit_notified = true;
-                        }
-                        let title = format!("Session Ended: {}", tab_title);
-                        let message = "The shell process has exited".to_string();
-                        self.deliver_notification(&title, &message);
-                    }
-
-                    if tab_count <= 1 {
-                        log::info!("Last tab, closing window");
-                        self.is_shutting_down = true;
-                        for tab in self.tab_manager.tabs_mut() {
-                            tab.stop_refresh_task();
-                        }
-                        return true;
-                    } else if let Some(tab_id) = active_tab_id {
-                        let _ = self.tab_manager.close_tab(tab_id);
                     }
                 }
             }

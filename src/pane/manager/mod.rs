@@ -22,9 +22,12 @@ mod tmux_layout;
 
 use crate::config::{Config, PaneBackgroundConfig};
 use crate::pane::types::{Pane, PaneBounds, PaneId, PaneNode};
+use crate::terminal::TerminalManager;
 use anyhow::Result;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 use tokio::runtime::Runtime;
+use tokio::sync::RwLock;
 
 /// Manages the pane tree within a single tab
 pub struct PaneManager {
@@ -53,6 +56,35 @@ impl PaneManager {
             divider_hit_width: 8.0, // Default 8 pixel hit area
             total_bounds: PaneBounds::default(),
         }
+    }
+
+    /// Create a pane manager pre-populated with a single primary pane that
+    /// wraps an already-running `TerminalManager`.
+    ///
+    /// This is used by `Tab::new_internal` so that every tab always starts with
+    /// a `PaneManager` (R-32).  The primary pane shares the caller's `terminal`
+    /// `Arc`, so no new shell process is spawned.
+    ///
+    /// # Arguments
+    /// * `terminal` — `Arc` cloned from `Tab::terminal`
+    /// * `working_directory` — Optional CWD for the primary pane
+    /// * `is_active` — Shared atomic cloned from `Tab::is_active`
+    pub fn new_with_existing_terminal(
+        terminal: Arc<RwLock<TerminalManager>>,
+        working_directory: Option<String>,
+        is_active: Arc<AtomicBool>,
+    ) -> Self {
+        let mut manager = Self::new();
+        let primary_pane_id = manager.next_pane_id;
+        manager.next_pane_id += 1;
+
+        let pane =
+            Pane::new_wrapping_terminal(primary_pane_id, terminal, working_directory, is_active);
+
+        manager.root = Some(PaneNode::leaf(pane));
+        manager.focused_pane_id = Some(primary_pane_id);
+
+        manager
     }
 
     /// Create a pane manager with an initial pane
