@@ -103,7 +103,7 @@ fn test_render_comment() {
         .flat_map(|l| &l.segments)
         .find(|s| s.text.contains("# This is a comment"))
         .unwrap();
-    assert_eq!(comment_seg.fg, Some(theme.palette[8]));
+    assert_eq!(comment_seg.fg, Some(theme.dim_color()));
     assert!(comment_seg.italic);
 }
 
@@ -119,7 +119,7 @@ fn test_string_value_coloring() {
         .flat_map(|l| &l.segments)
         .find(|s| s.text.contains("\"par-term\""))
         .unwrap();
-    assert_eq!(str_seg.fg, Some(theme.palette[2]));
+    assert_eq!(str_seg.fg, Some(theme.string_color()));
 }
 
 #[test]
@@ -134,7 +134,7 @@ fn test_number_value_coloring() {
         .flat_map(|l| &l.segments)
         .find(|s| s.text == "8080")
         .unwrap();
-    assert_eq!(num_seg.fg, Some(theme.palette[11]));
+    assert_eq!(num_seg.fg, Some(theme.number_color()));
 }
 
 #[test]
@@ -179,7 +179,7 @@ fn test_key_coloring() {
         .flat_map(|l| &l.segments)
         .find(|s| s.text == "mykey")
         .unwrap();
-    assert_eq!(key_seg.fg, Some(theme.palette[6]));
+    assert_eq!(key_seg.fg, Some(theme.key_color()));
 }
 
 #[test]

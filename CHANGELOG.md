@@ -50,6 +50,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Hardened tmux command escaping to prevent truncation via null bytes.
 
 ### Refactored
+- Centralized `make_block` / `make_block_with_command` test factories in `prettifier/testing.rs`; removed 24 duplicate local definitions across detector and renderer test files (R-30).
+- Decomposed 890-line `submit_gpu_frame()` into `update_gpu_renderer_state()`, `render_egui_frame()`, and `scroll_offset_from_tab()` helpers (R-31).
+- Added 7 semantic color accessors to `ThemeColors` (`dim_color`, `string_color`, `key_color`, `error_color`, `number_color`, `comment_color`, `accent_color`); extracted shared `guide_segment`, `plain_segment`, `dim_segment` helpers to `renderers/mod.rs`; migrated 250+ raw `palette[N]` indices across json/yaml/toml/xml parsers (R-34).
+- Split 925-line `markdown/tests.rs` into 5 focused sub-files under `tests/` (R-36).
+- Split `cli.rs` (664 lines) into `cli/mod.rs` (arg types + dispatch) and `cli/install.rs` (install procedures) (R-37).
+- Extracted `apply_config_to_windows` (~700 lines) from `settings_actions.rs` into `window_manager/config_propagation.rs`; `settings_actions.rs` reduced from 795 → 233 lines (R-39).
+- Extracted `xml.rs` inline tests into `renderers/xml/mod.rs` + `renderers/xml/tests.rs`, consistent with other renderer layout (R-40).
+- Extracted `regex_detector.rs` inline tests (410 lines) into `regex_detector/mod.rs` + `regex_detector/tests.rs` (R-41).
+- Split `file_transfers.rs` (780 lines) into `file_transfers/types.rs`, `file_transfers/overlay.rs`, and `file_transfers/mod.rs` (R-42).
+- Extracted rule-loading logic from `config_bridge.rs` into `prettifier/rule_loader.rs`; `config_bridge.rs` reduced from 718 → ~170 lines (R-43).
+- Extracted per-pane accessor routing from `tab/mod.rs` into `tab/pane_accessors.rs`; `mod.rs` reduced from 805 → 664 lines (R-45).
+- Split `copy_mode/mod.rs` (637 lines) into module directory: `types.rs`, `cursor.rs`, `motion.rs`, `visual.rs`, `search.rs` + 83-line orchestrator (R-46).
+- Extracted `TabBarUI` struct to `tab_bar_ui/state.rs` and `render_horizontal` to `tab_bar_ui/horizontal.rs`; `mod.rs` reduced from 714 → 361 lines (R-47).
+- Extracted `ConfigurableDetector` subtrait from `ContentDetector`; `RendererRegistry` dispatches through `as_configurable_mut()` instead of silent empty default methods (R-51).
 - Decomposed `WindowState` and `Config` into cohesive sub-state objects.
 - Extracted `EguiState` sub-struct from `WindowState` (ARC-001 continuation).
 - Added `with_active_tab()`, `with_active_tab_mut()`, `with_window()`, `request_redraw()` helpers on `WindowState`; converted 60+ call sites.

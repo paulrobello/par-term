@@ -8,6 +8,48 @@
 //! - `tab_snapshot`: `extract_tab_cells` / `TabCellsSnapshot`
 //! - (this module): prettifier pipeline feed, URL detection, search highlights,
 //!   scrollback marks, window title update, cursor blink
+//!
+//! # R-48: Residual Complexity Note
+//!
+//! After the Wave 3 extraction (`viewport.rs`, `tab_snapshot.rs`), this module
+//! retains ~700 lines driven by shared local variables that prevent clean
+//! sub-function extraction without significant restructuring:
+//!
+//! - `cells`, `current_generation`, `scroll_offset`, `scrollback_len` are
+//!   computed early and consumed/mutated by every downstream phase.
+//! - The prettifier pipeline phases borrow `tab.prettifier` mutably while
+//!   other phases read `tab.cache` and `tab.terminal` — simultaneous borrows
+//!   that force sequential access patterns.
+//!
+//! ## Proposed `ClaudeCodePrettifierBridge` struct (future extraction)
+//!
+//! The Claude Code-specific prettifier logic (heuristic session detection,
+//! viewport hashing, action-bullet segmentation, segment preprocessing) is
+//! the densest block in this file (~200 lines, line ~260–465). It could be
+//! encapsulated in a dedicated struct that takes the shared variables as
+//! constructor arguments, reducing the borrow-checker surface:
+//!
+//! ```ignore
+//! /// Encapsulates per-frame Claude Code viewport → prettifier pipeline interaction.
+//! struct ClaudeCodePrettifierBridge<'a> {
+//!     pipeline: &'a mut PrettifierPipeline,
+//!     cells: &'a [TermCell],
+//!     visible_lines: usize,
+//!     grid_cols: usize,
+//!     scrollback_len: usize,
+//!     scroll_offset: usize,
+//!     cache: &'a mut RenderCache,
+//! }
+//!
+//! impl<'a> ClaudeCodePrettifierBridge<'a> {
+//!     fn detect_session(&mut self) -> bool { ... }
+//!     fn compute_viewport_hash(&self) -> u64 { ... }
+//!     fn segment_and_submit(&mut self) { ... }
+//! }
+//! ```
+//!
+//! Extraction is deferred because it requires refactoring `tab.cache` field
+//! access patterns and is a prerequisite of R-31 (gpu_submit stabilization).
 
 use super::super::{preprocess_claude_code_segment, reconstruct_markdown_from_cells};
 use super::FrameRenderData;
@@ -660,6 +702,9 @@ impl WindowState {
         // Update search and apply search highlighting
         if self.overlay_ui.search_ui.visible {
             // Get all searchable lines from cells (ensures consistent wide character handling)
+            // TODO(R-33): with_active_tab not applicable here — update_search requires
+            // &mut self.overlay_ui.search_ui inside the same block as the terminal lock.
+            // Would require splitting into: (1) collect lines into a Vec, then (2) update.
             if let Some(tab) = self.tab_manager.active_tab()
                 && let Ok(term) = tab.terminal.try_write()
             {

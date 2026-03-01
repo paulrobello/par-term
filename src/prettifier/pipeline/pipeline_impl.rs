@@ -444,8 +444,32 @@ impl PrettifierPipeline {
     }
 
     /// Detect format and render a content block, storing it as a `PrettifiedBlock`.
+    ///
+    /// # Sub-phases (R-44 extraction candidates)
+    ///
+    /// This method performs three conceptually distinct phases that could be
+    /// extracted into private helpers to improve readability (L-effort because
+    /// of the tight local-variable dependencies below):
+    ///
+    /// 1. **Suppression check** — bail early if this row range is suppressed.
+    /// 2. **Stale-block eviction** — remove overlapping blocks whose content changed.
+    /// 3. **Detection + render + store** — run format detection, render the block,
+    ///    deduplicate by content hash, and push to `active_blocks`.
+    ///
+    /// Extraction blockers:
+    /// - `row_range`, `detection_result`, `content_hash`, and `format_id` are
+    ///   computed at different points and shared across all three phases.
+    /// - `content` is consumed (moved) into `DualViewBuffer::new`, so ownership
+    ///   must transfer at the right point and cannot be borrowed across phases
+    ///   without restructuring the types.
+    ///
+    /// Proposed helpers (future refactoring):
+    /// ```ignore
+    /// fn is_block_stale_or_duplicate(&self, row_range: &Range<usize>, hash: u64) -> BlockStatus;
+    /// fn detect_and_render(&mut self, content: ContentBlock) -> Option<PrettifiedBlock>;
+    /// ```
     fn handle_block(&mut self, content: ContentBlock) {
-        // Skip auto-detection if this block's row range is suppressed.
+        // Phase 1: Suppression check
         let row_range = content.start_row..content.end_row;
         if self.is_suppressed(&row_range) {
             crate::debug_log!(

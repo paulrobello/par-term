@@ -13,6 +13,7 @@
 //! - `arrangements`     — save/restore/manage window arrangements
 
 mod arrangements;
+mod config_propagation;
 mod coprocess;
 mod menu_actions;
 mod scripting;

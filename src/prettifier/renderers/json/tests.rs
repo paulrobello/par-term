@@ -92,7 +92,7 @@ fn test_string_color() {
         .flat_map(|l| &l.segments)
         .find(|s| s.text.contains("\"value\""))
         .unwrap();
-    assert_eq!(str_seg.fg, Some(theme.palette[2])); // Green
+    assert_eq!(str_seg.fg, Some(theme.string_color())); // Green
 }
 
 #[test]
@@ -108,7 +108,7 @@ fn test_number_color() {
         .flat_map(|l| &l.segments)
         .find(|s| s.text == "42")
         .unwrap();
-    assert_eq!(num_seg.fg, Some(theme.palette[11])); // Bright yellow
+    assert_eq!(num_seg.fg, Some(theme.number_color())); // Bright yellow
 }
 
 #[test]
@@ -140,7 +140,7 @@ fn test_null_highlighted() {
         .flat_map(|l| &l.segments)
         .find(|s| s.text == "null")
         .unwrap();
-    assert_eq!(null_seg.fg, Some(theme.palette[8])); // Dim grey
+    assert_eq!(null_seg.fg, Some(theme.dim_color())); // Dim grey
     assert!(null_seg.italic);
 }
 
@@ -176,7 +176,7 @@ fn test_key_color() {
         .flat_map(|l| &l.segments)
         .find(|s| s.text.contains("\"mykey\""))
         .unwrap();
-    assert_eq!(key_seg.fg, Some(theme.palette[6])); // Cyan
+    assert_eq!(key_seg.fg, Some(theme.key_color())); // Cyan
 }
 
 // -- Tree guides --

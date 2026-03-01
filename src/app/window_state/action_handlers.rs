@@ -2,6 +2,25 @@
 //!
 //! All handlers are called from `update_post_render_state()` (in render_pipeline.rs)
 //! after the renderer borrow is released.
+//!
+//! ## Handler groups
+//!
+//! ### Tab bar (lines ~17–110)
+//! - [`WindowState::handle_tab_bar_action_after_render`] — switch, close, new tab,
+//!   reorder, color, rename, icon, and assistant-panel toggle.
+//!
+//! ### Clipboard (lines ~112–144)
+//! - [`WindowState::handle_clipboard_history_action_after_render`] — paste, clear-all,
+//!   clear-slot.
+//!
+//! ### AI Inspector (lines ~146–490)
+//! - [`WindowState::handle_inspector_action_after_render`] — all 17 `InspectorAction`
+//!   variants: close, copy/save snapshot, write-to-terminal, run-command, connect/disconnect
+//!   agent, revoke permissions, send/cancel prompt, set mode, clear chat.
+//!
+//! ### Integrations welcome dialog (lines ~492–729)
+//! - [`WindowState::handle_integrations_response`] — shader install, shell integration
+//!   install, skip, never-ask, shader overwrite conflict resolution.
 
 use crate::ai_inspector::chat::ChatMessage;
 use crate::ai_inspector::panel::InspectorAction;
@@ -121,23 +140,23 @@ impl WindowState {
                 self.paste_text(&content);
             }
             ClipboardHistoryAction::ClearAll => {
-                if let Some(tab) = self.tab_manager.active_tab()
-                    && let Ok(term) = tab.terminal.try_write()
-                {
-                    term.clear_all_clipboard_history();
-                    log::info!("Cleared all clipboard history");
-                }
+                self.with_active_tab(|tab| {
+                    if let Ok(term) = tab.terminal.try_write() {
+                        term.clear_all_clipboard_history();
+                        log::info!("Cleared all clipboard history");
+                    }
+                });
                 self.overlay_ui
                     .clipboard_history_ui
                     .update_entries(Vec::new());
             }
             ClipboardHistoryAction::ClearSlot(slot) => {
-                if let Some(tab) = self.tab_manager.active_tab()
-                    && let Ok(term) = tab.terminal.try_write()
-                {
-                    term.clear_clipboard_history(slot);
-                    log::info!("Cleared clipboard history for slot {:?}", slot);
-                }
+                self.with_active_tab(|tab| {
+                    if let Ok(term) = tab.terminal.try_write() {
+                        term.clear_clipboard_history(slot);
+                        log::info!("Cleared clipboard history for slot {:?}", slot);
+                    }
+                });
             }
             ClipboardHistoryAction::None => {}
         }
@@ -172,19 +191,19 @@ impl WindowState {
                 }
             }
             InspectorAction::WriteToTerminal(cmd) => {
-                if let Some(tab) = self.tab_manager.active_tab()
-                    && let Ok(term) = tab.terminal.try_write()
-                {
-                    let _ = term.write(cmd.as_bytes());
-                }
+                self.with_active_tab(|tab| {
+                    if let Ok(term) = tab.terminal.try_write() {
+                        let _ = term.write(cmd.as_bytes());
+                    }
+                });
             }
             InspectorAction::RunCommandAndNotify(cmd) => {
                 // Write command + Enter to terminal
-                if let Some(tab) = self.tab_manager.active_tab()
-                    && let Ok(term) = tab.terminal.try_write()
-                {
-                    let _ = term.write(format!("{cmd}\n").as_bytes());
-                }
+                self.with_active_tab(|tab| {
+                    if let Ok(term) = tab.terminal.try_write() {
+                        let _ = term.write(format!("{cmd}\n").as_bytes());
+                    }
+                });
                 // Record command count before execution so we can detect completion
                 let history_len = self
                     .tab_manager

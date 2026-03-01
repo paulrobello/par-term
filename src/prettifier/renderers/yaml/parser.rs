@@ -5,7 +5,7 @@ use std::sync::OnceLock;
 use regex::Regex;
 
 use crate::prettifier::registry::RendererRegistry;
-use crate::prettifier::renderers::{push_line, tree_renderer};
+use crate::prettifier::renderers::{guide_segment, plain_segment, push_line, tree_renderer};
 use crate::prettifier::traits::{ContentRenderer, RenderError, RendererConfig, ThemeColors};
 use crate::prettifier::types::{ContentBlock, RenderedContent, RendererCapability, StyledSegment};
 
@@ -206,7 +206,7 @@ impl YamlRenderer {
         if let Some(m) = re_tag().find(value) {
             segments.push(StyledSegment {
                 text: m.as_str().to_string(),
-                fg: Some(theme.palette[8]), // Dimmed
+                fg: Some(theme.dim_color()), // Dimmed
                 italic: true,
                 ..Default::default()
             });
@@ -239,7 +239,7 @@ impl YamlRenderer {
         if trimmed == "null" || trimmed == "~" {
             return vec![StyledSegment {
                 text: trimmed.to_string(),
-                fg: Some(theme.palette[8]), // Dim grey
+                fg: Some(theme.dim_color()), // Dim grey
                 italic: true,
                 ..Default::default()
             }];
@@ -249,7 +249,7 @@ impl YamlRenderer {
         if trimmed.parse::<f64>().is_ok() {
             return vec![StyledSegment {
                 text: trimmed.to_string(),
-                fg: Some(theme.palette[11]), // Bright yellow
+                fg: Some(theme.number_color()), // Bright yellow
                 ..Default::default()
             }];
         }
@@ -260,7 +260,7 @@ impl YamlRenderer {
         {
             return vec![StyledSegment {
                 text: trimmed.to_string(),
-                fg: Some(theme.palette[2]), // Green
+                fg: Some(theme.string_color()), // Green
                 ..Default::default()
             }];
         }
@@ -268,7 +268,7 @@ impl YamlRenderer {
         // Unquoted string
         vec![StyledSegment {
             text: trimmed.to_string(),
-            fg: Some(theme.palette[2]), // Green
+            fg: Some(theme.string_color()), // Green
             ..Default::default()
         }]
     }
@@ -278,26 +278,11 @@ impl YamlRenderer {
 // Helper functions
 // ---------------------------------------------------------------------------
 
-fn guide_segment(prefix: &str, theme: &ThemeColors) -> StyledSegment {
-    StyledSegment {
-        text: prefix.to_string(),
-        fg: Some(theme.palette[8]),
-        ..Default::default()
-    }
-}
-
 fn key_segment(key: &str, theme: &ThemeColors) -> StyledSegment {
     StyledSegment {
         text: key.to_string(),
-        fg: Some(theme.palette[6]), // Cyan
+        fg: Some(theme.key_color()), // Cyan
         bold: true,
-        ..Default::default()
-    }
-}
-
-fn plain_segment(text: &str) -> StyledSegment {
-    StyledSegment {
-        text: text.to_string(),
         ..Default::default()
     }
 }
@@ -339,7 +324,7 @@ impl ContentRenderer for YamlRenderer {
                         &mut line_mapping,
                         vec![StyledSegment {
                             text: "---".to_string(),
-                            fg: Some(theme.palette[11]), // Bright yellow
+                            fg: Some(theme.number_color()), // Bright yellow
                             bold: true,
                             ..Default::default()
                         }],
@@ -352,7 +337,7 @@ impl ContentRenderer for YamlRenderer {
                         &mut line_mapping,
                         vec![StyledSegment {
                             text: "...".to_string(),
-                            fg: Some(theme.palette[11]),
+                            fg: Some(theme.number_color()),
                             bold: true,
                             ..Default::default()
                         }],
@@ -369,7 +354,7 @@ impl ContentRenderer for YamlRenderer {
                             guide_segment(&prefix, theme),
                             StyledSegment {
                                 text,
-                                fg: Some(theme.palette[8]), // Dimmed
+                                fg: Some(theme.dim_color()), // Dimmed
                                 italic: true,
                                 ..Default::default()
                             },
@@ -401,7 +386,7 @@ impl ContentRenderer for YamlRenderer {
                                     plain_segment(": "),
                                     StyledSegment {
                                         text: summary,
-                                        fg: Some(theme.palette[8]),
+                                        fg: Some(theme.dim_color()),
                                         italic: true,
                                         ..Default::default()
                                     },
@@ -459,7 +444,7 @@ impl ContentRenderer for YamlRenderer {
                             guide_segment(&prefix, theme),
                             StyledSegment {
                                 text,
-                                fg: Some(theme.palette[2]), // Green (string continuation)
+                                fg: Some(theme.string_color()), // Green (string continuation)
                                 ..Default::default()
                             },
                         ],

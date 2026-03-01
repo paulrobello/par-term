@@ -11,6 +11,7 @@ pub struct DebugState {
     pub render_start: Option<Instant>, // Start time of current render frame (for end-of-frame timing)
     pub show_fps_overlay: bool,        // Whether to show FPS overlay (toggle with F3)
     pub fps_value: f64,                // Current FPS value for overlay display
+    pub last_egui_time: Duration,      // Time spent on egui overlay rendering last frame
 }
 
 impl Default for DebugState {
@@ -30,6 +31,7 @@ impl DebugState {
             render_start: None,
             show_fps_overlay: false,
             fps_value: 0.0,
+            last_egui_time: Duration::ZERO,
         }
     }
 }

@@ -3,8 +3,20 @@
 //! This module manages file transfer state, processes completed downloads via
 //! native save dialogs, handles upload requests via native file pickers, and
 //! renders an egui progress overlay for active transfers.
+//!
+//! Organized into three sub-layers (R-42):
+//! - `types`   — data structures (`FileTransferState`, `TransferInfo`, etc.)
+//! - `overlay` — egui overlay rendering (`render_file_transfer_overlay`)
+//! - `mod`     — `WindowState` impl methods (poll, save dialog, upload dialog)
 
-use std::collections::VecDeque;
+mod overlay;
+mod types;
+
+pub(crate) use overlay::render_file_transfer_overlay;
+pub(crate) use types::{
+    ActiveUpload, FileTransferState, PendingSave, PendingUpload, RecentTransfer, TransferInfo,
+};
+
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -17,7 +29,6 @@ use par_term_emu_core_rust::terminal::file_transfer::{
 
 use super::window_state::WindowState;
 use crate::config::DownloadSaveLocation;
-use crate::ui_constants::{FILE_TRANSFERS_ANCHOR_OFFSET, FILE_TRANSFERS_MIN_WIDTH};
 
 /// Chunk size for writing upload data to the PTY.
 /// Matches typical macOS PTY buffer size for efficient writes.
@@ -30,104 +41,8 @@ const SAVE_DIALOG_DELAY_MS: u64 = 750;
 /// How long to show completed transfers in the overlay (seconds).
 const RECENT_TRANSFER_DISPLAY_SECS: u64 = 3;
 
-/// UI-friendly information about an active file transfer
-#[derive(Debug, Clone)]
-pub(crate) struct TransferInfo {
-    /// Unique transfer identifier
-    // TODO(dead_code): Expose id in the overlay tooltip or diagnostic log, or remove by v0.26
-    #[allow(dead_code)] // Protocol data: populated from FileTransfer for diagnostics
-    pub id: u64,
-    /// Display filename
-    pub filename: String,
-    /// Transfer direction
-    pub direction: TransferDirection,
-    /// Bytes transferred so far
-    pub bytes_transferred: usize,
-    /// Total expected bytes (None if unknown)
-    pub total_bytes: Option<usize>,
-    /// When the transfer started (unix millis)
-    // TODO(dead_code): Use started_at to display elapsed time in the overlay, or remove by v0.26
-    #[allow(dead_code)] // Protocol data: populated from FileTransfer for diagnostics
-    pub started_at: u64,
-}
-
-/// A completed download awaiting the save dialog
-#[derive(Debug)]
-pub(crate) struct PendingSave {
-    /// Transfer ID
-    // TODO(dead_code): Use id in save-failure error messages, or remove by v0.26
-    #[allow(dead_code)] // Protocol data: correlates save with transfer for diagnostics
-    pub id: u64,
-    /// Suggested filename
-    pub filename: String,
-    /// The downloaded data
-    pub data: Vec<u8>,
-}
-
-/// An upload request awaiting the file picker
-#[derive(Debug)]
-pub(crate) struct PendingUpload {
-    /// Upload format (e.g., "base64")
-    // TODO(dead_code): Use format to support non-base64 upload encodings, or remove by v0.26
-    #[allow(dead_code)] // Protocol data: stored for future multi-format upload support
-    pub format: String,
-}
-
-/// Tracks a background upload being written to the PTY in chunks.
-pub(crate) struct ActiveUpload {
-    /// Unique identifier
-    pub id: u64,
-    /// Display filename
-    pub filename: String,
-    /// Original file size (for user-facing display)
-    pub file_size: usize,
-    /// Total bytes to write to the PTY (base64-encoded size)
-    pub total_wire_bytes: usize,
-    /// Bytes written to the PTY so far (updated atomically by writer thread)
-    pub bytes_written: Arc<AtomicUsize>,
-    /// Whether the write has finished (success or error)
-    pub completed: Arc<AtomicBool>,
-    /// Error message if the write failed
-    pub error: Arc<Mutex<Option<String>>>,
-    /// When the upload started (unix millis)
-    pub started_at: u64,
-}
-
-/// A recently-completed transfer shown briefly in the overlay.
-/// Covers both uploads and downloads that completed too fast for
-/// the active_transfers polling to catch.
-pub(crate) struct RecentTransfer {
-    /// Display filename
-    pub filename: String,
-    /// File size in bytes
-    pub size: usize,
-    /// Transfer direction
-    pub direction: TransferDirection,
-    /// When the transfer completed
-    pub completed_at: std::time::Instant,
-}
-
-/// Tracks all file transfer UI state
-#[derive(Default)]
-pub(crate) struct FileTransferState {
-    /// Currently active transfers (for overlay display)
-    pub active_transfers: Vec<TransferInfo>,
-    /// Completed downloads waiting to be saved
-    pub pending_saves: VecDeque<PendingSave>,
-    /// Upload requests waiting for the file picker
-    pub pending_uploads: VecDeque<PendingUpload>,
-    /// Background uploads being written to the PTY
-    pub active_uploads: Vec<ActiveUpload>,
-    /// Recently completed transfers (shown briefly in overlay)
-    pub recent_transfers: Vec<RecentTransfer>,
-    /// Whether a modal dialog (save/open) is currently showing
-    pub dialog_open: bool,
-    /// When the last transfer completed (for auto-hiding the overlay)
-    pub last_completion_time: Option<std::time::Instant>,
-}
-
 /// Format a byte count as a human-readable string
-fn format_bytes(bytes: usize) -> String {
+pub(super) fn format_bytes(bytes: usize) -> String {
     if bytes < 1024 {
         format!("{} B", bytes)
     } else if bytes < 1024 * 1024 {
@@ -542,8 +457,9 @@ impl WindowState {
                     });
 
                     // Spawn background thread to write in chunks without blocking UI
-                    if let Some(tab) = self.tab_manager.active_tab() {
-                        let terminal_arc = Arc::clone(&tab.terminal);
+                    if let Some(terminal_arc) =
+                        self.with_active_tab(|tab| Arc::clone(&tab.terminal))
+                    {
                         let response_bytes = response.into_bytes();
 
                         std::thread::Builder::new()
@@ -597,12 +513,12 @@ impl WindowState {
 
     /// Cancel an upload by writing abort directly to the PTY.
     fn cancel_upload_direct(&self) {
-        if let Some(tab) = self.tab_manager.active_tab() {
+        self.with_active_tab(|tab| {
             // Acceptable risk: blocking_lock() from sync winit event loop.
             // See docs/CONCURRENCY.md for mutex strategy.
             let term = tab.terminal.blocking_write();
             let _ = term.write(b"abort\n");
-        }
+        });
     }
 
     /// Resolve the default download directory based on config settings.
@@ -666,115 +582,4 @@ fn create_tgz_archive(path: &Path, data: &[u8]) -> std::io::Result<Vec<u8>> {
 
     let encoder = archive.into_inner()?;
     encoder.finish()
-}
-
-/// Render the file transfer progress overlay using egui.
-///
-/// This is a free function (not a method on WindowState) so it can be called
-/// from inside the `egui_ctx.run()` closure where `self` is already borrowed.
-///
-/// Shows a semi-transparent window anchored at the bottom-right with
-/// progress bars for each active transfer. Auto-hides after transfers complete.
-pub(crate) fn render_file_transfer_overlay(state: &FileTransferState, ctx: &egui::Context) {
-    let has_active = !state.active_transfers.is_empty();
-    let has_pending = !state.pending_saves.is_empty() || !state.pending_uploads.is_empty();
-    let has_recent = !state.recent_transfers.is_empty();
-
-    if !has_active && !has_pending && !has_recent {
-        return;
-    }
-
-    egui::Window::new("File Transfers")
-        .id(egui::Id::new("file_transfer_overlay_window"))
-        .anchor(
-            egui::Align2::RIGHT_BOTTOM,
-            egui::vec2(-FILE_TRANSFERS_ANCHOR_OFFSET, -FILE_TRANSFERS_ANCHOR_OFFSET),
-        )
-        .order(egui::Order::Foreground)
-        .resizable(false)
-        .collapsible(false)
-        .title_bar(true)
-        .frame(
-            egui::Frame::window(&ctx.style())
-                .fill(egui::Color32::from_rgba_unmultiplied(40, 40, 80, 240))
-                .stroke(egui::Stroke::new(
-                    2.0,
-                    egui::Color32::from_rgb(100, 200, 255),
-                )),
-        )
-        .show(ctx, |ui| {
-            ui.set_min_width(FILE_TRANSFERS_MIN_WIDTH);
-
-            // Show recently-completed transfers with full progress bar
-            for t in &state.recent_transfers {
-                let direction_icon = match t.direction {
-                    TransferDirection::Download => "\u{2B07}", // down arrow
-                    TransferDirection::Upload => "\u{2B06}",   // up arrow
-                };
-
-                ui.horizontal(|ui| {
-                    ui.label(direction_icon);
-                    ui.label(&t.filename);
-                });
-                let size_text = format!("{} \u{2714}", format_bytes(t.size)); // checkmark
-                ui.add(egui::ProgressBar::new(1.0).text(size_text).animate(false));
-                ui.add_space(4.0);
-            }
-
-            // Show active in-progress transfers
-            for info in &state.active_transfers {
-                let direction_icon = match info.direction {
-                    TransferDirection::Download => "\u{2B07}", // down arrow
-                    TransferDirection::Upload => "\u{2B06}",   // up arrow
-                };
-
-                ui.horizontal(|ui| {
-                    ui.label(direction_icon);
-                    ui.label(&info.filename);
-                });
-
-                if let Some(total) = info.total_bytes {
-                    if total > 0 {
-                        let fraction = info.bytes_transferred as f32 / total as f32;
-                        let text = format!(
-                            "{} / {}",
-                            format_bytes(info.bytes_transferred),
-                            format_bytes(total)
-                        );
-                        ui.add(egui::ProgressBar::new(fraction).text(text).animate(false));
-                    }
-                } else {
-                    // Indeterminate progress
-                    let text = format_bytes(info.bytes_transferred);
-                    ui.add(egui::ProgressBar::new(0.0).text(text).animate(true));
-                }
-
-                ui.add_space(4.0);
-            }
-
-            if !state.pending_saves.is_empty() {
-                ui.separator();
-                let count = state.pending_saves.len();
-                ui.label(format!(
-                    "{} download{} waiting to save",
-                    count,
-                    if count == 1 { "" } else { "s" }
-                ));
-            }
-
-            if !state.pending_uploads.is_empty() {
-                ui.separator();
-                let count = state.pending_uploads.len();
-                ui.label(format!(
-                    "{} upload request{} pending",
-                    count,
-                    if count == 1 { "" } else { "s" }
-                ));
-            }
-        });
-
-    // Request redraw while overlay is visible so it updates and auto-hides
-    if has_active || has_recent {
-        ctx.request_repaint();
-    }
 }

@@ -5,7 +5,7 @@ use std::sync::OnceLock;
 use regex::Regex;
 
 use crate::prettifier::registry::RendererRegistry;
-use crate::prettifier::renderers::{push_line, tree_renderer};
+use crate::prettifier::renderers::{guide_segment, push_line, tree_renderer};
 use crate::prettifier::traits::{ContentRenderer, RenderError, RendererConfig, ThemeColors};
 use crate::prettifier::types::{
     ContentBlock, RenderedContent, RendererCapability, SourceLineMapping, StyledLine, StyledSegment,
@@ -125,7 +125,7 @@ impl JsonRenderer {
                     punct_segment("{", theme),
                     StyledSegment {
                         text: format!(" {summary} "),
-                        fg: Some(theme.palette[8]),
+                        fg: Some(theme.dim_color()),
                         italic: true,
                         ..Default::default()
                     },
@@ -141,7 +141,7 @@ impl JsonRenderer {
         if self.config.show_array_length {
             open_segments.push(StyledSegment {
                 text: format!("  // {count} keys", count = map.len()),
-                fg: Some(theme.palette[8]),
+                fg: Some(theme.dim_color()),
                 italic: true,
                 ..Default::default()
             });
@@ -252,7 +252,7 @@ impl JsonRenderer {
                     punct_segment("[", theme),
                     StyledSegment {
                         text: format!(" {summary} "),
-                        fg: Some(theme.palette[8]),
+                        fg: Some(theme.dim_color()),
                         italic: true,
                         ..Default::default()
                     },
@@ -268,7 +268,7 @@ impl JsonRenderer {
         if self.config.show_array_length {
             open_segments.push(StyledSegment {
                 text: format!("  // {count} items", count = arr.len()),
-                fg: Some(theme.palette[8]),
+                fg: Some(theme.dim_color()),
                 italic: true,
                 ..Default::default()
             });
@@ -312,7 +312,7 @@ impl JsonRenderer {
                     guide_segment(&inner_prefix, theme),
                     StyledSegment {
                         text: format!("... and {remaining} more items"),
-                        fg: Some(theme.palette[8]),
+                        fg: Some(theme.dim_color()),
                         italic: true,
                         ..Default::default()
                     },
@@ -350,7 +350,7 @@ impl JsonRenderer {
                     let url = m.as_str().to_string();
                     segments.push(StyledSegment {
                         text: display,
-                        fg: Some(theme.palette[2]), // Green
+                        fg: Some(theme.string_color()), // Green
                         underline: true,
                         link_url: Some(url),
                         ..Default::default()
@@ -363,7 +363,7 @@ impl JsonRenderer {
 
                 segments.push(StyledSegment {
                     text: display,
-                    fg: Some(theme.palette[2]), // Green
+                    fg: Some(theme.string_color()), // Green
                     ..Default::default()
                 });
                 if self.config.show_types {
@@ -373,7 +373,7 @@ impl JsonRenderer {
             serde_json::Value::Number(n) => {
                 segments.push(StyledSegment {
                     text: n.to_string(),
-                    fg: Some(theme.palette[11]), // Bright yellow
+                    fg: Some(theme.number_color()), // Bright yellow
                     ..Default::default()
                 });
                 if self.config.show_types {
@@ -392,7 +392,7 @@ impl JsonRenderer {
             }
             serde_json::Value::Null => {
                 let fg = if self.config.highlight_nulls {
-                    Some(theme.palette[8]) // Dim grey
+                    Some(theme.dim_color()) // Dim grey
                 } else {
                     None
                 };
@@ -423,15 +423,6 @@ fn is_scalar(value: &serde_json::Value) -> bool {
     !value.is_object() && !value.is_array()
 }
 
-/// Create a styled segment for tree guide characters.
-fn guide_segment(prefix: &str, theme: &ThemeColors) -> StyledSegment {
-    StyledSegment {
-        text: prefix.to_string(),
-        fg: Some(theme.palette[8]), // Dim grey for guides
-        ..Default::default()
-    }
-}
-
 /// Create a styled segment for JSON punctuation (`{`, `}`, `[`, `]`, `:`, `,`).
 fn punct_segment(text: &str, _theme: &ThemeColors) -> StyledSegment {
     StyledSegment {
@@ -444,7 +435,7 @@ fn punct_segment(text: &str, _theme: &ThemeColors) -> StyledSegment {
 fn key_segment(key: &str, theme: &ThemeColors) -> StyledSegment {
     StyledSegment {
         text: format!("\"{key}\""),
-        fg: Some(theme.palette[6]), // Cyan
+        fg: Some(theme.key_color()), // Cyan
         ..Default::default()
     }
 }
@@ -453,7 +444,7 @@ fn key_segment(key: &str, theme: &ThemeColors) -> StyledSegment {
 fn type_annotation(text: &str, theme: &ThemeColors) -> StyledSegment {
     StyledSegment {
         text: text.to_string(),
-        fg: Some(theme.palette[8]),
+        fg: Some(theme.dim_color()),
         italic: true,
         ..Default::default()
     }
