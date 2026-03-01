@@ -18,6 +18,15 @@ pub struct ScrollbarUpdateParams<'a> {
     pub marks: &'a [par_term_config::ScrollbackMark],
 }
 
+/// Geometry layout passed to [`Scrollbar::prepare_marks`].
+struct PrepareMarksLayout {
+    total_lines: usize,
+    window_height: u32,
+    content_offset_y: f32,
+    content_inset_bottom: f32,
+    content_inset_right: f32,
+}
+
 /// Minimum scrollbar thumb height in pixels.
 /// Prevents the thumb from becoming too small to click when scrollback is very long.
 const MIN_SCROLLBAR_THUMB_HEIGHT_PX: f32 = 20.0;
@@ -381,11 +390,13 @@ impl Scrollbar {
         self.prepare_marks(
             queue,
             marks,
-            total_lines,
-            window_height,
-            content_offset_y,
-            content_inset_bottom,
-            content_inset_right,
+            PrepareMarksLayout {
+                total_lines,
+                window_height,
+                content_offset_y,
+                content_inset_bottom,
+                content_inset_right,
+            },
         );
     }
 
@@ -416,12 +427,15 @@ impl Scrollbar {
         &mut self,
         queue: &Queue,
         marks: &[par_term_config::ScrollbackMark],
-        total_lines: usize,
-        window_height: u32,
-        content_offset_y: f32,
-        content_inset_bottom: f32,
-        content_inset_right: f32,
+        layout: PrepareMarksLayout,
     ) {
+        let PrepareMarksLayout {
+            total_lines,
+            window_height,
+            content_offset_y,
+            content_inset_bottom,
+            content_inset_right,
+        } = layout;
         self.marks.clear();
         self.mark_hit_info.clear();
 

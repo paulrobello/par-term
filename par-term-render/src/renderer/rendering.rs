@@ -10,6 +10,17 @@ use super::{
 // This file retains the multi-pane frame-level helpers: `render_panes`, `render_split_panes`,
 // and `take_screenshot`.
 
+/// Parameters for [`Renderer::render_split_panes`].
+pub struct SplitPanesRenderParams<'a> {
+    pub panes: &'a [PaneRenderInfo<'a>],
+    pub dividers: &'a [DividerRenderInfo],
+    pub pane_titles: &'a [PaneTitleInfo],
+    pub focused_viewport: Option<&'a PaneViewport>,
+    pub divider_settings: &'a PaneDividerSettings,
+    pub egui_data: Option<(egui::FullOutput, &'a egui::Context)>,
+    pub force_egui_opaque: bool,
+}
+
 impl Renderer {
     /// Render multiple panes to the surface
     ///
@@ -154,16 +165,16 @@ impl Renderer {
     /// # Returns
     /// `true` if rendering was performed, `false` if skipped
     #[allow(dead_code)]
-    pub fn render_split_panes(
-        &mut self,
-        panes: &[PaneRenderInfo<'_>],
-        dividers: &[DividerRenderInfo],
-        pane_titles: &[PaneTitleInfo],
-        focused_viewport: Option<&PaneViewport>,
-        divider_settings: &PaneDividerSettings,
-        egui_data: Option<(egui::FullOutput, &egui::Context)>,
-        force_egui_opaque: bool,
-    ) -> Result<bool> {
+    pub fn render_split_panes(&mut self, params: SplitPanesRenderParams<'_>) -> Result<bool> {
+        let SplitPanesRenderParams {
+            panes,
+            dividers,
+            pane_titles,
+            focused_viewport,
+            divider_settings,
+            egui_data,
+            force_egui_opaque,
+        } = params;
         // Check if we need to render
         let force_render = self.needs_continuous_render();
         if !self.dirty && !force_render && egui_data.is_none() {

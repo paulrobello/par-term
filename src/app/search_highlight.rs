@@ -81,23 +81,6 @@ impl WindowState {
     }
 }
 
-/// Get the current screen lines as strings (the visible terminal content, not scrollback).
-///
-/// # Arguments
-/// * `term` - The terminal manager
-/// * `visible_lines` - Number of visible terminal rows
-pub(crate) fn get_current_screen_lines(
-    term: &crate::terminal::TerminalManager,
-    visible_lines: usize,
-) -> Vec<String> {
-    // Get cells with scroll_offset=0 to get current screen content
-    let cells = term.get_cells_with_scrollback(0, None, false, None);
-
-    // Convert cells to lines
-    let cols = term.dimensions().0;
-    cells_to_lines(&cells, cols, visible_lines)
-}
-
 /// Get all searchable lines (scrollback + current screen) as an iterator of (line_index, line_text).
 ///
 /// This function ensures consistent handling of wide characters by converting all content

@@ -3,7 +3,7 @@ use crate::url_detection;
 use std::time::Instant;
 
 /// State related to mouse interaction, selection, and URL detection
-pub(crate) struct MouseState {
+pub struct MouseState {
     pub(crate) selection: Option<Selection>, // Current text selection
     pub(crate) is_selecting: bool,           // Whether currently dragging to select
 

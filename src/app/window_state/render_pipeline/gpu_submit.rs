@@ -23,6 +23,18 @@ use crate::progress_bar::{ProgressBarSnapshot, render_progress_bars};
 use crate::ui_constants::VISUAL_BELL_FLASH_DURATION_MS;
 use wgpu::SurfaceError;
 
+/// Parameters for [`WindowState::render_egui_frame`], bundled to stay within
+/// the clippy `too_many_arguments` limit.
+struct RenderEguiParams<'a> {
+    actions: &'a mut PostRenderActions,
+    hovered_mark: &'a Option<crate::scrollback_metadata::ScrollbackMark>,
+    window_size_for_badge: Option<&'a winit::dpi::PhysicalSize<u32>>,
+    progress_snapshot: &'a Option<ProgressBarSnapshot>,
+    visible_lines: usize,
+    scrollback_len: usize,
+    any_modal_visible: bool,
+}
+
 impl WindowState {
     /// Run prettifier cell substitution, egui overlays, and GPU render pass.
     /// Returns collected post-render actions to handle after the renderer borrow is released.
@@ -171,15 +183,15 @@ impl WindowState {
         // render phase and updates `actions` with deferred UI responses.
         // =====================================================================
         let egui_data = if let Some(ref gpu) = gpu_result {
-            self.render_egui_frame(
-                &mut actions,
-                &gpu.hovered_mark,
-                window_size_for_badge.as_ref(),
-                &progress_snapshot,
+            self.render_egui_frame(RenderEguiParams {
+                actions: &mut actions,
+                hovered_mark: &gpu.hovered_mark,
+                window_size_for_badge: window_size_for_badge.as_ref(),
+                progress_snapshot: &progress_snapshot,
                 visible_lines,
                 scrollback_len,
                 any_modal_visible,
-            )
+            })
         } else {
             None
         };
@@ -391,14 +403,17 @@ impl WindowState {
     /// or `None` if the egui context/window is not yet initialised for this window.
     fn render_egui_frame(
         &mut self,
-        actions: &mut PostRenderActions,
-        hovered_mark: &Option<crate::scrollback_metadata::ScrollbackMark>,
-        window_size_for_badge: Option<&winit::dpi::PhysicalSize<u32>>,
-        progress_snapshot: &Option<ProgressBarSnapshot>,
-        visible_lines: usize,
-        scrollback_len: usize,
-        any_modal_visible: bool,
+        params: RenderEguiParams<'_>,
     ) -> Option<(egui::FullOutput, egui::Context)> {
+        let RenderEguiParams {
+            actions,
+            hovered_mark,
+            window_size_for_badge,
+            progress_snapshot,
+            visible_lines,
+            scrollback_len,
+            any_modal_visible,
+        } = params;
         let egui_start = std::time::Instant::now();
 
         // Capture values for FPS overlay before closure

@@ -403,14 +403,14 @@ impl crate::app::window_state::WindowState {
 
         // Call the split pane renderer.
         // owned_cells is dropped automatically at scope exit, even on panic.
-        renderer.render_split_panes(
-            &pane_render_infos,
-            &divider_render_infos,
-            &pane_titles,
-            focused_viewport.as_ref(),
-            &divider_settings,
+        renderer.render_split_panes(crate::renderer::SplitPanesRenderParams {
+            panes: &pane_render_infos,
+            dividers: &divider_render_infos,
+            pane_titles: &pane_titles,
+            focused_viewport: focused_viewport.as_ref(),
+            divider_settings: &divider_settings,
             egui_data,
-            false,
-        )
+            force_egui_opaque: false,
+        })
     }
 }

@@ -16,6 +16,7 @@ mod state;
 // Re-export SeparatorMark from par-term-config
 pub use par_term_config::SeparatorMark;
 pub use params::RendererParams;
+pub use rendering::SplitPanesRenderParams;
 
 /// Compute which separator marks are visible in the current viewport.
 ///

@@ -155,15 +155,15 @@ pub fn format_metadata_block(metadata: &ShaderMetadata) -> Result<String, String
 pub fn update_shader_metadata(source: &str, metadata: &ShaderMetadata) -> Result<String, String> {
     let new_block = format_metadata_block(metadata)?;
 
-    if let Some(start_pos) = source.find(METADATA_MARKER) {
-        if let Some(end_offset) = source[start_pos..].find("*/") {
-            let end_pos = start_pos + end_offset + 2; // Include the */
-            let mut result = String::with_capacity(source.len());
-            result.push_str(&source[..start_pos]);
-            result.push_str(&new_block);
-            result.push_str(&source[end_pos..]);
-            return Ok(result);
-        }
+    if let Some(start_pos) = source.find(METADATA_MARKER)
+        && let Some(end_offset) = source[start_pos..].find("*/")
+    {
+        let end_pos = start_pos + end_offset + 2; // Include the */
+        let mut result = String::with_capacity(source.len());
+        result.push_str(&source[..start_pos]);
+        result.push_str(&new_block);
+        result.push_str(&source[end_pos..]);
+        return Ok(result);
     }
 
     Ok(format!("{}\n\n{}", new_block, source))
@@ -285,15 +285,15 @@ pub fn update_cursor_shader_metadata(
 ) -> Result<String, String> {
     let new_block = format_cursor_metadata_block(metadata)?;
 
-    if let Some(start_pos) = source.find(METADATA_MARKER) {
-        if let Some(end_offset) = source[start_pos..].find("*/") {
-            let end_pos = start_pos + end_offset + 2; // Include the */
-            let mut result = String::with_capacity(source.len());
-            result.push_str(&source[..start_pos]);
-            result.push_str(&new_block);
-            result.push_str(&source[end_pos..]);
-            return Ok(result);
-        }
+    if let Some(start_pos) = source.find(METADATA_MARKER)
+        && let Some(end_offset) = source[start_pos..].find("*/")
+    {
+        let end_pos = start_pos + end_offset + 2; // Include the */
+        let mut result = String::with_capacity(source.len());
+        result.push_str(&source[..start_pos]);
+        result.push_str(&new_block);
+        result.push_str(&source[end_pos..]);
+        return Ok(result);
     }
 
     Ok(format!("{}\n\n{}", new_block, source))

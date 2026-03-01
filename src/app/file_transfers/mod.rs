@@ -75,13 +75,6 @@ fn transfer_to_info(ft: &FileTransfer) -> TransferInfo {
     }
 }
 
-fn now_millis() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64
-}
-
 impl WindowState {
     /// Poll terminal for file transfer events each frame.
     ///
@@ -438,17 +431,14 @@ impl WindowState {
                     let bytes_written = Arc::new(AtomicUsize::new(0));
                     let completed = Arc::new(AtomicBool::new(false));
                     let error: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
-                    let upload_id = now_millis();
 
                     self.file_transfer_state.active_uploads.push(ActiveUpload {
-                        id: upload_id,
                         filename: filename.clone(),
                         file_size,
                         total_wire_bytes,
                         bytes_written: Arc::clone(&bytes_written),
                         completed: Arc::clone(&completed),
                         error: Arc::clone(&error),
-                        started_at: upload_id,
                     });
 
                     // Spawn background thread to write in chunks without blocking UI

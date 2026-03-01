@@ -82,7 +82,7 @@ pub(crate) mod renderer {
     //! Renderer re-exports from the `par-term-render` sub-crate.
     pub use par_term_render::renderer::{
         DividerRenderInfo, PaneDividerSettings, PaneRenderInfo, PaneTitleInfo, Renderer,
-        RendererParams, compute_visible_separator_marks,
+        RendererParams, SplitPanesRenderParams, compute_visible_separator_marks,
     };
 }
 pub mod scripting;

@@ -128,14 +128,4 @@ impl WindowManager {
         // Fallback: return the first window if no window claims focus
         self.windows.keys().next().copied()
     }
-
-    /// Get mutable reference to a window's state
-    pub fn get_window_mut(&mut self, window_id: WindowId) -> Option<&mut WindowState> {
-        self.windows.get_mut(&window_id)
-    }
-
-    /// Get reference to a window's state
-    pub fn get_window(&self, window_id: WindowId) -> Option<&WindowState> {
-        self.windows.get(&window_id)
-    }
 }

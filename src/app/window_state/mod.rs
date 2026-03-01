@@ -82,7 +82,7 @@ impl ConfigSaveState {
 }
 
 /// Per-window state that manages a single terminal window with multiple tabs.
-pub(crate) struct WindowState {
+pub struct WindowState {
     // =========================================================================
     // Core infrastructure
     // =========================================================================

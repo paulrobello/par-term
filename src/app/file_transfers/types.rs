@@ -40,8 +40,6 @@ pub(crate) struct PendingUpload {}
 
 /// Tracks a background upload being written to the PTY in chunks.
 pub(crate) struct ActiveUpload {
-    /// Unique identifier
-    pub id: u64,
     /// Display filename
     pub filename: String,
     /// Original file size (for user-facing display)
@@ -54,8 +52,6 @@ pub(crate) struct ActiveUpload {
     pub completed: Arc<AtomicBool>,
     /// Error message if the write failed
     pub error: Arc<Mutex<Option<String>>>,
-    /// When the upload started (unix millis)
-    pub started_at: u64,
 }
 
 /// A recently-completed transfer shown briefly in the overlay.

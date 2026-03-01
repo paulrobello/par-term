@@ -2,7 +2,7 @@ use crate::audio_bell::AudioBell;
 use std::time::Instant;
 
 /// State related to audio and visual bells
-pub(crate) struct BellState {
+pub struct BellState {
     pub(crate) audio: Option<AudioBell>, // Audio bell for terminal bell sounds
     pub(crate) last_count: u64,          // Last bell event count from terminal
     pub(crate) visual_flash: Option<Instant>, // When visual bell flash started (None = not flashing)

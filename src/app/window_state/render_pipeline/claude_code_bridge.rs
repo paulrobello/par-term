@@ -113,11 +113,9 @@ impl<'a> ClaudeCodePrettifierBridge<'a> {
         };
 
         // Clear blocks when visible content changes.
-        if viewport_changed {
-            if !self.pipeline.active_blocks().is_empty() {
-                self.pipeline.clear_blocks();
-                crate::debug_log!("PRETTIFIER", "CC viewport changed, cleared all blocks");
-            }
+        if viewport_changed && !self.pipeline.active_blocks().is_empty() {
+            self.pipeline.clear_blocks();
+            crate::debug_log!("PRETTIFIER", "CC viewport changed, cleared all blocks");
         }
 
         self.pipeline.reset_boundary();

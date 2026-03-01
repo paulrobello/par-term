@@ -31,7 +31,7 @@ use crate::profile::Profile;
 use crate::session_logger::{SessionLogger, SharedSessionLogger, create_shared_logger};
 use crate::tab::initial_text::build_initial_text_payload;
 use crate::terminal::TerminalManager;
-pub(crate) use manager::TabManager;
+pub use manager::TabManager;
 pub(crate) use setup::{
     apply_login_shell_flag, build_shell_env, configure_terminal_from_config, create_base_terminal,
     get_shell_command,
@@ -63,7 +63,7 @@ pub use par_term_config::TabId;
 ///
 /// `pane_manager` is owned directly (not behind a Mutex) because it is only ever
 /// accessed from the sync winit event loop on the main thread.
-pub(crate) struct Tab {
+pub struct Tab {
     /// Unique identifier for this tab
     pub(crate) id: TabId,
     /// The terminal session for this tab.
