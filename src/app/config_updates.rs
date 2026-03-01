@@ -222,10 +222,10 @@ impl ConfigChanges {
 
             answerback_string: new.answerback_string != old.answerback_string,
 
-            unicode_width: new.unicode_version != old.unicode_version
-                || new.ambiguous_width != old.ambiguous_width,
+            unicode_width: new.unicode.unicode_version != old.unicode.unicode_version
+                || new.unicode.ambiguous_width != old.unicode.ambiguous_width,
 
-            normalization_form: new.normalization_form != old.normalization_form,
+            normalization_form: new.unicode.normalization_form != old.unicode.normalization_form,
 
             anti_idle_enabled: new.anti_idle_enabled != old.anti_idle_enabled,
             anti_idle_seconds: new.anti_idle_seconds != old.anti_idle_seconds,

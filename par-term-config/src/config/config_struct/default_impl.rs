@@ -14,7 +14,7 @@ use crate::types::{
     UnfocusedCursorStyle, VsyncMode, WindowType, default_smart_selection_rules,
 };
 
-use super::Config;
+use super::{Config, CopyModeConfig, SearchConfig, SshConfig, UnicodeConfig};
 
 impl Default for Config {
     fn default() -> Self {
@@ -36,13 +36,9 @@ impl Default for Config {
             font_hinting: true,
             font_thin_strokes: ThinStrokesMode::default(),
             minimum_contrast: crate::defaults::minimum_contrast(),
-            copy_mode_enabled: crate::defaults::bool_true(),
-            copy_mode_auto_exit_on_yank: crate::defaults::bool_true(),
-            copy_mode_show_status: crate::defaults::bool_true(),
+            copy_mode: CopyModeConfig::default(),
             scrollback_lines: crate::defaults::scrollback(),
-            unicode_version: crate::defaults::unicode_version(),
-            ambiguous_width: crate::defaults::ambiguous_width(),
-            normalization_form: crate::defaults::normalization_form(),
+            unicode: UnicodeConfig::default(),
             cursor_blink: crate::defaults::bool_false(),
             cursor_blink_interval: crate::defaults::cursor_blink_interval(),
             cursor_style: CursorStyle::default(),
@@ -194,10 +190,7 @@ impl Default for Config {
             suppress_notifications_when_focused: crate::defaults::bool_true(),
             notification_max_buffer: crate::defaults::notification_max_buffer(),
             alert_sounds: HashMap::new(),
-            enable_mdns_discovery: crate::defaults::bool_false(),
-            mdns_scan_timeout_secs: crate::defaults::mdns_timeout(),
-            ssh_auto_profile_switch: crate::defaults::bool_true(),
-            ssh_revert_profile_on_disconnect: crate::defaults::bool_true(),
+            ssh: SshConfig::default(),
             tab_style: TabStyle::default(),
             light_tab_style: crate::defaults::light_tab_style(),
             dark_tab_style: crate::defaults::dark_tab_style(),
@@ -282,11 +275,7 @@ impl Default for Config {
             session_undo_timeout_secs: crate::defaults::session_undo_timeout_secs(),
             session_undo_max_entries: crate::defaults::session_undo_max_entries(),
             session_undo_preserve_shell: crate::defaults::session_undo_preserve_shell(),
-            search_highlight_color: crate::defaults::search_highlight_color(),
-            search_current_highlight_color: crate::defaults::search_current_highlight_color(),
-            search_case_sensitive: crate::defaults::bool_false(),
-            search_regex: crate::defaults::bool_false(),
-            search_wrap_around: crate::defaults::bool_true(),
+            search: SearchConfig::default(),
             auto_log_sessions: crate::defaults::bool_false(),
             session_log_format: SessionLogFormat::default(),
             session_log_directory: crate::defaults::session_log_directory(),

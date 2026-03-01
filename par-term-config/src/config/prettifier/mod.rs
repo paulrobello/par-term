@@ -1,12 +1,32 @@
 //! Configuration structures for the Content Prettifier system.
 //!
 //! Maps to the `content_prettifier:` section in `config.yaml`.
+//!
+//! # Sub-modules
+//!
+//! - [`renderers`] — Per-renderer config types (Markdown, JSON, YAML, TOML, XML, CSV,
+//!   Diff, Log, Diagrams, SQL results, Stack Trace) and profile-level renderer overrides.
+//! - [`resolve`] — Resolution/normalization logic: [`resolve_prettifier_config`] merges
+//!   global config with optional profile overrides into a [`ResolvedPrettifierConfig`].
 
-use serde::{Deserialize, Serialize};
+pub mod renderers;
+pub mod resolve;
+
 use std::collections::HashMap;
 
+use serde::{Deserialize, Serialize};
+
+// Re-export everything from sub-modules so external callers continue to use
+// paths like `config::prettifier::RenderersConfig`, `config::prettifier::resolve_prettifier_config`, etc.
+pub use renderers::{
+    CustomRendererConfig, DiagramRendererConfig, DiffRendererConfig, FormatDetectionRulesConfig,
+    RendererToggle, RendererToggleOverride, RenderersConfig, RenderersConfigOverride, RuleOverride,
+    UserDetectionRule,
+};
+pub use resolve::{ResolvedPrettifierConfig, resolve_prettifier_config};
+
 // ---------------------------------------------------------------------------
-// Default value functions
+// Default value functions (shared across this file and sub-modules)
 // ---------------------------------------------------------------------------
 
 fn default_true() -> bool {
@@ -35,14 +55,6 @@ fn default_debounce_ms() -> u64 {
 
 fn default_clipboard_copy() -> String {
     "rendered".to_string()
-}
-
-fn default_priority() -> i32 {
-    50
-}
-
-fn default_diagrams_priority() -> i32 {
-    55
 }
 
 fn default_cache_max_entries() -> usize {
@@ -185,135 +197,6 @@ impl Default for ClipboardConfig {
     }
 }
 
-/// Per-renderer enable/disable and priority settings.
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct RenderersConfig {
-    #[serde(default)]
-    pub markdown: RendererToggle,
-    #[serde(default)]
-    pub json: RendererToggle,
-    #[serde(default)]
-    pub yaml: RendererToggle,
-    #[serde(default)]
-    pub toml: RendererToggle,
-    #[serde(default)]
-    pub xml: RendererToggle,
-    #[serde(default)]
-    pub csv: RendererToggle,
-    #[serde(default)]
-    pub diff: DiffRendererConfig,
-    #[serde(default)]
-    pub log: RendererToggle,
-    #[serde(default)]
-    pub diagrams: DiagramRendererConfig,
-    #[serde(default)]
-    pub sql_results: RendererToggle,
-    #[serde(default)]
-    pub stack_trace: RendererToggle,
-}
-
-/// Enable/disable and priority for a renderer.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct RendererToggle {
-    /// Whether this renderer is enabled.
-    #[serde(default = "default_true")]
-    pub enabled: bool,
-
-    /// Priority (higher = checked first in detection).
-    #[serde(default = "default_priority")]
-    pub priority: i32,
-}
-
-impl Default for RendererToggle {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            priority: default_priority(),
-        }
-    }
-}
-
-/// Diff renderer with side-by-side option.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct DiffRendererConfig {
-    #[serde(default = "default_true")]
-    pub enabled: bool,
-
-    #[serde(default = "default_priority")]
-    pub priority: i32,
-
-    /// Display mode: "unified" or "side_by_side".
-    #[serde(default)]
-    pub display_mode: Option<String>,
-}
-
-impl Default for DiffRendererConfig {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            priority: default_priority(),
-            display_mode: None,
-        }
-    }
-}
-
-/// Diagram renderer with engine selection.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct DiagramRendererConfig {
-    #[serde(default = "default_true")]
-    pub enabled: bool,
-
-    #[serde(default = "default_diagrams_priority")]
-    pub priority: i32,
-
-    /// Rendering engine: "auto" (default — tries native → local → kroki),
-    /// "native" (pure-Rust mermaid only), "local" (CLI tools), "kroki" (API),
-    /// or "text_fallback" (source display only).
-    #[serde(default)]
-    pub engine: Option<String>,
-
-    /// Kroki server URL (only used when engine = "kroki").
-    #[serde(default)]
-    pub kroki_server: Option<String>,
-}
-
-impl Default for DiagramRendererConfig {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            priority: default_diagrams_priority(),
-            engine: None,
-            kroki_server: None,
-        }
-    }
-}
-
-/// A user-defined custom renderer definition.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct CustomRendererConfig {
-    /// Unique ID for this custom renderer.
-    pub id: String,
-
-    /// Human-readable name.
-    pub name: String,
-
-    /// Detection regex patterns (at least one must match).
-    #[serde(default)]
-    pub detect_patterns: Vec<String>,
-
-    /// Shell command to pipe content through for rendering.
-    #[serde(default)]
-    pub render_command: Option<String>,
-
-    /// Arguments to pass to the render command.
-    #[serde(default)]
-    pub render_args: Vec<String>,
-
-    /// Priority relative to built-in renderers.
-    #[serde(default = "default_priority")]
-    pub priority: i32,
-}
-
 /// Claude Code integration settings.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ClaudeCodeConfig {
@@ -348,67 +231,6 @@ impl Default for ClaudeCodeConfig {
             show_format_badges: true,
         }
     }
-}
-
-/// User-defined detection rule overrides for a specific format.
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
-pub struct FormatDetectionRulesConfig {
-    /// Additional user-defined rules.
-    #[serde(default)]
-    pub additional: Vec<UserDetectionRule>,
-
-    /// Overrides for built-in rules (matched by rule ID).
-    #[serde(default)]
-    pub overrides: Vec<RuleOverride>,
-}
-
-/// A user-defined detection rule from config.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct UserDetectionRule {
-    /// Rule identifier.
-    pub id: String,
-
-    /// Regex pattern.
-    pub pattern: String,
-
-    /// Confidence weight (0.0–1.0).
-    #[serde(default = "default_rule_weight")]
-    pub weight: f32,
-
-    /// Scope: "any_line", "first_lines:N", "last_lines:N", "full_block", "preceding_command".
-    #[serde(default = "default_rule_scope")]
-    pub scope: String,
-
-    /// Whether this rule is enabled.
-    #[serde(default = "default_true")]
-    pub enabled: bool,
-
-    /// Human-readable description.
-    #[serde(default)]
-    pub description: String,
-}
-
-fn default_rule_weight() -> f32 {
-    0.3
-}
-
-fn default_rule_scope() -> String {
-    "any_line".to_string()
-}
-
-/// Override settings for a built-in detection rule.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct RuleOverride {
-    /// ID of the built-in rule to override.
-    pub id: String,
-
-    /// Override enabled state.
-    #[serde(default)]
-    pub enabled: Option<bool>,
-
-    /// Override weight.
-    #[serde(default)]
-    pub weight: Option<f32>,
 }
 
 /// Render cache settings.
@@ -468,42 +290,6 @@ pub struct DetectionConfigOverride {
     pub debounce_ms: Option<u64>,
 }
 
-/// Profile-level override for per-renderer settings.
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
-pub struct RenderersConfigOverride {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub markdown: Option<RendererToggleOverride>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub json: Option<RendererToggleOverride>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub yaml: Option<RendererToggleOverride>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub toml: Option<RendererToggleOverride>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub xml: Option<RendererToggleOverride>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub csv: Option<RendererToggleOverride>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub diff: Option<RendererToggleOverride>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub log: Option<RendererToggleOverride>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub diagrams: Option<RendererToggleOverride>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub sql_results: Option<RendererToggleOverride>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub stack_trace: Option<RendererToggleOverride>,
-}
-
-/// Profile-level override for a single renderer's toggle.
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
-pub struct RendererToggleOverride {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub enabled: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub priority: Option<i32>,
-}
-
 /// Profile-level override for Claude Code integration.
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct ClaudeCodeConfigOverride {
@@ -517,180 +303,6 @@ pub struct ClaudeCodeConfigOverride {
     pub auto_render_on_expand: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub show_format_badges: Option<bool>,
-}
-
-// ---------------------------------------------------------------------------
-// Resolved config — the final merged result from global + profile.
-// ---------------------------------------------------------------------------
-
-/// Fully resolved prettifier config after merging global + profile overrides.
-#[derive(Clone, Debug)]
-pub struct ResolvedPrettifierConfig {
-    pub enabled: bool,
-    pub respect_alternate_screen: bool,
-    pub global_toggle_key: String,
-    pub per_block_toggle: bool,
-    pub detection: DetectionConfig,
-    pub clipboard: ClipboardConfig,
-    pub renderers: RenderersConfig,
-    pub custom_renderers: Vec<CustomRendererConfig>,
-    /// Allowlist of permitted command names for `ExternalCommandRenderer`.
-    /// Propagated from `PrettifierYamlConfig::allowed_commands`.
-    pub allowed_commands: Vec<String>,
-    pub claude_code_integration: ClaudeCodeConfig,
-    pub detection_rules: HashMap<String, FormatDetectionRulesConfig>,
-    pub cache: CacheConfig,
-}
-
-/// Resolve effective prettifier config by merging global defaults with profile overrides.
-///
-/// Precedence (highest to lowest):
-/// 1. Profile-level setting (if present)
-/// 2. Global config-level setting
-/// 3. Built-in default
-pub fn resolve_prettifier_config(
-    global_enabled: bool,
-    global_config: &PrettifierYamlConfig,
-    profile_enabled: Option<bool>,
-    profile_config: Option<&PrettifierConfigOverride>,
-) -> ResolvedPrettifierConfig {
-    let enabled = profile_enabled.unwrap_or(global_enabled);
-
-    let (detection, renderers, claude_code_integration, respect_alternate_screen, per_block_toggle) =
-        if let Some(overrides) = profile_config {
-            let detection = merge_detection(&global_config.detection, overrides.detection.as_ref());
-            let renderers = merge_renderers(&global_config.renderers, overrides.renderers.as_ref());
-            let claude = merge_claude_code(
-                &global_config.claude_code_integration,
-                overrides.claude_code_integration.as_ref(),
-            );
-            let respect_alt = overrides
-                .respect_alternate_screen
-                .unwrap_or(global_config.respect_alternate_screen);
-            let per_block = overrides
-                .per_block_toggle
-                .unwrap_or(global_config.per_block_toggle);
-            (detection, renderers, claude, respect_alt, per_block)
-        } else {
-            (
-                global_config.detection.clone(),
-                global_config.renderers.clone(),
-                global_config.claude_code_integration.clone(),
-                global_config.respect_alternate_screen,
-                global_config.per_block_toggle,
-            )
-        };
-
-    ResolvedPrettifierConfig {
-        enabled,
-        respect_alternate_screen,
-        global_toggle_key: global_config.global_toggle_key.clone(),
-        per_block_toggle,
-        detection,
-        clipboard: global_config.clipboard.clone(),
-        renderers,
-        custom_renderers: global_config.custom_renderers.clone(),
-        allowed_commands: global_config.allowed_commands.clone(),
-        claude_code_integration,
-        detection_rules: global_config.detection_rules.clone(),
-        cache: global_config.cache.clone(),
-    }
-}
-
-fn merge_detection(
-    global: &DetectionConfig,
-    profile: Option<&DetectionConfigOverride>,
-) -> DetectionConfig {
-    let Some(p) = profile else {
-        return global.clone();
-    };
-    DetectionConfig {
-        scope: p.scope.clone().unwrap_or_else(|| global.scope.clone()),
-        confidence_threshold: p
-            .confidence_threshold
-            .unwrap_or(global.confidence_threshold),
-        max_scan_lines: p.max_scan_lines.unwrap_or(global.max_scan_lines),
-        debounce_ms: p.debounce_ms.unwrap_or(global.debounce_ms),
-    }
-}
-
-fn merge_renderers(
-    global: &RenderersConfig,
-    profile: Option<&RenderersConfigOverride>,
-) -> RenderersConfig {
-    let Some(p) = profile else {
-        return global.clone();
-    };
-
-    RenderersConfig {
-        markdown: merge_toggle(&global.markdown, p.markdown.as_ref()),
-        json: merge_toggle(&global.json, p.json.as_ref()),
-        yaml: merge_toggle(&global.yaml, p.yaml.as_ref()),
-        toml: merge_toggle(&global.toml, p.toml.as_ref()),
-        xml: merge_toggle(&global.xml, p.xml.as_ref()),
-        csv: merge_toggle(&global.csv, p.csv.as_ref()),
-        diff: DiffRendererConfig {
-            enabled: p
-                .diff
-                .as_ref()
-                .and_then(|d| d.enabled)
-                .unwrap_or(global.diff.enabled),
-            priority: p
-                .diff
-                .as_ref()
-                .and_then(|d| d.priority)
-                .unwrap_or(global.diff.priority),
-            display_mode: global.diff.display_mode.clone(),
-        },
-        log: merge_toggle(&global.log, p.log.as_ref()),
-        diagrams: DiagramRendererConfig {
-            enabled: p
-                .diagrams
-                .as_ref()
-                .and_then(|d| d.enabled)
-                .unwrap_or(global.diagrams.enabled),
-            priority: p
-                .diagrams
-                .as_ref()
-                .and_then(|d| d.priority)
-                .unwrap_or(global.diagrams.priority),
-            engine: global.diagrams.engine.clone(),
-            kroki_server: global.diagrams.kroki_server.clone(),
-        },
-        sql_results: merge_toggle(&global.sql_results, p.sql_results.as_ref()),
-        stack_trace: merge_toggle(&global.stack_trace, p.stack_trace.as_ref()),
-    }
-}
-
-fn merge_toggle(
-    global: &RendererToggle,
-    profile: Option<&RendererToggleOverride>,
-) -> RendererToggle {
-    let Some(p) = profile else {
-        return global.clone();
-    };
-    RendererToggle {
-        enabled: p.enabled.unwrap_or(global.enabled),
-        priority: p.priority.unwrap_or(global.priority),
-    }
-}
-
-fn merge_claude_code(
-    global: &ClaudeCodeConfig,
-    profile: Option<&ClaudeCodeConfigOverride>,
-) -> ClaudeCodeConfig {
-    let Some(p) = profile else {
-        return global.clone();
-    };
-    ClaudeCodeConfig {
-        auto_detect: p.auto_detect.unwrap_or(global.auto_detect),
-        render_markdown: p.render_markdown.unwrap_or(global.render_markdown),
-        render_diffs: p.render_diffs.unwrap_or(global.render_diffs),
-        auto_render_on_expand: p
-            .auto_render_on_expand
-            .unwrap_or(global.auto_render_on_expand),
-        show_format_badges: p.show_format_badges.unwrap_or(global.show_format_badges),
-    }
 }
 
 // ---------------------------------------------------------------------------

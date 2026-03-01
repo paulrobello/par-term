@@ -10,15 +10,13 @@ use super::render::{header_brightness, header_color};
 use super::{MarkdownRenderer, register_markdown_renderer};
 use crate::prettifier::registry::RendererRegistry;
 use crate::prettifier::renderers::table::ColumnAlignment;
+use crate::prettifier::testing::test_renderer_config;
 use crate::prettifier::traits::{ContentRenderer, RendererConfig, ThemeColors};
 use crate::prettifier::types::{ContentBlock, RendererCapability, StyledLine};
 use std::time::SystemTime;
 
 fn test_config() -> RendererConfig {
-    RendererConfig {
-        terminal_width: 80,
-        ..Default::default()
-    }
+    test_renderer_config()
 }
 
 fn renderer() -> MarkdownRenderer {

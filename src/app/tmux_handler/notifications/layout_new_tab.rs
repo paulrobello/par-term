@@ -101,7 +101,7 @@ impl WindowState {
                                 self.tmux_state.tmux_pane_to_native_pane = pane_mappings;
 
                                 if !pane_ids.is_empty() {
-                                    tab.tmux_pane_id = Some(pane_ids[0]);
+                                    tab.tmux.tmux_pane_id = Some(pane_ids[0]);
                                 }
 
                                 self.request_pane_refresh(pane_ids);

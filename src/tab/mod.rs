@@ -5,13 +5,22 @@
 //! - `TabManager`: Coordinates multiple tabs within a window
 //! - `TabId`: Unique identifier for each tab
 
+mod activity_state;
 mod initial_text;
 mod manager;
 mod pane_ops;
+mod profile_state;
 mod profile_tracking;
 mod refresh_task;
+mod scripting_state;
 mod session_logging;
 mod setup;
+mod tmux_state;
+
+pub(crate) use activity_state::TabActivityState;
+pub(crate) use profile_state::TabProfileState;
+pub(crate) use scripting_state::TabScriptingState;
+pub(crate) use tmux_state::TabTmuxState;
 
 use crate::app::bell::BellState;
 use crate::app::mouse::MouseState;
@@ -26,7 +35,6 @@ use crate::session_logger::{SessionLogger, SharedSessionLogger, create_shared_lo
 use crate::tab::initial_text::build_initial_text_payload;
 use crate::terminal::TerminalManager;
 pub use manager::TabManager;
-use par_term_emu_core_rust::coprocess::CoprocessId;
 pub(crate) use setup::{
     apply_login_shell_flag, build_shell_env, configure_terminal_from_config, create_base_terminal,
     get_shell_command,
@@ -144,83 +152,35 @@ pub struct Tab {
     pub(crate) has_default_title: bool,
     /// Whether the user has manually named this tab (makes title static)
     pub(crate) user_named: bool,
-    /// Last time terminal output (activity) was detected
-    pub(crate) last_activity_time: std::time::Instant,
-    /// Last terminal update generation seen (to detect new output)
-    pub(crate) last_seen_generation: u64,
-    /// Last activity time for anti-idle keep-alive
-    pub(crate) anti_idle_last_activity: std::time::Instant,
-    /// Last terminal generation recorded for anti-idle tracking
-    pub(crate) anti_idle_last_generation: u64,
-    /// Whether silence notification has been sent for current idle period
-    pub(crate) silence_notified: bool,
-    /// Whether exit notification has been sent for this tab
-    pub(crate) exit_notified: bool,
+    /// Activity, anti-idle, silence, and exit tracking state
+    pub(crate) activity: TabActivityState,
     /// Session logger for automatic session recording
     pub(crate) session_logger: SharedSessionLogger,
-    /// Whether this tab is in tmux gateway mode
-    pub(crate) tmux_gateway_active: bool,
-    /// The tmux pane ID this tab represents (when in gateway mode)
-    pub(crate) tmux_pane_id: Option<crate::tmux::TmuxPaneId>,
+    /// Tmux gateway mode and pane identity state
+    pub(crate) tmux: TabTmuxState,
     /// Last detected hostname for automatic profile switching (from OSC 7)
     pub(crate) detected_hostname: Option<String>,
     /// Last detected CWD for automatic profile switching (from OSC 7).
     /// Internal tracking state; access the current CWD via [`Tab::get_cwd`].
     pub(in crate::tab) detected_cwd: Option<String>,
-    /// Profile ID that was auto-applied based on hostname detection
-    pub(crate) auto_applied_profile_id: Option<crate::profile::ProfileId>,
-    /// Profile ID that was auto-applied based on directory pattern matching
-    pub(crate) auto_applied_dir_profile_id: Option<crate::profile::ProfileId>,
-    /// Icon from auto-applied profile (displayed in tab bar)
-    pub(crate) profile_icon: Option<String>,
     /// Custom icon set by user via context menu (takes precedence over profile_icon)
     pub(crate) custom_icon: Option<String>,
-    /// Original tab title saved before auto-profile override (restored when profile clears)
-    pub(crate) pre_profile_title: Option<String>,
-    /// Badge text override from auto-applied profile (overrides global badge_format)
-    pub(crate) badge_override: Option<String>,
-    /// Mapping from config index to coprocess ID (for UI tracking)
-    pub(crate) coprocess_ids: Vec<Option<CoprocessId>>,
-    /// Script manager for this tab
-    pub(crate) script_manager: crate::scripting::manager::ScriptManager,
-    /// Maps config index to ScriptId for running scripts
-    pub(crate) script_ids: Vec<Option<crate::scripting::manager::ScriptId>>,
-    /// Observer IDs registered with the terminal for script event forwarding
-    pub(crate) script_observer_ids: Vec<Option<par_term_emu_core_rust::observer::ObserverId>>,
-    /// Event forwarders (shared with observer registration)
-    pub(crate) script_forwarders:
-        Vec<Option<std::sync::Arc<crate::scripting::observer::ScriptEventForwarder>>>,
-    /// Trigger-generated scrollbar marks (from MarkLine actions)
-    pub(crate) trigger_marks: Vec<crate::scrollback_metadata::ScrollbackMark>,
-    /// Security metadata: maps trigger_id -> require_user_action flag.
-    /// When true, dangerous actions (RunCommand, SendText) from that trigger
-    /// are suppressed when fired from passive terminal output.
-    pub(crate) trigger_security: std::collections::HashMap<u64, bool>,
-    /// Rate limiter for output-triggered dangerous actions.
-    pub(crate) trigger_rate_limiter: par_term_config::TriggerRateLimiter,
+    /// Profile auto-switching state (hostname, directory, SSH)
+    pub(crate) profile: TabProfileState,
+    /// Scripting, coprocess, and trigger state
+    pub(crate) scripting: TabScriptingState,
     /// Prettifier pipeline for content detection and rendering (None if disabled)
     pub(crate) prettifier: Option<PrettifierPipeline>,
     /// Gutter manager for prettifier indicators
     pub(crate) gutter_manager: GutterManager,
     /// Whether the terminal was on the alt screen last frame (for detecting transitions)
     pub(crate) was_alt_screen: bool,
-    /// Profile saved before SSH auto-switch (for revert on disconnect)
-    pub(crate) pre_ssh_switch_profile: Option<crate::profile::ProfileId>,
-    /// Whether current profile was auto-applied due to SSH hostname detection
-    pub(crate) ssh_auto_switched: bool,
     /// Whether this tab is the currently active (visible) tab.
     /// Used by the refresh task to dynamically choose polling interval.
     /// Managed exclusively within the `crate::tab` module.
     pub(in crate::tab) is_active: Arc<AtomicBool>,
     /// When true, Drop impl skips cleanup (terminal Arcs are dropped on background threads)
     pub(crate) shutdown_fast: bool,
-    /// When true, a deferred call to `set_tmux_control_mode(false)` is pending.
-    ///
-    /// Set when `handle_tmux_session_ended` could not acquire the terminal lock via
-    /// `try_lock()`. The notification poll loop retries on each subsequent frame until
-    /// the lock is available, ensuring the terminal parser exits tmux control mode even
-    /// if the lock was transiently held at cleanup time.
-    pub(crate) pending_tmux_mode_disable: bool,
 }
 
 /// Parameters that differ between `Tab::new()` and `Tab::new_from_profile()`.
@@ -386,41 +346,25 @@ impl Tab {
             custom_color: None,
             has_default_title: params.has_default_title,
             user_named: params.user_named,
-            last_activity_time: std::time::Instant::now(),
-            last_seen_generation: 0,
-            anti_idle_last_activity: std::time::Instant::now(),
-            anti_idle_last_generation: 0,
-            silence_notified: false,
-            exit_notified: false,
+            activity: TabActivityState::default(),
             session_logger,
-            tmux_gateway_active: false,
-            tmux_pane_id: None,
+            tmux: TabTmuxState::default(),
             detected_hostname: None,
             detected_cwd: None,
-            auto_applied_profile_id: None,
-            auto_applied_dir_profile_id: None,
-            profile_icon: None,
             custom_icon: None,
-            pre_profile_title: None,
-            badge_override: None,
-            coprocess_ids,
-            script_manager: crate::scripting::manager::ScriptManager::new(),
-            script_ids: Vec::new(),
-            script_observer_ids: Vec::new(),
-            script_forwarders: Vec::new(),
-            trigger_marks: Vec::new(),
-            trigger_security,
-            trigger_rate_limiter: par_term_config::TriggerRateLimiter::default(),
+            profile: TabProfileState::default(),
+            scripting: TabScriptingState {
+                coprocess_ids,
+                trigger_security,
+                ..TabScriptingState::default()
+            },
             prettifier: crate::prettifier::config_bridge::create_pipeline_from_config(
                 config, cols, None,
             ),
             gutter_manager: GutterManager::new(),
             was_alt_screen: false,
-            pre_ssh_switch_profile: None,
-            ssh_auto_switched: false,
             is_active: Arc::new(AtomicBool::new(false)),
             shutdown_fast: false,
-            pending_tmux_mode_disable: false,
         })
     }
 
@@ -843,39 +787,19 @@ impl Tab {
             custom_color: None,
             has_default_title: true,
             user_named: false,
-            last_activity_time: std::time::Instant::now(),
-            last_seen_generation: 0,
-            anti_idle_last_activity: std::time::Instant::now(),
-            anti_idle_last_generation: 0,
-            silence_notified: false,
-            exit_notified: false,
+            activity: TabActivityState::default(),
             session_logger: create_shared_logger(),
-            tmux_gateway_active: false,
-            tmux_pane_id: None,
+            tmux: TabTmuxState::default(),
             detected_hostname: None,
             detected_cwd: None,
-            auto_applied_profile_id: None,
-            auto_applied_dir_profile_id: None,
-            profile_icon: None,
             custom_icon: None,
-            pre_profile_title: None,
-            badge_override: None,
-            coprocess_ids: Vec::new(),
-            script_manager: crate::scripting::manager::ScriptManager::new(),
-            script_ids: Vec::new(),
-            script_observer_ids: Vec::new(),
-            script_forwarders: Vec::new(),
-            trigger_marks: Vec::new(),
-            trigger_security: std::collections::HashMap::new(),
-            trigger_rate_limiter: par_term_config::TriggerRateLimiter::default(),
+            profile: TabProfileState::default(),
+            scripting: TabScriptingState::default(),
             prettifier: None,
             gutter_manager: GutterManager::new(),
             was_alt_screen: false,
-            pre_ssh_switch_profile: None,
-            ssh_auto_switched: false,
             is_active: Arc::new(AtomicBool::new(false)),
             shutdown_fast: false,
-            pending_tmux_mode_disable: false,
         }
     }
 }

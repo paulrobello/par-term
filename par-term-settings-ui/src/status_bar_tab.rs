@@ -730,3 +730,55 @@ fn show_widgets_section(
         }
     });
 }
+
+/// Search keywords for the Status Bar settings tab.
+pub fn keywords() -> &'static [&'static str] {
+    &[
+        "status",
+        "status bar",
+        "widget",
+        "widgets",
+        "cpu",
+        "memory",
+        "network",
+        "git branch",
+        "git status",
+        "ahead",
+        "behind",
+        "dirty",
+        "clock",
+        "time",
+        "time format",
+        "hostname",
+        "username",
+        "auto hide",
+        "poll interval",
+        "separator",
+        "bell indicator",
+        "current command",
+        "directory",
+        "section",
+        "left",
+        "center",
+        "right",
+        // Position and size
+        "position",
+        "height",
+        // Styling
+        "background",
+        "background color",
+        "background opacity",
+        "text color",
+        "foreground",
+        "font size",
+        // Auto-hide extras
+        "fullscreen",
+        "inactivity",
+        "inactivity timeout",
+        // Custom widgets
+        "custom text",
+        "custom widget",
+        // Time format
+        "strftime",
+    ]
+}

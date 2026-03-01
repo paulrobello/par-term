@@ -1,11 +1,17 @@
-//! Channel texture management for custom shaders
+//! Channel texture management and intermediate texture management for custom shaders
 //!
-//! Provides loading and management of texture channels (iChannel0-3)
-//! that can be used by custom shaders alongside the terminal content (iChannel4).
+//! Provides loading and management of texture channels (iChannel0-3) that can be
+//! used by custom shaders alongside the terminal content (iChannel4).
+//!
+//! Also provides the intermediate (ping-pong) texture used to render terminal
+//! content into before the custom shader reads it, as well as the bind group
+//! recreation logic that wires all textures together.
 
 use crate::error::RenderError;
 use std::path::Path;
 use wgpu::*;
+
+use super::CustomShaderRenderer;
 
 /// A texture channel that can be bound to a custom shader
 pub struct ChannelTexture {
@@ -268,4 +274,210 @@ pub fn load_channel_textures(
         load_or_placeholder(&paths[2], 2),
         load_or_placeholder(&paths[3], 3),
     ]
+}
+
+// ============ Intermediate texture and bind-group management ============
+
+impl CustomShaderRenderer {
+    /// Create the intermediate texture for rendering terminal content.
+    ///
+    /// The terminal scene is rendered into this texture first; the custom
+    /// shader then reads it via `iChannel4`.
+    pub(super) fn create_intermediate_texture(
+        device: &Device,
+        format: TextureFormat,
+        width: u32,
+        height: u32,
+    ) -> (Texture, TextureView) {
+        let texture = device.create_texture(&TextureDescriptor {
+            label: Some("Custom Shader Intermediate Texture"),
+            size: Extent3d {
+                width: width.max(1),
+                height: height.max(1),
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: TextureDimension::D2,
+            format,
+            usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        });
+
+        let view = texture.create_view(&TextureViewDescriptor::default());
+        (texture, view)
+    }
+
+    /// Clear the intermediate texture (e.g., when switching to split pane mode).
+    ///
+    /// This prevents old single-pane content from showing through the shader.
+    pub fn clear_intermediate_texture(&self, device: &Device, queue: &Queue) {
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Clear Intermediate Texture Encoder"),
+        });
+
+        {
+            let _clear_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Clear Intermediate Texture Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &self.intermediate_texture_view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                        store: wgpu::StoreOp::Store,
+                    },
+                    depth_slice: None,
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+        }
+
+        queue.submit(std::iter::once(encoder.finish()));
+    }
+
+    /// Resize the intermediate texture when the window size changes.
+    pub fn resize(&mut self, device: &Device, width: u32, height: u32) {
+        if width == self.texture_width && height == self.texture_height {
+            return;
+        }
+
+        self.texture_width = width;
+        self.texture_height = height;
+
+        // Recreate intermediate texture
+        let (texture, view) =
+            Self::create_intermediate_texture(device, self.surface_format, width, height);
+        self.intermediate_texture = texture;
+        self.intermediate_texture_view = view;
+
+        // Recreate bind group with new texture view (handles background as channel0 if enabled)
+        self.recreate_bind_group(device);
+    }
+
+    /// Recreate the bind group, using the background texture for channel0 if enabled.
+    ///
+    /// Priority for iChannel0:
+    /// 1. If `use_background_as_channel0` is enabled and a background texture is set,
+    ///    use the background texture.
+    /// 2. If channel0 has a configured texture (not a 1x1 placeholder), use it.
+    /// 3. Otherwise use the placeholder.
+    ///
+    /// This is called when:
+    /// - The background texture changes (and `use_background_as_channel0` is true)
+    /// - `use_background_as_channel0` flag changes
+    /// - The window resizes (intermediate texture changes)
+    pub(super) fn recreate_bind_group(&mut self, device: &Device) {
+        // Priority: use_background_as_channel0 (explicit override) > configured channel0 > placeholder
+        let channel0_texture = if self.use_background_as_channel0 {
+            // User explicitly wants background image as channel0
+            self.background_channel_texture
+                .as_ref()
+                .unwrap_or(&self.channel_textures[0])
+        } else if self.channel0_has_real_texture() {
+            // Channel0 has a real texture configured
+            &self.channel_textures[0]
+        } else {
+            // Use the placeholder
+            &self.channel_textures[0]
+        };
+
+        // Create a temporary array with the potentially swapped channel0
+        let effective_channels = [
+            channel0_texture,
+            &self.channel_textures[1],
+            &self.channel_textures[2],
+            &self.channel_textures[3],
+        ];
+
+        self.bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Custom Shader Bind Group"),
+            layout: &self.bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: self.uniform_buffer.as_entire_binding(),
+                },
+                // iChannel0 (background or configured texture)
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(&effective_channels[0].view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Sampler(&effective_channels[0].sampler),
+                },
+                // iChannel1
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::TextureView(&effective_channels[1].view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: wgpu::BindingResource::Sampler(&effective_channels[1].sampler),
+                },
+                // iChannel2
+                wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: wgpu::BindingResource::TextureView(&effective_channels[2].view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 6,
+                    resource: wgpu::BindingResource::Sampler(&effective_channels[2].sampler),
+                },
+                // iChannel3
+                wgpu::BindGroupEntry {
+                    binding: 7,
+                    resource: wgpu::BindingResource::TextureView(&effective_channels[3].view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 8,
+                    resource: wgpu::BindingResource::Sampler(&effective_channels[3].sampler),
+                },
+                // iChannel4 (terminal content)
+                wgpu::BindGroupEntry {
+                    binding: 9,
+                    resource: wgpu::BindingResource::TextureView(&self.intermediate_texture_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 10,
+                    resource: wgpu::BindingResource::Sampler(&self.sampler),
+                },
+                // iCubemap
+                wgpu::BindGroupEntry {
+                    binding: 11,
+                    resource: wgpu::BindingResource::TextureView(&self.cubemap.view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 12,
+                    resource: wgpu::BindingResource::Sampler(&self.cubemap.sampler),
+                },
+            ],
+        });
+    }
+
+    /// Check if channel0 has a real configured texture (not just a 1x1 placeholder).
+    pub(super) fn channel0_has_real_texture(&self) -> bool {
+        let ch0 = &self.channel_textures[0];
+        // Placeholder textures are 1x1
+        ch0.width > 1 || ch0.height > 1
+    }
+
+    /// Get the effective channel0 resolution for the `iChannelResolution` uniform.
+    ///
+    /// Priority:
+    /// 1. If `use_background_as_channel0` is enabled and a background texture is set,
+    ///    return its resolution.
+    /// 2. Otherwise return channel0 texture resolution (configured or placeholder).
+    pub(super) fn effective_channel0_resolution(&self) -> [f32; 4] {
+        if self.use_background_as_channel0 {
+            self.background_channel_texture
+                .as_ref()
+                .map(|t| t.resolution())
+                .unwrap_or_else(|| self.channel_textures[0].resolution())
+        } else {
+            self.channel_textures[0].resolution()
+        }
+    }
 }

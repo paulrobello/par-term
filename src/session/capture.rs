@@ -3,6 +3,7 @@
 use super::{SessionPaneNode, SessionState, SessionTab, SessionWindow};
 use crate::app::window_state::WindowState;
 use crate::pane::PaneNode;
+use par_term_config::snapshot_types::TabSnapshot;
 use std::collections::HashMap;
 use winit::window::WindowId;
 
@@ -37,15 +38,17 @@ pub fn capture_session(windows: &HashMap<WindowId, WindowState>) -> SessionState
                     .map(capture_pane_node);
 
                 SessionTab {
-                    cwd: tab.get_cwd(),
-                    title: tab.title.clone(),
-                    custom_color: tab.custom_color,
-                    user_title: if tab.user_named {
-                        Some(tab.title.clone())
-                    } else {
-                        None
+                    snapshot: TabSnapshot {
+                        cwd: tab.get_cwd(),
+                        title: tab.title.clone(),
+                        custom_color: tab.custom_color,
+                        user_title: if tab.user_named {
+                            Some(tab.title.clone())
+                        } else {
+                            None
+                        },
+                        custom_icon: tab.custom_icon.clone(),
                     },
-                    custom_icon: tab.custom_icon.clone(),
                     pane_layout,
                 }
             })

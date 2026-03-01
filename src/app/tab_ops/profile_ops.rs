@@ -48,7 +48,7 @@ impl WindowState {
             Ok(tab_id) => {
                 // Set profile icon on the new tab
                 if let Some(tab) = self.tab_manager.get_tab_mut(tab_id) {
-                    tab.profile_icon = profile.icon.clone();
+                    tab.profile.profile_icon = profile.icon.clone();
                 }
 
                 // Start refresh task for the new tab and resize to match window
@@ -224,27 +224,28 @@ impl WindowState {
         let new_hostname = match tab.check_hostname_change() {
             Some(h) => h,
             None => {
-                if tab.detected_hostname.is_none() && tab.auto_applied_profile_id.is_some() {
+                if tab.detected_hostname.is_none() && tab.profile.auto_applied_profile_id.is_some()
+                {
                     crate::debug_info!(
                         "PROFILE",
                         "Clearing auto-applied hostname profile (returned to localhost)"
                     );
-                    tab.auto_applied_profile_id = None;
-                    tab.profile_icon = None;
-                    tab.badge_override = None;
+                    tab.profile.auto_applied_profile_id = None;
+                    tab.profile.profile_icon = None;
+                    tab.profile.badge_override = None;
                     // Restore original tab title
-                    if let Some(original) = tab.pre_profile_title.take() {
+                    if let Some(original) = tab.profile.pre_profile_title.take() {
                         tab.title = original;
                     }
 
                     // Revert SSH auto-switch if active
-                    if tab.ssh_auto_switched {
+                    if tab.profile.ssh_auto_switched {
                         crate::debug_info!(
                             "PROFILE",
                             "Reverting SSH auto-switch (disconnected from remote host)"
                         );
-                        tab.ssh_auto_switched = false;
-                        tab.pre_ssh_switch_profile = None;
+                        tab.profile.ssh_auto_switched = false;
+                        tab.profile.pre_ssh_switch_profile = None;
                     }
                 }
                 return false;
@@ -252,7 +253,7 @@ impl WindowState {
         };
 
         // Don't re-apply the same profile
-        if let Some(existing_profile_id) = tab.auto_applied_profile_id
+        if let Some(existing_profile_id) = tab.profile.auto_applied_profile_id
             && let Some(profile) = self
                 .overlay_ui
                 .profile_manager
@@ -285,24 +286,24 @@ impl WindowState {
             // Apply profile visual settings to the tab
             if let Some(tab) = self.tab_manager.active_tab_mut() {
                 // Track SSH auto-switch state for revert on disconnect
-                if !tab.ssh_auto_switched {
-                    tab.pre_ssh_switch_profile = tab.auto_applied_profile_id;
-                    tab.ssh_auto_switched = true;
+                if !tab.profile.ssh_auto_switched {
+                    tab.profile.pre_ssh_switch_profile = tab.profile.auto_applied_profile_id;
+                    tab.profile.ssh_auto_switched = true;
                 }
 
-                tab.auto_applied_profile_id = Some(profile_id);
-                tab.profile_icon = profile_icon;
+                tab.profile.auto_applied_profile_id = Some(profile_id);
+                tab.profile.profile_icon = profile_icon;
 
                 // Save original title before overriding (only if not already saved)
-                if tab.pre_profile_title.is_none() {
-                    tab.pre_profile_title = Some(tab.title.clone());
+                if tab.profile.pre_profile_title.is_none() {
+                    tab.profile.pre_profile_title = Some(tab.title.clone());
                 }
                 // Apply profile tab name (fall back to profile name)
                 tab.title = profile_tab_name.unwrap_or_else(|| profile_name.clone());
 
                 // Apply badge text override if configured
                 if let Some(badge_text) = profile_badge_text {
-                    tab.badge_override = Some(badge_text);
+                    tab.profile.badge_override = Some(badge_text);
                 }
 
                 // Execute profile command in the running shell if configured
@@ -376,8 +377,8 @@ impl WindowState {
 
             (
                 cmd,
-                tab.ssh_auto_switched,
-                tab.auto_applied_profile_id.is_some(),
+                tab.profile.ssh_auto_switched,
+                tab.profile.auto_applied_profile_id.is_some(),
             )
         };
 
@@ -397,19 +398,19 @@ impl WindowState {
                 );
                 // Mark SSH as active for revert tracking (the actual profile
                 // switch will happen via check_auto_hostname_switch when OSC 7 arrives)
-                tab.ssh_auto_switched = true;
+                tab.profile.ssh_auto_switched = true;
             }
             false
         } else if !is_ssh && already_switched && !has_hostname_profile {
             // SSH disconnected and no hostname-based profile is active - revert
             if let Some(tab) = self.tab_manager.active_tab_mut() {
                 crate::debug_info!("PROFILE", "SSH command ended - reverting auto-switch state");
-                tab.ssh_auto_switched = false;
-                let _prev_profile = tab.pre_ssh_switch_profile.take();
+                tab.profile.ssh_auto_switched = false;
+                let _prev_profile = tab.profile.pre_ssh_switch_profile.take();
                 // Clear any SSH-related visual overrides
-                tab.profile_icon = None;
-                tab.badge_override = None;
-                if let Some(original) = tab.pre_profile_title.take() {
+                tab.profile.profile_icon = None;
+                tab.profile.badge_override = None;
+                if let Some(original) = tab.profile.pre_profile_title.take() {
                     tab.title = original;
                 }
             }
@@ -427,7 +428,7 @@ impl WindowState {
         };
 
         // Don't override hostname-based profile (higher priority)
-        if tab.auto_applied_profile_id.is_some() {
+        if tab.profile.auto_applied_profile_id.is_some() {
             return false;
         }
 
@@ -437,7 +438,7 @@ impl WindowState {
         };
 
         // Don't re-apply the same profile
-        if let Some(existing_profile_id) = tab.auto_applied_dir_profile_id
+        if let Some(existing_profile_id) = tab.profile.auto_applied_dir_profile_id
             && let Some(profile) = self.overlay_ui.profile_manager.find_by_directory(&new_cwd)
             && profile.id == existing_profile_id
         {
@@ -462,19 +463,19 @@ impl WindowState {
 
             // Apply profile visual settings to the tab
             if let Some(tab) = self.tab_manager.active_tab_mut() {
-                tab.auto_applied_dir_profile_id = Some(profile_id);
-                tab.profile_icon = profile_icon;
+                tab.profile.auto_applied_dir_profile_id = Some(profile_id);
+                tab.profile.profile_icon = profile_icon;
 
                 // Save original title before overriding (only if not already saved)
-                if tab.pre_profile_title.is_none() {
-                    tab.pre_profile_title = Some(tab.title.clone());
+                if tab.profile.pre_profile_title.is_none() {
+                    tab.profile.pre_profile_title = Some(tab.title.clone());
                 }
                 // Apply profile tab name (fall back to profile name)
                 tab.title = profile_tab_name.unwrap_or_else(|| profile_name.clone());
 
                 // Apply badge text override if configured
                 if let Some(badge_text) = profile_badge_text {
-                    tab.badge_override = Some(badge_text);
+                    tab.profile.badge_override = Some(badge_text);
                 }
 
                 // Execute profile command in the running shell if configured
@@ -517,18 +518,18 @@ impl WindowState {
         } else {
             // Clear directory profile if CWD no longer matches any pattern
             if let Some(tab) = self.tab_manager.active_tab_mut()
-                && tab.auto_applied_dir_profile_id.is_some()
+                && tab.profile.auto_applied_dir_profile_id.is_some()
             {
                 crate::debug_info!(
                     "PROFILE",
                     "Clearing auto-applied directory profile (CWD '{}' no longer matches)",
                     new_cwd
                 );
-                tab.auto_applied_dir_profile_id = None;
-                tab.profile_icon = None;
-                tab.badge_override = None;
+                tab.profile.auto_applied_dir_profile_id = None;
+                tab.profile.profile_icon = None;
+                tab.profile.badge_override = None;
                 // Restore original tab title
-                if let Some(original) = tab.pre_profile_title.take() {
+                if let Some(original) = tab.profile.pre_profile_title.take() {
                     tab.title = original;
                 }
             }

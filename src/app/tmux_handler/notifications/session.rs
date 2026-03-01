@@ -128,7 +128,7 @@ impl WindowState {
             .filter_map(|tab| {
                 // Close tabs that were displaying tmux content (have tmux_pane_id)
                 // but not the gateway tab itself
-                if tab.tmux_pane_id.is_some() && Some(tab.id) != gateway_tab_id {
+                if tab.tmux.tmux_pane_id.is_some() && Some(tab.id) != gateway_tab_id {
                     Some(tab.id)
                 } else {
                     None
@@ -145,10 +145,10 @@ impl WindowState {
         // Disable tmux control mode on the gateway tab and clear auto-applied profile
         if let Some(gateway_tab_id) = self.tmux_state.tmux_gateway_tab_id
             && let Some(tab) = self.tab_manager.get_tab_mut(gateway_tab_id)
-            && tab.tmux_gateway_active
+            && tab.tmux.tmux_gateway_active
         {
-            tab.tmux_gateway_active = false;
-            tab.tmux_pane_id = None;
+            tab.tmux.tmux_gateway_active = false;
+            tab.tmux.tmux_pane_id = None;
             tab.clear_auto_profile(); // Clear tmux session profile
             // try_lock: intentional — session-ended cleanup runs from the sync event loop
             // where blocking would stall the entire GUI.
@@ -163,7 +163,7 @@ impl WindowState {
                      on tab {} — deferring to next poll cycle",
                     gateway_tab_id
                 );
-                tab.pending_tmux_mode_disable = true;
+                tab.tmux.pending_tmux_mode_disable = true;
             }
         }
         self.tmux_state.tmux_gateway_tab_id = None;

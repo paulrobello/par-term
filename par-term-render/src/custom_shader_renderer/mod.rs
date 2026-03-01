@@ -22,16 +22,17 @@ use wgpu::*;
 
 mod cubemap;
 mod cursor;
+mod hot_reload;
 pub mod pipeline;
 pub mod textures;
 pub mod transpiler;
 pub mod types;
+mod uniforms;
 
 use cubemap::CubemapTexture;
 use pipeline::{create_bind_group, create_bind_group_layout, create_render_pipeline};
 use textures::{ChannelTexture, load_channel_textures};
-use transpiler::{transpile_glsl_to_wgsl, transpile_glsl_to_wgsl_source};
-use types::CustomShaderUniforms;
+use transpiler::transpile_glsl_to_wgsl;
 
 /// Custom shader renderer that applies post-processing effects
 pub struct CustomShaderRenderer {
@@ -258,12 +259,7 @@ impl CustomShaderRenderer {
         };
 
         // Create uniform buffer
-        let uniform_buffer = device.create_buffer(&BufferDescriptor {
-            label: Some("Custom Shader Uniforms"),
-            size: std::mem::size_of::<CustomShaderUniforms>() as u64,
-            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
+        let uniform_buffer = Self::create_uniform_buffer(device);
 
         // Create bind group layout and bind group
         let bind_group_layout = create_bind_group_layout(device);
@@ -343,83 +339,9 @@ impl CustomShaderRenderer {
         })
     }
 
-    /// Create the intermediate texture for rendering terminal content
-    fn create_intermediate_texture(
-        device: &Device,
-        format: TextureFormat,
-        width: u32,
-        height: u32,
-    ) -> (Texture, TextureView) {
-        let texture = device.create_texture(&TextureDescriptor {
-            label: Some("Custom Shader Intermediate Texture"),
-            size: Extent3d {
-                width: width.max(1),
-                height: height.max(1),
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: TextureDimension::D2,
-            format,
-            usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
-            view_formats: &[],
-        });
-
-        let view = texture.create_view(&TextureViewDescriptor::default());
-        (texture, view)
-    }
-
     /// Get a view of the intermediate texture for rendering terminal content into
     pub fn intermediate_texture_view(&self) -> &TextureView {
         &self.intermediate_texture_view
-    }
-
-    /// Clear the intermediate texture (e.g., when switching to split pane mode)
-    ///
-    /// This prevents old single-pane content from showing through the shader.
-    pub fn clear_intermediate_texture(&self, device: &Device, queue: &Queue) {
-        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("Clear Intermediate Texture Encoder"),
-        });
-
-        {
-            let _clear_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Clear Intermediate Texture Pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &self.intermediate_texture_view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                        store: wgpu::StoreOp::Store,
-                    },
-                    depth_slice: None,
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-        }
-
-        queue.submit(std::iter::once(encoder.finish()));
-    }
-
-    /// Resize the intermediate texture when window size changes
-    pub fn resize(&mut self, device: &Device, width: u32, height: u32) {
-        if width == self.texture_width && height == self.texture_height {
-            return;
-        }
-
-        self.texture_width = width;
-        self.texture_height = height;
-
-        // Recreate intermediate texture
-        let (texture, view) =
-            Self::create_intermediate_texture(device, self.surface_format, width, height);
-        self.intermediate_texture = texture;
-        self.intermediate_texture_view = view;
-
-        // Recreate bind group with new texture view (handles background as channel0 if enabled)
-        self.recreate_bind_group(device);
     }
 
     /// Render the custom shader effect to the output texture
@@ -519,167 +441,6 @@ impl CustomShaderRenderer {
 
         queue.submit(std::iter::once(encoder.finish()));
         Ok(())
-    }
-
-    /// Build the uniform buffer data
-    fn build_uniforms(
-        &self,
-        time: f32,
-        time_delta: f32,
-        apply_opacity: bool,
-    ) -> CustomShaderUniforms {
-        // Calculate iMouse uniform
-        let height = self.texture_height as f32;
-        let mouse_y_flipped = height - self.mouse_position[1];
-        let click_y_flipped = height - self.mouse_click_position[1];
-
-        let mouse = if self.mouse_button_down {
-            [
-                self.mouse_position[0],
-                mouse_y_flipped,
-                self.mouse_click_position[0],
-                click_y_flipped,
-            ]
-        } else {
-            [
-                self.mouse_position[0],
-                mouse_y_flipped,
-                -self.mouse_click_position[0].abs(),
-                -click_y_flipped.abs(),
-            ]
-        };
-
-        // Calculate iDate uniform
-        let date = Self::calculate_date();
-
-        // Calculate cursor pixel positions
-        let (curr_x, curr_y) =
-            self.cursor_to_pixels(self.current_cursor_pos.0, self.current_cursor_pos.1);
-        let (prev_x, prev_y) =
-            self.cursor_to_pixels(self.previous_cursor_pos.0, self.previous_cursor_pos.1);
-
-        // When rendering to intermediate texture (for further shader processing),
-        // use 0.0 to signal "chain mode" to the shader. This tells the shader to:
-        // - Use full background color for RGB (not premultiplied by opacity)
-        // - Output terminal-only alpha (so next shader can detect transparent areas)
-        // The final shader in the chain will apply actual window opacity.
-        let effective_opacity = if apply_opacity {
-            self.window_opacity
-        } else {
-            0.0 // Chain mode: shader detects this and preserves transparency info
-        };
-
-        // Resolution stays at full texture size for correct UV sampling
-        // The viewport (set in render) limits where output appears
-        CustomShaderUniforms {
-            resolution: [self.texture_width as f32, self.texture_height as f32],
-            time,
-            time_delta,
-            mouse,
-            date,
-            opacity: effective_opacity,
-            // When keep_text_opaque is true, text stays at full opacity (1.0)
-            // When false, text uses the same opacity as the window background
-            text_opacity: if self.keep_text_opaque || !apply_opacity {
-                1.0
-            } else {
-                self.window_opacity
-            },
-            full_content_mode: if self.full_content_mode { 1.0 } else { 0.0 },
-            frame: self.frame_count as f32,
-            frame_rate: self.current_frame_rate,
-            resolution_z: 1.0,
-            brightness: self.brightness,
-            key_press_time: self.key_press_time,
-            current_cursor: [
-                curr_x,
-                curr_y,
-                self.cursor_width_for_style(self.current_cursor_style, self.scale_factor),
-                self.cursor_height_for_style(self.current_cursor_style, self.scale_factor),
-            ],
-            previous_cursor: [
-                prev_x,
-                prev_y,
-                self.cursor_width_for_style(self.previous_cursor_style, self.scale_factor),
-                self.cursor_height_for_style(self.previous_cursor_style, self.scale_factor),
-            ],
-            current_cursor_color: [
-                self.current_cursor_color[0],
-                self.current_cursor_color[1],
-                self.current_cursor_color[2],
-                self.current_cursor_color[3] * self.current_cursor_opacity,
-            ],
-            previous_cursor_color: [
-                self.previous_cursor_color[0],
-                self.previous_cursor_color[1],
-                self.previous_cursor_color[2],
-                self.previous_cursor_color[3] * self.previous_cursor_opacity,
-            ],
-            cursor_change_time: self.cursor_change_time,
-            cursor_trail_duration: self.cursor_trail_duration,
-            cursor_glow_radius: self.cursor_glow_radius,
-            cursor_glow_intensity: self.cursor_glow_intensity,
-            cursor_shader_color: self.cursor_shader_color,
-            channel0_resolution: self.effective_channel0_resolution(),
-            channel1_resolution: self.channel_textures[1].resolution(),
-            channel2_resolution: self.channel_textures[2].resolution(),
-            channel3_resolution: self.channel_textures[3].resolution(),
-            channel4_resolution: [
-                self.texture_width as f32,
-                self.texture_height as f32,
-                1.0,
-                0.0,
-            ],
-            cubemap_resolution: self.cubemap.resolution(),
-            background_color: self.background_color,
-            progress: self.progress_data,
-        }
-    }
-
-    /// Calculate the iDate uniform value
-    fn calculate_date() -> [f32; 4] {
-        use std::time::{SystemTime, UNIX_EPOCH};
-        let now_sys = SystemTime::now();
-        let since_epoch = now_sys.duration_since(UNIX_EPOCH).unwrap_or_default();
-        let secs = since_epoch.as_secs();
-
-        let days_since_epoch = secs / 86400;
-        let secs_today = (secs % 86400) as f32;
-
-        let mut year = 1970i32;
-        let mut remaining_days = days_since_epoch as i32;
-
-        loop {
-            let days_in_year = if year % 4 == 0 && (year % 100 != 0 || year % 400 == 0) {
-                366
-            } else {
-                365
-            };
-            if remaining_days < days_in_year {
-                break;
-            }
-            remaining_days -= days_in_year;
-            year += 1;
-        }
-
-        let is_leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
-        let days_in_months: [i32; 12] = if is_leap {
-            [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-        } else {
-            [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-        };
-
-        let mut month = 0i32;
-        for (i, &days) in days_in_months.iter().enumerate() {
-            if remaining_days < days {
-                month = i as i32;
-                break;
-            }
-            remaining_days -= days;
-        }
-
-        let day = remaining_days + 1;
-        [year as f32, month as f32, day as f32, secs_today]
     }
 
     /// Check if animation is enabled
@@ -875,129 +636,6 @@ impl CustomShaderRenderer {
         self.progress_data = [state, percent, is_active, active_count];
     }
 
-    /// Check if channel0 has a real configured texture (not just a 1x1 placeholder).
-    fn channel0_has_real_texture(&self) -> bool {
-        let ch0 = &self.channel_textures[0];
-        // Placeholder textures are 1x1
-        ch0.width > 1 || ch0.height > 1
-    }
-
-    /// Get the effective channel0 resolution for the iChannelResolution uniform.
-    ///
-    /// This follows the same priority as texture selection:
-    /// 1. If use_background_as_channel0 is enabled and background exists, use its resolution
-    /// 2. Otherwise use channel0 texture resolution (whether configured or placeholder)
-    fn effective_channel0_resolution(&self) -> [f32; 4] {
-        if self.use_background_as_channel0 {
-            self.background_channel_texture
-                .as_ref()
-                .map(|t| t.resolution())
-                .unwrap_or_else(|| self.channel_textures[0].resolution())
-        } else {
-            self.channel_textures[0].resolution()
-        }
-    }
-
-    /// Recreate the bind group, using background texture for channel0 if enabled.
-    ///
-    /// Priority for iChannel0:
-    /// 1. If use_background_as_channel0 is enabled and background exists, use background
-    /// 2. If channel0 has a configured texture (not placeholder), use it
-    /// 3. Otherwise use the placeholder
-    ///
-    /// This is called when:
-    /// - The background texture changes (and use_background_as_channel0 is true)
-    /// - use_background_as_channel0 flag changes
-    /// - The window resizes (intermediate texture changes)
-    fn recreate_bind_group(&mut self, device: &Device) {
-        // Priority: use_background_as_channel0 (explicit override) > configured channel0 > placeholder
-        let channel0_texture = if self.use_background_as_channel0 {
-            // User explicitly wants background image as channel0
-            self.background_channel_texture
-                .as_ref()
-                .unwrap_or(&self.channel_textures[0])
-        } else if self.channel0_has_real_texture() {
-            // Channel0 has a real texture configured
-            &self.channel_textures[0]
-        } else {
-            // Use the placeholder
-            &self.channel_textures[0]
-        };
-
-        // Create a temporary array with the potentially swapped channel0
-        let effective_channels = [
-            channel0_texture,
-            &self.channel_textures[1],
-            &self.channel_textures[2],
-            &self.channel_textures[3],
-        ];
-
-        self.bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Custom Shader Bind Group"),
-            layout: &self.bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: self.uniform_buffer.as_entire_binding(),
-                },
-                // iChannel0 (background or configured texture)
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::TextureView(&effective_channels[0].view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: wgpu::BindingResource::Sampler(&effective_channels[0].sampler),
-                },
-                // iChannel1
-                wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: wgpu::BindingResource::TextureView(&effective_channels[1].view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 4,
-                    resource: wgpu::BindingResource::Sampler(&effective_channels[1].sampler),
-                },
-                // iChannel2
-                wgpu::BindGroupEntry {
-                    binding: 5,
-                    resource: wgpu::BindingResource::TextureView(&effective_channels[2].view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 6,
-                    resource: wgpu::BindingResource::Sampler(&effective_channels[2].sampler),
-                },
-                // iChannel3
-                wgpu::BindGroupEntry {
-                    binding: 7,
-                    resource: wgpu::BindingResource::TextureView(&effective_channels[3].view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 8,
-                    resource: wgpu::BindingResource::Sampler(&effective_channels[3].sampler),
-                },
-                // iChannel4 (terminal content)
-                wgpu::BindGroupEntry {
-                    binding: 9,
-                    resource: wgpu::BindingResource::TextureView(&self.intermediate_texture_view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 10,
-                    resource: wgpu::BindingResource::Sampler(&self.sampler),
-                },
-                // iCubemap
-                wgpu::BindGroupEntry {
-                    binding: 11,
-                    resource: wgpu::BindingResource::TextureView(&self.cubemap.view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 12,
-                    resource: wgpu::BindingResource::Sampler(&self.cubemap.sampler),
-                },
-            ],
-        });
-    }
-
     /// Update the use_background_as_channel0 setting and recreate bind group if needed.
     ///
     /// Call this when the setting changes in the UI or config.
@@ -1007,46 +645,6 @@ impl CustomShaderRenderer {
             self.recreate_bind_group(device);
             log::info!("use_background_as_channel0 toggled to {}", use_background);
         }
-    }
-
-    /// Reload the shader from a source string
-    pub fn reload_from_source(&mut self, device: &Device, source: &str, name: &str) -> Result<()> {
-        let wgsl_source = transpile_glsl_to_wgsl_source(source, name)?;
-
-        log::info!(
-            "Reloading custom shader from source ({} bytes GLSL -> {} bytes WGSL)",
-            source.len(),
-            wgsl_source.len()
-        );
-        log::debug!("Generated WGSL:\n{}", wgsl_source);
-
-        // Pre-validate WGSL
-        let module = naga::front::wgsl::parse_str(&wgsl_source)
-            .context("Custom shader WGSL parse failed")?;
-        let _info = naga::valid::Validator::new(
-            naga::valid::ValidationFlags::all(),
-            naga::valid::Capabilities::empty(),
-        )
-        .validate(&module)
-        .context("Custom shader WGSL validation failed")?;
-
-        let shader_module = device.create_shader_module(ShaderModuleDescriptor {
-            label: Some("Custom Shader Module (reloaded)"),
-            source: ShaderSource::Wgsl(wgsl_source.into()),
-        });
-
-        self.pipeline = create_render_pipeline(
-            device,
-            &shader_module,
-            &self.bind_group_layout,
-            self.surface_format,
-            Some("Custom Shader Pipeline (reloaded)"),
-        );
-
-        self.start_time = Instant::now();
-
-        log::info!("Custom shader reloaded successfully from source");
-        Ok(())
     }
 
     /// Set the right content inset (e.g., AI Inspector panel).

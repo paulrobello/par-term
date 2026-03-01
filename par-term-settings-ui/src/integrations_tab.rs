@@ -435,3 +435,31 @@ fn shell_type_display(shell: ShellType) -> &'static str {
         ShellType::Unknown => "Unknown",
     }
 }
+
+/// Search keywords for the Integrations settings tab.
+pub fn keywords() -> &'static [&'static str] {
+    &[
+        "shell integration",
+        "bash",
+        "zsh",
+        "fish",
+        "shaders",
+        "shader bundle",
+        "install",
+        "uninstall",
+        "reinstall",
+        "bundle",
+        "curl",
+        "manual",
+        "open folder",
+        "shaders folder",
+        "overwrite",
+        // Status and info
+        "detected",
+        "version",
+        "status",
+        "location",
+        "copy",
+        "modified",
+    ]
+}

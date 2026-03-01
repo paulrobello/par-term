@@ -283,6 +283,7 @@ fn parse_rule_scope(scope: &str) -> RuleScope {
 mod tests {
     use super::*;
     use crate::config::prettifier::*;
+    use crate::prettifier::testing::test_global_config;
 
     #[test]
     fn test_to_pipeline_config() {
@@ -454,7 +455,7 @@ mod tests {
     // -----------------------------------------------------------------------
 
     fn default_config() -> Config {
-        Config::default()
+        test_global_config()
     }
 
     #[test]

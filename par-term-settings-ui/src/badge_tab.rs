@@ -366,3 +366,35 @@ fn show_variables_section(
         },
     );
 }
+
+/// Search keywords for the Badge settings tab.
+pub fn keywords() -> &'static [&'static str] {
+    &[
+        // General
+        "badge",
+        "badge enabled",
+        "badge format",
+        // Appearance
+        "badge color",
+        "text color",
+        "badge opacity",
+        "opacity",
+        "badge font",
+        "font",
+        "bold",
+        // Position
+        "margin",
+        "top margin",
+        "right margin",
+        "max width",
+        "max height",
+        // Variables
+        "variable",
+        "session",
+        "hostname",
+        "username",
+        "path",
+        "overlay",
+        "label",
+    ]
+}

@@ -26,8 +26,8 @@ impl WindowState {
         }
 
         let current_match_idx = self.overlay_ui.search_ui.current_match_index();
-        let highlight_color = self.config.search_highlight_color;
-        let current_highlight_color = self.config.search_current_highlight_color;
+        let highlight_color = self.config.search.search_highlight_color;
+        let current_highlight_color = self.config.search.search_current_highlight_color;
 
         // Calculate the range of absolute lines that are currently visible
         // scroll_offset = 0 means we're at the bottom (most recent content)

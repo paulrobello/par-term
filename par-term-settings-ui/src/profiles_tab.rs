@@ -543,3 +543,52 @@ fn show_dynamic_source_edit_form(
 
     ui.separator();
 }
+
+/// Search keywords for the Profiles settings tab.
+pub fn keywords() -> &'static [&'static str] {
+    &[
+        "profile",
+        "profiles",
+        "shell",
+        "shell selection",
+        "login shell",
+        "login",
+        "bash",
+        "zsh",
+        "fish",
+        "powershell",
+        "tags",
+        "inheritance",
+        "shortcut",
+        "auto switch",
+        "hostname",
+        "ssh",
+        "ssh host",
+        "ssh user",
+        "ssh port",
+        "identity file",
+        "remote",
+        "connection",
+        "profile drawer",
+        "dynamic",
+        "dynamic profiles",
+        "remote url",
+        "fetch",
+        "refresh",
+        "team",
+        "shared",
+        "download",
+        "sync",
+        // Profile management
+        "duplicate",
+        "default profile",
+        "set default",
+        // Dynamic profile extras
+        "conflict resolution",
+        "http headers",
+        "headers",
+        "max download",
+        "download size",
+        "fetch timeout",
+    ]
+}

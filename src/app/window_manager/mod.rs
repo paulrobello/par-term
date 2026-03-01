@@ -7,7 +7,7 @@
 //! - `update_checker`   — periodic/forced update checks and desktop notifications
 //! - `window_lifecycle` — window creation, destruction, positioning, session restore
 //! - `menu_actions`     — native menu event dispatch
-//! - `settings`         — settings window open/close and live config propagation
+//! - `settings_actions` — settings window open/close, event routing, and live config propagation (R-27)
 //! - `coprocess`        — coprocess start/stop and state sync to settings UI
 //! - `scripting`        — script start/stop and state sync to settings UI
 //! - `arrangements`     — save/restore/manage window arrangements
@@ -16,7 +16,7 @@ mod arrangements;
 mod coprocess;
 mod menu_actions;
 mod scripting;
-mod settings;
+mod settings_actions;
 mod update_checker;
 mod window_lifecycle;
 

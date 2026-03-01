@@ -514,15 +514,13 @@ pub fn register_xml_renderer(registry: &mut RendererRegistry, config: &XmlRender
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::prettifier::testing::test_renderer_config;
     use crate::prettifier::traits::RendererConfig;
     use crate::prettifier::types::{ContentBlock, StyledLine};
     use std::time::SystemTime;
 
     fn test_config() -> RendererConfig {
-        RendererConfig {
-            terminal_width: 80,
-            ..Default::default()
-        }
+        test_renderer_config()
     }
 
     fn renderer() -> XmlRenderer {

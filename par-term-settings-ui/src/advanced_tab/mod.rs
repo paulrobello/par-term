@@ -177,3 +177,104 @@ pub fn show(
         system::show_security_section(ui, settings, changes_this_frame, collapsed);
     }
 }
+
+/// Search keywords for the Advanced settings tab.
+pub fn keywords() -> &'static [&'static str] {
+    &[
+        // tmux
+        "tmux",
+        "tmux integration",
+        "tmux path",
+        "control mode",
+        "session",
+        "default session",
+        "auto-attach",
+        "attach",
+        "clipboard sync",
+        "tmux clipboard",
+        "status bar",
+        "tmux status",
+        "refresh interval",
+        "prefix key",
+        "prefix",
+        // Session logging
+        "logging",
+        "session logging",
+        "auto log",
+        "auto-log",
+        "recording",
+        "asciicast",
+        "asciinema",
+        "log format",
+        "log directory",
+        "archive",
+        "archive on close",
+        "redact",
+        "redact passwords",
+        "password",
+        "sensitive",
+        "credentials",
+        // Screenshots
+        "screenshot",
+        "screenshot format",
+        "png",
+        "jpeg",
+        "svg",
+        "html",
+        // Updates
+        "update",
+        "version",
+        "check",
+        "release",
+        "update check",
+        "hourly",
+        "skipped version",
+        // File Transfers
+        "download",
+        "upload",
+        "transfer",
+        "file transfer",
+        "save location",
+        "save directory",
+        // Debug Logging
+        "debug",
+        "debug logging",
+        "log level",
+        "log file",
+        "trace",
+        "verbose",
+        "diagnostics",
+        // Import/export preferences
+        "import",
+        "export",
+        "preferences",
+        "merge",
+        "url",
+        // Logging format extras
+        "plain",
+        "plain text",
+        // tmux status format
+        "left format",
+        "right format",
+        // Updates extras
+        "check now",
+        "daily",
+        "weekly",
+        "monthly",
+        "homebrew",
+        "brew",
+        "cargo",
+        "self-update",
+        // Import/export extras
+        "backup",
+        "config",
+        "url import",
+        // Security
+        "security",
+        "environment",
+        "env var",
+        "allowlist",
+        "allow all env",
+        "variable substitution",
+    ]
+}

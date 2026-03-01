@@ -123,8 +123,8 @@ impl WindowState {
                 self.overlay_ui.search_ui.toggle();
                 if self.overlay_ui.search_ui.visible {
                     self.overlay_ui.search_ui.init_from_config(
-                        self.config.search_case_sensitive,
-                        self.config.search_regex,
+                        self.config.search.search_case_sensitive,
+                        self.config.search.search_regex,
                     );
                 }
                 self.focus_state.needs_redraw = true;
@@ -347,7 +347,7 @@ impl WindowState {
                     };
                     if did_clear {
                         tab.active_cache_mut().scrollback_len = 0;
-                        tab.trigger_marks.clear();
+                        tab.scripting.trigger_marks.clear();
                     }
                     did_clear
                 } else {
@@ -514,8 +514,8 @@ impl WindowState {
             }
             "ssh_quick_connect" => {
                 self.overlay_ui.ssh_connect_ui.open(
-                    self.config.enable_mdns_discovery,
-                    self.config.mdns_scan_timeout_secs,
+                    self.config.ssh.enable_mdns_discovery,
+                    self.config.ssh.mdns_scan_timeout_secs,
                 );
                 if let Some(window) = &self.window {
                     window.request_redraw();

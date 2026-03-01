@@ -3,6 +3,7 @@
 use std::time::SystemTime;
 
 use crate::prettifier::registry::RendererRegistry;
+use crate::prettifier::testing::test_renderer_config;
 use crate::prettifier::traits::{ContentRenderer, RendererConfig, ThemeColors};
 use crate::prettifier::types::{ContentBlock, RendererCapability, StyledLine};
 
@@ -12,10 +13,7 @@ use super::renderer::{StackTraceRenderer, register_stack_trace_renderer};
 use super::types::FrameType;
 
 fn test_config() -> RendererConfig {
-    RendererConfig {
-        terminal_width: 80,
-        ..Default::default()
-    }
+    test_renderer_config()
 }
 
 fn renderer() -> StackTraceRenderer {

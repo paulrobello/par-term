@@ -777,3 +777,71 @@ fn show_permissions_section(
         },
     );
 }
+
+/// Search keywords for the AI Inspector (Assistant) settings tab.
+pub fn keywords() -> &'static [&'static str] {
+    &[
+        "ai",
+        "inspector",
+        "agent",
+        "acp",
+        "llm",
+        "assistant",
+        "zone",
+        "command",
+        "history",
+        "context",
+        "auto",
+        "approve",
+        "yolo",
+        "terminal",
+        "access",
+        "drive",
+        "execute",
+        "live",
+        "update",
+        "scope",
+        "cards",
+        "timeline",
+        "tree",
+        "env",
+        "environment",
+        "anthropic",
+        "ollama",
+        "startup",
+        "open",
+        "width",
+        // Panel
+        "panel",
+        // Permissions
+        "permissions",
+        "auto-approve",
+        "auto approve",
+        "screenshot",
+        "screenshot access",
+        // Agent extras
+        "auto-send",
+        "auto send",
+        "max context",
+        "context lines",
+        "auto-launch",
+        "auto launch",
+        // View modes
+        "list",
+        "list detail",
+        "recent",
+        // Custom agents
+        "custom",
+        "identity",
+        "short name",
+        "install command",
+        "connector",
+        "run command",
+        "active",
+        "protocol",
+        // Platform-specific
+        "macos",
+        "linux",
+        "windows",
+    ]
+}

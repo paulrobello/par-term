@@ -1,188 +1,6 @@
-//! Default value functions for configuration.
+//! Default values that do not belong to a single focused subsystem.
 
-pub fn cols() -> usize {
-    80
-}
-
-pub fn rows() -> usize {
-    24
-}
-
-pub fn font_size() -> f32 {
-    12.0
-}
-
-pub fn font_family() -> String {
-    "JetBrains Mono".to_string()
-}
-
-pub fn line_spacing() -> f32 {
-    1.0 // Default line height multiplier
-}
-
-pub fn char_spacing() -> f32 {
-    1.0 // Default character width multiplier
-}
-
-pub fn text_shaping() -> bool {
-    true // Enabled by default - OpenType features now properly configured via Feature::from_str()
-}
-
-pub fn minimum_contrast() -> f32 {
-    1.0 // Disabled by default (1.0 = no adjustment)
-}
-
-pub fn scrollback() -> usize {
-    10000
-}
-
-pub fn window_title() -> String {
-    "par-term".to_string()
-}
-
-pub fn theme() -> String {
-    "dark-background".to_string()
-}
-
-pub fn light_theme() -> String {
-    "light-background".to_string()
-}
-
-pub fn dark_theme() -> String {
-    "dark-background".to_string()
-}
-
-pub fn screenshot_format() -> String {
-    "png".to_string()
-}
-
-pub fn max_fps() -> u32 {
-    60
-}
-
-pub fn window_padding() -> f32 {
-    0.0
-}
-
-pub fn login_shell() -> bool {
-    true
-}
-
-pub fn initial_text() -> String {
-    String::new()
-}
-
-pub fn initial_text_delay_ms() -> u64 {
-    100
-}
-
-pub fn initial_text_send_newline() -> bool {
-    true
-}
-
-pub fn scrollbar_position() -> String {
-    "right".to_string()
-}
-
-pub fn scrollbar_width() -> f32 {
-    15.0
-}
-
-pub fn scrollbar_thumb_color() -> [f32; 4] {
-    [0.4, 0.4, 0.4, 0.95] // Medium gray, nearly opaque
-}
-
-pub fn scrollbar_track_color() -> [f32; 4] {
-    [0.15, 0.15, 0.15, 0.6] // Dark gray, semi-transparent
-}
-
-pub fn command_separator_thickness() -> f32 {
-    1.0 // 1 pixel line
-}
-
-pub fn command_separator_opacity() -> f32 {
-    0.4 // Subtle by default
-}
-
-pub fn command_separator_color() -> [u8; 3] {
-    [128, 128, 128] // Medium gray
-}
-
-pub fn link_highlight_color() -> [u8; 3] {
-    [79, 195, 247] // Bright cyan (#4FC3F7)
-}
-
-pub fn paste_delay_ms() -> u64 {
-    0 // No delay by default
-}
-
-pub fn clipboard_max_sync_events() -> usize {
-    64 // Aligned with sister project
-}
-
-pub fn clipboard_max_event_bytes() -> usize {
-    2048 // Aligned with sister project
-}
-
-pub fn activity_threshold() -> u64 {
-    10 // Aligned with sister project (10 seconds)
-}
-
-pub fn anti_idle_seconds() -> u64 {
-    60 // Default keep-alive interval: 60 seconds
-}
-
-pub fn anti_idle_code() -> u8 {
-    0 // Default keep-alive code: NUL (0x00)
-}
-
-pub fn silence_threshold() -> u64 {
-    300 // 5 minutes
-}
-
-pub fn notification_max_buffer() -> usize {
-    64 // Aligned with sister project
-}
-
-pub fn scroll_speed() -> f32 {
-    3.0 // Lines per scroll tick
-}
-
-pub fn double_click_threshold() -> u64 {
-    500 // 500 milliseconds
-}
-
-pub fn triple_click_threshold() -> u64 {
-    500 // 500 milliseconds (same as double-click)
-}
-
-pub fn cursor_blink_interval() -> u64 {
-    500 // 500 milliseconds (blink twice per second)
-}
-
-pub fn cursor_color() -> [u8; 3] {
-    [255, 255, 255] // White cursor
-}
-
-pub fn scrollbar_autohide_delay() -> u64 {
-    0 // 0 = never auto-hide (always visible when scrollback exists)
-}
-
-pub fn window_opacity() -> f32 {
-    1.0 // Fully opaque by default
-}
-
-pub fn background_image_opacity() -> f32 {
-    1.0 // Fully opaque by default
-}
-
-pub fn pane_background_darken() -> f32 {
-    0.0 // No darkening by default
-}
-
-pub fn background_color() -> [u8; 3] {
-    [30, 30, 30] // Dark gray
-}
+// ── Primitive helpers ──────────────────────────────────────────────────────
 
 pub fn bool_false() -> bool {
     false
@@ -192,178 +10,21 @@ pub fn bool_true() -> bool {
     true
 }
 
-pub fn mdns_timeout() -> u32 {
-    3
-}
-
-pub fn text_opacity() -> f32 {
-    1.0 // Fully opaque text by default
-}
-
-pub fn custom_shader_speed() -> f32 {
-    1.0 // Normal animation speed
-}
-
-pub fn custom_shader_brightness() -> f32 {
-    0.15 // 15% brightness by default for better text readability
-}
-
-pub fn cursor_shader_color() -> [u8; 3] {
-    [255, 255, 255] // White cursor for shader effects
-}
-
-pub fn cursor_trail_duration() -> f32 {
-    0.5 // 500ms trail duration
-}
-
-pub fn cursor_glow_radius() -> f32 {
-    80.0 // 80 pixel glow radius
-}
-
-pub fn cursor_glow_intensity() -> f32 {
-    0.3 // 30% glow intensity
-}
-
-pub fn cursor_shader_disable_in_alt_screen() -> bool {
-    true // Preserve current behavior: disable cursor shader in alt screen by default
-}
-
-pub fn bell_sound() -> u8 {
-    50 // Default to 50% volume
-}
-
-pub fn tab_bar_height() -> f32 {
-    28.0 // Default tab bar height in pixels
-}
-
-pub fn tab_bar_width() -> f32 {
-    160.0 // Default tab bar width in pixels (for left position)
-}
-
 pub fn zero() -> usize {
     0
 }
 
-pub fn unfocused_fps() -> u32 {
-    30 // Reduced FPS when window is not focused
+pub fn mdns_timeout() -> u32 {
+    3
 }
 
-pub fn inactive_tab_fps() -> u32 {
-    2 // Very low FPS for inactive (non-visible) tabs - just enough for activity detection
+// ── Update ─────────────────────────────────────────────────────────────────
+
+pub fn update_check_frequency() -> crate::types::UpdateCheckFrequency {
+    crate::types::UpdateCheckFrequency::Daily
 }
 
-/// Default for reduce_flicker option
-pub fn reduce_flicker() -> bool {
-    true
-}
-
-/// Default delay in milliseconds for reduce_flicker
-pub fn reduce_flicker_delay_ms() -> u32 {
-    16 // ~1 frame at 60fps
-}
-
-/// Default for maximize_throughput option
-pub fn maximize_throughput() -> bool {
-    false // Off by default
-}
-
-/// Default render interval in milliseconds when maximize_throughput is enabled
-pub fn throughput_render_interval_ms() -> u32 {
-    100 // 100ms default (~10 fps during bulk output)
-}
-
-pub fn shader_hot_reload_delay() -> u64 {
-    100 // Debounce delay in milliseconds
-}
-
-// Tab bar color defaults
-pub fn tab_bar_background() -> [u8; 3] {
-    [40, 40, 40] // Dark gray background
-}
-
-pub fn tab_active_background() -> [u8; 3] {
-    [60, 60, 60] // Slightly lighter for active tab
-}
-
-pub fn tab_inactive_background() -> [u8; 3] {
-    [40, 40, 40] // Same as bar background
-}
-
-pub fn tab_hover_background() -> [u8; 3] {
-    [50, 50, 50] // Between inactive and active
-}
-
-pub fn tab_active_text() -> [u8; 3] {
-    [255, 255, 255] // White text for active tab
-}
-
-pub fn tab_inactive_text() -> [u8; 3] {
-    [180, 180, 180] // Gray text for inactive tabs
-}
-
-pub fn tab_active_indicator() -> [u8; 3] {
-    [100, 150, 255] // Blue underline for active tab
-}
-
-pub fn tab_activity_indicator() -> [u8; 3] {
-    [100, 180, 255] // Light blue activity dot
-}
-
-pub fn tab_bell_indicator() -> [u8; 3] {
-    [255, 200, 100] // Orange/yellow bell icon
-}
-
-pub fn tab_close_button() -> [u8; 3] {
-    [150, 150, 150] // Gray close button
-}
-
-pub fn tab_close_button_hover() -> [u8; 3] {
-    [255, 100, 100] // Red on hover
-}
-
-pub fn cubemap_enabled() -> bool {
-    true // Cubemap sampling enabled by default when a path is configured
-}
-
-pub fn inactive_tab_opacity() -> f32 {
-    0.6 // Default opacity for inactive tabs (60%)
-}
-
-pub fn tab_min_width() -> f32 {
-    120.0 // Minimum tab width in pixels before scrolling kicks in
-}
-
-pub fn tab_stretch_to_fill() -> bool {
-    true // Tabs stretch to share available width by default
-}
-
-pub fn tab_html_titles() -> bool {
-    false // Render tab titles as plain text unless explicitly enabled
-}
-
-pub fn tab_border_color() -> [u8; 3] {
-    [80, 80, 80] // Subtle gray border between tabs
-}
-
-pub fn tab_border_width() -> f32 {
-    1.0 // 1 pixel border
-}
-
-pub fn blur_radius() -> u32 {
-    8 // Default blur radius in points (macOS only)
-}
-
-pub fn light_tab_style() -> crate::types::TabStyle {
-    crate::types::TabStyle::Light
-}
-
-pub fn dark_tab_style() -> crate::types::TabStyle {
-    crate::types::TabStyle::Dark
-}
-
-pub fn use_background_as_channel0() -> bool {
-    false // By default, use configured channel0 texture, not background image
-}
+// ── Keybindings ────────────────────────────────────────────────────────────
 
 pub fn keybindings() -> Vec<crate::types::KeyBinding> {
     // macOS: Cmd+key is safe because Cmd is separate from Ctrl (terminal control codes).
@@ -584,39 +245,17 @@ pub fn keybindings() -> Vec<crate::types::KeyBinding> {
     bindings
 }
 
-// Progress bar defaults
-pub fn progress_bar_height() -> f32 {
-    4.0 // Height in pixels
+// ── Command separator ──────────────────────────────────────────────────────
+
+pub fn command_separator_thickness() -> f32 {
+    1.0 // 1 pixel line
 }
 
-pub fn progress_bar_normal_color() -> [u8; 3] {
-    [80, 180, 255] // Blue for normal progress
+pub fn command_separator_opacity() -> f32 {
+    0.4 // Subtle by default
 }
 
-pub fn progress_bar_warning_color() -> [u8; 3] {
-    [255, 200, 50] // Yellow for warning
-}
-
-pub fn progress_bar_error_color() -> [u8; 3] {
-    [255, 80, 80] // Red for error
-}
-
-pub fn progress_bar_indeterminate_color() -> [u8; 3] {
-    [150, 150, 150] // Gray for indeterminate
-}
-
-pub fn progress_bar_opacity() -> f32 {
-    0.8
-}
-
-// Cursor enhancement defaults
-pub fn cursor_guide_color() -> [u8; 4] {
-    [255, 255, 255, 20] // Subtle white highlight
-}
-
-pub fn cursor_shadow_color() -> [u8; 4] {
-    [0, 0, 0, 128] // Semi-transparent black
-}
+// ── Cursor shadow / boost ──────────────────────────────────────────────────
 
 pub fn cursor_shadow_offset() -> [f32; 2] {
     [2.0, 2.0] // 2 pixels offset in both directions
@@ -630,66 +269,77 @@ pub fn cursor_boost() -> f32 {
     0.0 // Disabled by default
 }
 
-pub fn cursor_boost_color() -> [u8; 3] {
-    [255, 255, 255] // White glow
+// ── Badge ──────────────────────────────────────────────────────────────────
+
+pub fn badge_format() -> String {
+    "\\(session.username)@\\(session.hostname)".to_string()
 }
 
-pub fn update_check_frequency() -> crate::types::UpdateCheckFrequency {
-    crate::types::UpdateCheckFrequency::Daily
+pub fn badge_color_alpha() -> f32 {
+    0.5 // 50% opacity (semi-transparent)
 }
 
-// Search defaults
-pub fn search_highlight_color() -> [u8; 4] {
-    [255, 200, 0, 180] // Yellow with some transparency
+pub fn badge_top_margin() -> f32 {
+    0.0 // 0 pixels from top
 }
 
-pub fn search_current_highlight_color() -> [u8; 4] {
-    [255, 100, 0, 220] // Orange, more visible for current match
+pub fn badge_right_margin() -> f32 {
+    16.0 // 16 pixels from right
 }
 
-// Selection defaults
-pub fn word_characters() -> String {
-    // Default characters considered part of a word (in addition to alphanumeric)
-    // Matches iTerm2's default: /-+\~_.
-    "/-+\\~_.".to_string()
+pub fn badge_max_width() -> f32 {
+    0.5 // 50% of terminal width
 }
 
-pub fn smart_selection_enabled() -> bool {
-    true // Smart selection enabled by default
+pub fn badge_max_height() -> f32 {
+    0.2 // 20% of terminal height
 }
 
-pub fn answerback_string() -> String {
-    String::new() // Empty/disabled by default for security
+// ── Progress bar ───────────────────────────────────────────────────────────
+
+pub fn progress_bar_height() -> f32 {
+    4.0 // Height in pixels
 }
 
-/// Default semantic history editor command
-/// Empty string means auto-detect from $EDITOR or use system default
-pub fn semantic_history_editor() -> String {
-    String::new() // Auto-detect by default
+pub fn progress_bar_opacity() -> f32 {
+    0.8
 }
 
-/// Default list of jobs/processes to ignore when checking for running jobs
-/// These are common shells and utilities that shouldn't block tab close
-pub fn jobs_to_ignore() -> Vec<String> {
-    vec![
-        // Common shells - these are the parent process, not "jobs"
-        "bash".to_string(),
-        "zsh".to_string(),
-        "fish".to_string(),
-        "sh".to_string(),
-        "dash".to_string(),
-        "ksh".to_string(),
-        "tcsh".to_string(),
-        "csh".to_string(),
-        // Common pagers and viewers
-        "less".to_string(),
-        "more".to_string(),
-        "man".to_string(),
-        // Common utilities that are often left running
-        "cat".to_string(),
-        "sleep".to_string(),
-    ]
+// ── Status bar ─────────────────────────────────────────────────────────────
+
+pub fn status_bar_height() -> f32 {
+    22.0
 }
+
+pub fn status_bar_bg_alpha() -> f32 {
+    0.95
+}
+
+pub fn status_bar_font_size() -> f32 {
+    12.0
+}
+
+pub fn status_bar_separator() -> String {
+    " \u{2502} ".to_string() // " │ "
+}
+
+pub fn status_bar_mouse_inactive_timeout() -> f32 {
+    3.0
+}
+
+pub fn status_bar_system_poll_interval() -> f32 {
+    2.0
+}
+
+pub fn status_bar_git_poll_interval() -> f32 {
+    5.0
+}
+
+pub fn status_bar_time_format() -> String {
+    "%H:%M:%S".to_string()
+}
+
+// ── Unicode ────────────────────────────────────────────────────────────────
 
 pub fn unicode_version() -> par_term_emu_core_rust::UnicodeVersion {
     par_term_emu_core_rust::UnicodeVersion::Auto
@@ -703,7 +353,8 @@ pub fn normalization_form() -> par_term_emu_core_rust::NormalizationForm {
     par_term_emu_core_rust::NormalizationForm::NFC
 }
 
-// Split pane defaults
+// ── Pane layout ────────────────────────────────────────────────────────────
+
 pub fn pane_divider_width() -> Option<f32> {
     Some(2.0) // 2 pixel divider between panes
 }
@@ -724,14 +375,6 @@ pub fn pane_background_opacity() -> f32 {
     0.85 // 85% opacity allows background/shader to show through slightly
 }
 
-pub fn pane_divider_color() -> [u8; 3] {
-    [80, 80, 80] // Subtle gray divider
-}
-
-pub fn pane_divider_hover_color() -> [u8; 3] {
-    [120, 150, 200] // Brighter color on hover for resize feedback
-}
-
 pub fn inactive_pane_opacity() -> f32 {
     0.7 // 70% opacity for inactive panes
 }
@@ -744,23 +387,12 @@ pub fn pane_title_height() -> f32 {
     20.0 // 20 pixel title bar height for panes
 }
 
-pub fn pane_title_color() -> [u8; 3] {
-    [200, 200, 200] // Light gray text for pane titles
-}
-
-pub fn pane_title_bg_color() -> [u8; 3] {
-    [40, 40, 50] // Dark background for pane title bars
-}
-
-pub fn pane_focus_color() -> [u8; 3] {
-    [100, 150, 255] // Blue highlight for focused pane
-}
-
 pub fn pane_focus_width() -> f32 {
     2.0 // 2 pixel border around focused pane
 }
 
-// tmux integration defaults
+// ── tmux integration ───────────────────────────────────────────────────────
+
 pub fn tmux_path() -> String {
     // First, try to find tmux in the user's PATH environment variable
     if let Ok(path_env) = std::env::var("PATH") {
@@ -832,112 +464,8 @@ pub fn tmux_status_bar_right() -> String {
     "{pane} | {time:%H:%M}".to_string()
 }
 
-// Badge defaults
-pub fn badge_format() -> String {
-    "\\(session.username)@\\(session.hostname)".to_string()
-}
+// ── AI Inspector ───────────────────────────────────────────────────────────
 
-pub fn badge_color() -> [u8; 3] {
-    [255, 0, 0] // Red text (matches iTerm2 default)
-}
-
-pub fn badge_color_alpha() -> f32 {
-    0.5 // 50% opacity (semi-transparent)
-}
-
-pub fn badge_font() -> String {
-    "Helvetica".to_string()
-}
-
-pub fn badge_top_margin() -> f32 {
-    0.0 // 0 pixels from top
-}
-
-pub fn badge_right_margin() -> f32 {
-    16.0 // 16 pixels from right
-}
-
-pub fn badge_max_width() -> f32 {
-    0.5 // 50% of terminal width
-}
-
-pub fn badge_max_height() -> f32 {
-    0.2 // 20% of terminal height
-}
-
-// Session logging defaults
-pub fn command_history_max_entries() -> usize {
-    1000 // Maximum number of commands to persist across sessions
-}
-
-pub fn session_undo_timeout_secs() -> u32 {
-    5
-}
-
-pub fn session_undo_max_entries() -> usize {
-    10
-}
-
-pub fn session_undo_preserve_shell() -> bool {
-    false
-}
-
-// Status bar defaults
-pub fn status_bar_height() -> f32 {
-    22.0
-}
-
-pub fn status_bar_bg_color() -> [u8; 3] {
-    [30, 30, 30]
-}
-
-pub fn status_bar_bg_alpha() -> f32 {
-    0.95
-}
-
-pub fn status_bar_fg_color() -> [u8; 3] {
-    [200, 200, 200]
-}
-
-pub fn status_bar_font_size() -> f32 {
-    12.0
-}
-
-pub fn status_bar_separator() -> String {
-    " \u{2502} ".to_string() // " │ "
-}
-
-pub fn status_bar_mouse_inactive_timeout() -> f32 {
-    3.0
-}
-
-pub fn status_bar_system_poll_interval() -> f32 {
-    2.0
-}
-
-pub fn status_bar_git_poll_interval() -> f32 {
-    5.0
-}
-
-pub fn status_bar_time_format() -> String {
-    "%H:%M:%S".to_string()
-}
-
-pub fn session_log_directory() -> String {
-    // XDG-compliant default: ~/.local/share/par-term/logs/
-    if let Some(home) = dirs::home_dir() {
-        home.join(".local")
-            .join("share")
-            .join("par-term")
-            .join("logs")
-            .to_string_lossy()
-            .to_string()
-    } else {
-        "logs".to_string()
-    }
-}
-
-// AI Inspector defaults
 pub fn ai_inspector_enabled() -> bool {
     true
 }

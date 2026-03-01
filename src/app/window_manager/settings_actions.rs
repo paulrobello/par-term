@@ -1,7 +1,13 @@
-//! Settings window management and live config application.
+//! Settings window lifecycle and settings-action dispatch.
 //!
-//! This module handles opening/closing the settings window, propagating
-//! config changes to all terminal windows, and syncing shader state.
+//! This module contains all `WindowManager` methods that relate to the
+//! settings window: opening/closing it, routing window events to it, and
+//! applying the resulting `SettingsWindowAction` payloads to every terminal
+//! window (config propagation, shader reloads, live-preview updates).
+//!
+//! Relocated from `window_manager/settings.rs` (R-27): the file was renamed
+//! to `settings_actions.rs` to reflect that it handles settings *actions*
+//! (dispatcher + application), not just settings window *lifecycle*.
 //!
 //! # Error Handling Convention
 //!
@@ -419,8 +425,8 @@ impl WindowManager {
                 // Apply Unicode width settings
                 if changes.unicode_width {
                     let width_config = par_term_emu_core_rust::WidthConfig::new(
-                        config.unicode_version,
-                        config.ambiguous_width,
+                        config.unicode.unicode_version,
+                        config.unicode.ambiguous_width,
                     );
                     for tab in window_state.tab_manager.tabs_mut() {
                         if let Ok(term) = tab.terminal.try_write() {
@@ -433,7 +439,7 @@ impl WindowManager {
                 if changes.normalization_form {
                     for tab in window_state.tab_manager.tabs_mut() {
                         if let Ok(term) = tab.terminal.try_write() {
-                            term.set_normalization_form(config.normalization_form);
+                            term.set_normalization_form(config.unicode.normalization_form);
                         }
                     }
                 }
@@ -651,7 +657,7 @@ impl WindowManager {
             // Resync triggers from config into core registry for all tabs
             for tab in window_state.tab_manager.tabs_mut() {
                 if let Ok(term) = tab.terminal.try_write() {
-                    tab.trigger_security = term.sync_triggers(&config.triggers);
+                    tab.scripting.trigger_security = term.sync_triggers(&config.triggers);
                 }
             }
 

@@ -90,7 +90,7 @@ impl WindowState {
             // try_lock: intentional — output routing from the sync event loop; must not block.
             // On miss: this tmux output chunk is dropped for this tab. Low risk as tmux
             // provides its own backpressure (%pause / %continue protocol).
-            if tab.tmux_pane_id == Some(pane_id)
+            if tab.tmux.tmux_pane_id == Some(pane_id)
                 && let Ok(term) = tab.terminal.try_write()
             {
                 term.process_data(data);
@@ -118,8 +118,8 @@ impl WindowState {
             // try_lock: intentional — fallback output routing in the sync event loop.
             // On miss: this chunk of pane output is dropped. Acceptable for the same
             // reason as above — tmux backpressure and pane refresh handle recovery.
-            if tab.tmux_pane_id.is_some()
-                && !tab.tmux_gateway_active
+            if tab.tmux.tmux_pane_id.is_some()
+                && !tab.tmux.tmux_gateway_active
                 && let Ok(term) = tab.terminal.try_write()
             {
                 term.process_data(data);
@@ -128,7 +128,7 @@ impl WindowState {
                     "Routed {} bytes from pane %{} to existing tmux tab (pane %{:?})",
                     data.len(),
                     pane_id,
-                    tab.tmux_pane_id
+                    tab.tmux.tmux_pane_id
                 );
                 return;
             }
@@ -171,7 +171,7 @@ impl WindowState {
                         // Configure the new tab for this tmux pane
                         if let Some(tab) = self.tab_manager.get_tab_mut(new_tab_id) {
                             // Associate this tab with the tmux pane
-                            tab.tmux_pane_id = Some(pane_id);
+                            tab.tmux.tmux_pane_id = Some(pane_id);
                             tab.set_title(&format!("tmux %{}", pane_id));
 
                             // Start refresh task

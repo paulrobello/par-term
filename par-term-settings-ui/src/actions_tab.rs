@@ -418,3 +418,25 @@ fn show_action_edit_form(
 
     ui.separator();
 }
+
+/// Search keywords for the Actions settings tab.
+pub fn keywords() -> &'static [&'static str] {
+    &[
+        "action",
+        "actions",
+        "custom action",
+        "shell command",
+        "text insert",
+        "key sequence",
+        "macro",
+        "automation",
+        "shortcut",
+        // Action details
+        "keybinding",
+        "binding",
+        "record",
+        "title",
+        "name",
+        "arguments",
+    ]
+}

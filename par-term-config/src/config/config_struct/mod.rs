@@ -6,93 +6,78 @@
 //! # Sub-modules
 //!
 //! - [`default_impl`] — `impl Default for Config`
+//! - [`copy_mode_config`] — [`CopyModeConfig`]: vi-style copy mode settings
+//! - [`search_config`] — [`SearchConfig`]: search highlight and options
+//! - [`ssh_config`] — [`SshConfig`]: SSH discovery and profile switching
+//! - [`unicode_config`] — [`UnicodeConfig`]: Unicode width and normalization
+//! - [`update`] — [`UpdateConfig`]: automatic update checking
 //!
-//! # Future Refactoring Note
+//! # Splitting Strategy
 //!
-//! The `Config` struct is intentionally kept as a single flat struct for
-//! serde compatibility. Splitting it into sub-structs (e.g. `FontConfig`,
-//! `WindowConfig`, `ShaderConfig`, `InputConfig`, `TabConfig`, `TerminalConfig`)
-//! would be a breaking change to the YAML serialisation format unless a
-//! custom `Serialize`/`Deserialize` implementation is provided that flattens
-//! the sub-structs back to the top level.
+//! Fields are grouped into sub-structs using `#[serde(flatten)]` so that
+//! existing YAML config files remain 100% compatible — flattened fields are
+//! serialised at the top level, indistinguishable from direct struct fields.
 //!
-//! Logical groupings of fields are documented with section comments inside
-//! the struct. The current sections and their candidate sub-struct names are:
+//! Remaining inline sections (not yet extracted to sub-structs) and their
+//! candidate names are:
 //!
-//! | Section comment              | Candidate sub-struct  |
-//! |------------------------------|-----------------------|
-//! | Window & Display             | `WindowConfig`        |
-//! | Inline Image Settings        | `ImageConfig`         |
-//! | File Transfer Settings       | `FileTransferConfig`  |
-//! | Background Shader Settings   | `ShaderConfig`        |
-//! | Cursor Shader Settings       | `CursorShaderConfig`  |
-//! | Keyboard Input               | `InputConfig`         |
-//! | Selection & Clipboard        | `SelectionConfig`     |
-//! | Mouse Behavior               | `MouseConfig`         |
-//! | Word Selection               | `WordSelectionConfig` |
-//! | Copy Mode                    | `CopyModeConfig`      |
-//! | Scrollback & Cursor          | `ScrollbackConfig`    |
-//! | Unicode Width Settings       | `UnicodeConfig`       |
-//! | Cursor Enhancements          | `CursorConfig`        |
-//! | Scrollbar                    | `ScrollbarConfig`     |
-//! | Theme & Colors               | `ThemeConfig`         |
-//! | Screenshot                   | `ScreenshotConfig`    |
-//! | Shell Behavior               | `ShellConfig`         |
+//! | Section comment              | Candidate sub-struct   |
+//! |------------------------------|------------------------|
+//! | Window & Display             | `WindowConfig`         |
+//! | Inline Image Settings        | `ImageConfig`          |
+//! | File Transfer Settings       | `FileTransferConfig`   |
+//! | Background Shader Settings   | `ShaderConfig`         |
+//! | Cursor Shader Settings       | `CursorShaderConfig`   |
+//! | Keyboard Input               | `InputConfig`          |
+//! | Selection & Clipboard        | `SelectionConfig`      |
+//! | Mouse Behavior               | `MouseConfig`          |
+//! | Word Selection               | `WordSelectionConfig`  |
+//! | Scrollback & Cursor          | `ScrollbackConfig`     |
+//! | Cursor Enhancements          | `CursorConfig`         |
+//! | Scrollbar                    | `ScrollbarConfig`      |
+//! | Theme & Colors               | `ThemeConfig`          |
+//! | Screenshot                   | `ScreenshotConfig`     |
+//! | Shell Behavior               | `ShellConfig`          |
 //! | Semantic History             | `SemanticHistoryConfig`|
-//! | Scrollbar (GUI)              | `ScrollbarUiConfig`   |
+//! | Scrollbar (GUI)              | `ScrollbarUiConfig`    |
 //! | Command Separator Lines      | `CommandSeparatorConfig`|
-//! | Clipboard Sync Limits        | `ClipboardConfig`     |
-//! | Command History              | `CommandHistoryConfig`|
-//! | Notifications                | `NotificationConfig`  |
-//! | SSH Settings                 | `SshConfig`           |
-//! | Tab Settings                 | `TabConfig`           |
-//! | Tab Bar Colors               | `TabBarColorsConfig`  |
-//! | Split Pane Settings          | `PaneConfig`          |
-//! | tmux Integration             | `TmuxConfig`          |
-//! | Focus/Blur Power Saving      | `PowerConfig`         |
-//! | Shader Hot Reload            | `ShaderWatchConfig`   |
+//! | Clipboard Sync Limits        | `ClipboardConfig`      |
+//! | Command History              | `CommandHistoryConfig` |
+//! | Notifications                | `NotificationConfig`   |
+//! | Tab Settings                 | `TabConfig`            |
+//! | Tab Bar Colors               | `TabBarColorsConfig`   |
+//! | Split Pane Settings          | `PaneConfig`           |
+//! | tmux Integration             | `TmuxConfig`           |
+//! | Focus/Blur Power Saving      | `PowerConfig`          |
+//! | Shader Hot Reload            | `ShaderWatchConfig`    |
 //! | Per-Shader Configuration     | `ShaderOverridesConfig`|
-//! | Keybindings                  | `KeybindingsConfig`   |
-//! | Shader Installation          | `ShaderInstallConfig` |
-//! | Update Checking              | `UpdateConfig`        |
-//! | Window Arrangements          | `ArrangementConfig`   |
-//! | Search Settings              | `SearchConfig`        |
-//! | Session Logging              | `SessionLogConfig`    |
-//! | Debug Logging                | `DebugConfig`         |
-//! | Badge Settings               | `BadgeConfig`         |
-//! | Status Bar Settings          | `StatusBarConfig`     |
-//! | Progress Bar Settings        | `ProgressBarConfig`   |
-//! | Triggers & Automation        | `AutomationConfig`    |
-//! | Snippets & Actions           | `SnippetsConfig`      |
-//! | Content Prettifier           | `PrettifierConfig`    |
-//! | UI State                     | `UiStateConfig`       |
-//! | Dynamic Profile Sources      | `ProfileSourcesConfig`|
-//! | Security                     | `SecurityConfig`      |
-//! | AI Inspector                 | `AiInspectorConfig`   |
-//!
-//! # How to safely split the struct
-//!
-//! Use `#[serde(flatten)]` on each sub-struct field. This instructs serde to
-//! (de)serialise the sub-struct fields as if they were top-level fields, preserving
-//! full compatibility with existing YAML config files:
-//!
-//! ```ignore
-//! pub struct Config {
-//!     #[serde(flatten)]
-//!     pub window: WindowConfig,
-//!     #[serde(flatten)]
-//!     pub font: FontConfig,
-//!     // …
-//! }
-//! ```
-//!
-//! Each sub-struct must derive `Serialize, Deserialize` and carry its own
-//! `#[serde(default)]` fields. The split can be done incrementally — one
-//! section per PR. Tracked as QA-001 in AUDIT.md.
+//! | Keybindings                  | `KeybindingsConfig`    |
+//! | Shader Installation          | `ShaderInstallConfig`  |
+//! | Window Arrangements          | `ArrangementConfig`    |
+//! | Session Logging              | `SessionLogConfig`     |
+//! | Debug Logging                | `DebugConfig`          |
+//! | Badge Settings               | `BadgeConfig`          |
+//! | Status Bar Settings          | `StatusBarConfig`      |
+//! | Progress Bar Settings        | `ProgressBarConfig`    |
+//! | Triggers & Automation        | `AutomationConfig`     |
+//! | Snippets & Actions           | `SnippetsConfig`       |
+//! | Content Prettifier           | `PrettifierConfig`     |
+//! | UI State                     | `UiStateConfig`        |
+//! | Dynamic Profile Sources      | `ProfileSourcesConfig` |
+//! | Security                     | `SecurityConfig`       |
+//! | AI Inspector                 | `AiInspectorConfig`    |
 
+mod copy_mode_config;
 mod default_impl;
+mod search_config;
+mod ssh_config;
+mod unicode_config;
 mod update;
 
+pub use copy_mode_config::CopyModeConfig;
+pub use search_config::SearchConfig;
+pub use ssh_config::SshConfig;
+pub use unicode_config::UnicodeConfig;
 pub use update::UpdateConfig;
 
 use crate::config::acp::CustomAcpAgentConfig;
@@ -654,23 +639,9 @@ pub struct Config {
     // ========================================================================
     // Copy Mode (vi-style keyboard-driven selection)
     // ========================================================================
-    /// Enable copy mode (vi-style keyboard-driven text selection and navigation).
-    /// When enabled, users can enter copy mode via the `toggle_copy_mode` keybinding
-    /// action to navigate the terminal buffer with vi keys and yank text.
-    #[serde(default = "crate::defaults::bool_true")]
-    pub copy_mode_enabled: bool,
-
-    /// Automatically exit copy mode after yanking (copying) selected text.
-    /// When true (default), pressing `y` in visual mode copies text and exits copy mode.
-    /// When false, copy mode stays active after yanking so you can continue selecting.
-    #[serde(default = "crate::defaults::bool_true")]
-    pub copy_mode_auto_exit_on_yank: bool,
-
-    /// Show a status bar at the bottom of the terminal when copy mode is active.
-    /// The status bar displays the current mode (COPY/VISUAL/V-LINE/V-BLOCK/SEARCH)
-    /// and cursor position information.
-    #[serde(default = "crate::defaults::bool_true")]
-    pub copy_mode_show_status: bool,
+    /// Vi-style copy mode settings (see [`CopyModeConfig`]).
+    #[serde(flatten)]
+    pub copy_mode: CopyModeConfig,
 
     // ========================================================================
     // Scrollback & Cursor
@@ -682,27 +653,9 @@ pub struct Config {
     // ========================================================================
     // Unicode Width Settings
     // ========================================================================
-    /// Unicode version for character width calculations
-    /// Different versions have different width tables, particularly for emoji.
-    /// Options: unicode_9, unicode_10, ..., unicode_16, auto (default)
-    #[serde(default = "crate::defaults::unicode_version")]
-    pub unicode_version: par_term_emu_core_rust::UnicodeVersion,
-
-    /// Treatment of East Asian Ambiguous width characters
-    /// - narrow: 1 cell width (Western default)
-    /// - wide: 2 cell width (CJK default)
-    #[serde(default = "crate::defaults::ambiguous_width")]
-    pub ambiguous_width: par_term_emu_core_rust::AmbiguousWidth,
-
-    /// Unicode normalization form for text processing
-    /// Controls how Unicode text is normalized before being stored in terminal cells.
-    /// - NFC: Canonical composition (default, most compatible)
-    /// - NFD: Canonical decomposition (macOS HFS+ style)
-    /// - NFKC: Compatibility composition (resolves ligatures like ﬁ → fi)
-    /// - NFKD: Compatibility decomposition
-    /// - none: No normalization
-    #[serde(default = "crate::defaults::normalization_form")]
-    pub normalization_form: par_term_emu_core_rust::NormalizationForm,
+    /// Unicode character width and normalization settings (see [`UnicodeConfig`]).
+    #[serde(flatten)]
+    pub unicode: UnicodeConfig,
 
     /// Enable cursor blinking
     #[serde(default = "crate::defaults::bool_false")]
@@ -1117,21 +1070,9 @@ pub struct Config {
     // ========================================================================
     // SSH Settings
     // ========================================================================
-    /// Enable mDNS/Bonjour discovery for SSH hosts
-    #[serde(default = "crate::defaults::bool_false")]
-    pub enable_mdns_discovery: bool,
-
-    /// mDNS scan timeout in seconds
-    #[serde(default = "crate::defaults::mdns_timeout")]
-    pub mdns_scan_timeout_secs: u32,
-
-    /// Enable automatic profile switching based on SSH hostname
-    #[serde(default = "crate::defaults::bool_true")]
-    pub ssh_auto_profile_switch: bool,
-
-    /// Revert profile when SSH session disconnects
-    #[serde(default = "crate::defaults::bool_true")]
-    pub ssh_revert_profile_on_disconnect: bool,
+    /// SSH discovery and profile-switching settings (see [`SshConfig`]).
+    #[serde(flatten)]
+    pub ssh: SshConfig,
 
     // ========================================================================
     // Tab Settings
@@ -1561,25 +1502,9 @@ pub struct Config {
     // ========================================================================
     // Search Settings
     // ========================================================================
-    /// Highlight color for search matches [R, G, B, A] (0-255)
-    #[serde(default = "crate::defaults::search_highlight_color")]
-    pub search_highlight_color: [u8; 4],
-
-    /// Highlight color for the current/active search match [R, G, B, A] (0-255)
-    #[serde(default = "crate::defaults::search_current_highlight_color")]
-    pub search_current_highlight_color: [u8; 4],
-
-    /// Default case sensitivity for search
-    #[serde(default = "crate::defaults::bool_false")]
-    pub search_case_sensitive: bool,
-
-    /// Default regex mode for search
-    #[serde(default = "crate::defaults::bool_false")]
-    pub search_regex: bool,
-
-    /// Wrap around when navigating search matches
-    #[serde(default = "crate::defaults::bool_true")]
-    pub search_wrap_around: bool,
+    /// Terminal search settings (see [`SearchConfig`]).
+    #[serde(flatten)]
+    pub search: SearchConfig,
 
     // ========================================================================
     // Session Logging

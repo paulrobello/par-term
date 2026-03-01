@@ -1,29 +1,24 @@
 //! Terminal-state snapshot for one render frame.
 //!
 //! `gather_render_data` is the first substantive step of every render cycle.
-//! It locks the active terminal (or falls back to cached cells), builds the
-//! cell grid, runs the prettifier pipeline, detects URLs, applies search
-//! highlights, and returns a `FrameRenderData` snapshot that the rest of the
-//! render pipeline consumes.
+//! It assembles a `FrameRenderData` by coordinating helpers from three
+//! focused sub-modules:
+//!
+//! - `viewport`: `gather_viewport_sizing`, `resolve_cursor_shader_hide`
+//! - `tab_snapshot`: `extract_tab_cells` / `TabCellsSnapshot`
+//! - (this module): prettifier pipeline feed, URL detection, search highlights,
+//!   scrollback marks, window title update, cursor blink
 
 use super::super::{preprocess_claude_code_segment, reconstruct_markdown_from_cells};
 use super::FrameRenderData;
 use crate::app::window_state::WindowState;
-use crate::config::CursorStyle;
-use crate::selection::SelectionMode;
-use par_term_emu_core_rust::cursor::CursorStyle as TermCursorStyle;
 use std::sync::Arc;
 
 impl WindowState {
     /// Gather all data needed for this render frame.
     /// Returns None if rendering should be skipped (no renderer, no active tab, terminal locked, etc.)
     pub(super) fn gather_render_data(&mut self) -> Option<FrameRenderData> {
-        let (renderer_size, visible_lines, grid_cols) = if let Some(renderer) = &self.renderer {
-            let (cols, rows) = renderer.grid_size();
-            (renderer.size(), rows, cols)
-        } else {
-            return None;
-        };
+        let (renderer_size, visible_lines, grid_cols) = self.gather_viewport_sizing()?;
 
         // Get active tab's terminal and immediate state snapshots (avoid long borrows)
         let (
@@ -62,139 +57,23 @@ impl WindowState {
             true // Assume running if locked
         };
 
-        // Get scroll offset and selection from active tab
+        // Extract terminal cells using the focused tab_snapshot helper.
+        let snap = self.extract_tab_cells(
+            scroll_offset,
+            mouse_selection,
+            cache_cells,
+            cache_generation,
+            cache_scroll_offset,
+            cache_cursor_pos,
+            cache_selection,
+            terminal.clone(),
+        )?;
 
-        // Get terminal cells for rendering (with dirty tracking optimization)
-        // Also capture alt screen state to disable cursor shader for TUI apps
-        let (mut cells, current_cursor_pos, cursor_style, is_alt_screen, current_generation) =
-            if let Ok(term) = terminal.try_write() {
-                // Get current generation to check if terminal content has changed
-                let current_generation = term.update_generation();
-
-                // Normalize selection if it exists and extract mode
-                let (selection, rectangular) = if let Some(sel) = mouse_selection {
-                    (
-                        Some(sel.normalized()),
-                        sel.mode == SelectionMode::Rectangular,
-                    )
-                } else {
-                    (None, false)
-                };
-
-                // Get cursor position and opacity (only show if we're at the bottom with no scroll offset
-                // and the cursor is visible - TUI apps hide cursor via DECTCEM escape sequence)
-                // If lock_cursor_visibility is enabled, ignore the terminal's visibility state
-                // In copy mode, use the copy mode cursor position instead
-                let cursor_visible = self.config.lock_cursor_visibility || term.is_cursor_visible();
-                let current_cursor_pos = if self.copy_mode.active {
-                    self.copy_mode.screen_cursor_pos(scroll_offset)
-                } else if scroll_offset == 0 && cursor_visible {
-                    Some(term.cursor_position())
-                } else {
-                    None
-                };
-
-                let cursor = current_cursor_pos.map(|pos| (pos, self.cursor_anim.cursor_opacity));
-
-                // Get cursor style for geometric rendering
-                // In copy mode, always use SteadyBlock for clear visibility
-                // If lock_cursor_style is enabled, use the config's cursor style instead of terminal's
-                // If lock_cursor_blink is enabled and cursor_blink is false, force steady cursor
-                let cursor_style = if self.copy_mode.active && current_cursor_pos.is_some() {
-                    Some(TermCursorStyle::SteadyBlock)
-                } else if current_cursor_pos.is_some() {
-                    if self.config.lock_cursor_style {
-                        // Convert config cursor style to terminal cursor style
-                        let style = if self.config.cursor_blink {
-                            match self.config.cursor_style {
-                                CursorStyle::Block => TermCursorStyle::BlinkingBlock,
-                                CursorStyle::Beam => TermCursorStyle::BlinkingBar,
-                                CursorStyle::Underline => TermCursorStyle::BlinkingUnderline,
-                            }
-                        } else {
-                            match self.config.cursor_style {
-                                CursorStyle::Block => TermCursorStyle::SteadyBlock,
-                                CursorStyle::Beam => TermCursorStyle::SteadyBar,
-                                CursorStyle::Underline => TermCursorStyle::SteadyUnderline,
-                            }
-                        };
-                        Some(style)
-                    } else {
-                        let mut style = term.cursor_style();
-                        // If blink is locked off, convert blinking styles to steady
-                        if self.config.lock_cursor_blink && !self.config.cursor_blink {
-                            style = match style {
-                                TermCursorStyle::BlinkingBlock => TermCursorStyle::SteadyBlock,
-                                TermCursorStyle::BlinkingBar => TermCursorStyle::SteadyBar,
-                                TermCursorStyle::BlinkingUnderline => {
-                                    TermCursorStyle::SteadyUnderline
-                                }
-                                other => other,
-                            };
-                        }
-                        Some(style)
-                    }
-                } else {
-                    None
-                };
-
-                log::trace!(
-                    "Cursor: pos={:?}, opacity={:.2}, style={:?}, scroll={}, visible={}",
-                    current_cursor_pos,
-                    self.cursor_anim.cursor_opacity,
-                    cursor_style,
-                    scroll_offset,
-                    term.is_cursor_visible()
-                );
-
-                // Check if we need to regenerate cells
-                // Only regenerate when content actually changes, not on every cursor blink
-                let needs_regeneration = cache_cells.is_none()
-                || current_generation != cache_generation
-                || scroll_offset != cache_scroll_offset
-                || current_cursor_pos != cache_cursor_pos // Regenerate if cursor position changed
-                || mouse_selection != cache_selection; // Regenerate if selection changed (including clearing)
-
-                let cell_gen_start = std::time::Instant::now();
-                let (cells, is_cache_hit) = if needs_regeneration {
-                    // Generate fresh cells
-                    let fresh_cells = term.get_cells_with_scrollback(
-                        scroll_offset,
-                        selection,
-                        rectangular,
-                        cursor,
-                    );
-
-                    (fresh_cells, false)
-                } else {
-                    // Cache hit: clone the Vec through the Arc (one allocation instead of two).
-                    // apply_url_underlines needs a mutable Vec, so we still need an owned copy,
-                    // but the Arc clone that extracted cache_cells from tab.cache was free.
-                    (cache_cells.as_ref().expect("window_state: cache_cells must be Some when needs_regeneration is false").as_ref().clone(), true)
-                };
-                self.debug.cache_hit = is_cache_hit;
-                self.debug.cell_gen_time = cell_gen_start.elapsed();
-
-                // Check if alt screen is active (TUI apps like vim, htop)
-                let is_alt_screen = term.is_alt_screen_active();
-
-                (
-                    cells,
-                    current_cursor_pos,
-                    cursor_style,
-                    is_alt_screen,
-                    current_generation,
-                )
-            } else if let Some(cached) = cache_cells {
-                // Terminal locked (e.g., upload in progress), use cached cells so the
-                // rest of the render pipeline (including file transfer overlay) can proceed.
-                // Unwrap the Arc: if this is the sole reference the Vec is moved for free,
-                // otherwise a clone is made (rare — only if another Arc clone is live).
-                let cached_vec = Arc::try_unwrap(cached).unwrap_or_else(|a| (*a).clone());
-                (cached_vec, cache_cursor_pos, None, false, cache_generation)
-            } else {
-                return None; // Terminal locked and no cache available, skip this frame
-            };
+        let mut cells = snap.cells;
+        let current_cursor_pos = snap.cursor_pos;
+        let cursor_style = snap.cursor_style;
+        let is_alt_screen = snap.is_alt_screen;
+        let current_generation = snap.current_generation;
 
         // --- Prettifier pipeline update ---
         // Feed terminal output changes to the prettifier, check debounce, and handle
@@ -226,40 +105,9 @@ impl WindowState {
         }
 
         // Ensure cursor visibility flag for cell renderer reflects current config every frame
-        // (so toggling "Hide default cursor" takes effect immediately even if no other changes)
-        // Resolve hides_cursor: per-shader override -> metadata defaults -> global config
-        let resolved_hides_cursor = self
-            .config
-            .cursor_shader
-            .as_ref()
-            .and_then(|name| self.config.cursor_shader_configs.get(name))
-            .and_then(|override_cfg| override_cfg.hides_cursor)
-            .or_else(|| {
-                self.config
-                    .cursor_shader
-                    .as_ref()
-                    .and_then(|name| self.shader_state.cursor_shader_metadata_cache.get(name))
-                    .and_then(|meta| meta.defaults.hides_cursor)
-            })
-            .unwrap_or(self.config.cursor_shader_hides_cursor);
-        // Resolve disable_in_alt_screen: per-shader override -> metadata defaults -> global config
-        let resolved_disable_in_alt_screen = self
-            .config
-            .cursor_shader
-            .as_ref()
-            .and_then(|name| self.config.cursor_shader_configs.get(name))
-            .and_then(|override_cfg| override_cfg.disable_in_alt_screen)
-            .or_else(|| {
-                self.config
-                    .cursor_shader
-                    .as_ref()
-                    .and_then(|name| self.shader_state.cursor_shader_metadata_cache.get(name))
-                    .and_then(|meta| meta.defaults.disable_in_alt_screen)
-            })
-            .unwrap_or(self.config.cursor_shader_disable_in_alt_screen);
-        let hide_cursor_for_shader = self.config.cursor_shader_enabled
-            && resolved_hides_cursor
-            && !(resolved_disable_in_alt_screen && is_alt_screen);
+        // (so toggling "Hide default cursor" takes effect immediately even if no other changes).
+        // Use the focused viewport helper to resolve hide-cursor state.
+        let hide_cursor_for_shader = self.resolve_cursor_shader_hide(is_alt_screen);
         if let Some(renderer) = &mut self.renderer {
             renderer.set_cursor_hidden_for_shader(hide_cursor_for_shader);
         }
@@ -763,7 +611,7 @@ impl WindowState {
 
         // Append trigger-generated marks
         if let Some(tab) = self.tab_manager.active_tab() {
-            scrollback_marks.extend(tab.trigger_marks.iter().cloned());
+            scrollback_marks.extend(tab.scripting.trigger_marks.iter().cloned());
         }
 
         // Keep scrollbar visible when mark indicators exist (even if no scrollback).

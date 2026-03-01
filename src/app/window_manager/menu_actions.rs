@@ -239,7 +239,7 @@ impl WindowManager {
                         };
                         if did_clear {
                             tab.active_cache_mut().scrollback_len = 0;
-                            tab.trigger_marks.clear();
+                            tab.scripting.trigger_marks.clear();
                         }
                         did_clear
                     } else {

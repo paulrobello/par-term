@@ -35,10 +35,10 @@ impl WindowManager {
                 Ok(id) => {
                     log::info!("Started coprocess '{}' (id={})", coproc_config.name, id);
                     // Ensure coprocess_ids vec is large enough
-                    while tab.coprocess_ids.len() <= config_index {
-                        tab.coprocess_ids.push(None);
+                    while tab.scripting.coprocess_ids.len() <= config_index {
+                        tab.scripting.coprocess_ids.push(None);
                     }
-                    tab.coprocess_ids[config_index] = Some(id);
+                    tab.scripting.coprocess_ids[config_index] = Some(id);
                 }
                 Err(e) => {
                     let err_msg = format!("Failed to start: {}", e);
@@ -71,7 +71,7 @@ impl WindowManager {
             && let Some(ws) = self.windows.get_mut(&window_id)
             && let Some(tab) = ws.tab_manager.active_tab_mut()
         {
-            if let Some(Some(id)) = tab.coprocess_ids.get(config_index).copied() {
+            if let Some(Some(id)) = tab.scripting.coprocess_ids.get(config_index).copied() {
                 // Acceptable risk: blocking_lock() from sync event loop for infrequent
                 // user-initiated operation. See docs/CONCURRENCY.md for mutex strategy.
                 let term = tab.terminal.blocking_write();
@@ -81,7 +81,7 @@ impl WindowManager {
                     log::info!("Stopped coprocess at index {} (id={})", config_index, id);
                 }
                 drop(term);
-                tab.coprocess_ids[config_index] = None;
+                tab.scripting.coprocess_ids[config_index] = None;
             }
             // Update running state in settings window
             self.sync_coprocess_running_state();
@@ -104,7 +104,11 @@ impl WindowManager {
                     let mut errors = Vec::new();
                     let mut output = Vec::new();
                     for (i, _) in ws.config.coprocesses.iter().enumerate() {
-                        let has_id = tab.coprocess_ids.get(i).and_then(|opt| opt.as_ref());
+                        let has_id = tab
+                            .scripting
+                            .coprocess_ids
+                            .get(i)
+                            .and_then(|opt| opt.as_ref());
                         let is_running =
                             has_id.is_some_and(|id| term.coprocess_status(*id).unwrap_or(false));
                         // If coprocess has an id but is not running, check stderr.

@@ -360,7 +360,7 @@ impl WindowState {
             if self.send_input_via_tmux(&bytes) {
                 // Still need to reset anti-idle timer
                 if let Some(tab) = self.tab_manager.active_tab_mut() {
-                    tab.anti_idle_last_activity = std::time::Instant::now();
+                    tab.activity.anti_idle_last_activity = std::time::Instant::now();
                 }
                 return; // Input was routed through tmux
             }
@@ -368,7 +368,7 @@ impl WindowState {
             // Broadcast input to all panes or just the focused pane
             if let Some(tab) = self.tab_manager.active_tab_mut() {
                 // Reset anti-idle timer on keyboard input
-                tab.anti_idle_last_activity = std::time::Instant::now();
+                tab.activity.anti_idle_last_activity = std::time::Instant::now();
 
                 // Check if focused pane is awaiting restart input (Enter key to restart)
                 if let Some(ref mut pane_manager) = tab.pane_manager

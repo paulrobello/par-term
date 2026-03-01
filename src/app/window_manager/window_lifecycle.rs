@@ -519,7 +519,7 @@ impl WindowManager {
             let tab_cwds: Vec<Option<String>> = session_window
                 .tabs
                 .iter()
-                .map(|tab| crate::session::restore::validate_cwd(&tab.cwd))
+                .map(|tab| crate::session::restore::validate_cwd(&tab.snapshot.cwd))
                 .collect();
 
             let created_window_id = self.create_window_with_overrides(
@@ -546,15 +546,15 @@ impl WindowManager {
                 // Restore user titles, custom colors, and icons
                 for (tab_idx, session_tab) in session_window.tabs.iter().enumerate() {
                     if let Some(tab) = tabs.get_mut(tab_idx) {
-                        if let Some(ref user_title) = session_tab.user_title {
+                        if let Some(ref user_title) = session_tab.snapshot.user_title {
                             tab.title = user_title.clone();
                             tab.user_named = true;
                             tab.has_default_title = false;
                         }
-                        if let Some(color) = session_tab.custom_color {
+                        if let Some(color) = session_tab.snapshot.custom_color {
                             tab.set_custom_color(color);
                         }
-                        if let Some(ref icon) = session_tab.custom_icon {
+                        if let Some(ref icon) = session_tab.snapshot.custom_icon {
                             tab.custom_icon = Some(icon.clone());
                         }
                     }

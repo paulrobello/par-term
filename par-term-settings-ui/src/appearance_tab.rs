@@ -904,3 +904,73 @@ fn show_cursor_effects_section(
         },
     );
 }
+
+/// Search keywords for the Appearance settings tab.
+pub fn keywords() -> &'static [&'static str] {
+    &[
+        // Theme
+        "theme",
+        "color",
+        "scheme",
+        "dark",
+        "light",
+        // Auto dark mode
+        "auto dark mode",
+        "auto",
+        "dark mode",
+        "light mode",
+        "system theme",
+        "system appearance",
+        "automatic",
+        // Fonts
+        "font",
+        "family",
+        "size",
+        "bold",
+        "italic",
+        "line spacing",
+        "char spacing",
+        // Text shaping
+        "text shaping",
+        "shaping",
+        "ligatures",
+        "kerning",
+        // Font rendering
+        "anti-alias",
+        "antialias",
+        "hinting",
+        "thin strokes",
+        "smoothing",
+        "minimum contrast",
+        "contrast",
+        // Cursor style
+        "cursor",
+        "style",
+        "block",
+        "beam",
+        "underline",
+        "blink",
+        "interval",
+        // Cursor appearance
+        "cursor color",
+        "text color",
+        "unfocused cursor",
+        "hollow",
+        // Cursor locks
+        "lock",
+        "visibility",
+        // Cursor effects
+        "cursor guide",
+        "guide",
+        "cursor shadow",
+        "shadow",
+        "cursor boost",
+        "boost",
+        "glow",
+        // Font variants
+        "bold-italic",
+        "bold italic",
+        "font variant",
+        "variant",
+    ]
+}

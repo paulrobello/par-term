@@ -715,3 +715,36 @@ fn show_variables_reference_section(
         },
     );
 }
+
+/// Search keywords for the Snippets settings tab.
+pub fn keywords() -> &'static [&'static str] {
+    &[
+        "snippet",
+        "snippets",
+        "text",
+        "insert",
+        "template",
+        "variable",
+        "keybinding",
+        "folder",
+        "substitution",
+        "date",
+        "time",
+        "hostname",
+        "path",
+        // Snippet management
+        "title",
+        "name",
+        "content",
+        "body",
+        "description",
+        "category",
+        "auto-execute",
+        "auto execute",
+        "record",
+        // Import/export
+        "export",
+        "import",
+        "yaml",
+    ]
+}

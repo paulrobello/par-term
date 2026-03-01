@@ -981,3 +981,51 @@ fn show_coprocess_edit_form(
         });
     });
 }
+
+/// Search keywords for the Automation settings tab.
+pub fn keywords() -> &'static [&'static str] {
+    &[
+        "trigger",
+        "triggers",
+        "regex",
+        "pattern",
+        "match",
+        "automation",
+        "automate",
+        "action",
+        "highlight",
+        "notify",
+        "notification",
+        "run command",
+        "play sound",
+        "send text",
+        "coprocess",
+        "coprocesses",
+        "pipe",
+        "subprocess",
+        "auto start",
+        "auto-start",
+        // Trigger action extras
+        "mark line",
+        "set variable",
+        "variable",
+        "foreground",
+        "foreground color",
+        // Prettify action
+        "prettify",
+        "prettifier",
+        "scope",
+        "command output",
+        // Trigger security
+        "require user action",
+        "security",
+        "denylist",
+        "rate limit",
+        "dangerous",
+        "safe",
+        // Coprocess extras
+        "restart",
+        "restart policy",
+        "restart delay",
+    ]
+}

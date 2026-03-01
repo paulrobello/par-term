@@ -46,6 +46,7 @@ pub mod profiles_tab;
 pub mod progress_bar_tab;
 pub mod quick_settings;
 pub mod scripts_tab;
+pub mod search_keywords;
 pub mod section;
 pub mod sidebar;
 pub mod snippets_tab;

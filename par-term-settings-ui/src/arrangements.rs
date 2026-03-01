@@ -3,7 +3,17 @@
 //! Arrangements capture the positions, sizes, and tab CWDs of all windows
 //! so they can be restored later. Monitor-aware to handle external monitor
 //! disconnect/reconnect scenarios.
+//!
+//! # Shared types
+//!
+//! [`TabSnapshot`] is defined in `par-term-config::snapshot_types` and re-exported
+//! here so that callers using `par_term_settings_ui::arrangements::TabSnapshot` see
+//! no change. The session module (`src/session`) also imports the same type directly
+//! from `par_term_config`, eliminating the previous duplication.
 
+// Re-export TabSnapshot from par-term-config so existing
+// `use arrangements::TabSnapshot` paths keep working unchanged.
+pub use par_term_config::snapshot_types::TabSnapshot;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
@@ -42,30 +52,6 @@ fn default_scale_factor() -> f64 {
 
 fn is_one(v: &f64) -> bool {
     (*v - 1.0).abs() < f64::EPSILON
-}
-
-/// Snapshot of a single tab's state
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TabSnapshot {
-    /// Working directory (from Tab::get_cwd())
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub cwd: Option<String>,
-
-    /// Tab title
-    #[serde(default)]
-    pub title: String,
-
-    /// Custom tab color
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub custom_color: Option<[u8; 3]>,
-
-    /// User-set tab title
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub user_title: Option<String>,
-
-    /// Custom icon set by user
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub custom_icon: Option<String>,
 }
 
 /// Snapshot of a single window's state

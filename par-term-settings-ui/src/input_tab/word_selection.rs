@@ -120,7 +120,10 @@ pub(super) fn show_copy_mode_section(
         ui.add_space(4.0);
 
         if ui
-            .checkbox(&mut settings.config.copy_mode_enabled, "Enable copy mode")
+            .checkbox(
+                &mut settings.config.copy_mode.copy_mode_enabled,
+                "Enable copy mode",
+            )
             .on_hover_text(
                 "Allow entering copy mode via the toggle_copy_mode keybinding action. \
                  When disabled, the keybinding action is ignored.",
@@ -133,7 +136,7 @@ pub(super) fn show_copy_mode_section(
 
         if ui
             .checkbox(
-                &mut settings.config.copy_mode_auto_exit_on_yank,
+                &mut settings.config.copy_mode.copy_mode_auto_exit_on_yank,
                 "Auto-exit on yank",
             )
             .on_hover_text(
@@ -149,7 +152,7 @@ pub(super) fn show_copy_mode_section(
 
         if ui
             .checkbox(
-                &mut settings.config.copy_mode_show_status,
+                &mut settings.config.copy_mode.copy_mode_show_status,
                 "Show status bar",
             )
             .on_hover_text(

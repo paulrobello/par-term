@@ -22,6 +22,7 @@ pub mod scripting;
 pub mod scrollback_mark;
 pub mod shader_config;
 pub mod shader_metadata;
+pub mod snapshot_types;
 pub mod snippets;
 pub mod status_bar;
 pub mod themes;
@@ -84,6 +85,8 @@ pub use shader_metadata::{
     parse_cursor_shader_metadata, parse_shader_metadata, update_cursor_shader_metadata_file,
     update_shader_metadata_file,
 };
+// Shared snapshot types for session and arrangement persistence
+pub use snapshot_types::TabSnapshot;
 
 // Prettifier config types
 pub use config::prettifier::{

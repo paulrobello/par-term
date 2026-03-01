@@ -11,5 +11,5 @@
 
 pub use par_term_render::renderer::{
     DividerRenderInfo, PaneDividerSettings, PaneRenderInfo, PaneTitleInfo, Renderer,
-    RendererParams, compute_visible_separator_marks, graphics, params, shaders,
+    RendererParams, compute_visible_separator_marks,
 };

@@ -224,3 +224,107 @@ pub fn show(
         search::show_command_separator_section(ui, settings, changes_this_frame, collapsed);
     }
 }
+
+/// Search keywords for the Terminal settings tab.
+pub fn keywords() -> &'static [&'static str] {
+    &[
+        // Behavior
+        "shell",
+        "scrollback",
+        "scrollback lines",
+        "exit",
+        "shell exit",
+        "exit action",
+        "confirm",
+        "confirm close",
+        "running jobs",
+        "jobs",
+        "jobs to ignore",
+        // Unicode
+        "unicode",
+        "unicode version",
+        "width",
+        "ambiguous",
+        "ambiguous width",
+        "answerback",
+        // Shell
+        "custom shell",
+        "shell args",
+        "login shell",
+        "login",
+        "working directory",
+        "startup directory",
+        "previous session",
+        "home",
+        // Startup
+        "initial text",
+        "startup",
+        "delay",
+        "newline",
+        "undo",
+        "undo close",
+        "reopen",
+        "reopen tab",
+        "closed tab",
+        "preserve shell",
+        "preserve",
+        "hide tab",
+        // Search
+        "search",
+        "highlight",
+        "search highlight",
+        "case sensitive",
+        "regex",
+        "wrap",
+        "wrap around",
+        // Semantic history
+        "semantic",
+        "semantic history",
+        "file path",
+        "click file",
+        "editor",
+        "editor mode",
+        "editor command",
+        "link handler",
+        "link highlight color",
+        "link highlight underline",
+        "link underline style",
+        "stipple",
+        "link color",
+        "url color",
+        "browser",
+        "open url",
+        "open links",
+        "url handler",
+        // Scrollbar
+        "scrollbar",
+        "thumb",
+        "track",
+        "autohide",
+        "command marks",
+        "marker",
+        "mark",
+        "tooltips",
+        "scrollbar width",
+        // Unicode extras
+        "normalization",
+        "text normalization",
+        "nfc",
+        "nfd",
+        // Command history
+        "command history",
+        "history entries",
+        "max history",
+        // Command separators
+        "command separator",
+        "separator",
+        "separator line",
+        "separator thickness",
+        "separator opacity",
+        "exit code",
+        // Session restore
+        "restore session",
+        "undo timeout",
+        "undo entries",
+    ]
+}

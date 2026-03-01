@@ -17,17 +17,22 @@
 //! is lifecycle: session state is ephemeral (overwritten on each clean exit), while
 //! arrangements are user-named and persist indefinitely.
 //!
-//! The `SessionTab` / `SessionWindow` types in this module and the `TabSnapshot` /
-//! `WindowSnapshot` types in `crate::arrangements` serve analogous roles and have
-//! similar shapes. A future refactor could unify them under a shared snapshot type
-//! in `par-term-config`, but doing so would require coordinating the different
-//! restore semantics (arrangements are monitor-aware; session restore is not).
+//! # Shared types
+//!
+//! The common per-tab fields (`cwd`, `title`, `custom_color`, `user_title`,
+//! `custom_icon`) are defined once in [`par_term_config::snapshot_types::TabSnapshot`]
+//! and are embedded into [`SessionTab`] via `#[serde(flatten)]`.  The arrangements
+//! module re-exports the same type directly, eliminating the previous duplication.
+//! Existing YAML session files are fully backward-compatible — all fields remain at
+//! the same nesting level.
 
 pub mod capture;
 pub mod restore;
 pub mod storage;
 
+// Re-export TabSnapshot so session consumers can use `crate::session::TabSnapshot`.
 use crate::pane::SplitDirection;
+pub use par_term_config::snapshot_types::TabSnapshot;
 use serde::{Deserialize, Serialize};
 
 /// Top-level session state: all windows at the time of save
@@ -52,22 +57,18 @@ pub struct SessionWindow {
     pub active_tab_index: usize,
 }
 
-/// A single tab in a saved session
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// A single tab in a saved session.
+///
+/// The common tab fields (`cwd`, `title`, `custom_color`, `user_title`,
+/// `custom_icon`) are inherited from [`TabSnapshot`] via `#[serde(flatten)]`
+/// so that the serialized YAML layout is unchanged from before this refactor.
+/// The session-specific field `pane_layout` is appended alongside the flattened
+/// fields in the output.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SessionTab {
-    /// Working directory of the primary/focused pane
-    pub cwd: Option<String>,
-    /// Tab title
-    pub title: String,
-    /// Custom tab color (only saved when user set a color)
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub custom_color: Option<[u8; 3]>,
-    /// User-set tab title (present only when user manually named the tab)
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub user_title: Option<String>,
-    /// Custom icon set by user (persists across sessions)
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub custom_icon: Option<String>,
+    /// Common tab snapshot fields shared with the arrangements module
+    #[serde(flatten)]
+    pub snapshot: TabSnapshot,
     /// Pane layout tree (None = single pane, use cwd above)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pane_layout: Option<SessionPaneNode>,

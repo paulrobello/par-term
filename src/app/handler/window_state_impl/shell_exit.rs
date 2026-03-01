@@ -28,7 +28,7 @@ impl WindowState {
                     .tabs_mut()
                     .iter_mut()
                     .filter_map(|tab| {
-                        if tab.tmux_gateway_active || tab.tmux_pane_id.is_some() {
+                        if tab.tmux.tmux_gateway_active || tab.tmux.tmux_pane_id.is_some() {
                             return None;
                         }
                         if tab.pane_manager.is_some() {
@@ -105,7 +105,7 @@ impl WindowState {
                             Some(tab.id),
                             self.tab_manager.tab_count(),
                             tab.title.clone(),
-                            tab.exit_notified,
+                            tab.activity.exit_notified,
                         )
                     } else {
                         (false, None, 0, String::new(), false)
@@ -116,7 +116,7 @@ impl WindowState {
                     log::info!("Shell in active tab has exited");
                     if self.config.notification_session_ended && !exit_notified {
                         if let Some(tab) = self.tab_manager.active_tab_mut() {
-                            tab.exit_notified = true;
+                            tab.activity.exit_notified = true;
                         }
                         let title = format!("Session Ended: {}", tab_title);
                         let message = "The shell process has exited".to_string();
@@ -143,7 +143,7 @@ impl WindowState {
                 let config_clone = self.config.clone();
 
                 for tab in self.tab_manager.tabs_mut() {
-                    if tab.tmux_gateway_active || tab.tmux_pane_id.is_some() {
+                    if tab.tmux.tmux_gateway_active || tab.tmux.tmux_pane_id.is_some() {
                         continue;
                     }
 

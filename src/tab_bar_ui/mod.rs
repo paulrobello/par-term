@@ -294,7 +294,9 @@ impl TabBarUI {
                                         tab.id,
                                         index,
                                         &tab.title,
-                                        tab.custom_icon.as_deref().or(tab.profile_icon.as_deref()),
+                                        tab.custom_icon
+                                            .as_deref()
+                                            .or(tab.profile.profile_icon.as_deref()),
                                         tab.custom_icon.as_deref(),
                                         is_active,
                                         tab.has_activity,
@@ -341,7 +343,9 @@ impl TabBarUI {
                             tab.id,
                             index,
                             &tab.title,
-                            tab.custom_icon.as_deref().or(tab.profile_icon.as_deref()),
+                            tab.custom_icon
+                                .as_deref()
+                                .or(tab.profile.profile_icon.as_deref()),
                             tab.custom_icon.as_deref(),
                             is_active,
                             tab.has_activity,
@@ -479,7 +483,9 @@ impl TabBarUI {
                                     tab.id,
                                     index,
                                     &tab.title,
-                                    tab.custom_icon.as_deref().or(tab.profile_icon.as_deref()),
+                                    tab.custom_icon
+                                        .as_deref()
+                                        .or(tab.profile.profile_icon.as_deref()),
                                     tab.custom_icon.as_deref(),
                                     is_active,
                                     tab.has_activity,

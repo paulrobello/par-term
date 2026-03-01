@@ -160,7 +160,7 @@ impl WindowState {
         // Snapshot the trigger security map from the active tab for checking
         // require_user_action. We clone the reference to avoid borrow issues.
         let trigger_security = if let Some(t) = self.tab_manager.active_tab() {
-            t.trigger_security.clone()
+            t.scripting.trigger_security.clone()
         } else {
             return;
         };
@@ -194,7 +194,10 @@ impl WindowState {
 
                     // Security check 2: rate limiting
                     if let Some(tab) = self.tab_manager.active_tab_mut()
-                        && !tab.trigger_rate_limiter.check_and_update(trigger_id)
+                        && !tab
+                            .scripting
+                            .trigger_rate_limiter
+                            .check_and_update(trigger_id)
                     {
                         log::warn!(
                             "Trigger {} RunCommand RATE-LIMITED: '{}' (too frequent)",
@@ -314,7 +317,10 @@ impl WindowState {
 
                     // Security check 2: rate limiting
                     if let Some(tab) = self.tab_manager.active_tab_mut()
-                        && !tab.trigger_rate_limiter.check_and_update(trigger_id)
+                        && !tab
+                            .scripting
+                            .trigger_rate_limiter
+                            .check_and_update(trigger_id)
                     {
                         log::warn!(
                             "Trigger {} SendText RATE-LIMITED: '{}' (too frequent)",
@@ -413,7 +419,7 @@ impl WindowState {
 
         // Periodically clean up stale rate limiter entries (every ~60 seconds of entries)
         if let Some(tab) = self.tab_manager.active_tab_mut() {
-            tab.trigger_rate_limiter.cleanup(60);
+            tab.scripting.trigger_rate_limiter.cleanup(60);
         }
 
         // Process collected MarkLine events with deduplication.
