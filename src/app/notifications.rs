@@ -109,9 +109,7 @@ impl WindowState {
                     tab.active_bell_mut().visual_flash = Some(std::time::Instant::now());
                 }
                 // Request immediate redraw to show flash
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
+                self.request_redraw();
             } else {
                 log::debug!("  Visual bell disabled");
             }

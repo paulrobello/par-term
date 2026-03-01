@@ -4,10 +4,9 @@ use super::parser::{
     TomlRenderer, TomlRendererConfig, is_toml_datetime, is_toml_number, register_toml_renderer,
 };
 use crate::prettifier::registry::RendererRegistry;
-use crate::prettifier::testing::test_renderer_config;
+use crate::prettifier::testing::{make_block, test_renderer_config};
 use crate::prettifier::traits::{ContentRenderer, RendererConfig, ThemeColors};
-use crate::prettifier::types::{ContentBlock, RendererCapability, StyledLine};
-use std::time::SystemTime;
+use crate::prettifier::types::{RendererCapability, StyledLine};
 
 fn test_config() -> RendererConfig {
     test_renderer_config()
@@ -15,16 +14,6 @@ fn test_config() -> RendererConfig {
 
 fn renderer() -> TomlRenderer {
     TomlRenderer::new(TomlRendererConfig::default())
-}
-
-fn make_block(lines: &[&str]) -> ContentBlock {
-    ContentBlock {
-        lines: lines.iter().map(|s| s.to_string()).collect(),
-        preceding_command: None,
-        start_row: 0,
-        end_row: lines.len(),
-        timestamp: SystemTime::now(),
-    }
 }
 
 fn all_text(lines: &[StyledLine]) -> String {

@@ -195,9 +195,9 @@ impl RendererRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::prettifier::testing::make_block;
     use crate::prettifier::traits::*;
     use crate::prettifier::types::*;
-    use std::time::SystemTime;
 
     /// Minimal detector for testing.
     struct MockDetector {
@@ -260,16 +260,6 @@ mod tests {
         }
         fn format_badge(&self) -> &str {
             "MOCK"
-        }
-    }
-
-    fn make_block(lines: &[&str]) -> ContentBlock {
-        ContentBlock {
-            lines: lines.iter().map(|s| s.to_string()).collect(),
-            preceding_command: None,
-            start_row: 0,
-            end_row: lines.len(),
-            timestamp: SystemTime::now(),
         }
     }
 

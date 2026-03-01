@@ -30,9 +30,7 @@ impl WindowState {
                 shortcut
             );
 
-            if let Some(window) = &self.window {
-                window.request_redraw();
-            }
+            self.request_redraw();
 
             return true;
         }

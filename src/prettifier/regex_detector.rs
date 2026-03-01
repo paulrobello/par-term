@@ -280,16 +280,18 @@ impl ContentDetector for RegexDetector {
     }
 
     fn apply_config_overrides(&mut self, overrides: &[crate::config::prettifier::RuleOverride]) {
-        for ov in overrides {
-            if let Some(rule) = self.rules.iter_mut().find(|r| r.id == ov.id) {
-                if let Some(enabled) = ov.enabled {
-                    rule.enabled = enabled;
-                }
-                if let Some(weight) = ov.weight {
-                    rule.weight = weight;
-                }
-            }
-        }
+        // Convert config overrides (no scope field) to detector overrides and delegate to
+        // the canonical apply_overrides implementation to keep both paths in sync.
+        let converted: Vec<RuleOverride> = overrides
+            .iter()
+            .map(|ov| RuleOverride {
+                id: ov.id.clone(),
+                enabled: ov.enabled,
+                weight: ov.weight,
+                scope: None,
+            })
+            .collect();
+        self.apply_overrides(converted);
     }
 
     fn merge_config_rules(&mut self, rules: Vec<DetectionRule>) {
@@ -366,19 +368,8 @@ impl RegexDetectorBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::prettifier::testing::make_block_with_command;
     use crate::prettifier::types::{RuleSource, RuleStrength};
-    use std::time::SystemTime;
-
-    /// Helper: create a `ContentBlock` from lines with optional preceding command.
-    fn make_block(lines: &[&str], command: Option<&str>) -> ContentBlock {
-        ContentBlock {
-            lines: lines.iter().map(|s| s.to_string()).collect(),
-            preceding_command: command.map(|s| s.to_string()),
-            start_row: 0,
-            end_row: lines.len(),
-            timestamp: SystemTime::now(),
-        }
-    }
 
     /// Helper: create a `DetectionRule` with sensible defaults.
     fn make_rule(
@@ -421,7 +412,7 @@ mod tests {
             .confidence_threshold(0.5)
             .build();
 
-        let block = make_block(&["# Hello", "This is **bold** text"], None);
+        let block = make_block_with_command(&["# Hello", "This is **bold** text"], None);
         let result = detector.detect(&block);
 
         assert!(result.is_some());
@@ -444,7 +435,7 @@ mod tests {
             .confidence_threshold(0.5)
             .build();
 
-        let block = make_block(&["This is **bold** text"], None);
+        let block = make_block_with_command(&["This is **bold** text"], None);
         let result = detector.detect(&block);
 
         // 0.3 < 0.5 threshold → None
@@ -470,7 +461,7 @@ mod tests {
             ))
             .build();
 
-        let block = make_block(&["{", "  \"key\": \"value\"", "}"], None);
+        let block = make_block_with_command(&["{", "  \"key\": \"value\"", "}"], None);
         let result = detector.detect(&block);
 
         assert!(result.is_some());
@@ -502,7 +493,7 @@ mod tests {
             .build();
 
         // Only one rule matches (header), but min is 2.
-        let block = make_block(&["# Hello", "Plain text"], None);
+        let block = make_block_with_command(&["# Hello", "Plain text"], None);
         let result = detector.detect(&block);
 
         assert!(result.is_none());
@@ -522,10 +513,10 @@ mod tests {
             .confidence_threshold(0.5)
             .build();
 
-        let block_match = make_block(&["HEADER", "line2", "line3"], None);
+        let block_match = make_block_with_command(&["HEADER", "line2", "line3"], None);
         assert!(detector.detect(&block_match).is_some());
 
-        let block_no_match = make_block(&["line1", "line2", "HEADER"], None);
+        let block_no_match = make_block_with_command(&["line1", "line2", "HEADER"], None);
         assert!(detector.detect(&block_no_match).is_none());
 
         // LastLines: matches only in last N lines.
@@ -540,10 +531,10 @@ mod tests {
             .confidence_threshold(0.5)
             .build();
 
-        let block_match = make_block(&["line1", "line2", "FOOTER"], None);
+        let block_match = make_block_with_command(&["line1", "line2", "FOOTER"], None);
         assert!(detector.detect(&block_match).is_some());
 
-        let block_no_match = make_block(&["FOOTER", "line2", "line3"], None);
+        let block_no_match = make_block_with_command(&["FOOTER", "line2", "line3"], None);
         assert!(detector.detect(&block_no_match).is_none());
 
         // FullBlock: matches against joined text.
@@ -558,7 +549,7 @@ mod tests {
             .confidence_threshold(0.5)
             .build();
 
-        let block_match = make_block(&["line1", "line2", "line3"], None);
+        let block_match = make_block_with_command(&["line1", "line2", "line3"], None);
         assert!(detector.detect(&block_match).is_some());
 
         // PrecedingCommand: matches against the command.
@@ -573,10 +564,10 @@ mod tests {
             .confidence_threshold(0.5)
             .build();
 
-        let block_match = make_block(&["diff output"], Some("git diff --cached"));
+        let block_match = make_block_with_command(&["diff output"], Some("git diff --cached"));
         assert!(detector.detect(&block_match).is_some());
 
-        let block_no_cmd = make_block(&["diff output"], None);
+        let block_no_cmd = make_block_with_command(&["diff output"], None);
         assert!(detector.detect(&block_no_cmd).is_none());
     }
 
@@ -597,15 +588,16 @@ mod tests {
             .build();
 
         // With matching command context.
-        let block_match = make_block(&["diff --git a/foo b/foo"], Some("git diff"));
+        let block_match = make_block_with_command(&["diff --git a/foo b/foo"], Some("git diff"));
         assert!(detector.detect(&block_match).is_some());
 
         // Without matching command context.
-        let block_wrong_cmd = make_block(&["diff --git a/foo b/foo"], Some("svn diff"));
+        let block_wrong_cmd =
+            make_block_with_command(&["diff --git a/foo b/foo"], Some("svn diff"));
         assert!(detector.detect(&block_wrong_cmd).is_none());
 
         // Without any command.
-        let block_no_cmd = make_block(&["diff --git a/foo b/foo"], None);
+        let block_no_cmd = make_block_with_command(&["diff --git a/foo b/foo"], None);
         assert!(detector.detect(&block_no_cmd).is_none());
     }
 
@@ -625,7 +617,7 @@ mod tests {
             .confidence_threshold(0.5)
             .build();
 
-        let block = make_block(&["# Hello"], None);
+        let block = make_block_with_command(&["# Hello"], None);
         assert!(detector.detect(&block).is_none());
     }
 
@@ -774,7 +766,7 @@ mod tests {
             .confidence_threshold(0.3)
             .build();
 
-        let block = make_block(&["{", "  \"key\": \"value\"", "}"], None);
+        let block = make_block_with_command(&["{", "  \"key\": \"value\"", "}"], None);
         let result = detector.detect(&block).unwrap();
 
         // Both rules match, confidence is summed (0.3 + 0.5 = 0.8), not short-circuited to 1.0.

@@ -104,19 +104,8 @@ pub fn register_log(registry: &mut RendererRegistry, config: &RenderersConfig) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::prettifier::testing::make_block_with_command;
     use crate::prettifier::traits::ContentDetector;
-    use crate::prettifier::types::ContentBlock;
-    use std::time::SystemTime;
-
-    fn make_block(lines: &[&str], command: Option<&str>) -> ContentBlock {
-        ContentBlock {
-            lines: lines.iter().map(|s| s.to_string()).collect(),
-            preceding_command: command.map(|s| s.to_string()),
-            start_row: 0,
-            end_row: lines.len(),
-            timestamp: SystemTime::now(),
-        }
-    }
 
     #[test]
     fn test_all_rules_compile() {
@@ -127,7 +116,7 @@ mod tests {
     #[test]
     fn test_timestamp_with_level() {
         let detector = create_log_detector();
-        let block = make_block(
+        let block = make_block_with_command(
             &[
                 "2024-01-15T10:30:00Z INFO Starting server",
                 "2024-01-15T10:30:01Z DEBUG Loaded config",
@@ -149,7 +138,7 @@ mod tests {
     fn test_log_level_prefix() {
         let detector = create_log_detector();
         // level_prefix(0.5) + iso_timestamp(0.3) >= 0.5, min_matching_rules=2
-        let block = make_block(
+        let block = make_block_with_command(
             &[
                 "2024-01-15T10:30:00Z Starting up...",
                 "[INFO] Server started on port 8080",
@@ -166,7 +155,7 @@ mod tests {
     fn test_iso_timestamp_with_level() {
         let detector = create_log_detector();
         // iso_timestamp(0.3) + timestamp_level(0.7) >= 0.5
-        let block = make_block(
+        let block = make_block_with_command(
             &[
                 "2024-01-15T10:30:00.123Z INFO request processed",
                 "2024-01-15T10:30:01.456Z WARN slow query detected",
@@ -181,7 +170,7 @@ mod tests {
     fn test_syslog_format() {
         let detector = create_log_detector();
         // syslog(0.4) + level_prefix(0.5) >= 0.5, min_matching_rules=2
-        let block = make_block(
+        let block = make_block_with_command(
             &[
                 "Jan 15 10:30:00 myhost sshd[1234]: connection from 10.0.0.1",
                 "INFO Accepted publickey for user root",
@@ -197,7 +186,7 @@ mod tests {
     fn test_json_structured_log() {
         let detector = create_log_detector();
         // json_line(0.6) + level_prefix(0.5) >= 0.5, min_matching_rules=2
-        let block = make_block(
+        let block = make_block_with_command(
             &[
                 r#"{"timestamp":"2024-01-15T10:30:00Z","level":"INFO","message":"started"}"#,
                 "INFO Application initialized",
@@ -212,7 +201,7 @@ mod tests {
     #[test]
     fn test_not_log_plain_text() {
         let detector = create_log_detector();
-        let block = make_block(&["Hello world", "This is plain text"], None);
+        let block = make_block_with_command(&["Hello world", "This is plain text"], None);
         let result = detector.detect(&block);
         assert!(result.is_none());
     }

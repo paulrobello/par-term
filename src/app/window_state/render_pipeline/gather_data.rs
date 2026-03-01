@@ -562,9 +562,7 @@ impl WindowState {
                     prettifier_block_count_before,
                     block_count_after
                 );
-                if let Some(tab) = self.tab_manager.active_tab_mut() {
-                    tab.active_cache_mut().cells = None;
-                }
+                self.invalidate_tab_cache();
             }
         }
 
@@ -610,9 +608,9 @@ impl WindowState {
         };
 
         // Append trigger-generated marks
-        if let Some(tab) = self.tab_manager.active_tab() {
-            scrollback_marks.extend(tab.scripting.trigger_marks.iter().cloned());
-        }
+        self.with_active_tab(|tab| {
+            scrollback_marks.extend(tab.scripting.trigger_marks.iter().cloned())
+        });
 
         // Keep scrollbar visible when mark indicators exist (even if no scrollback).
         if !scrollback_marks.is_empty() {
@@ -625,9 +623,9 @@ impl WindowState {
             && hovered_url.is_none()
             && terminal_title != cached_terminal_title
         {
-            if let Some(tab) = self.tab_manager.active_tab_mut() {
-                tab.active_cache_mut().terminal_title = terminal_title.clone();
-            }
+            self.with_active_tab_mut(|tab| {
+                tab.active_cache_mut().terminal_title = terminal_title.clone()
+            });
             if let Some(window) = &self.window {
                 if terminal_title.is_empty() {
                     // Restore configured title when terminal clears title

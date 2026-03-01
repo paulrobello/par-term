@@ -4,9 +4,9 @@
 #[allow(clippy::module_inception)]
 mod tests {
     use crate::config::prettifier::DiagramRendererConfig;
+    use crate::prettifier::testing::make_block;
     use crate::prettifier::traits::{ContentRenderer, RendererConfig, ThemeColors};
-    use crate::prettifier::types::{ContentBlock, RendererCapability};
-    use std::time::SystemTime;
+    use crate::prettifier::types::RendererCapability;
 
     use super::super::languages::default_diagram_languages;
     use super::super::renderer::DiagramRenderer;
@@ -18,16 +18,6 @@ mod tests {
 
     fn test_renderer() -> DiagramRenderer {
         DiagramRenderer::new(test_config())
-    }
-
-    fn make_block(lines: &[&str]) -> ContentBlock {
-        ContentBlock {
-            lines: lines.iter().map(|s| s.to_string()).collect(),
-            preceding_command: None,
-            start_row: 0,
-            end_row: lines.len(),
-            timestamp: SystemTime::now(),
-        }
     }
 
     #[test]

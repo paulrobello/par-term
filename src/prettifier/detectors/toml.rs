@@ -98,19 +98,8 @@ pub fn register_toml(registry: &mut RendererRegistry, config: &RenderersConfig) 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::prettifier::testing::make_block_with_command;
     use crate::prettifier::traits::ContentDetector;
-    use crate::prettifier::types::ContentBlock;
-    use std::time::SystemTime;
-
-    fn make_block(lines: &[&str], command: Option<&str>) -> ContentBlock {
-        ContentBlock {
-            lines: lines.iter().map(|s| s.to_string()).collect(),
-            preceding_command: command.map(|s| s.to_string()),
-            start_row: 0,
-            end_row: lines.len(),
-            timestamp: SystemTime::now(),
-        }
-    }
 
     #[test]
     fn test_all_rules_compile() {
@@ -121,7 +110,7 @@ mod tests {
     #[test]
     fn test_toml_section_with_key_value() {
         let detector = create_toml_detector();
-        let block = make_block(
+        let block = make_block_with_command(
             &["[package]", "name = \"par-term\"", "version = \"0.16.0\""],
             None,
         );
@@ -134,7 +123,7 @@ mod tests {
     #[test]
     fn test_toml_array_table() {
         let detector = create_toml_detector();
-        let block = make_block(
+        let block = make_block_with_command(
             &["[[bin]]", "name = \"par-term\"", "path = \"src/main.rs\""],
             None,
         );
@@ -145,7 +134,7 @@ mod tests {
     #[test]
     fn test_toml_with_comments() {
         let detector = create_toml_detector();
-        let block = make_block(
+        let block = make_block_with_command(
             &[
                 "# Configuration file",
                 "[server]",
@@ -161,7 +150,7 @@ mod tests {
     #[test]
     fn test_not_toml_plain_text() {
         let detector = create_toml_detector();
-        let block = make_block(&["Hello world", "This is plain text"], None);
+        let block = make_block_with_command(&["Hello world", "This is plain text"], None);
         let result = detector.detect(&block);
         assert!(result.is_none());
     }
@@ -169,7 +158,7 @@ mod tests {
     #[test]
     fn test_not_toml_json() {
         let detector = create_toml_detector();
-        let block = make_block(&["{", "  \"name\": \"par-term\"", "}"], None);
+        let block = make_block_with_command(&["{", "  \"name\": \"par-term\"", "}"], None);
         let result = detector.detect(&block);
         assert!(result.is_none());
     }
@@ -177,7 +166,7 @@ mod tests {
     #[test]
     fn test_toml_nested_sections() {
         let detector = create_toml_detector();
-        let block = make_block(
+        let block = make_block_with_command(
             &[
                 "[database]",
                 "host = \"localhost\"",

@@ -61,19 +61,8 @@ pub fn register_diagrams(registry: &mut RendererRegistry, config: &DiagramRender
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::prettifier::testing::make_block_with_command;
     use crate::prettifier::traits::ContentDetector;
-    use crate::prettifier::types::ContentBlock;
-    use std::time::SystemTime;
-
-    fn make_block(lines: &[&str], command: Option<&str>) -> ContentBlock {
-        ContentBlock {
-            lines: lines.iter().map(|s| s.to_string()).collect(),
-            preceding_command: command.map(|s| s.to_string()),
-            start_row: 0,
-            end_row: lines.len(),
-            timestamp: SystemTime::now(),
-        }
-    }
 
     #[test]
     fn test_rule_compiles() {
@@ -84,7 +73,7 @@ mod tests {
     #[test]
     fn test_mermaid_detection() {
         let detector = create_diagram_detector();
-        let block = make_block(&["```mermaid", "graph TD", "  A-->B", "```"], None);
+        let block = make_block_with_command(&["```mermaid", "graph TD", "  A-->B", "```"], None);
         let result = detector.detect(&block);
         assert!(result.is_some());
         let result = result.unwrap();
@@ -99,7 +88,7 @@ mod tests {
     #[test]
     fn test_plantuml_detection() {
         let detector = create_diagram_detector();
-        let block = make_block(
+        let block = make_block_with_command(
             &["```plantuml", "@startuml", "Alice -> Bob", "@enduml", "```"],
             None,
         );
@@ -111,77 +100,77 @@ mod tests {
     #[test]
     fn test_graphviz_detection() {
         let detector = create_diagram_detector();
-        let block = make_block(&["```graphviz", "digraph G { A -> B }", "```"], None);
+        let block = make_block_with_command(&["```graphviz", "digraph G { A -> B }", "```"], None);
         assert!(detector.detect(&block).is_some());
     }
 
     #[test]
     fn test_dot_detection() {
         let detector = create_diagram_detector();
-        let block = make_block(&["```dot", "digraph { }", "```"], None);
+        let block = make_block_with_command(&["```dot", "digraph { }", "```"], None);
         assert!(detector.detect(&block).is_some());
     }
 
     #[test]
     fn test_d2_detection() {
         let detector = create_diagram_detector();
-        let block = make_block(&["```d2", "x -> y", "```"], None);
+        let block = make_block_with_command(&["```d2", "x -> y", "```"], None);
         assert!(detector.detect(&block).is_some());
     }
 
     #[test]
     fn test_ditaa_detection() {
         let detector = create_diagram_detector();
-        let block = make_block(&["```ditaa", "+--+", "|  |", "+--+", "```"], None);
+        let block = make_block_with_command(&["```ditaa", "+--+", "|  |", "+--+", "```"], None);
         assert!(detector.detect(&block).is_some());
     }
 
     #[test]
     fn test_svgbob_detection() {
         let detector = create_diagram_detector();
-        let block = make_block(&["```svgbob", ".--.", "| |", "'--'", "```"], None);
+        let block = make_block_with_command(&["```svgbob", ".--.", "| |", "'--'", "```"], None);
         assert!(detector.detect(&block).is_some());
     }
 
     #[test]
     fn test_erd_detection() {
         let detector = create_diagram_detector();
-        let block = make_block(&["```erd", "[Person]", "```"], None);
+        let block = make_block_with_command(&["```erd", "[Person]", "```"], None);
         assert!(detector.detect(&block).is_some());
     }
 
     #[test]
     fn test_vegalite_detection() {
         let detector = create_diagram_detector();
-        let block = make_block(&["```vegalite", "{}", "```"], None);
+        let block = make_block_with_command(&["```vegalite", "{}", "```"], None);
         assert!(detector.detect(&block).is_some());
     }
 
     #[test]
     fn test_wavedrom_detection() {
         let detector = create_diagram_detector();
-        let block = make_block(&["```wavedrom", "{}", "```"], None);
+        let block = make_block_with_command(&["```wavedrom", "{}", "```"], None);
         assert!(detector.detect(&block).is_some());
     }
 
     #[test]
     fn test_excalidraw_detection() {
         let detector = create_diagram_detector();
-        let block = make_block(&["```excalidraw", "{}", "```"], None);
+        let block = make_block_with_command(&["```excalidraw", "{}", "```"], None);
         assert!(detector.detect(&block).is_some());
     }
 
     #[test]
     fn test_non_diagram_not_detected() {
         let detector = create_diagram_detector();
-        let block = make_block(&["```rust", "fn main() {}", "```"], None);
+        let block = make_block_with_command(&["```rust", "fn main() {}", "```"], None);
         assert!(detector.detect(&block).is_none());
     }
 
     #[test]
     fn test_plain_text_not_detected() {
         let detector = create_diagram_detector();
-        let block = make_block(&["Hello world", "Just some text"], None);
+        let block = make_block_with_command(&["Hello world", "Just some text"], None);
         assert!(detector.detect(&block).is_none());
     }
 
@@ -222,7 +211,7 @@ mod tests {
         // (graphviz and dot both map to GraphViz, so there are 11 tags but 10 languages)
         let detector = create_diagram_detector();
         for tag in DIAGRAM_TAGS {
-            let block = make_block(&[&format!("```{tag}"), "content", "```"], None);
+            let block = make_block_with_command(&[&format!("```{tag}"), "content", "```"], None);
             assert!(
                 detector.detect(&block).is_some(),
                 "Failed to detect diagram tag: {tag}"

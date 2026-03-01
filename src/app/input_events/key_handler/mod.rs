@@ -325,9 +325,7 @@ impl WindowState {
             && tab.selection_mouse().selection.is_some()
         {
             tab.selection_mouse_mut().selection = None;
-            if let Some(window) = &self.window {
-                window.request_redraw();
-            }
+            self.request_redraw();
         }
 
         // Handle tmux prefix key mode

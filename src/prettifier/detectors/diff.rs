@@ -113,19 +113,8 @@ pub fn register_diff(registry: &mut RendererRegistry, config: &RenderersConfig) 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::prettifier::testing::make_block_with_command;
     use crate::prettifier::traits::ContentDetector;
-    use crate::prettifier::types::ContentBlock;
-    use std::time::SystemTime;
-
-    fn make_block(lines: &[&str], command: Option<&str>) -> ContentBlock {
-        ContentBlock {
-            lines: lines.iter().map(|s| s.to_string()).collect(),
-            preceding_command: command.map(|s| s.to_string()),
-            start_row: 0,
-            end_row: lines.len(),
-            timestamp: SystemTime::now(),
-        }
-    }
 
     #[test]
     fn test_all_rules_compile() {
@@ -136,7 +125,7 @@ mod tests {
     #[test]
     fn test_diff_git_header_definitive() {
         let detector = create_diff_detector();
-        let block = make_block(
+        let block = make_block_with_command(
             &[
                 "diff --git a/src/main.rs b/src/main.rs",
                 "index abc1234..def5678 100644",
@@ -164,7 +153,7 @@ mod tests {
     #[test]
     fn test_hunk_header_definitive() {
         let detector = create_diff_detector();
-        let block = make_block(
+        let block = make_block_with_command(
             &[
                 "--- a/file.txt",
                 "+++ b/file.txt",
@@ -184,7 +173,7 @@ mod tests {
     #[test]
     fn test_unified_header_definitive() {
         let detector = create_diff_detector();
-        let block = make_block(
+        let block = make_block_with_command(
             &[
                 "--- a/file.txt",
                 "+++ b/file.txt",
@@ -207,7 +196,7 @@ mod tests {
         // structural markers. Verify that with a hunk header, all rules including
         // git context are matched (hunk short-circuits to 1.0 but context is still
         // valid as a supporting signal).
-        let block = make_block(
+        let block = make_block_with_command(
             &[
                 "@@ -1,4 +1,4 @@",
                 "+added line",
@@ -227,7 +216,8 @@ mod tests {
     fn test_supporting_rules_below_threshold() {
         let detector = create_diff_detector();
         // Only supporting rules: git_context(0.3) + add(0.1) + remove(0.1) = 0.5 < 0.6
-        let block = make_block(&["+added line", "-removed line"], Some("git diff --cached"));
+        let block =
+            make_block_with_command(&["+added line", "-removed line"], Some("git diff --cached"));
         let result = detector.detect(&block);
         // Should NOT reach threshold without a definitive rule
         assert!(result.is_none());
@@ -236,7 +226,7 @@ mod tests {
     #[test]
     fn test_not_diff_plain_text() {
         let detector = create_diff_detector();
-        let block = make_block(&["Hello world", "This is plain text"], None);
+        let block = make_block_with_command(&["Hello world", "This is plain text"], None);
         let result = detector.detect(&block);
         assert!(result.is_none());
     }

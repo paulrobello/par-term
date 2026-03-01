@@ -4,11 +4,13 @@
 //! functions used across all renderer test files. Import with:
 //!
 //! ```ignore
-//! use crate::prettifier::testing::test_renderer_config;
+//! use crate::prettifier::testing::{make_block, make_block_with_command, test_renderer_config};
 //! ```
 
 use super::traits::RendererConfig;
+use super::types::ContentBlock;
 use crate::config::Config;
+use std::time::SystemTime;
 
 /// Returns a `RendererConfig` suitable for renderer unit tests.
 ///
@@ -29,4 +31,36 @@ pub fn test_renderer_config() -> RendererConfig {
 #[allow(dead_code)]
 pub fn test_global_config() -> Config {
     Config::default()
+}
+
+/// Creates a `ContentBlock` from a slice of string lines with no preceding command.
+///
+/// Use this in renderer tests where the command context is irrelevant.
+/// For tests that need a specific command, use [`make_block_with_command`].
+#[cfg(test)]
+#[allow(dead_code)]
+pub fn make_block(lines: &[&str]) -> ContentBlock {
+    ContentBlock {
+        lines: lines.iter().map(|s| s.to_string()).collect(),
+        preceding_command: None,
+        start_row: 0,
+        end_row: lines.len(),
+        timestamp: SystemTime::now(),
+    }
+}
+
+/// Creates a `ContentBlock` from a slice of string lines with an optional preceding command.
+///
+/// Use this in detector tests where the preceding shell command affects detection logic.
+/// Pass `None` for `command` when no command context is needed.
+#[cfg(test)]
+#[allow(dead_code)]
+pub fn make_block_with_command(lines: &[&str], command: Option<&str>) -> ContentBlock {
+    ContentBlock {
+        lines: lines.iter().map(|s| s.to_string()).collect(),
+        preceding_command: command.map(|s| s.to_string()),
+        start_row: 0,
+        end_row: lines.len(),
+        timestamp: SystemTime::now(),
+    }
 }

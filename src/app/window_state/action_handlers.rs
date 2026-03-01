@@ -24,16 +24,7 @@ impl WindowState {
             TabBarAction::SwitchTo(id) => {
                 self.tab_manager.switch_to(id);
                 // Clear renderer cells and invalidate cache to ensure clean switch
-                if let Some(renderer) = &mut self.renderer {
-                    renderer.clear_all_cells();
-                }
-                if let Some(tab) = self.tab_manager.active_tab_mut() {
-                    tab.active_cache_mut().cells = None;
-                }
-                self.focus_state.needs_redraw = true;
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
+                self.clear_and_invalidate();
             }
             TabBarAction::Close(id) => {
                 // Switch to the tab first so close_current_tab() operates on it.
@@ -44,15 +35,11 @@ impl WindowState {
                 if was_last {
                     self.is_shutting_down = true;
                 }
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
+                self.request_redraw();
             }
             TabBarAction::NewTab => {
                 self.new_tab();
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
+                self.request_redraw();
             }
             TabBarAction::SetColor(id, color) => {
                 if let Some(tab) = self.tab_manager.get_tab_mut(id) {
@@ -65,32 +52,24 @@ impl WindowState {
                         color[2]
                     );
                 }
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
+                self.request_redraw();
             }
             TabBarAction::ClearColor(id) => {
                 if let Some(tab) = self.tab_manager.get_tab_mut(id) {
                     tab.clear_custom_color();
                     log::info!("Cleared custom color for tab {}", id);
                 }
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
+                self.request_redraw();
             }
             TabBarAction::Reorder(id, target_index) => {
                 if self.tab_manager.move_tab_to_index(id, target_index) {
                     self.focus_state.needs_redraw = true;
-                    if let Some(window) = &self.window {
-                        window.request_redraw();
-                    }
+                    self.request_redraw();
                 }
             }
             TabBarAction::NewTabWithProfile(profile_id) => {
                 self.open_profile(profile_id);
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
+                self.request_redraw();
             }
             TabBarAction::RenameTab(id, name) => {
                 if let Some(tab) = self.tab_manager.get_tab_mut(id) {
@@ -106,15 +85,11 @@ impl WindowState {
                         tab.has_default_title = false;
                     }
                 }
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
+                self.request_redraw();
             }
             TabBarAction::Duplicate(id) => {
                 self.duplicate_tab_by_id(id);
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
+                self.request_redraw();
             }
             TabBarAction::ToggleAssistantPanel => {
                 let just_opened = self.overlay_ui.ai_inspector.toggle();
@@ -122,17 +97,13 @@ impl WindowState {
                 if just_opened {
                     self.try_auto_connect_agent();
                 }
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
+                self.request_redraw();
             }
             TabBarAction::SetTabIcon(tab_id, icon) => {
                 if let Some(tab) = self.tab_manager.get_tab_mut(tab_id) {
                     tab.custom_icon = icon;
                 }
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
+                self.request_redraw();
             }
             TabBarAction::None => {}
         }

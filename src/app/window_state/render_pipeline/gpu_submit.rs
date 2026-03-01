@@ -229,6 +229,7 @@ impl WindowState {
                 && terminal.update_animations()
             {
                 // Animation frame changed - request continuous redraws while animations are playing
+                // NOTE: Cannot use self.request_redraw() here because &mut self.renderer is held.
                 if let Some(window) = &self.window {
                     window.request_redraw();
                 }
@@ -307,6 +308,7 @@ impl WindowState {
                 let elapsed = flash_start.elapsed().as_millis();
                 if elapsed < VISUAL_BELL_FLASH_DURATION_MS {
                     // Request continuous redraws while flash is active
+                    // NOTE: Cannot use self.request_redraw() here because &mut self.renderer is held.
                     if let Some(window) = &self.window {
                         window.request_redraw();
                     }
@@ -863,9 +865,7 @@ impl WindowState {
                             }
                             SurfaceError::Timeout => {
                                 log::warn!("Surface timeout, will retry next frame");
-                                if let Some(window) = &self.window {
-                                    window.request_redraw();
-                                }
+                                self.request_redraw();
                             }
                             SurfaceError::OutOfMemory => {
                                 log::error!("Surface out of memory: {:?}", surface_error);
