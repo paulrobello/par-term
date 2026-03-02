@@ -308,8 +308,24 @@ impl WindowState {
                         self.focus_state.focus_click_suppressed_while_unfocused_at =
                             Some(std::time::Instant::now());
                     }
-                    self.focus_state.ui_consumed_mouse_press = true; // Also suppress the release
-                    self.request_redraw();
+                    // If the focus click landed in the tab bar, let it through so the
+                    // tab switch registers in egui. Only suppress clicks in the terminal
+                    // area to prevent PTY mouse-tracking apps from seeing the focus click.
+                    let mouse_position = self
+                        .tab_manager
+                        .active_tab()
+                        .map(|t| t.active_mouse().position)
+                        .unwrap_or((0.0, 0.0));
+                    if self.is_mouse_in_tab_bar(mouse_position) {
+                        // Don't suppress — egui needs both press and release to fire clicked_by()
+                        self.focus_state.ui_consumed_mouse_press = false;
+                        self.begin_clipboard_image_click_guard(button, state);
+                        self.handle_mouse_button(button, state);
+                        self.finish_clipboard_image_click_guard(button, state);
+                    } else {
+                        self.focus_state.ui_consumed_mouse_press = true; // Also suppress the release
+                        self.request_redraw();
+                    }
                 } else {
                     // Track UI mouse consumption to prevent release events bleeding through
                     // when UI closes during a click (e.g., drawer toggle)

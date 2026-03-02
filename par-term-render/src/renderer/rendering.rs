@@ -219,13 +219,17 @@ impl Renderer {
                 self.cell_renderer.queue(),
             );
 
-            // Render shader effect to surface with background color as clear
-            // Don't apply opacity here - pane cells will blend on top
+            // Render shader effect to surface. Apply opacity so the shader produces
+            // opaque premultiplied output — chain mode (apply_opacity=false) would
+            // emit alpha=0 for empty areas, leaving the surface transparent when the
+            // clear color is TRANSPARENT (as it is now that bg_image_bind_group is
+            // always set for macOS alpha-coverage). In split-pane mode there is no
+            // cursor-shader chain, so final-mode output is correct.
             custom_shader.render_with_clear_color(
                 self.cell_renderer.device(),
                 self.cell_renderer.queue(),
                 &surface_view,
-                false, // Don't apply opacity - let pane rendering handle it
+                true, // Apply opacity - shader provides the opaque background
                 clear_color,
             )?;
         } else {

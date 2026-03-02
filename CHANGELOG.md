@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 97 copy mode state machine tests covering motions, visual modes, selection, marks, search, and edge cases.
 
 ### Fixed
+- Fixed custom background shaders (e.g., rain) rendering as fully transparent in split-pane mode after the macOS alpha-coverage fix; the shader's render pass now uses final-mode opacity instead of chain mode, producing opaque premultiplied output.
 - Fixed translucent right-half background on macOS: in Default and Color background modes, the right portion of the window (empty cells with default background) was see-through to the desktop because `LoadOp::Clear` alone is unreliable for alpha on macOS Metal with per-pixel transparency enabled. All background modes now render a full-screen opaque quad via `bg_image_pipeline`; Default mode creates a solid-color texture from the theme background colour so the pipeline always has coverage. Also fixed a pre-existing bug where the pane-viewport fill quad in split-pane mode used pixel coordinates instead of NDC, causing it to render entirely off-screen.
 - Fixed semantic file-path highlighting bleeding across tmux pane separators: the file-path detection regex now stops at Unicode box-drawing characters (U+2500–U+257F), so the link highlight colour is no longer applied to cells in the adjacent tmux pane.
 - Fixed drag-selection often failing to copy text to clipboard due to `try_write()` race condition; mouse-release copy now uses `blocking_write()` to guarantee the selection is captured.

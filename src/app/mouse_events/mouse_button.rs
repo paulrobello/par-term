@@ -39,32 +39,7 @@ impl WindowState {
 
         // Check if click is in the tab bar area - if so, let egui handle it
         // IMPORTANT: Do this BEFORE setting button_pressed to avoid selection state issues
-        // Tab bar dimensions are in logical pixels (egui); mouse_position is physical pixels (winit)
-        let tab_count = self.tab_manager.tab_count();
-        let tab_bar_height = self.tab_bar_ui.get_height(tab_count, &self.config);
-        let tab_bar_width = self.tab_bar_ui.get_width(tab_count, &self.config);
-        let scale_factor = self
-            .window
-            .as_ref()
-            .map(|w| w.scale_factor())
-            .unwrap_or(1.0);
-        let in_tab_bar = match self.config.tab_bar_position {
-            crate::config::TabBarPosition::Top => {
-                mouse_position.1 < tab_bar_height as f64 * scale_factor
-            }
-            crate::config::TabBarPosition::Bottom => {
-                let window_height = self
-                    .window
-                    .as_ref()
-                    .map(|w| w.inner_size().height as f64)
-                    .unwrap_or(0.0);
-                mouse_position.1 > window_height - tab_bar_height as f64 * scale_factor
-            }
-            crate::config::TabBarPosition::Left => {
-                mouse_position.0 < tab_bar_width as f64 * scale_factor
-            }
-        };
-        if in_tab_bar {
+        if self.is_mouse_in_tab_bar(mouse_position) {
             // Request redraw so egui can process the click event
             self.request_redraw();
             return; // Click is on tab bar, don't process as terminal event
@@ -285,6 +260,37 @@ impl WindowState {
             self.handle_left_mouse_press(mouse_position);
         } else {
             self.handle_left_mouse_release();
+        }
+    }
+
+    /// Returns true if the given physical-pixel position falls within the tab bar area.
+    ///
+    /// Tab bar dimensions come from `TabBarUI` (logical pixels) and are scaled to physical
+    /// pixels using the window's scale factor, matching the coordinate space of winit mouse events.
+    pub(crate) fn is_mouse_in_tab_bar(&self, mouse_position: (f64, f64)) -> bool {
+        let tab_count = self.tab_manager.tab_count();
+        let tab_bar_height = self.tab_bar_ui.get_height(tab_count, &self.config);
+        let tab_bar_width = self.tab_bar_ui.get_width(tab_count, &self.config);
+        let scale_factor = self
+            .window
+            .as_ref()
+            .map(|w| w.scale_factor())
+            .unwrap_or(1.0);
+        match self.config.tab_bar_position {
+            crate::config::TabBarPosition::Top => {
+                mouse_position.1 < tab_bar_height as f64 * scale_factor
+            }
+            crate::config::TabBarPosition::Bottom => {
+                let window_height = self
+                    .window
+                    .as_ref()
+                    .map(|w| w.inner_size().height as f64)
+                    .unwrap_or(0.0);
+                mouse_position.1 > window_height - tab_bar_height as f64 * scale_factor
+            }
+            crate::config::TabBarPosition::Left => {
+                mouse_position.0 < tab_bar_width as f64 * scale_factor
+            }
         }
     }
 }
