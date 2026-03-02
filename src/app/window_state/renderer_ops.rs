@@ -20,11 +20,12 @@ impl WindowState {
         // Get shader metadata from cache for full 3-tier resolution
         let metadata = self
             .config
+            .shader
             .custom_shader
             .as_ref()
             .and_then(|name| self.shader_state.shader_metadata_cache.get(name).cloned());
         // Get cursor shader metadata from cache for full 3-tier resolution
-        let cursor_metadata = self.config.cursor_shader.as_ref().and_then(|name| {
+        let cursor_metadata = self.config.shader.cursor_shader.as_ref().and_then(|name| {
             self.shader_state
                 .cursor_shader_metadata_cache
                 .get(name)
@@ -218,7 +219,7 @@ impl WindowState {
             && current_width > 0.0
             && self.overlay_ui.ai_inspector.open
         {
-            self.config.ai_inspector_width = self.overlay_ui.ai_inspector.width;
+            self.config.ai_inspector.ai_inspector_width = self.overlay_ui.ai_inspector.width;
             // Save to disk so the width is remembered across sessions.
             if let Err(e) = self.save_config_debounced() {
                 log::error!("Failed to save AI inspector width: {}", e);

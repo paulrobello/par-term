@@ -38,8 +38,10 @@ impl WindowState {
         // Discover available ACP agents
         let config_dir = dirs::config_dir().unwrap_or_default().join("par-term");
         let discovered_agents = discover_agents(&config_dir);
-        let available_agents =
-            merge_custom_ai_inspector_agents(discovered_agents, &config.ai_inspector_custom_agents);
+        let available_agents = merge_custom_ai_inspector_agents(
+            discovered_agents,
+            &config.ai_inspector.ai_inspector_custom_agents,
+        );
 
         Self {
             config,
@@ -185,11 +187,12 @@ impl WindowState {
         // Get shader metadata from cache for full 3-tier resolution
         let metadata = self
             .config
+            .shader
             .custom_shader
             .as_ref()
             .and_then(|name| self.shader_state.shader_metadata_cache.get(name).cloned());
         // Get cursor shader metadata from cache for full 3-tier resolution
-        let cursor_metadata = self.config.cursor_shader.as_ref().and_then(|name| {
+        let cursor_metadata = self.config.shader.cursor_shader.as_ref().and_then(|name| {
             self.shader_state
                 .cursor_shader_metadata_cache
                 .get(name)

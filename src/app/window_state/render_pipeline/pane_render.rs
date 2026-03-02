@@ -55,10 +55,6 @@ pub(super) type PaneRenderDataResult = Option<(
 /// from `tab_manager.active_tab_mut()`.
 ///
 /// Returns `None` when no pane manager is present or the tab is absent.
-// Too many arguments: this free function receives all render parameters that are needed
-// across split panes. Grouping would require a transient struct that exists only to
-// cross one call boundary; the current flat signature is more readable in practice.
-#[allow(clippy::too_many_arguments)]
 pub(super) fn gather_pane_render_data(
     tab: &mut crate::tab::Tab,
     config: &Config,
@@ -321,24 +317,34 @@ pub(super) fn gather_pane_render_data(
     ))
 }
 
+/// Parameters for [`WindowState::render_split_panes_with_data`].
+pub(super) struct SplitPaneRenderParams<'a> {
+    pub pane_data: Vec<PaneRenderData>,
+    pub dividers: Vec<crate::pane::DividerRect>,
+    pub pane_titles: Vec<PaneTitleInfo>,
+    pub focused_viewport: Option<PaneViewport>,
+    pub config: &'a Config,
+    pub egui_data: Option<(egui::FullOutput, &'a egui::Context)>,
+    pub hovered_divider_index: Option<usize>,
+    pub show_scrollbar: bool,
+}
+
 impl crate::app::window_state::WindowState {
     /// Render split panes when the active tab has multiple panes
-    // Too many arguments: passes independently-owned render data to avoid holding
-    // mutable references across the pane collection and GPU submission path.
-    // Introducing a wrapper struct is deferred since these args map 1-to-1 to
-    // distinct subsystems (pane data, dividers, titles, focus, config, egui, UI state).
-    #[allow(clippy::too_many_arguments)]
     pub(super) fn render_split_panes_with_data(
         renderer: &mut Renderer,
-        pane_data: Vec<PaneRenderData>,
-        dividers: Vec<crate::pane::DividerRect>,
-        pane_titles: Vec<PaneTitleInfo>,
-        focused_viewport: Option<PaneViewport>,
-        config: &Config,
-        egui_data: Option<(egui::FullOutput, &egui::Context)>,
-        hovered_divider_index: Option<usize>,
-        show_scrollbar: bool,
+        p: SplitPaneRenderParams<'_>,
     ) -> Result<bool> {
+        let SplitPaneRenderParams {
+            pane_data,
+            dividers,
+            pane_titles,
+            focused_viewport,
+            config,
+            egui_data,
+            hovered_divider_index,
+            show_scrollbar,
+        } = p;
         // Two-phase construction: separate owned cell data from pane metadata
         // so PaneRenderInfo can borrow cell slices safely.  This replaces the
         // previous unsafe Box::into_raw / Box::from_raw pattern that leaked
@@ -397,14 +403,14 @@ impl crate::app::window_state::WindowState {
 
         // Call the split pane renderer.
         // owned_cells is dropped automatically at scope exit, even on panic.
-        renderer.render_split_panes(
-            &pane_render_infos,
-            &divider_render_infos,
-            &pane_titles,
-            focused_viewport.as_ref(),
-            &divider_settings,
+        renderer.render_split_panes(crate::renderer::SplitPanesRenderParams {
+            panes: &pane_render_infos,
+            dividers: &divider_render_infos,
+            pane_titles: &pane_titles,
+            focused_viewport: focused_viewport.as_ref(),
+            divider_settings: &divider_settings,
             egui_data,
-            false,
-        )
+            force_egui_opaque: false,
+        })
     }
 }

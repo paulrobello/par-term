@@ -47,9 +47,7 @@ impl WindowState {
             }
             "open_settings" => {
                 self.overlay_state.open_settings_window_requested = true;
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
+                self.request_redraw();
                 log::info!("Settings window requested via keybinding");
                 true
             }
@@ -91,9 +89,7 @@ impl WindowState {
             }
             "toggle_help" => {
                 self.overlay_ui.help_ui.toggle();
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
+                self.request_redraw();
                 log::info!(
                     "Help UI toggled via keybinding: {}",
                     if self.overlay_ui.help_ui.visible {
@@ -106,9 +102,7 @@ impl WindowState {
             }
             "toggle_fps_overlay" => {
                 self.debug.show_fps_overlay = !self.debug.show_fps_overlay;
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
+                self.request_redraw();
                 log::info!(
                     "FPS overlay toggled via keybinding: {}",
                     if self.debug.show_fps_overlay {
@@ -123,14 +117,12 @@ impl WindowState {
                 self.overlay_ui.search_ui.toggle();
                 if self.overlay_ui.search_ui.visible {
                     self.overlay_ui.search_ui.init_from_config(
-                        self.config.search_case_sensitive,
-                        self.config.search_regex,
+                        self.config.search.search_case_sensitive,
+                        self.config.search.search_regex,
                     );
                 }
                 self.focus_state.needs_redraw = true;
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
+                self.request_redraw();
                 log::info!(
                     "Search UI toggled via keybinding: {}",
                     if self.overlay_ui.search_ui.visible {
@@ -142,15 +134,13 @@ impl WindowState {
                 true
             }
             "toggle_ai_inspector" => {
-                if self.config.ai_inspector_enabled {
+                if self.config.ai_inspector.ai_inspector_enabled {
                     let just_opened = self.overlay_ui.ai_inspector.toggle();
                     self.sync_ai_inspector_width();
                     if just_opened {
                         self.try_auto_connect_agent();
                     }
-                    if let Some(window) = &self.window {
-                        window.request_redraw();
-                    }
+                    self.request_redraw();
                 }
                 true
             }
@@ -180,9 +170,7 @@ impl WindowState {
                 if let Some(text) = self.input_handler.paste_from_clipboard() {
                     self.overlay_ui.paste_special_ui.open(text);
                     self.focus_state.needs_redraw = true;
-                    if let Some(window) = &self.window {
-                        window.request_redraw();
-                    }
+                    self.request_redraw();
                     log::info!("Paste special UI opened");
                 } else {
                     log::debug!("Paste special: no clipboard content");
@@ -259,9 +247,7 @@ impl WindowState {
             }
             "toggle_tmux_session_picker" => {
                 self.overlay_ui.tmux_session_picker_ui.toggle();
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
+                self.request_redraw();
                 log::info!(
                     "tmux session picker toggled via keybinding: {}",
                     if self.overlay_ui.tmux_session_picker_ui.visible {
@@ -347,7 +333,7 @@ impl WindowState {
                     };
                     if did_clear {
                         tab.active_cache_mut().scrollback_len = 0;
-                        tab.trigger_marks.clear();
+                        tab.scripting.trigger_marks.clear();
                     }
                     did_clear
                 } else {
@@ -366,9 +352,7 @@ impl WindowState {
                     "Font size increased to {} via keybinding",
                     self.config.font_size
                 );
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
+                self.request_redraw();
                 true
             }
             "decrease_font_size" => {
@@ -378,18 +362,14 @@ impl WindowState {
                     "Font size decreased to {} via keybinding",
                     self.config.font_size
                 );
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
+                self.request_redraw();
                 true
             }
             "reset_font_size" => {
                 self.config.font_size = 14.0;
                 self.pending_font_rebuild = true;
                 log::info!("Font size reset to default (14.0) via keybinding");
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
+                self.request_redraw();
                 true
             }
             "cycle_cursor_style" => {
@@ -402,9 +382,7 @@ impl WindowState {
                     CursorStyle::Underline => CursorStyle::Block,
                 };
 
-                if let Some(tab) = self.tab_manager.active_tab_mut() {
-                    tab.active_cache_mut().cells = None;
-                }
+                self.invalidate_tab_cache();
                 self.focus_state.needs_redraw = true;
 
                 log::info!(
@@ -506,28 +484,22 @@ impl WindowState {
             "save_arrangement" => {
                 // Open settings to Arrangements tab
                 self.overlay_state.open_settings_window_requested = true;
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
+                self.request_redraw();
                 log::info!("Save arrangement requested via keybinding");
                 true
             }
             "ssh_quick_connect" => {
                 self.overlay_ui.ssh_connect_ui.open(
-                    self.config.enable_mdns_discovery,
-                    self.config.mdns_scan_timeout_secs,
+                    self.config.ssh.enable_mdns_discovery,
+                    self.config.ssh.mdns_scan_timeout_secs,
                 );
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
+                self.request_redraw();
                 log::info!("SSH Quick Connect opened via keybinding");
                 true
             }
             "reload_dynamic_profiles" => {
                 self.overlay_state.reload_dynamic_profiles_requested = true;
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
+                self.request_redraw();
                 log::info!("Dynamic profiles reload requested via keybinding");
                 true
             }
@@ -541,9 +513,7 @@ impl WindowState {
                     // Restore arrangement by name - handled by WindowManager
                     self.overlay_state.pending_arrangement_restore =
                         Some(arrangement_name.to_string());
-                    if let Some(window) = &self.window {
-                        window.request_redraw();
-                    }
+                    self.request_redraw();
                     log::info!(
                         "Arrangement restore requested via keybinding: {}",
                         arrangement_name
@@ -565,28 +535,25 @@ impl WindowState {
         self.overlay_state.toast_hide_time =
             Some(std::time::Instant::now() + std::time::Duration::from_secs(2));
         self.focus_state.needs_redraw = true;
-        if let Some(window) = &self.window {
-            window.request_redraw();
-        }
+        self.request_redraw();
     }
 
     /// Show pane index overlays for a specified duration.
     pub(crate) fn show_pane_indices(&mut self, duration: std::time::Duration) {
         self.overlay_state.pane_identify_hide_time = Some(std::time::Instant::now() + duration);
         self.focus_state.needs_redraw = true;
-        if let Some(window) = &self.window {
-            window.request_redraw();
-        }
+        self.request_redraw();
     }
 
     /// Toggle the background/custom shader on/off.
     pub(crate) fn toggle_background_shader(&mut self) {
-        self.config.custom_shader_enabled = !self.config.custom_shader_enabled;
+        self.config.shader.custom_shader_enabled = !self.config.shader.custom_shader_enabled;
 
         if let Some(renderer) = &mut self.renderer {
             // Get shader metadata from cache for resolution
             let metadata = self
                 .config
+                .shader
                 .custom_shader
                 .as_ref()
                 .and_then(|name| self.shader_state.shader_metadata_cache.get(name).cloned());
@@ -594,6 +561,7 @@ impl WindowState {
             // Get per-shader overrides
             let shader_override = self
                 .config
+                .shader
                 .custom_shader
                 .as_ref()
                 .and_then(|name| self.config.shader_configs.get(name).cloned());
@@ -603,26 +571,26 @@ impl WindowState {
                 resolve_shader_config(shader_override.as_ref(), metadata.as_ref(), &self.config);
 
             let _ = renderer.set_custom_shader_enabled(
-                self.config.custom_shader_enabled,
-                self.config.custom_shader.as_deref(),
-                self.config.window_opacity,
-                self.config.custom_shader_animation,
-                resolved.animation_speed,
-                resolved.full_content,
-                resolved.brightness,
-                &resolved.channel_paths(),
-                resolved.cubemap_path().map(|p| p.as_path()),
+                par_term_render::renderer::shaders::CustomShaderEnableParams {
+                    enabled: self.config.shader.custom_shader_enabled,
+                    shader_path: self.config.shader.custom_shader.as_deref(),
+                    window_opacity: self.config.window_opacity,
+                    animation_enabled: self.config.shader.custom_shader_animation,
+                    animation_speed: resolved.animation_speed,
+                    full_content: resolved.full_content,
+                    brightness: resolved.brightness,
+                    channel_paths: &resolved.channel_paths(),
+                    cubemap_path: resolved.cubemap_path().map(|p| p.as_path()),
+                },
             );
         }
 
         self.focus_state.needs_redraw = true;
-        if let Some(window) = &self.window {
-            window.request_redraw();
-        }
+        self.request_redraw();
 
         log::info!(
             "Background shader {}",
-            if self.config.custom_shader_enabled {
+            if self.config.shader.custom_shader_enabled {
                 "enabled"
             } else {
                 "disabled"
@@ -632,26 +600,24 @@ impl WindowState {
 
     /// Toggle the cursor shader on/off.
     pub(crate) fn toggle_cursor_shader(&mut self) {
-        self.config.cursor_shader_enabled = !self.config.cursor_shader_enabled;
+        self.config.shader.cursor_shader_enabled = !self.config.shader.cursor_shader_enabled;
 
         if let Some(renderer) = &mut self.renderer {
             let _ = renderer.set_cursor_shader_enabled(
-                self.config.cursor_shader_enabled,
-                self.config.cursor_shader.as_deref(),
+                self.config.shader.cursor_shader_enabled,
+                self.config.shader.cursor_shader.as_deref(),
                 self.config.window_opacity,
-                self.config.cursor_shader_animation,
-                self.config.cursor_shader_animation_speed,
+                self.config.shader.cursor_shader_animation,
+                self.config.shader.cursor_shader_animation_speed,
             );
         }
 
         self.focus_state.needs_redraw = true;
-        if let Some(window) = &self.window {
-            window.request_redraw();
-        }
+        self.request_redraw();
 
         log::info!(
             "Cursor shader {}",
-            if self.config.cursor_shader_enabled {
+            if self.config.shader.cursor_shader_enabled {
                 "enabled"
             } else {
                 "disabled"

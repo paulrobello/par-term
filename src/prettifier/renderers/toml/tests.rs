@@ -4,29 +4,16 @@ use super::parser::{
     TomlRenderer, TomlRendererConfig, is_toml_datetime, is_toml_number, register_toml_renderer,
 };
 use crate::prettifier::registry::RendererRegistry;
+use crate::prettifier::testing::{make_block, test_renderer_config};
 use crate::prettifier::traits::{ContentRenderer, RendererConfig, ThemeColors};
-use crate::prettifier::types::{ContentBlock, RendererCapability, StyledLine};
-use std::time::SystemTime;
+use crate::prettifier::types::{RendererCapability, StyledLine};
 
 fn test_config() -> RendererConfig {
-    RendererConfig {
-        terminal_width: 80,
-        ..Default::default()
-    }
+    test_renderer_config()
 }
 
 fn renderer() -> TomlRenderer {
     TomlRenderer::new(TomlRendererConfig::default())
-}
-
-fn make_block(lines: &[&str]) -> ContentBlock {
-    ContentBlock {
-        lines: lines.iter().map(|s| s.to_string()).collect(),
-        preceding_command: None,
-        start_row: 0,
-        end_row: lines.len(),
-        timestamp: SystemTime::now(),
-    }
 }
 
 fn all_text(lines: &[StyledLine]) -> String {
@@ -116,7 +103,7 @@ fn test_render_comment() {
         .flat_map(|l| &l.segments)
         .find(|s| s.text.contains("# This is a comment"))
         .unwrap();
-    assert_eq!(comment_seg.fg, Some(theme.palette[8]));
+    assert_eq!(comment_seg.fg, Some(theme.dim_color()));
     assert!(comment_seg.italic);
 }
 
@@ -132,7 +119,7 @@ fn test_string_value_coloring() {
         .flat_map(|l| &l.segments)
         .find(|s| s.text.contains("\"par-term\""))
         .unwrap();
-    assert_eq!(str_seg.fg, Some(theme.palette[2]));
+    assert_eq!(str_seg.fg, Some(theme.string_color()));
 }
 
 #[test]
@@ -147,7 +134,7 @@ fn test_number_value_coloring() {
         .flat_map(|l| &l.segments)
         .find(|s| s.text == "8080")
         .unwrap();
-    assert_eq!(num_seg.fg, Some(theme.palette[11]));
+    assert_eq!(num_seg.fg, Some(theme.number_color()));
 }
 
 #[test]
@@ -192,7 +179,7 @@ fn test_key_coloring() {
         .flat_map(|l| &l.segments)
         .find(|s| s.text == "mykey")
         .unwrap();
-    assert_eq!(key_seg.fg, Some(theme.palette[6]));
+    assert_eq!(key_seg.fg, Some(theme.key_color()));
 }
 
 #[test]

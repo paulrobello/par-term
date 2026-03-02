@@ -4,22 +4,22 @@ use std::time::Instant;
 
 /// State related to mouse interaction, selection, and URL detection
 pub struct MouseState {
-    pub selection: Option<Selection>, // Current text selection
-    pub is_selecting: bool,           // Whether currently dragging to select
+    pub(crate) selection: Option<Selection>, // Current text selection
+    pub(crate) is_selecting: bool,           // Whether currently dragging to select
 
-    pub position: (f64, f64),             // Current mouse position in pixels
-    pub button_pressed: bool, // Whether any mouse button is currently pressed (for motion tracking)
-    pub last_click_time: Option<Instant>, // Time of last mouse click
-    pub click_count: u32,     // Number of sequential clicks (1 = single, 2 = double, 3 = triple)
-    pub click_position: Option<(usize, usize)>, // Position of last click in cell coordinates
-    pub click_pixel_position: Option<(f64, f64)>, // Position of last click in pixels (for drag threshold)
-    pub detected_urls: Vec<url_detection::DetectedUrl>, // URLs detected in visible terminal area
-    pub hovered_url: Option<String>,              // URL currently under mouse cursor
+    pub(crate) position: (f64, f64), // Current mouse position in pixels
+    pub(crate) button_pressed: bool, // Whether any mouse button is currently pressed (for motion tracking)
+    pub(crate) last_click_time: Option<Instant>, // Time of last mouse click
+    pub(crate) click_count: u32, // Number of sequential clicks (1 = single, 2 = double, 3 = triple)
+    pub(crate) click_position: Option<(usize, usize)>, // Position of last click in cell coordinates
+    pub(crate) click_pixel_position: Option<(f64, f64)>, // Position of last click in pixels (for drag threshold)
+    pub(crate) detected_urls: Vec<url_detection::DetectedUrl>, // URLs detected in visible terminal area
+    pub(crate) hovered_url: Option<String>,                    // URL currently under mouse cursor
 
     // Divider drag state
-    pub dragging_divider: Option<usize>, // Index of divider being dragged
-    pub divider_hover: bool,             // Whether hovering over a divider
-    pub hovered_divider_index: Option<usize>, // Index of the hovered divider
+    pub(crate) dragging_divider: Option<usize>, // Index of divider being dragged
+    pub(crate) divider_hover: bool,             // Whether hovering over a divider
+    pub(crate) hovered_divider_index: Option<usize>, // Index of the hovered divider
 }
 
 impl Default for MouseState {
@@ -29,7 +29,7 @@ impl Default for MouseState {
 }
 
 impl MouseState {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             selection: None,
             is_selecting: false,

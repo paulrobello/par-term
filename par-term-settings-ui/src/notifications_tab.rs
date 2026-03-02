@@ -573,3 +573,63 @@ fn show_alert_sounds_section(
         },
     );
 }
+
+/// Search keywords for the Notifications settings tab.
+pub fn keywords() -> &'static [&'static str] {
+    &[
+        // Bell
+        "bell",
+        "visual bell",
+        "audio bell",
+        "sound",
+        "beep",
+        "volume",
+        "desktop notification",
+        // Activity
+        "notification",
+        "activity",
+        "activity notification",
+        "activity threshold",
+        "inactivity",
+        // Silence
+        "silence",
+        "silence notification",
+        "silence threshold",
+        // Session
+        "session ended",
+        "shell exits",
+        // Behavior
+        "suppress",
+        "focused",
+        "suppress notifications",
+        "buffer",
+        "max buffer",
+        "test notification",
+        // Anti-idle
+        "anti-idle",
+        "anti idle",
+        "keep-alive",
+        "keepalive",
+        "idle",
+        "timeout",
+        "ssh timeout",
+        "connection timeout",
+        "alert",
+        // Alert sound extras
+        "frequency",
+        "duration",
+        "sound file",
+        "custom sound",
+        // Anti-idle character
+        "character",
+        "ascii",
+        "nul",
+        "enq",
+        "esc",
+        "space",
+        // Sound file formats
+        "wav",
+        "ogg",
+        "flac",
+    ]
+}

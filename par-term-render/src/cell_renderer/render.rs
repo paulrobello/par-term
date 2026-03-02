@@ -23,13 +23,15 @@ impl CellRenderer {
                 {
                     self.prepare_pane_bg_bind_group(
                         path.as_str(),
-                        0.0, // pane_x: full window starts at 0
-                        0.0, // pane_y: full window starts at 0
-                        self.config.width as f32,
-                        self.config.height as f32,
-                        pane_bg.mode,
-                        pane_bg.opacity,
-                        pane_bg.darken,
+                        crate::cell_renderer::background::PaneBgBindGroupParams {
+                            pane_x: 0.0, // full window starts at 0
+                            pane_y: 0.0, // full window starts at 0
+                            pane_width: self.config.width as f32,
+                            pane_height: self.config.height as f32,
+                            mode: pane_bg.mode,
+                            opacity: pane_bg.opacity,
+                            darken: pane_bg.darken,
+                        },
                     );
                     Some(path.to_string())
                 } else {

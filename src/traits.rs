@@ -6,20 +6,37 @@
 //!
 //! # Status
 //!
-//! These traits are currently *definitions only* — the concrete types
-//! (`TerminalManager`, `TabBarUI`, `StatusBarUI`, `WindowState`) have not yet
-//! been refactored to `impl` these traits. The definitions serve as:
+//! [`TerminalAccess`] is **fully implemented** on [`crate::terminal::TerminalManager`].
+//! See [`crate::traits_impl`] for the concrete `impl` and a `MockTerminal` test helper.
 //!
-//! 1. Documentation of the expected interface contract
-//! 2. The foundation for mock implementations in tests (see AUD-050)
-//! 3. A migration target for future refactoring (AUD-040, AUD-041, AUD-042)
+//! `UIElement` and `EventHandler` were previously stub-only definitions in this file.
+//! Both have been **removed** because their signatures were incompatible with the existing
+//! concrete types:
 //!
-//! # Migration Path
+//! - **`UIElement`** (`is_visible`, `height_logical`, `width_logical`, `is_capturing_input`)
+//!   required zero-argument methods, but `TabBarUI::get_height()` and
+//!   `StatusBarUI::height()` both require `&Config` (and sometimes `tab_count: usize`
+//!   or `is_fullscreen: bool`) as parameters. Implementing the trait would force these
+//!   components to store a redundant config snapshot, which is worse than no trait.
+//!   A correct design would parameterise the trait itself: `trait UIElement<Ctx>` or
+//!   pass context through a `render_context()` accessor, but that is a larger design
+//!   decision tracked as a future improvement.
 //!
-//! When a component is ready to implement a trait:
-//! 1. Add `impl TerminalAccess for TerminalManager { ... }` delegating to existing methods
-//! 2. Update call sites in `app/mouse_events/` and `app/input_events/` to use `T: TerminalAccess`
-//! 3. Add mock implementations in `#[cfg(test)]` blocks for unit tests
+//! - **`EventHandler`** (`handle_event(&mut self, event: Self::Event) -> bool`) is a
+//!   generic marker trait with an associated type. Wiring it up requires choosing a
+//!   single concrete `Event` type (`winit::event::WindowEvent`), touching the monolithic
+//!   `WindowState` dispatch chain, and updating all call sites simultaneously. That scope
+//!   exceeds a targeted refactor of this file. The trait will be reintroduced as part of
+//!   the `WindowState` decomposition effort.
+//!
+//! # Migration Path for future `UIElement` / `EventHandler`
+//!
+//! When the `WindowState` decomposition is ready:
+//! 1. Define `UIElement` with a `RenderCtx<'_>` parameter that holds `&Config` and any
+//!    other per-frame data (`tab_count`, `is_fullscreen`).
+//! 2. Define `EventHandler<E>` where `E = winit::event::WindowEvent` and implement it
+//!    on each sub-handler struct extracted from `WindowState`.
+//! 3. Add mock implementations in `#[cfg(test)]` blocks.
 
 // ── AUD-040: TerminalAccess ──────────────────────────────────────────────────
 
@@ -74,73 +91,41 @@ pub trait TerminalAccess {
     ) -> Vec<u8>;
 }
 
-// ── AUD-041: UIElement ───────────────────────────────────────────────────────
+// ── AUD-041: UIElement — REMOVED ─────────────────────────────────────────────
+//
+// The `UIElement` trait was removed because its zero-argument methods
+// (`height_logical`, `width_logical`, `is_visible`) are incompatible with the
+// concrete types (`TabBarUI`, `StatusBarUI`, `TmuxStatusBarUI`), which all
+// require `&Config` and additional per-frame parameters to compute these values.
+//
+// Forcing those components to cache config state just to satisfy the trait
+// would introduce a new source of stale-config bugs.
+//
+// A correct design (future work):
+//
+//   pub trait UIElement {
+//       type Ctx<'a>;
+//       fn is_visible(&self, ctx: Self::Ctx<'_>) -> bool;
+//       fn height_logical(&self, ctx: Self::Ctx<'_>) -> f32;
+//       fn width_logical(&self, ctx: Self::Ctx<'_>) -> f32;
+//       fn is_capturing_input(&self) -> bool;
+//   }
+//
+// This requires GATs (stable since Rust 1.65) and can be introduced as part of
+// the `WindowState` decomposition effort without breaking existing call sites.
 
-/// Lifecycle contract for egui-based UI overlay components.
-///
-/// Implemented by `TabBarUI`, `StatusBarUI`, `TmuxStatusBarUI`, and similar
-/// overlay panels. Documents the expected init → update → draw → handle_input
-/// lifecycle and enables generic overlay management in `WindowState`.
-///
-/// # Notes
-///
-/// The `Config` and `egui::Context` parameters are not included in the trait
-/// signature here because they differ per component (some take `&Config`,
-/// others `&mut Config`). Concrete `render()` methods retain their current
-/// signatures. The trait captures the structural contract rather than the
-/// exact signatures.
-pub trait UIElement {
-    /// Returns `true` if this element should be rendered this frame.
-    ///
-    /// Typically checks config flags (e.g., `config.tab_bar_enabled`) and
-    /// current application state (e.g., number of tabs).
-    fn is_visible(&self) -> bool;
-
-    /// Returns the height this element occupies in logical pixels.
-    ///
-    /// Used by layout code to reserve space before the renderer borrow.
-    /// Returns 0.0 when the element is not visible.
-    fn height_logical(&self) -> f32;
-
-    /// Returns the width this element occupies in logical pixels.
-    ///
-    /// Returns 0.0 for full-width elements (status bar, tab bar with
-    /// `TabBarPosition::Top` or `Bottom`).
-    fn width_logical(&self) -> f32;
-
-    /// Returns `true` if this element is currently capturing user input
-    /// (e.g., a context menu is open, a rename field is focused).
-    ///
-    /// When `true`, the main terminal should not process keyboard or mouse
-    /// events that fall within the element's bounds.
-    fn is_capturing_input(&self) -> bool;
-}
-
-// ── AUD-042: EventHandler ────────────────────────────────────────────────────
-
-/// Marker interface for components that process winit `WindowEvent` messages.
-///
-/// `WindowState` dispatches events through several handler methods. This trait
-/// documents the expected signature and return convention without requiring
-/// immediate refactoring of the existing monolithic dispatch chain.
-///
-/// # Return value
-///
-/// `handle_event` returns `true` if the event was consumed (no further
-/// handlers should process it), `false` to propagate to the next handler.
-///
-/// # Notes
-///
-/// The concrete event type is `winit::event::WindowEvent`. It is not
-/// referenced here to keep `traits.rs` free of heavy imports; implementors
-/// use the full type in their `impl` blocks.
-pub trait EventHandler {
-    /// The event type this handler processes.
-    type Event;
-
-    /// Process one event.
-    ///
-    /// Returns `true` if the event was consumed and should not be forwarded
-    /// to subsequent handlers in the chain.
-    fn handle_event(&mut self, event: Self::Event) -> bool;
-}
+// ── AUD-042: EventHandler — REMOVED ──────────────────────────────────────────
+//
+// The `EventHandler` trait was removed because wiring it up to the concrete
+// `WindowState` dispatch chain is a larger structural refactor than can be done
+// in this file alone.  The trait will be reintroduced as part of that effort.
+//
+// Proposed future definition (kept here as a design record):
+//
+//   pub trait EventHandler {
+//       fn handle_event(&mut self, event: winit::event::WindowEvent) -> bool;
+//   }
+//
+// To use this trait, each handler extracted from `WindowState` would implement it
+// and `WindowState::on_window_event` would iterate a `Vec<Box<dyn EventHandler>>`.
+// That decomposition is tracked in the `WindowState` refactor issue.

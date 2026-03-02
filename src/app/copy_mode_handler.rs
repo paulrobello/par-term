@@ -16,7 +16,7 @@ impl WindowState {
 
     /// Enter copy mode, anchoring the cursor at the current terminal cursor position
     pub(crate) fn enter_copy_mode(&mut self) {
-        if !self.config.copy_mode_enabled {
+        if !self.config.copy_mode.copy_mode_enabled {
             return;
         }
 
@@ -571,7 +571,7 @@ impl WindowState {
     fn yank_copy_mode_selection(&mut self) {
         if let Some(text) = self.get_selected_text_for_copy() {
             let text_len = text.len();
-            let auto_exit = self.config.copy_mode_auto_exit_on_yank;
+            let auto_exit = self.config.copy_mode.copy_mode_auto_exit_on_yank;
             match self.input_handler.copy_to_clipboard(&text) {
                 Ok(()) => {
                     let line_count = text.lines().count();
@@ -600,7 +600,7 @@ impl WindowState {
                     self.show_toast("Failed to copy to clipboard");
                 }
             }
-        } else if self.config.copy_mode_auto_exit_on_yank {
+        } else if self.config.copy_mode.copy_mode_auto_exit_on_yank {
             self.exit_copy_mode();
         }
     }

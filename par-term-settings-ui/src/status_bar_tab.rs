@@ -116,7 +116,10 @@ fn show_general_section(
 ) {
     collapsing_section(ui, "General", "status_bar_general", true, collapsed, |ui| {
         if ui
-            .checkbox(&mut settings.config.status_bar_enabled, "Enable status bar")
+            .checkbox(
+                &mut settings.config.status_bar.status_bar_enabled,
+                "Enable status bar",
+            )
             .on_hover_text("Show a configurable status bar with widgets")
             .changed()
         {
@@ -130,14 +133,14 @@ fn show_general_section(
         ui.horizontal(|ui| {
             ui.label("Position:");
             egui::ComboBox::from_id_salt("status_bar_position")
-                .selected_text(match settings.config.status_bar_position {
+                .selected_text(match settings.config.status_bar.status_bar_position {
                     StatusBarPosition::Top => "Top",
                     StatusBarPosition::Bottom => "Bottom",
                 })
                 .show_ui(ui, |ui| {
                     if ui
                         .selectable_value(
-                            &mut settings.config.status_bar_position,
+                            &mut settings.config.status_bar.status_bar_position,
                             StatusBarPosition::Top,
                             "Top",
                         )
@@ -148,7 +151,7 @@ fn show_general_section(
                     }
                     if ui
                         .selectable_value(
-                            &mut settings.config.status_bar_position,
+                            &mut settings.config.status_bar.status_bar_position,
                             StatusBarPosition::Bottom,
                             "Bottom",
                         )
@@ -166,9 +169,12 @@ fn show_general_section(
             if ui
                 .add_sized(
                     [SLIDER_WIDTH, SLIDER_HEIGHT],
-                    egui::Slider::new(&mut settings.config.status_bar_height, 16.0..=40.0)
-                        .suffix(" px")
-                        .show_value(true),
+                    egui::Slider::new(
+                        &mut settings.config.status_bar.status_bar_height,
+                        16.0..=40.0,
+                    )
+                    .suffix(" px")
+                    .show_value(true),
                 )
                 .on_hover_text("Height of the status bar in logical pixels")
                 .changed()
@@ -195,12 +201,12 @@ fn show_styling_section(
         ui.horizontal(|ui| {
             ui.label("Background color:");
             let mut color = egui::Color32::from_rgb(
-                settings.config.status_bar_bg_color[0],
-                settings.config.status_bar_bg_color[1],
-                settings.config.status_bar_bg_color[2],
+                settings.config.status_bar.status_bar_bg_color[0],
+                settings.config.status_bar.status_bar_bg_color[1],
+                settings.config.status_bar.status_bar_bg_color[2],
             );
             if ui.color_edit_button_srgba(&mut color).changed() {
-                settings.config.status_bar_bg_color = [color.r(), color.g(), color.b()];
+                settings.config.status_bar.status_bar_bg_color = [color.r(), color.g(), color.b()];
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
@@ -212,8 +218,11 @@ fn show_styling_section(
             if ui
                 .add_sized(
                     [SLIDER_WIDTH, SLIDER_HEIGHT],
-                    egui::Slider::new(&mut settings.config.status_bar_bg_alpha, 0.0..=1.0)
-                        .show_value(true),
+                    egui::Slider::new(
+                        &mut settings.config.status_bar.status_bar_bg_alpha,
+                        0.0..=1.0,
+                    )
+                    .show_value(true),
                 )
                 .changed()
             {
@@ -228,12 +237,12 @@ fn show_styling_section(
         ui.horizontal(|ui| {
             ui.label("Text color:");
             let mut color = egui::Color32::from_rgb(
-                settings.config.status_bar_fg_color[0],
-                settings.config.status_bar_fg_color[1],
-                settings.config.status_bar_fg_color[2],
+                settings.config.status_bar.status_bar_fg_color[0],
+                settings.config.status_bar.status_bar_fg_color[1],
+                settings.config.status_bar.status_bar_fg_color[2],
             );
             if ui.color_edit_button_srgba(&mut color).changed() {
-                settings.config.status_bar_fg_color = [color.r(), color.g(), color.b()];
+                settings.config.status_bar.status_bar_fg_color = [color.r(), color.g(), color.b()];
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
@@ -247,9 +256,12 @@ fn show_styling_section(
             if ui
                 .add_sized(
                     [SLIDER_WIDTH, SLIDER_HEIGHT],
-                    egui::Slider::new(&mut settings.config.status_bar_font_size, 8.0..=24.0)
-                        .suffix(" pt")
-                        .show_value(true),
+                    egui::Slider::new(
+                        &mut settings.config.status_bar.status_bar_font_size,
+                        8.0..=24.0,
+                    )
+                    .suffix(" pt")
+                    .show_value(true),
                 )
                 .changed()
             {
@@ -265,9 +277,11 @@ fn show_styling_section(
             ui.label("Separator:");
             if ui
                 .add(
-                    egui::TextEdit::singleline(&mut settings.config.status_bar_separator)
-                        .hint_text(" | ")
-                        .desired_width(80.0),
+                    egui::TextEdit::singleline(
+                        &mut settings.config.status_bar.status_bar_separator,
+                    )
+                    .hint_text(" | ")
+                    .desired_width(80.0),
                 )
                 .on_hover_text("Text displayed between widgets in the same section")
                 .changed()
@@ -298,7 +312,7 @@ fn show_auto_hide_section(
         |ui| {
             if ui
                 .checkbox(
-                    &mut settings.config.status_bar_auto_hide_fullscreen,
+                    &mut settings.config.status_bar.status_bar_auto_hide_fullscreen,
                     "Hide in fullscreen",
                 )
                 .on_hover_text("Automatically hide the status bar when the window is fullscreen")
@@ -310,7 +324,10 @@ fn show_auto_hide_section(
 
             if ui
                 .checkbox(
-                    &mut settings.config.status_bar_auto_hide_mouse_inactive,
+                    &mut settings
+                        .config
+                        .status_bar
+                        .status_bar_auto_hide_mouse_inactive,
                     "Hide on mouse inactivity",
                 )
                 .on_hover_text("Automatically hide the status bar when the mouse has been inactive")
@@ -321,14 +338,18 @@ fn show_auto_hide_section(
             }
 
             // Timeout slider (only shown when mouse inactivity hide is enabled)
-            if settings.config.status_bar_auto_hide_mouse_inactive {
+            if settings
+                .config
+                .status_bar
+                .status_bar_auto_hide_mouse_inactive
+            {
                 ui.horizontal(|ui| {
                     ui.label("Timeout:");
                     if ui
                         .add_sized(
                             [SLIDER_WIDTH, SLIDER_HEIGHT],
                             egui::Slider::new(
-                                &mut settings.config.status_bar_mouse_inactive_timeout,
+                                &mut settings.config.status_bar.status_bar_mouse_inactive_timeout,
                                 1.0..=30.0,
                             )
                             .suffix(" sec")
@@ -370,7 +391,7 @@ fn show_widget_options_section(
                 ui.label("Time format:");
                 if ui
                     .add(
-                        egui::TextEdit::singleline(&mut settings.config.status_bar_time_format)
+                        egui::TextEdit::singleline(&mut settings.config.status_bar.status_bar_time_format)
                             .hint_text("%H:%M:%S")
                             .desired_width(120.0),
                     )
@@ -420,7 +441,7 @@ fn show_widget_options_section(
             // Git show status
             if ui
                 .checkbox(
-                    &mut settings.config.status_bar_git_show_status,
+                    &mut settings.config.status_bar.status_bar_git_show_status,
                     "Show git ahead/behind and dirty status",
                 )
                 .on_hover_text(
@@ -458,7 +479,7 @@ fn show_poll_intervals_section(
                     .add_sized(
                         [SLIDER_WIDTH, SLIDER_HEIGHT],
                         egui::Slider::new(
-                            &mut settings.config.status_bar_system_poll_interval,
+                            &mut settings.config.status_bar.status_bar_system_poll_interval,
                             0.5..=30.0,
                         )
                         .suffix(" sec")
@@ -478,7 +499,7 @@ fn show_poll_intervals_section(
                     .add_sized(
                         [SLIDER_WIDTH, SLIDER_HEIGHT],
                         egui::Slider::new(
-                            &mut settings.config.status_bar_git_poll_interval,
+                            &mut settings.config.status_bar.status_bar_git_poll_interval,
                             1.0..=60.0,
                         )
                         .suffix(" sec")
@@ -538,13 +559,15 @@ fn show_widgets_section(
             // Gather indices of widgets in this section, sorted by order
             let mut section_indices: Vec<usize> = settings
                 .config
+                .status_bar
                 .status_bar_widgets
                 .iter()
                 .enumerate()
                 .filter(|(_, w)| w.section == *section)
                 .map(|(i, _)| i)
                 .collect();
-            section_indices.sort_by_key(|&i| settings.config.status_bar_widgets[i].order);
+            section_indices
+                .sort_by_key(|&i| settings.config.status_bar.status_bar_widgets[i].order);
 
             if section_indices.is_empty() {
                 ui.label(
@@ -555,7 +578,7 @@ fn show_widgets_section(
             }
 
             for (pos, &widget_idx) in section_indices.iter().enumerate() {
-                let w = &settings.config.status_bar_widgets[widget_idx];
+                let w = &settings.config.status_bar.status_bar_widgets[widget_idx];
                 let icon = w.id.icon();
                 let label = w.id.label();
                 let enabled = w.enabled;
@@ -635,7 +658,8 @@ fn show_widgets_section(
                 // Show format editor for custom widgets inline
                 if is_custom
                     && enabled
-                    && let Some(ref mut fmt) = settings.config.status_bar_widgets[widget_idx].format
+                    && let Some(ref mut fmt) =
+                        settings.config.status_bar.status_bar_widgets[widget_idx].format
                 {
                     ui.horizontal(|ui| {
                         ui.add_space(20.0);
@@ -662,8 +686,8 @@ fn show_widgets_section(
 
         // Apply mutations
         if let Some(idx) = toggle_index {
-            settings.config.status_bar_widgets[idx].enabled =
-                !settings.config.status_bar_widgets[idx].enabled;
+            settings.config.status_bar.status_bar_widgets[idx].enabled =
+                !settings.config.status_bar.status_bar_widgets[idx].enabled;
             settings.has_changes = true;
             *changes_this_frame = true;
         }
@@ -672,29 +696,30 @@ fn show_widgets_section(
             // Find max order in new section
             let max_order = settings
                 .config
+                .status_bar
                 .status_bar_widgets
                 .iter()
                 .filter(|w| w.section == new_section)
                 .map(|w| w.order)
                 .max()
                 .unwrap_or(-1);
-            settings.config.status_bar_widgets[idx].section = new_section;
-            settings.config.status_bar_widgets[idx].order = max_order + 1;
+            settings.config.status_bar.status_bar_widgets[idx].section = new_section;
+            settings.config.status_bar.status_bar_widgets[idx].order = max_order + 1;
             settings.has_changes = true;
             *changes_this_frame = true;
         }
 
         if let Some((a, b)) = swap_pair {
-            let order_a = settings.config.status_bar_widgets[a].order;
-            let order_b = settings.config.status_bar_widgets[b].order;
-            settings.config.status_bar_widgets[a].order = order_b;
-            settings.config.status_bar_widgets[b].order = order_a;
+            let order_a = settings.config.status_bar.status_bar_widgets[a].order;
+            let order_b = settings.config.status_bar.status_bar_widgets[b].order;
+            settings.config.status_bar.status_bar_widgets[a].order = order_b;
+            settings.config.status_bar.status_bar_widgets[b].order = order_a;
             settings.has_changes = true;
             *changes_this_frame = true;
         }
 
         if let Some(idx) = delete_index {
-            settings.config.status_bar_widgets.remove(idx);
+            settings.config.status_bar.status_bar_widgets.remove(idx);
             settings.has_changes = true;
             *changes_this_frame = true;
         }
@@ -706,9 +731,13 @@ fn show_widgets_section(
             .on_hover_text("Add a custom text widget with a format string")
             .clicked()
         {
-            let custom_name = format!("Custom {}", settings.config.status_bar_widgets.len());
+            let custom_name = format!(
+                "Custom {}",
+                settings.config.status_bar.status_bar_widgets.len()
+            );
             let max_order = settings
                 .config
+                .status_bar
                 .status_bar_widgets
                 .iter()
                 .filter(|w| w.section == StatusBarSection::Left)
@@ -717,6 +746,7 @@ fn show_widgets_section(
                 .unwrap_or(-1);
             settings
                 .config
+                .status_bar
                 .status_bar_widgets
                 .push(StatusBarWidgetConfig {
                     id: WidgetId::Custom(custom_name),
@@ -729,4 +759,56 @@ fn show_widgets_section(
             *changes_this_frame = true;
         }
     });
+}
+
+/// Search keywords for the Status Bar settings tab.
+pub fn keywords() -> &'static [&'static str] {
+    &[
+        "status",
+        "status bar",
+        "widget",
+        "widgets",
+        "cpu",
+        "memory",
+        "network",
+        "git branch",
+        "git status",
+        "ahead",
+        "behind",
+        "dirty",
+        "clock",
+        "time",
+        "time format",
+        "hostname",
+        "username",
+        "auto hide",
+        "poll interval",
+        "separator",
+        "bell indicator",
+        "current command",
+        "directory",
+        "section",
+        "left",
+        "center",
+        "right",
+        // Position and size
+        "position",
+        "height",
+        // Styling
+        "background",
+        "background color",
+        "background opacity",
+        "text color",
+        "foreground",
+        "font size",
+        // Auto-hide extras
+        "fullscreen",
+        "inactivity",
+        "inactivity timeout",
+        // Custom widgets
+        "custom text",
+        "custom widget",
+        // Time format
+        "strftime",
+    ]
 }

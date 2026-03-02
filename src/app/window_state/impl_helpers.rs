@@ -187,13 +187,14 @@ impl WindowState {
             if let Ok(term) = tab.terminal.try_write() {
                 // Treat new terminal output as activity
                 let current_generation = term.update_generation();
-                if current_generation > tab.anti_idle_last_generation {
-                    tab.anti_idle_last_generation = current_generation;
-                    tab.anti_idle_last_activity = now;
+                if current_generation > tab.activity.anti_idle_last_generation {
+                    tab.activity.anti_idle_last_generation = current_generation;
+                    tab.activity.anti_idle_last_activity = now;
                 }
 
                 // If idle long enough, send keep-alive code
-                if should_send_keep_alive(tab.anti_idle_last_activity, now, idle_threshold) {
+                if should_send_keep_alive(tab.activity.anti_idle_last_activity, now, idle_threshold)
+                {
                     if let Err(e) = term.write(&keep_alive_code) {
                         log::warn!(
                             "Failed to send anti-idle keep-alive for tab {}: {}",
@@ -201,12 +202,12 @@ impl WindowState {
                             e
                         );
                     } else {
-                        tab.anti_idle_last_activity = now;
+                        tab.activity.anti_idle_last_activity = now;
                     }
                 }
 
                 // Compute next due time for this tab
-                let elapsed = now.duration_since(tab.anti_idle_last_activity);
+                let elapsed = now.duration_since(tab.activity.anti_idle_last_activity);
                 let remaining = if elapsed >= idle_threshold {
                     idle_threshold
                 } else {

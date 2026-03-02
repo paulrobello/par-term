@@ -86,6 +86,7 @@ pub fn clear_session() -> Result<()> {
 mod tests {
     use super::*;
     use crate::session::{SessionState, SessionTab, SessionWindow};
+    use par_term_config::snapshot_types::TabSnapshot;
     use tempfile::tempdir;
 
     fn sample_session() -> SessionState {
@@ -95,11 +96,13 @@ mod tests {
                 position: (100, 200),
                 size: (800, 600),
                 tabs: vec![SessionTab {
-                    cwd: Some("/home/user/work".to_string()),
-                    title: "work".to_string(),
-                    custom_color: None,
-                    user_title: None,
-                    custom_icon: None,
+                    snapshot: TabSnapshot {
+                        cwd: Some("/home/user/work".to_string()),
+                        title: "work".to_string(),
+                        custom_color: None,
+                        user_title: None,
+                        custom_icon: None,
+                    },
                     pane_layout: None,
                 }],
                 active_tab_index: 0,
@@ -147,10 +150,10 @@ mod tests {
         assert_eq!(loaded.windows[0].size, (800, 600));
         assert_eq!(loaded.windows[0].tabs.len(), 1);
         assert_eq!(
-            loaded.windows[0].tabs[0].cwd,
+            loaded.windows[0].tabs[0].snapshot.cwd,
             Some("/home/user/work".to_string())
         );
-        assert_eq!(loaded.windows[0].tabs[0].title, "work");
+        assert_eq!(loaded.windows[0].tabs[0].snapshot.title, "work");
     }
 
     #[test]
@@ -165,27 +168,33 @@ mod tests {
                 size: (1920, 1080),
                 tabs: vec![
                     SessionTab {
-                        cwd: Some("/home/user".to_string()),
-                        title: "My Custom Tab".to_string(),
-                        custom_color: Some([255, 128, 0]),
-                        user_title: Some("My Custom Tab".to_string()),
-                        custom_icon: Some("🔥".to_string()),
+                        snapshot: TabSnapshot {
+                            cwd: Some("/home/user".to_string()),
+                            title: "My Custom Tab".to_string(),
+                            custom_color: Some([255, 128, 0]),
+                            user_title: Some("My Custom Tab".to_string()),
+                            custom_icon: Some("🔥".to_string()),
+                        },
                         pane_layout: None,
                     },
                     SessionTab {
-                        cwd: Some("/tmp".to_string()),
-                        title: "Tab 2".to_string(),
-                        custom_color: None,
-                        user_title: None,
-                        custom_icon: Some("📁".to_string()),
+                        snapshot: TabSnapshot {
+                            cwd: Some("/tmp".to_string()),
+                            title: "Tab 2".to_string(),
+                            custom_color: None,
+                            user_title: None,
+                            custom_icon: Some("📁".to_string()),
+                        },
                         pane_layout: None,
                     },
                     SessionTab {
-                        cwd: None,
-                        title: "Colored Only".to_string(),
-                        custom_color: Some([0, 200, 100]),
-                        user_title: None,
-                        custom_icon: None,
+                        snapshot: TabSnapshot {
+                            cwd: None,
+                            title: "Colored Only".to_string(),
+                            custom_color: Some([0, 200, 100]),
+                            user_title: None,
+                            custom_icon: None,
+                        },
                         pane_layout: None,
                     },
                 ],
@@ -198,19 +207,22 @@ mod tests {
         let tabs = &loaded.windows[0].tabs;
 
         // Tab 0: all custom properties set
-        assert_eq!(tabs[0].custom_color, Some([255, 128, 0]));
-        assert_eq!(tabs[0].user_title, Some("My Custom Tab".to_string()));
-        assert_eq!(tabs[0].custom_icon, Some("🔥".to_string()));
+        assert_eq!(tabs[0].snapshot.custom_color, Some([255, 128, 0]));
+        assert_eq!(
+            tabs[0].snapshot.user_title,
+            Some("My Custom Tab".to_string())
+        );
+        assert_eq!(tabs[0].snapshot.custom_icon, Some("🔥".to_string()));
 
         // Tab 1: only custom icon
-        assert_eq!(tabs[1].custom_color, None);
-        assert_eq!(tabs[1].user_title, None);
-        assert_eq!(tabs[1].custom_icon, Some("📁".to_string()));
+        assert_eq!(tabs[1].snapshot.custom_color, None);
+        assert_eq!(tabs[1].snapshot.user_title, None);
+        assert_eq!(tabs[1].snapshot.custom_icon, Some("📁".to_string()));
 
         // Tab 2: only custom color
-        assert_eq!(tabs[2].custom_color, Some([0, 200, 100]));
-        assert_eq!(tabs[2].user_title, None);
-        assert_eq!(tabs[2].custom_icon, None);
+        assert_eq!(tabs[2].snapshot.custom_color, Some([0, 200, 100]));
+        assert_eq!(tabs[2].snapshot.user_title, None);
+        assert_eq!(tabs[2].snapshot.custom_icon, None);
     }
 
     #[test]
@@ -234,11 +246,13 @@ mod tests {
                 position: (0, 0),
                 size: (1920, 1080),
                 tabs: vec![SessionTab {
-                    cwd: Some("/home/user".to_string()),
-                    title: "dev".to_string(),
-                    custom_color: None,
-                    user_title: None,
-                    custom_icon: None,
+                    snapshot: TabSnapshot {
+                        cwd: Some("/home/user".to_string()),
+                        title: "dev".to_string(),
+                        custom_color: None,
+                        user_title: None,
+                        custom_icon: None,
+                    },
                     pane_layout: Some(SessionPaneNode::Split {
                         direction: SplitDirection::Vertical,
                         ratio: 0.5,

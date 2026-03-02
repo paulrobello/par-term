@@ -74,7 +74,7 @@ fn build_metadata_from_settings(
     let effective_speed = current_override
         .and_then(|o| o.animation_speed)
         .or_else(|| meta_defaults.and_then(|m| m.animation_speed))
-        .unwrap_or(settings.config.custom_shader_animation_speed);
+        .unwrap_or(settings.config.shader.custom_shader_animation_speed);
     if (effective_speed - 1.0).abs() > 0.001 {
         new_defaults.animation_speed = Some(effective_speed);
     }
@@ -83,7 +83,7 @@ fn build_metadata_from_settings(
     let effective_brightness = current_override
         .and_then(|o| o.brightness)
         .or_else(|| meta_defaults.and_then(|m| m.brightness))
-        .unwrap_or(settings.config.custom_shader_brightness);
+        .unwrap_or(settings.config.shader.custom_shader_brightness);
     if (effective_brightness - 1.0).abs() > 0.001 {
         new_defaults.brightness = Some(effective_brightness);
     }
@@ -92,7 +92,7 @@ fn build_metadata_from_settings(
     let effective_text_opacity = current_override
         .and_then(|o| o.text_opacity)
         .or_else(|| meta_defaults.and_then(|m| m.text_opacity))
-        .unwrap_or(settings.config.custom_shader_text_opacity);
+        .unwrap_or(settings.config.shader.custom_shader_text_opacity);
     if (effective_text_opacity - 1.0).abs() > 0.001 {
         new_defaults.text_opacity = Some(effective_text_opacity);
     }
@@ -101,7 +101,7 @@ fn build_metadata_from_settings(
     let effective_full_content = current_override
         .and_then(|o| o.full_content)
         .or_else(|| meta_defaults.and_then(|m| m.full_content))
-        .unwrap_or(settings.config.custom_shader_full_content);
+        .unwrap_or(settings.config.shader.custom_shader_full_content);
     if effective_full_content {
         new_defaults.full_content = Some(true);
     }
@@ -110,7 +110,7 @@ fn build_metadata_from_settings(
     let effective_channel0 = current_override
         .and_then(|o| o.channel0.clone())
         .or_else(|| meta_defaults.and_then(|m| m.channel0.clone()))
-        .or_else(|| settings.config.custom_shader_channel0.clone());
+        .or_else(|| settings.config.shader.custom_shader_channel0.clone());
     if effective_channel0.is_some() {
         new_defaults.channel0 = effective_channel0;
     }
@@ -118,7 +118,7 @@ fn build_metadata_from_settings(
     let effective_channel1 = current_override
         .and_then(|o| o.channel1.clone())
         .or_else(|| meta_defaults.and_then(|m| m.channel1.clone()))
-        .or_else(|| settings.config.custom_shader_channel1.clone());
+        .or_else(|| settings.config.shader.custom_shader_channel1.clone());
     if effective_channel1.is_some() {
         new_defaults.channel1 = effective_channel1;
     }
@@ -126,7 +126,7 @@ fn build_metadata_from_settings(
     let effective_channel2 = current_override
         .and_then(|o| o.channel2.clone())
         .or_else(|| meta_defaults.and_then(|m| m.channel2.clone()))
-        .or_else(|| settings.config.custom_shader_channel2.clone());
+        .or_else(|| settings.config.shader.custom_shader_channel2.clone());
     if effective_channel2.is_some() {
         new_defaults.channel2 = effective_channel2;
     }
@@ -134,7 +134,7 @@ fn build_metadata_from_settings(
     let effective_channel3 = current_override
         .and_then(|o| o.channel3.clone())
         .or_else(|| meta_defaults.and_then(|m| m.channel3.clone()))
-        .or_else(|| settings.config.custom_shader_channel3.clone());
+        .or_else(|| settings.config.shader.custom_shader_channel3.clone());
     if effective_channel3.is_some() {
         new_defaults.channel3 = effective_channel3;
     }
@@ -143,7 +143,7 @@ fn build_metadata_from_settings(
     let effective_cubemap = current_override
         .and_then(|o| o.cubemap.clone())
         .or_else(|| meta_defaults.and_then(|m| m.cubemap.clone()))
-        .or_else(|| settings.config.custom_shader_cubemap.clone());
+        .or_else(|| settings.config.shader.custom_shader_cubemap.clone());
     if effective_cubemap.is_some() {
         new_defaults.cubemap = effective_cubemap;
     }
@@ -152,7 +152,7 @@ fn build_metadata_from_settings(
     let effective_cubemap_enabled = current_override
         .and_then(|o| o.cubemap_enabled)
         .or_else(|| meta_defaults.and_then(|m| m.cubemap_enabled))
-        .unwrap_or(settings.config.custom_shader_cubemap_enabled);
+        .unwrap_or(settings.config.shader.custom_shader_cubemap_enabled);
     if !effective_cubemap_enabled {
         new_defaults.cubemap_enabled = Some(false);
     }
@@ -161,7 +161,12 @@ fn build_metadata_from_settings(
     let effective_use_background = current_override
         .and_then(|o| o.use_background_as_channel0)
         .or_else(|| meta_defaults.and_then(|m| m.use_background_as_channel0))
-        .unwrap_or(settings.config.custom_shader_use_background_as_channel0);
+        .unwrap_or(
+            settings
+                .config
+                .shader
+                .custom_shader_use_background_as_channel0,
+        );
     if effective_use_background {
         new_defaults.use_background_as_channel0 = Some(true);
     }
@@ -187,22 +192,22 @@ pub(super) fn show_per_shader_channel_settings(
             0 => (
                 current_override.as_ref().and_then(|o| o.channel0.clone()),
                 meta_defaults.and_then(|m| m.channel0.clone()),
-                settings.config.custom_shader_channel0.clone(),
+                settings.config.shader.custom_shader_channel0.clone(),
             ),
             1 => (
                 current_override.as_ref().and_then(|o| o.channel1.clone()),
                 meta_defaults.and_then(|m| m.channel1.clone()),
-                settings.config.custom_shader_channel1.clone(),
+                settings.config.shader.custom_shader_channel1.clone(),
             ),
             2 => (
                 current_override.as_ref().and_then(|o| o.channel2.clone()),
                 meta_defaults.and_then(|m| m.channel2.clone()),
-                settings.config.custom_shader_channel2.clone(),
+                settings.config.shader.custom_shader_channel2.clone(),
             ),
             3 => (
                 current_override.as_ref().and_then(|o| o.channel3.clone()),
                 meta_defaults.and_then(|m| m.channel3.clone()),
-                settings.config.custom_shader_channel3.clone(),
+                settings.config.shader.custom_shader_channel3.clone(),
             ),
             _ => continue,
         };
@@ -312,7 +317,7 @@ pub(super) fn show_per_shader_channel_settings(
     ui.add_space(4.0);
     let cubemap_override = current_override.as_ref().and_then(|o| o.cubemap.clone());
     let cubemap_meta = meta_defaults.and_then(|m| m.cubemap.clone());
-    let cubemap_global = settings.config.custom_shader_cubemap.clone();
+    let cubemap_global = settings.config.shader.custom_shader_cubemap.clone();
 
     // Check if override is explicitly empty (cleared)
     let is_cubemap_cleared = cubemap_override.as_ref().is_some_and(|v| v.is_empty());
@@ -424,7 +429,7 @@ pub(super) fn show_per_shader_channel_settings(
     let cubemap_enabled_meta = meta_defaults.and_then(|m| m.cubemap_enabled);
     let effective_cubemap_enabled = cubemap_enabled_override
         .or(cubemap_enabled_meta)
-        .unwrap_or(settings.config.custom_shader_cubemap_enabled);
+        .unwrap_or(settings.config.shader.custom_shader_cubemap_enabled);
     let has_cubemap_enabled_override = cubemap_enabled_override.is_some();
 
     let mut value = effective_cubemap_enabled;
@@ -477,7 +482,7 @@ pub(super) fn show_cubemap_controls(
                     .clicked()
                 {
                     settings.temp_cubemap_path.clear();
-                    settings.config.custom_shader_cubemap = None;
+                    settings.config.shader.custom_shader_cubemap = None;
                     cubemap_changed = true;
                 }
 
@@ -487,7 +492,7 @@ pub(super) fn show_cubemap_controls(
                     let is_selected = settings.temp_cubemap_path == *cubemap;
                     if ui.selectable_label(is_selected, display_name).clicked() {
                         settings.temp_cubemap_path = cubemap.clone();
-                        settings.config.custom_shader_cubemap = Some(cubemap.clone());
+                        settings.config.shader.custom_shader_cubemap = Some(cubemap.clone());
                         cubemap_changed = true;
                     }
                 }
@@ -496,7 +501,7 @@ pub(super) fn show_cubemap_controls(
         if cubemap_changed {
             log::info!(
                 "Cubemap changed in UI: path={:?}",
-                settings.config.custom_shader_cubemap
+                settings.config.shader.custom_shader_cubemap
             );
             settings.has_changes = true;
             *changes_this_frame = true;
@@ -523,7 +528,7 @@ pub(super) fn show_cubemap_controls(
                 // Convert to relative path like texture channels
                 let relative_path = make_path_relative_to_shaders(&prefix.to_string_lossy());
                 settings.temp_cubemap_path = relative_path.clone();
-                settings.config.custom_shader_cubemap = Some(relative_path);
+                settings.config.shader.custom_shader_cubemap = Some(relative_path);
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
@@ -531,7 +536,7 @@ pub(super) fn show_cubemap_controls(
 
         if ui.button("Clear").clicked() && !settings.temp_cubemap_path.is_empty() {
             settings.temp_cubemap_path.clear();
-            settings.config.custom_shader_cubemap = None;
+            settings.config.shader.custom_shader_cubemap = None;
             settings.has_changes = true;
             *changes_this_frame = true;
         }
@@ -539,7 +544,7 @@ pub(super) fn show_cubemap_controls(
 
     if ui
         .checkbox(
-            &mut settings.config.custom_shader_cubemap_enabled,
+            &mut settings.config.shader.custom_shader_cubemap_enabled,
             "Enable cubemap",
         )
         .on_hover_text("Enable iCubemap uniform for environment mapping in shaders")
@@ -567,12 +572,12 @@ pub(super) fn show_global_channel_textures(
                 .text_edit_singleline(&mut settings.temp_shader_channel0)
                 .changed()
             {
-                settings.config.custom_shader_channel0 = if settings.temp_shader_channel0.is_empty()
-                {
-                    None
-                } else {
-                    Some(settings.temp_shader_channel0.clone())
-                };
+                settings.config.shader.custom_shader_channel0 =
+                    if settings.temp_shader_channel0.is_empty() {
+                        None
+                    } else {
+                        Some(settings.temp_shader_channel0.clone())
+                    };
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
@@ -582,14 +587,14 @@ pub(super) fn show_global_channel_textures(
             {
                 let relative_path = make_path_relative_to_shaders(&path);
                 settings.temp_shader_channel0 = relative_path.clone();
-                settings.config.custom_shader_channel0 = Some(relative_path);
+                settings.config.shader.custom_shader_channel0 = Some(relative_path);
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
 
             if !settings.temp_shader_channel0.is_empty() && ui.button("×").clicked() {
                 settings.temp_shader_channel0.clear();
-                settings.config.custom_shader_channel0 = None;
+                settings.config.shader.custom_shader_channel0 = None;
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
@@ -602,12 +607,12 @@ pub(super) fn show_global_channel_textures(
                 .text_edit_singleline(&mut settings.temp_shader_channel1)
                 .changed()
             {
-                settings.config.custom_shader_channel1 = if settings.temp_shader_channel1.is_empty()
-                {
-                    None
-                } else {
-                    Some(settings.temp_shader_channel1.clone())
-                };
+                settings.config.shader.custom_shader_channel1 =
+                    if settings.temp_shader_channel1.is_empty() {
+                        None
+                    } else {
+                        Some(settings.temp_shader_channel1.clone())
+                    };
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
@@ -617,14 +622,14 @@ pub(super) fn show_global_channel_textures(
             {
                 let relative_path = make_path_relative_to_shaders(&path);
                 settings.temp_shader_channel1 = relative_path.clone();
-                settings.config.custom_shader_channel1 = Some(relative_path);
+                settings.config.shader.custom_shader_channel1 = Some(relative_path);
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
 
             if !settings.temp_shader_channel1.is_empty() && ui.button("×").clicked() {
                 settings.temp_shader_channel1.clear();
-                settings.config.custom_shader_channel1 = None;
+                settings.config.shader.custom_shader_channel1 = None;
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
@@ -637,12 +642,12 @@ pub(super) fn show_global_channel_textures(
                 .text_edit_singleline(&mut settings.temp_shader_channel2)
                 .changed()
             {
-                settings.config.custom_shader_channel2 = if settings.temp_shader_channel2.is_empty()
-                {
-                    None
-                } else {
-                    Some(settings.temp_shader_channel2.clone())
-                };
+                settings.config.shader.custom_shader_channel2 =
+                    if settings.temp_shader_channel2.is_empty() {
+                        None
+                    } else {
+                        Some(settings.temp_shader_channel2.clone())
+                    };
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
@@ -652,14 +657,14 @@ pub(super) fn show_global_channel_textures(
             {
                 let relative_path = make_path_relative_to_shaders(&path);
                 settings.temp_shader_channel2 = relative_path.clone();
-                settings.config.custom_shader_channel2 = Some(relative_path);
+                settings.config.shader.custom_shader_channel2 = Some(relative_path);
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
 
             if !settings.temp_shader_channel2.is_empty() && ui.button("×").clicked() {
                 settings.temp_shader_channel2.clear();
-                settings.config.custom_shader_channel2 = None;
+                settings.config.shader.custom_shader_channel2 = None;
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
@@ -672,12 +677,12 @@ pub(super) fn show_global_channel_textures(
                 .text_edit_singleline(&mut settings.temp_shader_channel3)
                 .changed()
             {
-                settings.config.custom_shader_channel3 = if settings.temp_shader_channel3.is_empty()
-                {
-                    None
-                } else {
-                    Some(settings.temp_shader_channel3.clone())
-                };
+                settings.config.shader.custom_shader_channel3 =
+                    if settings.temp_shader_channel3.is_empty() {
+                        None
+                    } else {
+                        Some(settings.temp_shader_channel3.clone())
+                    };
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
@@ -687,14 +692,14 @@ pub(super) fn show_global_channel_textures(
             {
                 let relative_path = make_path_relative_to_shaders(&path);
                 settings.temp_shader_channel3 = relative_path.clone();
-                settings.config.custom_shader_channel3 = Some(relative_path);
+                settings.config.shader.custom_shader_channel3 = Some(relative_path);
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
 
             if !settings.temp_shader_channel3.is_empty() && ui.button("×").clicked() {
                 settings.temp_shader_channel3.clear();
-                settings.config.custom_shader_channel3 = None;
+                settings.config.shader.custom_shader_channel3 = None;
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }

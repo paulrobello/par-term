@@ -7,16 +7,17 @@
 //! - `update_checker`   — periodic/forced update checks and desktop notifications
 //! - `window_lifecycle` — window creation, destruction, positioning, session restore
 //! - `menu_actions`     — native menu event dispatch
-//! - `settings`         — settings window open/close and live config propagation
+//! - `settings_actions` — settings window open/close, event routing, and live config propagation (R-27)
 //! - `coprocess`        — coprocess start/stop and state sync to settings UI
 //! - `scripting`        — script start/stop and state sync to settings UI
 //! - `arrangements`     — save/restore/manage window arrangements
 
 mod arrangements;
+mod config_propagation;
 mod coprocess;
 mod menu_actions;
 mod scripting;
-mod settings;
+mod settings_actions;
 mod update_checker;
 mod window_lifecycle;
 
@@ -34,7 +35,7 @@ use tokio::runtime::Runtime;
 use winit::window::WindowId;
 
 /// Manages multiple terminal windows and shared resources
-pub struct WindowManager {
+pub(crate) struct WindowManager {
     /// Per-window state indexed by window ID
     pub(crate) windows: HashMap<WindowId, WindowState>,
     /// Native menu manager
@@ -126,15 +127,5 @@ impl WindowManager {
         }
         // Fallback: return the first window if no window claims focus
         self.windows.keys().next().copied()
-    }
-
-    /// Get mutable reference to a window's state
-    pub fn get_window_mut(&mut self, window_id: WindowId) -> Option<&mut WindowState> {
-        self.windows.get_mut(&window_id)
-    }
-
-    /// Get reference to a window's state
-    pub fn get_window(&self, window_id: WindowId) -> Option<&WindowState> {
-        self.windows.get(&window_id)
     }
 }

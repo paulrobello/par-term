@@ -146,6 +146,53 @@ impl Pane {
         })
     }
 
+    /// Create a primary pane that wraps an already-running terminal session.
+    ///
+    /// Unlike [`Pane::new`], this constructor does **not** spawn a new shell.
+    /// It shares the caller's `Arc<RwLock<TerminalManager>>` directly, so the
+    /// pane's terminal is the same session that `Tab::terminal` points to.
+    ///
+    /// Used by `Tab::new_internal` to always initialise a `PaneManager` with a
+    /// single primary pane at tab creation, removing the need for tab-level
+    /// `scroll_state`, `mouse`, `bell`, and `cache` fallback fields (R-32).
+    ///
+    /// # Arguments
+    /// * `id` — Pane identifier (typically `1`)
+    /// * `terminal` — Shared `Arc` cloned from the owning `Tab::terminal`
+    /// * `working_directory` — Optional CWD exposed via [`Pane::get_cwd`]
+    /// * `is_active` — Shared atomic flag cloned from the owning `Tab::is_active`
+    pub fn new_wrapping_terminal(
+        id: PaneId,
+        terminal: Arc<RwLock<TerminalManager>>,
+        working_directory: Option<String>,
+        is_active: Arc<AtomicBool>,
+    ) -> Self {
+        let session_logger = create_shared_logger();
+
+        Self {
+            id,
+            terminal,
+            scroll_state: ScrollState::new(),
+            mouse: MouseState::new(),
+            bell: BellState::new(),
+            cache: RenderCache::new(),
+            refresh_task: None,
+            working_directory,
+            last_activity_time: std::time::Instant::now(),
+            last_seen_generation: 0,
+            anti_idle_last_activity: std::time::Instant::now(),
+            anti_idle_last_generation: 0,
+            silence_notified: false,
+            exit_notified: false,
+            session_logger,
+            bounds: PaneBounds::default(),
+            background: PaneBackground::new(),
+            restart_state: None,
+            is_active,
+            shutdown_fast: false,
+        }
+    }
+
     /// Create a new pane for tmux integration (no shell spawned)
     ///
     /// This creates a terminal that receives output from tmux control mode

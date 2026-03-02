@@ -6,96 +6,86 @@
 //! # Sub-modules
 //!
 //! - [`default_impl`] — `impl Default for Config`
+//! - [`copy_mode_config`] — [`CopyModeConfig`]: vi-style copy mode settings
+//! - [`global_shader_config`] — [`GlobalShaderConfig`]: all `custom_shader_*` and `cursor_shader_*` fields
+//! - [`search_config`] — [`SearchConfig`]: search highlight and options
+//! - [`ssh_config`] — [`SshConfig`]: SSH discovery and profile switching
+//! - [`unicode_config`] — [`UnicodeConfig`]: Unicode width and normalization
+//! - [`update`] — [`UpdateConfig`]: automatic update checking
 //!
-//! # Future Refactoring Note
+//! # Splitting Strategy
 //!
-//! The `Config` struct is intentionally kept as a single flat struct for
-//! serde compatibility. Splitting it into sub-structs (e.g. `FontConfig`,
-//! `WindowConfig`, `ShaderConfig`, `InputConfig`, `TabConfig`, `TerminalConfig`)
-//! would be a breaking change to the YAML serialisation format unless a
-//! custom `Serialize`/`Deserialize` implementation is provided that flattens
-//! the sub-structs back to the top level.
+//! Fields are grouped into sub-structs using `#[serde(flatten)]` so that
+//! existing YAML config files remain 100% compatible — flattened fields are
+//! serialised at the top level, indistinguishable from direct struct fields.
 //!
-//! Logical groupings of fields are documented with section comments inside
-//! the struct. The current sections and their candidate sub-struct names are:
+//! Remaining inline sections (not yet extracted to sub-structs) and their
+//! candidate names are:
 //!
-//! | Section comment              | Candidate sub-struct  |
-//! |------------------------------|-----------------------|
-//! | Window & Display             | `WindowConfig`        |
-//! | Inline Image Settings        | `ImageConfig`         |
-//! | File Transfer Settings       | `FileTransferConfig`  |
-//! | Background Shader Settings   | `ShaderConfig`        |
-//! | Cursor Shader Settings       | `CursorShaderConfig`  |
-//! | Keyboard Input               | `InputConfig`         |
-//! | Selection & Clipboard        | `SelectionConfig`     |
-//! | Mouse Behavior               | `MouseConfig`         |
-//! | Word Selection               | `WordSelectionConfig` |
-//! | Copy Mode                    | `CopyModeConfig`      |
-//! | Scrollback & Cursor          | `ScrollbackConfig`    |
-//! | Unicode Width Settings       | `UnicodeConfig`       |
-//! | Cursor Enhancements          | `CursorConfig`        |
-//! | Scrollbar                    | `ScrollbarConfig`     |
-//! | Theme & Colors               | `ThemeConfig`         |
-//! | Screenshot                   | `ScreenshotConfig`    |
-//! | Shell Behavior               | `ShellConfig`         |
+//! | Section comment              | Candidate sub-struct   |
+//! |------------------------------|------------------------|
+//! | Window & Display             | `WindowConfig`         |
+//! | Inline Image Settings        | `ImageConfig`          |
+//! | File Transfer Settings       | `FileTransferConfig`   |
+//! | Background + Cursor Shaders  | `GlobalShaderConfig` (done) |
+//! | Keyboard Input               | `InputConfig`          |
+//! | Selection & Clipboard        | `SelectionConfig`      |
+//! | Mouse Behavior               | `MouseConfig`          |
+//! | Word Selection               | `WordSelectionConfig`  |
+//! | Scrollback & Cursor          | `ScrollbackConfig`     |
+//! | Cursor Enhancements          | `CursorConfig`         |
+//! | Scrollbar                    | `ScrollbarConfig`      |
+//! | Theme & Colors               | `ThemeConfig`          |
+//! | Screenshot                   | `ScreenshotConfig`     |
+//! | Shell Behavior               | `ShellConfig`          |
 //! | Semantic History             | `SemanticHistoryConfig`|
-//! | Scrollbar (GUI)              | `ScrollbarUiConfig`   |
+//! | Scrollbar (GUI)              | `ScrollbarUiConfig`    |
 //! | Command Separator Lines      | `CommandSeparatorConfig`|
-//! | Clipboard Sync Limits        | `ClipboardConfig`     |
-//! | Command History              | `CommandHistoryConfig`|
-//! | Notifications                | `NotificationConfig`  |
-//! | SSH Settings                 | `SshConfig`           |
-//! | Tab Settings                 | `TabConfig`           |
-//! | Tab Bar Colors               | `TabBarColorsConfig`  |
-//! | Split Pane Settings          | `PaneConfig`          |
-//! | tmux Integration             | `TmuxConfig`          |
-//! | Focus/Blur Power Saving      | `PowerConfig`         |
-//! | Shader Hot Reload            | `ShaderWatchConfig`   |
+//! | Clipboard Sync Limits        | `ClipboardConfig`      |
+//! | Command History              | `CommandHistoryConfig` |
+//! | Notifications                | `NotificationConfig`   |
+//! | Tab Settings                 | `TabConfig`            |
+//! | Tab Bar Colors               | `TabBarColorsConfig`   |
+//! | Split Pane Settings          | `PaneConfig`           |
+//! | tmux Integration             | `TmuxConfig`           |
+//! | Focus/Blur Power Saving      | `PowerConfig`          |
+//! | Shader Hot Reload            | `ShaderWatchConfig`    |
 //! | Per-Shader Configuration     | `ShaderOverridesConfig`|
-//! | Keybindings                  | `KeybindingsConfig`   |
-//! | Shader Installation          | `ShaderInstallConfig` |
-//! | Update Checking              | `UpdateConfig`        |
-//! | Window Arrangements          | `ArrangementConfig`   |
-//! | Search Settings              | `SearchConfig`        |
-//! | Session Logging              | `SessionLogConfig`    |
-//! | Debug Logging                | `DebugConfig`         |
-//! | Badge Settings               | `BadgeConfig`         |
-//! | Status Bar Settings          | `StatusBarConfig`     |
-//! | Progress Bar Settings        | `ProgressBarConfig`   |
-//! | Triggers & Automation        | `AutomationConfig`    |
-//! | Snippets & Actions           | `SnippetsConfig`      |
-//! | Content Prettifier           | `PrettifierConfig`    |
-//! | UI State                     | `UiStateConfig`       |
-//! | Dynamic Profile Sources      | `ProfileSourcesConfig`|
-//! | Security                     | `SecurityConfig`      |
-//! | AI Inspector                 | `AiInspectorConfig`   |
-//!
-//! # How to safely split the struct
-//!
-//! Use `#[serde(flatten)]` on each sub-struct field. This instructs serde to
-//! (de)serialise the sub-struct fields as if they were top-level fields, preserving
-//! full compatibility with existing YAML config files:
-//!
-//! ```ignore
-//! pub struct Config {
-//!     #[serde(flatten)]
-//!     pub window: WindowConfig,
-//!     #[serde(flatten)]
-//!     pub font: FontConfig,
-//!     // …
-//! }
-//! ```
-//!
-//! Each sub-struct must derive `Serialize, Deserialize` and carry its own
-//! `#[serde(default)]` fields. The split can be done incrementally — one
-//! section per PR. Tracked as QA-001 in AUDIT.md.
+//! | Keybindings                  | `KeybindingsConfig`    |
+//! | Shader Installation          | `ShaderInstallConfig`  |
+//! | Window Arrangements          | `ArrangementConfig`    |
+//! | Session Logging              | `SessionLogConfig`     |
+//! | Debug Logging                | `DebugConfig`          |
+//! | Badge Settings               | `BadgeConfig`          |
+//! | Status Bar Settings          | `StatusBarConfig`      |
+//! | Progress Bar Settings        | `ProgressBarConfig`    |
+//! | Triggers & Automation        | `AutomationConfig`     |
+//! | Snippets & Actions           | `SnippetsConfig`       |
+//! | Content Prettifier           | `PrettifierConfig`     |
+//! | UI State                     | `UiStateConfig`        |
+//! | Dynamic Profile Sources      | `ProfileSourcesConfig` |
+//! | Security                     | `SecurityConfig`       |
+//! | AI Inspector                 | `AiInspectorConfig`    |
 
+mod ai_inspector_config;
+mod copy_mode_config;
 mod default_impl;
+mod global_shader_config;
+mod search_config;
+mod ssh_config;
+mod status_bar_config;
+mod unicode_config;
 mod update;
 
+pub use ai_inspector_config::AiInspectorConfig;
+pub use copy_mode_config::CopyModeConfig;
+pub use global_shader_config::GlobalShaderConfig;
+pub use search_config::SearchConfig;
+pub use ssh_config::SshConfig;
+pub use status_bar_config::StatusBarConfig;
+pub use unicode_config::UnicodeConfig;
 pub use update::UpdateConfig;
 
-use crate::config::acp::CustomAcpAgentConfig;
 use crate::snippets::{CustomActionConfig, SnippetConfig};
 use crate::types::{
     AlertEvent, AlertSoundConfig, BackgroundImageMode, BackgroundMode, CursorShaderConfig,
@@ -103,9 +93,9 @@ use crate::types::{
     ImageScalingMode, InstallPromptState, IntegrationVersions, KeyBinding, LogLevel,
     ModifierRemapping, OptionKeyMode, PaneTitlePosition, PowerPreference, ProgressBarPosition,
     ProgressBarStyle, SemanticHistoryEditorMode, SessionLogFormat, ShaderConfig,
-    ShaderInstallPrompt, ShellExitAction, SmartSelectionRule, StartupDirectoryMode,
-    StatusBarPosition, TabBarMode, TabBarPosition, TabStyle, TabTitleMode, ThinStrokesMode,
-    UnfocusedCursorStyle, VsyncMode, WindowType,
+    ShaderInstallPrompt, ShellExitAction, SmartSelectionRule, StartupDirectoryMode, TabBarMode,
+    TabBarPosition, TabStyle, TabTitleMode, ThinStrokesMode, UnfocusedCursorStyle, VsyncMode,
+    WindowType,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -415,127 +405,14 @@ pub struct Config {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_download_directory: Option<String>,
 
-    /// Custom shader file path (GLSL format, relative to shaders folder or absolute)
-    /// Shaders are loaded from ~/.config/par-term/shaders/ by default
-    /// Supports Ghostty/Shadertoy-style GLSL shaders with iTime, iResolution, iChannel0-4
-    #[serde(default)]
-    pub custom_shader: Option<String>,
-
-    /// Enable or disable the custom shader (even if a path is set)
-    #[serde(default = "crate::defaults::bool_true")]
-    pub custom_shader_enabled: bool,
-
-    /// Enable animation in custom shader (updates iTime uniform each frame)
-    /// When disabled, iTime is fixed at 0.0 for static effects
-    #[serde(default = "crate::defaults::bool_true")]
-    pub custom_shader_animation: bool,
-
-    /// Animation speed multiplier for custom shader (1.0 = normal speed)
-    #[serde(default = "crate::defaults::custom_shader_speed")]
-    pub custom_shader_animation_speed: f32,
-
-    /// Text opacity when using custom shader (0.0 = transparent, 1.0 = fully opaque)
-    /// This allows text to remain readable while the shader effect shows through the background
-    #[serde(default = "crate::defaults::text_opacity")]
-    pub custom_shader_text_opacity: f32,
-
-    /// When enabled, the shader receives the full rendered terminal content (text + background)
-    /// and can manipulate/distort it. When disabled (default), the shader only provides
-    /// a background and text is composited on top cleanly.
-    #[serde(default = "crate::defaults::bool_false")]
-    pub custom_shader_full_content: bool,
-
-    /// Brightness multiplier for custom shader output (0.05 = very dark, 1.0 = full brightness)
-    /// This dims the shader background to improve text readability
-    #[serde(default = "crate::defaults::custom_shader_brightness")]
-    pub custom_shader_brightness: f32,
-
-    /// Texture file path for custom shader iChannel0 (optional, Shadertoy compatible)
-    /// Supports ~ for home directory. Example: "~/textures/noise.png"
-    #[serde(default)]
-    pub custom_shader_channel0: Option<String>,
-
-    /// Texture file path for custom shader iChannel1 (optional)
-    #[serde(default)]
-    pub custom_shader_channel1: Option<String>,
-
-    /// Texture file path for custom shader iChannel2 (optional)
-    #[serde(default)]
-    pub custom_shader_channel2: Option<String>,
-
-    /// Texture file path for custom shader iChannel3 (optional)
-    #[serde(default)]
-    pub custom_shader_channel3: Option<String>,
-
-    /// Cubemap texture path prefix for custom shaders (optional)
-    /// Expects 6 face files: {prefix}-px.{ext}, -nx.{ext}, -py.{ext}, -ny.{ext}, -pz.{ext}, -nz.{ext}
-    /// Supported formats: .png, .jpg, .jpeg, .hdr
-    /// Example: "textures/cubemaps/env-outside" will load env-outside-px.png, etc.
-    #[serde(default)]
-    pub custom_shader_cubemap: Option<String>,
-
-    /// Enable cubemap sampling in custom shaders
-    /// When enabled and a cubemap path is set, iCubemap uniform is available in shaders
-    #[serde(default = "crate::defaults::cubemap_enabled")]
-    pub custom_shader_cubemap_enabled: bool,
-
-    /// Use the app's background image as iChannel0 for custom shaders
-    /// When enabled, the configured background image is bound as iChannel0 instead of
-    /// the custom_shader_channel0 texture. This allows shaders to incorporate the
-    /// background image without requiring a separate texture file.
-    #[serde(default = "crate::defaults::use_background_as_channel0")]
-    pub custom_shader_use_background_as_channel0: bool,
-
     // ========================================================================
-    // Cursor Shader Settings (separate from background shader)
+    // Shader Settings (background + cursor) — extracted to GlobalShaderConfig
     // ========================================================================
-    /// Cursor shader file path (GLSL format, relative to shaders folder or absolute)
-    /// This is a separate shader specifically for cursor effects (trails, glows, etc.)
-    #[serde(default)]
-    pub cursor_shader: Option<String>,
-
-    /// Enable or disable the cursor shader (even if a path is set)
-    #[serde(default = "crate::defaults::bool_false")]
-    pub cursor_shader_enabled: bool,
-
-    /// Enable animation in cursor shader (updates iTime uniform each frame)
-    #[serde(default = "crate::defaults::bool_true")]
-    pub cursor_shader_animation: bool,
-
-    /// Animation speed multiplier for cursor shader (1.0 = normal speed)
-    #[serde(default = "crate::defaults::custom_shader_speed")]
-    pub cursor_shader_animation_speed: f32,
-
-    /// Cursor color for shader effects [R, G, B] (0-255)
-    /// This color is passed to the shader via iCursorShaderColor uniform
-    #[serde(default = "crate::defaults::cursor_shader_color")]
-    pub cursor_shader_color: [u8; 3],
-
-    /// Duration of cursor trail effect in seconds
-    /// Passed to shader via iCursorTrailDuration uniform
-    #[serde(default = "crate::defaults::cursor_trail_duration")]
-    pub cursor_shader_trail_duration: f32,
-
-    /// Radius of cursor glow effect in pixels
-    /// Passed to shader via iCursorGlowRadius uniform
-    #[serde(default = "crate::defaults::cursor_glow_radius")]
-    pub cursor_shader_glow_radius: f32,
-
-    /// Intensity of cursor glow effect (0.0 = none, 1.0 = full)
-    /// Passed to shader via iCursorGlowIntensity uniform
-    #[serde(default = "crate::defaults::cursor_glow_intensity")]
-    pub cursor_shader_glow_intensity: f32,
-
-    /// Hide the default cursor when cursor shader is enabled
-    /// When true and cursor_shader_enabled is true, the normal cursor is not drawn
-    /// This allows cursor shaders to fully replace the cursor rendering
-    #[serde(default = "crate::defaults::bool_false")]
-    pub cursor_shader_hides_cursor: bool,
-
-    /// Disable cursor shader while in alt screen (vim, less, htop)
-    /// Keeps current behavior by default for TUI compatibility
-    #[serde(default = "crate::defaults::cursor_shader_disable_in_alt_screen")]
-    pub cursor_shader_disable_in_alt_screen: bool,
+    /// All `custom_shader_*` and `cursor_shader_*` settings.
+    ///
+    /// Flattened into the top-level YAML so existing config files remain compatible.
+    #[serde(flatten)]
+    pub shader: GlobalShaderConfig,
 
     // ========================================================================
     // Keyboard Input
@@ -654,23 +531,9 @@ pub struct Config {
     // ========================================================================
     // Copy Mode (vi-style keyboard-driven selection)
     // ========================================================================
-    /// Enable copy mode (vi-style keyboard-driven text selection and navigation).
-    /// When enabled, users can enter copy mode via the `toggle_copy_mode` keybinding
-    /// action to navigate the terminal buffer with vi keys and yank text.
-    #[serde(default = "crate::defaults::bool_true")]
-    pub copy_mode_enabled: bool,
-
-    /// Automatically exit copy mode after yanking (copying) selected text.
-    /// When true (default), pressing `y` in visual mode copies text and exits copy mode.
-    /// When false, copy mode stays active after yanking so you can continue selecting.
-    #[serde(default = "crate::defaults::bool_true")]
-    pub copy_mode_auto_exit_on_yank: bool,
-
-    /// Show a status bar at the bottom of the terminal when copy mode is active.
-    /// The status bar displays the current mode (COPY/VISUAL/V-LINE/V-BLOCK/SEARCH)
-    /// and cursor position information.
-    #[serde(default = "crate::defaults::bool_true")]
-    pub copy_mode_show_status: bool,
+    /// Vi-style copy mode settings (see [`CopyModeConfig`]).
+    #[serde(flatten)]
+    pub copy_mode: CopyModeConfig,
 
     // ========================================================================
     // Scrollback & Cursor
@@ -682,27 +545,9 @@ pub struct Config {
     // ========================================================================
     // Unicode Width Settings
     // ========================================================================
-    /// Unicode version for character width calculations
-    /// Different versions have different width tables, particularly for emoji.
-    /// Options: unicode_9, unicode_10, ..., unicode_16, auto (default)
-    #[serde(default = "crate::defaults::unicode_version")]
-    pub unicode_version: par_term_emu_core_rust::UnicodeVersion,
-
-    /// Treatment of East Asian Ambiguous width characters
-    /// - narrow: 1 cell width (Western default)
-    /// - wide: 2 cell width (CJK default)
-    #[serde(default = "crate::defaults::ambiguous_width")]
-    pub ambiguous_width: par_term_emu_core_rust::AmbiguousWidth,
-
-    /// Unicode normalization form for text processing
-    /// Controls how Unicode text is normalized before being stored in terminal cells.
-    /// - NFC: Canonical composition (default, most compatible)
-    /// - NFD: Canonical decomposition (macOS HFS+ style)
-    /// - NFKC: Compatibility composition (resolves ligatures like ﬁ → fi)
-    /// - NFKD: Compatibility decomposition
-    /// - none: No normalization
-    #[serde(default = "crate::defaults::normalization_form")]
-    pub normalization_form: par_term_emu_core_rust::NormalizationForm,
+    /// Unicode character width and normalization settings (see [`UnicodeConfig`]).
+    #[serde(flatten)]
+    pub unicode: UnicodeConfig,
 
     /// Enable cursor blinking
     #[serde(default = "crate::defaults::bool_false")]
@@ -1117,21 +962,9 @@ pub struct Config {
     // ========================================================================
     // SSH Settings
     // ========================================================================
-    /// Enable mDNS/Bonjour discovery for SSH hosts
-    #[serde(default = "crate::defaults::bool_false")]
-    pub enable_mdns_discovery: bool,
-
-    /// mDNS scan timeout in seconds
-    #[serde(default = "crate::defaults::mdns_timeout")]
-    pub mdns_scan_timeout_secs: u32,
-
-    /// Enable automatic profile switching based on SSH hostname
-    #[serde(default = "crate::defaults::bool_true")]
-    pub ssh_auto_profile_switch: bool,
-
-    /// Revert profile when SSH session disconnects
-    #[serde(default = "crate::defaults::bool_true")]
-    pub ssh_revert_profile_on_disconnect: bool,
+    /// SSH discovery and profile-switching settings (see [`SshConfig`]).
+    #[serde(flatten)]
+    pub ssh: SshConfig,
 
     // ========================================================================
     // Tab Settings
@@ -1561,25 +1394,9 @@ pub struct Config {
     // ========================================================================
     // Search Settings
     // ========================================================================
-    /// Highlight color for search matches [R, G, B, A] (0-255)
-    #[serde(default = "crate::defaults::search_highlight_color")]
-    pub search_highlight_color: [u8; 4],
-
-    /// Highlight color for the current/active search match [R, G, B, A] (0-255)
-    #[serde(default = "crate::defaults::search_current_highlight_color")]
-    pub search_current_highlight_color: [u8; 4],
-
-    /// Default case sensitivity for search
-    #[serde(default = "crate::defaults::bool_false")]
-    pub search_case_sensitive: bool,
-
-    /// Default regex mode for search
-    #[serde(default = "crate::defaults::bool_false")]
-    pub search_regex: bool,
-
-    /// Wrap around when navigating search matches
-    #[serde(default = "crate::defaults::bool_true")]
-    pub search_wrap_around: bool,
+    /// Terminal search settings (see [`SearchConfig`]).
+    #[serde(flatten)]
+    pub search: SearchConfig,
 
     // ========================================================================
     // Session Logging
@@ -1674,73 +1491,11 @@ pub struct Config {
     // ========================================================================
     // Status Bar Settings
     // ========================================================================
-    /// Enable the status bar
-    #[serde(default = "crate::defaults::bool_false")]
-    pub status_bar_enabled: bool,
-
-    /// Status bar position (top or bottom)
-    #[serde(default)]
-    pub status_bar_position: StatusBarPosition,
-
-    /// Status bar height in pixels
-    #[serde(default = "crate::defaults::status_bar_height")]
-    pub status_bar_height: f32,
-
-    /// Status bar background color [R, G, B] (0-255)
-    #[serde(default = "crate::defaults::status_bar_bg_color")]
-    pub status_bar_bg_color: [u8; 3],
-
-    /// Status bar background alpha (0.0-1.0)
-    #[serde(default = "crate::defaults::status_bar_bg_alpha")]
-    pub status_bar_bg_alpha: f32,
-
-    /// Status bar foreground (text) color [R, G, B] (0-255)
-    #[serde(default = "crate::defaults::status_bar_fg_color")]
-    pub status_bar_fg_color: [u8; 3],
-
-    /// Status bar font family (empty string = use terminal font)
-    #[serde(default)]
-    pub status_bar_font: String,
-
-    /// Status bar font size in points
-    #[serde(default = "crate::defaults::status_bar_font_size")]
-    pub status_bar_font_size: f32,
-
-    /// Separator string between widgets
-    #[serde(default = "crate::defaults::status_bar_separator")]
-    pub status_bar_separator: String,
-
-    /// Auto-hide the status bar when in fullscreen mode
-    #[serde(default = "crate::defaults::bool_true")]
-    pub status_bar_auto_hide_fullscreen: bool,
-
-    /// Auto-hide the status bar when mouse is inactive
-    #[serde(default = "crate::defaults::bool_false")]
-    pub status_bar_auto_hide_mouse_inactive: bool,
-
-    /// Timeout in seconds before hiding status bar after last mouse activity
-    #[serde(default = "crate::defaults::status_bar_mouse_inactive_timeout")]
-    pub status_bar_mouse_inactive_timeout: f32,
-
-    /// Polling interval in seconds for system monitor data (CPU, memory, network)
-    #[serde(default = "crate::defaults::status_bar_system_poll_interval")]
-    pub status_bar_system_poll_interval: f32,
-
-    /// Polling interval in seconds for git branch detection
-    #[serde(default = "crate::defaults::status_bar_git_poll_interval")]
-    pub status_bar_git_poll_interval: f32,
-
-    /// Time format string for the Clock widget (chrono strftime syntax)
-    #[serde(default = "crate::defaults::status_bar_time_format")]
-    pub status_bar_time_format: String,
-
-    /// Show ahead/behind and dirty indicators on the Git Branch widget
-    #[serde(default = "crate::defaults::bool_true")]
-    pub status_bar_git_show_status: bool,
-
-    /// Widget configuration list
-    #[serde(default = "crate::status_bar::default_widgets")]
-    pub status_bar_widgets: Vec<crate::status_bar::StatusBarWidgetConfig>,
+    /// Status bar settings (see [`StatusBarConfig`]).
+    ///
+    /// All `status_bar_*` fields are flattened here for YAML backward-compatibility.
+    #[serde(flatten)]
+    pub status_bar: StatusBarConfig,
 
     // ========================================================================
     // Progress Bar Settings (OSC 9;4 and OSC 934)
@@ -1869,66 +1624,9 @@ pub struct Config {
     // ========================================================================
     // AI Inspector
     // ========================================================================
-    /// Enable AI Inspector side panel
-    #[serde(default = "crate::defaults::ai_inspector_enabled")]
-    pub ai_inspector_enabled: bool,
-
-    /// Open the AI Inspector panel automatically on startup
-    #[serde(default = "crate::defaults::ai_inspector_open_on_startup")]
-    pub ai_inspector_open_on_startup: bool,
-
-    /// Width of the AI Inspector panel in pixels
-    #[serde(default = "crate::defaults::ai_inspector_width")]
-    pub ai_inspector_width: f32,
-
-    /// Default capture scope: "visible", "scrollback", or "selection"
-    #[serde(default = "crate::defaults::ai_inspector_default_scope")]
-    pub ai_inspector_default_scope: String,
-
-    /// View mode for inspector results: "cards" or "raw"
-    #[serde(default = "crate::defaults::ai_inspector_view_mode")]
-    pub ai_inspector_view_mode: String,
-
-    /// Automatically refresh inspector when terminal content changes
-    #[serde(default = "crate::defaults::ai_inspector_live_update")]
-    pub ai_inspector_live_update: bool,
-
-    /// Show semantic zone overlays on terminal content
-    #[serde(default = "crate::defaults::ai_inspector_show_zones")]
-    pub ai_inspector_show_zones: bool,
-
-    /// AI agent identifier for inspector queries
-    #[serde(default = "crate::defaults::ai_inspector_agent")]
-    pub ai_inspector_agent: String,
-
-    /// Automatically launch AI agent when inspector opens
-    #[serde(default = "crate::defaults::ai_inspector_auto_launch")]
-    pub ai_inspector_auto_launch: bool,
-
-    /// Automatically include terminal context with AI queries
-    #[serde(default = "crate::defaults::ai_inspector_auto_context")]
-    pub ai_inspector_auto_context: bool,
-
-    /// Maximum number of terminal lines to include as AI context
-    #[serde(default = "crate::defaults::ai_inspector_context_max_lines")]
-    pub ai_inspector_context_max_lines: usize,
-
-    /// Automatically approve AI-suggested actions without confirmation
-    #[serde(default = "crate::defaults::ai_inspector_auto_approve")]
-    pub ai_inspector_auto_approve: bool,
-
-    /// Allow the AI agent to write input to the terminal (drive terminal)
-    #[serde(default = "crate::defaults::ai_inspector_agent_terminal_access")]
-    pub ai_inspector_agent_terminal_access: bool,
-
-    /// Allow the AI agent to request terminal screenshots (permission-gated per request)
-    #[serde(default = "crate::defaults::ai_inspector_agent_screenshot_access")]
-    pub ai_inspector_agent_screenshot_access: bool,
-
-    /// Additional ACP agents defined directly in `config.yaml`.
+    /// AI Inspector side panel settings (see [`AiInspectorConfig`]).
     ///
-    /// Entries here are merged into discovered agents and override agents with
-    /// the same `identity`.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub ai_inspector_custom_agents: Vec<CustomAcpAgentConfig>,
+    /// All `ai_inspector_*` fields are flattened here for YAML backward-compatibility.
+    #[serde(flatten)]
+    pub ai_inspector: AiInspectorConfig,
 }

@@ -79,7 +79,7 @@ impl WindowState {
         }
 
         // Mark this tab as the gateway
-        tab.tmux_gateway_active = true;
+        tab.tmux.tmux_gateway_active = true;
 
         // Store the gateway tab ID so we know where to send commands
         self.tmux_state.tmux_gateway_tab_id = Some(gateway_tab_id);
@@ -150,7 +150,7 @@ impl WindowState {
         }
 
         // Mark this tab as the gateway
-        tab.tmux_gateway_active = true;
+        tab.tmux.tmux_gateway_active = true;
 
         // Store the gateway tab ID so we know where to send commands
         self.tmux_state.tmux_gateway_tab_id = Some(gateway_tab_id);
@@ -178,8 +178,8 @@ impl WindowState {
 
         // First, disable tmux control mode on any gateway tabs
         for tab in self.tab_manager.tabs_mut() {
-            if tab.tmux_gateway_active {
-                tab.tmux_gateway_active = false;
+            if tab.tmux.tmux_gateway_active {
+                tab.tmux.tmux_gateway_active = false;
                 // try_lock: intentional — disconnect is called from the sync event loop.
                 // On miss: control mode stays on the terminal until the next frame; benign
                 // since the session is already being torn down and no further output arrives.
@@ -263,7 +263,7 @@ impl WindowState {
         // On miss: the tmux command is silently dropped. For input this means a keypress
         // is lost; for control commands (resize, split) the caller should retry as needed.
         if let Some(tab) = self.tab_manager.get_tab(gateway_tab_id)
-            && tab.tmux_gateway_active
+            && tab.tmux.tmux_gateway_active
             && let Ok(term) = tab.terminal.try_write()
             && term.write(cmd.as_bytes()).is_ok()
         {
@@ -543,22 +543,22 @@ impl WindowState {
             && let Some(tab) = self.tab_manager.get_tab_mut(gateway_tab_id)
         {
             // Mark the auto-applied profile
-            tab.auto_applied_profile_id = Some(profile_id);
+            tab.profile.auto_applied_profile_id = Some(profile_id);
 
             if let Some((tab_name, icon, badge_text, command, command_args)) = profile_settings {
                 // Apply profile icon
-                tab.profile_icon = icon;
+                tab.profile.profile_icon = icon;
 
                 // Save original title before overriding (only if not already saved)
-                if tab.pre_profile_title.is_none() {
-                    tab.pre_profile_title = Some(tab.title.clone());
+                if tab.profile.pre_profile_title.is_none() {
+                    tab.profile.pre_profile_title = Some(tab.title.clone());
                 }
                 // Apply profile tab name (fall back to profile name)
                 tab.title = tab_name.unwrap_or_else(|| profile_name.to_string());
 
                 // Apply badge text override if configured
                 if let Some(badge_text) = badge_text {
-                    tab.badge_override = Some(badge_text.clone());
+                    tab.profile.badge_override = Some(badge_text.clone());
                     crate::debug_info!(
                         "TMUX",
                         "Applied badge text '{}' from profile '{}'",

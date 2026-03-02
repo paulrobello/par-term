@@ -7,6 +7,9 @@ use crate::nerd_font::NERD_FONT_PRESETS;
 use crate::section::collapsing_section;
 use crate::shell_detection;
 use par_term_config::ProfileId;
+use par_term_config::layout_constants::{
+    PROFILE_ICON_PICKER_MAX_HEIGHT, PROFILE_ICON_PICKER_MIN_WIDTH,
+};
 use std::collections::HashSet;
 
 impl ProfileModalUI {
@@ -78,9 +81,9 @@ impl ProfileModalUI {
                                     egui::PopupCloseBehavior::CloseOnClickOutside,
                                 )
                                 .show(|ui| {
-                                    ui.set_min_width(280.0);
+                                    ui.set_min_width(PROFILE_ICON_PICKER_MIN_WIDTH);
                                     egui::ScrollArea::vertical()
-                                        .max_height(300.0)
+                                        .max_height(PROFILE_ICON_PICKER_MAX_HEIGHT)
                                         .show(ui, |ui| {
                                             for (category, icons) in NERD_FONT_PRESETS {
                                                 ui.label(

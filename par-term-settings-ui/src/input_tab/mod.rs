@@ -177,3 +177,70 @@ pub fn show(
         keybindings::show_keybindings_section(ui, settings, changes_this_frame, collapsed);
     }
 }
+
+/// Search keywords for the Input settings tab.
+pub fn keywords() -> &'static [&'static str] {
+    &[
+        // Keyboard
+        "keyboard",
+        "option",
+        "alt",
+        "meta",
+        "esc",
+        "physical",
+        "physical keys",
+        // Modifier remapping
+        "remap",
+        "remapping",
+        "swap",
+        "ctrl",
+        "super",
+        "cmd",
+        "modifier",
+        // Mouse
+        "mouse",
+        "scroll",
+        "scroll speed",
+        "double-click",
+        "triple-click",
+        "click threshold",
+        "option+click",
+        "alt+click",
+        "focus follows",
+        "focus follows mouse",
+        "horizontal scroll",
+        // Selection & clipboard
+        "selection",
+        "clipboard",
+        "copy",
+        "paste",
+        "auto-copy",
+        "auto copy",
+        "trailing newline",
+        "middle-click",
+        "middle click",
+        "dropped file",
+        "quote style",
+        // Clipboard limits
+        "max sync",
+        "max bytes",
+        "clipboard max",
+        // Word selection
+        "word characters",
+        "smart selection",
+        // Keybindings
+        "keybindings",
+        "shortcuts",
+        "hotkey",
+        "binding",
+        "key",
+        // Copy mode
+        "copy mode",
+        "yank",
+        // Paste
+        "paste delay",
+        // Smart selection
+        "rules",
+        "smart selection rules",
+    ]
+}

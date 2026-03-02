@@ -5,7 +5,7 @@ use std::sync::OnceLock;
 use regex::Regex;
 
 use crate::prettifier::registry::RendererRegistry;
-use crate::prettifier::renderers::{push_line, tree_renderer};
+use crate::prettifier::renderers::{guide_segment, plain_segment, push_line, tree_renderer};
 use crate::prettifier::traits::{ContentRenderer, RenderError, RendererConfig, ThemeColors};
 use crate::prettifier::types::{ContentBlock, RenderedContent, RendererCapability, StyledSegment};
 
@@ -170,7 +170,7 @@ impl TomlRenderer {
         if trimmed.starts_with('"') && trimmed.ends_with('"') {
             return vec![StyledSegment {
                 text: trimmed.to_string(),
-                fg: Some(theme.palette[2]), // Green
+                fg: Some(theme.string_color()), // Green
                 ..Default::default()
             }];
         }
@@ -179,7 +179,7 @@ impl TomlRenderer {
         if trimmed.starts_with('\'') && trimmed.ends_with('\'') {
             return vec![StyledSegment {
                 text: trimmed.to_string(),
-                fg: Some(theme.palette[2]), // Green
+                fg: Some(theme.string_color()), // Green
                 ..Default::default()
             }];
         }
@@ -188,7 +188,7 @@ impl TomlRenderer {
         if trimmed.starts_with("\"\"\"") || trimmed.starts_with("'''") {
             return vec![StyledSegment {
                 text: trimmed.to_string(),
-                fg: Some(theme.palette[2]),
+                fg: Some(theme.string_color()),
                 ..Default::default()
             }];
         }
@@ -224,7 +224,7 @@ impl TomlRenderer {
         if is_toml_number(trimmed) {
             return vec![StyledSegment {
                 text: trimmed.to_string(),
-                fg: Some(theme.palette[11]), // Bright yellow
+                fg: Some(theme.number_color()), // Bright yellow
                 ..Default::default()
             }];
         }
@@ -232,7 +232,7 @@ impl TomlRenderer {
         // Fallback — unquoted value
         vec![StyledSegment {
             text: trimmed.to_string(),
-            fg: Some(theme.palette[2]),
+            fg: Some(theme.string_color()),
             ..Default::default()
         }]
     }
@@ -267,25 +267,6 @@ pub(super) fn is_toml_number(s: &str) -> bool {
         return true;
     }
     cleaned.parse::<f64>().is_ok()
-}
-
-// ---------------------------------------------------------------------------
-// Helper functions
-// ---------------------------------------------------------------------------
-
-fn guide_segment(prefix: &str, theme: &ThemeColors) -> StyledSegment {
-    StyledSegment {
-        text: prefix.to_string(),
-        fg: Some(theme.palette[8]),
-        ..Default::default()
-    }
-}
-
-fn plain_segment(text: &str) -> StyledSegment {
-    StyledSegment {
-        text: text.to_string(),
-        ..Default::default()
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -342,7 +323,7 @@ impl ContentRenderer for TomlRenderer {
                                 },
                                 StyledSegment {
                                     text: format!(" {summary}"),
-                                    fg: Some(theme.palette[8]),
+                                    fg: Some(theme.dim_color()),
                                     italic: true,
                                     ..Default::default()
                                 },
@@ -404,7 +385,7 @@ impl ContentRenderer for TomlRenderer {
                             guide_segment(&prefix, theme),
                             StyledSegment {
                                 text,
-                                fg: Some(theme.palette[8]),
+                                fg: Some(theme.dim_color()),
                                 italic: true,
                                 ..Default::default()
                             },
@@ -431,7 +412,7 @@ impl ContentRenderer for TomlRenderer {
                         guide_segment(&prefix, theme),
                         StyledSegment {
                             text: key,
-                            fg: Some(theme.palette[6]), // Cyan
+                            fg: Some(theme.key_color()), // Cyan
                             ..Default::default()
                         },
                         plain_segment(&format!("{padding} = ")),

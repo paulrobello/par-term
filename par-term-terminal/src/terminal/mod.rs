@@ -1,11 +1,7 @@
-use crate::scrollback_metadata::{
-    CommandSnapshot, LineMetadata, ScrollbackMark, ScrollbackMetadata,
-};
-use crate::styled_content::{StyledSegment, extract_styled_segments};
+use crate::scrollback_metadata::ScrollbackMetadata;
 use anyhow::Result;
 use par_term_config::Theme;
 use par_term_emu_core_rust::pty_session::PtySession;
-use par_term_emu_core_rust::shell_integration::ShellIntegrationMarker;
 use par_term_emu_core_rust::terminal::Terminal;
 use parking_lot::Mutex;
 use std::sync::Arc;
@@ -29,62 +25,13 @@ pub use par_term_emu_core_rust::terminal::{ClipboardEntry, ClipboardSlot};
 pub mod clipboard;
 pub mod graphics;
 pub mod hyperlinks;
+pub(crate) mod marker_tracking;
 pub mod rendering;
+pub mod scrollback;
 pub mod spawn;
 
-/// Resolve the user's login shell PATH and return environment variables for coprocess spawning.
-///
-/// On macOS (and other Unix), app bundles have a minimal PATH that doesn't include
-/// user-installed paths like `/opt/homebrew/bin`, `/usr/local/bin`, etc.
-/// This function runs the user's login shell once to resolve the full PATH,
-/// caches the result, and returns it as a HashMap suitable for `CoprocessConfig.env`.
-pub fn coprocess_env() -> std::collections::HashMap<String, String> {
-    use std::sync::OnceLock;
-    static CACHED_PATH: OnceLock<Option<String>> = OnceLock::new();
-
-    let resolved_path = CACHED_PATH.get_or_init(|| {
-        #[cfg(unix)]
-        {
-            let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
-            match std::process::Command::new(&shell)
-                .args(["-lc", "printf '%s' \"$PATH\""])
-                .output()
-            {
-                Ok(output) if output.status.success() => {
-                    let path = String::from_utf8_lossy(&output.stdout).to_string();
-                    if !path.is_empty() {
-                        log::debug!("Resolved login shell PATH: {}", path);
-                        Some(path)
-                    } else {
-                        log::warn!("Login shell returned empty PATH");
-                        None
-                    }
-                }
-                Ok(output) => {
-                    log::warn!(
-                        "Login shell PATH resolution failed (exit={})",
-                        output.status
-                    );
-                    None
-                }
-                Err(e) => {
-                    log::warn!("Failed to run login shell for PATH resolution: {}", e);
-                    None
-                }
-            }
-        }
-        #[cfg(not(unix))]
-        {
-            None
-        }
-    });
-
-    let mut env = std::collections::HashMap::new();
-    if let Some(path) = resolved_path {
-        env.insert("PATH".to_string(), path.clone());
-    }
-    env
-}
+// Re-export coprocess_env from spawn so existing callers keep working
+pub use spawn::coprocess_env;
 
 /// Terminal manager that wraps the PTY session
 pub struct TerminalManager {
@@ -96,18 +43,8 @@ pub struct TerminalManager {
     pub(crate) theme: Theme,
     /// Scrollback metadata for shell integration markers
     pub(crate) scrollback_metadata: ScrollbackMetadata,
-    /// Previous shell integration marker for detecting transitions
-    last_shell_marker: Option<ShellIntegrationMarker>,
-    /// Absolute line and column at CommandStart (B marker) for extracting command text.
-    /// Stored as (absolute_line, col) where absolute_line = scrollback_len + cursor_row
-    /// at the time the B marker was seen. Using absolute line rather than grid row
-    /// ensures we can still find the command text even after it scrolls into scrollback.
-    command_start_pos: Option<(usize, usize)>,
-    /// Command text captured from the terminal (waiting to be applied to a mark).
-    /// Stored as (absolute_line, text) so we can target the correct mark.
-    captured_command_text: Option<(usize, String)>,
-    /// Shell lifecycle events queued for the prettifier pipeline.
-    shell_lifecycle_events: Vec<ShellLifecycleEvent>,
+    /// Shell lifecycle marker state machine (OSC 133 tracking).
+    pub(crate) marker_tracker: marker_tracking::MarkerTracker,
 }
 
 impl TerminalManager {
@@ -133,10 +70,7 @@ impl TerminalManager {
             dimensions: (cols, rows),
             theme: Theme::default(),
             scrollback_metadata: ScrollbackMetadata::new(),
-            last_shell_marker: None,
-            command_start_pos: None,
-            captured_command_text: None,
-            shell_lifecycle_events: Vec::new(),
+            marker_tracker: marker_tracking::MarkerTracker::new(),
         })
     }
 
@@ -145,346 +79,12 @@ impl TerminalManager {
         self.theme = theme;
     }
 
-    /// Update scrollback metadata based on shell integration events from the core.
-    ///
-    /// Drains the queued `ShellIntegrationEvent` events from the terminal, each of
-    /// which carries the `cursor_line` at the exact moment the OSC 133 marker was
-    /// parsed. This eliminates the batching problem where multiple markers arrive
-    /// between frames and only the last one was visible via `marker()`.
-    ///
-    /// Command text is captured from the terminal grid when the marker changes
-    /// away from CommandStart, then injected into scrollback marks after
-    /// `apply_event()` creates them.
-    pub fn update_scrollback_metadata(&mut self, scrollback_len: usize, cursor_row: usize) {
-        let pty = self.pty_session.lock();
-        let terminal = pty.terminal();
-        let mut term = terminal.lock();
-
-        // Drain queued shell integration events with their recorded cursor positions.
-        let shell_events = term.poll_shell_integration_events();
-
-        // Read cumulative history state (used only for CommandFinished events).
-        let history = term.get_command_history();
-        let history_len = history.len();
-        let last_command = history
-            .last()
-            .map(|c| CommandSnapshot::from_core(c, history_len.saturating_sub(1)));
-
-        // Process each queued event at its recorded cursor position.
-        if !shell_events.is_empty() {
-            for (event_type, event_command, exit_code, _timestamp, cursor_line) in &shell_events {
-                let marker = match event_type.as_str() {
-                    "prompt_start" => Some(ShellIntegrationMarker::PromptStart),
-                    "command_start" => Some(ShellIntegrationMarker::CommandStart),
-                    "command_executed" => Some(ShellIntegrationMarker::CommandExecuted),
-                    "command_finished" => Some(ShellIntegrationMarker::CommandFinished),
-                    _ => None,
-                };
-
-                let abs_line = cursor_line.unwrap_or(scrollback_len + cursor_row);
-
-                // Track cursor position at CommandStart (B) for command text extraction.
-                let prev_marker = self.last_shell_marker;
-                if marker != prev_marker {
-                    let cursor_col = term.cursor().col;
-                    match marker {
-                        Some(ShellIntegrationMarker::CommandStart) => {
-                            self.command_start_pos = Some((abs_line, cursor_col));
-                        }
-                        _ => {
-                            if let Some((start_abs_line, start_col)) = self.command_start_pos.take()
-                            {
-                                let text = Self::extract_command_text(
-                                    &term,
-                                    start_abs_line,
-                                    start_col,
-                                    scrollback_len,
-                                );
-                                if !text.is_empty() {
-                                    self.captured_command_text = Some((start_abs_line, text));
-                                }
-                            }
-                        }
-                    }
-                    self.last_shell_marker = marker;
-                }
-
-                // Only pass history/exit info for CommandFinished events.
-                let is_finished = matches!(marker, Some(ShellIntegrationMarker::CommandFinished));
-
-                self.scrollback_metadata.apply_event(
-                    marker,
-                    abs_line,
-                    if is_finished { history_len } else { 0 },
-                    if is_finished {
-                        last_command.clone()
-                    } else {
-                        None
-                    },
-                    if is_finished { *exit_code } else { None },
-                );
-
-                // Feed command lifecycle into the core library's command history.
-                match event_type.as_str() {
-                    "command_executed" => {
-                        let cmd_text = event_command
-                            .clone()
-                            .or_else(|| self.captured_command_text.as_ref().map(|(_, t)| t.clone()))
-                            .unwrap_or_default();
-                        if !cmd_text.is_empty() {
-                            term.start_command_execution(cmd_text.clone());
-                            self.shell_lifecycle_events
-                                .push(ShellLifecycleEvent::CommandStarted {
-                                    command: cmd_text,
-                                    absolute_line: abs_line,
-                                });
-                        }
-                    }
-                    "command_finished" => {
-                        term.end_command_execution(*exit_code);
-                        self.shell_lifecycle_events
-                            .push(ShellLifecycleEvent::CommandFinished {
-                                absolute_line: abs_line,
-                            });
-                    }
-                    _ => {}
-                }
-            }
-        }
-
-        drop(term);
-        drop(terminal);
-        drop(pty);
-
-        // If we captured command text, apply it to the mark at the command's
-        // absolute line.
-        if let Some((abs_line, cmd)) = self.captured_command_text.take() {
-            self.scrollback_metadata.set_mark_command_at(abs_line, cmd);
-        }
-    }
-
-    /// Extract command text from the terminal using absolute line positioning.
-    fn extract_command_text(
-        term: &Terminal,
-        start_abs_line: usize,
-        start_col: usize,
-        current_scrollback_len: usize,
-    ) -> String {
-        let grid = term.active_grid();
-        let mut parts = Vec::new();
-        for offset in 0..5 {
-            let abs_line = start_abs_line + offset;
-            let (text, is_wrapped) = if abs_line < current_scrollback_len {
-                let t = Self::scrollback_line_text(grid, abs_line);
-                let w = grid.is_scrollback_wrapped(abs_line);
-                (t, w)
-            } else {
-                let grid_row = abs_line - current_scrollback_len;
-                let t = grid.row_text(grid_row);
-                let w = grid.is_line_wrapped(grid_row);
-                (t, w)
-            };
-            let trimmed = if offset == 0 {
-                text.chars()
-                    .skip(start_col)
-                    .collect::<String>()
-                    .trim_end()
-                    .to_string()
-            } else {
-                text.trim_end().to_string()
-            };
-            if !trimmed.is_empty() {
-                parts.push(trimmed);
-            }
-            if !is_wrapped {
-                break;
-            }
-        }
-        parts.join("").trim().to_string()
-    }
-
-    /// Read text from a scrollback line, converting cells to a string.
-    fn scrollback_line_text(
-        grid: &par_term_emu_core_rust::grid::Grid,
-        scrollback_index: usize,
-    ) -> String {
-        if let Some(cells) = grid.scrollback_line(scrollback_index) {
-            cells
-                .iter()
-                .filter(|cell| !cell.flags.wide_char_spacer())
-                .map(|cell| cell.get_grapheme())
-                .collect::<Vec<String>>()
-                .join("")
-        } else {
-            String::new()
-        }
-    }
-
-    /// Get rendered scrollback marks (prompt/command boundaries).
-    pub fn scrollback_marks(&self) -> Vec<ScrollbackMark> {
-        self.scrollback_metadata.marks()
-    }
-
-    /// Find previous prompt mark before the given absolute line (if any).
-    pub fn scrollback_previous_mark(&self, line: usize) -> Option<usize> {
-        self.scrollback_metadata.previous_mark(line)
-    }
-
-    /// Find next prompt mark after the given absolute line (if any).
-    pub fn scrollback_next_mark(&self, line: usize) -> Option<usize> {
-        self.scrollback_metadata.next_mark(line)
-    }
-
-    /// Retrieve metadata for a specific absolute line index, if available.
-    pub fn scrollback_metadata_for_line(&self, line: usize) -> Option<LineMetadata> {
-        self.scrollback_metadata.metadata_for_line(line)
-    }
-
-    /// Get command history from the core library (commands tracked via shell integration).
-    ///
-    /// Returns commands as `(command_text, exit_code, duration_ms)` tuples.
-    pub fn core_command_history(&self) -> Vec<(String, Option<i32>, Option<u64>)> {
-        let pty = self.pty_session.lock();
-        let terminal = pty.terminal();
-        let term = terminal.lock();
-        term.get_command_history()
-            .iter()
-            .map(|cmd| (cmd.command.clone(), cmd.exit_code, cmd.duration_ms))
-            .collect()
-    }
-
     /// Set cell dimensions in pixels for sixel graphics scroll calculations
     pub fn set_cell_dimensions(&self, width: u32, height: u32) {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
         let mut term = terminal.lock();
         term.set_cell_dimensions(width, height);
-    }
-
-    /// Write data to the PTY (send user input to shell)
-    pub fn write(&self, data: &[u8]) -> Result<()> {
-        if !data.is_empty() {
-            log::debug!(
-                "Writing to PTY: {:?} (bytes: {:?})",
-                String::from_utf8_lossy(data),
-                data
-            );
-        }
-        let mut pty = self.pty_session.lock();
-        pty.write(data)
-            .map_err(|e| anyhow::anyhow!("Failed to write to PTY: {}", e))?;
-        Ok(())
-    }
-
-    /// Write string to the PTY
-    pub fn write_str(&self, data: &str) -> Result<()> {
-        let mut pty = self.pty_session.lock();
-        pty.write_str(data)
-            .map_err(|e| anyhow::anyhow!("Failed to write to PTY: {}", e))?;
-        Ok(())
-    }
-
-    /// Process raw data through the terminal emulator (for tmux output routing).
-    pub fn process_data(&self, data: &[u8]) {
-        let pty = self.pty_session.lock();
-        let terminal = pty.terminal();
-        let mut term = terminal.lock();
-        term.process(data);
-    }
-
-    /// Paste text to the terminal with proper bracketed paste handling.
-    pub fn paste(&self, content: &str) -> Result<()> {
-        if content.is_empty() {
-            return Ok(());
-        }
-
-        let content = content.replace('\n', "\r");
-
-        log::debug!("Pasting {} chars (bracketed paste check)", content.len());
-
-        let (start, end) = {
-            let pty = self.pty_session.lock();
-            let terminal = pty.terminal();
-            let term = terminal.lock();
-            (
-                term.bracketed_paste_start().to_vec(),
-                term.bracketed_paste_end().to_vec(),
-            )
-        };
-
-        let mut pty = self.pty_session.lock();
-        if !start.is_empty() {
-            log::debug!("Sending bracketed paste start sequence");
-            pty.write(&start)
-                .map_err(|e| anyhow::anyhow!("Failed to write bracketed paste start: {}", e))?;
-        }
-        pty.write(content.as_bytes())
-            .map_err(|e| anyhow::anyhow!("Failed to write paste content: {}", e))?;
-        if !end.is_empty() {
-            log::debug!("Sending bracketed paste end sequence");
-            pty.write(&end)
-                .map_err(|e| anyhow::anyhow!("Failed to write bracketed paste end: {}", e))?;
-        }
-
-        Ok(())
-    }
-
-    /// Paste text with a delay between lines.
-    pub async fn paste_with_delay(&self, content: &str, delay_ms: u64) -> Result<()> {
-        if content.is_empty() {
-            return Ok(());
-        }
-
-        let (start, end) = {
-            let pty = self.pty_session.lock();
-            let terminal = pty.terminal();
-            let term = terminal.lock();
-            (
-                term.bracketed_paste_start().to_vec(),
-                term.bracketed_paste_end().to_vec(),
-            )
-        };
-
-        if !start.is_empty() {
-            let mut pty = self.pty_session.lock();
-            pty.write(&start)
-                .map_err(|e| anyhow::anyhow!("Failed to write bracketed paste start: {}", e))?;
-        }
-
-        let lines: Vec<&str> = content.split('\n').collect();
-        let delay = tokio::time::Duration::from_millis(delay_ms);
-
-        for (i, line) in lines.iter().enumerate() {
-            let mut line_data = line.replace('\n', "\r");
-            if i < lines.len() - 1 {
-                line_data.push('\r');
-            }
-
-            {
-                let mut pty = self.pty_session.lock();
-                pty.write(line_data.as_bytes())
-                    .map_err(|e| anyhow::anyhow!("Failed to write paste line: {}", e))?;
-            }
-
-            if i < lines.len() - 1 {
-                tokio::time::sleep(delay).await;
-            }
-        }
-
-        if !end.is_empty() {
-            let mut pty = self.pty_session.lock();
-            pty.write(&end)
-                .map_err(|e| anyhow::anyhow!("Failed to write bracketed paste end: {}", e))?;
-        }
-
-        log::debug!(
-            "Pasted {} lines with {}ms delay ({} chars total)",
-            lines.len(),
-            delay_ms,
-            content.len()
-        );
-
-        Ok(())
     }
 
     /// Get the terminal content as a string
@@ -571,174 +171,6 @@ impl TerminalManager {
     pub fn bell_count(&self) -> u64 {
         let pty = self.pty_session.lock();
         pty.bell_count()
-    }
-
-    /// Get scrollback lines
-    pub fn scrollback(&self) -> Vec<String> {
-        let pty = self.pty_session.lock();
-        pty.scrollback()
-    }
-
-    /// Get scrollback length
-    pub fn scrollback_len(&self) -> usize {
-        let pty = self.pty_session.lock();
-        pty.scrollback_len()
-    }
-
-    /// Get text of a line at an absolute index (scrollback + screen).
-    pub fn line_text_at_absolute(&self, absolute_line: usize) -> Option<String> {
-        let pty = self.pty_session.lock();
-        let terminal = pty.terminal();
-        let term = terminal.lock();
-        let grid = term.active_grid();
-        let scrollback_len = grid.scrollback_len();
-
-        if absolute_line < scrollback_len {
-            Some(Self::scrollback_line_text(grid, absolute_line))
-        } else {
-            let screen_row = absolute_line - scrollback_len;
-            if screen_row < grid.rows() {
-                Some(grid.row_text(screen_row))
-            } else {
-                None
-            }
-        }
-    }
-
-    /// Get all lines in a range as text (for search in copy mode).
-    pub fn lines_text_range(&self, start: usize, end: usize) -> Vec<(String, usize)> {
-        let pty = self.pty_session.lock();
-        let terminal = pty.terminal();
-        let term = terminal.lock();
-        let grid = term.active_grid();
-        let scrollback_len = grid.scrollback_len();
-        let max_line = scrollback_len + grid.rows();
-
-        let start = start.min(max_line);
-        let end = end.min(max_line);
-
-        let mut result = Vec::with_capacity(end.saturating_sub(start));
-        for abs_line in start..end {
-            let text = if abs_line < scrollback_len {
-                Self::scrollback_line_text(grid, abs_line)
-            } else {
-                let screen_row = abs_line - scrollback_len;
-                if screen_row < grid.rows() {
-                    grid.row_text(screen_row)
-                } else {
-                    break;
-                }
-            };
-            result.push((text, abs_line));
-        }
-        result
-    }
-
-    /// Get all scrollback lines as Cell arrays.
-    pub fn scrollback_as_cells(&self) -> Vec<Vec<par_term_config::Cell>> {
-        let pty = self.pty_session.lock();
-        let terminal = pty.terminal();
-        let term = terminal.lock();
-        let grid = term.active_grid();
-
-        let scrollback_len = grid.scrollback_len();
-        let cols = grid.cols();
-        let mut result = Vec::with_capacity(scrollback_len);
-
-        for line_idx in 0..scrollback_len {
-            let mut row_cells = Vec::with_capacity(cols);
-            if let Some(line) = grid.scrollback_line(line_idx) {
-                Self::push_line_from_slice(
-                    line,
-                    cols,
-                    &mut row_cells,
-                    0,     // screen_row (unused for our purposes)
-                    None,  // no selection
-                    false, // not rectangular
-                    None,  // no cursor
-                    &self.theme,
-                );
-            } else {
-                Self::push_empty_cells(cols, &mut row_cells);
-            }
-            result.push(row_cells);
-        }
-
-        result
-    }
-
-    /// Clear scrollback buffer
-    pub fn clear_scrollback(&self) {
-        let pty = self.pty_session.lock();
-        let terminal = pty.terminal();
-        let mut term = terminal.lock();
-        term.process(b"\x1b[3J");
-    }
-
-    /// Clear scrollback metadata (prompt marks, command history, timestamps).
-    pub fn clear_scrollback_metadata(&mut self) {
-        self.scrollback_metadata.clear();
-        self.last_shell_marker = None;
-        self.command_start_pos = None;
-        self.captured_command_text = None;
-    }
-
-    /// Drain queued shell lifecycle events for the prettifier pipeline.
-    pub fn drain_shell_lifecycle_events(&mut self) -> Vec<ShellLifecycleEvent> {
-        std::mem::take(&mut self.shell_lifecycle_events)
-    }
-
-    /// Search for text in the visible screen.
-    pub fn search(
-        &self,
-        query: &str,
-        case_sensitive: bool,
-    ) -> Vec<par_term_emu_core_rust::terminal::SearchMatch> {
-        let pty = self.pty_session.lock();
-        let terminal = pty.terminal();
-        let term = terminal.lock();
-        term.search_text(query, case_sensitive)
-    }
-
-    /// Search for text in the scrollback buffer.
-    pub fn search_scrollback(
-        &self,
-        query: &str,
-        case_sensitive: bool,
-        max_lines: Option<usize>,
-    ) -> Vec<par_term_emu_core_rust::terminal::SearchMatch> {
-        let pty = self.pty_session.lock();
-        let terminal = pty.terminal();
-        let term = terminal.lock();
-        term.search_scrollback(query, case_sensitive, max_lines)
-    }
-
-    /// Search for text in both visible screen and scrollback.
-    pub fn search_all(&self, query: &str, case_sensitive: bool) -> Vec<crate::SearchMatch> {
-        let pty = self.pty_session.lock();
-        let terminal = pty.terminal();
-        let term = terminal.lock();
-
-        let scrollback_len = term.active_grid().scrollback_len();
-        let mut results = Vec::new();
-
-        let scrollback_matches = term.search_scrollback(query, case_sensitive, None);
-        for m in scrollback_matches {
-            let abs_line = scrollback_len as isize + m.row;
-            if abs_line >= 0 {
-                results.push(crate::SearchMatch::new(abs_line as usize, m.col, m.length));
-            }
-        }
-
-        let screen_matches = term.search_text(query, case_sensitive);
-        for m in screen_matches {
-            let abs_line = scrollback_len + m.row as usize;
-            results.push(crate::SearchMatch::new(abs_line, m.col, m.length));
-        }
-
-        results.sort_by(|a, b| a.line.cmp(&b.line).then_with(|| a.column.cmp(&b.column)));
-
-        results
     }
 
     /// Take all pending OSC 9/777 notifications
@@ -1141,12 +573,12 @@ impl TerminalManager {
     }
 
     /// Get styled segments from the terminal for rendering
-    pub fn get_styled_segments(&self) -> Vec<StyledSegment> {
+    pub fn get_styled_segments(&self) -> Vec<crate::styled_content::StyledSegment> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
         let term = terminal.lock();
         let grid = term.active_grid();
-        extract_styled_segments(grid)
+        crate::styled_content::extract_styled_segments(grid)
     }
 
     /// Get the current generation number for dirty tracking
@@ -1155,12 +587,6 @@ impl TerminalManager {
         pty.update_generation()
     }
 }
-
-// ========================================================================
-// Clipboard History Methods
-// ========================================================================
-
-impl TerminalManager {}
 
 // ========================================================================
 // Progress Bar Methods (OSC 9;4 and OSC 934)
@@ -1195,7 +621,7 @@ impl TerminalManager {
 }
 
 // ========================================================================
-// Answerback String (ENQ Response)
+// Answerback String (ENQ Response) and Terminal Configuration
 // ========================================================================
 
 impl TerminalManager {
@@ -1257,57 +683,6 @@ impl TerminalManager {
         let terminal = pty.terminal();
         let term = terminal.lock();
         term.export_asciicast(session)
-    }
-}
-
-// ========================================================================
-// Coprocess Management Methods
-// ========================================================================
-
-impl TerminalManager {
-    pub fn start_coprocess(
-        &self,
-        config: par_term_emu_core_rust::coprocess::CoprocessConfig,
-    ) -> std::result::Result<par_term_emu_core_rust::coprocess::CoprocessId, String> {
-        let pty = self.pty_session.lock();
-        pty.start_coprocess(config)
-    }
-
-    pub fn stop_coprocess(
-        &self,
-        id: par_term_emu_core_rust::coprocess::CoprocessId,
-    ) -> std::result::Result<(), String> {
-        let pty = self.pty_session.lock();
-        pty.stop_coprocess(id)
-    }
-
-    pub fn coprocess_status(
-        &self,
-        id: par_term_emu_core_rust::coprocess::CoprocessId,
-    ) -> Option<bool> {
-        let pty = self.pty_session.lock();
-        pty.coprocess_status(id)
-    }
-
-    pub fn read_from_coprocess(
-        &self,
-        id: par_term_emu_core_rust::coprocess::CoprocessId,
-    ) -> std::result::Result<Vec<String>, String> {
-        let pty = self.pty_session.lock();
-        pty.read_from_coprocess(id)
-    }
-
-    pub fn list_coprocesses(&self) -> Vec<par_term_emu_core_rust::coprocess::CoprocessId> {
-        let pty = self.pty_session.lock();
-        pty.list_coprocesses()
-    }
-
-    pub fn read_coprocess_errors(
-        &self,
-        id: par_term_emu_core_rust::coprocess::CoprocessId,
-    ) -> std::result::Result<Vec<String>, String> {
-        let pty = self.pty_session.lock();
-        pty.read_coprocess_errors(id)
     }
 }
 

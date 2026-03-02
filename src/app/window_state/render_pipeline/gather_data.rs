@@ -1,29 +1,67 @@
 //! Terminal-state snapshot for one render frame.
 //!
 //! `gather_render_data` is the first substantive step of every render cycle.
-//! It locks the active terminal (or falls back to cached cells), builds the
-//! cell grid, runs the prettifier pipeline, detects URLs, applies search
-//! highlights, and returns a `FrameRenderData` snapshot that the rest of the
-//! render pipeline consumes.
+//! It assembles a `FrameRenderData` by coordinating helpers from three
+//! focused sub-modules:
+//!
+//! - `viewport`: `gather_viewport_sizing`, `resolve_cursor_shader_hide`
+//! - `tab_snapshot`: `extract_tab_cells` / `TabCellsSnapshot`
+//! - (this module): prettifier pipeline feed, URL detection, search highlights,
+//!   scrollback marks, window title update, cursor blink
+//!
+//! # R-48: Residual Complexity Note
+//!
+//! After the Wave 3 extraction (`viewport.rs`, `tab_snapshot.rs`), this module
+//! retains ~700 lines driven by shared local variables that prevent clean
+//! sub-function extraction without significant restructuring:
+//!
+//! - `cells`, `current_generation`, `scroll_offset`, `scrollback_len` are
+//!   computed early and consumed/mutated by every downstream phase.
+//! - The prettifier pipeline phases borrow `tab.prettifier` mutably while
+//!   other phases access the focused pane's cache via `tab.pane_manager` —
+//!   distinct struct fields, so NLL allows simultaneous borrows (R-32).
+//!
+//! ## Proposed `ClaudeCodePrettifierBridge` struct (future extraction)
+//!
+//! The Claude Code-specific prettifier logic (heuristic session detection,
+//! viewport hashing, action-bullet segmentation, segment preprocessing) is
+//! the densest block in this file (~200 lines, line ~260–465). It could be
+//! encapsulated in a dedicated struct that takes the shared variables as
+//! constructor arguments, reducing the borrow-checker surface:
+//!
+//! ```ignore
+//! /// Encapsulates per-frame Claude Code viewport → prettifier pipeline interaction.
+//! struct ClaudeCodePrettifierBridge<'a> {
+//!     pipeline: &'a mut PrettifierPipeline,
+//!     cells: &'a [TermCell],
+//!     visible_lines: usize,
+//!     grid_cols: usize,
+//!     scrollback_len: usize,
+//!     scroll_offset: usize,
+//!     cache: &'a mut RenderCache,
+//! }
+//!
+//! impl<'a> ClaudeCodePrettifierBridge<'a> {
+//!     fn detect_session(&mut self) -> bool { ... }
+//!     fn compute_viewport_hash(&self) -> u64 { ... }
+//!     fn segment_and_submit(&mut self) { ... }
+//! }
+//! ```
+//!
+//! Extraction is deferred as a follow-on to R-32 and is a prerequisite of
+//! R-31 (gpu_submit stabilization).
 
-use super::super::{preprocess_claude_code_segment, reconstruct_markdown_from_cells};
 use super::FrameRenderData;
+use super::claude_code_bridge::ClaudeCodePrettifierBridge;
+use super::tab_snapshot;
 use crate::app::window_state::WindowState;
-use crate::config::CursorStyle;
-use crate::selection::SelectionMode;
-use par_term_emu_core_rust::cursor::CursorStyle as TermCursorStyle;
 use std::sync::Arc;
 
 impl WindowState {
     /// Gather all data needed for this render frame.
     /// Returns None if rendering should be skipped (no renderer, no active tab, terminal locked, etc.)
     pub(super) fn gather_render_data(&mut self) -> Option<FrameRenderData> {
-        let (renderer_size, visible_lines, grid_cols) = if let Some(renderer) = &self.renderer {
-            let (cols, rows) = renderer.grid_size();
-            (renderer.size(), rows, cols)
-        } else {
-            return None;
-        };
+        let (renderer_size, visible_lines, grid_cols) = self.gather_viewport_sizing()?;
 
         // Get active tab's terminal and immediate state snapshots (avoid long borrows)
         let (
@@ -62,139 +100,23 @@ impl WindowState {
             true // Assume running if locked
         };
 
-        // Get scroll offset and selection from active tab
+        // Extract terminal cells using the focused tab_snapshot helper.
+        let snap = self.extract_tab_cells(tab_snapshot::TabCellsParams {
+            scroll_offset,
+            mouse_selection,
+            cache_cells,
+            cache_generation,
+            cache_scroll_offset,
+            cache_cursor_pos,
+            cache_selection,
+            terminal: terminal.clone(),
+        })?;
 
-        // Get terminal cells for rendering (with dirty tracking optimization)
-        // Also capture alt screen state to disable cursor shader for TUI apps
-        let (mut cells, current_cursor_pos, cursor_style, is_alt_screen, current_generation) =
-            if let Ok(term) = terminal.try_write() {
-                // Get current generation to check if terminal content has changed
-                let current_generation = term.update_generation();
-
-                // Normalize selection if it exists and extract mode
-                let (selection, rectangular) = if let Some(sel) = mouse_selection {
-                    (
-                        Some(sel.normalized()),
-                        sel.mode == SelectionMode::Rectangular,
-                    )
-                } else {
-                    (None, false)
-                };
-
-                // Get cursor position and opacity (only show if we're at the bottom with no scroll offset
-                // and the cursor is visible - TUI apps hide cursor via DECTCEM escape sequence)
-                // If lock_cursor_visibility is enabled, ignore the terminal's visibility state
-                // In copy mode, use the copy mode cursor position instead
-                let cursor_visible = self.config.lock_cursor_visibility || term.is_cursor_visible();
-                let current_cursor_pos = if self.copy_mode.active {
-                    self.copy_mode.screen_cursor_pos(scroll_offset)
-                } else if scroll_offset == 0 && cursor_visible {
-                    Some(term.cursor_position())
-                } else {
-                    None
-                };
-
-                let cursor = current_cursor_pos.map(|pos| (pos, self.cursor_anim.cursor_opacity));
-
-                // Get cursor style for geometric rendering
-                // In copy mode, always use SteadyBlock for clear visibility
-                // If lock_cursor_style is enabled, use the config's cursor style instead of terminal's
-                // If lock_cursor_blink is enabled and cursor_blink is false, force steady cursor
-                let cursor_style = if self.copy_mode.active && current_cursor_pos.is_some() {
-                    Some(TermCursorStyle::SteadyBlock)
-                } else if current_cursor_pos.is_some() {
-                    if self.config.lock_cursor_style {
-                        // Convert config cursor style to terminal cursor style
-                        let style = if self.config.cursor_blink {
-                            match self.config.cursor_style {
-                                CursorStyle::Block => TermCursorStyle::BlinkingBlock,
-                                CursorStyle::Beam => TermCursorStyle::BlinkingBar,
-                                CursorStyle::Underline => TermCursorStyle::BlinkingUnderline,
-                            }
-                        } else {
-                            match self.config.cursor_style {
-                                CursorStyle::Block => TermCursorStyle::SteadyBlock,
-                                CursorStyle::Beam => TermCursorStyle::SteadyBar,
-                                CursorStyle::Underline => TermCursorStyle::SteadyUnderline,
-                            }
-                        };
-                        Some(style)
-                    } else {
-                        let mut style = term.cursor_style();
-                        // If blink is locked off, convert blinking styles to steady
-                        if self.config.lock_cursor_blink && !self.config.cursor_blink {
-                            style = match style {
-                                TermCursorStyle::BlinkingBlock => TermCursorStyle::SteadyBlock,
-                                TermCursorStyle::BlinkingBar => TermCursorStyle::SteadyBar,
-                                TermCursorStyle::BlinkingUnderline => {
-                                    TermCursorStyle::SteadyUnderline
-                                }
-                                other => other,
-                            };
-                        }
-                        Some(style)
-                    }
-                } else {
-                    None
-                };
-
-                log::trace!(
-                    "Cursor: pos={:?}, opacity={:.2}, style={:?}, scroll={}, visible={}",
-                    current_cursor_pos,
-                    self.cursor_anim.cursor_opacity,
-                    cursor_style,
-                    scroll_offset,
-                    term.is_cursor_visible()
-                );
-
-                // Check if we need to regenerate cells
-                // Only regenerate when content actually changes, not on every cursor blink
-                let needs_regeneration = cache_cells.is_none()
-                || current_generation != cache_generation
-                || scroll_offset != cache_scroll_offset
-                || current_cursor_pos != cache_cursor_pos // Regenerate if cursor position changed
-                || mouse_selection != cache_selection; // Regenerate if selection changed (including clearing)
-
-                let cell_gen_start = std::time::Instant::now();
-                let (cells, is_cache_hit) = if needs_regeneration {
-                    // Generate fresh cells
-                    let fresh_cells = term.get_cells_with_scrollback(
-                        scroll_offset,
-                        selection,
-                        rectangular,
-                        cursor,
-                    );
-
-                    (fresh_cells, false)
-                } else {
-                    // Cache hit: clone the Vec through the Arc (one allocation instead of two).
-                    // apply_url_underlines needs a mutable Vec, so we still need an owned copy,
-                    // but the Arc clone that extracted cache_cells from tab.cache was free.
-                    (cache_cells.as_ref().expect("window_state: cache_cells must be Some when needs_regeneration is false").as_ref().clone(), true)
-                };
-                self.debug.cache_hit = is_cache_hit;
-                self.debug.cell_gen_time = cell_gen_start.elapsed();
-
-                // Check if alt screen is active (TUI apps like vim, htop)
-                let is_alt_screen = term.is_alt_screen_active();
-
-                (
-                    cells,
-                    current_cursor_pos,
-                    cursor_style,
-                    is_alt_screen,
-                    current_generation,
-                )
-            } else if let Some(cached) = cache_cells {
-                // Terminal locked (e.g., upload in progress), use cached cells so the
-                // rest of the render pipeline (including file transfer overlay) can proceed.
-                // Unwrap the Arc: if this is the sole reference the Vec is moved for free,
-                // otherwise a clone is made (rare — only if another Arc clone is live).
-                let cached_vec = Arc::try_unwrap(cached).unwrap_or_else(|a| (*a).clone());
-                (cached_vec, cache_cursor_pos, None, false, cache_generation)
-            } else {
-                return None; // Terminal locked and no cache available, skip this frame
-            };
+        let mut cells = snap.cells;
+        let current_cursor_pos = snap.cursor_pos;
+        let cursor_style = snap.cursor_style;
+        let is_alt_screen = snap.is_alt_screen;
+        let current_generation = snap.current_generation;
 
         // --- Prettifier pipeline update ---
         // Feed terminal output changes to the prettifier, check debounce, and handle
@@ -226,40 +148,9 @@ impl WindowState {
         }
 
         // Ensure cursor visibility flag for cell renderer reflects current config every frame
-        // (so toggling "Hide default cursor" takes effect immediately even if no other changes)
-        // Resolve hides_cursor: per-shader override -> metadata defaults -> global config
-        let resolved_hides_cursor = self
-            .config
-            .cursor_shader
-            .as_ref()
-            .and_then(|name| self.config.cursor_shader_configs.get(name))
-            .and_then(|override_cfg| override_cfg.hides_cursor)
-            .or_else(|| {
-                self.config
-                    .cursor_shader
-                    .as_ref()
-                    .and_then(|name| self.shader_state.cursor_shader_metadata_cache.get(name))
-                    .and_then(|meta| meta.defaults.hides_cursor)
-            })
-            .unwrap_or(self.config.cursor_shader_hides_cursor);
-        // Resolve disable_in_alt_screen: per-shader override -> metadata defaults -> global config
-        let resolved_disable_in_alt_screen = self
-            .config
-            .cursor_shader
-            .as_ref()
-            .and_then(|name| self.config.cursor_shader_configs.get(name))
-            .and_then(|override_cfg| override_cfg.disable_in_alt_screen)
-            .or_else(|| {
-                self.config
-                    .cursor_shader
-                    .as_ref()
-                    .and_then(|name| self.shader_state.cursor_shader_metadata_cache.get(name))
-                    .and_then(|meta| meta.defaults.disable_in_alt_screen)
-            })
-            .unwrap_or(self.config.cursor_shader_disable_in_alt_screen);
-        let hide_cursor_for_shader = self.config.cursor_shader_enabled
-            && resolved_hides_cursor
-            && !(resolved_disable_in_alt_screen && is_alt_screen);
+        // (so toggling "Hide default cursor" takes effect immediately even if no other changes).
+        // Use the focused viewport helper to resolve hide-cursor state.
+        let hide_cursor_for_shader = self.resolve_cursor_shader_hide(is_alt_screen);
         if let Some(renderer) = &mut self.renderer {
             renderer.set_cursor_hidden_for_shader(hide_cursor_for_shader);
         }
@@ -352,15 +243,32 @@ impl WindowState {
                         command,
                         absolute_line,
                     } => {
-                        // Use tab.cache directly: prettifier is tab-level, accessing
-                        // active_cache_mut() while tab.prettifier is borrowed would conflict.
-                        tab.cache.prettifier_command_start_line = Some(*absolute_line);
-                        tab.cache.prettifier_command_text = Some(command.clone());
+                        // Access the focused pane's cache directly (R-32).
+                        // `tab.prettifier` is borrowed as `pipeline` above; `tab.pane_manager`
+                        // is a distinct struct field so NLL allows both borrows simultaneously.
+                        if let Some(ref mut pm) = tab.pane_manager
+                            && let Some(pane) = pm.focused_pane_mut()
+                        {
+                            pane.cache.prettifier_command_start_line = Some(*absolute_line);
+                            pane.cache.prettifier_command_text = Some(command.clone());
+                        }
                         pipeline.on_command_start(command);
                     }
                     par_term_terminal::ShellLifecycleEvent::CommandFinished { absolute_line } => {
-                        if let Some(start) = tab.cache.prettifier_command_start_line.take() {
-                            let cmd_text = tab.cache.prettifier_command_text.take();
+                        // Extract the cached start line and command text from the focused pane.
+                        // `tab.pane_manager` is a distinct field from `tab.prettifier` (borrowed
+                        // as `pipeline` above) — NLL permits the simultaneous borrows.
+                        let (start, cmd_text) = if let Some(ref mut pm) = tab.pane_manager
+                            && let Some(pane) = pm.focused_pane_mut()
+                        {
+                            (
+                                pane.cache.prettifier_command_start_line.take(),
+                                pane.cache.prettifier_command_text.take(),
+                            )
+                        } else {
+                            (None, None)
+                        };
+                        if let Some(start) = start {
                             // Read full command output from scrollback so the
                             // prettified block covers the entire output, not just
                             // the visible portion. This ensures scrolling through
@@ -393,228 +301,61 @@ impl WindowState {
         // from scrollback on CommandFinished instead.
         //
         // Note: We check the cache conditions first (before borrowing `pipeline`) to avoid
-        // simultaneous borrow conflicts between `tab.prettifier` and `tab.active_cache_mut()`.
-        // The prettifier is a tab-level concept so we access tab.cache directly here.
+        // simultaneous borrow conflicts between `tab.prettifier` and the focused pane cache.
+        // After R-32, per-pane cache is accessed via `tab.pane_manager` (a distinct field from
+        // `tab.prettifier`), so NLL permits simultaneous borrows inside the pipeline block.
         if let Some(tab) = self.tab_manager.active_tab_mut() {
             // Check conditions that don't need pipeline borrow
             let needs_feed = tab.prettifier.as_ref().is_some_and(|p| p.is_enabled())
                 && !is_alt_screen
-                && (current_generation != tab.cache.prettifier_feed_generation
-                    || scroll_offset != tab.cache.prettifier_feed_scroll_offset);
+                && (current_generation != tab.active_cache().prettifier_feed_generation
+                    || scroll_offset != tab.active_cache().prettifier_feed_scroll_offset);
 
             if needs_feed
                 && let Some(ref mut pipeline) = tab.prettifier
                 && pipeline.detection_scope()
                     != crate::prettifier::boundary::DetectionScope::CommandOutput
             {
-                tab.cache.prettifier_feed_generation = current_generation;
-                tab.cache.prettifier_feed_scroll_offset = scroll_offset;
-
-                // Heuristic Claude Code session detection from visible output.
-                // One-time: scan for signature patterns if not yet detected.
-                if !pipeline.claude_code().is_active() {
-                    'detect: for row_idx in 0..visible_lines {
-                        let start = row_idx * grid_cols;
-                        let end = (start + grid_cols).min(cells.len());
-                        if start >= cells.len() {
-                            break;
-                        }
-                        let row_text: String = cells[start..end]
-                            .iter()
-                            .map(|c| {
-                                let g = c.grapheme.as_str();
-                                if g.is_empty() || g == "\0" { " " } else { g }
-                            })
-                            .collect();
-                        // Look for Claude Code signature patterns in output.
-                        if row_text.contains("Claude Code")
-                            || row_text.contains("claude.ai/code")
-                            || row_text.contains("Tips for getting the best")
-                            || (row_text.contains("Model:")
-                                && (row_text.contains("Opus")
-                                    || row_text.contains("Sonnet")
-                                    || row_text.contains("Haiku")))
-                        {
-                            crate::debug_info!(
-                                "PRETTIFIER",
-                                "Claude Code session detected from output heuristic"
-                            );
-                            pipeline.mark_claude_code_active();
-                            break 'detect;
-                        }
-                    }
+                // Update the focused pane's cache feed tracking fields.
+                // `tab.prettifier` is borrowed above as `pipeline`; `tab.pane_manager`
+                // is a distinct struct field — NLL allows the simultaneous borrows.
+                if let Some(ref mut pm) = tab.pane_manager
+                    && let Some(pane) = pm.focused_pane_mut()
+                {
+                    pane.cache.prettifier_feed_generation = current_generation;
+                    pane.cache.prettifier_feed_scroll_offset = scroll_offset;
                 }
 
-                let is_claude_session = pipeline.claude_code().is_active();
-
-                if is_claude_session {
-                    // Clear blocks when visible content changes. Claude Code
-                    // rewrites the screen in-place (e.g., permission prompts,
-                    // progress updates) without growing scrollback, so we hash
-                    // a sample of visible rows to detect viewport-level changes.
-                    let viewport_hash = {
-                        use std::hash::{Hash, Hasher};
-                        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-                        // Sample every 4th row for speed; enough to catch redraws.
-                        for row_idx in (0..visible_lines).step_by(4) {
-                            let start = row_idx * grid_cols;
-                            let end = (start + grid_cols).min(cells.len());
-                            if start >= cells.len() {
-                                break;
-                            }
-                            for c in &cells[start..end] {
-                                c.grapheme.as_str().hash(&mut hasher);
-                            }
-                        }
-                        scrollback_len.hash(&mut hasher);
-                        scroll_offset.hash(&mut hasher);
-                        hasher.finish()
-                    };
-                    let viewport_changed = viewport_hash != tab.cache.prettifier_feed_last_hash;
-                    if viewport_changed {
-                        tab.cache.prettifier_feed_last_hash = viewport_hash;
-                        if !pipeline.active_blocks().is_empty() {
-                            pipeline.clear_blocks();
-                            crate::debug_log!(
-                                "PRETTIFIER",
-                                "CC viewport changed, cleared all blocks"
-                            );
-                        }
-                    }
-
-                    // Claude Code session: segment the viewport by action bullets
-                    // (⏺) and collapse markers. Each segment is submitted independently
-                    // so detection sees focused content blocks rather than the entire
-                    // viewport (which mixes UI chrome with markdown and causes false
-                    // positives). Deduplication in handle_block prevents duplicates.
-                    pipeline.reset_boundary();
-
-                    crate::debug_log!(
-                        "PRETTIFIER",
-                        "per-frame feed (CC): scanning {} visible lines, viewport_changed={}, scrollback={}, scroll_offset={}",
+                // Delegate Claude Code session detection, viewport hashing, and
+                // segment submission to `ClaudeCodePrettifierBridge`.
+                // `tab.prettifier` is borrowed above as `pipeline`; `tab.pane_manager`
+                // is a distinct struct field — NLL permits the simultaneous borrows.
+                let is_claude_session = {
+                    let mut bridge = ClaudeCodePrettifierBridge {
+                        pipeline,
+                        pane_manager: &mut tab.pane_manager,
+                        cells: &cells,
                         visible_lines,
-                        viewport_changed,
+                        grid_cols,
                         scrollback_len,
-                        scroll_offset
-                    );
-
-                    // Collect all rows with raw + reconstructed text.
-                    let mut rows: Vec<(String, String, usize)> = Vec::new(); // (raw, recon, abs_row)
-
-                    for row_idx in 0..visible_lines {
-                        let absolute_row = scrollback_len.saturating_sub(scroll_offset) + row_idx;
-                        let start = row_idx * grid_cols;
-                        let end = (start + grid_cols).min(cells.len());
-                        if start >= cells.len() {
-                            break;
+                        scroll_offset,
+                    };
+                    bridge.detect_session();
+                    let active = bridge.pipeline.claude_code().is_active();
+                    if active {
+                        let viewport_hash = bridge.compute_viewport_hash();
+                        let cached_hash = bridge.cached_viewport_hash();
+                        let viewport_changed = viewport_hash != cached_hash;
+                        if viewport_changed {
+                            bridge.store_viewport_hash(viewport_hash);
                         }
-
-                        let row_text: String = cells[start..end]
-                            .iter()
-                            .map(|c| {
-                                let g = c.grapheme.as_str();
-                                if g.is_empty() || g == "\0" { " " } else { g }
-                            })
-                            .collect();
-
-                        let line = reconstruct_markdown_from_cells(&cells[start..end]);
-                        rows.push((row_text, line, absolute_row));
+                        bridge.segment_and_submit(viewport_changed);
                     }
+                    active
+                    // bridge is dropped here, releasing borrows on pipeline and pane_manager
+                };
 
-                    // Split into segments at action bullets (⏺) and collapse markers.
-                    // Each segment is the content between two boundaries.
-                    let mut segments: Vec<Vec<(String, usize)>> = Vec::new();
-                    let mut current: Vec<(String, usize)> = Vec::new();
-
-                    for (raw, recon, abs_row) in &rows {
-                        let trimmed = raw.trim();
-                        // Collapse markers — boundary, include the line in the
-                        // preceding segment so row alignment is preserved (skipping
-                        // it would cause the overlay to render wrong content at this row).
-                        if raw.contains("(ctrl+o to expand)") {
-                            current.push((recon.clone(), *abs_row));
-                            segments.push(std::mem::take(&mut current));
-                            continue;
-                        }
-                        // Action bullets (⏺) start a new segment
-                        if trimmed.starts_with('⏺') || trimmed.starts_with("● ") {
-                            if !current.is_empty() {
-                                segments.push(std::mem::take(&mut current));
-                            }
-                            // Include this line in the new segment
-                            current.push((recon.clone(), *abs_row));
-                            continue;
-                        }
-                        // Horizontal rules (─────) are boundaries
-                        if trimmed.len() > 10 && trimmed.chars().all(|c| c == '─' || c == '━') {
-                            if !current.is_empty() {
-                                segments.push(std::mem::take(&mut current));
-                            }
-                            continue;
-                        }
-                        current.push((recon.clone(), *abs_row));
-                    }
-                    if !current.is_empty() {
-                        segments.push(current);
-                    }
-
-                    crate::debug_log!(
-                        "PRETTIFIER",
-                        "CC segmentation: {} total rows -> {} segments",
-                        rows.len(),
-                        segments.len()
-                    );
-
-                    // Submit each segment that has enough content for detection.
-                    // Short segments (tool call one-liners) are skipped.
-                    // The pipeline's handle_block() deduplicates by content hash,
-                    // so resubmitting the same segment on successive frames is cheap.
-                    let min_segment_lines = 5;
-                    let mut submitted = 0usize;
-                    let mut skipped_short = 0usize;
-                    let mut skipped_empty = 0usize;
-                    for mut segment in segments {
-                        let non_empty =
-                            segment.iter().filter(|(l, _)| !l.trim().is_empty()).count();
-                        if non_empty < min_segment_lines {
-                            skipped_short += 1;
-                            continue;
-                        }
-
-                        let pre_len = segment.len();
-                        preprocess_claude_code_segment(&mut segment);
-                        if segment.is_empty() {
-                            skipped_empty += 1;
-                            continue;
-                        }
-
-                        crate::debug_log!(
-                            "PRETTIFIER",
-                            "CC segment: {} lines (was {} before preprocess), rows={}..{}, first={:?}",
-                            segment.len(),
-                            pre_len,
-                            segment.first().map(|(_, r)| *r).unwrap_or(0),
-                            segment.last().map(|(_, r)| *r + 1).unwrap_or(0),
-                            segment
-                                .first()
-                                .map(|(l, _)| &l[..l.floor_char_boundary(60)])
-                        );
-
-                        submitted += 1;
-                        pipeline.submit_command_output(
-                            std::mem::take(&mut segment),
-                            Some("claude".to_string()),
-                        );
-                    }
-
-                    crate::debug_log!(
-                        "PRETTIFIER",
-                        "CC segmentation complete: submitted={}, skipped_short={}, skipped_empty={}",
-                        submitted,
-                        skipped_short,
-                        skipped_empty
-                    );
-                } else {
+                if !is_claude_session {
                     // Non-Claude session: submit the entire visible content as a
                     // single block. This gives the detector full context (avoids
                     // splitting markdown at blank lines) and reduces block churn.
@@ -660,14 +401,28 @@ impl WindowState {
                             hasher.finish()
                         };
 
-                        if content_hash == tab.cache.prettifier_feed_last_hash {
+                        // R-32: read/write the focused pane's cache via tab.pane_manager
+                        // (distinct field from tab.prettifier/pipeline — NLL allows it).
+                        let cached_last_hash = tab
+                            .pane_manager
+                            .as_ref()
+                            .and_then(|pm| pm.focused_pane())
+                            .map(|p| p.cache.prettifier_feed_last_hash)
+                            .unwrap_or(0);
+
+                        if content_hash == cached_last_hash {
                             // Identical content — skip entirely.
                             crate::debug_trace!(
                                 "PRETTIFIER",
                                 "per-frame feed (non-CC): content unchanged, skipping"
                             );
                         } else {
-                            let elapsed = tab.cache.prettifier_feed_last_time.elapsed();
+                            let elapsed = tab
+                                .pane_manager
+                                .as_ref()
+                                .and_then(|pm| pm.focused_pane())
+                                .map(|p| p.cache.prettifier_feed_last_time.elapsed())
+                                .unwrap_or_default();
                             let throttle = std::time::Duration::from_millis(150);
                             let has_block = !pipeline.active_blocks().is_empty();
 
@@ -688,13 +443,18 @@ impl WindowState {
                                     scrollback_len,
                                     scroll_offset
                                 );
-                                tab.cache.prettifier_feed_last_hash = content_hash;
-                                tab.cache.prettifier_feed_last_time = std::time::Instant::now();
+                                if let Some(ref mut pm) = tab.pane_manager
+                                    && let Some(pane) = pm.focused_pane_mut()
+                                {
+                                    pane.cache.prettifier_feed_last_hash = content_hash;
+                                    pane.cache.prettifier_feed_last_time =
+                                        std::time::Instant::now();
+                                }
                                 pipeline.submit_command_output(lines, None);
                             }
                         }
                     }
-                } // end if needs_feed
+                } // end if !is_claude_session
             } // end if let Some(tab) pipeline-borrow scope
         } // end if let Some(tab) = self.tab_manager.active_tab_mut()
 
@@ -714,9 +474,7 @@ impl WindowState {
                     prettifier_block_count_before,
                     block_count_after
                 );
-                if let Some(tab) = self.tab_manager.active_tab_mut() {
-                    tab.active_cache_mut().cells = None;
-                }
+                self.invalidate_tab_cache();
             }
         }
 
@@ -762,9 +520,9 @@ impl WindowState {
         };
 
         // Append trigger-generated marks
-        if let Some(tab) = self.tab_manager.active_tab() {
-            scrollback_marks.extend(tab.trigger_marks.iter().cloned());
-        }
+        self.with_active_tab(|tab| {
+            scrollback_marks.extend(tab.scripting.trigger_marks.iter().cloned())
+        });
 
         // Keep scrollbar visible when mark indicators exist (even if no scrollback).
         if !scrollback_marks.is_empty() {
@@ -777,9 +535,9 @@ impl WindowState {
             && hovered_url.is_none()
             && terminal_title != cached_terminal_title
         {
-            if let Some(tab) = self.tab_manager.active_tab_mut() {
-                tab.active_cache_mut().terminal_title = terminal_title.clone();
-            }
+            self.with_active_tab_mut(|tab| {
+                tab.active_cache_mut().terminal_title = terminal_title.clone()
+            });
             if let Some(window) = &self.window {
                 if terminal_title.is_empty() {
                     // Restore configured title when terminal clears title
@@ -814,6 +572,9 @@ impl WindowState {
         // Update search and apply search highlighting
         if self.overlay_ui.search_ui.visible {
             // Get all searchable lines from cells (ensures consistent wide character handling)
+            // TODO(R-33): with_active_tab not applicable here — update_search requires
+            // &mut self.overlay_ui.search_ui inside the same block as the terminal lock.
+            // Would require splitting into: (1) collect lines into a Vec, then (2) update.
             if let Some(tab) = self.tab_manager.active_tab()
                 && let Ok(term) = tab.terminal.try_write()
             {

@@ -225,7 +225,7 @@ fn show_background_shader_controls(
                     .clicked()
                 {
                     settings.temp_custom_shader.clear();
-                    settings.config.custom_shader = None;
+                    settings.config.shader.custom_shader = None;
                     shader_changed = true;
                 }
 
@@ -234,7 +234,7 @@ fn show_background_shader_controls(
                     let is_selected = settings.temp_custom_shader == *shader;
                     if ui.selectable_label(is_selected, shader).clicked() {
                         settings.temp_custom_shader = shader.clone();
-                        settings.config.custom_shader = Some(shader.clone());
+                        settings.config.shader.custom_shader = Some(shader.clone());
                         shader_changed = true;
                     }
                 }
@@ -277,7 +277,7 @@ fn show_background_shader_controls(
             && let Some(path) = settings.pick_file_path("Select shader file")
         {
             settings.temp_custom_shader = path.clone();
-            settings.config.custom_shader = Some(path);
+            settings.config.shader.custom_shader = Some(path);
             settings.has_changes = true;
             *changes_this_frame = true;
         }
@@ -328,7 +328,7 @@ fn show_background_shader_controls(
 
     if ui
         .checkbox(
-            &mut settings.config.custom_shader_enabled,
+            &mut settings.config.shader.custom_shader_enabled,
             "Enable custom shader",
         )
         .changed()
@@ -339,7 +339,7 @@ fn show_background_shader_controls(
 
     if ui
         .checkbox(
-            &mut settings.config.custom_shader_animation,
+            &mut settings.config.shader.custom_shader_animation,
             "Enable shader animation",
         )
         .changed()
@@ -352,7 +352,7 @@ fn show_background_shader_controls(
         ui.label("Animation speed:");
         if ui
             .add(egui::Slider::new(
-                &mut settings.config.custom_shader_animation_speed,
+                &mut settings.config.shader.custom_shader_animation_speed,
                 0.0..=5.0,
             ))
             .changed()
@@ -398,8 +398,11 @@ fn show_background_shader_controls(
         ui.label("Shader brightness:");
         if ui
             .add(
-                egui::Slider::new(&mut settings.config.custom_shader_brightness, 0.05..=1.0)
-                    .custom_formatter(|v, _| format!("{:.0}%", v * 100.0)),
+                egui::Slider::new(
+                    &mut settings.config.shader.custom_shader_brightness,
+                    0.05..=1.0,
+                )
+                .custom_formatter(|v, _| format!("{:.0}%", v * 100.0)),
             )
             .on_hover_text("Dim the shader background to improve text readability")
             .changed()
@@ -413,7 +416,7 @@ fn show_background_shader_controls(
         ui.label("Shader text opacity:");
         if ui
             .add(egui::Slider::new(
-                &mut settings.config.custom_shader_text_opacity,
+                &mut settings.config.shader.custom_shader_text_opacity,
                 0.0..=1.0,
             ))
             .changed()
@@ -425,7 +428,7 @@ fn show_background_shader_controls(
 
     if ui
     .checkbox(
-        &mut settings.config.custom_shader_full_content,
+        &mut settings.config.shader.custom_shader_full_content,
         "Full content mode",
     )
     .on_hover_text("When enabled, shader receives and can manipulate the full terminal content (text + background). When disabled, shader only provides background and text is composited cleanly on top.")
@@ -475,7 +478,7 @@ fn show_background_shader_controls(
     ui.add_space(8.0);
     if ui
     .checkbox(
-        &mut settings.config.custom_shader_use_background_as_channel0,
+        &mut settings.config.shader.custom_shader_use_background_as_channel0,
         "Use background as iChannel0",
     )
     .on_hover_text(

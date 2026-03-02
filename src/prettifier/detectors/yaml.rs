@@ -88,19 +88,8 @@ pub fn register_yaml(registry: &mut RendererRegistry, config: &RenderersConfig) 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::prettifier::testing::make_block_with_command;
     use crate::prettifier::traits::ContentDetector;
-    use crate::prettifier::types::ContentBlock;
-    use std::time::SystemTime;
-
-    fn make_block(lines: &[&str], command: Option<&str>) -> ContentBlock {
-        ContentBlock {
-            lines: lines.iter().map(|s| s.to_string()).collect(),
-            preceding_command: command.map(|s| s.to_string()),
-            start_row: 0,
-            end_row: lines.len(),
-            timestamp: SystemTime::now(),
-        }
-    }
 
     #[test]
     fn test_all_rules_compile() {
@@ -111,7 +100,7 @@ mod tests {
     #[test]
     fn test_yaml_with_doc_start_and_keys() {
         let detector = create_yaml_detector();
-        let block = make_block(&["---", "name: par-term", "version: 0.16.0"], None);
+        let block = make_block_with_command(&["---", "name: par-term", "version: 0.16.0"], None);
         let result = detector.detect(&block);
         assert!(result.is_some());
         let result = result.unwrap();
@@ -123,7 +112,7 @@ mod tests {
     fn test_yaml_key_value_only() {
         let detector = create_yaml_detector();
         // key_value(0.3) + nested(0.2) = 0.5, plus list = 0.65
-        let block = make_block(
+        let block = make_block_with_command(
             &[
                 "name: my-app",
                 "config:",
@@ -141,7 +130,7 @@ mod tests {
     fn test_yaml_doc_start_alone_not_detected() {
         let detector = create_yaml_detector();
         // Only `---` matches — min_matching_rules=2 prevents detection.
-        let block = make_block(&["---", "plain text here", "nothing yaml"], None);
+        let block = make_block_with_command(&["---", "plain text here", "nothing yaml"], None);
         let result = detector.detect(&block);
         assert!(result.is_none());
     }
@@ -149,7 +138,7 @@ mod tests {
     #[test]
     fn test_not_yaml_plain_text() {
         let detector = create_yaml_detector();
-        let block = make_block(&["Hello world", "This is plain text"], None);
+        let block = make_block_with_command(&["Hello world", "This is plain text"], None);
         let result = detector.detect(&block);
         assert!(result.is_none());
     }
@@ -157,7 +146,7 @@ mod tests {
     #[test]
     fn test_not_yaml_markdown() {
         let detector = create_yaml_detector();
-        let block = make_block(&["# Title", "Some **bold** text", "- item"], None);
+        let block = make_block_with_command(&["# Title", "Some **bold** text", "- item"], None);
         // The `- item` could match yaml_list but alone it's not enough
         let result = detector.detect(&block);
         assert!(result.is_none());
@@ -166,7 +155,7 @@ mod tests {
     #[test]
     fn test_yaml_nested_keys() {
         let detector = create_yaml_detector();
-        let block = make_block(
+        let block = make_block_with_command(
             &[
                 "database:",
                 "  host: localhost",
@@ -183,7 +172,7 @@ mod tests {
     #[test]
     fn test_yaml_list_items() {
         let detector = create_yaml_detector();
-        let block = make_block(
+        let block = make_block_with_command(
             &["dependencies:", "  - serde", "  - tokio", "  - wgpu"],
             None,
         );

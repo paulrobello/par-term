@@ -131,19 +131,8 @@ pub fn register_stack_trace(registry: &mut RendererRegistry, config: &RenderersC
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::prettifier::testing::make_block_with_command;
     use crate::prettifier::traits::ContentDetector;
-    use crate::prettifier::types::ContentBlock;
-    use std::time::SystemTime;
-
-    fn make_block(lines: &[&str], command: Option<&str>) -> ContentBlock {
-        ContentBlock {
-            lines: lines.iter().map(|s| s.to_string()).collect(),
-            preceding_command: command.map(|s| s.to_string()),
-            start_row: 0,
-            end_row: lines.len(),
-            timestamp: SystemTime::now(),
-        }
-    }
 
     #[test]
     fn test_all_rules_compile() {
@@ -154,7 +143,7 @@ mod tests {
     #[test]
     fn test_java_stack_trace() {
         let detector = create_stack_trace_detector();
-        let block = make_block(
+        let block = make_block_with_command(
             &[
                 "java.lang.NullPointerException: Cannot invoke method on null",
                 "    at com.example.App.main(App.java:42)",
@@ -172,7 +161,7 @@ mod tests {
     #[test]
     fn test_python_traceback() {
         let detector = create_stack_trace_detector();
-        let block = make_block(
+        let block = make_block_with_command(
             &[
                 "Traceback (most recent call last):",
                 "  File \"app.py\", line 42, in main",
@@ -190,7 +179,7 @@ mod tests {
     #[test]
     fn test_rust_panic() {
         let detector = create_stack_trace_detector();
-        let block = make_block(
+        let block = make_block_with_command(
             &[
                 "thread 'main' panicked at 'index out of bounds: the len is 3 but the index is 5'",
                 "note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace",
@@ -206,7 +195,7 @@ mod tests {
     #[test]
     fn test_go_panic() {
         let detector = create_stack_trace_detector();
-        let block = make_block(
+        let block = make_block_with_command(
             &[
                 "goroutine 1 [running]:",
                 "main.main()",
@@ -223,7 +212,7 @@ mod tests {
     #[test]
     fn test_javascript_stack_trace() {
         let detector = create_stack_trace_detector();
-        let block = make_block(
+        let block = make_block_with_command(
             &[
                 "TypeError: Cannot read property 'x' of undefined",
                 "    at Object.main (/app/index.js:42:10)",
@@ -239,7 +228,7 @@ mod tests {
     fn test_generic_error_with_frames() {
         let detector = create_stack_trace_detector();
         // generic_error(0.4) + js_frame(0.6) >= 0.6
-        let block = make_block(
+        let block = make_block_with_command(
             &[
                 "RangeError: Maximum call stack size exceeded",
                 "    at recursive (/app/lib.js:10:5)",
@@ -253,7 +242,7 @@ mod tests {
     #[test]
     fn test_not_stack_trace_plain_text() {
         let detector = create_stack_trace_detector();
-        let block = make_block(&["Hello world", "This is plain text"], None);
+        let block = make_block_with_command(&["Hello world", "This is plain text"], None);
         let result = detector.detect(&block);
         assert!(result.is_none());
     }
@@ -296,7 +285,7 @@ mod tests {
     #[test]
     fn test_caused_by_chain() {
         let detector = create_stack_trace_detector();
-        let block = make_block(
+        let block = make_block_with_command(
             &[
                 "Exception: Database connection failed",
                 "Caused by: java.net.ConnectException: Connection refused",

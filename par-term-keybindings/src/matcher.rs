@@ -5,6 +5,7 @@
 //! (scan code-based) for language-agnostic bindings.
 
 use super::parser::{KeyCombo, Modifiers, ParsedKey};
+use crate::platform;
 use winit::event::{KeyEvent, Modifiers as WinitModifiers};
 use winit::keyboard::{Key, KeyCode, ModifiersKeyState, NamedKey, PhysicalKey};
 
@@ -315,7 +316,7 @@ impl KeybindingMatcher {
             (ParsedKey::Character(combo_char), true) => {
                 // Try to match by physical key position first
                 if let Some(physical) = self.physical_key {
-                    physical_key_matches_char(physical, *combo_char)
+                    platform::physical_key_matches_char(physical, *combo_char)
                 } else if let Some(MatchKey::Character(event_char)) = &self.key {
                     // Fall back to logical match if no physical key
                     event_char.eq_ignore_ascii_case(combo_char)
@@ -352,18 +353,11 @@ impl KeybindingMatcher {
     /// Check if modifiers match, handling CmdOrCtrl specially.
     fn modifiers_match(&self, combo_mods: &Modifiers) -> bool {
         // Handle CmdOrCtrl: on macOS it means Super, elsewhere it means Ctrl
-        let (expected_ctrl, expected_super) = if combo_mods.cmd_or_ctrl {
-            #[cfg(target_os = "macos")]
-            {
-                (combo_mods.ctrl, true) // CmdOrCtrl -> Super on macOS
-            }
-            #[cfg(not(target_os = "macos"))]
-            {
-                (true, combo_mods.super_key) // CmdOrCtrl -> Ctrl on other platforms
-            }
-        } else {
-            (combo_mods.ctrl, combo_mods.super_key)
-        };
+        let (expected_ctrl, expected_super) = platform::resolve_cmd_or_ctrl(
+            combo_mods.cmd_or_ctrl,
+            combo_mods.ctrl,
+            combo_mods.super_key,
+        );
 
         // Check each modifier
         self.modifiers.ctrl == expected_ctrl
@@ -371,64 +365,6 @@ impl KeybindingMatcher {
             && self.modifiers.shift == combo_mods.shift
             && self.modifiers.super_key == expected_super
     }
-}
-
-/// Check if a physical key code corresponds to a character on a QWERTY layout.
-///
-/// This maps physical key positions (scan codes) to the characters they produce
-/// on a US QWERTY keyboard, enabling language-agnostic keybindings.
-fn physical_key_matches_char(code: KeyCode, ch: char) -> bool {
-    let expected_char = match code {
-        KeyCode::KeyA => 'A',
-        KeyCode::KeyB => 'B',
-        KeyCode::KeyC => 'C',
-        KeyCode::KeyD => 'D',
-        KeyCode::KeyE => 'E',
-        KeyCode::KeyF => 'F',
-        KeyCode::KeyG => 'G',
-        KeyCode::KeyH => 'H',
-        KeyCode::KeyI => 'I',
-        KeyCode::KeyJ => 'J',
-        KeyCode::KeyK => 'K',
-        KeyCode::KeyL => 'L',
-        KeyCode::KeyM => 'M',
-        KeyCode::KeyN => 'N',
-        KeyCode::KeyO => 'O',
-        KeyCode::KeyP => 'P',
-        KeyCode::KeyQ => 'Q',
-        KeyCode::KeyR => 'R',
-        KeyCode::KeyS => 'S',
-        KeyCode::KeyT => 'T',
-        KeyCode::KeyU => 'U',
-        KeyCode::KeyV => 'V',
-        KeyCode::KeyW => 'W',
-        KeyCode::KeyX => 'X',
-        KeyCode::KeyY => 'Y',
-        KeyCode::KeyZ => 'Z',
-        KeyCode::Digit0 => '0',
-        KeyCode::Digit1 => '1',
-        KeyCode::Digit2 => '2',
-        KeyCode::Digit3 => '3',
-        KeyCode::Digit4 => '4',
-        KeyCode::Digit5 => '5',
-        KeyCode::Digit6 => '6',
-        KeyCode::Digit7 => '7',
-        KeyCode::Digit8 => '8',
-        KeyCode::Digit9 => '9',
-        KeyCode::Minus => '-',
-        KeyCode::Equal => '=',
-        KeyCode::BracketLeft => '[',
-        KeyCode::BracketRight => ']',
-        KeyCode::Backslash => '\\',
-        KeyCode::Semicolon => ';',
-        KeyCode::Quote => '\'',
-        KeyCode::Backquote => '`',
-        KeyCode::Comma => ',',
-        KeyCode::Period => '.',
-        KeyCode::Slash => '/',
-        _ => return false,
-    };
-    expected_char.eq_ignore_ascii_case(&ch)
 }
 
 // Note: Integration tests for KeybindingMatcher require constructing winit KeyEvent

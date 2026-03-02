@@ -14,7 +14,7 @@ impl SettingsUI {
 
             if ui
                 .checkbox(
-                    &mut self.config.ssh_auto_profile_switch,
+                    &mut self.config.ssh.ssh_auto_profile_switch,
                     "Auto-switch profile on SSH connection",
                 )
                 .changed()
@@ -34,7 +34,7 @@ impl SettingsUI {
 
             if ui
                 .checkbox(
-                    &mut self.config.ssh_revert_profile_on_disconnect,
+                    &mut self.config.ssh.ssh_revert_profile_on_disconnect,
                     "Revert profile on SSH disconnect",
                 )
                 .changed()
@@ -59,7 +59,7 @@ impl SettingsUI {
 
             if ui
                 .checkbox(
-                    &mut self.config.enable_mdns_discovery,
+                    &mut self.config.ssh.enable_mdns_discovery,
                     "Enable mDNS host discovery",
                 )
                 .changed()
@@ -77,12 +77,12 @@ impl SettingsUI {
 
             ui.horizontal(|ui| {
                 ui.label("Scan timeout (seconds):");
-                let mut timeout = self.config.mdns_scan_timeout_secs as f32;
+                let mut timeout = self.config.ssh.mdns_scan_timeout_secs as f32;
                 if ui
                     .add(egui::Slider::new(&mut timeout, 1.0..=10.0).integer())
                     .changed()
                 {
-                    self.config.mdns_scan_timeout_secs = timeout as u32;
+                    self.config.ssh.mdns_scan_timeout_secs = timeout as u32;
                     self.has_changes = true;
                     *changes_this_frame = true;
                 }
@@ -104,4 +104,28 @@ impl SettingsUI {
             );
         });
     }
+}
+
+/// Search keywords for the SSH settings tab.
+pub fn keywords() -> &'static [&'static str] {
+    &[
+        "ssh",
+        "remote",
+        "host",
+        "connect",
+        "quick connect",
+        "mdns",
+        "bonjour",
+        "discovery",
+        "auto-switch",
+        "auto switch",
+        "profile switch",
+        "hostname",
+        "known hosts",
+        // Auto-switch extras
+        "revert profile",
+        "disconnect",
+        // mDNS extras
+        "scan timeout",
+    ]
 }

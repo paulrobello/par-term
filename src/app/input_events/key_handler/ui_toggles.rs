@@ -10,7 +10,7 @@ impl WindowState {
             return false;
         }
 
-        if !self.config.ai_inspector_enabled {
+        if !self.config.ai_inspector.ai_inspector_enabled {
             return false;
         }
 
@@ -30,9 +30,7 @@ impl WindowState {
             if just_opened {
                 self.try_auto_connect_agent();
             }
-            if let Some(window) = &self.window {
-                window.request_redraw();
-            }
+            self.request_redraw();
             log::debug!(
                 "Assistant panel toggled: {}",
                 self.overlay_ui.ai_inspector.open

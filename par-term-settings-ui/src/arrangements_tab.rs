@@ -400,3 +400,26 @@ fn show_auto_restore_section(
         },
     );
 }
+
+/// Search keywords for the Arrangements settings tab.
+pub fn keywords() -> &'static [&'static str] {
+    &[
+        "arrangement",
+        "arrangements",
+        "layout",
+        "workspace",
+        "save",
+        "restore",
+        "monitor",
+        "window layout",
+        "auto-restore",
+        // Arrangement management
+        "rename",
+        "delete",
+        "reorder",
+        "move up",
+        "move down",
+        "overwrite",
+        "startup",
+    ]
+}

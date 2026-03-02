@@ -38,7 +38,7 @@ impl WindowState {
         // Marks in scrollback (line < current_scrollback_len) are historical and
         // must be preserved since the trigger scanner only scans the visible grid.
         let trigger_ids_in_batch: Vec<u64> = pending_marks.keys().copied().collect();
-        tab.trigger_marks.retain(|m| {
+        tab.scripting.trigger_marks.retain(|m| {
             if let Some(tid) = m.trigger_id
                 && trigger_ids_in_batch.contains(&tid)
             {
@@ -74,7 +74,8 @@ impl WindowState {
                     absolute_line,
                     label
                 );
-                tab.trigger_marks
+                tab.scripting
+                    .trigger_marks
                     .push(crate::scrollback_metadata::ScrollbackMark {
                         line: absolute_line,
                         exit_code: None,

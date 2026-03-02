@@ -101,7 +101,7 @@ impl WindowState {
             for pane_id in &pane_ids {
                 // Check if any tab has this tmux_pane_id set
                 for tab in self.tab_manager.tabs() {
-                    if tab.tmux_pane_id == Some(*pane_id) {
+                    if tab.tmux.tmux_pane_id == Some(*pane_id) {
                         found_tab_id = Some(tab.id);
                         crate::debug_info!(
                             "TMUX",
@@ -541,8 +541,8 @@ impl WindowState {
                         pane_mappings.len()
                     );
 
-                    if !pane_ids.is_empty() && tab.tmux_pane_id.is_none() {
-                        tab.tmux_pane_id = Some(pane_ids[0]);
+                    if !pane_ids.is_empty() && tab.tmux.tmux_pane_id.is_none() {
+                        tab.tmux.tmux_pane_id = Some(pane_ids[0]);
                     }
 
                     self.request_pane_refresh(pane_ids);
@@ -555,15 +555,15 @@ impl WindowState {
                         tab_id,
                         e
                     );
-                    if !pane_ids.is_empty() && tab.tmux_pane_id.is_none() {
-                        tab.tmux_pane_id = Some(pane_ids[0]);
+                    if !pane_ids.is_empty() && tab.tmux.tmux_pane_id.is_none() {
+                        tab.tmux.tmux_pane_id = Some(pane_ids[0]);
                     }
                 }
             }
         } else {
             // No pane manager - use legacy routing
-            if !pane_ids.is_empty() && tab.tmux_pane_id.is_none() {
-                tab.tmux_pane_id = Some(pane_ids[0]);
+            if !pane_ids.is_empty() && tab.tmux.tmux_pane_id.is_none() {
+                tab.tmux.tmux_pane_id = Some(pane_ids[0]);
                 crate::debug_info!(
                     "TMUX",
                     "Set tab {} tmux_pane_id to %{} for output routing (no pane manager)",

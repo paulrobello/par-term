@@ -155,3 +155,76 @@ fn show_inline_images(
         },
     );
 }
+
+/// Search keywords for the Effects settings tab.
+pub fn keywords() -> &'static [&'static str] {
+    &[
+        // Background
+        "background",
+        "background mode",
+        "background image",
+        "background color",
+        "image",
+        "image mode",
+        "fit",
+        "fill",
+        "stretch",
+        "tile",
+        "center",
+        // Background shader
+        "shader",
+        "custom shader",
+        "animation",
+        "animation speed",
+        "hot reload",
+        "brightness",
+        "text opacity",
+        "full content",
+        // Shader channels
+        "channel",
+        "ichannel",
+        "texture",
+        "cubemap",
+        // Inline images
+        "inline image",
+        "sixel",
+        "iterm",
+        "kitty",
+        "scaling",
+        "aspect ratio",
+        "nearest",
+        "linear",
+        // Cursor shader
+        "cursor shader",
+        "cursor effect",
+        "trail",
+        "trail duration",
+        "glow",
+        "glow radius",
+        "glow intensity",
+        "hides cursor",
+        "alt screen",
+        // Per-pane background
+        "per-pane background",
+        "pane image",
+        "split background",
+        "per pane",
+        "darken",
+        "pane darken",
+        // Hot reload extras
+        "hot reload delay",
+        "reload delay",
+        // Shader overrides
+        "per-shader",
+        "shader override",
+        "shader defaults",
+        // Cubemap extras
+        "cubemap enabled",
+        "enable cubemap",
+        // Per-pane extras
+        "identify panes",
+        // Background as texture
+        "background as ichannel",
+        "background as texture",
+    ]
+}

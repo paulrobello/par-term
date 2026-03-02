@@ -24,6 +24,15 @@ struct SixelInstance {
     _padding: f32,        // Padding to align to 16 bytes
 }
 
+/// Window and pane geometry for a single [`GraphicsRenderer::render_for_pane`] call.
+#[derive(Debug, Clone, Copy)]
+pub struct PaneRenderGeometry {
+    pub window_width: f32,
+    pub window_height: f32,
+    pub pane_origin_x: f32,
+    pub pane_origin_y: f32,
+}
+
 /// Parameters describing a single inline graphic to render.
 ///
 /// Passed as a slice to [`GraphicsRenderer::render`] and
@@ -542,22 +551,20 @@ impl GraphicsRenderer {
     /// * `window_height` - Window height in pixels
     /// * `pane_origin_x` - X pixel coordinate of the pane's content origin
     /// * `pane_origin_y` - Y pixel coordinate of the pane's content origin
-    // Too many arguments: the GPU render call requires device, queue, render pass, and
-    // pane geometry all at once because they cannot be held across the render pass borrow.
-    // Grouping geometry into a struct is deferred since this function is called from a
-    // single render pipeline step.
-    #[allow(clippy::too_many_arguments)]
     pub fn render_for_pane(
         &mut self,
         device: &Device,
         queue: &Queue,
         render_pass: &mut RenderPass,
         graphics: &[GraphicRenderInfo],
-        window_width: f32,
-        window_height: f32,
-        pane_origin_x: f32,
-        pane_origin_y: f32,
+        pane_geometry: PaneRenderGeometry,
     ) -> Result<(), RenderError> {
+        let PaneRenderGeometry {
+            window_width,
+            window_height,
+            pane_origin_x,
+            pane_origin_y,
+        } = pane_geometry;
         if graphics.is_empty() {
             return Ok(());
         }

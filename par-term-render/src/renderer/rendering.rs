@@ -6,187 +6,22 @@ use super::{
     compute_visible_separator_marks,
 };
 
+// `Renderer::render` (the main single-pane entry point) lives in `render_orchestrator.rs`.
+// This file retains the multi-pane frame-level helpers: `render_panes`, `render_split_panes`,
+// and `take_screenshot`.
+
+/// Parameters for [`Renderer::render_split_panes`].
+pub struct SplitPanesRenderParams<'a> {
+    pub panes: &'a [PaneRenderInfo<'a>],
+    pub dividers: &'a [DividerRenderInfo],
+    pub pane_titles: &'a [PaneTitleInfo],
+    pub focused_viewport: Option<&'a PaneViewport>,
+    pub divider_settings: &'a PaneDividerSettings,
+    pub egui_data: Option<(egui::FullOutput, &'a egui::Context)>,
+    pub force_egui_opaque: bool,
+}
+
 impl Renderer {
-    /// Render a frame with optional egui overlay
-    /// Returns true if rendering was performed, false if skipped
-    pub fn render(
-        &mut self,
-        egui_data: Option<(egui::FullOutput, &egui::Context)>,
-        force_egui_opaque: bool,
-        show_scrollbar: bool,
-        pane_background: Option<&par_term_config::PaneBackground>,
-    ) -> Result<bool> {
-        // Custom shader animation forces continuous rendering
-        let force_render = self.needs_continuous_render();
-
-        // Fast path: when nothing changed, render cells from cached buffers + egui overlay
-        // This skips expensive shader passes, sixel uploads, etc.
-        if !self.dirty && !force_render {
-            if let Some((egui_output, egui_ctx)) = egui_data {
-                let surface_texture = self.cell_renderer.render(show_scrollbar, pane_background)?;
-                self.cell_renderer
-                    .render_overlays(&surface_texture, show_scrollbar)?;
-                self.render_egui(&surface_texture, egui_output, egui_ctx, force_egui_opaque)?;
-                surface_texture.present();
-                return Ok(true);
-            }
-            return Ok(false);
-        }
-
-        // Check if shaders are enabled
-        let has_custom_shader = self.custom_shader_renderer.is_some();
-        // Only use cursor shader if it's enabled and not disabled for alt screen
-        let use_cursor_shader =
-            self.cursor_shader_renderer.is_some() && !self.cursor_shader_disabled_for_alt_screen;
-
-        // Cell renderer renders terminal content
-        let t1 = std::time::Instant::now();
-        let surface_texture = if has_custom_shader {
-            // When custom shader is enabled, always skip rendering background image
-            // to the intermediate texture. The shader controls the background:
-            // - If user wants background image in shader, enable use_background_as_channel0
-            // - Otherwise, the shader's own effects provide the background
-            // This prevents the background image from being treated as "terminal content"
-            // and passed through unchanged by the shader.
-
-            // Render terminal to intermediate texture for background shader
-            self.cell_renderer.render_to_texture(
-                self.custom_shader_renderer
-                    .as_ref()
-                    .expect("Custom shader renderer must be Some when use_custom_shader is true")
-                    .intermediate_texture_view(),
-                true, // Always skip background image - shader handles background
-            )?
-        } else if use_cursor_shader {
-            // Render terminal to intermediate texture for cursor shader
-            // Skip background image - it will be handled via iBackgroundColor uniform
-            // or passed as iChannel0. This ensures proper opacity handling.
-            self.cell_renderer.render_to_texture(
-                self.cursor_shader_renderer
-                    .as_ref()
-                    .expect("Cursor shader renderer must be Some when use_cursor_shader is true")
-                    .intermediate_texture_view(),
-                true, // Skip background image - shader handles it
-            )?
-        } else {
-            // Render directly to surface (no shaders, or cursor shader disabled for alt screen)
-            // Note: scrollbar is rendered separately after egui so it appears on top
-            self.cell_renderer.render(show_scrollbar, pane_background)?
-        };
-        let cell_render_time = t1.elapsed();
-
-        // Apply background custom shader if enabled
-        let t_custom = std::time::Instant::now();
-        let custom_shader_time = if let Some(ref mut custom_shader) = self.custom_shader_renderer {
-            if use_cursor_shader {
-                // Background shader renders to cursor shader's intermediate texture
-                // Don't apply opacity here - cursor shader will apply it when rendering to surface
-                custom_shader.render(
-                    self.cell_renderer.device(),
-                    self.cell_renderer.queue(),
-                    self.cursor_shader_renderer
-                        .as_ref()
-                        .expect(
-                            "Cursor shader renderer must be Some when use_cursor_shader is true",
-                        )
-                        .intermediate_texture_view(),
-                    false, // Don't apply opacity - cursor shader will do it
-                )?;
-            } else {
-                // Background shader renders directly to surface
-                // (cursor shader disabled for alt screen or not configured)
-                let surface_view = surface_texture
-                    .texture
-                    .create_view(&wgpu::TextureViewDescriptor::default());
-                custom_shader.render(
-                    self.cell_renderer.device(),
-                    self.cell_renderer.queue(),
-                    &surface_view,
-                    true, // Apply opacity - this is the final render
-                )?;
-            }
-            t_custom.elapsed()
-        } else {
-            std::time::Duration::ZERO
-        };
-
-        // Apply cursor shader if enabled (skip when alt screen is active for TUI apps)
-        let t_cursor = std::time::Instant::now();
-        let cursor_shader_time = if use_cursor_shader {
-            log::trace!("Rendering cursor shader");
-            let cursor_shader = self
-                .cursor_shader_renderer
-                .as_mut()
-                .expect("Cursor shader renderer must be Some when use_cursor_shader is true");
-            let surface_view = surface_texture
-                .texture
-                .create_view(&wgpu::TextureViewDescriptor::default());
-
-            cursor_shader.render(
-                self.cell_renderer.device(),
-                self.cell_renderer.queue(),
-                &surface_view,
-                true, // Apply opacity - this is the final render to surface
-            )?;
-            t_cursor.elapsed()
-        } else {
-            if self.cursor_shader_disabled_for_alt_screen {
-                log::trace!("Skipping cursor shader - alt screen active");
-            }
-            std::time::Duration::ZERO
-        };
-
-        // Render sixel graphics on top of cells
-        let t2 = std::time::Instant::now();
-        if !self.sixel_graphics.is_empty() {
-            self.render_sixel_graphics(&surface_texture)?;
-        }
-        let sixel_render_time = t2.elapsed();
-
-        // Render overlays (scrollbar, visual bell) BEFORE egui so that modal
-        // dialogs (egui) render on top of the scrollbar. The scrollbar track
-        // already accounts for status bar inset via content_inset_bottom.
-        self.cell_renderer
-            .render_overlays(&surface_texture, show_scrollbar)?;
-
-        // Render egui overlay if provided
-        let t3 = std::time::Instant::now();
-        if let Some((egui_output, egui_ctx)) = egui_data {
-            self.render_egui(&surface_texture, egui_output, egui_ctx, force_egui_opaque)?;
-        }
-        let egui_render_time = t3.elapsed();
-
-        // Present the surface texture - THIS IS WHERE VSYNC WAIT HAPPENS
-        let t4 = std::time::Instant::now();
-        surface_texture.present();
-        let present_time = t4.elapsed();
-
-        // Log timing breakdown
-        let total = cell_render_time
-            + custom_shader_time
-            + cursor_shader_time
-            + sixel_render_time
-            + egui_render_time
-            + present_time;
-        if present_time.as_millis() > 10 || total.as_millis() > 10 {
-            log::info!(
-                "[RENDER] RENDER_BREAKDOWN: CellRender={:.2}ms BgShader={:.2}ms CursorShader={:.2}ms Sixel={:.2}ms Egui={:.2}ms PRESENT={:.2}ms Total={:.2}ms",
-                cell_render_time.as_secs_f64() * 1000.0,
-                custom_shader_time.as_secs_f64() * 1000.0,
-                cursor_shader_time.as_secs_f64() * 1000.0,
-                sixel_render_time.as_secs_f64() * 1000.0,
-                egui_render_time.as_secs_f64() * 1000.0,
-                present_time.as_secs_f64() * 1000.0,
-                total.as_secs_f64() * 1000.0
-            );
-        }
-
-        // Clear dirty flag after successful render
-        self.dirty = false;
-
-        Ok(true)
-    }
-
     /// Render multiple panes to the surface
     ///
     /// This method renders each pane's content to its viewport region,
@@ -280,17 +115,19 @@ impl Renderer {
             );
             self.cell_renderer.render_pane_to_view(
                 &surface_view,
-                &pane.viewport,
-                pane.cells,
-                pane.grid_size.0,
-                pane.grid_size.1,
-                pane.cursor_pos,
-                pane.cursor_opacity,
-                pane.show_scrollbar,
-                false,                // Don't clear - we already cleared the surface
-                has_background_image, // Skip background image if already rendered full-screen
-                &separator_marks,
-                pane.background.as_ref(),
+                crate::cell_renderer::PaneRenderViewParams {
+                    viewport: &pane.viewport,
+                    cells: pane.cells,
+                    cols: pane.grid_size.0,
+                    rows: pane.grid_size.1,
+                    cursor_pos: pane.cursor_pos,
+                    cursor_opacity: pane.cursor_opacity,
+                    show_scrollbar: pane.show_scrollbar,
+                    clear_first: false, // Don't clear - we already cleared the surface
+                    skip_background_image: has_background_image,
+                    separator_marks: &separator_marks,
+                    pane_background: pane.background.as_ref(),
+                },
             )?;
         }
 
@@ -327,17 +164,17 @@ impl Renderer {
     ///
     /// # Returns
     /// `true` if rendering was performed, `false` if skipped
-    #[allow(dead_code, clippy::too_many_arguments)]
-    pub fn render_split_panes(
-        &mut self,
-        panes: &[PaneRenderInfo<'_>],
-        dividers: &[DividerRenderInfo],
-        pane_titles: &[PaneTitleInfo],
-        focused_viewport: Option<&PaneViewport>,
-        divider_settings: &PaneDividerSettings,
-        egui_data: Option<(egui::FullOutput, &egui::Context)>,
-        force_egui_opaque: bool,
-    ) -> Result<bool> {
+    #[allow(dead_code)]
+    pub fn render_split_panes(&mut self, params: SplitPanesRenderParams<'_>) -> Result<bool> {
+        let SplitPanesRenderParams {
+            panes,
+            dividers,
+            pane_titles,
+            focused_viewport,
+            divider_settings,
+            egui_data,
+            force_egui_opaque,
+        } = params;
         // Check if we need to render
         let force_render = self.needs_continuous_render();
         if !self.dirty && !force_render && egui_data.is_none() {
@@ -475,17 +312,19 @@ impl Renderer {
             );
             self.cell_renderer.render_pane_to_view(
                 &surface_view,
-                &pane.viewport,
-                pane.cells,
-                pane.grid_size.0,
-                pane.grid_size.1,
-                pane.cursor_pos,
-                pane.cursor_opacity,
-                pane.show_scrollbar,
-                false, // Don't clear - we already cleared the surface
-                has_background_image || has_custom_shader, // Skip background if already rendered
-                &separator_marks,
-                pane.background.as_ref(),
+                crate::cell_renderer::PaneRenderViewParams {
+                    viewport: &pane.viewport,
+                    cells: pane.cells,
+                    cols: pane.grid_size.0,
+                    rows: pane.grid_size.1,
+                    cursor_pos: pane.cursor_pos,
+                    cursor_opacity: pane.cursor_opacity,
+                    show_scrollbar: pane.show_scrollbar,
+                    clear_first: false, // Don't clear - we already cleared the surface
+                    skip_background_image: has_background_image || has_custom_shader,
+                    separator_marks: &separator_marks,
+                    pane_background: pane.background.as_ref(),
+                },
             )?;
         }
 
@@ -532,759 +371,259 @@ impl Renderer {
         Ok(true)
     }
 
-    /// Render pane dividers on top of pane content
+    /// Take a screenshot of the current terminal content
+    /// Returns an RGBA image that can be saved to disk
     ///
-    /// This should be called after rendering pane content but before egui.
-    ///
-    /// # Arguments
-    /// * `surface_view` - The texture view to render to
-    /// * `dividers` - List of dividers to render with hover state
-    /// * `settings` - Divider appearance settings
-    pub fn render_dividers(
-        &mut self,
-        surface_view: &wgpu::TextureView,
-        dividers: &[DividerRenderInfo],
-        settings: &PaneDividerSettings,
-    ) -> Result<()> {
-        if dividers.is_empty() {
-            return Ok(());
-        }
+    /// This captures the fully composited output including shader effects.
+    pub fn take_screenshot(&mut self) -> Result<image::RgbaImage, crate::error::RenderError> {
+        log::info!(
+            "take_screenshot: Starting screenshot capture ({}x{})",
+            self.size.width,
+            self.size.height
+        );
 
-        // Build divider instances using the cell renderer's background pipeline
-        // We reuse the bg_instances buffer for dividers
-        let mut instances = Vec::with_capacity(dividers.len() * 3); // Extra capacity for multi-rect styles
+        let width = self.size.width;
+        let height = self.size.height;
+        // Use the same format as the surface to match pipeline expectations
+        let format = self.cell_renderer.surface_format();
+        log::info!("take_screenshot: Using texture format {:?}", format);
 
-        let w = self.size.width as f32;
-        let h = self.size.height as f32;
+        // Create a texture to render the final composited output to (with COPY_SRC for reading back)
+        let screenshot_texture =
+            self.cell_renderer
+                .device()
+                .create_texture(&wgpu::TextureDescriptor {
+                    label: Some("screenshot texture"),
+                    size: wgpu::Extent3d {
+                        width,
+                        height,
+                        depth_or_array_layers: 1,
+                    },
+                    mip_level_count: 1,
+                    sample_count: 1,
+                    dimension: wgpu::TextureDimension::D2,
+                    format,
+                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+                    view_formats: &[],
+                });
 
-        for divider in dividers {
-            let color = if divider.hovered {
-                settings.hover_color
+        let screenshot_view =
+            screenshot_texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+        // Render the full composited frame (cells + shaders + overlays)
+        log::info!("take_screenshot: Rendering composited frame...");
+
+        // Check if shaders are enabled
+        let has_custom_shader = self.custom_shader_renderer.is_some();
+        let use_cursor_shader =
+            self.cursor_shader_renderer.is_some() && !self.cursor_shader_disabled_for_alt_screen;
+
+        if has_custom_shader {
+            // Render cells to the custom shader's intermediate texture
+            let intermediate_view = self
+                .custom_shader_renderer
+                .as_ref()
+                .expect("Custom shader renderer must be Some when has_custom_shader is true")
+                .intermediate_texture_view()
+                .clone();
+            self.cell_renderer
+                .render_to_texture(&intermediate_view, true)
+                .map_err(|e| {
+                    crate::error::RenderError::ScreenshotMap(format!("Render failed: {:#}", e))
+                })?;
+
+            if use_cursor_shader {
+                // Background shader renders to cursor shader's intermediate texture
+                let cursor_intermediate = self
+                    .cursor_shader_renderer
+                    .as_ref()
+                    .expect("Cursor shader renderer must be Some when use_cursor_shader is true")
+                    .intermediate_texture_view()
+                    .clone();
+                self.custom_shader_renderer
+                    .as_mut()
+                    .expect("Custom shader renderer must be Some when has_custom_shader is true")
+                    .render(
+                        self.cell_renderer.device(),
+                        self.cell_renderer.queue(),
+                        &cursor_intermediate,
+                        false,
+                    )
+                    .map_err(|e| {
+                        crate::error::RenderError::ScreenshotMap(format!("Render failed: {:#}", e))
+                    })?;
+                // Cursor shader renders to screenshot texture
+                self.cursor_shader_renderer
+                    .as_mut()
+                    .expect("Cursor shader renderer must be Some when use_cursor_shader is true")
+                    .render(
+                        self.cell_renderer.device(),
+                        self.cell_renderer.queue(),
+                        &screenshot_view,
+                        true,
+                    )
+                    .map_err(|e| {
+                        crate::error::RenderError::ScreenshotMap(format!("Render failed: {:#}", e))
+                    })?;
             } else {
-                settings.divider_color
-            };
-
-            use par_term_config::DividerStyle;
-            match settings.divider_style {
-                DividerStyle::Solid => {
-                    let x_ndc = divider.x / w * 2.0 - 1.0;
-                    let y_ndc = 1.0 - (divider.y / h * 2.0);
-                    let w_ndc = divider.width / w * 2.0;
-                    let h_ndc = divider.height / h * 2.0;
-
-                    instances.push(crate::cell_renderer::types::BackgroundInstance {
-                        position: [x_ndc, y_ndc],
-                        size: [w_ndc, h_ndc],
-                        color: [color[0], color[1], color[2], 1.0],
-                    });
-                }
-                DividerStyle::Double => {
-                    // Two parallel lines with a visible gap between them
-                    let is_horizontal = divider.width > divider.height;
-                    let thickness = if is_horizontal {
-                        divider.height
-                    } else {
-                        divider.width
-                    };
-
-                    if thickness >= 4.0 {
-                        // Enough space for two 1px lines with visible gap
-                        if is_horizontal {
-                            // Top line
-                            instances.push(crate::cell_renderer::types::BackgroundInstance {
-                                position: [divider.x / w * 2.0 - 1.0, 1.0 - (divider.y / h * 2.0)],
-                                size: [divider.width / w * 2.0, 1.0 / h * 2.0],
-                                color: [color[0], color[1], color[2], 1.0],
-                            });
-                            // Bottom line (gap in between shows background)
-                            let bottom_y = divider.y + divider.height - 1.0;
-                            instances.push(crate::cell_renderer::types::BackgroundInstance {
-                                position: [divider.x / w * 2.0 - 1.0, 1.0 - (bottom_y / h * 2.0)],
-                                size: [divider.width / w * 2.0, 1.0 / h * 2.0],
-                                color: [color[0], color[1], color[2], 1.0],
-                            });
-                        } else {
-                            // Left line
-                            instances.push(crate::cell_renderer::types::BackgroundInstance {
-                                position: [divider.x / w * 2.0 - 1.0, 1.0 - (divider.y / h * 2.0)],
-                                size: [1.0 / w * 2.0, divider.height / h * 2.0],
-                                color: [color[0], color[1], color[2], 1.0],
-                            });
-                            // Right line
-                            let right_x = divider.x + divider.width - 1.0;
-                            instances.push(crate::cell_renderer::types::BackgroundInstance {
-                                position: [right_x / w * 2.0 - 1.0, 1.0 - (divider.y / h * 2.0)],
-                                size: [1.0 / w * 2.0, divider.height / h * 2.0],
-                                color: [color[0], color[1], color[2], 1.0],
-                            });
-                        }
-                    } else {
-                        // Divider too thin for double lines — render centered 1px line
-                        // (visibly thinner than Solid to differentiate)
-                        if is_horizontal {
-                            let center_y = divider.y + (divider.height - 1.0) / 2.0;
-                            instances.push(crate::cell_renderer::types::BackgroundInstance {
-                                position: [divider.x / w * 2.0 - 1.0, 1.0 - (center_y / h * 2.0)],
-                                size: [divider.width / w * 2.0, 1.0 / h * 2.0],
-                                color: [color[0], color[1], color[2], 1.0],
-                            });
-                        } else {
-                            let center_x = divider.x + (divider.width - 1.0) / 2.0;
-                            instances.push(crate::cell_renderer::types::BackgroundInstance {
-                                position: [center_x / w * 2.0 - 1.0, 1.0 - (divider.y / h * 2.0)],
-                                size: [1.0 / w * 2.0, divider.height / h * 2.0],
-                                color: [color[0], color[1], color[2], 1.0],
-                            });
-                        }
-                    }
-                }
-                DividerStyle::Dashed => {
-                    // Dashed line effect using segments
-                    let is_horizontal = divider.width > divider.height;
-                    let dash_len: f32 = 6.0;
-                    let gap_len: f32 = 4.0;
-
-                    if is_horizontal {
-                        let mut x = divider.x;
-                        while x < divider.x + divider.width {
-                            let seg_w = dash_len.min(divider.x + divider.width - x);
-                            instances.push(crate::cell_renderer::types::BackgroundInstance {
-                                position: [x / w * 2.0 - 1.0, 1.0 - (divider.y / h * 2.0)],
-                                size: [seg_w / w * 2.0, divider.height / h * 2.0],
-                                color: [color[0], color[1], color[2], 1.0],
-                            });
-                            x += dash_len + gap_len;
-                        }
-                    } else {
-                        let mut y = divider.y;
-                        while y < divider.y + divider.height {
-                            let seg_h = dash_len.min(divider.y + divider.height - y);
-                            instances.push(crate::cell_renderer::types::BackgroundInstance {
-                                position: [divider.x / w * 2.0 - 1.0, 1.0 - (y / h * 2.0)],
-                                size: [divider.width / w * 2.0, seg_h / h * 2.0],
-                                color: [color[0], color[1], color[2], 1.0],
-                            });
-                            y += dash_len + gap_len;
-                        }
-                    }
-                }
-                DividerStyle::Shadow => {
-                    // Beveled/embossed effect — all rendering stays within divider bounds
-                    // Highlight on top/left edge, shadow on bottom/right edge
-                    let is_horizontal = divider.width > divider.height;
-                    let thickness = if is_horizontal {
-                        divider.height
-                    } else {
-                        divider.width
-                    };
-
-                    // Brighter highlight color
-                    let highlight = [
-                        (color[0] + 0.3).min(1.0),
-                        (color[1] + 0.3).min(1.0),
-                        (color[2] + 0.3).min(1.0),
-                        1.0,
-                    ];
-                    // Darker shadow color
-                    let shadow = [(color[0] * 0.3), (color[1] * 0.3), (color[2] * 0.3), 1.0];
-
-                    if thickness >= 3.0 {
-                        // 3+ px: highlight line / main body / shadow line
-                        let edge = 1.0_f32;
-                        if is_horizontal {
-                            // Top highlight
-                            instances.push(crate::cell_renderer::types::BackgroundInstance {
-                                position: [divider.x / w * 2.0 - 1.0, 1.0 - (divider.y / h * 2.0)],
-                                size: [divider.width / w * 2.0, edge / h * 2.0],
-                                color: highlight,
-                            });
-                            // Main body (middle portion)
-                            let body_y = divider.y + edge;
-                            let body_h = divider.height - edge * 2.0;
-                            if body_h > 0.0 {
-                                instances.push(crate::cell_renderer::types::BackgroundInstance {
-                                    position: [divider.x / w * 2.0 - 1.0, 1.0 - (body_y / h * 2.0)],
-                                    size: [divider.width / w * 2.0, body_h / h * 2.0],
-                                    color: [color[0], color[1], color[2], 1.0],
-                                });
-                            }
-                            // Bottom shadow
-                            let shadow_y = divider.y + divider.height - edge;
-                            instances.push(crate::cell_renderer::types::BackgroundInstance {
-                                position: [divider.x / w * 2.0 - 1.0, 1.0 - (shadow_y / h * 2.0)],
-                                size: [divider.width / w * 2.0, edge / h * 2.0],
-                                color: shadow,
-                            });
-                        } else {
-                            // Left highlight
-                            instances.push(crate::cell_renderer::types::BackgroundInstance {
-                                position: [divider.x / w * 2.0 - 1.0, 1.0 - (divider.y / h * 2.0)],
-                                size: [edge / w * 2.0, divider.height / h * 2.0],
-                                color: highlight,
-                            });
-                            // Main body
-                            let body_x = divider.x + edge;
-                            let body_w = divider.width - edge * 2.0;
-                            if body_w > 0.0 {
-                                instances.push(crate::cell_renderer::types::BackgroundInstance {
-                                    position: [body_x / w * 2.0 - 1.0, 1.0 - (divider.y / h * 2.0)],
-                                    size: [body_w / w * 2.0, divider.height / h * 2.0],
-                                    color: [color[0], color[1], color[2], 1.0],
-                                });
-                            }
-                            // Right shadow
-                            let shadow_x = divider.x + divider.width - edge;
-                            instances.push(crate::cell_renderer::types::BackgroundInstance {
-                                position: [shadow_x / w * 2.0 - 1.0, 1.0 - (divider.y / h * 2.0)],
-                                size: [edge / w * 2.0, divider.height / h * 2.0],
-                                color: shadow,
-                            });
-                        }
-                    } else {
-                        // 2px or less: top/left half highlight, bottom/right half shadow
-                        if is_horizontal {
-                            let half = (divider.height / 2.0).max(1.0);
-                            instances.push(crate::cell_renderer::types::BackgroundInstance {
-                                position: [divider.x / w * 2.0 - 1.0, 1.0 - (divider.y / h * 2.0)],
-                                size: [divider.width / w * 2.0, half / h * 2.0],
-                                color: highlight,
-                            });
-                            let bottom_y = divider.y + half;
-                            let bottom_h = divider.height - half;
-                            if bottom_h > 0.0 {
-                                instances.push(crate::cell_renderer::types::BackgroundInstance {
-                                    position: [
-                                        divider.x / w * 2.0 - 1.0,
-                                        1.0 - (bottom_y / h * 2.0),
-                                    ],
-                                    size: [divider.width / w * 2.0, bottom_h / h * 2.0],
-                                    color: shadow,
-                                });
-                            }
-                        } else {
-                            let half = (divider.width / 2.0).max(1.0);
-                            instances.push(crate::cell_renderer::types::BackgroundInstance {
-                                position: [divider.x / w * 2.0 - 1.0, 1.0 - (divider.y / h * 2.0)],
-                                size: [half / w * 2.0, divider.height / h * 2.0],
-                                color: highlight,
-                            });
-                            let right_x = divider.x + half;
-                            let right_w = divider.width - half;
-                            if right_w > 0.0 {
-                                instances.push(crate::cell_renderer::types::BackgroundInstance {
-                                    position: [
-                                        right_x / w * 2.0 - 1.0,
-                                        1.0 - (divider.y / h * 2.0),
-                                    ],
-                                    size: [right_w / w * 2.0, divider.height / h * 2.0],
-                                    color: shadow,
-                                });
-                            }
-                        }
-                    }
-                }
+                // Background shader renders directly to screenshot texture
+                self.custom_shader_renderer
+                    .as_mut()
+                    .expect("Custom shader renderer must be Some when has_custom_shader is true")
+                    .render(
+                        self.cell_renderer.device(),
+                        self.cell_renderer.queue(),
+                        &screenshot_view,
+                        true,
+                    )
+                    .map_err(|e| {
+                        crate::error::RenderError::ScreenshotMap(format!("Render failed: {:#}", e))
+                    })?;
             }
+        } else if use_cursor_shader {
+            // Render cells to cursor shader's intermediate texture
+            let cursor_intermediate = self
+                .cursor_shader_renderer
+                .as_ref()
+                .expect("Cursor shader renderer must be Some when use_cursor_shader is true")
+                .intermediate_texture_view()
+                .clone();
+            self.cell_renderer
+                .render_to_texture(&cursor_intermediate, true)
+                .map_err(|e| {
+                    crate::error::RenderError::ScreenshotMap(format!("Render failed: {:#}", e))
+                })?;
+            // Cursor shader renders to screenshot texture
+            self.cursor_shader_renderer
+                .as_mut()
+                .expect("Cursor shader renderer must be Some when use_cursor_shader is true")
+                .render(
+                    self.cell_renderer.device(),
+                    self.cell_renderer.queue(),
+                    &screenshot_view,
+                    true,
+                )
+                .map_err(|e| {
+                    crate::error::RenderError::ScreenshotMap(format!("Render failed: {:#}", e))
+                })?;
+        } else {
+            // No shaders - render directly to screenshot texture
+            self.cell_renderer
+                .render_to_view(&screenshot_view)
+                .map_err(|e| {
+                    crate::error::RenderError::ScreenshotMap(format!("Render failed: {:#}", e))
+                })?;
         }
 
-        // Write instances to GPU buffer
-        self.cell_renderer.queue().write_buffer(
-            &self.cell_renderer.buffers.bg_instance_buffer,
-            0,
-            bytemuck::cast_slice(&instances),
+        log::info!("take_screenshot: Render complete");
+
+        // Get device and queue references for buffer operations
+        let device = self.cell_renderer.device();
+        let queue = self.cell_renderer.queue();
+
+        // Create buffer for reading back the texture
+        let bytes_per_pixel = 4u32;
+        let unpadded_bytes_per_row = width * bytes_per_pixel;
+        // wgpu requires rows to be aligned to 256 bytes
+        let align = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
+        let padded_bytes_per_row = unpadded_bytes_per_row.div_ceil(align) * align;
+        let buffer_size = (padded_bytes_per_row * height) as u64;
+
+        let output_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("screenshot buffer"),
+            size: buffer_size,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+
+        // Copy texture to buffer
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("screenshot encoder"),
+        });
+
+        encoder.copy_texture_to_buffer(
+            wgpu::TexelCopyTextureInfo {
+                texture: &screenshot_texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::TexelCopyBufferInfo {
+                buffer: &output_buffer,
+                layout: wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(padded_bytes_per_row),
+                    rows_per_image: Some(height),
+                },
+            },
+            wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
         );
 
-        // Render dividers
-        let mut encoder =
-            self.cell_renderer
-                .device()
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("divider render encoder"),
-                });
+        queue.submit(std::iter::once(encoder.finish()));
+        log::info!("take_screenshot: Texture copy submitted");
 
-        {
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("divider render pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: surface_view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load, // Don't clear - render on top
-                        store: wgpu::StoreOp::Store,
-                    },
-                    depth_slice: None,
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
+        // Map the buffer and read the data
+        let buffer_slice = output_buffer.slice(..);
+        let (tx, rx) = std::sync::mpsc::channel();
+        buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
+            let _ = tx.send(result);
+        });
 
-            render_pass.set_pipeline(&self.cell_renderer.pipelines.bg_pipeline);
-            render_pass.set_vertex_buffer(0, self.cell_renderer.buffers.vertex_buffer.slice(..));
-            render_pass
-                .set_vertex_buffer(1, self.cell_renderer.buffers.bg_instance_buffer.slice(..));
-            render_pass.draw(0..4, 0..instances.len() as u32);
-        }
+        // Wait for GPU to finish
+        log::info!("take_screenshot: Waiting for GPU...");
+        let _ = device.poll(wgpu::PollType::wait_indefinitely());
+        log::info!("take_screenshot: GPU poll complete, waiting for buffer map...");
+        rx.recv()
+            .map_err(|e| {
+                crate::error::RenderError::ScreenshotMap(format!(
+                    "Failed to receive map result: {}",
+                    e
+                ))
+            })?
+            .map_err(|e| {
+                crate::error::RenderError::ScreenshotMap(format!("Failed to map buffer: {:?}", e))
+            })?;
+        log::info!("take_screenshot: Buffer mapped successfully");
 
-        self.cell_renderer
-            .queue()
-            .submit(std::iter::once(encoder.finish()));
-        Ok(())
-    }
+        // Read the data
+        let data = buffer_slice.get_mapped_range();
+        let mut pixels = Vec::with_capacity((width * height * 4) as usize);
 
-    /// Render focus indicator around a pane
-    ///
-    /// This draws a colored border around the focused pane to highlight it.
-    ///
-    /// # Arguments
-    /// * `surface_view` - The texture view to render to
-    /// * `viewport` - The focused pane's viewport
-    /// * `settings` - Divider/focus settings
-    pub fn render_focus_indicator(
-        &mut self,
-        surface_view: &wgpu::TextureView,
-        viewport: &PaneViewport,
-        settings: &PaneDividerSettings,
-    ) -> Result<()> {
-        if !settings.show_focus_indicator {
-            return Ok(());
-        }
-
-        let border_w = settings.focus_width;
-        let color = [
-            settings.focus_color[0],
-            settings.focus_color[1],
-            settings.focus_color[2],
-            1.0,
-        ];
-
-        // Create 4 border rectangles (top, bottom, left, right)
-        let instances = vec![
-            // Top border
-            crate::cell_renderer::types::BackgroundInstance {
-                position: [
-                    viewport.x / self.size.width as f32 * 2.0 - 1.0,
-                    1.0 - (viewport.y / self.size.height as f32 * 2.0),
-                ],
-                size: [
-                    viewport.width / self.size.width as f32 * 2.0,
-                    border_w / self.size.height as f32 * 2.0,
-                ],
-                color,
-            },
-            // Bottom border
-            crate::cell_renderer::types::BackgroundInstance {
-                position: [
-                    viewport.x / self.size.width as f32 * 2.0 - 1.0,
-                    1.0 - ((viewport.y + viewport.height - border_w) / self.size.height as f32
-                        * 2.0),
-                ],
-                size: [
-                    viewport.width / self.size.width as f32 * 2.0,
-                    border_w / self.size.height as f32 * 2.0,
-                ],
-                color,
-            },
-            // Left border (between top and bottom)
-            crate::cell_renderer::types::BackgroundInstance {
-                position: [
-                    viewport.x / self.size.width as f32 * 2.0 - 1.0,
-                    1.0 - ((viewport.y + border_w) / self.size.height as f32 * 2.0),
-                ],
-                size: [
-                    border_w / self.size.width as f32 * 2.0,
-                    (viewport.height - border_w * 2.0) / self.size.height as f32 * 2.0,
-                ],
-                color,
-            },
-            // Right border (between top and bottom)
-            crate::cell_renderer::types::BackgroundInstance {
-                position: [
-                    (viewport.x + viewport.width - border_w) / self.size.width as f32 * 2.0 - 1.0,
-                    1.0 - ((viewport.y + border_w) / self.size.height as f32 * 2.0),
-                ],
-                size: [
-                    border_w / self.size.width as f32 * 2.0,
-                    (viewport.height - border_w * 2.0) / self.size.height as f32 * 2.0,
-                ],
-                color,
-            },
-        ];
-
-        // Write instances to GPU buffer
-        self.cell_renderer.queue().write_buffer(
-            &self.cell_renderer.buffers.bg_instance_buffer,
-            0,
-            bytemuck::cast_slice(&instances),
+        // Check if format is BGRA (needs swizzle) or RGBA (direct copy)
+        let is_bgra = matches!(
+            format,
+            wgpu::TextureFormat::Bgra8Unorm | wgpu::TextureFormat::Bgra8UnormSrgb
         );
 
-        // Render focus indicator
-        let mut encoder =
-            self.cell_renderer
-                .device()
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("focus indicator encoder"),
-                });
+        // Copy data row by row (to handle padding)
+        for y in 0..height {
+            let row_start = (y * padded_bytes_per_row) as usize;
+            let row_end = row_start + (width * bytes_per_pixel) as usize;
+            let row = &data[row_start..row_end];
 
-        {
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("focus indicator pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: surface_view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load, // Don't clear - render on top
-                        store: wgpu::StoreOp::Store,
-                    },
-                    depth_slice: None,
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-
-            render_pass.set_pipeline(&self.cell_renderer.pipelines.bg_pipeline);
-            render_pass.set_vertex_buffer(0, self.cell_renderer.buffers.vertex_buffer.slice(..));
-            render_pass
-                .set_vertex_buffer(1, self.cell_renderer.buffers.bg_instance_buffer.slice(..));
-            render_pass.draw(0..4, 0..instances.len() as u32);
-        }
-
-        self.cell_renderer
-            .queue()
-            .submit(std::iter::once(encoder.finish()));
-        Ok(())
-    }
-
-    /// Render pane title bars (background rectangles + text)
-    ///
-    /// Title bars are rendered on top of pane content and dividers.
-    /// Each title bar consists of a colored background rectangle and centered text.
-    pub fn render_pane_titles(
-        &mut self,
-        surface_view: &wgpu::TextureView,
-        titles: &[PaneTitleInfo],
-    ) -> Result<()> {
-        if titles.is_empty() {
-            return Ok(());
-        }
-
-        let width = self.size.width as f32;
-        let height = self.size.height as f32;
-
-        // Phase 1: Render title bar backgrounds
-        let mut bg_instances = Vec::with_capacity(titles.len());
-        for title in titles {
-            let x_ndc = title.x / width * 2.0 - 1.0;
-            let y_ndc = 1.0 - (title.y / height * 2.0);
-            let w_ndc = title.width / width * 2.0;
-            let h_ndc = title.height / height * 2.0;
-
-            // Title bar must be fully opaque (alpha=1.0) to cover the background.
-            // Differentiate focused/unfocused by lightening/darkening the color.
-            let brightness = if title.focused { 1.0 } else { 0.7 };
-
-            bg_instances.push(crate::cell_renderer::types::BackgroundInstance {
-                position: [x_ndc, y_ndc],
-                size: [w_ndc, h_ndc],
-                color: [
-                    title.bg_color[0] * brightness,
-                    title.bg_color[1] * brightness,
-                    title.bg_color[2] * brightness,
-                    1.0, // Always fully opaque
-                ],
-            });
-        }
-
-        // Write background instances to GPU buffer
-        self.cell_renderer.queue().write_buffer(
-            &self.cell_renderer.buffers.bg_instance_buffer,
-            0,
-            bytemuck::cast_slice(&bg_instances),
-        );
-
-        // Render title backgrounds
-        let mut encoder =
-            self.cell_renderer
-                .device()
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("pane title bg encoder"),
-                });
-
-        {
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("pane title bg pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: surface_view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
-                        store: wgpu::StoreOp::Store,
-                    },
-                    depth_slice: None,
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-
-            render_pass.set_pipeline(&self.cell_renderer.pipelines.bg_pipeline);
-            render_pass.set_vertex_buffer(0, self.cell_renderer.buffers.vertex_buffer.slice(..));
-            render_pass
-                .set_vertex_buffer(1, self.cell_renderer.buffers.bg_instance_buffer.slice(..));
-            render_pass.draw(0..4, 0..bg_instances.len() as u32);
-        }
-
-        self.cell_renderer
-            .queue()
-            .submit(std::iter::once(encoder.finish()));
-
-        // Phase 2: Render title text using glyph atlas
-        let mut text_instances = Vec::new();
-        let baseline_y = self.cell_renderer.font.font_ascent;
-
-        for title in titles {
-            let title_text = &title.title;
-            if title_text.is_empty() {
-                continue;
-            }
-
-            // Calculate starting X position (centered in title bar with left padding)
-            let padding_x = 8.0;
-            let mut x_pos = title.x + padding_x;
-            let y_base = title.y + (title.height - self.cell_renderer.grid.cell_height) / 2.0;
-
-            let text_color = [
-                title.text_color[0],
-                title.text_color[1],
-                title.text_color[2],
-                if title.focused { 1.0 } else { 0.8 },
-            ];
-
-            // Truncate title if it would overflow the title bar
-            let max_chars =
-                ((title.width - padding_x * 2.0) / self.cell_renderer.grid.cell_width) as usize;
-            let display_text: String = if title_text.len() > max_chars && max_chars > 3 {
-                let truncated: String = title_text.chars().take(max_chars - 1).collect();
-                format!("{}\u{2026}", truncated) // ellipsis
+            if is_bgra {
+                // Convert BGRA to RGBA
+                for chunk in row.chunks(4) {
+                    pixels.push(chunk[2]); // R (was B)
+                    pixels.push(chunk[1]); // G
+                    pixels.push(chunk[0]); // B (was R)
+                    pixels.push(chunk[3]); // A
+                }
             } else {
-                title_text.clone()
-            };
-
-            for ch in display_text.chars() {
-                if x_pos >= title.x + title.width - padding_x {
-                    break;
-                }
-
-                if let Some((font_idx, glyph_id)) =
-                    self.cell_renderer.font_manager.find_glyph(ch, false, false)
-                {
-                    let cache_key = ((font_idx as u64) << 32) | (glyph_id as u64);
-                    // Check if this character should be rendered as a monochrome symbol
-                    let force_monochrome = crate::cell_renderer::atlas::should_render_as_symbol(ch);
-                    let info = if self
-                        .cell_renderer
-                        .atlas
-                        .glyph_cache
-                        .contains_key(&cache_key)
-                    {
-                        self.cell_renderer.lru_remove(cache_key);
-                        self.cell_renderer.lru_push_front(cache_key);
-                        self.cell_renderer
-                            .atlas
-                            .glyph_cache
-                            .get(&cache_key)
-                            .expect("Glyph cache entry must exist after contains_key check")
-                            .clone()
-                    } else if let Some(raster) =
-                        self.cell_renderer
-                            .rasterize_glyph(font_idx, glyph_id, force_monochrome)
-                    {
-                        let info = self.cell_renderer.upload_glyph(cache_key, &raster);
-                        self.cell_renderer
-                            .atlas
-                            .glyph_cache
-                            .insert(cache_key, info.clone());
-                        self.cell_renderer.lru_push_front(cache_key);
-                        info
-                    } else {
-                        x_pos += self.cell_renderer.grid.cell_width;
-                        continue;
-                    };
-
-                    let glyph_left = x_pos + info.bearing_x;
-                    let glyph_top = y_base + (baseline_y - info.bearing_y);
-
-                    text_instances.push(crate::cell_renderer::types::TextInstance {
-                        position: [
-                            glyph_left / width * 2.0 - 1.0,
-                            1.0 - (glyph_top / height * 2.0),
-                        ],
-                        size: [
-                            info.width as f32 / width * 2.0,
-                            info.height as f32 / height * 2.0,
-                        ],
-                        tex_offset: [info.x as f32 / 2048.0, info.y as f32 / 2048.0],
-                        tex_size: [info.width as f32 / 2048.0, info.height as f32 / 2048.0],
-                        color: text_color,
-                        is_colored: if info.is_colored { 1 } else { 0 },
-                    });
-                }
-
-                x_pos += self.cell_renderer.grid.cell_width;
+                // Already RGBA, direct copy
+                pixels.extend_from_slice(row);
             }
         }
 
-        if text_instances.is_empty() {
-            return Ok(());
-        }
+        drop(data);
+        output_buffer.unmap();
 
-        // Write text instances to GPU buffer
-        self.cell_renderer.queue().write_buffer(
-            &self.cell_renderer.buffers.text_instance_buffer,
-            0,
-            bytemuck::cast_slice(&text_instances),
-        );
-
-        // Render title text
-        let mut encoder =
-            self.cell_renderer
-                .device()
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("pane title text encoder"),
-                });
-
-        {
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("pane title text pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: surface_view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
-                        store: wgpu::StoreOp::Store,
-                    },
-                    depth_slice: None,
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-
-            render_pass.set_pipeline(&self.cell_renderer.pipelines.text_pipeline);
-            render_pass.set_bind_group(0, &self.cell_renderer.pipelines.text_bind_group, &[]);
-            render_pass.set_vertex_buffer(0, self.cell_renderer.buffers.vertex_buffer.slice(..));
-            render_pass
-                .set_vertex_buffer(1, self.cell_renderer.buffers.text_instance_buffer.slice(..));
-            render_pass.draw(0..4, 0..text_instances.len() as u32);
-        }
-
-        self.cell_renderer
-            .queue()
-            .submit(std::iter::once(encoder.finish()));
-
-        Ok(())
-    }
-
-    /// Render egui overlay on top of the terminal
-    fn render_egui(
-        &mut self,
-        surface_texture: &wgpu::SurfaceTexture,
-        egui_output: egui::FullOutput,
-        egui_ctx: &egui::Context,
-        force_opaque: bool,
-    ) -> Result<()> {
-        use wgpu::TextureViewDescriptor;
-
-        // Create view of the surface texture
-        let view = surface_texture
-            .texture
-            .create_view(&TextureViewDescriptor::default());
-
-        // Create command encoder for egui
-        let mut encoder =
-            self.cell_renderer
-                .device()
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("egui encoder"),
-                });
-
-        // Convert egui output to screen descriptor
-        let screen_descriptor = egui_wgpu::ScreenDescriptor {
-            size_in_pixels: [self.size.width, self.size.height],
-            pixels_per_point: egui_output.pixels_per_point,
-        };
-
-        // Update egui textures
-        for (id, image_delta) in &egui_output.textures_delta.set {
-            self.egui_renderer.update_texture(
-                self.cell_renderer.device(),
-                self.cell_renderer.queue(),
-                *id,
-                image_delta,
-            );
-        }
-
-        // Tessellate egui shapes into paint jobs
-        let mut paint_jobs = egui_ctx.tessellate(egui_output.shapes, egui_output.pixels_per_point);
-
-        // If requested, force all egui vertices to full opacity so UI stays solid
-        if force_opaque {
-            for job in paint_jobs.iter_mut() {
-                match &mut job.primitive {
-                    egui::epaint::Primitive::Mesh(mesh) => {
-                        for v in mesh.vertices.iter_mut() {
-                            v.color[3] = 255;
-                        }
-                    }
-                    egui::epaint::Primitive::Callback(_) => {}
-                }
-            }
-        }
-
-        // Update egui buffers
-        self.egui_renderer.update_buffers(
-            self.cell_renderer.device(),
-            self.cell_renderer.queue(),
-            &mut encoder,
-            &paint_jobs,
-            &screen_descriptor,
-        );
-
-        // Render egui on top of the terminal content
-        {
-            let render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("egui render pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load, // Don't clear - render on top of terminal
-                        store: wgpu::StoreOp::Store,
-                    },
-                    depth_slice: None,
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-
-            // Convert to 'static lifetime as required by egui_renderer.render()
-            let mut render_pass = render_pass.forget_lifetime();
-
-            self.egui_renderer
-                .render(&mut render_pass, &paint_jobs, &screen_descriptor);
-        } // render_pass dropped here
-
-        // Submit egui commands
-        self.cell_renderer
-            .queue()
-            .submit(std::iter::once(encoder.finish()));
-
-        // Free egui textures
-        for id in &egui_output.textures_delta.free {
-            self.egui_renderer.free_texture(id);
-        }
-
-        Ok(())
+        // Create image
+        image::RgbaImage::from_raw(width, height, pixels)
+            .ok_or(crate::error::RenderError::ScreenshotImageAssembly)
     }
 }

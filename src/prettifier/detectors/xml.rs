@@ -98,19 +98,8 @@ pub fn register_xml(registry: &mut RendererRegistry, config: &RenderersConfig) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::prettifier::testing::make_block_with_command;
     use crate::prettifier::traits::ContentDetector;
-    use crate::prettifier::types::ContentBlock;
-    use std::time::SystemTime;
-
-    fn make_block(lines: &[&str], command: Option<&str>) -> ContentBlock {
-        ContentBlock {
-            lines: lines.iter().map(|s| s.to_string()).collect(),
-            preceding_command: command.map(|s| s.to_string()),
-            start_row: 0,
-            end_row: lines.len(),
-            timestamp: SystemTime::now(),
-        }
-    }
 
     #[test]
     fn test_all_rules_compile() {
@@ -121,7 +110,7 @@ mod tests {
     #[test]
     fn test_xml_declaration_detected() {
         let detector = create_xml_detector();
-        let block = make_block(
+        let block = make_block_with_command(
             &[
                 "<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
                 "<root>",
@@ -144,7 +133,7 @@ mod tests {
     #[test]
     fn test_doctype_detected() {
         let detector = create_xml_detector();
-        let block = make_block(
+        let block = make_block_with_command(
             &[
                 "<!DOCTYPE html>",
                 "<html>",
@@ -162,7 +151,7 @@ mod tests {
     #[test]
     fn test_xml_tags_detection() {
         let detector = create_xml_detector();
-        let block = make_block(
+        let block = make_block_with_command(
             &[
                 "<root>",
                 "  <item name=\"test\">value</item>",
@@ -178,7 +167,7 @@ mod tests {
     #[test]
     fn test_not_xml_plain_text() {
         let detector = create_xml_detector();
-        let block = make_block(&["Hello world", "This is plain text"], None);
+        let block = make_block_with_command(&["Hello world", "This is plain text"], None);
         let result = detector.detect(&block);
         assert!(result.is_none());
     }

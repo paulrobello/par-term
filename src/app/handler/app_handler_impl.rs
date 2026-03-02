@@ -51,7 +51,10 @@ impl ApplicationHandler for WindowManager {
                     }
                     SettingsWindowAction::ApplyConfig(config) => {
                         // Apply live config changes to all terminal windows
-                        log::info!("SETTINGS: ApplyConfig shader={:?}", config.custom_shader);
+                        log::info!(
+                            "SETTINGS: ApplyConfig shader={:?}",
+                            config.shader.custom_shader
+                        );
                         self.apply_config_to_windows(&config);
                     }
                     SettingsWindowAction::SaveConfig(config) => {
@@ -197,8 +200,8 @@ impl ApplicationHandler for WindowManager {
                 let close = window_state.handle_window_event(event_loop, event);
                 // Capture shader states to sync to settings window
                 let states = (
-                    window_state.config.custom_shader_enabled,
-                    window_state.config.cursor_shader_enabled,
+                    window_state.config.shader.custom_shader_enabled,
+                    window_state.config.shader.cursor_shader_enabled,
                 );
                 // Capture grid size if this was a resize
                 let size = if is_resize {

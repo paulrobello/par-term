@@ -78,9 +78,7 @@ impl WindowState {
                     log::info!("Force-closed tab {}", tab_id);
                 }
                 self.focus_state.needs_redraw = true;
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
+                self.request_redraw();
             }
             CloseConfirmAction::Cancel => {
                 // User cancelled - do nothing, dialog already hidden
@@ -111,14 +109,10 @@ impl WindowState {
                 let command = RemoteShellInstallUI::install_command();
                 // paste_text appends \r internally via term.paste()
                 self.paste_text(&format!("{}\n", command));
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
+                self.request_redraw();
             }
             RemoteShellInstallAction::Cancel => {
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
+                self.request_redraw();
             }
             RemoteShellInstallAction::None => {}
         }
@@ -141,14 +135,10 @@ impl WindowState {
                     "SSH Quick Connect: connecting to {}",
                     host.connection_string()
                 );
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
+                self.request_redraw();
             }
             SshConnectAction::Cancel => {
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
+                self.request_redraw();
             }
             SshConnectAction::None => {}
         }
@@ -167,15 +157,11 @@ impl WindowState {
             crate::search::SearchAction::ScrollToMatch(offset) => {
                 self.set_scroll_target(offset);
                 self.focus_state.needs_redraw = true;
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
+                self.request_redraw();
             }
             crate::search::SearchAction::Close => {
                 self.focus_state.needs_redraw = true;
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
+                self.request_redraw();
             }
             crate::search::SearchAction::None => {}
         }
@@ -269,9 +255,7 @@ impl WindowState {
                 });
 
                 // Request redraw so the spinner shows
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
+                self.request_redraw();
             }
             ShaderInstallResponse::Never => {
                 log::info!("User declined shader installation (never ask again)");

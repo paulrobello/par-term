@@ -26,8 +26,8 @@ impl WindowState {
         }
 
         let current_match_idx = self.overlay_ui.search_ui.current_match_index();
-        let highlight_color = self.config.search_highlight_color;
-        let current_highlight_color = self.config.search_current_highlight_color;
+        let highlight_color = self.config.search.search_highlight_color;
+        let current_highlight_color = self.config.search.search_current_highlight_color;
 
         // Calculate the range of absolute lines that are currently visible
         // scroll_offset = 0 means we're at the bottom (most recent content)
@@ -81,23 +81,6 @@ impl WindowState {
     }
 }
 
-/// Get the current screen lines as strings (the visible terminal content, not scrollback).
-///
-/// # Arguments
-/// * `term` - The terminal manager
-/// * `visible_lines` - Number of visible terminal rows
-pub fn get_current_screen_lines(
-    term: &crate::terminal::TerminalManager,
-    visible_lines: usize,
-) -> Vec<String> {
-    // Get cells with scroll_offset=0 to get current screen content
-    let cells = term.get_cells_with_scrollback(0, None, false, None);
-
-    // Convert cells to lines
-    let cols = term.dimensions().0;
-    cells_to_lines(&cells, cols, visible_lines)
-}
-
 /// Get all searchable lines (scrollback + current screen) as an iterator of (line_index, line_text).
 ///
 /// This function ensures consistent handling of wide characters by converting all content
@@ -109,7 +92,7 @@ pub fn get_current_screen_lines(
 ///
 /// # Returns
 /// Iterator of (absolute_line_index, line_text) pairs where line 0 is the oldest scrollback line.
-pub fn get_all_searchable_lines(
+pub(crate) fn get_all_searchable_lines(
     term: &crate::terminal::TerminalManager,
     visible_lines: usize,
 ) -> impl Iterator<Item = (usize, String)> {

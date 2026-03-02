@@ -3,6 +3,17 @@ use crate::custom_shader_renderer::textures::ChannelTexture;
 use crate::error::RenderError;
 use par_term_config::color_u8_to_f32;
 
+/// Parameters for preparing a per-pane background GPU bind group.
+pub(crate) struct PaneBgBindGroupParams {
+    pub pane_x: f32,
+    pub pane_y: f32,
+    pub pane_width: f32,
+    pub pane_height: f32,
+    pub mode: par_term_config::BackgroundImageMode,
+    pub opacity: f32,
+    pub darken: f32,
+}
+
 /// Cached GPU texture for a per-pane background image
 pub(crate) struct PaneBackgroundEntry {
     #[allow(dead_code)] // GPU lifetime: must outlive the TextureView created from it
@@ -562,21 +573,16 @@ impl CellRenderer {
     /// `self.bg_state.pane_bg_uniform_cache.get(path)` inside the render pass.
     ///
     /// The texture entry must already be loaded into `bg_state.pane_bg_cache`.
-    // Too many arguments: binds pane geometry (x, y, w, h) together with texture
-    // display parameters (mode, opacity, darken) in a single GPU bind group preparation.
-    // A PaneBgParams struct is the right fix; deferred since this function has one call site.
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn prepare_pane_bg_bind_group(
-        &mut self,
-        path: &str,
-        pane_x: f32,
-        pane_y: f32,
-        pane_width: f32,
-        pane_height: f32,
-        mode: par_term_config::BackgroundImageMode,
-        opacity: f32,
-        darken: f32,
-    ) {
+    pub(crate) fn prepare_pane_bg_bind_group(&mut self, path: &str, p: PaneBgBindGroupParams) {
+        let PaneBgBindGroupParams {
+            pane_x,
+            pane_y,
+            pane_width,
+            pane_height,
+            mode,
+            opacity,
+            darken,
+        } = p;
         // Look up the texture entry; do nothing if it hasn't been loaded yet.
         let entry = match self.bg_state.pane_bg_cache.get(path) {
             Some(e) => e,

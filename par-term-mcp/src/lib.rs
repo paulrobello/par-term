@@ -7,36 +7,35 @@
 //! - `terminal_screenshot`: requests a live terminal screenshot from the app
 //!   via a file-based IPC handshake (with an optional fallback image path for
 //!   non-GUI test harnesses)
+//!
+//! # Module layout
+//!
+//! - [`jsonrpc`] — JSON-RPC 2.0 wire types, response helpers, and stdout framing
+//! - [`ipc`] — IPC path resolution, atomic writes, and restricted-permission helpers
+//! - [`tools`] — tool registration, descriptors, and dispatch
+//! - [`tools::config_update`] — `config_update` tool handler
+//! - [`tools::screenshot`] — `terminal_screenshot` tool handler
+
+pub mod ipc;
+pub mod jsonrpc;
+pub mod tools;
 
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use std::io::{BufRead, Write};
-use std::path::{Path, PathBuf};
+use std::io::BufRead;
 use std::sync::OnceLock;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+use jsonrpc::{IncomingMessage, method_not_found, parse_error, send_response, success_response};
+use tools::{handle_tools_call, handle_tools_list};
 
 // ---------------------------------------------------------------------------
-// Platform-aware restricted file creation
+// Protocol constants (pub(crate) so submodules can access them)
 // ---------------------------------------------------------------------------
-
-/// Open (or create/truncate) a file for writing with owner-only permissions
-/// (0o600) on Unix, or default permissions on other platforms.
-fn open_restricted_write(path: &Path) -> Result<std::fs::File, std::io::Error> {
-    let mut opts = std::fs::OpenOptions::new();
-    opts.write(true).create(true).truncate(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        opts.mode(0o600);
-    }
-    opts.open(path)
-}
 
 /// MCP protocol version.
-const PROTOCOL_VERSION: &str = "2024-11-05";
+pub(crate) const PROTOCOL_VERSION: &str = "2024-11-05";
 
 /// Server name reported during initialization.
-const SERVER_NAME: &str = "par-term";
+pub(crate) const SERVER_NAME: &str = "par-term";
 
 /// Application version set by the main crate.
 /// Use `set_app_version()` to initialize this before calling `run_mcp_server()`.
@@ -49,11 +48,25 @@ pub fn set_app_version(version: impl Into<String>) {
 }
 
 /// Get the application version, falling back to the crate version if not set.
-fn get_app_version() -> &'static str {
+pub(crate) fn get_app_version() -> &'static str {
     APP_VERSION
         .get()
         .map(|s| s.as_str())
         .unwrap_or(env!("CARGO_PKG_VERSION"))
+}
+
+/// Handle the `initialize` JSON-RPC request.
+fn handle_initialize() -> serde_json::Value {
+    serde_json::json!({
+        "protocolVersion": PROTOCOL_VERSION,
+        "capabilities": {
+            "tools": {}
+        },
+        "serverInfo": {
+            "name": SERVER_NAME,
+            "version": get_app_version()
+        }
+    })
 }
 
 /// Environment variable for overriding the config update file path.
@@ -96,542 +109,8 @@ pub struct TerminalScreenshotResponse {
     pub height: Option<u32>,
 }
 
-// ---------------------------------------------------------------------------
-// JSON-RPC wire types (minimal, server-side only)
-// ---------------------------------------------------------------------------
-
-/// An incoming JSON-RPC 2.0 message from the client.
-#[derive(Debug, Deserialize)]
-struct IncomingMessage {
-    #[allow(dead_code)] // Deserialized from JSON-RPC protocol; required by spec
-    jsonrpc: String,
-    #[serde(default)]
-    id: Option<Value>,
-    #[serde(default)]
-    method: Option<String>,
-    #[serde(default)]
-    params: Option<Value>,
-}
-
-/// An outgoing JSON-RPC 2.0 response.
-#[derive(Debug, Serialize)]
-struct Response {
-    jsonrpc: &'static str,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    result: Option<Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    error: Option<RpcError>,
-    id: Value,
-}
-
-/// A JSON-RPC 2.0 error object.
-#[derive(Debug, Serialize)]
-struct RpcError {
-    code: i64,
-    message: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    data: Option<Value>,
-}
-
-// ---------------------------------------------------------------------------
-// Tool definitions
-// ---------------------------------------------------------------------------
-
-/// Build the input schema for the `config_update` tool.
-fn config_update_input_schema() -> Value {
-    serde_json::json!({
-        "type": "object",
-        "properties": {
-            "updates": {
-                "type": "object",
-                "description": "Map of config key -> JSON value to apply"
-            }
-        },
-        "required": ["updates"]
-    })
-}
-
-/// Build the tool descriptor for `config_update`.
-fn config_update_tool() -> Value {
-    serde_json::json!({
-        "name": "config_update",
-        "description": "Update par-term configuration settings. Write a JSON object of config key-value pairs to apply immediately. Supported keys include: custom_shader (string|null), custom_shader_enabled (bool), custom_shader_animation (bool), custom_shader_animation_speed (float), custom_shader_brightness (float), custom_shader_text_opacity (float), custom_shader_full_content (bool), cursor_shader (string|null), cursor_shader_enabled (bool), cursor_shader_animation (bool), cursor_shader_animation_speed (float), cursor_shader_glow_radius (float), cursor_shader_glow_intensity (float), cursor_shader_trail_duration (float), cursor_shader_hides_cursor (bool), window_opacity (float), font_size (float). Do NOT edit config.yaml directly.",
-        "inputSchema": config_update_input_schema()
-    })
-}
-
-/// Build the input schema for the `terminal_screenshot` tool.
-fn terminal_screenshot_input_schema() -> Value {
-    serde_json::json!({
-        "type": "object",
-        "properties": {}
-    })
-}
-
-/// Build the tool descriptor for `terminal_screenshot`.
-fn terminal_screenshot_tool() -> Value {
-    serde_json::json!({
-        "name": "terminal_screenshot",
-        "description": "Capture a screenshot of the currently visible terminal output (including active shader/cursor visual effects) from the running par-term app. Returns an image for visual debugging. Requires user permission.",
-        "inputSchema": terminal_screenshot_input_schema()
-    })
-}
-
-// ---------------------------------------------------------------------------
-// Config update file path resolution
-// ---------------------------------------------------------------------------
-
-/// Resolve the path where config updates should be written.
-///
-/// Checks `PAR_TERM_CONFIG_UPDATE_PATH` env var first, then falls back to
-/// `~/.config/par-term/.config-update.json`.
-fn config_update_path() -> PathBuf {
-    resolve_ipc_path(CONFIG_UPDATE_PATH_ENV, CONFIG_UPDATE_FILENAME)
-}
-
-/// Resolve the path where screenshot requests should be written.
-pub fn screenshot_request_path() -> PathBuf {
-    resolve_ipc_path(SCREENSHOT_REQUEST_PATH_ENV, SCREENSHOT_REQUEST_FILENAME)
-}
-
-/// Resolve the path where screenshot responses should be written.
-pub fn screenshot_response_path() -> PathBuf {
-    resolve_ipc_path(SCREENSHOT_RESPONSE_PATH_ENV, SCREENSHOT_RESPONSE_FILENAME)
-}
-
-/// Resolve a path from env var or default filename under `~/.config/par-term`.
-fn resolve_ipc_path(env_var: &str, default_filename: &str) -> PathBuf {
-    if let Ok(path) = std::env::var(env_var) {
-        return PathBuf::from(path);
-    }
-
-    let config_dir = dirs::config_dir()
-        .unwrap_or_else(|| {
-            // Last resort: ~/.config
-            dirs::home_dir()
-                .unwrap_or_else(|| PathBuf::from("."))
-                .join(".config")
-        })
-        .join("par-term");
-
-    config_dir.join(default_filename)
-}
-
-// ---------------------------------------------------------------------------
-// IPC file permission helpers
-// ---------------------------------------------------------------------------
-
-/// Set restrictive permissions (owner read/write only) on an IPC file.
-///
-/// On Unix systems this sets mode 0o600 so that only the file owner can
-/// read or write. On non-Unix platforms this is a no-op.
-///
-/// Prefer `open_restricted_write` for new files to avoid a world-readable
-/// race between creation and permission fixup. This helper is retained for
-/// fixing permissions on pre-existing files.
-#[allow(dead_code)]
-fn set_ipc_file_permissions(path: &Path) -> Result<(), String> {
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let perms = std::fs::Permissions::from_mode(0o600);
-        std::fs::set_permissions(path, perms)
-            .map_err(|e| format!("Failed to set permissions on {}: {e}", path.display()))?;
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = path; // suppress unused warning
-    }
-    Ok(())
-}
-
-// ---------------------------------------------------------------------------
-// Request handlers
-// ---------------------------------------------------------------------------
-
-/// Handle the `initialize` request.
-fn handle_initialize() -> Value {
-    serde_json::json!({
-        "protocolVersion": PROTOCOL_VERSION,
-        "capabilities": {
-            "tools": {}
-        },
-        "serverInfo": {
-            "name": SERVER_NAME,
-            "version": get_app_version()
-        }
-    })
-}
-
-/// Handle the `tools/list` request.
-fn handle_tools_list() -> Value {
-    serde_json::json!({
-        "tools": [config_update_tool(), terminal_screenshot_tool()]
-    })
-}
-
-/// Handle the `tools/call` request.
-fn handle_tools_call(params: Option<Value>) -> Value {
-    let params = match params {
-        Some(p) => p,
-        None => {
-            return tool_error("Missing params for tools/call");
-        }
-    };
-
-    let name = params.get("name").and_then(|v| v.as_str()).unwrap_or("");
-
-    match name {
-        "config_update" => handle_config_update(&params),
-        "terminal_screenshot" => handle_terminal_screenshot(&params),
-        _ => tool_error(&format!("Unknown tool: {name}")),
-    }
-}
-
-/// Execute the `config_update` tool.
-fn handle_config_update(params: &Value) -> Value {
-    let arguments = match params.get("arguments") {
-        Some(args) => args,
-        None => {
-            return tool_error("Missing 'arguments' in tools/call params");
-        }
-    };
-
-    let updates = match arguments.get("updates") {
-        Some(u) if u.is_object() => u,
-        Some(_) => {
-            return tool_error("'updates' must be a JSON object");
-        }
-        None => {
-            return tool_error("Missing 'updates' in tool arguments");
-        }
-    };
-
-    let path = config_update_path();
-    write_config_updates(updates, &path)
-}
-
-/// Execute the `terminal_screenshot` tool.
-fn handle_terminal_screenshot(params: &Value) -> Value {
-    // MCP tools/call always includes "arguments", but this tool takes none.
-    if let Some(arguments) = params.get("arguments")
-        && !arguments.is_object()
-    {
-        return tool_error("'arguments' must be an object");
-    }
-
-    if let Ok(fallback) = std::env::var(SCREENSHOT_FALLBACK_PATH_ENV)
-        && !fallback.trim().is_empty()
-    {
-        let path = PathBuf::from(fallback.trim());
-        return image_tool_result_from_file(&path);
-    }
-
-    let request_path = screenshot_request_path();
-    let response_path = screenshot_response_path();
-
-    let request_id = format!(
-        "{}-{}",
-        std::process::id(),
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|d| d.as_millis())
-            .unwrap_or(0)
-    );
-    let request = TerminalScreenshotRequest {
-        request_id: request_id.clone(),
-    };
-
-    if let Err(e) = write_json_atomic(&request, &request_path) {
-        return tool_error(&format!(
-            "Failed to write screenshot request {}: {e}",
-            request_path.display()
-        ));
-    }
-
-    let timeout = Duration::from_secs(15);
-    let poll_interval = Duration::from_millis(100);
-    let start = std::time::Instant::now();
-    while start.elapsed() < timeout {
-        match try_read_screenshot_response(&response_path) {
-            Ok(Some(response)) if response.request_id == request_id => {
-                // Clear response file after consuming; use restricted permissions
-                // from creation (0o600 on Unix) to avoid a world-readable race.
-                let _ = open_restricted_write(&response_path);
-                if !response.ok {
-                    return tool_error(
-                        response
-                            .error
-                            .as_deref()
-                            .unwrap_or("Screenshot capture failed"),
-                    );
-                }
-                let mime_type = response
-                    .mime_type
-                    .unwrap_or_else(|| "image/png".to_string());
-                let data_base64 = match response.data_base64 {
-                    Some(data) if !data.is_empty() => data,
-                    _ => return tool_error("Screenshot response missing image data"),
-                };
-                let width = response.width.unwrap_or(0);
-                let height = response.height.unwrap_or(0);
-                return serde_json::json!({
-                    "content": [
-                        {
-                            "type": "image",
-                            "mimeType": mime_type,
-                            "data": data_base64,
-                        },
-                        {
-                            "type": "text",
-                            "text": format!("Captured terminal screenshot ({}x{}).", width, height),
-                        }
-                    ]
-                });
-            }
-            Ok(Some(_other_response)) => {
-                // Stale response for a different request ID; keep waiting.
-            }
-            Ok(None) => {}
-            Err(e) => {
-                return tool_error(&format!(
-                    "Failed to read screenshot response {}: {e}",
-                    response_path.display()
-                ));
-            }
-        }
-        std::thread::sleep(poll_interval);
-    }
-
-    tool_error("Timed out waiting for par-term app screenshot response")
-}
-
-/// Write config updates to the specified path atomically.
-///
-/// Creates parent directories if needed, writes to a temp file, then renames.
-fn write_config_updates(updates: &Value, path: &std::path::Path) -> Value {
-    // Ensure parent directory exists
-    if let Some(parent) = path.parent()
-        && let Err(e) = std::fs::create_dir_all(parent)
-    {
-        return tool_error(&format!(
-            "Failed to create config directory {}: {e}",
-            parent.display()
-        ));
-    }
-
-    // Atomic write: write to temp file, then rename
-    let temp_path = path.with_extension("json.tmp");
-
-    let json_bytes = match serde_json::to_vec_pretty(updates) {
-        Ok(bytes) => bytes,
-        Err(e) => {
-            return tool_error(&format!("Failed to serialize updates: {e}"));
-        }
-    };
-
-    // Write temp file with restricted permissions from creation (0o600 on Unix)
-    match open_restricted_write(&temp_path) {
-        Ok(mut f) => {
-            if let Err(e) = f.write_all(&json_bytes) {
-                return tool_error(&format!(
-                    "Failed to write temp file {}: {e}",
-                    temp_path.display()
-                ));
-            }
-        }
-        Err(e) => {
-            return tool_error(&format!(
-                "Failed to create temp file {}: {e}",
-                temp_path.display()
-            ));
-        }
-    }
-
-    if let Err(e) = std::fs::rename(&temp_path, path) {
-        // Clean up temp file on rename failure
-        let _ = std::fs::remove_file(&temp_path);
-        return tool_error(&format!(
-            "Failed to rename temp file to {}: {e}",
-            path.display()
-        ));
-    }
-
-    let keys: Vec<&str> = updates
-        .as_object()
-        .map(|obj| obj.keys().map(|k| k.as_str()).collect())
-        .unwrap_or_default();
-
-    eprintln!(
-        "[mcp-server] config_update: wrote {} key(s) to {}",
-        keys.len(),
-        path.display()
-    );
-
-    serde_json::json!({
-        "content": [{
-            "type": "text",
-            "text": format!(
-                "Successfully applied config update ({} key(s): {})",
-                keys.len(),
-                keys.join(", ")
-            )
-        }]
-    })
-}
-
-/// Atomically write a JSON payload to a path.
-fn write_json_atomic<T: Serialize>(payload: &T, path: &std::path::Path) -> Result<(), String> {
-    if let Some(parent) = path.parent()
-        && let Err(e) = std::fs::create_dir_all(parent)
-    {
-        return Err(format!(
-            "Failed to create parent directory {}: {e}",
-            parent.display()
-        ));
-    }
-
-    let temp_path = path.with_extension("json.tmp");
-    let bytes = serde_json::to_vec_pretty(payload).map_err(|e| e.to_string())?;
-    // Create temp file with restricted permissions from creation (0o600 on Unix)
-    open_restricted_write(&temp_path)
-        .and_then(|mut f| f.write_all(&bytes))
-        .map_err(|e| {
-            format!(
-                "Failed to write temp file {}: {e}",
-                temp_path.to_string_lossy()
-            )
-        })?;
-    std::fs::rename(&temp_path, path).map_err(|e| {
-        let _ = std::fs::remove_file(&temp_path);
-        format!(
-            "Failed to rename temp file to {}: {e}",
-            path.to_string_lossy()
-        )
-    })?;
-
-    Ok(())
-}
-
-/// Read and parse a screenshot response file, returning `None` for empty files.
-fn try_read_screenshot_response(
-    path: &std::path::Path,
-) -> Result<Option<TerminalScreenshotResponse>, String> {
-    let content = match std::fs::read_to_string(path) {
-        Ok(c) => c,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(e) => return Err(e.to_string()),
-    };
-    if content.trim().is_empty() {
-        return Ok(None);
-    }
-    let resp =
-        serde_json::from_str::<TerminalScreenshotResponse>(&content).map_err(|e| e.to_string())?;
-    Ok(Some(resp))
-}
-
-/// Build an MCP image tool result from an existing image file.
-fn image_tool_result_from_file(path: &std::path::Path) -> Value {
-    let bytes = match std::fs::read(path) {
-        Ok(b) => b,
-        Err(e) => {
-            return tool_error(&format!(
-                "Failed to read fallback screenshot {}: {e}",
-                path.display()
-            ));
-        }
-    };
-    use base64::Engine;
-    let data = base64::engine::general_purpose::STANDARD.encode(bytes);
-    serde_json::json!({
-        "content": [
-            {
-                "type": "image",
-                "mimeType": "image/png",
-                "data": data
-            },
-            {
-                "type": "text",
-                "text": format!("Provided fallback terminal screenshot from {}.", path.display())
-            }
-        ]
-    })
-}
-
-/// Build a tool error result.
-fn tool_error(message: &str) -> Value {
-    serde_json::json!({
-        "isError": true,
-        "content": [{
-            "type": "text",
-            "text": message
-        }]
-    })
-}
-
-// ---------------------------------------------------------------------------
-// Response helpers
-// ---------------------------------------------------------------------------
-
-/// Build a success response.
-fn success_response(id: Value, result: Value) -> Response {
-    Response {
-        jsonrpc: "2.0",
-        result: Some(result),
-        error: None,
-        id,
-    }
-}
-
-/// Build a method-not-found error response.
-fn method_not_found(id: Value, method: &str) -> Response {
-    Response {
-        jsonrpc: "2.0",
-        result: None,
-        error: Some(RpcError {
-            code: -32601,
-            message: format!("Method not found: {method}"),
-            data: None,
-        }),
-        id,
-    }
-}
-
-/// Build a parse error response.
-fn parse_error() -> Response {
-    Response {
-        jsonrpc: "2.0",
-        result: None,
-        error: Some(RpcError {
-            code: -32700,
-            message: "Parse error".to_string(),
-            data: None,
-        }),
-        id: Value::Null,
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Server loop
-// ---------------------------------------------------------------------------
-
-/// Send a JSON-RPC response to stdout.
-fn send_response(stdout: &mut impl Write, response: &Response) {
-    match serde_json::to_string(response) {
-        Ok(json) => {
-            // Write as a single line followed by newline
-            if let Err(e) = writeln!(stdout, "{json}") {
-                eprintln!("[mcp-server] Failed to write response: {e}");
-            }
-            if let Err(e) = stdout.flush() {
-                eprintln!("[mcp-server] Failed to flush stdout: {e}");
-            }
-        }
-        Err(e) => {
-            eprintln!("[mcp-server] Failed to serialize response: {e}");
-        }
-    }
-}
+// Re-export IPC path helpers so callers don't need to name the submodule.
+pub use ipc::{screenshot_request_path, screenshot_response_path};
 
 /// Run the MCP server loop. Reads JSON-RPC messages from stdin until the
 /// stream is closed or an I/O error occurs, then returns normally so that
@@ -714,6 +193,11 @@ pub fn run_mcp_server() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ipc::{config_update_path, set_ipc_file_permissions, write_json_atomic};
+    use jsonrpc::{IncomingMessage, method_not_found, parse_error, success_response};
+    use std::path::PathBuf;
+    use tools::config_update::write_config_updates;
+    use tools::screenshot::image_tool_result_from_file;
 
     #[test]
     fn test_handle_initialize() {
@@ -814,7 +298,7 @@ mod tests {
         );
 
         // Verify the file was written
-        let written: Value =
+        let written: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(&update_path).unwrap()).unwrap();
         assert_eq!(written["font_size"], 14.0);
         assert_eq!(written["custom_shader_enabled"], true);
@@ -822,7 +306,10 @@ mod tests {
 
     #[test]
     fn test_success_response_format() {
-        let resp = success_response(Value::Number(1.into()), serde_json::json!({"ok": true}));
+        let resp = success_response(
+            serde_json::Value::Number(1.into()),
+            serde_json::json!({"ok": true}),
+        );
         let json = serde_json::to_value(&resp).unwrap();
         assert_eq!(json["jsonrpc"], "2.0");
         assert_eq!(json["id"], 1);
@@ -832,7 +319,7 @@ mod tests {
 
     #[test]
     fn test_method_not_found_response() {
-        let resp = method_not_found(Value::Number(5.into()), "bogus/method");
+        let resp = method_not_found(serde_json::Value::Number(5.into()), "bogus/method");
         let json = serde_json::to_value(&resp).unwrap();
         assert_eq!(json["jsonrpc"], "2.0");
         assert_eq!(json["id"], 5);

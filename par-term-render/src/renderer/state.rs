@@ -5,6 +5,154 @@ use par_term_config::color_u8_to_f32;
 
 use super::Renderer;
 
+// Dirty flag, debug overlay, surface configuration, vsync, font quality, and
+// scrollbar hit-test accessors. Co-located here with the cell/cursor/scrollbar
+// update methods since they all deal with renderer operational state.
+impl Renderer {
+    /// Check if the renderer needs to be redrawn
+    pub fn is_dirty(&self) -> bool {
+        self.dirty
+    }
+
+    /// Mark the renderer as dirty, forcing a redraw on next render call
+    pub fn mark_dirty(&mut self) {
+        self.dirty = true;
+    }
+
+    /// Set debug overlay text to be rendered
+    pub fn render_debug_overlay(&mut self, text: &str) {
+        self.debug_text = Some(text.to_string());
+        self.dirty = true; // Mark dirty to ensure debug overlay renders
+    }
+
+    /// Reconfigure the surface (call when surface becomes outdated or lost)
+    /// This typically happens when dragging the window between displays
+    pub fn reconfigure_surface(&mut self) {
+        self.cell_renderer.reconfigure_surface();
+        self.dirty = true;
+    }
+
+    /// Check if a vsync mode is supported
+    pub fn is_vsync_mode_supported(&self, mode: par_term_config::VsyncMode) -> bool {
+        self.cell_renderer.is_vsync_mode_supported(mode)
+    }
+
+    /// Update the vsync mode. Returns the actual mode applied (may differ if requested mode unsupported).
+    /// Also returns whether the mode was changed.
+    pub fn update_vsync_mode(
+        &mut self,
+        mode: par_term_config::VsyncMode,
+    ) -> (par_term_config::VsyncMode, bool) {
+        let result = self.cell_renderer.update_vsync_mode(mode);
+        if result.1 {
+            self.dirty = true;
+        }
+        result
+    }
+
+    /// Get the current vsync mode
+    pub fn current_vsync_mode(&self) -> par_term_config::VsyncMode {
+        self.cell_renderer.current_vsync_mode()
+    }
+
+    /// Clear the glyph cache to force re-rasterization
+    /// Useful after display changes where font rendering may differ
+    pub fn clear_glyph_cache(&mut self) {
+        self.cell_renderer.clear_glyph_cache();
+        self.dirty = true;
+    }
+
+    /// Update font anti-aliasing setting
+    /// Returns true if the setting changed (requiring glyph cache clear)
+    pub fn update_font_antialias(&mut self, enabled: bool) -> bool {
+        let changed = self.cell_renderer.update_font_antialias(enabled);
+        if changed {
+            self.dirty = true;
+        }
+        changed
+    }
+
+    /// Update font hinting setting
+    /// Returns true if the setting changed (requiring glyph cache clear)
+    pub fn update_font_hinting(&mut self, enabled: bool) -> bool {
+        let changed = self.cell_renderer.update_font_hinting(enabled);
+        if changed {
+            self.dirty = true;
+        }
+        changed
+    }
+
+    /// Update thin strokes mode
+    /// Returns true if the setting changed (requiring glyph cache clear)
+    pub fn update_font_thin_strokes(&mut self, mode: par_term_config::ThinStrokesMode) -> bool {
+        let changed = self.cell_renderer.update_font_thin_strokes(mode);
+        if changed {
+            self.dirty = true;
+        }
+        changed
+    }
+
+    /// Update minimum contrast ratio
+    /// Returns true if the setting changed (requiring redraw)
+    pub fn update_minimum_contrast(&mut self, ratio: f32) -> bool {
+        let changed = self.cell_renderer.update_minimum_contrast(ratio);
+        if changed {
+            self.dirty = true;
+        }
+        changed
+    }
+
+    /// Check if a point (in pixel coordinates) is within the scrollbar bounds
+    ///
+    /// # Arguments
+    /// * `x` - X coordinate in pixels (from left edge)
+    /// * `y` - Y coordinate in pixels (from top edge)
+    pub fn scrollbar_contains_point(&self, x: f32, y: f32) -> bool {
+        self.cell_renderer.scrollbar_contains_point(x, y)
+    }
+
+    /// Get the scrollbar thumb bounds (top Y, height) in pixels
+    pub fn scrollbar_thumb_bounds(&self) -> Option<(f32, f32)> {
+        self.cell_renderer.scrollbar_thumb_bounds()
+    }
+
+    /// Check if an X coordinate is within the scrollbar track
+    pub fn scrollbar_track_contains_x(&self, x: f32) -> bool {
+        self.cell_renderer.scrollbar_track_contains_x(x)
+    }
+
+    /// Convert a mouse Y position to a scroll offset
+    ///
+    /// # Arguments
+    /// * `mouse_y` - Mouse Y coordinate in pixels (from top edge)
+    ///
+    /// # Returns
+    /// The scroll offset corresponding to the mouse position, or None if scrollbar is not visible
+    pub fn scrollbar_mouse_y_to_scroll_offset(&self, mouse_y: f32) -> Option<usize> {
+        self.cell_renderer
+            .scrollbar_mouse_y_to_scroll_offset(mouse_y)
+    }
+
+    /// Find a scrollbar mark at the given mouse position for tooltip display.
+    ///
+    /// # Arguments
+    /// * `mouse_x` - Mouse X coordinate in pixels
+    /// * `mouse_y` - Mouse Y coordinate in pixels
+    /// * `tolerance` - Maximum distance in pixels to match a mark
+    ///
+    /// # Returns
+    /// The mark at that position, or None if no mark is within tolerance
+    pub fn scrollbar_mark_at_position(
+        &self,
+        mouse_x: f32,
+        mouse_y: f32,
+        tolerance: f32,
+    ) -> Option<&par_term_config::ScrollbackMark> {
+        self.cell_renderer
+            .scrollbar_mark_at_position(mouse_x, mouse_y, tolerance)
+    }
+}
+
 impl Renderer {
     pub fn update_cells(&mut self, cells: &[Cell]) {
         if self.cell_renderer.update_cells(cells) {

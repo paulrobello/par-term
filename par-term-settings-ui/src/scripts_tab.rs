@@ -556,3 +556,38 @@ fn show_script_edit_form(
         });
     });
 }
+
+/// Search keywords for the Scripts settings tab.
+pub fn keywords() -> &'static [&'static str] {
+    &[
+        "script",
+        "scripting",
+        "python",
+        "automation",
+        "observer",
+        "event",
+        "subprocess",
+        "external",
+        "panel",
+        "subscriptions",
+        // Script management
+        "script path",
+        "arguments",
+        "args",
+        "start",
+        "stop",
+        "auto-start",
+        "auto start",
+        "auto-launch",
+        "restart",
+        "restart policy",
+        "restart delay",
+        // Permissions
+        "permission",
+        "allow",
+        "write text",
+        "run command",
+        "change config",
+        "rate limit",
+    ]
+}

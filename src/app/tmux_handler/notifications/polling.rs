@@ -12,12 +12,12 @@ impl WindowState {
     /// Retry any deferred `set_tmux_control_mode(false)` calls on all tabs.
     ///
     /// When `handle_tmux_session_ended` cannot acquire the terminal lock via `try_lock()`
-    /// it sets `tab.pending_tmux_mode_disable = true`. This function is called each frame
+    /// it sets `tab.tmux.pending_tmux_mode_disable = true`. This function is called each frame
     /// from `check_tmux_notifications` and clears the flag as soon as the lock becomes
     /// available, ensuring the terminal parser eventually exits tmux control mode.
     fn retry_pending_tmux_mode_disable(&mut self) {
         for tab in self.tab_manager.tabs_mut() {
-            if !tab.pending_tmux_mode_disable {
+            if !tab.tmux.pending_tmux_mode_disable {
                 continue;
             }
             // try_lock: intentional — we are in the sync event loop. On miss: leave the
@@ -25,7 +25,7 @@ impl WindowState {
             // finishes its current read (which is short-lived).
             if let Ok(term) = tab.terminal.try_write() {
                 term.set_tmux_control_mode(false);
-                tab.pending_tmux_mode_disable = false;
+                tab.tmux.pending_tmux_mode_disable = false;
                 crate::debug_info!(
                     "TAB",
                     "Deferred tmux control mode disable applied to tab {}",

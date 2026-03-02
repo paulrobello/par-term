@@ -1,6 +1,24 @@
 use super::TerminalManager;
 use par_term_config::{Cell, Theme};
 
+/// Shared context for row-level cell rendering helpers.
+///
+/// Bundles the per-row state that `push_line_from_slice` and `push_grid_row`
+/// need so their signatures stay below the `clippy::too_many_arguments` limit.
+pub(crate) struct RowRenderContext<'a> {
+    pub cols: usize,
+    pub dest: &'a mut Vec<Cell>,
+    pub screen_row: usize,
+    pub selection: Option<((usize, usize), (usize, usize))>,
+    pub rectangular: bool,
+    pub cursor: Option<(
+        (usize, usize),
+        f32,
+        par_term_emu_core_rust::cursor::CursorStyle,
+    )>,
+    pub theme: &'a Theme,
+}
+
 impl TerminalManager {
     /// Get terminal grid with scrollback offset as Cell array for CellRenderer
     pub fn get_cells_with_scrollback(
@@ -34,13 +52,15 @@ impl TerminalManager {
                 if let Some(line) = grid.scrollback_line(line_idx) {
                     Self::push_line_from_slice(
                         line,
-                        cols,
-                        &mut cells,
-                        screen_row,
-                        selection,
-                        rectangular,
-                        cursor_with_style,
-                        &self.theme,
+                        &mut RowRenderContext {
+                            cols,
+                            dest: &mut cells,
+                            screen_row,
+                            selection,
+                            rectangular,
+                            cursor: cursor_with_style,
+                            theme: &self.theme,
+                        },
                     );
                 } else {
                     Self::push_empty_cells(cols, &mut cells);
@@ -50,13 +70,15 @@ impl TerminalManager {
                 Self::push_grid_row(
                     grid,
                     grid_row,
-                    cols,
-                    &mut cells,
-                    screen_row,
-                    selection,
-                    rectangular,
-                    cursor_with_style,
-                    &self.theme,
+                    &mut RowRenderContext {
+                        cols,
+                        dest: &mut cells,
+                        screen_row,
+                        selection,
+                        rectangular,
+                        cursor: cursor_with_style,
+                        theme: &self.theme,
+                    },
                 );
             }
         }
@@ -87,78 +109,58 @@ impl TerminalManager {
         cells
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn push_line_from_slice(
         line: &[par_term_emu_core_rust::cell::Cell],
-        cols: usize,
-        dest: &mut Vec<Cell>,
-        screen_row: usize,
-        selection: Option<((usize, usize), (usize, usize))>,
-        rectangular: bool,
-        cursor: Option<(
-            (usize, usize),
-            f32,
-            par_term_emu_core_rust::cursor::CursorStyle,
-        )>,
-        theme: &Theme,
+        ctx: &mut RowRenderContext<'_>,
     ) {
-        let copy_len = cols.min(line.len());
+        let copy_len = ctx.cols.min(line.len());
         for (col, cell) in line[..copy_len].iter().enumerate() {
-            let is_selected = Self::is_cell_selected(col, screen_row, selection, rectangular);
-            let cursor_info = cursor.and_then(|((cx, cy), opacity, style)| {
-                if cx == col && cy == screen_row {
+            let is_selected =
+                Self::is_cell_selected(col, ctx.screen_row, ctx.selection, ctx.rectangular);
+            let cursor_info = ctx.cursor.and_then(|((cx, cy), opacity, style)| {
+                if cx == col && cy == ctx.screen_row {
                     Some((opacity, style))
                 } else {
                     None
                 }
             });
-            dest.push(Self::convert_term_cell_with_theme(
+            ctx.dest.push(Self::convert_term_cell_with_theme(
                 cell,
                 is_selected,
                 cursor_info,
-                theme,
+                ctx.theme,
             ));
         }
 
-        if copy_len < cols {
-            Self::push_empty_cells(cols - copy_len, dest);
+        if copy_len < ctx.cols {
+            Self::push_empty_cells(ctx.cols - copy_len, ctx.dest);
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn push_grid_row(
         grid: &par_term_emu_core_rust::grid::Grid,
         row: usize,
-        cols: usize,
-        dest: &mut Vec<Cell>,
-        screen_row: usize,
-        selection: Option<((usize, usize), (usize, usize))>,
-        rectangular: bool,
-        cursor: Option<(
-            (usize, usize),
-            f32,
-            par_term_emu_core_rust::cursor::CursorStyle,
-        )>,
-        theme: &Theme,
+        ctx: &mut RowRenderContext<'_>,
     ) {
-        for col in 0..cols {
-            let is_selected = Self::is_cell_selected(col, screen_row, selection, rectangular);
-            let cursor_info = cursor.and_then(|((cx, cy), opacity, style)| {
-                if cx == col && cy == screen_row {
+        for col in 0..ctx.cols {
+            let is_selected =
+                Self::is_cell_selected(col, ctx.screen_row, ctx.selection, ctx.rectangular);
+            let cursor_info = ctx.cursor.and_then(|((cx, cy), opacity, style)| {
+                if cx == col && cy == ctx.screen_row {
                     Some((opacity, style))
                 } else {
                     None
                 }
             });
             if let Some(cell) = grid.get(col, row) {
-                dest.push(Self::convert_term_cell_with_theme(
+                ctx.dest.push(Self::convert_term_cell_with_theme(
                     cell,
                     is_selected,
                     cursor_info,
-                    theme,
+                    ctx.theme,
                 ));
             } else {
-                dest.push(Cell::default());
+                ctx.dest.push(Cell::default());
             }
         }
     }

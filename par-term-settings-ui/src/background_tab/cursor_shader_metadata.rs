@@ -124,7 +124,7 @@ fn show_per_cursor_shader_settings(
             .as_ref()
             .and_then(|o| o.base.animation_speed)
             .or_else(|| meta_defaults.as_ref().and_then(|m| m.base.animation_speed))
-            .unwrap_or(settings.config.cursor_shader_animation_speed);
+            .unwrap_or(settings.config.shader.cursor_shader_animation_speed);
         let has_override_val = current_override
             .as_ref()
             .and_then(|o| o.base.animation_speed)
@@ -161,7 +161,7 @@ fn show_per_cursor_shader_settings(
             .as_ref()
             .and_then(|o| o.hides_cursor)
             .or_else(|| meta_defaults.as_ref().and_then(|m| m.hides_cursor))
-            .unwrap_or(settings.config.cursor_shader_hides_cursor);
+            .unwrap_or(settings.config.shader.cursor_shader_hides_cursor);
         let has_override_val = current_override
             .as_ref()
             .and_then(|o| o.hides_cursor)
@@ -201,7 +201,7 @@ fn show_per_cursor_shader_settings(
             .as_ref()
             .and_then(|o| o.disable_in_alt_screen)
             .or_else(|| meta_defaults.as_ref().and_then(|m| m.disable_in_alt_screen))
-            .unwrap_or(settings.config.cursor_shader_disable_in_alt_screen);
+            .unwrap_or(settings.config.shader.cursor_shader_disable_in_alt_screen);
         let has_override_val = current_override
             .as_ref()
             .and_then(|o| o.disable_in_alt_screen)
@@ -339,7 +339,7 @@ fn build_cursor_metadata_from_settings(
     let effective_speed = current_override
         .and_then(|o| o.base.animation_speed)
         .or_else(|| meta_defaults.and_then(|m| m.base.animation_speed))
-        .unwrap_or(settings.config.cursor_shader_animation_speed);
+        .unwrap_or(settings.config.shader.cursor_shader_animation_speed);
     if (effective_speed - 1.0).abs() > 0.001 {
         new_defaults.base.animation_speed = Some(effective_speed);
     } else {
@@ -350,7 +350,7 @@ fn build_cursor_metadata_from_settings(
     let effective_hides_cursor = current_override
         .and_then(|o| o.hides_cursor)
         .or_else(|| meta_defaults.and_then(|m| m.hides_cursor))
-        .unwrap_or(settings.config.cursor_shader_hides_cursor);
+        .unwrap_or(settings.config.shader.cursor_shader_hides_cursor);
     // Only save if true (false is the default)
     if effective_hides_cursor {
         new_defaults.hides_cursor = Some(true);
@@ -362,7 +362,7 @@ fn build_cursor_metadata_from_settings(
     let effective_disable_in_alt_screen = current_override
         .and_then(|o| o.disable_in_alt_screen)
         .or_else(|| meta_defaults.and_then(|m| m.disable_in_alt_screen))
-        .unwrap_or(settings.config.cursor_shader_disable_in_alt_screen);
+        .unwrap_or(settings.config.shader.cursor_shader_disable_in_alt_screen);
     // Only save if false (true is the default)
     if !effective_disable_in_alt_screen {
         new_defaults.disable_in_alt_screen = Some(false);

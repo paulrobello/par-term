@@ -51,6 +51,9 @@ pub mod pipeline;
 pub mod regex_detector;
 pub mod registry;
 pub mod renderers;
+pub mod rule_loader;
+#[cfg(test)]
+pub mod testing;
 pub mod traits;
 pub mod types;
 

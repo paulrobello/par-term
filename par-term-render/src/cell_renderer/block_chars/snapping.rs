@@ -3,42 +3,49 @@
 //! Provides functions to align glyph bounds to cell boundaries,
 //! preventing gaps between adjacent block characters (e.g. tmux pane borders).
 
+/// Parameters for [`snap_glyph_to_cell`].
+pub struct SnapGlyphParams {
+    /// Original glyph left position in pixels.
+    pub glyph_left: f32,
+    /// Original glyph top position in pixels.
+    pub glyph_top: f32,
+    /// Original glyph render width in pixels.
+    pub render_w: f32,
+    /// Original glyph render height in pixels.
+    pub render_h: f32,
+    /// Cell left boundary in pixels.
+    pub cell_x0: f32,
+    /// Cell top boundary in pixels.
+    pub cell_y0: f32,
+    /// Cell right boundary in pixels.
+    pub cell_x1: f32,
+    /// Cell bottom boundary in pixels.
+    pub cell_y1: f32,
+    /// Distance in pixels to consider "close enough" to snap.
+    pub snap_threshold: f32,
+    /// Amount to extend beyond boundaries to prevent gaps.
+    pub extension: f32,
+}
+
 /// Calculate snapped glyph bounds for block characters.
 ///
-/// This function adjusts glyph position and size to align with cell boundaries,
+/// Adjusts glyph position and size to align with cell boundaries,
 /// preventing gaps between adjacent block characters.
 ///
-/// # Arguments
-/// * `glyph_left` - Original glyph left position in pixels
-/// * `glyph_top` - Original glyph top position in pixels
-/// * `render_w` - Original glyph render width in pixels
-/// * `render_h` - Original glyph render height in pixels
-/// * `cell_x0` - Cell left boundary in pixels
-/// * `cell_y0` - Cell top boundary in pixels
-/// * `cell_x1` - Cell right boundary in pixels
-/// * `cell_y1` - Cell bottom boundary in pixels
-/// * `snap_threshold` - Distance in pixels to consider "close enough" to snap
-/// * `extension` - Amount to extend beyond boundaries to prevent gaps
-///
-/// # Returns
-/// Tuple of (new_left, new_top, new_width, new_height)
-// Too many arguments: the 10 parameters represent two independent 2D rectangles
-// (glyph bounds and cell bounds) plus two scalar thresholds. Introducing a Rect
-// type for the two pairs is the cleanest fix; deferred since this helper is called
-// only from the block-character rendering hot path.
-#[allow(clippy::too_many_arguments)]
-pub fn snap_glyph_to_cell(
-    glyph_left: f32,
-    glyph_top: f32,
-    render_w: f32,
-    render_h: f32,
-    cell_x0: f32,
-    cell_y0: f32,
-    cell_x1: f32,
-    cell_y1: f32,
-    snap_threshold: f32,
-    extension: f32,
-) -> (f32, f32, f32, f32) {
+/// Returns `(new_left, new_top, new_width, new_height)`.
+pub fn snap_glyph_to_cell(p: SnapGlyphParams) -> (f32, f32, f32, f32) {
+    let SnapGlyphParams {
+        glyph_left,
+        glyph_top,
+        render_w,
+        render_h,
+        cell_x0,
+        cell_y0,
+        cell_x1,
+        cell_y1,
+        snap_threshold,
+        extension,
+    } = p;
     let mut new_left = glyph_left;
     let mut new_top = glyph_top;
     let mut new_w = render_w;

@@ -27,13 +27,13 @@ pub(super) fn show_search_section(
         ui.horizontal(|ui| {
             ui.label("Match highlight:");
             let mut color = egui::Color32::from_rgba_unmultiplied(
-                settings.config.search_highlight_color[0],
-                settings.config.search_highlight_color[1],
-                settings.config.search_highlight_color[2],
-                settings.config.search_highlight_color[3],
+                settings.config.search.search_highlight_color[0],
+                settings.config.search.search_highlight_color[1],
+                settings.config.search.search_highlight_color[2],
+                settings.config.search.search_highlight_color[3],
             );
             if ui.color_edit_button_srgba(&mut color).changed() {
-                settings.config.search_highlight_color =
+                settings.config.search.search_highlight_color =
                     [color.r(), color.g(), color.b(), color.a()];
                 settings.has_changes = true;
                 *changes_this_frame = true;
@@ -44,13 +44,13 @@ pub(super) fn show_search_section(
         ui.horizontal(|ui| {
             ui.label("Current match:");
             let mut color = egui::Color32::from_rgba_unmultiplied(
-                settings.config.search_current_highlight_color[0],
-                settings.config.search_current_highlight_color[1],
-                settings.config.search_current_highlight_color[2],
-                settings.config.search_current_highlight_color[3],
+                settings.config.search.search_current_highlight_color[0],
+                settings.config.search.search_current_highlight_color[1],
+                settings.config.search.search_current_highlight_color[2],
+                settings.config.search.search_current_highlight_color[3],
             );
             if ui.color_edit_button_srgba(&mut color).changed() {
-                settings.config.search_current_highlight_color =
+                settings.config.search.search_current_highlight_color =
                     [color.r(), color.g(), color.b(), color.a()];
                 settings.has_changes = true;
                 *changes_this_frame = true;
@@ -63,7 +63,7 @@ pub(super) fn show_search_section(
         // Case sensitivity default
         if ui
             .checkbox(
-                &mut settings.config.search_case_sensitive,
+                &mut settings.config.search.search_case_sensitive,
                 "Case sensitive by default",
             )
             .on_hover_text("When enabled, search will be case-sensitive by default")
@@ -75,7 +75,10 @@ pub(super) fn show_search_section(
 
         // Regex default
         if ui
-            .checkbox(&mut settings.config.search_regex, "Use regex by default")
+            .checkbox(
+                &mut settings.config.search.search_regex,
+                "Use regex by default",
+            )
             .on_hover_text(
                 "When enabled, search patterns will be treated as regular expressions by default",
             )
@@ -88,7 +91,7 @@ pub(super) fn show_search_section(
         // Wrap around
         if ui
             .checkbox(
-                &mut settings.config.search_wrap_around,
+                &mut settings.config.search.search_wrap_around,
                 "Wrap around when navigating",
             )
             .on_hover_text("When enabled, navigating past the last match wraps to the first match")

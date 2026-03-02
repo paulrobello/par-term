@@ -35,7 +35,12 @@ pub mod app;
 pub mod arrangements;
 pub mod audio_bell;
 pub mod badge;
-pub mod cell_renderer;
+pub mod cell_renderer {
+    //! Cell renderer re-exports from par-term-render crate.
+    pub use par_term_render::cell_renderer::{
+        Cell, CellRenderer, PaneViewport, atlas, background, block_chars, pipeline, render, types,
+    };
+}
 pub mod cli;
 pub mod clipboard_history_ui;
 pub mod close_confirmation_ui;
@@ -43,11 +48,7 @@ pub mod command_history;
 pub mod command_history_ui;
 pub mod config;
 pub mod copy_mode;
-pub mod custom_shader_renderer;
-pub mod font_manager;
 pub mod font_metrics;
-pub mod gpu_utils;
-pub mod graphics_renderer;
 pub mod help_ui;
 pub mod http;
 pub mod input;
@@ -56,7 +57,7 @@ pub mod keybindings;
 pub mod macos_blur; // macOS window blur using private CGS API
 pub mod macos_metal; // macOS-specific CAMetalLayer configuration
 pub mod macos_space; // macOS Space (virtual desktop) targeting using private SLS API
-pub mod manifest;
+pub(crate) mod manifest;
 pub use par_term_mcp as mcp_server;
 pub mod menu;
 pub mod pane;
@@ -66,18 +67,40 @@ pub mod platform;
 pub mod prettifier;
 pub mod profile;
 pub mod profile_drawer_ui;
-pub mod profile_modal_ui;
+pub mod profile_modal_ui {
+    //! Profile management modal UI — re-exported from `par-term-settings-ui`.
+    //!
+    //! The authoritative implementation lives in `par-term-settings-ui::profile_modal_ui`.
+    //! This module is a thin re-export so that downstream code (including integration
+    //! tests) can continue to use `par_term::profile_modal_ui` as the import path.
+    pub use par_term_settings_ui::profile_modal_ui::*;
+}
 pub mod progress_bar;
 pub mod quit_confirmation_ui;
 pub mod remote_shell_install_ui;
-pub mod renderer;
+pub(crate) mod renderer {
+    //! Renderer re-exports from the `par-term-render` sub-crate.
+    pub use par_term_render::renderer::{
+        DividerRenderInfo, PaneDividerSettings, PaneRenderInfo, PaneTitleInfo, Renderer,
+        RendererParams, SplitPanesRenderParams, compute_visible_separator_marks,
+    };
+}
 pub mod scripting;
 pub mod scroll_state;
-pub mod scrollback_metadata;
-pub mod scrollbar;
+pub(crate) mod scrollback_metadata {
+    //! Scrollback metadata re-exports from par-term-terminal crate.
+    pub use par_term_terminal::scrollback_metadata::ScrollbackMark;
+}
 pub mod search;
 pub mod selection;
-pub mod self_updater;
+pub mod self_updater {
+    //! Self-update functionality re-exports from `par-term-update`.
+    pub use par_term_update::self_updater::{
+        DownloadUrls, InstallationType, UpdateResult, cleanup_old_binary, compute_data_hash,
+        detect_installation, get_asset_name, get_binary_download_url, get_checksum_asset_name,
+        get_download_urls, perform_update,
+    };
+}
 pub mod session;
 pub mod session_logger;
 pub use par_term_settings_ui as settings_ui;
@@ -93,17 +116,40 @@ pub mod snippets;
 pub mod ssh;
 pub mod ssh_connect_ui;
 pub mod status_bar;
-pub mod styled_content;
 pub mod tab;
 pub mod tab_bar_ui;
-pub mod terminal;
-pub mod text_shaper;
-pub mod themes;
+pub mod terminal {
+    //! Terminal manager re-exports from `par-term-terminal` sub-crate.
+    pub use par_term_terminal::terminal::clipboard;
+    pub use par_term_terminal::terminal::coprocess_env;
+    pub use par_term_terminal::terminal::graphics;
+    pub use par_term_terminal::terminal::hyperlinks;
+    pub use par_term_terminal::terminal::rendering;
+    pub use par_term_terminal::terminal::spawn;
+    pub use par_term_terminal::terminal::{
+        ClipboardEntry, ClipboardSlot, ShellLifecycleEvent, TerminalManager,
+    };
+    pub use par_term_terminal::{HyperlinkInfo, SearchMatch};
+}
+pub mod text_shaper {
+    //! Text shaping re-exports from par-term-fonts crate.
+    pub use par_term_fonts::text_shaper::{ShapedGlyph, ShapedRun, ShapingOptions, TextShaper};
+}
+pub(crate) mod themes {
+    //! Terminal color themes re-exports from par-term-config crate.
+    pub use par_term_config::Theme;
+}
 pub use par_term_tmux as tmux;
 pub mod tmux_session_picker_ui;
 pub mod tmux_status_bar_ui;
 pub mod traits;
+pub mod traits_impl;
 pub mod ui_constants;
-pub mod update_checker;
+pub(crate) mod update_checker {
+    //! Update checker re-exports from `par-term-update`.
+    pub use par_term_update::update_checker::{
+        UpdateCheckResult, UpdateChecker, UpdateInfo, current_timestamp, fetch_latest_release,
+    };
+}
 pub mod update_dialog;
 pub mod url_detection;

@@ -15,7 +15,7 @@ pub(super) fn show_unicode_section(
     collapsing_section(ui, "Unicode", "terminal_unicode", false, collapsed, |ui| {
         ui.horizontal(|ui| {
             ui.label("Unicode version:");
-            let version_text = match settings.config.unicode_version {
+            let version_text = match settings.config.unicode.unicode_version {
                 par_term_config::UnicodeVersion::Unicode9 => "9.0",
                 par_term_config::UnicodeVersion::Unicode10 => "10.0",
                 par_term_config::UnicodeVersion::Unicode11 => "11.0",
@@ -44,7 +44,11 @@ pub(super) fn show_unicode_section(
                     ];
                     for (value, label) in versions {
                         if ui
-                            .selectable_value(&mut settings.config.unicode_version, value, label)
+                            .selectable_value(
+                                &mut settings.config.unicode.unicode_version,
+                                value,
+                                label,
+                            )
                             .changed()
                         {
                             settings.has_changes = true;
@@ -62,7 +66,7 @@ pub(super) fn show_unicode_section(
 
         ui.horizontal(|ui| {
             ui.label("Ambiguous width:");
-            let width_text = match settings.config.ambiguous_width {
+            let width_text = match settings.config.unicode.ambiguous_width {
                 par_term_config::AmbiguousWidth::Narrow => "Narrow (1 cell)",
                 par_term_config::AmbiguousWidth::Wide => "Wide (2 cells)",
             };
@@ -71,7 +75,7 @@ pub(super) fn show_unicode_section(
                 .show_ui(ui, |ui| {
                     if ui
                         .selectable_value(
-                            &mut settings.config.ambiguous_width,
+                            &mut settings.config.unicode.ambiguous_width,
                             par_term_config::AmbiguousWidth::Narrow,
                             "Narrow (1 cell)",
                         )
@@ -82,7 +86,7 @@ pub(super) fn show_unicode_section(
                     }
                     if ui
                         .selectable_value(
-                            &mut settings.config.ambiguous_width,
+                            &mut settings.config.unicode.ambiguous_width,
                             par_term_config::AmbiguousWidth::Wide,
                             "Wide (2 cells)",
                         )
@@ -102,7 +106,7 @@ pub(super) fn show_unicode_section(
 
         ui.horizontal(|ui| {
             ui.label("Normalization:");
-            let norm_text = match settings.config.normalization_form {
+            let norm_text = match settings.config.unicode.normalization_form {
                 par_term_config::NormalizationForm::None => "None",
                 par_term_config::NormalizationForm::NFC => "NFC (default)",
                 par_term_config::NormalizationForm::NFD => "NFD",
@@ -121,7 +125,11 @@ pub(super) fn show_unicode_section(
                     ];
                     for (value, label) in forms {
                         if ui
-                            .selectable_value(&mut settings.config.normalization_form, value, label)
+                            .selectable_value(
+                                &mut settings.config.unicode.normalization_form,
+                                value,
+                                label,
+                            )
                             .changed()
                         {
                             settings.has_changes = true;

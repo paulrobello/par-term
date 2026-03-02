@@ -1,12 +1,14 @@
-use crate::cell_renderer::{Cell, CellRenderer, PaneViewport};
+use crate::cell_renderer::{Cell, CellRenderer, CellRendererConfig, PaneViewport};
 use crate::custom_shader_renderer::CustomShaderRenderer;
 use crate::graphics_renderer::GraphicsRenderer;
 use anyhow::Result;
 use winit::dpi::PhysicalSize;
 
-mod accessors;
+mod egui_render;
 pub mod graphics;
 pub mod params;
+mod render_orchestrator;
+mod render_passes;
 mod rendering;
 pub mod shaders;
 mod state;
@@ -14,6 +16,7 @@ mod state;
 // Re-export SeparatorMark from par-term-config
 pub use par_term_config::SeparatorMark;
 pub use params::RendererParams;
+pub use rendering::SplitPanesRenderParams;
 
 /// Compute which separator marks are visible in the current viewport.
 ///
@@ -300,49 +303,49 @@ impl Renderer {
         let rows = (available_height / char_height).max(1.0) as usize;
 
         // Create cell renderer with font fallback support (owns scrollbar)
+        let bg_path = if background_image_enabled {
+            background_image_path
+        } else {
+            None
+        };
+        log::info!(
+            "Renderer::new: background_image_enabled={}, path={:?}",
+            background_image_enabled,
+            bg_path
+        );
         let cell_renderer = CellRenderer::new(
             window.clone(),
-            font_family,
-            font_family_bold,
-            font_family_italic,
-            font_family_bold_italic,
-            font_ranges,
-            font_size,
-            cols,
-            rows,
-            window_padding,
-            line_spacing,
-            char_spacing,
-            scrollbar_position,
-            scrollbar_width,
-            scrollbar_thumb_color,
-            scrollbar_track_color,
-            enable_text_shaping,
-            enable_ligatures,
-            enable_kerning,
-            font_antialias,
-            font_hinting,
-            font_thin_strokes,
-            minimum_contrast,
-            vsync_mode,
-            power_preference,
-            window_opacity,
-            background_color,
-            {
-                let bg_path = if background_image_enabled {
-                    background_image_path
-                } else {
-                    None
-                };
-                log::info!(
-                    "Renderer::new: background_image_enabled={}, path={:?}",
-                    background_image_enabled,
-                    bg_path
-                );
-                bg_path
+            CellRendererConfig {
+                font_family,
+                font_family_bold,
+                font_family_italic,
+                font_family_bold_italic,
+                font_ranges,
+                font_size,
+                cols,
+                rows,
+                window_padding,
+                line_spacing,
+                char_spacing,
+                scrollbar_position,
+                scrollbar_width,
+                scrollbar_thumb_color,
+                scrollbar_track_color,
+                enable_text_shaping,
+                enable_ligatures,
+                enable_kerning,
+                font_antialias,
+                font_hinting,
+                font_thin_strokes,
+                minimum_contrast,
+                vsync_mode,
+                power_preference,
+                window_opacity,
+                background_color,
+                background_image_path: bg_path,
+                background_image_mode,
+                background_image_opacity,
             },
-            background_image_mode,
-            background_image_opacity,
         )
         .await?;
 
@@ -372,32 +375,36 @@ impl Renderer {
         // Create custom shader renderer if configured
         let (mut custom_shader_renderer, initial_shader_path) = shaders::init_custom_shader(
             &cell_renderer,
-            size.width,
-            size.height,
-            window_padding,
-            custom_shader_path,
-            custom_shader_enabled,
-            custom_shader_animation,
-            custom_shader_animation_speed,
-            window_opacity,
-            custom_shader_full_content,
-            custom_shader_brightness,
-            custom_shader_channel_paths,
-            custom_shader_cubemap_path,
-            use_background_as_channel0,
+            shaders::CustomShaderInitParams {
+                size_width: size.width,
+                size_height: size.height,
+                window_padding,
+                path: custom_shader_path,
+                enabled: custom_shader_enabled,
+                animation: custom_shader_animation,
+                animation_speed: custom_shader_animation_speed,
+                window_opacity,
+                full_content: custom_shader_full_content,
+                brightness: custom_shader_brightness,
+                channel_paths: custom_shader_channel_paths,
+                cubemap_path: custom_shader_cubemap_path,
+                use_background_as_channel0,
+            },
         );
 
         // Create cursor shader renderer if configured (separate from background shader)
         let (mut cursor_shader_renderer, initial_cursor_shader_path) = shaders::init_cursor_shader(
             &cell_renderer,
-            size.width,
-            size.height,
-            window_padding,
-            cursor_shader_path,
-            cursor_shader_enabled,
-            cursor_shader_animation,
-            cursor_shader_animation_speed,
-            window_opacity,
+            shaders::CursorShaderInitParams {
+                size_width: size.width,
+                size_height: size.height,
+                window_padding,
+                path: cursor_shader_path,
+                enabled: cursor_shader_enabled,
+                animation: cursor_shader_animation,
+                animation_speed: cursor_shader_animation_speed,
+                window_opacity,
+            },
         );
 
         // Sync DPI scale factor to shader renderers for cursor sizing
@@ -553,5 +560,172 @@ impl Renderer {
         }
 
         self.resize(new_size)
+    }
+}
+
+// Layout and sizing accessors — simple getters/setters for grid geometry, padding,
+// and content offsets. Co-located here with resize/handle_scale_factor_change since
+// all of these deal with the spatial layout of the renderer.
+impl Renderer {
+    /// Get the current size
+    pub fn size(&self) -> PhysicalSize<u32> {
+        self.size
+    }
+
+    /// Get the current grid dimensions (columns, rows)
+    pub fn grid_size(&self) -> (usize, usize) {
+        self.cell_renderer.grid_size()
+    }
+
+    /// Get cell width in pixels
+    pub fn cell_width(&self) -> f32 {
+        self.cell_renderer.cell_width()
+    }
+
+    /// Get cell height in pixels
+    pub fn cell_height(&self) -> f32 {
+        self.cell_renderer.cell_height()
+    }
+
+    /// Get window padding in physical pixels (scaled by DPI)
+    pub fn window_padding(&self) -> f32 {
+        self.cell_renderer.window_padding()
+    }
+
+    /// Get the vertical content offset in physical pixels (e.g., tab bar height scaled by DPI)
+    pub fn content_offset_y(&self) -> f32 {
+        self.cell_renderer.content_offset_y()
+    }
+
+    /// Get the display scale factor (e.g., 2.0 on Retina displays)
+    pub fn scale_factor(&self) -> f32 {
+        self.cell_renderer.scale_factor
+    }
+
+    /// Set the vertical content offset (e.g., tab bar height) in logical pixels.
+    /// The offset is scaled by the display scale factor to physical pixels internally,
+    /// since the cell renderer works in physical pixel coordinates while egui (tab bar)
+    /// uses logical pixels.
+    /// Returns Some((cols, rows)) if grid size changed, None otherwise.
+    pub fn set_content_offset_y(&mut self, logical_offset: f32) -> Option<(usize, usize)> {
+        // Scale from logical pixels (egui/config) to physical pixels (wgpu surface)
+        let physical_offset = logical_offset * self.cell_renderer.scale_factor;
+        let result = self.cell_renderer.set_content_offset_y(physical_offset);
+        // Always update graphics renderer offset, even if grid size didn't change
+        self.graphics_renderer.set_content_offset_y(physical_offset);
+        // Update custom shader renderer content offset
+        if let Some(ref mut custom_shader) = self.custom_shader_renderer {
+            custom_shader.set_content_offset_y(physical_offset);
+        }
+        // Update cursor shader renderer content offset
+        if let Some(ref mut cursor_shader) = self.cursor_shader_renderer {
+            cursor_shader.set_content_offset_y(physical_offset);
+        }
+        if result.is_some() {
+            self.dirty = true;
+        }
+        result
+    }
+
+    /// Get the horizontal content offset in physical pixels
+    pub fn content_offset_x(&self) -> f32 {
+        self.cell_renderer.content_offset_x()
+    }
+
+    /// Set the horizontal content offset (e.g., tab bar on left) in logical pixels.
+    /// Returns Some((cols, rows)) if grid size changed, None otherwise.
+    pub fn set_content_offset_x(&mut self, logical_offset: f32) -> Option<(usize, usize)> {
+        let physical_offset = logical_offset * self.cell_renderer.scale_factor;
+        let result = self.cell_renderer.set_content_offset_x(physical_offset);
+        self.graphics_renderer.set_content_offset_x(physical_offset);
+        if let Some(ref mut custom_shader) = self.custom_shader_renderer {
+            custom_shader.set_content_offset_x(physical_offset);
+        }
+        if let Some(ref mut cursor_shader) = self.cursor_shader_renderer {
+            cursor_shader.set_content_offset_x(physical_offset);
+        }
+        if result.is_some() {
+            self.dirty = true;
+        }
+        result
+    }
+
+    /// Get the bottom content inset in physical pixels
+    pub fn content_inset_bottom(&self) -> f32 {
+        self.cell_renderer.content_inset_bottom()
+    }
+
+    /// Get the right content inset in physical pixels
+    pub fn content_inset_right(&self) -> f32 {
+        self.cell_renderer.content_inset_right()
+    }
+
+    /// Set the bottom content inset (e.g., tab bar at bottom) in logical pixels.
+    /// Returns Some((cols, rows)) if grid size changed, None otherwise.
+    pub fn set_content_inset_bottom(&mut self, logical_inset: f32) -> Option<(usize, usize)> {
+        let physical_inset = logical_inset * self.cell_renderer.scale_factor;
+        let result = self.cell_renderer.set_content_inset_bottom(physical_inset);
+        if result.is_some() {
+            self.dirty = true;
+            // Invalidate the scrollbar cache — the track height depends on
+            // the bottom inset, so the scrollbar must be repositioned.
+            self.last_scrollbar_state = (usize::MAX, 0, 0);
+        }
+        result
+    }
+
+    /// Set the right content inset (e.g., AI Inspector panel) in logical pixels.
+    /// Returns Some((cols, rows)) if grid size changed, None otherwise.
+    pub fn set_content_inset_right(&mut self, logical_inset: f32) -> Option<(usize, usize)> {
+        let physical_inset = logical_inset * self.cell_renderer.scale_factor;
+        let result = self.cell_renderer.set_content_inset_right(physical_inset);
+
+        // Also update custom shader renderer to exclude panel area from effects
+        if let Some(ref mut custom_shader) = self.custom_shader_renderer {
+            custom_shader.set_content_inset_right(physical_inset);
+        }
+        // Also update cursor shader renderer
+        if let Some(ref mut cursor_shader) = self.cursor_shader_renderer {
+            cursor_shader.set_content_inset_right(physical_inset);
+        }
+
+        if result.is_some() {
+            self.dirty = true;
+            // Invalidate the scrollbar cache so the next update_scrollbar()
+            // repositions the scrollbar at the new right inset. Without this,
+            // the cache guard sees the same (scroll_offset, visible_lines,
+            // total_lines) tuple and skips the GPU upload, leaving the
+            // scrollbar stuck at the old position.
+            self.last_scrollbar_state = (usize::MAX, 0, 0);
+        }
+        result
+    }
+
+    /// Set the additional bottom inset from egui panels (status bar, tmux bar).
+    ///
+    /// This inset reduces the terminal grid height so content does not render
+    /// behind the status bar. Also affects scrollbar bounds.
+    /// Returns `Some((cols, rows))` if the grid was resized.
+    pub fn set_egui_bottom_inset(&mut self, logical_inset: f32) -> Option<(usize, usize)> {
+        let physical_inset = logical_inset * self.cell_renderer.scale_factor;
+        if (self.cell_renderer.grid.egui_bottom_inset - physical_inset).abs() > f32::EPSILON {
+            self.cell_renderer.grid.egui_bottom_inset = physical_inset;
+            let (w, h) = (
+                self.cell_renderer.config.width,
+                self.cell_renderer.config.height,
+            );
+            return Some(self.cell_renderer.resize(w, h));
+        }
+        None
+    }
+
+    /// Set the additional right inset from egui panels (AI Inspector).
+    ///
+    /// This inset is added to `content_inset_right` for scrollbar bounds only.
+    /// egui panels already claim space before wgpu rendering, so this doesn't
+    /// affect the terminal grid sizing.
+    pub fn set_egui_right_inset(&mut self, logical_inset: f32) {
+        let physical_inset = logical_inset * self.cell_renderer.scale_factor;
+        self.cell_renderer.grid.egui_right_inset = physical_inset;
     }
 }

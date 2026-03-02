@@ -3,6 +3,38 @@
 //! `RendererRegistry` holds all registered `ContentDetector`s and
 //! `ContentRenderer`s, runs the detection pipeline against content blocks,
 //! and provides access to renderers by format ID.
+//!
+//! # R-50: `Registrable` trait — design note
+//!
+//! The audit identified that every renderer module exposes a `register_X_renderer`
+//! free function with a one-line body that follows the same pattern. A `Registrable`
+//! trait was proposed to eliminate this boilerplate:
+//!
+//! ```ignore
+//! pub trait Registrable {
+//!     type Config: Default + Clone;
+//!     fn format_id() -> &'static str;
+//!     fn register(registry: &mut RendererRegistry, config: &Self::Config);
+//! }
+//! ```
+//!
+//! This trait is **not implemented** because:
+//!
+//! 1. **Associated type prevents trait-object iteration**: `build_default_registry`
+//!    would need to iterate `Vec<Box<dyn Registrable>>`, which is not object-safe
+//!    due to the `type Config` associated type (heterogeneous configs prevent a
+//!    uniform vtable).
+//!
+//! 2. **Alternative with type erasure**: A `fn(registry: &mut RendererRegistry)`
+//!    closure list works but is equivalent to the current free-function list in
+//!    code complexity, just with more indirection.
+//!
+//! 3. **Current boilerplate is bounded**: There are 11 renderer modules; each
+//!    registration function is a 1–3 line trivial wrapper. The total duplication
+//!    is ~33 lines, which does not justify the trait complexity.
+//!
+//! The current pattern is kept as-is. If a 12th+ renderer is added, reconsider
+//! using a registration closure list in `config_bridge.rs::build_default_registry`.
 
 use std::collections::HashMap;
 
@@ -172,6 +204,10 @@ impl RendererRegistry {
     }
 
     /// Apply rule overrides and additional rules from config to a specific format's detector.
+    ///
+    /// Only detectors that implement [`super::traits::ConfigurableDetector`] are affected.
+    /// Non-configurable detectors (those whose `as_configurable_mut()` returns `None`) are
+    /// silently skipped rather than silently no-op'ing as in the previous design.
     pub fn apply_rules_for_format(
         &mut self,
         format_id: &str,
@@ -180,11 +216,13 @@ impl RendererRegistry {
     ) {
         for (_priority, detector) in &mut self.detectors {
             if detector.format_id() == format_id {
-                if !overrides.is_empty() {
-                    detector.apply_config_overrides(overrides);
-                }
-                if !additional.is_empty() {
-                    detector.merge_config_rules(additional);
+                if let Some(cd) = detector.as_configurable_mut() {
+                    if !overrides.is_empty() {
+                        cd.apply_config_overrides(overrides);
+                    }
+                    if !additional.is_empty() {
+                        cd.merge_config_rules(additional);
+                    }
                 }
                 return;
             }
@@ -195,9 +233,9 @@ impl RendererRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::prettifier::testing::make_block;
     use crate::prettifier::traits::*;
     use crate::prettifier::types::*;
-    use std::time::SystemTime;
 
     /// Minimal detector for testing.
     struct MockDetector {
@@ -260,16 +298,6 @@ mod tests {
         }
         fn format_badge(&self) -> &str {
             "MOCK"
-        }
-    }
-
-    fn make_block(lines: &[&str]) -> ContentBlock {
-        ContentBlock {
-            lines: lines.iter().map(|s| s.to_string()).collect(),
-            preceding_command: None,
-            start_row: 0,
-            end_row: lines.len(),
-            timestamp: SystemTime::now(),
         }
     }
 

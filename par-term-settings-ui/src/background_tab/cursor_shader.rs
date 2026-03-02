@@ -42,7 +42,7 @@ pub fn show_cursor_shader(
                             .clicked()
                         {
                             settings.temp_cursor_shader.clear();
-                            settings.config.cursor_shader = None;
+                            settings.config.shader.cursor_shader = None;
                             shader_changed = true;
                         }
 
@@ -51,7 +51,7 @@ pub fn show_cursor_shader(
                             let is_selected = settings.temp_cursor_shader == *shader;
                             if ui.selectable_label(is_selected, shader).clicked() {
                                 settings.temp_cursor_shader = shader.clone();
-                                settings.config.cursor_shader = Some(shader.clone());
+                                settings.config.shader.cursor_shader = Some(shader.clone());
                                 shader_changed = true;
                             }
                         }
@@ -81,7 +81,7 @@ pub fn show_cursor_shader(
                     && let Some(path) = settings.pick_file_path("Select cursor shader file")
                 {
                     settings.temp_cursor_shader = path.clone();
-                    settings.config.cursor_shader = Some(path);
+                    settings.config.shader.cursor_shader = Some(path);
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
@@ -144,7 +144,7 @@ pub fn show_cursor_shader(
 
             if ui
                 .checkbox(
-                    &mut settings.config.cursor_shader_enabled,
+                    &mut settings.config.shader.cursor_shader_enabled,
                     "Enable cursor shader",
                 )
                 .changed()
@@ -155,7 +155,7 @@ pub fn show_cursor_shader(
 
             if ui
                 .checkbox(
-                    &mut settings.config.cursor_shader_animation,
+                    &mut settings.config.shader.cursor_shader_animation,
                     "Enable cursor shader animation",
                 )
                 .changed()
@@ -168,7 +168,7 @@ pub fn show_cursor_shader(
                 ui.label("Animation speed:");
                 if ui
                     .add(egui::Slider::new(
-                        &mut settings.config.cursor_shader_animation_speed,
+                        &mut settings.config.shader.cursor_shader_animation_speed,
                         0.0..=5.0,
                     ))
                     .changed()
@@ -180,7 +180,7 @@ pub fn show_cursor_shader(
 
             if ui
             .checkbox(
-                &mut settings.config.cursor_shader_hides_cursor,
+                &mut settings.config.shader.cursor_shader_hides_cursor,
                 "Hide default cursor (let shader handle it)",
             )
             .on_hover_text("When enabled, the normal cursor is not drawn, allowing the cursor shader to fully replace cursor rendering")
@@ -192,7 +192,7 @@ pub fn show_cursor_shader(
 
             if ui
             .checkbox(
-                &mut settings.config.cursor_shader_disable_in_alt_screen,
+                &mut settings.config.shader.cursor_shader_disable_in_alt_screen,
                 "Disable cursor shader in alt screen (vim/less/htop)",
             )
             .on_hover_text("When enabled, cursor shader effects pause while an application is using the alt screen")
@@ -207,13 +207,13 @@ pub fn show_cursor_shader(
 
             ui.horizontal(|ui| {
                 ui.label("Cursor color:");
-                let mut color = settings.config.cursor_shader_color;
+                let mut color = settings.config.shader.cursor_shader_color;
                 if ui
                     .color_edit_button_srgb(&mut color)
                     .on_hover_text("Color passed to cursor shader via iCursorShaderColor uniform")
                     .changed()
                 {
-                    settings.config.cursor_shader_color = color;
+                    settings.config.shader.cursor_shader_color = color;
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
@@ -224,7 +224,7 @@ pub fn show_cursor_shader(
                 if ui
                     .add(
                         egui::Slider::new(
-                            &mut settings.config.cursor_shader_trail_duration,
+                            &mut settings.config.shader.cursor_shader_trail_duration,
                             0.0..=2.0,
                         )
                         .suffix(" s"),
@@ -244,7 +244,7 @@ pub fn show_cursor_shader(
                 if ui
                     .add(
                         egui::Slider::new(
-                            &mut settings.config.cursor_shader_glow_radius,
+                            &mut settings.config.shader.cursor_shader_glow_radius,
                             0.0..=200.0,
                         )
                         .suffix(" px"),
@@ -261,7 +261,7 @@ pub fn show_cursor_shader(
                 ui.label("Glow intensity:");
                 if ui
                     .add(egui::Slider::new(
-                        &mut settings.config.cursor_shader_glow_intensity,
+                        &mut settings.config.shader.cursor_shader_glow_intensity,
                         0.0..=1.0,
                     ))
                     .on_hover_text("Intensity of cursor glow effect (iCursorGlowIntensity)")

@@ -202,19 +202,8 @@ pub fn register_markdown(registry: &mut RendererRegistry, config: &RenderersConf
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::prettifier::testing::make_block_with_command;
     use crate::prettifier::traits::ContentDetector;
-    use crate::prettifier::types::ContentBlock;
-    use std::time::SystemTime;
-
-    fn make_block(lines: &[&str], command: Option<&str>) -> ContentBlock {
-        ContentBlock {
-            lines: lines.iter().map(|s| s.to_string()).collect(),
-            preceding_command: command.map(|s| s.to_string()),
-            start_row: 0,
-            end_row: lines.len(),
-            timestamp: SystemTime::now(),
-        }
-    }
 
     #[test]
     fn test_all_rules_compile() {
@@ -225,7 +214,7 @@ mod tests {
     #[test]
     fn test_fenced_code_block_definitive() {
         let detector = create_markdown_detector();
-        let block = make_block(&["```rust", "fn main() {}", "```"], None);
+        let block = make_block_with_command(&["```rust", "fn main() {}", "```"], None);
         let result = detector.detect(&block);
         assert!(result.is_some());
         let result = result.unwrap();
@@ -236,7 +225,7 @@ mod tests {
     #[test]
     fn test_tilde_fenced_code_block_definitive() {
         let detector = create_markdown_detector();
-        let block = make_block(&["~~~python", "print('hello')", "~~~"], None);
+        let block = make_block_with_command(&["~~~python", "print('hello')", "~~~"], None);
         let result = detector.detect(&block);
         assert!(result.is_some());
         let result = result.unwrap();
@@ -263,13 +252,13 @@ mod tests {
             })
             .build();
 
-        let block = make_block(&["# Title", "Some body text"], None);
+        let block = make_block_with_command(&["# Title", "Some body text"], None);
         let result = detector.detect(&block).unwrap();
         assert!(result.confidence >= 0.5);
 
         // With the default 0.6 threshold, headers alone don't pass detection.
         let full_detector = create_markdown_detector();
-        let block = make_block(&["# Title", "Some body text"], None);
+        let block = make_block_with_command(&["# Title", "Some body text"], None);
         assert!(full_detector.detect(&block).is_none());
     }
 
@@ -277,7 +266,7 @@ mod tests {
     fn test_mixed_signals_exceed_threshold() {
         let detector = create_markdown_detector();
         // bold(0.2) + link(0.2) + list_bullet(0.15) + blockquote(0.15) = 0.7
-        let block = make_block(
+        let block = make_block_with_command(
             &[
                 "This is **bold** text",
                 "A [link](https://example.com) here",
@@ -295,7 +284,7 @@ mod tests {
     #[test]
     fn test_below_threshold_single_weak_signal() {
         let detector = create_markdown_detector();
-        let block = make_block(&["This has `inline code` only"], None);
+        let block = make_block_with_command(&["This has `inline code` only"], None);
         let result = detector.detect(&block);
         // inline_code weight = 0.1, far below 0.6 threshold.
         assert!(result.is_none());
@@ -304,7 +293,7 @@ mod tests {
     #[test]
     fn test_claude_code_context_boost() {
         let detector = create_markdown_detector();
-        let block = make_block(
+        let block = make_block_with_command(
             &["# Response", "Here is some **bold** and a [link](url)"],
             Some("claude"),
         );
@@ -322,7 +311,7 @@ mod tests {
     #[test]
     fn test_table_detection() {
         let detector = create_markdown_detector();
-        let block = make_block(
+        let block = make_block_with_command(
             &[
                 "| Name | Age | City |",
                 "|------|-----|------|",
@@ -340,7 +329,7 @@ mod tests {
     #[test]
     fn test_false_positive_shell_comments() {
         let detector = create_markdown_detector();
-        let block = make_block(
+        let block = make_block_with_command(
             &[
                 "#!/bin/bash",
                 "# This is a shell comment",
@@ -366,7 +355,7 @@ mod tests {
     #[test]
     fn test_not_markdown_json() {
         let detector = create_markdown_detector();
-        let block = make_block(
+        let block = make_block_with_command(
             &["{", "  \"name\": \"test\",", "  \"value\": 42", "}"],
             None,
         );
@@ -422,12 +411,12 @@ mod tests {
     fn test_horizontal_rule() {
         let detector = create_markdown_detector();
         // Horizontal rule alone (0.15) is below threshold.
-        let block = make_block(&["---"], None);
+        let block = make_block_with_command(&["---"], None);
         let result = detector.detect(&block);
         assert!(result.is_none());
 
         // With enough other signals to pass threshold.
-        let block = make_block(&["# Title", "---", "**bold** and [link](url)"], None);
+        let block = make_block_with_command(&["# Title", "---", "**bold** and [link](url)"], None);
         let result = detector.detect(&block);
         assert!(result.is_some());
     }
@@ -435,7 +424,7 @@ mod tests {
     #[test]
     fn test_blockquote() {
         let detector = create_markdown_detector();
-        let block = make_block(
+        let block = make_block_with_command(
             &[
                 "# Quote Section",
                 "> This is a blockquote",
@@ -454,7 +443,7 @@ mod tests {
     #[test]
     fn test_ordered_list() {
         let detector = create_markdown_detector();
-        let block = make_block(
+        let block = make_block_with_command(
             &[
                 "# Steps",
                 "1. First step",

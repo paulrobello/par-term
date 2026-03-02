@@ -37,7 +37,7 @@ impl WindowState {
                 };
                 if did_clear {
                     tab.active_cache_mut().scrollback_len = 0;
-                    tab.trigger_marks.clear();
+                    tab.scripting.trigger_marks.clear();
                 }
                 did_clear
             } else {
@@ -84,9 +84,7 @@ impl WindowState {
                 "Font size increased to {} (applying live)",
                 self.config.font_size
             );
-            if let Some(window) = &self.window {
-                window.request_redraw();
-            }
+            self.request_redraw();
             return true;
         }
 
@@ -101,9 +99,7 @@ impl WindowState {
                 "Font size decreased to {} (applying live)",
                 self.config.font_size
             );
-            if let Some(window) = &self.window {
-                window.request_redraw();
-            }
+            self.request_redraw();
             return true;
         }
 
@@ -113,9 +109,7 @@ impl WindowState {
             self.config.font_size = 14.0; // Default font size
             self.pending_font_rebuild = true;
             log::info!("Font size reset to default (14.0, applying live)");
-            if let Some(window) = &self.window {
-                window.request_redraw();
-            }
+            self.request_redraw();
             return true;
         }
 
@@ -138,9 +132,7 @@ impl WindowState {
             };
 
             // Force cell regen to reflect cursor style change
-            if let Some(tab) = self.tab_manager.active_tab_mut() {
-                tab.active_cache_mut().cells = None;
-            }
+            self.invalidate_tab_cache();
             self.focus_state.needs_redraw = true;
 
             log::info!("Cycled cursor style to {:?}", self.config.cursor_style);

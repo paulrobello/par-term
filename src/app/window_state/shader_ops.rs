@@ -20,16 +20,18 @@ impl WindowState {
 
         let background_path = self
             .config
+            .shader
             .custom_shader
             .as_ref()
-            .filter(|_| self.config.custom_shader_enabled)
+            .filter(|_| self.config.shader.custom_shader_enabled)
             .map(|s| Config::shader_path(s));
 
         let cursor_path = self
             .config
+            .shader
             .cursor_shader
             .as_ref()
-            .filter(|_| self.config.cursor_shader_enabled)
+            .filter(|_| self.config.shader.cursor_shader_enabled)
             .map(|s| Config::shader_path(s));
 
         debug_info!(
@@ -68,8 +70,8 @@ impl WindowState {
         debug_info!(
             "SHADER",
             "reinit_shader_watcher CALLED: shader={:?}, cursor={:?}",
-            self.config.custom_shader,
-            self.config.cursor_shader
+            self.config.shader.custom_shader,
+            self.config.shader.cursor_shader
         );
         // Drop existing watcher
         self.shader_state.shader_watcher = None;

@@ -19,6 +19,25 @@ use super::title_utils::{
     sanitize_styled_segments_for_egui, truncate_plain, truncate_segments,
 };
 
+/// Parameters shared by both `render_vertical_tab` and `render_tab_with_width`.
+///
+/// The `tab_size` field carries the tab height (vertical bar) or tab width (horizontal bar).
+pub(super) struct TabRenderParams<'a> {
+    pub id: TabId,
+    pub index: usize,
+    pub title: &'a str,
+    pub profile_icon: Option<&'a str>,
+    pub custom_icon: Option<&'a str>,
+    pub is_active: bool,
+    pub has_activity: bool,
+    pub is_bell_active: bool,
+    pub custom_color: Option<[u8; 3]>,
+    pub config: &'a Config,
+    /// Tab height (vertical layout) or tab width (horizontal layout).
+    pub tab_size: f32,
+    pub tab_count: usize,
+}
+
 impl TabBarUI {
     /// Compute the tab background color based on active/hover/drag state and custom color.
     ///
@@ -83,26 +102,25 @@ impl TabBarUI {
     }
 
     /// Render a single tab as a full-width row in the vertical tab bar.
-    // Too many arguments: each parameter represents a distinct tab attribute (identity,
-    // display state, and visual config). They cannot be bundled further without creating a
-    // per-call DTO that would be constructed and immediately dropped at the single call site.
-    #[allow(clippy::too_many_arguments)]
     pub(super) fn render_vertical_tab(
         &mut self,
         ui: &mut egui::Ui,
-        id: TabId,
-        _index: usize,
-        title: &str,
-        profile_icon: Option<&str>,
-        custom_icon: Option<&str>,
-        is_active: bool,
-        has_activity: bool,
-        is_bell_active: bool,
-        custom_color: Option<[u8; 3]>,
-        config: &Config,
-        tab_height: f32,
-        tab_count: usize,
+        p: TabRenderParams<'_>,
     ) -> (TabBarAction, egui::Rect) {
+        let TabRenderParams {
+            id,
+            index: _index,
+            title,
+            profile_icon,
+            custom_icon,
+            is_active,
+            has_activity,
+            is_bell_active,
+            custom_color,
+            config,
+            tab_size: tab_height,
+            tab_count,
+        } = p;
         let mut action = TabBarAction::None;
 
         let is_hovered = self.hovered_tab == Some(id);
@@ -316,25 +334,25 @@ impl TabBarUI {
     }
 
     /// Render a single tab with specified width and return any action triggered plus the tab rect.
-    // Too many arguments: same structure as render_vertical_tab — each parameter is a
-    // distinct tab attribute needed by the rendering path. Grouping is deferred.
-    #[allow(clippy::too_many_arguments)]
     pub(super) fn render_tab_with_width(
         &mut self,
         ui: &mut egui::Ui,
-        id: TabId,
-        index: usize,
-        title: &str,
-        profile_icon: Option<&str>,
-        custom_icon: Option<&str>,
-        is_active: bool,
-        has_activity: bool,
-        is_bell_active: bool,
-        custom_color: Option<[u8; 3]>,
-        config: &Config,
-        tab_width: f32,
-        tab_count: usize,
+        p: TabRenderParams<'_>,
     ) -> (TabBarAction, egui::Rect) {
+        let TabRenderParams {
+            id,
+            index,
+            title,
+            profile_icon,
+            custom_icon,
+            is_active,
+            has_activity,
+            is_bell_active,
+            custom_color,
+            config,
+            tab_size: tab_width,
+            tab_count,
+        } = p;
         let mut action = TabBarAction::None;
 
         // Determine if this tab should be dimmed

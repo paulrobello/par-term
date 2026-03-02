@@ -85,19 +85,8 @@ pub fn register_csv(registry: &mut RendererRegistry, config: &RenderersConfig) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::prettifier::testing::make_block_with_command;
     use crate::prettifier::traits::ContentDetector;
-    use crate::prettifier::types::ContentBlock;
-    use std::time::SystemTime;
-
-    fn make_block(lines: &[&str], command: Option<&str>) -> ContentBlock {
-        ContentBlock {
-            lines: lines.iter().map(|s| s.to_string()).collect(),
-            preceding_command: command.map(|s| s.to_string()),
-            start_row: 0,
-            end_row: lines.len(),
-            timestamp: SystemTime::now(),
-        }
-    }
 
     #[test]
     fn test_all_rules_compile() {
@@ -108,7 +97,8 @@ mod tests {
     #[test]
     fn test_csv_with_header_and_data() {
         let detector = create_csv_detector();
-        let block = make_block(&["name,age,city", "Alice,30,NYC", "Bob,25,London"], None);
+        let block =
+            make_block_with_command(&["name,age,city", "Alice,30,NYC", "Bob,25,London"], None);
         let result = detector.detect(&block);
         assert!(result.is_some());
         let result = result.unwrap();
@@ -120,7 +110,7 @@ mod tests {
     fn test_tsv_detection() {
         let detector = create_csv_detector();
         // TSV needs command context to reach min_matching_rules=2
-        let block = make_block(
+        let block = make_block_with_command(
             &["name\tage\tcity", "Alice\t30\tNYC", "Bob\t25\tLondon"],
             Some("cut -f1-3 data.tsv"),
         );
@@ -132,7 +122,7 @@ mod tests {
     fn test_csv_with_command_context() {
         let detector = create_csv_detector();
         // Need header row + command context for min_matching_rules=2
-        let block = make_block(
+        let block = make_block_with_command(
             &["name,age,city", "Alice,30,NYC", "Bob,25,London"],
             Some("csvtool col 1-3 data.csv"),
         );
@@ -149,7 +139,7 @@ mod tests {
     #[test]
     fn test_not_csv_plain_text() {
         let detector = create_csv_detector();
-        let block = make_block(&["Hello world", "This is plain text"], None);
+        let block = make_block_with_command(&["Hello world", "This is plain text"], None);
         let result = detector.detect(&block);
         assert!(result.is_none());
     }
@@ -158,7 +148,7 @@ mod tests {
     fn test_single_comma_line_not_enough() {
         let detector = create_csv_detector();
         // Only one rule matches (csv_comma_consistent), but min_matching_rules=2
-        let block = make_block(&["just, some, text"], None);
+        let block = make_block_with_command(&["just, some, text"], None);
         let result = detector.detect(&block);
         assert!(result.is_none());
     }

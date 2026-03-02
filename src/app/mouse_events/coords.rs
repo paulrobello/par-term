@@ -3,6 +3,19 @@ use std::sync::Arc;
 
 // ── Pure coordinate math (extracted for unit testing) ────────────────────────
 
+/// Pane bounds and cell metrics for `pixel_to_pane_cell_raw`.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct PaneBoundsRaw {
+    pub bx: f64,
+    pub by: f64,
+    pub bw: f64,
+    pub bh: f64,
+    pub cell_width: f64,
+    pub cell_height: f64,
+    pub pane_padding: f64,
+    pub title_offset: f64,
+}
+
 /// Convert pixel coordinates to terminal cell coordinates given renderer metrics.
 ///
 /// Returns `None` if the resulting row or column would be negative (caller should
@@ -29,23 +42,25 @@ pub(crate) fn pixel_to_cell_raw(
 
 /// Convert pixel coordinates to pane-local cell coordinates.
 ///
-/// Returns `None` if `(x, y)` is outside `bounds` (using `(bx, by, bw, bh)`).
+/// Returns `None` if `(x, y)` is outside the pane bounds described by `pane`.
 /// This is the core math from `WindowState::pixel_to_pane_cell` extracted for
 /// unit testing without a live renderer or pane configuration.
 #[cfg_attr(not(test), allow(dead_code))]
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn pixel_to_pane_cell_raw(
     x: f64,
     y: f64,
-    bx: f64,
-    by: f64,
-    bw: f64,
-    bh: f64,
-    cell_width: f64,
-    cell_height: f64,
-    pane_padding: f64,
-    title_offset: f64,
+    pane: PaneBoundsRaw,
 ) -> Option<(usize, usize)> {
+    let PaneBoundsRaw {
+        bx,
+        by,
+        bw,
+        bh,
+        cell_width,
+        cell_height,
+        pane_padding,
+        title_offset,
+    } = pane;
     if x < bx || x >= bx + bw || y < by || y >= by + bh {
         return None;
     }
@@ -185,7 +200,7 @@ impl WindowState {
 
 #[cfg(test)]
 mod tests {
-    use super::{pixel_to_cell_raw, pixel_to_pane_cell_raw};
+    use super::{PaneBoundsRaw, pixel_to_cell_raw, pixel_to_pane_cell_raw};
 
     // ── pixel_to_cell_raw ─────────────────────────────────────────────────
 
@@ -243,18 +258,38 @@ mod tests {
     fn test_pane_cell_inside_bounds_no_padding() {
         // Pane at (100, 200), 400x300. Point (140, 248) → local (40, 48) → cell (5, 3)
         let result = pixel_to_pane_cell_raw(
-            140.0, 248.0, // point
-            100.0, 200.0, 400.0, 300.0, // pane bounds
-            8.0, 16.0, // cell dims
-            0.0, 0.0, // no padding/title
+            140.0,
+            248.0,
+            PaneBoundsRaw {
+                bx: 100.0,
+                by: 200.0,
+                bw: 400.0,
+                bh: 300.0,
+                cell_width: 8.0,
+                cell_height: 16.0,
+                pane_padding: 0.0,
+                title_offset: 0.0,
+            },
         );
         assert_eq!(result, Some((5, 3)));
     }
 
     #[test]
     fn test_pane_cell_outside_left_edge() {
-        let result =
-            pixel_to_pane_cell_raw(99.9, 250.0, 100.0, 200.0, 400.0, 300.0, 8.0, 16.0, 0.0, 0.0);
+        let result = pixel_to_pane_cell_raw(
+            99.9,
+            250.0,
+            PaneBoundsRaw {
+                bx: 100.0,
+                by: 200.0,
+                bw: 400.0,
+                bh: 300.0,
+                cell_width: 8.0,
+                cell_height: 16.0,
+                pane_padding: 0.0,
+                title_offset: 0.0,
+            },
+        );
         assert_eq!(result, None);
     }
 
@@ -262,7 +297,18 @@ mod tests {
     fn test_pane_cell_outside_right_edge() {
         // x == bx + bw is exclusive
         let result = pixel_to_pane_cell_raw(
-            500.0, 250.0, 100.0, 200.0, 400.0, 300.0, 8.0, 16.0, 0.0, 0.0,
+            500.0,
+            250.0,
+            PaneBoundsRaw {
+                bx: 100.0,
+                by: 200.0,
+                bw: 400.0,
+                bh: 300.0,
+                cell_width: 8.0,
+                cell_height: 16.0,
+                pane_padding: 0.0,
+                title_offset: 0.0,
+            },
         );
         assert_eq!(result, None);
     }
@@ -270,7 +316,18 @@ mod tests {
     #[test]
     fn test_pane_cell_outside_top_edge() {
         let result = pixel_to_pane_cell_raw(
-            150.0, 199.9, 100.0, 200.0, 400.0, 300.0, 8.0, 16.0, 0.0, 0.0,
+            150.0,
+            199.9,
+            PaneBoundsRaw {
+                bx: 100.0,
+                by: 200.0,
+                bw: 400.0,
+                bh: 300.0,
+                cell_width: 8.0,
+                cell_height: 16.0,
+                pane_padding: 0.0,
+                title_offset: 0.0,
+            },
         );
         assert_eq!(result, None);
     }
@@ -280,10 +337,18 @@ mod tests {
         // Pane at (0,0), 200x200. Pane padding 8px.
         // Point (16, 32) → local_x = 16-8 = 8, local_y = 32-8 = 24 → cell (1, 1)
         let result = pixel_to_pane_cell_raw(
-            16.0, 32.0, // point
-            0.0, 0.0, 200.0, 200.0, // pane bounds (starts at origin)
-            8.0, 16.0, // cell dims
-            8.0, 0.0, // pane_padding=8, no title
+            16.0,
+            32.0,
+            PaneBoundsRaw {
+                bx: 0.0,
+                by: 0.0,
+                bw: 200.0,
+                bh: 200.0,
+                cell_width: 8.0,
+                cell_height: 16.0,
+                pane_padding: 8.0,
+                title_offset: 0.0,
+            },
         );
         assert_eq!(result, Some((1, 1)));
     }
@@ -291,15 +356,40 @@ mod tests {
     #[test]
     fn test_pane_cell_with_title_offset() {
         // Title bar of 20px. Point (8, 52) → local_y = 52 - 20 = 32 → row 2
-        let result =
-            pixel_to_pane_cell_raw(8.0, 52.0, 0.0, 0.0, 200.0, 200.0, 8.0, 16.0, 0.0, 20.0);
+        let result = pixel_to_pane_cell_raw(
+            8.0,
+            52.0,
+            PaneBoundsRaw {
+                bx: 0.0,
+                by: 0.0,
+                bw: 200.0,
+                bh: 200.0,
+                cell_width: 8.0,
+                cell_height: 16.0,
+                pane_padding: 0.0,
+                title_offset: 20.0,
+            },
+        );
         assert_eq!(result, Some((1, 2)));
     }
 
     #[test]
     fn test_pane_cell_padding_clamps_to_zero() {
         // Point inside bounds but inside padding region → local coords negative → clamped to 0
-        let result = pixel_to_pane_cell_raw(5.0, 5.0, 0.0, 0.0, 200.0, 200.0, 8.0, 16.0, 8.0, 0.0);
+        let result = pixel_to_pane_cell_raw(
+            5.0,
+            5.0,
+            PaneBoundsRaw {
+                bx: 0.0,
+                by: 0.0,
+                bw: 200.0,
+                bh: 200.0,
+                cell_width: 8.0,
+                cell_height: 16.0,
+                pane_padding: 8.0,
+                title_offset: 0.0,
+            },
+        );
         assert_eq!(result, Some((0, 0)));
     }
 }

@@ -5,28 +5,33 @@
 //! - `TabManager`: Coordinates multiple tabs within a window
 //! - `TabId`: Unique identifier for each tab
 
+mod activity_state;
 mod initial_text;
 mod manager;
+mod pane_accessors;
 mod pane_ops;
+mod profile_state;
 mod profile_tracking;
 mod refresh_task;
+mod scripting_state;
 mod session_logging;
 mod setup;
+mod tmux_state;
 
-use crate::app::bell::BellState;
-use crate::app::mouse::MouseState;
-use crate::app::render_cache::RenderCache;
+pub(crate) use activity_state::TabActivityState;
+pub(crate) use profile_state::TabProfileState;
+pub(crate) use scripting_state::TabScriptingState;
+pub(crate) use tmux_state::TabTmuxState;
+
 use crate::config::Config;
 use crate::pane::PaneManager;
 use crate::prettifier::gutter::GutterManager;
 use crate::prettifier::pipeline::PrettifierPipeline;
 use crate::profile::Profile;
-use crate::scroll_state::ScrollState;
 use crate::session_logger::{SessionLogger, SharedSessionLogger, create_shared_logger};
 use crate::tab::initial_text::build_initial_text_payload;
 use crate::terminal::TerminalManager;
 pub use manager::TabManager;
-use par_term_emu_core_rust::coprocess::CoprocessId;
 pub(crate) use setup::{
     apply_login_shell_flag, build_shell_env, configure_terminal_from_config, create_base_terminal,
     get_shell_command,
@@ -84,55 +89,17 @@ pub struct Tab {
     pub(crate) terminal: Arc<RwLock<TerminalManager>>,
     /// Pane manager for split pane support.
     ///
+    /// Always `Some` — initialised with a single primary pane at tab creation
+    /// (R-32).  The primary pane shares `Tab::terminal`'s `Arc` so no extra
+    /// shell process is spawned.  Additional panes are added on the first user
+    /// split; the pane count transitions from 1 → 2.
+    ///
     /// Not behind a Mutex — accessed only from the sync winit event loop on the main thread.
     pub(crate) pane_manager: Option<PaneManager>,
     /// Tab title (from OSC sequences or fallback)
     pub(crate) title: String,
     /// Whether this tab has unread activity since last viewed
     pub(crate) has_activity: bool,
-    /// Scroll state for this tab (single-pane mode) or fallback for split-pane mode.
-    ///
-    /// External callers MUST use [`Tab::active_scroll_state`] and
-    /// [`Tab::active_scroll_state_mut`] instead of accessing this field directly.
-    /// Those accessors route through the focused pane in split-pane mode so that
-    /// per-pane scroll state is correctly isolated.
-    ///
-    /// This field serves as the fallback when no pane manager is active (i.e.
-    /// the tab is running in single-pane mode). It remains here until per-pane
-    /// `Pane::scroll_state` is the sole source of truth and the fallback can be
-    /// removed (see AUD-002 / AUD-062).
-    pub(crate) scroll_state: ScrollState,
-    /// Mouse state for this tab (single-pane mode) or fallback for split-pane mode.
-    ///
-    /// External callers MUST use [`Tab::active_mouse`] / [`Tab::active_mouse_mut`]
-    /// for general mouse state, or [`Tab::selection_mouse`] /
-    /// [`Tab::selection_mouse_mut`] for selection-specific state.
-    ///
-    /// This field serves as the fallback when no pane manager is active. It will
-    /// be removed once all call sites use the per-pane `Pane::mouse` field and the
-    /// split-pane path is fully validated (see AUD-002 / AUD-062).
-    pub(crate) mouse: MouseState,
-    /// Bell state for this tab (single-pane mode) or fallback for split-pane mode.
-    ///
-    /// External callers MUST use [`Tab::active_bell`] / [`Tab::active_bell_mut`]
-    /// instead of accessing this field directly. The accessor routes through the
-    /// focused pane in split-pane mode.
-    ///
-    /// This field serves as the fallback when no pane manager is active and will
-    /// be removed once per-pane `Pane::bell` is the sole source of truth
-    /// (see AUD-002 / AUD-062).
-    pub(crate) bell: BellState,
-    /// Render cache for this tab (single-pane mode) or fallback for split-pane mode.
-    ///
-    /// External callers MUST use [`Tab::active_cache`] / [`Tab::active_cache_mut`]
-    /// instead of accessing this field directly, except for prettifier fields that
-    /// are explicitly tab-level (e.g. `prettifier_command_start_line`), where direct
-    /// access is intentional and documented inline to avoid borrow conflicts.
-    ///
-    /// This field serves as the fallback when no pane manager is active and will
-    /// be removed once per-pane `Pane::cache` is the sole source of truth
-    /// (see AUD-002 / AUD-062).
-    pub(crate) cache: RenderCache,
     /// Async task for refresh polling
     pub(crate) refresh_task: Option<JoinHandle<()>>,
     /// Working directory when tab was created (for inheriting).
@@ -144,83 +111,35 @@ pub struct Tab {
     pub(crate) has_default_title: bool,
     /// Whether the user has manually named this tab (makes title static)
     pub(crate) user_named: bool,
-    /// Last time terminal output (activity) was detected
-    pub(crate) last_activity_time: std::time::Instant,
-    /// Last terminal update generation seen (to detect new output)
-    pub(crate) last_seen_generation: u64,
-    /// Last activity time for anti-idle keep-alive
-    pub(crate) anti_idle_last_activity: std::time::Instant,
-    /// Last terminal generation recorded for anti-idle tracking
-    pub(crate) anti_idle_last_generation: u64,
-    /// Whether silence notification has been sent for current idle period
-    pub(crate) silence_notified: bool,
-    /// Whether exit notification has been sent for this tab
-    pub(crate) exit_notified: bool,
+    /// Activity, anti-idle, silence, and exit tracking state
+    pub(crate) activity: TabActivityState,
     /// Session logger for automatic session recording
     pub(crate) session_logger: SharedSessionLogger,
-    /// Whether this tab is in tmux gateway mode
-    pub(crate) tmux_gateway_active: bool,
-    /// The tmux pane ID this tab represents (when in gateway mode)
-    pub(crate) tmux_pane_id: Option<crate::tmux::TmuxPaneId>,
+    /// Tmux gateway mode and pane identity state
+    pub(crate) tmux: TabTmuxState,
     /// Last detected hostname for automatic profile switching (from OSC 7)
     pub(crate) detected_hostname: Option<String>,
     /// Last detected CWD for automatic profile switching (from OSC 7).
     /// Internal tracking state; access the current CWD via [`Tab::get_cwd`].
     pub(in crate::tab) detected_cwd: Option<String>,
-    /// Profile ID that was auto-applied based on hostname detection
-    pub(crate) auto_applied_profile_id: Option<crate::profile::ProfileId>,
-    /// Profile ID that was auto-applied based on directory pattern matching
-    pub(crate) auto_applied_dir_profile_id: Option<crate::profile::ProfileId>,
-    /// Icon from auto-applied profile (displayed in tab bar)
-    pub(crate) profile_icon: Option<String>,
     /// Custom icon set by user via context menu (takes precedence over profile_icon)
     pub(crate) custom_icon: Option<String>,
-    /// Original tab title saved before auto-profile override (restored when profile clears)
-    pub(crate) pre_profile_title: Option<String>,
-    /// Badge text override from auto-applied profile (overrides global badge_format)
-    pub(crate) badge_override: Option<String>,
-    /// Mapping from config index to coprocess ID (for UI tracking)
-    pub(crate) coprocess_ids: Vec<Option<CoprocessId>>,
-    /// Script manager for this tab
-    pub(crate) script_manager: crate::scripting::manager::ScriptManager,
-    /// Maps config index to ScriptId for running scripts
-    pub(crate) script_ids: Vec<Option<crate::scripting::manager::ScriptId>>,
-    /// Observer IDs registered with the terminal for script event forwarding
-    pub(crate) script_observer_ids: Vec<Option<par_term_emu_core_rust::observer::ObserverId>>,
-    /// Event forwarders (shared with observer registration)
-    pub(crate) script_forwarders:
-        Vec<Option<std::sync::Arc<crate::scripting::observer::ScriptEventForwarder>>>,
-    /// Trigger-generated scrollbar marks (from MarkLine actions)
-    pub(crate) trigger_marks: Vec<crate::scrollback_metadata::ScrollbackMark>,
-    /// Security metadata: maps trigger_id -> require_user_action flag.
-    /// When true, dangerous actions (RunCommand, SendText) from that trigger
-    /// are suppressed when fired from passive terminal output.
-    pub(crate) trigger_security: std::collections::HashMap<u64, bool>,
-    /// Rate limiter for output-triggered dangerous actions.
-    pub(crate) trigger_rate_limiter: par_term_config::TriggerRateLimiter,
+    /// Profile auto-switching state (hostname, directory, SSH)
+    pub(crate) profile: TabProfileState,
+    /// Scripting, coprocess, and trigger state
+    pub(crate) scripting: TabScriptingState,
     /// Prettifier pipeline for content detection and rendering (None if disabled)
     pub(crate) prettifier: Option<PrettifierPipeline>,
     /// Gutter manager for prettifier indicators
     pub(crate) gutter_manager: GutterManager,
     /// Whether the terminal was on the alt screen last frame (for detecting transitions)
     pub(crate) was_alt_screen: bool,
-    /// Profile saved before SSH auto-switch (for revert on disconnect)
-    pub(crate) pre_ssh_switch_profile: Option<crate::profile::ProfileId>,
-    /// Whether current profile was auto-applied due to SSH hostname detection
-    pub(crate) ssh_auto_switched: bool,
     /// Whether this tab is the currently active (visible) tab.
     /// Used by the refresh task to dynamically choose polling interval.
     /// Managed exclusively within the `crate::tab` module.
     pub(in crate::tab) is_active: Arc<AtomicBool>,
     /// When true, Drop impl skips cleanup (terminal Arcs are dropped on background threads)
     pub(crate) shutdown_fast: bool,
-    /// When true, a deferred call to `set_tmux_control_mode(false)` is pending.
-    ///
-    /// Set when `handle_tmux_session_ended` could not acquire the terminal lock via
-    /// `try_lock()`. The notification poll loop retries on each subsequent frame until
-    /// the lock is available, ensuring the terminal parser exits tmux control mode even
-    /// if the lock was transiently held at cleanup time.
-    pub(crate) pending_tmux_mode_disable: bool,
 }
 
 /// Parameters that differ between `Tab::new()` and `Tab::new_from_profile()`.
@@ -371,56 +290,46 @@ impl Tab {
             });
         }
 
+        // Always create a PaneManager with one primary pane that wraps `tab.terminal`
+        // (R-32). This eliminates the fallback scroll_state/mouse/bell/cache fields
+        // that were used when pane_manager was None (single-pane mode).
+        let is_active = Arc::new(AtomicBool::new(false));
+        let pane_manager = PaneManager::new_with_existing_terminal(
+            Arc::clone(&terminal),
+            params.working_directory.clone(),
+            Arc::clone(&is_active),
+        );
+
         Ok(Self {
             id: params.id,
             terminal,
-            pane_manager: None, // Created on first split
+            pane_manager: Some(pane_manager),
             title: params.title,
             has_activity: false,
-            scroll_state: ScrollState::new(),
-            mouse: MouseState::new(),
-            bell: BellState::new(),
-            cache: RenderCache::new(),
             refresh_task: None,
             working_directory: params.working_directory,
             custom_color: None,
             has_default_title: params.has_default_title,
             user_named: params.user_named,
-            last_activity_time: std::time::Instant::now(),
-            last_seen_generation: 0,
-            anti_idle_last_activity: std::time::Instant::now(),
-            anti_idle_last_generation: 0,
-            silence_notified: false,
-            exit_notified: false,
+            activity: TabActivityState::default(),
             session_logger,
-            tmux_gateway_active: false,
-            tmux_pane_id: None,
+            tmux: TabTmuxState::default(),
             detected_hostname: None,
             detected_cwd: None,
-            auto_applied_profile_id: None,
-            auto_applied_dir_profile_id: None,
-            profile_icon: None,
             custom_icon: None,
-            pre_profile_title: None,
-            badge_override: None,
-            coprocess_ids,
-            script_manager: crate::scripting::manager::ScriptManager::new(),
-            script_ids: Vec::new(),
-            script_observer_ids: Vec::new(),
-            script_forwarders: Vec::new(),
-            trigger_marks: Vec::new(),
-            trigger_security,
-            trigger_rate_limiter: par_term_config::TriggerRateLimiter::default(),
+            profile: TabProfileState::default(),
+            scripting: TabScriptingState {
+                coprocess_ids,
+                trigger_security,
+                ..TabScriptingState::default()
+            },
             prettifier: crate::prettifier::config_bridge::create_pipeline_from_config(
                 config, cols, None,
             ),
             gutter_manager: GutterManager::new(),
             was_alt_screen: false,
-            pre_ssh_switch_profile: None,
-            ssh_auto_switched: false,
-            is_active: Arc::new(AtomicBool::new(false)),
+            is_active,
             shutdown_fast: false,
-            pending_tmux_mode_disable: false,
         })
     }
 
@@ -680,202 +589,43 @@ impl Tab {
             .map(|mut guard| f(&mut guard))
     }
 
-    /// Get the mouse state for selection operations.
-    ///
-    /// In split-pane mode, returns the focused pane's mouse state so that
-    /// selection coordinates are isolated per-pane. In single-pane mode,
-    /// returns the tab's own mouse state.
-    pub(crate) fn selection_mouse(&self) -> &MouseState {
-        if let Some(ref pm) = self.pane_manager
-            && let Some(focused_pane) = pm.focused_pane()
-        {
-            &focused_pane.mouse
-        } else {
-            &self.mouse
-        }
-    }
-
-    /// Get mutable mouse state for selection operations.
-    ///
-    /// In split-pane mode, returns the focused pane's mouse state so that
-    /// selection coordinates are isolated per-pane. In single-pane mode,
-    /// returns the tab's own mouse state.
-    pub(crate) fn selection_mouse_mut(&mut self) -> &mut MouseState {
-        if let Some(ref mut pm) = self.pane_manager
-            && let Some(focused_pane) = pm.focused_pane_mut()
-        {
-            &mut focused_pane.mouse
-        } else {
-            &mut self.mouse
-        }
-    }
-
-    // =========================================================================
-    // AUD-002 / AUD-062: Per-pane state accessors
-    //
-    // These accessors route through the focused pane in split-pane mode and
-    // fall back to the tab-level field in single-pane mode.  All external
-    // callers should use these methods rather than the fields directly so that:
-    //
-    //   1. Split-pane behaviour is correct today (each pane has isolated state).
-    //   2. Removing the tab-level fallback fields in a future clean-up step
-    //      only requires deleting the `else` branch here — no call site changes.
-    //
-    // The tab-level fields (scroll_state, mouse, cache, bell) are kept as the
-    // single-pane fallback until per-pane state is validated as the sole source
-    // of truth across the entire codebase.
-    // =========================================================================
-
-    /// Active scroll state — focused pane in split mode, tab-level otherwise.
-    #[inline]
-    pub(crate) fn active_scroll_state(&self) -> &ScrollState {
-        if let Some(ref pm) = self.pane_manager
-            && let Some(pane) = pm.focused_pane()
-        {
-            &pane.scroll_state
-        } else {
-            &self.scroll_state
-        }
-    }
-
-    /// Mutable active scroll state — focused pane in split mode, tab-level otherwise.
-    #[inline]
-    pub(crate) fn active_scroll_state_mut(&mut self) -> &mut ScrollState {
-        if let Some(ref mut pm) = self.pane_manager
-            && let Some(pane) = pm.focused_pane_mut()
-        {
-            &mut pane.scroll_state
-        } else {
-            &mut self.scroll_state
-        }
-    }
-
-    /// Active mouse state — focused pane in split mode, tab-level otherwise.
-    #[inline]
-    pub(crate) fn active_mouse(&self) -> &MouseState {
-        if let Some(ref pm) = self.pane_manager
-            && let Some(pane) = pm.focused_pane()
-        {
-            &pane.mouse
-        } else {
-            &self.mouse
-        }
-    }
-
-    /// Mutable active mouse state — focused pane in split mode, tab-level otherwise.
-    #[inline]
-    pub(crate) fn active_mouse_mut(&mut self) -> &mut MouseState {
-        if let Some(ref mut pm) = self.pane_manager
-            && let Some(pane) = pm.focused_pane_mut()
-        {
-            &mut pane.mouse
-        } else {
-            &mut self.mouse
-        }
-    }
-
-    /// Active render cache — focused pane in split mode, tab-level otherwise.
-    #[inline]
-    pub(crate) fn active_cache(&self) -> &RenderCache {
-        if let Some(ref pm) = self.pane_manager
-            && let Some(pane) = pm.focused_pane()
-        {
-            &pane.cache
-        } else {
-            &self.cache
-        }
-    }
-
-    /// Mutable active render cache — focused pane in split mode, tab-level otherwise.
-    #[inline]
-    pub(crate) fn active_cache_mut(&mut self) -> &mut RenderCache {
-        if let Some(ref mut pm) = self.pane_manager
-            && let Some(pane) = pm.focused_pane_mut()
-        {
-            &mut pane.cache
-        } else {
-            &mut self.cache
-        }
-    }
-
-    /// Active bell state — focused pane in split mode, tab-level otherwise.
-    #[inline]
-    pub(crate) fn active_bell(&self) -> &BellState {
-        if let Some(ref pm) = self.pane_manager
-            && let Some(pane) = pm.focused_pane()
-        {
-            &pane.bell
-        } else {
-            &self.bell
-        }
-    }
-
-    /// Mutable active bell state — focused pane in split mode, tab-level otherwise.
-    #[inline]
-    pub(crate) fn active_bell_mut(&mut self) -> &mut BellState {
-        if let Some(ref mut pm) = self.pane_manager
-            && let Some(pane) = pm.focused_pane_mut()
-        {
-            &mut pane.bell
-        } else {
-            &mut self.bell
-        }
-    }
-
     /// Create a minimal stub tab for unit testing (no PTY, no runtime)
     #[cfg(test)]
     pub(crate) fn new_stub(id: TabId, tab_number: usize) -> Self {
         // Create a dummy TerminalManager without spawning a shell
         let terminal =
             TerminalManager::new_with_scrollback(80, 24, 100).expect("stub terminal creation");
+        let terminal = Arc::new(RwLock::new(terminal));
+        let is_active = Arc::new(AtomicBool::new(false));
+        let pane_manager = PaneManager::new_with_existing_terminal(
+            Arc::clone(&terminal),
+            None,
+            Arc::clone(&is_active),
+        );
         Self {
             id,
-            terminal: Arc::new(RwLock::new(terminal)),
-            pane_manager: None,
+            terminal,
+            pane_manager: Some(pane_manager),
             title: format!("Tab {}", tab_number),
             has_activity: false,
-            scroll_state: ScrollState::new(),
-            mouse: MouseState::new(),
-            bell: BellState::new(),
-            cache: RenderCache::new(),
             refresh_task: None,
             working_directory: None,
             custom_color: None,
             has_default_title: true,
             user_named: false,
-            last_activity_time: std::time::Instant::now(),
-            last_seen_generation: 0,
-            anti_idle_last_activity: std::time::Instant::now(),
-            anti_idle_last_generation: 0,
-            silence_notified: false,
-            exit_notified: false,
+            activity: TabActivityState::default(),
             session_logger: create_shared_logger(),
-            tmux_gateway_active: false,
-            tmux_pane_id: None,
+            tmux: TabTmuxState::default(),
             detected_hostname: None,
             detected_cwd: None,
-            auto_applied_profile_id: None,
-            auto_applied_dir_profile_id: None,
-            profile_icon: None,
             custom_icon: None,
-            pre_profile_title: None,
-            badge_override: None,
-            coprocess_ids: Vec::new(),
-            script_manager: crate::scripting::manager::ScriptManager::new(),
-            script_ids: Vec::new(),
-            script_observer_ids: Vec::new(),
-            script_forwarders: Vec::new(),
-            trigger_marks: Vec::new(),
-            trigger_security: std::collections::HashMap::new(),
-            trigger_rate_limiter: par_term_config::TriggerRateLimiter::default(),
+            profile: TabProfileState::default(),
+            scripting: TabScriptingState::default(),
             prettifier: None,
             gutter_manager: GutterManager::new(),
             was_alt_screen: false,
-            pre_ssh_switch_profile: None,
-            ssh_auto_switched: false,
-            is_active: Arc::new(AtomicBool::new(false)),
+            is_active,
             shutdown_fast: false,
-            pending_tmux_mode_disable: false,
         }
     }
 }

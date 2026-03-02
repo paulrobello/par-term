@@ -120,15 +120,16 @@ impl RendererInitParams {
         debug_log!(
             "cursor-shader",
             "Config snapshot: enabled={}, path={:?}, animation={}, speed={}, disable_alt_screen={}",
-            config.cursor_shader_enabled,
-            config.cursor_shader,
-            config.cursor_shader_animation,
-            config.cursor_shader_animation_speed,
-            config.cursor_shader_disable_in_alt_screen
+            config.shader.cursor_shader_enabled,
+            config.shader.cursor_shader,
+            config.shader.cursor_shader_animation,
+            config.shader.cursor_shader_animation_speed,
+            config.shader.cursor_shader_disable_in_alt_screen
         );
 
         // Resolve per-shader settings (user override -> metadata defaults -> global)
         let shader_override = config
+            .shader
             .custom_shader
             .as_ref()
             .and_then(|name| config.shader_configs.get(name));
@@ -136,6 +137,7 @@ impl RendererInitParams {
 
         // Resolve per-cursor-shader settings
         let cursor_shader_override = config
+            .shader
             .cursor_shader
             .as_ref()
             .and_then(|name| config.cursor_shader_configs.get(name));
@@ -187,9 +189,9 @@ impl RendererInitParams {
             background_image_enabled: config.background_image_enabled,
             background_image_mode: config.background_image_mode,
             background_image_opacity: config.background_image_opacity,
-            custom_shader_path: config.custom_shader.clone(),
-            custom_shader_enabled: config.custom_shader_enabled,
-            custom_shader_animation: config.custom_shader_animation,
+            custom_shader_path: config.shader.custom_shader.clone(),
+            custom_shader_enabled: config.shader.custom_shader_enabled,
+            custom_shader_animation: config.shader.custom_shader_animation,
             custom_shader_animation_speed: resolved.animation_speed,
             custom_shader_full_content: resolved.full_content,
             custom_shader_brightness: resolved.brightness,
@@ -198,9 +200,9 @@ impl RendererInitParams {
             use_background_as_channel0: resolved.use_background_as_channel0,
             image_scaling_mode: config.image_scaling_mode,
             image_preserve_aspect_ratio: config.image_preserve_aspect_ratio,
-            cursor_shader_path: config.cursor_shader.clone(),
-            cursor_shader_enabled: config.cursor_shader_enabled,
-            cursor_shader_animation: config.cursor_shader_animation,
+            cursor_shader_path: config.shader.cursor_shader.clone(),
+            cursor_shader_enabled: config.shader.cursor_shader_enabled,
+            cursor_shader_animation: config.shader.cursor_shader_animation,
             cursor_shader_animation_speed: resolved_cursor.base.animation_speed,
             cursor_shader_hides_cursor: resolved_cursor.hides_cursor,
             cursor_shader_glow_radius: resolved_cursor.glow_radius,

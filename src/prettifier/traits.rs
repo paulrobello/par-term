@@ -35,6 +35,43 @@ pub struct ThemeColors {
     pub palette: [[u8; 3]; 16],
 }
 
+impl ThemeColors {
+    /// Dim grey — tree guides, comments, separators (palette index 8).
+    pub fn dim_color(&self) -> [u8; 3] {
+        self.palette[8]
+    }
+
+    /// Green — string values (palette index 2).
+    pub fn string_color(&self) -> [u8; 3] {
+        self.palette[2]
+    }
+
+    /// Cyan/teal — keys and identifiers (palette index 6).
+    pub fn key_color(&self) -> [u8; 3] {
+        self.palette[6]
+    }
+
+    /// Red — errors and deletions (palette index 1).
+    pub fn error_color(&self) -> [u8; 3] {
+        self.palette[1]
+    }
+
+    /// Bright yellow — numbers (palette index 11).
+    pub fn number_color(&self) -> [u8; 3] {
+        self.palette[11]
+    }
+
+    /// Dim grey — inline comments (same as `dim_color`, palette index 8).
+    pub fn comment_color(&self) -> [u8; 3] {
+        self.palette[8]
+    }
+
+    /// Bright cyan — accent color (palette index 14).
+    pub fn accent_color(&self) -> [u8; 3] {
+        self.palette[14]
+    }
+}
+
 impl Default for ThemeColors {
     /// Modern Catppuccin Mocha-inspired palette for vibrant, readable output.
     fn default() -> Self {
@@ -118,15 +155,40 @@ pub trait ContentDetector: Send + Sync {
         true
     }
 
-    /// Apply rule overrides (enable/disable, weight changes) from user config.
+    /// Attempt to obtain a mutable reference to this detector as a
+    /// [`ConfigurableDetector`].
     ///
-    /// Default is a no-op; `RegexDetector` overrides this.
-    fn apply_config_overrides(&mut self, _overrides: &[crate::config::prettifier::RuleOverride]) {}
+    /// Returns `None` for detectors that do not support runtime config overrides.
+    /// `RegexDetector` returns `Some(self)`. This replaces the previous pattern of
+    /// empty default implementations of `apply_config_overrides` / `merge_config_rules`
+    /// on the base trait, which silently did nothing for non-`RegexDetector` types.
+    fn as_configurable_mut(&mut self) -> Option<&mut dyn ConfigurableDetector> {
+        None
+    }
+}
+
+/// Extension trait for detectors that support user-config overrides and rule merging.
+///
+/// Only `RegexDetector` implements this trait. Moving these methods out of
+/// `ContentDetector` eliminates the silent no-op anti-pattern: calling
+/// `apply_config_overrides` on a non-configurable detector now requires explicitly
+/// opting in via `as_configurable_mut()`, making the "no-op for other types" case
+/// an explicit `None` check rather than a hidden default.
+///
+/// # Usage
+///
+/// ```ignore
+/// if let Some(cd) = detector.as_configurable_mut() {
+///     cd.apply_config_overrides(&overrides);
+///     cd.merge_config_rules(rules);
+/// }
+/// ```
+pub trait ConfigurableDetector: ContentDetector {
+    /// Apply rule overrides (enable/disable, weight changes) from user config.
+    fn apply_config_overrides(&mut self, overrides: &[crate::config::prettifier::RuleOverride]);
 
     /// Merge additional user-defined rules from config.
-    ///
-    /// Default is a no-op; `RegexDetector` overrides this.
-    fn merge_config_rules(&mut self, _rules: Vec<DetectionRule>) {}
+    fn merge_config_rules(&mut self, rules: Vec<DetectionRule>);
 }
 
 /// Renders detected content into styled terminal output.

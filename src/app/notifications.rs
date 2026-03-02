@@ -109,9 +109,7 @@ impl WindowState {
                     tab.active_bell_mut().visual_flash = Some(std::time::Instant::now());
                 }
                 // Request immediate redraw to show flash
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
+                self.request_redraw();
             } else {
                 log::debug!("  Visual bell disabled");
             }
@@ -166,7 +164,7 @@ impl WindowState {
 
         for tab in self.tab_manager.tabs_mut() {
             // Skip if already notified for this tab
-            if tab.exit_notified {
+            if tab.activity.exit_notified {
                 continue;
             }
 
@@ -180,7 +178,7 @@ impl WindowState {
             };
 
             if has_exited {
-                tab.exit_notified = true;
+                tab.activity.exit_notified = true;
                 let title = format!("Session Ended: {}", tab.title);
                 let message = "The shell process has exited".to_string();
                 log::info!("Session exit notification: {} has exited", tab.title);
@@ -226,17 +224,17 @@ impl WindowState {
                 continue; // Skip if terminal is locked
             };
 
-            let time_since_activity = now.duration_since(tab.last_activity_time);
+            let time_since_activity = now.duration_since(tab.activity.last_activity_time);
 
             // Check if there's new terminal output
-            if current_generation > tab.last_seen_generation {
+            if current_generation > tab.activity.last_seen_generation {
                 // New output detected - this is "activity"
                 let was_idle = time_since_activity >= activity_threshold;
 
                 // Update tracking state
-                tab.last_seen_generation = current_generation;
-                tab.last_activity_time = now;
-                tab.silence_notified = false; // Reset silence notification flag
+                tab.activity.last_seen_generation = current_generation;
+                tab.activity.last_activity_time = now;
+                tab.activity.silence_notified = false; // Reset silence notification flag
 
                 // Activity notification: notify if we were idle long enough
                 if self.config.notification_activity_enabled && was_idle {
@@ -255,11 +253,11 @@ impl WindowState {
             } else {
                 // No new output - check for silence notification
                 if self.config.notification_silence_enabled
-                    && !tab.silence_notified
+                    && !tab.activity.silence_notified
                     && time_since_activity >= silence_threshold
                 {
                     // Terminal has been silent for longer than threshold
-                    tab.silence_notified = true;
+                    tab.activity.silence_notified = true;
                     let title = format!("Silence in {}", tab.title);
                     let message =
                         format!("No output for {} seconds", time_since_activity.as_secs());

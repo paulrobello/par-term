@@ -236,8 +236,8 @@ fn test_no_keywords_unrelated() {
 #[test]
 fn test_active_background_shader_triggers() {
     let mut config = default_config();
-    config.custom_shader = Some("crt.glsl".to_string());
-    config.custom_shader_enabled = true;
+    config.shader.custom_shader = Some("crt.glsl".to_string());
+    config.shader.custom_shader_enabled = true;
     // Should trigger even without shader keywords
     assert!(should_inject_shader_context("hello world", &config));
 }
@@ -245,8 +245,8 @@ fn test_active_background_shader_triggers() {
 #[test]
 fn test_disabled_background_shader_no_trigger() {
     let mut config = default_config();
-    config.custom_shader = Some("crt.glsl".to_string());
-    config.custom_shader_enabled = false;
+    config.shader.custom_shader = Some("crt.glsl".to_string());
+    config.shader.custom_shader_enabled = false;
     // Shader is set but disabled, no keywords -> no trigger
     assert!(!should_inject_shader_context("hello world", &config));
 }
@@ -254,8 +254,8 @@ fn test_disabled_background_shader_no_trigger() {
 #[test]
 fn test_enabled_but_no_shader_file_no_trigger() {
     let mut config = default_config();
-    config.custom_shader = None;
-    config.custom_shader_enabled = true;
+    config.shader.custom_shader = None;
+    config.shader.custom_shader_enabled = true;
     // Enabled but no shader file set -> no trigger
     assert!(!should_inject_shader_context("hello world", &config));
 }
@@ -265,16 +265,16 @@ fn test_enabled_but_no_shader_file_no_trigger() {
 #[test]
 fn test_active_cursor_shader_triggers() {
     let mut config = default_config();
-    config.cursor_shader = Some("cursor_glow.glsl".to_string());
-    config.cursor_shader_enabled = true;
+    config.shader.cursor_shader = Some("cursor_glow.glsl".to_string());
+    config.shader.cursor_shader_enabled = true;
     assert!(should_inject_shader_context("hello world", &config));
 }
 
 #[test]
 fn test_disabled_cursor_shader_no_trigger() {
     let mut config = default_config();
-    config.cursor_shader = Some("cursor_glow.glsl".to_string());
-    config.cursor_shader_enabled = false;
+    config.shader.cursor_shader = Some("cursor_glow.glsl".to_string());
+    config.shader.cursor_shader_enabled = false;
     assert!(!should_inject_shader_context("hello world", &config));
 }
 
@@ -391,11 +391,11 @@ fn test_context_no_active_shaders() {
 #[test]
 fn test_context_with_active_background_shader() {
     let mut config = default_config();
-    config.custom_shader = Some("crt.glsl".to_string());
-    config.custom_shader_enabled = true;
-    config.custom_shader_animation_speed = 1.5;
-    config.custom_shader_brightness = 0.8;
-    config.custom_shader_text_opacity = 0.9;
+    config.shader.custom_shader = Some("crt.glsl".to_string());
+    config.shader.custom_shader_enabled = true;
+    config.shader.custom_shader_animation_speed = 1.5;
+    config.shader.custom_shader_brightness = 0.8;
+    config.shader.custom_shader_text_opacity = 0.9;
 
     let ctx = build_shader_context(&config);
     assert!(ctx.contains("Background shader: `crt.glsl` (enabled)"));
@@ -407,8 +407,8 @@ fn test_context_with_active_background_shader() {
 #[test]
 fn test_context_with_disabled_background_shader() {
     let mut config = default_config();
-    config.custom_shader = Some("crt.glsl".to_string());
-    config.custom_shader_enabled = false;
+    config.shader.custom_shader = Some("crt.glsl".to_string());
+    config.shader.custom_shader_enabled = false;
 
     let ctx = build_shader_context(&config);
     assert!(ctx.contains("Background shader: `crt.glsl` (disabled)"));
@@ -419,11 +419,11 @@ fn test_context_with_disabled_background_shader() {
 #[test]
 fn test_context_with_active_cursor_shader() {
     let mut config = default_config();
-    config.cursor_shader = Some("cursor_glow.glsl".to_string());
-    config.cursor_shader_enabled = true;
-    config.cursor_shader_animation_speed = 2.0;
-    config.cursor_shader_glow_radius = 100.0;
-    config.cursor_shader_glow_intensity = 0.5;
+    config.shader.cursor_shader = Some("cursor_glow.glsl".to_string());
+    config.shader.cursor_shader_enabled = true;
+    config.shader.cursor_shader_animation_speed = 2.0;
+    config.shader.cursor_shader_glow_radius = 100.0;
+    config.shader.cursor_shader_glow_intensity = 0.5;
 
     let ctx = build_shader_context(&config);
     assert!(ctx.contains("Cursor shader: `cursor_glow.glsl` (enabled)"));
@@ -435,8 +435,8 @@ fn test_context_with_active_cursor_shader() {
 #[test]
 fn test_context_debug_paths_with_shaders() {
     let mut config = default_config();
-    config.custom_shader = Some("crt.glsl".to_string());
-    config.cursor_shader = Some("cursor_glow.glsl".to_string());
+    config.shader.custom_shader = Some("crt.glsl".to_string());
+    config.shader.cursor_shader = Some("cursor_glow.glsl".to_string());
 
     let ctx = build_shader_context(&config);
     assert!(ctx.contains("/tmp/par_term_crt_shader.wgsl"));

@@ -1,9 +1,7 @@
 use std::collections::HashMap;
 use std::future::Future;
-use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
-use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use clap::Parser;
@@ -14,6 +12,7 @@ use par_term::ai_inspector::shader_context::{
     build_shader_context, is_shader_activation_request, should_inject_shader_context,
 };
 use par_term_acp::agents::{ActionConfig, resolve_binary_in_path};
+use par_term_acp::harness::{HarnessEventFlags, choose_permission_option, init_transcript};
 use par_term_acp::{
     Agent, AgentConfig, AgentMessage, AgentStatus, ClientCapabilities, ContentBlock,
     FsCapabilities, SafePaths, discover_agents,
@@ -22,57 +21,13 @@ use par_term_config::{Config, CustomAcpAgentConfig};
 
 const DEFAULT_SHADER_PROMPT: &str = "create a new background only shader that uses a procedural checker patern and has an effect that looks like its being pulled into some kind of vortex, then set that shader as the active shader";
 const MAX_AUTO_RECOVERIES: u8 = 3;
-static TRANSCRIPT_FILE: OnceLock<Mutex<Option<std::fs::File>>> = OnceLock::new();
-
-#[derive(Default)]
-struct HarnessEventFlags {
-    saw_failed_tool_since_prompt: bool,
-    saw_any_failed_tool: bool,
-    saw_config_update: bool,
-}
-
-fn transcript_slot() -> &'static Mutex<Option<std::fs::File>> {
-    TRANSCRIPT_FILE.get_or_init(|| Mutex::new(None))
-}
-
-fn init_transcript(path: &Path) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    if let Some(parent) = path.parent()
-        && !parent.as_os_str().is_empty()
-    {
-        std::fs::create_dir_all(parent)?;
-    }
-    let file = std::fs::File::create(path)?;
-    let mut guard = transcript_slot()
-        .lock()
-        .map_err(|_| "Transcript mutex poisoned")?;
-    *guard = Some(file);
-    Ok(())
-}
-
-fn println_tee(args: std::fmt::Arguments<'_>) {
-    let mut line = String::new();
-    let _ = std::fmt::write(&mut line, args);
-
-    {
-        let stdout = std::io::stdout();
-        let mut out = stdout.lock();
-        let _ = writeln!(out, "{line}");
-    }
-
-    if let Ok(mut guard) = transcript_slot().lock()
-        && let Some(file) = guard.as_mut()
-    {
-        let _ = writeln!(file, "{line}");
-        let _ = file.flush();
-    }
-}
 
 macro_rules! println {
     () => {
-        crate::println_tee(format_args!(""))
+        par_term_acp::harness::println_tee(format_args!(""))
     };
     ($($arg:tt)*) => {
-        crate::println_tee(format_args!($($arg)*))
+        par_term_acp::harness::println_tee(format_args!($($arg)*))
     };
 }
 
@@ -400,7 +355,7 @@ fn resolve_par_term_binary(
 fn discover_and_merge_agents(config: &Config) -> Vec<AgentConfig> {
     let config_dir = Config::config_dir();
     let discovered = discover_agents(&config_dir);
-    merge_custom_agents(discovered, &config.ai_inspector_custom_agents)
+    merge_custom_agents(discovered, &config.ai_inspector.ai_inspector_custom_agents)
 }
 
 fn merge_custom_agents(
@@ -695,27 +650,6 @@ async fn handle_agent_message(
         }
     }
     Ok(())
-}
-
-fn choose_permission_option(
-    options: &[par_term_acp::PermissionOption],
-    auto_approve: bool,
-) -> Option<(&str, &str)> {
-    if !auto_approve {
-        return None;
-    }
-
-    let preferred = options.iter().find(|o| {
-        matches!(
-            o.kind.as_deref(),
-            Some("allow") | Some("approve") | Some("accept")
-        ) || o.name.to_ascii_lowercase().contains("allow")
-            || o.name.to_ascii_lowercase().contains("approve")
-            || o.name.to_ascii_lowercase().contains("accept")
-    });
-
-    let option = preferred.or_else(|| options.first())?;
-    Some((option.option_id.as_str(), option.name.as_str()))
 }
 
 fn apply_updates_to_config(

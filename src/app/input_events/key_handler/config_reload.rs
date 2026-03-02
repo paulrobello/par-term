@@ -102,9 +102,7 @@ impl WindowState {
                 }
 
                 // Request redraw to apply theme changes
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
+                self.request_redraw();
             }
             Err(e) => {
                 log::error!("Failed to reload configuration: {}", e);

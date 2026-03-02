@@ -32,9 +32,9 @@ impl WindowManager {
         {
             crate::debug_info!(
                 "SCRIPT",
-                "start_script: ws.config.scripts.len()={}, tab.script_ids.len()={}",
+                "start_script: ws.config.scripts.len()={}, tab.scripting.script_ids.len()={}",
                 ws.config.scripts.len(),
-                tab.script_ids.len()
+                tab.scripting.script_ids.len()
             );
             if config_index >= ws.config.scripts.len() {
                 crate::debug_error!(
@@ -90,7 +90,7 @@ impl WindowManager {
 
             // Start the script process
             crate::debug_info!("SCRIPT", "start_script: spawning process...");
-            match tab.script_manager.start_script(script_config) {
+            match tab.scripting.script_manager.start_script(script_config) {
                 Ok(script_id) => {
                     crate::debug_info!(
                         "SCRIPT",
@@ -100,19 +100,19 @@ impl WindowManager {
                     );
 
                     // Ensure vecs are large enough
-                    while tab.script_ids.len() <= config_index {
-                        tab.script_ids.push(None);
+                    while tab.scripting.script_ids.len() <= config_index {
+                        tab.scripting.script_ids.push(None);
                     }
-                    while tab.script_observer_ids.len() <= config_index {
-                        tab.script_observer_ids.push(None);
+                    while tab.scripting.script_observer_ids.len() <= config_index {
+                        tab.scripting.script_observer_ids.push(None);
                     }
-                    while tab.script_forwarders.len() <= config_index {
-                        tab.script_forwarders.push(None);
+                    while tab.scripting.script_forwarders.len() <= config_index {
+                        tab.scripting.script_forwarders.push(None);
                     }
 
-                    tab.script_ids[config_index] = Some(script_id);
-                    tab.script_observer_ids[config_index] = Some(observer_id);
-                    tab.script_forwarders[config_index] = Some(forwarder);
+                    tab.scripting.script_ids[config_index] = Some(script_id);
+                    tab.scripting.script_observer_ids[config_index] = Some(observer_id);
+                    tab.scripting.script_forwarders[config_index] = Some(forwarder);
                 }
                 Err(e) => {
                     let err_msg = format!("Failed to start: {}", e);
@@ -160,8 +160,8 @@ impl WindowManager {
             && let Some(tab) = ws.tab_manager.active_tab_mut()
         {
             // Stop the script process
-            if let Some(Some(script_id)) = tab.script_ids.get(config_index).copied() {
-                tab.script_manager.stop_script(script_id);
+            if let Some(Some(script_id)) = tab.scripting.script_ids.get(config_index).copied() {
+                tab.scripting.script_manager.stop_script(script_id);
                 log::info!(
                     "Stopped script at index {} (id={})",
                     config_index,
@@ -171,20 +171,22 @@ impl WindowManager {
 
             // Acceptable risk: blocking_lock() from sync event loop for infrequent
             // user-initiated operation. See docs/CONCURRENCY.md for mutex strategy.
-            if let Some(Some(observer_id)) = tab.script_observer_ids.get(config_index).copied() {
+            if let Some(Some(observer_id)) =
+                tab.scripting.script_observer_ids.get(config_index).copied()
+            {
                 let term = tab.terminal.blocking_write();
                 term.remove_observer(observer_id);
                 drop(term);
             }
 
             // Clear tracking state
-            if let Some(slot) = tab.script_ids.get_mut(config_index) {
+            if let Some(slot) = tab.scripting.script_ids.get_mut(config_index) {
                 *slot = None;
             }
-            if let Some(slot) = tab.script_observer_ids.get_mut(config_index) {
+            if let Some(slot) = tab.scripting.script_observer_ids.get_mut(config_index) {
                 *slot = None;
             }
-            if let Some(slot) = tab.script_forwarders.get_mut(config_index) {
+            if let Some(slot) = tab.scripting.script_forwarders.get_mut(config_index) {
                 *slot = None;
             }
 
@@ -228,15 +230,17 @@ impl WindowManager {
             let mut pending: Vec<PendingScriptAction> = Vec::new();
 
             for i in 0..script_count {
-                let has_script_id = tab.script_ids.get(i).and_then(|opt| *opt);
-                let is_running = has_script_id.is_some_and(|id| tab.script_manager.is_running(id));
+                let has_script_id = tab.scripting.script_ids.get(i).and_then(|opt| *opt);
+                let is_running =
+                    has_script_id.is_some_and(|id| tab.scripting.script_manager.is_running(id));
 
                 // Drain events from forwarder and send to script
-                if is_running && let Some(Some(forwarder)) = tab.script_forwarders.get(i) {
+                if is_running && let Some(Some(forwarder)) = tab.scripting.script_forwarders.get(i)
+                {
                     let events = forwarder.drain_events();
                     if let Some(script_id) = has_script_id {
                         for event in &events {
-                            let _ = tab.script_manager.send_event(script_id, event);
+                            let _ = tab.scripting.script_manager.send_event(script_id, event);
                         }
                     }
                 }
@@ -244,12 +248,13 @@ impl WindowManager {
                 // Read commands from script and process them
                 let mut log_lines = Vec::new();
                 let mut panel_val = tab
+                    .scripting
                     .script_manager
                     .get_panel(has_script_id.unwrap_or(0))
                     .cloned();
 
                 if let Some(script_id) = has_script_id {
-                    let commands = tab.script_manager.read_commands(script_id);
+                    let commands = tab.scripting.script_manager.read_commands(script_id);
                     for cmd in commands {
                         match cmd {
                             crate::scripting::protocol::ScriptCommand::Log { level, message } => {
@@ -259,7 +264,7 @@ impl WindowManager {
                                 title,
                                 content,
                             } => {
-                                tab.script_manager.set_panel(
+                                tab.scripting.script_manager.set_panel(
                                     script_id,
                                     title.clone(),
                                     content.clone(),
@@ -267,7 +272,7 @@ impl WindowManager {
                                 panel_val = Some((title, content));
                             }
                             crate::scripting::protocol::ScriptCommand::ClearPanel {} => {
-                                tab.script_manager.clear_panel(script_id);
+                                tab.scripting.script_manager.clear_panel(script_id);
                                 panel_val = None;
                             }
                             // Safe display-only commands — defer to Pass 2 so they can
@@ -315,14 +320,14 @@ impl WindowManager {
                 let err_text = if let Some(script_id) = has_script_id {
                     if is_running {
                         // Drain any stderr lines even while running
-                        let err_lines = tab.script_manager.read_errors(script_id);
+                        let err_lines = tab.scripting.script_manager.read_errors(script_id);
                         if !err_lines.is_empty() {
                             err_lines.join("\n")
                         } else {
                             String::new()
                         }
                     } else {
-                        let err_lines = tab.script_manager.read_errors(script_id);
+                        let err_lines = tab.scripting.script_manager.read_errors(script_id);
                         err_lines.join("\n")
                     }
                 } else if let Some(sw) = &self.settings_window
@@ -369,7 +374,7 @@ impl WindowManager {
                     // ── SetBadge ────────────────────────────────────────────────
                     PendingScriptAction::SetBadge { text } => {
                         if let Some(tab) = ws.tab_manager.active_tab_mut() {
-                            tab.badge_override = Some(text.clone());
+                            tab.profile.badge_override = Some(text.clone());
                         }
                         ws.request_redraw();
                         crate::debug_info!("SCRIPT", "SetBadge text={:?}", text);
@@ -422,9 +427,13 @@ impl WindowManager {
 
                         // Rate limit and write
                         if let Some(tab) = ws.tab_manager.active_tab_mut() {
-                            let script_id = tab.script_ids.get(config_index).and_then(|o| *o);
+                            let script_id =
+                                tab.scripting.script_ids.get(config_index).and_then(|o| *o);
                             if let Some(sid) = script_id
-                                && !tab.script_manager.check_write_text_rate(sid, rate_limit)
+                                && !tab
+                                    .scripting
+                                    .script_manager
+                                    .check_write_text_rate(sid, rate_limit)
                             {
                                 log::warn!("Script[{}] WriteText RATE-LIMITED", config_index);
                                 continue;
@@ -502,9 +511,13 @@ impl WindowManager {
 
                         // Rate limit check
                         if let Some(tab) = ws.tab_manager.active_tab_mut() {
-                            let script_id = tab.script_ids.get(config_index).and_then(|o| *o);
+                            let script_id =
+                                tab.scripting.script_ids.get(config_index).and_then(|o| *o);
                             if let Some(sid) = script_id
-                                && !tab.script_manager.check_run_command_rate(sid, rate_limit)
+                                && !tab
+                                    .scripting
+                                    .script_manager
+                                    .check_run_command_rate(sid, rate_limit)
                             {
                                 log::warn!(
                                     "Script[{}] RunCommand RATE-LIMITED: '{}'",

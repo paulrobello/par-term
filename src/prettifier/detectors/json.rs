@@ -113,19 +113,8 @@ pub fn register_json(registry: &mut RendererRegistry, config: &RenderersConfig) 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::prettifier::testing::make_block_with_command;
     use crate::prettifier::traits::ContentDetector;
-    use crate::prettifier::types::ContentBlock;
-    use std::time::SystemTime;
-
-    fn make_block(lines: &[&str], command: Option<&str>) -> ContentBlock {
-        ContentBlock {
-            lines: lines.iter().map(|s| s.to_string()).collect(),
-            preceding_command: command.map(|s| s.to_string()),
-            start_row: 0,
-            end_row: lines.len(),
-            timestamp: SystemTime::now(),
-        }
-    }
 
     #[test]
     fn test_all_rules_compile() {
@@ -136,7 +125,7 @@ mod tests {
     #[test]
     fn test_json_object_detection() {
         let detector = create_json_detector();
-        let block = make_block(
+        let block = make_block_with_command(
             &["{", "  \"name\": \"par-term\",", "  \"version\": 1", "}"],
             None,
         );
@@ -151,7 +140,7 @@ mod tests {
     fn test_json_array_detection() {
         let detector = create_json_detector();
         // open_bracket(0.35) + jq context(0.3) = 0.65 >= 0.6
-        let block = make_block(
+        let block = make_block_with_command(
             &["[", "  \"item1\",", "  \"item2\"", "]"],
             Some("jq '.[]' data.json"),
         );
@@ -162,7 +151,7 @@ mod tests {
     #[test]
     fn test_json_with_curl_context() {
         let detector = create_json_detector();
-        let block = make_block(
+        let block = make_block_with_command(
             &["{", "  \"status\": \"ok\"", "}"],
             Some("curl https://api.example.com"),
         );
@@ -179,7 +168,8 @@ mod tests {
     #[test]
     fn test_json_with_jq_context() {
         let detector = create_json_detector();
-        let block = make_block(&["{", "  \"key\": \"value\"", "}"], Some("jq . data.json"));
+        let block =
+            make_block_with_command(&["{", "  \"key\": \"value\"", "}"], Some("jq . data.json"));
         let result = detector.detect(&block);
         assert!(result.is_some());
         let result = result.unwrap();
@@ -193,7 +183,7 @@ mod tests {
     #[test]
     fn test_not_json_plain_text() {
         let detector = create_json_detector();
-        let block = make_block(&["Hello world", "This is plain text"], None);
+        let block = make_block_with_command(&["Hello world", "This is plain text"], None);
         let result = detector.detect(&block);
         assert!(result.is_none());
     }
@@ -201,7 +191,7 @@ mod tests {
     #[test]
     fn test_not_json_markdown() {
         let detector = create_json_detector();
-        let block = make_block(&["# Title", "Some **bold** text", "- item"], None);
+        let block = make_block_with_command(&["# Title", "Some **bold** text", "- item"], None);
         let result = detector.detect(&block);
         assert!(result.is_none());
     }
@@ -245,7 +235,7 @@ mod tests {
     fn test_no_definitive_shortcircuit() {
         let detector = create_json_detector();
         // Even with matching patterns, confidence should be accumulated, not 1.0
-        let block = make_block(
+        let block = make_block_with_command(
             &["{", "  \"name\": \"test\"", "}"],
             Some("curl https://api.example.com"),
         );
@@ -259,7 +249,7 @@ mod tests {
     fn test_key_value_rule_matches() {
         let detector = create_json_detector();
         // open_brace(0.4) + key_value(0.3) + close_brace(0.2) = 0.9
-        let block = make_block(
+        let block = make_block_with_command(
             &[
                 "{",
                 "  \"name\": \"test\",",
