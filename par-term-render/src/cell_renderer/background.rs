@@ -450,11 +450,18 @@ impl CellRenderer {
         );
         match mode {
             par_term_config::BackgroundMode::Default => {
-                // Clear background texture - use theme default
-                self.bg_state.bg_image_texture = None;
-                self.pipelines.bg_image_bind_group = None;
-                self.bg_state.bg_image_width = 0;
-                self.bg_state.bg_image_height = 0;
+                // Create a solid color texture from the theme background color.
+                // This ensures bg_image_pipeline renders a full-screen opaque quad,
+                // preventing macOS per-pixel alpha transparency artifacts that occur
+                // when relying solely on LoadOp::Clear for background coverage.
+                let bg_u8: [u8; 3] = [
+                    (self.background_color[0] * 255.0).round() as u8,
+                    (self.background_color[1] * 255.0).round() as u8,
+                    (self.background_color[2] * 255.0).round() as u8,
+                ];
+                self.create_solid_color_texture(bg_u8);
+                // Override: this is the theme default, not user-set solid color.
+                // Shader sync code uses bg_is_solid_color to distinguish Color vs Image mode.
                 self.bg_state.bg_is_solid_color = false;
             }
             par_term_config::BackgroundMode::Color => {

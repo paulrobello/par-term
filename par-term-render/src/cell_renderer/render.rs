@@ -51,38 +51,21 @@ impl CellRenderer {
             });
 
         // Determine clear color and whether to use bg_image pipeline:
-        // - Solid color mode: use clear color directly (same as Default mode for proper transparency)
-        // - Image mode: use TRANSPARENT clear, let bg_image_pipeline handle background
-        // - Default mode: use theme background with window_opacity
         // - Per-pane bg: use TRANSPARENT clear, render pane bg before global bg
+        // - Any mode with bg_image_bind_group (Color, Image, Default): use TRANSPARENT clear,
+        //   let bg_image_pipeline render a full-screen opaque quad (prevents macOS alpha artifacts)
+        // - Fallback (no bind group): use theme background with window_opacity as clear color
         let has_pane_bg = pane_bg_path.is_some();
         let (clear_color, use_bg_image_pipeline) = if has_pane_bg {
             // Per-pane background: use transparent clear, pane bg will be rendered first
             (wgpu::Color::TRANSPARENT, false)
-        } else if self.bg_state.bg_is_solid_color {
-            // Solid color mode: use clear color directly for proper window transparency
-            // This works the same as Default mode - LoadOp::Clear sets alpha correctly
-            log::info!(
-                "[BACKGROUND] Solid color mode: RGB({:.3}, {:.3}, {:.3}) * opacity {:.3}",
-                self.bg_state.solid_bg_color[0],
-                self.bg_state.solid_bg_color[1],
-                self.bg_state.solid_bg_color[2],
-                self.window_opacity
-            );
-            (
-                wgpu::Color {
-                    r: self.bg_state.solid_bg_color[0] as f64 * self.window_opacity as f64,
-                    g: self.bg_state.solid_bg_color[1] as f64 * self.window_opacity as f64,
-                    b: self.bg_state.solid_bg_color[2] as f64 * self.window_opacity as f64,
-                    a: self.window_opacity as f64,
-                },
-                false,
-            )
         } else if self.pipelines.bg_image_bind_group.is_some() {
-            // Image mode: use TRANSPARENT, let bg_image_pipeline handle background
+            // Use bg_image_pipeline for ALL modes with a texture (Image, Color, Default).
+            // A full-screen opaque quad ensures complete pixel coverage, preventing
+            // macOS per-pixel alpha transparency artifacts from LoadOp::Clear alone.
             (wgpu::Color::TRANSPARENT, true)
         } else {
-            // Default mode: use theme background with window_opacity
+            // Fallback: no texture available - use theme background with window_opacity
             (
                 wgpu::Color {
                     r: self.background_color[0] as f64 * self.window_opacity as f64,
@@ -164,11 +147,10 @@ impl CellRenderer {
         let output = self.surface.get_current_texture()?;
         self.build_instance_buffers()?;
 
-        // Only render background IMAGE to intermediate texture (not solid color).
-        // Solid colors are handled by the shader's clear color for proper compositing.
-        let render_background_image = !skip_background_image
-            && !self.bg_state.bg_is_solid_color
-            && self.pipelines.bg_image_bind_group.is_some();
+        // Render background to intermediate texture via bg_image_pipeline when available.
+        // This covers all modes (Image, Color, Default) with a full-screen opaque quad.
+        let render_background_image =
+            !skip_background_image && self.pipelines.bg_image_bind_group.is_some();
 
         if render_background_image {
             // Pass Some(1.0) to render the background image at full opacity for this
@@ -264,29 +246,18 @@ impl CellRenderer {
                 label: Some("background only encoder"),
             });
 
-        // Determine clear color and whether to use bg_image pipeline
-        let (clear_color, use_bg_image_pipeline) = if self.bg_state.bg_is_solid_color {
-            (
-                wgpu::Color {
-                    r: self.bg_state.solid_bg_color[0] as f64 * self.window_opacity as f64,
-                    g: self.bg_state.solid_bg_color[1] as f64 * self.window_opacity as f64,
-                    b: self.bg_state.solid_bg_color[2] as f64 * self.window_opacity as f64,
-                    a: self.window_opacity as f64,
-                },
-                false,
-            )
-        } else if self.pipelines.bg_image_bind_group.is_some() {
-            (wgpu::Color::TRANSPARENT, true)
+        // Use bg_image_pipeline when a bind group exists (Image, Color, or Default modes).
+        // This renders a full-screen opaque quad, preventing macOS alpha artifacts.
+        let use_bg_image_pipeline = self.pipelines.bg_image_bind_group.is_some();
+        let clear_color = if use_bg_image_pipeline {
+            wgpu::Color::TRANSPARENT
         } else {
-            (
-                wgpu::Color {
-                    r: self.background_color[0] as f64 * self.window_opacity as f64,
-                    g: self.background_color[1] as f64 * self.window_opacity as f64,
-                    b: self.background_color[2] as f64 * self.window_opacity as f64,
-                    a: self.window_opacity as f64,
-                },
-                false,
-            )
+            wgpu::Color {
+                r: self.background_color[0] as f64 * self.window_opacity as f64,
+                g: self.background_color[1] as f64 * self.window_opacity as f64,
+                b: self.background_color[2] as f64 * self.window_opacity as f64,
+                a: self.window_opacity as f64,
+            }
         };
 
         let load_op = if clear_first {
@@ -312,7 +283,7 @@ impl CellRenderer {
                 occlusion_query_set: None,
             });
 
-            // Render background image if present
+            // Render background via bg_image_pipeline (full-screen opaque quad)
             if use_bg_image_pipeline
                 && let Some(ref bg_bind_group) = self.pipelines.bg_image_bind_group
             {
@@ -339,29 +310,17 @@ impl CellRenderer {
                 label: Some("screenshot render encoder"),
             });
 
-        // Determine clear color and whether to use bg_image pipeline
-        let (clear_color, use_bg_image_pipeline) = if self.bg_state.bg_is_solid_color {
-            (
-                wgpu::Color {
-                    r: self.bg_state.solid_bg_color[0] as f64 * self.window_opacity as f64,
-                    g: self.bg_state.solid_bg_color[1] as f64 * self.window_opacity as f64,
-                    b: self.bg_state.solid_bg_color[2] as f64 * self.window_opacity as f64,
-                    a: self.window_opacity as f64,
-                },
-                false,
-            )
-        } else if self.pipelines.bg_image_bind_group.is_some() {
-            (wgpu::Color::TRANSPARENT, true)
+        // Use bg_image_pipeline when a bind group exists (Image, Color, or Default modes).
+        let use_bg_image_pipeline = self.pipelines.bg_image_bind_group.is_some();
+        let clear_color = if use_bg_image_pipeline {
+            wgpu::Color::TRANSPARENT
         } else {
-            (
-                wgpu::Color {
-                    r: self.background_color[0] as f64 * self.window_opacity as f64,
-                    g: self.background_color[1] as f64 * self.window_opacity as f64,
-                    b: self.background_color[2] as f64 * self.window_opacity as f64,
-                    a: self.window_opacity as f64,
-                },
-                false,
-            )
+            wgpu::Color {
+                r: self.background_color[0] as f64 * self.window_opacity as f64,
+                g: self.background_color[1] as f64 * self.window_opacity as f64,
+                b: self.background_color[2] as f64 * self.window_opacity as f64,
+                a: self.window_opacity as f64,
+            }
         };
 
         {
@@ -381,7 +340,7 @@ impl CellRenderer {
                 occlusion_query_set: None,
             });
 
-            // Render background image if present
+            // Render background via bg_image_pipeline (full-screen opaque quad)
             if use_bg_image_pipeline
                 && let Some(ref bg_bind_group) = self.pipelines.bg_image_bind_group
             {

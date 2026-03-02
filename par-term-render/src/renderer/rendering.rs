@@ -52,7 +52,8 @@ impl Renderer {
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        // Clear the surface first with the background color (respecting solid color mode)
+        // Clear the surface. Use TRANSPARENT when bg_image_pipeline will provide coverage;
+        // otherwise use the theme background color as a fallback.
         {
             let mut encoder = self.cell_renderer.device().create_command_encoder(
                 &wgpu::CommandEncoderDescriptor {
@@ -61,13 +62,8 @@ impl Renderer {
             );
 
             let opacity = self.cell_renderer.window_opacity as f64;
-            let clear_color = if self.cell_renderer.bg_state.bg_is_solid_color {
-                wgpu::Color {
-                    r: self.cell_renderer.bg_state.solid_bg_color[0] as f64 * opacity,
-                    g: self.cell_renderer.bg_state.solid_bg_color[1] as f64 * opacity,
-                    b: self.cell_renderer.bg_state.solid_bg_color[2] as f64 * opacity,
-                    a: opacity,
-                }
+            let clear_color = if self.cell_renderer.pipelines.bg_image_bind_group.is_some() {
+                wgpu::Color::TRANSPARENT
             } else {
                 wgpu::Color {
                     r: self.cell_renderer.background_color[0] as f64 * opacity,
@@ -199,15 +195,11 @@ impl Renderer {
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        // Clear the surface with background color (respecting solid color mode)
+        // Clear the surface. Use TRANSPARENT when bg_image_pipeline will provide coverage;
+        // otherwise use the theme background color as a fallback.
         let opacity = self.cell_renderer.window_opacity as f64;
-        let clear_color = if self.cell_renderer.bg_state.bg_is_solid_color {
-            wgpu::Color {
-                r: self.cell_renderer.bg_state.solid_bg_color[0] as f64 * opacity,
-                g: self.cell_renderer.bg_state.solid_bg_color[1] as f64 * opacity,
-                b: self.cell_renderer.bg_state.solid_bg_color[2] as f64 * opacity,
-                a: opacity,
-            }
+        let clear_color = if self.cell_renderer.pipelines.bg_image_bind_group.is_some() {
+            wgpu::Color::TRANSPARENT
         } else {
             wgpu::Color {
                 r: self.cell_renderer.background_color[0] as f64 * opacity,

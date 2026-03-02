@@ -250,9 +250,17 @@ impl CellRenderer {
         let bg_start_index = if !skip_solid_background && !self.bg_instances.is_empty() {
             let bg_color = self.background_color;
             let opacity = self.window_opacity * viewport.opacity;
+            let width_f = self.config.width as f32;
+            let height_f = self.config.height as f32;
             self.bg_instances[0] = super::types::BackgroundInstance {
-                position: [viewport.x, viewport.y],
-                size: [viewport.width, viewport.height],
+                position: [
+                    viewport.x / width_f * 2.0 - 1.0,
+                    1.0 - (viewport.y / height_f * 2.0),
+                ],
+                size: [
+                    viewport.width / width_f * 2.0,
+                    viewport.height / height_f * 2.0,
+                ],
                 color: [
                     bg_color[0] * opacity,
                     bg_color[1] * opacity,
