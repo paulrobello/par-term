@@ -16,10 +16,11 @@
 | 2 — Wave 1 Foundational (11 items) | ✅ | 4× fix-code-quality | 11 | 11 | 0 | 0 |
 | 3b — Wave 2 Dependent (8 items) | ✅ | 4× fix-architecture | 8 | 8 | 0 | 0 |
 | 3c — Wave 3 Final (8 items) | ✅ | 4× fix-architecture | 8 | 7 | 1 | 0 |
+| R-01 completion — GlobalShaderConfig | ✅ | fix-architecture | 1 | 1 | 0 | 0 |
 | 4 — Verification | ✅ | — | — | — | — | — |
 | 5 — Remediation Report | ✅ | — | — | — | — | — |
 
-**Overall**: 26 issues resolved, 1 partial, 1 requires manual intervention.
+**Overall**: 28 issues resolved, 0 partial, 0 require manual intervention.
 
 ---
 
@@ -85,16 +86,7 @@
 
 - **[R-26]** `pub` visibility audit — 53 `pub` → `pub(crate)` changes across `src/app/` and `src/tab/`. Structs requiring public visibility (`WindowState`, `MouseState`, `BellState`, `RenderCache`, `TabManager`, `Tab`) retained as `pub`.
 
-- **[R-01 partial]** Monolithic `Config` struct — Extracted `AiInspectorConfig` (15 fields) and `StatusBarConfig` (17 fields) as `#[serde(flatten)]` sub-structs. `config_struct/mod.rs` reduced from 1,859 → 1,743 lines. ~160 call sites updated.
-
----
-
-## Requires Manual Intervention 🔧
-
-### [R-01] ShaderConfig extraction from `Config` struct (partial)
-- **Why**: `custom_shader_*` and `cursor_shader_*` fields have ~423 call sites across 50+ files. Name collision with existing types `ShaderConfig` and `CursorShaderConfig` in `crate::types` requires new names (`BackgroundShaderSettings`/`CursorShaderSettings`) and careful disambiguation.
-- **Recommended approach**: Create a separate PR dedicated to this extraction. Rename the existing `ShaderConfig`/`CursorShaderConfig` override types first, then extract the new sub-struct. Run the full test suite after each rename.
-- **Estimated effort**: Large (1–2 days)
+- **[R-01]** Monolithic `Config` struct — Extracted `AiInspectorConfig` (15 fields), `StatusBarConfig` (17 fields), and `GlobalShaderConfig` (22 fields: all `custom_shader_*` and `cursor_shader_*`) as `#[serde(flatten)]` sub-structs. `config_struct/mod.rs` reduced from 1,859 → ~1,700 lines. ~184 call sites updated across 26 files. `GlobalShaderConfig` uses `GlobalShaderConfig` name to avoid collision with existing `ShaderConfig`/`CursorShaderConfig` override types in `crate::types`. Zero serde breakage: `flatten` preserves existing `config.yaml` format.
 
 ---
 
@@ -133,6 +125,7 @@
 - `src/app/window_state/action_handlers/` (4 files)
 - `src/app/window_state/render_pipeline/claude_code_bridge.rs`
 - `src/app/window_state/render_pipeline/renderer_ops.rs`
+- `par-term-config/src/config/config_struct/global_shader_config.rs`
 
 ### Deleted (24 files removed)
 - `par-term-acp/src/protocol.rs` (replaced by directory)
@@ -160,7 +153,7 @@ All sub-crate `lib.rs` files, configuration structs, settings UI tabs, render pi
 | `#[allow(dead_code)]` suppressions | 14+ | 0 | −14+ |
 | Duplicate `shell_detection.rs` implementations | 2 | 1 | −1 |
 | Duplicate `profile_modal_ui` implementations | 2 | 1 | −1 |
-| `Config` struct inline field count | 324 | ~292 | −32 |
+| `Config` struct inline field count | 324 | ~270 | −54 |
 | `defaults/misc.rs` lines | 523 | 431 | −92 |
 | Test suite | 1,065 tests | 1,065 tests | 0 regressions |
 
@@ -168,6 +161,5 @@ All sub-crate `lib.rs` files, configuration structs, settings UI tabs, render pi
 
 ## Next Steps
 
-1. **[R-01 remainder]** Track the `ShaderConfig` extraction as a dedicated GitHub issue. Rename existing `ShaderConfig`/`CursorShaderConfig` override types first to avoid name collision, then extract the sub-struct across 50+ files.
-2. **Re-run `/audit`** to get an updated `AUDIT.md` reflecting the current state — the 4 remaining critical-size files and 48 warning-zone files should be significantly reduced.
-3. **Consider** continuing the `pub(crate)` visibility tightening audit for the remaining `pub mod` declarations in `src/app/mod.rs` (conservative: only change ones with no external callers).
+1. **Re-run `/audit`** to get an updated `AUDIT.md` reflecting the current state — the 4 remaining critical-size files and 48 warning-zone files should be significantly reduced.
+2. **Consider** continuing the `pub(crate)` visibility tightening audit for the remaining `pub mod` declarations in `src/app/mod.rs` (conservative: only change ones with no external callers).
