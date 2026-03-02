@@ -50,6 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Hardened tmux command escaping to prevent truncation via null bytes.
 
 ### Refactored
+- Full codebase refactor audit (28 findings): eliminated all `#[allow(clippy::too_many_arguments)]` suppressions (23→0) via parameter builder structs; extracted `GlobalShaderConfig`, `AiInspectorConfig`, and `StatusBarConfig` sub-structs from the monolithic `Config` struct; split 12 files exceeding 800 lines into focused sub-modules; removed all dead-code suppressions; consolidated duplicate implementations (`shell_detection`, `profile_modal_ui`). 1,065 tests pass with zero regressions.
 - Centralized `make_block` / `make_block_with_command` test factories in `prettifier/testing.rs`; removed 24 duplicate local definitions across detector and renderer test files (R-30).
 - Decomposed 890-line `submit_gpu_frame()` into `update_gpu_renderer_state()`, `render_egui_frame()`, and `scroll_offset_from_tab()` helpers (R-31).
 - Added 7 semantic color accessors to `ThemeColors` (`dim_color`, `string_color`, `key_color`, `error_color`, `number_color`, `comment_color`, `accent_color`); extracted shared `guide_segment`, `plain_segment`, `dim_segment` helpers to `renderers/mod.rs`; migrated 250+ raw `palette[N]` indices across json/yaml/toml/xml parsers (R-34).
