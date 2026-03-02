@@ -50,8 +50,8 @@ impl WindowState {
             if focused {
                 // Only resume if user has animation enabled in config
                 renderer.resume_shader_animations(
-                    self.config.custom_shader_animation,
-                    self.config.cursor_shader_animation,
+                    self.config.shader.custom_shader_animation,
+                    self.config.shader.cursor_shader_animation,
                 );
             } else {
                 renderer.pause_shader_animations();

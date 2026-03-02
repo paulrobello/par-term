@@ -34,25 +34,25 @@ pub fn build_shader_context(config: &Config) -> String {
     ctx.push_str("## [Observation] Current Shader State\n");
 
     // Background shader
-    if let Some(ref name) = config.custom_shader {
+    if let Some(ref name) = config.shader.custom_shader {
         ctx.push_str(&format!("- Background shader: `{name}`"));
-        if config.custom_shader_enabled {
+        if config.shader.custom_shader_enabled {
             ctx.push_str(" (enabled)\n");
         } else {
             ctx.push_str(" (disabled)\n");
         }
-        if config.custom_shader_enabled {
+        if config.shader.custom_shader_enabled {
             ctx.push_str(&format!(
                 "  - animation_speed: {}\n",
-                config.custom_shader_animation_speed
+                config.shader.custom_shader_animation_speed
             ));
             ctx.push_str(&format!(
                 "  - brightness: {}\n",
-                config.custom_shader_brightness
+                config.shader.custom_shader_brightness
             ));
             ctx.push_str(&format!(
                 "  - text_opacity: {}\n",
-                config.custom_shader_text_opacity
+                config.shader.custom_shader_text_opacity
             ));
         }
     } else {
@@ -60,25 +60,25 @@ pub fn build_shader_context(config: &Config) -> String {
     }
 
     // Cursor shader
-    if let Some(ref name) = config.cursor_shader {
+    if let Some(ref name) = config.shader.cursor_shader {
         ctx.push_str(&format!("- Cursor shader: `{name}`"));
-        if config.cursor_shader_enabled {
+        if config.shader.cursor_shader_enabled {
             ctx.push_str(" (enabled)\n");
         } else {
             ctx.push_str(" (disabled)\n");
         }
-        if config.cursor_shader_enabled {
+        if config.shader.cursor_shader_enabled {
             ctx.push_str(&format!(
                 "  - animation_speed: {}\n",
-                config.cursor_shader_animation_speed
+                config.shader.cursor_shader_animation_speed
             ));
             ctx.push_str(&format!(
                 "  - glow_radius: {}\n",
-                config.cursor_shader_glow_radius
+                config.shader.cursor_shader_glow_radius
             ));
             ctx.push_str(&format!(
                 "  - glow_intensity: {}\n",
-                config.cursor_shader_glow_intensity
+                config.shader.cursor_shader_glow_intensity
             ));
         }
     } else {
@@ -112,7 +112,7 @@ pub fn build_shader_context(config: &Config) -> String {
     // ---- Debug Files ----
     ctx.push_str("## [Observation] Debug Files\n");
 
-    if let Some(ref name) = config.custom_shader {
+    if let Some(ref name) = config.shader.custom_shader {
         let stem = Path::new(name)
             .file_stem()
             .map(|s| s.to_string_lossy().into_owned())
@@ -121,7 +121,7 @@ pub fn build_shader_context(config: &Config) -> String {
             "- Transpiled WGSL: `/tmp/par_term_{stem}_shader.wgsl`\n"
         ));
     }
-    if let Some(ref name) = config.cursor_shader {
+    if let Some(ref name) = config.shader.cursor_shader {
         let stem = Path::new(name)
             .file_stem()
             .map(|s| s.to_string_lossy().into_owned())

@@ -57,8 +57,8 @@ impl App {
 
         // Apply CLI shader override if specified
         if let Some(ref shader) = runtime_options.shader {
-            config.custom_shader = Some(shader.clone());
-            config.custom_shader_enabled = true;
+            config.shader.custom_shader = Some(shader.clone());
+            config.shader.custom_shader_enabled = true;
             log::info!("CLI override: using shader '{}'", shader);
         }
 

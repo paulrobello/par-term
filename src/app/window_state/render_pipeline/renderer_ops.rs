@@ -85,7 +85,7 @@ pub(super) fn update_gpu_renderer_state(
     let mut debug_graphics_time = std::time::Duration::ZERO;
 
     // Disable cursor shader when alt screen is active (TUI apps like vim, htop)
-    let disable_cursor_shader = config.cursor_shader_disable_in_alt_screen && is_alt_screen;
+    let disable_cursor_shader = config.shader.cursor_shader_disable_in_alt_screen && is_alt_screen;
     renderer.set_cursor_shader_disabled_for_alt_screen(disable_cursor_shader);
 
     // Only update renderer with cells if they changed (cache MISS).

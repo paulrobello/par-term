@@ -32,8 +32,8 @@ impl WindowState {
     pub(super) fn resolve_cursor_shader_hide(&mut self, is_alt_screen: bool) -> bool {
         // Clone the shader name to an owned String so that the shared borrow on
         // `self.config` is released before the mutable borrow on
-        // `self.shader_state.cursor_shader_metadata_cache` in the closures below.
-        let cursor_shader_name: Option<String> = self.config.cursor_shader.clone();
+        // `self.shader_state.shader.cursor_shader_metadata_cache` in the closures below.
+        let cursor_shader_name: Option<String> = self.config.shader.cursor_shader.clone();
 
         // hides_cursor: per-shader config override -> metadata defaults -> global config
         let hides_cursor_from_config = cursor_shader_name
@@ -48,7 +48,7 @@ impl WindowState {
                     .and_then(|name| self.shader_state.cursor_shader_metadata_cache.get(name))
                     .and_then(|meta| meta.defaults.hides_cursor)
             })
-            .unwrap_or(self.config.cursor_shader_hides_cursor);
+            .unwrap_or(self.config.shader.cursor_shader_hides_cursor);
 
         // disable_in_alt_screen: per-shader override -> metadata defaults -> global config
         let disable_in_alt_screen_from_config = cursor_shader_name
@@ -63,9 +63,9 @@ impl WindowState {
                     .and_then(|name| self.shader_state.cursor_shader_metadata_cache.get(name))
                     .and_then(|meta| meta.defaults.disable_in_alt_screen)
             })
-            .unwrap_or(self.config.cursor_shader_disable_in_alt_screen);
+            .unwrap_or(self.config.shader.cursor_shader_disable_in_alt_screen);
 
-        self.config.cursor_shader_enabled
+        self.config.shader.cursor_shader_enabled
             && resolved_hides_cursor
             && !(resolved_disable_in_alt_screen && is_alt_screen)
     }

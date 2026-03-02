@@ -44,13 +44,33 @@ impl SettingsUI {
             temp_startup_directory: config.startup_directory.clone().unwrap_or_default(),
             temp_initial_text: config.initial_text.clone(),
             temp_background_image: config.background_image.clone().unwrap_or_default(),
-            temp_custom_shader: config.custom_shader.clone().unwrap_or_default(),
-            temp_cursor_shader: config.cursor_shader.clone().unwrap_or_default(),
-            temp_shader_channel0: config.custom_shader_channel0.clone().unwrap_or_default(),
-            temp_shader_channel1: config.custom_shader_channel1.clone().unwrap_or_default(),
-            temp_shader_channel2: config.custom_shader_channel2.clone().unwrap_or_default(),
-            temp_shader_channel3: config.custom_shader_channel3.clone().unwrap_or_default(),
-            temp_cubemap_path: config.custom_shader_cubemap.clone().unwrap_or_default(),
+            temp_custom_shader: config.shader.custom_shader.clone().unwrap_or_default(),
+            temp_cursor_shader: config.shader.cursor_shader.clone().unwrap_or_default(),
+            temp_shader_channel0: config
+                .shader
+                .custom_shader_channel0
+                .clone()
+                .unwrap_or_default(),
+            temp_shader_channel1: config
+                .shader
+                .custom_shader_channel1
+                .clone()
+                .unwrap_or_default(),
+            temp_shader_channel2: config
+                .shader
+                .custom_shader_channel2
+                .clone()
+                .unwrap_or_default(),
+            temp_shader_channel3: config
+                .shader
+                .custom_shader_channel3
+                .clone()
+                .unwrap_or_default(),
+            temp_cubemap_path: config
+                .shader
+                .custom_shader_cubemap
+                .clone()
+                .unwrap_or_default(),
             temp_background_color: config.background_color,
             temp_pane_bg_path: String::new(),
             temp_pane_bg_mode: BackgroundImageMode::default(),
@@ -309,30 +329,35 @@ impl SettingsUI {
         self.temp_initial_text = self.config.initial_text.clone();
         self.temp_background_image = self.config.background_image.clone().unwrap_or_default();
         self.temp_background_color = self.config.background_color;
-        self.temp_custom_shader = self.config.custom_shader.clone().unwrap_or_default();
-        self.temp_cursor_shader = self.config.cursor_shader.clone().unwrap_or_default();
+        self.temp_custom_shader = self.config.shader.custom_shader.clone().unwrap_or_default();
+        self.temp_cursor_shader = self.config.shader.cursor_shader.clone().unwrap_or_default();
         self.temp_shader_channel0 = self
             .config
+            .shader
             .custom_shader_channel0
             .clone()
             .unwrap_or_default();
         self.temp_shader_channel1 = self
             .config
+            .shader
             .custom_shader_channel1
             .clone()
             .unwrap_or_default();
         self.temp_shader_channel2 = self
             .config
+            .shader
             .custom_shader_channel2
             .clone()
             .unwrap_or_default();
         self.temp_shader_channel3 = self
             .config
+            .shader
             .custom_shader_channel3
             .clone()
             .unwrap_or_default();
         self.temp_cubemap_path = self
             .config
+            .shader
             .custom_shader_cubemap
             .clone()
             .unwrap_or_default();

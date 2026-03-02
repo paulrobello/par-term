@@ -193,7 +193,7 @@ fn show_per_shader_settings(
             .as_ref()
             .and_then(|o| o.animation_speed)
             .or_else(|| meta_defaults.as_ref().and_then(|m| m.animation_speed))
-            .unwrap_or(settings.config.custom_shader_animation_speed);
+            .unwrap_or(settings.config.shader.custom_shader_animation_speed);
         let has_override_val = current_override
             .as_ref()
             .and_then(|o| o.animation_speed)
@@ -227,7 +227,7 @@ fn show_per_shader_settings(
             .as_ref()
             .and_then(|o| o.brightness)
             .or_else(|| meta_defaults.as_ref().and_then(|m| m.brightness))
-            .unwrap_or(settings.config.custom_shader_brightness);
+            .unwrap_or(settings.config.shader.custom_shader_brightness);
         let has_override_val = current_override
             .as_ref()
             .and_then(|o| o.brightness)
@@ -264,7 +264,7 @@ fn show_per_shader_settings(
             .as_ref()
             .and_then(|o| o.text_opacity)
             .or_else(|| meta_defaults.as_ref().and_then(|m| m.text_opacity))
-            .unwrap_or(settings.config.custom_shader_text_opacity);
+            .unwrap_or(settings.config.shader.custom_shader_text_opacity);
         let has_override_val = current_override
             .as_ref()
             .and_then(|o| o.text_opacity)
@@ -298,7 +298,7 @@ fn show_per_shader_settings(
             .as_ref()
             .and_then(|o| o.full_content)
             .or_else(|| meta_defaults.as_ref().and_then(|m| m.full_content))
-            .unwrap_or(settings.config.custom_shader_full_content);
+            .unwrap_or(settings.config.shader.custom_shader_full_content);
         let has_override_val = current_override
             .as_ref()
             .and_then(|o| o.full_content)
@@ -337,7 +337,12 @@ fn show_per_shader_settings(
                     .as_ref()
                     .and_then(|m| m.use_background_as_channel0)
             })
-            .unwrap_or(settings.config.custom_shader_use_background_as_channel0);
+            .unwrap_or(
+                settings
+                    .config
+                    .shader
+                    .custom_shader_use_background_as_channel0,
+            );
         let has_override_val = current_override
             .as_ref()
             .and_then(|o| o.use_background_as_channel0)

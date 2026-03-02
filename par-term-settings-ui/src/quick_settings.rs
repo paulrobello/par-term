@@ -202,7 +202,10 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
 
         // Background shader toggle
         if ui
-            .checkbox(&mut settings.config.custom_shader_enabled, "BG Shader")
+            .checkbox(
+                &mut settings.config.shader.custom_shader_enabled,
+                "BG Shader",
+            )
             .on_hover_text("Enable background shader effect")
             .changed()
         {
@@ -214,7 +217,10 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
 
         // Cursor shader toggle
         if ui
-            .checkbox(&mut settings.config.cursor_shader_enabled, "Cursor Shader")
+            .checkbox(
+                &mut settings.config.shader.cursor_shader_enabled,
+                "Cursor Shader",
+            )
             .on_hover_text("Enable cursor shader effect")
             .changed()
         {

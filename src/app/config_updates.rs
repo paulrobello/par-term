@@ -115,48 +115,59 @@ impl ConfigChanges {
         Self {
             theme: new.theme != old.theme,
 
-            shader_animation: new.custom_shader_animation != old.custom_shader_animation,
-            shader_enabled: new.custom_shader_enabled != old.custom_shader_enabled,
-            shader_path: new.custom_shader != old.custom_shader,
-            shader_speed: (new.custom_shader_animation_speed - old.custom_shader_animation_speed)
+            shader_animation: new.shader.custom_shader_animation
+                != old.shader.custom_shader_animation,
+            shader_enabled: new.shader.custom_shader_enabled != old.shader.custom_shader_enabled,
+            shader_path: new.shader.custom_shader != old.shader.custom_shader,
+            shader_speed: (new.shader.custom_shader_animation_speed
+                - old.shader.custom_shader_animation_speed)
                 .abs()
                 > f32::EPSILON,
-            shader_full_content: new.custom_shader_full_content != old.custom_shader_full_content,
-            shader_text_opacity: (new.custom_shader_text_opacity - old.custom_shader_text_opacity)
+            shader_full_content: new.shader.custom_shader_full_content
+                != old.shader.custom_shader_full_content,
+            shader_text_opacity: (new.shader.custom_shader_text_opacity
+                - old.shader.custom_shader_text_opacity)
                 .abs()
                 > f32::EPSILON,
-            shader_brightness: (new.custom_shader_brightness - old.custom_shader_brightness).abs()
+            shader_brightness: (new.shader.custom_shader_brightness
+                - old.shader.custom_shader_brightness)
+                .abs()
                 > f32::EPSILON,
-            shader_textures: new.custom_shader_channel0 != old.custom_shader_channel0
-                || new.custom_shader_channel1 != old.custom_shader_channel1
-                || new.custom_shader_channel2 != old.custom_shader_channel2
-                || new.custom_shader_channel3 != old.custom_shader_channel3,
-            shader_cubemap: new.custom_shader_cubemap != old.custom_shader_cubemap
-                || new.custom_shader_cubemap_enabled != old.custom_shader_cubemap_enabled,
-            shader_use_background_as_channel0: new.custom_shader_use_background_as_channel0
-                != old.custom_shader_use_background_as_channel0,
+            shader_textures: new.shader.custom_shader_channel0 != old.shader.custom_shader_channel0
+                || new.shader.custom_shader_channel1 != old.shader.custom_shader_channel1
+                || new.shader.custom_shader_channel2 != old.shader.custom_shader_channel2
+                || new.shader.custom_shader_channel3 != old.shader.custom_shader_channel3,
+            shader_cubemap: new.shader.custom_shader_cubemap != old.shader.custom_shader_cubemap
+                || new.shader.custom_shader_cubemap_enabled
+                    != old.shader.custom_shader_cubemap_enabled,
+            shader_use_background_as_channel0: new.shader.custom_shader_use_background_as_channel0
+                != old.shader.custom_shader_use_background_as_channel0,
             shader_per_shader_config: {
                 // Check if the per-shader config for the current shader changed
                 let old_override = old
+                    .shader
                     .custom_shader
                     .as_ref()
                     .and_then(|name| old.shader_configs.get(name));
                 let new_override = new
+                    .shader
                     .custom_shader
                     .as_ref()
                     .and_then(|name| new.shader_configs.get(name));
                 old_override != new_override
             },
 
-            cursor_shader_path: new.cursor_shader != old.cursor_shader,
-            cursor_shader_enabled: new.cursor_shader_enabled != old.cursor_shader_enabled,
-            cursor_shader_animation: new.cursor_shader_animation != old.cursor_shader_animation,
-            cursor_shader_speed: (new.cursor_shader_animation_speed
-                - old.cursor_shader_animation_speed)
+            cursor_shader_path: new.shader.cursor_shader != old.shader.cursor_shader,
+            cursor_shader_enabled: new.shader.cursor_shader_enabled
+                != old.shader.cursor_shader_enabled,
+            cursor_shader_animation: new.shader.cursor_shader_animation
+                != old.shader.cursor_shader_animation,
+            cursor_shader_speed: (new.shader.cursor_shader_animation_speed
+                - old.shader.cursor_shader_animation_speed)
                 .abs()
                 > f32::EPSILON,
-            cursor_shader_disable_in_alt_screen: new.cursor_shader_disable_in_alt_screen
-                != old.cursor_shader_disable_in_alt_screen,
+            cursor_shader_disable_in_alt_screen: new.shader.cursor_shader_disable_in_alt_screen
+                != old.shader.cursor_shader_disable_in_alt_screen,
 
             window_title: new.window_title != old.window_title,
             window_decorations: new.window_decorations != old.window_decorations,

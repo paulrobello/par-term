@@ -15,8 +15,8 @@ use crate::types::{
 };
 
 use super::{
-    AiInspectorConfig, Config, CopyModeConfig, SearchConfig, SshConfig, StatusBarConfig,
-    UnicodeConfig,
+    AiInspectorConfig, Config, CopyModeConfig, GlobalShaderConfig, SearchConfig, SshConfig,
+    StatusBarConfig, UnicodeConfig,
 };
 
 impl Default for Config {
@@ -117,31 +117,7 @@ impl Default for Config {
             background_color: crate::defaults::background_color(),
             download_save_location: crate::types::DownloadSaveLocation::default(),
             last_download_directory: None,
-            custom_shader: None,
-            custom_shader_enabled: crate::defaults::bool_true(),
-            custom_shader_animation: crate::defaults::bool_true(),
-            custom_shader_animation_speed: crate::defaults::custom_shader_speed(),
-            custom_shader_text_opacity: crate::defaults::text_opacity(),
-            custom_shader_full_content: crate::defaults::bool_false(),
-            custom_shader_brightness: crate::defaults::custom_shader_brightness(),
-            custom_shader_channel0: None,
-            custom_shader_channel1: None,
-            custom_shader_channel2: None,
-            custom_shader_channel3: None,
-            custom_shader_cubemap: None,
-            custom_shader_cubemap_enabled: crate::defaults::cubemap_enabled(),
-            custom_shader_use_background_as_channel0: crate::defaults::use_background_as_channel0(),
-            cursor_shader: None,
-            cursor_shader_enabled: crate::defaults::bool_false(),
-            cursor_shader_animation: crate::defaults::bool_true(),
-            cursor_shader_animation_speed: crate::defaults::custom_shader_speed(),
-            cursor_shader_color: crate::defaults::cursor_shader_color(),
-            cursor_shader_trail_duration: crate::defaults::cursor_trail_duration(),
-            cursor_shader_glow_radius: crate::defaults::cursor_glow_radius(),
-            cursor_shader_glow_intensity: crate::defaults::cursor_glow_intensity(),
-            cursor_shader_hides_cursor: crate::defaults::bool_false(),
-            cursor_shader_disable_in_alt_screen:
-                crate::defaults::cursor_shader_disable_in_alt_screen(),
+            shader: GlobalShaderConfig::default(),
             shell_exit_action: ShellExitAction::default(),
             custom_shell: None,
             shell_args: None,

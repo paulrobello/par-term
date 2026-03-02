@@ -38,10 +38,10 @@ pub(super) const SHADER_KEYWORDS: &[&str] = &[
 /// currently enabled in the config.
 pub fn should_inject_shader_context(message: &str, config: &Config) -> bool {
     // Check if any shader is currently enabled
-    if config.custom_shader_enabled && config.custom_shader.is_some() {
+    if config.shader.custom_shader_enabled && config.shader.custom_shader.is_some() {
         return true;
     }
-    if config.cursor_shader_enabled && config.cursor_shader.is_some() {
+    if config.shader.cursor_shader_enabled && config.shader.cursor_shader.is_some() {
         return true;
     }
 

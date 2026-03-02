@@ -7,6 +7,7 @@
 //!
 //! - [`default_impl`] — `impl Default for Config`
 //! - [`copy_mode_config`] — [`CopyModeConfig`]: vi-style copy mode settings
+//! - [`global_shader_config`] — [`GlobalShaderConfig`]: all `custom_shader_*` and `cursor_shader_*` fields
 //! - [`search_config`] — [`SearchConfig`]: search highlight and options
 //! - [`ssh_config`] — [`SshConfig`]: SSH discovery and profile switching
 //! - [`unicode_config`] — [`UnicodeConfig`]: Unicode width and normalization
@@ -26,8 +27,7 @@
 //! | Window & Display             | `WindowConfig`         |
 //! | Inline Image Settings        | `ImageConfig`          |
 //! | File Transfer Settings       | `FileTransferConfig`   |
-//! | Background Shader Settings   | `ShaderConfig`         |
-//! | Cursor Shader Settings       | `CursorShaderConfig`   |
+//! | Background + Cursor Shaders  | `GlobalShaderConfig` (done) |
 //! | Keyboard Input               | `InputConfig`          |
 //! | Selection & Clipboard        | `SelectionConfig`      |
 //! | Mouse Behavior               | `MouseConfig`          |
@@ -70,6 +70,7 @@
 mod ai_inspector_config;
 mod copy_mode_config;
 mod default_impl;
+mod global_shader_config;
 mod search_config;
 mod ssh_config;
 mod status_bar_config;
@@ -78,6 +79,7 @@ mod update;
 
 pub use ai_inspector_config::AiInspectorConfig;
 pub use copy_mode_config::CopyModeConfig;
+pub use global_shader_config::GlobalShaderConfig;
 pub use search_config::SearchConfig;
 pub use ssh_config::SshConfig;
 pub use status_bar_config::StatusBarConfig;
@@ -403,127 +405,14 @@ pub struct Config {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_download_directory: Option<String>,
 
-    /// Custom shader file path (GLSL format, relative to shaders folder or absolute)
-    /// Shaders are loaded from ~/.config/par-term/shaders/ by default
-    /// Supports Ghostty/Shadertoy-style GLSL shaders with iTime, iResolution, iChannel0-4
-    #[serde(default)]
-    pub custom_shader: Option<String>,
-
-    /// Enable or disable the custom shader (even if a path is set)
-    #[serde(default = "crate::defaults::bool_true")]
-    pub custom_shader_enabled: bool,
-
-    /// Enable animation in custom shader (updates iTime uniform each frame)
-    /// When disabled, iTime is fixed at 0.0 for static effects
-    #[serde(default = "crate::defaults::bool_true")]
-    pub custom_shader_animation: bool,
-
-    /// Animation speed multiplier for custom shader (1.0 = normal speed)
-    #[serde(default = "crate::defaults::custom_shader_speed")]
-    pub custom_shader_animation_speed: f32,
-
-    /// Text opacity when using custom shader (0.0 = transparent, 1.0 = fully opaque)
-    /// This allows text to remain readable while the shader effect shows through the background
-    #[serde(default = "crate::defaults::text_opacity")]
-    pub custom_shader_text_opacity: f32,
-
-    /// When enabled, the shader receives the full rendered terminal content (text + background)
-    /// and can manipulate/distort it. When disabled (default), the shader only provides
-    /// a background and text is composited on top cleanly.
-    #[serde(default = "crate::defaults::bool_false")]
-    pub custom_shader_full_content: bool,
-
-    /// Brightness multiplier for custom shader output (0.05 = very dark, 1.0 = full brightness)
-    /// This dims the shader background to improve text readability
-    #[serde(default = "crate::defaults::custom_shader_brightness")]
-    pub custom_shader_brightness: f32,
-
-    /// Texture file path for custom shader iChannel0 (optional, Shadertoy compatible)
-    /// Supports ~ for home directory. Example: "~/textures/noise.png"
-    #[serde(default)]
-    pub custom_shader_channel0: Option<String>,
-
-    /// Texture file path for custom shader iChannel1 (optional)
-    #[serde(default)]
-    pub custom_shader_channel1: Option<String>,
-
-    /// Texture file path for custom shader iChannel2 (optional)
-    #[serde(default)]
-    pub custom_shader_channel2: Option<String>,
-
-    /// Texture file path for custom shader iChannel3 (optional)
-    #[serde(default)]
-    pub custom_shader_channel3: Option<String>,
-
-    /// Cubemap texture path prefix for custom shaders (optional)
-    /// Expects 6 face files: {prefix}-px.{ext}, -nx.{ext}, -py.{ext}, -ny.{ext}, -pz.{ext}, -nz.{ext}
-    /// Supported formats: .png, .jpg, .jpeg, .hdr
-    /// Example: "textures/cubemaps/env-outside" will load env-outside-px.png, etc.
-    #[serde(default)]
-    pub custom_shader_cubemap: Option<String>,
-
-    /// Enable cubemap sampling in custom shaders
-    /// When enabled and a cubemap path is set, iCubemap uniform is available in shaders
-    #[serde(default = "crate::defaults::cubemap_enabled")]
-    pub custom_shader_cubemap_enabled: bool,
-
-    /// Use the app's background image as iChannel0 for custom shaders
-    /// When enabled, the configured background image is bound as iChannel0 instead of
-    /// the custom_shader_channel0 texture. This allows shaders to incorporate the
-    /// background image without requiring a separate texture file.
-    #[serde(default = "crate::defaults::use_background_as_channel0")]
-    pub custom_shader_use_background_as_channel0: bool,
-
     // ========================================================================
-    // Cursor Shader Settings (separate from background shader)
+    // Shader Settings (background + cursor) — extracted to GlobalShaderConfig
     // ========================================================================
-    /// Cursor shader file path (GLSL format, relative to shaders folder or absolute)
-    /// This is a separate shader specifically for cursor effects (trails, glows, etc.)
-    #[serde(default)]
-    pub cursor_shader: Option<String>,
-
-    /// Enable or disable the cursor shader (even if a path is set)
-    #[serde(default = "crate::defaults::bool_false")]
-    pub cursor_shader_enabled: bool,
-
-    /// Enable animation in cursor shader (updates iTime uniform each frame)
-    #[serde(default = "crate::defaults::bool_true")]
-    pub cursor_shader_animation: bool,
-
-    /// Animation speed multiplier for cursor shader (1.0 = normal speed)
-    #[serde(default = "crate::defaults::custom_shader_speed")]
-    pub cursor_shader_animation_speed: f32,
-
-    /// Cursor color for shader effects [R, G, B] (0-255)
-    /// This color is passed to the shader via iCursorShaderColor uniform
-    #[serde(default = "crate::defaults::cursor_shader_color")]
-    pub cursor_shader_color: [u8; 3],
-
-    /// Duration of cursor trail effect in seconds
-    /// Passed to shader via iCursorTrailDuration uniform
-    #[serde(default = "crate::defaults::cursor_trail_duration")]
-    pub cursor_shader_trail_duration: f32,
-
-    /// Radius of cursor glow effect in pixels
-    /// Passed to shader via iCursorGlowRadius uniform
-    #[serde(default = "crate::defaults::cursor_glow_radius")]
-    pub cursor_shader_glow_radius: f32,
-
-    /// Intensity of cursor glow effect (0.0 = none, 1.0 = full)
-    /// Passed to shader via iCursorGlowIntensity uniform
-    #[serde(default = "crate::defaults::cursor_glow_intensity")]
-    pub cursor_shader_glow_intensity: f32,
-
-    /// Hide the default cursor when cursor shader is enabled
-    /// When true and cursor_shader_enabled is true, the normal cursor is not drawn
-    /// This allows cursor shaders to fully replace the cursor rendering
-    #[serde(default = "crate::defaults::bool_false")]
-    pub cursor_shader_hides_cursor: bool,
-
-    /// Disable cursor shader while in alt screen (vim, less, htop)
-    /// Keeps current behavior by default for TUI compatibility
-    #[serde(default = "crate::defaults::cursor_shader_disable_in_alt_screen")]
-    pub cursor_shader_disable_in_alt_screen: bool,
+    /// All `custom_shader_*` and `cursor_shader_*` settings.
+    ///
+    /// Flattened into the top-level YAML so existing config files remain compatible.
+    #[serde(flatten)]
+    pub shader: GlobalShaderConfig,
 
     // ========================================================================
     // Keyboard Input

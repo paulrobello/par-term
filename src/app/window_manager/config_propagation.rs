@@ -304,11 +304,12 @@ impl WindowManager {
 
                 // Resolve per-shader settings (user override -> metadata defaults -> global)
                 let shader_override = config
+                    .shader
                     .custom_shader
                     .as_ref()
                     .and_then(|name| config.shader_configs.get(name));
                 // Get shader metadata from cache for full 3-tier resolution
-                let metadata = config.custom_shader.as_ref().and_then(|name| {
+                let metadata = config.shader.custom_shader.as_ref().and_then(|name| {
                     window_state
                         .shader_state
                         .shader_metadata_cache
@@ -322,17 +323,17 @@ impl WindowManager {
                     if changes.any_shader_change() || changes.shader_per_shader_config {
                         log::info!(
                             "SETTINGS: applying shader change: {:?} -> {:?}",
-                            window_state.config.custom_shader,
-                            config.custom_shader
+                            window_state.config.shader.custom_shader,
+                            config.shader.custom_shader
                         );
                         Some(
                             renderer
                                 .set_custom_shader_enabled(
                                     par_term_render::renderer::shaders::CustomShaderEnableParams {
-                                        enabled: config.custom_shader_enabled,
-                                        shader_path: config.custom_shader.as_deref(),
+                                        enabled: config.shader.custom_shader_enabled,
+                                        shader_path: config.shader.custom_shader.as_deref(),
                                         window_opacity: config.window_opacity,
-                                        animation_enabled: config.custom_shader_animation,
+                                        animation_enabled: config.shader.custom_shader_animation,
                                         animation_speed: resolved.animation_speed,
                                         full_content: resolved.full_content,
                                         brightness: resolved.brightness,
@@ -364,11 +365,11 @@ impl WindowManager {
                     Some(
                         renderer
                             .set_cursor_shader_enabled(
-                                config.cursor_shader_enabled,
-                                config.cursor_shader.as_deref(),
+                                config.shader.cursor_shader_enabled,
+                                config.shader.cursor_shader.as_deref(),
                                 config.window_opacity,
-                                config.cursor_shader_animation,
-                                config.cursor_shader_animation_speed,
+                                config.shader.cursor_shader_animation,
+                                config.shader.cursor_shader_animation_speed,
                             )
                             .err(),
                     )

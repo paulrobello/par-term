@@ -108,7 +108,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                 self.refresh_shaders();
                 // Select the new shader
                 self.temp_custom_shader = filename.clone();
-                self.config.custom_shader = Some(filename);
+                self.config.shader.custom_shader = Some(filename);
                 self.has_changes = true;
                 // Open the shader editor with the new shader
                 self.shader_editor_source = template.to_string();
@@ -163,7 +163,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                     log::info!("Deleted shader: {}", shader_path.display());
                     // Clear the selection
                     self.temp_custom_shader.clear();
-                    self.config.custom_shader = None;
+                    self.config.shader.custom_shader = None;
                     self.has_changes = true;
                     // Refresh the shader list
                     self.refresh_shaders();

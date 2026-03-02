@@ -547,12 +547,13 @@ impl WindowState {
 
     /// Toggle the background/custom shader on/off.
     pub(crate) fn toggle_background_shader(&mut self) {
-        self.config.custom_shader_enabled = !self.config.custom_shader_enabled;
+        self.config.shader.custom_shader_enabled = !self.config.shader.custom_shader_enabled;
 
         if let Some(renderer) = &mut self.renderer {
             // Get shader metadata from cache for resolution
             let metadata = self
                 .config
+                .shader
                 .custom_shader
                 .as_ref()
                 .and_then(|name| self.shader_state.shader_metadata_cache.get(name).cloned());
@@ -560,6 +561,7 @@ impl WindowState {
             // Get per-shader overrides
             let shader_override = self
                 .config
+                .shader
                 .custom_shader
                 .as_ref()
                 .and_then(|name| self.config.shader_configs.get(name).cloned());
@@ -570,10 +572,10 @@ impl WindowState {
 
             let _ = renderer.set_custom_shader_enabled(
                 par_term_render::renderer::shaders::CustomShaderEnableParams {
-                    enabled: self.config.custom_shader_enabled,
-                    shader_path: self.config.custom_shader.as_deref(),
+                    enabled: self.config.shader.custom_shader_enabled,
+                    shader_path: self.config.shader.custom_shader.as_deref(),
                     window_opacity: self.config.window_opacity,
-                    animation_enabled: self.config.custom_shader_animation,
+                    animation_enabled: self.config.shader.custom_shader_animation,
                     animation_speed: resolved.animation_speed,
                     full_content: resolved.full_content,
                     brightness: resolved.brightness,
@@ -588,7 +590,7 @@ impl WindowState {
 
         log::info!(
             "Background shader {}",
-            if self.config.custom_shader_enabled {
+            if self.config.shader.custom_shader_enabled {
                 "enabled"
             } else {
                 "disabled"
@@ -598,15 +600,15 @@ impl WindowState {
 
     /// Toggle the cursor shader on/off.
     pub(crate) fn toggle_cursor_shader(&mut self) {
-        self.config.cursor_shader_enabled = !self.config.cursor_shader_enabled;
+        self.config.shader.cursor_shader_enabled = !self.config.shader.cursor_shader_enabled;
 
         if let Some(renderer) = &mut self.renderer {
             let _ = renderer.set_cursor_shader_enabled(
-                self.config.cursor_shader_enabled,
-                self.config.cursor_shader.as_deref(),
+                self.config.shader.cursor_shader_enabled,
+                self.config.shader.cursor_shader.as_deref(),
                 self.config.window_opacity,
-                self.config.cursor_shader_animation,
-                self.config.cursor_shader_animation_speed,
+                self.config.shader.cursor_shader_animation,
+                self.config.shader.cursor_shader_animation_speed,
             );
         }
 
@@ -615,7 +617,7 @@ impl WindowState {
 
         log::info!(
             "Cursor shader {}",
-            if self.config.cursor_shader_enabled {
+            if self.config.shader.cursor_shader_enabled {
                 "enabled"
             } else {
                 "disabled"

@@ -162,16 +162,20 @@ impl Config {
     /// Returns [channel0, channel1, channel2, channel3] for iChannel0-3
     pub fn shader_channel_paths(&self) -> [Option<PathBuf>; 4] {
         [
-            self.custom_shader_channel0
+            self.shader
+                .custom_shader_channel0
                 .as_ref()
                 .map(|p| Self::resolve_texture_path(p)),
-            self.custom_shader_channel1
+            self.shader
+                .custom_shader_channel1
                 .as_ref()
                 .map(|p| Self::resolve_texture_path(p)),
-            self.custom_shader_channel2
+            self.shader
+                .custom_shader_channel2
                 .as_ref()
                 .map(|p| Self::resolve_texture_path(p)),
-            self.custom_shader_channel3
+            self.shader
+                .custom_shader_channel3
                 .as_ref()
                 .map(|p| Self::resolve_texture_path(p)),
         ]
@@ -180,7 +184,8 @@ impl Config {
     /// Get the cubemap path prefix (resolved)
     /// Returns None if not configured, otherwise the resolved path prefix
     pub fn shader_cubemap_path(&self) -> Option<PathBuf> {
-        self.custom_shader_cubemap
+        self.shader
+            .custom_shader_cubemap
             .as_ref()
             .map(|p| Self::resolve_texture_path(p))
     }

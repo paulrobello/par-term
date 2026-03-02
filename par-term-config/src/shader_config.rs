@@ -112,19 +112,19 @@ pub fn resolve_shader_config(
     }
 
     ResolvedShaderConfig {
-        animation_speed: resolve!(animation_speed, config.custom_shader_animation_speed),
-        brightness: resolve!(brightness, config.custom_shader_brightness),
-        text_opacity: resolve!(text_opacity, config.custom_shader_text_opacity),
-        full_content: resolve!(full_content, config.custom_shader_full_content),
-        channel0: resolve_path!(channel0, config.custom_shader_channel0.clone()),
-        channel1: resolve_path!(channel1, config.custom_shader_channel1.clone()),
-        channel2: resolve_path!(channel2, config.custom_shader_channel2.clone()),
-        channel3: resolve_path!(channel3, config.custom_shader_channel3.clone()),
-        cubemap: resolve_path!(cubemap, config.custom_shader_cubemap.clone()),
-        cubemap_enabled: resolve!(cubemap_enabled, config.custom_shader_cubemap_enabled),
+        animation_speed: resolve!(animation_speed, config.shader.custom_shader_animation_speed),
+        brightness: resolve!(brightness, config.shader.custom_shader_brightness),
+        text_opacity: resolve!(text_opacity, config.shader.custom_shader_text_opacity),
+        full_content: resolve!(full_content, config.shader.custom_shader_full_content),
+        channel0: resolve_path!(channel0, config.shader.custom_shader_channel0.clone()),
+        channel1: resolve_path!(channel1, config.shader.custom_shader_channel1.clone()),
+        channel2: resolve_path!(channel2, config.shader.custom_shader_channel2.clone()),
+        channel3: resolve_path!(channel3, config.shader.custom_shader_channel3.clone()),
+        cubemap: resolve_path!(cubemap, config.shader.custom_shader_cubemap.clone()),
+        cubemap_enabled: resolve!(cubemap_enabled, config.shader.custom_shader_cubemap_enabled),
         use_background_as_channel0: resolve!(
             use_background_as_channel0,
-            config.custom_shader_use_background_as_channel0
+            config.shader.custom_shader_use_background_as_channel0
         ),
     }
 }
@@ -165,7 +165,7 @@ pub fn resolve_cursor_shader_config(
     let animation_speed = user_override
         .and_then(|o| o.base.animation_speed)
         .or_else(|| meta_defaults.and_then(|m| m.base.animation_speed))
-        .unwrap_or(config.cursor_shader_animation_speed);
+        .unwrap_or(config.shader.cursor_shader_animation_speed);
 
     // Build a minimal resolved base config for cursor shader
     // (cursor shaders don't use most of the base shader features)
@@ -184,18 +184,20 @@ pub fn resolve_cursor_shader_config(
     };
 
     // Resolve cursor-specific values
-    let hides_cursor = resolve_cursor!(hides_cursor, config.cursor_shader_hides_cursor);
+    let hides_cursor = resolve_cursor!(hides_cursor, config.shader.cursor_shader_hides_cursor);
     let disable_in_alt_screen = resolve_cursor!(
         disable_in_alt_screen,
-        config.cursor_shader_disable_in_alt_screen
+        config.shader.cursor_shader_disable_in_alt_screen
     );
-    let glow_radius = resolve_cursor!(glow_radius, config.cursor_shader_glow_radius);
-    let glow_intensity = resolve_cursor!(glow_intensity, config.cursor_shader_glow_intensity);
-    let trail_duration = resolve_cursor!(trail_duration, config.cursor_shader_trail_duration);
+    let glow_radius = resolve_cursor!(glow_radius, config.shader.cursor_shader_glow_radius);
+    let glow_intensity =
+        resolve_cursor!(glow_intensity, config.shader.cursor_shader_glow_intensity);
+    let trail_duration =
+        resolve_cursor!(trail_duration, config.shader.cursor_shader_trail_duration);
     let cursor_color = user_override
         .and_then(|o| o.cursor_color)
         .or_else(|| meta_defaults.and_then(|m| m.cursor_color))
-        .unwrap_or(config.cursor_shader_color);
+        .unwrap_or(config.shader.cursor_shader_color);
 
     ResolvedCursorShaderConfig {
         base,
@@ -297,11 +299,17 @@ mod tests {
 
         assert_eq!(
             resolved.animation_speed,
-            config.custom_shader_animation_speed
+            config.shader.custom_shader_animation_speed
         );
-        assert_eq!(resolved.brightness, config.custom_shader_brightness);
-        assert_eq!(resolved.text_opacity, config.custom_shader_text_opacity);
-        assert_eq!(resolved.full_content, config.custom_shader_full_content);
+        assert_eq!(resolved.brightness, config.shader.custom_shader_brightness);
+        assert_eq!(
+            resolved.text_opacity,
+            config.shader.custom_shader_text_opacity
+        );
+        assert_eq!(
+            resolved.full_content,
+            config.shader.custom_shader_full_content
+        );
     }
 
     #[test]
@@ -324,7 +332,10 @@ mod tests {
         assert_eq!(resolved.animation_speed, 0.5);
         assert_eq!(resolved.brightness, 0.7);
         // Others should use global defaults
-        assert_eq!(resolved.text_opacity, config.custom_shader_text_opacity);
+        assert_eq!(
+            resolved.text_opacity,
+            config.shader.custom_shader_text_opacity
+        );
     }
 
     #[test]

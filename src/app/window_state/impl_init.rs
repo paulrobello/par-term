@@ -187,11 +187,12 @@ impl WindowState {
         // Get shader metadata from cache for full 3-tier resolution
         let metadata = self
             .config
+            .shader
             .custom_shader
             .as_ref()
             .and_then(|name| self.shader_state.shader_metadata_cache.get(name).cloned());
         // Get cursor shader metadata from cache for full 3-tier resolution
-        let cursor_metadata = self.config.cursor_shader.as_ref().and_then(|name| {
+        let cursor_metadata = self.config.shader.cursor_shader.as_ref().and_then(|name| {
             self.shader_state
                 .cursor_shader_metadata_cache
                 .get(name)
