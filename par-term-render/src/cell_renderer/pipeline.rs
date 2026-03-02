@@ -37,6 +37,32 @@ const ALPHA_BLEND_RGB_REPLACE_ALPHA: BlendState = BlendState {
     },
 };
 
+/// Text blend state: standard SrcAlpha blending for RGB, additive for alpha.
+///
+/// Anti-aliased text glyphs have fractional coverage alpha. Standard ALPHA_BLENDING
+/// applies `SrcAlpha/OneMinusSrcAlpha` to the alpha channel too, which *reduces*
+/// destination alpha (e.g., dst_a=1.0, glyph_a=0.5 → result_a=0.75). On macOS with
+/// `CompositeAlphaMode::PreMultiplied`, this makes text edges translucent through to
+/// the desktop.
+///
+/// Additive alpha (`One/One`, clamped to [0,1]) solves both use cases:
+/// - **Direct-to-surface** (dst_a=1.0): `glyph_a + 1.0 ≥ 1.0 → clamped to 1.0` — opaque
+/// - **Intermediate texture** (dst_a=0.0): `glyph_a + 0.0 = glyph_a` — custom shaders
+///   can detect content via `step(0.01, terminalColor.a)`
+const TEXT_BLEND: BlendState = BlendState {
+    color: BlendComponent {
+        src_factor: BlendFactor::SrcAlpha,
+        dst_factor: BlendFactor::OneMinusSrcAlpha,
+        operation: BlendOperation::Add,
+    },
+    alpha: BlendComponent {
+        // Additive: src * 1 + dst * 1, clamped to [0,1] by hardware
+        src_factor: BlendFactor::One,
+        dst_factor: BlendFactor::One,
+        operation: BlendOperation::Add,
+    },
+};
+
 /// Create the background pipeline for cell backgrounds
 pub fn create_bg_pipeline(device: &Device, surface_format: TextureFormat) -> RenderPipeline {
     let bg_shader = device.create_shader_module(include_wgsl!("../shaders/cell_bg.wgsl"));
@@ -185,9 +211,11 @@ pub fn create_text_pipeline(
             compilation_options: Default::default(),
             targets: &[Some(ColorTargetState {
                 format: surface_format,
-                // Use standard alpha blending for text - text renders last on specific
-                // glyph pixels only, so accumulation isn't an issue here
-                blend: Some(BlendState::ALPHA_BLENDING),
+                // Use TEXT_BLEND: standard SrcAlpha for RGB, additive for alpha.
+                // This prevents anti-aliased text from reducing destination alpha
+                // (which causes window translucency on macOS) while preserving
+                // alpha writes needed for custom shader content detection.
+                blend: Some(TEXT_BLEND),
                 write_mask: ColorWrites::ALL,
             })],
         }),
@@ -471,6 +499,54 @@ pub fn create_instance_buffers(
     });
 
     (bg_instance_buffer, text_instance_buffer)
+}
+
+/// Create the opaque-alpha pipeline that forces alpha=1.0 on the entire surface.
+///
+/// This is a permanent safeguard for macOS `CompositeAlphaMode::PreMultiplied`:
+/// a single full-screen triangle writes ONLY the alpha channel (no blending,
+/// `ColorWrites::ALPHA`), guaranteeing an opaque surface when window_opacity == 1.0.
+/// The pass is skipped when the user wants actual window transparency.
+pub fn create_opaque_alpha_pipeline(
+    device: &Device,
+    surface_format: TextureFormat,
+) -> RenderPipeline {
+    let shader = device.create_shader_module(include_wgsl!("../shaders/opaque_alpha.wgsl"));
+
+    let layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
+        label: Some("opaque alpha pipeline layout"),
+        bind_group_layouts: &[],
+        push_constant_ranges: &[],
+    });
+
+    device.create_render_pipeline(&RenderPipelineDescriptor {
+        label: Some("opaque alpha pipeline"),
+        layout: Some(&layout),
+        vertex: VertexState {
+            module: &shader,
+            entry_point: Some("vs_main"),
+            compilation_options: Default::default(),
+            buffers: &[],
+        },
+        fragment: Some(FragmentState {
+            module: &shader,
+            entry_point: Some("fs_main"),
+            compilation_options: Default::default(),
+            targets: &[Some(ColorTargetState {
+                format: surface_format,
+                blend: None,                    // No blending — direct write
+                write_mask: ColorWrites::ALPHA, // ONLY write alpha channel
+            })],
+        }),
+        primitive: PrimitiveState {
+            topology: PrimitiveTopology::TriangleList,
+            ..Default::default()
+        },
+        depth_stencil: None,
+        multisample: MultisampleState::default(),
+        multiview: None,
+        cache: None,
+    })
 }
 
 /// Create the background image uniform buffer

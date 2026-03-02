@@ -83,6 +83,8 @@ pub(crate) struct GpuPipelines {
     pub(crate) bg_image_bind_group_layout: wgpu::BindGroupLayout,
     #[allow(dead_code)] // GPU resource: visual bell rendering (infrastructure in progress)
     pub(crate) visual_bell_bind_group: wgpu::BindGroup,
+    /// Pipeline that stamps alpha=1.0 over the entire surface (opaque window guard).
+    pub(crate) opaque_alpha_pipeline: wgpu::RenderPipeline,
 }
 
 /// GPU vertex, instance, and uniform buffers with capacity tracking.
@@ -471,6 +473,8 @@ impl CellRenderer {
         let (visual_bell_pipeline, visual_bell_bind_group, _, visual_bell_uniform_buffer) =
             pipeline::create_visual_bell_pipeline(&device, surface_format);
 
+        let opaque_alpha_pipeline = pipeline::create_opaque_alpha_pipeline(&device, surface_format);
+
         let vertex_buffer = pipeline::create_vertex_buffer(&device);
 
         // Instance buffers
@@ -496,6 +500,7 @@ impl CellRenderer {
                 bg_image_bind_group: None,
                 bg_image_bind_group_layout,
                 visual_bell_bind_group,
+                opaque_alpha_pipeline,
             },
             buffers: GpuBuffers {
                 vertex_buffer,

@@ -417,4 +417,51 @@ impl CellRenderer {
         self.queue.submit(std::iter::once(encoder.finish()));
         Ok(())
     }
+
+    /// Stamp alpha=1.0 over the entire surface without modifying RGB values.
+    ///
+    /// On macOS with `CompositeAlphaMode::PreMultiplied`, any framebuffer pixel with
+    /// alpha < 1.0 becomes translucent through to the desktop. Multiple rendering
+    /// passes (anti-aliased text, overlay compositing) can inadvertently reduce alpha.
+    /// This single full-screen triangle guarantees an opaque surface.
+    ///
+    /// Skipped when `window_opacity < 1.0` so that user-configured transparency works.
+    pub fn render_opaque_alpha(&self, surface_texture: &wgpu::SurfaceTexture) -> Result<()> {
+        if self.window_opacity < 1.0 {
+            return Ok(());
+        }
+
+        let view = surface_texture
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("opaque alpha encoder"),
+            });
+
+        {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("opaque alpha pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                    depth_slice: None,
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+
+            render_pass.set_pipeline(&self.pipelines.opaque_alpha_pipeline);
+            render_pass.draw(0..3, 0..1);
+        }
+
+        self.queue.submit(std::iter::once(encoder.finish()));
+        Ok(())
+    }
 }

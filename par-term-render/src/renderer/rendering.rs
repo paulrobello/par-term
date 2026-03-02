@@ -132,6 +132,9 @@ impl Renderer {
             self.render_egui(&surface_texture, egui_output, egui_ctx, force_egui_opaque)?;
         }
 
+        // Ensure opaque surface when window_opacity == 1.0 (skipped for transparent windows)
+        self.cell_renderer.render_opaque_alpha(&surface_texture)?;
+
         // Present the surface
         surface_texture.present();
 
@@ -359,6 +362,9 @@ impl Renderer {
         if let Some((egui_output, egui_ctx)) = egui_data {
             self.render_egui(&surface_texture, egui_output, egui_ctx, force_egui_opaque)?;
         }
+
+        // Ensure opaque surface when window_opacity == 1.0 (skipped for transparent windows)
+        self.cell_renderer.render_opaque_alpha(&surface_texture)?;
 
         // Present the surface
         surface_texture.present();

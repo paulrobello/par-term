@@ -43,6 +43,7 @@ impl Renderer {
                 self.cell_renderer
                     .render_overlays(&surface_texture, show_scrollbar)?;
                 self.render_egui(&surface_texture, egui_output, egui_ctx, force_egui_opaque)?;
+                self.cell_renderer.render_opaque_alpha(&surface_texture)?;
                 surface_texture.present();
                 return Ok(true);
             }
@@ -171,6 +172,9 @@ impl Renderer {
             self.render_egui(&surface_texture, egui_output, egui_ctx, force_egui_opaque)?;
         }
         let egui_render_time = t3.elapsed();
+
+        // Ensure opaque surface when window_opacity == 1.0 (skipped for transparent windows)
+        self.cell_renderer.render_opaque_alpha(&surface_texture)?;
 
         // Present the surface texture - THIS IS WHERE VSYNC WAIT HAPPENS
         let t4 = std::time::Instant::now();
