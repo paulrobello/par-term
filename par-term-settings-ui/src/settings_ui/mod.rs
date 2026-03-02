@@ -440,5 +440,7 @@ pub struct SettingsUI {
         Option<fn() -> Result<ShellIntegrationUninstallResult, String>>,
 }
 
+mod async_ops;
 mod display;
+mod sections;
 mod state;

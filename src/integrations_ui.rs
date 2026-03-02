@@ -446,3 +446,19 @@ impl Default for IntegrationsUI {
         Self::new()
     }
 }
+
+impl crate::traits::OverlayComponent for IntegrationsUI {
+    type Action = IntegrationsResponse;
+
+    fn show(&mut self, ctx: &egui::Context) -> Self::Action {
+        IntegrationsUI::show(self, ctx)
+    }
+
+    fn is_visible(&self) -> bool {
+        self.visible
+    }
+
+    fn set_visible(&mut self, visible: bool) {
+        self.visible = visible;
+    }
+}

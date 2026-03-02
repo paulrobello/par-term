@@ -11,9 +11,11 @@
 //! | `list_view.rs` | Profile list view renderer and delete confirmation dialog |
 //! | `edit_view.rs` | Profile edit/create view renderer, parent selector, badge/SSH sections |
 
+mod badge_section;
 mod edit_view;
 mod form_helpers;
 mod list_view;
+mod parent_selector;
 
 use par_term_config::{Profile, ProfileId, ProfileManager};
 use std::collections::HashSet;

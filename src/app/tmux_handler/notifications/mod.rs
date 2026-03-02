@@ -29,6 +29,7 @@
 
 mod flow_control;
 mod layout;
+mod layout_apply;
 mod layout_new_tab;
 mod output;
 mod polling;

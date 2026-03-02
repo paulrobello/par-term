@@ -407,3 +407,57 @@ macro_rules! debug_trace {
         $crate::debug::logf($crate::debug::DebugLevel::Trace, $category, format_args!($($arg)*))
     };
 }
+
+// ============================================================================
+// Combined debug-log macros (R-18)
+//
+// Several call sites emit both a `crate::debug_error!` (routed to the custom
+// debug log file, controlled by DEBUG_LEVEL) AND a `log::warn!` / `log::error!`
+// (routed through the standard `log` crate bridge, controlled by RUST_LOG).
+//
+// These two-line patterns are collapsed into a single `debug_and_log!` call:
+//
+//   debug_and_log!(WARN, "CATEGORY", "message {}", var);
+//   debug_and_log!(ERROR, "CATEGORY", "message {}", var);
+//
+// The macro writes to the custom debug log at the `Error` level **and** emits
+// the same message through `log::warn!` or `log::error!` respectively.
+// ============================================================================
+
+/// Emit a message to both the custom debug log (at `Error` level) and the
+/// standard `log` crate at `log::warn!` level.
+///
+/// # Example
+/// ```ignore
+/// debug_and_log!(WARN, "TMUX", "Failed to attach session '{}': {}", name, e);
+/// ```
+#[macro_export]
+macro_rules! debug_and_log_warn {
+    ($category:expr, $($arg:tt)*) => {{
+        $crate::debug::logf(
+            $crate::debug::DebugLevel::Error,
+            $category,
+            format_args!($($arg)*),
+        );
+        log::warn!($($arg)*);
+    }};
+}
+
+/// Emit a message to both the custom debug log (at `Error` level) and the
+/// standard `log` crate at `log::error!` level.
+///
+/// # Example
+/// ```ignore
+/// debug_and_log_error!("SCRIPT", "Script '{}' failed: {}", name, e);
+/// ```
+#[macro_export]
+macro_rules! debug_and_log_error {
+    ($category:expr, $($arg:tt)*) => {{
+        $crate::debug::logf(
+            $crate::debug::DebugLevel::Error,
+            $category,
+            format_args!($($arg)*),
+        );
+        log::error!($($arg)*);
+    }};
+}

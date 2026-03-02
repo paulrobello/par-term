@@ -8,9 +8,9 @@
 //! Each accessor panics if the pane manager is unexpectedly absent (which cannot
 //! happen in a correctly constructed `Tab`).
 
-use crate::app::bell::BellState;
-use crate::app::mouse::MouseState;
-use crate::app::render_cache::RenderCache;
+use crate::pane::bell::BellState;
+use crate::pane::mouse::MouseState;
+use crate::pane::render_cache::RenderCache;
 use crate::scroll_state::ScrollState;
 use crate::tab::Tab;
 

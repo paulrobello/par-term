@@ -30,7 +30,9 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 #[macro_use]
 pub mod debug;
 
+pub mod acp_harness;
 pub mod ai_inspector;
+pub use par_term_prettifier::ansi_colors;
 pub mod app;
 pub mod arrangements;
 pub mod audio_bell;
@@ -64,7 +66,7 @@ pub mod pane;
 pub mod paste_special_ui;
 pub mod paste_transform;
 pub mod platform;
-pub mod prettifier;
+pub use par_term_prettifier as prettifier;
 pub mod profile;
 pub mod profile_drawer_ui;
 pub mod profile_modal_ui {

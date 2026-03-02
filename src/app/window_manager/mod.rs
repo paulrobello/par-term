@@ -4,22 +4,29 @@
 //! handles the native menu system, and manages shared resources.
 //!
 //! The implementation is split across sub-modules for clarity:
-//! - `update_checker`   — periodic/forced update checks and desktop notifications
-//! - `window_lifecycle` — window creation, destruction, positioning, session restore
-//! - `menu_actions`     — native menu event dispatch
-//! - `settings_actions` — settings window open/close, event routing, and live config propagation (R-27)
-//! - `coprocess`        — coprocess start/stop and state sync to settings UI
-//! - `scripting`        — script start/stop and state sync to settings UI
-//! - `arrangements`     — save/restore/manage window arrangements
+//! - `cli_timer`             — timing-based CLI options (exit-after, screenshot, command send)
+//! - `update_checker`        — periodic/forced update checks and desktop notifications
+//! - `window_lifecycle`      — window creation, destruction, and monitor positioning
+//! - `window_session`        — session save/restore and arranged-window creation
+//! - `menu_actions`          — native menu event dispatch
+//! - `settings_actions`      — settings window open/close, event routing, and live config propagation (R-27)
+//! - `coprocess`             — coprocess start/stop and state sync to settings UI
+//! - `scripting`             — script start/stop and state sync to settings UI
+//! - `arrangements`          — save/restore/manage window arrangements
+//! - `config_propagation`    — apply config changes from settings to all windows
+//! - `config_renderer_apply` — renderer-specific settings application (split from config_propagation)
 
 mod arrangements;
+mod cli_timer;
 mod config_propagation;
+mod config_renderer_apply;
 mod coprocess;
 mod menu_actions;
 mod scripting;
 mod settings_actions;
 mod update_checker;
 mod window_lifecycle;
+mod window_session;
 
 use crate::app::window_state::WindowState;
 use crate::arrangements::ArrangementManager;

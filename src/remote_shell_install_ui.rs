@@ -175,6 +175,26 @@ impl RemoteShellInstallUI {
     }
 }
 
+impl crate::traits::OverlayComponent for RemoteShellInstallUI {
+    type Action = RemoteShellInstallAction;
+
+    fn show(&mut self, ctx: &egui::Context) -> Self::Action {
+        RemoteShellInstallUI::show(self, ctx)
+    }
+
+    fn is_visible(&self) -> bool {
+        self.is_visible()
+    }
+
+    fn set_visible(&mut self, visible: bool) {
+        if !visible {
+            self.hide();
+        } else {
+            self.show_dialog();
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

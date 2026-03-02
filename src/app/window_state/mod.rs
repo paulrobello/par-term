@@ -9,21 +9,39 @@
 
 mod action_handlers;
 mod agent_config;
+mod agent_message_helpers;
 mod agent_messages;
 mod agent_screenshot;
+pub(crate) mod agent_state;
+mod agent_tick_helpers;
+pub(crate) mod anti_idle;
+pub(crate) mod config_updates;
 mod config_watchers;
+pub(crate) mod cursor_anim_state;
+pub(crate) mod debug_state;
 mod egui_state;
 mod focus_state;
 mod impl_agent;
 mod impl_helpers;
 mod impl_init;
+pub(crate) mod keyboard_handlers;
+mod notifications;
 mod overlay_state;
+pub(crate) mod overlay_ui_state;
 mod prettify_helpers;
+#[path = "../render_pipeline/mod.rs"]
 mod render_pipeline;
+pub(crate) mod renderer_init;
 mod renderer_ops;
+pub(crate) mod scroll_ops;
+pub(crate) mod search_highlight;
 mod shader_ops;
+pub(crate) mod shader_state;
+pub(crate) mod text_selection;
 mod trigger_state;
+mod ui_query_helpers;
 mod update_state;
+pub(crate) mod url_hover;
 mod watcher_state;
 
 // Re-export the sub-state types
@@ -40,7 +58,7 @@ pub(crate) use prettify_helpers::{
     preprocess_claude_code_segment, reconstruct_markdown_from_cells,
 };
 
-use crate::app::debug_state::DebugState;
+use crate::app::window_state::debug_state::DebugState;
 use crate::badge::BadgeState;
 use crate::config::Config;
 use crate::input::InputHandler;
@@ -129,13 +147,13 @@ pub struct WindowState {
     // Sub-system state bundles
     // =========================================================================
     /// Shader hot-reload watcher, metadata caches, and reload-error state
-    pub(crate) shader_state: crate::app::shader_state::ShaderState,
+    pub(crate) shader_state: crate::app::window_state::shader_state::ShaderState,
     /// Overlay / modal / side-panel UI state
-    pub(crate) overlay_ui: crate::app::overlay_ui_state::OverlayUiState,
+    pub(crate) overlay_ui: crate::app::window_state::overlay_ui_state::OverlayUiState,
     /// ACP agent connection and runtime state
-    pub(crate) agent_state: crate::app::agent_state::AgentState,
+    pub(crate) agent_state: agent_state::AgentState,
     /// Cursor animation state (opacity, blink timers)
-    pub(crate) cursor_anim: crate::app::cursor_anim_state::CursorAnimState,
+    pub(crate) cursor_anim: crate::app::window_state::cursor_anim_state::CursorAnimState,
     /// Debug / diagnostics state
     pub(crate) debug: DebugState,
 
@@ -186,5 +204,5 @@ pub struct WindowState {
     // =========================================================================
     // tmux integration
     // =========================================================================
-    pub(crate) tmux_state: crate::app::tmux_state::TmuxState,
+    pub(crate) tmux_state: crate::app::tmux_handler::tmux_state::TmuxState,
 }

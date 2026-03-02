@@ -7,8 +7,11 @@
 //!   session-ended, pause/continue, sync-action dispatch).
 //! - `gateway`: Gateway session lifecycle (initiate, attach, disconnect), input routing
 //!   (send_input_via_tmux, paste_via_tmux, prefix key), pane operations
-//!   (split/close), clipboard/resize sync, and profile auto-application.
+//!   (split/close), and clipboard/resize sync.
+//! - `gateway_profile`: Profile auto-application on tmux session connect.
 
 mod gateway;
 mod gateway_input;
+mod gateway_profile;
 mod notifications;
+pub(crate) mod tmux_state;

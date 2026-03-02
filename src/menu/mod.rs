@@ -1,10 +1,25 @@
 //! Native menu support for par-term
 //!
 //! This module provides cross-platform native menu support using the `muda` crate.
-//! - macOS: Global application menu bar
-//! - Windows/Linux: Per-window menu bar
+//! - macOS: Global application menu bar (see [`macos`])
+//! - Linux: Per-window GTK-based menu bar (see [`linux`])
+//! - Windows: Per-window Win32 menu bar
 
 mod actions;
+
+/// macOS-specific menu building and NSApp initialization.
+#[cfg(target_os = "macos")]
+pub(super) mod macos;
+
+/// Linux-specific menu initialization (GTK/X11/Wayland).
+#[cfg(any(
+    target_os = "linux",
+    target_os = "dragonfly",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+))]
+pub(super) mod linux;
 
 pub use actions::MenuAction;
 
@@ -59,42 +74,7 @@ impl MenuManager {
 
         // macOS: Application menu (must be first submenu — becomes the macOS app menu)
         #[cfg(target_os = "macos")]
-        {
-            let app_menu = Submenu::new("par-term", true);
-
-            // About par-term
-            let about_app = MenuItem::with_id("about_app", "About par-term", true, None);
-            action_map.insert(about_app.id().clone(), MenuAction::About);
-            app_menu.append(&about_app)?;
-
-            app_menu.append(&PredefinedMenuItem::separator())?;
-
-            // Settings... (Cmd+,) — standard macOS settings shortcut
-            let settings_app = MenuItem::with_id(
-                "settings_app",
-                "Settings...",
-                true,
-                Some(Accelerator::new(Some(Modifiers::META), Code::Comma)),
-            );
-            action_map.insert(settings_app.id().clone(), MenuAction::OpenSettings);
-            app_menu.append(&settings_app)?;
-
-            app_menu.append(&PredefinedMenuItem::separator())?;
-
-            app_menu.append(&PredefinedMenuItem::services(None))?;
-
-            app_menu.append(&PredefinedMenuItem::separator())?;
-
-            app_menu.append(&PredefinedMenuItem::hide(None))?;
-            app_menu.append(&PredefinedMenuItem::hide_others(None))?;
-            app_menu.append(&PredefinedMenuItem::show_all(None))?;
-
-            app_menu.append(&PredefinedMenuItem::separator())?;
-
-            app_menu.append(&PredefinedMenuItem::quit(None))?;
-
-            menu.append(&app_menu)?;
-        }
+        macos::build_app_menu(&menu, &mut action_map)?;
 
         // File menu
         let file_menu = Submenu::new("File", true);
@@ -409,24 +389,7 @@ impl MenuManager {
 
         // Window menu (primarily for macOS)
         #[cfg(target_os = "macos")]
-        {
-            let window_menu = Submenu::new("Window", true);
-
-            let minimize = MenuItem::with_id(
-                "minimize",
-                "Minimize",
-                true,
-                Some(Accelerator::new(Some(Modifiers::META), Code::KeyM)),
-            );
-            action_map.insert(minimize.id().clone(), MenuAction::Minimize);
-            window_menu.append(&minimize)?;
-
-            let zoom = MenuItem::with_id("zoom", "Zoom", true, None);
-            action_map.insert(zoom.id().clone(), MenuAction::Zoom);
-            window_menu.append(&zoom)?;
-
-            menu.append(&window_menu)?;
-        }
+        macos::build_window_menu(&menu, &mut action_map)?;
 
         // Help menu
         let help_menu = Submenu::new("Help", true);
@@ -464,12 +427,7 @@ impl MenuManager {
     pub fn init_for_window(&self, window: &Arc<Window>) -> Result<()> {
         #[cfg(target_os = "macos")]
         {
-            // On macOS, init for NSApp (global menu bar)
-            self.menu.init_for_nsapp();
-            // Also set the app name in the menu
-            // This is typically done automatically but we ensure it's set
-            log::info!("Initialized macOS global menu bar");
-            Ok(())
+            macos::init_for_nsapp(&self.menu)
         }
 
         #[cfg(target_os = "windows")]
@@ -484,7 +442,7 @@ impl MenuManager {
                 }
                 log::info!("Initialized Windows menu bar for window");
             }
-            Ok(())
+            return Ok(());
         }
 
         #[cfg(any(
@@ -495,22 +453,7 @@ impl MenuManager {
             target_os = "openbsd"
         ))]
         {
-            // On Linux with GTK, we need to initialize for GTK window
-            // This requires the gtk feature to be enabled
-            use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
-            if let Ok(handle) = window.window_handle() {
-                if let RawWindowHandle::Xlib(xlib_handle) = handle.as_raw() {
-                    // For X11, we'd need to use the GTK integration
-                    // This is handled by muda's gtk feature
-                    log::info!("Linux X11 menu support (using GTK integration)");
-                } else if let RawWindowHandle::Wayland(_wayland_handle) = handle.as_raw() {
-                    log::info!("Linux Wayland menu support (using GTK integration)");
-                }
-            }
-            // GTK menu initialization is more complex and depends on the display server
-            // For now, we'll just log that we're on Linux
-            log::info!("Linux menu bar initialized (GTK-based)");
-            Ok(())
+            return linux::init_for_window(window);
         }
 
         #[cfg(not(any(

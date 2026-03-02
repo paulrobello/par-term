@@ -295,3 +295,23 @@ impl SshConnectUI {
         action
     }
 }
+
+impl crate::traits::OverlayComponent for SshConnectUI {
+    type Action = SshConnectAction;
+
+    fn show(&mut self, ctx: &egui::Context) -> Self::Action {
+        SshConnectUI::show(self, ctx)
+    }
+
+    fn is_visible(&self) -> bool {
+        self.is_visible()
+    }
+
+    fn set_visible(&mut self, visible: bool) {
+        if !visible {
+            self.close();
+        }
+        // Note: setting visible=true requires mdns_enabled and mdns_timeout parameters.
+        // Use open(mdns_enabled, mdns_timeout) to show this dialog.
+    }
+}

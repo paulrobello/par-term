@@ -19,6 +19,7 @@
 //! | `word_selection.rs` | Word selection and copy mode sections |
 //! | `keybindings.rs` | Keybindings editor, `AVAILABLE_ACTIONS`, `capture_key_combo`, `display_key_combo` |
 
+mod actions_table;
 mod keybindings;
 mod keyboard;
 mod mouse;

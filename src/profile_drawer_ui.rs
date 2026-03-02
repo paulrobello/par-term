@@ -4,6 +4,7 @@
 
 use crate::config::Config;
 use crate::profile::{ProfileId, ProfileManager};
+use crate::ui_constants::{PROFILE_DRAWER_MAX_WIDTH, PROFILE_DRAWER_MIN_WIDTH};
 
 /// Actions that can be triggered from the profile drawer
 #[derive(Debug, Clone, PartialEq)]
@@ -107,8 +108,8 @@ impl ProfileDrawerUI {
             let response = egui::SidePanel::right("profile_drawer")
                 .resizable(true)
                 .default_width(self.width)
-                .min_width(180.0)
-                .max_width(400.0)
+                .min_width(PROFILE_DRAWER_MIN_WIDTH)
+                .max_width(PROFILE_DRAWER_MAX_WIDTH)
                 .frame(
                     egui::Frame::side_top_panel(&ctx.style())
                         .fill(egui::Color32::from_rgba_unmultiplied(30, 30, 30, 245))

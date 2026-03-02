@@ -226,6 +226,22 @@ impl ClipboardHistoryUI {
     }
 }
 
+impl crate::traits::OverlayComponent for ClipboardHistoryUI {
+    type Action = ClipboardHistoryAction;
+
+    fn show(&mut self, ctx: &egui::Context) -> Self::Action {
+        ClipboardHistoryUI::show(self, ctx)
+    }
+
+    fn is_visible(&self) -> bool {
+        self.visible
+    }
+
+    fn set_visible(&mut self, visible: bool) {
+        self.visible = visible;
+    }
+}
+
 /// Truncate content for preview display
 fn truncate_preview(content: &str, max_len: usize) -> String {
     // Replace newlines with visible markers

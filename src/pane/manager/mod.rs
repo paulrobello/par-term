@@ -6,19 +6,29 @@
 //! - Navigating between panes
 //! - Resizing panes
 //!
-//! Sub-modules:
-//! - [`super::tmux_helpers`]: Helper types and free functions for tmux layout operations.
+//! # Module Organisation
+//!
+//! General pane-management sub-modules (not tmux-specific):
 //! - [`creation`]: Pane creation and tree manipulation (split, remove).
 //! - [`focus`]: Focus management and directional navigation.
 //! - [`layout`]: Bounds, resize, and divider operations.
-//! - [`session`]: Session restore from saved layout.
+//! - [`session`]: Session restore from saved layout (session-file → pane tree).
+//!
+//! tmux integration sub-modules (only active when a tmux session is attached):
 //! - [`tmux_layout`]: Full tmux layout integration (set, rebuild, update).
+//! - [`super::tmux_helpers`]: Helper types and free functions used by `tmux_layout`.
+//!
+//! `session.rs` is intentionally kept in this module (rather than under a
+//! `tmux/` sub-tree) because it also handles non-tmux session restore.  Only
+//! `tmux_layout.rs` is exclusively tmux-specific.
 
 mod creation;
 mod focus;
 mod layout;
 mod session;
+mod tmux_convert;
 mod tmux_layout;
+mod tmux_update;
 
 use crate::config::{Config, PaneBackgroundConfig};
 use crate::pane::types::{Pane, PaneBounds, PaneId, PaneNode};

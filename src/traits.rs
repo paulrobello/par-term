@@ -114,6 +114,52 @@ pub trait TerminalAccess {
 // This requires GATs (stable since Rust 1.65) and can be introduced as part of
 // the `WindowState` decomposition effort without breaking existing call sites.
 
+// ── R-10: OverlayComponent ────────────────────────────────────────────────────
+
+/// Common interface for egui overlay UI components that follow the
+/// `show(&mut self, ctx: &egui::Context) -> Self::Action` pattern.
+///
+/// # Design notes
+///
+/// Twelve or more UI dialogs in par-term share the same shape:
+/// - they maintain a `visible: bool` field (or equivalent),
+/// - they expose a `show` method that renders the dialog and returns an action,
+/// - they can be hidden without producing an action.
+///
+/// This trait formalises that contract so callers can be written generically
+/// and components become easier to test in isolation.
+///
+/// # Components that are excluded
+///
+/// The following components have additional required parameters on `show` and
+/// cannot implement this trait without a wrapper:
+/// - `HelpUI::show` — returns `()` (no action type)
+/// - `TmuxSessionPickerUI::show` — requires `tmux_path: &str`
+/// - `InspectorPanel::show` — requires `available_agents: &[AgentConfig]`
+///
+/// These are documented as out-of-scope in `docs/TRAITS.md` (future work).
+pub trait OverlayComponent {
+    /// The action type produced by this component's `show` call.
+    type Action;
+
+    /// Render the overlay and return any action produced by user interaction.
+    ///
+    /// When the component is not visible this must return the "no action"
+    /// variant immediately, without touching `ctx`.
+    fn show(&mut self, ctx: &egui::Context) -> Self::Action;
+
+    /// Returns `true` if the overlay is currently visible.
+    fn is_visible(&self) -> bool;
+
+    /// Show or hide the overlay.
+    ///
+    /// Setting to `false` hides the dialog immediately.  Setting to `true`
+    /// is equivalent to calling a parameter-free open method; components
+    /// that require additional state to open (e.g. `show_for_tab`) should
+    /// use their own specific API instead of relying on this method.
+    fn set_visible(&mut self, visible: bool);
+}
+
 // ── AUD-042: EventHandler — REMOVED ──────────────────────────────────────────
 //
 // The `EventHandler` trait was removed because wiring it up to the concrete

@@ -7,7 +7,7 @@ use std::sync::Arc;
 impl WindowState {
     /// Rebuild the renderer after font-related changes and resize the terminal accordingly
     pub(crate) fn rebuild_renderer(&mut self) -> Result<()> {
-        use crate::app::renderer_init::RendererInitParams;
+        use crate::app::window_state::renderer_init::RendererInitParams;
 
         let window = if let Some(w) = &self.window {
             Arc::clone(w)

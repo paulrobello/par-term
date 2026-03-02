@@ -9,7 +9,8 @@
 //! - [`context_menu`]: Right-click context menu (rename, color, icon, duplicate, close).
 //! - [`drag_drop`]: Drag-and-drop state and rendering for tab reordering.
 //! - [`profile_menu`]: Profile selection popup for the new-tab chevron button.
-//! - [`tab_rendering`]: Individual tab rendering for horizontal and vertical layouts.
+//! - [`tab_rendering`]: Vertical tab rendering and shared params/helpers.
+//! - [`tab_painter`]: Horizontal per-tab painting (`render_tab_with_width`).
 //! - [`title_utils`]: HTML title parsing, emoji sanitization, and styled segment rendering.
 
 mod context_menu;
@@ -17,6 +18,7 @@ mod drag_drop;
 mod horizontal;
 mod profile_menu;
 mod state;
+mod tab_painter;
 mod tab_rendering;
 mod title_utils;
 
@@ -144,7 +146,7 @@ impl TabBarUI {
                                             .or(tab.profile.profile_icon.as_deref()),
                                         custom_icon: tab.custom_icon.as_deref(),
                                         is_active,
-                                        has_activity: tab.has_activity,
+                                        has_activity: tab.activity.has_activity,
                                         is_bell_active,
                                         custom_color: tab.custom_color,
                                         config,

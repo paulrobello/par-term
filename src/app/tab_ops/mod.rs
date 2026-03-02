@@ -4,13 +4,18 @@
 //! managing split panes, and handling profile operations.
 //!
 //! Sub-modules:
-//! - `lifecycle` — tab creation, closing, reopening, navigation, and duplication
+//! - `lifecycle`  — tab creation, closing, and navigation
+//! - `tab_reopen` — session undo: reopen closed tab, tab-bar resize helper
+//! - `tab_helpers` — tab duplication, query predicates, and close-confirmation gate
 //! - `pane_ops` — split pane operations (split, navigate, resize, close panes)
 //! - `profile_ops` — profile management (open, apply, auto-switch profiles)
 
 mod lifecycle;
 mod pane_ops;
+mod profile_auto_switch;
 mod profile_ops;
+mod tab_helpers;
+mod tab_reopen;
 
 /// Metadata captured when a tab is closed, used for session undo (reopen closed tab).
 pub(crate) struct ClosedTabInfo {

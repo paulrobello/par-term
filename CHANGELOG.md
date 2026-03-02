@@ -65,6 +65,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Split `copy_mode/mod.rs` (637 lines) into module directory: `types.rs`, `cursor.rs`, `motion.rs`, `visual.rs`, `search.rs` + 83-line orchestrator (R-46).
 - Extracted `TabBarUI` struct to `tab_bar_ui/state.rs` and `render_horizontal` to `tab_bar_ui/horizontal.rs`; `mod.rs` reduced from 714 → 361 lines (R-47).
 - Extracted `ConfigurableDetector` subtrait from `ContentDetector`; `RendererRegistry` dispatches through `as_configurable_mut()` instead of silent empty default methods (R-51).
+- Extracted `src/prettifier/` (93 files, 22 778 L) and `src/ansi_colors.rs` into a new `par-term-prettifier` workspace sub-crate; debug macros shimmed to `log::*`; config re-exported via a facade module so internal files required zero import changes; CI workflow updated with Layer 2 publish step (R-03).
+- Promoted `src/app/window_state/render_pipeline/` to `src/app/render_pipeline/` using a `#[path]` attribute in `window_state/mod.rs`; logical module path and all `pub(super)` / `super::` semantics preserved with zero caller changes (R-14).
+- Eliminated all 19 flat `.rs` files from `src/app/` root: 13 `impl WindowState` files and sub-state structs moved to `window_state/`; per-pane types (`BellState`, `MouseState`, `RenderCache`) moved to `pane/`; copy mode split into `copy_mode/handler.rs` + `copy_mode/search.rs`; `TmuxState` moved to `tmux_handler/`; `src/app/` now has only `mod.rs` at root level (R-02).
 - Decomposed `WindowState` and `Config` into cohesive sub-state objects.
 - Extracted `EguiState` sub-struct from `WindowState` (ARC-001 continuation).
 - Added `with_active_tab()`, `with_active_tab_mut()`, `with_window()`, `request_redraw()` helpers on `WindowState`; converted 60+ call sites.

@@ -306,6 +306,22 @@ impl CommandHistoryUI {
     }
 }
 
+impl crate::traits::OverlayComponent for CommandHistoryUI {
+    type Action = CommandHistoryAction;
+
+    fn show(&mut self, ctx: &egui::Context) -> Self::Action {
+        CommandHistoryUI::show(self, ctx)
+    }
+
+    fn is_visible(&self) -> bool {
+        self.visible
+    }
+
+    fn set_visible(&mut self, visible: bool) {
+        self.visible = visible;
+    }
+}
+
 /// Build an egui LayoutJob with fuzzy match highlighting
 fn build_highlighted_label(
     command: &str,

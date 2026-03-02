@@ -50,7 +50,7 @@ impl QuitConfirmationUI {
     }
 
     /// Hide the dialog and clear state
-    fn hide(&mut self) {
+    pub(crate) fn hide(&mut self) {
         self.visible = false;
         self.session_count = 0;
     }
@@ -131,5 +131,25 @@ impl QuitConfirmationUI {
         }
 
         action
+    }
+}
+
+impl crate::traits::OverlayComponent for QuitConfirmationUI {
+    type Action = QuitConfirmAction;
+
+    fn show(&mut self, ctx: &egui::Context) -> Self::Action {
+        QuitConfirmationUI::show(self, ctx)
+    }
+
+    fn is_visible(&self) -> bool {
+        self.is_visible()
+    }
+
+    fn set_visible(&mut self, visible: bool) {
+        if !visible {
+            self.hide();
+        }
+        // Note: setting visible=true requires session_count context.
+        // Use show_confirmation(session_count) to open this dialog.
     }
 }

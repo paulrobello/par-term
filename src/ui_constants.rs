@@ -263,6 +263,15 @@ pub const CLICK_RESTORE_THRESHOLD_PX: f64 = 6.0;
 pub const SCROLLBAR_MARK_HIT_RADIUS_PX: f32 = 8.0;
 
 // ---------------------------------------------------------------------------
+// Profile Drawer UI  (src/profile_drawer_ui.rs)
+// ---------------------------------------------------------------------------
+
+/// Minimum width of the profile drawer side panel.
+pub const PROFILE_DRAWER_MIN_WIDTH: f32 = 180.0;
+/// Maximum width of the profile drawer side panel.
+pub const PROFILE_DRAWER_MAX_WIDTH: f32 = 400.0;
+
+// ---------------------------------------------------------------------------
 // Animation / timing
 // ---------------------------------------------------------------------------
 

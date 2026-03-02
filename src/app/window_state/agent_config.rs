@@ -42,7 +42,7 @@ impl WindowState {
 
         match Config::load() {
             Ok(new_config) => {
-                use crate::app::config_updates::ConfigChanges;
+                use crate::app::window_state::config_updates::ConfigChanges;
 
                 let changes = ConfigChanges::detect(&self.config, &new_config);
 
@@ -153,7 +153,7 @@ impl WindowState {
         }
 
         // Detect changes and apply to renderer
-        use crate::app::config_updates::ConfigChanges;
+        use crate::app::window_state::config_updates::ConfigChanges;
         let changes = ConfigChanges::detect(&old_config, &self.config);
 
         log::info!(

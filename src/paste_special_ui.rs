@@ -308,6 +308,22 @@ impl PasteSpecialUI {
     }
 }
 
+impl crate::traits::OverlayComponent for PasteSpecialUI {
+    type Action = PasteSpecialAction;
+
+    fn show(&mut self, ctx: &egui::Context) -> Self::Action {
+        PasteSpecialUI::show(self, ctx)
+    }
+
+    fn is_visible(&self) -> bool {
+        self.visible
+    }
+
+    fn set_visible(&mut self, visible: bool) {
+        self.visible = visible;
+    }
+}
+
 /// Truncate content for preview display
 fn truncate_preview(content: &str, max_len: usize) -> String {
     // Replace newlines with visible markers

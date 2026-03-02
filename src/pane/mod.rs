@@ -6,7 +6,10 @@
 //! - `PaneManager`: Coordinates pane operations within a tab
 //! - `PaneId`: Unique identifier for each pane
 
+pub mod bell;
 mod manager;
+pub mod mouse;
+pub mod render_cache;
 mod tmux_helpers;
 mod types;
 

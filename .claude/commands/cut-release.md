@@ -24,6 +24,7 @@ Layer 2 — Depend on par-term-config only (bump after Layer 1):
   par-term-fonts        → par-term-config
   par-term-input        → par-term-config
   par-term-keybindings  → par-term-config
+  par-term-prettifier   → par-term-config
   par-term-scripting    → par-term-config
   par-term-settings-ui  → par-term-config
   par-term-terminal     → par-term-config

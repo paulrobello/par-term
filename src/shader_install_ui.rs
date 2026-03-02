@@ -257,6 +257,22 @@ impl Default for ShaderInstallUI {
     }
 }
 
+impl crate::traits::OverlayComponent for ShaderInstallUI {
+    type Action = ShaderInstallResponse;
+
+    fn show(&mut self, ctx: &egui::Context) -> Self::Action {
+        ShaderInstallUI::show(self, ctx)
+    }
+
+    fn is_visible(&self) -> bool {
+        self.visible
+    }
+
+    fn set_visible(&mut self, visible: bool) {
+        self.visible = visible;
+    }
+}
+
 /// Install shaders from GitHub release (delegates to shared shader_installer module)
 /// This is a blocking operation that downloads and extracts shaders
 pub fn install_shaders_headless() -> Result<usize, String> {

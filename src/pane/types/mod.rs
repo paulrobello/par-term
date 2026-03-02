@@ -15,6 +15,7 @@ mod bounds;
 mod common;
 mod pane;
 mod pane_node;
+mod pane_ops;
 
 #[cfg(test)]
 mod tests;

@@ -19,6 +19,8 @@ mod display;
 mod panes;
 mod performance;
 mod tab_bar;
+mod tab_bar_appearance;
+mod tab_bar_behavior;
 mod transparency;
 
 /// Show the window tab content.

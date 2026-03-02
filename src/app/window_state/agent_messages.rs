@@ -4,6 +4,12 @@
 //! - `process_agent_messages_tick`: drain agent message queue, update AI inspector,
 //!   auto-context feeding, snapshot refresh, and bounded skill-failure recovery.
 //!
+//! Private stateless helpers (sensitive-key detection, command redaction, tool-name
+//! extraction) live in the sibling `agent_message_helpers` module.
+//!
+//! Per-tick helper methods (recovery retry, auto-context, snapshot refresh) live in
+//! the sibling `agent_tick_helpers` module.
+//!
 //! Config update application is in `agent_config.rs`.
 //! Screenshot capture is in `agent_screenshot.rs`.
 
@@ -11,107 +17,8 @@ use crate::ai_inspector::chat::{
     ChatMessage, extract_inline_config_update, extract_inline_tool_function_name,
 };
 use crate::app::window_state::WindowState;
-use par_term_acp::{AgentMessage, AgentStatus, ContentBlock};
-
-const AUTO_CONTEXT_MIN_INTERVAL_MS: u64 = 1200;
-const AUTO_CONTEXT_MAX_COMMAND_LEN: usize = 400;
-
-// ---------------------------------------------------------------------------
-// Auto-context helpers (private to this module)
-// ---------------------------------------------------------------------------
-
-fn is_sensitive_key(key: &str) -> bool {
-    let key = key.to_ascii_lowercase();
-    const MARKERS: &[&str] = &[
-        "pass",
-        "password",
-        "token",
-        "secret",
-        "key",
-        "apikey",
-        "api_key",
-        "auth",
-        "credential",
-        "session",
-        "cookie",
-    ];
-    MARKERS.iter().any(|marker| key.contains(marker))
-}
-
-fn redact_auto_context_command(command: &str) -> (String, bool) {
-    let mut redacted = false;
-    let mut redact_next = false;
-    let mut out: Vec<String> = Vec::new();
-
-    for token in command.split_whitespace() {
-        if redact_next {
-            out.push("[REDACTED]".to_string());
-            redacted = true;
-            redact_next = false;
-            continue;
-        }
-
-        let cleaned = token.trim_matches(|c| c == '"' || c == '\'');
-
-        if let Some(flag) = cleaned.strip_prefix("--") {
-            if let Some((name, _value)) = flag.split_once('=')
-                && is_sensitive_key(name)
-            {
-                let prefix = token.split_once('=').map(|(p, _)| p).unwrap_or(token);
-                out.push(format!("{prefix}=[REDACTED]"));
-                redacted = true;
-                continue;
-            }
-            if is_sensitive_key(flag) {
-                out.push(token.to_string());
-                redact_next = true;
-                continue;
-            }
-        }
-
-        if let Some((name, _value)) = cleaned.split_once('=')
-            && is_sensitive_key(name)
-        {
-            let prefix = token.split_once('=').map(|(p, _)| p).unwrap_or(token);
-            out.push(format!("{prefix}=[REDACTED]"));
-            redacted = true;
-            continue;
-        }
-
-        out.push(token.to_string());
-    }
-
-    let mut sanitized = out.join(" ");
-    if sanitized.chars().count() > AUTO_CONTEXT_MAX_COMMAND_LEN {
-        sanitized = sanitized
-            .chars()
-            .take(AUTO_CONTEXT_MAX_COMMAND_LEN)
-            .collect();
-        sanitized.push_str("...[truncated]");
-    }
-    (sanitized, redacted)
-}
-
-fn is_terminal_screenshot_permission_tool(tool_call: &serde_json::Value) -> bool {
-    let tool_name = tool_call
-        .get("kind")
-        .and_then(|v| v.as_str())
-        .or_else(|| tool_call.get("name").and_then(|v| v.as_str()))
-        .or_else(|| tool_call.get("toolName").and_then(|v| v.as_str()))
-        .or_else(|| {
-            tool_call
-                .get("title")
-                .and_then(|v| v.as_str())
-                .and_then(|t| t.split_whitespace().next())
-        })
-        .unwrap_or("");
-    let lower = tool_name.to_ascii_lowercase();
-    lower == "terminal_screenshot" || lower.contains("par-term-config__terminal_screenshot")
-}
-
-// ---------------------------------------------------------------------------
-// WindowState impl
-// ---------------------------------------------------------------------------
+use crate::app::window_state::agent_message_helpers::is_terminal_screenshot_permission_tool;
+use par_term_acp::AgentMessage;
 
 impl WindowState {
     /// Process incoming ACP agent messages for this render tick and refresh
@@ -452,212 +359,17 @@ impl WindowState {
             false
         };
 
-        // Bounded recovery: if the prompt failed due to a local backend tool
-        // mismatch (failed Skill/Write or inline tool markup), or if a shader
-        // activation request completed without a config_update call, nudge the
-        // agent to continue the same task with proper ACP tool use.
-        if saw_prompt_complete_this_tick
-            && (self.agent_state.agent_skill_failure_detected || shader_activation_incomplete)
-            && self.agent_state.agent_skill_recovery_attempts < 3
-            && let Some(agent) = &self.agent_state.agent
-        {
-            let had_recoverable_failure = self.agent_state.agent_skill_failure_detected;
-            self.agent_state.agent_skill_recovery_attempts = self
-                .agent_state
-                .agent_skill_recovery_attempts
-                .saturating_add(1);
-            self.agent_state.agent_skill_failure_detected = false;
-            self.overlay_ui.ai_inspector.chat.streaming = true;
-            if shader_activation_incomplete && !had_recoverable_failure {
-                self.overlay_ui.ai_inspector.chat.add_system_message(
-                    format!(
-                        "Agent completed a shader task response without activating the shader via \
-                         config_update. Auto-retrying (attempt {}/3) to finish the activation step.",
-                        self.agent_state.agent_skill_recovery_attempts
-                    ),
-                );
-            } else {
-                self.overlay_ui.ai_inspector.chat.add_system_message(
-                    format!(
-                        "Recoverable local-backend tool failure detected (failed Skill/Write or \
-                         inline tool markup). Auto-retrying (attempt {}/3) with stricter ACP tool guidance.",
-                        self.agent_state.agent_skill_recovery_attempts
-                    ),
-                );
-            }
+        // Delegate recovery/retry to agent_tick_helpers.
+        self.attempt_skill_failure_recovery(
+            saw_prompt_complete_this_tick,
+            shader_activation_incomplete,
+            &last_user_text,
+        );
 
-            let mut content: Vec<ContentBlock> = vec![ContentBlock::Text {
-                text: format!(
-                    "{}[End system instructions]",
-                    crate::ai_inspector::chat::AGENT_SYSTEM_GUIDANCE
-                ),
-            }];
+        // Delegate auto-context + command suggestion execution to agent_tick_helpers.
+        self.feed_auto_context(msg_count_before);
 
-            if let Some(ref user_text) = last_user_text
-                && crate::ai_inspector::shader_context::should_inject_shader_context(
-                    user_text,
-                    &self.config,
-                )
-            {
-                content.push(ContentBlock::Text {
-                    text: crate::ai_inspector::shader_context::build_shader_context(&self.config),
-                });
-            }
-
-            let extra_recovery_strictness = if self.agent_state.agent_skill_recovery_attempts >= 2 {
-                " Do not explore unrelated files or dependencies. For shader tasks, go directly \
-                 to the shader file write and config_update activation steps."
-            } else {
-                ""
-            };
-            content.push(ContentBlock::Text {
-                text: format!(
-                    "[Host recovery note]\nContinue the previous user task and stay on the \
-                       same domain/problem (do not switch to unrelated examples/files). Do NOT \
-                       use `Skill`, `Task`, or `TodoWrite`. Do NOT emit XML-style tool markup \
-                       (`<function=...>`). Use normal ACP file/system/MCP tools directly. If \
-                       a `Read` fails because the target is a directory, do not retry `Read` on \
-                       that directory; use a listing/search tool or write the known target file \
-                       path directly. \
-                       Complete the full requested workflow before declaring success (for shader \
-                       tasks: write the requested shader content, then call config_update to \
-                       activate it). \
-                       using `Write`, use exact parameters like `file_path` and `content` (not \
-                       `filepath`). For par-term settings changes use \
-                       `mcp__par-term-config__config_update` / `config_update`. If a tool \
-                       fails, correct the call and retry the same task with the available \
-                       tools. If you have already created the requested shader file, do not \
-                       stop there: call config_update now to activate it before declaring \
-                       success. Do not ask the user to restate the request unless you truly \
-                       need missing information.{}",
-                    extra_recovery_strictness
-                ),
-            });
-
-            let agent = agent.clone();
-            let tx = self.agent_state.agent_tx.clone();
-            let handle = self.runtime.spawn(async move {
-                let agent = agent.lock().await;
-                if let Some(ref tx) = tx {
-                    let _ = tx.send(AgentMessage::PromptStarted);
-                }
-                let _ = agent.send_prompt(content).await;
-                if let Some(tx) = tx {
-                    let _ = tx.send(AgentMessage::PromptComplete);
-                }
-            });
-            self.agent_state.pending_send_handles.push_back(handle);
-            self.focus_state.needs_redraw = true;
-        }
-
-        // Auto-execute new CommandSuggestion messages when terminal access is enabled.
-        if self.config.ai_inspector.ai_inspector_agent_terminal_access {
-            let new_messages = &self.overlay_ui.ai_inspector.chat.messages[msg_count_before..];
-            let commands_to_run: Vec<String> = new_messages
-                .iter()
-                .filter_map(|msg| {
-                    if let ChatMessage::CommandSuggestion(cmd) = msg {
-                        Some(format!("{cmd}\n"))
-                    } else {
-                        None
-                    }
-                })
-                .collect();
-
-            if !commands_to_run.is_empty()
-                && let Some(tab) = self.tab_manager.active_tab()
-                && let Ok(term) = tab.terminal.try_write()
-            {
-                for cmd in &commands_to_run {
-                    let _ = term.write(cmd.as_bytes());
-                }
-                crate::debug_info!(
-                    "AI_INSPECTOR",
-                    "Auto-executed {} command(s) in terminal",
-                    commands_to_run.len()
-                );
-            }
-        }
-
-        // Detect new command completions and auto-refresh the snapshot.
-        // This is separate from agent auto-context so the panel always shows
-        // up-to-date command history regardless of agent connection state.
-        if self.overlay_ui.ai_inspector.open
-            && let Some(tab) = self.tab_manager.active_tab()
-            && let Ok(term) = tab.terminal.try_write()
-        {
-            let history = term.core_command_history();
-            let current_count = history.len();
-
-            if current_count != self.overlay_ui.ai_inspector.last_command_count {
-                // Command count changed — refresh the snapshot
-                let had_commands = self.overlay_ui.ai_inspector.last_command_count > 0;
-                self.overlay_ui.ai_inspector.last_command_count = current_count;
-                self.overlay_ui.ai_inspector.needs_refresh = true;
-
-                // Auto-context feeding: send latest command info to agent
-                if had_commands
-                    && current_count > 0
-                    && self.config.ai_inspector.ai_inspector_auto_context
-                    && self.overlay_ui.ai_inspector.agent_status == AgentStatus::Connected
-                    && let Some((cmd, exit_code, duration_ms)) = history.last()
-                {
-                    let now = std::time::Instant::now();
-                    let throttled =
-                        self.agent_state
-                            .last_auto_context_sent_at
-                            .is_some_and(|last_sent| {
-                                now.duration_since(last_sent)
-                                    < std::time::Duration::from_millis(AUTO_CONTEXT_MIN_INTERVAL_MS)
-                            });
-
-                    if !throttled {
-                        let exit_code_str = exit_code
-                            .map(|c| c.to_string())
-                            .unwrap_or_else(|| "N/A".to_string());
-                        let duration = duration_ms.unwrap_or(0);
-
-                        let cwd = term.shell_integration_cwd().unwrap_or_default();
-                        let (sanitized_cmd, was_redacted) = redact_auto_context_command(cmd);
-
-                        let context = format!(
-                            "[Auto-context event]\nCommand completed:\n$ {}\nExit code: {}\nDuration: {}ms\nCWD: {}\nSensitive arguments redacted: {}",
-                            sanitized_cmd, exit_code_str, duration, cwd, was_redacted
-                        );
-
-                        if let Some(agent) = &self.agent_state.agent {
-                            self.agent_state.last_auto_context_sent_at = Some(now);
-                            self.overlay_ui.ai_inspector.chat.add_system_message(if was_redacted {
-                                "Auto-context sent command metadata to the agent (sensitive values redacted).".to_string()
-                            } else {
-                                "Auto-context sent command metadata to the agent.".to_string()
-                            });
-                            self.focus_state.needs_redraw = true;
-                            let agent = agent.clone();
-                            let content = vec![ContentBlock::Text { text: context }];
-                            self.runtime.spawn(async move {
-                                let agent = agent.lock().await;
-                                let _ = agent.send_prompt(content).await;
-                            });
-                        }
-                    }
-                }
-            }
-        }
-
-        // Refresh AI Inspector snapshot if needed
-        if self.overlay_ui.ai_inspector.open
-            && self.overlay_ui.ai_inspector.needs_refresh
-            && let Some(tab) = self.tab_manager.active_tab()
-            && let Ok(term) = tab.terminal.try_write()
-        {
-            let snapshot = crate::ai_inspector::snapshot::SnapshotData::gather(
-                &term,
-                &self.overlay_ui.ai_inspector.scope,
-                self.config.ai_inspector.ai_inspector_context_max_lines,
-            );
-            self.overlay_ui.ai_inspector.snapshot = Some(snapshot);
-            self.overlay_ui.ai_inspector.needs_refresh = false;
-        }
+        // Delegate snapshot refresh to agent_tick_helpers.
+        self.refresh_inspector_snapshot();
     }
 }

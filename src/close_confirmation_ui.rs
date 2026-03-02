@@ -82,7 +82,7 @@ impl CloseConfirmationUI {
     }
 
     /// Hide the dialog and clear state
-    fn hide(&mut self) {
+    pub(crate) fn hide(&mut self) {
         self.visible = false;
         self.pending_tab_id = None;
         self.pending_pane_id = None;
@@ -191,5 +191,25 @@ impl CloseConfirmationUI {
         }
 
         action
+    }
+}
+
+impl crate::traits::OverlayComponent for CloseConfirmationUI {
+    type Action = CloseConfirmAction;
+
+    fn show(&mut self, ctx: &egui::Context) -> Self::Action {
+        CloseConfirmationUI::show(self, ctx)
+    }
+
+    fn is_visible(&self) -> bool {
+        self.is_visible()
+    }
+
+    fn set_visible(&mut self, visible: bool) {
+        if !visible {
+            self.hide();
+        }
+        // Note: setting visible=true requires additional state (tab_id, command_name, etc.).
+        // Use show_for_tab() or show_for_pane() to open this dialog.
     }
 }

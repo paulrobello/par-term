@@ -3777,6 +3777,7 @@ dependencies = [
  "par-term-input",
  "par-term-keybindings",
  "par-term-mcp",
+ "par-term-prettifier",
  "par-term-render",
  "par-term-scripting",
  "par-term-settings-ui",
@@ -3919,6 +3920,24 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
+]
+
+[[package]]
+name = "par-term-prettifier"
+version = "0.1.0"
+dependencies = [
+ "fontdb 0.23.0",
+ "image",
+ "log",
+ "mermaid-rs-renderer",
+ "native-tls",
+ "par-term-config",
+ "regex",
+ "resvg",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "ureq",
 ]
 
 [[package]]

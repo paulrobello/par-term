@@ -33,7 +33,7 @@ impl WindowState {
 
         // Create badge state and overlay UI before moving config
         let badge_state = BadgeState::new(&config);
-        let overlay_ui = crate::app::overlay_ui_state::OverlayUiState::new(&config);
+        let overlay_ui = crate::app::window_state::overlay_ui_state::OverlayUiState::new(&config);
 
         // Discover available ACP agents
         let config_dir = dirs::config_dir().unwrap_or_default().join("par-term");
@@ -54,14 +54,14 @@ impl WindowState {
             tab_bar_ui: TabBarUI::new(),
             status_bar_ui: StatusBarUI::new(),
 
-            debug: crate::app::debug_state::DebugState::new(),
+            debug: crate::app::window_state::debug_state::DebugState::new(),
 
-            cursor_anim: crate::app::cursor_anim_state::CursorAnimState::default(),
+            cursor_anim: crate::app::window_state::cursor_anim_state::CursorAnimState::default(),
             is_fullscreen: false,
             egui: EguiState::default(),
-            shader_state: crate::app::shader_state::ShaderState::new(shaders_dir),
+            shader_state: crate::app::window_state::shader_state::ShaderState::new(shaders_dir),
             overlay_ui,
-            agent_state: crate::app::agent_state::AgentState::new(available_agents),
+            agent_state: super::agent_state::AgentState::new(available_agents),
             is_recording: false,
             is_shutting_down: false,
             window_index: 1, // Will be set by WindowManager when window is created
@@ -82,7 +82,7 @@ impl WindowState {
 
             smart_selection_cache: SmartSelectionCache::new(),
 
-            tmux_state: crate::app::tmux_state::TmuxState::new(tmux_prefix_key),
+            tmux_state: crate::app::tmux_handler::tmux_state::TmuxState::new(tmux_prefix_key),
 
             broadcast_input: false,
 
@@ -139,7 +139,7 @@ impl WindowState {
         window: Window,
         first_tab_cwd: Option<String>,
     ) -> Result<()> {
-        use crate::app::renderer_init::RendererInitParams;
+        use crate::app::window_state::renderer_init::RendererInitParams;
 
         // Enable IME (Input Method Editor) to receive all character events including Space
         window.set_ime_allowed(true);

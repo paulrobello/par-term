@@ -7,8 +7,10 @@ use std::collections::HashSet;
 
 mod cursor_shader;
 mod cursor_shader_metadata;
+mod global_channels;
 mod pane_backgrounds;
 mod shader_channel_settings;
+mod shader_metadata;
 mod shader_settings;
 
 pub use cursor_shader::show_cursor_shader;

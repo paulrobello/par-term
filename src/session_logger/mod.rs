@@ -49,6 +49,7 @@
 //! [`set_echo_suppressed`]: core::SessionLogger::set_echo_suppressed
 
 pub mod core;
+pub(crate) mod format_writers;
 #[cfg(test)]
 mod tests;
 mod writers;
