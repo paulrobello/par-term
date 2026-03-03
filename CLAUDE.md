@@ -92,6 +92,8 @@ make bundle            # Create macOS .app bundle (macOS only)
 
 ## Architecture Overview
 
+**IMPORTANT**: use the gitnexus skills to explore and understand the architecture.
+
 See `docs/ARCHITECTURE.md` for detailed architecture documentation.
 
 **Key layers**: App (`src/app/`) → Terminal (`src/terminal/`) → Renderer (`src/renderer/`, `src/cell_renderer/`) → GPU Shaders (`src/shaders/`)

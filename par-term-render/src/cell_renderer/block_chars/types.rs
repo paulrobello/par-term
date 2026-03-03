@@ -121,6 +121,26 @@ impl PixelRect {
             height: h,
         }
     }
+
+    /// Snap rectangle edges to pixel boundaries for seamless tiling.
+    ///
+    /// Unlike `snap_to_pixels()` which rounds x/y/width/height independently
+    /// (which can cause the rect to overshoot cell boundaries), this method
+    /// rounds the absolute edges (left, top, right, bottom) and derives
+    /// width/height from the snapped edges. This ensures block elements like
+    /// ▄ and ▀ tile perfectly within their cell without sub-pixel gaps.
+    pub fn snap_edges_to_pixels(self) -> Self {
+        let x0 = self.x.round();
+        let y0 = self.y.round();
+        let x1 = (self.x + self.width).round();
+        let y1 = (self.y + self.height).round();
+        Self {
+            x: x0,
+            y: y0,
+            width: (x1 - x0).max(1.0),
+            height: (y1 - y0).max(1.0),
+        }
+    }
 }
 
 /// Represents line segments for box drawing characters

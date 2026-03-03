@@ -138,15 +138,21 @@ impl CellRenderer {
                         + self.grid.content_offset_y
                         + row as f32 * self.grid.cell_height)
                         .round();
+                    // Compute pixel-snapped cell height to match bg pipeline alignment
+                    let y1 = (self.grid.window_padding
+                        + self.grid.content_offset_y
+                        + (row + 1) as f32 * self.grid.cell_height)
+                        .round();
+                    let snapped_cell_height = y1 - y0;
 
                     // Try box drawing geometry first (for lines, corners, junctions)
                     // Pass aspect ratio so vertical lines have same visual thickness as horizontal
-                    let aspect_ratio = self.grid.cell_height / char_w;
+                    let aspect_ratio = snapped_cell_height / char_w;
                     if let Some(box_geo) = block_chars::get_box_drawing_geometry(*ch, aspect_ratio)
                     {
                         for segment in &box_geo.segments {
                             let rect = segment
-                                .to_pixel_rect(x0, y0, char_w, self.grid.cell_height)
+                                .to_pixel_rect(x0, y0, char_w, snapped_cell_height)
                                 .snap_to_pixels();
 
                             // Extend segments that touch cell edges
@@ -197,11 +203,80 @@ impl CellRenderer {
                         continue;
                     }
 
-                    // Try block element geometry (for solid blocks, half blocks, etc.)
+                    // Half-block characters (▄/▀): render BOTH halves through the
+                    // text pipeline to eliminate cross-pipeline coordinate seams.
+                    // The BG pipeline skips these cells entirely.
+                    // Use snapped cell edges (no extensions) so adjacent cells tile
+                    // perfectly without overlap artifacts.
+                    if *ch == '\u{2584}' || *ch == '\u{2580}' {
+                        // Compute snapped right edge to match next cell's x0
+                        let x1 = (self.grid.window_padding
+                            + self.grid.content_offset_x
+                            + x_offset
+                            + char_w)
+                            .round();
+                        let cell_w = x1 - x0;
+                        // y0 and y1 (snapped_cell_height) already computed above
+                        let y_mid = y0 + self.grid.cell_height / 2.0;
+
+                        let bg_half_color = color_u8x4_rgb_to_f32_a(bg_color, text_alpha);
+                        let (top_color, bottom_color) = if *ch == '\u{2584}' {
+                            (bg_half_color, render_fg_color) // ▄: top=bg, bottom=fg
+                        } else {
+                            (render_fg_color, bg_half_color) // ▀: top=fg, bottom=bg
+                        };
+
+                        let tex_offset = [
+                            self.atlas.solid_pixel_offset.0 as f32 / self.atlas.atlas_size as f32,
+                            self.atlas.solid_pixel_offset.1 as f32 / self.atlas.atlas_size as f32,
+                        ];
+                        let tex_size = [
+                            1.0 / self.atlas.atlas_size as f32,
+                            1.0 / self.atlas.atlas_size as f32,
+                        ];
+
+                        // Top half: [y0, y_mid)
+                        self.scratch_row_text.push(TextInstance {
+                            position: [
+                                x0 / self.config.width as f32 * 2.0 - 1.0,
+                                1.0 - (y0 / self.config.height as f32 * 2.0),
+                            ],
+                            size: [
+                                cell_w / self.config.width as f32 * 2.0,
+                                (y_mid - y0) / self.config.height as f32 * 2.0,
+                            ],
+                            tex_offset,
+                            tex_size,
+                            color: top_color,
+                            is_colored: 0,
+                        });
+
+                        // Bottom half: [y_mid, y1)
+                        self.scratch_row_text.push(TextInstance {
+                            position: [
+                                x0 / self.config.width as f32 * 2.0 - 1.0,
+                                1.0 - (y_mid / self.config.height as f32 * 2.0),
+                            ],
+                            size: [
+                                cell_w / self.config.width as f32 * 2.0,
+                                (y1 - y_mid) / self.config.height as f32 * 2.0,
+                            ],
+                            tex_offset,
+                            tex_size,
+                            color: bottom_color,
+                            is_colored: 0,
+                        });
+
+                        x_offset += self.grid.cell_width;
+                        current_col += 1;
+                        continue;
+                    }
+
+                    // Try block element geometry (for solid blocks, partial blocks, etc.)
                     if let Some(geo_block) = block_chars::get_geometric_block(*ch) {
                         let rect = geo_block.to_pixel_rect(x0, y0, char_w, self.grid.cell_height);
 
-                        // Add small extension to prevent gaps (1 pixel overlap)
+                        // Add small extension to prevent gaps (1 pixel overlap).
                         let extension = 1.0;
                         let ext_x = if geo_block.x == 0.0 { extension } else { 0.0 };
                         let ext_y = if geo_block.y == 0.0 { extension } else { 0.0 };
@@ -222,7 +297,6 @@ impl CellRenderer {
                         let final_h = rect.height + ext_y + ext_h;
 
                         // Render as a colored rectangle using the solid white pixel in atlas
-                        // This goes through the text pipeline with foreground color
                         self.scratch_row_text.push(TextInstance {
                             position: [
                                 final_x / self.config.width as f32 * 2.0 - 1.0,
@@ -232,7 +306,6 @@ impl CellRenderer {
                                 final_w / self.config.width as f32 * 2.0,
                                 final_h / self.config.height as f32 * 2.0,
                             ],
-                            // Use solid white pixel from atlas
                             tex_offset: [
                                 self.atlas.solid_pixel_offset.0 as f32
                                     / self.atlas.atlas_size as f32,
@@ -258,7 +331,7 @@ impl CellRenderer {
                         x0,
                         y0,
                         char_w,
-                        self.grid.cell_height,
+                        snapped_cell_height,
                     ) {
                         self.scratch_row_text.push(TextInstance {
                             position: [

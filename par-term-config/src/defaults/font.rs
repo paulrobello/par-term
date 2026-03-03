@@ -21,7 +21,7 @@ pub fn text_shaping() -> bool {
 }
 
 pub fn minimum_contrast() -> f32 {
-    1.0 // Disabled by default (1.0 = no adjustment)
+    0.0 // Disabled by default (0.0 = no adjustment, matching iTerm2 convention)
 }
 
 pub fn blur_radius() -> u32 {

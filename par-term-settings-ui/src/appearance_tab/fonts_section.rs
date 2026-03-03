@@ -344,8 +344,8 @@ pub(super) fn show_font_rendering_section(
             "thin strokes",
             "smoothing",
             "minimum contrast",
-            "wcag",
             "readability",
+            "brightness",
             "hidpi",
             "retina",
         ],
@@ -423,7 +423,7 @@ pub(super) fn show_font_rendering_section(
                 ui.horizontal(|ui| {
                     ui.label("Minimum contrast:");
                     let mut contrast = settings.config.minimum_contrast;
-                    let slider = egui::Slider::new(&mut contrast, 1.0..=7.0)
+                    let slider = egui::Slider::new(&mut contrast, 0.0..=1.0)
                         .text("")
                         .clamping(egui::SliderClamping::Always);
                     if ui.add(slider).changed() {
@@ -432,20 +432,20 @@ pub(super) fn show_font_rendering_section(
                         *changes_this_frame = true;
                     }
                 });
-                let wcag_label = if settings.config.minimum_contrast <= 1.0 {
+                let contrast_label = if settings.config.minimum_contrast <= 0.0 {
                     "Disabled"
-                } else if settings.config.minimum_contrast < 4.5 {
-                    "Custom"
-                } else if settings.config.minimum_contrast < 7.0 {
-                    "WCAG AA (4.5:1)"
+                } else if settings.config.minimum_contrast < 0.5 {
+                    "Low"
+                } else if settings.config.minimum_contrast < 0.97 {
+                    "High"
                 } else {
-                    "WCAG AAA (7:1)"
+                    "Maximum (near B&W)"
                 };
                 ui.label(format!(
-                    "  {wcag_label} - Adjusts text color to ensure readability against background."
+                    "  {contrast_label} - Boosts text contrast when color is close to background."
                 ))
                 .on_hover_text(
-                    "Set to 1.0 to disable. WCAG AA (4.5:1) is recommended for accessibility.",
+                    "Set to 0 to disable. Higher values push text color further from background.",
                 );
             },
         );

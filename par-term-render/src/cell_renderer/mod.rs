@@ -571,7 +571,7 @@ impl CellRenderer {
                 font_antialias,
                 font_hinting,
                 font_thin_strokes,
-                minimum_contrast: minimum_contrast.clamp(1.0, 21.0),
+                minimum_contrast: minimum_contrast.clamp(0.0, 1.0),
             },
             bg_state: BackgroundImageState {
                 bg_image_texture: None,

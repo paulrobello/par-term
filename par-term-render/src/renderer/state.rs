@@ -92,10 +92,10 @@ impl Renderer {
         changed
     }
 
-    /// Update minimum contrast ratio
+    /// Update minimum contrast value
     /// Returns true if the setting changed (requiring redraw)
-    pub fn update_minimum_contrast(&mut self, ratio: f32) -> bool {
-        let changed = self.cell_renderer.update_minimum_contrast(ratio);
+    pub fn update_minimum_contrast(&mut self, value: f32) -> bool {
+        let changed = self.cell_renderer.update_minimum_contrast(value);
         if changed {
             self.dirty = true;
         }

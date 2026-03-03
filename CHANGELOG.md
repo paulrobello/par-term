@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 97 copy mode state machine tests covering motions, visual modes, selection, marks, search, and edge cases.
 
 ### Fixed
+- Fixed ▄/▀ half-block gradient banding regression (e.g. `rich.palette`): half-block characters are now rendered entirely through the text pipeline (two quads per cell) instead of split across BG and text pipelines, eliminating cross-pipeline coordinate seams caused by floating-point sensitivity in optimized builds.
 - Fixed macOS silent exit when pressing Cmd+, (Settings) before clicking in the window: replaced `PredefinedMenuItem::quit` (which called `[NSApp terminate:]` → `exit(0)`, bypassing all Rust cleanup) with a custom menu item that performs graceful shutdown, and moved menu installation before the blocking GPU initialization to ensure accelerators are active immediately.
 - Fixed custom background shaders (e.g., rain) rendering as fully transparent in split-pane mode after the macOS alpha-coverage fix; the shader's render pass now uses final-mode opacity instead of chain mode, producing opaque premultiplied output.
 - Fixed translucent right-half background on macOS: in Default and Color background modes, the right portion of the window (empty cells with default background) was see-through to the desktop because `LoadOp::Clear` alone is unreliable for alpha on macOS Metal with per-pixel transparency enabled. All background modes now render a full-screen opaque quad via `bg_image_pipeline`; Default mode creates a solid-color texture from the theme background colour so the pipeline always has coverage. Also fixed a pre-existing bug where the pane-viewport fill quad in split-pane mode used pixel coordinates instead of NDC, causing it to render entirely off-screen.
@@ -51,6 +52,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Prevented accidental commit of local API tokens via `.gitignore`.
 - Added path traversal prevention for config paths and shader names.
 - Hardened tmux command escaping to prevent truncation via null bytes.
+
+### Changed
+- Refactored minimum contrast from WCAG ratio scale (1.0–21.0) to iTerm2-compatible perceived brightness scale (0.0–1.0). Settings slider and labels updated accordingly.
 
 ### Refactored
 - Full codebase refactor audit (28 findings): eliminated all `#[allow(clippy::too_many_arguments)]` suppressions (23→0) via parameter builder structs; extracted `GlobalShaderConfig`, `AiInspectorConfig`, and `StatusBarConfig` sub-structs from the monolithic `Config` struct; split 12 files exceeding 800 lines into focused sub-modules; removed all dead-code suppressions; consolidated duplicate implementations (`shell_detection`, `profile_modal_ui`). 1,065 tests pass with zero regressions.

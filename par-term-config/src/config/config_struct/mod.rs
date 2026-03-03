@@ -211,13 +211,13 @@ pub struct Config {
     #[serde(default)]
     pub font_thin_strokes: ThinStrokesMode,
 
-    /// Minimum contrast ratio for text against background (WCAG standard)
-    /// When set, adjusts foreground colors to ensure they meet the specified contrast ratio.
-    /// - 1.0: No adjustment (disabled)
-    /// - 4.5: WCAG AA standard for normal text
-    /// - 7.0: WCAG AAA standard for normal text
+    /// Minimum contrast between text and background (iTerm2-compatible)
+    /// When set, adjusts foreground colors to ensure a minimum perceived brightness
+    /// difference against the background.
+    /// - 0.0: No adjustment (disabled)
+    /// - Values near 1.0: Maximum contrast (nearly black & white)
     ///
-    /// Range: 1.0 to 21.0 (maximum possible contrast)
+    /// Range: 0.0 to 1.0
     #[serde(default = "crate::defaults::minimum_contrast")]
     pub minimum_contrast: f32,
 

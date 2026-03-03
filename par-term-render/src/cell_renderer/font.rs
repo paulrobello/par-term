@@ -24,8 +24,8 @@ pub(crate) struct FontState {
     pub(crate) font_hinting: bool,
     /// Thin strokes mode for font rendering
     pub(crate) font_thin_strokes: par_term_config::ThinStrokesMode,
-    /// Minimum contrast ratio for text against background (WCAG standard)
-    /// 1.0 = disabled, 4.5 = WCAG AA, 7.0 = WCAG AAA
+    /// Minimum contrast between text and background (iTerm2-compatible)
+    /// 0.0 = disabled, values near 1.0 = nearly black & white
     pub(crate) minimum_contrast: f32,
 }
 
@@ -76,13 +76,13 @@ impl CellRenderer {
         }
     }
 
-    /// Update minimum contrast ratio.
+    /// Update minimum contrast value.
     /// Returns true if the setting changed (requiring redraw).
-    pub fn update_minimum_contrast(&mut self, ratio: f32) -> bool {
-        // Clamp to valid range: 1.0 (disabled) to 21.0 (max possible contrast)
-        let ratio = ratio.clamp(1.0, 21.0);
-        if (self.font.minimum_contrast - ratio).abs() > CONTRAST_CHANGE_EPSILON {
-            self.font.minimum_contrast = ratio;
+    pub fn update_minimum_contrast(&mut self, value: f32) -> bool {
+        // Clamp to valid range: 0.0 (disabled) to 1.0 (max contrast)
+        let value = value.clamp(0.0, 1.0);
+        if (self.font.minimum_contrast - value).abs() > CONTRAST_CHANGE_EPSILON {
+            self.font.minimum_contrast = value;
             self.dirty_rows.fill(true);
             true
         } else {
@@ -90,93 +90,83 @@ impl CellRenderer {
         }
     }
 
-    /// Adjust foreground color to meet minimum contrast ratio against background.
-    /// Uses WCAG luminance formula for accurate contrast calculation.
+    /// Adjust foreground color to meet minimum contrast against background.
+    /// Uses iTerm2-compatible perceived brightness algorithm:
+    /// brightness = 0.30*R + 0.59*G + 0.11*B
+    /// Ensures the absolute brightness difference between fg and bg meets the threshold.
     /// Returns the adjusted color [R, G, B, A] with preserved alpha.
     pub(crate) fn ensure_minimum_contrast(&self, fg: [f32; 4], bg: [f32; 4]) -> [f32; 4] {
-        // If minimum_contrast is 1.0 (disabled) or less, no adjustment needed
-        if self.font.minimum_contrast <= 1.0 {
+        let min_contrast = self.font.minimum_contrast;
+        // If minimum_contrast is 0.0 (disabled) or negligible, no adjustment needed
+        if min_contrast <= 0.0 {
             return fg;
         }
 
-        // Calculate luminance using WCAG formula
-        fn luminance(color: [f32; 4]) -> f32 {
-            let r = color[0].powf(2.2);
-            let g = color[1].powf(2.2);
-            let b = color[2].powf(2.2);
-            0.2126 * r + 0.7152 * g + 0.0722 * b
+        /// Perceived brightness using iTerm2's coefficients (BT.601 luma).
+        fn perceived_brightness(r: f32, g: f32, b: f32) -> f32 {
+            0.30 * r + 0.59 * g + 0.11 * b
         }
 
-        fn contrast_ratio(l1: f32, l2: f32) -> f32 {
-            let (lighter, darker) = if l1 > l2 { (l1, l2) } else { (l2, l1) };
-            (lighter + 0.05) / (darker + 0.05)
-        }
-
-        let fg_lum = luminance(fg);
-        let bg_lum = luminance(bg);
-        let current_ratio = contrast_ratio(fg_lum, bg_lum);
+        let fg_brightness = perceived_brightness(fg[0], fg[1], fg[2]);
+        let bg_brightness = perceived_brightness(bg[0], bg[1], bg[2]);
+        let brightness_diff = (fg_brightness - bg_brightness).abs();
 
         // If already meets minimum contrast, return unchanged
-        if current_ratio >= self.font.minimum_contrast {
+        if brightness_diff >= min_contrast {
             return fg;
         }
 
-        // Determine if we need to lighten or darken the foreground
-        // If background is dark, lighten fg; if light, darken fg
-        let bg_is_dark = bg_lum < DARK_BACKGROUND_THRESHOLD;
+        // Need to adjust. Determine target brightness.
+        let error = min_contrast - brightness_diff;
+        let mut target_brightness = if fg_brightness < bg_brightness {
+            // fg is darker — try to make it even darker
+            fg_brightness - error
+        } else {
+            // fg is brighter — try to make it even brighter
+            fg_brightness + error
+        };
 
-        // Binary search for the minimum adjustment needed
-        let mut low = 0.0f32;
-        let mut high = 1.0f32;
-
-        for _ in 0..20 {
-            // 20 iterations gives ~1/1_000_000 precision
-            let mid = (low + high) / 2.0;
-
-            let adjusted = if bg_is_dark {
-                // Lighten: mix with white
-                [
-                    fg[0] + (1.0 - fg[0]) * mid,
-                    fg[1] + (1.0 - fg[1]) * mid,
-                    fg[2] + (1.0 - fg[2]) * mid,
-                    fg[3],
-                ]
-            } else {
-                // Darken: mix with black
-                [
-                    fg[0] * (1.0 - mid),
-                    fg[1] * (1.0 - mid),
-                    fg[2] * (1.0 - mid),
-                    fg[3],
-                ]
-            };
-
-            let adjusted_lum = luminance(adjusted);
-            let new_ratio = contrast_ratio(adjusted_lum, bg_lum);
-
-            if new_ratio >= self.font.minimum_contrast {
-                high = mid;
-            } else {
-                low = mid;
+        // If target is out of range, try the opposite direction
+        if target_brightness < 0.0 {
+            let alternative = bg_brightness + min_contrast;
+            let base_contrast = bg_brightness;
+            let alt_contrast = alternative.min(1.0) - bg_brightness;
+            if alt_contrast > base_contrast {
+                target_brightness = alternative;
+            }
+        } else if target_brightness > 1.0 {
+            let alternative = bg_brightness - min_contrast;
+            let base_contrast = 1.0 - bg_brightness;
+            let alt_contrast = bg_brightness - alternative.max(0.0);
+            if alt_contrast > base_contrast {
+                target_brightness = alternative;
             }
         }
 
-        // Apply the final adjustment
-        if bg_is_dark {
-            [
-                fg[0] + (1.0 - fg[0]) * high,
-                fg[1] + (1.0 - fg[1]) * high,
-                fg[2] + (1.0 - fg[2]) * high,
-                fg[3],
-            ]
+        target_brightness = target_brightness.clamp(0.0, 1.0);
+
+        // Interpolate from current color toward black (k=0) or white (k=1)
+        // to reach target brightness. Solve for parameter p analytically.
+        let k: f32 = if fg_brightness < target_brightness {
+            1.0 // move toward white
         } else {
-            [
-                fg[0] * (1.0 - high),
-                fg[1] * (1.0 - high),
-                fg[2] * (1.0 - high),
-                fg[3],
-            ]
-        }
+            0.0 // move toward black
+        };
+
+        let denom = perceived_brightness(k - fg[0], k - fg[1], k - fg[2]);
+        let p = if denom.abs() < 1e-10 {
+            0.0
+        } else {
+            ((target_brightness - perceived_brightness(fg[0], fg[1], fg[2])) / denom)
+                .clamp(0.0, 1.0)
+        };
+
+        [
+            p * k + (1.0 - p) * fg[0],
+            p * k + (1.0 - p) * fg[1],
+            p * k + (1.0 - p) * fg[2],
+            fg[3],
+        ]
     }
 
     /// Check if thin strokes should be applied based on current mode and context.

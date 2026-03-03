@@ -307,7 +307,15 @@ impl CellRenderer {
                     && cursor_opacity > 0.0
                     && !self.cursor.hidden_for_shader;
 
-                if is_default_bg && !has_cursor {
+                // Skip cells with half-block characters (▄/▀).
+                // These are rendered entirely through the text pipeline to avoid
+                // cross-pipeline coordinate seams that cause visible banding.
+                let is_half_block = {
+                    let mut chars = cell.grapheme.chars();
+                    matches!(chars.next(), Some('\u{2580}' | '\u{2584}')) && chars.next().is_none()
+                };
+
+                if is_half_block || (is_default_bg && !has_cursor) {
                     col += 1;
                     continue;
                 }
@@ -338,9 +346,10 @@ impl CellRenderer {
 
                     // Cursor cell can't be merged
                     let x0 = content_x + col as f32 * self.grid.cell_width;
-                    let y0 = content_y + row as f32 * self.grid.cell_height;
                     let x1 = x0 + self.grid.cell_width;
-                    let y1 = y0 + self.grid.cell_height;
+                    // Snap to pixel boundaries to match text pipeline alignment
+                    let y0 = (content_y + row as f32 * self.grid.cell_height).round();
+                    let y1 = (content_y + (row + 1) as f32 * self.grid.cell_height).round();
 
                     if bg_index < self.buffers.max_bg_instances {
                         self.bg_instances[bg_index] = BackgroundInstance {
@@ -368,7 +377,12 @@ impl CellRenderer {
                     let next_cell = &row_cells[col];
                     let next_has_cursor = cursor_pos.is_some_and(|(cx, cy)| cx == col && cy == row)
                         && cursor_opacity > 0.0;
-                    if next_cell.bg_color != run_color || next_has_cursor {
+                    let next_is_half_block = {
+                        let mut chars = next_cell.grapheme.chars();
+                        matches!(chars.next(), Some('\u{2580}' | '\u{2584}'))
+                            && chars.next().is_none()
+                    };
+                    if next_cell.bg_color != run_color || next_has_cursor || next_is_half_block {
                         break;
                     }
                     col += 1;
@@ -378,8 +392,9 @@ impl CellRenderer {
                 // Create single quad spanning entire run
                 let x0 = content_x + start_col as f32 * self.grid.cell_width;
                 let x1 = content_x + (start_col + run_length) as f32 * self.grid.cell_width;
-                let y0 = content_y + row as f32 * self.grid.cell_height;
-                let y1 = y0 + self.grid.cell_height;
+                // Snap to pixel boundaries to match text pipeline alignment
+                let y0 = (content_y + row as f32 * self.grid.cell_height).round();
+                let y1 = (content_y + (row + 1) as f32 * self.grid.cell_height).round();
 
                 if bg_index < self.buffers.max_bg_instances {
                     self.bg_instances[bg_index] = BackgroundInstance {
@@ -433,17 +448,19 @@ impl CellRenderer {
                     } else {
                         self.grid.cell_width
                     };
-                    let x0 = content_x + col_idx as f32 * self.grid.cell_width;
-                    let y0 = content_y + row as f32 * self.grid.cell_height;
+                    let x0 = (content_x + col_idx as f32 * self.grid.cell_width).round();
+                    let y0 = (content_y + row as f32 * self.grid.cell_height).round();
+                    let y1 = (content_y + (row + 1) as f32 * self.grid.cell_height).round();
+                    let snapped_cell_height = y1 - y0;
 
                     let fg_color = color_u8x4_rgb_to_f32_a(cell.fg_color, text_alpha);
 
                     // Try box drawing geometry first
-                    let aspect_ratio = self.grid.cell_height / char_w;
+                    let aspect_ratio = snapped_cell_height / char_w;
                     if let Some(box_geo) = block_chars::get_box_drawing_geometry(ch, aspect_ratio) {
                         for segment in &box_geo.segments {
                             let rect = segment
-                                .to_pixel_rect(x0, y0, char_w, self.grid.cell_height)
+                                .to_pixel_rect(x0, y0, char_w, snapped_cell_height)
                                 .snap_to_pixels();
 
                             // Extension for seamless lines
@@ -490,11 +507,72 @@ impl CellRenderer {
                         continue;
                     }
 
+                    // Half-block characters (▄/▀): render BOTH halves through the
+                    // text pipeline to eliminate cross-pipeline coordinate seams.
+                    // Use snapped cell edges (no extensions) for seamless tiling.
+                    if ch == '\u{2584}' || ch == '\u{2580}' {
+                        let x1 = (content_x + (col_idx + 1) as f32 * self.grid.cell_width).round();
+                        let cell_w = x1 - x0;
+                        let y_mid = y0 + self.grid.cell_height / 2.0;
+
+                        let bg_half_color = color_u8x4_rgb_to_f32_a(cell.bg_color, text_alpha);
+                        let (top_color, bottom_color) = if ch == '\u{2584}' {
+                            (bg_half_color, fg_color) // ▄: top=bg, bottom=fg
+                        } else {
+                            (fg_color, bg_half_color) // ▀: top=fg, bottom=bg
+                        };
+
+                        let tex_offset = [
+                            self.atlas.solid_pixel_offset.0 as f32 / 2048.0,
+                            self.atlas.solid_pixel_offset.1 as f32 / 2048.0,
+                        ];
+                        let tex_size = [1.0 / 2048.0, 1.0 / 2048.0];
+
+                        // Top half: [y0, y_mid)
+                        if text_index < self.buffers.max_text_instances {
+                            self.text_instances[text_index] = TextInstance {
+                                position: [
+                                    x0 / self.config.width as f32 * 2.0 - 1.0,
+                                    1.0 - (y0 / self.config.height as f32 * 2.0),
+                                ],
+                                size: [
+                                    cell_w / self.config.width as f32 * 2.0,
+                                    (y_mid - y0) / self.config.height as f32 * 2.0,
+                                ],
+                                tex_offset,
+                                tex_size,
+                                color: top_color,
+                                is_colored: 0,
+                            };
+                            text_index += 1;
+                        }
+
+                        // Bottom half: [y_mid, y1)
+                        if text_index < self.buffers.max_text_instances {
+                            self.text_instances[text_index] = TextInstance {
+                                position: [
+                                    x0 / self.config.width as f32 * 2.0 - 1.0,
+                                    1.0 - (y_mid / self.config.height as f32 * 2.0),
+                                ],
+                                size: [
+                                    cell_w / self.config.width as f32 * 2.0,
+                                    (y1 - y_mid) / self.config.height as f32 * 2.0,
+                                ],
+                                tex_offset,
+                                tex_size,
+                                color: bottom_color,
+                                is_colored: 0,
+                            };
+                            text_index += 1;
+                        }
+                        continue;
+                    }
+
                     // Try block element geometry
                     if let Some(geo_block) = block_chars::get_geometric_block(ch) {
                         let rect = geo_block.to_pixel_rect(x0, y0, char_w, self.grid.cell_height);
 
-                        // Extension for seamless blocks
+                        // Add small extension to prevent gaps (1 pixel overlap).
                         let extension = 1.0;
                         let ext_x = if geo_block.x == 0.0 { extension } else { 0.0 };
                         let ext_y = if geo_block.y == 0.0 { extension } else { 0.0 };

@@ -14,12 +14,13 @@ pub fn get_geometric_block(ch: char) -> Option<GeometricBlock> {
 
         // Upper half block
         '\u{2580}' => Some(GeometricBlock::new(0.0, 0.0, 1.0, 0.5)),
+        // Lower half block
+        '\u{2584}' => Some(GeometricBlock::new(0.0, 0.5, 1.0, 0.5)),
 
         // Lower one eighth block to lower seven eighths block
         '\u{2581}' => Some(GeometricBlock::new(0.0, 0.875, 1.0, 0.125)),
         '\u{2582}' => Some(GeometricBlock::new(0.0, 0.75, 1.0, 0.25)),
         '\u{2583}' => Some(GeometricBlock::new(0.0, 0.625, 1.0, 0.375)),
-        '\u{2584}' => Some(GeometricBlock::new(0.0, 0.5, 1.0, 0.5)), // Lower half
         '\u{2585}' => Some(GeometricBlock::new(0.0, 0.375, 1.0, 0.625)),
         '\u{2586}' => Some(GeometricBlock::new(0.0, 0.25, 1.0, 0.75)),
         '\u{2587}' => Some(GeometricBlock::new(0.0, 0.125, 1.0, 0.875)),

@@ -38,7 +38,15 @@ impl CellRenderer {
                 cursor_visible
             };
 
-            if is_default_bg && !has_cursor {
+            // Skip cells with half-block characters (▄/▀).
+            // These are rendered entirely through the text pipeline to avoid
+            // cross-pipeline coordinate seams that cause visible banding.
+            let is_half_block = {
+                let mut chars = cell.grapheme.chars();
+                matches!(chars.next(), Some('\u{2580}' | '\u{2584}')) && chars.next().is_none()
+            };
+
+            if is_half_block || (is_default_bg && !has_cursor) {
                 col += 1;
                 continue;
             }
@@ -83,10 +91,15 @@ impl CellRenderer {
                 let x1 = self.grid.window_padding
                     + self.grid.content_offset_x
                     + (col + 1) as f32 * self.grid.cell_width;
-                let y0 = self.grid.window_padding
+                // Snap to pixel boundaries to match text pipeline alignment
+                let y0 = (self.grid.window_padding
                     + self.grid.content_offset_y
-                    + row as f32 * self.grid.cell_height;
-                let y1 = y0 + self.grid.cell_height;
+                    + row as f32 * self.grid.cell_height)
+                    .round();
+                let y1 = (self.grid.window_padding
+                    + self.grid.content_offset_y
+                    + (row + 1) as f32 * self.grid.cell_height)
+                    .round();
                 self.scratch_row_bg.push(BackgroundInstance {
                     position: [
                         x0 / self.config.width as f32 * 2.0 - 1.0,
@@ -112,25 +125,34 @@ impl CellRenderer {
                     && !self.cursor.hidden_for_shader
                     && self.cursor.pos.1 == row
                     && self.cursor.pos.0 == col;
-                // Stop run if color differs or cursor is here
-                if next_cell.bg_color != run_color || next_has_cursor {
+                // Stop run if color differs, cursor is here, or next cell is a half-block
+                let next_is_half_block = {
+                    let mut chars = next_cell.grapheme.chars();
+                    matches!(chars.next(), Some('\u{2580}' | '\u{2584}')) && chars.next().is_none()
+                };
+                if next_cell.bg_color != run_color || next_has_cursor || next_is_half_block {
                     break;
                 }
                 col += 1;
             }
             let run_length = col - start_col;
 
-            // Create single quad spanning entire run (no per-cell rounding)
+            // Create single quad spanning entire run
             let x0 = self.grid.window_padding
                 + self.grid.content_offset_x
                 + start_col as f32 * self.grid.cell_width;
             let x1 = self.grid.window_padding
                 + self.grid.content_offset_x
                 + (start_col + run_length) as f32 * self.grid.cell_width;
-            let y0 = self.grid.window_padding
+            // Snap to pixel boundaries to match text pipeline alignment
+            let y0 = (self.grid.window_padding
                 + self.grid.content_offset_y
-                + row as f32 * self.grid.cell_height;
-            let y1 = y0 + self.grid.cell_height;
+                + row as f32 * self.grid.cell_height)
+                .round();
+            let y1 = (self.grid.window_padding
+                + self.grid.content_offset_y
+                + (row + 1) as f32 * self.grid.cell_height)
+                .round();
 
             self.scratch_row_bg.push(BackgroundInstance {
                 position: [
