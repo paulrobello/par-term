@@ -423,7 +423,7 @@ pub(super) fn show_font_rendering_section(
                 ui.horizontal(|ui| {
                     ui.label("Minimum contrast:");
                     let mut contrast = settings.config.minimum_contrast;
-                    let slider = egui::Slider::new(&mut contrast, 0.0..=1.0)
+                    let slider = egui::Slider::new(&mut contrast, 0.0..=0.99)
                         .text("")
                         .clamping(egui::SliderClamping::Always);
                     if ui.add(slider).changed() {

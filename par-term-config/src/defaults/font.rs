@@ -1,7 +1,7 @@
 //! Default values for font and text-rendering settings.
 
 pub fn font_size() -> f32 {
-    12.0
+    13.0
 }
 
 pub fn font_family() -> String {

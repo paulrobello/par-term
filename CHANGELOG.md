@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 73 keybinding integration tests covering parse/registry/lookup pipeline, modifiers, key aliases, physical keys, and error cases.
 - 97 copy mode state machine tests covering motions, visual modes, selection, marks, search, and edge cases.
 
+### Changed
+- Default font size increased from 12 to 13.
+- `minimum_contrast` slider in Settings capped at 0.99; a saved value of exactly 1.0 (the old legacy default) is automatically migrated to 0.0 (disabled) on load.
+
 ### Fixed
 - Fixed ▄/▀ half-block gradient banding regression (e.g. `rich.palette`): half-block characters are now rendered entirely through the text pipeline (two quads per cell) instead of split across BG and text pipelines, eliminating cross-pipeline coordinate seams caused by floating-point sensitivity in optimized builds.
 - Fixed macOS silent exit when pressing Cmd+, (Settings) before clicking in the window: replaced `PredefinedMenuItem::quit` (which called `[NSApp terminate:]` → `exit(0)`, bypassing all Rust cleanup) with a custom menu item that performs graceful shutdown, and moved menu installation before the blocking GPU initialization to ensure accelerators are active immediately.
