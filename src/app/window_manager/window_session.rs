@@ -188,6 +188,23 @@ impl WindowManager {
         match event_loop.create_window(window_attrs) {
             Ok(window) => {
                 let window_id = window.id();
+
+                // Initialize menu BEFORE the blocking GPU init (same rationale
+                // as create_window — see window_lifecycle.rs for details).
+                if self.menu.is_none() {
+                    match MenuManager::new() {
+                        Ok(menu) => {
+                            if let Err(e) = menu.init_global() {
+                                log::warn!("Failed to initialize global menu: {}", e);
+                            }
+                            self.menu = Some(menu);
+                        }
+                        Err(e) => {
+                            log::warn!("Failed to create menu: {}", e);
+                        }
+                    }
+                }
+
                 let mut window_state =
                     WindowState::new(self.config.clone(), Arc::clone(&self.runtime));
                 window_state.window_index = window_number;
@@ -203,22 +220,8 @@ impl WindowManager {
                     return None;
                 }
 
-                // Initialize menu for first window or attach to additional
-                if self.menu.is_none() {
-                    match MenuManager::new() {
-                        Ok(menu) => {
-                            if let Some(win) = &window_state.window
-                                && let Err(e) = menu.init_for_window(win)
-                            {
-                                log::warn!("Failed to initialize menu: {}", e);
-                            }
-                            self.menu = Some(menu);
-                        }
-                        Err(e) => {
-                            log::warn!("Failed to create menu: {}", e);
-                        }
-                    }
-                } else if let Some(menu) = &self.menu
+                // Attach menu to the window (platform-specific: per-window on Windows/Linux)
+                if let Some(menu) = &self.menu
                     && let Some(win) = &window_state.window
                     && let Err(e) = menu.init_for_window(win)
                 {

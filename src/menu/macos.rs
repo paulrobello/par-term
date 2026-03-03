@@ -61,7 +61,19 @@ pub fn build_app_menu(menu: &Menu, action_map: &mut HashMap<MenuId, MenuAction>)
 
     app_menu.append(&PredefinedMenuItem::separator())?;
 
-    app_menu.append(&PredefinedMenuItem::quit(None))?;
+    // Use a custom MenuItem instead of PredefinedMenuItem::quit(None) because
+    // the predefined Quit directly calls [NSApp terminate:] which invokes
+    // exit(0), bypassing all Rust cleanup (Drop impls, shutdown logic, etc.).
+    // A custom MenuItem fires through muda's MenuEvent channel, allowing our
+    // MenuAction::Quit handler to perform graceful shutdown.
+    let quit_app = MenuItem::with_id(
+        "quit_app",
+        "Quit par-term",
+        true,
+        Some(Accelerator::new(Some(Modifiers::META), Code::KeyQ)),
+    );
+    action_map.insert(quit_app.id().clone(), MenuAction::Quit);
+    app_menu.append(&quit_app)?;
 
     menu.append(&app_menu)?;
     Ok(())

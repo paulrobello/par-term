@@ -419,6 +419,26 @@ impl MenuManager {
         })
     }
 
+    /// Initialize the global menu system (macOS only).
+    ///
+    /// On macOS this attaches the menu to NSApp (the global application object),
+    /// replacing winit's default menu. This should be called as early as possible
+    /// — before any blocking GPU initialization — so that our custom accelerators
+    /// (Cmd+, for Settings, Cmd+Q for graceful Quit) are active immediately.
+    ///
+    /// On other platforms this is a no-op; use [`init_for_window`] to attach
+    /// per-window menu bars.
+    pub fn init_global(&self) -> Result<()> {
+        #[cfg(target_os = "macos")]
+        {
+            macos::init_for_nsapp(&self.menu)
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            Ok(())
+        }
+    }
+
     /// Initialize the menu for a window
     ///
     /// On macOS, this initializes the global application menu (only needs to be called once).

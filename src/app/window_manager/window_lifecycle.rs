@@ -95,27 +95,18 @@ impl WindowManager {
         match event_loop.create_window(window_attrs) {
             Ok(window) => {
                 let window_id = window.id();
-                let mut window_state =
-                    WindowState::new(self.config.clone(), Arc::clone(&self.runtime));
-                // Set window index for title formatting (window_number calculated earlier)
-                window_state.window_index = window_number;
 
-                // Initialize async components using the shared runtime
-                let runtime = Arc::clone(&self.runtime);
-                if let Err(e) = runtime.block_on(window_state.initialize_async(window, None)) {
-                    log::error!("Failed to initialize window: {}", e);
-                    return;
-                }
-
-                // Initialize menu for the first window (macOS global menu) or per-window (Windows/Linux)
+                // Initialize menu BEFORE the blocking GPU init so that macOS
+                // menu accelerators (Cmd+, for Settings, Cmd+Q for Quit) are
+                // registered immediately. Without this, there is a multi-second
+                // window during GPU setup where winit's default menu is active
+                // and unhandled key combos can cause the app to exit via
+                // [NSApp terminate:].
                 if self.menu.is_none() {
                     match MenuManager::new() {
                         Ok(menu) => {
-                            // Attach menu to window (platform-specific)
-                            if let Some(win) = &window_state.window
-                                && let Err(e) = menu.init_for_window(win)
-                            {
-                                log::warn!("Failed to initialize menu for window: {}", e);
+                            if let Err(e) = menu.init_global() {
+                                log::warn!("Failed to initialize global menu: {}", e);
                             }
                             self.menu = Some(menu);
                         }
@@ -123,11 +114,26 @@ impl WindowManager {
                             log::warn!("Failed to create menu: {}", e);
                         }
                     }
-                } else if let Some(menu) = &self.menu
+                }
+
+                let mut window_state =
+                    WindowState::new(self.config.clone(), Arc::clone(&self.runtime));
+                // Set window index for title formatting (window_number calculated earlier)
+                window_state.window_index = window_number;
+
+                // Initialize async components using the shared runtime
+                // (GPU setup — this blocks for 2-3 seconds)
+                let runtime = Arc::clone(&self.runtime);
+                if let Err(e) = runtime.block_on(window_state.initialize_async(window, None)) {
+                    log::error!("Failed to initialize window: {}", e);
+                    return;
+                }
+
+                // Attach menu to the window (platform-specific: per-window on Windows/Linux)
+                if let Some(menu) = &self.menu
                     && let Some(win) = &window_state.window
                     && let Err(e) = menu.init_for_window(win)
                 {
-                    // For additional windows on Windows/Linux, attach menu
                     log::warn!("Failed to initialize menu for window: {}", e);
                 }
 
