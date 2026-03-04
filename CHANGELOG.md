@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Configurable visual bell flash color (`notification_visual_bell_color`, default: white `[255, 255, 255]`) with color picker in Settings → Notifications → Bell.
+- Dedicated visual bell shader (`visual_bell.wgsl`) for simple fullscreen quad rendering without vertex/instance buffers.
+- Visual bell rendering in the pane render path (`render_split_panes`) so the flash overlay appears correctly in single-pane and split-pane modes.
 - Per-pane selection state isolation for split-pane mode: each pane now owns its own selection, click tracking, and drag state, preventing garbled clipboard content when selecting across panes.
 - Implemented `ScriptCommand` handlers for `WriteText`, `Notify`, `SetBadge`, `SetVariable`, `RunCommand`, and `ChangeConfig` with permission opt-ins and rate limiting.
 - New `docs/ENVIRONMENT_VARIABLES.md` and `docs/API.md` references.

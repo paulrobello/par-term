@@ -100,8 +100,8 @@ fn test_config_power_saving_defaults() {
     let config = Config::default();
     // Default: pause shaders on blur is enabled for power savings
     assert!(config.pause_shaders_on_blur);
-    // Default: pause refresh on blur is disabled (maintain responsiveness)
-    assert!(!config.pause_refresh_on_blur);
+    // Default: pause refresh on blur is enabled for power savings (changed from false)
+    assert!(config.pause_refresh_on_blur);
     // Default unfocused FPS is 30
     assert_eq!(config.unfocused_fps, 30);
 

@@ -302,10 +302,8 @@ impl WindowState {
                     {
                         let search_matches = self.overlay_ui.search_ui.matches();
                         if !search_matches.is_empty() {
-                            let current_match_idx =
-                                self.overlay_ui.search_ui.current_match_index();
-                            let highlight_color =
-                                self.config.search.search_highlight_color;
+                            let current_match_idx = self.overlay_ui.search_ui.current_match_index();
+                            let highlight_color = self.config.search.search_highlight_color;
                             let current_highlight_color =
                                 self.config.search.search_current_highlight_color;
                             for pane in &mut pane_data {

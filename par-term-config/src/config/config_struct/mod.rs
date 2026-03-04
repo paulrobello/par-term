@@ -899,6 +899,10 @@ pub struct Config {
     #[serde(default = "crate::defaults::bool_true", alias = "bell_visual")]
     pub notification_bell_visual: bool,
 
+    /// Visual bell flash color [R, G, B] (0-255, default: white)
+    #[serde(default = "crate::defaults::visual_bell_color")]
+    pub notification_visual_bell_color: [u8; 3],
+
     /// Enable notifications when activity resumes after inactivity
     #[serde(
         default = "crate::defaults::bool_false",

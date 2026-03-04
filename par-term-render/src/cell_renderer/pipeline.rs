@@ -315,19 +315,24 @@ pub fn create_bg_image_pipeline(
     })
 }
 
-/// Create the visual bell pipeline (reuses background shader)
+/// Create the visual bell pipeline using dedicated fullscreen shader.
+///
+/// This pipeline renders a simple fullscreen quad overlay for the visual bell
+/// flash effect. Unlike cell backgrounds, it doesn't need vertex/instance buffers
+/// since the quad is generated procedurally from vertex_index.
 pub fn create_visual_bell_pipeline(
     device: &Device,
     surface_format: TextureFormat,
 ) -> (RenderPipeline, BindGroup, BindGroupLayout, Buffer) {
-    let visual_bell_shader = device.create_shader_module(include_wgsl!("../shaders/cell_bg.wgsl"));
+    let visual_bell_shader =
+        device.create_shader_module(include_wgsl!("../shaders/visual_bell.wgsl"));
 
     let visual_bell_bind_group_layout =
         device.create_bind_group_layout(&BindGroupLayoutDescriptor {
             label: Some("visual bell bind group layout"),
             entries: &[BindGroupLayoutEntry {
                 binding: 0,
-                visibility: ShaderStages::FRAGMENT,
+                visibility: ShaderStages::VERTEX | ShaderStages::FRAGMENT,
                 ty: BindingType::Buffer {
                     ty: BufferBindingType::Uniform,
                     has_dynamic_offset: false,
@@ -350,18 +355,7 @@ pub fn create_visual_bell_pipeline(
             module: &visual_bell_shader,
             entry_point: Some("vs_main"),
             compilation_options: Default::default(),
-            buffers: &[
-                VertexBufferLayout {
-                    array_stride: std::mem::size_of::<Vertex>() as BufferAddress,
-                    step_mode: VertexStepMode::Vertex,
-                    attributes: &vertex_attr_array![0 => Float32x2, 1 => Float32x2],
-                },
-                VertexBufferLayout {
-                    array_stride: std::mem::size_of::<BackgroundInstance>() as BufferAddress,
-                    step_mode: VertexStepMode::Instance,
-                    attributes: &vertex_attr_array![2 => Float32x2, 3 => Float32x2, 4 => Float32x4],
-                },
-            ],
+            buffers: &[], // No vertex buffers - procedural quad from vertex_index
         },
         fragment: Some(FragmentState {
             module: &visual_bell_shader,

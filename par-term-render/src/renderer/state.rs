@@ -221,6 +221,11 @@ impl Renderer {
         }
     }
 
+    /// Set the visual bell flash color (RGB, 0.0-1.0 per channel).
+    pub fn set_visual_bell_color(&mut self, color: [f32; 3]) {
+        self.cell_renderer.set_visual_bell_color(color);
+    }
+
     /// Update window opacity in real-time
     pub fn update_opacity(&mut self, opacity: f32) {
         self.cell_renderer.update_opacity(opacity);

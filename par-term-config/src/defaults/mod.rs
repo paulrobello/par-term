@@ -57,7 +57,7 @@ pub use colors::{
     search_highlight_color, tab_active_background, tab_active_indicator, tab_active_text,
     tab_activity_indicator, tab_bar_background, tab_bell_indicator, tab_border_color,
     tab_close_button, tab_close_button_hover, tab_hover_background, tab_inactive_background,
-    tab_inactive_text,
+    tab_inactive_text, visual_bell_color,
 };
 
 // ── Miscellaneous ──────────────────────────────────────────────────────────

@@ -21,6 +21,24 @@ pub(super) fn show_bell_section(
             *changes_this_frame = true;
         }
 
+        // Visual bell color picker (only shown when visual bell is enabled)
+        if settings.config.notification_bell_visual {
+            ui.horizontal(|ui| {
+                ui.label("Flash color:");
+                let mut color = egui::Color32::from_rgb(
+                    settings.config.notification_visual_bell_color[0],
+                    settings.config.notification_visual_bell_color[1],
+                    settings.config.notification_visual_bell_color[2],
+                );
+                if ui.color_edit_button_srgba(&mut color).changed() {
+                    settings.config.notification_visual_bell_color =
+                        [color.r(), color.g(), color.b()];
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+        }
+
         ui.horizontal(|ui| {
             ui.label("Audio bell volume (0=off):");
             if ui

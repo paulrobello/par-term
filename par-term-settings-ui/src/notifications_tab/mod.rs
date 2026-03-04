@@ -32,7 +32,9 @@ pub fn show(
     if section_matches(
         &query,
         "Bell",
-        &["visual", "audio", "sound", "beep", "volume", "flash"],
+        &[
+            "visual", "audio", "sound", "beep", "volume", "flash", "color",
+        ],
     ) {
         bell::show_bell_section(ui, settings, changes_this_frame, collapsed);
     }
@@ -118,6 +120,8 @@ pub fn keywords() -> &'static [&'static str] {
         "beep",
         "volume",
         "desktop notification",
+        "flash color",
+        "flash colour",
         // Activity
         "notification",
         "activity",

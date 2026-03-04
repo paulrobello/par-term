@@ -158,6 +158,7 @@ impl Default for Config {
             notification_bell_desktop: crate::defaults::bool_false(),
             notification_bell_sound: crate::defaults::bell_sound(),
             notification_bell_visual: crate::defaults::bool_true(),
+            notification_visual_bell_color: crate::defaults::visual_bell_color(),
             notification_activity_enabled: crate::defaults::bool_false(),
             notification_activity_threshold: crate::defaults::activity_threshold(),
             anti_idle_enabled: crate::defaults::bool_false(),

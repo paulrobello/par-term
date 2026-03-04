@@ -262,6 +262,13 @@ pub(super) fn update_gpu_renderer_state(
     } else {
         0.0
     };
+    // Set visual bell color and intensity
+    let visual_bell_color_f32: [f32; 3] = [
+        config.notification_visual_bell_color[0] as f32 / 255.0,
+        config.notification_visual_bell_color[1] as f32 / 255.0,
+        config.notification_visual_bell_color[2] as f32 / 255.0,
+    ];
+    renderer.set_visual_bell_color(visual_bell_color_f32);
     renderer.set_visual_bell_intensity(visual_bell_intensity);
 
     // Compute hovered scrollbar mark for tooltip display

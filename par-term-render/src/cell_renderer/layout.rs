@@ -233,7 +233,9 @@ impl CellRenderer {
 
         // Recalculate cell dimensions (rounded to integer pixels for uniform glyph brightness)
         let natural_line_height = font_ascent + font_descent + font_leading;
-        self.grid.cell_height = (natural_line_height * self.font.line_spacing).max(1.0).round();
+        self.grid.cell_height = (natural_line_height * self.font.line_spacing)
+            .max(1.0)
+            .round();
         self.grid.cell_width = (char_advance * self.font.char_spacing).max(1.0).round();
 
         log::info!(

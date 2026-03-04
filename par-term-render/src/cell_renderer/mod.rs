@@ -192,6 +192,7 @@ pub struct CellRenderer {
 
     // Rendering state
     pub(crate) visual_bell_intensity: f32,
+    pub(crate) visual_bell_color: [f32; 3],
     pub(crate) window_opacity: f32,
     pub(crate) background_color: [f32; 4],
     /// Whether the window is currently focused (for unfocused cursor style)
@@ -603,6 +604,7 @@ impl CellRenderer {
             row_cache: (0..rows).map(|_| None).collect(),
             is_focused: true,
             visual_bell_intensity: 0.0,
+            visual_bell_color: [1.0, 1.0, 1.0], // White flash
             window_opacity,
             background_color: color_u8_to_f32_a(background_color, 1.0),
             bg_instances: vec![

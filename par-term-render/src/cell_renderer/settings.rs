@@ -75,6 +75,12 @@ impl CellRenderer {
         self.visual_bell_intensity = intensity;
     }
 
+    /// Set the visual bell flash color (RGB, 0.0-1.0 per channel).
+    /// The intensity is handled separately via `set_visual_bell_intensity`.
+    pub fn set_visual_bell_color(&mut self, color: [f32; 3]) {
+        self.visual_bell_color = color;
+    }
+
     pub fn update_opacity(&mut self, opacity: f32) {
         self.window_opacity = opacity;
         // update_bg_image_uniforms() multiplies bg_image_opacity by window_opacity,

@@ -229,6 +229,58 @@ impl Renderer {
             self.render_pane_titles(&surface_view, pane_titles)?;
         }
 
+        // Render visual bell overlay (fullscreen flash)
+        if self.cell_renderer.visual_bell_intensity > 0.0 {
+            let uniforms: [f32; 8] = [
+                -1.0,                                     // position.x (NDC left)
+                -1.0,                                     // position.y (NDC bottom)
+                2.0,                                      // size.x (full width in NDC)
+                2.0,                                      // size.y (full height in NDC)
+                self.cell_renderer.visual_bell_color[0],  // color.r
+                self.cell_renderer.visual_bell_color[1],  // color.g
+                self.cell_renderer.visual_bell_color[2],  // color.b
+                self.cell_renderer.visual_bell_intensity, // color.a (intensity)
+            ];
+            self.cell_renderer.queue().write_buffer(
+                &self.cell_renderer.buffers.visual_bell_uniform_buffer,
+                0,
+                bytemuck::cast_slice(&uniforms),
+            );
+
+            let mut encoder = self.cell_renderer.device().create_command_encoder(
+                &wgpu::CommandEncoderDescriptor {
+                    label: Some("visual bell encoder"),
+                },
+            );
+            {
+                let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("visual bell pass"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &surface_view,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Load,
+                            store: wgpu::StoreOp::Store,
+                        },
+                        depth_slice: None,
+                    })],
+                    depth_stencil_attachment: None,
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                });
+                render_pass.set_pipeline(&self.cell_renderer.pipelines.visual_bell_pipeline);
+                render_pass.set_bind_group(
+                    0,
+                    &self.cell_renderer.pipelines.visual_bell_bind_group,
+                    &[],
+                );
+                render_pass.draw(0..4, 0..1); // 4 vertices = triangle strip quad
+            }
+            self.cell_renderer
+                .queue()
+                .submit(std::iter::once(encoder.finish()));
+        }
+
         // Render focus indicator around focused pane (only if multiple panes)
         if panes.len() > 1
             && let Some(viewport) = focused_viewport

@@ -137,3 +137,8 @@ pub fn search_highlight_color() -> [u8; 4] {
 pub fn search_current_highlight_color() -> [u8; 4] {
     [255, 100, 0, 220] // Orange, more visible for current match
 }
+
+// Visual bell color
+pub fn visual_bell_color() -> [u8; 3] {
+    [255, 255, 255] // White flash
+}

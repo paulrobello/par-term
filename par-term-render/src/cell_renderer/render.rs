@@ -463,7 +463,27 @@ impl CellRenderer {
             }
 
             if self.visual_bell_intensity > 0.0 {
-                // Visual bell logic
+                // Update visual bell uniform buffer with fullscreen quad params
+                // Layout: position (vec2) + size (vec2) + color (vec4) = 32 bytes
+                let uniforms: [f32; 8] = [
+                    -1.0,                       // position.x (NDC left)
+                    -1.0,                       // position.y (NDC bottom)
+                    2.0,                        // size.x (full width in NDC)
+                    2.0,                        // size.y (full height in NDC)
+                    self.visual_bell_color[0],  // color.r
+                    self.visual_bell_color[1],  // color.g
+                    self.visual_bell_color[2],  // color.b
+                    self.visual_bell_intensity, // color.a (intensity)
+                ];
+                self.queue.write_buffer(
+                    &self.buffers.visual_bell_uniform_buffer,
+                    0,
+                    bytemuck::cast_slice(&uniforms),
+                );
+
+                render_pass.set_pipeline(&self.pipelines.visual_bell_pipeline);
+                render_pass.set_bind_group(0, &self.pipelines.visual_bell_bind_group, &[]);
+                render_pass.draw(0..4, 0..1); // 4 vertices = triangle strip quad
             }
         }
 

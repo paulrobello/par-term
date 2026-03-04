@@ -496,10 +496,9 @@ impl CellRenderer {
                     if let Some(cursor_text) = self.cursor.text_color {
                         [cursor_text[0], cursor_text[1], cursor_text[2], text_alpha]
                     } else {
-                        let cursor_brightness = (self.cursor.color[0]
-                            + self.cursor.color[1]
-                            + self.cursor.color[2])
-                            / 3.0;
+                        let cursor_brightness =
+                            (self.cursor.color[0] + self.cursor.color[1] + self.cursor.color[2])
+                                / 3.0;
                         if cursor_brightness > CURSOR_BRIGHTNESS_THRESHOLD {
                             [0.0, 0.0, 0.0, text_alpha]
                         } else {
