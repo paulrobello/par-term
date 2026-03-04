@@ -106,6 +106,28 @@ See `docs/ARCHITECTURE.md` for detailed architecture documentation.
 - RGBA texture caching for inline graphics (Sixel/iTerm2/Kitty)
 - Scrollback buffer with viewport offset rendering
 
+## Key File Map (Navigation Guide)
+
+| Area | Primary Files | Sub-crate |
+|------|--------------|-----------|
+| **Rendering (pane path — always active)** | `par-term-render/src/cell_renderer/pane_render.rs`, `src/app/render_pipeline/gpu_submit.rs` | `par-term-render` |
+| **Rendering (search highlights overlay)** | `src/app/render_pipeline/search_highlight.rs` | main |
+| **Cursor rendering** | `par-term-render/src/cell_renderer/bg_instance_builder.rs`, `cursor.rs` | `par-term-render` |
+| **Block characters (▄▀ etc.)** | `par-term-render/src/cell_renderer/block_chars/` | `par-term-render` |
+| **Input handling** | `src/app/input_events/`, `src/input.rs` | `par-term-input` |
+| **Tab management** | `src/tab/manager.rs`, `src/app/tab_ops/` | main |
+| **Tab bar UI** | `src/tab_bar_ui/` (11 subdirs) | main |
+| **Settings UI** | `src/settings_window/`, `par-term-settings-ui/` | `par-term-settings-ui` |
+| **Configuration** | `par-term-config/src/lib.rs` | `par-term-config` |
+| **Session save/restore** | `src/session/capture.rs`, `src/app/window_manager/window_session.rs` | main |
+| **Keybindings** | `par-term-keybindings/` | `par-term-keybindings` |
+| **Snippets/Actions** | `src/snippets/`, `src/app/input_events/` | main |
+| **Custom shaders** | `src/shader_installer.rs`, `shaders/` dir, `par-term-render/src/` | `par-term-render` |
+| **SSH** | `src/ssh/`, `par-term-ssh/` | `par-term-ssh` |
+| **Tmux integration** | `src/tmux_*/`, `par-term-tmux/` | `par-term-tmux` |
+| **ACP / AI panel** | `src/acp_harness/`, `src/ai_inspector/`, `par-term-acp/` | `par-term-acp` |
+| **Font/text shaping** | `par-term-fonts/` | `par-term-fonts` |
+
 ## Code Organization Guidelines
 
 - **Target**: Keep files under 500 lines; refactor files exceeding 800 lines
@@ -215,19 +237,65 @@ See `docs/CUSTOM_SHADERS.md` for full shader documentation including uniforms, c
 - Use `try_lock()` from sync contexts when accessing `tab.terminal` (tokio::sync::Mutex). For user-initiated operations (start/stop coprocess), use `blocking_lock()`. See MEMORY.md for details.
 - `log::info!()` etc. go to stdout, NOT the debug log — use `crate::debug_info!()` macros instead
 - The core library (`par-term-emu-core-rust`) has a `CoprocessManager` wired into the PTY reader thread; don't create separate managers in the frontend
+- **Pane renderer is ALWAYS active**: `tab.pane_manager` is always initialized, so `has_pane_manager=true` on every frame. This means `CellRenderer::build_instance_buffers()` and `CellRenderer::render()` are NEVER called for normal rendering. ALL rendering goes through `render_split_panes_with_data()` → `CellRenderer::build_pane_instance_buffers()` in `pane_render.rs`. Per-cell overlays (search highlights, URL detection) made to `FrameRenderData.cells` in `gather_render_data()` are INVISIBLE — you must modify `pane_data[].cells` AFTER `gather_pane_render_data()` in `gpu_submit.rs`.
+- **Render 3-phase ordering**: Cursor overlays MUST render in phase 3 (after text), otherwise beam/underline cursors are hidden under text glyphs. Buffer layout: `[0..cols*rows]` cell bgs | `[cols*rows..cols*rows+10]` cursor overlays | separator | gutter.
+
+## Docs Reference (docs/)
+
+| Topic | File |
+|-------|------|
+| Architecture overview | `docs/ARCHITECTURE.md` |
+| Crate dependency structure | `docs/CRATE_STRUCTURE.md` |
+| Concurrency / locking | `docs/CONCURRENCY.md` |
+| State lifecycle | `docs/STATE_LIFECYCLE.md` |
+| Custom shaders (background + cursor) | `docs/CUSTOM_SHADERS.md` |
+| Session save/restore | `docs/SESSION_MANAGEMENT.md` |
+| Snippets & actions | `docs/SNIPPETS.md` |
+| Keyboard shortcuts | `docs/KEYBOARD_SHORTCUTS.md` |
+| Logging & debug | `docs/LOGGING.md` |
+| SSH support | `docs/SSH.md` |
+| Config reference | `docs/CONFIG_REFERENCE.md` |
+| ACP harness | `docs/ACP_HARNESS.md` |
+| Troubleshooting | `docs/TROUBLESHOOTING.md` |
+
+## Supplemental Memory Notes
+
+Past debugging investigations are preserved in project memory files. Check these before investigating known problem areas:
+- `REMEMBER.md` — Cursor rendering root cause analysis (3-phase rendering, hollow cursor opacity independence)
+- `block_rendering.md` — Block character ▄/▀ banding root cause and what approaches failed
+
+## Quick Debugging Checklist by Category
+
+**Rendering issue (wrong color, invisible element, cursor problem):**
+1. Confirm you're editing the PANE path (`pane_render.rs`), not `render.rs` (standard path is unused)
+2. Check 3-phase ordering: bgs → text → cursor overlays
+3. For per-cell overlays: modify `pane_data[].cells` in `gpu_submit.rs` after `gather_pane_render_data()`
+4. Use `make run-debug` and `make tail-log` with `crate::debug_info!("RENDER", ...)`
+
+**Session restore issue (shell dies, wrong CWD):**
+1. Single-pane tabs must NOT call `restore_pane_layout()` — check `src/session/capture.rs`
+2. `pane_layout = None` for Leaf nodes, `Some(...)` only for Split roots
+
+**Tab bar context menu inline mode (dismisses immediately):**
+1. Add `*_activated_frame: u64` field to `TabBarUI`
+2. Store `ui.ctx().cumulative_frame_nr()` on activation
+3. Guard click-outside with `&& current_frame > self.*_activated_frame`
+4. If opening an egui Popup: also add `&& !self.*_picking` to click-outside guard
 
 <!-- gitnexus:start -->
 # GitNexus MCP
 
-This project is indexed by GitNexus as **par-term** (9872 symbols, 27741 relationships, 300 execution flows).
+This project is indexed by GitNexus as **par-term** (~10k symbols, ~28k relationships, 300 flows).
 
-## Always Start Here
-
-1. **Read `gitnexus://repo/{name}/context`** — codebase overview + check index freshness
-2. **Match your task to a skill below** and **read that skill file**
-3. **Follow the skill's workflow and checklist**
-
-> If step 1 warns the index is stale, run `npx gitnexus analyze` in the terminal first.
+**IMPORTANT: Before ANY code change, run these 3 steps:**
+```bash
+# 1. Check freshness (if stale, run: npx gitnexus analyze)
+mcpl call gitnexus list_repos '{}'
+# 2. Understand the symbol/area you're working in
+mcpl call gitnexus query '{"query": "your feature or bug description"}'
+# 3. Check blast radius before editing
+mcpl call gitnexus impact '{"target": "FunctionName", "direction": "upstream"}'
+```
 
 ## Skills
 
