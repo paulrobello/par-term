@@ -16,18 +16,18 @@ impl ApplicationHandler for WindowManager {
             if !self.auto_restore_done {
                 self.auto_restore_done = true;
 
-                // Session restore takes precedence when enabled
-                if self.config.restore_session && self.restore_session(event_loop) {
-                    return;
-                }
-
-                // Try auto-restore arrangement if configured
+                // Auto-restore arrangement takes precedence when configured
                 if let Some(ref name) = self.config.auto_restore_arrangement.clone()
                     && !name.is_empty()
                     && self.arrangement_manager.find_by_name(name).is_some()
                 {
                     log::info!("Auto-restoring arrangement: {}", name);
                     self.restore_arrangement_by_name(name, event_loop);
+                    return;
+                }
+
+                // Fall back to session restore if no arrangement
+                if self.config.restore_session && self.restore_session(event_loop) {
                     return;
                 }
             }
