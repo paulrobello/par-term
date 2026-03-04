@@ -131,38 +131,7 @@ impl TabBarUI {
                         ui.vertical(|ui| {
                             ui.spacing_mut().item_spacing = egui::vec2(0.0, tab_spacing);
 
-                            for (index, tab) in tabs.tabs().iter().enumerate() {
-                                let is_active = Some(tab.id) == active_tab_id;
-                                let is_bell_active = tab.is_bell_active();
-                                let (tab_action, tab_rect) = self.render_vertical_tab(
-                                    ui,
-                                    TabRenderParams {
-                                        id: tab.id,
-                                        index,
-                                        title: &tab.title,
-                                        profile_icon: tab
-                                            .custom_icon
-                                            .as_deref()
-                                            .or(tab.profile.profile_icon.as_deref()),
-                                        custom_icon: tab.custom_icon.as_deref(),
-                                        is_active,
-                                        has_activity: tab.activity.has_activity,
-                                        is_bell_active,
-                                        custom_color: tab.custom_color,
-                                        config,
-                                        tab_size: tab_height,
-                                        tab_count,
-                                    },
-                                );
-                                self.tab_rects.push((tab.id, tab_rect));
-
-                                if tab_action != TabBarAction::None {
-                                    action = tab_action;
-                                }
-                            }
-
-                            // New tab split button
-                            ui.add_space(tab_spacing);
+                            // New tab split button — rendered first (top of the panel)
                             ui.horizontal(|ui| {
                                 // Zero spacing between + and ▾
                                 ui.spacing_mut().item_spacing.x = 0.0;
@@ -210,6 +179,36 @@ impl TabBarUI {
                                     }
                                 }
                             });
+
+                            for (index, tab) in tabs.tabs().iter().enumerate() {
+                                let is_active = Some(tab.id) == active_tab_id;
+                                let is_bell_active = tab.is_bell_active();
+                                let (tab_action, tab_rect) = self.render_vertical_tab(
+                                    ui,
+                                    TabRenderParams {
+                                        id: tab.id,
+                                        index,
+                                        title: &tab.title,
+                                        profile_icon: tab
+                                            .custom_icon
+                                            .as_deref()
+                                            .or(tab.profile.profile_icon.as_deref()),
+                                        custom_icon: tab.custom_icon.as_deref(),
+                                        is_active,
+                                        has_activity: tab.activity.has_activity,
+                                        is_bell_active,
+                                        custom_color: tab.custom_color,
+                                        config,
+                                        tab_size: tab_height,
+                                        tab_count,
+                                    },
+                                );
+                                self.tab_rects.push((tab.id, tab_rect));
+
+                                if tab_action != TabBarAction::None {
+                                    action = tab_action;
+                                }
+                            }
                         });
                     });
 

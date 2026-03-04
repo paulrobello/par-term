@@ -102,7 +102,7 @@ pub(super) fn show_cursor_section(
                     .changed()
                 {
                     if use_custom_color {
-                        settings.config.cursor_text_color = Some([0, 0, 0]);
+                        settings.config.cursor_text_color = Some([255, 0, 0]);
                     } else {
                         settings.config.cursor_text_color = None;
                     }

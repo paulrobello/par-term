@@ -1,5 +1,5 @@
 use super::block_chars;
-use super::instance_buffers::HOLLOW_CURSOR_BORDER_PX;
+use super::instance_buffers::{CURSOR_BRIGHTNESS_THRESHOLD, HOLLOW_CURSOR_BORDER_PX};
 use super::{BackgroundInstance, Cell, CellRenderer, PaneViewport, TextInstance};
 use anyhow::Result;
 use par_term_config::{SeparatorMark, color_u8x4_rgb_to_f32, color_u8x4_rgb_to_f32_a};
@@ -460,6 +460,22 @@ impl CellRenderer {
                 self.window_opacity * opacity_multiplier
             };
 
+            // Check if this row has the cursor and it's a visible block cursor
+            // (for cursor text color override in split-pane rendering)
+            let cursor_is_block_on_this_row = {
+                use par_term_emu_core_rust::cursor::CursorStyle;
+                cursor_pos.is_some_and(|(_, cy)| cy == row)
+                    && cursor_opacity > 0.0
+                    && !self.cursor.hidden_for_shader
+                    && matches!(
+                        self.cursor.style,
+                        CursorStyle::SteadyBlock | CursorStyle::BlinkingBlock
+                    )
+                    && (self.is_focused
+                        || self.cursor.unfocused_style
+                            == par_term_config::UnfocusedCursorStyle::Same)
+            };
+
             for (col_idx, cell) in row_cells.iter().enumerate() {
                 if cell.wide_char_spacer || cell.grapheme == " " {
                     continue;
@@ -471,6 +487,28 @@ impl CellRenderer {
                 }
 
                 let ch = chars[0];
+
+                // Determine text color - apply cursor_text_color (or auto-contrast) when the
+                // block cursor is on this cell, otherwise use the cell's foreground color.
+                let render_fg_color: [f32; 4] = if cursor_is_block_on_this_row
+                    && cursor_pos.is_some_and(|(cx, _)| cx == col_idx)
+                {
+                    if let Some(cursor_text) = self.cursor.text_color {
+                        [cursor_text[0], cursor_text[1], cursor_text[2], text_alpha]
+                    } else {
+                        let cursor_brightness = (self.cursor.color[0]
+                            + self.cursor.color[1]
+                            + self.cursor.color[2])
+                            / 3.0;
+                        if cursor_brightness > CURSOR_BRIGHTNESS_THRESHOLD {
+                            [0.0, 0.0, 0.0, text_alpha]
+                        } else {
+                            [1.0, 1.0, 1.0, text_alpha]
+                        }
+                    }
+                } else {
+                    color_u8x4_rgb_to_f32_a(cell.fg_color, text_alpha)
+                };
 
                 // Check for block characters that should be rendered geometrically
                 let char_type = block_chars::classify_char(ch);
@@ -484,8 +522,6 @@ impl CellRenderer {
                     let y0 = (content_y + row as f32 * self.grid.cell_height).round();
                     let y1 = (content_y + (row + 1) as f32 * self.grid.cell_height).round();
                     let snapped_cell_height = y1 - y0;
-
-                    let fg_color = color_u8x4_rgb_to_f32_a(cell.fg_color, text_alpha);
 
                     // Try box drawing geometry first
                     let aspect_ratio = snapped_cell_height / char_w;
@@ -530,7 +566,7 @@ impl CellRenderer {
                                         self.atlas.solid_pixel_offset.1 as f32 / 2048.0,
                                     ],
                                     tex_size: [1.0 / 2048.0, 1.0 / 2048.0],
-                                    color: fg_color,
+                                    color: render_fg_color,
                                     is_colored: 0,
                                 };
                                 text_index += 1;
@@ -549,9 +585,9 @@ impl CellRenderer {
 
                         let bg_half_color = color_u8x4_rgb_to_f32_a(cell.bg_color, text_alpha);
                         let (top_color, bottom_color) = if ch == '\u{2584}' {
-                            (bg_half_color, fg_color) // ▄: top=bg, bottom=fg
+                            (bg_half_color, render_fg_color) // ▄: top=bg, bottom=fg
                         } else {
-                            (fg_color, bg_half_color) // ▀: top=fg, bottom=bg
+                            (render_fg_color, bg_half_color) // ▀: top=fg, bottom=bg
                         };
 
                         let tex_offset = [
@@ -639,7 +675,7 @@ impl CellRenderer {
                                     self.atlas.solid_pixel_offset.1 as f32 / 2048.0,
                                 ],
                                 tex_size: [1.0 / 2048.0, 1.0 / 2048.0],
-                                color: fg_color,
+                                color: render_fg_color,
                                 is_colored: 0,
                             };
                             text_index += 1;
@@ -789,8 +825,6 @@ impl CellRenderer {
                             (glyph_left, glyph_top, render_w, render_h)
                         };
 
-                    let fg_color = color_u8x4_rgb_to_f32_a(cell.fg_color, text_alpha);
-
                     if text_index < self.buffers.max_text_instances {
                         self.text_instances[text_index] = TextInstance {
                             position: [
@@ -803,7 +837,7 @@ impl CellRenderer {
                             ],
                             tex_offset: [info.x as f32 / 2048.0, info.y as f32 / 2048.0],
                             tex_size: [info.width as f32 / 2048.0, info.height as f32 / 2048.0],
-                            color: fg_color,
+                            color: render_fg_color,
                             is_colored: if info.is_colored { 1 } else { 0 },
                         };
                         text_index += 1;

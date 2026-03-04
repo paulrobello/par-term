@@ -471,6 +471,7 @@ impl CellRenderer {
                     Some(info) => info,
                     None => {
                         x_offset += self.grid.cell_width;
+                        current_col += 1;
                         continue;
                     }
                 };
