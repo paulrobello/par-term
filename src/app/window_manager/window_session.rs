@@ -89,6 +89,11 @@ impl WindowManager {
                 for (tab_idx, session_tab) in session_window.tabs.iter().enumerate() {
                     if let Some(ref layout) = session_tab.pane_layout
                         && let Some(tab) = tabs.get_mut(tab_idx)
+                        // Skip single-pane (Leaf) layouts: the tab's shell was already
+                        // created with the correct CWD by create_window_with_overrides.
+                        // Calling restore_pane_layout for a Leaf would spawn a second
+                        // shell and kill the first one via Pane::Drop on the shared Arc.
+                        && matches!(layout, crate::session::SessionPaneNode::Split { .. })
                     {
                         tab.restore_pane_layout(layout, &self.config, Arc::clone(&self.runtime));
                     }

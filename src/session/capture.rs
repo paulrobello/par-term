@@ -31,11 +31,21 @@ pub fn capture_session(windows: &HashMap<WindowId, WindowState>) -> SessionState
             .tabs()
             .iter()
             .map(|tab| {
+                // Only capture pane_layout for multi-pane (Split) layouts.
+                // Single-pane tabs use pane_layout=None so that session restore
+                // uses the tab-level CWD (snapshot.cwd) without calling
+                // restore_pane_layout(). Capturing a Leaf here would cause
+                // restore_pane_layout() to spawn a second shell unnecessarily —
+                // and its Pane::Drop would kill the first shell via the shared Arc,
+                // leading to a window that closes on the first redraw after restore.
                 let pane_layout = tab
                     .pane_manager
                     .as_ref()
                     .and_then(|pm| pm.root())
-                    .map(capture_pane_node);
+                    .and_then(|root| match root {
+                        PaneNode::Leaf(_) => None,
+                        PaneNode::Split { .. } => Some(capture_pane_node(root)),
+                    });
 
                 SessionTab {
                     snapshot: TabSnapshot {
