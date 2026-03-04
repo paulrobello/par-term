@@ -338,7 +338,7 @@ pub fn pane_min_size() -> usize {
 }
 
 pub fn pane_background_opacity() -> f32 {
-    0.85 // 85% opacity allows background/shader to show through slightly
+    1.0 // Fully opaque by default
 }
 
 pub fn inactive_pane_opacity() -> f32 {
