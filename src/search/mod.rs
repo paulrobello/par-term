@@ -342,7 +342,7 @@ impl SearchUI {
                     // Navigation buttons
                     ui.add_enabled_ui(!self.matches.is_empty(), |ui| {
                         if ui
-                            .button("\u{25B2}")
+                            .button("\u{f062}")
                             .on_hover_text("Previous (Shift+Enter)")
                             .clicked()
                         {
@@ -356,7 +356,7 @@ impl SearchUI {
                             }
                         }
                         if ui
-                            .button("\u{25BC}")
+                            .button("\u{f063}")
                             .on_hover_text("Next (Enter)")
                             .clicked()
                         {
@@ -373,7 +373,7 @@ impl SearchUI {
 
                     // Close button
                     if ui
-                        .button("\u{2715}")
+                        .button("\u{f00d}")
                         .on_hover_text("Close (Escape)")
                         .clicked()
                     {

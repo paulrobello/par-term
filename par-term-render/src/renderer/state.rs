@@ -506,6 +506,9 @@ impl Renderer {
         let physical_width = logical_width * self.cell_renderer.scale_factor;
         self.cell_renderer
             .update_scrollbar_appearance(physical_width, thumb_color, track_color);
+        // Force the next update_scrollbar() call to re-upload GPU uniforms with new colors,
+        // since uniform upload is normally skipped when scroll state hasn't changed.
+        self.last_scrollbar_state = (usize::MAX, 0, 0);
         self.dirty = true;
     }
 

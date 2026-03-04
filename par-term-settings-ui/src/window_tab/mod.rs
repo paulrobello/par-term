@@ -18,6 +18,7 @@ mod behavior;
 mod display;
 mod panes;
 mod performance;
+mod scrollbar;
 mod tab_bar;
 mod tab_bar_appearance;
 mod tab_bar_behavior;
@@ -184,6 +185,25 @@ pub fn show(
     ) {
         panes::show_pane_appearance_section(ui, settings, changes_this_frame, collapsed);
     }
+
+    // Scrollbar section
+    if section_matches(
+        &query,
+        "Scrollbar",
+        &[
+            "scrollbar",
+            "thumb",
+            "track",
+            "autohide",
+            "marker",
+            "command markers",
+            "shell integration",
+            "tooltips",
+            "scrollbar width",
+        ],
+    ) {
+        scrollbar::show_scrollbar_section(ui, settings, changes_this_frame, collapsed);
+    }
 }
 
 /// Search keywords for the Window settings tab.
@@ -305,5 +325,16 @@ pub fn keywords() -> &'static [&'static str] {
         "pane background",
         // Performance extras
         "latency",
+        // Scrollbar
+        "scrollbar",
+        "thumb",
+        "track",
+        "autohide",
+        "command marks",
+        "marker",
+        "mark",
+        "tooltips",
+        "scrollbar width",
+        "scroll",
     ]
 }

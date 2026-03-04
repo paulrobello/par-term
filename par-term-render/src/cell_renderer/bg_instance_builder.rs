@@ -161,15 +161,14 @@ impl CellRenderer {
                 + (row + 1) as f32 * self.grid.cell_height)
                 .round();
 
+            let pos_x = x0 / self.config.width as f32 * 2.0 - 1.0;
+            let pos_y = 1.0 - (y0 / self.config.height as f32 * 2.0);
+            let sz_x = (x1 - x0) / self.config.width as f32 * 2.0;
+            let sz_y = (y1 - y0) / self.config.height as f32 * 2.0;
+
             self.scratch_row_bg.push(BackgroundInstance {
-                position: [
-                    x0 / self.config.width as f32 * 2.0 - 1.0,
-                    1.0 - (y0 / self.config.height as f32 * 2.0),
-                ],
-                size: [
-                    (x1 - x0) / self.config.width as f32 * 2.0,
-                    (y1 - y0) / self.config.height as f32 * 2.0,
-                ],
+                position: [pos_x, pos_y],
+                size: [sz_x, sz_y],
                 color: bg_color,
             });
         }

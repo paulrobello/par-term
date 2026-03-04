@@ -31,6 +31,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `minimum_contrast` slider in Settings capped at 0.99; a saved value of exactly 1.0 (the old legacy default) is automatically migrated to 0.0 (disabled) on load.
 
 ### Fixed
+- Fixed search highlights (Cmd+F) never appearing: all tabs use the pane-manager render path, which gathers cells independently per pane. Highlights were being applied to the main frame cells that are never rendered. Highlights are now applied to the focused pane's cells in `gpu_submit.rs` after `gather_pane_render_data`, immediately before rendering.
+- Fixed search navigation buttons (▲/▼) and close button (×) rendering as empty boxes: replaced Unicode arrows/multiply sign with Font Awesome icon codepoints (`\u{f062}`, `\u{f063}`, `\u{f00d}`) that are present in the embedded icon font.
+- Fixed scrollbar thumb/track color changes in Settings not taking effect until a scroll event: `update_scrollbar_appearance` now resets `last_scrollbar_state` to force the next `update_scrollbar()` call to re-upload GPU uniforms regardless of scroll position.
+
+### Changed
+- Moved scrollbar settings (width, colors, autohide, command markers) from the Terminal tab to the Window tab in Settings, where window-layout controls are grouped.
+
 - Fixed cursor text color (block cursor) setting having no visible effect: the default initial color when enabling the setting was `[0,0,0]` (black), identical to the auto-contrast result for the default white cursor, so enabling it produced no change. Initial color is now red `[255,0,0]` to make the effect immediately visible. Also fixed a secondary bug where `current_col` was not incremented on glyph resolution failure, causing the color override to be applied to the wrong column after any unrenderable character.
 - Fixed cursor text color (block cursor) having no effect in split-pane mode: the pane renderer (`build_pane_instance_buffers`) never applied cursor text color logic to text instances. The same `cursor_is_block_on_this_row` / `render_fg_color` logic used in the single-pane path is now applied in the pane renderer as well.
 - Fixed tab bar (left position) showing new-tab buttons at the bottom instead of the top: the "New Tab" and "New Tab from Profile" buttons in the vertical left-side tab bar are now rendered first, above the existing tabs.

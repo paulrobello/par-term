@@ -291,7 +291,7 @@ impl WindowState {
                 });
 
                 if let Some((
-                    pane_data,
+                    mut pane_data,
                     dividers,
                     pane_titles,
                     focused_viewport,
@@ -304,6 +304,36 @@ impl WindowState {
                         && let Some(tab) = self.tab_manager.active_tab_mut()
                     {
                         tab.active_cache_mut().scrollback_len = focused_pane_scrollback_len;
+                    }
+
+                    // Apply search highlights to the focused pane's cells.
+                    // Pane cells are gathered independently from each pane's terminal, so
+                    // highlights must be applied here rather than in gather_render_data.
+                    {
+                        let search_matches = self.overlay_ui.search_ui.matches();
+                        if !search_matches.is_empty() {
+                            let current_match_idx =
+                                self.overlay_ui.search_ui.current_match_index();
+                            let highlight_color =
+                                self.config.search.search_highlight_color;
+                            let current_highlight_color =
+                                self.config.search.search_current_highlight_color;
+                            for pane in &mut pane_data {
+                                if pane.viewport.focused {
+                                    crate::app::window_state::search_highlight::apply_search_highlights_to_cells(
+                                        &mut pane.cells,
+                                        pane.grid_size.0,
+                                        pane.scroll_offset,
+                                        pane.scrollback_len,
+                                        pane.grid_size.1,
+                                        search_matches,
+                                        current_match_idx,
+                                        highlight_color,
+                                        current_highlight_color,
+                                    );
+                                }
+                            }
+                        }
                     }
 
                     // Get hovered divider index for hover color rendering

@@ -218,9 +218,9 @@ pub fn tab_matches_search(tab: SettingsTab, query: &str) -> bool {
 fn tab_contents_summary(tab: SettingsTab) -> &'static str {
     match tab {
         SettingsTab::Appearance => "Theme, fonts, cursor style and colors",
-        SettingsTab::Window => "Window size, opacity, tab bar, split panes",
+        SettingsTab::Window => "Window size, opacity, tab bar, split panes, scrollbar",
         SettingsTab::Input => "Keyboard shortcuts, mouse behavior, clipboard",
-        SettingsTab::Terminal => "Shell, scrollback, search, scrollbar",
+        SettingsTab::Terminal => "Shell, scrollback, search",
         SettingsTab::Effects => "Background image/shader, cursor effects",
         SettingsTab::StatusBar => {
             "Status bar widgets, layout, styling, auto-hide, and poll intervals"

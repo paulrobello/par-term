@@ -68,6 +68,7 @@ pub(super) fn apply_renderer_config(
         config.scrollbar_thumb_color,
         config.scrollbar_track_color,
     );
+    window_state.focus_state.needs_redraw = true;
 
     // Update cursor color
     if changes.cursor_color {

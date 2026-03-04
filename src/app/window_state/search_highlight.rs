@@ -2,16 +2,10 @@
 
 use super::WindowState;
 use crate::cell_renderer::Cell;
+use crate::search::SearchMatch;
 
 impl WindowState {
     /// Apply search highlighting to cells that contain matches.
-    ///
-    /// # Arguments
-    /// * `cells` - The visible cells to modify
-    /// * `cols` - Number of columns in the terminal
-    /// * `scroll_offset` - Current scroll position (0 = at bottom)
-    /// * `scrollback_len` - Total scrollback length
-    /// * `visible_lines` - Number of visible terminal rows
     pub(crate) fn apply_search_highlights(
         &self,
         cells: &mut [Cell],
@@ -24,58 +18,63 @@ impl WindowState {
         if matches.is_empty() {
             return;
         }
-
-        let current_match_idx = self.overlay_ui.search_ui.current_match_index();
-        let highlight_color = self.config.search.search_highlight_color;
-        let current_highlight_color = self.config.search.search_current_highlight_color;
-
-        // Calculate the range of absolute lines that are currently visible
-        // scroll_offset = 0 means we're at the bottom (most recent content)
-        // scroll_offset = scrollback_len means we're at the top
-        let total_lines = scrollback_len + visible_lines;
-        let visible_end = total_lines.saturating_sub(scroll_offset);
-        let visible_start = visible_end.saturating_sub(visible_lines);
-
-        log::trace!(
-            "Search highlight: scroll_offset={}, scrollback_len={}, visible_lines={}, total_lines={}, visible_range={}..{}",
+        apply_search_highlights_to_cells(
+            cells,
+            cols,
             scroll_offset,
             scrollback_len,
             visible_lines,
-            total_lines,
-            visible_start,
-            visible_end
+            matches,
+            self.overlay_ui.search_ui.current_match_index(),
+            self.config.search.search_highlight_color,
+            self.config.search.search_current_highlight_color,
         );
+    }
+}
 
-        for (match_idx, search_match) in matches.iter().enumerate() {
-            // Check if this match is in the visible range
-            if search_match.line < visible_start || search_match.line >= visible_end {
-                continue;
+/// Apply search highlights directly to a cell slice.
+///
+/// Used both by the single-pane path (via `WindowState::apply_search_highlights`)
+/// and the pane-manager path (applied per-pane after `gather_pane_render_data`).
+pub(crate) fn apply_search_highlights_to_cells(
+    cells: &mut [Cell],
+    cols: usize,
+    scroll_offset: usize,
+    scrollback_len: usize,
+    visible_lines: usize,
+    matches: &[SearchMatch],
+    current_match_idx: usize,
+    highlight_color: [u8; 4],
+    current_highlight_color: [u8; 4],
+) {
+    if matches.is_empty() {
+        return;
+    }
+
+    let total_lines = scrollback_len + visible_lines;
+    let visible_end = total_lines.saturating_sub(scroll_offset);
+    let visible_start = visible_end.saturating_sub(visible_lines);
+
+    for (match_idx, search_match) in matches.iter().enumerate() {
+        if search_match.line < visible_start || search_match.line >= visible_end {
+            continue;
+        }
+
+        let viewport_row = search_match.line - visible_start;
+        let color = if match_idx == current_match_idx {
+            current_highlight_color
+        } else {
+            highlight_color
+        };
+
+        for offset in 0..search_match.length {
+            let col = search_match.column + offset;
+            if col >= cols {
+                break;
             }
-
-            // Convert absolute line to viewport row
-            let viewport_row = search_match.line - visible_start;
-
-            // Determine which highlight color to use
-            let color = if match_idx == current_match_idx {
-                current_highlight_color
-            } else {
-                highlight_color
-            };
-
-            // Apply highlighting to each character in the match
-            for offset in 0..search_match.length {
-                let col = search_match.column + offset;
-                if col >= cols {
-                    break; // Match extends beyond visible columns
-                }
-
-                let cell_idx = viewport_row * cols + col;
-                if cell_idx < cells.len() {
-                    // Set background color to highlight color
-                    cells[cell_idx].bg_color = color;
-                    // Keep text visible - if bg is bright, might want to adjust fg
-                    // For now, leave fg color as-is since our highlight colors have transparency
-                }
+            let cell_idx = viewport_row * cols + col;
+            if cell_idx < cells.len() {
+                cells[cell_idx].bg_color = color;
             }
         }
     }

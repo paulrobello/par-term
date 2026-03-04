@@ -8,7 +8,6 @@
 //! - Shell settings (custom shell, args, working directory)
 //! - Startup settings (initial text)
 //! - Search settings (highlight colors, defaults)
-//! - Scrollbar settings (width, colors, autohide)
 //!
 //! ## Sub-module layout
 //!
@@ -19,7 +18,7 @@
 //! | `unicode.rs` | Unicode section (version, ambiguous width, normalization, answerback) |
 //! | `shell.rs` | Shell section (custom shell, args, login shell, startup directory) |
 //! | `startup.rs` | Startup section (restore session, undo close, initial text) |
-//! | `search.rs` | Search, Scrollbar, Command History, and Command Separator sections |
+//! | `search.rs` | Search, Command History, and Command Separator sections |
 //! | `semantic_history.rs` | Semantic History section (link handler, file path detection, editor) |
 
 mod behavior;
@@ -172,24 +171,6 @@ pub fn show(
         );
     }
 
-    // Scrollbar section
-    if section_matches(
-        &query,
-        "Scrollbar",
-        &[
-            "scrollbar",
-            "thumb",
-            "track",
-            "autohide",
-            "marker",
-            "command markers",
-            "shell integration",
-            "tooltips",
-        ],
-    ) {
-        search::show_scrollbar_section(ui, settings, changes_this_frame, collapsed);
-    }
-
     // Command History section
     if section_matches(
         &query,
@@ -296,16 +277,6 @@ pub fn keywords() -> &'static [&'static str] {
         "open url",
         "open links",
         "url handler",
-        // Scrollbar
-        "scrollbar",
-        "thumb",
-        "track",
-        "autohide",
-        "command marks",
-        "marker",
-        "mark",
-        "tooltips",
-        "scrollbar width",
         // Unicode extras
         "normalization",
         "text normalization",

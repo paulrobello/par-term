@@ -176,6 +176,16 @@ impl WindowState {
                 scrollback_len,
                 visible_lines,
             );
+
+            // Force GPU cell update when search is visible: highlights are applied to cells
+            // every frame, but renderer.update_cells() is skipped on cache hits, causing
+            // the highlighted cells to never reach the GPU.
+            self.debug.cache_hit = false;
+            // Also mark renderer dirty to ensure a full render pass runs (not just the egui
+            // fast-path), so the updated cell buffer is actually drawn to screen.
+            if let Some(renderer) = &mut self.renderer {
+                renderer.mark_dirty();
+            }
         }
 
         debug_url_detect_time
