@@ -52,6 +52,11 @@ pub(crate) const TEXT_INSTANCES_PER_CELL: usize = 2;
 impl CellRenderer {
     /// Orchestrate a full instance-buffer update for the current frame.
     ///
+    /// **This method is used exclusively by the custom shader / cursor shader path**
+    /// (`render_to_texture` → intermediate texture → shader effect). Normal terminal
+    /// rendering always goes through `build_pane_instance_buffers` (in `pane_render.rs`)
+    /// via `render_pane_to_view`, because `pane_manager` is always initialized.
+    ///
     /// For each dirty row the per-row background and text instance builders are called
     /// (see `instance_builders.rs`) and the results are written to the GPU buffers
     /// incrementally. After processing all rows, cursor overlay, separator, and gutter

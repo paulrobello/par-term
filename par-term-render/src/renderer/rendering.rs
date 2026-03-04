@@ -7,8 +7,7 @@ use super::{
 };
 
 // `Renderer::render` (the main single-pane entry point) lives in `render_orchestrator.rs`.
-// This file retains the multi-pane frame-level helpers: `render_panes`, `render_split_panes`,
-// and `take_screenshot`.
+// This file contains the multi-pane frame-level helper `render_split_panes` and `take_screenshot`.
 
 /// Parameters for [`Renderer::render_split_panes`].
 pub struct SplitPanesRenderParams<'a> {
@@ -22,126 +21,6 @@ pub struct SplitPanesRenderParams<'a> {
 }
 
 impl Renderer {
-    /// Render multiple panes to the surface
-    ///
-    /// This method renders each pane's content to its viewport region,
-    /// handling focus indicators and inactive pane dimming.
-    ///
-    /// # Arguments
-    /// * `panes` - List of panes to render with their viewport info
-    /// * `egui_data` - Optional egui overlay data
-    /// * `force_egui_opaque` - Force egui to render at full opacity
-    ///
-    /// # Returns
-    /// `true` if rendering was performed, `false` if skipped
-    pub fn render_panes(
-        &mut self,
-        panes: &[PaneRenderInfo<'_>],
-        egui_data: Option<(egui::FullOutput, &egui::Context)>,
-        force_egui_opaque: bool,
-    ) -> Result<bool> {
-        // Check if we need to render
-        let force_render = self.needs_continuous_render();
-        if !self.dirty && !force_render && egui_data.is_none() {
-            return Ok(false);
-        }
-
-        // Get the surface texture
-        let surface_texture = self.cell_renderer.surface.get_current_texture()?;
-        let surface_view = surface_texture
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
-
-        // Clear the surface. Use TRANSPARENT when bg_image_pipeline will provide coverage;
-        // otherwise use the theme background color as a fallback.
-        {
-            let mut encoder = self.cell_renderer.device().create_command_encoder(
-                &wgpu::CommandEncoderDescriptor {
-                    label: Some("pane clear encoder"),
-                },
-            );
-
-            let opacity = self.cell_renderer.window_opacity as f64;
-            let clear_color = if self.cell_renderer.pipelines.bg_image_bind_group.is_some() {
-                wgpu::Color::TRANSPARENT
-            } else {
-                wgpu::Color {
-                    r: self.cell_renderer.background_color[0] as f64 * opacity,
-                    g: self.cell_renderer.background_color[1] as f64 * opacity,
-                    b: self.cell_renderer.background_color[2] as f64 * opacity,
-                    a: opacity,
-                }
-            };
-
-            {
-                let _clear_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                    label: Some("surface clear pass"),
-                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                        view: &surface_view,
-                        resolve_target: None,
-                        ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Clear(clear_color),
-                            store: wgpu::StoreOp::Store,
-                        },
-                        depth_slice: None,
-                    })],
-                    depth_stencil_attachment: None,
-                    timestamp_writes: None,
-                    occlusion_query_set: None,
-                });
-            }
-
-            self.cell_renderer
-                .queue()
-                .submit(std::iter::once(encoder.finish()));
-        }
-
-        // Render background image first (full-screen, before panes)
-        let has_background_image = self
-            .cell_renderer
-            .render_background_only(&surface_view, false)?;
-
-        // Render each pane (skip background image since we rendered it full-screen)
-        for pane in panes {
-            let separator_marks = compute_visible_separator_marks(
-                &pane.marks,
-                pane.scrollback_len,
-                pane.scroll_offset,
-                pane.grid_size.1,
-            );
-            self.cell_renderer.render_pane_to_view(
-                &surface_view,
-                crate::cell_renderer::PaneRenderViewParams {
-                    viewport: &pane.viewport,
-                    cells: pane.cells,
-                    cols: pane.grid_size.0,
-                    rows: pane.grid_size.1,
-                    cursor_pos: pane.cursor_pos,
-                    cursor_opacity: pane.cursor_opacity,
-                    show_scrollbar: pane.show_scrollbar,
-                    clear_first: false, // Don't clear - we already cleared the surface
-                    skip_background_image: has_background_image,
-                    separator_marks: &separator_marks,
-                    pane_background: pane.background.as_ref(),
-                },
-            )?;
-        }
-
-        // Render egui overlay if provided
-        if let Some((egui_output, egui_ctx)) = egui_data {
-            self.render_egui(&surface_texture, egui_output, egui_ctx, force_egui_opaque)?;
-        }
-
-        // Ensure opaque surface when window_opacity == 1.0 (skipped for transparent windows)
-        self.cell_renderer.render_opaque_alpha(&surface_texture)?;
-
-        // Present the surface
-        surface_texture.present();
-
-        self.dirty = false;
-        Ok(true)
-    }
-
     /// Render split panes with dividers and focus indicator
     ///
     /// This is the main entry point for rendering a split pane layout.
@@ -163,7 +42,6 @@ impl Renderer {
     ///
     /// # Returns
     /// `true` if rendering was performed, `false` if skipped
-    #[allow(dead_code)]
     pub fn render_split_panes(&mut self, params: SplitPanesRenderParams<'_>) -> Result<bool> {
         let SplitPanesRenderParams {
             panes,

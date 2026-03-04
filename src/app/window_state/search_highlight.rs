@@ -36,6 +36,7 @@ impl WindowState {
 ///
 /// Used both by the single-pane path (via `WindowState::apply_search_highlights`)
 /// and the pane-manager path (applied per-pane after `gather_pane_render_data`).
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn apply_search_highlights_to_cells(
     cells: &mut [Cell],
     cols: usize,

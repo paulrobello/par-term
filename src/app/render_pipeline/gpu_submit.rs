@@ -245,27 +245,17 @@ impl WindowState {
                 );
             }
 
-            // Check if we have a pane manager with panes.
-            // We use pane_count() > 0 instead of has_multiple_panes() because even with a
-            // single pane in the manager (e.g., after closing one tmux split), we need to
-            // render via the pane manager path since cells are in the pane's terminal,
-            // not the main renderer buffer.
-            let (has_pane_manager, pane_count) = self
+            // pane_manager is always initialized (even for single-pane tabs), so pane_count
+            // is always > 0 during normal operation. The unwrap_or(0) handles the edge case
+            // where there is no active tab at render time.
+            let pane_count = self
                 .tab_manager
                 .active_tab()
                 .and_then(|t| t.pane_manager.as_ref())
-                .map(|pm| (pm.pane_count() > 0, pm.pane_count()))
-                .unwrap_or((false, 0));
+                .map(|pm| pm.pane_count())
+                .unwrap_or(0);
 
-            crate::debug_trace!(
-                "RENDER",
-                "has_pane_manager={}, pane_count={}",
-                has_pane_manager,
-                pane_count
-            );
-
-            // Per-pane backgrounds only take effect when splits are active.
-            let pane_0_bg: Option<crate::pane::PaneBackground> = None;
+            crate::debug_trace!("RENDER", "pane_count={}", pane_count);
 
             // render_egui_frame returns Option<(FullOutput, Context)> with an owned Context
             // (a cheap Arc clone). The downstream render functions expect
@@ -277,7 +267,7 @@ impl WindowState {
             };
 
             let actual_render_start = std::time::Instant::now();
-            let render_result = if has_pane_manager {
+            let render_result = if pane_count > 0 {
                 // Gather all per-pane render data.
                 let pane_render_data = self.tab_manager.active_tab_mut().and_then(|tab| {
                     pane_render::gather_pane_render_data(
@@ -361,16 +351,17 @@ impl WindowState {
                         },
                     )
                 } else {
-                    // Fallback to single pane render
-                    let single_egui: Option<(egui::FullOutput, &egui::Context)> =
-                        egui_output.zip(egui_ctx_store.as_ref());
-                    renderer.render(single_egui, false, show_scrollbar, pane_0_bg.as_ref())
+                    // No active tab during render — skip this frame.
+                    crate::debug_error!(
+                        "RENDER",
+                        "gather_pane_render_data returned None with pane_count={}",
+                        pane_count
+                    );
+                    Ok(false)
                 }
             } else {
-                // Single pane - use standard render path
-                let single_egui: Option<(egui::FullOutput, &egui::Context)> =
-                    egui_output.zip(egui_ctx_store.as_ref());
-                renderer.render(single_egui, false, show_scrollbar, pane_0_bg.as_ref())
+                // No active tab — nothing to render.
+                Ok(false)
             };
 
             match render_result {
