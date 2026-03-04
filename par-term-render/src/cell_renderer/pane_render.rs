@@ -849,6 +849,44 @@ impl CellRenderer {
             let w = self.config.width as f32;
             let h = self.config.height as f32;
 
+            // Cursor guide (horizontal line spanning viewport width at cursor row)
+            if cursor_opacity > 0.0
+                && !self.cursor.hidden_for_shader
+                && self.cursor.guide_enabled
+                && bg_index < self.buffers.max_bg_instances
+            {
+                let guide_x0 = content_x;
+                let guide_x1 = content_x + cols as f32 * self.grid.cell_width;
+                self.bg_instances[bg_index] = BackgroundInstance {
+                    position: [guide_x0 / w * 2.0 - 1.0, 1.0 - (cursor_y0 / h * 2.0)],
+                    size: [
+                        (guide_x1 - guide_x0) / w * 2.0,
+                        (cursor_y1 - cursor_y0) / h * 2.0,
+                    ],
+                    color: self.cursor.guide_color,
+                };
+                bg_index += 1;
+            }
+
+            // Cursor shadow (offset rectangle behind cursor)
+            if cursor_opacity > 0.0
+                && !self.cursor.hidden_for_shader
+                && self.cursor.shadow_enabled
+                && bg_index < self.buffers.max_bg_instances
+            {
+                let shadow_x0 = cursor_x0 + self.cursor.shadow_offset[0];
+                let shadow_y0 = cursor_y0 + self.cursor.shadow_offset[1];
+                self.bg_instances[bg_index] = BackgroundInstance {
+                    position: [shadow_x0 / w * 2.0 - 1.0, 1.0 - (shadow_y0 / h * 2.0)],
+                    size: [
+                        self.grid.cell_width / w * 2.0,
+                        self.grid.cell_height / h * 2.0,
+                    ],
+                    color: self.cursor.shadow_color,
+                };
+                bg_index += 1;
+            }
+
             // Beam or underline cursor bar (on top of text)
             if cursor_opacity > 0.0 && !self.cursor.hidden_for_shader {
                 use par_term_emu_core_rust::cursor::CursorStyle;

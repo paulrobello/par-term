@@ -37,7 +37,7 @@ pub(crate) const CURSOR_BOOST_MAX_ALPHA: f32 = 0.3;
 
 /// Width of the hollow-cursor border in pixels.
 /// Used for the four thin rectangles that form the hollow block cursor outline.
-pub(crate) const HOLLOW_CURSOR_BORDER_PX: f32 = 2.0;
+pub(crate) const HOLLOW_CURSOR_BORDER_PX: f32 = 1.0;
 
 /// Stipple on-length in pixels for dashed link underlines.
 pub(crate) const STIPPLE_ON_PX: f32 = 2.0;
