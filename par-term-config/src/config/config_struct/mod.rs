@@ -1113,7 +1113,7 @@ pub struct Config {
     /// Render inactive tabs as outline only (no fill)
     /// When true, inactive tabs show only a border stroke with no background fill.
     /// Hovered inactive tabs brighten the outline instead of filling.
-    #[serde(default = "crate::defaults::bool_false")]
+    #[serde(default = "crate::defaults::bool_true")]
     pub tab_inactive_outline_only: bool,
 
     // ========================================================================
@@ -1294,7 +1294,7 @@ pub struct Config {
 
     /// Reduce refresh rate when window is not focused
     /// When true, uses unfocused_fps instead of max_fps when window is blurred
-    #[serde(default = "crate::defaults::bool_false")]
+    #[serde(default = "crate::defaults::bool_true")]
     pub pause_refresh_on_blur: bool,
 
     /// Target FPS when window is not focused (only used if pause_refresh_on_blur is true)

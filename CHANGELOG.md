@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 97 copy mode state machine tests covering motions, visual modes, selection, marks, search, and edge cases.
 
 ### Changed
+- `pause_refresh_on_blur` now defaults to `true`: the reduced-FPS mode (using `unfocused_fps`, default 30) is enabled out of the box when the window loses focus, reducing CPU/GPU usage in the background.
+- `tab_inactive_outline_only` now defaults to `true`: inactive tabs render as outline-only (no background fill) by default, giving the tab bar a cleaner appearance.
 - Dark Background, Light Background, and Pastel (Dark Background) themes: all colors now accurately reflect iTerm2's plist values converted from NSCalibratedRGBColorSpace (genericRGB) to sRGB. This corrects foreground, cursor, selection, and all 16 ANSI colors for these three themes.
 - High Contrast theme: corrected all 16 ANSI colors, foreground, cursor, and selection to match iTerm2's sRGB values (previously used crude max-saturation values that didn't match the iTerm2 preset).
 - Default pane background opacity changed from 0.85 to 1.0 (fully opaque).
