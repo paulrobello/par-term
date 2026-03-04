@@ -478,9 +478,7 @@ impl Config {
     /// - `minimum_contrast` is clamped to 0.99 max so 1.0 is never an active value.
     pub(crate) fn migrate_legacy_values(&mut self) {
         if (self.minimum_contrast - 1.0_f32).abs() < f32::EPSILON {
-            log::info!(
-                "minimum_contrast was 1.0 (legacy default), resetting to 0.0 (disabled)"
-            );
+            log::info!("minimum_contrast was 1.0 (legacy default), resetting to 0.0 (disabled)");
             self.minimum_contrast = 0.0;
         } else {
             self.minimum_contrast = self.minimum_contrast.min(0.99);

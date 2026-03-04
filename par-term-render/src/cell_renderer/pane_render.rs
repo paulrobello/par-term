@@ -1,4 +1,5 @@
 use super::block_chars;
+use super::instance_buffers::HOLLOW_CURSOR_BORDER_PX;
 use super::{BackgroundInstance, Cell, CellRenderer, PaneViewport, TextInstance};
 use anyhow::Result;
 use par_term_config::{SeparatorMark, color_u8x4_rgb_to_f32, color_u8x4_rgb_to_f32_a};
@@ -68,9 +69,10 @@ impl CellRenderer {
             separator_marks,
             pane_background,
         } = p;
-        // Build instance buffers for this pane's cells
-        // Skip solid background fill if background (shader/image) was already rendered full-screen
-        self.build_pane_instance_buffers(PaneInstanceBuildParams {
+        // Build instance buffers for this pane's cells.
+        // Returns cursor_overlay_start: the bg_instance index where cursor overlays begin.
+        // Used for 3-phase rendering (bgs → text → cursor overlays).
+        let cursor_overlay_start = self.build_pane_instance_buffers(PaneInstanceBuildParams {
             viewport,
             cells,
             cols,
@@ -188,18 +190,29 @@ impl CellRenderer {
                 render_pass.draw(0..4, 0..1);
             }
 
-            // Render cell backgrounds
+            // Phase 1: cell backgrounds + separator lines (before text)
             render_pass.set_pipeline(&self.pipelines.bg_pipeline);
             render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
             render_pass.set_vertex_buffer(1, self.buffers.bg_instance_buffer.slice(..));
-            render_pass.draw(0..4, 0..self.buffers.actual_bg_instances as u32);
+            render_pass.draw(0..4, 0..cursor_overlay_start as u32);
 
-            // Render text
+            // Phase 2: text (on top of cell backgrounds)
             render_pass.set_pipeline(&self.pipelines.text_pipeline);
             render_pass.set_bind_group(0, &self.pipelines.text_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
             render_pass.set_vertex_buffer(1, self.buffers.text_instance_buffer.slice(..));
             render_pass.draw(0..4, 0..self.buffers.actual_text_instances as u32);
+
+            // Phase 3: cursor overlays (beam/underline bar + hollow borders) ON TOP of text
+            if cursor_overlay_start < self.buffers.actual_bg_instances {
+                render_pass.set_pipeline(&self.pipelines.bg_pipeline);
+                render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
+                render_pass.set_vertex_buffer(1, self.buffers.bg_instance_buffer.slice(..));
+                render_pass.draw(
+                    0..4,
+                    cursor_overlay_start as u32..self.buffers.actual_bg_instances as u32,
+                );
+            }
 
             // Render scrollbar if requested (uses its own scissor rect internally)
             if show_scrollbar {
@@ -213,15 +226,18 @@ impl CellRenderer {
         Ok(())
     }
 
-    /// Build instance buffers for a pane's cells with viewport offset
+    /// Build instance buffers for a pane's cells with viewport offset.
     ///
-    /// This is similar to `build_instance_buffers` but adjusts all positions
-    /// to be relative to the viewport origin.
+    /// Similar to `build_instance_buffers` but adjusts all positions to be relative to the
+    /// viewport origin. Also appends cursor overlay instances (beam bar and hollow borders)
+    /// after the cell background instances.
     ///
-    /// # Arguments
-    /// * `skip_solid_background` - If true, skip adding a solid background fill for the viewport.
-    ///   Use when a custom shader or background image was already rendered full-screen.
-    fn build_pane_instance_buffers(&mut self, p: PaneInstanceBuildParams<'_>) -> Result<()> {
+    /// Returns the index in `bg_instances` where cursor overlays begin (`cursor_overlay_start`).
+    /// The caller uses this for 3-phase rendering: cell bgs, text, then cursor overlays on top.
+    ///
+    /// `skip_solid_background`: if true, skip the solid background fill for the viewport
+    /// (use when a custom shader or background image was already rendered full-screen).
+    fn build_pane_instance_buffers(&mut self, p: PaneInstanceBuildParams<'_>) -> Result<usize> {
         let PaneInstanceBuildParams {
             viewport,
             cells,
@@ -302,10 +318,14 @@ impl CellRenderer {
                     && (bg_f[1] - self.background_color[1]).abs() < 0.001
                     && (bg_f[2] - self.background_color[2]).abs() < 0.001;
 
-                // Check for cursor at this position
-                let has_cursor = cursor_pos.is_some_and(|(cx, cy)| cx == col && cy == row)
-                    && cursor_opacity > 0.0
+                // Check for cursor at this position (position check only, no opacity gate)
+                let cursor_at_cell = cursor_pos.is_some_and(|(cx, cy)| cx == col && cy == row)
                     && !self.cursor.hidden_for_shader;
+                // Hollow cursor (unfocused + Hollow style) must show regardless of blink opacity
+                let render_hollow_here = cursor_at_cell
+                    && !self.is_focused
+                    && self.cursor.unfocused_style == par_term_config::UnfocusedCursorStyle::Hollow;
+                let has_cursor = (cursor_at_cell && cursor_opacity > 0.0) || render_hollow_here;
 
                 // Skip cells with half-block characters (▄/▀).
                 // These are rendered entirely through the text pipeline to avoid
@@ -335,11 +355,16 @@ impl CellRenderer {
                     use par_term_emu_core_rust::cursor::CursorStyle;
                     match self.cursor.style {
                         CursorStyle::SteadyBlock | CursorStyle::BlinkingBlock => {
-                            for (bg, &cursor) in bg_color.iter_mut().take(3).zip(&self.cursor.color)
-                            {
-                                *bg = *bg * (1.0 - cursor_opacity) + cursor * cursor_opacity;
+                            if !render_hollow_here {
+                                // Solid block cursor: blend cursor color into background
+                                for (bg, &cursor) in
+                                    bg_color.iter_mut().take(3).zip(&self.cursor.color)
+                                {
+                                    *bg = *bg * (1.0 - cursor_opacity) + cursor * cursor_opacity;
+                                }
+                                bg_color[3] = bg_color[3].max(cursor_opacity * opacity_multiplier);
                             }
-                            bg_color[3] = bg_color[3].max(cursor_opacity * opacity_multiplier);
+                            // If hollow: keep original background color (outline added as overlay)
                         }
                         _ => {}
                     }
@@ -375,8 +400,15 @@ impl CellRenderer {
                 col += 1;
                 while col < row_cells.len() {
                     let next_cell = &row_cells[col];
-                    let next_has_cursor = cursor_pos.is_some_and(|(cx, cy)| cx == col && cy == row)
-                        && cursor_opacity > 0.0;
+                    let next_cursor_at_cell = cursor_pos
+                        .is_some_and(|(cx, cy)| cx == col && cy == row)
+                        && !self.cursor.hidden_for_shader;
+                    let next_hollow = next_cursor_at_cell
+                        && !self.is_focused
+                        && self.cursor.unfocused_style
+                            == par_term_config::UnfocusedCursorStyle::Hollow;
+                    let next_has_cursor =
+                        (next_cursor_at_cell && cursor_opacity > 0.0) || next_hollow;
                     let next_is_half_block = {
                         let mut chars = next_cell.grapheme.chars();
                         matches!(chars.next(), Some('\u{2580}' | '\u{2584}'))
@@ -804,6 +836,105 @@ impl CellRenderer {
             }
         }
 
+        // --- Cursor overlays (beam/underline bar + hollow borders) ---
+        // These are rendered in Phase 3 (on top of text) via the 3-phase draw in render_pane_to_view.
+        // Record where cursor overlays start — everything after this index is an overlay.
+        let cursor_overlay_start = bg_index;
+
+        if let Some((cursor_col, cursor_row)) = cursor_pos {
+            let cursor_x0 = content_x + cursor_col as f32 * self.grid.cell_width;
+            let cursor_x1 = cursor_x0 + self.grid.cell_width;
+            let cursor_y0 = (content_y + cursor_row as f32 * self.grid.cell_height).round();
+            let cursor_y1 = (content_y + (cursor_row + 1) as f32 * self.grid.cell_height).round();
+            let w = self.config.width as f32;
+            let h = self.config.height as f32;
+
+            // Beam or underline cursor bar (on top of text)
+            if cursor_opacity > 0.0 && !self.cursor.hidden_for_shader {
+                use par_term_emu_core_rust::cursor::CursorStyle;
+                let cc = self.cursor.color;
+                let overlay = match self.cursor.style {
+                    CursorStyle::SteadyBar | CursorStyle::BlinkingBar => Some(BackgroundInstance {
+                        position: [cursor_x0 / w * 2.0 - 1.0, 1.0 - (cursor_y0 / h * 2.0)],
+                        size: [2.0 / w * 2.0, (cursor_y1 - cursor_y0) / h * 2.0],
+                        color: [cc[0], cc[1], cc[2], cursor_opacity],
+                    }),
+                    CursorStyle::SteadyUnderline | CursorStyle::BlinkingUnderline => {
+                        Some(BackgroundInstance {
+                            position: [
+                                cursor_x0 / w * 2.0 - 1.0,
+                                1.0 - ((cursor_y1 - 2.0) / h * 2.0),
+                            ],
+                            size: [(cursor_x1 - cursor_x0) / w * 2.0, 2.0 / h * 2.0],
+                            color: [cc[0], cc[1], cc[2], cursor_opacity],
+                        })
+                    }
+                    _ => None,
+                };
+                if let Some(inst) = overlay
+                    && bg_index < self.buffers.max_bg_instances
+                {
+                    self.bg_instances[bg_index] = inst;
+                    bg_index += 1;
+                }
+            }
+
+            // Hollow cursor outline (4 borders) — independent of blink opacity
+            let render_hollow = !self.cursor.hidden_for_shader
+                && !self.is_focused
+                && self.cursor.unfocused_style == par_term_config::UnfocusedCursorStyle::Hollow;
+            if render_hollow {
+                let border_width = HOLLOW_CURSOR_BORDER_PX;
+                let color = [
+                    self.cursor.color[0],
+                    self.cursor.color[1],
+                    self.cursor.color[2],
+                    1.0, // Always fully opaque regardless of blink phase
+                ];
+                let cell_w = (cursor_x1 - cursor_x0) / w * 2.0;
+                let cell_h = (cursor_y1 - cursor_y0) / h * 2.0;
+                let bw = border_width / w * 2.0;
+                let bh = border_width / h * 2.0;
+                let cx = cursor_x0 / w * 2.0 - 1.0;
+                let cy = 1.0 - (cursor_y0 / h * 2.0);
+                let borders = [
+                    // Top
+                    BackgroundInstance {
+                        position: [cx, cy],
+                        size: [cell_w, bh],
+                        color,
+                    },
+                    // Bottom
+                    BackgroundInstance {
+                        position: [cx, 1.0 - ((cursor_y1 - border_width) / h * 2.0)],
+                        size: [cell_w, bh],
+                        color,
+                    },
+                    // Left
+                    BackgroundInstance {
+                        position: [cx, 1.0 - ((cursor_y0 + border_width) / h * 2.0)],
+                        size: [bw, cell_h - bh * 2.0],
+                        color,
+                    },
+                    // Right
+                    BackgroundInstance {
+                        position: [
+                            (cursor_x1 - border_width) / w * 2.0 - 1.0,
+                            1.0 - ((cursor_y0 + border_width) / h * 2.0),
+                        ],
+                        size: [bw, cell_h - bh * 2.0],
+                        color,
+                    },
+                ];
+                for border in borders {
+                    if bg_index < self.buffers.max_bg_instances {
+                        self.bg_instances[bg_index] = border;
+                        bg_index += 1;
+                    }
+                }
+            }
+        }
+
         // Update actual instance counts for draw calls
         self.buffers.actual_bg_instances = bg_index;
         self.buffers.actual_text_instances = text_index;
@@ -820,6 +951,6 @@ impl CellRenderer {
             bytemuck::cast_slice(&self.text_instances),
         );
 
-        Ok(())
+        Ok(cursor_overlay_start)
     }
 }

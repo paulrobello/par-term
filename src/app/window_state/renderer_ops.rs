@@ -66,6 +66,10 @@ impl WindowState {
         // Apply cursor shader configuration
         self.apply_cursor_shader_config(&mut renderer, &params);
 
+        // Restore current focus state so the hollow cursor renders correctly if
+        // the window is unfocused when the renderer is rebuilt (e.g. font change).
+        renderer.set_focused(self.focus_state.is_focused);
+
         self.renderer = Some(renderer);
         self.focus_state.needs_redraw = true;
 

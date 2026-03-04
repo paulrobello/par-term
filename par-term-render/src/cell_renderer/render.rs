@@ -114,16 +114,35 @@ impl CellRenderer {
                 render_pass.draw(0..4, 0..1);
             }
 
+            // Phase 1: cell backgrounds (before text)
+            let cell_bg_end = (self.grid.cols * self.grid.rows) as u32;
+            let cursor_overlay_end =
+                cell_bg_end + super::instance_buffers::CURSOR_OVERLAY_SLOTS as u32;
             render_pass.set_pipeline(&self.pipelines.bg_pipeline);
             render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
             render_pass.set_vertex_buffer(1, self.buffers.bg_instance_buffer.slice(..));
-            render_pass.draw(0..4, 0..self.buffers.actual_bg_instances as u32);
+            render_pass.draw(0..4, 0..cell_bg_end);
 
+            // Phase 1b: separator + gutter overlays (before text, background elements)
+            if cursor_overlay_end < self.buffers.actual_bg_instances as u32 {
+                render_pass.draw(
+                    0..4,
+                    cursor_overlay_end..self.buffers.actual_bg_instances as u32,
+                );
+            }
+
+            // Phase 2: text (on top of cell backgrounds)
             render_pass.set_pipeline(&self.pipelines.text_pipeline);
             render_pass.set_bind_group(0, &self.pipelines.text_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
             render_pass.set_vertex_buffer(1, self.buffers.text_instance_buffer.slice(..));
             render_pass.draw(0..4, 0..self.buffers.actual_text_instances as u32);
+
+            // Phase 3: cursor overlays (beam/underline bar + hollow outline) ON TOP of text
+            render_pass.set_pipeline(&self.pipelines.bg_pipeline);
+            render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
+            render_pass.set_vertex_buffer(1, self.buffers.bg_instance_buffer.slice(..));
+            render_pass.draw(0..4, cell_bg_end..cursor_overlay_end);
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
@@ -190,26 +209,41 @@ impl CellRenderer {
             if render_background_image
                 && let Some(ref bg_bind_group) = self.pipelines.bg_image_bind_group
             {
-                log::info!(
-                    "[BACKGROUND] render_to_texture: bg_image_pipeline (image, window_opacity={:.3} applied by shader)",
-                    self.window_opacity
-                );
                 render_pass.set_pipeline(&self.pipelines.bg_image_pipeline);
                 render_pass.set_bind_group(0, bg_bind_group, &[]);
                 render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
                 render_pass.draw(0..4, 0..1);
             }
 
+            // Phase 1: cell backgrounds (before text)
+            let cell_bg_end = (self.grid.cols * self.grid.rows) as u32;
+            let cursor_overlay_end =
+                cell_bg_end + super::instance_buffers::CURSOR_OVERLAY_SLOTS as u32;
             render_pass.set_pipeline(&self.pipelines.bg_pipeline);
             render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
             render_pass.set_vertex_buffer(1, self.buffers.bg_instance_buffer.slice(..));
-            render_pass.draw(0..4, 0..self.buffers.actual_bg_instances as u32);
+            render_pass.draw(0..4, 0..cell_bg_end);
 
+            // Phase 1b: separator + gutter overlays (before text, background elements)
+            if cursor_overlay_end < self.buffers.actual_bg_instances as u32 {
+                render_pass.draw(
+                    0..4,
+                    cursor_overlay_end..self.buffers.actual_bg_instances as u32,
+                );
+            }
+
+            // Phase 2: text (on top of cell backgrounds)
             render_pass.set_pipeline(&self.pipelines.text_pipeline);
             render_pass.set_bind_group(0, &self.pipelines.text_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
             render_pass.set_vertex_buffer(1, self.buffers.text_instance_buffer.slice(..));
             render_pass.draw(0..4, 0..self.buffers.actual_text_instances as u32);
+
+            // Phase 3: cursor overlays (beam/underline bar + hollow outline) ON TOP of text
+            render_pass.set_pipeline(&self.pipelines.bg_pipeline);
+            render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
+            render_pass.set_vertex_buffer(1, self.buffers.bg_instance_buffer.slice(..));
+            render_pass.draw(0..4, cell_bg_end..cursor_overlay_end);
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
@@ -350,16 +384,35 @@ impl CellRenderer {
                 render_pass.draw(0..4, 0..1);
             }
 
+            // Phase 1: cell backgrounds (before text)
+            let cell_bg_end = (self.grid.cols * self.grid.rows) as u32;
+            let cursor_overlay_end =
+                cell_bg_end + super::instance_buffers::CURSOR_OVERLAY_SLOTS as u32;
             render_pass.set_pipeline(&self.pipelines.bg_pipeline);
             render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
             render_pass.set_vertex_buffer(1, self.buffers.bg_instance_buffer.slice(..));
-            render_pass.draw(0..4, 0..self.buffers.actual_bg_instances as u32);
+            render_pass.draw(0..4, 0..cell_bg_end);
 
+            // Phase 1b: separator + gutter overlays (before text, background elements)
+            if cursor_overlay_end < self.buffers.actual_bg_instances as u32 {
+                render_pass.draw(
+                    0..4,
+                    cursor_overlay_end..self.buffers.actual_bg_instances as u32,
+                );
+            }
+
+            // Phase 2: text (on top of cell backgrounds)
             render_pass.set_pipeline(&self.pipelines.text_pipeline);
             render_pass.set_bind_group(0, &self.pipelines.text_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
             render_pass.set_vertex_buffer(1, self.buffers.text_instance_buffer.slice(..));
             render_pass.draw(0..4, 0..self.buffers.actual_text_instances as u32);
+
+            // Phase 3: cursor overlays (beam/underline bar + hollow outline) ON TOP of text
+            render_pass.set_pipeline(&self.pipelines.bg_pipeline);
+            render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
+            render_pass.set_vertex_buffer(1, self.buffers.bg_instance_buffer.slice(..));
+            render_pass.draw(0..4, cell_bg_end..cursor_overlay_end);
 
             // Render scrollbar
             self.scrollbar.render(&mut render_pass);

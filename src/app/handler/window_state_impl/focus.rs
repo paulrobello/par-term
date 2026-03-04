@@ -114,6 +114,19 @@ impl WindowState {
             );
         }
 
+        // When losing focus, reset cursor opacity to 1.0 so the hollow cursor outline
+        // is immediately visible. If the cursor was in the blink-off phase (opacity=0)
+        // when focus changed and cursor blink is paused-on-blur, the cursor would stay
+        // invisible forever, causing the hollow cursor to never render.
+        if !focused {
+            self.cursor_anim.cursor_opacity = 1.0;
+            self.cursor_anim.last_cursor_blink = None;
+            self.cursor_anim.cursor_blink_timer = None;
+            log::info!("[FOCUS] Lost focus: reset cursor_opacity=1.0");
+        } else {
+            log::info!("[FOCUS] Gained focus");
+        }
+
         // Request a redraw when focus changes
         self.focus_state.needs_redraw = true;
         self.request_redraw();

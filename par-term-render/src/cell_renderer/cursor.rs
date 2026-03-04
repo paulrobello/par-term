@@ -1,14 +1,12 @@
 use par_term_config::{color_u8_to_f32, color_u8x4_to_f32};
 
-use super::{BackgroundInstance, CellRenderer};
+use super::CellRenderer;
 
 /// Cursor position, style, colors, and visual enhancement settings.
 pub(crate) struct CursorState {
     pub(crate) pos: (usize, usize),
     pub(crate) opacity: f32,
     pub(crate) style: par_term_emu_core_rust::cursor::CursorStyle,
-    /// Separate cursor instance for beam/underline styles (rendered as overlay)
-    pub(crate) overlay: Option<BackgroundInstance>,
     /// Cursor color [R, G, B] as floats (0.0-1.0)
     pub(crate) color: [f32; 3],
     /// Text color under block cursor [R, G, B] as floats (0.0-1.0), or None for auto-contrast
@@ -49,69 +47,6 @@ impl CellRenderer {
             self.cursor.opacity = opacity;
             self.cursor.style = style;
             self.dirty_rows[self.cursor.pos.1.min(self.grid.rows - 1)] = true;
-
-            // Compute cursor overlay for beam/underline styles
-            use par_term_emu_core_rust::cursor::CursorStyle;
-            self.cursor.overlay = if opacity > 0.0 {
-                let col = pos.0;
-                let row = pos.1;
-                let x0 = (self.grid.window_padding
-                    + self.grid.content_offset_x
-                    + col as f32 * self.grid.cell_width)
-                    .round();
-                let x1 = (self.grid.window_padding
-                    + self.grid.content_offset_x
-                    + (col + 1) as f32 * self.grid.cell_width)
-                    .round();
-                let y0 = (self.grid.window_padding
-                    + self.grid.content_offset_y
-                    + row as f32 * self.grid.cell_height)
-                    .round();
-                let y1 = (self.grid.window_padding
-                    + self.grid.content_offset_y
-                    + (row + 1) as f32 * self.grid.cell_height)
-                    .round();
-
-                match style {
-                    CursorStyle::SteadyBlock | CursorStyle::BlinkingBlock => None,
-                    CursorStyle::SteadyBar | CursorStyle::BlinkingBar => Some(BackgroundInstance {
-                        position: [
-                            x0 / self.config.width as f32 * 2.0 - 1.0,
-                            1.0 - (y0 / self.config.height as f32 * 2.0),
-                        ],
-                        size: [
-                            2.0 / self.config.width as f32 * 2.0,
-                            (y1 - y0) / self.config.height as f32 * 2.0,
-                        ],
-                        color: [
-                            self.cursor.color[0],
-                            self.cursor.color[1],
-                            self.cursor.color[2],
-                            opacity,
-                        ],
-                    }),
-                    CursorStyle::SteadyUnderline | CursorStyle::BlinkingUnderline => {
-                        Some(BackgroundInstance {
-                            position: [
-                                x0 / self.config.width as f32 * 2.0 - 1.0,
-                                1.0 - ((y1 - 2.0) / self.config.height as f32 * 2.0),
-                            ],
-                            size: [
-                                (x1 - x0) / self.config.width as f32 * 2.0,
-                                2.0 / self.config.height as f32 * 2.0,
-                            ],
-                            color: [
-                                self.cursor.color[0],
-                                self.cursor.color[1],
-                                self.cursor.color[2],
-                                opacity,
-                            ],
-                        })
-                    }
-                }
-            } else {
-                None
-            };
             return true;
         }
         false

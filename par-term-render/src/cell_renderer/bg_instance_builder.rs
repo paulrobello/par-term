@@ -22,17 +22,25 @@ impl CellRenderer {
                 && (bg_f[2] - self.background_color[2]).abs() < COLOR_COMPONENT_EPSILON;
 
             // Check for cursor at this position, accounting for unfocused state
-            let cursor_visible = self.cursor.opacity > 0.0
-                && !self.cursor.hidden_for_shader
+            let cursor_at_cell = !self.cursor.hidden_for_shader
                 && self.cursor.pos.1 == row
                 && self.cursor.pos.0 == col;
+            let cursor_visible = self.cursor.opacity > 0.0 && cursor_at_cell;
+
+            // Hollow cursor (unfocused + Hollow style) must always show regardless of blink opacity.
+            let render_hollow_here = cursor_at_cell
+                && !self.is_focused
+                && self.cursor.unfocused_style == par_term_config::UnfocusedCursorStyle::Hollow;
 
             // Handle unfocused cursor visibility
-            let has_cursor = if cursor_visible && !self.is_focused {
+            let has_cursor = if render_hollow_here {
+                // Hollow cursor: always show the cell reservation even in blink-off phase
+                true
+            } else if cursor_visible && !self.is_focused {
                 match self.cursor.unfocused_style {
                     par_term_config::UnfocusedCursorStyle::Hidden => false,
-                    par_term_config::UnfocusedCursorStyle::Hollow
-                    | par_term_config::UnfocusedCursorStyle::Same => true,
+                    par_term_config::UnfocusedCursorStyle::Same => true,
+                    par_term_config::UnfocusedCursorStyle::Hollow => unreachable!(),
                 }
             } else {
                 cursor_visible
@@ -60,12 +68,11 @@ impl CellRenderer {
             let mut bg_color = color_u8x4_rgb_to_f32_a(cell.bg_color, bg_alpha);
 
             // Handle cursor at this position
-            if has_cursor && self.cursor.opacity > 0.0 {
+            if has_cursor {
                 use par_term_emu_core_rust::cursor::CursorStyle;
 
-                // Check if we should render hollow cursor (unfocused hollow style)
-                let render_hollow = !self.is_focused
-                    && self.cursor.unfocused_style == par_term_config::UnfocusedCursorStyle::Hollow;
+                // render_hollow_here was computed above; reuse it.
+                let render_hollow = render_hollow_here;
 
                 match self.cursor.style {
                     CursorStyle::SteadyBlock | CursorStyle::BlinkingBlock => {
@@ -219,12 +226,44 @@ impl CellRenderer {
             + cursor_row as f32 * self.grid.cell_height;
         let cursor_y1 = cursor_y0 + self.grid.cell_height;
 
-        // Slot 0: Cursor overlay (beam/underline) - handled by existing cursor_overlay
-        overlay_instances[0] = self.cursor.overlay.unwrap_or(BackgroundInstance {
-            position: [0.0, 0.0],
-            size: [0.0, 0.0],
-            color: [0.0, 0.0, 0.0, 0.0],
-        });
+        // Slot 0: Cursor overlay (beam/underline) — computed fresh each frame from current
+        // grid dimensions and cursor color. Computing here (not cached in cursor.overlay)
+        // avoids stale coordinates after a resize or stale color after update_cursor_color().
+        overlay_instances[0] = if cursor_visible {
+            use par_term_emu_core_rust::cursor::CursorStyle;
+            let w = self.config.width as f32;
+            let h = self.config.height as f32;
+            let cc = self.cursor.color;
+            let op = self.cursor.opacity;
+            match self.cursor.style {
+                CursorStyle::SteadyBar | CursorStyle::BlinkingBar => BackgroundInstance {
+                    position: [cursor_x0 / w * 2.0 - 1.0, 1.0 - (cursor_y0 / h * 2.0)],
+                    size: [2.0 / w * 2.0, (cursor_y1 - cursor_y0) / h * 2.0],
+                    color: [cc[0], cc[1], cc[2], op],
+                },
+                CursorStyle::SteadyUnderline | CursorStyle::BlinkingUnderline => {
+                    BackgroundInstance {
+                        position: [
+                            cursor_x0 / w * 2.0 - 1.0,
+                            1.0 - ((cursor_y1 - 2.0) / h * 2.0),
+                        ],
+                        size: [(cursor_x1 - cursor_x0) / w * 2.0, 2.0 / h * 2.0],
+                        color: [cc[0], cc[1], cc[2], op],
+                    }
+                }
+                _ => BackgroundInstance {
+                    position: [0.0, 0.0],
+                    size: [0.0, 0.0],
+                    color: [0.0, 0.0, 0.0, 0.0],
+                },
+            }
+        } else {
+            BackgroundInstance {
+                position: [0.0, 0.0],
+                size: [0.0, 0.0],
+                color: [0.0, 0.0, 0.0, 0.0],
+            }
+        };
 
         // Slot 1: Cursor guide (horizontal line spanning full width at cursor row)
         if cursor_visible && self.cursor.guide_enabled {
@@ -286,26 +325,23 @@ impl CellRenderer {
             };
         }
 
-        // Slots 4-7: Hollow cursor outline (4 thin rectangles forming a border)
-        // Rendered when unfocused with hollow style and block cursor
-        let render_hollow = cursor_visible
+        // Slots 4-7: Hollow cursor outline (4 thin rectangles forming a border).
+        // Independent of opacity so the hollow outline is always visible when unfocused,
+        // even if the cursor blink animation is in the off phase.
+        let render_hollow = !self.cursor.hidden_for_shader
             && !self.is_focused
             && self.cursor.unfocused_style == par_term_config::UnfocusedCursorStyle::Hollow;
 
         if render_hollow {
-            use par_term_emu_core_rust::cursor::CursorStyle;
-            let is_block = matches!(
-                self.cursor.style,
-                CursorStyle::SteadyBlock | CursorStyle::BlinkingBlock
-            );
-
-            if is_block {
+            {
+                // Hollow cursor border is always fully opaque — independent of blink phase.
+                // The cursor must remain visible even when opacity=0 (blink-off cycle).
                 let border_width = HOLLOW_CURSOR_BORDER_PX;
                 let color = [
                     self.cursor.color[0],
                     self.cursor.color[1],
                     self.cursor.color[2],
-                    self.cursor.opacity,
+                    1.0,
                 ];
 
                 // Top border

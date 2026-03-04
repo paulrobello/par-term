@@ -542,7 +542,6 @@ impl CellRenderer {
                 pos: (0, 0),
                 opacity: 0.0,
                 style: par_term_emu_core_rust::cursor::CursorStyle::SteadyBlock,
-                overlay: None,
                 color: [1.0, 1.0, 1.0],
                 text_color: None,
                 hidden_for_shader: false,

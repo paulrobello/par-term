@@ -407,6 +407,28 @@ impl WindowState {
             next_wake = next_anti_idle;
         }
 
+        // --- FLUSH PENDING RENDERER DIRTY STATE ---
+        // When a window event (e.g. Focused(false)) sets renderer dirty state but the
+        // FPS gate previously skipped that render, needs_redraw may have been cleared
+        // without the frame ever reaching the GPU (no cursor blink, no terminal output,
+        // no animated shader to re-arm it). Re-arm needs_redraw when the FPS gate allows,
+        // or schedule a wake-up at the earliest renderable time so the gap self-heals.
+        if !self.focus_state.needs_redraw
+            && let Some(renderer) = &self.renderer
+            && renderer.is_dirty()
+        {
+            if can_render {
+                self.focus_state.needs_redraw = true;
+            } else if let Some(last_render) = self.focus_state.last_render_time {
+                let retry_time = last_render + frame_interval;
+                if retry_time < next_wake {
+                    next_wake = retry_time;
+                }
+            } else {
+                self.focus_state.needs_redraw = true;
+            }
+        }
+
         // --- TRIGGER REDRAW ---
         // Request a redraw if any of the logic above determined an update is due.
         // Respect combined delay (throughput mode OR flicker reduction),
