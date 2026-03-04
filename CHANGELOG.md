@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Dark Background theme: blue (#0000BB) and bright blue (#5555FF) replaced with more visible values (#0225C7 and #6871FF) that are clearly legible on a black background.
+- High Contrast theme: corrected all 16 ANSI colors, foreground, cursor, and selection to match iTerm2's sRGB values (previously used crude max-saturation values that didn't match the iTerm2 preset).
+- Light Background theme: corrected selection background to match iTerm2 (#B5D5FF, was #CBE4FF).
 - Default pane background opacity changed from 0.85 to 1.0 (fully opaque).
 - Default font size increased from 12 to 13.
 - `minimum_contrast` slider in Settings capped at 0.99; a saved value of exactly 1.0 (the old legacy default) is automatically migrated to 0.0 (disabled) on load.

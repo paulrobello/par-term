@@ -268,30 +268,30 @@ impl Theme {
         }
     }
 
-    /// High Contrast theme
+    /// High Contrast theme (iTerm2)
     pub fn high_contrast() -> Self {
         Self {
             name: "High Contrast".to_string(),
-            foreground: Color::new(255, 255, 255),
+            foreground: Color::new(199, 199, 199),
             background: Color::new(0, 0, 0),
-            cursor: Color::new(255, 255, 255),
-            selection_bg: Color::new(51, 51, 51),
-            selection_fg: Color::new(255, 255, 255),
+            cursor: Color::new(199, 199, 199),
+            selection_bg: Color::new(193, 222, 255),
+            selection_fg: Color::new(0, 0, 0),
             black: Color::new(0, 0, 0),
-            red: Color::new(255, 0, 0),
-            green: Color::new(0, 255, 0),
-            yellow: Color::new(255, 255, 0),
-            blue: Color::new(0, 0, 255),
-            magenta: Color::new(255, 0, 255),
-            cyan: Color::new(0, 255, 255),
-            white: Color::new(255, 255, 255),
-            bright_black: Color::new(127, 127, 127),
-            bright_red: Color::new(255, 127, 127),
-            bright_green: Color::new(127, 255, 127),
-            bright_yellow: Color::new(255, 255, 127),
-            bright_blue: Color::new(127, 127, 255),
-            bright_magenta: Color::new(255, 127, 255),
-            bright_cyan: Color::new(127, 255, 255),
+            red: Color::new(201, 27, 0),
+            green: Color::new(0, 194, 0),
+            yellow: Color::new(199, 196, 0),
+            blue: Color::new(2, 37, 199),
+            magenta: Color::new(202, 48, 199),
+            cyan: Color::new(0, 197, 199),
+            white: Color::new(199, 199, 199),
+            bright_black: Color::new(104, 104, 104),
+            bright_red: Color::new(255, 110, 103),
+            bright_green: Color::new(95, 250, 104),
+            bright_yellow: Color::new(255, 252, 103),
+            bright_blue: Color::new(104, 113, 255),
+            bright_magenta: Color::new(255, 119, 255),
+            bright_cyan: Color::new(96, 253, 255),
             bright_white: Color::new(255, 255, 255),
         }
     }
@@ -303,7 +303,7 @@ impl Theme {
             foreground: Color::new(0, 0, 0),
             background: Color::new(255, 255, 255),
             cursor: Color::new(0, 0, 0),
-            selection_bg: Color::new(203, 228, 255),
+            selection_bg: Color::new(181, 213, 255),
             selection_fg: Color::new(0, 0, 0),
             black: Color::new(0, 0, 0),
             red: Color::new(187, 0, 0),
