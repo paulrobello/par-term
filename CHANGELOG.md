@@ -22,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 97 copy mode state machine tests covering motions, visual modes, selection, marks, search, and edge cases.
 
 ### Changed
-- Dark Background theme: blue (#0000BB) and bright blue (#5555FF) replaced with more visible values (#2548CE and #6082FF) that are clearly legible on a black background.
+- Dark Background theme: blue (#0000BB) and bright blue (#5555FF) replaced with more visible values (#0225C7 and #6871FF) that are clearly legible on a black background.
 - Default pane background opacity changed from 0.85 to 1.0 (fully opaque).
 - Default font size increased from 12 to 13.
 - `minimum_contrast` slider in Settings capped at 0.99; a saved value of exactly 1.0 (the old legacy default) is automatically migrated to 0.0 (disabled) on load.
