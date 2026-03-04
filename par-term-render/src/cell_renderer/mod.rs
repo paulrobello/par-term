@@ -435,8 +435,12 @@ impl CellRenderer {
         };
 
         let natural_line_height = font_ascent + font_descent + font_leading;
-        let cell_height = (natural_line_height * line_spacing).max(1.0);
-        let cell_width = (char_advance * char_spacing).max(1.0);
+        // Round to integer pixels so every cell has the same width in device pixels.
+        // Without rounding, per-column scale_x alternates (e.g. 7/7.8 vs 8/7.8),
+        // causing glyphs to sample the atlas at slightly different rates and appear
+        // at different perceived brightnesses.
+        let cell_height = (natural_line_height * line_spacing).max(1.0).round();
+        let cell_width = (char_advance * char_spacing).max(1.0).round();
 
         let scrollbar = Scrollbar::new(
             Arc::clone(&device),

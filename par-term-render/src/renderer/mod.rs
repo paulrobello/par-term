@@ -286,7 +286,7 @@ impl Renderer {
         // Use font metrics for cell height if line_spacing is 1.0
         // Natural line height = ascent + descent + leading
         let natural_line_height = font_ascent + font_descent + font_leading;
-        let char_height = (natural_line_height * line_spacing).max(1.0);
+        let char_height = (natural_line_height * line_spacing).max(1.0).round();
 
         // Scale logical pixel values (config) to physical pixels (wgpu surface)
         let scale = scale_factor as f32;
@@ -298,7 +298,7 @@ impl Renderer {
         let available_height = (size.height as f32 - window_padding * 2.0).max(0.0);
 
         // Calculate terminal dimensions based on font size in pixels and spacing
-        let char_width = (char_advance * char_spacing).max(1.0); // Configurable character width
+        let char_width = (char_advance * char_spacing).max(1.0).round(); // Configurable character width (rounded to integer pixels)
         let cols = (available_width / char_width).max(1.0) as usize;
         let rows = (available_height / char_height).max(1.0) as usize;
 
