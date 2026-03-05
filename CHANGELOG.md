@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Default `window_padding` changed from `0.0` to `1.0` pixels.
 
 ### Fixed
+- Restoring a session with split panes no longer causes the app to exit on the first keypress. The keyboard handler was checking only `tab.terminal` (orphaned after pane restore) instead of the pane manager's actual running panes.
 - Theme changes from Settings UI, config reload (F5), and system theme switching now apply to all split pane terminals, not just the primary pane.
 - Cell grid is now centered within each pane, distributing remainder pixels evenly on all sides. Previously, the `floor()` truncation when converting pixels to cols/rows left a visible gap at the right and bottom edges showing a different shade than the terminal content. The centering approach matches Alacritty, Kitty, and other modern terminal emulators.
 - Scrollbar no longer leaks from the original pane to a newly-split pane. After a vertical/horizontal split, the new pane incorrectly showed the original pane's scrollbar because `gather_render_data` was writing `tab.terminal`'s scrollback length into the focused pane's cache — even though the focused (new) pane has its own terminal with no scrollback. The cache update is now skipped in multi-pane mode, and the per-pane scrollback length from `gather_pane_render_data` always overwrites stale values.

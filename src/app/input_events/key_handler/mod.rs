@@ -67,15 +67,20 @@ impl WindowState {
             return;
         }
 
-        // Check if active tab's shell has exited
+        // Check if active tab's shell has exited.
+        // Must check pane_manager panes (not tab.terminal) because after split pane
+        // session restore, tab.terminal may be orphaned/dead while restored panes
+        // have their own independent PTYs.
         let is_running = if let Some(tab) = self.tab_manager.active_tab() {
-            // try_lock: intentional — handle_key_event runs in the sync event loop.
-            // On miss: assume shell is still running (true) to avoid spuriously exiting
-            // on a keypress when the lock is briefly held by the PTY reader.
-            if let Ok(term) = tab.terminal.try_write() {
-                term.is_running()
+            if let Some(pm) = tab.pane_manager() {
+                pm.all_panes().iter().any(|p| p.is_running())
             } else {
-                true
+                // Fallback: no pane manager, check tab.terminal directly
+                if let Ok(term) = tab.terminal.try_write() {
+                    term.is_running()
+                } else {
+                    true
+                }
             }
         } else {
             true
