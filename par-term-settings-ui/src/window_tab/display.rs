@@ -126,5 +126,19 @@ pub(super) fn show_display_section(
             settings.has_changes = true;
             *changes_this_frame = true;
         }
+
+        if ui
+            .checkbox(
+                &mut settings.config.snap_window_to_grid,
+                "Snap window to grid",
+            )
+            .on_hover_text(
+                "Resize window to exact cell boundaries, eliminating background gaps (single pane only)",
+            )
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
     });
 }

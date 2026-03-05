@@ -217,6 +217,10 @@ pub fn keywords() -> &'static [&'static str] {
         "rows",
         "padding",
         "hide padding on split",
+        "snap",
+        "snap to grid",
+        "grid snap",
+        "resize snap",
         "allow title change",
         // Transparency
         "opacity",
