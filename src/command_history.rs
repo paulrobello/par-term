@@ -199,14 +199,15 @@ impl CommandHistory {
         duration_ms: Option<u64>,
     ) {
         let trimmed = command.trim();
-        if let Some(entry) = self.entries.iter_mut().find(|e| e.command == trimmed) {
-            if exit_code.is_some() && entry.exit_code != exit_code {
-                entry.exit_code = exit_code;
-                if entry.duration_ms.is_none() {
-                    entry.duration_ms = duration_ms;
-                }
-                self.dirty = true;
+        if let Some(entry) = self.entries.iter_mut().find(|e| e.command == trimmed)
+            && exit_code.is_some()
+            && entry.exit_code != exit_code
+        {
+            entry.exit_code = exit_code;
+            if entry.duration_ms.is_none() {
+                entry.duration_ms = duration_ms;
             }
+            self.dirty = true;
         }
     }
 

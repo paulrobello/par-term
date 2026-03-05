@@ -290,26 +290,20 @@ impl WindowState {
                             .map(|t| t.pane_count() > 1)
                             .unwrap_or(false);
 
-                        if !is_split {
-                            if let Some(renderer) = &self.renderer {
-                                let (chrome_x, chrome_y) = renderer.chrome_overhead();
-                                let cell_w = renderer.cell_width();
-                                let cell_h = renderer.cell_height();
-                                let snapped_w =
-                                    (chrome_x + cols as f32 * cell_w).round() as u32;
-                                let snapped_h =
-                                    (chrome_y + rows as f32 * cell_h).round() as u32;
+                        if !is_split && let Some(renderer) = &self.renderer {
+                            let (chrome_x, chrome_y) = renderer.chrome_overhead();
+                            let cell_w = renderer.cell_width();
+                            let cell_h = renderer.cell_height();
+                            let snapped_w = (chrome_x + cols as f32 * cell_w).round() as u32;
+                            let snapped_h = (chrome_y + rows as f32 * cell_h).round() as u32;
 
-                                if snapped_w != physical_size.width
-                                    || snapped_h != physical_size.height
-                                {
-                                    let snapped =
-                                        winit::dpi::PhysicalSize::new(snapped_w, snapped_h);
-                                    self.pending_snap_size = Some(snapped);
-                                    self.with_window(|w| {
-                                        let _ = w.request_inner_size(snapped);
-                                    });
-                                }
+                            if snapped_w != physical_size.width || snapped_h != physical_size.height
+                            {
+                                let snapped = winit::dpi::PhysicalSize::new(snapped_w, snapped_h);
+                                self.pending_snap_size = Some(snapped);
+                                self.with_window(|w| {
+                                    let _ = w.request_inner_size(snapped);
+                                });
                             }
                         }
                     }

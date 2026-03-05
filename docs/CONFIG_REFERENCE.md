@@ -22,6 +22,7 @@ field uses its documented default value.
 | `allow_title_change` | `bool` | `true` | Allow OSC sequences to change the window title |
 | `window_padding` | `f32` | `4.0` | Padding in pixels around terminal content |
 | `hide_window_padding_on_split` | `bool` | `true` | Remove padding when panes are split |
+| `snap_window_to_grid` | `bool` | `true` | Snap window dimensions to exact terminal cell boundaries during resize, eliminating blank background gaps. Disabled automatically in split-pane mode. |
 | `window_opacity` | `f32` | `1.0` | Window transparency (0.0=transparent, 1.0=opaque) |
 | `window_always_on_top` | `bool` | `false` | Keep window above all other windows |
 | `window_decorations` | `bool` | `true` | Show window title bar and borders |
