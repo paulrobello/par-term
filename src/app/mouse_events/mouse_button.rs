@@ -112,9 +112,23 @@ impl WindowState {
         #[cfg(not(target_os = "macos"))]
         let url_modifier_pressed = self.input_handler.modifiers.state().control_key();
 
+        // Use pane-local coordinates when split panes are active so the col/row
+        // match the URL positions detected from the focused pane's terminal.
+        let click_cell = self
+            .tab_manager
+            .active_tab()
+            .and_then(|tab| {
+                tab.pane_manager.as_ref().and_then(|pm| {
+                    pm.focused_pane().and_then(|pane| {
+                        self.pixel_to_pane_cell(mouse_position.0, mouse_position.1, &pane.bounds)
+                    })
+                })
+            })
+            .or_else(|| self.pixel_to_cell(mouse_position.0, mouse_position.1));
+
         if state == ElementState::Pressed
             && url_modifier_pressed
-            && let Some((col, row)) = self.pixel_to_cell(mouse_position.0, mouse_position.1)
+            && let Some((col, row)) = click_cell
             && let Some(tab) = self.tab_manager.active_tab()
         {
             let adjusted_row = row + tab.active_scroll_state().offset;

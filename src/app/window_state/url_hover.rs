@@ -20,11 +20,23 @@ impl WindowState {
                 return;
             };
 
+            // Use the focused pane's terminal, not tab.terminal, so that URL
+            // detection operates on the correct pane's content when split.
+            let pane_terminal = tab
+                .pane_manager
+                .as_ref()
+                .and_then(|pm| pm.focused_pane())
+                .map(|p| std::sync::Arc::clone(&p.terminal));
+            let pane_terminal = match pane_terminal {
+                Some(t) => t,
+                None => std::sync::Arc::clone(&tab.terminal),
+            };
+
             // try_read: intentional — URL detection only needs read access (dimensions +
             // cell snapshot). Using try_read instead of try_write reduces contention with
             // other concurrent readers. On miss: stale URLs are kept from prior detection,
             // which is preferable to clearing all highlights and causing a visible flicker.
-            if let Ok(term) = tab.terminal.try_read() {
+            if let Ok(term) = pane_terminal.try_read() {
                 let (cols, rows) = term.dimensions();
                 let scroll_offset = tab.active_scroll_state().offset;
                 let visible_cells =

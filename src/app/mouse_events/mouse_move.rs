@@ -49,7 +49,20 @@ impl WindowState {
 
         // --- 2. URL Hover Detection ---
         // Identify if mouse is over a clickable link and update window UI (cursor/title)
-        if let Some((col, row)) = self.pixel_to_cell(position.0, position.1) {
+        // Use pane-local coordinates when split panes are active so the col/row
+        // match the URL positions detected from the focused pane's terminal.
+        let url_cell = self
+            .tab_manager
+            .active_tab()
+            .and_then(|tab| {
+                tab.pane_manager.as_ref().and_then(|pm| {
+                    pm.focused_pane().and_then(|pane| {
+                        self.pixel_to_pane_cell(position.0, position.1, &pane.bounds)
+                    })
+                })
+            })
+            .or_else(|| self.pixel_to_cell(position.0, position.1));
+        if let Some((col, row)) = url_cell {
             // Get scroll offset and terminal title from active tab (clone to avoid borrow conflicts)
             let (scroll_offset, terminal_title, detected_urls, hovered_url) = self
                 .tab_manager
