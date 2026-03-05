@@ -94,6 +94,7 @@ impl Default for Config {
             throughput_render_interval_ms: crate::defaults::throughput_render_interval_ms(),
             window_padding: crate::defaults::window_padding(),
             hide_window_padding_on_split: crate::defaults::bool_true(),
+            snap_window_to_grid: crate::defaults::snap_window_to_grid(),
             window_opacity: crate::defaults::window_opacity(),
             window_always_on_top: crate::defaults::bool_false(),
             window_decorations: crate::defaults::bool_true(),

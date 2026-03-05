@@ -22,8 +22,8 @@ pub use font::{
 pub use window::{
     background_color, background_image_opacity, cols, cubemap_enabled, dark_theme,
     inactive_tab_fps, inactive_tab_opacity, light_theme, max_fps, pane_background_darken, rows,
-    screenshot_format, tab_bar_height, tab_bar_width, tab_border_width, tab_html_titles,
-    tab_min_width, tab_stretch_to_fill, text_opacity, theme, unfocused_fps,
+    screenshot_format, snap_window_to_grid, tab_bar_height, tab_bar_width, tab_border_width,
+    tab_html_titles, tab_min_width, tab_stretch_to_fill, text_opacity, theme, unfocused_fps,
     use_background_as_channel0, window_opacity, window_padding, window_title,
 };
 

@@ -287,6 +287,11 @@ pub struct Config {
     #[serde(default = "crate::defaults::bool_true")]
     pub hide_window_padding_on_split: bool,
 
+    /// Snap window dimensions to exact terminal cell boundaries during resize,
+    /// eliminating blank background gaps. Disabled automatically in split-pane mode.
+    #[serde(default = "crate::defaults::snap_window_to_grid")]
+    pub snap_window_to_grid: bool,
+
     /// Window opacity/transparency (0.0 = fully transparent, 1.0 = fully opaque)
     #[serde(default = "crate::defaults::window_opacity")]
     pub window_opacity: f32,

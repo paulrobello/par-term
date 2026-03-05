@@ -96,6 +96,10 @@ pub fn cubemap_enabled() -> bool {
     true // Cubemap sampling enabled by default when a path is configured
 }
 
+pub fn snap_window_to_grid() -> bool {
+    true
+}
+
 pub fn use_background_as_channel0() -> bool {
     false // By default, use configured channel0 texture, not background image
 }
