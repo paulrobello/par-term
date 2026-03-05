@@ -202,9 +202,6 @@ pub fn show_cursor_shader(
             *changes_this_frame = true;
         }
 
-            ui.add_space(8.0);
-            ui.label("Cursor Shader Parameters:");
-
             ui.horizontal(|ui| {
                 ui.label("Cursor color:");
                 let mut color = settings.config.shader.cursor_shader_color;
@@ -214,59 +211,6 @@ pub fn show_cursor_shader(
                     .changed()
                 {
                     settings.config.shader.cursor_shader_color = color;
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
-                }
-            });
-
-            ui.horizontal(|ui| {
-                ui.label("Trail duration:");
-                if ui
-                    .add(
-                        egui::Slider::new(
-                            &mut settings.config.shader.cursor_shader_trail_duration,
-                            0.0..=2.0,
-                        )
-                        .suffix(" s"),
-                    )
-                    .on_hover_text(
-                        "Duration of cursor trail effect in seconds (iCursorTrailDuration)",
-                    )
-                    .changed()
-                {
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
-                }
-            });
-
-            ui.horizontal(|ui| {
-                ui.label("Glow radius:");
-                if ui
-                    .add(
-                        egui::Slider::new(
-                            &mut settings.config.shader.cursor_shader_glow_radius,
-                            0.0..=200.0,
-                        )
-                        .suffix(" px"),
-                    )
-                    .on_hover_text("Radius of cursor glow effect in pixels (iCursorGlowRadius)")
-                    .changed()
-                {
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
-                }
-            });
-
-            ui.horizontal(|ui| {
-                ui.label("Glow intensity:");
-                if ui
-                    .add(egui::Slider::new(
-                        &mut settings.config.shader.cursor_shader_glow_intensity,
-                        0.0..=1.0,
-                    ))
-                    .on_hover_text("Intensity of cursor glow effect (iCursorGlowIntensity)")
-                    .changed()
-                {
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }

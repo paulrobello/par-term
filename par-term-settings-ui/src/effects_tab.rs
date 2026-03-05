@@ -198,10 +198,7 @@ pub fn keywords() -> &'static [&'static str] {
         "cursor shader",
         "cursor effect",
         "trail",
-        "trail duration",
         "glow",
-        "glow radius",
-        "glow intensity",
         "hides cursor",
         "alt screen",
         // Per-pane background

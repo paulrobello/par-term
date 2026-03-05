@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Pane padding no longer applies when there is only one pane (no splits); in split mode, an automatic base padding equal to half the divider width is added to prevent content rendering under the divider, with `pane_padding` config applied on top of that.
 - Default `pane_padding` changed from `4.0` to `1.0` pixels.
 - Default `window_padding` changed from `0.0` to `1.0` pixels.
+- Removed unused cursor shader parameter controls (Trail duration, Glow radius, Glow intensity) from Settings UI — no built-in shader reads these uniforms.
 
 ### Fixed
 - Cursor shaders now render correctly. The `render_split_panes` path (always active since pane manager is always initialized) was missing cursor shader support — only the unused single-pane `render()` path handled cursor shader chaining. All content rendering (panes, dividers, titles, visual bell, focus indicator) now targets the cursor shader's intermediate texture when a cursor shader is active, with the cursor shader compositing the final result to the surface.
