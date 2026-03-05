@@ -850,15 +850,15 @@ impl CellRenderer {
             // Underlines: emit a thin rectangle at the bottom of each underlined cell.
             // Mirrors the logic in text_instance_builder.rs but uses pane-local coordinates.
             {
-                let underline_thickness =
-                    (self.grid.cell_height * UNDERLINE_HEIGHT_RATIO).max(1.0).round();
+                let underline_thickness = (self.grid.cell_height * UNDERLINE_HEIGHT_RATIO)
+                    .max(1.0)
+                    .round();
                 let tex_offset = [
                     self.atlas.solid_pixel_offset.0 as f32 / 2048.0,
                     self.atlas.solid_pixel_offset.1 as f32 / 2048.0,
                 ];
                 let tex_size = [1.0 / 2048.0, 1.0 / 2048.0];
-                let y0 =
-                    content_y + (row + 1) as f32 * self.grid.cell_height - underline_thickness;
+                let y0 = content_y + (row + 1) as f32 * self.grid.cell_height - underline_thickness;
                 let ndc_y = 1.0 - (y0 / self.config.height as f32 * 2.0);
                 let ndc_h = underline_thickness / self.config.height as f32 * 2.0;
                 let is_stipple =
@@ -897,10 +897,7 @@ impl CellRenderer {
                     } else if text_index < self.buffers.max_text_instances {
                         self.text_instances[text_index] = TextInstance {
                             position: [cell_x0 / self.config.width as f32 * 2.0 - 1.0, ndc_y],
-                            size: [
-                                self.grid.cell_width / self.config.width as f32 * 2.0,
-                                ndc_h,
-                            ],
+                            size: [self.grid.cell_width / self.config.width as f32 * 2.0, ndc_h],
                             tex_offset,
                             tex_size,
                             color: fg,

@@ -112,7 +112,7 @@ impl CellRenderer {
             - self.grid.window_padding * 2.0
             - self.grid.content_offset_x
             - self.grid.content_inset_right
-            - self.scrollbar.width())
+            - self.scrollbar.visible_width())
         .max(0.0);
         let available_height = (height as f32
             - self.grid.window_padding * 2.0
@@ -148,7 +148,7 @@ impl CellRenderer {
         let chrome_x = self.grid.window_padding * 2.0
             + self.grid.content_offset_x
             + self.grid.content_inset_right
-            + self.scrollbar.width();
+            + self.scrollbar.visible_width();
         let chrome_y = self.grid.window_padding * 2.0
             + self.grid.content_offset_y
             + self.grid.content_inset_bottom

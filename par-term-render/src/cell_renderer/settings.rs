@@ -3,13 +3,16 @@ use par_term_config::{SeparatorMark, color_tuple_to_f32_a, color_u8_to_f32};
 use super::{CellRenderer, PaneViewport};
 
 impl CellRenderer {
+    /// Update scrollbar state. Returns `Some((cols, rows))` if scrollbar visibility
+    /// changed and the grid was re-laid-out, `None` otherwise.
     pub fn update_scrollbar(
         &mut self,
         scroll_offset: usize,
         visible_lines: usize,
         total_lines: usize,
         marks: &[par_term_config::ScrollbackMark],
-    ) {
+    ) -> Option<(usize, usize)> {
+        let was_visible = self.scrollbar.is_visible();
         let right_inset = self.grid.content_inset_right + self.grid.egui_right_inset;
         self.scrollbar.update(
             &self.queue,
@@ -25,6 +28,12 @@ impl CellRenderer {
                 marks,
             },
         );
+        // When scrollbar visibility changes, re-layout because visible_width() changed
+        if self.scrollbar.is_visible() != was_visible {
+            let size = (self.config.width, self.config.height);
+            return Some(self.resize(size.0, size.1));
+        }
+        None
     }
 
     /// Update scrollbar state constrained to a specific pane's bounds.

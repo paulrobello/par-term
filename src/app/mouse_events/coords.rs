@@ -134,8 +134,7 @@ impl WindowState {
         let pane_padding = if self.is_gateway_active() || pane_count <= 1 {
             0.0
         } else {
-            (self.config.pane_divider_width.unwrap_or(2.0) / 2.0 + self.config.pane_padding)
-                as f64
+            (self.config.pane_divider_width.unwrap_or(2.0) / 2.0 + self.config.pane_padding) as f64
                 * scale
         };
 

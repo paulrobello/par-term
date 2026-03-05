@@ -210,7 +210,7 @@ impl WindowState {
 
             WindowEvent::Resized(physical_size) => {
                 if let Some(renderer) = &mut self.renderer {
-                    let (cols, rows) = renderer.resize(physical_size);
+                    let (mut cols, mut rows) = renderer.resize(physical_size);
 
                     // Calculate text area pixel dimensions
                     let cell_width = renderer.cell_width();
@@ -241,7 +241,9 @@ impl WindowState {
                         tab.active_cache_mut().cells = None;
                     }
 
-                    // Update scrollbar for active tab
+                    // Update scrollbar for active tab.
+                    // If scrollbar visibility changed, re-layout returns new grid size
+                    // (visible_width() changed → available width changed → cols may differ).
                     if let Some(tab) = self.tab_manager.active_tab() {
                         let total_lines = rows + tab.active_cache().scrollback_len;
                         // try_lock: intentional — scrollbar mark update during Resized event.
@@ -249,12 +251,24 @@ impl WindowState {
                         let marks = tab
                             .try_with_terminal(|term| term.scrollback_marks())
                             .unwrap_or_default();
-                        renderer.update_scrollbar(
+                        if let Some((new_cols, new_rows)) = renderer.update_scrollbar(
                             tab.active_scroll_state().offset,
                             rows,
                             total_lines,
                             &marks,
-                        );
+                        ) {
+                            cols = new_cols;
+                            rows = new_rows;
+                            let width_px = (cols as f32 * renderer.cell_width()) as usize;
+                            let height_px = (rows as f32 * renderer.cell_height()) as usize;
+                            for tab in self.tab_manager.tabs_mut() {
+                                if let Ok(mut term) = tab.terminal.try_write() {
+                                    let _ =
+                                        term.resize_with_pixels(cols, rows, width_px, height_px);
+                                }
+                                tab.active_cache_mut().cells = None;
+                            }
+                        }
                     }
 
                     // Update resize overlay state
@@ -278,8 +292,7 @@ impl WindowState {
                     // We allow a ±1 px tolerance because the OS may round to even physical
                     // pixels (e.g. Retina 2× requires integer logical pixels).
                     if let Some(pending) = self.pending_snap_size.take() {
-                        let dw =
-                            (pending.width as i32 - physical_size.width as i32).unsigned_abs();
+                        let dw = (pending.width as i32 - physical_size.width as i32).unsigned_abs();
                         let dh =
                             (pending.height as i32 - physical_size.height as i32).unsigned_abs();
                         if dw > 1 || dh > 1 {
@@ -288,9 +301,12 @@ impl WindowState {
                             crate::debug_info!(
                                 "RESIZE",
                                 "snap guard: pending {}x{} != physical {}x{} (dw={} dh={}), clearing",
-                                pending.width, pending.height,
-                                physical_size.width, physical_size.height,
-                                dw, dh
+                                pending.width,
+                                pending.height,
+                                physical_size.width,
+                                physical_size.height,
+                                dw,
+                                dh
                             );
                         }
                         // else: this resize was triggered by our own snap request — done.
@@ -314,11 +330,16 @@ impl WindowState {
                             crate::debug_info!(
                                 "RESIZE",
                                 "snap: physical={}x{} snapped={}x{} chrome=({:.1},{:.1}) cell=({:.1},{:.1}) grid={}x{}",
-                                physical_size.width, physical_size.height,
-                                snapped_w, snapped_h,
-                                chrome_x, chrome_y,
-                                cell_w, cell_h,
-                                cols, rows
+                                physical_size.width,
+                                physical_size.height,
+                                snapped_w,
+                                snapped_h,
+                                chrome_x,
+                                chrome_y,
+                                cell_w,
+                                cell_h,
+                                cols,
+                                rows
                             );
 
                             if snapped_w != physical_size.width || snapped_h != physical_size.height

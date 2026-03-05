@@ -132,8 +132,9 @@ pub(super) fn update_gpu_renderer_state(
         renderer.update_shader_progress(0.0, 0.0, 0.0, 0.0);
     }
 
-    // Update scrollbar
-    renderer.update_scrollbar(scroll_offset, visible_lines, total_lines, scrollback_marks);
+    // Update scrollbar (visibility change triggers internal re-layout;
+    // terminal resize is handled by the Resized event path, not here)
+    let _ = renderer.update_scrollbar(scroll_offset, visible_lines, total_lines, scrollback_marks);
 
     // Compute and set command separator marks for single-pane rendering
     if config.command_separator_enabled {

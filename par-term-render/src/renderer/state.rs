@@ -186,28 +186,25 @@ impl Renderer {
         }
     }
 
-    /// Update scrollbar state
-    ///
-    /// # Arguments
-    /// * `scroll_offset` - Current scroll offset (0 = at bottom)
-    /// * `visible_lines` - Number of lines visible on screen
-    /// * `total_lines` - Total number of lines including scrollback
-    /// * `marks` - Scrollback marks for visualization on the scrollbar
+    /// Update scrollbar state. Returns `Some((cols, rows))` if scrollbar visibility
+    /// changed and the grid was re-laid-out, `None` otherwise.
     pub fn update_scrollbar(
         &mut self,
         scroll_offset: usize,
         visible_lines: usize,
         total_lines: usize,
         marks: &[par_term_config::ScrollbackMark],
-    ) {
+    ) -> Option<(usize, usize)> {
         let new_state = (scroll_offset, visible_lines, total_lines, marks.len());
         if new_state == self.last_scrollbar_state {
-            return;
+            return None;
         }
         self.last_scrollbar_state = new_state;
-        self.cell_renderer
-            .update_scrollbar(scroll_offset, visible_lines, total_lines, marks);
+        let resized =
+            self.cell_renderer
+                .update_scrollbar(scroll_offset, visible_lines, total_lines, marks);
         self.dirty = true;
+        resized
     }
 
     /// Set the visual bell flash intensity
