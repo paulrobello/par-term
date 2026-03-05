@@ -68,6 +68,10 @@ pub struct PaneViewport {
     pub opacity: f32,
     /// Padding inside the pane (content inset from edges)
     pub padding: f32,
+    /// Horizontal offset to center the cell grid within the content area
+    pub content_offset_x: f32,
+    /// Vertical offset to center the cell grid within the content area
+    pub content_offset_y: f32,
 }
 
 impl PaneViewport {
@@ -81,6 +85,8 @@ impl PaneViewport {
             focused,
             opacity,
             padding: 0.0,
+            content_offset_x: 0.0,
+            content_offset_y: 0.0,
         }
     }
 
@@ -102,6 +108,8 @@ impl PaneViewport {
             focused,
             opacity,
             padding,
+            content_offset_x: 0.0,
+            content_offset_y: 0.0,
         }
     }
 
@@ -117,7 +125,10 @@ impl PaneViewport {
 
     /// Get the content area origin (with padding applied)
     pub fn content_origin(&self) -> (f32, f32) {
-        (self.x + self.padding, self.y + self.padding)
+        (
+            self.x + self.padding + self.content_offset_x,
+            self.y + self.padding + self.content_offset_y,
+        )
     }
 
     /// Get the content area size (with padding applied)
