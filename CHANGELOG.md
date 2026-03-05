@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Default `window_padding` changed from `0.0` to `1.0` pixels.
 
 ### Fixed
+- Cursor shaders now render correctly. The `render_split_panes` path (always active since pane manager is always initialized) was missing cursor shader support — only the unused single-pane `render()` path handled cursor shader chaining. All content rendering (panes, dividers, titles, visual bell, focus indicator) now targets the cursor shader's intermediate texture when a cursor shader is active, with the cursor shader compositing the final result to the surface.
 - Restoring a session with split panes no longer causes the app to exit on the first keypress. The keyboard handler was checking only `tab.terminal` (orphaned after pane restore) instead of the pane manager's actual running panes.
 - Theme changes from Settings UI, config reload (F5), and system theme switching now apply to all split pane terminals, not just the primary pane.
 - Cell grid is now centered within each pane, distributing remainder pixels evenly on all sides. Previously, the `floor()` truncation when converting pixels to cols/rows left a visible gap at the right and bottom edges showing a different shade than the terminal content. The centering approach matches Alacritty, Kitty, and other modern terminal emulators.

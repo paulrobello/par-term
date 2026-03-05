@@ -59,6 +59,9 @@ impl Renderer {
         }
 
         let has_custom_shader = self.custom_shader_renderer.is_some();
+        // Only use cursor shader if it's enabled and not disabled for alt screen
+        let use_cursor_shader =
+            self.cursor_shader_renderer.is_some() && !self.cursor_shader_disabled_for_alt_screen;
 
         // Pre-load any per-pane background textures that aren't cached yet
         for pane in panes.iter() {
@@ -76,11 +79,35 @@ impl Renderer {
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        // Clear the surface. Use TRANSPARENT when bg_image_pipeline will provide coverage;
-        // otherwise use the theme background color as a fallback.
+        // When cursor shader is active, render all content to its intermediate texture.
+        // The cursor shader will then composite the result onto the surface.
+        let cursor_intermediate: Option<wgpu::TextureView> = if use_cursor_shader {
+            Some(
+                self.cursor_shader_renderer
+                    .as_ref()
+                    .unwrap()
+                    .intermediate_texture_view()
+                    .clone(),
+            )
+        } else {
+            None
+        };
+        // Content render target: cursor shader intermediate (if active) or surface directly
+        let content_view = cursor_intermediate.as_ref().unwrap_or(&surface_view);
+
+        // Clear color for content rendering. When cursor shader will apply opacity,
+        // use non-premultiplied color so opacity isn't applied twice.
         let opacity = self.cell_renderer.window_opacity as f64;
         let clear_color = if self.cell_renderer.pipelines.bg_image_bind_group.is_some() {
             wgpu::Color::TRANSPARENT
+        } else if use_cursor_shader {
+            // Cursor shader applies opacity — use full-opacity background
+            wgpu::Color {
+                r: self.cell_renderer.background_color[0] as f64,
+                g: self.cell_renderer.background_color[1] as f64,
+                b: self.cell_renderer.background_color[2] as f64,
+                a: 1.0,
+            }
         } else {
             wgpu::Color {
                 r: self.cell_renderer.background_color[0] as f64 * opacity,
@@ -90,8 +117,8 @@ impl Renderer {
             }
         };
 
-        // If custom shader is enabled, render it with the background clear color
-        // (the shader's render pass will handle clearing the surface)
+        // If custom shader is enabled, render it to the content target
+        // (the shader's render pass will handle clearing the target)
         if let Some(ref mut custom_shader) = self.custom_shader_renderer {
             // Clear the intermediate texture to remove any old single-pane content
             // This prevents the shader from displaying stale terminal content
@@ -100,21 +127,18 @@ impl Renderer {
                 self.cell_renderer.queue(),
             );
 
-            // Render shader effect to surface. Apply opacity so the shader produces
-            // opaque premultiplied output — chain mode (apply_opacity=false) would
-            // emit alpha=0 for empty areas, leaving the surface transparent when the
-            // clear color is TRANSPARENT (as it is now that bg_image_bind_group is
-            // always set for macOS alpha-coverage). In split-pane mode there is no
-            // cursor-shader chain, so final-mode output is correct.
+            // Render shader effect. When cursor shader is chained, render to cursor
+            // shader's intermediate without applying opacity (cursor shader will do it).
+            // When no cursor shader, render directly to surface with opacity applied.
             custom_shader.render_with_clear_color(
                 self.cell_renderer.device(),
                 self.cell_renderer.queue(),
-                &surface_view,
-                true, // Apply opacity - shader provides the opaque background
+                content_view,
+                !use_cursor_shader, // Apply opacity only when not chaining to cursor shader
                 clear_color,
             )?;
         } else {
-            // No custom shader - just clear the surface with background color
+            // No custom shader - just clear the content target with background color
             let mut encoder = self.cell_renderer.device().create_command_encoder(
                 &wgpu::CommandEncoderDescriptor {
                     label: Some("split pane clear encoder"),
@@ -125,7 +149,7 @@ impl Renderer {
                 let _clear_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: Some("surface clear pass"),
                     color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                        view: &surface_view,
+                        view: content_view,
                         resolve_target: None,
                         ops: wgpu::Operations {
                             load: wgpu::LoadOp::Clear(clear_color),
@@ -151,7 +175,7 @@ impl Renderer {
         let any_pane_has_background = panes.iter().any(|p| p.background.is_some());
         let has_background_image = if !has_custom_shader && !any_pane_has_background {
             self.cell_renderer
-                .render_background_only(&surface_view, false)?
+                .render_background_only(content_view, false)?
         } else {
             false
         };
@@ -201,7 +225,7 @@ impl Renderer {
                 pane.grid_size.1,
             );
             self.cell_renderer.render_pane_to_view(
-                &surface_view,
+                content_view,
                 crate::cell_renderer::PaneRenderViewParams {
                     viewport: &pane.viewport,
                     cells: pane.cells,
@@ -222,7 +246,7 @@ impl Renderer {
         for pane in panes {
             if !pane.graphics.is_empty() {
                 self.render_pane_sixel_graphics(
-                    &surface_view,
+                    content_view,
                     &pane.viewport,
                     &pane.graphics,
                     pane.scroll_offset,
@@ -234,12 +258,12 @@ impl Renderer {
 
         // Render dividers between panes
         if !dividers.is_empty() {
-            self.render_dividers(&surface_view, dividers, divider_settings)?;
+            self.render_dividers(content_view, dividers, divider_settings)?;
         }
 
         // Render pane title bars (background + text)
         if !pane_titles.is_empty() {
-            self.render_pane_titles(&surface_view, pane_titles)?;
+            self.render_pane_titles(content_view, pane_titles)?;
         }
 
         // Render visual bell overlay (fullscreen flash)
@@ -269,7 +293,7 @@ impl Renderer {
                 let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: Some("visual bell pass"),
                     color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                        view: &surface_view,
+                        view: content_view,
                         resolve_target: None,
                         ops: wgpu::Operations {
                             load: wgpu::LoadOp::Load,
@@ -298,7 +322,17 @@ impl Renderer {
         if panes.len() > 1
             && let Some(viewport) = focused_viewport
         {
-            self.render_focus_indicator(&surface_view, viewport, divider_settings)?;
+            self.render_focus_indicator(content_view, viewport, divider_settings)?;
+        }
+
+        // Apply cursor shader if active: composite content to surface
+        if use_cursor_shader {
+            self.cursor_shader_renderer.as_mut().unwrap().render(
+                self.cell_renderer.device(),
+                self.cell_renderer.queue(),
+                &surface_view,
+                true, // Apply opacity - final render to surface
+            )?;
         }
 
         // Render egui overlay if provided
