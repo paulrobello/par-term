@@ -147,7 +147,7 @@ impl Default for PaneDividerSettings {
             hover_color: [0.5, 0.6, 0.8],
             show_focus_indicator: true,
             focus_color: [0.4, 0.6, 1.0],
-            focus_width: 2.0,
+            focus_width: 1.0,
             divider_style: par_term_config::DividerStyle::default(),
         }
     }

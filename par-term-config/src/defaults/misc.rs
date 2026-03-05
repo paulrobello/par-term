@@ -354,7 +354,7 @@ pub fn pane_title_height() -> f32 {
 }
 
 pub fn pane_focus_width() -> f32 {
-    2.0 // 2 pixel border around focused pane
+    1.0 // 1 pixel border around focused pane
 }
 
 // ── tmux integration ───────────────────────────────────────────────────────
