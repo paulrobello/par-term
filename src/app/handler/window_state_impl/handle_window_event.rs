@@ -267,6 +267,52 @@ impl WindowState {
 
                     // Notify tmux of the new size if gateway mode is active
                     self.notify_tmux_of_resize();
+
+                    // --- Snap window to grid cell boundaries ---
+                    //
+                    // Goal: eliminate the partial-cell gap between the terminal grid
+                    // and the window edge that appears after a user drag.
+                    //
+                    // Anti-loop guard: if this Resized event IS the response to our
+                    // own request_inner_size call, skip — we're already at the snapped size.
+                    if let Some(pending) = self.pending_snap_size.take() {
+                        if pending != physical_size {
+                            // The OS landed on a different size than we requested (e.g. min/max
+                            // constraints). Restore the field so we try again next frame.
+                            self.pending_snap_size = Some(pending);
+                        }
+                        // else: this resize was triggered by our own snap request — done.
+                    } else if self.config.snap_window_to_grid {
+                        // Only snap in single-pane mode (split pane handled separately).
+                        let is_split = self
+                            .tab_manager
+                            .active_tab()
+                            .map(|t| t.pane_count() > 1)
+                            .unwrap_or(false);
+
+                        if !is_split {
+                            if let Some(renderer) = &self.renderer {
+                                let (chrome_x, chrome_y) = renderer.chrome_overhead();
+                                let cell_w = renderer.cell_width();
+                                let cell_h = renderer.cell_height();
+                                let snapped_w =
+                                    (chrome_x + cols as f32 * cell_w).round() as u32;
+                                let snapped_h =
+                                    (chrome_y + rows as f32 * cell_h).round() as u32;
+
+                                if snapped_w != physical_size.width
+                                    || snapped_h != physical_size.height
+                                {
+                                    let snapped =
+                                        winit::dpi::PhysicalSize::new(snapped_w, snapped_h);
+                                    self.pending_snap_size = Some(snapped);
+                                    self.with_window(|w| {
+                                        let _ = w.request_inner_size(snapped);
+                                    });
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
