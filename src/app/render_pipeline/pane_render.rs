@@ -154,7 +154,11 @@ pub(super) fn gather_pane_render_data(
         // get_cells_with_scrollback returns cells at the correct dimensions.
         // The focused pane subtracts the scrollbar inset so text wraps before
         // the scrollbar instead of rendering behind it.
-        let sb_inset = if is_focused { focused_scrollbar_inset } else { 0.0 };
+        let sb_inset = if is_focused {
+            focused_scrollbar_inset
+        } else {
+            0.0
+        };
         let content_w =
             (bounds.width - physical_pane_padding * 2.0 - sb_inset).max(sizing.cell_width);
         let content_h = (viewport_height - physical_pane_padding * 2.0).max(sizing.cell_height);

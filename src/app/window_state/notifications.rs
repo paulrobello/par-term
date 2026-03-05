@@ -7,7 +7,7 @@
 use super::WindowState;
 
 impl WindowState {
-    /// Check for OSC 9/777 notifications from the terminal.
+    /// Check for OSC 9/777 notifications from the focused pane's terminal.
     pub(crate) fn check_notifications(&mut self) {
         let tab = if let Some(t) = self.tab_manager.active_tab() {
             t
@@ -15,10 +15,18 @@ impl WindowState {
             return;
         };
 
+        // Use focused pane's terminal (not tab.terminal, which may differ after a split)
+        let terminal = tab
+            .pane_manager
+            .as_ref()
+            .and_then(|pm| pm.focused_pane())
+            .map(|pane| std::sync::Arc::clone(&pane.terminal))
+            .unwrap_or_else(|| std::sync::Arc::clone(&tab.terminal));
+
         // try_lock: intentional — OSC notification polling in about_to_wait (sync loop).
         // On miss: notifications are deferred to the next poll frame. Low risk; OSC
         // notifications are informational and a one-frame delay is imperceptible.
-        if let Ok(term) = tab.terminal.try_write() {
+        if let Ok(term) = terminal.try_write() {
             // Check for OSC 9/777 notifications
             if term.has_notifications() {
                 let notifications = term.take_notifications();
@@ -39,7 +47,8 @@ impl WindowState {
             return;
         }
 
-        // Get current bell count from active tab's terminal
+        // Get current bell count from focused pane's terminal (not tab.terminal,
+        // which may differ from the focused pane's terminal after a split).
         let (current_bell_count, last_count) = {
             let tab = if let Some(t) = self.tab_manager.active_tab() {
                 t
@@ -47,10 +56,18 @@ impl WindowState {
                 return;
             };
 
+            // Get the focused pane's terminal (falls back to tab terminal if no pane manager)
+            let terminal = tab
+                .pane_manager
+                .as_ref()
+                .and_then(|pm| pm.focused_pane())
+                .map(|pane| std::sync::Arc::clone(&pane.terminal))
+                .unwrap_or_else(|| std::sync::Arc::clone(&tab.terminal));
+
             // try_lock: intentional — bell count polling in about_to_wait (sync event loop).
             // On miss: bell detection is skipped this frame. The bell event will be seen
             // on the next poll. A one-frame delay in bell feedback is imperceptible.
-            if let Ok(term) = tab.terminal.try_write() {
+            if let Ok(term) = terminal.try_write() {
                 (term.bell_count(), tab.active_bell().last_count)
             } else {
                 return;
