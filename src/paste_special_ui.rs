@@ -286,7 +286,7 @@ impl PasteSpecialUI {
                 ui.separator();
                 ui.horizontal(|ui| {
                     ui.label(
-                        RichText::new("↑↓ Navigate  Enter Apply  Esc Cancel")
+                        RichText::new("\u{f062}\u{f063} Navigate  Enter Apply  Esc Cancel")
                             .small()
                             .color(Color32::GRAY),
                     );

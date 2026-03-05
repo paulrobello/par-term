@@ -1,7 +1,7 @@
 # Makefile for par-term
 # Cross-platform terminal emulator frontend
 
-.PHONY: help build build-debug run run-release run-error run-warn run-info run-debug run-trace release test check clean fmt lint checkall install install-acp acp-harness acp-smoke doc doc-open coverage test-fonts benchmark-shaping test-text-shaping bundle bundle-install run-bundle deploy
+.PHONY: help build build-debug run run-release run-error run-warn run-info run-debug run-trace release test check clean fmt lint checkall install install-shell-integration install-acp acp-harness acp-smoke doc doc-open coverage test-fonts benchmark-shaping test-text-shaping bundle bundle-install run-bundle deploy
 
 ACP_AGENT ?= claude-ollama.local
 ACP_TIMEOUT ?= 45
@@ -217,6 +217,15 @@ install: release
 	@echo "Installing par-term to ~/.cargo/bin/..."
 	@cp target/release/par-term "$${HOME}/.cargo/bin/par-term"
 	@echo "Installed to ~/.cargo/bin/par-term"
+
+# Install shell integration scripts to ~/.config/par-term/
+install-shell-integration:
+	@echo "Installing shell integration scripts to ~/.config/par-term/..."
+	@mkdir -p "$${HOME}/.config/par-term"
+	@cp shell_integration/par_term_shell_integration.bash "$${HOME}/.config/par-term/shell_integration.bash"
+	@cp shell_integration/par_term_shell_integration.zsh "$${HOME}/.config/par-term/shell_integration.zsh"
+	@cp shell_integration/par_term_shell_integration.fish "$${HOME}/.config/par-term/shell_integration.fish"
+	@echo "✅ Shell integration installed. Re-source your shell or open a new tab to activate."
 
 # Install ACP bridge used by Claude custom agents
 install-acp:

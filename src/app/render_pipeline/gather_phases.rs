@@ -40,23 +40,42 @@ impl WindowState {
             // Feed newly completed commands into persistent history from two sources:
             // 1. Scrollback marks (populated via set_mark_command_at from grid text extraction)
             // 2. Core library command history (populated by the terminal emulator core)
+            //
+            // synced_commands gates the first-time add. For subsequent frames, if the
+            // exit code was stored as None (command finished before the D-marker was
+            // processed), we allow an update to Some(n) from either source.
             for mark in term.scrollback_marks() {
                 if let Some(ref cmd) = mark.command
                     && !cmd.is_empty()
-                    && self.overlay_ui.synced_commands.insert(cmd.clone())
                 {
-                    self.overlay_ui.command_history.add(
-                        cmd.clone(),
-                        mark.exit_code,
-                        mark.duration_ms,
-                    );
+                    if self.overlay_ui.synced_commands.insert(cmd.clone()) {
+                        self.overlay_ui.command_history.add(
+                            cmd.clone(),
+                            mark.exit_code,
+                            mark.duration_ms,
+                        );
+                    } else if mark.exit_code.is_some() {
+                        self.overlay_ui.command_history.update_exit_code_if_unknown(
+                            cmd,
+                            mark.exit_code,
+                            mark.duration_ms,
+                        );
+                    }
                 }
             }
             for (cmd, exit_code, duration_ms) in term.core_command_history() {
-                if !cmd.is_empty() && self.overlay_ui.synced_commands.insert(cmd.clone()) {
-                    self.overlay_ui
-                        .command_history
-                        .add(cmd, exit_code, duration_ms);
+                if !cmd.is_empty() {
+                    if self.overlay_ui.synced_commands.insert(cmd.clone()) {
+                        self.overlay_ui
+                            .command_history
+                            .add(cmd, exit_code, duration_ms);
+                    } else if exit_code.is_some() {
+                        self.overlay_ui.command_history.update_exit_code_if_unknown(
+                            &cmd,
+                            exit_code,
+                            duration_ms,
+                        );
+                    }
                 }
             }
 

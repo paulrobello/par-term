@@ -269,7 +269,11 @@ __par_term_preexec() {
 
 # Runs before prompt display
 function __par_term_prompt_command () {
-    local par_term_status="$?"
+    # Use bash-preexec's saved exit code (__bp_last_ret_value) when available.
+    # bash-preexec saves $? at the very start of __bp_precmd_invoke_cmd, before any
+    # intermediate PROMPT_COMMAND entries (like __bp_interactive_mode) can reset $? to 0.
+    # Fall back to $? when running without bash-preexec.
+    local par_term_status="${__bp_last_ret_value:-$?}"
     __par_term_last_ret_value="$par_term_status"
 
     # Handle ^C (preexec didn't run)

@@ -184,6 +184,32 @@ impl CommandHistory {
         self.dirty
     }
 
+    /// Update the exit code of an existing entry when a newer value is available.
+    ///
+    /// Scrollback marks are returned oldest-first, so the same command may appear
+    /// multiple times (one per execution). `synced_commands` prevents `add()` from
+    /// being called more than once per command per session, so subsequent marks (which
+    /// may have a more recent exit code) arrive here instead. We update whenever the
+    /// new exit code is `Some` and differs from what is stored, so the most-recently-
+    /// executed instance always wins.
+    pub fn update_exit_code_if_unknown(
+        &mut self,
+        command: &str,
+        exit_code: Option<i32>,
+        duration_ms: Option<u64>,
+    ) {
+        let trimmed = command.trim();
+        if let Some(entry) = self.entries.iter_mut().find(|e| e.command == trimmed) {
+            if exit_code.is_some() && entry.exit_code != exit_code {
+                entry.exit_code = exit_code;
+                if entry.duration_ms.is_none() {
+                    entry.duration_ms = duration_ms;
+                }
+                self.dirty = true;
+            }
+        }
+    }
+
     /// Get number of entries.
     pub fn len(&self) -> usize {
         self.entries.len()

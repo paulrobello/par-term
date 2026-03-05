@@ -177,7 +177,13 @@ impl ScrollbackMetadata {
             Some(ShellIntegrationMarker::CommandFinished) => {
                 #[allow(clippy::collapsible_if)]
                 if history_len > self.last_recorded_history_len {
-                    if let Some(cmd) = last_command {
+                    if let Some(mut cmd) = last_command {
+                        // The D-marker exit code (last_exit_code) is authoritative.
+                        // Core history is read before end_command_execution runs, so
+                        // cmd.exit_code may still be None at this point. Override it.
+                        if cmd.exit_code.is_none() && last_exit_code.is_some() {
+                            cmd.exit_code = last_exit_code;
+                        }
                         let start_line = self.finish_command(absolute_line, cmd);
                         self.last_recorded_history_len = history_len;
                         self.last_exit_code_line = Some(start_line);

@@ -291,7 +291,7 @@ impl CommandHistoryUI {
                 ui.separator();
                 ui.horizontal(|ui| {
                     ui.label("Hints:");
-                    ui.label("↑↓ Navigate");
+                    ui.label("\u{f062}\u{f063} Navigate");
                     ui.label("Enter Insert");
                     ui.label("Esc Close");
                 });
@@ -338,10 +338,13 @@ fn build_highlighted_label(
         Some(_) => egui::Color32::from_rgb(200, 100, 100), // Red for failure
         None => egui::Color32::from_rgb(150, 150, 150),    // Gray for unknown
     };
+    // Use Nerd Font PUA codepoints (confirmed in SymbolsNerdFontMono-Regular):
+    // U+F05D = fa-check-circle, U+F057 = fa-times-circle
+    // Unknown exit code falls back to ASCII '?' (always renderable)
     let status_char = match exit_code {
-        Some(0) => "● ",
-        Some(_) => "✗ ",
-        None => "○ ",
+        Some(0) => "\u{f05d} ",
+        Some(_) => "\u{f057} ",
+        None => "? ",
     };
     job.append(
         status_char,
