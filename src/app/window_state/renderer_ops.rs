@@ -54,11 +54,23 @@ impl WindowState {
         let height_px = (rows as f32 * cell_height) as usize;
 
         // Resize all tabs' terminals
+        let theme = self.config.load_theme();
         for tab in self.tab_manager.tabs_mut() {
             if let Ok(mut term) = tab.terminal.try_write() {
                 let _ = term.resize_with_pixels(cols, rows, width_px, height_px);
                 term.set_cell_dimensions(cell_width as u32, cell_height as u32);
-                term.set_theme(self.config.load_theme());
+                term.set_theme(theme.clone());
+            }
+            // Apply theme to split pane terminals (primary pane shares tab.terminal)
+            let tab_terminal = std::sync::Arc::clone(&tab.terminal);
+            if let Some(pm) = tab.pane_manager_mut() {
+                for pane in pm.all_panes() {
+                    if !std::sync::Arc::ptr_eq(&pane.terminal, &tab_terminal)
+                        && let Ok(mut term) = pane.terminal.try_write()
+                    {
+                        term.set_theme(theme.clone());
+                    }
+                }
             }
             tab.active_cache_mut().cells = None;
         }

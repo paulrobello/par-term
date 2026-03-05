@@ -64,13 +64,25 @@ impl WindowState {
                 // Update theme
                 if self.config.theme != new_config.theme {
                     self.config.theme = new_config.theme.clone();
-                    // Apply theme to all tabs
+                    // Apply theme to all tabs and all pane terminals
+                    let theme = new_config.load_theme();
                     for tab in self.tab_manager.tabs_mut() {
                         // try_lock: intentional — config reload (F5) runs in sync event loop.
                         // On miss: the tab's theme is not updated immediately. It will be
                         // applied on the next config reload or theme change event.
                         if let Ok(mut term) = tab.terminal.try_write() {
-                            term.set_theme(new_config.load_theme());
+                            term.set_theme(theme.clone());
+                        }
+                        // Apply to split pane terminals (primary pane shares tab.terminal)
+                        let tab_terminal = std::sync::Arc::clone(&tab.terminal);
+                        if let Some(pm) = tab.pane_manager_mut() {
+                            for pane in pm.all_panes() {
+                                if !std::sync::Arc::ptr_eq(&pane.terminal, &tab_terminal)
+                                    && let Ok(mut term) = pane.terminal.try_write()
+                                {
+                                    term.set_theme(theme.clone());
+                                }
+                            }
                         }
                     }
                     log::info!("Applied new theme: {}", new_config.theme);

@@ -488,6 +488,17 @@ impl WindowState {
                         if let Ok(mut term) = tab.terminal.try_write() {
                             term.set_theme(theme.clone());
                         }
+                        // Apply to split pane terminals (primary pane shares tab.terminal)
+                        let tab_terminal = std::sync::Arc::clone(&tab.terminal);
+                        if let Some(pm) = tab.pane_manager_mut() {
+                            for pane in pm.all_panes() {
+                                if !std::sync::Arc::ptr_eq(&pane.terminal, &tab_terminal)
+                                    && let Ok(mut term) = pane.terminal.try_write()
+                                {
+                                    term.set_theme(theme.clone());
+                                }
+                            }
+                        }
                         tab.active_cache_mut().cells = None;
                     }
                 }

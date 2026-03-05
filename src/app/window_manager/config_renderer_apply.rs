@@ -6,6 +6,8 @@
 //! `Config` to a single `WindowState` that already has its renderer initialised.
 //! Returns the shader-error results for propagation to the standalone settings window.
 
+use std::sync::Arc;
+
 use crate::app::window_state::WindowState;
 use crate::app::window_state::config_updates::ConfigChanges;
 use crate::config::{Config, resolve_shader_config};
@@ -220,13 +222,26 @@ pub(super) fn apply_renderer_config(
         window_state.focus_state.needs_redraw = true;
     }
 
-    // Apply theme changes
-    if changes.theme
-        && let Some(tab) = window_state.tab_manager.active_tab()
-    {
-        match tab.terminal.try_write() {
-            Ok(mut term) => term.set_theme(config.load_theme()),
-            Err(_) => crate::debug::record_try_lock_failure("theme_change"),
+    // Apply theme changes to all tabs and all pane terminals
+    if changes.theme {
+        let theme = config.load_theme();
+        for tab in window_state.tab_manager.tabs_mut() {
+            // Set theme on tab's primary terminal
+            if let Ok(mut term) = tab.terminal.try_write() {
+                term.set_theme(theme.clone());
+            }
+            // Set theme on additional split pane terminals (primary pane shares
+            // tab.terminal's Arc, so skip it to avoid double-locking)
+            let tab_terminal = Arc::clone(&tab.terminal);
+            if let Some(pm) = tab.pane_manager_mut() {
+                for pane in pm.all_panes() {
+                    if !Arc::ptr_eq(&pane.terminal, &tab_terminal)
+                        && let Ok(mut term) = pane.terminal.try_write()
+                    {
+                        term.set_theme(theme.clone());
+                    }
+                }
+            }
         }
     }
 
