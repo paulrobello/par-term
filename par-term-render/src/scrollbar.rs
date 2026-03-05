@@ -549,12 +549,6 @@ impl Scrollbar {
         self.width
     }
 
-    /// Returns the scrollbar width only when visible, 0 otherwise.
-    /// Used by layout calculations so hidden scrollbar doesn't reserve space.
-    pub fn visible_width(&self) -> f32 {
-        if self.visible { self.width } else { 0.0 }
-    }
-
     pub fn position_right(&self) -> bool {
         self.position_right
     }

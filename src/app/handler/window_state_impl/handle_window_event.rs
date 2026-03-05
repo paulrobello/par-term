@@ -210,7 +210,7 @@ impl WindowState {
 
             WindowEvent::Resized(physical_size) => {
                 if let Some(renderer) = &mut self.renderer {
-                    let (mut cols, mut rows) = renderer.resize(physical_size);
+                    let (cols, rows) = renderer.resize(physical_size);
 
                     // Calculate text area pixel dimensions
                     let cell_width = renderer.cell_width();
@@ -241,9 +241,7 @@ impl WindowState {
                         tab.active_cache_mut().cells = None;
                     }
 
-                    // Update scrollbar for active tab.
-                    // If scrollbar visibility changed, re-layout returns new grid size
-                    // (visible_width() changed → available width changed → cols may differ).
+                    // Update scrollbar for active tab
                     if let Some(tab) = self.tab_manager.active_tab() {
                         let total_lines = rows + tab.active_cache().scrollback_len;
                         // try_lock: intentional — scrollbar mark update during Resized event.
@@ -251,24 +249,12 @@ impl WindowState {
                         let marks = tab
                             .try_with_terminal(|term| term.scrollback_marks())
                             .unwrap_or_default();
-                        if let Some((new_cols, new_rows)) = renderer.update_scrollbar(
+                        renderer.update_scrollbar(
                             tab.active_scroll_state().offset,
                             rows,
                             total_lines,
                             &marks,
-                        ) {
-                            cols = new_cols;
-                            rows = new_rows;
-                            let width_px = (cols as f32 * renderer.cell_width()) as usize;
-                            let height_px = (rows as f32 * renderer.cell_height()) as usize;
-                            for tab in self.tab_manager.tabs_mut() {
-                                if let Ok(mut term) = tab.terminal.try_write() {
-                                    let _ =
-                                        term.resize_with_pixels(cols, rows, width_px, height_px);
-                                }
-                                tab.active_cache_mut().cells = None;
-                            }
-                        }
+                        );
                     }
 
                     // Update resize overlay state

@@ -108,14 +108,16 @@ impl CellRenderer {
         self.config.height = height;
         self.surface.configure(&self.device, &self.config);
 
+        // Match the pane render path formula (pane_render.rs:72-80) which is
+        // always active.  Width: no scrollbar (it overlays pane content).
+        // Height: 1× padding (top margin is content_offset_y, not padding).
         let available_width = (width as f32
             - self.grid.window_padding * 2.0
             - self.grid.content_offset_x
-            - self.grid.content_inset_right
-            - self.scrollbar.visible_width())
-        .max(0.0);
+            - self.grid.content_inset_right)
+            .max(0.0);
         let available_height = (height as f32
-            - self.grid.window_padding * 2.0
+            - self.grid.window_padding
             - self.grid.content_offset_y
             - self.grid.content_inset_bottom
             - self.grid.egui_bottom_inset)
@@ -138,18 +140,17 @@ impl CellRenderer {
 
     /// Returns total non-terminal pixel overhead as (horizontal_px, vertical_px).
     ///
-    /// Horizontal: window_padding*2 + content_offset_x + content_inset_right + scrollbar_width
-    /// Vertical:   window_padding*2 + content_offset_y + content_inset_bottom + egui_bottom_inset
+    /// Matches the pane render path formula (pane_render.rs:72-80) which is always active:
+    ///   Horizontal: window_padding*2 + content_offset_x + content_inset_right
+    ///   Vertical:   window_padding + content_offset_y + content_inset_bottom + egui_bottom_inset
     ///
-    /// Used by callers to compute the ideal snapped window size:
-    ///   snapped_w = chrome_x + cols * cell_width
-    ///   snapped_h = chrome_y + rows * cell_height
+    /// Note: scrollbar is NOT included — it overlays pane content, not adjacent to it.
+    /// Height uses 1× padding (bottom only; top margin is content_offset_y).
     pub fn chrome_overhead(&self) -> (f32, f32) {
         let chrome_x = self.grid.window_padding * 2.0
             + self.grid.content_offset_x
-            + self.grid.content_inset_right
-            + self.scrollbar.visible_width();
-        let chrome_y = self.grid.window_padding * 2.0
+            + self.grid.content_inset_right;
+        let chrome_y = self.grid.window_padding
             + self.grid.content_offset_y
             + self.grid.content_inset_bottom
             + self.grid.egui_bottom_inset;
