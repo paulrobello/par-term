@@ -335,7 +335,9 @@ impl WindowState {
                             if !detected_urls.is_empty() {
                                 let c = self.config.link_highlight_color;
                                 let url_color = [c[0], c[1], c[2], 255];
+                                let do_color = self.config.link_highlight_color_enabled;
                                 let do_underline = self.config.link_highlight_underline;
+                                let hovered_bounds = tab.active_mouse().hovered_url_bounds;
                                 for pane in &mut pane_data {
                                     if pane.viewport.focused {
                                         let cols = pane.grid_size.0;
@@ -345,10 +347,14 @@ impl WindowState {
                                                 continue;
                                             }
                                             let viewport_row = url.row - scroll_offset;
+                                            let is_hovered = hovered_bounds
+                                                == Some((url.row, url.start_col, url.end_col));
                                             for col in url.start_col..url.end_col {
                                                 let cell_idx = viewport_row * cols + col;
                                                 if cell_idx < pane.cells.len() {
-                                                    pane.cells[cell_idx].fg_color = url_color;
+                                                    if do_color && is_hovered {
+                                                        pane.cells[cell_idx].fg_color = url_color;
+                                                    }
                                                     if do_underline {
                                                         pane.cells[cell_idx].underline = true;
                                                     }

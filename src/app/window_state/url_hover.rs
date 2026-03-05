@@ -68,92 +68,82 @@ impl WindowState {
             }
         };
 
-        // Check if hover state needs to be cleared before taking mutable borrow.
-        // This resets the pointer cursor and title bar file info when content changes
-        // so they don't persist for files that have scrolled off screen.
-        let had_hovered_url = self
-            .tab_manager
-            .active_tab()
-            .is_some_and(|t| t.active_mouse().hovered_url.is_some());
-        if had_hovered_url && let Some(window) = &self.window {
-            window.set_cursor(winit::window::CursorIcon::Text);
-            let title = self.format_title(&self.config.window_title);
-            window.set_title(&title);
+        // Build new URL list into a local vec — keeps detected_urls stable
+        // until the full list is ready so there is no intermediate empty-list frame.
+        let mut new_urls: Vec<url_detection::DetectedUrl> = Vec::new();
+
+        for row in 0..rows {
+            let start_idx = row * cols;
+            let end_idx = start_idx.saturating_add(cols);
+            if end_idx > visible_cells.len() {
+                break;
+            }
+
+            let row_cells = &visible_cells[start_idx..end_idx];
+
+            // Build line text and byte-to-column mapping.
+            // Regex returns byte offsets into the string, but we need column
+            // indices for cell highlighting. When graphemes contain multi-byte
+            // UTF-8 (prompt icons, Unicode chars, etc.), byte offsets diverge
+            // from column positions.
+            let mut line = String::with_capacity(cols);
+            let mut byte_to_col: Vec<usize> = Vec::with_capacity(cols * 4);
+            for (col_idx, cell) in row_cells.iter().enumerate() {
+                for _ in 0..cell.grapheme.len() {
+                    byte_to_col.push(col_idx);
+                }
+                line.push_str(&cell.grapheme);
+            }
+            // Sentinel for end-of-string byte positions (exclusive end)
+            byte_to_col.push(cols);
+
+            let map_byte_to_col = |byte_offset: usize| -> usize {
+                byte_to_col.get(byte_offset).copied().unwrap_or(cols)
+            };
+
+            // Adjust row to account for scroll offset
+            let absolute_row = row + scroll_offset;
+
+            // Detect regex-based URLs in this line and convert byte offsets to columns
+            let regex_urls = url_detection::detect_urls_in_line(&line, absolute_row);
+            new_urls.extend(regex_urls.into_iter().map(|mut url| {
+                url.start_col = map_byte_to_col(url.start_col);
+                url.end_col = map_byte_to_col(url.end_col);
+                url
+            }));
+
+            // Detect OSC 8 hyperlinks in this row (already use column indices)
+            let osc8_urls =
+                url_detection::detect_osc8_hyperlinks(row_cells, absolute_row, &hyperlink_urls);
+            new_urls.extend(osc8_urls);
+
+            // Detect file paths for semantic history (if enabled)
+            if self.config.semantic_history_enabled {
+                let file_paths = url_detection::detect_file_paths_in_line(&line, absolute_row);
+                new_urls.extend(file_paths.into_iter().map(|mut fp| {
+                    crate::debug_trace!(
+                        "SEMANTIC",
+                        "Detected path: {:?} at cols {}..{} row {}",
+                        fp.url,
+                        map_byte_to_col(fp.start_col),
+                        map_byte_to_col(fp.end_col),
+                        fp.row
+                    );
+                    fp.start_col = map_byte_to_col(fp.start_col);
+                    fp.end_col = map_byte_to_col(fp.end_col);
+                    fp
+                }));
+            }
         }
 
-        // Clear and rebuild detected URLs
+        // Commit the new URL list.
+        // Hover state (hovered_url, hovered_url_bounds) and cursor are intentionally
+        // NOT touched here — mouse_move owns that state. On the next mouse-move event,
+        // mouse_move will verify the hovered URL still exists in the new list and clear
+        // hover + cursor if it has scrolled away. This avoids cursor flicker that would
+        // occur if we reset the cursor here and then had to restore it immediately after.
         if let Some(tab) = self.tab_manager.active_tab_mut() {
-            tab.active_mouse_mut().detected_urls.clear();
-            tab.active_mouse_mut().hovered_url = None;
-
-            // Extract text from each visible line and detect URLs
-            for row in 0..rows {
-                let start_idx = row * cols;
-                let end_idx = start_idx.saturating_add(cols);
-                if end_idx > visible_cells.len() {
-                    break;
-                }
-
-                let row_cells = &visible_cells[start_idx..end_idx];
-
-                // Build line text and byte-to-column mapping.
-                // Regex returns byte offsets into the string, but we need column
-                // indices for cell highlighting. When graphemes contain multi-byte
-                // UTF-8 (prompt icons, Unicode chars, etc.), byte offsets diverge
-                // from column positions.
-                let mut line = String::with_capacity(cols);
-                let mut byte_to_col: Vec<usize> = Vec::with_capacity(cols * 4);
-                for (col_idx, cell) in row_cells.iter().enumerate() {
-                    for _ in 0..cell.grapheme.len() {
-                        byte_to_col.push(col_idx);
-                    }
-                    line.push_str(&cell.grapheme);
-                }
-                // Sentinel for end-of-string byte positions (exclusive end)
-                byte_to_col.push(cols);
-
-                let map_byte_to_col = |byte_offset: usize| -> usize {
-                    byte_to_col.get(byte_offset).copied().unwrap_or(cols)
-                };
-
-                // Adjust row to account for scroll offset
-                let absolute_row = row + scroll_offset;
-
-                // Detect regex-based URLs in this line and convert byte offsets to columns
-                let regex_urls = url_detection::detect_urls_in_line(&line, absolute_row);
-                tab.active_mouse_mut()
-                    .detected_urls
-                    .extend(regex_urls.into_iter().map(|mut url| {
-                        url.start_col = map_byte_to_col(url.start_col);
-                        url.end_col = map_byte_to_col(url.end_col);
-                        url
-                    }));
-
-                // Detect OSC 8 hyperlinks in this row (already use column indices)
-                let osc8_urls =
-                    url_detection::detect_osc8_hyperlinks(row_cells, absolute_row, &hyperlink_urls);
-                tab.active_mouse_mut().detected_urls.extend(osc8_urls);
-
-                // Detect file paths for semantic history (if enabled)
-                if self.config.semantic_history_enabled {
-                    let file_paths = url_detection::detect_file_paths_in_line(&line, absolute_row);
-                    tab.active_mouse_mut()
-                        .detected_urls
-                        .extend(file_paths.into_iter().map(|mut fp| {
-                            crate::debug_trace!(
-                                "SEMANTIC",
-                                "Detected path: {:?} at cols {}..{} row {}",
-                                fp.url,
-                                map_byte_to_col(fp.start_col),
-                                map_byte_to_col(fp.end_col),
-                                fp.row
-                            );
-                            fp.start_col = map_byte_to_col(fp.start_col);
-                            fp.end_col = map_byte_to_col(fp.end_col);
-                            fp
-                        }));
-                }
-            }
+            tab.active_mouse_mut().detected_urls = new_urls;
         }
     }
 

@@ -138,6 +138,7 @@ impl Default for Config {
             semantic_history_editor_mode: SemanticHistoryEditorMode::default(),
             semantic_history_editor: crate::defaults::semantic_history_editor(),
             link_highlight_color: crate::defaults::link_highlight_color(),
+            link_highlight_color_enabled: crate::defaults::bool_true(),
             link_highlight_underline: crate::defaults::bool_true(),
             link_underline_style: crate::types::LinkUnderlineStyle::default(),
             link_handler_command: String::new(),

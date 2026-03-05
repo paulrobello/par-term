@@ -88,12 +88,27 @@ pub(super) fn show_semantic_history_section(
             ui.horizontal(|ui| {
                 ui.label("Link highlight color:");
                 let mut color = settings.config.link_highlight_color;
-                if ui.color_edit_button_srgb(&mut color).changed() {
-                    settings.config.link_highlight_color = color;
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
-                }
+                let color_enabled = settings.config.link_highlight_color_enabled;
+                ui.add_enabled_ui(color_enabled, |ui| {
+                    if ui.color_edit_button_srgb(&mut color).changed() {
+                        settings.config.link_highlight_color = color;
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
+                });
             });
+
+            if ui
+                .checkbox(
+                    &mut settings.config.link_highlight_color_enabled,
+                    "Change text color on hover",
+                )
+                .on_hover_text("Apply the highlight color to link text. Disable to underline only without changing the text color.")
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
 
             if ui
                 .checkbox(

@@ -15,6 +15,7 @@ pub struct MouseState {
     pub(crate) click_pixel_position: Option<(f64, f64)>, // Position of last click in pixels (for drag threshold)
     pub(crate) detected_urls: Vec<url_detection::DetectedUrl>, // URLs detected in visible terminal area
     pub(crate) hovered_url: Option<String>,                    // URL currently under mouse cursor
+    pub(crate) hovered_url_bounds: Option<(usize, usize, usize)>, // (row, start_col, end_col) of hovered URL
 
     // Divider drag state
     pub(crate) dragging_divider: Option<usize>, // Index of divider being dragged
@@ -41,6 +42,7 @@ impl MouseState {
             click_pixel_position: None,
             detected_urls: Vec::new(),
             hovered_url: None,
+            hovered_url_bounds: None,
             dragging_divider: None,
             divider_hover: false,
             hovered_divider_index: None,

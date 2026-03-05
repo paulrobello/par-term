@@ -789,6 +789,10 @@ pub struct Config {
     #[serde(default = "crate::defaults::link_highlight_color")]
     pub link_highlight_color: [u8; 3],
 
+    /// Apply color to highlighted links (URLs and file paths)
+    #[serde(default = "crate::defaults::bool_true")]
+    pub link_highlight_color_enabled: bool,
+
     /// Underline highlighted links (URLs and file paths)
     #[serde(default = "crate::defaults::bool_true")]
     pub link_highlight_underline: bool,

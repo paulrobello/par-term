@@ -72,6 +72,8 @@ impl WindowState {
                 if hovered_url.as_ref() != Some(&url.url) {
                     if let Some(tab) = self.tab_manager.active_tab_mut() {
                         tab.active_mouse_mut().hovered_url = Some(url.url.clone());
+                        tab.active_mouse_mut().hovered_url_bounds =
+                            Some((url.row, url.start_col, url.end_col));
                     }
                     if let Some(window) = &self.window {
                         // Visual feedback: hand pointer + URL tooltip in title
@@ -85,6 +87,7 @@ impl WindowState {
                 // Mouse left a URL area: restore default state
                 if let Some(tab) = self.tab_manager.active_tab_mut() {
                     tab.active_mouse_mut().hovered_url = None;
+                    tab.active_mouse_mut().hovered_url_bounds = None;
                 }
                 if let Some(window) = &self.window {
                     window.set_cursor(winit::window::CursorIcon::Text);

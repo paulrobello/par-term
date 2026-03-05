@@ -9,7 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- New `link_highlight_color_enabled` config option (default: `true`) and matching Settings UI checkbox ("Change text color on hover"). When disabled, detected URLs and file paths are underlined without changing the text colour — hover cursor change and underline decoration remain active.
+
 ### Fixed
+- URL/file hover cursor no longer flickers between pointer and iBeam on every render frame. `detect_urls` previously reset `hovered_url` and set the cursor to iBeam before rebuilding the URL list, relying on the next mouse-move event to restore the pointer; this caused a visible one-frame flicker on every cache-miss render. Hover/cursor state is now owned exclusively by `mouse_move` — `detect_urls` only updates `detected_urls`.
 - URL/file-path highlighting now correctly applies both foreground color and underline decoration in the pane render path. Detection was working but the visual styling was being applied to a discarded cell buffer; it is now applied directly to pane cells before GPU submission. Underline rendering was also missing entirely from the pane renderer and has been added.
 - Close-tab confirmation now detects running jobs via OS process tree inspection (same approach as iTerm2), eliminating the previous requirement for shell integration to be configured. Any direct child process of the shell that is not in `jobs_to_ignore` will trigger the confirmation dialog.
 - Close-tab/pane confirmation now routes through the full cleanup path on user confirmation, ensuring session undo capture, tab bar resize handling, alert sounds, and window-close detection all fire correctly.
