@@ -275,14 +275,28 @@ impl WindowState {
                     //
                     // Anti-loop guard: if this Resized event IS the response to our
                     // own request_inner_size call, skip — we're already at the snapped size.
+                    // We allow a ±1 px tolerance because the OS may round to even physical
+                    // pixels (e.g. Retina 2× requires integer logical pixels).
                     if let Some(pending) = self.pending_snap_size.take() {
-                        if pending != physical_size {
-                            // The OS landed on a different size than we requested (e.g. min/max
-                            // constraints). Restore the field so we try again next frame.
-                            self.pending_snap_size = Some(pending);
+                        let dw =
+                            (pending.width as i32 - physical_size.width as i32).unsigned_abs();
+                        let dh =
+                            (pending.height as i32 - physical_size.height as i32).unsigned_abs();
+                        if dw > 1 || dh > 1 {
+                            // Not our snap response (concurrent user drag or OS constraint).
+                            // Clear pending — the snap logic below will re-evaluate.
+                            crate::debug_info!(
+                                "RESIZE",
+                                "snap guard: pending {}x{} != physical {}x{} (dw={} dh={}), clearing",
+                                pending.width, pending.height,
+                                physical_size.width, physical_size.height,
+                                dw, dh
+                            );
                         }
                         // else: this resize was triggered by our own snap request — done.
-                    } else if self.config.snap_window_to_grid {
+                    }
+
+                    if self.pending_snap_size.is_none() && self.config.snap_window_to_grid {
                         // Only snap in single-pane mode (split pane handled separately).
                         let is_split = self
                             .tab_manager
@@ -296,6 +310,16 @@ impl WindowState {
                             let cell_h = renderer.cell_height();
                             let snapped_w = (chrome_x + cols as f32 * cell_w).round() as u32;
                             let snapped_h = (chrome_y + rows as f32 * cell_h).round() as u32;
+
+                            crate::debug_info!(
+                                "RESIZE",
+                                "snap: physical={}x{} snapped={}x{} chrome=({:.1},{:.1}) cell=({:.1},{:.1}) grid={}x{}",
+                                physical_size.width, physical_size.height,
+                                snapped_w, snapped_h,
+                                chrome_x, chrome_y,
+                                cell_w, cell_h,
+                                cols, rows
+                            );
 
                             if snapped_w != physical_size.width || snapped_h != physical_size.height
                             {
