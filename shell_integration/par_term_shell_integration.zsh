@@ -26,8 +26,9 @@ if [[ -o interactive ]]; then
     PAR_TERM_SHOULD_DECORATE_PROMPT="1"
 
     # OSC 133 ; C - Mark command execution start
+    # Optional $1: command text (passed by preexec hook)
     par_term_before_cmd_executes() {
-      printf "\033]133;C;\007"
+      printf "\033]133;C;%s\007" "${1:-}"
     }
 
     # Set a user-defined variable
@@ -139,11 +140,12 @@ if [[ -o interactive ]]; then
     }
 
     # Called before each command execution (not run if you press ^C)
+    # $1: the full command line (provided by zsh's preexec hook)
     par_term_preexec() {
       # Restore PS1 to its raw value before command execution
       PS1="$PAR_TERM_PRECMD_PS1"
       PAR_TERM_SHOULD_DECORATE_PROMPT="1"
-      par_term_before_cmd_executes
+      par_term_before_cmd_executes "$1"
     }
 
     # Cache hostname if not on macOS (where it can change with VPN)

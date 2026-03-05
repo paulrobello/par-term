@@ -246,15 +246,26 @@ impl WindowState {
             let pane_manager = tab.pane_manager()?;
             let focused_id = pane_manager.focused_pane_id()?;
             let pane = pane_manager.get_pane(focused_id)?;
-            // try_lock: intentional — same rationale as check_current_tab_running_job.
-            // On miss: pane closes without confirmation. Safe in practice.
-            let term = pane.terminal.try_write().ok()?;
+            // blocking_read: user-initiated close — must not silently skip confirmation.
+            // should_confirm_close() only needs &self; read lock is correct.
+            let term = pane.terminal.blocking_read();
+            log::info!(
+                "[CLOSE_CONFIRM] check_current_pane_running_job (split pane): marker={:?} command={:?}",
+                term.shell_integration_marker(),
+                term.shell_integration_command()
+            );
             return term.should_confirm_close(&self.config.jobs_to_ignore);
         }
 
-        // Single pane - use the tab's terminal
-        // try_lock: intentional — same rationale as above.
-        let term = tab.terminal.try_write().ok()?;
+        // Single pane - use the tab's terminal.
+        // blocking_read: user-initiated close — must not silently skip confirmation.
+        let term = tab.terminal.blocking_read();
+        log::info!(
+            "[CLOSE_CONFIRM] check_current_pane_running_job (single pane): marker={:?} command={:?} is_running={}",
+            term.shell_integration_marker(),
+            term.shell_integration_command(),
+            term.is_command_running()
+        );
         term.should_confirm_close(&self.config.jobs_to_ignore)
     }
 

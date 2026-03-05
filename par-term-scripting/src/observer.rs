@@ -72,6 +72,7 @@ impl ScriptEventForwarder {
             TerminalEvent::FileTransferCompleted { .. } => "file_transfer_completed".to_string(),
             TerminalEvent::FileTransferFailed { .. } => "file_transfer_failed".to_string(),
             TerminalEvent::UploadRequested { .. } => "upload_requested".to_string(),
+            TerminalEvent::ScreenCleared { .. } => "screen_cleared".to_string(),
         }
     }
 

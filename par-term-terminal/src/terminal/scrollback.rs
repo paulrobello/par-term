@@ -19,6 +19,25 @@ impl TerminalManager {
         let terminal = pty.terminal();
         let mut term = terminal.lock();
 
+        // Drain any screen-cleared events first.  When the visible screen (or
+        // scrollback) is cleared via ESC[2J / ESC[3J, the zone/mark metadata
+        // must be reset so the scrollbar no longer shows stale markers.
+        let clear_events = term.poll_screen_cleared_events();
+        if !clear_events.is_empty() {
+            let scrollback_also_cleared = clear_events.iter().any(|&sb| sb);
+            drop(term);
+            drop(terminal);
+            drop(pty);
+            self.scrollback_metadata.clear();
+            self.marker_tracker.reset();
+            if scrollback_also_cleared {
+                log::debug!("Scrollback cleared (ESC[3J): scrollback metadata reset");
+            } else {
+                log::debug!("Screen cleared (ESC[2J): scrollback metadata reset");
+            }
+            return;
+        }
+
         // Drain queued shell integration events with their recorded cursor positions.
         let shell_events = term.poll_shell_integration_events();
 

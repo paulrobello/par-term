@@ -427,8 +427,11 @@ impl WindowState {
 
         let (scrollback_marks, marks_override_scrollbar) = self.collect_scrollback_marks(&terminal);
 
-        // Keep scrollbar visible when mark indicators exist (even if no scrollback).
-        if marks_override_scrollbar {
+        // Keep scrollbar visible when mark indicators exist AND there is scrollback
+        // to navigate. Without scrollback there is nothing to scroll to, and showing
+        // a scrollbar (with marks from the current prompt line) would be misleading
+        // and visually indistinguishable from marks that belong to a different tab.
+        if marks_override_scrollbar && scrollback_len > 0 {
             show_scrollbar = true;
         }
 

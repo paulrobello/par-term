@@ -253,8 +253,9 @@ __par_term_preexec() {
     __par_term_last_ret_value="$?"
 
     # OSC 133 ; C - Mark command execution start
+    # $1 contains the command line (provided by bash-preexec)
     par_term_begin_osc
-    printf "133;C;"
+    printf "133;C;%s" "$1"
     par_term_end_osc
 
     # Restore PS1 if we modified it

@@ -148,6 +148,8 @@ impl WindowState {
     /// Close the current tab
     /// Returns true if the window should close (last tab was closed)
     pub fn close_current_tab(&mut self) -> bool {
+        log::info!("[CLOSE_TAB] close_current_tab called, confirm_close_running_jobs={}", self.config.confirm_close_running_jobs);
+
         // Check if we need to show confirmation for running jobs
         if self.config.confirm_close_running_jobs
             && let Some(command_name) = self.check_current_tab_running_job()
@@ -159,6 +161,7 @@ impl WindowState {
             } else {
                 tab.title.clone()
             };
+            log::info!("[CLOSE_TAB] Showing close confirmation for tab {} with running command: {}", tab_id, command_name);
             self.overlay_ui
                 .close_confirmation_ui
                 .show_for_tab(tab_id, &tab_title, &command_name);
@@ -167,6 +170,7 @@ impl WindowState {
             return false; // Don't close yet, waiting for confirmation
         }
 
+        log::info!("[CLOSE_TAB] No running job detected or confirmation disabled, closing immediately");
         self.close_current_tab_immediately()
     }
 

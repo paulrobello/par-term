@@ -200,7 +200,7 @@ impl Renderer {
         total_lines: usize,
         marks: &[par_term_config::ScrollbackMark],
     ) {
-        let new_state = (scroll_offset, visible_lines, total_lines);
+        let new_state = (scroll_offset, visible_lines, total_lines, marks.len());
         if new_state == self.last_scrollbar_state {
             return;
         }
@@ -513,7 +513,7 @@ impl Renderer {
             .update_scrollbar_appearance(physical_width, thumb_color, track_color);
         // Force the next update_scrollbar() call to re-upload GPU uniforms with new colors,
         // since uniform upload is normally skipped when scroll state hasn't changed.
-        self.last_scrollbar_state = (usize::MAX, 0, 0);
+        self.last_scrollbar_state = (usize::MAX, 0, 0, 0);
         self.dirty = true;
     }
 

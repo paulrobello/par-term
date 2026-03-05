@@ -43,8 +43,9 @@ if begin; status --is-interactive; and \
 
   # OSC 133 ; C - Mark command execution start
   # This runs automatically before each command via fish_preexec event
+  # $argv[1]: the command line being executed
   function par_term_preexec --on-event fish_preexec
-    printf "\033]133;C;\007"
+    printf "\033]133;C;%s\007" $argv[1]
   end
 
   # Set a user-defined variable

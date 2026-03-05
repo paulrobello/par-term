@@ -164,7 +164,7 @@ impl Renderer {
         for pane in panes.iter() {
             if pane.viewport.focused && pane.show_scrollbar {
                 let total_lines = pane.scrollback_len + pane.grid_size.1;
-                let new_state = (pane.scroll_offset, pane.grid_size.1, total_lines);
+                let new_state = (pane.scroll_offset, pane.grid_size.1, total_lines, pane.marks.len());
                 if new_state != self.last_scrollbar_state {
                     self.last_scrollbar_state = new_state;
                     self.cell_renderer.update_scrollbar_for_pane(

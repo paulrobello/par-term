@@ -6,6 +6,8 @@
 //! - `active_terminal` — accessor for the active tab's terminal
 //! - `check_current_tab_running_job` — running-job confirmation gate
 
+//! - Debug logging for close confirmation flow
+
 use std::sync::Arc;
 
 use super::super::window_state::WindowState;
@@ -95,11 +97,27 @@ impl WindowState {
     /// Returns Some(command_name) if confirmation should be shown, None otherwise.
     pub(super) fn check_current_tab_running_job(&self) -> Option<String> {
         let tab = self.tab_manager.active_tab()?;
-        // try_lock: intentional — called from sync event loop before showing close dialog.
-        // On miss (.ok() returns None): no job confirmation is shown, so tab closes without
-        // prompting. This is safe: users are extremely unlikely to close exactly when the
-        // lock is held by the PTY reader.
-        let term = tab.terminal.try_write().ok()?;
-        term.should_confirm_close(&self.config.jobs_to_ignore)
+        // blocking_read: user-initiated close — we must not silently skip confirmation.
+        // should_confirm_close() only needs &self so a shared read lock is correct.
+        // blocking_read() waits for any active writer (e.g. async key/mouse task) to
+        // finish rather than returning None and letting the tab close without prompting.
+        let term = tab.terminal.blocking_read();
+        log::info!(
+            "[CLOSE_CONFIRM] checking: confirm_close_running_jobs={} jobs_to_ignore_len={}",
+            self.config.confirm_close_running_jobs,
+            self.config.jobs_to_ignore.len()
+        );
+        let marker = term.shell_integration_marker();
+        let command_name = term.shell_integration_command();
+        let is_command_running = term.is_command_running();
+        log::info!(
+            "[CLOSE_CONFIRM] shell_integration: marker={:?} command_name={:?} is_command_running={}",
+            marker,
+            command_name,
+            is_command_running
+        );
+        let result = term.should_confirm_close(&self.config.jobs_to_ignore);
+        log::info!("[CLOSE_CONFIRM] should_confirm_close result={:?}", result);
+        result
     }
 }
