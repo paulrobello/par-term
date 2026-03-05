@@ -201,6 +201,11 @@ impl Renderer {
             marks.len(),
             self.cell_renderer.config.width,
             self.cell_renderer.config.height,
+            // No pane viewport in single-pane path — use zeros
+            0,
+            0,
+            0,
+            0,
         );
         if new_state == self.last_scrollbar_state {
             return;
@@ -514,7 +519,7 @@ impl Renderer {
             .update_scrollbar_appearance(physical_width, thumb_color, track_color);
         // Force the next update_scrollbar() call to re-upload GPU uniforms with new colors,
         // since uniform upload is normally skipped when scroll state hasn't changed.
-        self.last_scrollbar_state = (usize::MAX, 0, 0, 0, 0, 0);
+        self.last_scrollbar_state = (usize::MAX, 0, 0, 0, 0, 0, 0, 0, 0, 0);
         self.dirty = true;
     }
 

@@ -171,6 +171,12 @@ impl Renderer {
                     pane.marks.len(),
                     self.cell_renderer.config.width,
                     self.cell_renderer.config.height,
+                    // Include pane viewport bounds so splits/resizes trigger
+                    // a scrollbar geometry update (viewport changes position/size).
+                    pane.viewport.x.to_bits(),
+                    pane.viewport.y.to_bits(),
+                    pane.viewport.width.to_bits(),
+                    pane.viewport.height.to_bits(),
                 );
                 if new_state != self.last_scrollbar_state {
                     self.last_scrollbar_state = new_state;
