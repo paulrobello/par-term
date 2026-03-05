@@ -5,7 +5,7 @@ description: Ordered dithering effect using 4x4 Bayer matrix
 version: 1.0.0
 defaults:
   animation_speed: 0.5
-  brightness: null
+  brightness: 1.0
   text_opacity: null
   full_content: true
   channel0: ''

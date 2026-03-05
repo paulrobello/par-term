@@ -117,15 +117,106 @@ impl Renderer {
             }
         };
 
-        // If custom shader is enabled, render it to the content target
-        // (the shader's render pass will handle clearing the target)
-        if let Some(ref mut custom_shader) = self.custom_shader_renderer {
-            // Clear the intermediate texture to remove any old single-pane content
-            // This prevents the shader from displaying stale terminal content
+        // Determine if custom shader uses full content mode (shader processes terminal content)
+        let full_content_mode = self
+            .custom_shader_renderer
+            .as_ref()
+            .is_some_and(|s| s.full_content_mode());
+
+        // Full content mode: render pane content to the shader's intermediate texture
+        // BEFORE running the shader, so it can process terminal content via iChannel4.
+        // This must happen outside the `custom_shader_renderer` mutable borrow scope
+        // because rendering panes requires `&mut self`.
+        if full_content_mode {
+            let custom_shader = self.custom_shader_renderer.as_mut().unwrap();
             custom_shader.clear_intermediate_texture(
                 self.cell_renderer.device(),
                 self.cell_renderer.queue(),
             );
+            let intermediate_view = custom_shader.intermediate_texture_view().clone();
+
+            // Update scrollbar state before rendering panes to intermediate
+            for pane in panes.iter() {
+                if pane.viewport.focused && pane.show_scrollbar {
+                    let total_lines = pane.scrollback_len + pane.grid_size.1;
+                    let new_state = (
+                        pane.scroll_offset,
+                        pane.grid_size.1,
+                        total_lines,
+                        pane.marks.len(),
+                        self.cell_renderer.config.width,
+                        self.cell_renderer.config.height,
+                        pane.viewport.x.to_bits(),
+                        pane.viewport.y.to_bits(),
+                        pane.viewport.width.to_bits(),
+                        pane.viewport.height.to_bits(),
+                    );
+                    if new_state != self.last_scrollbar_state {
+                        self.last_scrollbar_state = new_state;
+                        self.cell_renderer.update_scrollbar_for_pane(
+                            pane.scroll_offset,
+                            pane.grid_size.1,
+                            total_lines,
+                            &pane.marks,
+                            &pane.viewport,
+                        );
+                    }
+                    break;
+                }
+            }
+
+            // Render each pane's content to the intermediate texture
+            for pane in panes.iter() {
+                let separator_marks = compute_visible_separator_marks(
+                    &pane.marks,
+                    pane.scrollback_len,
+                    pane.scroll_offset,
+                    pane.grid_size.1,
+                );
+                self.cell_renderer.render_pane_to_view(
+                    &intermediate_view,
+                    crate::cell_renderer::PaneRenderViewParams {
+                        viewport: &pane.viewport,
+                        cells: pane.cells,
+                        cols: pane.grid_size.0,
+                        rows: pane.grid_size.1,
+                        cursor_pos: pane.cursor_pos,
+                        cursor_opacity: pane.cursor_opacity,
+                        show_scrollbar: pane.show_scrollbar,
+                        clear_first: false,
+                        skip_background_image: true, // Shader handles background
+                        separator_marks: &separator_marks,
+                        pane_background: pane.background.as_ref(),
+                    },
+                )?;
+            }
+
+            // Render inline graphics to intermediate so shader can process them
+            for pane in panes.iter() {
+                if !pane.graphics.is_empty() {
+                    self.render_pane_sixel_graphics(
+                        &intermediate_view,
+                        &pane.viewport,
+                        &pane.graphics,
+                        pane.scroll_offset,
+                        pane.scrollback_len,
+                        pane.grid_size.1,
+                    )?;
+                }
+            }
+        }
+
+        // If custom shader is enabled, render it to the content target
+        // (the shader's render pass will handle clearing the target)
+        if let Some(ref mut custom_shader) = self.custom_shader_renderer {
+            if !full_content_mode {
+                // Background-only mode: clear intermediate texture (shader doesn't
+                // need terminal content, panes will be rendered on top)
+                custom_shader.clear_intermediate_texture(
+                    self.cell_renderer.device(),
+                    self.cell_renderer.queue(),
+                );
+            }
 
             // Render shader effect. When cursor shader is chained, render to cursor
             // shader's intermediate without applying opacity (cursor shader will do it).
@@ -180,79 +271,84 @@ impl Renderer {
             false
         };
 
-        // Update scrollbar state for the focused pane before rendering.
-        // In single-pane mode this is done in the main render loop; in split mode
-        // we must do it here, constrained to the pane's pixel bounds, so the
-        // track and thumb appear inside the focused pane rather than spanning
-        // the full window height/width.
-        for pane in panes.iter() {
-            if pane.viewport.focused && pane.show_scrollbar {
-                let total_lines = pane.scrollback_len + pane.grid_size.1;
-                let new_state = (
-                    pane.scroll_offset,
-                    pane.grid_size.1,
-                    total_lines,
-                    pane.marks.len(),
-                    self.cell_renderer.config.width,
-                    self.cell_renderer.config.height,
-                    // Include pane viewport bounds so splits/resizes trigger
-                    // a scrollbar geometry update (viewport changes position/size).
-                    pane.viewport.x.to_bits(),
-                    pane.viewport.y.to_bits(),
-                    pane.viewport.width.to_bits(),
-                    pane.viewport.height.to_bits(),
-                );
-                if new_state != self.last_scrollbar_state {
-                    self.last_scrollbar_state = new_state;
-                    self.cell_renderer.update_scrollbar_for_pane(
+        // In full content mode, panes were already rendered to the shader's intermediate
+        // texture and the shader output includes the processed terminal content.
+        // Skip re-rendering panes to the content view.
+        if !full_content_mode {
+            // Update scrollbar state for the focused pane before rendering.
+            // In single-pane mode this is done in the main render loop; in split mode
+            // we must do it here, constrained to the pane's pixel bounds, so the
+            // track and thumb appear inside the focused pane rather than spanning
+            // the full window height/width.
+            for pane in panes.iter() {
+                if pane.viewport.focused && pane.show_scrollbar {
+                    let total_lines = pane.scrollback_len + pane.grid_size.1;
+                    let new_state = (
                         pane.scroll_offset,
                         pane.grid_size.1,
                         total_lines,
-                        &pane.marks,
-                        &pane.viewport,
+                        pane.marks.len(),
+                        self.cell_renderer.config.width,
+                        self.cell_renderer.config.height,
+                        // Include pane viewport bounds so splits/resizes trigger
+                        // a scrollbar geometry update (viewport changes position/size).
+                        pane.viewport.x.to_bits(),
+                        pane.viewport.y.to_bits(),
+                        pane.viewport.width.to_bits(),
+                        pane.viewport.height.to_bits(),
                     );
+                    if new_state != self.last_scrollbar_state {
+                        self.last_scrollbar_state = new_state;
+                        self.cell_renderer.update_scrollbar_for_pane(
+                            pane.scroll_offset,
+                            pane.grid_size.1,
+                            total_lines,
+                            &pane.marks,
+                            &pane.viewport,
+                        );
+                    }
+                    break;
                 }
-                break;
             }
-        }
 
-        // Render each pane's content (skip background image since we rendered it full-screen)
-        for pane in panes {
-            let separator_marks = compute_visible_separator_marks(
-                &pane.marks,
-                pane.scrollback_len,
-                pane.scroll_offset,
-                pane.grid_size.1,
-            );
-            self.cell_renderer.render_pane_to_view(
-                content_view,
-                crate::cell_renderer::PaneRenderViewParams {
-                    viewport: &pane.viewport,
-                    cells: pane.cells,
-                    cols: pane.grid_size.0,
-                    rows: pane.grid_size.1,
-                    cursor_pos: pane.cursor_pos,
-                    cursor_opacity: pane.cursor_opacity,
-                    show_scrollbar: pane.show_scrollbar,
-                    clear_first: false, // Don't clear - we already cleared the surface
-                    skip_background_image: has_background_image || has_custom_shader,
-                    separator_marks: &separator_marks,
-                    pane_background: pane.background.as_ref(),
-                },
-            )?;
-        }
-
-        // Render inline graphics (Sixel/iTerm2/Kitty) for each pane, clipped to its bounds
-        for pane in panes {
-            if !pane.graphics.is_empty() {
-                self.render_pane_sixel_graphics(
-                    content_view,
-                    &pane.viewport,
-                    &pane.graphics,
-                    pane.scroll_offset,
+            // Render each pane's content (skip background image since we rendered it full-screen)
+            for pane in panes {
+                let separator_marks = compute_visible_separator_marks(
+                    &pane.marks,
                     pane.scrollback_len,
+                    pane.scroll_offset,
                     pane.grid_size.1,
+                );
+                self.cell_renderer.render_pane_to_view(
+                    content_view,
+                    crate::cell_renderer::PaneRenderViewParams {
+                        viewport: &pane.viewport,
+                        cells: pane.cells,
+                        cols: pane.grid_size.0,
+                        rows: pane.grid_size.1,
+                        cursor_pos: pane.cursor_pos,
+                        cursor_opacity: pane.cursor_opacity,
+                        show_scrollbar: pane.show_scrollbar,
+                        clear_first: false, // Don't clear - we already cleared the surface
+                        skip_background_image: has_background_image || has_custom_shader,
+                        separator_marks: &separator_marks,
+                        pane_background: pane.background.as_ref(),
+                    },
                 )?;
+            }
+
+            // Render inline graphics (Sixel/iTerm2/Kitty) for each pane, clipped to its bounds
+            for pane in panes {
+                if !pane.graphics.is_empty() {
+                    self.render_pane_sixel_graphics(
+                        content_view,
+                        &pane.viewport,
+                        &pane.graphics,
+                        pane.scroll_offset,
+                        pane.scrollback_len,
+                        pane.grid_size.1,
+                    )?;
+                }
             }
         }
 
