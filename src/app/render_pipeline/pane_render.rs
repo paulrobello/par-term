@@ -55,6 +55,11 @@ pub(super) type PaneRenderDataResult = Option<(
 /// from `tab_manager.active_tab_mut()`.
 ///
 /// Returns `None` when no pane manager is present or the tab is absent.
+/// # Arguments
+/// * `focused_scrollbar_inset` - Physical pixels to subtract from the focused pane's
+///   content width for the scrollbar.  Pass `scrollbar_width` when the scrollbar is
+///   visible, `0.0` when hidden.  This reduces the PTY column count so text wraps
+///   before the scrollbar rather than rendering behind it.
 pub(super) fn gather_pane_render_data(
     tab: &mut crate::tab::Tab,
     config: &Config,
@@ -62,6 +67,7 @@ pub(super) fn gather_pane_render_data(
     effective_pane_padding: f32,
     cursor_opacity: f32,
     pane_count: usize,
+    focused_scrollbar_inset: f32,
 ) -> PaneRenderDataResult {
     let effective_padding = if pane_count > 1 && config.hide_window_padding_on_split {
         0.0
@@ -92,20 +98,11 @@ pub(super) fn gather_pane_render_data(
     );
     pm.set_bounds(bounds);
 
-    // Scale title bar height from logical to physical pixels
-    let title_height_offset = if config.show_pane_titles {
-        config.pane_title_height * sizing.scale_factor
-    } else {
-        0.0
-    };
-
-    // Resize all pane terminals to match their new bounds
-    pm.resize_all_terminals_with_padding(
-        sizing.cell_width,
-        sizing.cell_height,
-        effective_pane_padding * sizing.scale_factor,
-        title_height_offset,
-    );
+    // Terminal resize is done per-pane in the loop below so the focused pane
+    // can subtract `focused_scrollbar_inset` from its column calculation.
+    // This avoids two competing resize calls that would cause SIGWINCH storms.
+    // Note: title_height_offset is not needed here because `viewport_height`
+    // (computed per-pane below) already subtracts the title bar height.
 
     let focused_pane_id = pm.focused_pane_id();
     let all_pane_ids: Vec<_> = pm.all_panes().iter().map(|p| p.id).collect();
@@ -152,6 +149,25 @@ pub(super) fn gather_pane_render_data(
         };
 
         let physical_pane_padding = effective_pane_padding * sizing.scale_factor;
+
+        // Compute grid size and resize the PTY BEFORE gathering cells so that
+        // get_cells_with_scrollback returns cells at the correct dimensions.
+        // The focused pane subtracts the scrollbar inset so text wraps before
+        // the scrollbar instead of rendering behind it.
+        let sb_inset = if is_focused { focused_scrollbar_inset } else { 0.0 };
+        let content_w =
+            (bounds.width - physical_pane_padding * 2.0 - sb_inset).max(sizing.cell_width);
+        let content_h = (viewport_height - physical_pane_padding * 2.0).max(sizing.cell_height);
+        let cols = ((content_w / sizing.cell_width).floor() as usize).max(1);
+        let rows = ((content_h / sizing.cell_height).floor() as usize).max(1);
+
+        pane.resize_terminal_with_cell_dims(
+            cols,
+            rows,
+            sizing.cell_width as u32,
+            sizing.cell_height as u32,
+        );
+
         let viewport = PaneViewport::with_padding(
             bounds.x,
             viewport_y,
@@ -249,12 +265,6 @@ pub(super) fn gather_pane_render_data(
         } else {
             None
         };
-
-        // Grid size must match the terminal's actual size
-        let content_w = (bounds.width - physical_pane_padding * 2.0).max(sizing.cell_width);
-        let content_h = (viewport_height - physical_pane_padding * 2.0).max(sizing.cell_height);
-        let cols = ((content_w / sizing.cell_width).floor() as usize).max(1);
-        let rows = ((content_h / sizing.cell_height).floor() as usize).max(1);
 
         // Collect inline graphics (Sixel/iTerm2/Kitty)
         let pane_graphics = if let Ok(term) = pane.terminal.try_write() {

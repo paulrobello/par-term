@@ -301,6 +301,7 @@ pub(super) fn update_gpu_renderer_state(
         padding: renderer.window_padding(),
         status_bar_height: (status_bar_height + custom_status_bar_height) * renderer.scale_factor(),
         scale_factor: renderer.scale_factor(),
+        scrollbar_width: renderer.scrollbar_width(),
     };
 
     GpuUploadResult {

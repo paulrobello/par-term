@@ -282,6 +282,11 @@ impl WindowState {
                         effective_pane_padding,
                         self.cursor_anim.cursor_opacity,
                         pane_count,
+                        if show_scrollbar {
+                            sizing.scrollbar_width
+                        } else {
+                            0.0
+                        },
                     )
                 });
 

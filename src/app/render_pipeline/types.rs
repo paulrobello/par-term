@@ -35,6 +35,7 @@ pub(crate) struct RendererSizing {
     pub(crate) padding: f32,
     pub(crate) status_bar_height: f32,
     pub(crate) scale_factor: f32,
+    pub(crate) scrollbar_width: f32,
 }
 
 /// Data computed during `gather_render_data()` and consumed by the rest of `render()`.

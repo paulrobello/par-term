@@ -595,6 +595,11 @@ impl Renderer {
         self.cell_renderer.window_padding()
     }
 
+    /// Get the scrollbar width in physical pixels
+    pub fn scrollbar_width(&self) -> f32 {
+        self.cell_renderer.scrollbar.width()
+    }
+
     /// Returns total non-terminal pixel overhead as (horizontal_px, vertical_px).
     /// See `CellRenderer::chrome_overhead` for details.
     pub fn chrome_overhead(&self) -> (f32, f32) {
