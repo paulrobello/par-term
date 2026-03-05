@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Cursor remaining visible and pinned to its terminal position while scrolling with the mouse wheel or scrollbar. The pane render path now hides the cursor whenever the viewport is scrolled into scrollback (`scroll_offset > 0`), matching the behaviour of the non-pane path.
+
 ### Added
 - Configurable visual bell flash color (`notification_visual_bell_color`, default: white `[255, 255, 255]`) with color picker in Settings → Notifications → Bell.
 - Dedicated visual bell shader (`visual_bell.wgsl`) for simple fullscreen quad rendering without vertex/instance buffers.

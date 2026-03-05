@@ -234,10 +234,15 @@ pub(super) fn gather_pane_render_data(
             None
         };
 
-        // Cursor position
-        let cursor_pos = if let Ok(term) = pane.terminal.try_write() {
-            if term.is_cursor_visible() {
-                Some(term.cursor_position())
+        // Cursor position — only show when viewport is not scrolled away from the live screen.
+        // When scroll_offset > 0 the cursor is off-screen (in scrollback), so hide it.
+        let cursor_pos = if scroll_offset == 0 {
+            if let Ok(term) = pane.terminal.try_write() {
+                if term.is_cursor_visible() {
+                    Some(term.cursor_position())
+                } else {
+                    None
+                }
             } else {
                 None
             }
