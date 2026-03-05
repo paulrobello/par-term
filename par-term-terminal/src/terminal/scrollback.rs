@@ -19,23 +19,27 @@ impl TerminalManager {
         let terminal = pty.terminal();
         let mut term = terminal.lock();
 
-        // Drain any screen-cleared events first.  When the visible screen (or
-        // scrollback) is cleared via ESC[2J / ESC[3J, the zone/mark metadata
-        // must be reset so the scrollbar no longer shows stale markers.
+        // Drain any screen-cleared events first.  Only reset scrollback mark
+        // metadata when the scrollback buffer itself was cleared (ESC[3J).
+        // A screen-only clear (ESC[2J, e.g. alt-screen entry) does not touch
+        // the scrollback, so existing marks remain valid and must be preserved.
         let clear_events = term.poll_screen_cleared_events();
         if !clear_events.is_empty() {
             let scrollback_also_cleared = clear_events.iter().any(|&sb| sb);
-            drop(term);
-            drop(terminal);
-            drop(pty);
-            self.scrollback_metadata.clear();
-            self.marker_tracker.reset();
             if scrollback_also_cleared {
+                drop(term);
+                drop(terminal);
+                drop(pty);
+                self.scrollback_metadata.clear();
+                self.marker_tracker.reset();
                 log::debug!("Scrollback cleared (ESC[3J): scrollback metadata reset");
-            } else {
-                log::debug!("Screen cleared (ESC[2J): scrollback metadata reset");
+                return;
             }
-            return;
+            // Screen-only clear (ESC[2J / alt-screen): reset in-progress command
+            // tracking so we don't attach a stale command start to a future mark,
+            // but keep the existing prompt marks visible on the scrollbar.
+            self.marker_tracker.reset();
+            log::debug!("Screen cleared (ESC[2J): keeping scrollback marks, resetting marker tracker");
         }
 
         // Drain queued shell integration events with their recorded cursor positions.
