@@ -188,7 +188,7 @@ pub struct Renderer {
     // Tuple: (scroll_offset, visible_lines, total_lines, marks_count).
     // marks_count prevents stale GPU mark data when switching between tabs that
     // share the same scroll position and line counts but have different marks.
-    pub(crate) last_scrollbar_state: (usize, usize, usize, usize),
+    pub(crate) last_scrollbar_state: (usize, usize, usize, usize, u32, u32),
 
     // Skip cursor shader when alt screen is active (TUI apps like vim, htop)
     pub(crate) cursor_shader_disabled_for_alt_screen: bool,
@@ -435,7 +435,7 @@ impl Renderer {
             cursor_shader_path: initial_cursor_shader_path,
             size,
             dirty: true, // Start dirty to ensure initial render
-            last_scrollbar_state: (usize::MAX, 0, 0, 0), // Force first update
+            last_scrollbar_state: (usize::MAX, 0, 0, 0, 0, 0), // Force first update
             cursor_shader_disabled_for_alt_screen: false,
             debug_text: None,
         })
@@ -678,7 +678,7 @@ impl Renderer {
             self.dirty = true;
             // Invalidate the scrollbar cache — the track height depends on
             // the bottom inset, so the scrollbar must be repositioned.
-            self.last_scrollbar_state = (usize::MAX, 0, 0, 0);
+            self.last_scrollbar_state = (usize::MAX, 0, 0, 0, 0, 0);
         }
         result
     }
@@ -705,7 +705,7 @@ impl Renderer {
             // the cache guard sees the same (scroll_offset, visible_lines,
             // total_lines) tuple and skips the GPU upload, leaving the
             // scrollbar stuck at the old position.
-            self.last_scrollbar_state = (usize::MAX, 0, 0, 0);
+            self.last_scrollbar_state = (usize::MAX, 0, 0, 0, 0, 0);
         }
         result
     }

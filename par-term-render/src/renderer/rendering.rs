@@ -169,6 +169,8 @@ impl Renderer {
                     pane.grid_size.1,
                     total_lines,
                     pane.marks.len(),
+                    self.cell_renderer.config.width,
+                    self.cell_renderer.config.height,
                 );
                 if new_state != self.last_scrollbar_state {
                     self.last_scrollbar_state = new_state;
