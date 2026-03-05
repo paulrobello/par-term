@@ -3862,9 +3862,9 @@ dependencies = [
 
 [[package]]
 name = "par-term-emu-core-rust"
-version = "0.39.4"
+version = "0.39.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2641c2a8fc6bda59f0c4b449eaf9738c315d617ac2f7afc8d11658a05f92be1c"
+checksum = "287c1516e17b3f46ac98742eccfc014ab1216cd7b0284a2459e4ba44597daa4f"
 dependencies = [
  "base64",
  "bitflags 2.11.0",
@@ -4034,6 +4034,7 @@ dependencies = [
  "par-term-config",
  "par-term-emu-core-rust",
  "parking_lot",
+ "sysinfo",
  "tempfile",
  "tokio",
 ]

@@ -39,7 +39,9 @@ impl TerminalManager {
             // tracking so we don't attach a stale command start to a future mark,
             // but keep the existing prompt marks visible on the scrollbar.
             self.marker_tracker.reset();
-            log::debug!("Screen cleared (ESC[2J): keeping scrollback marks, resetting marker tracker");
+            log::debug!(
+                "Screen cleared (ESC[2J): keeping scrollback marks, resetting marker tracker"
+            );
         }
 
         // Drain queued shell integration events with their recorded cursor positions.

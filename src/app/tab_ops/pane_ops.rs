@@ -218,7 +218,7 @@ impl WindowState {
 
     /// Close the focused pane immediately without confirmation
     /// Returns true if the window should close (last tab was closed).
-    pub(super) fn close_focused_pane_immediately(&mut self) -> bool {
+    pub(crate) fn close_focused_pane_immediately(&mut self) -> bool {
         if let Some(tab) = self.tab_manager.active_tab_mut()
             && tab.has_multiple_panes()
         {
