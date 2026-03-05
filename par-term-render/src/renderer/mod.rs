@@ -595,6 +595,12 @@ impl Renderer {
         self.cell_renderer.window_padding()
     }
 
+    /// Returns total non-terminal pixel overhead as (horizontal_px, vertical_px).
+    /// See `CellRenderer::chrome_overhead` for details.
+    pub fn chrome_overhead(&self) -> (f32, f32) {
+        self.cell_renderer.chrome_overhead()
+    }
+
     /// Get the vertical content offset in physical pixels (e.g., tab bar height scaled by DPI)
     pub fn content_offset_y(&self) -> f32 {
         self.cell_renderer.content_offset_y()

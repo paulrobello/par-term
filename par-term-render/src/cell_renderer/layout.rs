@@ -136,6 +136,26 @@ impl CellRenderer {
         (self.grid.cols, self.grid.rows)
     }
 
+    /// Returns total non-terminal pixel overhead as (horizontal_px, vertical_px).
+    ///
+    /// Horizontal: window_padding*2 + content_offset_x + content_inset_right + scrollbar_width
+    /// Vertical:   window_padding*2 + content_offset_y + content_inset_bottom + egui_bottom_inset
+    ///
+    /// Used by callers to compute the ideal snapped window size:
+    ///   snapped_w = chrome_x + cols * cell_width
+    ///   snapped_h = chrome_y + rows * cell_height
+    pub fn chrome_overhead(&self) -> (f32, f32) {
+        let chrome_x = self.grid.window_padding * 2.0
+            + self.grid.content_offset_x
+            + self.grid.content_inset_right
+            + self.scrollbar.width();
+        let chrome_y = self.grid.window_padding * 2.0
+            + self.grid.content_offset_y
+            + self.grid.content_inset_bottom
+            + self.grid.egui_bottom_inset;
+        (chrome_x, chrome_y)
+    }
+
     pub(crate) fn recreate_instance_buffers(&mut self) {
         self.buffers.max_bg_instances =
             self.grid.cols * self.grid.rows + 10 + self.grid.rows + self.grid.rows; // Extra slots for cursor overlays + separator lines + gutter indicators
