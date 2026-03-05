@@ -120,12 +120,23 @@ impl WindowState {
         let cell_width = renderer.cell_width() as f64;
         let cell_height = renderer.cell_height() as f64;
 
-        // Calculate physical pane padding (config is logical, scale for DPI)
+        // Calculate physical pane padding (config is logical, scale for DPI).
+        // Suppress padding when there is only one pane — no dividers means no padding needed.
         let scale = renderer.scale_factor() as f64;
-        let pane_padding = if self.is_gateway_active() {
+        let pane_count = self
+            .tab_manager
+            .active_tab()
+            .and_then(|t| t.pane_manager.as_ref())
+            .map(|pm| pm.pane_count())
+            .unwrap_or(0);
+        // In split mode: half divider width (to avoid overlap) + user padding, scaled to physical.
+        // Single-pane and tmux-gateway: zero padding.
+        let pane_padding = if self.is_gateway_active() || pane_count <= 1 {
             0.0
         } else {
-            self.config.pane_padding as f64 * scale
+            (self.config.pane_divider_width.unwrap_or(2.0) / 2.0 + self.config.pane_padding)
+                as f64
+                * scale
         };
 
         // Account for pane title bar if enabled

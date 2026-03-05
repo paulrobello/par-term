@@ -56,10 +56,21 @@ impl WindowState {
         // Note: pane_padding is in logical pixels (config); we defer DPI scaling to
         // where it's used with physical pixel coordinates (via sizing.scale_factor).
         let is_tmux_gateway = self.is_gateway_active();
-        let effective_pane_padding = if is_tmux_gateway {
+        // Compute pane_count early (only needs tab_manager, not renderer) so we can
+        // suppress padding when there is only one pane (no visible dividers).
+        let active_pane_count = self
+            .tab_manager
+            .active_tab()
+            .and_then(|t| t.pane_manager.as_ref())
+            .map(|pm| pm.pane_count())
+            .unwrap_or(0);
+        // In split mode, add half the divider width as a mandatory base so content
+        // doesn't render under the divider line, plus the user-configured extra padding.
+        // Single-pane and tmux-gateway modes use zero padding (no dividers present).
+        let effective_pane_padding = if is_tmux_gateway || active_pane_count <= 1 {
             0.0
         } else {
-            self.config.pane_padding
+            self.config.pane_divider_width.unwrap_or(2.0) / 2.0 + self.config.pane_padding
         };
 
         // Calculate status bar heights before mutable renderer borrow.
@@ -245,15 +256,9 @@ impl WindowState {
                 );
             }
 
-            // pane_manager is always initialized (even for single-pane tabs), so pane_count
-            // is always > 0 during normal operation. The unwrap_or(0) handles the edge case
-            // where there is no active tab at render time.
-            let pane_count = self
-                .tab_manager
-                .active_tab()
-                .and_then(|t| t.pane_manager.as_ref())
-                .map(|pm| pm.pane_count())
-                .unwrap_or(0);
+            // pane_count was already computed before the renderer borrow to inform
+            // effective_pane_padding; reuse it here.
+            let pane_count = active_pane_count;
 
             crate::debug_trace!("RENDER", "pane_count={}", pane_count);
 

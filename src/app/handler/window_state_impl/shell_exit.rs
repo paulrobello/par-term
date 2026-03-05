@@ -85,7 +85,6 @@ impl WindowState {
                 {
                     let cell_width = renderer.cell_width();
                     let cell_height = renderer.cell_height();
-                    let padding = self.config.pane_padding;
                     let title_offset = if self.config.show_pane_titles {
                         self.config.pane_title_height
                     } else {
@@ -95,6 +94,15 @@ impl WindowState {
                         if let Some(tab) = self.tab_manager.get_tab_mut(tab_id)
                             && let Some(pm) = tab.pane_manager_mut()
                         {
+                            // Suppress padding for single-pane tabs (no dividers).
+                            // In split mode, add half the divider width as base so content
+                            // doesn't render under the divider, plus the user-configured extra.
+                            let padding = if pm.pane_count() <= 1 {
+                                0.0
+                            } else {
+                                self.config.pane_divider_width.unwrap_or(2.0) / 2.0
+                                    + self.config.pane_padding
+                            };
                             pm.resize_all_terminals_with_padding(
                                 cell_width,
                                 cell_height,

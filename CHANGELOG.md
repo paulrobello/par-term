@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `make install-shell-integration` Makefile target to copy all three shell integration scripts (bash, zsh, fish) to `~/.config/par-term/`.
 - Expanded Nerd Font icon presets in Settings: added "UI Actions" (16 icons: Search, Edit, Copy, Clipboard, Cut, Trash, Plus, Close, Refresh, Filter, List, Link, External Link, Save, Apply, Ban/Cancel) and "Navigation" (16 icons: Arrow/Angle/Caret/Long Arrow/Reply/Level/Rotate variants) categories, plus 4 more icons in "Status & Alerts".
 
+### Changed
+- Pane padding no longer applies when there is only one pane (no splits); in split mode, an automatic base padding equal to half the divider width is added to prevent content rendering under the divider, with `pane_padding` config applied on top of that.
+- Default `pane_padding` changed from `4.0` to `1.0` pixels.
+- Default `window_padding` changed from `0.0` to `1.0` pixels.
+
 ### Fixed
 - Command history UI (`Cmd+R`) icons now render correctly: status icons were using standard Unicode geometric shapes (●, ✗, ○) not present in any font in the egui stack; replaced with confirmed Nerd Font PUA codepoints (`\u{f05d}` check-circle, `\u{f057}` times-circle) and ASCII `?` for unknown. Navigation hint arrows fixed the same way in command history, clipboard history, and paste-special UIs.
 - Command history and scrollbar marks now show the correct exit code for failed commands. Three layered fixes: (1) bash shell integration was capturing `$?=0` because `__bp_interactive_mode` ran between bash-preexec saving the real exit code and `__par_term_prompt_command` reading `$?`; fixed to use `${__bp_last_ret_value:-$?}`. (2) `ScrollbackMetadata::apply_event` now applies the D-marker exit code to the command snapshot when the core history is read before `end_command_execution` runs. (3) `CommandHistory::update_exit_code_if_unknown` now updates from any differing `Some` value (not only from `None`), so when scrollback marks are iterated oldest-first and the same command appears multiple times, the most-recent execution's exit code always wins.

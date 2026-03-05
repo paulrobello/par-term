@@ -33,7 +33,7 @@ pub fn max_fps() -> u32 {
 }
 
 pub fn window_padding() -> f32 {
-    0.0
+    1.0
 }
 
 pub fn window_opacity() -> f32 {

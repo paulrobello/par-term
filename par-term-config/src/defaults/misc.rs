@@ -330,7 +330,7 @@ pub fn pane_divider_hit_width() -> f32 {
 }
 
 pub fn pane_padding() -> f32 {
-    4.0 // 4 pixel padding inside panes (space between content and border/divider)
+    1.0 // 1 pixel padding inside panes (space between content and border/divider)
 }
 
 pub fn pane_min_size() -> usize {
