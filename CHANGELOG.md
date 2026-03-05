@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - `make install-shell-integration` Makefile target to copy all three shell integration scripts (bash, zsh, fish) to `~/.config/par-term/`.
 - Expanded Nerd Font icon presets in Settings: added "UI Actions" (16 icons: Search, Edit, Copy, Clipboard, Cut, Trash, Plus, Close, Refresh, Filter, List, Link, External Link, Save, Apply, Ban/Cancel) and "Navigation" (16 icons: Arrow/Angle/Caret/Long Arrow/Reply/Level/Rotate variants) categories, plus 4 more icons in "Status & Alerts".
+- New `snap_window_to_grid` config option (default: `true`) with Settings UI toggle under Window → Display. When enabled, the window snaps to exact terminal cell boundaries on resize, eliminating blank background gaps between the terminal grid and window edges. Disabled automatically in split-pane mode.
 
 ### Changed
 - Pane padding no longer applies when there is only one pane (no splits); in split mode, an automatic base padding equal to half the divider width is added to prevent content rendering under the divider, with `pane_padding` config applied on top of that.
