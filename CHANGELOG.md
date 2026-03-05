@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- URL/file-path highlighting now correctly applies both foreground color and underline decoration in the pane render path. Detection was working but the visual styling was being applied to a discarded cell buffer; it is now applied directly to pane cells before GPU submission. Underline rendering was also missing entirely from the pane renderer and has been added.
 - Close-tab confirmation now detects running jobs via OS process tree inspection (same approach as iTerm2), eliminating the previous requirement for shell integration to be configured. Any direct child process of the shell that is not in `jobs_to_ignore` will trigger the confirmation dialog.
 - Close-tab/pane confirmation now routes through the full cleanup path on user confirmation, ensuring session undo capture, tab bar resize handling, alert sounds, and window-close detection all fire correctly.
 - Cursor remaining visible and pinned to its terminal position while scrolling with the mouse wheel or scrollbar. The pane render path now hides the cursor whenever the viewport is scrolled into scrollback (`scroll_offset > 0`), matching the behaviour of the non-pane path.

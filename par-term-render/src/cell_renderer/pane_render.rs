@@ -1,5 +1,8 @@
 use super::block_chars;
-use super::instance_buffers::{CURSOR_BRIGHTNESS_THRESHOLD, HOLLOW_CURSOR_BORDER_PX};
+use super::instance_buffers::{
+    CURSOR_BRIGHTNESS_THRESHOLD, HOLLOW_CURSOR_BORDER_PX, STIPPLE_OFF_PX, STIPPLE_ON_PX,
+    UNDERLINE_HEIGHT_RATIO,
+};
 use super::{BackgroundInstance, Cell, CellRenderer, PaneViewport, TextInstance};
 use anyhow::Result;
 use par_term_config::{SeparatorMark, color_u8x4_rgb_to_f32, color_u8x4_rgb_to_f32_a};
@@ -838,6 +841,70 @@ impl CellRenderer {
                             tex_size: [info.width as f32 / 2048.0, info.height as f32 / 2048.0],
                             color: render_fg_color,
                             is_colored: if info.is_colored { 1 } else { 0 },
+                        };
+                        text_index += 1;
+                    }
+                }
+            }
+
+            // Underlines: emit a thin rectangle at the bottom of each underlined cell.
+            // Mirrors the logic in text_instance_builder.rs but uses pane-local coordinates.
+            {
+                let underline_thickness =
+                    (self.grid.cell_height * UNDERLINE_HEIGHT_RATIO).max(1.0).round();
+                let tex_offset = [
+                    self.atlas.solid_pixel_offset.0 as f32 / 2048.0,
+                    self.atlas.solid_pixel_offset.1 as f32 / 2048.0,
+                ];
+                let tex_size = [1.0 / 2048.0, 1.0 / 2048.0];
+                let y0 =
+                    content_y + (row + 1) as f32 * self.grid.cell_height - underline_thickness;
+                let ndc_y = 1.0 - (y0 / self.config.height as f32 * 2.0);
+                let ndc_h = underline_thickness / self.config.height as f32 * 2.0;
+                let is_stipple =
+                    self.link_underline_style == par_term_config::LinkUnderlineStyle::Stipple;
+                let stipple_period = STIPPLE_ON_PX + STIPPLE_OFF_PX;
+
+                for col_idx in 0..cols {
+                    if row_start + col_idx >= cells.len() {
+                        break;
+                    }
+                    let cell = &cells[row_start + col_idx];
+                    if !cell.underline {
+                        continue;
+                    }
+                    let fg = color_u8x4_rgb_to_f32_a(cell.fg_color, text_alpha);
+                    let cell_x0 = content_x + col_idx as f32 * self.grid.cell_width;
+
+                    if is_stipple {
+                        let mut px = 0.0;
+                        while px < self.grid.cell_width
+                            && text_index < self.buffers.max_text_instances
+                        {
+                            let seg_w = STIPPLE_ON_PX.min(self.grid.cell_width - px);
+                            let x = cell_x0 + px;
+                            self.text_instances[text_index] = TextInstance {
+                                position: [x / self.config.width as f32 * 2.0 - 1.0, ndc_y],
+                                size: [seg_w / self.config.width as f32 * 2.0, ndc_h],
+                                tex_offset,
+                                tex_size,
+                                color: fg,
+                                is_colored: 0,
+                            };
+                            text_index += 1;
+                            px += stipple_period;
+                        }
+                    } else if text_index < self.buffers.max_text_instances {
+                        self.text_instances[text_index] = TextInstance {
+                            position: [cell_x0 / self.config.width as f32 * 2.0 - 1.0, ndc_y],
+                            size: [
+                                self.grid.cell_width / self.config.width as f32 * 2.0,
+                                ndc_h,
+                            ],
+                            tex_offset,
+                            tex_size,
+                            color: fg,
+                            is_colored: 0,
                         };
                         text_index += 1;
                     }

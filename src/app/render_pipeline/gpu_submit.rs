@@ -324,6 +324,44 @@ impl WindowState {
                         }
                     }
 
+                    // Apply URL underlines to the focused pane's cells.
+                    // URL detection runs in gather_render_data and stores results in the
+                    // focused pane's mouse state. Pane cells are gathered independently,
+                    // so underlines must be applied here — same reason as search highlights.
+                    // (FrameRenderData.cells is invisible to the pane renderer; see MEMORY.md)
+                    {
+                        if let Some(tab) = self.tab_manager.active_tab() {
+                            let detected_urls = &tab.active_mouse().detected_urls;
+                            if !detected_urls.is_empty() {
+                                let c = self.config.link_highlight_color;
+                                let url_color = [c[0], c[1], c[2], 255];
+                                let do_underline = self.config.link_highlight_underline;
+                                for pane in &mut pane_data {
+                                    if pane.viewport.focused {
+                                        let cols = pane.grid_size.0;
+                                        let scroll_offset = pane.scroll_offset;
+                                        for url in detected_urls.iter() {
+                                            if url.row < scroll_offset {
+                                                continue;
+                                            }
+                                            let viewport_row = url.row - scroll_offset;
+                                            for col in url.start_col..url.end_col {
+                                                let cell_idx = viewport_row * cols + col;
+                                                if cell_idx < pane.cells.len() {
+                                                    pane.cells[cell_idx].fg_color = url_color;
+                                                    if do_underline {
+                                                        pane.cells[cell_idx].underline = true;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        break; // Only one focused pane
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     // Get hovered divider index for hover color rendering
                     let hovered_divider_index = self
                         .tab_manager
