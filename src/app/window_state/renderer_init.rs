@@ -189,7 +189,14 @@ impl RendererInitParams {
             background_image_enabled: config.background_image_enabled,
             background_image_mode: config.background_image_mode,
             background_image_opacity: config.background_image_opacity,
-            custom_shader_path: config.shader.custom_shader.clone(),
+            custom_shader_path: {
+                log::info!(
+                    "RendererInitParams: custom_shader={:?}, enabled={}",
+                    config.shader.custom_shader,
+                    config.shader.custom_shader_enabled
+                );
+                config.shader.custom_shader.clone()
+            },
             custom_shader_enabled: config.shader.custom_shader_enabled,
             custom_shader_animation: config.shader.custom_shader_animation,
             custom_shader_animation_speed: resolved.animation_speed,

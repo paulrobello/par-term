@@ -67,11 +67,18 @@ pub(super) fn init_custom_shader(
         cubemap_path: custom_shader_cubemap_path,
         use_background_as_channel0,
     } = params;
+    log::info!(
+        "[shader-init] init_custom_shader: enabled={}, path={:?}",
+        custom_shader_enabled,
+        custom_shader_path
+    );
     if !custom_shader_enabled {
+        log::info!("[shader-init] Skipping: custom_shader_enabled=false");
         return (None, None);
     }
 
     let Some(shader_path) = custom_shader_path else {
+        log::info!("[shader-init] Skipping: custom_shader_path is None");
         return (None, None);
     };
 
