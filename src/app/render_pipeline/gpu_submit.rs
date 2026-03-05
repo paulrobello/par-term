@@ -299,10 +299,9 @@ impl WindowState {
                 )) = pane_render_data
                 {
                     // Update tab cache with the focused pane's scrollback_len so that scroll
-                    // operations see the correct limit.
-                    if focused_pane_scrollback_len > 0
-                        && let Some(tab) = self.tab_manager.active_tab_mut()
-                    {
+                    // operations see the correct limit. Always write (even when 0) so
+                    // that a newly-split pane with no scrollback clears any stale value.
+                    if let Some(tab) = self.tab_manager.active_tab_mut() {
                         tab.active_cache_mut().scrollback_len = focused_pane_scrollback_len;
                     }
 

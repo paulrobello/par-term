@@ -403,15 +403,20 @@ impl WindowState {
         // incorrectly cap (or zero-out) the scroll offset every frame.  The correct
         // clamp happens later in the pane render path once we know the focused pane's
         // actual scrollback length.
-        let is_pane_mode = self
+        let has_multiple_panes = self
             .tab_manager
             .active_tab()
-            .and_then(|t| t.pane_manager.as_ref())
-            .map(|pm| pm.pane_count() > 0)
+            .map(|t| t.has_multiple_panes())
             .unwrap_or(false);
         if let Some(tab) = self.tab_manager.active_tab_mut() {
-            tab.active_cache_mut().scrollback_len = scrollback_len;
-            if !is_pane_mode {
+            // In multi-pane mode, tab.terminal may differ from the focused pane's
+            // terminal (e.g. after a split, the new pane has its own terminal).
+            // Writing tab.terminal's scrollback_len into the focused pane's cache
+            // would incorrectly show the original pane's scrollbar on the new pane.
+            // The correct per-pane scrollback_len is written later from
+            // gather_pane_render_data in gpu_submit.rs.
+            if !has_multiple_panes {
+                tab.active_cache_mut().scrollback_len = scrollback_len;
                 let sb_len = tab.active_cache().scrollback_len;
                 tab.active_scroll_state_mut().clamp_to_scrollback(sb_len);
             }
@@ -431,7 +436,10 @@ impl WindowState {
         // to navigate. Without scrollback there is nothing to scroll to, and showing
         // a scrollbar (with marks from the current prompt line) would be misleading
         // and visually indistinguishable from marks that belong to a different tab.
-        if marks_override_scrollbar && scrollback_len > 0 {
+        // In multi-pane mode, `scrollback_len` comes from tab.terminal which may
+        // differ from the focused pane's terminal; skip this override and let the
+        // per-pane scrollbar logic (should_show_scrollbar) handle it.
+        if marks_override_scrollbar && scrollback_len > 0 && !has_multiple_panes {
             show_scrollbar = true;
         }
 
