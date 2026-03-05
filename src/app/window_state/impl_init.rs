@@ -95,6 +95,8 @@ impl WindowState {
             update_state: UpdateState::default(),
 
             trigger_state: TriggerState::default(),
+
+            pending_snap_size: None,
         }
     }
 

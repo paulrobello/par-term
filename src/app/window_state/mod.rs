@@ -205,4 +205,11 @@ pub struct WindowState {
     // tmux integration
     // =========================================================================
     pub(crate) tmux_state: crate::app::tmux_handler::tmux_state::TmuxState,
+
+    // =========================================================================
+    // Window snap-to-grid
+    // =========================================================================
+    /// Tracks the last size we requested via `request_inner_size` for snap-to-grid.
+    /// Cleared once we receive a Resized event matching this size, preventing infinite re-snap.
+    pub(crate) pending_snap_size: Option<winit::dpi::PhysicalSize<u32>>,
 }
