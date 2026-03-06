@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Replace button on each saved arrangement row in Settings → Arrangements. Clicking Replace captures the current window layout and overwrites the saved arrangement in-place (preserving its name and list position), with an inline confirmation dialog before committing.
 - MP3 audio file support for alert sounds. Enabled rodio's `mp3` feature; settings UI hint text and doc comments updated to reflect WAV/MP3/OGG/FLAC.
 - File picker ("Browse…") button next to each alert sound file path field in Settings → Notifications → Alert Sounds, with audio file filter (WAV, MP3, OGG, FLAC, AAC, M4A).
 - `make install-shell-integration` Makefile target to copy all three shell integration scripts (bash, zsh, fish) to `~/.config/par-term/`.
