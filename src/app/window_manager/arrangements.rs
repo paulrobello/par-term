@@ -37,6 +37,45 @@ impl WindowManager {
         self.sync_arrangements_to_settings();
     }
 
+    /// Replace the content of an existing arrangement with the current window layout.
+    ///
+    /// Preserves the arrangement's ID, name, and display order.
+    pub fn replace_arrangement(&mut self, id: ArrangementId, event_loop: &ActiveEventLoop) {
+        let name = match self.arrangement_manager.get(&id) {
+            Some(a) => a.name.clone(),
+            None => {
+                log::error!("replace_arrangement: arrangement not found: {}", id);
+                return;
+            }
+        };
+
+        let original_order = self
+            .arrangement_manager
+            .get(&id)
+            .map(|a| a.order)
+            .unwrap_or(0);
+
+        let mut new_arrangement = crate::arrangements::capture::capture_arrangement(
+            name.clone(),
+            &self.windows,
+            event_loop,
+        );
+        new_arrangement.id = id;
+        new_arrangement.order = original_order;
+
+        log::info!(
+            "Replaced arrangement '{}' with current layout ({} windows)",
+            name,
+            new_arrangement.windows.len()
+        );
+
+        self.arrangement_manager.update(new_arrangement);
+        if let Err(e) = crate::arrangements::storage::save_arrangements(&self.arrangement_manager) {
+            log::error!("Failed to save arrangements after replace: {}", e);
+        }
+        self.sync_arrangements_to_settings();
+    }
+
     /// Restore a saved arrangement by ID.
     ///
     /// Closes all existing windows and creates new ones according to the arrangement.

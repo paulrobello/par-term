@@ -385,6 +385,8 @@ pub struct SettingsUI {
     pub arrangement_confirm_delete: Option<ArrangementId>,
     /// Name pending overwrite confirmation (when saving with duplicate name)
     pub arrangement_confirm_overwrite: Option<String>,
+    /// Arrangement ID pending replace confirmation
+    pub arrangement_confirm_replace: Option<ArrangementId>,
     /// Arrangement ID being renamed
     pub arrangement_rename_id: Option<ArrangementId>,
     /// Text buffer for rename operation

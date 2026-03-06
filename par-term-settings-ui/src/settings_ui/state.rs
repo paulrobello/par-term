@@ -220,6 +220,7 @@ impl SettingsUI {
             arrangement_confirm_restore: None,
             arrangement_confirm_delete: None,
             arrangement_confirm_overwrite: None,
+            arrangement_confirm_replace: None,
             arrangement_rename_id: None,
             arrangement_rename_text: String::new(),
             pending_arrangement_actions: Vec::new(),

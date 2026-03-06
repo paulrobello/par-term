@@ -121,6 +121,7 @@ fn show_arrangements_list(
             // Show confirmation dialogs
             show_confirm_restore_dialog(ui, settings);
             show_confirm_delete_dialog(ui, settings);
+            show_confirm_replace_dialog(ui, settings);
             show_rename_dialog(ui, settings);
         },
     );
@@ -181,6 +182,9 @@ pub fn show_arrangements_with_manager(
 
                 if ui.small_button("Delete").clicked() {
                     settings.arrangement_confirm_delete = Some(id);
+                }
+                if ui.small_button("Replace").clicked() {
+                    settings.arrangement_confirm_replace = Some(id);
                 }
                 if ui.small_button("Rename").clicked() {
                     settings.arrangement_rename_id = Some(id);
@@ -293,6 +297,40 @@ fn show_confirm_delete_dialog(ui: &mut egui::Ui, settings: &mut SettingsUI) {
                 }
                 if ui.button("Cancel").clicked() {
                     settings.arrangement_confirm_delete = None;
+                }
+            });
+        });
+    }
+}
+
+fn show_confirm_replace_dialog(ui: &mut egui::Ui, settings: &mut SettingsUI) {
+    if let Some(id) = settings.arrangement_confirm_replace {
+        let name = settings
+            .arrangement_manager
+            .get(&id)
+            .map(|a| a.name.clone())
+            .unwrap_or_else(|| "this arrangement".to_string());
+
+        ui.add_space(8.0);
+        ui.group(|ui| {
+            ui.label(
+                egui::RichText::new(format!(
+                    "Replace \"{}\" with the current window layout?",
+                    name
+                ))
+                .strong()
+                .color(egui::Color32::from_rgb(255, 193, 7)),
+            );
+            ui.label("This cannot be undone.");
+            ui.horizontal(|ui| {
+                if ui.button("Replace").clicked() {
+                    settings
+                        .pending_arrangement_actions
+                        .push(SettingsWindowAction::ReplaceArrangement(id));
+                    settings.arrangement_confirm_replace = None;
+                }
+                if ui.button("Cancel").clicked() {
+                    settings.arrangement_confirm_replace = None;
                 }
             });
         });

@@ -137,6 +137,8 @@ pub enum SettingsWindowAction {
     MoveArrangementUp(ArrangementId),
     /// Move a saved window arrangement one position down in the list
     MoveArrangementDown(ArrangementId),
+    /// Replace a saved window arrangement with the current window layout
+    ReplaceArrangement(ArrangementId),
     /// User requested an immediate update check
     ForceUpdateCheck,
     /// User requested to install the available update

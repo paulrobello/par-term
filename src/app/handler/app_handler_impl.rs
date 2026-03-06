@@ -141,6 +141,9 @@ impl ApplicationHandler for WindowManager {
                     SettingsWindowAction::MoveArrangementDown(id) => {
                         self.move_arrangement_down(id);
                     }
+                    SettingsWindowAction::ReplaceArrangement(id) => {
+                        self.replace_arrangement(id, event_loop);
+                    }
                     SettingsWindowAction::ForceUpdateCheck => {
                         self.force_update_check_for_settings();
                     }
