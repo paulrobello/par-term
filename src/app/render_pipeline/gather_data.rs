@@ -214,6 +214,14 @@ impl WindowState {
             }
         }
 
+        // Fire CommandComplete alert sound for any finished commands.
+        if shell_lifecycle_events
+            .iter()
+            .any(|e| matches!(e, par_term_terminal::ShellLifecycleEvent::CommandFinished { .. }))
+        {
+            self.play_alert_sound(crate::config::AlertEvent::CommandComplete);
+        }
+
         // Feed terminal output lines to the prettifier pipeline (gated on content changes).
         // Skip per-frame viewport feed for CommandOutput scope — it reads full output
         // from scrollback on CommandFinished instead.

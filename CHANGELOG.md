@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- MP3 audio file support for alert sounds. Enabled rodio's `mp3` feature; settings UI hint text and doc comments updated to reflect WAV/MP3/OGG/FLAC.
 - File picker ("Browse…") button next to each alert sound file path field in Settings → Notifications → Alert Sounds, with audio file filter (WAV, MP3, OGG, FLAC, AAC, M4A).
 - `make install-shell-integration` Makefile target to copy all three shell integration scripts (bash, zsh, fish) to `~/.config/par-term/`.
 - Expanded Nerd Font icon presets in Settings: added "UI Actions" (16 icons: Search, Edit, Copy, Clipboard, Cut, Trash, Plus, Close, Refresh, Filter, List, Link, External Link, Save, Apply, Ban/Cancel) and "Navigation" (16 icons: Arrow/Angle/Caret/Long Arrow/Reply/Level/Rotate variants) categories, plus 4 more icons in "Status & Alerts".
@@ -22,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed unused cursor shader parameter controls (Trail duration, Glow radius, Glow intensity) from Settings UI — no built-in shader reads these uniforms.
 
 ### Fixed
+- Command complete alert sound now plays when a command finishes. `ShellLifecycleEvent::CommandFinished` events were forwarded to the prettifier but `play_alert_sound(AlertEvent::CommandComplete)` was never called, so the configured sound was silently ignored.
 - PTY child processes no longer inherit `TMUX`, `TMUX_PANE`, `STY`, or `WINDOW` environment variables from the parent terminal. This prevents tools like fzf from rendering in the parent tmux pane instead of inside par-term. (core library 0.39.8)
 - Custom shaders section in Settings → Integrations always showed "Not installed" even when shaders were present. The five shader callback functions (`has_files`, `count_files`, `detect_modified`, `install`, `uninstall`) were never wired from the main crate to the settings UI, so all defaulted to `None`. Install, Reinstall, and Uninstall buttons now work correctly.
 - Badge overlay now accounts for tab bar, status bar, scrollbar, and AI inspector panel when positioning, so it no longer overlaps surrounding UI elements.

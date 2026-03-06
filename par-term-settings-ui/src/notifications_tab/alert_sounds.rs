@@ -118,7 +118,7 @@ pub(super) fn show_alert_sounds_section(
                             let response = ui.add_sized(
                                 [SLIDER_WIDTH, SLIDER_HEIGHT],
                                 egui::TextEdit::singleline(&mut file_str)
-                                    .hint_text("(optional WAV/OGG/FLAC path)"),
+                                    .hint_text("(optional WAV/MP3/OGG/FLAC path)"),
                             );
                             if response.changed() {
                                 cfg.sound_file = if file_str.is_empty() {

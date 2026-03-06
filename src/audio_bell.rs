@@ -88,7 +88,7 @@ impl AudioBell {
         sink.append(source);
     }
 
-    /// Play a sound file (WAV/OGG/FLAC) at the specified volume
+    /// Play a sound file (WAV/MP3/OGG/FLAC) at the specified volume
     ///
     /// # Arguments
     /// * `volume` - Volume level from 0 to 100

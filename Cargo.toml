@@ -122,7 +122,7 @@ open = "5.3.3"  # Cross-platform URL opener
 shell-words = "1.1"  # Safe shell command parsing (prevents argument injection)
 
 # Audio playback for bell sound
-rodio = "0.22.1"
+rodio = { version = "0.22.1", features = ["mp3"] }
 
 # Desktop notifications
 notify-rust = "4.12"
