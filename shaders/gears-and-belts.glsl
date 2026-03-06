@@ -379,15 +379,11 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     float size = 4.;
     vec3 col = vec3(0.);
     
-    // Modify the colors to be darker by multiplying with a small factor
-    vec3 darkFactor = vec3(.5); // This makes everything 50% as bright
-    
-    // Get the original colors but make them darker
-    col = drawBelt(p, col, size) * darkFactor;
-    col = drawGearsAndItems(p, col, size) * darkFactor;
-    
-    // Color tint to make it less stark white
-    vec3 tint = vec3(0.1, 0.12, 0.15);
+    col = drawBelt(p, col, size);
+    col = drawGearsAndItems(p, col, size);
+
+    // Cool metallic tint
+    vec3 tint = vec3(0.5, 0.6, 0.75);
 
     fragColor = vec4(col * tint, 1.0);
 }
