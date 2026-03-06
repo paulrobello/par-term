@@ -190,6 +190,7 @@ impl WindowState {
                 visible_lines,
                 scrollback_len,
                 any_modal_visible,
+                show_scrollbar,
             })
         } else {
             None

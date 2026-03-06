@@ -380,15 +380,27 @@ pub fn decode_badge_format(base64_format: &str) -> Option<String> {
     Some(format)
 }
 
+/// Insets describing space consumed by surrounding UI elements (in logical pixels).
+pub struct BadgeInsets {
+    /// Space consumed at the top (e.g., tab bar when positioned at top).
+    pub top: f32,
+    /// Space consumed at the bottom (e.g., status bars, tab bar when at bottom).
+    pub bottom: f32,
+    /// Space consumed on the right (e.g., AI inspector panel).
+    pub right: f32,
+}
+
 /// Render badge using egui
 ///
 /// This function renders the badge as a semi-transparent overlay in the top-right
-/// corner of the terminal window.
+/// corner of the terminal content area, offset by insets for the tab bar,
+/// status bar, assistant panel, etc.
 pub fn render_badge(
     ctx: &egui::Context,
     badge: &BadgeState,
     window_width: f32,
     _window_height: f32,
+    insets: &BadgeInsets,
 ) {
     if !badge.enabled || badge.rendered_text.is_empty() {
         return;
@@ -405,9 +417,10 @@ pub fn render_badge(
     // Use a large font for badge
     let font_id = egui::FontId::new(24.0, egui::FontFamily::Proportional);
 
-    // Create an area for the badge in the top-right corner
+    // Create an area for the badge in the top-right corner (offset by top inset)
+    let top_offset = badge.top_margin + insets.top;
     egui::Area::new(egui::Id::new("badge_overlay"))
-        .fixed_pos(egui::pos2(0.0, badge.top_margin))
+        .fixed_pos(egui::pos2(0.0, top_offset))
         .order(egui::Order::Foreground)
         .interactable(false)
         .show(ctx, |ui| {
@@ -423,9 +436,9 @@ pub fn render_badge(
                 egui::Color32::TRANSPARENT, // Invisible measurement
             );
 
-            // Calculate actual position (right-aligned with margin)
-            let x = window_width - text_rect.width() - badge.right_margin;
-            let y = badge.top_margin;
+            // Calculate actual position (right-aligned with margin, offset by right inset)
+            let x = window_width - text_rect.width() - badge.right_margin - insets.right;
+            let y = top_offset;
 
             // Draw the actual badge text
             ui.painter().text(

@@ -96,6 +96,7 @@ pub fn show_styling_section(
                     egui::TextEdit::singleline(
                         &mut settings.config.status_bar.status_bar_separator,
                     )
+                    .font(egui::TextStyle::Monospace)
                     .hint_text(" | ")
                     .desired_width(80.0),
                 )

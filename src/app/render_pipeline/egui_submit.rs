@@ -8,7 +8,7 @@
 use super::egui_overlays;
 use super::types::PostRenderActions;
 use crate::app::window_state::WindowState;
-use crate::badge::render_badge;
+use crate::badge::{BadgeInsets, render_badge};
 use crate::progress_bar::{ProgressBarSnapshot, render_progress_bars};
 
 /// Parameters for [`WindowState::render_egui_frame`], bundled to stay within
@@ -21,6 +21,7 @@ pub(super) struct RenderEguiParams<'a> {
     pub(super) visible_lines: usize,
     pub(super) scrollback_len: usize,
     pub(super) any_modal_visible: bool,
+    pub(super) show_scrollbar: bool,
 }
 
 impl WindowState {
@@ -41,6 +42,7 @@ impl WindowState {
             visible_lines,
             scrollback_len,
             any_modal_visible,
+            show_scrollbar,
         } = params;
         let egui_start = std::time::Instant::now();
 
@@ -77,6 +79,12 @@ impl WindowState {
             None
         };
 
+        // Capture values for badge insets (before egui borrow to avoid method-call borrows)
+        let badge_is_tmux = self.is_tmux_connected();
+        let badge_tmux_sb_height =
+            crate::tmux_status_bar_ui::TmuxStatusBarUI::height(&self.config, badge_is_tmux);
+        let badge_custom_sb_height = self.status_bar_ui.height(&self.config, self.is_fullscreen);
+
         // Collect pane bounds for identify overlay (before egui borrow)
         let pane_identify_bounds: Vec<(usize, crate::pane::PaneBounds)> =
             if self.overlay_state.pane_identify_hide_time.is_some() {
@@ -95,29 +103,28 @@ impl WindowState {
                 Vec::new()
             };
 
-        let result =
-            if let Some(window) = self.window.as_ref() {
-                if let (Some(egui_ctx), Some(egui_state)) = (&self.egui.ctx, &mut self.egui.state) {
-                    let mut raw_input = egui_state.take_egui_input(window);
+        let result = if let Some(window) = self.window.as_ref() {
+            if let (Some(egui_ctx), Some(egui_state)) = (&self.egui.ctx, &mut self.egui.state) {
+                let mut raw_input = egui_state.take_egui_input(window);
 
-                    // Inject pending events from menu accelerators (Cmd+V/C/A intercepted by muda)
-                    raw_input.events.append(&mut self.egui.pending_events);
+                // Inject pending events from menu accelerators (Cmd+V/C/A intercepted by muda)
+                raw_input.events.append(&mut self.egui.pending_events);
 
-                    // When no modal UI overlay is visible, filter out Tab key events to prevent
-                    // egui's default focus navigation from stealing Tab/Shift+Tab from the terminal.
-                    if !any_modal_visible {
-                        raw_input.events.retain(|e| {
-                            !matches!(
-                                e,
-                                egui::Event::Key {
-                                    key: egui::Key::Tab,
-                                    ..
-                                }
-                            )
-                        });
-                    }
+                // When no modal UI overlay is visible, filter out Tab key events to prevent
+                // egui's default focus navigation from stealing Tab/Shift+Tab from the terminal.
+                if !any_modal_visible {
+                    raw_input.events.retain(|e| {
+                        !matches!(
+                            e,
+                            egui::Event::Key {
+                                key: egui::Key::Tab,
+                                ..
+                            }
+                        )
+                    });
+                }
 
-                    let egui_output = egui_ctx.run(raw_input, |ctx| {
+                let egui_output = egui_ctx.run(raw_input, |ctx| {
                     // FPS overlay (top-right corner)
                     egui_overlays::render_fps_overlay(ctx, show_fps, fps_value, frame_time_ms);
 
@@ -212,7 +219,9 @@ impl WindowState {
 
                     // Show search UI and collect action
                     actions.search =
-                        self.overlay_ui.search_ui.show(ctx, visible_lines, scrollback_len);
+                        self.overlay_ui
+                            .search_ui
+                            .show(ctx, visible_lines, scrollback_len);
 
                     // Show AI Inspector panel and collect action
                     actions.inspector = self
@@ -353,25 +362,54 @@ impl WindowState {
                         ctx,
                     );
 
-                    // Render badge overlay (top-right corner)
+                    // Render badge overlay (top-right corner, offset by UI insets)
                     if let (Some(badge), Some(size)) = (&badge_state, window_size_for_badge) {
-                        render_badge(ctx, badge, size.width as f32, size.height as f32);
+                        let tab_count = self.tab_manager.tab_count();
+                        let tb_height = self.tab_bar_ui.get_height(tab_count, &self.config);
+
+                        let top_inset = match self.config.tab_bar_position {
+                            par_term_config::TabBarPosition::Top => tb_height,
+                            _ => 0.0,
+                        };
+                        let bottom_inset = match self.config.tab_bar_position {
+                            par_term_config::TabBarPosition::Bottom => tb_height,
+                            _ => 0.0,
+                        } + badge_tmux_sb_height
+                            + badge_custom_sb_height;
+                        let scrollbar_inset = if show_scrollbar {
+                            self.config.scrollbar_width + 2.0
+                        } else {
+                            0.0
+                        };
+                        let right_inset = scrollbar_inset
+                            + if self.overlay_ui.ai_inspector.open {
+                                self.overlay_ui.ai_inspector.consumed_width()
+                            } else {
+                                0.0
+                            };
+
+                        let insets = BadgeInsets {
+                            top: top_inset,
+                            bottom: bottom_inset,
+                            right: right_inset,
+                        };
+                        render_badge(ctx, badge, size.width as f32, size.height as f32, &insets);
                     }
                 });
 
-                    // Handle egui platform output (clipboard, cursor changes, etc.)
-                    egui_state.handle_platform_output(window, egui_output.platform_output.clone());
+                // Handle egui platform output (clipboard, cursor changes, etc.)
+                egui_state.handle_platform_output(window, egui_output.platform_output.clone());
 
-                    Some((egui_output, egui_ctx.clone()))
-                } else {
-                    // egui context/state not yet initialised for this window.
-                    None
-                }
+                Some((egui_output, egui_ctx.clone()))
             } else {
-                // Window not yet created; skip egui rendering this frame.
-                crate::debug_error!("RENDER", "egui render skipped: window is None");
+                // egui context/state not yet initialised for this window.
                 None
-            };
+            }
+        } else {
+            // Window not yet created; skip egui rendering this frame.
+            crate::debug_error!("RENDER", "egui render skipped: window is None");
+            None
+        };
 
         // Mark egui as initialized after first ctx.run() - makes is_using_pointer() reliable
         if !self.egui.initialized && result.is_some() {
