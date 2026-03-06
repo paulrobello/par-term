@@ -79,7 +79,7 @@ par-term-mcp = { path = "par-term-mcp", version = "0.2.0" }
 par-term-tmux = { path = "par-term-tmux", version = "0.1.5" }
 
 # Terminal emulator core (with OSC 7/1337 hostname/cwd events, RemoteHost, and OSC 934 named progress bars)
-par-term-emu-core-rust = { version = "0.39.5", default-features = false, features = ["rust-only"] }
+par-term-emu-core-rust = { version = "0.39.8", default-features = false, features = ["rust-only"] }
 
 # Window management and rendering
 winit = "0.30"

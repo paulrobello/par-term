@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed unused cursor shader parameter controls (Trail duration, Glow radius, Glow intensity) from Settings UI — no built-in shader reads these uniforms.
 
 ### Fixed
+- PTY child processes no longer inherit `TMUX`, `TMUX_PANE`, `STY`, or `WINDOW` environment variables from the parent terminal. This prevents tools like fzf from rendering in the parent tmux pane instead of inside par-term. (core library 0.39.8)
 - Custom shaders section in Settings → Integrations always showed "Not installed" even when shaders were present. The five shader callback functions (`has_files`, `count_files`, `detect_modified`, `install`, `uninstall`) were never wired from the main crate to the settings UI, so all defaulted to `None`. Install, Reinstall, and Uninstall buttons now work correctly.
 - Badge overlay now accounts for tab bar, status bar, scrollbar, and AI inspector panel when positioning, so it no longer overlaps surrounding UI elements.
 - Status bar separator character in Settings UI now renders correctly (was showing as empty box because the TextEdit used a proportional font lacking the box-drawing glyph).
