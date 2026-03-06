@@ -1,6 +1,9 @@
 # Rust
 /target/
 
+# Local Claude overrides
+CLAUDE.local.md
+
 # IDE
 .idea/
 .vscode/

@@ -92,8 +92,6 @@ make bundle            # Create macOS .app bundle (macOS only)
 
 ## Architecture Overview
 
-**IMPORTANT**: use the gitnexus skills to explore and understand the architecture.
-
 See `docs/ARCHITECTURE.md` for detailed architecture documentation.
 
 **Key layers**: App (`src/app/`) → Terminal (`src/terminal/`) → Renderer (`src/renderer/`, `src/cell_renderer/`) → GPU Shaders (`src/shaders/`)
@@ -282,30 +280,3 @@ Past debugging investigations are preserved in project memory files. Check these
 3. Guard click-outside with `&& current_frame > self.*_activated_frame`
 4. If opening an egui Popup: also add `&& !self.*_picking` to click-outside guard
 
-<!-- gitnexus:start -->
-# GitNexus MCP
-
-This project is indexed by GitNexus as **par-term** (~10k symbols, ~28k relationships, 300 flows).
-
-**IMPORTANT: Before ANY code change, run these 3 steps:**
-```bash
-# 1. Check freshness (if stale, run: npx gitnexus analyze)
-mcpl call gitnexus list_repos '{}'
-# 2. Understand the symbol/area you're working in
-mcpl call gitnexus query '{"query": "your feature or bug description"}'
-# 3. Check blast radius before editing
-mcpl call gitnexus impact '{"target": "FunctionName", "direction": "upstream"}'
-```
-
-## Skills
-
-| Task | Read this skill file |
-|------|---------------------|
-| Understand architecture / "How does X work?" | `.claude/skills/gitnexus/gitnexus-exploring/SKILL.md` |
-| Blast radius / "What breaks if I change X?" | `.claude/skills/gitnexus/gitnexus-impact-analysis/SKILL.md` |
-| Trace bugs / "Why is X failing?" | `.claude/skills/gitnexus/gitnexus-debugging/SKILL.md` |
-| Rename / extract / split / refactor | `.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md` |
-| Tools, resources, schema reference | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md` |
-| Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
-
-<!-- gitnexus:end -->
