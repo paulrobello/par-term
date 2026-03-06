@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- File picker ("Browse…") button next to each alert sound file path field in Settings → Notifications → Alert Sounds, with audio file filter (WAV, MP3, OGG, FLAC, AAC, M4A).
 - `make install-shell-integration` Makefile target to copy all three shell integration scripts (bash, zsh, fish) to `~/.config/par-term/`.
 - Expanded Nerd Font icon presets in Settings: added "UI Actions" (16 icons: Search, Edit, Copy, Clipboard, Cut, Trash, Plus, Close, Refresh, Filter, List, Link, External Link, Save, Apply, Ban/Cancel) and "Navigation" (16 icons: Arrow/Angle/Caret/Long Arrow/Reply/Level/Rotate variants) categories, plus 4 more icons in "Status & Alerts".
 - New `snap_window_to_grid` config option (default: `true`) with Settings UI toggle under Window → Display. When enabled, the window snaps to exact terminal cell boundaries on resize, eliminating blank background gaps between the terminal grid and window edges. Disabled automatically in split-pane mode.
@@ -21,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed unused cursor shader parameter controls (Trail duration, Glow radius, Glow intensity) from Settings UI — no built-in shader reads these uniforms.
 
 ### Fixed
+- Custom shaders section in Settings → Integrations always showed "Not installed" even when shaders were present. The five shader callback functions (`has_files`, `count_files`, `detect_modified`, `install`, `uninstall`) were never wired from the main crate to the settings UI, so all defaulted to `None`. Install, Reinstall, and Uninstall buttons now work correctly.
 - Badge overlay now accounts for tab bar, status bar, scrollbar, and AI inspector panel when positioning, so it no longer overlaps surrounding UI elements.
 - Status bar separator character in Settings UI now renders correctly (was showing as empty box because the TextEdit used a proportional font lacking the box-drawing glyph).
 - Custom background shaders using full content mode (`custom_shader_full_content: true`) now work correctly. The `render_split_panes` path (always active) was running the shader with an empty intermediate texture (`iChannel4`), then rendering pane content on top — making full content mode behave identically to background-only mode. Pane content (cells, cursors, inline graphics) is now rendered to the shader's intermediate texture before the shader runs, and skipped afterward since the shader output already includes the processed content. Shaders like CRT, bloom, dither, and retro-terminal can now properly distort and transform terminal content.

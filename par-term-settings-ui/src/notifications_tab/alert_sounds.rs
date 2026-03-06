@@ -129,6 +129,29 @@ pub(super) fn show_alert_sounds_section(
                                 settings.has_changes = true;
                                 *changes_this_frame = true;
                             }
+                            if ui.button("Browse…").clicked() {
+                                let sounds_dir = dirs::config_dir()
+                                    .map(|d| d.join("par-term").join("sounds"))
+                                    .unwrap_or_default();
+                                if let Some(path) = rfd::FileDialog::new()
+                                    .set_title("Select alert sound file")
+                                    .set_directory(&sounds_dir)
+                                    .add_filter(
+                                        "Audio",
+                                        &["wav", "mp3", "ogg", "flac", "aac", "m4a"],
+                                    )
+                                    .pick_file()
+                                {
+                                    // If inside sounds dir, store relative; otherwise full path.
+                                    cfg.sound_file = Some(
+                                        path.strip_prefix(&sounds_dir)
+                                            .map(|p| p.display().to_string())
+                                            .unwrap_or_else(|_| path.display().to_string()),
+                                    );
+                                    settings.has_changes = true;
+                                    *changes_this_frame = true;
+                                }
+                            }
                         });
                     }
                 });

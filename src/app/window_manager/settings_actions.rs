@@ -25,10 +25,34 @@ use winit::event::WindowEvent;
 use winit::event_loop::ActiveEventLoop;
 use winit::window::WindowId;
 
+use par_term_settings_ui::{ShaderInstallResult, ShaderUninstallResult};
+
 use crate::settings_window::{SettingsWindow, SettingsWindowAction};
 
 use super::WindowManager;
 use super::update_checker::to_settings_update_result;
+
+/// Wrapper that adapts `shader_installer::install_shaders_with_manifest` to the
+/// `ShaderInstallResult` type expected by the settings UI callback.
+fn shader_install_wrapper(force: bool) -> Result<ShaderInstallResult, String> {
+    let r = crate::shader_installer::install_shaders_with_manifest(force)?;
+    Ok(ShaderInstallResult {
+        installed: r.installed,
+        skipped: r.skipped,
+        removed: r.removed,
+    })
+}
+
+/// Wrapper that adapts `shader_installer::uninstall_shaders` to the
+/// `ShaderUninstallResult` type expected by the settings UI callback.
+fn shader_uninstall_wrapper(force: bool) -> Result<ShaderUninstallResult, String> {
+    let r = crate::shader_installer::uninstall_shaders(force)?;
+    Ok(ShaderUninstallResult {
+        removed: r.removed,
+        kept: r.kept,
+        needs_confirmation: !r.needs_confirmation.is_empty(),
+    })
+}
 
 impl WindowManager {
     /// Open the settings window (or focus if already open)
@@ -79,6 +103,17 @@ impl WindowManager {
                     .settings_ui
                     .shell_integration_is_installed_fn =
                     Some(crate::shell_integration_installer::is_installed);
+                // Wire up shader fn pointers
+                settings_window.settings_ui.shader_has_files_fn =
+                    Some(crate::shader_installer::has_shader_files);
+                settings_window.settings_ui.shader_count_files_fn =
+                    Some(crate::shader_installer::count_shader_files);
+                settings_window.settings_ui.shader_detect_modified_fn =
+                    Some(crate::shader_installer::detect_modified_bundled_shaders);
+                settings_window.settings_ui.shader_install_fn =
+                    Some(shader_install_wrapper);
+                settings_window.settings_ui.shader_uninstall_fn =
+                    Some(shader_uninstall_wrapper);
                 // Sync last update check result to settings UI
                 settings_window.settings_ui.last_update_result = self
                     .last_update_result
