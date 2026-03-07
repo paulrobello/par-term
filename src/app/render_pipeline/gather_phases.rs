@@ -220,6 +220,10 @@ impl WindowState {
             .renderer
             .as_ref()
             .map(|r| (r.cell_width(), r.cell_height()));
+        let renderer_cols = self
+            .renderer
+            .as_ref()
+            .map(|r| r.grid_size().0);
 
         if let Some(tab) = self.tab_manager.active_tab_mut() {
             if is_alt_screen != tab.was_alt_screen {
@@ -232,6 +236,9 @@ impl WindowState {
             if let Some(ref mut pipeline) = tab.prettifier {
                 if let Some((cw, ch)) = prettifier_cell_dims {
                     pipeline.update_cell_dims(cw, ch);
+                }
+                if let Some(cols) = renderer_cols {
+                    pipeline.set_terminal_width(cols);
                 }
                 pipeline.check_debounce();
             }

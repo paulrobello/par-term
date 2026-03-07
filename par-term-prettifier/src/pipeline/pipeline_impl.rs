@@ -303,6 +303,19 @@ impl PrettifierPipeline {
         self.renderer_config.cell_height_px = Some(height);
     }
 
+    /// Update the terminal width used for rendering prettified blocks.
+    ///
+    /// Called per-frame from `sync_prettifier_state` so the pipeline tracks
+    /// the actual terminal/pane column count instead of the stale value from
+    /// config or tab creation.  Triggers re-rendering of any existing blocks
+    /// that were rendered at the old width.
+    pub fn set_terminal_width(&mut self, width: usize) {
+        if width > 0 && width != self.renderer_config.terminal_width {
+            self.renderer_config.terminal_width = width;
+            self.re_render_if_needed();
+        }
+    }
+
     /// Re-render all blocks that need it (e.g., after a terminal width change).
     pub fn re_render_if_needed(&mut self) {
         let terminal_width = self.renderer_config.terminal_width;

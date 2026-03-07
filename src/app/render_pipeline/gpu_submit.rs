@@ -378,6 +378,29 @@ impl WindowState {
                         }
                     }
 
+                    // Apply prettifier cell substitution to the focused pane's cells.
+                    // The tab-level substitution (earlier in this function) modifies
+                    // FrameRenderData.cells which are invisible to the pane renderer —
+                    // pane cells are gathered independently by gather_pane_render_data.
+                    {
+                        if let Some(tab) = self.tab_manager.active_tab() {
+                            for pane in &mut pane_data {
+                                if pane.viewport.focused {
+                                    let _ =
+                                        prettifier_cells::apply_prettifier_cell_substitution(
+                                            tab,
+                                            &mut pane.cells,
+                                            is_alt_screen,
+                                            pane.grid_size.1,
+                                            pane.scrollback_len,
+                                            pane.grid_size.0,
+                                        );
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
                     // Get hovered divider index for hover color rendering
                     let hovered_divider_index = self
                         .tab_manager

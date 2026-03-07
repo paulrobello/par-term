@@ -292,12 +292,23 @@ impl WindowState {
                     // (150ms) to avoid rendering 60 intermediate states per second.
                     pipeline.reset_boundary();
 
+                    // Derive the actual cell stride from the cells array.
+                    // `grid_cols` comes from the renderer's grid_size() which
+                    // does NOT subtract the scrollbar width, but the terminal
+                    // (resized by the pane path) may be narrower.  Using the
+                    // wrong stride causes cross-row reads and garbled lines.
+                    let feed_cols = if visible_lines > 0 && !cells.is_empty() {
+                        cells.len() / visible_lines
+                    } else {
+                        grid_cols
+                    };
+
                     let mut lines: Vec<(String, usize)> = Vec::with_capacity(visible_lines);
                     for row_idx in 0..visible_lines {
                         let absolute_row = scrollback_len.saturating_sub(scroll_offset) + row_idx;
 
-                        let start = row_idx * grid_cols;
-                        let end = (start + grid_cols).min(cells.len());
+                        let start = row_idx * feed_cols;
+                        let end = (start + feed_cols).min(cells.len());
                         if start >= cells.len() {
                             break;
                         }

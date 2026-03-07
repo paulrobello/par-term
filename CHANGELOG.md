@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Fixed prettifier rendering: cell substitution now applies to pane cells (the always-active render path) instead of the invisible `FrameRenderData.cells`. Updated pipeline `terminal_width` to track actual terminal dimensions each frame instead of using the stale `config.cols` value. Fixed feed stride to use the real cell array stride rather than the renderer's grid size (which omits scrollbar width), preventing garbled line reads.
 - Updated shader manifest: bumped version to 0.24.0, added missing `rain-glass.glsl`, refreshed 7 stale SHA256 hashes (bloom, crt, cubemap-test, dither, gears-and-belts, retro-terminal, spotlight).
 - Fixed `generate_manifest.py` to exclude hidden directories (`.claude/`, `.DS_Store` parents) and added "jellyfish" to nature keywords. Script now writes trailing newline.
 
