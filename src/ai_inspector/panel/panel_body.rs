@@ -196,7 +196,7 @@ impl AIInspectorPanel {
                         ui.add_space(4.0);
 
                         let chat_action =
-                            Self::render_chat_messages(ui, &self.chat, self.chat_font_size);
+                            Self::render_chat_messages(ui, &self.chat, self.chat_font_size, self.agent_terminal_access);
                         if !matches!(chat_action, InspectorAction::None) {
                             action = chat_action;
                         }
@@ -220,6 +220,12 @@ impl AIInspectorPanel {
                             RichText::new("Terminal access")
                                 .small()
                                 .color(Color32::from_gray(160)),
+                        )
+                        .on_hover_text(
+                            "When enabled, shell commands the agent writes in fenced code \
+                             blocks (```bash / ```sh) are automatically sent to your active \
+                             terminal and executed. The agent is notified of the exit code \
+                             after each command completes.",
                         )
                         .changed()
                     {

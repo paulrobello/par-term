@@ -19,6 +19,7 @@ impl AIInspectorPanel {
         ui: &mut egui::Ui,
         chat: &ChatState,
         font_size: f32,
+        terminal_access: bool,
     ) -> InspectorAction {
         let mut action = InspectorAction::None;
 
@@ -137,6 +138,11 @@ impl AIInspectorPanel {
                     ui.add_space(2.0);
                 }
                 ChatMessage::CommandSuggestion(cmd) => {
+                    // In terminal-access mode commands are auto-executed, so the
+                    // "Suggested command" box is redundant — skip it.
+                    if terminal_access {
+                        continue;
+                    }
                     let frame = Frame::new()
                         .fill(CMD_SUGGEST_BG)
                         .corner_radius(4.0)

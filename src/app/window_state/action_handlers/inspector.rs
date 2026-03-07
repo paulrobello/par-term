@@ -172,6 +172,24 @@ impl WindowState {
                             ),
                         }];
 
+                    // Inject terminal access context so the agent knows code-block
+                    // commands are auto-executed when this capability is enabled.
+                    if self.config.ai_inspector.ai_inspector_agent_terminal_access {
+                        content.push(par_term_acp::ContentBlock::Text {
+                            text: "[Terminal access enabled]\n\
+                                Shell commands you write in fenced code blocks \
+                                (```bash, ```sh, ```zsh, or ```shell) are automatically \
+                                executed in the user's active terminal — no user click or \
+                                approval required. You can run commands autonomously on \
+                                behalf of the user. After each command completes, you will \
+                                receive an auto-context notification with the exit code, \
+                                duration, and working directory. Use this capability to run \
+                                commands, observe results, and complete multi-step tasks \
+                                without waiting for user input."
+                                .to_string(),
+                        });
+                    }
+
                     // Inject shader context when relevant (keyword match or active shaders).
                     if crate::ai_inspector::shader_context::should_inject_shader_context(
                         &text,

@@ -20,12 +20,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New `snap_window_to_grid` config option (default: `true`) with Settings UI toggle under Window → Display. When enabled, the window snaps to exact terminal cell boundaries on resize, eliminating blank background gaps between the terminal grid and window edges. Disabled automatically in split-pane mode.
 
 ### Changed
+- Assistant panel: when Terminal Access is enabled, the "Suggested command" box (with Run/Paste buttons) is suppressed — the command already auto-executes from the agent's code block, so the duplicate UI is unnecessary.
+- Assistant panel system guidance now clearly distinguishes the fenced code-block mechanism (runs in the user's terminal session) from the Bash tool (runs in a subprocess), and labels the command-execution section with a prominent `RUNNING COMMANDS:` header to reduce agent confusion.
 - Pane padding no longer applies when there is only one pane (no splits); in split mode, an automatic base padding equal to half the divider width is added to prevent content rendering under the divider, with `pane_padding` config applied on top of that.
 - Default `pane_padding` changed from `4.0` to `1.0` pixels.
 - Default `window_padding` changed from `0.0` to `1.0` pixels.
 - Removed unused cursor shader parameter controls (Trail duration, Glow radius, Glow intensity) from Settings UI — no built-in shader reads these uniforms.
 
 ### Fixed
+- Assistant panel Terminal Access (auto-drive) now sends the agent an auto-context notification after each auto-executed command, so it can see the exit code and continue multi-step tasks. Previously the outcome was only forwarded when the separate "Auto-context" toggle was also enabled.
+- Assistant panel: when Terminal Access is enabled, the agent now receives a `[Terminal access enabled]` context block on each prompt explaining that code-block commands auto-execute in the terminal, fixing cases where the agent incorrectly reported having no terminal access.
+- Added tooltip to the Terminal Access checkbox describing the auto-execute behaviour.
 - Fixed "too many open files" error that prevented spawning agents when the shaders directory grew large. The `notify` kqueue backend (used on macOS) opens an `O_EVTONLY` file descriptor per watched file and, due to a bug in its `Vnode::Write` handler, recursively accumulates watches for every shader, texture, and cubemap file under the config directory. With 3 windows × 50+ shaders + textures, this exhausted the fd limit. Switched to FSEvents (the macOS-native, path-based backend), which opens no per-file fds and is more efficient.
 - MCP `config_update` tool now writes IPC files to the correct directory on macOS. `resolve_ipc_path()` was using `dirs::config_dir()` (`~/Library/Application Support/par-term/`) while the app watches `~/.config/par-term/`. Shader and other config changes sent by the agent via `config_update` were silently ignored because the app never saw the file.
 - Command complete alert sound now plays when a command finishes. `ShellLifecycleEvent::CommandFinished` events were forwarded to the prettifier but `play_alert_sound(AlertEvent::CommandComplete)` was never called, so the configured sound was silently ignored.

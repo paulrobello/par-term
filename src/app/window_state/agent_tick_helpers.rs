@@ -75,6 +75,22 @@ impl WindowState {
             ),
         }];
 
+        if self.config.ai_inspector.ai_inspector_agent_terminal_access {
+            content.push(ContentBlock::Text {
+                text: "[Terminal access enabled]\n\
+                    Shell commands you write in fenced code blocks \
+                    (```bash, ```sh, ```zsh, or ```shell) are automatically \
+                    executed in the user's active terminal — no user click or \
+                    approval required. You can run commands autonomously on \
+                    behalf of the user. After each command completes, you will \
+                    receive an auto-context notification with the exit code, \
+                    duration, and working directory. Use this capability to run \
+                    commands, observe results, and complete multi-step tasks \
+                    without waiting for user input."
+                    .to_string(),
+            });
+        }
+
         if let Some(user_text) = last_user_text
             && crate::ai_inspector::shader_context::should_inject_shader_context(
                 user_text,
@@ -182,10 +198,13 @@ impl WindowState {
                 self.overlay_ui.ai_inspector.last_command_count = current_count;
                 self.overlay_ui.ai_inspector.needs_refresh = true;
 
-                // Auto-context feeding: send latest command info to agent
+                // Auto-context feeding: send latest command info to agent.
+                // Fires when auto-context is enabled OR when terminal drive is
+                // active so the agent can see the outcome of commands it ran.
                 if had_commands
                     && current_count > 0
-                    && self.config.ai_inspector.ai_inspector_auto_context
+                    && (self.config.ai_inspector.ai_inspector_auto_context
+                        || self.config.ai_inspector.ai_inspector_agent_terminal_access)
                     && self.overlay_ui.ai_inspector.agent_status == AgentStatus::Connected
                     && let Some((cmd, exit_code, duration_ms)) = history.last()
                 {
