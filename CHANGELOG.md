@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- New `jellyfish.glsl` background shader: animated procedural jellyfish with dark water, caustic light shimmer, depth layers (foreground + background jellyfish), bioluminescent floating particles, and neon blue/purple palette. Supports an optional `iChannel0` background texture.
 - Configurable chat font size for the Assistant panel. A "Chat font size" slider (10–24 pt, default 14 pt) in Settings → AI Inspector → Panel controls the body text size of both user and agent messages. The setting live-reloads without restart.
 - Replace button on each saved arrangement row in Settings → Arrangements. Clicking Replace captures the current window layout and overwrites the saved arrangement in-place (preserving its name and list position), with an inline confirmation dialog before committing.
 - MP3 audio file support for alert sounds. Enabled rodio's `mp3` feature; settings UI hint text and doc comments updated to reflect WAV/MP3/OGG/FLAC.
