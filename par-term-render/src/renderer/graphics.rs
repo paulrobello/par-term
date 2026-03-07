@@ -137,63 +137,6 @@ impl Renderer {
         Ok(())
     }
 
-    /// Render sixel graphics on top of terminal cells
-    pub(crate) fn render_sixel_graphics(
-        &mut self,
-        surface_texture: &wgpu::SurfaceTexture,
-    ) -> Result<()> {
-        use wgpu::TextureViewDescriptor;
-
-        // Create view of the surface texture
-        let view = surface_texture
-            .texture
-            .create_view(&TextureViewDescriptor::default());
-
-        // Create command encoder for sixel rendering
-        let mut encoder =
-            self.cell_renderer
-                .device()
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("sixel encoder"),
-                });
-
-        // Create render pass
-        {
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("sixel render pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load, // Don't clear - render on top of terminal
-                        store: wgpu::StoreOp::Store,
-                    },
-                    depth_slice: None,
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-
-            // Render all sixel graphics
-            self.graphics_renderer.render(
-                self.cell_renderer.device(),
-                self.cell_renderer.queue(),
-                &mut render_pass,
-                &self.sixel_graphics,
-                self.size.width as f32,
-                self.size.height as f32,
-            )?;
-        } // render_pass dropped here
-
-        // Submit sixel commands
-        self.cell_renderer
-            .queue()
-            .submit(std::iter::once(encoder.finish()));
-
-        Ok(())
-    }
-
     /// Compute positioned graphics list for a single pane without touching `self.sixel_graphics`.
     ///
     /// Shares the same texture cache as the global path so textures are never duplicated.

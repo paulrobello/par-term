@@ -2,151 +2,51 @@ use super::CellRenderer;
 use anyhow::Result;
 
 impl CellRenderer {
-    pub fn render(
-        &mut self,
-        _show_scrollbar: bool,
-        pane_background: Option<&par_term_config::PaneBackground>,
-    ) -> Result<wgpu::SurfaceTexture> {
-        let output = self.surface.get_current_texture()?;
-        let view = output
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
-        self.build_instance_buffers()?;
+    /// Emit the standard 3-phase draw calls into an existing render pass.
+    ///
+    /// This is the single source of truth for the cell rendering draw call sequence.
+    /// Background images / pane backgrounds must be drawn by the caller before this.
+    ///
+    /// **Phase 1**: Cell backgrounds (`0..cursor_overlay_start`)
+    /// **Phase 1b**: Separators / gutter (`cursor_overlay_end..actual_bg_instances`) — skipped
+    ///   when the range is empty (pane path packs these before cursor overlays)
+    /// **Phase 2**: Text glyphs (`0..actual_text_instances`)
+    /// **Phase 3**: Cursor overlays (`cursor_overlay_start..cursor_overlay_end`)
+    pub(crate) fn emit_three_phase_draw_calls(
+        &self,
+        render_pass: &mut wgpu::RenderPass<'_>,
+        cursor_overlay_start: u32,
+        cursor_overlay_end: u32,
+    ) {
+        // Phase 1: cell backgrounds (before text)
+        render_pass.set_pipeline(&self.pipelines.bg_pipeline);
+        render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
+        render_pass.set_vertex_buffer(1, self.buffers.bg_instance_buffer.slice(..));
+        render_pass.draw(0..4, 0..cursor_overlay_start);
 
-        // Pre-update per-pane background uniform buffer and bind group if needed (must happen
-        // before render pass). Buffers are allocated once and reused across frames.
-        // This supports pane 0 background in single-pane (no splits) mode.
-        let pane_bg_path: Option<String> = if !self.bg_state.bg_is_solid_color {
-            if let Some(pane_bg) = pane_background {
-                if let Some(ref path) = pane_bg.image_path
-                    && self.bg_state.pane_bg_cache.contains_key(path.as_str())
-                {
-                    self.prepare_pane_bg_bind_group(
-                        path.as_str(),
-                        crate::cell_renderer::background::PaneBgBindGroupParams {
-                            pane_x: 0.0, // full window starts at 0
-                            pane_y: 0.0, // full window starts at 0
-                            pane_width: self.config.width as f32,
-                            pane_height: self.config.height as f32,
-                            mode: pane_bg.mode,
-                            opacity: pane_bg.opacity,
-                            darken: pane_bg.darken,
-                        },
-                    );
-                    Some(path.to_string())
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        } else {
-            None
-        };
-
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("render encoder"),
-            });
-
-        // Determine clear color and whether to use bg_image pipeline:
-        // - Per-pane bg: use TRANSPARENT clear, render pane bg before global bg
-        // - Any mode with bg_image_bind_group (Color, Image, Default): use TRANSPARENT clear,
-        //   let bg_image_pipeline render a full-screen opaque quad (prevents macOS alpha artifacts)
-        // - Fallback (no bind group): use theme background with window_opacity as clear color
-        let has_pane_bg = pane_bg_path.is_some();
-        let (clear_color, use_bg_image_pipeline) = if has_pane_bg {
-            // Per-pane background: use transparent clear, pane bg will be rendered first
-            (wgpu::Color::TRANSPARENT, false)
-        } else if self.pipelines.bg_image_bind_group.is_some() {
-            // Use bg_image_pipeline for ALL modes with a texture (Image, Color, Default).
-            // A full-screen opaque quad ensures complete pixel coverage, preventing
-            // macOS per-pixel alpha transparency artifacts from LoadOp::Clear alone.
-            (wgpu::Color::TRANSPARENT, true)
-        } else {
-            // Fallback: no texture available - use theme background with window_opacity
-            (
-                wgpu::Color {
-                    r: self.background_color[0] as f64 * self.window_opacity as f64,
-                    g: self.background_color[1] as f64 * self.window_opacity as f64,
-                    b: self.background_color[2] as f64 * self.window_opacity as f64,
-                    a: self.window_opacity as f64,
-                },
-                false,
-            )
-        };
-
-        {
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("render pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(clear_color),
-                        store: wgpu::StoreOp::Store,
-                    },
-                    depth_slice: None,
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-
-            // Render per-pane background for single-pane mode (pane 0)
-            if let Some(ref path) = pane_bg_path
-                && let Some(cached) = self.bg_state.pane_bg_uniform_cache.get(path.as_str())
-            {
-                render_pass.set_pipeline(&self.pipelines.bg_image_pipeline);
-                render_pass.set_bind_group(0, &cached.bind_group, &[]);
-                render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
-                render_pass.draw(0..4, 0..1);
-            }
-
-            // Render global background image if present (not used for solid color or pane bg mode)
-            if use_bg_image_pipeline
-                && let Some(ref bg_bind_group) = self.pipelines.bg_image_bind_group
-            {
-                render_pass.set_pipeline(&self.pipelines.bg_image_pipeline);
-                render_pass.set_bind_group(0, bg_bind_group, &[]);
-                render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
-                render_pass.draw(0..4, 0..1);
-            }
-
-            // Phase 1: cell backgrounds (before text)
-            let cell_bg_end = (self.grid.cols * self.grid.rows) as u32;
-            let cursor_overlay_end =
-                cell_bg_end + super::instance_buffers::CURSOR_OVERLAY_SLOTS as u32;
-            render_pass.set_pipeline(&self.pipelines.bg_pipeline);
-            render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
-            render_pass.set_vertex_buffer(1, self.buffers.bg_instance_buffer.slice(..));
-            render_pass.draw(0..4, 0..cell_bg_end);
-
-            // Phase 1b: separator + gutter overlays (before text, background elements)
-            if cursor_overlay_end < self.buffers.actual_bg_instances as u32 {
-                render_pass.draw(
-                    0..4,
-                    cursor_overlay_end..self.buffers.actual_bg_instances as u32,
-                );
-            }
-
-            // Phase 2: text (on top of cell backgrounds)
-            render_pass.set_pipeline(&self.pipelines.text_pipeline);
-            render_pass.set_bind_group(0, &self.pipelines.text_bind_group, &[]);
-            render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
-            render_pass.set_vertex_buffer(1, self.buffers.text_instance_buffer.slice(..));
-            render_pass.draw(0..4, 0..self.buffers.actual_text_instances as u32);
-
-            // Phase 3: cursor overlays (beam/underline bar + hollow outline) ON TOP of text
-            render_pass.set_pipeline(&self.pipelines.bg_pipeline);
-            render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
-            render_pass.set_vertex_buffer(1, self.buffers.bg_instance_buffer.slice(..));
-            render_pass.draw(0..4, cell_bg_end..cursor_overlay_end);
+        // Phase 1b: separator + gutter overlays (before text, background elements)
+        // Skipped when cursor_overlay_end == actual_bg_instances (pane path).
+        if cursor_overlay_end < self.buffers.actual_bg_instances as u32 {
+            render_pass.draw(
+                0..4,
+                cursor_overlay_end..self.buffers.actual_bg_instances as u32,
+            );
         }
 
-        self.queue.submit(std::iter::once(encoder.finish()));
-        Ok(output)
+        // Phase 2: text (on top of cell backgrounds)
+        render_pass.set_pipeline(&self.pipelines.text_pipeline);
+        render_pass.set_bind_group(0, &self.pipelines.text_bind_group, &[]);
+        render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
+        render_pass.set_vertex_buffer(1, self.buffers.text_instance_buffer.slice(..));
+        render_pass.draw(0..4, 0..self.buffers.actual_text_instances as u32);
+
+        // Phase 3: cursor overlays (beam/underline bar + hollow outline) ON TOP of text
+        if cursor_overlay_start < cursor_overlay_end {
+            render_pass.set_pipeline(&self.pipelines.bg_pipeline);
+            render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
+            render_pass.set_vertex_buffer(1, self.buffers.bg_instance_buffer.slice(..));
+            render_pass.draw(0..4, cursor_overlay_start..cursor_overlay_end);
+        }
     }
 
     /// Render terminal content to an intermediate texture for shader processing.
@@ -215,35 +115,14 @@ impl CellRenderer {
                 render_pass.draw(0..4, 0..1);
             }
 
-            // Phase 1: cell backgrounds (before text)
-            let cell_bg_end = (self.grid.cols * self.grid.rows) as u32;
+            let cursor_overlay_start = (self.grid.cols * self.grid.rows) as u32;
             let cursor_overlay_end =
-                cell_bg_end + super::instance_buffers::CURSOR_OVERLAY_SLOTS as u32;
-            render_pass.set_pipeline(&self.pipelines.bg_pipeline);
-            render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
-            render_pass.set_vertex_buffer(1, self.buffers.bg_instance_buffer.slice(..));
-            render_pass.draw(0..4, 0..cell_bg_end);
-
-            // Phase 1b: separator + gutter overlays (before text, background elements)
-            if cursor_overlay_end < self.buffers.actual_bg_instances as u32 {
-                render_pass.draw(
-                    0..4,
-                    cursor_overlay_end..self.buffers.actual_bg_instances as u32,
-                );
-            }
-
-            // Phase 2: text (on top of cell backgrounds)
-            render_pass.set_pipeline(&self.pipelines.text_pipeline);
-            render_pass.set_bind_group(0, &self.pipelines.text_bind_group, &[]);
-            render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
-            render_pass.set_vertex_buffer(1, self.buffers.text_instance_buffer.slice(..));
-            render_pass.draw(0..4, 0..self.buffers.actual_text_instances as u32);
-
-            // Phase 3: cursor overlays (beam/underline bar + hollow outline) ON TOP of text
-            render_pass.set_pipeline(&self.pipelines.bg_pipeline);
-            render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
-            render_pass.set_vertex_buffer(1, self.buffers.bg_instance_buffer.slice(..));
-            render_pass.draw(0..4, cell_bg_end..cursor_overlay_end);
+                cursor_overlay_start + super::instance_buffers::CURSOR_OVERLAY_SLOTS as u32;
+            self.emit_three_phase_draw_calls(
+                &mut render_pass,
+                cursor_overlay_start,
+                cursor_overlay_end,
+            );
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
@@ -384,35 +263,14 @@ impl CellRenderer {
                 render_pass.draw(0..4, 0..1);
             }
 
-            // Phase 1: cell backgrounds (before text)
-            let cell_bg_end = (self.grid.cols * self.grid.rows) as u32;
+            let cursor_overlay_start = (self.grid.cols * self.grid.rows) as u32;
             let cursor_overlay_end =
-                cell_bg_end + super::instance_buffers::CURSOR_OVERLAY_SLOTS as u32;
-            render_pass.set_pipeline(&self.pipelines.bg_pipeline);
-            render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
-            render_pass.set_vertex_buffer(1, self.buffers.bg_instance_buffer.slice(..));
-            render_pass.draw(0..4, 0..cell_bg_end);
-
-            // Phase 1b: separator + gutter overlays (before text, background elements)
-            if cursor_overlay_end < self.buffers.actual_bg_instances as u32 {
-                render_pass.draw(
-                    0..4,
-                    cursor_overlay_end..self.buffers.actual_bg_instances as u32,
-                );
-            }
-
-            // Phase 2: text (on top of cell backgrounds)
-            render_pass.set_pipeline(&self.pipelines.text_pipeline);
-            render_pass.set_bind_group(0, &self.pipelines.text_bind_group, &[]);
-            render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
-            render_pass.set_vertex_buffer(1, self.buffers.text_instance_buffer.slice(..));
-            render_pass.draw(0..4, 0..self.buffers.actual_text_instances as u32);
-
-            // Phase 3: cursor overlays (beam/underline bar + hollow outline) ON TOP of text
-            render_pass.set_pipeline(&self.pipelines.bg_pipeline);
-            render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
-            render_pass.set_vertex_buffer(1, self.buffers.bg_instance_buffer.slice(..));
-            render_pass.draw(0..4, cell_bg_end..cursor_overlay_end);
+                cursor_overlay_start + super::instance_buffers::CURSOR_OVERLAY_SLOTS as u32;
+            self.emit_three_phase_draw_calls(
+                &mut render_pass,
+                cursor_overlay_start,
+                cursor_overlay_end,
+            );
 
             // Render scrollbar
             self.scrollbar.render(&mut render_pass);

@@ -145,19 +145,23 @@ impl WindowState {
         }
     }
 
-    /// Apply URL detection and search highlighting to the cell buffer.
+    /// Run URL detection and search index updates for the current frame.
     ///
-    /// Re-detects URLs only on cache misses; search highlights are applied every
-    /// frame since cells may be regenerated even on cache hits.
+    /// Re-detects URLs only on cache misses; search match positions are refreshed
+    /// every frame since cells may be regenerated even on cache hits.
+    ///
+    /// Cell modifications (underlines, highlight colors) are NOT applied here —
+    /// they are applied to pane cells in `gpu_submit.rs` after
+    /// `gather_pane_render_data()`, which is the only path visible to the renderer.
     ///
     /// Returns the elapsed time spent on URL detection (zero on cache hit).
     pub(super) fn apply_url_and_search_highlights(
         &mut self,
-        cells: &mut [Cell],
-        renderer_size: &PhysicalSize<u32>,
-        grid_cols: usize,
-        scroll_offset: usize,
-        scrollback_len: usize,
+        _cells: &mut [Cell],
+        _renderer_size: &PhysicalSize<u32>,
+        _grid_cols: usize,
+        _scroll_offset: usize,
+        _scrollback_len: usize,
         visible_lines: usize,
     ) -> std::time::Duration {
         let url_detect_start = Instant::now();
@@ -167,8 +171,6 @@ impl WindowState {
         } else {
             std::time::Duration::ZERO
         };
-
-        self.apply_url_underlines(cells, renderer_size);
 
         if self.overlay_ui.search_ui.visible {
             if let Some(tab) = self.tab_manager.active_tab()
@@ -182,26 +184,12 @@ impl WindowState {
                 self.overlay_ui.search_ui.update_search(lines_iter);
             }
 
-            let scroll_offset_now = self
-                .tab_manager
-                .active_tab()
-                .map(|t| t.active_scroll_state().offset)
-                .unwrap_or(scroll_offset);
-
-            self.apply_search_highlights(
-                cells,
-                grid_cols,
-                scroll_offset_now,
-                scrollback_len,
-                visible_lines,
-            );
-
-            // Force GPU cell update when search is visible: highlights are applied to cells
-            // every frame, but renderer.update_cells() is skipped on cache hits, causing
-            // the highlighted cells to never reach the GPU.
+            // Force GPU cell update when search is visible: highlights are applied to
+            // pane cells every frame, but renderer.update_cells() is skipped on cache
+            // hits, causing the highlighted cells to never reach the GPU.
             self.debug.cache_hit = false;
-            // Also mark renderer dirty to ensure a full render pass runs (not just the egui
-            // fast-path), so the updated cell buffer is actually drawn to screen.
+            // Also mark renderer dirty to ensure a full render pass runs (not just the
+            // egui fast-path), so the updated cell buffer is actually drawn to screen.
             if let Some(renderer) = &mut self.renderer {
                 renderer.mark_dirty();
             }

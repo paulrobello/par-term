@@ -193,29 +193,11 @@ impl CellRenderer {
                 render_pass.draw(0..4, 0..1);
             }
 
-            // Phase 1: cell backgrounds + separator lines (before text)
-            render_pass.set_pipeline(&self.pipelines.bg_pipeline);
-            render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
-            render_pass.set_vertex_buffer(1, self.buffers.bg_instance_buffer.slice(..));
-            render_pass.draw(0..4, 0..cursor_overlay_start as u32);
-
-            // Phase 2: text (on top of cell backgrounds)
-            render_pass.set_pipeline(&self.pipelines.text_pipeline);
-            render_pass.set_bind_group(0, &self.pipelines.text_bind_group, &[]);
-            render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
-            render_pass.set_vertex_buffer(1, self.buffers.text_instance_buffer.slice(..));
-            render_pass.draw(0..4, 0..self.buffers.actual_text_instances as u32);
-
-            // Phase 3: cursor overlays (beam/underline bar + hollow borders) ON TOP of text
-            if cursor_overlay_start < self.buffers.actual_bg_instances {
-                render_pass.set_pipeline(&self.pipelines.bg_pipeline);
-                render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
-                render_pass.set_vertex_buffer(1, self.buffers.bg_instance_buffer.slice(..));
-                render_pass.draw(
-                    0..4,
-                    cursor_overlay_start as u32..self.buffers.actual_bg_instances as u32,
-                );
-            }
+            self.emit_three_phase_draw_calls(
+                &mut render_pass,
+                cursor_overlay_start as u32,
+                self.buffers.actual_bg_instances as u32,
+            );
 
             // Render scrollbar if requested (uses its own scissor rect internally)
             if show_scrollbar {

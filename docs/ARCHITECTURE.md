@@ -407,7 +407,7 @@ The renderer's `update_*` methods (`update_cells`, `update_cursor`, `clear_curso
 
 ### Fast Render Path
 
-When the renderer is not dirty and no custom shader animation is active, the single-pane `render()` method uses a fast path that renders cells from cached GPU buffers plus the egui overlay. This skips expensive operations including shader passes, Sixel texture uploads, and cursor shader rendering. The fast path significantly reduces GPU workload during idle periods while still allowing the egui overlay (tab bar, search bar, status bar) to update independently.
+When the renderer is not dirty and no custom shader animation is active, the `render_split_panes()` method uses a fast path that renders cells from cached GPU buffers plus the egui overlay. This skips expensive operations including shader passes, Sixel texture uploads, and cursor shader rendering. The fast path significantly reduces GPU workload during idle periods while still allowing the egui overlay (tab bar, search bar, status bar) to update independently.
 
 ### Adaptive Polling with Exponential Backoff
 

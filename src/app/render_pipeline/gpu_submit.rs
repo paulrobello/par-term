@@ -102,11 +102,11 @@ impl WindowState {
         // position uses the current panel width on this frame (not the previous one).
         self.sync_ai_inspector_width();
 
-        // Prettifier cell substitution — replace raw cells with rendered content.
-        // Always run when blocks exist: the cell cache stores raw terminal cells
-        // (set before this point), so we must re-apply styled content every frame.
-        //
-        // Also collect inline graphics (rendered diagrams) for GPU compositing.
+        // Prettifier cell substitution — collect inline graphics for GPU compositing.
+        // The cell substitution on FrameRenderData.cells is wasted (invisible to pane
+        // renderer), but the graphics list is needed for update_gpu_renderer_state().
+        // Pane-visible cell substitution happens later in the pane loop below.
+        // TODO: split into a graphics-only collection to avoid the wasted cell work.
         let prettifier_graphics = if let Some(tab) = self.tab_manager.active_tab() {
             prettifier_cells::apply_prettifier_cell_substitution(
                 tab,

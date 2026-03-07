@@ -1,41 +1,11 @@
 //! Search highlighting functionality for terminal cells.
 
-use super::WindowState;
 use crate::cell_renderer::Cell;
 use crate::search::SearchMatch;
 
-impl WindowState {
-    /// Apply search highlighting to cells that contain matches.
-    pub(crate) fn apply_search_highlights(
-        &self,
-        cells: &mut [Cell],
-        cols: usize,
-        scroll_offset: usize,
-        scrollback_len: usize,
-        visible_lines: usize,
-    ) {
-        let matches = self.overlay_ui.search_ui.matches();
-        if matches.is_empty() {
-            return;
-        }
-        apply_search_highlights_to_cells(
-            cells,
-            cols,
-            scroll_offset,
-            scrollback_len,
-            visible_lines,
-            matches,
-            self.overlay_ui.search_ui.current_match_index(),
-            self.config.search.search_highlight_color,
-            self.config.search.search_current_highlight_color,
-        );
-    }
-}
-
 /// Apply search highlights directly to a cell slice.
 ///
-/// Used both by the single-pane path (via `WindowState::apply_search_highlights`)
-/// and the pane-manager path (applied per-pane after `gather_pane_render_data`).
+/// Called per-pane after `gather_pane_render_data` in `gpu_submit.rs`.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn apply_search_highlights_to_cells(
     cells: &mut [Cell],

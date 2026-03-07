@@ -6,7 +6,6 @@ use super::{
     compute_visible_separator_marks,
 };
 
-// `Renderer::render` (the main single-pane entry point) lives in `render_orchestrator.rs`.
 // This file contains the multi-pane frame-level helper `render_split_panes` and `take_screenshot`.
 
 /// Parameters for [`Renderer::render_split_panes`].
