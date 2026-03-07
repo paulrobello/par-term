@@ -225,6 +225,12 @@
       "category": "matrix"
     },
     {
+      "path": "jellyfish.glsl",
+      "sha256": "0464a89a8fabae5cc2c6662b36ef7d040e85ae793056f5dd7489f8c116c96aa6",
+      "type": "shader",
+      "category": "nature"
+    },
+    {
       "path": "just-snow.glsl",
       "sha256": "ca089221ecc023ad060cb439a52c85436ab5a6bfa539731a2340067b7636bdf2",
       "type": "shader",
