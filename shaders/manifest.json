@@ -1,6 +1,6 @@
 {
-  "version": "0.17.1",
-  "generated": "2026-02-18T23:31:08.964139+00:00",
+  "version": "0.24.0",
+  "generated": "2026-03-07T18:17:58.976671+00:00",
   "files": [
     {
       "path": "animated-gradient-shader.glsl",
@@ -16,7 +16,7 @@
     },
     {
       "path": "bloom.glsl",
-      "sha256": "6e56f38263d54b4050db6e6a0a59d32637a22925810957768ec601e6b3e67e55",
+      "sha256": "c124d6de0b94313e5e9e6cc84f979e0321e87f1d959481c45460ee5498862895",
       "type": "shader",
       "category": "effects"
     },
@@ -46,7 +46,7 @@
     },
     {
       "path": "crt.glsl",
-      "sha256": "8fceff368cefed1888525c00f613dd9aa655944bf845cdf6d34bfd53f308c268",
+      "sha256": "ca7bb2d0faeb09740206d3c2ede153f41fbaec3decff4d44f130a3a21bc48a62",
       "type": "shader",
       "category": "retro"
     },
@@ -58,7 +58,7 @@
     },
     {
       "path": "cubemap-test.glsl",
-      "sha256": "06107b273a2c4e665819a6bafb7f255b43bafa99b0a371e973de162c1285da74",
+      "sha256": "a8b3a1fdb2c60a146e46b5226ea38175b28f9dc26e8979471ec2c0d9682504d2",
       "type": "shader",
       "category": "effects"
     },
@@ -142,7 +142,7 @@
     },
     {
       "path": "dither.glsl",
-      "sha256": "94b7f74f698b29009441d1f90e89142c4ffcda5ac059ff5353499c50f7f9e64a",
+      "sha256": "3f3f7094f23687d387320f0c8ee72f4825f405f52d9f00d0b695432e510977aa",
       "type": "shader",
       "category": "effects"
     },
@@ -178,7 +178,7 @@
     },
     {
       "path": "gears-and-belts.glsl",
-      "sha256": "8476f2e43dd6fe78bd49a5281885051243bf66ce3141699579531f7e7f7b3806",
+      "sha256": "57763ee134e3241701a9e5beea7999790ce01d5838ab4fcb3f979c42afc193ef",
       "type": "shader",
       "category": "effects"
     },
@@ -243,6 +243,12 @@
       "category": "effects"
     },
     {
+      "path": "rain-glass.glsl",
+      "sha256": "a557968e957b63a7415fea9ad94be90d4550b1c5aa01d1ac46176a05e2e1812e",
+      "type": "shader",
+      "category": "nature"
+    },
+    {
       "path": "rain.glsl",
       "sha256": "0c061813ee31264cc7e24b4e2ac924ecffd3973976387f2b49f2bd95c5f0ba3d",
       "type": "shader",
@@ -250,7 +256,7 @@
     },
     {
       "path": "retro-terminal.glsl",
-      "sha256": "0559955e2b0f937c7bc6177aa1ed6019743bfae060baa3b6485fbb121c82450b",
+      "sha256": "1944508a9c0bbe3a554e2e354698d70d3c9f70cbfc8046d76b71565add177f71",
       "type": "shader",
       "category": "retro"
     },
@@ -274,7 +280,7 @@
     },
     {
       "path": "spotlight.glsl",
-      "sha256": "7ed355fe2234c31920c4f2c654471ce838a80d117730de4b74c0537c89e737b4",
+      "sha256": "50f067440729bf81b2a107de4572d44b9b3b350f83c69a745628dd95ccc0393d",
       "type": "shader",
       "category": "effects"
     },

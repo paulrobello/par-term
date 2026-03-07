@@ -44,7 +44,7 @@ def get_category(path: Path, file_type: str) -> str | None:
     # Categorize background shaders by name patterns
     retro_keywords = ["crt", "scanline", "vhs", "retro", "8bit", "pixel"]
     space_keywords = ["star", "galaxy", "nebula", "space", "cosmic"]
-    nature_keywords = ["fire", "water", "cloud", "rain", "snow", "ocean", "wave"]
+    nature_keywords = ["fire", "water", "cloud", "rain", "snow", "ocean", "wave", "jellyfish"]
     abstract_keywords = ["plasma", "fractal", "noise", "pattern", "warp"]
     matrix_keywords = ["matrix", "digital", "cyber", "code"]
 
@@ -98,20 +98,23 @@ def main() -> None:
 
     files = []
     for path in sorted(shaders_dir.rglob("*")):
-        if path.is_file() and path.name != "manifest.json" and not path.name.startswith("."):
-            relative = path.relative_to(shaders_dir)
-            file_type = get_file_type(path)
-            category = get_category(path, file_type)
+        if not path.is_file():
+            continue
+        relative = path.relative_to(shaders_dir)
+        if path.name == "manifest.json" or path.name.startswith(".") or any(part.startswith(".") for part in relative.parts):
+            continue
+        file_type = get_file_type(path)
+        category = get_category(path, file_type)
 
-            entry = {
-                "path": str(relative),
-                "sha256": compute_sha256(path),
-                "type": file_type,
-            }
-            if category:
-                entry["category"] = category
+        entry = {
+            "path": str(relative),
+            "sha256": compute_sha256(path),
+            "type": file_type,
+        }
+        if category:
+            entry["category"] = category
 
-            files.append(entry)
+        files.append(entry)
 
     manifest = {
         "version": version,
@@ -122,6 +125,7 @@ def main() -> None:
     output_path = shaders_dir / "manifest.json"
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(manifest, f, indent=2)
+        f.write("\n")
 
     print(f"Generated {output_path} with {len(files)} files")
 
