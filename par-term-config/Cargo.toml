@@ -55,8 +55,6 @@ wgpu-types = ["wgpu"]
 
 [target.'cfg(target_os = "macos")'.dependencies.notify]
 version = "8.2"
-default-features = false
-features = ["macos_kqueue"]
 optional = true
 
 [target.'cfg(not(target_os = "macos"))'.dependencies.notify]

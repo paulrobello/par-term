@@ -184,11 +184,12 @@ objc2-quartz-core = "0.3.2"
 raw-window-handle = "0.6.2"
 
 # File watching for shader hot reload - platform-specific backends
-# macOS: use kqueue for better performance
+# macOS: use FSEvents (default) — kqueue opens O_EVTONLY fds per file and
+# bleeds into recursive directory watches when the shaders dir grows, exhausting
+# the process file-descriptor limit.  FSEvents is path-based, opens no per-file
+# fds, and is more efficient for watching config + shader directories.
 [target.'cfg(target_os = "macos")'.dependencies.notify]
 version = "8.2"
-default-features = false
-features = ["macos_kqueue"]
 
 # Windows/Linux: use default backends (ReadDirectoryChangesW on Windows, inotify on Linux)
 [target.'cfg(not(target_os = "macos"))'.dependencies.notify]
