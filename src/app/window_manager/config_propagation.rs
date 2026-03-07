@@ -53,6 +53,12 @@ impl WindowManager {
                 );
             }
 
+            // Sync AI Inspector chat font size to the panel
+            if changes.ai_inspector_chat_font_size {
+                window_state.overlay_ui.ai_inspector.chat_font_size =
+                    config.ai_inspector.ai_inspector_chat_font_size;
+            }
+
             // Sync AI Inspector auto-approve / YOLO mode to connected agent
             if changes.ai_inspector_auto_approve
                 && let Some(agent) = &window_state.agent_state.agent

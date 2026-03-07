@@ -39,7 +39,7 @@ pub(super) fn show_panel_section(
         "Panel",
         &[
             "enabled", "width", "scope", "view", "live", "update", "zones", "cards", "timeline",
-            "tree",
+            "tree", "font", "font size", "chat font",
         ],
     ) {
         collapsing_section(ui, "Panel", "ai_inspector_panel", true, collapsed, |ui| {
@@ -79,6 +79,27 @@ pub(super) fn show_panel_section(
                         )
                         .suffix("px"),
                     )
+                    .changed()
+                {
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+
+            ui.add_space(4.0);
+
+            ui.horizontal(|ui| {
+                ui.label("Chat font size:");
+                if ui
+                    .add(
+                        egui::Slider::new(
+                            &mut settings.config.ai_inspector.ai_inspector_chat_font_size,
+                            10.0..=24.0,
+                        )
+                        .suffix("pt")
+                        .step_by(1.0),
+                    )
+                    .on_hover_text("Font size for chat message text in the Assistant panel")
                     .changed()
                 {
                     settings.has_changes = true;

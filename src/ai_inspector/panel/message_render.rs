@@ -15,7 +15,11 @@ use super::{AIInspectorPanel, InspectorAction};
 
 impl AIInspectorPanel {
     /// Render chat messages from the conversation history.
-    pub(super) fn render_chat_messages(ui: &mut egui::Ui, chat: &ChatState) -> InspectorAction {
+    pub(super) fn render_chat_messages(
+        ui: &mut egui::Ui,
+        chat: &ChatState,
+        font_size: f32,
+    ) -> InspectorAction {
         let mut action = InspectorAction::None;
 
         for msg in &chat.messages {
@@ -60,9 +64,13 @@ impl AIInspectorPanel {
                             }
                         });
                         ui.add(
-                            Label::new(RichText::new(text).color(Color32::from_gray(220)))
-                                .selectable(true)
-                                .wrap(),
+                            Label::new(
+                                RichText::new(text)
+                                    .color(Color32::from_gray(220))
+                                    .size(font_size),
+                            )
+                            .selectable(true)
+                            .wrap(),
                         );
                     });
                     ui.add_space(4.0);
@@ -80,7 +88,7 @@ impl AIInspectorPanel {
                                 .small()
                                 .strong(),
                         );
-                        Self::render_rich_text(ui, text);
+                        Self::render_rich_text(ui, text, font_size);
                     });
                     ui.add_space(4.0);
                 }
@@ -301,7 +309,7 @@ impl AIInspectorPanel {
                             }
                         });
                     });
-                    Self::render_rich_text(ui, streaming);
+                    Self::render_rich_text(ui, streaming, font_size);
                 });
             } else {
                 ui.horizontal(|ui| {
@@ -336,16 +344,20 @@ impl AIInspectorPanel {
     ///
     /// Parses the text into plain text and fenced code block segments, rendering
     /// code blocks with a distinct background and monospace font.
-    pub(super) fn render_rich_text(ui: &mut egui::Ui, text: &str) {
+    pub(super) fn render_rich_text(ui: &mut egui::Ui, text: &str, font_size: f32) {
         let segments = parse_text_segments(text);
         for segment in &segments {
             match segment {
                 TextSegment::Plain(t) => {
                     if !t.is_empty() {
                         ui.add(
-                            Label::new(RichText::new(t).color(Color32::from_gray(210)))
-                                .selectable(true)
-                                .wrap(),
+                            Label::new(
+                                RichText::new(t)
+                                    .color(Color32::from_gray(210))
+                                    .size(font_size),
+                            )
+                            .selectable(true)
+                            .wrap(),
                         );
                     }
                 }

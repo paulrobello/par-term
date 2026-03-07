@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Configurable chat font size for the Assistant panel. A "Chat font size" slider (10–24 pt, default 14 pt) in Settings → AI Inspector → Panel controls the body text size of both user and agent messages. The setting live-reloads without restart.
 - Replace button on each saved arrangement row in Settings → Arrangements. Clicking Replace captures the current window layout and overwrites the saved arrangement in-place (preserving its name and list position), with an inline confirmation dialog before committing.
 - MP3 audio file support for alert sounds. Enabled rodio's `mp3` feature; settings UI hint text and doc comments updated to reflect WAV/MP3/OGG/FLAC.
 - File picker ("Browse…") button next to each alert sound file path field in Settings → Notifications → Alert Sounds, with audio file filter (WAV, MP3, OGG, FLAC, AAC, M4A).
@@ -24,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed unused cursor shader parameter controls (Trail duration, Glow radius, Glow intensity) from Settings UI — no built-in shader reads these uniforms.
 
 ### Fixed
+- MCP `config_update` tool now writes IPC files to the correct directory on macOS. `resolve_ipc_path()` was using `dirs::config_dir()` (`~/Library/Application Support/par-term/`) while the app watches `~/.config/par-term/`. Shader and other config changes sent by the agent via `config_update` were silently ignored because the app never saw the file.
 - Command complete alert sound now plays when a command finishes. `ShellLifecycleEvent::CommandFinished` events were forwarded to the prettifier but `play_alert_sound(AlertEvent::CommandComplete)` was never called, so the configured sound was silently ignored.
 - PTY child processes no longer inherit `TMUX`, `TMUX_PANE`, `STY`, or `WINDOW` environment variables from the parent terminal. This prevents tools like fzf from rendering in the parent tmux pane instead of inside par-term. (core library 0.39.8)
 - Custom shaders section in Settings → Integrations always showed "Not installed" even when shaders were present. The five shader callback functions (`has_files`, `count_files`, `detect_modified`, `install`, `uninstall`) were never wired from the main crate to the settings UI, so all defaulted to `None`. Install, Reinstall, and Uninstall buttons now work correctly.

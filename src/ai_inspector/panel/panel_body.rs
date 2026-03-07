@@ -195,7 +195,8 @@ impl AIInspectorPanel {
                         );
                         ui.add_space(4.0);
 
-                        let chat_action = Self::render_chat_messages(ui, &self.chat);
+                        let chat_action =
+                            Self::render_chat_messages(ui, &self.chat, self.chat_font_size);
                         if !matches!(chat_action, InspectorAction::None) {
                             action = chat_action;
                         }

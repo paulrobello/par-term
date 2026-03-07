@@ -79,19 +79,27 @@ pub fn screenshot_response_path() -> PathBuf {
     resolve_ipc_path(SCREENSHOT_RESPONSE_PATH_ENV, SCREENSHOT_RESPONSE_FILENAME)
 }
 
-/// Resolve a path from env var or default filename under `~/.config/par-term`.
+/// Resolve a path from env var or default filename under the par-term config dir.
+///
+/// Uses the same directory logic as `Config::config_dir()` in par-term-config
+/// so IPC files are co-located with the app config regardless of platform:
+/// - Windows: `%APPDATA%\par-term\`
+/// - macOS/Linux: `~/.config/par-term/`
 pub fn resolve_ipc_path(env_var: &str, default_filename: &str) -> PathBuf {
     if let Ok(path) = std::env::var(env_var) {
         return PathBuf::from(path);
     }
 
+    // Mirror Config::config_dir() from par-term-config to ensure the same path.
+    #[cfg(target_os = "windows")]
     let config_dir = dirs::config_dir()
-        .unwrap_or_else(|| {
-            // Last resort: ~/.config
-            dirs::home_dir()
-                .unwrap_or_else(|| PathBuf::from("."))
-                .join(".config")
-        })
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("par-term");
+
+    #[cfg(not(target_os = "windows"))]
+    let config_dir = dirs::home_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join(".config")
         .join("par-term");
 
     config_dir.join(default_filename)

@@ -67,6 +67,10 @@ pub struct AiInspectorConfig {
     #[serde(default = "default_ai_inspector_agent_screenshot_access")]
     pub ai_inspector_agent_screenshot_access: bool,
 
+    /// Font size for chat messages in the Assistant panel (points)
+    #[serde(default = "default_ai_inspector_chat_font_size")]
+    pub ai_inspector_chat_font_size: f32,
+
     /// Additional ACP agents defined directly in `config.yaml`.
     ///
     /// Entries here are merged into discovered agents and override agents with
@@ -133,6 +137,10 @@ fn default_ai_inspector_agent_screenshot_access() -> bool {
     true
 }
 
+fn default_ai_inspector_chat_font_size() -> f32 {
+    14.0
+}
+
 impl Default for AiInspectorConfig {
     fn default() -> Self {
         Self {
@@ -150,6 +158,7 @@ impl Default for AiInspectorConfig {
             ai_inspector_auto_approve: default_ai_inspector_auto_approve(),
             ai_inspector_agent_terminal_access: default_ai_inspector_agent_terminal_access(),
             ai_inspector_agent_screenshot_access: default_ai_inspector_agent_screenshot_access(),
+            ai_inspector_chat_font_size: default_ai_inspector_chat_font_size(),
             ai_inspector_custom_agents: Vec::new(),
         }
     }

@@ -104,6 +104,7 @@ pub(crate) struct ConfigChanges {
     // AI Inspector
     pub ai_inspector_auto_approve: bool,
     pub ai_inspector_custom_agents: bool,
+    pub ai_inspector_chat_font_size: bool,
 
     // Prettifier
     pub prettifier_changed: bool,
@@ -262,6 +263,10 @@ impl ConfigChanges {
                 != old.ai_inspector.ai_inspector_auto_approve,
             ai_inspector_custom_agents: new.ai_inspector.ai_inspector_custom_agents
                 != old.ai_inspector.ai_inspector_custom_agents,
+            ai_inspector_chat_font_size: (new.ai_inspector.ai_inspector_chat_font_size
+                - old.ai_inspector.ai_inspector_chat_font_size)
+                .abs()
+                > f32::EPSILON,
 
             // Compare prettifier enable flag plus the YAML config struct via Debug output.
             // Full PartialEq would require it on all nested types including Regex.

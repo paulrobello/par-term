@@ -98,5 +98,10 @@ pub fn keywords() -> &'static [&'static str] {
         "macos",
         "linux",
         "windows",
+        // Font
+        "font",
+        "font size",
+        "chat font",
+        "text size",
     ]
 }

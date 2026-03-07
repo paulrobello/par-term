@@ -74,6 +74,8 @@ pub struct AIInspectorPanel {
     pub connected_agent_name: Option<String>,
     /// Identity of the most recently requested/connected agent.
     pub connected_agent_identity: Option<String>,
+    /// Font size for chat message body text (points).
+    pub chat_font_size: f32,
     /// Id of the chat input text field, used to check focus for Escape key handling.
     chat_input_id: Option<Id>,
 }
@@ -104,6 +106,7 @@ impl AIInspectorPanel {
             selected_agent_index: 0,
             connected_agent_name: None,
             connected_agent_identity: None,
+            chat_font_size: config.ai_inspector.ai_inspector_chat_font_size,
             chat_input_id: None,
         }
     }
