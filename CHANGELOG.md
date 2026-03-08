@@ -10,223 +10,182 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Security
-- Added amber warning banner in Settings → Automation when any trigger has `require_user_action: false`, making the risk immediately visible to users (SEC-002).
-- File and URL opening now uses direct `process::Command` spawn (no login shell) when the editor command template contains only `{file}/{line}/{col}` placeholders and no shell metacharacters, eliminating a shell-escape injection surface (SEC-003).
-- ACP permission validation now serializes the canonicalize-and-compare phase with a process-wide mutex, closing the application-level TOCTOU race between concurrent permission checks (SEC-004).
-- ACP agent subprocess now spawns without a shell interpreter when the resolved command contains no shell metacharacters, reducing attack surface from agent-initiated commands (SEC-005).
-- Session log redaction expanded with 45 additional sensitive-data patterns covering API keys, AWS credentials, private key PEM headers, cloud/vault tokens, database passwords, and 2FA/TOTP prompts (SEC-006).
-
-### Added
-- New `docs/ENTERPRISE_DEPLOYMENT.md` guide covering bulk installation, scripted deployment (macOS/Linux/Windows), managed config strategies, MDM/Jamf packaging, update management, multi-user deployment, and security considerations for organizational environments.
-- `UIElement` trait with GAT-based context parameter (`type Ctx<'a>`) implemented on `TabBarUI` and `StatusBarUI`, enabling unit testing of UI layout without a live GPU context.
-- `RenderLoopState` sub-struct extracted from `WindowState`, grouping render-loop pending-work fields under a single coherent bundle.
-
-### Changed
-- `WindowState` decomposition continued: `RenderLoopState` extracted, reducing top-level field count; 12 named sub-structs now in place.
-- `Config` struct decomposition: extracted `WindowConfig`, `FontConfig`, `ScrollbackConfig`, `ThemeConfig`, `NotificationConfig` sub-structs using `#[serde(flatten)]` — YAML config files remain fully compatible.
-- `pane_render.rs` split into `pane_render/` submodule with `cursor_overlays.rs` and `separators.rs` for improved navigability.
-- `TerminalManager` reorganized into focused sub-modules: `progress.rs`, `terminal_config.rs`, `tmux_control.rs`, `triggers.rs`, `observers.rs`.
-- `shader_metadata.rs` split into `shader_metadata/parsing.rs` and `shader_metadata/cache.rs`.
-- `renderer/shaders.rs` split into `shaders/background.rs`, `shaders/cursor.rs`, `shaders/shared.rs`.
-- Mutex policy documentation consolidated: authoritative reference in `src/lib.rs`; `src/tab/mod.rs` cross-references it rather than duplicating.
-- Re-export patterns in `src/lib.rs` standardized to consistent `pub mod` style with doc comments.
-- Ignored integration tests now include documentation explaining the PTY device requirement and how to run them locally with `--include-ignored`.
-
-### Fixed
-- Fixed prettifier rendering: cell substitution now applies to pane cells (the always-active render path) instead of the invisible `FrameRenderData.cells`. Updated pipeline `terminal_width` to track actual terminal dimensions each frame instead of using the stale `config.cols` value. Fixed feed stride to use the real cell array stride rather than the renderer's grid size (which omits scrollbar width), preventing garbled line reads.
-- Updated shader manifest: bumped version to 0.24.0, added missing `rain-glass.glsl`, refreshed 7 stale SHA256 hashes (bloom, crt, cubemap-test, dither, gears-and-belts, retro-terminal, spotlight).
-- Fixed `generate_manifest.py` to exclude hidden directories (`.claude/`, `.DS_Store` parents) and added "jellyfish" to nature keywords. Script now writes trailing newline.
-
-### Added
-- New `jellyfish.glsl` background shader: animated procedural jellyfish with dark water, caustic light shimmer, depth layers (foreground + background jellyfish), bioluminescent floating particles, and neon blue/purple palette. Supports an optional `iChannel0` background texture.
-- Configurable chat font size for the Assistant panel. A "Chat font size" slider (10–24 pt, default 14 pt) in Settings → AI Inspector → Panel controls the body text size of both user and agent messages. The setting live-reloads without restart.
-- Replace button on each saved arrangement row in Settings → Arrangements. Clicking Replace captures the current window layout and overwrites the saved arrangement in-place (preserving its name and list position), with an inline confirmation dialog before committing.
-- MP3 audio file support for alert sounds. Enabled rodio's `mp3` feature; settings UI hint text and doc comments updated to reflect WAV/MP3/OGG/FLAC.
-- File picker ("Browse…") button next to each alert sound file path field in Settings → Notifications → Alert Sounds, with audio file filter (WAV, MP3, OGG, FLAC, AAC, M4A).
-- `make install-shell-integration` Makefile target to copy all three shell integration scripts (bash, zsh, fish) to `~/.config/par-term/`.
-- Expanded Nerd Font icon presets in Settings: added "UI Actions" (16 icons: Search, Edit, Copy, Clipboard, Cut, Trash, Plus, Close, Refresh, Filter, List, Link, External Link, Save, Apply, Ban/Cancel) and "Navigation" (16 icons: Arrow/Angle/Caret/Long Arrow/Reply/Level/Rotate variants) categories, plus 4 more icons in "Status & Alerts".
-- New `snap_window_to_grid` config option (default: `true`) with Settings UI toggle under Window → Display. When enabled, the window snaps to exact terminal cell boundaries on resize, eliminating blank background gaps between the terminal grid and window edges. Disabled automatically in split-pane mode.
-
-### Changed
-- Consolidated rendering paths: removed the dormant single-pane orchestrator (`render_orchestrator.rs`, `CellRenderer::render()`, `render_sixel_graphics()`) that was never called from the app layer. Eliminated wasted per-frame URL underline and search highlight application to invisible `FrameRenderData.cells` (overlays are now only applied to pane cells in `gpu_submit.rs`). Extracted the duplicated 3-phase draw call sequence into a single `emit_three_phase_draw_calls()` helper used by all three render methods. Net reduction: ~450 lines of dead/duplicated code.
-- Assistant panel: when Terminal Access is enabled, the "Suggested command" box (with Run/Paste buttons) is suppressed — the command already auto-executes from the agent's code block, so the duplicate UI is unnecessary.
-- Assistant panel system guidance now clearly distinguishes the fenced code-block mechanism (runs in the user's terminal session) from the Bash tool (runs in a subprocess), and labels the command-execution section with a prominent `RUNNING COMMANDS:` header to reduce agent confusion.
-- Pane padding no longer applies when there is only one pane (no splits); in split mode, an automatic base padding equal to half the divider width is added to prevent content rendering under the divider, with `pane_padding` config applied on top of that.
-- Default `pane_padding` changed from `4.0` to `1.0` pixels.
-- Default `window_padding` changed from `0.0` to `1.0` pixels.
-- Removed unused cursor shader parameter controls (Trail duration, Glow radius, Glow intensity) from Settings UI — no built-in shader reads these uniforms.
-
-### Fixed
-- Assistant panel Terminal Access (auto-drive) now sends the agent an auto-context notification after each auto-executed command, so it can see the exit code and continue multi-step tasks. Previously the outcome was only forwarded when the separate "Auto-context" toggle was also enabled.
-- Assistant panel: when Terminal Access is enabled, the agent now receives a `[Terminal access enabled]` context block on each prompt explaining that code-block commands auto-execute in the terminal, fixing cases where the agent incorrectly reported having no terminal access.
-- Added tooltip to the Terminal Access checkbox describing the auto-execute behaviour.
-- Fixed "too many open files" error that prevented spawning agents when the shaders directory grew large. The `notify` kqueue backend (used on macOS) opens an `O_EVTONLY` file descriptor per watched file and, due to a bug in its `Vnode::Write` handler, recursively accumulates watches for every shader, texture, and cubemap file under the config directory. With 3 windows × 50+ shaders + textures, this exhausted the fd limit. Switched to FSEvents (the macOS-native, path-based backend), which opens no per-file fds and is more efficient.
-- MCP `config_update` tool now writes IPC files to the correct directory on macOS. `resolve_ipc_path()` was using `dirs::config_dir()` (`~/Library/Application Support/par-term/`) while the app watches `~/.config/par-term/`. Shader and other config changes sent by the agent via `config_update` were silently ignored because the app never saw the file.
-- Command complete alert sound now plays when a command finishes. `ShellLifecycleEvent::CommandFinished` events were forwarded to the prettifier but `play_alert_sound(AlertEvent::CommandComplete)` was never called, so the configured sound was silently ignored.
-- PTY child processes no longer inherit `TMUX`, `TMUX_PANE`, `STY`, or `WINDOW` environment variables from the parent terminal. This prevents tools like fzf from rendering in the parent tmux pane instead of inside par-term. (core library 0.39.8)
-- Custom shaders section in Settings → Integrations always showed "Not installed" even when shaders were present. The five shader callback functions (`has_files`, `count_files`, `detect_modified`, `install`, `uninstall`) were never wired from the main crate to the settings UI, so all defaulted to `None`. Install, Reinstall, and Uninstall buttons now work correctly.
-- Badge overlay now accounts for tab bar, status bar, scrollbar, and AI inspector panel when positioning, so it no longer overlaps surrounding UI elements.
-- Status bar separator character in Settings UI now renders correctly (was showing as empty box because the TextEdit used a proportional font lacking the box-drawing glyph).
-- Custom background shaders using full content mode (`custom_shader_full_content: true`) now work correctly. The `render_split_panes` path (always active) was running the shader with an empty intermediate texture (`iChannel4`), then rendering pane content on top — making full content mode behave identically to background-only mode. Pane content (cells, cursors, inline graphics) is now rendered to the shader's intermediate texture before the shader runs, and skipped afterward since the shader output already includes the processed content. Shaders like CRT, bloom, dither, and retro-terminal can now properly distort and transform terminal content.
-- Cursor shaders now render correctly. The `render_split_panes` path (always active since pane manager is always initialized) was missing cursor shader support — only the unused single-pane `render()` path handled cursor shader chaining. All content rendering (panes, dividers, titles, visual bell, focus indicator) now targets the cursor shader's intermediate texture when a cursor shader is active, with the cursor shader compositing the final result to the surface.
-- Restoring a session with split panes no longer causes the app to exit on the first keypress. The keyboard handler was checking only `tab.terminal` (orphaned after pane restore) instead of the pane manager's actual running panes.
-- Theme changes from Settings UI, config reload (F5), and system theme switching now apply to all split pane terminals, not just the primary pane.
-- Cell grid is now centered within each pane, distributing remainder pixels evenly on all sides. Previously, the `floor()` truncation when converting pixels to cols/rows left a visible gap at the right and bottom edges showing a different shade than the terminal content. The centering approach matches Alacritty, Kitty, and other modern terminal emulators.
-- Scrollbar no longer leaks from the original pane to a newly-split pane. After a vertical/horizontal split, the new pane incorrectly showed the original pane's scrollbar because `gather_render_data` was writing `tab.terminal`'s scrollback length into the focused pane's cache — even though the focused (new) pane has its own terminal with no scrollback. The cache update is now skipped in multi-pane mode, and the per-pane scrollback length from `gather_pane_render_data` always overwrites stale values.
-- URL/file-path highlights and underlines no longer appear in the wrong pane when splitting. `detect_urls()` was reading cells from `tab.terminal` (the primary terminal) instead of the focused pane's terminal, causing detected URLs from one pane to be rendered in another. Mouse hover and Cmd/Ctrl+Click also used window-global cell coordinates instead of pane-local coordinates, making hit-testing incorrect in split mode.
-- Spurious visual bell flash when splitting panes. `check_bell()` and `check_notifications()` were reading bell count from the tab's primary terminal but comparing against the focused pane's `BellState.last_count`. After a split, focus moves to the new pane (with `last_count=0`), while the original terminal may have accumulated bell events, falsely triggering the visual bell.
-- Scrollbar width no longer scales with window size during resize. The scrollbar NDC uniform cache (`last_scrollbar_state`) did not include window dimensions, so resizing without changing the terminal grid skipped re-uploading uniforms, causing the scrollbar to visually stretch or shrink.
-- Terminal text no longer renders behind the scrollbar. The focused pane's column count is now reduced by the scrollbar width when the scrollbar is visible, so text wraps before the scrollbar area. When the scrollbar is hidden, the full terminal width is available. Per-pane PTY resize is done inline before cell gathering to avoid SIGWINCH storms from competing resize calls.
-- Scrollbar now renders correctly in the focused pane after a split. The scrollbar GPU uniform cache did not include pane viewport bounds, so when a split changed the pane dimensions without changing scroll state or window size, the cache key was identical and `update_scrollbar_for_pane()` was never called — leaving the scrollbar with stale full-window geometry that rendered off-screen. The cache now includes viewport x/y/width/height.
-- Command history UI (`Cmd+R`) icons now render correctly: status icons were using standard Unicode geometric shapes (●, ✗, ○) not present in any font in the egui stack; replaced with confirmed Nerd Font PUA codepoints (`\u{f05d}` check-circle, `\u{f057}` times-circle) and ASCII `?` for unknown. Navigation hint arrows fixed the same way in command history, clipboard history, and paste-special UIs.
-- Command history and scrollbar marks now show the correct exit code for failed commands. Three layered fixes: (1) bash shell integration was capturing `$?=0` because `__bp_interactive_mode` ran between bash-preexec saving the real exit code and `__par_term_prompt_command` reading `$?`; fixed to use `${__bp_last_ret_value:-$?}`. (2) `ScrollbackMetadata::apply_event` now applies the D-marker exit code to the command snapshot when the core history is read before `end_command_execution` runs. (3) `CommandHistory::update_exit_code_if_unknown` now updates from any differing `Some` value (not only from `None`), so when scrollback marks are iterated oldest-first and the same command appears multiple times, the most-recent execution's exit code always wins.
-
-### Added
-- New `link_highlight_color_enabled` config option (default: `true`) and matching Settings UI checkbox ("Change text color on hover"). When disabled, detected URLs and file paths are underlined without changing the text colour — hover cursor change and underline decoration remain active.
-
-### Fixed
-- URL/file hover cursor no longer flickers between pointer and iBeam on every render frame. `detect_urls` previously reset `hovered_url` and set the cursor to iBeam before rebuilding the URL list, relying on the next mouse-move event to restore the pointer; this caused a visible one-frame flicker on every cache-miss render. Hover/cursor state is now owned exclusively by `mouse_move` — `detect_urls` only updates `detected_urls`.
-- URL/file-path highlighting now correctly applies both foreground color and underline decoration in the pane render path. Detection was working but the visual styling was being applied to a discarded cell buffer; it is now applied directly to pane cells before GPU submission. Underline rendering was also missing entirely from the pane renderer and has been added.
-- Close-tab confirmation now detects running jobs via OS process tree inspection (same approach as iTerm2), eliminating the previous requirement for shell integration to be configured. Any direct child process of the shell that is not in `jobs_to_ignore` will trigger the confirmation dialog.
-- Close-tab/pane confirmation now routes through the full cleanup path on user confirmation, ensuring session undo capture, tab bar resize handling, alert sounds, and window-close detection all fire correctly.
-- Cursor remaining visible and pinned to its terminal position while scrolling with the mouse wheel or scrollbar. The pane render path now hides the cursor whenever the viewport is scrolled into scrollback (`scroll_offset > 0`), matching the behaviour of the non-pane path.
-
-### Added
-- Configurable visual bell flash color (`notification_visual_bell_color`, default: white `[255, 255, 255]`) with color picker in Settings → Notifications → Bell.
-- Dedicated visual bell shader (`visual_bell.wgsl`) for simple fullscreen quad rendering without vertex/instance buffers.
-- Visual bell rendering in the pane render path (`render_split_panes`) so the flash overlay appears correctly in single-pane and split-pane modes.
-- Per-pane selection state isolation for split-pane mode: each pane now owns its own selection, click tracking, and drag state, preventing garbled clipboard content when selecting across panes.
-- Implemented `ScriptCommand` handlers for `WriteText`, `Notify`, `SetBadge`, `SetVariable`, `RunCommand`, and `ChangeConfig` with permission opt-ins and rate limiting.
-- New `docs/ENVIRONMENT_VARIABLES.md` and `docs/API.md` references.
-- Three-mutex policy documented in `src/lib.rs` and `docs/MUTEX_PATTERNS.md`.
-- Try-lock failure telemetry for tracking dropped operations.
-- Expanded test suites for tab bar UI and settings window.
-- `src/ui_constants.rs` to centralize UI layout dimensions.
-- Customizable `timeout_secs` for snippet shell commands.
-- 73 keybinding integration tests covering parse/registry/lookup pipeline, modifiers, key aliases, physical keys, and error cases.
-- 97 copy mode state machine tests covering motions, visual modes, selection, marks, search, and edge cases.
-
-### Changed
-- `pause_refresh_on_blur` now defaults to `true`: the reduced-FPS mode (using `unfocused_fps`, default 30) is enabled out of the box when the window loses focus, reducing CPU/GPU usage in the background.
-- `tab_inactive_outline_only` now defaults to `true`: inactive tabs render as outline-only (no background fill) by default, giving the tab bar a cleaner appearance.
-- Dark Background, Light Background, and Pastel (Dark Background) themes: all colors now accurately reflect iTerm2's plist values converted from NSCalibratedRGBColorSpace (genericRGB) to sRGB. This corrects foreground, cursor, selection, and all 16 ANSI colors for these three themes.
-- High Contrast theme: corrected all 16 ANSI colors, foreground, cursor, and selection to match iTerm2's sRGB values (previously used crude max-saturation values that didn't match the iTerm2 preset).
-- Default pane background opacity changed from 0.85 to 1.0 (fully opaque).
-- Default font size increased from 12 to 13.
-- `minimum_contrast` slider in Settings capped at 0.99; a saved value of exactly 1.0 (the old legacy default) is automatically migrated to 0.0 (disabled) on load.
-
-### Fixed
-- Fixed scrollbar cross-tab contamination: switching tabs no longer shows the previous tab's command marks in the scrollbar. Two root causes addressed: (1) `marks_override_scrollbar` now only forces the scrollbar visible when `scrollback_len > 0`, preventing a fresh tab's prompt mark (OSC 133;A) from making the scrollbar appear when there is nothing to scroll; (2) the scrollbar GPU cache key now includes marks count so tabs sharing the same `(scroll_offset, total_lines, rows)` values correctly refresh GPU mark data when marks differ.
-- Fixed `clear` command not removing command markers from the scrollbar: ESC[2J and ESC[3J now emit a `ScreenCleared` event from the core library which the terminal manager uses to reset `ScrollbackMetadata` and `MarkerTracker`, clearing all scrollbar marks immediately.
-- Fixed shell integration not detecting running commands: the OSC 133;C (CommandExecuted) handler was not parsing the optional command text from params[2], so `set_command()` was never called and the "confirm before closing tabs with running jobs" check always reported no running job.
-- Fixed close-tab confirmation never showing when using the tab close button with "confirm before closing tabs with running jobs" enabled: `check_current_tab_running_job` and `check_current_pane_running_job` were acquiring a write lock (`try_write`) when only a read lock is needed (`blocking_read`), causing lock contention that always returned early.
-- Fixed startup precedence: `auto_restore_arrangement` now takes priority over `restore_session` when both are enabled, so named arrangements explicitly override automatic session restoration.
-- Fixed alternating launch bug where typing in a restored session immediately exits par-term with code 0: session capture was incorrectly saving `pane_layout = Some(Leaf{...})` for single-pane tabs (since R-32 made `pane_manager` always `Some`). On restore, `restore_pane_layout()` would spawn a second shell and drop the original pane, whose `Drop` impl killed the first shell's PTY via the shared `Arc`. Single-pane tabs now save `pane_layout = None` and restore using the tab-level CWD, consistent with the original design intent. A matching guard in `restore_session()` protects against old session files.
-- Fixed search highlights (Cmd+F) never appearing: all tabs use the pane-manager render path, which gathers cells independently per pane. Highlights were being applied to the main frame cells that are never rendered. Highlights are now applied to the focused pane's cells in `gpu_submit.rs` after `gather_pane_render_data`, immediately before rendering.
-- Fixed search navigation buttons (▲/▼) and close button (×) rendering as empty boxes: replaced Unicode arrows/multiply sign with Font Awesome icon codepoints (`\u{f062}`, `\u{f063}`, `\u{f00d}`) that are present in the embedded icon font.
-- Fixed scrollbar thumb/track color changes in Settings not taking effect until a scroll event: `update_scrollbar_appearance` now resets `last_scrollbar_state` to force the next `update_scrollbar()` call to re-upload GPU uniforms regardless of scroll position.
-
-### Changed
-- Moved scrollbar settings (width, colors, autohide, command markers) from the Terminal tab to the Window tab in Settings, where window-layout controls are grouped.
-
-- Fixed cursor text color (block cursor) setting having no visible effect: the default initial color when enabling the setting was `[0,0,0]` (black), identical to the auto-contrast result for the default white cursor, so enabling it produced no change. Initial color is now red `[255,0,0]` to make the effect immediately visible. Also fixed a secondary bug where `current_col` was not incremented on glyph resolution failure, causing the color override to be applied to the wrong column after any unrenderable character.
-- Fixed cursor text color (block cursor) having no effect in split-pane mode: the pane renderer (`build_pane_instance_buffers`) never applied cursor text color logic to text instances. The same `cursor_is_block_on_this_row` / `render_fg_color` logic used in the single-pane path is now applied in the pane renderer as well.
-- Fixed tab bar (left position) showing new-tab buttons at the bottom instead of the top: the "New Tab" and "New Tab from Profile" buttons in the vertical left-side tab bar are now rendered first, above the existing tabs.
-- Fixed non-uniform text brightness: characters at certain column positions appeared slightly dimmer than neighbours due to `cell_width` being stored as a non-integer float. Per-column rounding caused `scale_x` to alternate (e.g. 7/7.8 ≈ 0.90 vs 8/7.8 ≈ 1.03), making glyphs sample the atlas at different rates. Cell dimensions are now rounded to integer pixels at initialisation, font-change, and cols/rows calculation so every character renders at scale 1.0.
-- Fixed beam/underline cursor invisible when focused: cursor bar was rendered before text glyphs in the pane renderer, causing text to overdraw it. Added 3-phase rendering to `render_pane_to_view` (cell bgs → text → cursor overlays) so the cursor bar is always drawn on top.
-- Fixed hollow cursor not appearing when window loses focus: the pane renderer (used for all tmux gateway sessions and any tab that has ever had splits) had no cursor overlay mechanism. Added beam cursor bar and hollow-border overlay instances to `build_pane_instance_buffers`, with hollow borders always alpha=1.0 regardless of blink phase so they remain visible throughout the blink cycle.
-- Fixed hollow cursor not appearing when window loses focus (standard single-pane path): beam cursor was covered by text due to bg-pipeline running before text-pipeline; added 3-phase rendering to all three render methods (`render`, `render_to_texture`, `render_to_view`). Also fixed hollow cursor border alpha using blink opacity (0 when blinking off) and an `is_block` guard preventing borders from rendering when cursor style was beam or underline.
-- Fixed ▄/▀ half-block gradient banding regression (e.g. `rich.palette`): half-block characters are now rendered entirely through the text pipeline (two quads per cell) instead of split across BG and text pipelines, eliminating cross-pipeline coordinate seams caused by floating-point sensitivity in optimized builds.
-- Fixed macOS silent exit when pressing Cmd+, (Settings) before clicking in the window: replaced `PredefinedMenuItem::quit` (which called `[NSApp terminate:]` → `exit(0)`, bypassing all Rust cleanup) with a custom menu item that performs graceful shutdown, and moved menu installation before the blocking GPU initialization to ensure accelerators are active immediately.
-- Fixed custom background shaders (e.g., rain) rendering as fully transparent in split-pane mode after the macOS alpha-coverage fix; the shader's render pass now uses final-mode opacity instead of chain mode, producing opaque premultiplied output.
-- Fixed translucent right-half background on macOS: in Default and Color background modes, the right portion of the window (empty cells with default background) was see-through to the desktop because `LoadOp::Clear` alone is unreliable for alpha on macOS Metal with per-pixel transparency enabled. All background modes now render a full-screen opaque quad via `bg_image_pipeline`; Default mode creates a solid-color texture from the theme background colour so the pipeline always has coverage. Also fixed a pre-existing bug where the pane-viewport fill quad in split-pane mode used pixel coordinates instead of NDC, causing it to render entirely off-screen.
-- Fixed cursor guide and cursor shadow having no visual effect: both effects were built only in the legacy single-pane render path (`build_cursor_overlay_instances`), but all tabs now use the pane-manager path (`build_pane_instance_buffers`). Guide and shadow overlay instances are now built in the pane renderer as well. Also reduced hollow cursor border width from 2 px to 1 px for a cleaner appearance.
-- Fixed semantic file-path highlighting bleeding across tmux pane separators: the file-path detection regex now stops at Unicode box-drawing characters (U+2500–U+257F), so the link highlight colour is no longer applied to cells in the adjacent tmux pane.
-- Fixed drag-selection often failing to copy text to clipboard due to `try_write()` race condition; mouse-release copy now uses `blocking_write()` to guarantee the selection is captured.
-- Fixed clicking between tmux panes overwriting clipboard contents via accidental micro-selections; pane-focus clicks are now fully consumed before reaching selection-anchor code.
-- Fixed text selection in split-pane mode reading from the wrong terminal buffer; selection now correctly reads from the focused pane's terminal.
-- Fixed double-click and triple-click word/line selection occasionally failing to highlight due to the same `try_write()` contention.
-- Wired `process_sync_actions` in TmuxSync dispatch to handle session, layout, output, and flow-control notifications.
-- Fixed highlight flickering in `detect_urls` by preserving stale lists on lock misses.
-- Resolved `window_opacity` state corruption during `render_to_texture`.
-- Improved left/right modifier remapping logic.
-- Resolved various panic-prone `.expect()` calls and improved error handling across modules.
-- Added response size limits for update checker and ACP file reads.
-- Fixed orphaned trigger processes and improved cleaning of tmux control mode on session end.
-- Fixed potential panics in command truncation with multi-byte UTF-8 characters.
-- Resolved dead code tracking for v0.26 removal.
-- Annotated all `unsafe` blocks with `// SAFETY:` justifications.
-
-### Security
-- Migrated from `serde_yml` to `serde_yaml_ng` to resolve vulnerabilities.
+- Added amber warning banner in Settings → Automation when any trigger has `require_user_action: false` (SEC-002).
+- File and URL opening uses direct `process::Command` spawn (no login shell) when the editor template contains only `{file}/{line}/{col}` placeholders, eliminating shell-escape injection (SEC-003).
+- ACP permission validation serializes the canonicalize-and-compare phase with a process-wide mutex, closing a TOCTOU race between concurrent checks (SEC-004).
+- ACP agent subprocess spawns without a shell interpreter when the resolved command contains no shell metacharacters (SEC-005).
+- Session log redaction expanded with 45 additional patterns covering API keys, AWS credentials, PEM headers, cloud/vault tokens, database passwords, and 2FA/TOTP prompts (SEC-006).
+- Migrated from `serde_yml` to `serde_yaml_ng` to resolve upstream vulnerabilities.
 - Enforced command allowlists for `ExternalCommandRenderer`.
-- Blocked HTTP profile URLs by default and added warnings for MitM risks.
+- Blocked HTTP profile URLs by default; added MitM risk warnings.
 - Strengthened update checker with domain allowlists and binary content validation.
-- Improved permissions for session logs and MCP IPC files.
-- Added password redaction warnings for session logging.
+- Improved permissions for session logs and MCP IPC files; added password redaction warnings for session logging.
 - Prevented accidental commit of local API tokens via `.gitignore`.
 - Added path traversal prevention for config paths and shader names.
 - Hardened tmux command escaping to prevent truncation via null bytes.
 
+### Added
+- New `jellyfish.glsl` background shader: animated procedural jellyfish with caustic light shimmer, bioluminescent particles, and neon blue/purple palette.
+- Configurable chat font size for the Assistant panel (10–24 pt slider, default 14 pt, live-reloads).
+- Replace button on saved arrangement rows — captures current layout and overwrites in-place with inline confirmation.
+- MP3 audio file support for alert sounds (`rodio` mp3 feature enabled); settings hint text updated to reflect WAV/MP3/OGG/FLAC.
+- File picker ("Browse…") button next to each alert sound path field, with audio file type filter.
+- `snap_window_to_grid` config option (default: `true`) — snaps window to exact terminal cell boundaries on resize, disabled automatically in split-pane mode.
+- `link_highlight_color_enabled` config option (default: `true`) — when disabled, URLs/file paths are underlined without changing text colour.
+- Configurable visual bell flash color (`notification_visual_bell_color`, default: white) with color picker in Settings → Notifications → Bell.
+- `ScriptCommand` handlers for `WriteText`, `Notify`, `SetBadge`, `SetVariable`, `RunCommand`, and `ChangeConfig` with permission opt-ins and rate limiting.
+- Per-pane selection state isolation: each pane owns its own selection, click tracking, and drag state.
+- `UIElement` trait with GAT-based context parameter (`type Ctx<'a>`) on `TabBarUI` and `StatusBarUI`, enabling unit testing without a live GPU context.
+- `RenderLoopState` sub-struct extracted from `WindowState`.
+- `make install-shell-integration` Makefile target to copy shell integration scripts (bash, zsh, fish) to `~/.config/par-term/`.
+- Expanded Nerd Font icon presets: "UI Actions" (16 icons) and "Navigation" (16 icons) categories, plus 4 more icons in "Status & Alerts".
+- `docs/ENTERPRISE_DEPLOYMENT.md` guide covering bulk installation, MDM/Jamf packaging, and multi-user deployment.
+- `docs/ENVIRONMENT_VARIABLES.md` and `docs/API.md` references.
+- Three-mutex policy documented in `src/lib.rs` and `docs/MUTEX_PATTERNS.md`; try-lock failure telemetry added.
+- `src/ui_constants.rs` centralizing UI layout dimensions.
+- Customizable `timeout_secs` for snippet shell commands.
+- 73 keybinding integration tests and 97 copy mode state machine tests.
+
 ### Changed
-- Refactored minimum contrast from WCAG ratio scale (1.0–21.0) to iTerm2-compatible perceived brightness scale (0.0–1.0). Settings slider and labels updated accordingly.
+- Consolidated rendering: removed dormant single-pane orchestrator (`render_orchestrator.rs`, `CellRenderer::render()`, `render_sixel_graphics()`); extracted duplicated 3-phase draw sequence into `emit_three_phase_draw_calls()`; net ~450 lines removed.
+- Assistant panel: suppressed "Suggested command" box when Terminal Access is enabled (command already auto-executes from the agent's code block).
+- Assistant panel system guidance now clearly distinguishes fenced code-block execution (user's PTY) from the Bash tool (subprocess), with a prominent `RUNNING COMMANDS:` header.
+- Pane padding: no padding in single-pane mode; split mode adds automatic base padding equal to half the divider width. Default `pane_padding` changed from `4.0` → `1.0` px; default `window_padding` changed from `0.0` → `1.0` px.
+- Removed unused cursor shader parameter controls (Trail duration, Glow radius, Glow intensity) from Settings UI.
+- `pause_refresh_on_blur` now defaults to `true` (reduced-FPS mode enabled when window loses focus).
+- `tab_inactive_outline_only` now defaults to `true` (inactive tabs render outline-only by default).
+- Dark Background, Light Background, Pastel, and High Contrast themes: all colors corrected to match iTerm2's sRGB values (converted from NSCalibratedRGBColorSpace).
+- Default pane background opacity changed from 0.85 → 1.0; default font size increased from 12 → 13.
+- `minimum_contrast` slider capped at 0.99; saved value of 1.0 auto-migrated to 0.0 (disabled) on load.
+- Minimum contrast refactored from WCAG ratio scale (1.0–21.0) to iTerm2-compatible perceived brightness scale (0.0–1.0).
+- Scrollbar settings (width, colors, autohide, command markers) moved from Terminal tab to Window tab in Settings.
+- `WindowState` and `Config` decomposition continued: `RenderLoopState`, `WindowConfig`, `FontConfig`, `ScrollbackConfig`, `ThemeConfig`, `NotificationConfig` sub-structs extracted; 12 named sub-structs now in place.
+- `pane_render.rs` split into `pane_render/` submodule with `cursor_overlays.rs` and `separators.rs`.
+- `TerminalManager` reorganized into `progress.rs`, `terminal_config.rs`, `tmux_control.rs`, `triggers.rs`, `observers.rs`.
+- `shader_metadata.rs` split into `shader_metadata/parsing.rs` and `shader_metadata/cache.rs`.
+- `renderer/shaders.rs` split into `shaders/background.rs`, `shaders/cursor.rs`, `shaders/shared.rs`.
+- Mutex policy documentation consolidated to `src/lib.rs`; re-export patterns standardized to consistent `pub mod` style.
+- Integration tests now document the PTY device requirement and how to run with `--include-ignored`.
+- Centralized config saves with a 100ms debounce; prettifier disabled by default; automatic CI triggers enabled for main and PRs.
+
+### Fixed
+
+#### Prettifier & Shaders
+- Prettifier cell substitution now applies to pane cells (always-active path) instead of invisible `FrameRenderData.cells`; pipeline `terminal_width` tracks actual terminal dimensions; feed stride uses real cell array stride.
+- Updated shader manifest: bumped to 0.24.0, added `rain-glass.glsl`, refreshed 7 stale SHA256 hashes.
+- Fixed `generate_manifest.py` to exclude hidden directories and write a trailing newline.
+- Custom background shaders with `custom_shader_full_content: true` now work correctly — pane content is rendered to the shader's intermediate texture before the shader runs, so CRT/bloom/dither/retro-terminal shaders can properly distort terminal content.
+- Cursor shaders now render correctly in the pane path (`render_split_panes`); all content targets the cursor shader's intermediate texture when active.
+- Custom background shaders (e.g., rain) no longer render as fully transparent in split-pane mode; shader render pass now uses final-mode opacity.
+- Fixed translucent right-half background on macOS: all background modes now render a full-screen opaque quad via `bg_image_pipeline`; also fixed pane-viewport fill quad using pixel coordinates instead of NDC.
+
+#### Assistant Panel / ACP
+- Terminal Access auto-drive now sends an auto-context notification after each auto-executed command so the agent can see the exit code and continue multi-step tasks.
+- Agent now receives a `[Terminal access enabled]` context block on each prompt when Terminal Access is enabled, fixing cases where the agent incorrectly reported having no terminal access.
+- Added tooltip to the Terminal Access checkbox.
+- Fixed "too many open files" error when spawning agents with large shader directories — switched from kqueue (O_EVTONLY fd per file) to FSEvents (path-based, no per-file fds).
+- MCP `config_update` tool now writes IPC files to the correct directory (`~/.config/par-term/` instead of `~/Library/Application Support/par-term/`).
+
+#### Split Pane
+- Scrollbar no longer leaks from original pane to a newly-split pane.
+- URL/file-path highlights and underlines no longer appear in the wrong pane; `detect_urls()` now reads from the focused pane's terminal; mouse hover and Cmd/Ctrl+Click use pane-local coordinates.
+- Spurious visual bell flash after splitting panes fixed — bell count now read from the correct pane's terminal.
+- Scrollbar width no longer scales with window size during resize; cache key now includes window dimensions.
+- Terminal text no longer renders behind the scrollbar; focused pane column count reduced by scrollbar width when visible.
+- Scrollbar GPU uniform cache now includes viewport bounds, preventing stale geometry after splits.
+- Theme changes now apply to all split pane terminals, not just the primary pane.
+- Restoring a session with split panes no longer causes exit on first keypress.
+- Cell grid now centered within each pane, distributing remainder pixels evenly on all sides.
+- Per-pane selection reads from the focused pane's terminal buffer.
+- Fixed drag-selection clipboard copy using `blocking_write()` to eliminate `try_write()` race.
+- Fixed clicking between tmux panes overwriting clipboard via accidental micro-selections.
+- Double-click and triple-click selection no longer fails due to `try_write()` contention.
+
+#### Cursor Rendering
+- Block cursor text color setting now has visible effect (initial color changed to red `[255,0,0]`); also fixed `current_col` not incrementing on glyph resolution failure.
+- Block cursor text color now applies in split-pane mode (`build_pane_instance_buffers`).
+- Beam/underline cursor no longer hidden under text in pane renderer; 3-phase rendering (`cell bgs → text → cursor overlays`) added to `render_pane_to_view`.
+- Hollow cursor now appears in pane renderer when window loses focus; hollow borders use alpha=1.0 independent of blink phase.
+- Hollow cursor also fixed in the single-pane path: 3-phase rendering added to all three render methods; fixed hollow cursor border alpha and `is_block` guard.
+- Cursor guide and cursor shadow now render in the pane path (`build_pane_instance_buffers`); hollow cursor border width reduced from 2 px to 1 px.
+- Cursor remains hidden while scrolling into scrollback (`scroll_offset > 0`).
+
+#### Rendering
+- ▄/▀ half-block gradient banding fixed: half-block characters now rendered entirely via text pipeline (two quads per cell), eliminating cross-pipeline seams.
+- Non-uniform text brightness fixed: `cell_width` now rounded to integer pixels at initialization, font-change, and cols/rows calculation, ensuring every glyph renders at scale 1.0.
+- Fixed macOS silent exit on Cmd+, before clicking in the window: replaced `PredefinedMenuItem::quit` with a custom graceful-shutdown item; menu installed before GPU initialization.
+- Semantic file-path highlighting no longer bleeds across tmux pane separators (regex stops at box-drawing characters U+2500–U+257F).
+- Tab bar (left position) new-tab buttons now render at the top instead of the bottom.
+
+#### URL / Link Detection
+- URL/file hover cursor no longer flickers on every render frame; hover/cursor state now owned exclusively by `mouse_move`.
+- URL/file-path highlighting now correctly applies foreground color and underline decoration in the pane render path.
+
+#### Scrollbar
+- Scrollbar cross-tab contamination fixed: `marks_override_scrollbar` only forces scrollbar visible when `scrollback_len > 0`; GPU cache key includes marks count.
+- `clear` command now removes command markers from the scrollbar immediately via `ScreenCleared` event.
+- Scrollbar thumb/track color changes in Settings now take effect immediately (cache reset on appearance change).
+
+#### Shell Integration & History
+- Shell integration now correctly detects running commands: OSC 133;C handler parses command text from params[2].
+- Close-tab confirmation now correctly shows with the tab close button: replaced `try_write` with `blocking_read` in running-job checks.
+- Close-tab/pane confirmation now routes through the full cleanup path (session undo, tab bar resize, alert sounds).
+- Bash shell integration exit code capture fixed: uses `${__bp_last_ret_value:-$?}` to avoid `__bp_interactive_mode` clobbering `$?`.
+- `ScrollbackMetadata::apply_event` now applies D-marker exit code correctly; `CommandHistory::update_exit_code_if_unknown` updates from any differing `Some` value.
+- Command history and paste-special UI icons now use Nerd Font PUA codepoints instead of missing Unicode shapes.
+
+#### Session Restore
+- `auto_restore_arrangement` now takes priority over `restore_session` when both are enabled.
+- Fixed alternating launch bug: single-pane tabs now save `pane_layout = None`; `restore_pane_layout()` guard added against old session files.
+
+#### Search
+- Search highlights (Cmd+F) now appear correctly: highlights applied to focused pane cells in `gpu_submit.rs` after `gather_pane_render_data`.
+- Search navigation (▲/▼) and close (×) buttons now render correctly using Font Awesome icon codepoints.
+
+#### Other
+- Command complete alert sound now plays when a command finishes (`play_alert_sound(AlertEvent::CommandComplete)` was never called).
+- PTY child processes no longer inherit `TMUX`, `TMUX_PANE`, `STY`, or `WINDOW` from the parent terminal.
+- Custom shaders section in Settings → Integrations now works correctly (shader callbacks wired from main crate to settings UI).
+- Badge overlay now accounts for tab bar, status bar, scrollbar, and AI inspector panel when positioning.
+- Status bar separator character in Settings UI now renders correctly (TextEdit switched to monospace font).
+- Wired `process_sync_actions` in TmuxSync for session, layout, output, and flow-control notifications.
+- Fixed highlight flickering in `detect_urls` by preserving stale lists on lock misses.
+- Resolved `window_opacity` state corruption during `render_to_texture`.
+- Improved left/right modifier remapping logic.
+- Resolved various panic-prone `.expect()` calls; added response size limits for update checker and ACP file reads.
+- Fixed orphaned trigger processes; improved tmux control mode cleanup on session end.
+- Fixed panics in command truncation with multi-byte UTF-8 characters.
+- Annotated all `unsafe` blocks with `// SAFETY:` justifications.
 
 ### Refactored
-- Full codebase refactor audit (28 findings): eliminated all `#[allow(clippy::too_many_arguments)]` suppressions (23→0) via parameter builder structs; extracted `GlobalShaderConfig`, `AiInspectorConfig`, and `StatusBarConfig` sub-structs from the monolithic `Config` struct; split 12 files exceeding 800 lines into focused sub-modules; removed all dead-code suppressions; consolidated duplicate implementations (`shell_detection`, `profile_modal_ui`). 1,065 tests pass with zero regressions.
-- Centralized `make_block` / `make_block_with_command` test factories in `prettifier/testing.rs`; removed 24 duplicate local definitions across detector and renderer test files (R-30).
-- Decomposed 890-line `submit_gpu_frame()` into `update_gpu_renderer_state()`, `render_egui_frame()`, and `scroll_offset_from_tab()` helpers (R-31).
-- Added 7 semantic color accessors to `ThemeColors` (`dim_color`, `string_color`, `key_color`, `error_color`, `number_color`, `comment_color`, `accent_color`); extracted shared `guide_segment`, `plain_segment`, `dim_segment` helpers to `renderers/mod.rs`; migrated 250+ raw `palette[N]` indices across json/yaml/toml/xml parsers (R-34).
-- Split 925-line `markdown/tests.rs` into 5 focused sub-files under `tests/` (R-36).
-- Split `cli.rs` (664 lines) into `cli/mod.rs` (arg types + dispatch) and `cli/install.rs` (install procedures) (R-37).
-- Extracted `apply_config_to_windows` (~700 lines) from `settings_actions.rs` into `window_manager/config_propagation.rs`; `settings_actions.rs` reduced from 795 → 233 lines (R-39).
-- Extracted `xml.rs` inline tests into `renderers/xml/mod.rs` + `renderers/xml/tests.rs`, consistent with other renderer layout (R-40).
-- Extracted `regex_detector.rs` inline tests (410 lines) into `regex_detector/mod.rs` + `regex_detector/tests.rs` (R-41).
-- Split `file_transfers.rs` (780 lines) into `file_transfers/types.rs`, `file_transfers/overlay.rs`, and `file_transfers/mod.rs` (R-42).
-- Extracted rule-loading logic from `config_bridge.rs` into `prettifier/rule_loader.rs`; `config_bridge.rs` reduced from 718 → ~170 lines (R-43).
-- Extracted per-pane accessor routing from `tab/mod.rs` into `tab/pane_accessors.rs`; `mod.rs` reduced from 805 → 664 lines (R-45).
-- Split `copy_mode/mod.rs` (637 lines) into module directory: `types.rs`, `cursor.rs`, `motion.rs`, `visual.rs`, `search.rs` + 83-line orchestrator (R-46).
-- Extracted `TabBarUI` struct to `tab_bar_ui/state.rs` and `render_horizontal` to `tab_bar_ui/horizontal.rs`; `mod.rs` reduced from 714 → 361 lines (R-47).
-- Extracted `ConfigurableDetector` subtrait from `ContentDetector`; `RendererRegistry` dispatches through `as_configurable_mut()` instead of silent empty default methods (R-51).
-- Extracted `src/prettifier/` (93 files, 22 778 L) and `src/ansi_colors.rs` into a new `par-term-prettifier` workspace sub-crate; debug macros shimmed to `log::*`; config re-exported via a facade module so internal files required zero import changes; CI workflow updated with Layer 2 publish step (R-03).
-- Promoted `src/app/window_state/render_pipeline/` to `src/app/render_pipeline/` using a `#[path]` attribute in `window_state/mod.rs`; logical module path and all `pub(super)` / `super::` semantics preserved with zero caller changes (R-14).
-- Eliminated all 19 flat `.rs` files from `src/app/` root: 13 `impl WindowState` files and sub-state structs moved to `window_state/`; per-pane types (`BellState`, `MouseState`, `RenderCache`) moved to `pane/`; copy mode split into `copy_mode/handler.rs` + `copy_mode/search.rs`; `TmuxState` moved to `tmux_handler/`; `src/app/` now has only `mod.rs` at root level (R-02).
-- Decomposed `WindowState` and `Config` into cohesive sub-state objects.
-- Extracted `EguiState` sub-struct from `WindowState` (ARC-001 continuation).
-- Added `with_active_tab()`, `with_active_tab_mut()`, `with_window()`, `request_redraw()` helpers on `WindowState`; converted 60+ call sites.
-- Added `try_with_terminal()` / `try_with_terminal_mut()` helpers on `Tab`; converted 7 call sites.
-- Split `agent_messages.rs` (1,006 lines) into `agent_config.rs` + `agent_screenshot.rs`.
-- Split `triggers.rs` (832 lines) into `mark_line`, `prettify`, and `sound` sub-modules.
-- Split `scripting.rs` (820 lines), extracting `config_change` sub-module.
-- Converted `url_detection.rs`, `copy_mode.rs` into module directories with separate test files.
-- Extracted `DRAG_THRESHOLD_PX`, `CLICK_RESTORE_THRESHOLD_PX`, `SCROLLBAR_MARK_HIT_RADIUS_PX`, `VISUAL_BELL_FLASH_DURATION_MS` into `ui_constants.rs`.
+- Full codebase audit (28 findings): eliminated all 23 `#[allow(clippy::too_many_arguments)]` suppressions via parameter builder structs; extracted `GlobalShaderConfig`, `AiInspectorConfig`, `StatusBarConfig` sub-structs; split 12 files exceeding 800 lines; removed all dead-code suppressions; consolidated duplicate `shell_detection` and `profile_modal_ui` implementations. 1,065 tests pass.
+- Extracted `src/prettifier/` (93 files, 22,778 lines) and `src/ansi_colors.rs` into `par-term-prettifier` workspace sub-crate (R-03).
+- Promoted `src/app/window_state/render_pipeline/` to `src/app/render_pipeline/` using `#[path]`; zero caller changes (R-14).
+- Eliminated all 19 flat `.rs` files from `src/app/` root; moved to `window_state/`, `pane/`, `copy_mode/`, `tmux_handler/` (R-02).
+- Decomposed 890-line `submit_gpu_frame()` into `update_gpu_renderer_state()`, `render_egui_frame()`, `scroll_offset_from_tab()` (R-31).
+- Added 7 semantic color accessors to `ThemeColors`; migrated 250+ raw `palette[N]` indices across json/yaml/toml/xml parsers (R-34).
+- Split large files: `markdown/tests.rs` → 5 sub-files (R-36); `cli.rs` → `cli/mod.rs` + `cli/install.rs` (R-37); `settings_actions.rs` 795 → 233 lines via `config_propagation.rs` (R-39); `file_transfers.rs` 780 lines → 3 modules (R-42); `copy_mode/mod.rs` 637 lines → 5 focused modules (R-46); `TabBarUI` extracted to `tab_bar_ui/state.rs` + `horizontal.rs`, `mod.rs` 714 → 361 lines (R-47).
+- Extracted test files out-of-line for `xml.rs` (R-40), `regex_detector.rs` (R-41), `config_bridge.rs` → `rule_loader.rs` (R-43), `tab/mod.rs` → `pane_accessors.rs` (R-45).
+- Extracted `ConfigurableDetector` subtrait; `RendererRegistry` dispatches through `as_configurable_mut()` (R-51).
+- Centralized `make_block`/`make_block_with_command` test factories; removed 24 duplicate local definitions (R-30).
+- Added `with_active_tab()`, `with_window()`, `request_redraw()` helpers on `WindowState` (60+ call sites); `try_with_terminal()` / `try_with_terminal_mut()` helpers on `Tab` (7 call sites).
+- Created `src/platform/` consolidating platform-specific notification delivery and modifier key detection, reducing `#[cfg]` blocks across 8 files.
+- Created `TerminalAccess`, `UIElement`, and `EventHandler` traits in `src/traits.rs`.
+- Added per-pane state accessors on `Tab` routing through `PaneManager`; updated ~30 call sites.
 - Migrated terminal access from `Mutex` to `RwLock` for better read concurrency.
-- Extracted shared initialization logic for tabs and panes.
-- Unified GLSL transpiler templates and added WGSL injection validation.
-- De-duplicated `Makefile` variables and targets.
-- Added per-pane state accessors on `Tab` (`active_scroll_state`, `active_mouse`, `active_cache`, `active_bell` + mut variants) routing through `PaneManager` in split-pane mode; updated ~30 call sites (AUD-002/AUD-062).
-- Created `src/platform/` module consolidating platform-specific notification delivery and modifier key detection, reducing `#[cfg]` blocks across 8 files (AUD-060).
-- Split 8 large files (>800 lines) into focused sub-modules: `json.rs`, `toml.rs`, `yaml.rs`, `log.rs` renderers; `boundary.rs`; `session_logger.rs`; `shader_context.rs`; `profile/dynamic.rs` (AUD-011/012/015/016/018/019/023/024).
-- Created `TerminalAccess`, `UIElement`, and `EventHandler` traits in `src/traits.rs` (AUD-040/041/042).
-- Added 128 new tests: coordinate translation, pane bounds, and tests extracted during file splits (AUD-050/053).
-
-### Documentation
-- Added legacy field migration plans for `Tab` struct.
-- Documented 3-tier shader resolution chain.
-- Updated `CONTRIBUTING.md`, `docs/CONCURRENCY.md`, `docs/STATE_LIFECYCLE.md`, and `docs/ARCHITECTURE.md` with deep technical overviews.
-- Simplified `README.md` with a quick start guide.
-- Added per-module documentation for re-exports, locking rules, and architectural patterns.
-
-### Changed
-- Centralized config saves with a 100ms debounce.
-- Prettifier is now disabled by default.
-- Enabled automatic CI triggers for main and PRs.
+- Added 128 new tests for coordinate translation, pane bounds, and file splits.
 
 ### Performance
 - Eliminated per-frame GPU buffer allocations for pane backgrounds using a uniform buffer cache.
 - Implemented scratch `Vec` reuse in `CellRenderer`.
-- Added regex caching for triggers.
-- Replaced per-frame `StyledLine` clones with borrows.
+- Added regex caching for triggers; replaced per-frame `StyledLine` clones with borrows.
 - Integrated native filesystem watchers for config hot-reload.
+
+### Documentation
+- Added `docs/ENTERPRISE_DEPLOYMENT.md`, `docs/ENVIRONMENT_VARIABLES.md`, `docs/API.md`, `docs/MUTEX_PATTERNS.md`.
+- Updated `CONTRIBUTING.md`, `docs/CONCURRENCY.md`, `docs/STATE_LIFECYCLE.md`, `docs/ARCHITECTURE.md` with deep technical overviews.
+- Simplified `README.md` with a quick start guide.
+- Added per-module documentation for re-exports, locking rules, and architectural patterns; documented 3-tier shader resolution chain and legacy `Tab` field migration plans.
 
 ---
 
