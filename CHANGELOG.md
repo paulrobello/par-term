@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Reduced dark-theme tab color preset brightness by 25% for better visual comfort.
+- Updated `par-term-emu-core-rust` dependency to v0.40.0.
+
 ---
 
 ## [0.25.0] - 2026-03-07
