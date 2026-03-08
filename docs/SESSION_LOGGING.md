@@ -7,8 +7,10 @@ par-term provides session logging to record terminal output for later review, sh
 - [Recording Formats](#recording-formats)
 - [Starting a Recording](#starting-a-recording)
 - [Configuration](#configuration)
+- [Security: Password Redaction](#security-password-redaction)
 - [File Locations](#file-locations)
 - [Playback](#playback)
+- [Asciicast Format Details](#asciicast-format-details)
 - [Related Documentation](#related-documentation)
 
 ## Overview
@@ -110,6 +112,9 @@ session_log_directory: ~/.local/share/par-term/logs/
 
 # Finalize log file when tab closes
 archive_on_close: true
+
+# Redact passwords detected at common prompts (enabled by default)
+session_log_redact_passwords: true
 ```
 
 ### Settings UI Options
@@ -122,6 +127,25 @@ The Advanced tab in Settings provides:
 | **Log format** | Dropdown: Plain Text, HTML, Asciicast |
 | **Log directory** | Path to log storage directory |
 | **Archive session on tab close** | Ensure clean file write on close |
+| **Redact passwords in session logs** | Detect password prompts and replace input with redaction marker |
+
+## Security: Password Redaction
+
+Session logs capture raw terminal I/O, which may include passwords and other credentials typed at prompts (sudo, ssh, gpg, etc.).
+
+When `session_log_redact_passwords` is enabled (default), the logger:
+
+- Monitors terminal output for common password prompt patterns
+- Replaces subsequent keyboard input with `[INPUT REDACTED - echo off]` until Enter is pressed
+- Detects prompts like: `password:`, `[sudo]`, `passphrase:`, `enter pin`, etc.
+
+> **Warning:** Password redaction is heuristic-based and cannot guarantee detection of all sensitive input scenarios. Credentials may still be captured in cases such as:
+> - Custom or localized password prompts not in the pattern list
+> - Credentials pasted into the terminal (no echo-suppress signal)
+> - API keys or tokens typed as command arguments
+> - Applications that suppress echo without emitting a matching prompt string
+
+**Recommendation:** If you regularly work with sensitive credentials, disable session logging for those sessions. Do not rely solely on redaction as a security control.
 
 ## File Locations
 

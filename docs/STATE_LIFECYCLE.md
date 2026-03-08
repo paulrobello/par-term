@@ -22,7 +22,7 @@ input through PTY processing to GPU rendering.
 par-term organizes mutable state in a strict ownership hierarchy. Each layer is created
 by its parent, lives as long as its parent, and is destroyed when its parent is dropped.
 Only the `TerminalManager` at the leaf crosses thread boundaries and carries its own
-`tokio::sync::Mutex`.
+`tokio::sync::RwLock`.
 
 ```mermaid
 graph TD
@@ -57,7 +57,7 @@ graph TD
 
 ## State Hierarchy
 
-| Type | Location | Owned by | Mutex |
+| Type | Location | Owned by | Lock |
 |---|---|---|---|
 | `WindowManager` | `src/app/window_manager.rs` | `App` | None — main thread only |
 | `WindowState` | `src/app/window_state/mod.rs` | `WindowManager` | None — main thread only |
@@ -65,7 +65,7 @@ graph TD
 | `Tab` | `src/tab/mod.rs` | `TabManager` | None — main thread only |
 | `PaneManager` | `src/pane/manager.rs` | `Tab` | None — main thread only |
 | `Pane` | `src/pane/types/pane.rs` | `PaneManager` | None — main thread only |
-| `TerminalManager` | `par-term-terminal` | `Tab` / `Pane` | `Arc<tokio::sync::Mutex<...>>` |
+| `TerminalManager` | `par-term-terminal` | `Tab` / `Pane` | `Arc<tokio::sync::RwLock<...>>` |
 
 ## Window Lifecycle
 
@@ -122,7 +122,7 @@ During `Tab::new`:
 5. Auto-start coprocesses are started via the PTY session's built-in `CoprocessManager`.
 6. A `SharedSessionLogger` is created; session logging starts immediately if `auto_log_sessions` is enabled.
 7. The `PrettifierPipeline` is initialized if prettification is enabled.
-8. The `TerminalManager` is wrapped in `Arc<tokio::sync::Mutex<...>>`.
+8. The `TerminalManager` is wrapped in `Arc<tokio::sync::RwLock<...>>`.
 9. If `initial_text` is configured, it is sent to the PTY after an optional delay via an async task.
 
 ### Activation

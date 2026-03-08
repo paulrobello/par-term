@@ -39,6 +39,26 @@ stateDiagram-v2
     VLine --> [*]: y (yank)
     VBlock --> [*]: y (yank)
     Normal --> [*]: q or Escape
+
+    note right of Normal
+        COPY mode in status bar
+    end note
+
+    note right of Visual
+        VISUAL mode in status bar
+    end note
+
+    note right of VLine
+        VISUAL LINE mode in status bar
+    end note
+
+    note right of VBlock
+        VISUAL BLOCK mode in status bar
+    end note
+
+    note right of Search
+        Shows /query or ?query
+    end note
 ```
 
 ## Entering and Exiting
@@ -153,9 +173,9 @@ Marks persist for the duration of the copy mode session and are cleared on exit.
 
 When copy mode is active, a status bar overlay appears at the bottom of the terminal showing:
 
-- **Current mode**: COPY, VISUAL, V-LINE, V-BLOCK, or SEARCH
-- **Cursor position**: Line and column
-- **Search query**: When searching
+- **Current mode**: COPY, VISUAL, VISUAL LINE, VISUAL BLOCK, or SEARCH
+- **Cursor position**: Screen row:column and absolute line number (e.g., `5:10 (abs 105)`)
+- **Search query**: When searching (prefixed with `/` or `?`)
 
 The status bar can be hidden via Settings > Input > Copy Mode.
 

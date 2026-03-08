@@ -122,8 +122,8 @@ Configure the visual style of badges:
 | Setting | Description | Default |
 |---------|-------------|---------|
 | `badge_color` | RGB color array | `[255, 0, 0]` (red) |
-| `badge_color_alpha` | Opacity (0.0-1.0) | `0.2` |
-| `badge_font` | Font family | System default |
+| `badge_color_alpha` | Opacity (0.0-1.0) | `0.5` |
+| `badge_font` | Font family | `Helvetica` |
 | `badge_font_bold` | Use bold weight | `true` |
 
 **Example Configuration:**
@@ -141,8 +141,8 @@ Control badge placement within the terminal:
 
 | Setting | Description | Default |
 |---------|-------------|---------|
-| `badge_top_margin` | Distance from top (0.0-1.0) | `0.0` |
-| `badge_right_margin` | Distance from right (0.0-1.0) | `0.02` |
+| `badge_top_margin` | Distance from top in pixels | `0.0` |
+| `badge_right_margin` | Distance from right in pixels | `16.0` |
 | `badge_max_width` | Maximum width fraction | `0.5` |
 | `badge_max_height` | Maximum height fraction | `0.2` |
 
@@ -164,10 +164,10 @@ graph TD
 **Example:**
 
 ```yaml
-badge_top_margin: 0.02    # 2% from top
-badge_right_margin: 0.05  # 5% from right
-badge_max_width: 0.4      # Max 40% of terminal width
-badge_max_height: 0.15    # Max 15% of terminal height
+badge_top_margin: 10.0      # 10 pixels from top
+badge_right_margin: 24.0    # 24 pixels from right
+badge_max_width: 0.4        # Max 40% of terminal width
+badge_max_height: 0.15      # Max 15% of terminal height
 ```
 
 ## OSC 1337 Support
@@ -218,9 +218,9 @@ badge_color_alpha: 0.2
 badge_font: "SF Mono"
 badge_font_bold: true
 
-# Position (values are fractions of terminal size)
+# Position (margins in pixels, max dimensions as fractions)
 badge_top_margin: 0.0
-badge_right_margin: 0.02
+badge_right_margin: 16.0
 badge_max_width: 0.5
 badge_max_height: 0.2
 ```

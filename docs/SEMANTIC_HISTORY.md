@@ -138,6 +138,10 @@ semantic_history_editor: "code -g {file}:{line}"
 # Link highlight color (default: bright cyan #4FC3F7)
 link_highlight_color: "#4FC3F7"
 
+# Apply highlight color to link text (default: true)
+# Disable to underline only without changing text color
+link_highlight_color_enabled: true
+
 # Show underlines on highlighted links (default: true)
 link_highlight_underline: true
 
@@ -179,12 +183,14 @@ When `link_handler_command` is empty (the default), par-term falls back to the o
 
 Semantic history is configured in **Settings > Terminal > Semantic History**:
 
-- **Enable toggle** - Turn file path detection on or off
-- **Editor mode dropdown** - Select between Environment Variable, Custom, or System Default
-- **Custom editor command** - Text field for the editor command (shown only in Custom mode)
+- **Link handler** - Custom command to open URLs (empty uses system default browser)
+- **Enable file path detection** - Toggle to turn file path detection on or off
 - **Link highlight color** - Color picker for the highlight color applied to detected paths and URLs
-- **Link highlight underline** - Toggle underlines on highlighted links
-- **Link underline style** - Choose between Solid and Stipple (dotted) underline styles
+- **Change text color on hover** - Toggle to apply highlight color to link text (disable to underline only)
+- **Underline highlighted links** - Toggle underlines on highlighted links
+- **Underline style** - Choose between Solid and Stipple (dotted) underline styles
+- **Editor mode** - Dropdown to select between Environment Variable, Custom, or System Default
+- **Editor command** - Text field for the editor command (shown only in Custom mode)
 
 ## Examples
 

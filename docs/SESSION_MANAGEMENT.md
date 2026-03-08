@@ -60,8 +60,6 @@ When a tab closes, par-term captures its metadata (working directory, title, pos
 **Restored tab state:**
 - Original tab position in the tab bar
 - Tab title and custom color
-- User-set tab name (if the tab was manually renamed)
-- Custom tab icon (if set via context menu)
 - Working directory
 - Split pane layout (if the tab had split panes)
 
@@ -72,6 +70,7 @@ When `session_undo_preserve_shell` is enabled, closing a tab hides the shell pro
 - Scrollback buffer content
 - Running processes
 - Complete pane layout
+- User-set tab name and custom icon
 
 When disabled (default), undo creates a new shell session in the tab's original working directory.
 

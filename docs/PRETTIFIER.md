@@ -53,7 +53,7 @@ The system consists of:
 
 ### Core Traits
 
-The prettifier is built on two core traits defined in `src/prettifier/traits.rs`:
+The prettifier is built on two core traits defined in `par-term-prettifier/src/traits.rs`:
 
 **`ContentDetector`** identifies whether a content block matches a specific format:
 
@@ -80,7 +80,7 @@ Both traits require `Send + Sync` for thread safety.
 
 ### Pipeline Flow
 
-The `PrettifierPipeline` (`src/prettifier/pipeline.rs`) orchestrates the full flow:
+The `PrettifierPipeline` (`par-term-prettifier/src/pipeline/`) orchestrates the full flow:
 
 ```mermaid
 graph TD
@@ -129,17 +129,17 @@ graph TD
 
 | Type | File | Description |
 |------|------|-------------|
-| `ContentBlock` | `types.rs` | Raw terminal output lines with timestamps, row range, and preceding command |
-| `DetectionResult` | `types.rs` | Format ID, confidence score, matched rules, and detection source |
-| `RenderedContent` | `types.rs` | Styled lines, source line mappings, optional inline graphics, and format badge |
-| `StyledLine` | `types.rs` | A line composed of `StyledSegment` instances |
-| `StyledSegment` | `types.rs` | Text with optional fg/bg color, bold, italic, underline, strikethrough, and hyperlink URL |
-| `RendererRegistry` | `registry.rs` | Holds all registered detectors (sorted by priority) and renderers (keyed by format ID) |
-| `PrettifierPipeline` | `pipeline.rs` | Top-level orchestrator wiring boundary detection, registry, cache, and Claude Code integration |
-| `PrettifiedBlock` | `pipeline.rs` | A detected+rendered block wrapping a `DualViewBuffer` for source/rendered toggling |
-| `DualViewBuffer` | `buffer.rs` | Manages source content and rendered content with view mode toggling and copy support |
-| `RenderCache` | `cache.rs` | LRU cache for rendered content keyed by content hash and terminal width |
-| `DetectionRule` | `types.rs` | A regex rule with ID, weight, scope, strength, source, and optional command context |
+| `ContentBlock` | `par-term-prettifier/src/types.rs` | Raw terminal output lines with timestamps, row range, and preceding command |
+| `DetectionResult` | `par-term-prettifier/src/types.rs` | Format ID, confidence score, matched rules, and detection source |
+| `RenderedContent` | `par-term-prettifier/src/types.rs` | Styled lines, source line mappings, optional inline graphics, and format badge |
+| `StyledLine` | `par-term-prettifier/src/types.rs` | A line composed of `StyledSegment` instances |
+| `StyledSegment` | `par-term-prettifier/src/types.rs` | Text with optional fg/bg color, bold, italic, underline, strikethrough, and hyperlink URL |
+| `RendererRegistry` | `par-term-prettifier/src/registry.rs` | Holds all registered detectors (sorted by priority) and renderers (keyed by format ID) |
+| `PrettifierPipeline` | `par-term-prettifier/src/pipeline/` | Top-level orchestrator wiring boundary detection, registry, cache, and Claude Code integration |
+| `PrettifiedBlock` | `par-term-prettifier/src/pipeline/block.rs` | A detected+rendered block wrapping a `DualViewBuffer` for source/rendered toggling |
+| `DualViewBuffer` | `par-term-prettifier/src/buffer.rs` | Manages source content and rendered content with view mode toggling and copy support |
+| `RenderCache` | `par-term-prettifier/src/cache.rs` | LRU cache for rendered content keyed by content hash and terminal width |
+| `DetectionRule` | `par-term-prettifier/src/types.rs` | A regex rule with ID, weight, scope, strength, source, and optional command context |
 
 ## Built-in Renderers
 
@@ -229,11 +229,12 @@ Renders fenced code blocks tagged with diagram language identifiers. Supports 10
 | `wavedrom` | WaveDrom | -- | Yes |
 | `excalidraw` | Excalidraw | -- | Yes |
 
-**Three rendering backends:**
+**Four rendering backends:**
 
 | Backend | Config Value | Behavior |
 |---------|-------------|----------|
-| Auto | `"auto"` (default) | Tries local CLI first, falls back to Kroki API |
+| Auto | `"auto"` (default) | Tries native Mermaid (mermaid only) → local CLI → Kroki API |
+| Native | `"native"` | Uses only the built-in `mermaid-rs-renderer` (mermaid diagrams only) |
 | Local | `"local"` | Uses only local CLI tools |
 | Kroki | `"kroki"` | Uses only the Kroki API |
 | Text fallback | `"text_fallback"` | Syntax-highlighted source display only |
@@ -569,7 +570,7 @@ content_prettifier:
     diagrams:
       enabled: true
       priority: 50
-      engine: null                  # null ("auto"), "local", "kroki", or "text_fallback"
+      engine: null                  # null ("auto"), "native", "local", "kroki", or "text_fallback"
       kroki_server: null            # null (https://kroki.io) or custom URL
     sql_results:
       enabled: true
@@ -634,7 +635,7 @@ The prettifier has a dedicated settings tab accessible via **Settings > Content 
 **Renderer Toggles:**
 - Enable/disable checkbox and priority input for each of the 11 built-in renderers
 - Diff display mode selector (unified or side-by-side)
-- Diagram engine selector (auto, local, kroki, text_fallback) and Kroki server URL input
+- Diagram engine selector (auto, native, local, kroki, text_fallback) and Kroki server URL input
 
 **Custom Renderers:**
 - List of user-defined custom renderers with add, edit, and delete controls

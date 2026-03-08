@@ -38,8 +38,19 @@ pub(super) fn show_panel_section(
         &settings.search_query.trim().to_lowercase(),
         "Panel",
         &[
-            "enabled", "width", "scope", "view", "live", "update", "zones", "cards", "timeline",
-            "tree", "font", "font size", "chat font",
+            "enabled",
+            "width",
+            "scope",
+            "view",
+            "live",
+            "update",
+            "zones",
+            "cards",
+            "timeline",
+            "tree",
+            "font",
+            "font size",
+            "chat font",
         ],
     ) {
         collapsing_section(ui, "Panel", "ai_inspector_panel", true, collapsed, |ui| {

@@ -45,40 +45,38 @@ Export the current configuration to a YAML file:
 
 1. Open Settings (`F12` or `Cmd/Ctrl + ,`)
 2. Navigate to **Advanced** > **Import/Export Preferences**
-3. Click **Export**
+3. Click **Export Preferences to File**
 4. Choose a location in the native file dialog
 5. The current configuration saves as a `.yaml` file
 
-The exported file contains all non-default configuration values.
+The exported file contains all configuration values.
 
 ## Importing Preferences
 
 ### Import from File
 
 1. Open Settings > **Advanced** > **Import/Export Preferences**
-2. Click **Import from File**
-3. Select a `.yaml` configuration file
-4. Choose an import mode (Replace or Merge)
-5. The configuration applies immediately
+2. Click **Import & Replace** to completely replace your config, or **Import & Merge** to preserve existing customizations
+3. Select a `.yaml` configuration file in the native file dialog
+4. The configuration applies immediately
 
 ### Import from URL
 
 1. Open Settings > **Advanced** > **Import/Export Preferences**
-2. Enter the URL of a configuration file
-3. Click **Import from URL**
-4. Choose an import mode (Replace or Merge)
-5. The configuration downloads and applies
+2. Enter the URL of a configuration file (must start with `http://` or `https://`)
+3. Click **Fetch & Replace** to completely replace your config, or **Fetch & Merge** to preserve existing customizations
+4. The configuration downloads and applies
 
 ### Import Modes
 
-| Mode | Behavior |
-|------|----------|
-| **Replace** | Completely replaces the current configuration with the imported values |
-| **Merge** | Only overrides values that differ from defaults, preserving your customizations |
+| Mode | Button | Behavior |
+|------|--------|----------|
+| **Replace** | Import & Replace / Fetch & Replace | Completely replaces the current configuration with the imported values |
+| **Merge** | Import & Merge / Fetch & Merge | Only overrides values that differ from defaults, preserving your customizations |
 
 **Merge mode** is recommended when importing partial configurations or when you want to preserve your existing settings while adding specific overrides from the imported file.
 
-**Validation**: All imported configurations are validated before applying. Malformed or invalid YAML files are rejected with an error message.
+**Validation**: All imported configurations are validated before applying. Malformed or invalid YAML files are rejected with an error message displayed in the settings UI.
 
 ## Settings UI
 

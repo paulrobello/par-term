@@ -50,9 +50,9 @@ The standard protocol for simple progress bars. Supported states:
 | State | Code | Description | Visual |
 |-------|------|-------------|--------|
 | **Hidden** | `0` | Remove progress bar | Bar disappears |
-| **Normal** | `1` | Standard progress | Green bar |
+| **Normal** | `1` | Standard progress | Blue bar |
 | **Error** | `2` | Error occurred | Red bar |
-| **Indeterminate** | `3` | Unknown progress | Animated oscillating bar |
+| **Indeterminate** | `3` | Unknown progress | Gray animated oscillating bar |
 | **Warning** | `4` | Warning state | Yellow bar |
 
 **Sequence format:**
@@ -111,26 +111,26 @@ All progress bar settings are available in the Settings UI under the **Progress 
 |---------|-------------|---------|
 | `progress_bar_enabled` | Enable progress bar rendering | `true` |
 | `progress_bar_style` | Display style: `bar` or `bar_with_text` | `bar` |
-| `progress_bar_position` | Position: `top` or `bottom` | `bottom` |
-| `progress_bar_height` | Bar height in pixels | `3.0` |
+| `progress_bar_position` | Position: `top` or `bottom` | `top` |
+| `progress_bar_height` | Bar height in pixels | `4.0` |
 | `progress_bar_opacity` | Opacity (0.0-1.0) | `0.8` |
-| `progress_bar_normal_color` | Color for normal state (RGB) | `[76, 175, 80]` (green) |
-| `progress_bar_warning_color` | Color for warning state (RGB) | `[255, 193, 7]` (yellow) |
-| `progress_bar_error_color` | Color for error state (RGB) | `[244, 67, 54]` (red) |
-| `progress_bar_indeterminate_color` | Color for indeterminate state (RGB) | `[33, 150, 243]` (blue) |
+| `progress_bar_normal_color` | Color for normal state (RGB) | `[80, 180, 255]` (blue) |
+| `progress_bar_warning_color` | Color for warning state (RGB) | `[255, 200, 50]` (yellow) |
+| `progress_bar_error_color` | Color for error state (RGB) | `[255, 80, 80]` (red) |
+| `progress_bar_indeterminate_color` | Color for indeterminate state (RGB) | `[150, 150, 150]` (gray) |
 
 **Example configuration:**
 
 ```yaml
 progress_bar_enabled: true
 progress_bar_style: bar_with_text
-progress_bar_position: top
+progress_bar_position: bottom
 progress_bar_height: 4.0
 progress_bar_opacity: 0.9
-progress_bar_normal_color: [76, 175, 80]
-progress_bar_warning_color: [255, 193, 7]
-progress_bar_error_color: [244, 67, 54]
-progress_bar_indeterminate_color: [33, 150, 243]
+progress_bar_normal_color: [80, 180, 255]
+progress_bar_warning_color: [255, 200, 50]
+progress_bar_error_color: [255, 80, 80]
+progress_bar_indeterminate_color: [150, 150, 150]
 ```
 
 ## Shader Integration

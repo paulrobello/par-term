@@ -10,6 +10,7 @@ This document provides an overview of the public types and functions exported by
 - [par-term-keybindings](#par-term-keybindings)
 - [par-term-terminal](#par-term-terminal)
 - [par-term-render](#par-term-render)
+- [par-term-prettifier](#par-term-prettifier)
 - [par-term-settings-ui](#par-term-settings-ui)
 - [par-term-scripting](#par-term-scripting)
 - [par-term-tmux](#par-term-tmux)
@@ -228,6 +229,7 @@ Runtime-configurable keybinding registry.
 | Type | Description |
 |------|-------------|
 | `KeybindingRegistry` | Maps parsed key combinations to action name strings. Built from `Config.keybindings`. |
+| `KeybindingMatcher` | Helper for matching key events against `KeyCombo` patterns with modifier remapping support. |
 | `KeyCombo` | A parsed key combination (key + modifiers). |
 | `ParseError` | Error returned when a keybinding string cannot be parsed. |
 | `parse_key_sequence(s)` | Parse a human-readable key sequence string into a `KeyCombo`. |
@@ -292,6 +294,56 @@ GPU-accelerated rendering engine: cell renderer, inline graphics, and custom sha
 
 ---
 
+## par-term-prettifier
+
+Content prettification framework for detecting and rendering structured content (Markdown, JSON, YAML, diffs, etc.) in terminal output.
+
+### Detection Layer
+
+| Type | Description |
+|------|-------------|
+| `ContentDetector` | Trait for content type detectors. Implementations identify structured content in terminal output. |
+| `DetectionResult` | Result from a detector: content type, boundaries, and confidence. |
+| `ContentBlock` | A detected block of structured content with its boundaries. |
+| `RegexDetector` | Generic regex-based detector for user-configured patterns. |
+| `BoundaryTracker` | Line boundary tracking for multi-line content detection. |
+
+### Rendering Layer
+
+| Type | Description |
+|------|-------------|
+| `ContentRenderer` | Trait for format-specific renderers. Converts raw content to styled terminal output. |
+| `RenderOutput` | Rendered output ready for display in the terminal. |
+| `GutterIndicator` | Left-margin mark that flags prettified content blocks in the terminal view. |
+| `GutterManager` | Manages gutter indicators for the viewport. |
+
+### Pipeline and Registry
+
+| Type | Description |
+|------|-------------|
+| `PrettifierPipeline` | Top-level coordinator holding all detectors and renderers, driving per-line processing. |
+| `RendererRegistry` | Maps content type identifiers to renderer implementations at runtime. |
+| `RenderCache` | Cache for rendered output to avoid re-rendering unchanged content. |
+| `config_bridge` | Module for translating config settings into live `PrettifierPipeline` instances. |
+
+### Built-in Detectors and Renderers
+
+| Module | Description |
+|--------|-------------|
+| `detectors` | Content type detectors: `JsonDetector`, `MarkdownDetector`, `DiffDetector`, etc. |
+| `renderers` | Format-specific renderers for Markdown, JSON, YAML, diffs, stack traces, diagrams. |
+| `claude_code` | Specialized detector/renderer for Claude Code XML tool-call output format. |
+| `custom_renderers` | User-configured external command renderers. |
+
+### Shared Types
+
+| Type | Description |
+|------|-------------|
+| `ContentType` | Enum of recognized content types (Markdown, Json, Yaml, Diff, etc.). |
+| `PrettifierConfig` | Configuration for prettifier behavior (enabled types, thresholds). |
+
+---
+
 ## par-term-settings-ui
 
 egui-based settings interface decoupled from the main terminal crate via traits.
@@ -303,20 +355,33 @@ egui-based settings interface decoupled from the main terminal crate via traits.
 | `ProfileOps` | Profile CRUD operations (get, save, upsert, delete). |
 | `ArrangementOps` | Window arrangement save/restore/delete/rename. |
 | `UpdateOps` | Update check, install, and progress reporting. |
+| `CoprocessOps` | Coprocess lifecycle control (start, stop, status, output). |
+| `ScriptOps` | Observer script lifecycle control (start, stop, status, output, panel state). |
+| `ShaderOps` | Shader installation and management (install bundled, list available, cubemaps). |
+| `ShellIntegrationOps` | Shell integration install/uninstall for Bash, Zsh, Fish, etc. |
 
 ### Key Types
 
 | Type | Description |
 |------|-------------|
+| `SettingsUI` | Main settings window UI component. |
+| `SettingsTab` | Enum of settings tabs (Appearance, Terminal, Profiles, etc.). |
 | `ProfileModalUI` | Modal dialog for creating and editing profiles. |
 | `ProfileModalAction` | Actions returned by the profile modal (Save, Cancel, Delete). |
 | `WindowArrangement` | A saved window layout (positions, sizes, tab configurations). |
 | `ArrangementManager` | Loads and saves window arrangements to disk. |
 | `ArrangementId` | UUID identifier for a saved arrangement. |
+| `ArrangementInfo` | Lightweight arrangement metadata (id, name, window count). |
 | `WindowSnapshot` | Snapshot of a single window's state within an arrangement. |
 | `TabSnapshot` | Snapshot of a single tab's state within a window snapshot. |
 | `MonitorInfo` | Display monitor dimensions and position for arrangement DPI handling. |
 | `ShaderDetectModifiedFn` | Function pointer type for detecting modified bundled shaders. |
+| `InstallResult` | Result of shader installation (installed, skipped, removed counts). |
+| `SettingsWindowAction` | Actions returned by settings UI for the main app to process. |
+| `UpdateCheckResult` | Result of an update check (UpToDate, UpdateAvailable, Error, etc.). |
+| `UpdateCheckInfo` | Information about an available update. |
+| `ShellIntegrationInstallResult` | Result of shell integration installation. |
+| `ShellIntegrationUninstallResult` | Result of shell integration uninstallation. |
 
 ---
 
@@ -436,6 +501,8 @@ Minimal MCP (Model Context Protocol) server over stdio. Exposes tools for ACP ag
 | `set_app_version(version)` | Set the application version reported during MCP initialization. |
 | `TerminalScreenshotRequest` | IPC request written by the MCP server for the GUI to fulfill. |
 | `TerminalScreenshotResponse` | IPC response written by the GUI with the screenshot data or error. |
+| `screenshot_request_path()` | Get the path to the screenshot request IPC file. |
+| `screenshot_response_path()` | Get the path to the screenshot response IPC file. |
 | `CONFIG_UPDATE_PATH_ENV` | Env var name for overriding the config update file path. |
 | `SCREENSHOT_REQUEST_PATH_ENV` | Env var name for the screenshot request IPC path. |
 | `SCREENSHOT_RESPONSE_PATH_ENV` | Env var name for the screenshot response IPC path. |
@@ -450,5 +517,6 @@ Minimal MCP (Model Context Protocol) server over stdio. Exposes tools for ACP ag
 
 - [Architecture Overview](ARCHITECTURE.md) — How the crates fit together
 - [Configuration Reference](CONFIG_REFERENCE.md) — All `Config` fields documented
+- [Prettifier](PRETTIFIER.md) — Content prettification system
 - [Contributing](../CONTRIBUTING.md) — Development setup and workflow
 - [Environment Variables](ENVIRONMENT_VARIABLES.md) — Runtime environment variable reference

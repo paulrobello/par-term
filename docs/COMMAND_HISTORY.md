@@ -43,7 +43,7 @@ graph TD
 
 | Action | macOS | Linux/Windows |
 |--------|-------|---------------|
-| Open command history | `Cmd + R` | `Ctrl + Alt + R` |
+| Open command history | `Cmd + R` | `Ctrl + R` |
 
 The overlay appears over the terminal with a search input field and a scrollable list of previous commands.
 

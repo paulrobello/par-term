@@ -62,11 +62,11 @@ graph TD
 
 ## Creating and Closing Tabs
 
-| Action | Shortcut |
-|--------|----------|
-| New tab | `Cmd+T` (macOS) / `Ctrl+T` |
-| Close tab | `Cmd+W` (macOS) / `Ctrl+W` |
-| Close window | `Cmd+Shift+W` (macOS) / `Ctrl+Shift+W` |
+| Action | macOS | Linux/Windows |
+|--------|-------|---------------|
+| New tab | `Cmd+T` | `Ctrl+Shift+T` |
+| Close tab | `Cmd+W` | `Ctrl+Shift+W` |
+| Close window | `Cmd+Shift+W` | `Ctrl+Shift+W` |
 
 New tabs inherit the working directory from the current tab (if shell integration is installed) or start in the configured startup directory.
 
@@ -244,7 +244,7 @@ tab_bar_mode: "always"
 
 ### Tab Style Variants
 
-par-term includes 5 built-in tab style presets that apply coordinated color, size, and spacing adjustments:
+par-term includes 6 built-in tab style presets that apply coordinated color, size, and spacing adjustments:
 
 | Style | Description |
 |-------|-------------|
@@ -253,10 +253,11 @@ par-term includes 5 built-in tab style presets that apply coordinated color, siz
 | **Compact** | Reduced height and spacing for minimal footprint |
 | **Minimal** | Understated design with muted colors |
 | **High Contrast** | Bold colors for maximum readability |
+| **Automatic** | Switches between light/dark based on system theme |
 
 ```yaml
 # Tab style preset
-tab_style: dark  # dark, light, compact, minimal, high_contrast
+tab_style: dark  # dark, light, compact, minimal, high_contrast, automatic
 ```
 
 **Settings UI:** Settings > Window > Tab Bar > "Tab Style"
@@ -277,7 +278,7 @@ By default, tabs stretch to fill the available tab bar width while respecting mi
 tab_stretch_to_fill: true
 
 # Minimum tab width in pixels
-tab_min_width: 100.0
+tab_min_width: 120.0
 ```
 
 ### HTML Titles
@@ -316,7 +317,7 @@ tab_html_titles: true
 The `tab_inactive_outline_only` option renders inactive tabs with just a border stroke and no background fill. This produces a cleaner, more minimal look where only the active tab has a solid background. Hovered inactive tabs brighten the outline for visual feedback.
 
 ```yaml
-tab_inactive_outline_only: true  # default: false
+tab_inactive_outline_only: true  # default: true
 ```
 
 **Settings UI:** Settings > Window > Tab Bar > "Inactive tabs outline only"
@@ -334,7 +335,7 @@ graph LR
     style Hovered fill:#1E1E1E,stroke:#E0E0E0,stroke-width:3px,color:#ffffff
 ```
 
-When disabled (the default), inactive tabs render with a dimmed background fill matching their assigned tab color. When enabled, inactive tabs show only the border stroke, and hovered inactive tabs increase the outline brightness instead of adding a fill.
+When enabled (the default), inactive tabs show only the border stroke, and hovered inactive tabs increase the outline brightness instead of adding a fill. When disabled, inactive tabs render with a dimmed background fill matching their assigned tab color.
 
 ## Tab Title Mode
 
@@ -374,23 +375,19 @@ Customize the visual style of tabs:
 | Setting | Description | Default |
 |---------|-------------|---------|
 | `tab_bar_height` | Height in pixels | `28.0` |
-| `tab_bar_background` | Background RGBA | `[30, 30, 30, 255]` |
-| `tab_active_color` | Active tab color | `"blue"` |
-| `tab_inactive_color` | Inactive tab color | `"gray"` |
-| `tab_min_width` | Minimum tab width | `100.0` |
-| `tab_max_tabs` | Maximum tabs allowed | `20` |
-
-**Available Tab Colors:**
-
-`red`, `orange`, `yellow`, `green`, `blue`, `purple`, `pink`, `teal`, `gray`, `white`, `none`
+| `tab_bar_background` | Background RGB | `[40, 40, 40]` |
+| `tab_active_background` | Active tab background RGB | `[60, 60, 60]` |
+| `tab_inactive_background` | Inactive tab background RGB | `[40, 40, 40]` |
+| `tab_min_width` | Minimum tab width | `120.0` |
+| `max_tabs` | Maximum tabs per window (0 = unlimited) | `0` |
 
 **Example Configuration:**
 
 ```yaml
 tab_bar_height: 32.0
-tab_bar_background: [25, 25, 25, 255]
-tab_active_color: "teal"
-tab_inactive_color: "gray"
+tab_bar_background: [40, 40, 40]
+tab_active_background: [60, 60, 60]
+tab_inactive_background: [40, 40, 40]
 tab_stretch_to_fill: true
 tab_min_width: 120.0
 tab_html_titles: true
@@ -421,25 +418,25 @@ tab_bar_mode: "always"
 # Tab title mode: "auto", "osc_only"
 tab_title_mode: auto
 
-# Tab style preset: "dark", "light", "compact", "minimal", "high_contrast"
+# Tab style preset: "dark", "light", "compact", "minimal", "high_contrast", "automatic"
 tab_style: dark
 
 # Tab bar appearance
 tab_bar_height: 28.0
-tab_bar_background: [30, 30, 30, 255]
+tab_bar_background: [40, 40, 40]
 tab_bar_width: 160.0  # Sidebar width for left position
 
-# Tab colors
-tab_active_color: "blue"
-tab_inactive_color: "gray"
+# Tab colors (RGB arrays)
+tab_active_background: [60, 60, 60]
+tab_inactive_background: [40, 40, 40]
 
 # Inactive tab outline-only rendering (no background fill)
-tab_inactive_outline_only: false
+tab_inactive_outline_only: true
 
 # Tab sizing
 tab_stretch_to_fill: true
-tab_min_width: 100.0
-tab_max_tabs: 20
+tab_min_width: 120.0
+max_tabs: 0  # 0 = unlimited
 
 # Tab titles
 tab_html_titles: true

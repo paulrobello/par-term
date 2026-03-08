@@ -36,6 +36,7 @@ graph TD
     Aggregator[Discovery Aggregator]
     QuickConnect[Quick Connect Dialog]
     Profiles[SSH Profiles]
+    ProfileDrawer[Profile Drawer]
     Terminal[Terminal Session]
 
     Discovery --> Config
@@ -49,8 +50,9 @@ graph TD
     MDNS --> Aggregator
 
     Aggregator --> QuickConnect
-    Profiles --> QuickConnect
     QuickConnect --> Terminal
+    Profiles --> ProfileDrawer
+    ProfileDrawer --> Terminal
 
     style Discovery fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
     style Config fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
@@ -60,6 +62,7 @@ graph TD
     style Aggregator fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
     style QuickConnect fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
     style Profiles fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
+    style ProfileDrawer fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
     style Terminal fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
 ```
 
@@ -174,7 +177,6 @@ Profiles with `ssh_host` set can be launched in several ways:
 
 - **Profile Drawer**: Open with `Cmd/Ctrl+Shift+P`, select the profile, click **Open**
 - **New Tab Button**: Click the `▾` chevron on the tab bar and select the SSH profile
-- **Quick Connect**: SSH profiles appear alongside discovered hosts
 
 The profile builds the SSH command from its fields:
 

@@ -106,16 +106,20 @@ Vi-style keyboard-driven text selection. See [Copy Mode](COPY_MODE.md) for compl
 | Find previous (global) | `Cmd + Shift + G` | `Ctrl + Shift + G` |
 | Open command history | `Cmd + R` | `Ctrl + Alt + R` |
 
+> **📝 Note:** Command history uses `toggle_command_history` action (fuzzy search). This is separate from shell's built-in reverse search (Ctrl+R).
+
 ## Terminal Operations
 
 | Shortcut | Action |
 |----------|--------|
 | `Ctrl + L` | Clear visible screen |
 | `Ctrl + Shift + K` | Clear scrollback buffer |
-| `Ctrl + Shift + S` | Take screenshot |
+| `Ctrl + Shift + S` | Take screenshot (via MCP) |
 | `Cmd/Ctrl + Shift + R` | Toggle session recording |
 | `Cmd + Shift + T` (macOS) / `Ctrl + Shift + M` (Linux/Win) | Toggle maximize throughput mode |
 | `Ctrl + Shift + F5` | Fix rendering (after monitor change) |
+
+> **📝 Note:** Throughput mode uses `toggle_throughput_mode` action. Screenshot is captured via MCP server tool.
 
 ## Font & Text Sizing
 
@@ -219,11 +223,11 @@ keybindings:
 
 **Features:**
 - `paste_special`, `toggle_clipboard_history`
-- `toggle_copy_mode`, `toggle_session_logging`, `toggle_maximize_throughput`
-- `toggle_background_shader`, `toggle_cursor_shader`
+- `toggle_copy_mode`, `toggle_session_logging`, `toggle_throughput_mode`
+- `toggle_background_shader`, `toggle_cursor_shader`, `toggle_prettifier`
 - `toggle_broadcast_input`, `toggle_profile_drawer`
 - `toggle_tmux_session_picker`, `ssh_quick_connect`
-- `toggle_ai_inspector`, `command_history_search`
+- `toggle_ai_inspector`, `toggle_command_history`
 - `reload_dynamic_profiles`
 
 **Terminal:**

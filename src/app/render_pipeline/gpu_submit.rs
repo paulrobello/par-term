@@ -386,15 +386,14 @@ impl WindowState {
                         if let Some(tab) = self.tab_manager.active_tab() {
                             for pane in &mut pane_data {
                                 if pane.viewport.focused {
-                                    let _ =
-                                        prettifier_cells::apply_prettifier_cell_substitution(
-                                            tab,
-                                            &mut pane.cells,
-                                            is_alt_screen,
-                                            pane.grid_size.1,
-                                            pane.scrollback_len,
-                                            pane.grid_size.0,
-                                        );
+                                    let _ = prettifier_cells::apply_prettifier_cell_substitution(
+                                        tab,
+                                        &mut pane.cells,
+                                        is_alt_screen,
+                                        pane.grid_size.1,
+                                        pane.scrollback_len,
+                                        pane.grid_size.0,
+                                    );
                                     break;
                                 }
                             }

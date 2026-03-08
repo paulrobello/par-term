@@ -54,10 +54,10 @@ graph TB
     subgraph "Compositor Layer Stack"
         L0[Background Image Layer<br/>Optional background image]
         L1[Terminal Content Layer<br/>Cell Backgrounds + Text + Cursor]
-        L2[Background Shader Layer<br/>Post-processing Effects]
-        L3[Cursor Shader Layer<br/>Cursor Trails + Glows]
-        L4[Overlay Layer<br/>Scrollbar + Visual Bell]
-        L5[Graphics Layer<br/>Sixel/iTerm2/Kitty Images]
+        L2[Inline Graphics Layer<br/>Sixel/iTerm2/Kitty Images]
+        L3[Overlay Layer<br/>Scrollbar + Visual Bell + Dividers]
+        L4[Background Shader Layer<br/>Post-processing Effects]
+        L5[Cursor Shader Layer<br/>Cursor Trails + Glows]
         L6[UI Layer<br/>egui Settings Panel]
     end
 
@@ -70,14 +70,14 @@ graph TB
 
     style L0 fill:#1a237e,stroke:#3f51b5,stroke-width:2px,color:#ffffff
     style L1 fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
-    style L2 fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
-    style L3 fill:#ff6f00,stroke:#ffa726,stroke-width:2px,color:#ffffff
-    style L4 fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style L5 fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
+    style L2 fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
+    style L3 fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+    style L4 fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+    style L5 fill:#ff6f00,stroke:#ffa726,stroke-width:2px,color:#ffffff
     style L6 fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
 ```
 
-> **Note:** Par-term supports two independent custom shaders: a **background shader** for post-processing effects and a **cursor shader** for cursor-specific effects (trails, glows). When shaders are enabled, terminal content is first rendered to an intermediate texture, then processed by the background shader (if enabled), then by the cursor shader (if enabled). Overlays (scrollbar, visual bell) are rendered after shaders to ensure they remain unaffected by shader effects.
+> **Note:** Par-term supports two independent custom shaders: a **background shader** for post-processing effects and a **cursor shader** for cursor-specific effects (trails, glows). When shaders are enabled, terminal content (cells, inline graphics, overlays) is first rendered to an intermediate texture, then processed by the background shader (if enabled), then by the cursor shader (if enabled). This ensures shader effects apply to the complete terminal content. The egui UI layer is rendered after all shaders to remain unaffected.
 
 ### Render Order
 
@@ -95,36 +95,36 @@ sequenceDiagram
 
     Renderer->>Renderer: Check shader configuration
 
-    alt Background Shader Only
-        Renderer->>CR: render_to_texture(bg_shader_intermediate)
-        CR->>CR: Render cells + cursor (skip background)
-        Renderer->>BSR: render(surface_view)
-        BSR->>Surface: Apply background shader effect
-        Renderer->>CR: render_overlays(surface)
-        CR->>Surface: Render scrollbar + visual bell
+    alt Full Content Mode (Background Shader)
+        Renderer->>CR: render_pane_to_view(bg_intermediate)
+        CR->>CR: Render cells + overlays to intermediate
+        Renderer->>GR: render_pane_sixel_graphics(intermediate)
+        GR->>CR: Overlay graphics (LoadOp::Load)
+        Renderer->>BSR: render(content_view)
+        BSR->>BSR: Process terminal content via iChannel4
+    else Background Shader Only (Background Mode)
+        Renderer->>BSR: render(content_view)
+        BSR->>BSR: Generate background effect
+        Renderer->>CR: render_pane_to_view(content_view)
+        CR->>CR: Render cells + overlays
+        Renderer->>GR: render_pane_sixel_graphics(content_view)
+        GR->>CR: Overlay graphics (LoadOp::Load)
+    else Cursor Shader Only
+        Renderer->>CR: render_pane_to_view(cursor_intermediate)
+        CR->>CR: Render cells + overlays
+        Renderer->>GR: render_pane_sixel_graphics(cursor_intermediate)
+        GR->>CR: Overlay graphics (LoadOp::Load)
+        Renderer->>CSR: render(surface_view)
+        CSR->>Surface: Apply cursor shader effect
     else Both Shaders Enabled
-        Renderer->>CR: render_to_texture(bg_shader_intermediate)
-        CR->>CR: Render cells + cursor (skip background)
-        Renderer->>BSR: render(cursor_shader_intermediate)
+        Renderer->>BSR: render(cursor_intermediate)
         BSR->>BSR: Apply background shader
         Renderer->>CSR: render(surface_view)
         CSR->>Surface: Apply cursor shader effect
-        Renderer->>CR: render_overlays(surface)
-        CR->>Surface: Render scrollbar + visual bell
-    else Cursor Shader Only
-        Renderer->>CR: render_to_texture(cursor_shader_intermediate)
-        CR->>CR: Render cells + cursor (skip background)
-        Renderer->>CSR: render(surface_view)
-        CSR->>Surface: Apply cursor shader effect
-        Renderer->>CR: render_overlays(surface)
-        CR->>Surface: Render scrollbar + visual bell
     else No Shaders
-        Renderer->>CR: render(show_scrollbar)
+        Renderer->>CR: render_pane_to_view(surface)
         CR->>Surface: Render all content directly
-    end
-
-    opt Sixel Graphics Present
-        Renderer->>GR: render(render_pass, graphics_list)
+        Renderer->>GR: render_pane_sixel_graphics(surface)
         GR->>Surface: Overlay graphics (LoadOp::Load)
     end
 
@@ -280,10 +280,11 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 |---------|------|-------------|
 | `iOpacity` | `float` | Window opacity (0.0 - 1.0). Set to 0.0 in chain mode (when shader output feeds another shader) |
 | `iTextOpacity` | `float` | Text opacity (0.0 - 1.0). Respects `keep_text_opaque` setting |
-| `iBrightness` | `float` | Shader brightness multiplier (0.05 - 1.0) |
+| `iBrightness` | `float` | Shader brightness multiplier (0.05 - 1.0). Default is 0.15 for readability |
 | `iFullContent` | `float` | Full content mode flag (0.0 or 1.0) |
 | `iBackgroundColor` | `vec4` | Solid background color `[R, G, B, A]` (0.0-1.0). When A > 0, solid color mode is active |
 | `iTimeKeyPress` | `float` | Time when last key was pressed (same timebase as iTime) |
+| `iProgress` | `vec4` | Progress bar state: `x` = state (0-4), `y` = percent (0-1), `z` = isActive (0/1), `w` = activeCount |
 
 #### Cursor Uniforms (Ghostty-Compatible)
 
@@ -623,8 +624,8 @@ custom_shader_animation_speed: 1.0
 # Text opacity when using shader (0.0 - 1.0, default: 1.0)
 custom_shader_text_opacity: 1.0
 
-# Brightness multiplier (0.05 - 1.0, default: 1.0)
-custom_shader_brightness: 1.0
+# Brightness multiplier (0.05 - 1.0, default: 0.15)
+custom_shader_brightness: 0.15
 
 # Full content mode - shader can manipulate text (default: false)
 custom_shader_full_content: false

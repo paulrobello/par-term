@@ -106,7 +106,7 @@ When exit-code coloring is enabled (the default), separator lines indicate the r
 
 The specific color values used are:
 
-- **Success (exit 0)**: `rgba(0.25, 0.75, 0.25, opacity)` -- green
+- **Success (exit 0)**: `rgba(0.3, 0.75, 0.3, opacity)` -- green
 - **Failure (non-zero)**: `rgba(0.85, 0.25, 0.25, opacity)` -- red
 - **Unknown**: `rgba(0.5, 0.5, 0.5, opacity)` -- gray
 

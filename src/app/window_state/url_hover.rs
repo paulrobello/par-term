@@ -158,5 +158,4 @@ impl WindowState {
             tab.active_mouse_mut().detected_urls = new_urls;
         }
     }
-
 }

@@ -604,7 +604,7 @@ The following configuration options are supported in `config.yaml`:
 |--------|------|---------|-------------|
 | `ai_inspector_enabled` | bool | `true` | Enable the Assistant Panel feature |
 | `ai_inspector_open_on_startup` | bool | `false` | Open the panel automatically when par-term starts |
-| `ai_inspector_width` | float | `317.0` | Default panel width in pixels |
+| `ai_inspector_width` | float | `300.0` | Default panel width in pixels |
 | `ai_inspector_default_scope` | string | `"visible"` | Default capture scope (`visible`, `recent_N`, `full`) |
 | `ai_inspector_view_mode` | string | `"tree"` | Default view mode (`cards`, `timeline`, `tree`, `list_detail`) |
 | `ai_inspector_live_update` | bool | `false` | Enable live auto-refresh of terminal capture |
@@ -616,6 +616,7 @@ The following configuration options are supported in `config.yaml`:
 | `ai_inspector_auto_approve` | bool | `false` | Auto-approve all agent permission requests (YOLO mode) |
 | `ai_inspector_agent_terminal_access` | bool | `false` | Allow the agent to write directly to the terminal |
 | `ai_inspector_agent_screenshot_access` | bool | `true` | Allow the agent to request terminal screenshots (still permission-gated per request) |
+| `ai_inspector_chat_font_size` | float | `14.0` | Font size for chat messages in points |
 | `ai_inspector_custom_agents` | list | `[]` | Extra ACP agent definitions merged into discovery (override by `identity`) |
 
 **Example configuration:**

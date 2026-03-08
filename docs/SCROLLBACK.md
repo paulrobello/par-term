@@ -72,8 +72,8 @@ scrollback_lines: 10000
 | Scroll down one line | Mouse wheel down |
 | Scroll up one page | `Page Up` |
 | Scroll down one page | `Page Down` |
-| Scroll to top | `Cmd+Home` (macOS) / `Ctrl+Home` |
-| Scroll to bottom | `Cmd+End` (macOS) / `Ctrl+End` |
+| Scroll to top | `Shift+Home` |
+| Scroll to bottom | `Shift+End` |
 
 ## Command Marks
 
@@ -146,8 +146,8 @@ Jump between command prompts using keyboard shortcuts:
 
 | Action | Shortcut |
 |--------|----------|
-| Previous command mark | `Cmd+↑` (macOS) / `Ctrl+↑` |
-| Next command mark | `Cmd+↓` (macOS) / `Ctrl+↓` |
+| Previous command mark | `Cmd+Up` (macOS) / `Super+Up` |
+| Next command mark | `Cmd+Down` (macOS) / `Super+Down` |
 
 This is useful for quickly navigating through command history in a long terminal session.
 
@@ -164,10 +164,10 @@ The scrollbar displays both scroll position and command marks.
 | Setting | Description | Default |
 |---------|-------------|---------|
 | `scrollbar_position` | `"left"` or `"right"` | `"right"` |
-| `scrollbar_width` | Width in pixels | `12.0` |
+| `scrollbar_width` | Width in pixels | `15.0` |
 | `scrollbar_autohide_delay` | Auto-hide delay in ms (0=never) | `0` |
-| `scrollbar_thumb_color` | Thumb RGBA color | `[128, 128, 128, 200]` |
-| `scrollbar_track_color` | Track RGBA color | `[64, 64, 64, 100]` |
+| `scrollbar_thumb_color` | Thumb RGBA color (0.0-1.0 floats) | `[0.4, 0.4, 0.4, 0.95]` |
+| `scrollbar_track_color` | Track RGBA color (0.0-1.0 floats) | `[0.15, 0.15, 0.15, 0.6]` |
 | `scrollbar_command_marks` | Show command marks | `true` |
 | `scrollbar_mark_tooltips` | Show tooltips on hover | `false` |
 
@@ -179,8 +179,8 @@ scrollbar_width: 14.0
 scrollbar_autohide_delay: 3000  # Hide after 3 seconds
 scrollbar_command_marks: true
 scrollbar_mark_tooltips: true
-scrollbar_thumb_color: [150, 150, 150, 220]
-scrollbar_track_color: [50, 50, 50, 80]
+scrollbar_thumb_color: [0.5, 0.5, 0.5, 0.9]
+scrollbar_track_color: [0.2, 0.2, 0.2, 0.5]
 ```
 
 ## Configuration
@@ -193,10 +193,10 @@ scrollback_lines: 10000
 
 # Scrollbar appearance
 scrollbar_position: "right"
-scrollbar_width: 12.0
+scrollbar_width: 15.0
 scrollbar_autohide_delay: 0
-scrollbar_thumb_color: [128, 128, 128, 200]
-scrollbar_track_color: [64, 64, 64, 100]
+scrollbar_thumb_color: [0.4, 0.4, 0.4, 0.95]
+scrollbar_track_color: [0.15, 0.15, 0.15, 0.6]
 
 # Command marks (requires shell integration)
 scrollbar_command_marks: true

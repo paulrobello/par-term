@@ -215,10 +215,12 @@ impl WindowState {
         }
 
         // Fire CommandComplete alert sound for any finished commands.
-        if shell_lifecycle_events
-            .iter()
-            .any(|e| matches!(e, par_term_terminal::ShellLifecycleEvent::CommandFinished { .. }))
-        {
+        if shell_lifecycle_events.iter().any(|e| {
+            matches!(
+                e,
+                par_term_terminal::ShellLifecycleEvent::CommandFinished { .. }
+            )
+        }) {
             self.play_alert_sound(crate::config::AlertEvent::CommandComplete);
         }
 

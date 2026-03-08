@@ -79,15 +79,20 @@ Each profile can customize the following:
 | **Tab Name** | Custom name for the terminal tab | No |
 | **Shell** | Specific shell for this profile (overrides global) | No |
 | **Login Shell** | Override global login shell setting (None/true/false) | No |
+| **Tags** | Comma-separated tags for organization and filtering | No |
+| **Parent Profile** | Inherit settings from another profile | No |
+| **Keyboard Shortcut** | Quick-launch shortcut (e.g., `Cmd+1`) | No |
 | **SSH Host** | SSH hostname for remote connections | No |
 | **SSH User** | SSH username | No |
 | **SSH Port** | SSH port number | No |
 | **SSH Identity File** | Path to SSH identity/key file | No |
 | **SSH Extra Args** | Additional SSH command-line arguments | No |
+| **Hostname Patterns** | Glob patterns for SSH-based auto-switching | No |
 | **Directory Patterns** | Glob patterns for CWD-based auto-switching | No |
 | **Tmux Session Patterns** | Glob patterns for auto-switching (e.g., `work-*`) | No |
 | **Badge Text** | Custom badge format for this profile | No |
 | **Badge Appearance** | Override badge color, font, position, size | No |
+| **Content Prettifier** | Override prettifier settings per-profile | No |
 
 ## Managing Profiles
 
@@ -159,7 +164,7 @@ flowchart LR
 
 ### Profile Icon Picker
 
-The profile icon field includes an icon picker popup with ~120 curated Nerd Font icons organized in 10 categories. Nerd Font icons render reliably in the egui-based settings UI and each icon shows a descriptive tooltip on hover.
+The profile icon field includes an icon picker popup with ~190 curated Nerd Font icons organized in 12 categories. Nerd Font icons render reliably in the egui-based settings UI and each icon shows a descriptive tooltip on hover.
 
 | Category | Description | Example Icons |
 |----------|-------------|---------------|
@@ -172,6 +177,8 @@ The profile icon field includes an icon picker popup with ~120 curated Nerd Font
 | Containers & Infra | Containers and infrastructure | Docker, Kubernetes, CPU, Gear, Memory |
 | OS & Platforms | Operating systems and platforms | Apple, Windows, Linux, Homebrew |
 | Status & Alerts | Status indicators and signals | Check, Bolt, Rocket, Fire, Star |
+| UI Actions | Common interface actions | Search, Edit, Copy, Plus, Refresh, Save |
+| Navigation | Arrows and directional icons | Arrow Up/Down, Angle Left/Right, Reply |
 | People & Misc | People and miscellaneous symbols | User, Robot, Gamepad, Music, Bookmark |
 
 Click any icon to set it as the profile icon, or type a custom value directly in the text field. Use the "Clear icon" button to remove the current icon.
@@ -490,27 +497,31 @@ dynamic_profile_sources:
   - url: "https://example.com/team-profiles.yaml"
     headers:
       Authorization: "Bearer <token>"
-    refresh_interval_minutes: 30
+    refresh_interval_secs: 1800
     max_size_bytes: 1048576
+    fetch_timeout_secs: 10
+    enabled: true
     conflict_resolution: "local_wins"
   - url: "https://internal.corp/devops-profiles.yaml"
-    refresh_interval_minutes: 60
+    refresh_interval_secs: 3600
 ```
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `url` | string | (required) | URL to fetch profiles from |
 | `headers` | map | `{}` | Custom HTTP headers (e.g., auth tokens) |
-| `refresh_interval_minutes` | integer | `30` | How often to re-fetch the source |
+| `refresh_interval_secs` | integer | `1800` | How often to re-fetch the source (in seconds) |
 | `max_size_bytes` | integer | `1048576` | Maximum response size (1 MB default) |
+| `fetch_timeout_secs` | integer | `10` | HTTP fetch timeout in seconds |
+| `enabled` | boolean | `true` | Whether this source is active |
 | `conflict_resolution` | string | `"local_wins"` | How to handle ID collisions with local profiles |
 
 ### Background Refresh
 
 Dynamic profile sources refresh automatically on a configurable timer:
 
-- The default refresh interval is 30 minutes
-- Each source can have its own interval via `refresh_interval_minutes`
+- The default refresh interval is 1800 seconds (30 minutes)
+- Each source can have its own interval via `refresh_interval_secs`
 - Refresh occurs in the background without blocking the UI
 - Failed fetches retain the previously cached version
 

@@ -106,12 +106,11 @@ The directory is created automatically when par-term first starts.
 
 ## Configuration
 
-All shader settings can be configured via the YAML config file or through the **Settings UI** (press `F2` or use the menu). The Settings UI provides:
-- **Background & Effects** section: Background shader selection, animation controls, brightness, texture channels, and cubemap settings
+All shader settings can be configured via the YAML config file or through the **Settings UI** (press `F2` or use the menu). The Settings UI provides in the **Effects** tab:
+- **Background** section: Background shader selection, animation controls, brightness, texture channels, and cubemap settings
 - **Cursor Shader** section: Cursor shader selection and effect parameters
-- **Window** section: Power saving options (pause shaders on blur)
 
-The UI also supports per-shader overrides and saving settings directly to shader metadata.
+Power saving options (pause shaders on blur) are in the **Window** tab. The UI also supports per-shader overrides and saving settings directly to shader metadata.
 
 ### Background Shader Settings
 

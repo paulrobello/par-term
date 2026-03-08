@@ -66,8 +66,7 @@ graph TD
 | Click + Drag | Normal | Character-by-character selection |
 | Double-Click | Word | Select word at cursor |
 | Triple-Click | Line | Select entire line |
-| Alt+Cmd + Drag (macOS) | Rectangular | Column-based block selection |
-| Alt+Ctrl + Drag (Windows/Linux) | Rectangular | Column-based block selection |
+| Alt+Cmd/Super + Drag | Rectangular | Column-based block selection (Option+Cmd on macOS, Alt+Win on Windows/Linux) |
 
 ### Word Selection
 
@@ -105,8 +104,8 @@ copy_trailing_newline: false  # Strip trailing newlines
 
 Configure double/triple-click detection:
 ```yaml
-mouse_double_click_threshold: 200  # milliseconds
-mouse_triple_click_threshold: 200  # milliseconds
+mouse_double_click_threshold: 500  # milliseconds (default)
+mouse_triple_click_threshold: 500  # milliseconds (default)
 ```
 
 ## URL Handling
@@ -189,7 +188,7 @@ Scroll through the scrollback buffer with the mouse wheel.
 
 Configure scroll speed:
 ```yaml
-mouse_scroll_speed: 1.0  # Multiplier (1.0 = normal)
+mouse_scroll_speed: 3.0  # Lines per scroll tick (default)
 ```
 
 ### Scrollbar
@@ -230,11 +229,11 @@ word_characters: "/-+\\~_."
 smart_selection_enabled: true
 
 # Click timing
-mouse_double_click_threshold: 200
-mouse_triple_click_threshold: 200
+mouse_double_click_threshold: 500
+mouse_triple_click_threshold: 500
 
 # Scroll behavior
-mouse_scroll_speed: 1.0
+mouse_scroll_speed: 3.0
 report_horizontal_scroll: true
 
 # Cursor movement
@@ -265,7 +264,7 @@ The Input tab in Settings provides:
 |---------|-------|---------------|
 | URL modifier | `Cmd` | `Ctrl` |
 | Cursor move | `Option` | `Alt` |
-| Rectangular select | `Option + Cmd` | `Alt + Ctrl` |
+| Rectangular select | `Option + Cmd` | `Alt + Win` |
 | Primary selection | No | Yes (X11) |
 | Middle-click paste | Clipboard | Primary selection |
 

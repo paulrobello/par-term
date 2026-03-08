@@ -90,8 +90,8 @@ Five frequency options are available:
 |-----------|----------|-------------|
 | **Never** | Disabled | No automatic checks |
 | **Hourly** | 1 hour | Check every hour, aligned with the GitHub API rate limit window |
-| **Daily** | 24 hours | Check once per day |
-| **Weekly** | 7 days | Check once per week (default) |
+| **Daily** | 24 hours | Check once per day (default) |
+| **Weekly** | 7 days | Check once per week |
 | **Monthly** | 30 days | Check once per month |
 
 The checker also enforces a minimum interval of one hour between API requests to avoid rate limiting, even when checks are triggered manually.
@@ -283,12 +283,12 @@ The following `config.yaml` options control update behavior:
 
 ```yaml
 # How often to check for updates: never, hourly, daily, weekly, monthly
-update_check_frequency: weekly
+update_check_frequency: daily
 
 # Timestamp of the last update check (managed automatically)
 last_update_check: "2026-02-10T15:30:00+00:00"
 
-# Version to skip in update notifications (e.g., "0.14.0")
+# Version to skip in update notifications (e.g., "0.24.0")
 skipped_version: null
 ```
 

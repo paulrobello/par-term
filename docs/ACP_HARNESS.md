@@ -12,6 +12,8 @@
   - [Run a Custom Prompt](#run-a-custom-prompt)
   - [Apply Config Updates](#apply-config-updates)
   - [Save a Transcript](#save-a-transcript)
+  - [Test Screenshot Tool Flows (Vision Models)](#test-screenshot-tool-flows-vision-models)
+  - [Debug Prompt Construction](#debug-prompt-construction)
 - [Makefile Targets](#makefile-targets)
 - [Examples](#examples)
 - [Troubleshooting](#troubleshooting)
@@ -172,6 +174,28 @@ This is useful when:
 - Your local model (for example `qwen3-coder`) is text-only and cannot interpret images
 - You want a deterministic image fixture for transcript-based debugging
 
+### Debug Prompt Construction
+
+Use `--print-prompt-blocks` to inspect the composed prompt content before it is sent to the agent:
+
+```bash
+cargo run --bin par-term-acp-harness -- \
+  --agent claude-ollama.local \
+  --print-prompt-blocks \
+  --prompt "set shader to rain"
+```
+
+This shows the system guidance, optional shader context, and user message blocks.
+
+Use `--no-shader-context` to disable shader-context injection (system guidance is still included):
+
+```bash
+cargo run --bin par-term-acp-harness -- \
+  --agent claude-ollama.local \
+  --no-shader-context \
+  --prompt "list the current directory"
+```
+
 ## Makefile Targets
 
 Two convenience targets are available in the project `Makefile`:
@@ -195,7 +219,7 @@ Override the smoke test defaults:
 make acp-smoke \
   ACP_AGENT=claude-ollama.local \
   ACP_TIMEOUT=60 \
-  ACP_IDLE_TIMEOUT=8 \
+  ACP_IDLE_TIMEOUT=10 \
   ACP_TRANSCRIPT=/tmp/acp-smoke.log
 ```
 

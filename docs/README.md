@@ -41,7 +41,7 @@ Navigation index for all par-term documentation.
 | Document | Description |
 |----------|-------------|
 | [Custom Shaders Guide](CUSTOM_SHADERS.md) | Writing custom GLSL shaders for background effects and post-processing |
-| [Included Shaders](SHADERS.md) | Gallery of 51 ready-to-use GLSL shaders (39 background + 12 cursor) |
+| [Included Shaders](SHADERS.md) | Gallery of 52 ready-to-use GLSL shaders (40 background + 12 cursor) |
 | [Compositor](COMPOSITOR.md) | GPU compositor architecture, rendering layers, transparency, and shader integration |
 | [Badges](BADGES.md) | Dynamic session information overlays with variable substitution |
 | [Status Bar](STATUS_BAR.md) | Configurable status bar with widgets for session info and system metrics |

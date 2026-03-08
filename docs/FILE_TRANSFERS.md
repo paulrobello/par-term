@@ -167,7 +167,7 @@ A semi-transparent progress overlay appears at the bottom-right corner of the te
 - Shows an animated indeterminate bar when the total size is unknown
 - Indicates how many completed downloads are waiting for the save dialog
 - Indicates how many upload requests are pending
-- Auto-hides 2 seconds after the last transfer completes
+- Auto-hides 3 seconds after the last transfer completes
 - Renders at the `Foreground` layer so it appears above terminal content and the scrollbar
 
 Only one native dialog (save or file picker) is open at a time. If multiple transfers complete simultaneously, they queue up and each dialog opens in sequence after the previous one closes.

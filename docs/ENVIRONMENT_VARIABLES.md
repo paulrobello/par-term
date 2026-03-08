@@ -11,6 +11,7 @@ This document lists all environment variables recognized by par-term. Variables 
 - [Editor and Pager](#editor-and-pager)
 - [Display and Windowing](#display-and-windowing)
 - [MCP IPC (Internal)](#mcp-ipc-internal)
+- [Git and Badge Variables](#git-and-badge-variables)
 - [Config Variable Substitution](#config-variable-substitution)
 
 ## Overview
@@ -128,6 +129,18 @@ These variables are set by par-term itself when launching the MCP server subproc
 | `PAR_TERM_SCREENSHOT_REQUEST_PATH` | `<config_dir>/.screenshot-request.json` | Path where the MCP server writes a screenshot request. |
 | `PAR_TERM_SCREENSHOT_RESPONSE_PATH` | `<config_dir>/.screenshot-response.json` | Path where the GUI app writes the screenshot response. |
 | `PAR_TERM_SCREENSHOT_FALLBACK_PATH` | unset | Optional static fallback image path. Used by the ACP harness for testing the screenshot tool without a running GUI. |
+
+---
+
+## Git and Badge Variables
+
+These optional environment variables can be set by external scripts or shell integrations to provide contextual information displayed in the tab bar and status line.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `GIT_BRANCH` | (computed) | Current git branch name. If unset, par-term runs `git rev-parse --abbrev-ref HEAD` as a fallback. Used in snippet variable substitution (`${git_branch}`). |
+| `GIT_COMMIT` | (computed) | Current git commit hash (short form). If unset, par-term runs `git rev-parse --short HEAD` as a fallback. Used in snippet variable substitution (`${git_commit}`). |
+| `TTY` | — | TTY device path for the terminal session. Read by the badge system for display in the status line. |
 
 ---
 

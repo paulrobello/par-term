@@ -73,7 +73,7 @@ field uses its documented default value.
 | `maximize_throughput` | `bool` | `false` | Throttle rendering during large outputs for lower CPU usage |
 | `throughput_render_interval_ms` | `u32` | `100` | Render interval when throughput mode is active (50–500ms) |
 | `pause_shaders_on_blur` | `bool` | `true` | Pause shader animations when window loses focus |
-| `pause_refresh_on_blur` | `bool` | `false` | Reduce refresh rate when window is unfocused |
+| `pause_refresh_on_blur` | `bool` | `true` | Reduce refresh rate when window is unfocused |
 | `unfocused_fps` | `u32` | `10` | Target FPS when window is not focused (if `pause_refresh_on_blur`) |
 | `inactive_tab_fps` | `u32` | `2` | Target FPS for background tabs (reduces CPU usage) |
 
@@ -104,7 +104,7 @@ field uses its documented default value.
 | `custom_shader_animation` | `bool` | `true` | Animate the shader (update `iTime` each frame) |
 | `custom_shader_animation_speed` | `f32` | `1.0` | Animation speed multiplier |
 | `custom_shader_text_opacity` | `f32` | `1.0` | Text opacity over shader background (0.0–1.0) |
-| `custom_shader_brightness` | `f32` | `0.5` | Shader brightness multiplier (dims background) |
+| `custom_shader_brightness` | `f32` | `0.15` | Shader brightness multiplier (dims background) |
 | `custom_shader_full_content` | `bool` | `false` | Pass full terminal content to shader for distortion effects |
 | `custom_shader_channel0` | `string?` | `null` | Texture path for `iChannel0` |
 | `custom_shader_channel1` | `string?` | `null` | Texture path for `iChannel1` |
@@ -114,7 +114,7 @@ field uses its documented default value.
 | `custom_shader_cubemap_enabled` | `bool` | `true` | Enable cubemap sampling |
 | `custom_shader_use_background_as_channel0` | `bool` | `false` | Bind background image as `iChannel0` |
 | `shader_hot_reload` | `bool` | `false` | Reload shader automatically when file is modified |
-| `shader_hot_reload_delay` | `u64` | `250` | Debounce delay in ms before hot-reload triggers |
+| `shader_hot_reload_delay` | `u64` | `100` | Debounce delay in ms before hot-reload triggers |
 
 ---
 
@@ -156,8 +156,8 @@ field uses its documented default value.
 | `middle_click_paste` | `bool` | `true` | Paste on middle mouse button click |
 | `paste_delay_ms` | `u64` | `0` | Delay between pasted lines in ms (for slow connections) |
 | `dropped_file_quote_style` | `enum` | `single_quotes` | Quote style for dropped paths: `single_quotes`, `double_quotes`, `backslash`, `none` |
-| `clipboard_max_sync_events` | `usize` | `100` | Maximum clipboard sync events retained |
-| `clipboard_max_event_bytes` | `usize` | `1048576` | Maximum bytes per clipboard sync event |
+| `clipboard_max_sync_events` | `usize` | `64` | Maximum clipboard sync events retained |
+| `clipboard_max_event_bytes` | `usize` | `2048` | Maximum bytes per clipboard sync event |
 
 ---
 
@@ -166,8 +166,8 @@ field uses its documented default value.
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `mouse_scroll_speed` | `f32` | `3.0` | Mouse wheel scroll speed multiplier |
-| `mouse_double_click_threshold` | `u64` | `300` | Double-click timing threshold in ms |
-| `mouse_triple_click_threshold` | `u64` | `300` | Triple-click timing threshold in ms |
+| `mouse_double_click_threshold` | `u64` | `500` | Double-click timing threshold in ms |
+| `mouse_triple_click_threshold` | `u64` | `500` | Triple-click timing threshold in ms |
 | `option_click_moves_cursor` | `bool` | `true` | Option+Click / Alt+Click moves text cursor to clicked position |
 | `focus_follows_mouse` | `bool` | `false` | Focus window when mouse enters (no click required) |
 | `report_horizontal_scroll` | `bool` | `true` | Report horizontal scroll to terminal applications |
@@ -216,7 +216,7 @@ field uses its documented default value.
 | `cursor_shadow_enabled` | `bool` | `false` | Show drop shadow behind cursor |
 | `cursor_shadow_color` | `[u8;4]` | (dark) | Shadow color `[R, G, B, A]` |
 | `cursor_shadow_offset` | `[f32;2]` | `[2.0,2.0]` | Shadow offset in pixels `[x, y]` |
-| `cursor_shadow_blur` | `f32` | `4.0` | Shadow blur radius in pixels |
+| `cursor_shadow_blur` | `f32` | `3.0` | Shadow blur radius in pixels |
 | `cursor_boost` | `f32` | `0.0` | Cursor glow intensity (0.0=off, 1.0=max) |
 | `cursor_boost_color` | `[u8;3]` | `[255,255,255]` | Cursor glow color `[R, G, B]` |
 
@@ -227,10 +227,10 @@ field uses its documented default value.
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `scrollbar_position` | `string` | `"right"` | Scrollbar position: `"left"` or `"right"` |
-| `scrollbar_width` | `f32` | `8.0` | Scrollbar width in pixels |
-| `scrollbar_thumb_color` | `[f32;4]` | `[0.5,0.5,0.5,0.6]` | Scrollbar thumb color RGBA (0.0–1.0 each) |
-| `scrollbar_track_color` | `[f32;4]` | `[0.0,0.0,0.0,0.0]` | Scrollbar track color RGBA |
-| `scrollbar_autohide_delay` | `u64` | `2000` | Milliseconds before scrollbar auto-hides (0=never) |
+| `scrollbar_width` | `f32` | `15.0` | Scrollbar width in pixels |
+| `scrollbar_thumb_color` | `[f32;4]` | `[0.4,0.4,0.4,0.95]` | Scrollbar thumb color RGBA (0.0–1.0 each) |
+| `scrollbar_track_color` | `[f32;4]` | `[0.15,0.15,0.15,0.6]` | Scrollbar track color RGBA |
+| `scrollbar_autohide_delay` | `u64` | `0` | Milliseconds before scrollbar auto-hides (0=never/always visible) |
 | `scrollbar_command_marks` | `bool` | `true` | Show command markers on scrollbar (requires shell integration) |
 | `scrollbar_mark_tooltips` | `bool` | `false` | Show tooltips on scrollbar command markers |
 
@@ -261,7 +261,7 @@ field uses its documented default value.
 | `shell_env` | `{string:string}?` | `null` | Extra environment variables for the shell |
 | `initial_text` | `string` | `""` | Text sent to shell on session start |
 | `initial_text_delay_ms` | `u64` | `100` | Delay before sending initial text (ms) |
-| `initial_text_send_newline` | `bool` | `false` | Append newline after initial text |
+| `initial_text_send_newline` | `bool` | `true` | Append newline after initial text |
 | `answerback_string` | `string` | `""` | Response to ENQ (terminal identification, disabled by default) |
 | `prompt_on_quit` | `bool` | `false` | Confirm before closing window with active sessions |
 | `confirm_close_running_jobs` | `bool` | `false` | Confirm before closing tab with running commands |
@@ -277,7 +277,8 @@ field uses its documented default value.
 | `semantic_history_enabled` | `bool` | `true` | Enable file path and URL detection on Cmd/Ctrl+Click |
 | `semantic_history_editor_mode` | `enum` | `environment_variable` | Editor selection: `custom`, `environment_variable`, `system_default` |
 | `semantic_history_editor` | `string` | `""` | Editor command when mode is `custom` (use `{file}` and `{line}` placeholders) |
-| `link_highlight_color` | `[u8;3]` | `[0,150,255]` | URL and file path highlight color |
+| `link_highlight_color` | `[u8;3]` | `[79,195,247]` | URL and file path highlight color |
+| `link_highlight_color_enabled` | `bool` | `true` | Enable link highlight color |
 | `link_highlight_underline` | `bool` | `true` | Underline highlighted links |
 | `link_underline_style` | `enum` | `stipple` | Underline style: `solid`, `stipple` |
 | `link_handler_command` | `string` | `""` | Custom URL open command (use `{url}` placeholder; empty=system default) |
@@ -296,15 +297,28 @@ field uses its documented default value.
 | `tab_bar_height` | `f32` | `28.0` | Tab bar height in pixels |
 | `tab_bar_position` | `enum` | `top` | Tab bar position: `top`, `bottom`, `left` |
 | `tab_bar_width` | `f32` | `200.0` | Tab bar width in pixels (when position is `left`) |
+| `tab_bar_background` | `[u8;3]` | `[40,40,40]` | Tab bar background color `[R, G, B]` |
+| `tab_active_background` | `[u8;3]` | `[60,60,60]` | Active tab background color |
+| `tab_inactive_background` | `[u8;3]` | `[40,40,40]` | Inactive tab background color |
+| `tab_hover_background` | `[u8;3]` | `[50,50,50]` | Tab background color on hover |
+| `tab_active_text` | `[u8;3]` | `[255,255,255]` | Active tab text color |
+| `tab_inactive_text` | `[u8;3]` | `[180,180,180]` | Inactive tab text color |
+| `tab_active_indicator` | `[u8;3]` | `[100,150,255]` | Active tab indicator color (underline) |
+| `tab_activity_indicator` | `[u8;3]` | `[100,180,255]` | Activity indicator dot color |
+| `tab_bell_indicator` | `[u8;3]` | `[255,200,100]` | Bell indicator icon color |
+| `tab_close_button` | `[u8;3]` | `[150,150,150]` | Close button color |
+| `tab_close_button_hover` | `[u8;3]` | `[255,100,100]` | Close button color on hover |
+| `tab_border_color` | `[u8;3]` | `[80,80,80]` | Tab border color |
 | `tab_show_close_button` | `bool` | `true` | Show close (×) button on each tab |
 | `tab_show_index` | `bool` | `false` | Show tab index number (for Cmd+1-9) |
 | `tab_inherit_cwd` | `bool` | `true` | New tabs inherit working directory from active tab |
 | `max_tabs` | `usize` | `0` | Maximum tabs per window (0=unlimited) |
+| `show_profile_drawer_button` | `bool` | `false` | Show profile drawer button in tab bar |
 | `tab_min_width` | `f32` | `80.0` | Minimum tab width before horizontal scrolling |
 | `tab_stretch_to_fill` | `bool` | `false` | Stretch tabs to fill available tab bar width |
 | `tab_html_titles` | `bool` | `false` | Render tab titles as limited HTML |
 | `tab_border_width` | `f32` | `0.0` | Tab border width in pixels (0=no border) |
-| `tab_inactive_outline_only` | `bool` | `false` | Render inactive tabs as outline only |
+| `tab_inactive_outline_only` | `bool` | `true` | Render inactive tabs as outline only |
 | `dim_inactive_tabs` | `bool` | `true` | Visually dim inactive tabs |
 | `inactive_tab_opacity` | `f32` | `0.6` | Inactive tab opacity (0.0–1.0) |
 | `new_tab_shortcut_shows_profiles` | `bool` | `false` | Show profile selector instead of opening default tab |
@@ -315,19 +329,25 @@ field uses its documented default value.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `pane_divider_width` | `f32?` | `1.0` | Divider line width in pixels |
-| `pane_divider_hit_width` | `f32` | `5.0` | Drag-target width for resizing panes |
-| `pane_padding` | `f32` | `0.0` | Padding inside each pane in pixels |
-| `pane_min_size` | `usize` | `2` | Minimum pane size in terminal cells |
+| `pane_divider_width` | `f32?` | `2.0` | Divider line width in pixels |
+| `pane_divider_hit_width` | `f32` | `8.0` | Drag-target width for resizing panes |
+| `pane_padding` | `f32` | `1.0` | Padding inside each pane in pixels |
+| `pane_min_size` | `usize` | `10` | Minimum pane size in terminal cells |
 | `pane_background_opacity` | `f32` | `1.0` | Pane background opacity (allows shader/image show-through) |
 | `pane_divider_style` | `enum` | `solid` | Divider style: `solid`, `double`, `dashed`, `shadow` |
+| `pane_divider_color` | `[u8;3]` | `[80,80,80]` | Divider line color |
+| `pane_divider_hover_color` | `[u8;3]` | `[120,150,200]` | Divider color on hover (resize feedback) |
 | `max_panes` | `usize` | `16` | Maximum panes per tab (0=unlimited) |
 | `dim_inactive_panes` | `bool` | `false` | Visually dim inactive panes |
 | `inactive_pane_opacity` | `f32` | `0.7` | Inactive pane opacity |
 | `show_pane_titles` | `bool` | `false` | Show title bar on each pane |
-| `pane_title_height` | `f32` | `18.0` | Pane title bar height in pixels |
+| `pane_title_height` | `f32` | `20.0` | Pane title bar height in pixels |
 | `pane_title_position` | `enum` | `top` | Title bar position: `top`, `bottom` |
+| `pane_title_color` | `[u8;3]` | `[200,200,200]` | Pane title text color |
+| `pane_title_bg_color` | `[u8;3]` | `[40,40,50]` | Pane title background color |
+| `pane_title_font` | `string` | `""` | Pane title font family (empty=terminal font) |
 | `pane_focus_indicator` | `bool` | `true` | Show border around focused pane |
+| `pane_focus_color` | `[u8;3]` | `[100,150,255]` | Focused pane border color |
 | `pane_focus_width` | `f32` | `1.0` | Focused pane border width in pixels |
 
 ---
@@ -342,6 +362,7 @@ field uses its documented default value.
 | `tmux_auto_attach_session` | `string?` | `null` | Session name to auto-attach to |
 | `tmux_default_session` | `string?` | `null` | Default session name for new sessions |
 | `tmux_clipboard_sync` | `bool` | `true` | Sync clipboard with tmux paste buffer |
+| `tmux_profile` | `string?` | `null` | Profile to use for tmux sessions |
 | `tmux_show_status_bar` | `bool` | `false` | Show tmux status bar in par-term UI |
 | `tmux_prefix_key` | `string` | `"C-b"` | tmux prefix key combination |
 | `tmux_status_bar_refresh_ms` | `u64` | `1000` | Status bar refresh interval in ms |
@@ -358,13 +379,14 @@ field uses its documented default value.
 | `notification_bell_desktop` | `bool` | `false` | Forward BEL to desktop notification center |
 | `notification_bell_sound` | `u8` | `50` | Bell sound volume (0=disabled, 1–100) |
 | `notification_bell_visual` | `bool` | `true` | Show visual flash on BEL |
+| `notification_visual_bell_color` | `[u8;3]` | `[255,255,255]` | Visual bell flash color |
 | `notification_activity_enabled` | `bool` | `false` | Notify when activity resumes after inactivity |
-| `notification_activity_threshold` | `u64` | `30` | Seconds of inactivity before activity alert fires |
+| `notification_activity_threshold` | `u64` | `10` | Seconds of inactivity before activity alert fires |
 | `notification_silence_enabled` | `bool` | `false` | Notify after prolonged silence |
-| `notification_silence_threshold` | `u64` | `60` | Seconds of silence before alert fires |
+| `notification_silence_threshold` | `u64` | `300` | Seconds of silence before alert fires (5 minutes) |
 | `notification_session_ended` | `bool` | `false` | Notify when session exits |
 | `suppress_notifications_when_focused` | `bool` | `true` | Suppress desktop notifications when window is focused |
-| `notification_max_buffer` | `usize` | `100` | Max OSC 9/777 notifications retained |
+| `notification_max_buffer` | `usize` | `64` | Max OSC 9/777 notifications retained |
 | `alert_sounds` | `{event: config}` | `{}` | Per-event sound config: keys are `bell`, `command_complete`, `new_tab`, `tab_close` |
 | `anti_idle_enabled` | `bool` | `false` | Send keep-alive after idle period |
 | `anti_idle_seconds` | `u64` | `60` | Idle seconds before sending keep-alive |
@@ -377,7 +399,7 @@ field uses its documented default value.
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `enable_mdns_discovery` | `bool` | `false` | Enable mDNS/Bonjour SSH host discovery |
-| `mdns_scan_timeout_secs` | `u32` | `5` | mDNS scan timeout in seconds |
+| `mdns_scan_timeout_secs` | `u32` | `3` | mDNS scan timeout in seconds |
 | `ssh_auto_profile_switch` | `bool` | `true` | Auto-switch profile based on SSH hostname |
 | `ssh_revert_profile_on_disconnect` | `bool` | `true` | Revert profile when SSH session disconnects |
 
@@ -414,15 +436,18 @@ field uses its documented default value.
 | `status_bar_enabled` | `bool` | `false` | Show the status bar |
 | `status_bar_position` | `enum` | `bottom` | Status bar position: `top`, `bottom` |
 | `status_bar_height` | `f32` | `22.0` | Status bar height in pixels |
+| `status_bar_bg_color` | `[u8;3]` | `[30,30,30]` | Status bar background color `[R, G, B]` |
+| `status_bar_bg_alpha` | `f32` | `0.95` | Status bar background alpha (0.0–1.0) |
+| `status_bar_fg_color` | `[u8;3]` | `[200,200,200]` | Status bar foreground/text color `[R, G, B]` |
 | `status_bar_font` | `string` | `""` | Status bar font family (empty=terminal font) |
 | `status_bar_font_size` | `f32` | `12.0` | Status bar font size in points |
-| `status_bar_separator` | `string` | `" │ "` | Separator between widgets |
+| `status_bar_separator` | `string` | `" \u{2502} "` | Separator between widgets (Unicode box-drawing vertical line) |
 | `status_bar_auto_hide_fullscreen` | `bool` | `true` | Auto-hide status bar in fullscreen |
 | `status_bar_auto_hide_mouse_inactive` | `bool` | `false` | Auto-hide when mouse is inactive |
 | `status_bar_mouse_inactive_timeout` | `f32` | `3.0` | Timeout in seconds before hiding on mouse inactivity |
 | `status_bar_system_poll_interval` | `f32` | `2.0` | CPU/memory/network polling interval in seconds |
 | `status_bar_git_poll_interval` | `f32` | `5.0` | Git branch detection polling interval in seconds |
-| `status_bar_time_format` | `string` | `"%H:%M"` | Clock widget time format (chrono strftime) |
+| `status_bar_time_format` | `string` | `"%H:%M:%S"` | Clock widget time format (chrono strftime) |
 | `status_bar_git_show_status` | `bool` | `true` | Show ahead/behind and dirty indicators in git widget |
 | `status_bar_widgets` | `array` | (built-in defaults) | Widget list with `{id, enabled, ...}` entries |
 
@@ -436,11 +461,11 @@ field uses its documented default value.
 | `progress_bar_style` | `enum` | `bar` | Style: `bar`, `bar_with_text` |
 | `progress_bar_position` | `enum` | `top` | Position: `top`, `bottom` |
 | `progress_bar_height` | `f32` | `4.0` | Bar height in pixels |
-| `progress_bar_opacity` | `f32` | `1.0` | Bar opacity (0.0–1.0) |
-| `progress_bar_normal_color` | `[u8;3]` | `[0,180,80]` | Color for normal progress state |
-| `progress_bar_warning_color` | `[u8;3]` | `[255,165,0]` | Color for warning state |
-| `progress_bar_error_color` | `[u8;3]` | `[220,50,50]` | Color for error state |
-| `progress_bar_indeterminate_color` | `[u8;3]` | `[80,150,255]` | Color for indeterminate state |
+| `progress_bar_opacity` | `f32` | `0.8` | Bar opacity (0.0–1.0) |
+| `progress_bar_normal_color` | `[u8;3]` | `[80,180,255]` | Color for normal progress state |
+| `progress_bar_warning_color` | `[u8;3]` | `[255,200,50]` | Color for warning state |
+| `progress_bar_error_color` | `[u8;3]` | `[255,80,80]` | Color for error state |
+| `progress_bar_indeterminate_color` | `[u8;3]` | `[150,150,150]` | Color for indeterminate state |
 
 ---
 
@@ -449,13 +474,13 @@ field uses its documented default value.
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `badge_enabled` | `bool` | `false` | Show the badge overlay |
-| `badge_format` | `string` | `""` | Badge text with `\(variable)` substitution |
+| `badge_format` | `string` | `"\\(session.username)@\\(session.hostname)"` | Badge text with `\(variable)` substitution |
 | `badge_color` | `[u8;3]` | `[255,0,0]` | Badge text color |
 | `badge_color_alpha` | `f32` | `0.5` | Badge opacity (0.0–1.0) |
 | `badge_font` | `string` | `""` | Badge font family |
 | `badge_font_bold` | `bool` | `true` | Use bold badge font |
-| `badge_top_margin` | `f32` | `5.0` | Top margin in pixels from terminal edge |
-| `badge_right_margin` | `f32` | `5.0` | Right margin in pixels from terminal edge |
+| `badge_top_margin` | `f32` | `0.0` | Top margin in pixels from terminal edge |
+| `badge_right_margin` | `f32` | `16.0` | Right margin in pixels from terminal edge |
 | `badge_max_width` | `f32` | `0.5` | Max badge width as fraction of terminal width (0.0–1.0) |
 | `badge_max_height` | `f32` | `0.2` | Max badge height as fraction of terminal height |
 
@@ -477,17 +502,21 @@ field uses its documented default value.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `ai_inspector_enabled` | `bool` | `false` | Enable AI Inspector panel |
+| `ai_inspector_enabled` | `bool` | `true` | Enable AI Inspector panel |
 | `ai_inspector_open_on_startup` | `bool` | `false` | Open inspector automatically on startup |
-| `ai_inspector_width` | `f32` | `400.0` | Inspector panel width in pixels |
+| `ai_inspector_width` | `f32` | `300.0` | Inspector panel width in pixels |
 | `ai_inspector_default_scope` | `string` | `"visible"` | Default capture scope: `visible`, `scrollback`, `selection` |
-| `ai_inspector_agent` | `string` | `"claude"` | AI agent identifier for queries |
+| `ai_inspector_view_mode` | `string` | `"tree"` | View mode for inspector results: `tree`, `cards`, `raw` |
+| `ai_inspector_live_update` | `bool` | `false` | Automatically refresh inspector when terminal content changes |
+| `ai_inspector_show_zones` | `bool` | `true` | Show semantic zone overlays on terminal content |
+| `ai_inspector_agent` | `string` | `"claude.com"` | AI agent identifier for queries |
 | `ai_inspector_auto_launch` | `bool` | `false` | Auto-launch agent when inspector opens |
-| `ai_inspector_auto_context` | `bool` | `true` | Include terminal context with AI queries |
-| `ai_inspector_context_max_lines` | `usize` | `100` | Max terminal lines included as context |
+| `ai_inspector_auto_context` | `bool` | `false` | Include terminal context with AI queries |
+| `ai_inspector_context_max_lines` | `usize` | `200` | Max terminal lines included as context |
 | `ai_inspector_auto_approve` | `bool` | `false` | Auto-approve AI-suggested actions |
 | `ai_inspector_agent_terminal_access` | `bool` | `false` | Allow AI agent to write input to terminal |
-| `ai_inspector_agent_screenshot_access` | `bool` | `false` | Allow AI agent to request screenshots |
+| `ai_inspector_agent_screenshot_access` | `bool` | `true` | Allow AI agent to request screenshots |
+| `ai_inspector_chat_font_size` | `f32` | `14.0` | Font size for chat messages in points |
 | `ai_inspector_custom_agents` | `array` | `[]` | Additional ACP agent definitions (overrides discovered agents with same identity) |
 
 ---
@@ -505,6 +534,7 @@ field uses its documented default value.
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `allow_all_env_vars` | `bool` | `false` | Allow all environment variables in `${VAR}` substitution (not just the safe allowlist) |
+| `allow_http_profiles` | `bool` | `false` | Allow loading profiles from HTTP/HTTPS URLs in `dynamic_profile_sources` |
 
 ---
 
@@ -512,8 +542,16 @@ field uses its documented default value.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `enable_prettifier` | `bool` | `true` | Master switch for the content prettifier system |
+| `enable_prettifier` | `bool` | `false` | Master switch for the content prettifier system |
 | `content_prettifier` | `object` | `{}` | Detailed prettifier configuration (see [PRETTIFIER.md](PRETTIFIER.md)) |
+
+---
+
+## Settings UI
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `collapsed_settings_sections` | `[string]` | `[]` | List of settings section names that are collapsed by default |
 
 ---
 
@@ -523,7 +561,7 @@ field uses its documented default value.
 |-------|------|---------|-------------|
 | `restore_session` | `bool` | `false` | Restore previous session (tabs, panes, CWDs) on startup |
 | `auto_restore_arrangement` | `string?` | `null` | Name of arrangement to auto-restore on startup |
-| `session_undo_timeout_secs` | `u32` | `30` | Seconds to keep closed tab metadata for undo (0=disabled) |
+| `session_undo_timeout_secs` | `u32` | `5` | Seconds to keep closed tab metadata for undo (0=disabled) |
 | `session_undo_max_entries` | `usize` | `10` | Maximum closed tabs remembered for undo |
 | `session_undo_preserve_shell` | `bool` | `false` | Preserve shell process on tab close for undo |
 

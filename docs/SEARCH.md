@@ -9,6 +9,7 @@ par-term includes a powerful search feature for finding text in the terminal's s
 - [Navigation](#navigation)
 - [Configuration](#configuration)
 - [Keyboard Shortcuts](#keyboard-shortcuts)
+- [Technical Details](#technical-details)
 - [Related Documentation](#related-documentation)
 
 ## Overview
@@ -45,17 +46,37 @@ graph TD
 
 ## Opening Search
 
-Press `Cmd+F` (macOS) or `Ctrl+F` (Windows/Linux) to open the search bar.
+Press `Cmd+F` (macOS) or `Ctrl+Shift+F` (Windows/Linux) to open the search bar.
 
-**Search Bar Layout:**
-```
-┌─────────────────────────────────────────────────┐
-│ Search: [________________________] 3 of 42  ▲ ▼ ✕│
-├─────────────────────────────────────────────────┤
-│ [Aa] [.*] [\b]                                  │
-├─────────────────────────────────────────────────┤
-│ Enter: Next | Shift+Enter: Prev | Escape: Close │
-└─────────────────────────────────────────────────┘
+### Search Bar UI
+
+```mermaid
+graph LR
+    subgraph Row1["Row 1: Input & Navigation"]
+        Label["Search:"]
+        Input["[Text Input]"]
+        Counter["3 of 42"]
+        Up["▲"]
+        Down["▼"]
+        Close["✕"]
+    end
+
+    subgraph Row2["Row 2: Options"]
+        Case["Aa"]
+        Regex[".*"]
+        Word["\\b"]
+    end
+
+    subgraph Row3["Row 3: Keyboard Hints"]
+        Hints["Enter: Next | Shift+Enter: Prev | Escape: Close"]
+    end
+
+    style Label fill:#37474f,stroke:#78909c,stroke-width:1px,color:#ffffff
+    style Input fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    style Counter fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    style Case fill:#37474f,stroke:#78909c,stroke-width:1px,color:#ffffff
+    style Regex fill:#37474f,stroke:#78909c,stroke-width:1px,color:#ffffff
+    style Word fill:#37474f,stroke:#78909c,stroke-width:1px,color:#ffffff
 ```
 
 ## Search Modes
@@ -147,14 +168,44 @@ The Terminal tab in Settings provides:
 
 | Shortcut | Action |
 |----------|--------|
-| `Cmd/Ctrl + F` | Open search bar |
+| `Cmd+F` (macOS) / `Ctrl+Shift+F` (Linux/Windows) | Open/close search bar |
 | `Enter` | Next match |
 | `Shift + Enter` | Previous match |
 | `Escape` | Close search bar |
-| `Cmd/Ctrl + G` | Next match (global) |
-| `Cmd/Ctrl + Shift + G` | Previous match (global) |
+| `Cmd+G` (macOS) / `Ctrl+G` (Linux/Windows) | Next match (when search is open) |
+| `Cmd+Shift+G` (macOS) / `Ctrl+Shift+G` (Linux/Windows) | Previous match (when search is open) |
 
 ## Technical Details
+
+### Architecture
+
+```mermaid
+graph TD
+    UI[SearchUI]
+    Engine[SearchEngine]
+    Config[SearchConfig]
+    Matches[Vec&lt;SearchMatch&gt;]
+
+    UI --> Engine
+    UI --> Config
+    Engine --> Matches
+
+    subgraph SearchEngine
+        PlainSearch[Plain Text Search]
+        RegexSearch[Regex Search]
+        Cache[Cached Regex]
+    end
+
+    Engine --> PlainSearch
+    Engine --> RegexSearch
+    RegexSearch --> Cache
+
+    style UI fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+    style Engine fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    style Config fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    style Matches fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
+    style Cache fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+```
 
 ### Search Scope
 - Current screen content
@@ -163,7 +214,7 @@ The Terminal tab in Settings provides:
 
 ### Performance
 - 150ms debounce on query changes
-- Regex patterns cached for performance
+- Regex patterns compiled once and cached for repeated searches
 - Handles Unicode and emoji correctly
 - Wide characters properly positioned
 
@@ -172,6 +223,13 @@ Each match tracks:
 - Line number (absolute position in scrollback)
 - Column (character position)
 - Length (match length in characters)
+
+### Implementation Files
+- `src/search/mod.rs` - Search UI overlay (`SearchUI`)
+- `src/search/engine.rs` - Search engine with regex caching (`SearchEngine`)
+- `src/search/types.rs` - Search types (`SearchMatch`, `SearchConfig`, `SearchAction`)
+- `par-term-config/src/config/config_struct/search_config.rs` - Configuration struct
+- `par-term-settings-ui/src/terminal_tab/search.rs` - Settings UI section
 
 ## Related Documentation
 

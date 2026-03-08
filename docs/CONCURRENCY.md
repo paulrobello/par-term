@@ -15,7 +15,7 @@ For the low-level mutex API details and anti-patterns, see
 - [Mutex Selection Rules](#mutex-selection-rules)
 - [State Ownership by Layer](#state-ownership-by-layer)
 - [Adding New Shared State](#adding-new-shared-state)
-- [try_lock Telemetry](#try_lock-telemetry)
+- [try_read/try_write Telemetry](#try_readtry_write-telemetry)
 - [Related Documentation](#related-documentation)
 
 ## Overview
@@ -60,9 +60,9 @@ graph TD
     EventLoop --> Render
     EventLoop --> Input
     EventLoop --> EguiUI
-    PTYReader -- "tokio::sync::Mutex" --> TerminalManager
-    InputSender -- "tokio::sync::Mutex" --> TerminalManager
-    EventLoop -- "try_lock() / blocking_lock()" --> TerminalManager
+    PTYReader -- "tokio::sync::RwLock" --> TerminalManager
+    InputSender -- "tokio::sync::RwLock" --> TerminalManager
+    EventLoop -- "try_read() / try_write() / blocking_write()" --> TerminalManager
     SystemMonitor -- "parking_lot::Mutex" --> SystemMonitorData
     EventLoop -- "parking_lot::Mutex" --> SystemMonitorData
 
@@ -93,11 +93,11 @@ WindowManager                   ← owns all WindowState instances
   └─ WindowState                ← per-window state (sync main thread only)
        ├─ TabManager            ← owns all Tab instances (sync only)
        │    └─ Tab              ← per-tab state
-       │         ├─ terminal: Arc<tokio::sync::Mutex<TerminalManager>>
-       │         │             ← shared with async PTY/input tasks
+       │         ├─ terminal: Arc<tokio::sync::RwLock<TerminalManager>>
+       │         │             ← shared with async PTY/input tasks; RwLock for concurrent reads
        │         └─ PaneManager ← sync only, owns all Pane instances
        │              └─ Pane
-       │                   └─ terminal: Arc<tokio::sync::Mutex<TerminalManager>>
+       │                   └─ terminal: Arc<tokio::sync::RwLock<TerminalManager>>
        │                                ← shared with async PTY/input tasks
        └─ AgentState
             └─ agent: Option<Arc<tokio::sync::Mutex<Agent>>>
@@ -109,8 +109,9 @@ WindowManager                   ← owns all WindowState instances
 1. `WindowManager`, `WindowState`, `TabManager`, and `PaneManager` are only ever accessed
    from the main thread's sync event loop. They carry no mutex.
 
-2. `Tab.terminal` and `Pane.terminal` are `Arc<tokio::sync::Mutex<TerminalManager>>`
+2. `Tab.terminal` and `Pane.terminal` are `Arc<tokio::sync::RwLock<TerminalManager>>`
    because the PTY reader task and input sender task share the same `TerminalManager`.
+   `RwLock` allows concurrent reads from multiple async tasks.
 
 3. `AgentState.agent` is `tokio::sync::Mutex<Agent>` because ACP prompt processing runs
    in a spawned async task.
@@ -119,19 +120,20 @@ WindowManager                   ← owns all WindowState instances
 
 | Question | Answer |
 |---|---|
-| Is the value ever accessed from `runtime.spawn(async { ... })`? | Use `tokio::sync::Mutex` |
+| Is the value ever accessed from `runtime.spawn(async { ... })`? | Use `tokio::sync::Mutex` or `tokio::sync::RwLock` |
 | Is the value held across an `.await` point? | Use `tokio::sync::Mutex` |
+| Async shared with mostly reads? | Use `tokio::sync::RwLock` (allows concurrent readers) |
 | All callers are sync threads or `std::thread::spawn`? | Use `parking_lot::Mutex` |
 | High-frequency reads, infrequent writes, all sync? | Consider `parking_lot::RwLock` |
 
 ## State Ownership by Layer
 
-### tokio::sync::Mutex — async-shared state
+### tokio::sync::Mutex / RwLock — async-shared state
 
 | Location | Type | Reason |
 |---|---|---|
-| `Tab.terminal` | `Arc<tokio::sync::Mutex<TerminalManager>>` | PTY reader + input sender tasks |
-| `Pane.terminal` | `Arc<tokio::sync::Mutex<TerminalManager>>` | Same — each pane has its own PTY |
+| `Tab.terminal` | `Arc<tokio::sync::RwLock<TerminalManager>>` | PTY reader + input sender tasks; RwLock allows concurrent reads |
+| `Pane.terminal` | `Arc<tokio::sync::RwLock<TerminalManager>>` | Same — each pane has its own PTY |
 | `AgentState.agent` | `Option<Arc<tokio::sync::Mutex<Agent>>>` | ACP prompt tasks |
 
 ### parking_lot::Mutex / RwLock — sync-only shared state
@@ -163,24 +165,31 @@ When introducing a new value that must be shared across threads:
 4. **Use the correct access pattern** from sync contexts:
 
 ```rust
-// For tokio::sync::Mutex from the winit event loop:
-// Non-blocking (safe to skip if locked):
-if let Ok(guard) = shared.try_lock() {
-    // use guard
+// For tokio::sync::RwLock from the winit event loop:
+// Non-blocking read (safe to skip if contended):
+if let Ok(guard) = terminal.try_read() {
+    // use guard for reading
 } else {
     crate::debug::record_try_lock_failure("my_site");
 }
 
-// Blocking (must not be skipped, but never call from a Tokio worker thread):
-let guard = shared.blocking_lock();
+// Non-blocking write:
+if let Ok(mut guard) = terminal.try_write() {
+    // use guard for writing
+} else {
+    crate::debug::record_try_lock_failure("my_site_write");
+}
+
+// Blocking write (must not be skipped, but never call from a Tokio worker thread):
+let mut guard = terminal.blocking_write();
 ```
 
 5. **Document the mutex choice** with an inline comment explaining which tasks share
    the value, following the pattern in `Tab` and `Pane`.
 
-## try_lock Telemetry
+## try_read/try_write Telemetry
 
-`try_lock()` misses are tracked globally via `crate::debug::record_try_lock_failure(site)`.
+`try_read()` and `try_write()` misses are tracked globally via `crate::debug::record_try_lock_failure(site)`.
 This call increments an atomic counter and emits a `CONCURRENCY` category debug log entry
 at `DEBUG_LEVEL >= 3`. Periodic summaries appear in the `about_to_wait` handler.
 
@@ -188,8 +197,8 @@ A high miss rate at a specific site means an async task is holding the lock long
 a single frame, which warrants investigation.
 
 ```rust
-if let Ok(term) = tab.terminal.try_lock() {
-    // use term
+if let Ok(term) = tab.terminal.try_read() {
+    // use term for reading
 } else {
     crate::debug::record_try_lock_failure("resize_propagation");
 }

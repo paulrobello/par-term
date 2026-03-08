@@ -110,10 +110,8 @@ impl WindowManager {
                     Some(crate::shader_installer::count_shader_files);
                 settings_window.settings_ui.shader_detect_modified_fn =
                     Some(crate::shader_installer::detect_modified_bundled_shaders);
-                settings_window.settings_ui.shader_install_fn =
-                    Some(shader_install_wrapper);
-                settings_window.settings_ui.shader_uninstall_fn =
-                    Some(shader_uninstall_wrapper);
+                settings_window.settings_ui.shader_install_fn = Some(shader_install_wrapper);
+                settings_window.settings_ui.shader_uninstall_fn = Some(shader_uninstall_wrapper);
                 // Sync last update check result to settings UI
                 settings_window.settings_ui.last_update_result = self
                     .last_update_result

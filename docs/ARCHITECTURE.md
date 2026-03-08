@@ -154,6 +154,7 @@ graph TD
     MCP[par-term-mcp<br>MCP Stdio Server]
     SSH[par-term-ssh<br>SSH Host Discovery]
     Tmux[par-term-tmux<br>tmux Control Mode]
+    Prettifier[par-term-prettifier<br>Content Prettifier]
 
     Main --> ACP
     Main --> Config
@@ -168,6 +169,7 @@ graph TD
     Main --> MCP
     Main --> SSH
     Main --> Tmux
+    Main --> Prettifier
 
     Terminal --> Config
     Render --> Config
@@ -180,6 +182,7 @@ graph TD
     Scripting --> Config
     Tmux --> Config
     Tmux --> Terminal
+    Prettifier --> Config
 
     style Main fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
     style ACP fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
@@ -195,6 +198,7 @@ graph TD
     style MCP fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
     style SSH fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
     style Tmux fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
+    style Prettifier fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
 ```
 
 ### Crate Responsibilities
@@ -207,7 +211,7 @@ graph TD
 | **par-term-fonts** | Font discovery, loading, and fallback chain (`FontManager`, `FontData`). Text shaping via `TextShaper` (HarfBuzz/rustybuzz). |
 | **par-term-terminal** | Terminal session management (`TerminalManager`), scrollback buffer, styled content extraction, and PTY interaction wrappers. |
 | **par-term-render** | GPU rendering engine: cell renderer, graphics renderer (Sixel/iTerm2/Kitty), custom shader renderer, WGSL shaders, and glyph atlas management. |
-| **par-term-settings-ui** | All 28 settings tab modules (appearance, window, terminal, input, effects, notifications, integrations, advanced, etc.), sidebar navigation, and section helper utilities. |
+| **par-term-settings-ui** | All 20 settings tab modules (appearance, window, terminal, input, effects, notifications, integrations, advanced, etc.), sidebar navigation, and section helper utilities. |
 | **par-term-input** | Input sequence generation — translates keyboard/mouse events into VT escape sequences for terminal input. |
 | **par-term-keybindings** | Keybinding parsing, matching, and registry with platform-aware modifier handling (`CmdOrCtrl`). |
 | **par-term-scripting** | Observer pattern and scripting system for event-driven automation. |
@@ -215,6 +219,7 @@ graph TD
 | **par-term-mcp** | MCP (Model Context Protocol) stdio server for AI agent integration. Independently publishable with zero internal crate dependencies. |
 | **par-term-ssh** | SSH host discovery via config parsing, known hosts scanning, history scanning, and mDNS/Bonjour discovery. |
 | **par-term-tmux** | tmux control mode integration — session lifecycle, bidirectional state sync, and control protocol command builders. |
+| **par-term-prettifier** | Content prettifier for Markdown, JSON, YAML, diffs, and diagrams (Mermaid). Converts structured content into styled terminal output with syntax highlighting. |
 
 ### Backward Compatibility
 
@@ -225,14 +230,14 @@ All public types from workspace crates are re-exported from the main `par-term` 
 ### Application Logic
 
 *   **App (`src/app/mod.rs`)**: The entry point that initializes configuration and runs the event loop via `winit`.
-*   **WindowManager (`src/app/window_manager.rs`)**: Coordinates multiple terminal windows, handles native menu events, manages the standalone settings window, and applies configuration changes across all windows.
-*   **WindowState (`src/app/window_state/`)**: Per-window state module containing tab manager, renderer, input handler, keybinding registry, and shader metadata caches — decomposed into focused sub-modules including `render_pipeline.rs`, `agent_messages.rs`, and state components (AgentState, TmuxState, OverlayUiState).
+*   **WindowManager (`src/app/window_manager/`)**: Coordinates multiple terminal windows, handles native menu events, manages the standalone settings window, and applies configuration changes across all windows.
+*   **WindowState (`src/app/window_state/`)**: Per-window state module containing tab manager, renderer, input handler, keybinding registry, and shader metadata caches — decomposed into focused sub-modules including `render_pipeline/`, `agent_messages.rs`, and state components (AgentState, TmuxState, OverlayUiState).
 *   **Input Handler (`par-term-input`)**: Translates OS window events (keyboard, mouse) into terminal input sequences or application commands (e.g., shortcuts for copy/paste).
 *   **Keybindings (`par-term-keybindings`)**: Configurable keyboard shortcut system with key combo parsing, platform-aware modifier handling (`CmdOrCtrl`), and action registry.
-*   **Menu (`src/menu/mod.rs`)**: Native cross-platform menu bar using `muda` (macOS global menu, Windows/Linux per-window menus).
+*   **Menu (`src/menu/`)**: Native cross-platform menu bar using `muda` (macOS global menu, Windows/Linux per-window menus).
 *   **Configuration (`par-term-config`)**: Manages settings loaded from YAML files, handling platform-specific paths (`%APPDATA%` vs `~/.config`). Includes shader metadata caching and file watching.
-*   **Settings Window (`src/settings_window.rs`)**: Standalone egui window for configuration, separate from the main terminal window for better usability.
-*   **Settings UI (`par-term-settings-ui`)**: egui-based settings interface with consolidated tabs: Appearance, Window, Terminal, Input, Effects, Notifications, Integrations, and Advanced.
+*   **Settings Window (`src/settings_window/`)**: Standalone egui window for configuration, separate from the main terminal window for better usability.
+*   **Settings UI (`par-term-settings-ui`)**: egui-based settings interface with 20 consolidated tabs: Appearance, Window, Input, Terminal, Effects, Badge, Progress Bar, Status Bar, Profiles, SSH, Notifications, Integrations, Automation, Scripts, Snippets, Actions, Prettifier, Arrangements, Assistant, and Advanced.
 *   **Profile Manager (`src/profile/`)**: iTerm2-style profile system for saving terminal session configurations (working directory, custom commands, tab names). Profiles stored in `~/.config/par-term/profiles.yaml`.
 *   **Scripting (`par-term-scripting`)**: Observer pattern implementation for event-driven automation and shell integration callbacks.
 *   **Update System (`par-term-update`)**: Self-update mechanism with manifest parsing, version comparison, and download/extraction logic.
@@ -240,11 +245,11 @@ All public types from workspace crates are re-exported from the main `par-term` 
 
 ### Terminal Emulation
 
-*   **Terminal Manager (`src/terminal/mod.rs`)**: A wrapper around the core emulation library. It exposes a thread-safe API for the UI to interact with the underlying PTY session.
-*   **Shell Spawning (`src/terminal/spawn.rs`)**: Handles shell process creation and login shell initialization.
-*   **Graphics (`src/terminal/graphics.rs`)**: Manages Sixel and inline graphics metadata.
-*   **Clipboard (`src/terminal/clipboard.rs`)**: Clipboard history and OSC 52 synchronization.
-*   **Hyperlinks (`src/terminal/hyperlinks.rs`)**: OSC 8 hyperlink tracking and URL detection.
+*   **Terminal Manager (`par-term-terminal/src/terminal/mod.rs`)**: A wrapper around the core emulation library. It exposes a thread-safe API for the UI to interact with the underlying PTY session.
+*   **Shell Spawning (`par-term-terminal/src/terminal/spawn.rs`)**: Handles shell process creation and login shell initialization.
+*   **Graphics (`par-term-terminal/src/terminal/graphics.rs`)**: Manages Sixel and inline graphics metadata.
+*   **Clipboard (`par-term-terminal/src/terminal/clipboard.rs`)**: Clipboard history and OSC 52 synchronization.
+*   **Hyperlinks (`par-term-terminal/src/terminal/hyperlinks.rs`)**: OSC 8 hyperlink tracking and URL detection.
 *   **Core Library**: Uses `par-term-emu-core-rust` for:
     *   VT100/ANSI escape sequence parsing.
     *   Grid management and scrollback history.
@@ -254,8 +259,8 @@ All public types from workspace crates are re-exported from the main `par-term` 
 
 *   **TabManager (`src/tab/manager.rs`)**: Manages multiple terminal tabs within a window, handling tab creation, switching, reordering, and cleanup.
 *   **Tab (`src/tab/mod.rs`)**: Represents a single terminal session with its own terminal, scroll state, mouse state, bell state, render cache, and pane tree.
-*   **TabBarUI (`src/tab_bar_ui.rs`)**: egui-based tab bar renderer with click handling, close buttons, activity indicators, and bell icons.
-*   **PaneManager (`src/pane/manager.rs`)**: Coordinates pane operations within a tab, managing split creation, resizing, and navigation.
+*   **TabBarUI (`src/tab_bar_ui/`)**: egui-based tab bar renderer with click handling, close buttons, activity indicators, and bell icons.
+*   **PaneManager (`src/pane/manager/`)**: Coordinates pane operations within a tab, managing split creation, resizing, and navigation.
 *   **Pane (`src/pane/types.rs`)**: Represents a single terminal pane with its own state. Uses a tree structure (`PaneNode`) for nested splits.
 
 ### tmux Integration (`par-term-tmux`)
@@ -268,44 +273,47 @@ All public types from workspace crates are re-exported from the main `par-term` 
 
 ### Rendering Engine
 
-*   **Renderer (`src/renderer/mod.rs`)**: The high-level rendering coordinator. It manages the `wgpu` surface and delegates tasks to specialized sub-renderers.
-*   **Cell Renderer (`src/cell_renderer/mod.rs`)**: Responsible for drawing the text grid. Includes glyph atlas management (`atlas.rs`), background images (`background.rs`), and the core render loop (`render.rs`).
-*   **Graphics Renderer (`src/graphics_renderer.rs`)**: Handles overlay graphics like Sixel, iTerm2 images, and Kitty graphics.
-*   **Custom Shaders (`src/custom_shader_renderer/`)**: Provides post-processing effects using GLSL shaders (compatible with Shadertoy/Ghostty). Includes GLSL-to-WGSL transpilation via `naga`, channel texture management (`textures.rs`) for iChannel1-4 inputs, and uniform handling (`types.rs`).
+*   **Renderer (`par-term-render/src/renderer/`)**: The high-level rendering coordinator. It manages the `wgpu` surface and delegates tasks to specialized sub-renderers.
+*   **Cell Renderer (`par-term-render/src/cell_renderer/`)**: Responsible for drawing the text grid. Includes glyph atlas management (`atlas.rs`), background images (`background.rs`), and the core render loop (`render.rs`, `pane_render.rs`).
+*   **Graphics Renderer (`par-term-render/src/graphics_renderer.rs`)**: Handles overlay graphics like Sixel, iTerm2 images, and Kitty graphics.
+*   **Custom Shaders (`par-term-render/src/custom_shader_renderer/`)**: Provides post-processing effects using GLSL shaders (compatible with Shadertoy/Ghostty). Includes GLSL-to-WGSL transpilation via `naga`, channel texture management (`textures.rs`) for iChannel1-4 inputs, and uniform handling (`types.rs`).
 
 ### Text & Font Handling
 
-*   **Font Manager (`src/font_manager/mod.rs`)**: Handles font discovery and fallback. It supports:
+*   **Font Manager (`par-term-fonts/src/font_manager/`)**: Handles font discovery and fallback. It supports:
     *   **Primary Font**: The main user-configured monospace font.
     *   **Styled Variants**: Separate fonts for Bold, Italic, etc.
     *   **Range Fonts**: Specific fonts for Unicode ranges (e.g., CJK, Emoji).
-    *   **Fallbacks**: System font fallback for missing glyphs (`fallbacks.rs`).
-*   **Text Shaper (`src/text_shaper.rs`)**: Uses `rustybuzz` (HarfBuzz) to shape text, handling ligatures, complex scripts, and combining characters correctly. Rasterization is performed by `swash`.
+    *   **Fallbacks**: System font fallback for missing glyphs.
+*   **Text Shaper (`par-term-fonts/src/text_shaper.rs`)**: Uses `rustybuzz` (HarfBuzz) to shape text, handling ligatures, complex scripts, and combining characters correctly. Rasterization is performed by `swash`.
 
 ### Additional Features
 
 *   **Search (`src/search/`)**: Terminal search functionality with regex support, debounced search, and match highlighting. Includes egui-based search bar overlay.
 *   **Session Logger (`src/session_logger.rs`)**: Records terminal sessions to files for replay or audit.
+*   **Session Management (`src/session/`)**: Session save/restore with layout capture and pane state serialization.
 *   **Update Checker (`par-term-update`)**: Checks for new versions of par-term.
 *   **Smart Selection (`src/smart_selection.rs`)**: Intelligent text selection with word/path/URL detection.
-*   **Paste Transform (`src/paste_transform.rs`)**: Transforms pasted content (bracketed paste, newline handling).
+*   **Paste Transform (`src/paste_transform/`)**: Transforms pasted content (bracketed paste, newline handling).
 *   **Shell Integration Installer (`src/shell_integration_installer.rs`)**: Installs shell integration scripts for enhanced features.
 *   **Shader Installer (`src/shader_installer.rs`)**: Manages installation of custom shaders from the shader gallery.
+*   **Content Prettifier (`par-term-prettifier`)**: Converts structured content (Markdown, JSON, YAML, diffs) into styled terminal output. Includes native Mermaid diagram rendering via `mermaid-rs-renderer` with SVG rasterization.
 
 ### SSH System (`par-term-ssh`)
 
-*   **SSH Config Parser**: Parses `~/.ssh/config` for host entries with wildcard filtering, multi-host blocks, and ProxyJump support.
-*   **Known Hosts Parser**: Extracts previously-connected hosts from `~/.ssh/known_hosts` with hashed entry skipping and bracketed `[host]:port` support.
-*   **History Scanner**: Scans bash/zsh/fish history files for previously-used SSH connections.
-*   **mDNS Discovery**: Discovers SSH services on the local network via `_ssh._tcp.local.` Bonjour/mDNS browsing (opt-in).
-*   **Discovery Aggregator**: Combines hosts from all sources with deduplication.
-*   **Quick Connect UI (`src/ssh_connect_ui.rs`)**: egui dialog with fuzzy search, keyboard navigation, and source grouping.
+*   **SSH Config Parser (`par-term-ssh/src/config_parser.rs`)**: Parses `~/.ssh/config` for host entries with wildcard filtering, multi-host blocks, and ProxyJump support.
+*   **Known Hosts Parser (`par-term-ssh/src/known_hosts.rs`)**: Extracts previously-connected hosts from `~/.ssh/known_hosts` with hashed entry skipping and bracketed `[host]:port` support.
+*   **History Scanner (`par-term-ssh/src/history.rs`)**: Scans bash/zsh/fish history files for previously-used SSH connections.
+*   **mDNS Discovery (`par-term-ssh/src/mdns.rs`)**: Discovers SSH services on the local network via `_ssh._tcp.local.` Bonjour/mDNS browsing (opt-in).
+*   **Discovery Aggregator (`par-term-ssh/src/discovery.rs`)**: Combines hosts from all sources with deduplication.
+*   **Quick Connect UI (`src/ssh/`)**: egui dialog with fuzzy search, keyboard navigation, and source grouping.
 
 ### Status Bar
 
 *   **StatusBarUI (`src/status_bar/mod.rs`)**: egui-based status bar renderer with three-section layout (left/center/right).
 *   **Widget System (`src/status_bar/widgets.rs`)**: Trait-based architecture for 10 built-in widgets (clock, git branch, CPU/memory usage, network status, etc.).
 *   **System Monitor (`src/status_bar/system_monitor.rs`)**: Background thread polling CPU, memory, and network metrics at configurable intervals.
+*   **Git Poller (`src/status_bar/git_poller.rs`)**: Background thread for git repository status polling.
 *   **Configuration**: Per-widget enable/disable, section assignment, and styling options with auto-hide on fullscreen or mouse inactivity.
 
 ## Data Flow
