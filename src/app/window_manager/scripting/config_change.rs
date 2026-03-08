@@ -140,7 +140,7 @@ impl WindowManager {
             }
             "scrollback_lines" => {
                 if let Some(v) = value.as_u64() {
-                    ws.config.scrollback_lines = v as usize;
+                    ws.config.scrollback.scrollback_lines = v as usize;
                     log::info!(
                         "Script[{}] ChangeConfig: scrollback_lines = {}",
                         config_index,
@@ -174,7 +174,7 @@ impl WindowManager {
             }
             "notification_bell_desktop" => {
                 if let Some(v) = value.as_bool() {
-                    ws.config.notification_bell_desktop = v;
+                    ws.config.notifications.notification_bell_desktop = v;
                     log::info!(
                         "Script[{}] ChangeConfig: notification_bell_desktop = {}",
                         config_index,
@@ -191,7 +191,7 @@ impl WindowManager {
             }
             "notification_bell_visual" => {
                 if let Some(v) = value.as_bool() {
-                    ws.config.notification_bell_visual = v;
+                    ws.config.notifications.notification_bell_visual = v;
                     ws.focus_state.needs_redraw = true;
                     ws.request_redraw();
                     log::info!(

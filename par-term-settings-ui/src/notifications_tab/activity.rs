@@ -22,7 +22,7 @@ pub(super) fn show_activity_section(
             ui.label("Activity Notifications:");
             if ui
                 .checkbox(
-                    &mut settings.config.notification_activity_enabled,
+                    &mut settings.config.notifications.notification_activity_enabled,
                     "Notify on activity after inactivity",
                 )
                 .changed()
@@ -37,7 +37,10 @@ pub(super) fn show_activity_section(
                     .add_sized(
                         [SLIDER_WIDTH, SLIDER_HEIGHT],
                         egui::Slider::new(
-                            &mut settings.config.notification_activity_threshold,
+                            &mut settings
+                                .config
+                                .notifications
+                                .notification_activity_threshold,
                             1..=300,
                         ),
                     )
@@ -52,7 +55,7 @@ pub(super) fn show_activity_section(
             ui.label("Silence Notifications:");
             if ui
                 .checkbox(
-                    &mut settings.config.notification_silence_enabled,
+                    &mut settings.config.notifications.notification_silence_enabled,
                     "Notify after prolonged silence",
                 )
                 .changed()
@@ -67,7 +70,7 @@ pub(super) fn show_activity_section(
                     .add_sized(
                         [SLIDER_WIDTH, SLIDER_HEIGHT],
                         egui::Slider::new(
-                            &mut settings.config.notification_silence_threshold,
+                            &mut settings.config.notifications.notification_silence_threshold,
                             1..=600,
                         ),
                     )
@@ -82,7 +85,7 @@ pub(super) fn show_activity_section(
             ui.label("Session Notifications:");
             if ui
                 .checkbox(
-                    &mut settings.config.notification_session_ended,
+                    &mut settings.config.notifications.notification_session_ended,
                     "Notify when session/shell exits",
                 )
                 .on_hover_text("Send a desktop notification when the shell process exits")

@@ -117,7 +117,7 @@ impl WindowState {
                     args.join(" ")
                 );
 
-                // TODO(issue): Command allowlist for restricted deployments.
+                // DEFERRED: Command allowlist for restricted deployments.
                 //
                 // In enterprise/kiosk environments it may be desirable to restrict
                 // which executables can be invoked through custom shell-command
@@ -133,9 +133,10 @@ impl WindowState {
                 //
                 // Intentionally deferred: requires a policy decision about how the
                 // allowlist is managed (config file, environment variable, MDM
-                // profile, etc.) that is out of scope for the current audit pass.
-                // Tracked in AUDIT.md as ARC-011 / SEC-002. Create a GitHub issue
-                // to assign a milestone before implementing.
+                // profile, etc.) that is out of scope for the current sprint.
+                // Track as a GitHub issue with the "enterprise" and "security" labels
+                // before implementing. Relates to SEC-002 (bypassable command denylist)
+                // and ARC-011 (optional feature flags for enterprise deployment).
 
                 // Spawn a background thread to avoid blocking the main event loop
                 std::thread::spawn(move || {

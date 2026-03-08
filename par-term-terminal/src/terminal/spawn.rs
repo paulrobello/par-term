@@ -267,6 +267,7 @@ impl TerminalManager {
 // ========================================================================
 
 impl TerminalManager {
+    /// Starts a coprocess subprocess attached to this terminal. Returns the assigned id.
     pub fn start_coprocess(
         &self,
         config: par_term_emu_core_rust::coprocess::CoprocessConfig,
@@ -275,6 +276,7 @@ impl TerminalManager {
         pty.start_coprocess(config)
     }
 
+    /// Stops a running coprocess by id.
     pub fn stop_coprocess(
         &self,
         id: par_term_emu_core_rust::coprocess::CoprocessId,
@@ -283,6 +285,7 @@ impl TerminalManager {
         pty.stop_coprocess(id)
     }
 
+    /// Returns the running status of a coprocess: `Some(true)` = running, `Some(false)` = exited, `None` = not found.
     pub fn coprocess_status(
         &self,
         id: par_term_emu_core_rust::coprocess::CoprocessId,
@@ -291,6 +294,7 @@ impl TerminalManager {
         pty.coprocess_status(id)
     }
 
+    /// Reads pending stdout lines from a coprocess.
     pub fn read_from_coprocess(
         &self,
         id: par_term_emu_core_rust::coprocess::CoprocessId,
@@ -299,11 +303,13 @@ impl TerminalManager {
         pty.read_from_coprocess(id)
     }
 
+    /// Returns the ids of all active coprocesses.
     pub fn list_coprocesses(&self) -> Vec<par_term_emu_core_rust::coprocess::CoprocessId> {
         let pty = self.pty_session.lock();
         pty.list_coprocesses()
     }
 
+    /// Reads pending stderr lines from a coprocess.
     pub fn read_coprocess_errors(
         &self,
         id: par_term_emu_core_rust::coprocess::CoprocessId,

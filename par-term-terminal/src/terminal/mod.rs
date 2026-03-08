@@ -26,9 +26,14 @@ pub mod clipboard;
 pub mod graphics;
 pub mod hyperlinks;
 pub(crate) mod marker_tracking;
+pub(crate) mod observers;
+pub(crate) mod progress;
 pub mod rendering;
 pub mod scrollback;
 pub mod spawn;
+pub(crate) mod terminal_config;
+pub(crate) mod tmux_control;
+pub(crate) mod triggers;
 
 // Re-export coprocess_env from spawn so existing callers keep working
 pub use spawn::coprocess_env;
@@ -320,6 +325,7 @@ impl TerminalManager {
 
     // === File Transfer Methods ===
 
+    /// Returns all currently in-progress file transfers.
     pub fn get_active_transfers(
         &self,
     ) -> Vec<par_term_emu_core_rust::terminal::file_transfer::FileTransfer> {
@@ -329,6 +335,7 @@ impl TerminalManager {
         term.get_active_transfers()
     }
 
+    /// Returns all file transfers that have finished (success or failure).
     pub fn get_completed_transfers(
         &self,
     ) -> Vec<par_term_emu_core_rust::terminal::file_transfer::FileTransfer> {
@@ -338,6 +345,7 @@ impl TerminalManager {
         term.get_completed_transfers()
     }
 
+    /// Removes and returns a completed transfer by its id, or `None` if not found.
     pub fn take_completed_transfer(
         &self,
         id: u64,
@@ -348,6 +356,7 @@ impl TerminalManager {
         term.take_completed_transfer(id)
     }
 
+    /// Cancels an active file transfer. Returns `true` if the transfer was found and cancelled.
     pub fn cancel_file_transfer(&self, id: u64) -> bool {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
@@ -355,6 +364,7 @@ impl TerminalManager {
         term.cancel_file_transfer(id)
     }
 
+    /// Sends a chunk of data for an in-progress upload transfer.
     pub fn send_upload_data(&self, data: &[u8]) {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
@@ -362,6 +372,7 @@ impl TerminalManager {
         term.send_upload_data(data);
     }
 
+    /// Cancels the current in-progress upload.
     pub fn cancel_upload(&self) {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
@@ -369,6 +380,7 @@ impl TerminalManager {
         term.cancel_upload();
     }
 
+    /// Polls for pending upload path requests from the terminal (e.g. zmodem ZRQINIT).
     pub fn poll_upload_requests(&self) -> Vec<String> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
@@ -376,6 +388,7 @@ impl TerminalManager {
         term.poll_upload_requests()
     }
 
+    /// Returns user-defined session variables set by shell integration sequences.
     pub fn custom_session_variables(&self) -> std::collections::HashMap<String, String> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
@@ -383,6 +396,7 @@ impl TerminalManager {
         term.session_variables().custom.clone()
     }
 
+    /// Returns shell integration statistics (prompt counts, CWD changes, etc.).
     pub fn shell_integration_stats(
         &self,
     ) -> par_term_emu_core_rust::terminal::ShellIntegrationStats {
@@ -635,228 +649,6 @@ impl TerminalManager {
     pub fn update_generation(&self) -> u64 {
         let pty = self.pty_session.lock();
         pty.update_generation()
-    }
-}
-
-// ========================================================================
-// Progress Bar Methods (OSC 9;4 and OSC 934)
-// ========================================================================
-
-impl TerminalManager {
-    /// Get the simple progress bar state (OSC 9;4)
-    pub fn progress_bar(&self) -> par_term_emu_core_rust::terminal::ProgressBar {
-        let pty = self.pty_session.lock();
-        let terminal = pty.terminal();
-        let term = terminal.lock();
-        *term.progress_bar()
-    }
-
-    /// Get all named progress bars (OSC 934)
-    pub fn named_progress_bars(
-        &self,
-    ) -> std::collections::HashMap<String, par_term_emu_core_rust::terminal::NamedProgressBar> {
-        let pty = self.pty_session.lock();
-        let terminal = pty.terminal();
-        let term = terminal.lock();
-        term.named_progress_bars().clone()
-    }
-
-    /// Check if any progress bar is currently active
-    pub fn has_any_progress(&self) -> bool {
-        let pty = self.pty_session.lock();
-        let terminal = pty.terminal();
-        let term = terminal.lock();
-        term.has_progress() || !term.named_progress_bars().is_empty()
-    }
-}
-
-// ========================================================================
-// Answerback String (ENQ Response) and Terminal Configuration
-// ========================================================================
-
-impl TerminalManager {
-    pub fn set_answerback_string(&self, answerback: Option<String>) {
-        let pty = self.pty_session.lock();
-        let terminal = pty.terminal();
-        let mut term = terminal.lock();
-        term.set_answerback_string(answerback);
-    }
-
-    pub fn set_width_config(&self, config: par_term_emu_core_rust::WidthConfig) {
-        let pty = self.pty_session.lock();
-        let terminal = pty.terminal();
-        let mut term = terminal.lock();
-        term.set_width_config(config);
-    }
-
-    pub fn set_normalization_form(&self, form: par_term_emu_core_rust::NormalizationForm) {
-        let pty = self.pty_session.lock();
-        let terminal = pty.terminal();
-        let mut term = terminal.lock();
-        term.set_normalization_form(form);
-    }
-
-    pub fn set_output_callback<F>(&self, callback: F)
-    where
-        F: Fn(&[u8]) + Send + Sync + 'static,
-    {
-        let mut pty = self.pty_session.lock();
-        pty.set_output_callback(std::sync::Arc::new(callback));
-    }
-
-    pub fn start_recording(&self, title: Option<String>) {
-        let pty = self.pty_session.lock();
-        let terminal = pty.terminal();
-        let mut term = terminal.lock();
-        term.start_recording(title);
-    }
-
-    pub fn stop_recording(&self) -> Option<par_term_emu_core_rust::terminal::RecordingSession> {
-        let pty = self.pty_session.lock();
-        let terminal = pty.terminal();
-        let mut term = terminal.lock();
-        term.stop_recording()
-    }
-
-    pub fn is_recording(&self) -> bool {
-        let pty = self.pty_session.lock();
-        let terminal = pty.terminal();
-        let term = terminal.lock();
-        term.is_recording()
-    }
-
-    pub fn export_asciicast(
-        &self,
-        session: &par_term_emu_core_rust::terminal::RecordingSession,
-    ) -> String {
-        let pty = self.pty_session.lock();
-        let terminal = pty.terminal();
-        let term = terminal.lock();
-        term.export_asciicast(session)
-    }
-}
-
-// ========================================================================
-// tmux Control Mode Methods
-// ========================================================================
-
-impl TerminalManager {
-    pub fn set_tmux_control_mode(&self, enabled: bool) {
-        let pty = self.pty_session.lock();
-        let terminal = pty.terminal();
-        let mut term = terminal.lock();
-        term.set_tmux_control_mode(enabled);
-    }
-
-    pub fn is_tmux_control_mode(&self) -> bool {
-        let pty = self.pty_session.lock();
-        let terminal = pty.terminal();
-        let term = terminal.lock();
-        term.is_tmux_control_mode()
-    }
-
-    pub fn drain_tmux_notifications(
-        &self,
-    ) -> Vec<par_term_emu_core_rust::tmux_control::TmuxNotification> {
-        let pty = self.pty_session.lock();
-        let terminal = pty.terminal();
-        let mut term = terminal.lock();
-        term.drain_tmux_notifications()
-    }
-
-    pub fn tmux_notifications(
-        &self,
-    ) -> Vec<par_term_emu_core_rust::tmux_control::TmuxNotification> {
-        let pty = self.pty_session.lock();
-        let terminal = pty.terminal();
-        let term = terminal.lock();
-        term.tmux_notifications().to_vec()
-    }
-}
-
-// ========================================================================
-// Trigger Sync Methods
-// ========================================================================
-
-impl TerminalManager {
-    /// Sync trigger configs from Config into the core TriggerRegistry.
-    ///
-    /// Returns a map of `trigger_id -> require_user_action` for each
-    /// successfully registered trigger, so the frontend can enforce
-    /// security restrictions on dangerous actions.
-    pub fn sync_triggers(
-        &self,
-        triggers: &[par_term_config::TriggerConfig],
-    ) -> std::collections::HashMap<u64, bool> {
-        let pty = self.pty_session.lock();
-        let terminal = pty.terminal();
-        let mut term = terminal.lock();
-
-        let existing: Vec<u64> = term.list_triggers().iter().map(|t| t.id).collect();
-        for id in existing {
-            term.remove_trigger(id);
-        }
-
-        let mut security_map = std::collections::HashMap::new();
-
-        for trigger_config in triggers {
-            let actions: Vec<par_term_emu_core_rust::terminal::TriggerAction> = trigger_config
-                .actions
-                .iter()
-                .map(|a| a.to_core_action())
-                .collect();
-
-            match term.add_trigger(
-                trigger_config.name.clone(),
-                trigger_config.pattern.clone(),
-                actions,
-            ) {
-                Ok(id) => {
-                    if !trigger_config.enabled {
-                        term.set_trigger_enabled(id, false);
-                    }
-                    security_map.insert(id, trigger_config.require_user_action);
-                    log::info!(
-                        "Trigger '{}' registered (id={}, require_user_action={})",
-                        trigger_config.name,
-                        id,
-                        trigger_config.require_user_action,
-                    );
-                }
-                Err(e) => {
-                    log::error!(
-                        "Failed to register trigger '{}': {}",
-                        trigger_config.name,
-                        e
-                    );
-                }
-            }
-        }
-
-        security_map
-    }
-}
-
-// ========================================================================
-// Observer Management Methods
-// ========================================================================
-
-impl TerminalManager {
-    pub fn add_observer(
-        &self,
-        observer: std::sync::Arc<dyn par_term_emu_core_rust::observer::TerminalObserver>,
-    ) -> par_term_emu_core_rust::observer::ObserverId {
-        let pty = self.pty_session.lock();
-        let terminal = pty.terminal();
-        let mut term = terminal.lock();
-        term.add_observer(observer)
-    }
-
-    pub fn remove_observer(&self, id: par_term_emu_core_rust::observer::ObserverId) -> bool {
-        let pty = self.pty_session.lock();
-        let terminal = pty.terminal();
-        let mut term = terminal.lock();
-        term.remove_observer(id)
     }
 }
 

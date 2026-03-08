@@ -15,8 +15,8 @@ use crate::types::{
 };
 
 use super::{
-    AiInspectorConfig, Config, CopyModeConfig, GlobalShaderConfig, SearchConfig, SshConfig,
-    StatusBarConfig, UnicodeConfig,
+    AiInspectorConfig, Config, CopyModeConfig, GlobalShaderConfig, NotificationConfig,
+    ScrollbackConfig, SearchConfig, SshConfig, StatusBarConfig, UnicodeConfig,
 };
 
 impl Default for Config {
@@ -40,7 +40,7 @@ impl Default for Config {
             font_thin_strokes: ThinStrokesMode::default(),
             minimum_contrast: crate::defaults::minimum_contrast(),
             copy_mode: CopyModeConfig::default(),
-            scrollback_lines: crate::defaults::scrollback(),
+            scrollback: ScrollbackConfig::default(),
             unicode: UnicodeConfig::default(),
             cursor_blink: crate::defaults::bool_false(),
             cursor_blink_interval: crate::defaults::cursor_blink_interval(),
@@ -157,21 +157,7 @@ impl Default for Config {
             clipboard_max_sync_events: crate::defaults::clipboard_max_sync_events(),
             clipboard_max_event_bytes: crate::defaults::clipboard_max_event_bytes(),
             command_history_max_entries: crate::defaults::command_history_max_entries(),
-            notification_bell_desktop: crate::defaults::bool_false(),
-            notification_bell_sound: crate::defaults::bell_sound(),
-            notification_bell_visual: crate::defaults::bool_true(),
-            notification_visual_bell_color: crate::defaults::visual_bell_color(),
-            notification_activity_enabled: crate::defaults::bool_false(),
-            notification_activity_threshold: crate::defaults::activity_threshold(),
-            anti_idle_enabled: crate::defaults::bool_false(),
-            anti_idle_seconds: crate::defaults::anti_idle_seconds(),
-            anti_idle_code: crate::defaults::anti_idle_code(),
-            notification_silence_enabled: crate::defaults::bool_false(),
-            notification_silence_threshold: crate::defaults::silence_threshold(),
-            notification_session_ended: crate::defaults::bool_false(),
-            suppress_notifications_when_focused: crate::defaults::bool_true(),
-            notification_max_buffer: crate::defaults::notification_max_buffer(),
-            alert_sounds: HashMap::new(),
+            notifications: NotificationConfig::default(),
             ssh: SshConfig::default(),
             tab_style: TabStyle::default(),
             light_tab_style: crate::defaults::light_tab_style(),

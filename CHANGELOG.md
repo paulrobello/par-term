@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- Added amber warning banner in Settings → Automation when any trigger has `require_user_action: false`, making the risk immediately visible to users (SEC-002).
+- File and URL opening now uses direct `process::Command` spawn (no login shell) when the editor command template contains only `{file}/{line}/{col}` placeholders and no shell metacharacters, eliminating a shell-escape injection surface (SEC-003).
+- ACP permission validation now serializes the canonicalize-and-compare phase with a process-wide mutex, closing the application-level TOCTOU race between concurrent permission checks (SEC-004).
+- ACP agent subprocess now spawns without a shell interpreter when the resolved command contains no shell metacharacters, reducing attack surface from agent-initiated commands (SEC-005).
+- Session log redaction expanded with 45 additional sensitive-data patterns covering API keys, AWS credentials, private key PEM headers, cloud/vault tokens, database passwords, and 2FA/TOTP prompts (SEC-006).
+
+### Added
+- New `docs/ENTERPRISE_DEPLOYMENT.md` guide covering bulk installation, scripted deployment (macOS/Linux/Windows), managed config strategies, MDM/Jamf packaging, update management, multi-user deployment, and security considerations for organizational environments.
+- `UIElement` trait with GAT-based context parameter (`type Ctx<'a>`) implemented on `TabBarUI` and `StatusBarUI`, enabling unit testing of UI layout without a live GPU context.
+- `RenderLoopState` sub-struct extracted from `WindowState`, grouping render-loop pending-work fields under a single coherent bundle.
+
+### Changed
+- `WindowState` decomposition continued: `RenderLoopState` extracted, reducing top-level field count; 12 named sub-structs now in place.
+- `Config` struct decomposition: extracted `WindowConfig`, `FontConfig`, `ScrollbackConfig`, `ThemeConfig`, `NotificationConfig` sub-structs using `#[serde(flatten)]` — YAML config files remain fully compatible.
+- `pane_render.rs` split into `pane_render/` submodule with `cursor_overlays.rs` and `separators.rs` for improved navigability.
+- `TerminalManager` reorganized into focused sub-modules: `progress.rs`, `terminal_config.rs`, `tmux_control.rs`, `triggers.rs`, `observers.rs`.
+- `shader_metadata.rs` split into `shader_metadata/parsing.rs` and `shader_metadata/cache.rs`.
+- `renderer/shaders.rs` split into `shaders/background.rs`, `shaders/cursor.rs`, `shaders/shared.rs`.
+- Mutex policy documentation consolidated: authoritative reference in `src/lib.rs`; `src/tab/mod.rs` cross-references it rather than duplicating.
+- Re-export patterns in `src/lib.rs` standardized to consistent `pub mod` style with doc comments.
+- Ignored integration tests now include documentation explaining the PTY device requirement and how to run them locally with `--include-ignored`.
+
 ### Fixed
 - Fixed prettifier rendering: cell substitution now applies to pane cells (the always-active render path) instead of the invisible `FrameRenderData.cells`. Updated pipeline `terminal_width` to track actual terminal dimensions each frame instead of using the stale `config.cols` value. Fixed feed stride to use the real cell array stride rather than the renderer's grid size (which omits scrollbar width), preventing garbled line reads.
 - Updated shader manifest: bumped version to 0.24.0, added missing `rain-glass.glsl`, refreshed 7 stale SHA256 hashes (bloom, crt, cubemap-test, dither, gears-and-belts, retro-terminal, spotlight).

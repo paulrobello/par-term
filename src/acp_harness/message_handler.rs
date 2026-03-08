@@ -15,6 +15,11 @@ use crate::acp_harness::harness_output::{
 };
 use crate::ai_inspector::chat::{ChatMessage, ChatState};
 
+// Shadow the standard `println!` macro with a structured-output version that
+// writes to both stdout and the harness transcript file via `println_tee`.
+// All `println!` calls in this module go through this macro — none reach
+// raw stdout directly. This is the intended structured-logging mechanism for
+// the ACP harness binary (see `par_term_acp::harness`).
 macro_rules! println {
     () => {
         par_term_acp::harness::println_tee(format_args!(""))

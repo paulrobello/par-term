@@ -208,59 +208,121 @@ pub fn open_file_in_editor(
     };
 
     // Replace placeholders in command template.
-    // Shell-escape ALL substituted values to prevent command injection via
-    // malicious filenames containing shell metacharacters (backticks, $(), etc.).
-    let escaped_path = shell_escape(&resolved_path);
+    //
+    // SEC-003: When the command contains only {file} (and optionally {line}/{col})
+    // placeholders and no other shell features, use direct process spawning instead
+    // of routing through the login shell. This eliminates the shell as an attack
+    // surface for crafted filenames that might bypass shell_escape in edge cases.
+    //
+    // We detect "direct spawn eligible" when:
+    // 1. The cmd does NOT contain shell metacharacters (|, &, ;, $, `, (, ), {, })
+    //    outside the known {file}, {line}, {col} placeholders.
+    // 2. The cmd DOES contain at least the {file} placeholder (so the path value
+    //    occupies a controlled argument position, not a shell-interpolated string).
+    //
+    // When not eligible (complex command, no placeholder, or Windows), fall through
+    // to the existing shell invocation path.
+
     let line_str = line
         .map(|l| l.to_string())
         .unwrap_or_else(|| "1".to_string());
     let col_str = column
         .map(|c| c.to_string())
         .unwrap_or_else(|| "1".to_string());
-    // Line/col are numeric strings so shell_escape is defensive, but apply it
-    // consistently to guard against any future changes to how these are sourced.
-    let escaped_line = shell_escape(&line_str);
-    let escaped_col = shell_escape(&col_str);
 
-    let full_cmd = cmd
-        .replace("{file}", &escaped_path)
-        .replace("{line}", &escaped_line)
-        .replace("{col}", &escaped_col);
-
-    // If the template didn't have placeholders, append the file path
-    let full_cmd = if !cmd.contains("{file}") {
-        format!("{} {}", full_cmd, escaped_path)
-    } else {
-        full_cmd
-    };
-
-    // Execute the command
-    crate::debug_info!(
-        "SEMANTIC",
-        "Executing editor command: {:?} for file: {} (line: {:?}, col: {:?})",
-        full_cmd,
-        resolved_path,
-        line,
-        column
-    );
-
-    #[cfg(target_os = "windows")]
-    {
-        std::process::Command::new("cmd")
-            .args(["/C", &full_cmd])
-            .spawn()
-            .map_err(|e| format!("Failed to launch editor: {}", e))?;
+    /// Return true if the template contains shell metacharacters beyond the
+    /// known {file}/{line}/{col} placeholders. We strip those placeholders
+    /// first so their braces don't trigger the `{`/`}` check.
+    fn has_shell_metacharacters(template: &str) -> bool {
+        let stripped = template
+            .replace("{file}", "")
+            .replace("{line}", "")
+            .replace("{col}", "");
+        stripped.chars().any(|c| {
+            matches!(
+                c,
+                '|' | '&' | ';' | '$' | '`' | '(' | ')' | '{' | '}' | '>' | '<' | '~' | '\\' | '\''
+            )
+        })
     }
 
-    #[cfg(not(target_os = "windows"))]
-    {
-        // Use login shell to ensure user's PATH is available
-        // Try user's default shell first, fall back to sh
-        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
-        std::process::Command::new(&shell)
-            .args(["-lc", &full_cmd])
+    let can_direct_spawn = cmd.contains("{file}") && !has_shell_metacharacters(&cmd);
+
+    crate::debug_info!(
+        "SEMANTIC",
+        "Executing editor command: {:?} for file: {} (line: {:?}, col: {:?}) direct_spawn={}",
+        cmd,
+        resolved_path,
+        line,
+        column,
+        can_direct_spawn
+    );
+
+    if can_direct_spawn {
+        // Direct spawn: parse the template into tokens using shell-word splitting
+        // BEFORE substitution (so placeholders land at exact argument positions),
+        // then substitute the literal values without any shell escaping.
+        let tokens = shell_words::split(&cmd)
+            .map_err(|e| format!("Failed to parse editor command: {}", e))?;
+        if tokens.is_empty() {
+            return Err("Editor command is empty".to_string());
+        }
+
+        // Append file to token list if no {file} placeholder found in that token
+        // (already guaranteed to exist since can_direct_spawn requires it)
+        let args: Vec<String> = tokens
+            .into_iter()
+            .map(|t| {
+                t.replace("{file}", &resolved_path)
+                    .replace("{line}", &line_str)
+                    .replace("{col}", &col_str)
+            })
+            .collect();
+
+        crate::debug_info!("SEMANTIC", "Direct spawn: {:?}", args);
+        std::process::Command::new(&args[0])
+            .args(&args[1..])
             .spawn()
-            .map_err(|e| format!("Failed to launch editor with {}: {}", shell, e))?;
+            .map_err(|e| format!("Failed to launch editor '{}': {}", args[0], e))?;
+    } else {
+        // Shell invocation fallback: escape all substituted values and route through
+        // the login shell to handle complex commands (pipes, env vars, etc.).
+        let escaped_path = shell_escape(&resolved_path);
+        let escaped_line = shell_escape(&line_str);
+        let escaped_col = shell_escape(&col_str);
+
+        let full_cmd = cmd
+            .replace("{file}", &escaped_path)
+            .replace("{line}", &escaped_line)
+            .replace("{col}", &escaped_col);
+
+        // If the template didn't have placeholders, append the file path
+        let full_cmd = if !cmd.contains("{file}") {
+            format!("{} {}", full_cmd, escaped_path)
+        } else {
+            full_cmd
+        };
+
+        crate::debug_info!("SEMANTIC", "Shell spawn: {:?}", full_cmd);
+
+        #[cfg(target_os = "windows")]
+        {
+            std::process::Command::new("cmd")
+                .args(["/C", &full_cmd])
+                .spawn()
+                .map_err(|e| format!("Failed to launch editor: {}", e))?;
+        }
+
+        #[cfg(not(target_os = "windows"))]
+        {
+            // Use login shell to ensure user's PATH is available
+            // Try user's default shell first, fall back to sh
+            let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
+            std::process::Command::new(&shell)
+                .args(["-lc", &full_cmd])
+                .spawn()
+                .map_err(|e| format!("Failed to launch editor with {}: {}", shell, e))?;
+        }
     }
 
     Ok(())

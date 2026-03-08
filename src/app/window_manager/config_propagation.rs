@@ -107,7 +107,7 @@ impl WindowManager {
                         window_state.focus_state.needs_redraw = true;
                     }
                 } else {
-                    window_state.pending_font_rebuild = true;
+                    window_state.render_loop.pending_font_rebuild = true;
                 }
             }
 
@@ -173,7 +173,7 @@ impl WindowManager {
 
             // Queue font rebuild if needed
             if changes.font {
-                window_state.pending_font_rebuild = true;
+                window_state.render_loop.pending_font_rebuild = true;
             }
 
             // Reinitialize shader watcher if shader paths changed

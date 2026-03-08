@@ -11,6 +11,8 @@
 //! - [`search_config`] — [`SearchConfig`]: search highlight and options
 //! - [`ssh_config`] — [`SshConfig`]: SSH discovery and profile switching
 //! - [`unicode_config`] — [`UnicodeConfig`]: Unicode width and normalization
+//! - [`notification_config`] — [`NotificationConfig`]: bell, activity/silence alerts, anti-idle
+//! - [`scrollback_config`] — [`ScrollbackConfig`]: scrollback buffer size
 //! - [`update`] — [`UpdateConfig`]: automatic update checking
 //!
 //! # Splitting Strategy
@@ -71,6 +73,8 @@ mod ai_inspector_config;
 mod copy_mode_config;
 mod default_impl;
 mod global_shader_config;
+mod notification_config;
+mod scrollback_config;
 mod search_config;
 mod ssh_config;
 mod status_bar_config;
@@ -80,6 +84,8 @@ mod update;
 pub use ai_inspector_config::AiInspectorConfig;
 pub use copy_mode_config::CopyModeConfig;
 pub use global_shader_config::GlobalShaderConfig;
+pub use notification_config::NotificationConfig;
+pub use scrollback_config::ScrollbackConfig;
 pub use search_config::SearchConfig;
 pub use ssh_config::SshConfig;
 pub use status_bar_config::StatusBarConfig;
@@ -88,14 +94,13 @@ pub use update::UpdateConfig;
 
 use crate::snippets::{CustomActionConfig, SnippetConfig};
 use crate::types::{
-    AlertEvent, AlertSoundConfig, BackgroundImageMode, BackgroundMode, CursorShaderConfig,
-    CursorStyle, DividerStyle, DownloadSaveLocation, DroppedFileQuoteStyle, FontRange,
-    ImageScalingMode, InstallPromptState, IntegrationVersions, KeyBinding, LogLevel,
-    ModifierRemapping, OptionKeyMode, PaneTitlePosition, PowerPreference, ProgressBarPosition,
-    ProgressBarStyle, SemanticHistoryEditorMode, SessionLogFormat, ShaderConfig,
-    ShaderInstallPrompt, ShellExitAction, SmartSelectionRule, StartupDirectoryMode, TabBarMode,
-    TabBarPosition, TabStyle, TabTitleMode, ThinStrokesMode, UnfocusedCursorStyle, VsyncMode,
-    WindowType,
+    BackgroundImageMode, BackgroundMode, CursorShaderConfig, CursorStyle, DividerStyle,
+    DownloadSaveLocation, DroppedFileQuoteStyle, FontRange, ImageScalingMode, InstallPromptState,
+    IntegrationVersions, KeyBinding, LogLevel, ModifierRemapping, OptionKeyMode, PaneTitlePosition,
+    PowerPreference, ProgressBarPosition, ProgressBarStyle, SemanticHistoryEditorMode,
+    SessionLogFormat, ShaderConfig, ShaderInstallPrompt, ShellExitAction, SmartSelectionRule,
+    StartupDirectoryMode, TabBarMode, TabBarPosition, TabStyle, TabTitleMode, ThinStrokesMode,
+    UnfocusedCursorStyle, VsyncMode, WindowType,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -543,9 +548,11 @@ pub struct Config {
     // ========================================================================
     // Scrollback & Cursor
     // ========================================================================
-    /// Maximum number of lines to keep in scrollback buffer
-    #[serde(default = "crate::defaults::scrollback", alias = "scrollback_size")]
-    pub scrollback_lines: usize,
+    /// Scrollback buffer size settings (see [`ScrollbackConfig`]).
+    ///
+    /// Flattened into the top-level YAML so existing config files remain compatible.
+    #[serde(flatten)]
+    pub scrollback: ScrollbackConfig,
 
     // ========================================================================
     // Unicode Width Settings
@@ -894,83 +901,14 @@ pub struct Config {
     pub command_history_max_entries: usize,
 
     // ========================================================================
-    // Notifications
+    // Notifications — extracted to NotificationConfig
     // ========================================================================
-    /// Forward BEL events to desktop notification centers
-    #[serde(default = "crate::defaults::bool_false", alias = "bell_desktop")]
-    pub notification_bell_desktop: bool,
-
-    /// Volume (0-100) for backend bell sound alerts (0 disables)
-    #[serde(default = "crate::defaults::bell_sound", alias = "bell_sound")]
-    pub notification_bell_sound: u8,
-
-    /// Enable backend visual bell overlay
-    #[serde(default = "crate::defaults::bool_true", alias = "bell_visual")]
-    pub notification_bell_visual: bool,
-
-    /// Visual bell flash color [R, G, B] (0-255, default: white)
-    #[serde(default = "crate::defaults::visual_bell_color")]
-    pub notification_visual_bell_color: [u8; 3],
-
-    /// Enable notifications when activity resumes after inactivity
-    #[serde(
-        default = "crate::defaults::bool_false",
-        alias = "activity_notifications"
-    )]
-    pub notification_activity_enabled: bool,
-
-    /// Seconds of inactivity required before an activity alert fires
-    #[serde(
-        default = "crate::defaults::activity_threshold",
-        alias = "activity_threshold"
-    )]
-    pub notification_activity_threshold: u64,
-
-    /// Enable anti-idle keep-alive (sends code after idle period)
-    #[serde(default = "crate::defaults::bool_false")]
-    pub anti_idle_enabled: bool,
-
-    /// Seconds of inactivity before sending keep-alive code
-    #[serde(default = "crate::defaults::anti_idle_seconds")]
-    pub anti_idle_seconds: u64,
-
-    /// ASCII code to send as keep-alive (e.g., 0 = NUL, 27 = ESC)
-    #[serde(default = "crate::defaults::anti_idle_code")]
-    pub anti_idle_code: u8,
-
-    /// Enable notifications after prolonged silence
-    #[serde(
-        default = "crate::defaults::bool_false",
-        alias = "silence_notifications"
-    )]
-    pub notification_silence_enabled: bool,
-
-    /// Seconds of silence before a silence alert fires
-    #[serde(
-        default = "crate::defaults::silence_threshold",
-        alias = "silence_threshold"
-    )]
-    pub notification_silence_threshold: u64,
-
-    /// Enable notification when a shell/session exits
-    #[serde(default = "crate::defaults::bool_false", alias = "session_ended")]
-    pub notification_session_ended: bool,
-
-    /// Suppress desktop notifications when the terminal window is focused
-    #[serde(default = "crate::defaults::bool_true")]
-    pub suppress_notifications_when_focused: bool,
-
-    /// Maximum number of OSC 9/777 notification entries retained by backend
-    #[serde(
-        default = "crate::defaults::notification_max_buffer",
-        alias = "max_notifications"
-    )]
-    pub notification_max_buffer: usize,
-
-    /// Alert sound configuration per event type
-    /// Maps AlertEvent variants to their sound settings
-    #[serde(default)]
-    pub alert_sounds: HashMap<AlertEvent, AlertSoundConfig>,
+    /// Bell, activity/silence alerts, anti-idle keep-alive, and OSC 9/777 buffer
+    /// settings (see [`NotificationConfig`]).
+    ///
+    /// Flattened into the top-level YAML so existing config files remain compatible.
+    #[serde(flatten)]
+    pub notifications: NotificationConfig,
 
     // ========================================================================
     // SSH Settings

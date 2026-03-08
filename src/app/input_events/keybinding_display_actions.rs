@@ -24,7 +24,7 @@ impl WindowState {
         match action {
             "increase_font_size" => {
                 self.config.font_size = (self.config.font_size + 1.0).min(72.0);
-                self.pending_font_rebuild = true;
+                self.render_loop.pending_font_rebuild = true;
                 log::info!(
                     "Font size increased to {} via keybinding",
                     self.config.font_size
@@ -34,7 +34,7 @@ impl WindowState {
             }
             "decrease_font_size" => {
                 self.config.font_size = (self.config.font_size - 1.0).max(6.0);
-                self.pending_font_rebuild = true;
+                self.render_loop.pending_font_rebuild = true;
                 log::info!(
                     "Font size decreased to {} via keybinding",
                     self.config.font_size
@@ -44,7 +44,7 @@ impl WindowState {
             }
             "reset_font_size" => {
                 self.config.font_size = 14.0;
-                self.pending_font_rebuild = true;
+                self.render_loop.pending_font_rebuild = true;
                 log::info!("Font size reset to default (14.0) via keybinding");
                 self.request_redraw();
                 Some(true)

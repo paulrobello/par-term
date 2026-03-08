@@ -106,6 +106,7 @@ pub struct ScrollbackMetadata {
 }
 
 impl ScrollbackMetadata {
+    /// Creates a new, empty `ScrollbackMetadata`.
     pub fn new() -> Self {
         Self::default()
     }

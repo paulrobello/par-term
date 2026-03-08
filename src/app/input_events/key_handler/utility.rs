@@ -79,7 +79,7 @@ impl WindowState {
             && (matches!(event.logical_key, Key::Character(ref c) if c.as_str() == "+" || c.as_str() == "="))
         {
             self.config.font_size = (self.config.font_size + 1.0).min(72.0);
-            self.pending_font_rebuild = true;
+            self.render_loop.pending_font_rebuild = true;
             log::info!(
                 "Font size increased to {} (applying live)",
                 self.config.font_size
@@ -94,7 +94,7 @@ impl WindowState {
             && matches!(event.logical_key, Key::Character(ref c) if c.as_str() == "-" || c.as_str() == "_")
         {
             self.config.font_size = (self.config.font_size - 1.0).max(6.0);
-            self.pending_font_rebuild = true;
+            self.render_loop.pending_font_rebuild = true;
             log::info!(
                 "Font size decreased to {} (applying live)",
                 self.config.font_size
@@ -107,7 +107,7 @@ impl WindowState {
         if ctrl && !shift && matches!(event.logical_key, Key::Character(ref c) if c.as_str() == "0")
         {
             self.config.font_size = 14.0; // Default font size
-            self.pending_font_rebuild = true;
+            self.render_loop.pending_font_rebuild = true;
             log::info!("Font size reset to default (14.0, applying live)");
             self.request_redraw();
             return true;

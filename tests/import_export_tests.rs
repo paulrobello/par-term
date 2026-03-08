@@ -77,14 +77,14 @@ fn test_merge_config_overrides_multiple_non_default_fields() {
     let mut imported = Config::default();
     imported.font_size = 16.0;
     imported.font_family = "Fira Code".to_string();
-    imported.scrollback_lines = 50000;
+    imported.scrollback.scrollback_lines = 50000;
 
     merge_config(&mut current, &imported);
 
     // All non-default imported values should be applied
     assert_eq!(current.font_size, 16.0);
     assert_eq!(current.font_family, "Fira Code");
-    assert_eq!(current.scrollback_lines, 50000);
+    assert_eq!(current.scrollback.scrollback_lines, 50000);
     // Current's custom cols should be preserved
     assert_eq!(current.cols, 100);
 }

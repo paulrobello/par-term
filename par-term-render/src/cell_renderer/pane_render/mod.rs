@@ -1,12 +1,16 @@
 use super::block_chars;
 use super::instance_buffers::{
-    CURSOR_BRIGHTNESS_THRESHOLD, HOLLOW_CURSOR_BORDER_PX, STIPPLE_OFF_PX, STIPPLE_ON_PX,
-    UNDERLINE_HEIGHT_RATIO,
+    CURSOR_BRIGHTNESS_THRESHOLD, STIPPLE_OFF_PX, STIPPLE_ON_PX, UNDERLINE_HEIGHT_RATIO,
 };
 use super::{BackgroundInstance, Cell, CellRenderer, PaneViewport, TextInstance};
 use anyhow::Result;
 use par_term_config::{SeparatorMark, color_u8x4_rgb_to_f32, color_u8x4_rgb_to_f32_a};
 use par_term_fonts::text_shaper::ShapingOptions;
+
+mod cursor_overlays;
+mod separators;
+
+use cursor_overlays::CursorOverlayParams;
 
 /// Parameters for rendering a single pane to a surface texture view.
 pub struct PaneRenderViewParams<'a> {
@@ -53,7 +57,6 @@ impl CellRenderer {
     /// * `clear_first` - If true, clears the viewport region before rendering
     /// * `skip_background_image` - If true, skip rendering the background image. Use this
     ///   when the background image has already been rendered full-screen (for split panes).
-    #[allow(dead_code)]
     pub fn render_pane_to_view(
         &mut self,
         surface_view: &wgpu::TextureView,
@@ -891,29 +894,16 @@ impl CellRenderer {
             }
         }
 
-        // Inject command separator line instances for split panes
-        if self.separator.enabled && !separator_marks.is_empty() {
-            let width_f = self.config.width as f32;
-            let height_f = self.config.height as f32;
-            let opacity_multiplier = viewport.opacity;
-            for &(screen_row, exit_code, custom_color) in separator_marks {
-                if screen_row < rows && bg_index < self.buffers.max_bg_instances {
-                    let x0 = content_x;
-                    let x1 = content_x + cols as f32 * self.grid.cell_width;
-                    let y0 = content_y + screen_row as f32 * self.grid.cell_height;
-                    let color = self.separator_color(exit_code, custom_color, opacity_multiplier);
-                    self.bg_instances[bg_index] = BackgroundInstance {
-                        position: [x0 / width_f * 2.0 - 1.0, 1.0 - (y0 / height_f * 2.0)],
-                        size: [
-                            (x1 - x0) / width_f * 2.0,
-                            self.separator.thickness / height_f * 2.0,
-                        ],
-                        color,
-                    };
-                    bg_index += 1;
-                }
-            }
-        }
+        // Inject command separator line instances — see separators.rs
+        bg_index = self.emit_separator_instances(
+            separator_marks,
+            cols,
+            rows,
+            content_x,
+            content_y,
+            opacity_multiplier,
+            bg_index,
+        );
 
         // --- Cursor overlays (beam/underline bar + hollow borders) ---
         // These are rendered in Phase 3 (on top of text) via the 3-phase draw in render_pane_to_view.
@@ -925,131 +915,20 @@ impl CellRenderer {
             let cursor_x1 = cursor_x0 + self.grid.cell_width;
             let cursor_y0 = (content_y + cursor_row as f32 * self.grid.cell_height).round();
             let cursor_y1 = (content_y + (cursor_row + 1) as f32 * self.grid.cell_height).round();
-            let w = self.config.width as f32;
-            let h = self.config.height as f32;
 
-            // Cursor guide (horizontal line spanning viewport width at cursor row)
-            if cursor_opacity > 0.0
-                && !self.cursor.hidden_for_shader
-                && self.cursor.guide_enabled
-                && bg_index < self.buffers.max_bg_instances
-            {
-                let guide_x0 = content_x;
-                let guide_x1 = content_x + cols as f32 * self.grid.cell_width;
-                self.bg_instances[bg_index] = BackgroundInstance {
-                    position: [guide_x0 / w * 2.0 - 1.0, 1.0 - (cursor_y0 / h * 2.0)],
-                    size: [
-                        (guide_x1 - guide_x0) / w * 2.0,
-                        (cursor_y1 - cursor_y0) / h * 2.0,
-                    ],
-                    color: self.cursor.guide_color,
-                };
-                bg_index += 1;
-            }
-
-            // Cursor shadow (offset rectangle behind cursor)
-            if cursor_opacity > 0.0
-                && !self.cursor.hidden_for_shader
-                && self.cursor.shadow_enabled
-                && bg_index < self.buffers.max_bg_instances
-            {
-                let shadow_x0 = cursor_x0 + self.cursor.shadow_offset[0];
-                let shadow_y0 = cursor_y0 + self.cursor.shadow_offset[1];
-                self.bg_instances[bg_index] = BackgroundInstance {
-                    position: [shadow_x0 / w * 2.0 - 1.0, 1.0 - (shadow_y0 / h * 2.0)],
-                    size: [
-                        self.grid.cell_width / w * 2.0,
-                        self.grid.cell_height / h * 2.0,
-                    ],
-                    color: self.cursor.shadow_color,
-                };
-                bg_index += 1;
-            }
-
-            // Beam or underline cursor bar (on top of text)
-            if cursor_opacity > 0.0 && !self.cursor.hidden_for_shader {
-                use par_term_emu_core_rust::cursor::CursorStyle;
-                let cc = self.cursor.color;
-                let overlay = match self.cursor.style {
-                    CursorStyle::SteadyBar | CursorStyle::BlinkingBar => Some(BackgroundInstance {
-                        position: [cursor_x0 / w * 2.0 - 1.0, 1.0 - (cursor_y0 / h * 2.0)],
-                        size: [2.0 / w * 2.0, (cursor_y1 - cursor_y0) / h * 2.0],
-                        color: [cc[0], cc[1], cc[2], cursor_opacity],
-                    }),
-                    CursorStyle::SteadyUnderline | CursorStyle::BlinkingUnderline => {
-                        Some(BackgroundInstance {
-                            position: [
-                                cursor_x0 / w * 2.0 - 1.0,
-                                1.0 - ((cursor_y1 - 2.0) / h * 2.0),
-                            ],
-                            size: [(cursor_x1 - cursor_x0) / w * 2.0, 2.0 / h * 2.0],
-                            color: [cc[0], cc[1], cc[2], cursor_opacity],
-                        })
-                    }
-                    _ => None,
-                };
-                if let Some(inst) = overlay
-                    && bg_index < self.buffers.max_bg_instances
-                {
-                    self.bg_instances[bg_index] = inst;
-                    bg_index += 1;
-                }
-            }
-
-            // Hollow cursor outline (4 borders) — independent of blink opacity
-            let render_hollow = !self.cursor.hidden_for_shader
-                && !self.is_focused
-                && self.cursor.unfocused_style == par_term_config::UnfocusedCursorStyle::Hollow;
-            if render_hollow {
-                let border_width = HOLLOW_CURSOR_BORDER_PX;
-                let color = [
-                    self.cursor.color[0],
-                    self.cursor.color[1],
-                    self.cursor.color[2],
-                    1.0, // Always fully opaque regardless of blink phase
-                ];
-                let cell_w = (cursor_x1 - cursor_x0) / w * 2.0;
-                let cell_h = (cursor_y1 - cursor_y0) / h * 2.0;
-                let bw = border_width / w * 2.0;
-                let bh = border_width / h * 2.0;
-                let cx = cursor_x0 / w * 2.0 - 1.0;
-                let cy = 1.0 - (cursor_y0 / h * 2.0);
-                let borders = [
-                    // Top
-                    BackgroundInstance {
-                        position: [cx, cy],
-                        size: [cell_w, bh],
-                        color,
-                    },
-                    // Bottom
-                    BackgroundInstance {
-                        position: [cx, 1.0 - ((cursor_y1 - border_width) / h * 2.0)],
-                        size: [cell_w, bh],
-                        color,
-                    },
-                    // Left
-                    BackgroundInstance {
-                        position: [cx, 1.0 - ((cursor_y0 + border_width) / h * 2.0)],
-                        size: [bw, cell_h - bh * 2.0],
-                        color,
-                    },
-                    // Right
-                    BackgroundInstance {
-                        position: [
-                            (cursor_x1 - border_width) / w * 2.0 - 1.0,
-                            1.0 - ((cursor_y0 + border_width) / h * 2.0),
-                        ],
-                        size: [bw, cell_h - bh * 2.0],
-                        color,
-                    },
-                ];
-                for border in borders {
-                    if bg_index < self.buffers.max_bg_instances {
-                        self.bg_instances[bg_index] = border;
-                        bg_index += 1;
-                    }
-                }
-            }
+            // Emit guide, shadow, beam/underline bar, hollow outline — see cursor_overlays.rs
+            bg_index = self.emit_cursor_overlays(
+                CursorOverlayParams {
+                    cursor_x0,
+                    cursor_x1,
+                    cursor_y0,
+                    cursor_y1,
+                    cols,
+                    content_x,
+                    cursor_opacity,
+                },
+                bg_index,
+            );
         }
 
         // Update actual instance counts for draw calls

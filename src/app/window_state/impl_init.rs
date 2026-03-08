@@ -2,7 +2,7 @@
 
 use super::impl_agent::merge_custom_ai_inspector_agents;
 use super::{
-    ConfigSaveState, EguiState, FocusState, OverlayState, TriggerState, UpdateState, WatcherState,
+    EguiState, FocusState, OverlayState, RenderLoopState, TriggerState, UpdateState, WatcherState,
     WindowState,
 };
 use crate::badge::BadgeState;
@@ -68,9 +68,7 @@ impl WindowState {
 
             focus_state: FocusState::default(),
 
-            config_changed_by_agent: false,
-            pending_font_rebuild: false,
-            config_save_state: ConfigSaveState::default(),
+            render_loop: RenderLoopState::default(),
 
             watcher_state: WatcherState::default(),
 

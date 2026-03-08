@@ -21,8 +21,6 @@ mod setup;
 mod tmux_state;
 
 pub(crate) use activity_state::TabActivityMonitor;
-// TabActivityState is kept as a type alias in activity_state.rs for any code that
-// still references the old name; it does not need to be re-exported from this module.
 pub(crate) use profile_state::TabProfileState;
 pub(crate) use scripting_state::TabScriptingState;
 pub(crate) use tmux_state::TabTmuxState;
@@ -45,24 +43,19 @@ use tokio::task::JoinHandle;
 // Re-export TabId from par-term-config for shared access across subcrates
 pub use par_term_config::TabId;
 
-/// A single terminal tab with its own state (supports split panes)
+/// A single terminal tab with its own state (supports split panes).
 ///
 /// # Mutex Strategy
 ///
-/// `terminal` uses `tokio::sync::Mutex` because `TerminalManager` is shared across async
-/// tasks (PTY reader, input sender, resize handler) and the winit event loop.
-///
-/// Access rules:
-/// - **From async tasks** (spawned with `runtime.spawn`): `terminal.write().await`
-/// - **From the sync winit event loop**: `terminal.try_write()` for non-blocking polling;
-///   `terminal.blocking_write()` only for infrequent user-initiated operations
-///   (e.g., start/stop coprocess, register scripting observer).
-///
-/// Never call `blocking_lock()` inside an async context — it will deadlock if called
-/// from within a Tokio worker thread.
+/// `terminal` is behind a `tokio::sync::RwLock` because `TerminalManager` is
+/// shared across async tasks (PTY reader, input sender, resize handler) and the
+/// sync winit event loop.  See the global policy in [`crate`] (lib.rs) and the
+/// locking table on the `terminal` field below.
 ///
 /// `pane_manager` is owned directly (not behind a Mutex) because it is only ever
 /// accessed from the sync winit event loop on the main thread.
+///
+/// For the complete threading model see `docs/MUTEX_PATTERNS.md`.
 pub struct Tab {
     /// Unique identifier for this tab
     pub(crate) id: TabId,

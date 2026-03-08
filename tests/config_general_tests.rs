@@ -17,7 +17,7 @@ fn test_config_defaults() {
     assert_eq!(config.font_family, "JetBrains Mono");
     assert_eq!(config.line_spacing, 1.0);
     assert_eq!(config.char_spacing, 1.0);
-    assert_eq!(config.scrollback_lines, 10000);
+    assert_eq!(config.scrollback.scrollback_lines, 10000);
     assert_eq!(config.window_title, "par-term");
     assert_eq!(config.theme, "dark-background");
     assert!(config.auto_copy_selection);
@@ -64,7 +64,7 @@ screenshot_format: "svg"
     assert_eq!(config.rows, 30);
     assert_eq!(config.font_size, 16.0);
     assert_eq!(config.font_family, "Consolas");
-    assert_eq!(config.scrollback_lines, 5000); // Tests backward compatibility via alias
+    assert_eq!(config.scrollback.scrollback_lines, 5000); // Tests backward compatibility via alias
     assert_eq!(config.window_title, "Test Terminal");
     assert_eq!(config.theme, "light-background");
     assert!(config.auto_copy_selection);

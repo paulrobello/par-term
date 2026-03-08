@@ -3833,6 +3833,7 @@ dependencies = [
  "log",
  "serde",
  "serde_json",
+ "shell-words",
  "tempfile",
  "tokio",
  "toml 1.0.3+spec-1.1.0",

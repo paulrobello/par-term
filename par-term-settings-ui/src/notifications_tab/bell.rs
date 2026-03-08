@@ -14,7 +14,10 @@ pub(super) fn show_bell_section(
 ) {
     collapsing_section(ui, "Bell", "notifications_bell", true, collapsed, |ui| {
         if ui
-            .checkbox(&mut settings.config.notification_bell_visual, "Visual bell")
+            .checkbox(
+                &mut settings.config.notifications.notification_bell_visual,
+                "Visual bell",
+            )
             .changed()
         {
             settings.has_changes = true;
@@ -22,16 +25,16 @@ pub(super) fn show_bell_section(
         }
 
         // Visual bell color picker (only shown when visual bell is enabled)
-        if settings.config.notification_bell_visual {
+        if settings.config.notifications.notification_bell_visual {
             ui.horizontal(|ui| {
                 ui.label("Flash color:");
                 let mut color = egui::Color32::from_rgb(
-                    settings.config.notification_visual_bell_color[0],
-                    settings.config.notification_visual_bell_color[1],
-                    settings.config.notification_visual_bell_color[2],
+                    settings.config.notifications.notification_visual_bell_color[0],
+                    settings.config.notifications.notification_visual_bell_color[1],
+                    settings.config.notifications.notification_visual_bell_color[2],
                 );
                 if ui.color_edit_button_srgba(&mut color).changed() {
-                    settings.config.notification_visual_bell_color =
+                    settings.config.notifications.notification_visual_bell_color =
                         [color.r(), color.g(), color.b()];
                     settings.has_changes = true;
                     *changes_this_frame = true;
@@ -44,7 +47,10 @@ pub(super) fn show_bell_section(
             if ui
                 .add_sized(
                     [SLIDER_WIDTH, SLIDER_HEIGHT],
-                    egui::Slider::new(&mut settings.config.notification_bell_sound, 0..=100),
+                    egui::Slider::new(
+                        &mut settings.config.notifications.notification_bell_sound,
+                        0..=100,
+                    ),
                 )
                 .changed()
             {
@@ -55,7 +61,7 @@ pub(super) fn show_bell_section(
 
         if ui
             .checkbox(
-                &mut settings.config.notification_bell_desktop,
+                &mut settings.config.notifications.notification_bell_desktop,
                 "Desktop notifications for bell",
             )
             .changed()

@@ -133,7 +133,7 @@ impl WindowState {
                 if let Err(e) = self.apply_agent_config_updates(&updates) {
                     log::error!("CONFIG: MCP config update failed: {e}");
                 } else {
-                    self.config_changed_by_agent = true;
+                    self.render_loop.config_changed_by_agent = true;
                 }
                 self.focus_state.needs_redraw = true;
             }

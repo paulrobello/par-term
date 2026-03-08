@@ -18,6 +18,25 @@ use super::jsonrpc::{JsonRpcClient, RpcError};
 use super::protocol::{PermissionOutcome, RequestPermissionParams, RequestPermissionResponse};
 use tokio::sync::mpsc;
 
+/// Process-wide mutex that serializes the canonicalize-then-compare phase of
+/// [`is_safe_write_path`].
+///
+/// # Why this helps with TOCTOU
+///
+/// The primary TOCTOU risk is that a symlink could be swapped in between the
+/// `canonicalize` call and the actual write performed by the agent. That
+/// OS-level race cannot be fully closed without kernel primitives (e.g.,
+/// `O_PATH` + `fstatat`). However, a second, application-level race exists:
+/// two concurrent permission checks could each read the same pre-symlink path,
+/// both pass, and both proceed to write — giving neither check a chance to
+/// observe the swapped symlink in the other's window.
+///
+/// Holding this mutex for the duration of the check means all concurrent ACP
+/// permission checks are serialised, so each check sees the filesystem in a
+/// consistent state relative to every other check. This reduces (but does not
+/// eliminate) the effective TOCTOU window.
+static SAFE_PATH_CHECK_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 /// Directories considered safe for agent writes (auto-approved).
 ///
 /// This is an application-level security policy struct — it defines which
@@ -43,17 +62,17 @@ pub struct SafePaths {
 /// before checking whether the path falls within a safe root. This mitigates the most
 /// common path-traversal vectors (e.g. `/tmp/../etc/passwd`).
 ///
-/// However, a residual TOCTOU race remains: between the `canonicalize` call here and
-/// the actual file write performed by the agent tool, a symlink could be created at the
-/// target path that redirects the write to an unsafe location. This race is inherent to
-/// any permission check that is separate from the I/O operation itself.
+/// The entire canonicalize-and-compare phase is serialised behind
+/// [`SAFE_PATH_CHECK_LOCK`] to prevent concurrent ACP permission checks from
+/// interleaving their own canonicalize/compare steps (application-level TOCTOU
+/// reduction).
 ///
-/// **Why accepted**: This is a standard limitation of filesystem-based access checks
-/// in CLI tooling. The safe roots are locations the user already controls (`/tmp`,
-/// their own config directory), and an attacker who can race a symlink creation in
-/// those directories already has equivalent local access. The canonicalize step is
-/// kept as a defense-in-depth measure against accidental traversal, not as a
-/// security boundary against a local adversary.
+/// A residual OS-level TOCTOU race still remains: a symlink could be swapped
+/// between this check and the actual write performed by the agent. This is
+/// inherent to filesystem-based access checks and cannot be fully closed
+/// without kernel primitives. The canonicalize step is kept as a
+/// defense-in-depth measure against accidental traversal, not as a security
+/// boundary against a local adversary with write access to the safe roots.
 pub fn is_safe_write_path(tool_call: &serde_json::Value, safe_paths: &SafePaths) -> bool {
     // Try to extract the path from various locations in the tool_call JSON.
     // Claude Code puts it in rawInput.file_path, rawInput.path, or the title
@@ -78,6 +97,19 @@ pub fn is_safe_write_path(tool_call: &serde_json::Value, safe_paths: &SafePaths)
         return false;
     };
 
+    // Quick absolute-path check before acquiring the lock.
+    if !std::path::Path::new(path_str).is_absolute() {
+        return false;
+    }
+
+    // Acquire the serialisation lock for the canonicalize-and-compare phase.
+    // If the mutex is poisoned (a previous thread panicked while holding it),
+    // recover the guard and continue — panicking here would crash the ACP
+    // message handler unnecessarily.
+    let _guard = SAFE_PATH_CHECK_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+
     // Resolve the target path safely:
     // - existing paths are fully canonicalized
     // - non-existing paths resolve and canonicalize the parent, then append
@@ -86,9 +118,6 @@ pub fn is_safe_write_path(tool_call: &serde_json::Value, safe_paths: &SafePaths)
     // symlink escapes while still allowing new file creation in safe roots.
     let target = {
         let path = std::path::Path::new(path_str);
-        if !path.is_absolute() {
-            return false;
-        }
         if path.exists() {
             match std::fs::canonicalize(path) {
                 Ok(p) => p,

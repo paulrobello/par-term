@@ -12,7 +12,7 @@ fn test_session_ended_notification_config_defaults() {
     let config = Config::default();
 
     // Session ended notifications are disabled by default
-    assert!(!config.notification_session_ended);
+    assert!(!config.notifications.notification_session_ended);
 }
 
 /// Test that suppress notifications when focused config defaults are correct.
@@ -21,7 +21,7 @@ fn test_suppress_notifications_when_focused_config_defaults() {
     let config = Config::default();
 
     // Suppression when focused is enabled by default
-    assert!(config.suppress_notifications_when_focused);
+    assert!(config.notifications.suppress_notifications_when_focused);
 }
 
 /// Test that session ended notification config can be deserialized from YAML.
@@ -31,13 +31,13 @@ fn test_session_ended_notification_yaml_deserialization() {
 notification_session_ended: true
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert!(config.notification_session_ended);
+    assert!(config.notifications.notification_session_ended);
 
     let yaml = r#"
 notification_session_ended: false
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert!(!config.notification_session_ended);
+    assert!(!config.notifications.notification_session_ended);
 }
 
 /// Test that suppress notifications when focused config can be deserialized from YAML.
@@ -47,13 +47,13 @@ fn test_suppress_notifications_when_focused_yaml_deserialization() {
 suppress_notifications_when_focused: true
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert!(config.suppress_notifications_when_focused);
+    assert!(config.notifications.suppress_notifications_when_focused);
 
     let yaml = r#"
 suppress_notifications_when_focused: false
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert!(!config.suppress_notifications_when_focused);
+    assert!(!config.notifications.suppress_notifications_when_focused);
 }
 
 /// Test backward compatibility with session_ended alias.
@@ -63,13 +63,13 @@ fn test_session_ended_config_alias() {
 session_ended: true
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert!(config.notification_session_ended);
+    assert!(config.notifications.notification_session_ended);
 
     let yaml = r#"
 session_ended: false
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert!(!config.notification_session_ended);
+    assert!(!config.notifications.notification_session_ended);
 }
 
 /// Test that notification config serializes correctly.
@@ -95,11 +95,11 @@ suppress_notifications_when_focused: false
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
 
-    assert!(config.notification_bell_desktop);
-    assert!(config.notification_activity_enabled);
-    assert!(config.notification_silence_enabled);
-    assert!(config.notification_session_ended);
-    assert!(!config.suppress_notifications_when_focused);
+    assert!(config.notifications.notification_bell_desktop);
+    assert!(config.notifications.notification_activity_enabled);
+    assert!(config.notifications.notification_silence_enabled);
+    assert!(config.notifications.notification_session_ended);
+    assert!(!config.notifications.suppress_notifications_when_focused);
 }
 
 /// Test that session ended and suppress can have opposite defaults.
@@ -111,8 +111,8 @@ suppress_notifications_when_focused: false
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
 
-    assert!(config.notification_session_ended);
-    assert!(!config.suppress_notifications_when_focused);
+    assert!(config.notifications.notification_session_ended);
+    assert!(!config.notifications.suppress_notifications_when_focused);
 }
 
 /// Test exit_notified flag deduplication logic (simulated).
@@ -181,9 +181,9 @@ suppress_notifications_when_focused: true
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
 
     // Bell settings should be independent of suppress setting
-    assert!(config.notification_bell_visual);
-    assert_eq!(config.notification_bell_sound, 50);
-    assert!(config.suppress_notifications_when_focused);
+    assert!(config.notifications.notification_bell_visual);
+    assert_eq!(config.notifications.notification_bell_sound, 50);
+    assert!(config.notifications.suppress_notifications_when_focused);
     // Visual and audio bells are handled separately and are not suppressed
 }
 
@@ -193,6 +193,6 @@ fn test_empty_yaml_uses_defaults() {
     let yaml = "";
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
 
-    assert!(!config.notification_session_ended);
-    assert!(config.suppress_notifications_when_focused);
+    assert!(!config.notifications.notification_session_ended);
+    assert!(config.notifications.suppress_notifications_when_focused);
 }

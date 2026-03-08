@@ -21,7 +21,10 @@ pub(super) fn show_behavior_section(
         |ui| {
             if ui
                 .checkbox(
-                    &mut settings.config.suppress_notifications_when_focused,
+                    &mut settings
+                        .config
+                        .notifications
+                        .suppress_notifications_when_focused,
                     "Suppress notifications when focused",
                 )
                 .on_hover_text("Skip desktop notifications when the terminal window is focused")
@@ -36,7 +39,10 @@ pub(super) fn show_behavior_section(
                 if ui
                     .add_sized(
                         [SLIDER_WIDTH, SLIDER_HEIGHT],
-                        egui::Slider::new(&mut settings.config.notification_max_buffer, 10..=1000),
+                        egui::Slider::new(
+                            &mut settings.config.notifications.notification_max_buffer,
+                            10..=1000,
+                        ),
                     )
                     .changed()
                 {

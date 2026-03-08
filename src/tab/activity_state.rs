@@ -38,8 +38,3 @@ impl Default for TabActivityMonitor {
         }
     }
 }
-
-/// Type alias for backwards compatibility during the transition period.
-/// New code should use `TabActivityMonitor` directly.
-#[allow(dead_code)]
-pub(crate) type TabActivityState = TabActivityMonitor;

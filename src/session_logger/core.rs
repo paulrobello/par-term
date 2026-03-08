@@ -48,6 +48,97 @@ pub(super) const PASSWORD_PROMPT_PATTERNS: &[&str] = &[
     "encryption password:",
     "(current) unix password:",
     "token:",
+    // Two-factor / MFA prompts
+    "authenticator code:",
+    "2fa code:",
+    "otp:",
+    "one-time password:",
+    "one time password:",
+    "security code:",
+    "totp:",
+    // API key / secret prompts (interactive tools that prompt for credentials)
+    "api key:",
+    "api secret:",
+    "secret key:",
+    "access key:",
+    "access token:",
+    "secret token:",
+    "private key:",
+    "client secret:",
+    "auth token:",
+    "bearer token:",
+    // SSH / GPG passphrases
+    "enter passphrase for key",
+    "key passphrase:",
+    "gpg passphrase:",
+    // Database / service credential prompts
+    "db password:",
+    "database password:",
+    "mysql password:",
+    "postgres password:",
+    "redis password:",
+    // Cloud / vault prompts
+    "vault token:",
+    "vault password:",
+    "aws secret",
+    "azure secret",
+];
+
+/// Sensitive output line heuristics (case-insensitive substring matching).
+///
+/// SEC-006: These patterns detect terminal *output* lines that are likely to
+/// contain sensitive values being printed (e.g. `export API_KEY=abc123`,
+/// `aws_secret_access_key = ...`). When a line matches, the logger emits a
+/// warning comment in the log rather than the raw content.
+///
+/// Unlike password prompt detection (which suppresses subsequent *input*),
+/// these patterns trigger on *output* data — they redact or annotate the
+/// output line itself.
+///
+/// # Limitations
+///
+/// This is a heuristic. It cannot catch all forms of sensitive output (e.g.
+/// values printed without a recognisable key name, or base64-encoded secrets).
+/// Users who regularly work with credentials in the terminal should disable
+/// session logging for those sessions.
+pub(super) const SENSITIVE_OUTPUT_PATTERNS: &[&str] = &[
+    // Shell variable export of credential-like names
+    "export aws_access_key",
+    "export aws_secret",
+    "export api_key",
+    "export api_secret",
+    "export auth_token",
+    "export access_token",
+    "export secret_key",
+    "export private_key",
+    "export client_secret",
+    "export database_url",
+    "export db_password",
+    "export gh_token",
+    "export github_token",
+    "export gitlab_token",
+    "export npm_token",
+    "export pypi_token",
+    // AWS credential file / env output patterns
+    "aws_access_key_id",
+    "aws_secret_access_key",
+    "aws_session_token",
+    // Generic key=value patterns for common secret variable names
+    "api_key=",
+    "apikey=",
+    "api_secret=",
+    "access_token=",
+    "auth_token=",
+    "secret_key=",
+    "private_key=",
+    "client_secret=",
+    // .env file content echoed to terminal
+    "dotenv",
+    // Token/key output from CLI tools
+    "-----begin rsa private key-----",
+    "-----begin ec private key-----",
+    "-----begin openssh private key-----",
+    "-----begin pgp private key block-----",
 ];
 
 /// Session logger that records terminal output to files.
@@ -248,10 +339,21 @@ impl SessionLogger {
             return;
         }
 
-        // Check for password prompts in the output if redaction is enabled
+        // Check for password prompts in the output if redaction is enabled.
+        // This must run before filtering so that subsequent input is suppressed.
         if self.redact_passwords {
             self.check_for_password_prompt(data);
         }
+
+        // SEC-006: Check for sensitive credential output patterns line-by-line.
+        // Lines that match known sensitive-data heuristics are replaced with a
+        // redaction annotation before writing to the log.
+        let data_to_write: Vec<u8> = if self.redact_passwords {
+            self.filter_sensitive_output(data)
+        } else {
+            data.to_vec()
+        };
+        let data = data_to_write.as_slice();
 
         let elapsed = self.start_time.elapsed().as_millis() as u64;
 
@@ -361,6 +463,15 @@ impl SessionLogger {
         self.active
     }
 
+    /// SEC-006: Check whether a single stripped line matches any sensitive
+    /// output heuristic.
+    ///
+    /// Exposed as `pub(super)` for unit-test access from `tests.rs`.
+    pub(super) fn line_is_sensitive(line: &str) -> bool {
+        let lower = line.to_ascii_lowercase();
+        SENSITIVE_OUTPUT_PATTERNS.iter().any(|p| lower.contains(p))
+    }
+
     /// Get the output path.
     pub fn output_path(&self) -> &PathBuf {
         &self.output_path
@@ -377,6 +488,51 @@ impl SessionLogger {
     }
 
     // === Private helper methods ===
+
+    /// SEC-006: Filter sensitive credential patterns from raw PTY output.
+    ///
+    /// Each line in `data` is stripped of ANSI escapes and checked against
+    /// [`SENSITIVE_OUTPUT_PATTERNS`]. Lines that match are replaced with a
+    /// `[OUTPUT REDACTED - sensitive data heuristic]` marker in the returned
+    /// byte vector. Non-matching lines are passed through unchanged (using the
+    /// *original* bytes, including ANSI codes, so that HTML/asciicast formats
+    /// preserve colour).
+    ///
+    /// The check operates on ANSI-stripped content (case-insensitive) to
+    /// avoid coloured prompt text defeating the heuristic.
+    fn filter_sensitive_output(&self, data: &[u8]) -> Vec<u8> {
+        const SENSITIVE_OUTPUT_MARKER: &str =
+            "[OUTPUT REDACTED - sensitive data heuristic matched]\n";
+
+        // Fast path: strip ANSI from the whole chunk and check if any line
+        // could be sensitive. If not, return the original bytes unchanged.
+        let stripped = strip_ansi_escapes(data);
+        let any_sensitive = stripped.lines().any(Self::line_is_sensitive);
+        if !any_sensitive {
+            return data.to_vec();
+        }
+
+        // Slow path: reconstruct the output, replacing sensitive lines.
+        // We work on the ANSI-stripped text for the per-line decision but
+        // need to write back sanitised content; since the raw bytes may have
+        // multi-byte ANSI sequences that don't align 1:1 with stripped lines,
+        // we rebuild the output from the stripped text (forgoing colour for
+        // the filtered chunk — acceptable given the security trade-off).
+        let mut result = Vec::with_capacity(data.len());
+        for line in stripped.lines() {
+            if Self::line_is_sensitive(line) {
+                result.extend_from_slice(SENSITIVE_OUTPUT_MARKER.as_bytes());
+            } else {
+                result.extend_from_slice(line.as_bytes());
+                result.push(b'\n');
+            }
+        }
+        // Preserve trailing newline status from original stripped text.
+        if !stripped.ends_with('\n') && result.last() == Some(&b'\n') {
+            result.pop();
+        }
+        result
+    }
 
     /// Check terminal output for password prompt patterns.
     ///

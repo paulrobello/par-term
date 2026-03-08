@@ -25,14 +25,18 @@ pub(super) fn show_alert_sounds_section(
 
             for event in AlertEvent::all() {
                 let id_str = format!("alert_{:?}", event);
-                let has_config = settings.config.alert_sounds.contains_key(event);
+                let has_config = settings
+                    .config
+                    .notifications
+                    .alert_sounds
+                    .contains_key(event);
 
                 ui.group(|ui| {
                     ui.horizontal(|ui| {
                         let mut enabled = has_config
                             && settings
                                 .config
-                                .alert_sounds
+                                .notifications.alert_sounds
                                 .get(event)
                                 .is_some_and(|c| c.enabled);
 
@@ -40,12 +44,12 @@ pub(super) fn show_alert_sounds_section(
                             if enabled {
                                 settings
                                     .config
-                                    .alert_sounds
+                                    .notifications.alert_sounds
                                     .entry(*event)
                                     .or_default()
                                     .enabled = true;
                             } else if let Some(cfg) =
-                                settings.config.alert_sounds.get_mut(event)
+                                settings.config.notifications.alert_sounds.get_mut(event)
                             {
                                 cfg.enabled = false;
                             }
@@ -57,11 +61,11 @@ pub(super) fn show_alert_sounds_section(
                     if has_config
                         && settings
                             .config
-                            .alert_sounds
+                            .notifications.alert_sounds
                             .get(event)
                             .is_some_and(|c| c.enabled)
                     {
-                        let cfg = settings.config.alert_sounds.get_mut(event).expect(
+                        let cfg = settings.config.notifications.alert_sounds.get_mut(event).expect(
                             "alert_sounds entry verified present by get().is_some_and() guard above",
                         );
 

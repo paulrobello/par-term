@@ -24,7 +24,7 @@ pub(super) fn show_anti_idle_section(
 
             if ui
                 .checkbox(
-                    &mut settings.config.anti_idle_enabled,
+                    &mut settings.config.notifications.anti_idle_enabled,
                     "Send code when idle",
                 )
                 .on_hover_text("Periodically send a character to keep connections alive")
@@ -38,7 +38,7 @@ pub(super) fn show_anti_idle_section(
                 ui.label("Seconds before sending:");
                 if ui
                     .add(
-                        egui::DragValue::new(&mut settings.config.anti_idle_seconds)
+                        egui::DragValue::new(&mut settings.config.notifications.anti_idle_seconds)
                             .range(10..=3600)
                             .speed(1.0),
                     )
@@ -53,7 +53,7 @@ pub(super) fn show_anti_idle_section(
             ui.horizontal(|ui| {
                 ui.label("Character to send:");
                 egui::ComboBox::from_id_salt("notifications_anti_idle_code")
-                    .selected_text(match settings.config.anti_idle_code {
+                    .selected_text(match settings.config.notifications.anti_idle_code {
                         0 => "NUL (0x00)",
                         5 => "ENQ (0x05)",
                         27 => "ESC (0x1B)",
@@ -63,7 +63,7 @@ pub(super) fn show_anti_idle_section(
                     .show_ui(ui, |ui| {
                         if ui
                             .selectable_value(
-                                &mut settings.config.anti_idle_code,
+                                &mut settings.config.notifications.anti_idle_code,
                                 0,
                                 "NUL (0x00) - Null character, most common",
                             )
@@ -74,7 +74,7 @@ pub(super) fn show_anti_idle_section(
                         }
                         if ui
                             .selectable_value(
-                                &mut settings.config.anti_idle_code,
+                                &mut settings.config.notifications.anti_idle_code,
                                 27,
                                 "ESC (0x1B) - Escape, safe for most apps",
                             )
@@ -85,7 +85,7 @@ pub(super) fn show_anti_idle_section(
                         }
                         if ui
                             .selectable_value(
-                                &mut settings.config.anti_idle_code,
+                                &mut settings.config.notifications.anti_idle_code,
                                 5,
                                 "ENQ (0x05) - Enquiry, may trigger answerback",
                             )
@@ -96,7 +96,7 @@ pub(super) fn show_anti_idle_section(
                         }
                         if ui
                             .selectable_value(
-                                &mut settings.config.anti_idle_code,
+                                &mut settings.config.notifications.anti_idle_code,
                                 32,
                                 "Space (0x20) - Visible but harmless",
                             )
@@ -112,7 +112,7 @@ pub(super) fn show_anti_idle_section(
                 ui.label("Custom ASCII code:");
                 if ui
                     .add(
-                        egui::DragValue::new(&mut settings.config.anti_idle_code)
+                        egui::DragValue::new(&mut settings.config.notifications.anti_idle_code)
                             .range(0..=127)
                             .speed(1.0),
                     )
@@ -122,7 +122,10 @@ pub(super) fn show_anti_idle_section(
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
-                ui.label(format!("(0x{:02X})", settings.config.anti_idle_code));
+                ui.label(format!(
+                    "(0x{:02X})",
+                    settings.config.notifications.anti_idle_code
+                ));
             });
         },
     );

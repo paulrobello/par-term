@@ -282,7 +282,7 @@ fn test_inactive_tab_opacity_default_in_valid_range() {
 fn test_scrollback_lines_default_positive() {
     let config = Config::default();
     assert!(
-        config.scrollback_lines > 0,
+        config.scrollback.scrollback_lines > 0,
         "Default scrollback_lines should be > 0"
     );
 }

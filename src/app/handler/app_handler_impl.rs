@@ -301,8 +301,8 @@ impl ApplicationHandler for WindowManager {
             // If an agent/MCP config update was applied, sync to WindowManager's
             // config so that subsequent saves (update checker, settings) don't
             // overwrite the agent's changes.
-            if window_state.config_changed_by_agent {
-                window_state.config_changed_by_agent = false;
+            if window_state.render_loop.config_changed_by_agent {
+                window_state.render_loop.config_changed_by_agent = false;
                 config_changed_by_agent = true;
             }
 

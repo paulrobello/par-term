@@ -68,8 +68,18 @@ impl WindowState {
         Some(format!("send-keys -t @{} {}\n", tmux_window_id, escaped))
     }
 
-    /// Send input via tmux window target (fallback when no pane ID is set)
-    #[allow(dead_code)] // Planned for TmuxSync integration
+    /// Send input via tmux window target (fallback when no pane ID is set).
+    ///
+    /// This method is a planned fallback path for `TmuxSync` integration: when
+    /// the pane-level routing in `send_input_bytes` cannot resolve a pane ID,
+    /// routing via the tmux window target (`@N`) is the intended recovery.
+    /// It duplicates part of `format_send_keys_for_window` on purpose — the
+    /// caller needs to write directly rather than just format the command.
+    ///
+    /// Not yet wired up because `TmuxSync::get_window` is not yet called from
+    /// the hot-path input handler. Wire it up when implementing pane-less
+    /// gateway fallback (tracked as a GitHub issue under "tmux integration").
+    #[allow(dead_code)] // Infrastructure for TmuxSync pane-less fallback — not yet wired
     fn send_input_via_tmux_window(&self, data: &[u8]) -> bool {
         let active_tab_id = match self.tab_manager.active_tab_id() {
             Some(id) => id,

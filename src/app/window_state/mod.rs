@@ -5,7 +5,8 @@
 //!
 //! Architectural Note: `WindowState` is being decomposed from a God Object
 //! into cohesive sub-state structs (ARC-001). See `focus_state.rs`,
-//! `overlay_state.rs`, `update_state.rs`, `watcher_state.rs`, and `trigger_state.rs`.
+//! `overlay_state.rs`, `update_state.rs`, `watcher_state.rs`, `trigger_state.rs`,
+//! and `render_loop_state.rs`.
 
 mod action_handlers;
 mod agent_config;
@@ -29,6 +30,7 @@ mod notifications;
 mod overlay_state;
 pub(crate) mod overlay_ui_state;
 mod prettify_helpers;
+mod render_loop_state;
 #[path = "../render_pipeline/mod.rs"]
 mod render_pipeline;
 pub(crate) mod renderer_init;
@@ -48,6 +50,7 @@ mod watcher_state;
 pub(crate) use egui_state::EguiState;
 pub(crate) use focus_state::FocusState;
 pub(crate) use overlay_state::OverlayState;
+pub(crate) use render_loop_state::{ConfigSaveState, RenderLoopState};
 pub(crate) use trigger_state::TriggerState;
 pub(crate) use update_state::UpdateState;
 pub(crate) use watcher_state::WatcherState;
@@ -83,20 +86,6 @@ pub(crate) struct ClipboardImageClickGuard {
     pub(crate) image: PreservedClipboardImage,
     pub(crate) press_position: (f64, f64),
     pub(crate) suppress_terminal_mouse_click: bool,
-}
-
-/// Debounce state for config saves to prevent rapid concurrent writes.
-#[derive(Default)]
-pub(crate) struct ConfigSaveState {
-    /// When the last config save was performed
-    pub(crate) last_save: Option<std::time::Instant>,
-    /// Whether a save was deferred and needs to be executed
-    pub(crate) pending_save: bool,
-}
-
-impl ConfigSaveState {
-    /// Minimum time between config saves (in milliseconds).
-    const DEBOUNCE_INTERVAL_MS: u64 = 100;
 }
 
 /// Per-window state that manages a single terminal window with multiple tabs.
@@ -172,14 +161,10 @@ pub struct WindowState {
     pub(crate) trigger_state: TriggerState,
 
     // =========================================================================
-    // Render loop control & config management
+    // Render loop control & config management (ARC-001 extraction: RenderLoopState)
     // =========================================================================
-    /// Set when an agent/MCP config update was applied
-    pub(crate) config_changed_by_agent: bool,
-    /// Whether we need to rebuild renderer after font-related changes
-    pub(crate) pending_font_rebuild: bool,
-    /// Debounce state for config saves
-    pub(crate) config_save_state: ConfigSaveState,
+    /// Pending-work flags for the render loop (agent config change, font rebuild, config save)
+    pub(crate) render_loop: RenderLoopState,
 
     // =========================================================================
     // Feature state

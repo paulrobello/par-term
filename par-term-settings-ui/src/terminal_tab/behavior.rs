@@ -20,7 +20,10 @@ pub(super) fn show_behavior_section(
             if ui
                 .add_sized(
                     [SLIDER_WIDTH, SLIDER_HEIGHT],
-                    egui::Slider::new(&mut settings.config.scrollback_lines, 1000..=100000),
+                    egui::Slider::new(
+                        &mut settings.config.scrollback.scrollback_lines,
+                        1000..=100000,
+                    ),
                 )
                 .changed()
             {

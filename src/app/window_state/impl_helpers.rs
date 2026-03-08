@@ -109,11 +109,11 @@ impl WindowState {
             std::time::Duration::from_millis(ConfigSaveState::DEBOUNCE_INTERVAL_MS);
 
         // Check if we're within the debounce window
-        if let Some(last_save) = self.config_save_state.last_save
+        if let Some(last_save) = self.render_loop.config_save.last_save
             && now.duration_since(last_save) < debounce_interval
         {
             // Defer this save - mark as pending
-            self.config_save_state.pending_save = true;
+            self.render_loop.config_save.pending_save = true;
             log::debug!(
                 "Config save debounced (within {}ms window)",
                 ConfigSaveState::DEBOUNCE_INTERVAL_MS
@@ -123,8 +123,8 @@ impl WindowState {
 
         // Perform the actual save
         self.config.save()?;
-        self.config_save_state.last_save = Some(now);
-        self.config_save_state.pending_save = false;
+        self.render_loop.config_save.last_save = Some(now);
+        self.render_loop.config_save.pending_save = false;
         log::debug!("Config saved immediately");
         Ok(())
     }
@@ -136,7 +136,7 @@ impl WindowState {
     ///
     /// Returns `true` if a save was performed, `false` if nothing was pending.
     pub(crate) fn process_pending_config_save(&mut self) -> bool {
-        if !self.config_save_state.pending_save {
+        if !self.render_loop.config_save.pending_save {
             return false;
         }
 
@@ -145,7 +145,7 @@ impl WindowState {
             std::time::Duration::from_millis(ConfigSaveState::DEBOUNCE_INTERVAL_MS);
 
         // Check if enough time has passed since last save
-        if let Some(last_save) = self.config_save_state.last_save
+        if let Some(last_save) = self.render_loop.config_save.last_save
             && now.duration_since(last_save) < debounce_interval
         {
             // Still within debounce window, wait longer
@@ -159,8 +159,8 @@ impl WindowState {
             log::debug!("Pending config save flushed");
         }
 
-        self.config_save_state.last_save = Some(now);
-        self.config_save_state.pending_save = false;
+        self.render_loop.config_save.last_save = Some(now);
+        self.render_loop.config_save.pending_save = false;
         true
     }
 
@@ -175,12 +175,13 @@ impl WindowState {
         &mut self,
         now: std::time::Instant,
     ) -> Option<std::time::Instant> {
-        if !self.config.anti_idle_enabled {
+        if !self.config.notifications.anti_idle_enabled {
             return None;
         }
 
-        let idle_threshold = std::time::Duration::from_secs(self.config.anti_idle_seconds.max(1));
-        let keep_alive_code = [self.config.anti_idle_code];
+        let idle_threshold =
+            std::time::Duration::from_secs(self.config.notifications.anti_idle_seconds.max(1));
+        let keep_alive_code = [self.config.notifications.anti_idle_code];
         let mut next_due: Option<std::time::Instant> = None;
 
         for tab in self.tab_manager.tabs_mut() {

@@ -13,9 +13,9 @@ fn test_activity_notification_config_defaults() {
     let config = Config::default();
 
     // Activity notifications are disabled by default
-    assert!(!config.notification_activity_enabled);
+    assert!(!config.notifications.notification_activity_enabled);
     // Default threshold is 10 seconds
-    assert_eq!(config.notification_activity_threshold, 10);
+    assert_eq!(config.notifications.notification_activity_threshold, 10);
 }
 
 /// Test that silence notification config defaults are correct.
@@ -24,9 +24,9 @@ fn test_silence_notification_config_defaults() {
     let config = Config::default();
 
     // Silence notifications are disabled by default
-    assert!(!config.notification_silence_enabled);
+    assert!(!config.notifications.notification_silence_enabled);
     // Default threshold is 300 seconds (5 minutes)
-    assert_eq!(config.notification_silence_threshold, 300);
+    assert_eq!(config.notifications.notification_silence_threshold, 300);
 }
 
 /// Test that activity notification config can be deserialized from YAML.
@@ -38,8 +38,8 @@ notification_activity_threshold: 30
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
 
-    assert!(config.notification_activity_enabled);
-    assert_eq!(config.notification_activity_threshold, 30);
+    assert!(config.notifications.notification_activity_enabled);
+    assert_eq!(config.notifications.notification_activity_threshold, 30);
 }
 
 /// Test that silence notification config can be deserialized from YAML.
@@ -51,8 +51,8 @@ notification_silence_threshold: 600
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
 
-    assert!(config.notification_silence_enabled);
-    assert_eq!(config.notification_silence_threshold, 600);
+    assert!(config.notifications.notification_silence_enabled);
+    assert_eq!(config.notifications.notification_silence_threshold, 600);
 }
 
 /// Test that both notification types can be enabled together.
@@ -66,10 +66,10 @@ notification_silence_threshold: 120
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
 
-    assert!(config.notification_activity_enabled);
-    assert_eq!(config.notification_activity_threshold, 15);
-    assert!(config.notification_silence_enabled);
-    assert_eq!(config.notification_silence_threshold, 120);
+    assert!(config.notifications.notification_activity_enabled);
+    assert_eq!(config.notifications.notification_activity_threshold, 15);
+    assert!(config.notifications.notification_silence_enabled);
+    assert_eq!(config.notifications.notification_silence_threshold, 120);
 }
 
 /// Test that notification config serializes correctly.
@@ -94,8 +94,8 @@ activity_notifications: true
 activity_threshold: 25
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert!(config.notification_activity_enabled);
-    assert_eq!(config.notification_activity_threshold, 25);
+    assert!(config.notifications.notification_activity_enabled);
+    assert_eq!(config.notifications.notification_activity_threshold, 25);
 
     // Test silence_notifications alias
     let yaml = r#"
@@ -103,8 +103,8 @@ silence_notifications: true
 silence_threshold: 180
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert!(config.notification_silence_enabled);
-    assert_eq!(config.notification_silence_threshold, 180);
+    assert!(config.notifications.notification_silence_enabled);
+    assert_eq!(config.notifications.notification_silence_threshold, 180);
 }
 
 /// Test activity state tracking logic (simulated since we can't create real Tab).
@@ -220,8 +220,8 @@ notification_silence_threshold: 1
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
 
-    assert_eq!(config.notification_activity_threshold, 1);
-    assert_eq!(config.notification_silence_threshold, 1);
+    assert_eq!(config.notifications.notification_activity_threshold, 1);
+    assert_eq!(config.notifications.notification_silence_threshold, 1);
 }
 
 /// Test with large threshold values.
@@ -234,7 +234,7 @@ notification_silence_threshold: 86400
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
 
     // 1 hour activity threshold
-    assert_eq!(config.notification_activity_threshold, 3600);
+    assert_eq!(config.notifications.notification_activity_threshold, 3600);
     // 24 hour silence threshold
-    assert_eq!(config.notification_silence_threshold, 86400);
+    assert_eq!(config.notifications.notification_silence_threshold, 86400);
 }

@@ -210,7 +210,7 @@ impl WindowState {
         for (updates, reply) in pending_config_updates {
             let result = self.apply_agent_config_updates(&updates);
             if result.is_ok() {
-                self.config_changed_by_agent = true;
+                self.render_loop.config_changed_by_agent = true;
             }
             let _ = reply.send(result);
             self.focus_state.needs_redraw = true;
@@ -268,7 +268,7 @@ impl WindowState {
         for (idx, updates) in inline_updates {
             match self.apply_agent_config_updates(&updates) {
                 Ok(()) => {
-                    self.config_changed_by_agent = true;
+                    self.render_loop.config_changed_by_agent = true;
                     if let Some(ChatMessage::Agent(text)) =
                         self.overlay_ui.ai_inspector.chat.messages.get_mut(idx)
                     {

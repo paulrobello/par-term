@@ -9,34 +9,18 @@
 //! [`TerminalAccess`] is **fully implemented** on [`crate::terminal::TerminalManager`].
 //! See [`crate::traits_impl`] for the concrete `impl` and a `MockTerminal` test helper.
 //!
-//! `UIElement` and `EventHandler` were previously stub-only definitions in this file.
-//! Both have been **removed** because their signatures were incompatible with the existing
-//! concrete types:
+//! [`UIElement`] is **fully implemented** on [`crate::tab_bar_ui::TabBarUI`] and
+//! [`crate::status_bar::StatusBarUI`].
+//! See [`crate::traits_impl`] for the concrete impls and a compile-time test.
 //!
-//! - **`UIElement`** (`is_visible`, `height_logical`, `width_logical`, `is_capturing_input`)
-//!   required zero-argument methods, but `TabBarUI::get_height()` and
-//!   `StatusBarUI::height()` both require `&Config` (and sometimes `tab_count: usize`
-//!   or `is_fullscreen: bool`) as parameters. Implementing the trait would force these
-//!   components to store a redundant config snapshot, which is worse than no trait.
-//!   A correct design would parameterise the trait itself: `trait UIElement<Ctx>` or
-//!   pass context through a `render_context()` accessor, but that is a larger design
-//!   decision tracked as a future improvement.
+//! `EventHandler` is still deferred — see the comment block at the end of this file.
 //!
-//! - **`EventHandler`** (`handle_event(&mut self, event: Self::Event) -> bool`) is a
-//!   generic marker trait with an associated type. Wiring it up requires choosing a
-//!   single concrete `Event` type (`winit::event::WindowEvent`), touching the monolithic
-//!   `WindowState` dispatch chain, and updating all call sites simultaneously. That scope
-//!   exceeds a targeted refactor of this file. The trait will be reintroduced as part of
-//!   the `WindowState` decomposition effort.
+//! # Migration Path for `EventHandler`
 //!
-//! # Migration Path for future `UIElement` / `EventHandler`
-//!
-//! When the `WindowState` decomposition is ready:
-//! 1. Define `UIElement` with a `RenderCtx<'_>` parameter that holds `&Config` and any
-//!    other per-frame data (`tab_count`, `is_fullscreen`).
-//! 2. Define `EventHandler<E>` where `E = winit::event::WindowEvent` and implement it
+//! When the `WindowState` decomposition is further advanced:
+//! 1. Define `EventHandler<E>` where `E = winit::event::WindowEvent` and implement it
 //!    on each sub-handler struct extracted from `WindowState`.
-//! 3. Add mock implementations in `#[cfg(test)]` blocks.
+//! 2. Add mock implementations in `#[cfg(test)]` blocks.
 
 // ── AUD-040: TerminalAccess ──────────────────────────────────────────────────
 
@@ -91,28 +75,65 @@ pub trait TerminalAccess {
     ) -> Vec<u8>;
 }
 
-// ── AUD-041: UIElement — REMOVED ─────────────────────────────────────────────
-//
-// The `UIElement` trait was removed because its zero-argument methods
-// (`height_logical`, `width_logical`, `is_visible`) are incompatible with the
-// concrete types (`TabBarUI`, `StatusBarUI`, `TmuxStatusBarUI`), which all
-// require `&Config` and additional per-frame parameters to compute these values.
-//
-// Forcing those components to cache config state just to satisfy the trait
-// would introduce a new source of stale-config bugs.
-//
-// A correct design (future work):
-//
-//   pub trait UIElement {
-//       type Ctx<'a>;
-//       fn is_visible(&self, ctx: Self::Ctx<'_>) -> bool;
-//       fn height_logical(&self, ctx: Self::Ctx<'_>) -> f32;
-//       fn width_logical(&self, ctx: Self::Ctx<'_>) -> f32;
-//       fn is_capturing_input(&self) -> bool;
-//   }
-//
-// This requires GATs (stable since Rust 1.65) and can be introduced as part of
-// the `WindowState` decomposition effort without breaking existing call sites.
+// ── AUD-041: UIElement ────────────────────────────────────────────────────────
+
+/// Common interface for UI bar/panel components whose height and visibility
+/// depend on per-frame context (configuration, window state).
+///
+/// # Design rationale
+///
+/// The previous stub used zero-argument methods for `height_logical`,
+/// `width_logical`, and `is_visible`.  This was incompatible with the concrete
+/// types (`TabBarUI`, `StatusBarUI`) which all require `&Config` and additional
+/// per-frame parameters to compute these values. Forcing them to cache a config
+/// snapshot would introduce a new class of stale-config bugs.
+///
+/// The solution is a GAT (`type Ctx<'a>`) that lets each implementor declare
+/// exactly what context it needs.  The caller provides context at the call site;
+/// no component stores a redundant snapshot.
+///
+/// # GAT note
+///
+/// GATs (`type X<'a>`) require Rust 1.65+.  They have been stable since late
+/// 2022 and are available in all supported rustc versions for this project.
+///
+/// # Concrete context types
+///
+/// - `TabBarUI::Ctx<'a> = TabBarCtx<'a>` — needs `(&Config, tab_count: usize)`
+/// - `StatusBarUI::Ctx<'a> = StatusBarCtx<'a>` — needs `(&Config, is_fullscreen: bool)`
+///
+/// # Components that are excluded
+///
+/// `TmuxStatusBarUI::height` is a static method, not `&self`, so it cannot
+/// implement this trait without a wrapper.  It is documented as out-of-scope.
+pub trait UIElement {
+    /// The per-call context type.  Implementors define a concrete `'a`-lifetime
+    /// struct holding the references they need (e.g. `&'a Config`).
+    type Ctx<'a>;
+
+    /// Returns `true` if this element is currently visible.
+    ///
+    /// When not visible the element contributes 0px to the layout.
+    fn is_visible(&self, ctx: Self::Ctx<'_>) -> bool;
+
+    /// Effective height of the element in logical (DPI-independent) pixels.
+    ///
+    /// Returns 0.0 when not visible or when the element is positioned on a
+    /// vertical axis (e.g. a left-side tab bar contributes width, not height).
+    fn height_logical(&self, ctx: Self::Ctx<'_>) -> f32;
+
+    /// Effective width of the element in logical pixels.
+    ///
+    /// Returns 0.0 for horizontally-positioned elements (top/bottom bars).
+    fn width_logical(&self, ctx: Self::Ctx<'_>) -> f32;
+
+    /// Returns `true` if this element is currently capturing keyboard input.
+    ///
+    /// When `true`, key events should not be forwarded to the PTY.
+    /// This method requires no context because it reflects live interaction state
+    /// rather than layout state.
+    fn is_capturing_input(&self) -> bool;
+}
 
 // ── R-10: OverlayComponent ────────────────────────────────────────────────────
 

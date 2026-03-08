@@ -22,18 +22,24 @@ impl std::error::Error for ParseError {}
 /// Set of active modifiers for a key combination.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub struct Modifiers {
+    /// Control key (Ctrl on all platforms).
     pub ctrl: bool,
+    /// Alt/Option key.
     pub alt: bool,
+    /// Shift key.
     pub shift: bool,
+    /// Super/Cmd/Win key.
     pub super_key: bool,
-    /// If true, this represents CmdOrCtrl (Cmd on macOS, Ctrl elsewhere)
+    /// If true, this represents CmdOrCtrl (Cmd on macOS, Ctrl elsewhere).
     pub cmd_or_ctrl: bool,
 }
 
 /// A parsed key combination (modifiers + key).
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct KeyCombo {
+    /// Active modifier keys for this combination.
     pub modifiers: Modifiers,
+    /// The primary key (character, named, or physical).
     pub key: ParsedKey,
 }
 

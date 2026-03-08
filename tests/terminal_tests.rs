@@ -1,3 +1,30 @@
+//! Terminal integration tests.
+//!
+//! # Test Execution Notes
+//!
+//! Several tests in this module are marked `#[ignore]` because they require a
+//! live PTY (pseudo-terminal) device to function correctly.  These tests call
+//! `TerminalManager::spawn_shell()` which:
+//!
+//! 1. Opens `/dev/ptmx` (or the platform equivalent) to create a PTY pair.
+//! 2. `fork()`s a child process and `exec()`s the user's login shell inside it.
+//! 3. Keeps the master end open, waiting for shell output.
+//!
+//! In CI and sandboxed environments this causes the test process to hang
+//! indefinitely waiting for shell I/O that never arrives, because:
+//! - The sandbox may block `fork()` or PTY device access.
+//! - The spawned shell may require a controlling terminal that isn't available.
+//! - Reading from the PTY blocks until the shell produces output.
+//!
+//! **To run PTY-dependent tests locally:**
+//! ```sh
+//! cargo test -- --include-ignored
+//! ```
+//! or target a single test:
+//! ```sh
+//! cargo test test_terminal_spawn_shell -- --include-ignored
+//! ```
+
 use par_term::terminal::TerminalManager;
 
 #[test]

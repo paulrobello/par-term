@@ -1,4 +1,23 @@
-//! Tests for tab stability fixes
+//! Tests for tab stability fixes.
+//!
+//! # Test Execution Notes
+//!
+//! Tests in the "Integration Tests" section at the bottom of this file are
+//! marked `#[ignore]` because they require a live PTY (pseudo-terminal) device
+//! and a real spawned shell.  Creating tabs with `TabManager::new_tab()` calls
+//! `TerminalManager::spawn_shell()`, which opens `/dev/ptmx`, `fork()`s a
+//! child process, and `exec()`s the login shell.  In CI and sandboxed
+//! environments this causes hangs or permission errors.
+//!
+//! The behaviour these tests would verify is already covered by the unit tests
+//! earlier in this file (which exercise `TabBarUI` and `TabBarAction` without
+//! a running PTY).  The ignored tests are kept as scaffolding for future
+//! integration test infrastructure that can provide a controlled PTY environment.
+//!
+//! **To run PTY-dependent tests locally:**
+//! ```sh
+//! cargo test -- --include-ignored
+//! ```
 //!
 //! This test module covers fixes from the tab-stability branch:
 //!

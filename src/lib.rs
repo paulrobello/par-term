@@ -5,20 +5,25 @@
 // par-term uses three mutex types for different concurrency scenarios.
 // New code should follow these rules:
 //
-//   - `tokio::sync::Mutex`    — use for terminal/async state accessed from both
-//                               async tasks and sync event-loop code. Access via
-//                               `try_lock()` from sync contexts (non-blocking) and
-//                               `.await` or `blocking_lock()` from std threads.
+//   - `tokio::sync::RwLock`   — canonical choice for `TerminalManager` and other
+//                               state shared between async tasks and the sync
+//                               winit event loop.  From sync contexts use
+//                               `try_read()` / `try_write()` (non-blocking) or
+//                               `blocking_read()` / `blocking_write()` only for
+//                               infrequent user-initiated operations.  Never call
+//                               the blocking variants from within a Tokio worker
+//                               thread — it will deadlock.
 //
-//   - `parking_lot::Mutex`    — use for sync-only state where you need a fast,
-//                               non-async lock (e.g. upload error field, watcher state).
-//                               Never call `blocking_lock()` on a tokio mutex from
-//                               within an async context — use parking_lot instead.
+//   - `parking_lot::Mutex`    — use for sync-only state where a fast, non-async
+//                               lock is needed (e.g. upload-error field, watcher
+//                               state).  Do NOT call `blocking_lock()` on a
+//                               tokio mutex from within an async context.
 //
 //   - `std::sync::Mutex`      — acceptable for simple, short-lived locks in code
 //                               that cannot depend on parking_lot (e.g. platform
-//                               FFI modules). Prefer parking_lot for new code.
+//                               FFI modules).  Prefer parking_lot for new code.
 //
+// Canonical Tab-level locking rules are documented on [`tab::Tab`].
 // See `docs/MUTEX_PATTERNS.md` for detailed patterns, deadlock avoidance rules,
 // and examples showing correct lock acquisition in each context.
 
@@ -32,7 +37,14 @@ pub mod debug;
 
 pub mod acp_harness;
 pub mod ai_inspector;
-pub use par_term_prettifier::ansi_colors;
+pub mod ansi_colors {
+    //! ANSI color constants and 256-color palette utilities.
+    //!
+    //! Re-exported from `par-term-prettifier` for convenient access via
+    //! `par_term::ansi_colors`. The same symbols are also accessible through
+    //! `par_term::prettifier::ansi_colors`.
+    pub use par_term_prettifier::ansi_colors::*;
+}
 pub mod app;
 pub mod arrangements;
 pub mod audio_bell;
@@ -60,12 +72,14 @@ pub mod macos_blur; // macOS window blur using private CGS API
 pub mod macos_metal; // macOS-specific CAMetalLayer configuration
 pub mod macos_space; // macOS Space (virtual desktop) targeting using private SLS API
 pub(crate) mod manifest;
+/// MCP server — whole-crate re-export of `par-term-mcp`.
 pub use par_term_mcp as mcp_server;
 pub mod menu;
 pub mod pane;
 pub mod paste_special_ui;
 pub mod paste_transform;
 pub mod platform;
+/// Content prettifier — whole-crate re-export of `par-term-prettifier`.
 pub use par_term_prettifier as prettifier;
 pub mod profile;
 pub mod profile_drawer_ui;
@@ -105,6 +119,7 @@ pub mod self_updater {
 }
 pub mod session;
 pub mod session_logger;
+/// Settings UI — whole-crate re-export of `par-term-settings-ui`.
 pub use par_term_settings_ui as settings_ui;
 pub mod settings_window;
 pub mod shader_install_ui;
@@ -141,6 +156,7 @@ pub(crate) mod themes {
     //! Terminal color themes re-exports from par-term-config crate.
     pub use par_term_config::Theme;
 }
+/// tmux integration — whole-crate re-export of `par-term-tmux`.
 pub use par_term_tmux as tmux;
 pub mod tmux_session_picker_ui;
 pub mod tmux_status_bar_ui;

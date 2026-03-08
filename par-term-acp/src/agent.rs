@@ -187,26 +187,74 @@ impl Agent {
             run_command_template.clone()
         };
 
-        // Spawn via login shell.  We intentionally do NOT use interactive
-        // mode (-i) because it causes the shell to emit terminal control
-        // sequences (e.g. [?1034h) to stdout, which corrupts the JSON-RPC
-        // stream.  Instead we pass the resolved shell PATH as an env var so
-        // the child has access to nvm, homebrew, etc.
-        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
-        log::info!(
-            "ACP: spawning agent '{}' via {shell} -lc '{run_command}' in cwd={cwd}",
-            self.config.identity,
-        );
-        let mut cmd = Command::new(&shell);
-        cmd.arg("-lc")
-            .arg(&run_command)
-            .current_dir(cwd)
+        // SEC-005: Use direct process spawning when possible to reduce shell
+        // attack surface.
+        //
+        // We split the resolved `run_command` into tokens with shell-word
+        // parsing.  If the command contains shell metacharacters (pipes,
+        // redirections, variable references, etc.) we fall back to the login
+        // shell so those features work correctly.  Otherwise we spawn the
+        // binary directly, passing arguments as discrete argv entries — this
+        // prevents argument injection through the shell interpreter.
+        //
+        // The resolved shell PATH is injected via `cmd.env("PATH", ...)` in
+        // both paths so that nvm/homebrew/etc. binaries are found regardless
+        // of whether we use the shell.
+
+        /// Return true if `s` contains shell metacharacters that require a
+        /// shell to interpret correctly.
+        fn has_shell_metacharacters(s: &str) -> bool {
+            s.chars().any(|c| {
+                matches!(
+                    c,
+                    '|' | '&' | ';' | '$' | '`' | '(' | ')' | '>' | '<' | '!' | '{' | '}'
+                )
+            })
+        }
+
+        let mut cmd;
+        let use_direct_spawn = !has_shell_metacharacters(&run_command);
+
+        if use_direct_spawn {
+            // Parse into binary + args so each argument is passed as a
+            // discrete argv entry (no shell interpolation possible).
+            let tokens =
+                shell_words::split(&run_command).unwrap_or_else(|_| vec![run_command.clone()]);
+            let (binary, args) = if tokens.is_empty() {
+                (run_command.clone(), vec![])
+            } else {
+                (tokens[0].clone(), tokens[1..].to_vec())
+            };
+            log::info!(
+                "ACP: spawning agent '{}' directly: {:?} {:?} in cwd={cwd}",
+                self.config.identity,
+                binary,
+                args,
+            );
+            cmd = Command::new(&binary);
+            cmd.args(&args);
+        } else {
+            // Fall back to login shell for commands that use shell features.
+            // We intentionally do NOT use interactive mode (-i) because it
+            // causes the shell to emit terminal control sequences (e.g.
+            // [?1034h) to stdout, which corrupts the JSON-RPC stream.
+            let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
+            log::info!(
+                "ACP: spawning agent '{}' via {shell} -lc '{run_command}' in cwd={cwd}",
+                self.config.identity,
+            );
+            cmd = Command::new(&shell);
+            cmd.arg("-lc").arg(&run_command);
+        }
+
+        cmd.current_dir(cwd)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped());
 
-        // If we resolved a richer PATH from the shell, inject it so that
-        // shebangs (#!/usr/bin/env node) and other runtime deps are found.
+        // Inject the richer PATH from the login shell so that shebangs
+        // (#!/usr/bin/env node) and other runtime deps are found in both
+        // spawn modes.
         if let Some(ref sp) = shell_path {
             cmd.env("PATH", sp);
         }

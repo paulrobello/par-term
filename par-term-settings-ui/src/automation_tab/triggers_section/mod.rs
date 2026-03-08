@@ -117,6 +117,44 @@ fn show_triggers_collapsing(
             ui.label("Define regex patterns to match terminal output and trigger actions.");
             ui.add_space(4.0);
 
+            // SEC-002: Section-level warning banner when any trigger has
+            // `require_user_action: false` AND contains a dangerous action.
+            // Individual per-trigger warnings are shown in the edit form and
+            // list row; this banner gives a prominent at-a-glance signal when
+            // opening the Automation tab.
+            let has_unsafe_trigger = settings
+                .config
+                .triggers
+                .iter()
+                .any(|t| !t.require_user_action && t.actions.iter().any(|a| a.is_dangerous()));
+            if has_unsafe_trigger {
+                egui::Frame::new()
+                    .fill(egui::Color32::from_rgb(80, 50, 10))
+                    .inner_margin(egui::Margin::symmetric(8_i8, 6_i8))
+                    .corner_radius(egui::CornerRadius::same(4))
+                    .show(ui, |ui| {
+                        ui.horizontal_wrapped(|ui| {
+                            ui.label(
+                                egui::RichText::new("Security Warning:")
+                                    .strong()
+                                    .color(egui::Color32::from_rgb(255, 190, 60)),
+                            );
+                            ui.label(
+                                egui::RichText::new(
+                                    "One or more triggers have `require_user_action: false` \
+                                     with dangerous actions (RunCommand / SendText). \
+                                     These can be fired directly by terminal output — \
+                                     malicious content could exploit pattern matching to \
+                                     execute commands. The command denylist provides only \
+                                     limited protection. Review [unsafe] triggers below.",
+                                )
+                                .color(egui::Color32::from_rgb(220, 180, 100)),
+                            );
+                        });
+                    });
+                ui.add_space(6.0);
+            }
+
             // Collect mutations to apply after iteration
             let mut delete_index: Option<usize> = None;
             let mut toggle_index: Option<usize> = None;

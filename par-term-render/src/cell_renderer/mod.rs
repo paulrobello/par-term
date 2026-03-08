@@ -74,14 +74,14 @@ pub(crate) struct GpuPipelines {
     pub(crate) bg_pipeline: wgpu::RenderPipeline,
     pub(crate) text_pipeline: wgpu::RenderPipeline,
     pub(crate) bg_image_pipeline: wgpu::RenderPipeline,
-    #[allow(dead_code)] // GPU resource: visual bell rendering (infrastructure in progress)
+    /// Full-screen flash pipeline used by `render_overlays` when `visual_bell_intensity > 0`.
     pub(crate) visual_bell_pipeline: wgpu::RenderPipeline,
     pub(crate) text_bind_group: wgpu::BindGroup,
     #[allow(dead_code)] // GPU lifetime: must outlive bind groups created from this layout
     pub(crate) text_bind_group_layout: wgpu::BindGroupLayout,
     pub(crate) bg_image_bind_group: Option<wgpu::BindGroup>,
     pub(crate) bg_image_bind_group_layout: wgpu::BindGroupLayout,
-    #[allow(dead_code)] // GPU resource: visual bell rendering (infrastructure in progress)
+    /// Bind group holding the visual bell uniform buffer; set in `render_overlays`.
     pub(crate) visual_bell_bind_group: wgpu::BindGroup,
     /// Pipeline that stamps alpha=1.0 over the entire surface (opaque window guard).
     pub(crate) opaque_alpha_pipeline: wgpu::RenderPipeline,
@@ -93,7 +93,7 @@ pub(crate) struct GpuBuffers {
     pub(crate) bg_instance_buffer: wgpu::Buffer,
     pub(crate) text_instance_buffer: wgpu::Buffer,
     pub(crate) bg_image_uniform_buffer: wgpu::Buffer,
-    #[allow(dead_code)] // GPU resource: visual bell rendering (infrastructure in progress)
+    /// Uniform buffer written each frame in `render_overlays` with position/color/intensity.
     pub(crate) visual_bell_uniform_buffer: wgpu::Buffer,
     /// Maximum capacity of the bg_instance_buffer (GPU buffer size)
     pub(crate) max_bg_instances: usize,

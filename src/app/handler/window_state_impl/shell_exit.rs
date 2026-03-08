@@ -69,7 +69,7 @@ impl WindowState {
                     .collect();
 
                 // Send session-ended notifications for single-pane tabs before closing them.
-                if self.config.notification_session_ended {
+                if self.config.notifications.notification_session_ended {
                     for (_tab_id, tab_title, exit_notified) in &single_pane_exiting {
                         if !exit_notified {
                             log::info!("Shell in tab '{}' has exited", tab_title);

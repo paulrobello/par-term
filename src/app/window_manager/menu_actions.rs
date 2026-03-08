@@ -306,7 +306,7 @@ impl WindowManager {
                     && let Some(window_state) = self.windows.get_mut(&window_id)
                 {
                     window_state.config.font_size = (window_state.config.font_size + 1.0).min(72.0);
-                    window_state.pending_font_rebuild = true;
+                    window_state.render_loop.pending_font_rebuild = true;
                     if let Some(window) = &window_state.window {
                         window.request_redraw();
                     }
@@ -317,7 +317,7 @@ impl WindowManager {
                     && let Some(window_state) = self.windows.get_mut(&window_id)
                 {
                     window_state.config.font_size = (window_state.config.font_size - 1.0).max(6.0);
-                    window_state.pending_font_rebuild = true;
+                    window_state.render_loop.pending_font_rebuild = true;
                     if let Some(window) = &window_state.window {
                         window.request_redraw();
                     }
@@ -328,7 +328,7 @@ impl WindowManager {
                     && let Some(window_state) = self.windows.get_mut(&window_id)
                 {
                     window_state.config.font_size = 14.0;
-                    window_state.pending_font_rebuild = true;
+                    window_state.render_loop.pending_font_rebuild = true;
                     if let Some(window) = &window_state.window {
                         window.request_redraw();
                     }

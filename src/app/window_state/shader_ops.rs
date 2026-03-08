@@ -138,7 +138,7 @@ impl WindowState {
                     &format!("{} - {}", shader_name, error_msg),
                 );
                 // Trigger visual bell if enabled to alert user
-                if self.config.notification_bell_visual
+                if self.config.notifications.notification_bell_visual
                     && let Some(tab) = self.tab_manager.active_tab_mut()
                 {
                     tab.active_bell_mut().visual_flash = Some(std::time::Instant::now());
@@ -213,7 +213,7 @@ impl WindowState {
                 );
 
                 // Trigger visual bell if enabled to alert user
-                if self.config.notification_bell_visual
+                if self.config.notifications.notification_bell_visual
                     && let Some(tab) = self.tab_manager.active_tab_mut()
                 {
                     tab.active_bell_mut().visual_flash = Some(std::time::Instant::now());

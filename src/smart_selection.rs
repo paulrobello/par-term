@@ -15,7 +15,6 @@ pub struct SmartSelectionMatcher {
 }
 
 struct CompiledRule {
-    #[allow(dead_code)] // Retained for debug logging and future diagnostics
     name: String,
     regex: Regex,
     precision: f64,
@@ -78,6 +77,13 @@ impl SmartSelectionMatcher {
                     let start_col = byte_to_char_offset(line, match_start_byte)?;
                     let end_col = byte_to_char_offset(line, match_end_byte)?.saturating_sub(1);
 
+                    log::trace!(
+                        "smart_selection: rule '{}' matched col {} → [{}, {}]",
+                        rule.name,
+                        col,
+                        start_col,
+                        end_col,
+                    );
                     return Some((start_col, end_col));
                 }
             }

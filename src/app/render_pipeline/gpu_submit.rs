@@ -106,7 +106,13 @@ impl WindowState {
         // The cell substitution on FrameRenderData.cells is wasted (invisible to pane
         // renderer), but the graphics list is needed for update_gpu_renderer_state().
         // Pane-visible cell substitution happens later in the pane loop below.
-        // TODO: split into a graphics-only collection to avoid the wasted cell work.
+        //
+        // DEFERRED: Split `apply_prettifier_cell_substitution` into two passes:
+        //   (a) a graphics-only collection pass (called here, no cell mutation), and
+        //   (b) a cell substitution pass (called per-pane in the pane loop below).
+        // Blocked on: `prettifier_cells.rs` refactor to expose a separate
+        // `collect_prettifier_graphics()` function that skips cell writes.
+        // Effort: ~1 day. Create a GitHub issue with the "performance" label to track.
         let prettifier_graphics = if let Some(tab) = self.tab_manager.active_tab() {
             prettifier_cells::apply_prettifier_cell_substitution(
                 tab,

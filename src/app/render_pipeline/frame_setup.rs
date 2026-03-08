@@ -55,11 +55,11 @@ impl WindowState {
             .update_all_titles(self.config.tab_title_mode);
 
         // Rebuild renderer if font-related settings changed
-        if self.pending_font_rebuild {
+        if self.render_loop.pending_font_rebuild {
             if let Err(e) = self.rebuild_renderer() {
                 log::error!("Failed to rebuild renderer after font change: {}", e);
             }
-            self.pending_font_rebuild = false;
+            self.render_loop.pending_font_rebuild = false;
         }
 
         if animation_running && let Some(window) = &self.window {

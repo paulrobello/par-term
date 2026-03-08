@@ -92,7 +92,7 @@ impl Pane {
         let mut terminal = TerminalManager::new_with_scrollback(
             config.cols,
             config.rows,
-            config.scrollback_lines,
+            config.scrollback.scrollback_lines,
         )?;
 
         // Apply common terminal configuration (theme, clipboard limits, cursor style, unicode)
@@ -206,7 +206,7 @@ impl Pane {
         let mut terminal = TerminalManager::new_with_scrollback(
             config.cols,
             config.rows,
-            config.scrollback_lines,
+            config.scrollback.scrollback_lines,
         )?;
 
         // Apply common terminal configuration (theme, clipboard limits, cursor style, unicode)
