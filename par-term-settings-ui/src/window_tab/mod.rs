@@ -1,6 +1,6 @@
 //! Window settings tab.
 //!
-//! Consolidates: window_tab (original), tab_bar_tab, panes_tab
+//! Consolidates: window_tab (original), tab_bar_tab, panes_tab, arrangements_tab
 //!
 //! Contains:
 //! - Display settings (title, dimensions, padding)
@@ -9,6 +9,7 @@
 //! - Window behavior (decorations, always on top, etc.)
 //! - Tab bar settings
 //! - Split panes settings
+//! - Window arrangements (save and restore layouts)
 
 use crate::SettingsUI;
 use crate::section::section_matches;
@@ -204,6 +205,9 @@ pub fn show(
     ) {
         scrollbar::show_scrollbar_section(ui, settings, changes_this_frame, collapsed);
     }
+
+    // Arrangements section (absorbed from arrangements_tab)
+    crate::arrangements_tab::show(ui, settings, changes_this_frame, collapsed);
 }
 
 /// Search keywords for the Window settings tab.
@@ -340,5 +344,21 @@ pub fn keywords() -> &'static [&'static str] {
         "tooltips",
         "scrollbar width",
         "scroll",
+        // Arrangements (absorbed from arrangements_tab)
+        "arrangement",
+        "arrangements",
+        "layout",
+        "workspace",
+        "save",
+        "restore",
+        "window layout",
+        "auto-restore",
+        "rename",
+        "delete",
+        "reorder",
+        "move up",
+        "move down",
+        "overwrite",
+        "startup",
     ]
 }

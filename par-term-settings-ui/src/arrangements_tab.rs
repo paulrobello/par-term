@@ -439,7 +439,8 @@ fn show_auto_restore_section(
     );
 }
 
-/// Search keywords for the Arrangements settings tab.
+/// Search keywords (kept for reference; content is inlined into window_tab::keywords()).
+#[allow(dead_code)]
 pub fn keywords() -> &'static [&'static str] {
     &[
         "arrangement",

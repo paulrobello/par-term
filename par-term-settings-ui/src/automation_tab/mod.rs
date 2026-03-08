@@ -3,6 +3,7 @@
 //! Contains:
 //! - Trigger definitions (regex patterns with actions)
 //! - Coprocess definitions (external processes piped to terminal)
+//! - External observer scripts (absorbed from scripts_tab)
 //!
 //! ## Sub-module layout
 //!
@@ -27,6 +28,8 @@ pub fn show(
 ) {
     triggers_section::show_triggers_section(ui, settings, changes_this_frame, collapsed);
     coprocesses_section::show_coprocesses_section(ui, settings, changes_this_frame, collapsed);
+    // Scripts section (absorbed from scripts_tab)
+    crate::scripts_tab::show(ui, settings, changes_this_frame, collapsed);
 }
 
 /// Search keywords for the Automation settings tab.
@@ -74,5 +77,24 @@ pub fn keywords() -> &'static [&'static str] {
         "restart",
         "restart policy",
         "restart delay",
+        // Scripts (absorbed from scripts_tab)
+        "script",
+        "scripting",
+        "python",
+        "observer",
+        "event",
+        "external",
+        "panel",
+        "subscriptions",
+        "script path",
+        "arguments",
+        "args",
+        "start",
+        "stop",
+        "auto-launch",
+        "permission",
+        "allow",
+        "write text",
+        "change config",
     ]
 }

@@ -79,13 +79,13 @@ Saving an arrangement captures a snapshot of every open window, including its po
 ### Via Settings UI
 
 1. Open Settings (press `F12` or use the View menu)
-2. Navigate to the **Arrangements** tab
-3. In the **Save Current Layout** section, enter a name for the arrangement
-4. Click **Save**
+2. Navigate to the **Window** tab
+3. Scroll to the **Save Current Layout** section
+4. Enter a name for the arrangement and click **Save**
 
 ### Via View Menu
 
-Select **View > Save Window Arrangement...** from the menu bar. This opens the Settings window to the Arrangements tab where you can enter a name and save.
+Select **View > Save Window Arrangement...** from the menu bar. This opens the Settings window to the Window tab (Arrangements section) where you can enter a name and save.
 
 ### Via Keybinding
 
@@ -97,7 +97,7 @@ keybindings:
     action: "save_arrangement"
 ```
 
-This opens the Settings window to the Arrangements tab for naming and saving.
+This opens the Settings window to the Window tab (Arrangements section) for naming and saving.
 
 ### Duplicate Name Handling
 
@@ -114,9 +114,9 @@ In multi-window layouts, par-term uses the exact `WindowId` returned from each w
 ### Via Settings UI
 
 1. Open Settings (press `F12` or use the View menu)
-2. Navigate to the **Arrangements** tab
-3. In the **Saved Arrangements** section, find the arrangement to restore
-4. Click **Restore** next to its name
+2. Navigate to the **Window** tab
+3. Scroll to the **Saved Arrangements** section
+4. Find the arrangement to restore and click **Restore** next to its name
 5. Confirm the restore in the dialog that appears
 
 ### Via Keybinding
@@ -141,9 +141,9 @@ auto_restore_arrangement: "Work Setup"
 
 **Via Settings UI:**
 
-1. Open Settings > Arrangements tab
-2. In the **Auto-Restore on Startup** section, select an arrangement from the dropdown
-3. Select **None (disabled)** to turn off auto-restore
+1. Open Settings > **Window** tab
+2. Scroll to the **Auto-Restore on Startup** section
+3. Select an arrangement from the dropdown (or **None (disabled)** to turn off auto-restore)
 
 When auto-restore is enabled, par-term skips normal window creation and instead restores the named arrangement. If the arrangement no longer exists, par-term falls back to creating a default window.
 
@@ -197,7 +197,7 @@ After computing the target position, par-term clamps the window to ensure it rem
 
 ## Managing Arrangements
 
-The Arrangements tab in Settings provides controls for managing saved arrangements.
+The **Arrangements** sections within the **Window** tab in Settings provide controls for managing saved arrangements.
 
 ### Renaming
 
@@ -230,7 +230,7 @@ Two keybinding actions are available for arrangements:
 
 | Action | Description |
 |--------|-------------|
-| `save_arrangement` | Opens the Settings Arrangements tab for saving |
+| `save_arrangement` | Opens the Settings Window tab (Arrangements section) for saving |
 | `restore_arrangement:<name>` | Restores the named arrangement immediately |
 
 ```yaml
@@ -297,7 +297,7 @@ graph TD
     Restore[restore.rs<br/>Monitor Mapping & Clamping]
     Storage[storage.rs<br/>YAML Persistence]
     WinMgr[WindowManager<br/>Orchestration]
-    SettingsUI[Arrangements Tab<br/>egui UI]
+    SettingsUI[Window Tab<br/>Arrangements Section<br/>egui UI]
     Menu[View Menu<br/>Save Item]
     Input[Input Events<br/>Keybinding Actions]
 

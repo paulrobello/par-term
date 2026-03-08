@@ -105,7 +105,7 @@ Multiple concurrent bars stack vertically at the configured position (top or bot
 
 ## Configuration
 
-All progress bar settings are available in the Settings UI under the **Progress Bar** tab.
+All progress bar settings are available in the Settings UI under the **Appearance** tab (scroll to the **Progress Bar** sections at the bottom).
 
 | Setting | Description | Default |
 |---------|-------------|---------|

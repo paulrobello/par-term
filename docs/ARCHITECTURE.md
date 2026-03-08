@@ -211,7 +211,7 @@ graph TD
 | **par-term-fonts** | Font discovery, loading, and fallback chain (`FontManager`, `FontData`). Text shaping via `TextShaper` (HarfBuzz/rustybuzz). |
 | **par-term-terminal** | Terminal session management (`TerminalManager`), scrollback buffer, styled content extraction, and PTY interaction wrappers. |
 | **par-term-render** | GPU rendering engine: cell renderer, graphics renderer (Sixel/iTerm2/Kitty), custom shader renderer, WGSL shaders, and glyph atlas management. |
-| **par-term-settings-ui** | All 20 settings tab modules (appearance, window, terminal, input, effects, notifications, integrations, advanced, etc.), sidebar navigation, and section helper utilities. |
+| **par-term-settings-ui** | 14 settings tabs (Appearance, Window, Input, Terminal, Effects, Status Bar, Profiles, Notifications, Integrations, Automation, Snippets & Actions, Prettifier, Assistant, Advanced), sidebar navigation, and section helper utilities. |
 | **par-term-input** | Input sequence generation — translates keyboard/mouse events into VT escape sequences for terminal input. |
 | **par-term-keybindings** | Keybinding parsing, matching, and registry with platform-aware modifier handling (`CmdOrCtrl`). |
 | **par-term-scripting** | Observer pattern and scripting system for event-driven automation. |
@@ -237,7 +237,7 @@ All public types from workspace crates are re-exported from the main `par-term` 
 *   **Menu (`src/menu/`)**: Native cross-platform menu bar using `muda` (macOS global menu, Windows/Linux per-window menus).
 *   **Configuration (`par-term-config`)**: Manages settings loaded from YAML files, handling platform-specific paths (`%APPDATA%` vs `~/.config`). Includes shader metadata caching and file watching.
 *   **Settings Window (`src/settings_window/`)**: Standalone egui window for configuration, separate from the main terminal window for better usability.
-*   **Settings UI (`par-term-settings-ui`)**: egui-based settings interface with 20 consolidated tabs: Appearance, Window, Input, Terminal, Effects, Badge, Progress Bar, Status Bar, Profiles, SSH, Notifications, Integrations, Automation, Scripts, Snippets, Actions, Prettifier, Arrangements, Assistant, and Advanced.
+*   **Settings UI (`par-term-settings-ui`)**: egui-based settings interface with 14 consolidated tabs: Appearance (includes Badge and Progress Bar), Window (includes Arrangements), Input, Terminal, Effects, Status Bar, Profiles, Notifications, Integrations (includes SSH), Automation (includes Scripts), Snippets & Actions, Prettifier, Assistant, and Advanced.
 *   **Profile Manager (`src/profile/`)**: iTerm2-style profile system for saving terminal session configurations (working directory, custom commands, tab names). Profiles stored in `~/.config/par-term/profiles.yaml`.
 *   **Scripting (`par-term-scripting`)**: Observer pattern implementation for event-driven automation and shell integration callbacks.
 *   **Update System (`par-term-update`)**: Self-update mechanism with manifest parsing, version comparison, and download/extraction logic.

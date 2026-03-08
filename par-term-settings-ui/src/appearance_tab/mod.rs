@@ -1,6 +1,6 @@
 //! Appearance settings tab.
 //!
-//! Consolidates: theme_tab, font_tab, cursor_tab
+//! Consolidates: theme_tab, font_tab, cursor_tab, badge_tab, progress_bar_tab
 //!
 //! Contains:
 //! - Theme selection
@@ -8,6 +8,8 @@
 //! - Text shaping (ligatures, kerning)
 //! - Font rendering options
 //! - Cursor appearance and behavior
+//! - Badge overlay settings
+//! - Progress bar style, position, and colors
 //!
 //! ## Sub-module layout
 //!
@@ -39,6 +41,9 @@ pub fn show(
     cursor_section::show_cursor_section(ui, settings, changes_this_frame, collapsed);
     cursor_section::show_cursor_locks_section(ui, settings, changes_this_frame, collapsed);
     cursor_section::show_cursor_effects_section(ui, settings, changes_this_frame, collapsed);
+    // Badge and Progress Bar absorbed from their own tabs
+    crate::badge_tab::show(ui, settings, changes_this_frame, collapsed);
+    crate::progress_bar_tab::show(ui, settings, changes_this_frame, collapsed);
 }
 
 /// Search keywords for the Appearance settings tab.
@@ -108,5 +113,40 @@ pub fn keywords() -> &'static [&'static str] {
         "bold italic",
         "font variant",
         "variant",
+        // Badge (absorbed from badge_tab)
+        "badge",
+        "badge enabled",
+        "badge format",
+        "badge color",
+        "badge opacity",
+        "badge font",
+        "margin",
+        "top margin",
+        "right margin",
+        "max width",
+        "max height",
+        "variable",
+        "session",
+        "hostname",
+        "username",
+        "path",
+        "overlay",
+        "label",
+        // Progress Bar (absorbed from progress_bar_tab)
+        "progress",
+        "progress bar",
+        "bar",
+        "percent",
+        "osc 934",
+        "osc 9;4",
+        "indeterminate",
+        "normal",
+        "warning",
+        "error",
+        "bar height",
+        "bar style",
+        "bar position",
+        "bar color",
+        "opacity",
     ]
 }

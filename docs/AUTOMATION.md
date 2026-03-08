@@ -704,7 +704,7 @@ If the specified file does not exist, a warning is logged and no sound is played
 
 ## Settings UI
 
-Triggers, coprocesses, and scripts are managed through the **Settings > Automation** tab and the **Settings > Scripts** tab.
+Triggers, coprocesses, and scripts are all managed through the **Settings > Automation** tab (Scripts is now a section within Automation).
 
 ### Managing Triggers
 
@@ -759,7 +759,7 @@ Each coprocess has a collapsible output viewer that displays the coprocess's std
 - Click **"Clear"** to discard buffered output
 - Output accumulates in memory until cleared or the tab is closed
 
-> **📝 Note:** The quick search bar in Settings supports the following keywords for the Automation tab: `trigger`, `regex`, `pattern`, `match`, `action`, `highlight`, `notify`, `coprocess`, `pipe`, `subprocess`, `auto start`, `restart`. The Scripts tab supports: `script`, `observer`, `json`, `event`, `panel`, `subscribe`.
+> **📝 Note:** The quick search bar in Settings supports the following keywords for the **Automation** tab (which now also includes Scripts): `trigger`, `regex`, `pattern`, `match`, `action`, `highlight`, `notify`, `coprocess`, `pipe`, `subprocess`, `auto start`, `restart`, `script`, `observer`, `event`, `panel`, `subscribe`.
 
 ## Complete Configuration Examples
 

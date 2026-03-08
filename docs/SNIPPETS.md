@@ -207,8 +207,8 @@ Sequence: Escape :wq Enter
 ### Creating Actions
 
 1. Open Settings (⌘+, / Ctrl+,)
-2. Navigate to the **Actions** tab
-3. Click **+ Add Action**
+2. Navigate to the **Snippets & Actions** tab
+3. Scroll to the **Custom Actions** section and click **+ Add Action**
 4. Fill in the action details:
    - **Title**: A human-readable name (e.g., "Run Tests")
    - **Type**: Select from Shell Command, Insert Text, or Key Sequence
@@ -223,8 +223,8 @@ Sequence: Escape :wq Enter
 Actions are triggered via keyboard shortcuts. You can assign keybindings in two ways:
 
 **Via Action Editor (Recommended):**
-1. Open Settings → **Actions** tab
-2. Edit or create an action
+1. Open Settings → **Snippets & Actions** tab
+2. Scroll to the **Custom Actions** section and edit or create an action
 3. Click the **🎤 Record** button in the Keybinding field
 4. Press the desired key combination
 5. Save the action

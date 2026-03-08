@@ -420,11 +420,11 @@ impl WindowManager {
                 }
             }
             MenuAction::SaveArrangement => {
-                // Open settings window to the Arrangements tab
+                // Open settings window to the Window tab (Arrangements is now a section there)
                 self.open_settings_window(event_loop);
                 if let Some(sw) = &mut self.settings_window {
                     sw.settings_ui
-                        .set_selected_tab(crate::settings_ui::sidebar::SettingsTab::Arrangements);
+                        .set_selected_tab(crate::settings_ui::sidebar::SettingsTab::Window);
                 }
             }
             MenuAction::InstallShellIntegrationRemote => {

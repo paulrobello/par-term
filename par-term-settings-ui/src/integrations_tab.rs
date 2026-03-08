@@ -76,6 +76,32 @@ impl SettingsUI {
         ) {
             self.show_shaders_section(ui, _changes_this_frame, collapsed);
         }
+
+        // SSH section (absorbed from ssh_tab)
+        if section_matches(
+            &query,
+            "SSH",
+            &[
+                "ssh",
+                "remote",
+                "host",
+                "connect",
+                "quick connect",
+                "mdns",
+                "bonjour",
+                "discovery",
+                "auto-switch",
+                "auto switch",
+                "profile switch",
+                "hostname",
+                "known hosts",
+                "revert profile",
+                "disconnect",
+                "scan timeout",
+            ],
+        ) {
+            self.show_ssh_tab_as_section(ui, _changes_this_frame, collapsed);
+        }
     }
 
     fn show_shell_integration_section(
@@ -461,5 +487,21 @@ pub fn keywords() -> &'static [&'static str] {
         "location",
         "copy",
         "modified",
+        // SSH (absorbed from ssh_tab)
+        "ssh",
+        "remote",
+        "host",
+        "connect",
+        "quick connect",
+        "mdns",
+        "bonjour",
+        "discovery",
+        "auto-switch",
+        "auto switch",
+        "profile switch",
+        "known hosts",
+        "revert profile",
+        "disconnect",
+        "scan timeout",
     ]
 }

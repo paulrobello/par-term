@@ -304,7 +304,7 @@ Save and restore complete window layouts as named arrangements. This provides iT
 
 ### Settings UI
 
-The Arrangements tab in Settings provides controls to save, restore, rename, delete, and reorder arrangements. Set any arrangement as the default to auto-restore on startup.
+The **Window** tab in Settings includes Arrangements sections at the bottom for saving, restoring, renaming, deleting, and reordering arrangements. Set any arrangement as the default to auto-restore on startup.
 
 ### Keybinding Support
 

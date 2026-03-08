@@ -138,7 +138,7 @@ Scans shell history for previous `ssh` commands and extracts connection details 
 
 Discovers SSH hosts on the local network by browsing the `_ssh._tcp.local.` service type.
 
-**This feature is opt-in.** Enable it in Settings > SSH > mDNS/Bonjour Discovery, or in config:
+**This feature is opt-in.** Enable it in Settings > Integrations > SSH > mDNS/Bonjour Discovery, or in config:
 
 ```yaml
 enable_mdns_discovery: true
@@ -249,7 +249,7 @@ keybindings:
 
 ## Settings UI
 
-The SSH tab in Settings (`F12`) provides three sections:
+The **Integrations** tab in Settings (`F12`) includes an **SSH** section with three sub-sections:
 
 **Profile Auto-Switching:**
 - Toggle auto-switch on SSH connection
@@ -276,7 +276,7 @@ The SSH tab in Settings (`F12`) provides three sections:
 - Shell integration must be installed on the remote host for OSC 1337 hostname reporting
 
 **mDNS hosts not appearing:**
-- Enable mDNS in Settings > SSH > mDNS/Bonjour Discovery
+- Enable mDNS in Settings > Integrations > SSH > mDNS/Bonjour Discovery
 - Increase `mdns_scan_timeout_secs` for slower networks
 - Ensure the remote hosts advertise `_ssh._tcp` via Bonjour/Avahi
 

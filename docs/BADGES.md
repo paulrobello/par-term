@@ -53,9 +53,10 @@ graph TD
 **Method 1: Settings UI**
 
 1. Press `F12` to open Settings
-2. Navigate to the **Badge** tab
-3. Enable "Show badge"
-4. Configure format, appearance, and position
+2. Navigate to the **Appearance** tab
+3. Scroll to the **Badge** sections at the bottom
+4. Enable "Show badge"
+5. Configure format, appearance, and position
 
 **Method 2: Configuration File**
 

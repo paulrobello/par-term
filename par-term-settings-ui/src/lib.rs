@@ -34,16 +34,13 @@ pub mod actions_tab;
 pub mod advanced_tab;
 pub mod ai_inspector_tab;
 pub mod appearance_tab;
-pub mod arrangements_tab;
 pub mod automation_tab;
-pub mod badge_tab;
 pub mod effects_tab;
 pub mod input_tab;
 pub mod integrations_tab;
 pub mod notifications_tab;
 pub mod prettifier_tab;
 pub mod profiles_tab;
-pub mod progress_bar_tab;
 pub mod quick_settings;
 pub mod scripts_tab;
 pub mod search_keywords;
@@ -54,6 +51,11 @@ pub mod ssh_tab;
 pub mod status_bar_tab;
 pub mod terminal_tab;
 pub mod window_tab;
+
+// Internal implementation modules (no longer exposed as standalone tabs)
+mod arrangements_tab;
+mod badge_tab;
+mod progress_bar_tab;
 
 // Background tab is still needed by effects_tab for delegation
 pub mod background_tab;

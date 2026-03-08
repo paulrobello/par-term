@@ -44,19 +44,13 @@ pub enum SettingsTab {
     Input,
     Terminal,
     Effects,
-    Badge,
-    ProgressBar,
     StatusBar,
     Profiles,
-    Ssh,
     Notifications,
     Integrations,
     Automation,
-    Scripts,
     Snippets,
-    Actions,
     ContentPrettifier,
-    Arrangements,
     AiInspector,
     Advanced,
 }
@@ -70,19 +64,13 @@ impl SettingsTab {
             Self::Input => "Input",
             Self::Terminal => "Terminal",
             Self::Effects => "Effects",
-            Self::Badge => "Badge",
-            Self::ProgressBar => "Progress Bar",
             Self::StatusBar => "Status Bar",
             Self::Profiles => "Profiles",
-            Self::Ssh => "SSH",
             Self::Notifications => "Notifications",
             Self::Integrations => "Integrations",
             Self::Automation => "Automation",
-            Self::Scripts => "Scripts",
-            Self::Snippets => "Snippets",
-            Self::Actions => "Actions",
+            Self::Snippets => "Snippets & Actions",
             Self::ContentPrettifier => "Prettifier",
-            Self::Arrangements => "Arrangements",
             Self::AiInspector => "Assistant",
             Self::Advanced => "Advanced",
         }
@@ -96,19 +84,13 @@ impl SettingsTab {
             Self::Input => "⌨",
             Self::Terminal => "📟",
             Self::Effects => "✨",
-            Self::Badge => "🏷",
-            Self::ProgressBar => "📊",
             Self::StatusBar => "🖥",
             Self::Profiles => "👤",
-            Self::Ssh => "🔗",
             Self::Notifications => "🔔",
             Self::Integrations => "🔌",
             Self::Automation => "⚡",
-            Self::Scripts => "📜",
             Self::Snippets => "📝",
-            Self::Actions => "🚀",
             Self::ContentPrettifier => "🔮",
-            Self::Arrangements => "📐",
             Self::AiInspector => "💬",
             Self::Advanced => "⚙",
         }
@@ -122,19 +104,13 @@ impl SettingsTab {
             Self::Input,
             Self::Terminal,
             Self::Effects,
-            Self::Badge,
-            Self::ProgressBar,
             Self::StatusBar,
             Self::Profiles,
-            Self::Ssh,
             Self::Notifications,
             Self::Integrations,
             Self::Automation,
-            Self::Scripts,
             Self::Snippets,
-            Self::Actions,
             Self::ContentPrettifier,
-            Self::Arrangements,
             Self::AiInspector,
             Self::Advanced,
         ]
@@ -217,28 +193,30 @@ pub fn tab_matches_search(tab: SettingsTab, query: &str) -> bool {
 /// Get a summary of tab contents for tooltip.
 fn tab_contents_summary(tab: SettingsTab) -> &'static str {
     match tab {
-        SettingsTab::Appearance => "Theme, fonts, cursor style and colors",
-        SettingsTab::Window => "Window size, opacity, tab bar, split panes, scrollbar",
+        SettingsTab::Appearance => {
+            "Theme, fonts, cursor, badge overlay, progress bar style and colors"
+        }
+        SettingsTab::Window => {
+            "Window size, opacity, tab bar, split panes, scrollbar, arrangements"
+        }
         SettingsTab::Input => "Keyboard shortcuts, mouse behavior, clipboard",
         SettingsTab::Terminal => "Shell, scrollback, search",
         SettingsTab::Effects => "Background image/shader, cursor effects",
         SettingsTab::StatusBar => {
             "Status bar widgets, layout, styling, auto-hide, and poll intervals"
         }
-        SettingsTab::Badge => "Session info overlay (hostname, username, etc.)",
-        SettingsTab::ProgressBar => "Progress bar style, position, and colors",
         SettingsTab::Profiles => "Create and manage terminal profiles",
-        SettingsTab::Ssh => "SSH connection settings, mDNS discovery, auto-switch behavior",
         SettingsTab::Notifications => "Bell, activity alerts, desktop notifications",
-        SettingsTab::Integrations => "Shell integration, shader bundle installation",
-        SettingsTab::Automation => "Regex triggers, trigger actions, coprocesses",
-        SettingsTab::Scripts => "External observer scripts that receive terminal events",
-        SettingsTab::Snippets => "Text snippets with variable substitution",
-        SettingsTab::Actions => "Custom actions (shell, text, keys)",
+        SettingsTab::Integrations => {
+            "Shell integration, shader bundle installation, SSH connection settings"
+        }
+        SettingsTab::Automation => {
+            "Regex triggers, trigger actions, coprocesses, external observer scripts"
+        }
+        SettingsTab::Snippets => "Text snippets with variable substitution, custom actions",
         SettingsTab::ContentPrettifier => {
             "Content detection, renderers, custom renderers, Claude Code integration"
         }
-        SettingsTab::Arrangements => "Save and restore window layouts",
         SettingsTab::AiInspector => "Assistant agent integration, panel settings, permissions",
         SettingsTab::Advanced => {
             "tmux integration, logging, file transfers, updates, debug logging"

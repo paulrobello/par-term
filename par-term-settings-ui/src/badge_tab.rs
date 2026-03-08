@@ -367,7 +367,8 @@ fn show_variables_section(
     );
 }
 
-/// Search keywords for the Badge settings tab.
+/// Search keywords (kept for reference; content is inlined into appearance_tab::keywords()).
+#[allow(dead_code)]
 pub fn keywords() -> &'static [&'static str] {
     &[
         // General

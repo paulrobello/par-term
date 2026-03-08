@@ -1,10 +1,11 @@
-//! Snippets settings tab.
+//! Snippets & Actions settings tab.
 //!
 //! Contains:
 //! - [`list`]: Snippet list rendering grouped by folder, with edit/delete/toggle actions
 //! - [`editor`]: Snippet edit form with variable substitution support
 //! - [`io`]: Import/export functionality (YAML)
 //! - [`variables_reference`]: Built-in variable documentation panel
+//! - Custom actions (shell commands, text insertion, key sequences) — absorbed from actions_tab
 
 mod editor;
 mod io;
@@ -60,6 +61,9 @@ pub fn show(
     ) {
         variables_reference::show_variables_reference_section(ui, settings, collapsed);
     }
+
+    // Actions section (absorbed from actions_tab)
+    crate::actions_tab::show(ui, settings, changes_this_frame, collapsed);
 }
 
 // ============================================================================
@@ -96,7 +100,7 @@ fn show_snippets_section(
     );
 }
 
-/// Search keywords for the Snippets settings tab.
+/// Search keywords for the Snippets & Actions settings tab.
 pub fn keywords() -> &'static [&'static str] {
     &[
         "snippet",
@@ -126,5 +130,17 @@ pub fn keywords() -> &'static [&'static str] {
         "export",
         "import",
         "yaml",
+        // Actions (absorbed from actions_tab)
+        "action",
+        "actions",
+        "custom action",
+        "shell command",
+        "text insert",
+        "key sequence",
+        "macro",
+        "automation",
+        "shortcut",
+        "binding",
+        "arguments",
     ]
 }

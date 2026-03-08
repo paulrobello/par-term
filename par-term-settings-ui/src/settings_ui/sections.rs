@@ -86,20 +86,11 @@ impl SettingsUI {
             SettingsTab::Effects => {
                 crate::effects_tab::show(ui, self, changes_this_frame, &mut collapsed);
             }
-            SettingsTab::Badge => {
-                crate::badge_tab::show(ui, self, changes_this_frame, &mut collapsed);
-            }
-            SettingsTab::ProgressBar => {
-                crate::progress_bar_tab::show(ui, self, changes_this_frame, &mut collapsed);
-            }
             SettingsTab::StatusBar => {
                 crate::status_bar_tab::show(ui, self, changes_this_frame, &mut collapsed);
             }
             SettingsTab::Profiles => {
                 crate::profiles_tab::show(ui, self, changes_this_frame, &mut collapsed);
-            }
-            SettingsTab::Ssh => {
-                self.show_ssh_tab(ui, changes_this_frame);
             }
             SettingsTab::Notifications => {
                 crate::notifications_tab::show(ui, self, changes_this_frame, &mut collapsed);
@@ -110,20 +101,11 @@ impl SettingsUI {
             SettingsTab::Automation => {
                 crate::automation_tab::show(ui, self, changes_this_frame, &mut collapsed);
             }
-            SettingsTab::Scripts => {
-                crate::scripts_tab::show(ui, self, changes_this_frame, &mut collapsed);
-            }
             SettingsTab::Snippets => {
                 crate::snippets_tab::show(ui, self, changes_this_frame, &mut collapsed);
             }
-            SettingsTab::Actions => {
-                crate::actions_tab::show(ui, self, changes_this_frame, &mut collapsed);
-            }
             SettingsTab::ContentPrettifier => {
                 crate::prettifier_tab::show(ui, self, changes_this_frame, &mut collapsed);
-            }
-            SettingsTab::Arrangements => {
-                crate::arrangements_tab::show(ui, self, changes_this_frame, &mut collapsed);
             }
             SettingsTab::AiInspector => {
                 crate::ai_inspector_tab::show(ui, self, changes_this_frame, &mut collapsed);

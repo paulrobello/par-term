@@ -460,7 +460,7 @@ Enable `shader_hot_reload: true` in your config for faster iteration during shad
 
 1. Verify `~/.ssh/config` exists and contains valid `Host` entries (not just `Host *` wildcards)
 2. Check that `~/.ssh/known_hosts` is readable
-3. For network-discovered hosts, enable mDNS in **Settings > SSH > mDNS/Bonjour Discovery** or set `enable_mdns_discovery: true` in config
+3. For network-discovered hosts, enable mDNS in **Settings > Integrations > SSH > mDNS/Bonjour Discovery** or set `enable_mdns_discovery: true` in config
 
 ### Profile Not Auto-Switching on SSH
 
@@ -482,7 +482,7 @@ Enable `shader_hot_reload: true` in your config for faster iteration during shad
 
 **Solution:**
 
-1. Enable mDNS in **Settings > SSH > mDNS/Bonjour Discovery** or set `enable_mdns_discovery: true`
+1. Enable mDNS in **Settings > Integrations > SSH > mDNS/Bonjour Discovery** or set `enable_mdns_discovery: true`
 2. Increase `mdns_scan_timeout_secs` for slower networks (range: 1 to 10 seconds)
 3. Ensure remote hosts advertise `_ssh._tcp` via Bonjour (macOS) or Avahi (Linux)
 
