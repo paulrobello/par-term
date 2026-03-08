@@ -769,7 +769,7 @@ Essential feature for emacs/vim users.
 
 ### Getting Started
 - **[Getting Started Guide](docs/GETTING_STARTED.md)** - Install, launch, and configure par-term in under 10 minutes.
-- **[Quick Start Fonts Guide](QUICK_START_FONTS.md)** - Get up and running with custom fonts.
+- **[Quick Start Fonts Guide](docs/QUICK_START_FONTS.md)** - Get up and running with custom fonts.
 - **[Configuration Examples](examples/README.md)** - Annotated YAML configuration examples.
 - **[Environment Variables](docs/ENVIRONMENT_VARIABLES.md)** - All recognized environment variables.
 

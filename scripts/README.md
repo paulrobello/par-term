@@ -225,6 +225,6 @@ To add new tests:
 ## See Also
 
 - `examples/` - Configuration file examples
-- `QUICK_START_FONTS.md` - 5-minute font setup guide
+- `docs/QUICK_START_FONTS.md` - 5-minute font setup guide
 - `IMPLEMENTATION_SUMMARY.md` - Technical architecture reference
 - `README.md` - Main project documentation
