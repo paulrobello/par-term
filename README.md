@@ -21,7 +21,54 @@ New to par-term? The [Getting Started Guide](docs/GETTING_STARTED.md) walks you 
 - **[Configuration Reference](docs/CONFIG_REFERENCE.md)** — All 200+ configuration options
 - **[Keyboard Shortcuts](docs/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
 
-## What's New in 0.24.0
+## What's New in 0.25.0
+
+### 🔒 Security & Safety
+
+- **Hardened ACP Subprocess Spawning**: Agents spawn without a shell interpreter when no shell metacharacters are present (SEC-005); process-wide mutex closes TOCTOU race in permission checks (SEC-004)
+- **Session Log Redaction**: 45 new patterns covering API keys, AWS credentials, PEM headers, cloud/vault tokens, database passwords, and 2FA/TOTP prompts (SEC-006)
+- **Automation Warning Banner**: Amber warning shown in Settings → Automation when any trigger has `require_user_action: false` (SEC-002)
+- **Shell Injection Prevention**: File/URL opening uses direct `process::Command` spawn when no shell metacharacters present (SEC-003)
+- **Dependency Security**: Migrated from `serde_yml` to `serde_yaml_ng`; update checker domain allowlists and binary content validation added
+- **Path Traversal Prevention**: Config paths and shader names validated against traversal attacks
+
+### ✨ New Features
+
+- **Jellyfish Shader**: New `jellyfish.glsl` background shader with animated caustic light shimmer and bioluminescent particles
+- **Configurable Chat Font Size**: Assistant panel font size adjustable via 10–24 pt slider (live-reloads)
+- **Arrangement Replace Button**: Overwrites a saved arrangement with the current layout — inline confirmation, no dialog
+- **MP3 Audio Support**: Alert sounds now accept WAV/MP3/OGG/FLAC; file picker ("Browse…") added to each sound path field
+- **Snap Window to Grid**: `snap_window_to_grid` option (default `true`) snaps the window to exact cell boundaries on resize
+- **Visual Bell Color**: Configurable flash color for visual bell (`notification_visual_bell_color`) with color picker in Settings
+- **URL Underline-Only Mode**: `link_highlight_color_enabled: false` underlines links without changing text color
+- **Script Command Handlers**: `WriteText`, `Notify`, `SetBadge`, `SetVariable`, `RunCommand`, `ChangeConfig` with permission opt-ins and rate limiting
+- **Shell Integration Installer**: `make install-shell-integration` copies bash/zsh/fish scripts to `~/.config/par-term/`
+- **Expanded Nerd Font Presets**: "UI Actions" (16 icons) and "Navigation" (16 icons) categories; 4 more icons in "Status & Alerts"
+
+### 🐛 Bug Fixes
+
+- **Cursor Rendering**: Block/beam/hollow/underline cursors all fixed in pane renderer; 3-phase draw order enforced (bgs → text → cursor overlays)
+- **Shader Pipeline**: Full-content shaders, cursor shaders, and opacity all work correctly in split-pane mode
+- **Half-Block Characters**: ▄/▀ banding eliminated; both halves rendered entirely via text pipeline
+- **Split-Pane Isolation**: Scrollbar, URL highlights, bell, selection, and theme changes all correctly scoped to the focused pane
+- **Scrollbar**: Width stays constant on resize; cross-tab mark contamination fixed; marks cleared on `clear` command
+- **Search Highlights**: Cmd+F highlights now appear in the pane render path
+- **Session Restore**: Single-pane tabs save `pane_layout = None`; alternating launch bug fixed
+- **"Too Many Open Files"**: Switched from kqueue to FSEvents for config/shader watchers — eliminates O_EVTONLY fd exhaustion
+- **Shell Integration**: Exit code capture fixed in bash; close-tab confirmation uses full cleanup path
+- **MCP IPC Path**: `config_update` tool writes IPC files to `~/.config/par-term/` (not `~/Library/Application Support/`)
+
+### 🏗️ Architecture & Performance
+
+- **Settings Consolidated**: Settings sidebar reduced from 20 tabs to 14 tabs
+- **Rendering Unified**: Removed dormant single-pane render path; `emit_three_phase_draw_calls()` is the single draw-call sequencer (~450 lines removed)
+- **GPU Performance**: Pre-allocated pane background uniform buffers; scratch `Vec` reuse in `CellRenderer`; regex caching for triggers
+- **Full Codebase Audit**: All 28 audit findings resolved — no `#[allow(clippy::too_many_arguments)]` suppressions, no dead-code suppression, 12 files split that exceeded 800 lines
+- **Terminal RwLock**: `TerminalManager` migrated from `Mutex` to `RwLock` for better read concurrency
+- **1,065 Tests**: 73 keybinding integration tests and 97 copy-mode state machine tests added
+
+<details>
+<summary><strong>What's New in 0.24.0</strong></summary>
 
 ### 🔒 Security & Safety
 
@@ -40,6 +87,8 @@ New to par-term? The [Getting Started Guide](docs/GETTING_STARTED.md) walks you 
 - **Prettifier Small Block Detection**: Removed block-size guard that prevented small blocks from rendering
 - **Prettifier Claude Code Integration**: Viewport hash used to clear stale Claude Code blocks; CC segmentation and throttle restored in split module
 - **Split-Pane Unsafe Cell Pointer**: Eliminated unsafe cell pointer leak in split-pane render path
+
+</details>
 
 <details>
 <summary><strong>What's New in 0.23.0</strong></summary>

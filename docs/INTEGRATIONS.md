@@ -235,7 +235,7 @@ par-term tracks installed shaders using a manifest file for safe updates and uni
 **Manifest Contents:**
 ```json
 {
-  "version": "0.24.0",
+  "version": "0.25.0",
   "generated": "2026-03-07T18:17:58.976671+00:00",
   "files": [
     {

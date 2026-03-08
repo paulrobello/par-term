@@ -1,6 +1,6 @@
 [package]
 name = "par-term-prettifier"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 authors = ["Paul Robello <probello@gmail.com>"]
 description = "Content prettifier for par-term terminal emulator (Markdown, JSON, YAML, diffs, diagrams)"
@@ -11,7 +11,7 @@ keywords = ["terminal", "prettifier", "markdown", "syntax-highlighting"]
 categories = ["command-line-utilities"]
 
 [dependencies]
-par-term-config = { path = "../par-term-config", version = "0.6.0", features = ["watcher", "wgpu-types"] }
+par-term-config = { path = "../par-term-config", version = "0.7.0", features = ["watcher", "wgpu-types"] }
 
 regex = "1.12.3"
 serde_json = "1.0.149"
