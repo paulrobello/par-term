@@ -184,6 +184,7 @@ impl Renderer {
                         show_scrollbar: pane.show_scrollbar,
                         clear_first: false,
                         skip_background_image: true, // Shader handles background
+                        fill_default_bg_cells: false, // Shader shows through default-bg cells
                         separator_marks: &separator_marks,
                         pane_background: pane.background.as_ref(),
                     },
@@ -330,6 +331,7 @@ impl Renderer {
                         show_scrollbar: pane.show_scrollbar,
                         clear_first: false, // Don't clear - we already cleared the surface
                         skip_background_image: has_background_image || has_custom_shader,
+                        fill_default_bg_cells: has_background_image, // Only fill gaps in bg-image mode; shader shows through
                         separator_marks: &separator_marks,
                         pane_background: pane.background.as_ref(),
                     },

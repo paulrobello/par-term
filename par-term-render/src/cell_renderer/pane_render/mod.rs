@@ -22,6 +22,9 @@ pub struct PaneRenderViewParams<'a> {
     pub show_scrollbar: bool,
     pub clear_first: bool,
     pub skip_background_image: bool,
+    /// When true, emit background quads for default-bg cells (fills gaps in background-image mode).
+    /// Set to false in custom shader mode so the shader output shows through.
+    pub fill_default_bg_cells: bool,
     pub separator_marks: &'a [SeparatorMark],
     pub pane_background: Option<&'a par_term_config::PaneBackground>,
 }
@@ -35,6 +38,7 @@ pub(super) struct PaneInstanceBuildParams<'a> {
     pub cursor_pos: Option<(usize, usize)>,
     pub cursor_opacity: f32,
     pub skip_solid_background: bool,
+    pub fill_default_bg_cells: bool,
     pub separator_marks: &'a [SeparatorMark],
 }
 
@@ -71,6 +75,7 @@ impl CellRenderer {
             show_scrollbar,
             clear_first,
             skip_background_image,
+            fill_default_bg_cells,
             separator_marks,
             pane_background,
         } = p;
@@ -85,6 +90,7 @@ impl CellRenderer {
             cursor_pos,
             cursor_opacity,
             skip_solid_background: skip_background_image,
+            fill_default_bg_cells,
             separator_marks,
         })?;
 
@@ -233,6 +239,7 @@ impl CellRenderer {
             cursor_pos,
             cursor_opacity,
             skip_solid_background,
+            fill_default_bg_cells,
             separator_marks,
         } = p;
         let _shaping_options = ShapingOptions {
@@ -327,7 +334,12 @@ impl CellRenderer {
                 // no viewport fill is drawn, so default-bg cells between colored segments would
                 // show the background image through — causing visible gaps/lines in the tmux
                 // status bar. In that mode we render them with the theme background color instead.
-                if is_half_block || (is_default_bg && !has_cursor && !skip_solid_background) {
+                // Skip default-bg cells unless fill_default_bg_cells is set (background-image mode).
+                // In normal mode: viewport fill quad covers them — no individual quad needed.
+                // In shader mode: shader output must show through — do not paint over it.
+                // In bg-image mode: fill_default_bg_cells=true — render with theme bg color to
+                // close gaps that would otherwise show the background image unexpectedly.
+                if is_half_block || (is_default_bg && !has_cursor && !fill_default_bg_cells) {
                     col += 1;
                     continue;
                 }

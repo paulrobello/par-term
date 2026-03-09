@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Eliminated dark fringe ("gap") between powerline separator glyphs and adjacent colored segments in the tmux status bar. In background-image mode all cells render through the same BG pipeline, causing right-pointing separators (E0B0/E0B1/E0B4/E0B5) to overwrite the 1 px colored extension from the adjacent run. The separator's own BG quad is now trimmed by 1 px on the colored-neighbor side so the extension remains visible.
+- Fixed regression where custom shader background was hidden by opaque default-bg cell quads. A new `fill_default_bg_cells` flag now controls default-bg cell rendering independently of `skip_solid_background`: set only in background-image mode (not shader mode), so the shader output shows through default-bg cells as intended.
 
 ### Changed
 - Reduced dark-theme tab color preset brightness by 25% for better visual comfort.
