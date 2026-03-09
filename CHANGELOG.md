@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Eliminated dark fringe ("gap") between powerline separator glyphs and adjacent colored segments in the tmux status bar. In background-image mode all cells render through the same BG pipeline, causing right-pointing separators (E0B0/E0B1/E0B4/E0B5) to overwrite the 1 px colored extension from the adjacent run. The separator's own BG quad is now trimmed by 1 px on the colored-neighbor side so the extension remains visible.
+
 ### Changed
 - Reduced dark-theme tab color preset brightness by 25% for better visual comfort.
 - Updated `par-term-emu-core-rust` dependency to v0.40.0.

@@ -6,7 +6,6 @@ use super::{BackgroundInstance, Cell, CellRenderer, PaneViewport, TextInstance};
 use anyhow::Result;
 use par_term_config::{SeparatorMark, color_u8x4_rgb_to_f32, color_u8x4_rgb_to_f32_a};
 use par_term_fonts::text_shaper::ShapingOptions;
-
 mod cursor_overlays;
 mod separators;
 
@@ -323,7 +322,12 @@ impl CellRenderer {
                     matches!(chars.next(), Some('\u{2580}' | '\u{2584}')) && chars.next().is_none()
                 };
 
-                if is_half_block || (is_default_bg && !has_cursor) {
+                // Skip default-bg cells only when NOT in background-image/shader mode.
+                // When skip_solid_background is true (background image or custom shader active),
+                // no viewport fill is drawn, so default-bg cells between colored segments would
+                // show the background image through — causing visible gaps/lines in the tmux
+                // status bar. In that mode we render them with the theme background color instead.
+                if is_half_block || (is_default_bg && !has_cursor && !skip_solid_background) {
                     col += 1;
                     continue;
                 }
@@ -358,9 +362,9 @@ impl CellRenderer {
                     }
 
                     // Cursor cell can't be merged
-                    let x0 = content_x + col as f32 * self.grid.cell_width;
-                    let x1 = x0 + self.grid.cell_width;
                     // Snap to pixel boundaries to match text pipeline alignment
+                    let x0 = (content_x + col as f32 * self.grid.cell_width).round();
+                    let x1 = (content_x + (col + 1) as f32 * self.grid.cell_width).round();
                     let y0 = (content_y + row as f32 * self.grid.cell_height).round();
                     let y1 = (content_y + (row + 1) as f32 * self.grid.cell_height).round();
 
@@ -409,12 +413,79 @@ impl CellRenderer {
                 }
                 let run_length = col - start_col;
 
-                // Create single quad spanning entire run
-                let x0 = content_x + start_col as f32 * self.grid.cell_width;
-                let x1 = content_x + (start_col + run_length) as f32 * self.grid.cell_width;
-                // Snap to pixel boundaries to match text pipeline alignment
+                // Create single quad spanning entire run.
+                // Snap all edges to pixel boundaries to match the text pipeline and
+                // eliminate sub-pixel gaps between adjacent differently-colored cell runs.
+                let x0 = (content_x + start_col as f32 * self.grid.cell_width).round();
+                let x1 = (content_x + (start_col + run_length) as f32 * self.grid.cell_width).round();
                 let y0 = (content_y + row as f32 * self.grid.cell_height).round();
                 let y1 = (content_y + (row + 1) as f32 * self.grid.cell_height).round();
+
+                // Extend the colored bg quad 1 px under adjacent powerline separator glyphs
+                // to eliminate the dark fringe at their anti-aliased edges.
+                //
+                // Powerline separators with default bg rely on the viewport fill (no BG quad
+                // in normal mode). Their anti-aliased corner/edge pixels blend:
+                //   fg * alpha + dark_fill * (1 - alpha)  →  visible dark fringe
+                // Extending the adjacent colored quad by 1 px underneath changes the blend to:
+                //   fg * alpha + colored * (1 - alpha)  →  seamless transition
+                // The 1 px is small enough to be hidden under the glyph itself.
+                let is_default_bg_cell = |bg: [u8; 4]| -> bool {
+                    let f = color_u8x4_rgb_to_f32(bg);
+                    (f[0] - self.background_color[0]).abs() < 0.001
+                        && (f[1] - self.background_color[1]).abs() < 0.001
+                        && (f[2] - self.background_color[2]).abs() < 0.001
+                };
+                // Extend right if the next cell is any powerline separator with default bg.
+                // Covers anti-aliased left edges and transparent left corners of left-pointing seps.
+                let x1 = if col < row_cells.len()
+                    && matches!(
+                        row_cells[col].grapheme.as_str(),
+                        "\u{E0B0}" | "\u{E0B1}" | "\u{E0B2}" | "\u{E0B3}"
+                            | "\u{E0B4}" | "\u{E0B5}" | "\u{E0B6}" | "\u{E0B7}"
+                    )
+                    && is_default_bg_cell(row_cells[col].bg_color)
+                {
+                    x1 + 1.0
+                } else {
+                    x1
+                };
+                // Extend left if the previous cell is any powerline separator with default bg.
+                // Covers anti-aliased right edges and transparent right corners of right-pointing seps.
+                let x0 = if start_col > 0
+                    && matches!(
+                        row_cells[start_col - 1].grapheme.as_str(),
+                        "\u{E0B0}" | "\u{E0B1}" | "\u{E0B2}" | "\u{E0B3}"
+                            | "\u{E0B4}" | "\u{E0B5}" | "\u{E0B6}" | "\u{E0B7}"
+                    )
+                    && is_default_bg_cell(row_cells[start_col - 1].bg_color)
+                {
+                    x0 - 1.0
+                } else {
+                    x0
+                };
+
+                // In background-image mode (skip_solid_background=true), right-pointing
+                // separator cells (E0B0/E0B1/E0B4/E0B5) are rendered in the RLE path and
+                // their BG quad is drawn AFTER the adjacent colored run's quad. This causes
+                // them to overwrite the 1px EXT-RIGHT extension from the colored run.
+                //
+                // Fix: when this cell IS a right-pointing separator with a colored left
+                // neighbor, trim our own BG quad x0 by 1px so the colored extension stays
+                // visible under the separator's left edge.
+                let x0 = if skip_solid_background
+                    && is_default_bg
+                    && matches!(
+                        row_cells[start_col].grapheme.as_str(),
+                        "\u{E0B0}" | "\u{E0B1}" | "\u{E0B4}" | "\u{E0B5}"
+                    )
+                    && start_col > 0
+                    && !is_default_bg_cell(row_cells[start_col - 1].bg_color)
+                {
+                    x0 + 1.0
+                } else {
+                    x0
+                };
 
                 if bg_index < self.buffers.max_bg_instances {
                     self.bg_instances[bg_index] = BackgroundInstance {

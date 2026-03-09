@@ -92,13 +92,16 @@ impl CellRenderer {
                     _ => {}
                 }
                 // Cursor cell can't be merged, render it alone
-                let x0 = self.grid.window_padding
-                    + self.grid.content_offset_x
-                    + col as f32 * self.grid.cell_width;
-                let x1 = self.grid.window_padding
-                    + self.grid.content_offset_x
-                    + (col + 1) as f32 * self.grid.cell_width;
                 // Snap to pixel boundaries to match text pipeline alignment
+                let x0 = (self.grid.window_padding
+                    + self.grid.content_offset_x
+                    + col as f32 * self.grid.cell_width)
+                    .round();
+                let x1 = (self.grid.window_padding
+                    + self.grid.content_offset_x
+                    + (col + 1) as f32 * self.grid.cell_width)
+                    .round();
+                // Snap Y to pixel boundaries to match text pipeline alignment
                 let y0 = (self.grid.window_padding
                     + self.grid.content_offset_y
                     + row as f32 * self.grid.cell_height)
@@ -144,14 +147,17 @@ impl CellRenderer {
             }
             let run_length = col - start_col;
 
-            // Create single quad spanning entire run
-            let x0 = self.grid.window_padding
+            // Create single quad spanning entire run.
+            // Snap all edges to pixel boundaries to match the text pipeline and eliminate
+            // sub-pixel gaps between adjacent differently-colored cell runs.
+            let x0 = (self.grid.window_padding
                 + self.grid.content_offset_x
-                + start_col as f32 * self.grid.cell_width;
-            let x1 = self.grid.window_padding
+                + start_col as f32 * self.grid.cell_width)
+                .round();
+            let x1 = (self.grid.window_padding
                 + self.grid.content_offset_x
-                + (start_col + run_length) as f32 * self.grid.cell_width;
-            // Snap to pixel boundaries to match text pipeline alignment
+                + (start_col + run_length) as f32 * self.grid.cell_width)
+                .round();
             let y0 = (self.grid.window_padding
                 + self.grid.content_offset_y
                 + row as f32 * self.grid.cell_height)

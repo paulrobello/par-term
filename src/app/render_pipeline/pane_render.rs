@@ -167,10 +167,13 @@ pub(super) fn gather_pane_render_data(
 
         // Center the cell grid within the content area by distributing
         // remainder pixels evenly on both sides (like Alacritty/Kitty).
+        // Floor to integer pixels so all cell boundaries land on exact pixel
+        // positions — sub-pixel centering offsets cause hairline gaps between
+        // adjacent differently-colored cells due to GPU FP rasterization.
         let actual_content_w = cols as f32 * sizing.cell_width;
         let actual_content_h = rows as f32 * sizing.cell_height;
-        let center_offset_x = (content_w - actual_content_w) / 2.0;
-        let center_offset_y = (content_h - actual_content_h) / 2.0;
+        let center_offset_x = ((content_w - actual_content_w) / 2.0).floor();
+        let center_offset_y = ((content_h - actual_content_h) / 2.0).floor();
 
         pane.resize_terminal_with_cell_dims(
             cols,
