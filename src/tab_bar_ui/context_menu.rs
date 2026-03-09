@@ -124,44 +124,51 @@ impl TabBarUI {
                                         egui::ScrollArea::vertical()
                                             .max_height(TAB_ICON_PICKER_MAX_HEIGHT)
                                             .show(ui, |ui| {
-                                                for (category, icons) in
-                                                    crate::settings_ui::nerd_font::NERD_FONT_PRESETS
-                                                {
-                                                    ui.label(
-                                                        egui::RichText::new(*category)
-                                                            .small()
-                                                            .strong(),
-                                                    );
-                                                    ui.horizontal_wrapped(|ui| {
-                                                        for (icon, label) in *icons {
-                                                            let btn = ui.add_sized(
-                                                                [
-                                                                    TAB_ICON_PICKER_GLYPH_SIZE
-                                                                        + 12.0,
-                                                                    TAB_ICON_PICKER_GLYPH_SIZE
-                                                                        + 12.0,
-                                                                ],
-                                                                egui::Button::new(
-                                                                    egui::RichText::new(*icon)
-                                                                        .size(
-                                                                        TAB_ICON_PICKER_GLYPH_SIZE,
-                                                                    ),
-                                                                )
-                                                                .frame(false),
+                                                egui::Frame::NONE
+                                                    .inner_margin(egui::Margin {
+                                                        right: 10,
+                                                        ..Default::default()
+                                                    })
+                                                    .show(ui, |ui| {
+                                                        for (category, icons) in
+                                                            crate::settings_ui::nerd_font::NERD_FONT_PRESETS
+                                                        {
+                                                            ui.label(
+                                                                egui::RichText::new(*category)
+                                                                    .small()
+                                                                    .strong(),
                                                             );
-                                                            if btn.on_hover_text(*label).clicked() {
-                                                                self.icon_buffer = icon.to_string();
-                                                                egui::Popup::close_all(ui.ctx());
-                                                            }
+                                                            ui.horizontal_wrapped(|ui| {
+                                                                for (icon, label) in *icons {
+                                                                    let btn = ui.add_sized(
+                                                                        [
+                                                                            TAB_ICON_PICKER_GLYPH_SIZE
+                                                                                + 12.0,
+                                                                            TAB_ICON_PICKER_GLYPH_SIZE
+                                                                                + 12.0,
+                                                                        ],
+                                                                        egui::Button::new(
+                                                                            egui::RichText::new(*icon)
+                                                                                .size(
+                                                                                TAB_ICON_PICKER_GLYPH_SIZE,
+                                                                            ),
+                                                                        )
+                                                                        .frame(false),
+                                                                    );
+                                                                    if btn.on_hover_text(*label).clicked() {
+                                                                        self.icon_buffer = icon.to_string();
+                                                                        egui::Popup::close_all(ui.ctx());
+                                                                    }
+                                                                }
+                                                            });
+                                                            ui.add_space(2.0);
+                                                        }
+                                                        ui.add_space(4.0);
+                                                        if ui.button("Clear icon").clicked() {
+                                                            self.icon_buffer.clear();
+                                                            egui::Popup::close_all(ui.ctx());
                                                         }
                                                     });
-                                                    ui.add_space(2.0);
-                                                }
-                                                ui.add_space(4.0);
-                                                if ui.button("Clear icon").clicked() {
-                                                    self.icon_buffer.clear();
-                                                    egui::Popup::close_all(ui.ctx());
-                                                }
                                             });
                                     });
                             });
