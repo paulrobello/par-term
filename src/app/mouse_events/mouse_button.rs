@@ -251,6 +251,15 @@ impl WindowState {
             // so we must set this even though the click was consumed by tracking.
             if let Some(tab) = self.tab_manager.active_tab_mut() {
                 tab.active_mouse_mut().button_pressed = state == ElementState::Pressed;
+                // Record (or clear) the press position consumed by mouse tracking.
+                // handle_mouse_move uses this to suppress button=32 drag events within
+                // the dead zone, preventing trackpad jitter from making tmux treat a
+                // pane-focus click as a drag-selection that wipes the clipboard.
+                if state == ElementState::Pressed {
+                    tab.active_mouse_mut().tracking_press_position = Some(mouse_position);
+                } else {
+                    tab.active_mouse_mut().tracking_press_position = None;
+                }
             }
             return; // Exit early: terminal app handled the input
         }
@@ -270,9 +279,15 @@ impl WindowState {
 
         // Track button press state for motion tracking logic (drag selection, motion reporting)
         // This is set AFTER special handlers (URL click, Option+click, mouse tracking) to avoid
-        // triggering selection when those features handle the click
+        // triggering selection when those features handle the click.
+        // Also clear tracking_press_position on release: the press was not forwarded to mouse
+        // tracking (either tracking was disabled, or focus switched between panes), so any
+        // stale position from a prior tracking interaction is cleaned up.
         if let Some(tab) = self.tab_manager.active_tab_mut() {
             tab.active_mouse_mut().button_pressed = state == ElementState::Pressed;
+            if state == ElementState::Released {
+                tab.active_mouse_mut().tracking_press_position = None;
+            }
         }
 
         if state == ElementState::Pressed {

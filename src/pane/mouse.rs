@@ -13,6 +13,12 @@ pub struct MouseState {
     pub(crate) click_count: u32, // Number of sequential clicks (1 = single, 2 = double, 3 = triple)
     pub(crate) click_position: Option<(usize, usize)>, // Position of last click in cell coordinates
     pub(crate) click_pixel_position: Option<(f64, f64)>, // Position of last click in pixels (for drag threshold)
+    /// Pixel position where the mouse button was pressed AND the event was consumed by mouse
+    /// tracking (i.e. forwarded to the PTY app).  Used to apply a drag dead-zone to
+    /// button-pressed motion events (button=32) so that trackpad tap jitter does not cause
+    /// tmux to interpret a pane-focus click as a drag-selection, which would wipe the clipboard.
+    /// Cleared on button release or when the press was not consumed by mouse tracking.
+    pub(crate) tracking_press_position: Option<(f64, f64)>,
     pub(crate) detected_urls: Vec<url_detection::DetectedUrl>, // URLs detected in visible terminal area
     pub(crate) hovered_url: Option<String>,                    // URL currently under mouse cursor
     pub(crate) hovered_url_bounds: Option<(usize, usize, usize)>, // (row, start_col, end_col) of hovered URL
@@ -40,6 +46,7 @@ impl MouseState {
             click_count: 0,
             click_position: None,
             click_pixel_position: None,
+            tracking_press_position: None,
             detected_urls: Vec::new(),
             hovered_url: None,
             hovered_url_bounds: None,

@@ -128,16 +128,20 @@ impl WindowState {
             {
                 // Split pane mode: only report motion inside the focused pane
                 let btn = tab.active_mouse().button_pressed;
+                let tracking_press = tab.active_mouse().tracking_press_position;
                 self.pixel_to_pane_cell(position.0, position.1, &focused_pane.bounds)
-                    .map(|(col, row)| (Arc::clone(&focused_pane.terminal), col, row, btn))
+                    .map(|(col, row)| {
+                        (Arc::clone(&focused_pane.terminal), col, row, btn, tracking_press)
+                    })
             } else {
                 // Single pane mode: use tab's terminal with global coordinates
                 let btn = tab.active_mouse().button_pressed;
+                let tracking_press = tab.active_mouse().tracking_press_position;
                 self.pixel_to_cell(position.0, position.1)
-                    .map(|(col, row)| (Arc::clone(&tab.terminal), col, row, btn))
+                    .map(|(col, row)| (Arc::clone(&tab.terminal), col, row, btn, tracking_press))
             };
 
-            if let Some((terminal_arc, col, row, button_pressed)) = resolved {
+            if let Some((terminal_arc, col, row, button_pressed, tracking_press)) = resolved {
                 // try_lock: intentional — should_report_mouse_motion query from mouse-move
                 // handler in the sync event loop. On miss: assumes no tracking (false) so
                 // the motion event is skipped this frame. High-frequency; acceptable loss.
@@ -146,12 +150,7 @@ impl WindowState {
                     .ok()
                     .is_some_and(|term| term.should_report_mouse_motion(button_pressed));
 
-                // try_lock: intentional — second lock attempt to encode/write the event.
-                // On miss: mouse motion encoding is skipped this frame. Same rationale.
-                if should_report
-                    && !shift_held
-                    && let Ok(term) = terminal_arc.try_write()
-                {
+                if should_report && !shift_held {
                     // Encode button+motion (button 32 marker)
                     let button = if button_pressed {
                         32 // Motion while button pressed
@@ -159,16 +158,39 @@ impl WindowState {
                         35 // Motion without button pressed
                     };
 
-                    let encoded = term.encode_mouse_event(button, col, row, true, 0);
-                    if !encoded.is_empty() {
-                        let terminal_clone = Arc::clone(&terminal_arc);
-                        let runtime = Arc::clone(&self.runtime);
-                        runtime.spawn(async move {
-                            let t = terminal_clone.write().await;
-                            let _ = t.write(&encoded);
-                        });
+                    // For button-pressed (drag) events, suppress within the dead zone.
+                    // Trackpad tap-to-click generates tiny movements that would otherwise
+                    // cause tmux to interpret a pane-focus click as a drag-selection,
+                    // committing an empty selection that wipes the clipboard.
+                    //
+                    // - None: press was not forwarded to mouse tracking (pane-switch click)
+                    //   → always suppress drag to avoid sending unmatched drag+release.
+                    // - Some(pos): press WAS forwarded; suppress only within the threshold.
+                    let suppress_drag = button == 32
+                        && match tracking_press {
+                            None => true,
+                            Some((px, py)) => {
+                                let dx = position.0 - px;
+                                let dy = position.1 - py;
+                                (dx * dx + dy * dy)
+                                    < DRAG_THRESHOLD_PX * DRAG_THRESHOLD_PX
+                            }
+                        };
+
+                    // try_lock: intentional — second lock attempt to encode/write the event.
+                    // On miss: mouse motion encoding is skipped this frame. Same rationale.
+                    if !suppress_drag && let Ok(term) = terminal_arc.try_write() {
+                        let encoded = term.encode_mouse_event(button, col, row, true, 0);
+                        if !encoded.is_empty() {
+                            let terminal_clone = Arc::clone(&terminal_arc);
+                            let runtime = Arc::clone(&self.runtime);
+                            runtime.spawn(async move {
+                                let t = terminal_clone.write().await;
+                                let _ = t.write(&encoded);
+                            });
+                        }
                     }
-                    return; // Exit early: terminal app is handling mouse motion
+                    return; // Always exit: terminal app is managing mouse events
                 }
             }
         }
