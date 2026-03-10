@@ -49,6 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `log::warn!` on GPU device poll errors instead of silently discarding (QA-020).
 
 ### Fixed
+- Middle-click paste now takes priority over mouse tracking and alt-screen mode, matching iTerm2 behaviour. Previously, middle-click silently forwarded a mouse event to TUI apps (vim, less, etc.) instead of pasting, causing apparent inconsistency with Cmd+V.
 - Eliminated dark fringe ("gap") between powerline separator glyphs and adjacent colored segments in the tmux status bar. In background-image mode all cells render through the same BG pipeline, causing right-pointing separators (E0B0/E0B1/E0B4/E0B5) to overwrite the 1 px colored extension from the adjacent run. The separator's own BG quad is now trimmed by 1 px on the colored-neighbor side so the extension remains visible.
 - Fixed regression where custom shader background was hidden by opaque default-bg cell quads. A new `fill_default_bg_cells` flag now controls default-bg cell rendering independently of `skip_solid_background`: set only in background-image mode (not shader mode), so the shader output shows through default-bg cells as intended.
 - `compute_visible_separator_marks` doc comment now matches actual implementation (no merge pass exists) (QA-001).

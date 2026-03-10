@@ -69,23 +69,28 @@ impl WindowState {
                 self.handle_left_mouse_button(state, mouse_position, suppress_terminal_mouse_click);
             }
             MouseButton::Middle => {
-                // Try to send to terminal if mouse tracking is enabled
-                if self.try_send_mouse_event(1, state == ElementState::Pressed) {
-                    return; // Event consumed by terminal
-                }
-
-                // Handle middle-click paste if configured (with bracketed paste support)
-                if state == ElementState::Pressed
-                    && self.config.middle_click_paste
-                    && let Some(text) = self.input_handler.paste_from_primary_selection()
-                    && let Some(tab) = self.tab_manager.active_tab()
-                {
-                    let text = crate::paste_transform::sanitize_paste_content(&text);
-                    let terminal_clone = Arc::clone(&tab.terminal);
-                    self.runtime.spawn(async move {
-                        let term = terminal_clone.write().await;
-                        let _ = term.paste(&text);
-                    });
+                // When middle_click_paste is enabled, paste takes priority over mouse
+                // tracking — matching iTerm2 behaviour. This prevents the common case
+                // where middle-click silently forwards a mouse event to a TUI app (vim,
+                // less, etc.) instead of pasting, causing apparent "different content"
+                // compared to Cmd+V.
+                if self.config.middle_click_paste {
+                    if state == ElementState::Pressed
+                        && let Some(text) = self.input_handler.paste_from_primary_selection()
+                        && let Some(tab) = self.tab_manager.active_tab()
+                    {
+                        let text = crate::paste_transform::sanitize_paste_content(&text);
+                        let terminal_clone = Arc::clone(&tab.terminal);
+                        self.runtime.spawn(async move {
+                            let term = terminal_clone.write().await;
+                            let _ = term.paste(&text);
+                        });
+                    }
+                    // Don't forward press/release to mouse tracking: the middle button is
+                    // reserved for paste when this option is enabled.
+                } else {
+                    // Paste disabled — forward to terminal if mouse tracking is active.
+                    self.try_send_mouse_event(1, state == ElementState::Pressed);
                 }
             }
             MouseButton::Right => {
