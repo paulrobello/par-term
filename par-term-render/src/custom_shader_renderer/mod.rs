@@ -3,6 +3,19 @@
 //! Supports Ghostty/Shadertoy-style GLSL shaders with the following uniforms:
 //! - `iTime`: Time in seconds (animated or fixed at 0.0)
 //! - `iResolution`: Viewport resolution (width, height, 1.0)
+//!
+//! # ARC-009 TODO
+//! This file is 669 lines (limit: 800 — approaching threshold). When it exceeds
+//! 800 lines, extract further into custom_shader_renderer/ siblings:
+//!
+//!   compile.rs   — GLSL→WGSL transpilation (naga) and pipeline compilation
+//!   animate.rs   — Time-uniform update and animation-frame bookkeeping
+//!
+//! The directory already has `pipeline.rs`, `transpiler.rs`, `uniforms.rs`,
+//! `hot_reload.rs`, `textures.rs`, `cubemap.rs`, `cursor.rs`, `types.rs` — follow
+//! that existing pattern for any further splits.
+//!
+//! Tracking: Issue ARC-009 in AUDIT.md.
 //! - `iChannel0-3`: User texture channels (Shadertoy compatible)
 //! - `iChannel4`: Terminal content texture
 //! - `iTimeKeyPress`: Time when last key was pressed (same timebase as iTime)

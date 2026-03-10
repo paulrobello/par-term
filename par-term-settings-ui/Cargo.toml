@@ -15,59 +15,59 @@ categories = ["gui"]
 par-term-config = { path = "../par-term-config", version = "0.7.0", features = ["wgpu-types"] }
 
 # egui for UI
-egui = "0.33.3"
-egui-wgpu = { version = "0.33.3", optional = true }
-egui-winit = { version = "0.33.3", optional = true }
+egui.workspace = true
+egui-wgpu = { workspace = true, optional = true }
+egui-winit = { workspace = true, optional = true }
 
 # File dialogs
-rfd = "0.17.2"
+rfd.workspace = true
 
 # Serialization
-serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.149"
+serde.workspace = true
+serde_json.workspace = true
 
 # Logging
-log = "0.4.29"
+log.workspace = true
 
 # UUID for profile identifiers
-uuid = { version = "1.21", features = ["v4", "serde"] }
+uuid.workspace = true
 
 # Error handling
-anyhow = "1.0.101"
+anyhow.workspace = true
 
 # Async runtime (for async operations)
-tokio = { version = "1.49", features = ["sync"] }
+tokio = { workspace = true, features = ["sync"] }
 
 # Mutex implementation
-parking_lot = "0.12.5"
+parking_lot.workspace = true
 
 # Open URLs/files
-open = "5.3.3"
+open.workspace = true
 
 # Date/time for screenshots
-chrono = "0.4.43"
+chrono.workspace = true
 
 # Image loading
-image = "0.25.9"
+image.workspace = true
 
 # Platform-specific directories
-dirs = "6.0"
+dirs.workspace = true
 
 # HTTP client for URL imports
-ureq = { version = "3.2.0", default-features = false, features = ["native-tls", "gzip"] }
+ureq.workspace = true
 
 # YAML serialization for config import/export
-serde_yaml_ng = "0.10.0"
+serde_yaml_ng.workspace = true
 
 # Regex for trigger pattern validation
-regex = "1.12.3"
+regex.workspace = true
 
 # Clipboard support
-arboard = "3.6.1"
+arboard.workspace = true
 
 [features]
 default = []
 wgpu = ["egui-wgpu", "egui-winit", "par-term-config/wgpu-types"]
 
 [dev-dependencies]
-tempfile = "3.25"
+tempfile.workspace = true

@@ -15,21 +15,21 @@ categories = ["command-line-utilities"]
 par-term-config = { path = "../par-term-config", version = "0.7.0" }
 
 # Terminal emulator core (tmux control mode parser)
-par-term-emu-core-rust = { version = "0.40.0", default-features = false, features = ["rust-only"] }
+par-term-emu-core-rust.workspace = true
 
 # Window event types for prefix key handling
-winit = "0.30"
+winit.workspace = true
 
 # Date/time for status format
-chrono = "0.4.43"
+chrono.workspace = true
 
 # Regex for sanitizing tmux output
-regex = "1.12.3"
+regex.workspace = true
 
 # Cross-platform hostname detection
-hostname = "0.4.2"
+hostname.workspace = true
 
 # Logging
-log = "0.4.29"
+log.workspace = true
 
 [dev-dependencies]

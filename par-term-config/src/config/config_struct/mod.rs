@@ -1580,4 +1580,19 @@ pub struct Config {
     /// All `ai_inspector_*` fields are flattened here for YAML backward-compatibility.
     #[serde(flatten)]
     pub ai_inspector: AiInspectorConfig,
+
+    // ========================================================================
+    // Runtime security state (never serialized to disk)
+    // ========================================================================
+    /// Names of triggers that have `require_user_action: false` with dangerous
+    /// actions (`RunCommand` or `SendText`).
+    ///
+    /// Populated by [`Config::warn_insecure_triggers`] during config load.
+    /// The UI reads this list to display a persistent visual warning banner
+    /// so users are aware of the reduced security posture.
+    ///
+    /// This field is intentionally skipped by serde — it is computed at
+    /// runtime and never written to or read from the config file.
+    #[serde(skip)]
+    pub insecure_trigger_names: Vec<String>,
 }

@@ -238,7 +238,40 @@ impl Agent {
             // We intentionally do NOT use interactive mode (-i) because it
             // causes the shell to emit terminal control sequences (e.g.
             // [?1034h) to stdout, which corrupts the JSON-RPC stream.
-            let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
+
+            // SEC-013: Validate the SHELL environment variable before using it
+            // to spawn a process. An attacker who can control the environment
+            // (e.g., via a crafted .env file) could set SHELL to an arbitrary
+            // binary. We require:
+            //   1. The value is an absolute path (starts with '/').
+            //   2. The basename is one of the well-known POSIX shells.
+            // If validation fails we fall back to /bin/sh.
+            const KNOWN_SHELLS: &[&str] =
+                &["sh", "bash", "zsh", "fish", "dash", "ksh", "tcsh", "csh"];
+
+            let shell = {
+                let raw = std::env::var("SHELL").unwrap_or_default();
+                let valid = !raw.is_empty()
+                    && raw.starts_with('/')
+                    && std::path::Path::new(&raw)
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .map(|name| KNOWN_SHELLS.contains(&name))
+                        .unwrap_or(false);
+                if valid {
+                    raw
+                } else {
+                    if !raw.is_empty() {
+                        log::warn!(
+                            "ACP: SHELL env var '{}' is not an absolute path to a known shell; \
+                             falling back to /bin/sh",
+                            raw
+                        );
+                    }
+                    "/bin/sh".to_string()
+                }
+            };
+
             log::info!(
                 "ACP: spawning agent '{}' via {shell} -lc '{run_command}' in cwd={cwd}",
                 self.config.identity,

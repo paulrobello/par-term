@@ -12,13 +12,13 @@ categories = ["network-programming"]
 
 [dependencies]
 # Serialization
-serde = { version = "1.0.228", features = ["derive"] }
+serde.workspace = true
 
 # mDNS/Bonjour service discovery for SSH host auto-detection
-mdns-sd = "0.18"
+mdns-sd.workspace = true
 
 # Platform-specific directories (home dir for ~/.ssh)
-dirs = "6.0"
+dirs.workspace = true
 
 # Logging
-log = "0.4.29"
+log.workspace = true

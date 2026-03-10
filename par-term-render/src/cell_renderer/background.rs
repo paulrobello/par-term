@@ -1,3 +1,11 @@
+// ARC-009 TODO: This file is 693 lines (limit: 800 — approaching threshold). When it
+// exceeds 800 lines, extract into cell_renderer/ siblings:
+//
+//   bg_image_pipeline.rs — Background-image texture loading and wgpu pipeline setup
+//   bg_color_pipeline.rs — Solid-color background quad pipeline
+//
+// Tracking: Issue ARC-009 in AUDIT.md.
+
 use super::CellRenderer;
 use crate::custom_shader_renderer::textures::ChannelTexture;
 use crate::error::RenderError;

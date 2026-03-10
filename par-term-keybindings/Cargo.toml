@@ -15,7 +15,7 @@ categories = ["gui"]
 par-term-config = { path = "../par-term-config", version = "0.7.0" }
 
 # Window and input event types
-winit = "0.30"
+winit.workspace = true
 
 # Logging
-log = "0.4.29"
+log.workspace = true

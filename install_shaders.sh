@@ -7,6 +7,13 @@
 # Usage: ./install_shaders.sh
 #
 # Cross-platform compatible: macOS, Linux, Windows (Git Bash/WSL)
+#
+# SECURITY NOTE: Before running this script via pipe (curl ... | sh) you
+# should download it first and review the contents:
+#
+#   curl -O https://raw.githubusercontent.com/paulrobello/par-term/main/install_shaders.sh
+#   less install_shaders.sh   # review
+#   chmod +x install_shaders.sh && ./install_shaders.sh
 
 set -e
 

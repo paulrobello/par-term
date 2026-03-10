@@ -263,7 +263,7 @@ Edit `par-term-<name>/Cargo.toml` and fill in all required fields:
 ```toml
 [package]
 name = "par-term-<name>"
-version = "0.1.0"
+version = "<version>"
 edition = "2024"
 authors = ["Paul Robello <probello@gmail.com>"]
 description = "One-line description for crates.io"

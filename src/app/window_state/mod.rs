@@ -7,6 +7,58 @@
 //! into cohesive sub-state structs (ARC-001). See `focus_state.rs`,
 //! `overlay_state.rs`, `update_state.rs`, `watcher_state.rs`, `trigger_state.rs`,
 //! and `render_loop_state.rs`.
+//!
+//! # ARC-002: Remaining God-Object Decomposition (Requires Manual Intervention)
+//!
+//! `WindowState` currently has 30+ fields and 84 separate `impl WindowState` blocks
+//! scattered across the codebase. Several sub-state bundles have already been extracted
+//! (see `EguiState`, `FocusState`, `OverlayState`, `RenderLoopState`, `ShaderState`,
+//! `AgentState`, `CursorAnimState`, `OverlayUiState`, `TriggerState`, `WatcherState`,
+//! `UpdateState`, `DebugState`). The remaining work deferred to a future session:
+//!
+//! **Suggested next extractions (in order of isolation):**
+//!
+//! 1. `TmuxSubsystem` — owns `tmux_state` and all methods in `src/app/tmux_handler/`.
+//!    Safe to extract once `TmuxState` has no shared borrow with other sub-state.
+//!
+//! 2. `SelectionSubsystem` — owns `smart_selection_cache`, `copy_mode`, and the
+//!    text-selection helpers in `text_selection.rs`. These three fields form a tight
+//!    read-only cluster during rendering.
+//!
+//! 3. `WindowInfrastructure` — groups `window`, `renderer`, `runtime` as the GPU/OS
+//!    surface layer; separates it from application-level state.
+//!
+//! **Blocker:** All 84 `impl WindowState` blocks must be audited before moving any
+//! field to ensure no method holds simultaneous mutable borrows across sub-systems.
+//! Recommend using `cargo expand` or GitNexus impact analysis on each field before
+//! moving it.
+//!
+//! **Tracking:** Issue ARC-002 in AUDIT.md.
+//!
+//! # ARC-003: render_pipeline `#[path]` Redirect (Blocked by ARC-002)
+//!
+//! Line 34 below declares `render_pipeline` as a sub-module of `window_state` using
+//! `#[path = "../render_pipeline/mod.rs"]`. The directory layout contradicts the
+//! module hierarchy: `render_pipeline/` physically lives next to `window_state/` under
+//! `src/app/`, but logically belongs inside it.
+//!
+//! **Two valid resolutions (choose one before ARC-002 extraction):**
+//!
+//! Option A (preferred): Move `src/app/render_pipeline/` into
+//!   `src/app/window_state/render_pipeline/` so the directory matches the module tree.
+//!   All existing `super::` references inside `render_pipeline/*.rs` that currently
+//!   navigate to `window_state` will need adjustment (they already resolve correctly
+//!   via the `#[path]` redirect today).
+//!
+//! Option B: Make `render_pipeline` a top-level module under `src/app/` declared in
+//!   `src/app/mod.rs`, and replace all `window_state::render_pipeline::` imports with
+//!   `app::render_pipeline::`. This requires updating ~30 use-statements but avoids
+//!   moving files.
+//!
+//! **Requirement:** Resolve ARC-003 before extracting any `WindowState` fields that
+//! are referenced inside `render_pipeline/` (ARC-002 step 3+).
+//!
+//! **Tracking:** Issue ARC-003 in AUDIT.md.
 
 mod action_handlers;
 mod agent_config;
@@ -197,4 +249,11 @@ pub struct WindowState {
     /// Tracks the last size we requested via `request_inner_size` for snap-to-grid.
     /// Cleared once we receive a Resized event matching this size, preventing infinite re-snap.
     pub(crate) pending_snap_size: Option<winit::dpi::PhysicalSize<u32>>,
+
+    // =========================================================================
+    // Render-frame scratch buffers (avoid per-frame heap allocations)
+    // =========================================================================
+    /// Reused per-frame by `apply_prettifier_cell_substitution` to track which
+    /// prettifier block IDs have had graphics collected this frame.
+    pub(crate) scratch_prettifier_block_ids: std::collections::HashSet<u64>,
 }

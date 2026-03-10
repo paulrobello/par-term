@@ -119,8 +119,36 @@ impl Config {
 
         // Atomic save: write to temp file then rename to prevent corruption on crash
         let temp_path = config_path.with_extension("yaml.tmp");
-        fs::write(&temp_path, &yaml)?;
+
+        // SEC-008: Create the temp file with restrictive permissions before writing.
+        // The config may contain env_vars with secrets (API keys, tokens). Writing
+        // to a world-readable temp file first would briefly expose them.
+        #[cfg(unix)]
+        {
+            use std::io::Write;
+            use std::os::unix::fs::OpenOptionsExt;
+            let mut f = fs::OpenOptions::new()
+                .write(true)
+                .create(true)
+                .truncate(true)
+                .mode(0o600)
+                .open(&temp_path)?;
+            f.write_all(yaml.as_bytes())?;
+        }
+        #[cfg(not(unix))]
+        {
+            fs::write(&temp_path, &yaml)?;
+        }
+
         fs::rename(&temp_path, &config_path)?;
+
+        // Ensure the final file has restrictive permissions (belt-and-suspenders for
+        // renames that might reset mode, and for the initial creation path on some FSes).
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = fs::set_permissions(&config_path, fs::Permissions::from_mode(0o600));
+        }
 
         Ok(())
     }
@@ -485,17 +513,21 @@ impl Config {
         }
     }
 
-    /// Emit security warnings for any triggers configured with
+    /// Collect and emit security warnings for any triggers configured with
     /// `require_user_action: false` that also contain dangerous actions
     /// (`RunCommand` or `SendText`).
     ///
     /// Called during config load so that users are immediately informed when
-    /// their configuration reduces the security posture. The warning is written
-    /// to stderr via [`crate::automation::warn_require_user_action_false`].
-    pub(crate) fn warn_insecure_triggers(&self) {
+    /// their configuration reduces the security posture. In addition to
+    /// writing a prominent warning to stderr, the insecure trigger names are
+    /// stored in [`Config::insecure_trigger_names`] so the UI layer can
+    /// render a persistent visual warning banner.
+    pub(crate) fn warn_insecure_triggers(&mut self) {
+        self.insecure_trigger_names.clear();
         for trigger in &self.triggers {
             if !trigger.require_user_action && trigger.actions.iter().any(|a| a.is_dangerous()) {
                 crate::automation::warn_require_user_action_false(&trigger.name);
+                self.insecure_trigger_names.push(trigger.name.clone());
             }
         }
     }

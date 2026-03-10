@@ -32,9 +32,11 @@ jobs:
         node-version: 22
 
     - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@master
+      # Pinned to a stable release tag; update SHA when bumping toolchain version.
+      # To find the SHA: git ls-remote https://github.com/dtolnay/rust-toolchain refs/heads/master
+      uses: dtolnay/rust-toolchain@4305c38b25bff3e379fbb44ff7dfba641d7aa8ef
       with:
-        toolchain: 1.85.0
+        toolchain: 1.91.0
 
     - name: Install Linux dependencies
       if: runner.os == 'Linux'
@@ -72,7 +74,7 @@ jobs:
         key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
 
     - name: Run tests
-      run: cargo test --verbose
+      run: cargo test --workspace --verbose
 
     - name: Build release
       run: cargo build --release --verbose
@@ -91,9 +93,11 @@ jobs:
         node-version: 22
 
     - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@master
+      # Pinned to a stable release tag; update SHA when bumping toolchain version.
+      # To find the SHA: git ls-remote https://github.com/dtolnay/rust-toolchain refs/heads/master
+      uses: dtolnay/rust-toolchain@4305c38b25bff3e379fbb44ff7dfba641d7aa8ef
       with:
-        toolchain: 1.85.0
+        toolchain: 1.91.0
         components: rustfmt, clippy
 
     - name: Install Linux dependencies
@@ -109,3 +113,9 @@ jobs:
 
     - name: Run clippy
       run: cargo clippy --all-targets --all-features -- -D warnings
+
+    - name: Install cargo-deny
+      run: cargo install cargo-deny --locked
+
+    - name: Run cargo-deny
+      run: cargo deny check

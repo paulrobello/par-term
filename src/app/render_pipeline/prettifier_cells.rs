@@ -9,7 +9,6 @@ use crate::tab::Tab;
 
 /// Type alias for a prettifier graphic entry:
 /// `(texture_id, rgba_data, pixel_width, pixel_height, screen_row, col)`
-#[allow(clippy::type_complexity)]
 pub(super) type PrettifierGraphic = (u64, std::sync::Arc<Vec<u8>>, u32, u32, isize, usize);
 
 /// Apply prettifier cell substitution for the current frame.
@@ -26,10 +25,11 @@ pub(super) type PrettifierGraphic = (u64, std::sync::Arc<Vec<u8>>, u32, u32, isi
 /// * `visible_lines` - number of visible rows in the grid
 /// * `scrollback_len` - total scrollback lines (used to map absolute rows)
 /// * `grid_cols` - number of columns per row
+/// * `scratch_block_ids` - caller-provided scratch HashSet, cleared on entry and reused
+///   across calls to avoid a per-frame heap allocation
 ///
 /// # Returns
 /// A `Vec` of prettifier graphics to upload to the GPU.
-#[allow(clippy::type_complexity)]
 pub(super) fn apply_prettifier_cell_substitution(
     tab: &Tab,
     cells: &mut [crate::cell_renderer::Cell],
@@ -37,6 +37,7 @@ pub(super) fn apply_prettifier_cell_substitution(
     visible_lines: usize,
     scrollback_len: usize,
     grid_cols: usize,
+    scratch_block_ids: &mut std::collections::HashSet<u64>,
 ) -> Vec<PrettifierGraphic> {
     let mut prettifier_graphics: Vec<PrettifierGraphic> = Vec::new();
 
@@ -57,8 +58,9 @@ pub(super) fn apply_prettifier_cell_substitution(
 
     // Track which blocks we've already collected graphics from
     // to avoid duplicates when multiple viewport rows fall in
-    // the same block.
-    let mut collected_block_ids = std::collections::HashSet::new();
+    // the same block. Reuse the caller's scratch buffer.
+    let collected_block_ids = scratch_block_ids;
+    collected_block_ids.clear();
 
     for viewport_row in 0..visible_lines {
         let absolute_row = scrollback_len.saturating_sub(scroll_off) + viewport_row;

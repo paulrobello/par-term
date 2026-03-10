@@ -203,8 +203,8 @@ lint-all:
 	@echo "Running clippy on all targets..."
 	cargo clippy --all-targets -- -D warnings
 
-# Run all quality checks (format, lint, test)
-checkall: fmt lint test
+# Run all quality checks (format-check, lint, test) — does NOT mutate files
+checkall: fmt-check lint test
 	@echo "All quality checks passed!"
 
 # Clean build artifacts
@@ -306,6 +306,12 @@ audit:
 	@command -v cargo-audit >/dev/null 2>&1 || { echo "cargo-audit not installed. Install with: cargo install cargo-audit"; exit 1; }
 	cargo audit
 
+# Run cargo-deny for license/vulnerability/ban checking (deny.toml)
+deny:
+	@echo "Running cargo-deny checks..."
+	@command -v cargo-deny >/dev/null 2>&1 || { echo "cargo-deny not installed. Install with: cargo install cargo-deny"; exit 1; }
+	cargo deny check
+
 # Show package info
 info:
 	@echo "Package information:"
@@ -328,32 +334,7 @@ ifeq ($(shell uname),Darwin)
 	@mkdir -p target/release/bundle/par-term.app/Contents/Resources
 	@cp target/release/par-term target/release/bundle/par-term.app/Contents/MacOS/
 	@cp assets/par-term.icns target/release/bundle/par-term.app/Contents/Resources/
-	@echo '<?xml version="1.0" encoding="UTF-8"?>' > target/release/bundle/par-term.app/Contents/Info.plist
-	@echo '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> target/release/bundle/par-term.app/Contents/Info.plist
-	@echo '<plist version="1.0">' >> target/release/bundle/par-term.app/Contents/Info.plist
-	@echo '<dict>' >> target/release/bundle/par-term.app/Contents/Info.plist
-	@echo '    <key>CFBundleName</key>' >> target/release/bundle/par-term.app/Contents/Info.plist
-	@echo '    <string>par-term</string>' >> target/release/bundle/par-term.app/Contents/Info.plist
-	@echo '    <key>CFBundleDisplayName</key>' >> target/release/bundle/par-term.app/Contents/Info.plist
-	@echo '    <string>par-term</string>' >> target/release/bundle/par-term.app/Contents/Info.plist
-	@echo '    <key>CFBundleIdentifier</key>' >> target/release/bundle/par-term.app/Contents/Info.plist
-	@echo '    <string>com.paulrobello.par-term</string>' >> target/release/bundle/par-term.app/Contents/Info.plist
-	@echo '    <key>CFBundleVersion</key>' >> target/release/bundle/par-term.app/Contents/Info.plist
-	@echo '    <string>$(VERSION)</string>' >> target/release/bundle/par-term.app/Contents/Info.plist
-	@echo '    <key>CFBundleShortVersionString</key>' >> target/release/bundle/par-term.app/Contents/Info.plist
-	@echo '    <string>$(VERSION)</string>' >> target/release/bundle/par-term.app/Contents/Info.plist
-	@echo '    <key>CFBundleExecutable</key>' >> target/release/bundle/par-term.app/Contents/Info.plist
-	@echo '    <string>par-term</string>' >> target/release/bundle/par-term.app/Contents/Info.plist
-	@echo '    <key>CFBundleIconFile</key>' >> target/release/bundle/par-term.app/Contents/Info.plist
-	@echo '    <string>par-term</string>' >> target/release/bundle/par-term.app/Contents/Info.plist
-	@echo '    <key>CFBundlePackageType</key>' >> target/release/bundle/par-term.app/Contents/Info.plist
-	@echo '    <string>APPL</string>' >> target/release/bundle/par-term.app/Contents/Info.plist
-	@echo '    <key>NSHighResolutionCapable</key>' >> target/release/bundle/par-term.app/Contents/Info.plist
-	@echo '    <true/>' >> target/release/bundle/par-term.app/Contents/Info.plist
-	@echo '    <key>LSMinimumSystemVersion</key>' >> target/release/bundle/par-term.app/Contents/Info.plist
-	@echo '    <string>10.13</string>' >> target/release/bundle/par-term.app/Contents/Info.plist
-	@echo '</dict>' >> target/release/bundle/par-term.app/Contents/Info.plist
-	@echo '</plist>' >> target/release/bundle/par-term.app/Contents/Info.plist
+	@sed 's/{{VERSION}}/$(VERSION)/g' assets/Info.plist.template > target/release/bundle/par-term.app/Contents/Info.plist
 	@echo "Bundle created at: target/release/bundle/par-term.app (version $(VERSION))"
 else
 	@echo "App bundle creation is only supported on macOS"

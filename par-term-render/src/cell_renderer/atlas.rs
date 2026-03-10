@@ -137,27 +137,19 @@ impl CellRenderer {
     }
 
     pub(crate) fn rasterize_glyph(
-        &self,
+        &mut self,
         font_idx: usize,
         glyph_id: u16,
         force_monochrome: bool,
     ) -> Option<RasterizedGlyph> {
         let font = self.font_manager.get_font(font_idx)?;
         // Use swash to rasterize
+        use swash::scale::Render;
         use swash::scale::image::Content;
-        use swash::scale::{Render, ScaleContext};
         use swash::zeno::Format;
 
-        let mut context = ScaleContext::new();
-
-        // Apply hinting based on config setting
-        let mut scaler = context
-            .builder(*font)
-            .size(self.font.font_size_pixels)
-            .hint(self.font.font_hinting)
-            .build();
-
-        // Determine render format based on anti-aliasing and thin strokes settings
+        // Determine render format before creating the scaler so there is no live
+        // mutable borrow of `self.scale_context` when we call `should_use_thin_strokes`.
         let use_thin_strokes = self.should_use_thin_strokes();
         let render_format = if !self.font.font_antialias {
             // No anti-aliasing: render as alpha mask (will be thresholded)
@@ -191,6 +183,15 @@ impl CellRenderer {
             ]
         };
 
+        // Build the scaler after computing `render_format` to avoid a
+        // mutable+immutable borrow overlap on `self`.
+        let mut scaler = self
+            .scale_context
+            .builder(*font)
+            .size(self.font.font_size_pixels)
+            .hint(self.font.font_hinting)
+            .build();
+
         let mut image = Render::new(&sources)
             .format(render_format)
             .render(&mut scaler, glyph_id)?;
@@ -207,8 +208,13 @@ impl CellRenderer {
                 return None;
             }
             // For normal (non-monochrome) rendering, try color bitmap sources.
-            let mut retry_ctx = ScaleContext::new();
-            let mut retry_scaler = retry_ctx
+            // Drop `scaler` so the exclusive borrow on `self.scale_context` is
+            // released, allowing us to rebuild a new scaler for the retry pass.
+            #[allow(clippy::drop_non_drop)]
+            // Intentional: ends borrow lifetime on self.scale_context
+            drop(scaler);
+            let mut retry_scaler = self
+                .scale_context
                 .builder(*font)
                 .size(self.font.font_size_pixels)
                 .hint(self.font.font_hinting)
@@ -390,6 +396,39 @@ impl CellRenderer {
         self.atlas.atlas_row_height = self.atlas.atlas_row_height.max(raster.height);
 
         info
+    }
+
+    /// Look up a glyph by `cache_key` in the atlas, rasterizing and uploading it on
+    /// a cache miss.  Returns `None` when rasterization produces an empty bitmap.
+    ///
+    /// `cache_key` must be computed by the caller as:
+    ///   `((font_idx as u64) << 32) | (glyph_id as u64)`
+    /// with bit 63 set when querying the colored-emoji variant of a symbol character.
+    ///
+    /// On a cache hit the LRU order is updated before returning.
+    pub(crate) fn get_or_rasterize_glyph(
+        &mut self,
+        font_idx: usize,
+        glyph_id: u16,
+        force_monochrome: bool,
+        cache_key: u64,
+    ) -> Option<GlyphInfo> {
+        if self.atlas.glyph_cache.contains_key(&cache_key) {
+            self.lru_remove(cache_key);
+            self.lru_push_front(cache_key);
+            return Some(
+                self.atlas
+                    .glyph_cache
+                    .get(&cache_key)
+                    .expect("Glyph cache entry must exist after contains_key check")
+                    .clone(),
+            );
+        }
+        let raster = self.rasterize_glyph(font_idx, glyph_id, force_monochrome)?;
+        let info = self.upload_glyph(cache_key, &raster);
+        self.atlas.glyph_cache.insert(cache_key, info.clone());
+        self.lru_push_front(cache_key);
+        Some(info)
     }
 }
 

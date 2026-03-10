@@ -233,11 +233,11 @@ pub(super) fn update_gpu_renderer_state(
 
     // Upload prettifier diagram graphics (rendered Mermaid, etc.) to the GPU.
     if !prettifier_graphics.is_empty() {
-        #[allow(clippy::type_complexity)]
-        let refs: Vec<(u64, &[u8], u32, u32, isize, usize)> = prettifier_graphics
-            .iter()
-            .map(|(id, data, w, h, row, col)| (*id, data.as_slice(), *w, *h, *row, *col))
-            .collect();
+        let refs: Vec<par_term_render::renderer::graphics::PrettifierGraphicRef<'_>> =
+            prettifier_graphics
+                .iter()
+                .map(|(id, data, w, h, row, col)| (*id, data.as_slice(), *w, *h, *row, *col))
+                .collect();
         if let Err(e) = renderer.update_prettifier_graphics(&refs) {
             crate::debug_error!("PRETTIFIER", "Failed to upload prettifier graphics: {}", e);
         }

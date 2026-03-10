@@ -1,6 +1,5 @@
 use super::{BackgroundInstance, CellRenderer, RowCacheEntry, TextInstance};
 use anyhow::Result;
-use par_term_fonts::text_shaper::ShapingOptions;
 
 /// Number of extra background instance slots reserved for cursor overlays
 /// (beam/underline, guide line, shadow, boost glow, hollow outline sides).
@@ -62,21 +61,19 @@ impl CellRenderer {
     /// incrementally. After processing all rows, cursor overlay, separator, and gutter
     /// instances are built and uploaded in a single write per region.
     pub(crate) fn build_instance_buffers(&mut self) -> Result<()> {
-        let _shaping_options = ShapingOptions {
-            enable_ligatures: self.font.enable_ligatures,
-            enable_kerning: self.font.enable_kerning,
-            ..Default::default()
-        };
-
         for row in 0..self.grid.rows {
             if self.dirty_rows[row] || self.row_cache[row].is_none() {
                 let start = row * self.grid.cols;
                 let end = (row + 1) * self.grid.cols;
 
-                // Clone the slice data we need — required because build_row_bg_instances
-                // and build_row_text_instances borrow self mutably while row_cells is a
-                // shared slice into self.cells.
-                let row_cells: Vec<_> = self.cells[start..end].to_vec();
+                // Copy the row's cells into the scratch buffer.  We can't pass a slice
+                // of `self.cells` directly because `build_row_*` methods take `&mut self`,
+                // creating a conflicting mutable borrow.  Taking `scratch_row_cells` out
+                // via `std::mem::take` releases that field's borrow so we can re-borrow
+                // the rest of `self` mutably while holding the row data.
+                let mut row_cells = std::mem::take(&mut self.scratch_row_cells);
+                row_cells.clear();
+                row_cells.extend_from_slice(&self.cells[start..end]);
 
                 self.scratch_row_bg.clear();
                 self.scratch_row_text.clear();
@@ -118,6 +115,9 @@ impl CellRenderer {
 
                 self.row_cache[row] = Some(RowCacheEntry {});
                 self.dirty_rows[row] = false;
+
+                // Restore the scratch buffer so its capacity is retained for the next row.
+                self.scratch_row_cells = row_cells;
             }
         }
 

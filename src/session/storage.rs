@@ -29,8 +29,28 @@ pub fn save_session_to(state: &SessionState, path: PathBuf) -> Result<()> {
 
     let contents = serde_yaml_ng::to_string(state).context("Failed to serialize session state")?;
 
-    std::fs::write(&path, contents)
-        .with_context(|| format!("Failed to write session state to {:?}", path))?;
+    // SEC-016: Write with restrictive permissions (owner read/write only).
+    // The session file contains working directory paths that reveal filesystem
+    // layout; it should not be world-readable.
+    #[cfg(unix)]
+    {
+        use std::io::Write;
+        use std::os::unix::fs::OpenOptionsExt;
+        let mut f = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(&path)
+            .with_context(|| format!("Failed to open session state file {:?}", path))?;
+        f.write_all(contents.as_bytes())
+            .with_context(|| format!("Failed to write session state to {:?}", path))?;
+    }
+    #[cfg(not(unix))]
+    {
+        std::fs::write(&path, contents)
+            .with_context(|| format!("Failed to write session state to {:?}", path))?;
+    }
 
     log::info!(
         "Saved session state ({} windows) to {:?}",

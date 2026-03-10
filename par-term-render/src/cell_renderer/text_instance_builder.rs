@@ -20,21 +20,6 @@ impl CellRenderer {
         start: usize,
     ) {
         let mut x_offset = 0.0;
-        #[allow(clippy::type_complexity)]
-        let cell_data: Vec<(String, bool, bool, [u8; 4], [u8; 4], bool, bool)> = row_cells
-            .iter()
-            .map(|c| {
-                (
-                    c.grapheme.clone(),
-                    c.bold,
-                    c.italic,
-                    c.fg_color,
-                    c.bg_color,
-                    c.wide_char_spacer,
-                    c.wide_char,
-                )
-            })
-            .collect();
 
         // Dynamic baseline calculation based on font metrics
         let natural_line_height =
@@ -62,7 +47,14 @@ impl CellRenderer {
         };
 
         let mut current_col = 0usize;
-        for (grapheme, bold, italic, fg_color, bg_color, is_spacer, is_wide) in cell_data {
+        for cell in row_cells {
+            let grapheme = &cell.grapheme;
+            let bold = cell.bold;
+            let italic = cell.italic;
+            let fg_color = cell.fg_color;
+            let bg_color = cell.bg_color;
+            let is_spacer = cell.wide_char_spacer;
+            let is_wide = cell.wide_char;
             if is_spacer || grapheme == " " {
                 x_offset += self.grid.cell_width;
                 current_col += 1;
@@ -385,7 +377,7 @@ impl CellRenderer {
                     self.font_manager.find_glyph(base_char, bold, italic)
                 } else {
                     self.font_manager
-                        .find_grapheme_glyph(&grapheme, bold, italic)
+                        .find_grapheme_glyph(grapheme, bold, italic)
                 };
 
                 // Try to find a renderable glyph. Some fonts (e.g., Apple Color
@@ -396,36 +388,22 @@ impl CellRenderer {
                     match glyph_result {
                         Some((font_idx, glyph_id)) => {
                             let cache_key = ((font_idx as u64) << 32) | (glyph_id as u64);
-                            if self.atlas.glyph_cache.contains_key(&cache_key) {
-                                self.lru_remove(cache_key);
-                                self.lru_push_front(cache_key);
-                                break Some(
-                                    self.atlas
-                                        .glyph_cache
-                                        .get(&cache_key)
-                                        .expect(
-                                            "Glyph cache entry must exist after contains_key check",
-                                        )
-                                        .clone(),
-                                );
-                            } else if let Some(raster) =
-                                self.rasterize_glyph(font_idx, glyph_id, force_monochrome)
-                            {
-                                let info = self.upload_glyph(cache_key, &raster);
-                                self.atlas.glyph_cache.insert(cache_key, info.clone());
-                                self.lru_push_front(cache_key);
+                            if let Some(info) = self.get_or_rasterize_glyph(
+                                font_idx,
+                                glyph_id,
+                                force_monochrome,
+                                cache_key,
+                            ) {
                                 break Some(info);
-                            } else {
-                                // Rasterization failed — try next font
-                                excluded_fonts.push(font_idx);
-                                glyph_result = self.font_manager.find_glyph_excluding(
-                                    base_char,
-                                    bold,
-                                    italic,
-                                    &excluded_fonts,
-                                );
-                                continue;
                             }
+                            // Rasterization failed — try next font
+                            excluded_fonts.push(font_idx);
+                            glyph_result = self.font_manager.find_glyph_excluding(
+                                base_char,
+                                bold,
+                                italic,
+                                &excluded_fonts,
+                            );
                         }
                         None => break None,
                     }
@@ -441,24 +419,21 @@ impl CellRenderer {
                     loop {
                         match glyph_result2 {
                             Some((font_idx, glyph_id)) => {
+                                // Bit 63 distinguishes the colored-fallback cache entry from the
+                                // monochrome entry for the same (font_idx, glyph_id) pair.
                                 let cache_key =
-                                    ((font_idx as u64) << 32) | (glyph_id as u64) | (1u64 << 63); // different cache key for colored
-                                if let Some(raster) =
-                                    self.rasterize_glyph(font_idx, glyph_id, false)
+                                    ((font_idx as u64) << 32) | (glyph_id as u64) | (1u64 << 63);
+                                if let Some(info) = self
+                                    .get_or_rasterize_glyph(font_idx, glyph_id, false, cache_key)
                                 {
-                                    let info = self.upload_glyph(cache_key, &raster);
-                                    self.atlas.glyph_cache.insert(cache_key, info.clone());
-                                    self.lru_push_front(cache_key);
                                     break Some(info);
-                                } else {
-                                    glyph_result2 = self.font_manager.find_glyph_excluding(
-                                        base_char,
-                                        bold,
-                                        italic,
-                                        &[font_idx],
-                                    );
-                                    continue;
                                 }
+                                glyph_result2 = self.font_manager.find_glyph_excluding(
+                                    base_char,
+                                    bold,
+                                    italic,
+                                    &[font_idx],
+                                );
                             }
                             None => break None,
                         }

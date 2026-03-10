@@ -12,25 +12,25 @@ categories = ["text-processing"]
 
 [dependencies]
 # Font rasterization with colored glyph support
-swash = "0.2.6"
+swash.workspace = true
 
 # Font database for system font discovery and fallback
-fontdb = "0.23"
+fontdb.workspace = true
 
 # HarfBuzz text shaping for ligatures and complex scripts
-rustybuzz = "0.20.1"
+rustybuzz.workspace = true
 
 # Grapheme cluster detection for proper text boundaries
-unicode-segmentation = "1.12"
+unicode-segmentation.workspace = true
 
 # LRU cache for text shaping results
-lru = "0.16.3"
+lru.workspace = true
 
 # Configuration types (FontRange)
 par-term-config = { path = "../par-term-config", version = "0.7.0" }
 
 # Error handling
-anyhow = "1.0.101"
+anyhow.workspace = true
 
 # Logging
-log = "0.4.29"
+log.workspace = true

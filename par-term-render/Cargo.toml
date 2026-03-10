@@ -12,36 +12,36 @@ par-term-config = { path = "../par-term-config", version = "0.7.0", features = [
 par-term-fonts = { path = "../par-term-fonts", version = "0.1.5" }
 
 # Terminal emulator core (for CursorStyle type)
-par-term-emu-core-rust = { version = "0.40.0", default-features = false, features = ["rust-only"] }
+par-term-emu-core-rust.workspace = true
 
 # GPU rendering
-winit = "0.30"
-wgpu = { version = "27", features = ["wgsl"] }
-bytemuck = { version = "1.25", features = ["derive"] }
+winit.workspace = true
+wgpu.workspace = true
+bytemuck.workspace = true
 
 # Font rasterization (for glyph rendering)
-swash = "0.2.6"
+swash.workspace = true
 
 # GLSL to WGSL transpilation for custom shaders
-naga = { version = "27", features = ["glsl-in", "wgsl-out"] }
+naga.workspace = true
 
 # Image loading for background images and shader textures
-image = "0.25.9"
+image.workspace = true
 
 # Half-precision float for HDR cubemap textures
-half = "2.7.1"
+half.workspace = true
 
 # GUI overlay rendering (egui integration)
-egui = "0.33.3"
-egui-wgpu = "0.33.3"
+egui.workspace = true
+egui-wgpu.workspace = true
 
 # Platform-specific directories (for shader paths)
-dirs = "6.0"
+dirs.workspace = true
 
 # Error handling and logging
-anyhow = "1.0.101"
-thiserror = "2"
-log = "0.4.29"
+anyhow.workspace = true
+thiserror.workspace = true
+log.workspace = true
 
 # Concurrency
-parking_lot = "0.12.5"
+parking_lot.workspace = true

@@ -1,6 +1,6 @@
 # par-term Documentation
 
-Navigation index for all par-term documentation.
+Navigation index for all par-term documentation. Start with the [Getting Started](GETTING_STARTED.md) guide if you are new, or use the tables below to jump directly to a topic.
 
 ## Getting Started
 
@@ -67,7 +67,18 @@ Navigation index for all par-term documentation.
 
 | Document | Description |
 |----------|-------------|
+| [Getting Started](GETTING_STARTED.md) | Install, launch, and configure par-term in under 10 minutes |
 | [Architecture](ARCHITECTURE.md) | High-level system architecture, core components, data flow, and rendering pipeline |
+| [Crate Structure](CRATE_STRUCTURE.md) | Workspace crate dependency layers, version bump order, and adding new sub-crates |
+| [Concurrency](CONCURRENCY.md) | Lock hierarchy, mutex taxonomy, and deadlock prevention patterns |
+| [Mutex Patterns](MUTEX_PATTERNS.md) | Practical reference for the three-mutex system used across the codebase |
+| [State Lifecycle](STATE_LIFECYCLE.md) | Lifecycle of key state objects from creation through teardown |
+| [Config Reference](CONFIG_REFERENCE.md) | Complete reference for all 200+ configuration options |
+| [Environment Variables](ENVIRONMENT_VARIABLES.md) | Runtime environment variable reference |
+| [API](API.md) | Public types across all workspace crates |
 | [Logging](LOGGING.md) | Debug logging configuration, log levels, and custom debug macros |
 | [ACP Harness](ACP_HARNESS.md) | CLI debugging tool for reproducing ACP agent behavior outside the GUI |
+| [Troubleshooting](TROUBLESHOOTING.md) | Solutions for common issues and error messages |
+| [Enterprise Deployment](ENTERPRISE_DEPLOYMENT.md) | Managed deployment, configuration distribution, and fleet management |
+| [Quick Start: Fonts](QUICK_START_FONTS.md) | Set up font families, CJK, emoji, and math symbols in 5 minutes |
 | [Documentation Style Guide](DOCUMENTATION_STYLE_GUIDE.md) | Standards and best practices for project documentation |

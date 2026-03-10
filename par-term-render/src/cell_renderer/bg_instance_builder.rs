@@ -40,7 +40,15 @@ impl CellRenderer {
                 match self.cursor.unfocused_style {
                     par_term_config::UnfocusedCursorStyle::Hidden => false,
                     par_term_config::UnfocusedCursorStyle::Same => true,
-                    par_term_config::UnfocusedCursorStyle::Hollow => unreachable!(),
+                    par_term_config::UnfocusedCursorStyle::Hollow => {
+                        // Should be unreachable: Hollow is handled by `render_hollow_here` above.
+                        // Log and treat as hidden to avoid a panic in production.
+                        log::warn!(
+                            "[RENDER] Unexpected Hollow cursor variant in unfocused_style arm \
+                             — treating as Hidden"
+                        );
+                        false
+                    }
                 }
             } else {
                 cursor_visible

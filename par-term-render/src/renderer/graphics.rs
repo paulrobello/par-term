@@ -2,6 +2,10 @@ use super::Renderer;
 use crate::graphics_renderer::GraphicRenderInfo;
 use anyhow::Result;
 
+/// A single prettifier graphic entry passed to [`Renderer::update_prettifier_graphics`]:
+/// `(texture_id, rgba_data, pixel_width, pixel_height, screen_row, col)`.
+pub type PrettifierGraphicRef<'a> = (u64, &'a [u8], u32, u32, isize, usize);
+
 impl Renderer {
     /// Update graphics textures (Sixel, iTerm2, Kitty)
     ///
@@ -358,10 +362,9 @@ impl Renderer {
     ///
     /// Graphics are composited on top of terminal cells in the same pass as
     /// sixel/iTerm2/Kitty graphics.
-    #[allow(clippy::type_complexity)]
     pub fn update_prettifier_graphics(
         &mut self,
-        graphics: &[(u64, &[u8], u32, u32, isize, usize)],
+        graphics: &[PrettifierGraphicRef<'_>],
     ) -> Result<()> {
         for &(id, rgba_data, pixel_width, pixel_height, screen_row, col) in graphics {
             if rgba_data.is_empty() || pixel_width == 0 || pixel_height == 0 {

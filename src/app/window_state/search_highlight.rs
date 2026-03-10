@@ -3,21 +3,43 @@
 use crate::cell_renderer::Cell;
 use crate::search::SearchMatch;
 
+/// Parameters for [`apply_search_highlights_to_cells`].
+pub(crate) struct SearchHighlightParams<'a> {
+    /// Mutable cell grid for the current frame.
+    pub cells: &'a mut [Cell],
+    /// Number of columns per row.
+    pub cols: usize,
+    /// Current viewport scroll offset.
+    pub scroll_offset: usize,
+    /// Total lines in the scrollback buffer.
+    pub scrollback_len: usize,
+    /// Number of visible rows in the grid.
+    pub visible_lines: usize,
+    /// All current search matches.
+    pub matches: &'a [SearchMatch],
+    /// Index of the "current" match (rendered with a distinct color).
+    pub current_match_idx: usize,
+    /// Background color applied to non-current match cells.
+    pub highlight_color: [u8; 4],
+    /// Background color applied to the current match cells.
+    pub current_highlight_color: [u8; 4],
+}
+
 /// Apply search highlights directly to a cell slice.
 ///
 /// Called per-pane after `gather_pane_render_data` in `gpu_submit.rs`.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn apply_search_highlights_to_cells(
-    cells: &mut [Cell],
-    cols: usize,
-    scroll_offset: usize,
-    scrollback_len: usize,
-    visible_lines: usize,
-    matches: &[SearchMatch],
-    current_match_idx: usize,
-    highlight_color: [u8; 4],
-    current_highlight_color: [u8; 4],
-) {
+pub(crate) fn apply_search_highlights_to_cells(params: SearchHighlightParams<'_>) {
+    let SearchHighlightParams {
+        cells,
+        cols,
+        scroll_offset,
+        scrollback_len,
+        visible_lines,
+        matches,
+        current_match_idx,
+        highlight_color,
+        current_highlight_color,
+    } = params;
     if matches.is_empty() {
         return;
     }

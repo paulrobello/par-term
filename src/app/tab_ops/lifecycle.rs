@@ -78,8 +78,14 @@ impl WindowState {
                             // on the next Resized event.
                             if let Ok(mut term) = tab.terminal.try_write() {
                                 term.set_cell_dimensions(cell_width as u32, cell_height as u32);
-                                let _ = term
-                                    .resize_with_pixels(new_cols, new_rows, width_px, height_px);
+                                if let Err(e) =
+                                    term.resize_with_pixels(new_cols, new_rows, width_px, height_px)
+                                {
+                                    crate::debug_error!(
+                                        "TERMINAL",
+                                        "resize_with_pixels failed (new_tab): {e}"
+                                    );
+                                }
                             }
                             tab.active_cache_mut().cells = None;
                         }
@@ -121,7 +127,12 @@ impl WindowState {
                         term.set_cell_dimensions(cell_width as u32, cell_height as u32);
 
                         // Resize terminal to match window size
-                        let _ = term.resize_with_pixels(cols, rows, width_px, height_px);
+                        if let Err(e) = term.resize_with_pixels(cols, rows, width_px, height_px) {
+                            crate::debug_error!(
+                                "TERMINAL",
+                                "resize_with_pixels failed (new_tab_init): {e}"
+                            );
+                        }
                         log::info!(
                             "Resized new tab {} terminal to {}x{} ({}x{} px)",
                             tab_id,
@@ -312,8 +323,14 @@ impl WindowState {
                         // On miss: tab keeps old dimensions; fixed on the next Resized event.
                         if let Ok(mut term) = tab.terminal.try_write() {
                             term.set_cell_dimensions(cell_width as u32, cell_height as u32);
-                            let _ =
-                                term.resize_with_pixels(new_cols, new_rows, width_px, height_px);
+                            if let Err(e) =
+                                term.resize_with_pixels(new_cols, new_rows, width_px, height_px)
+                            {
+                                crate::debug_error!(
+                                    "TERMINAL",
+                                    "resize_with_pixels failed (close_tab): {e}"
+                                );
+                            }
                         }
                         tab.active_cache_mut().cells = None;
                     }

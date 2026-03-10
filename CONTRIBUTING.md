@@ -324,7 +324,7 @@ The configuration file uses the XDG base directory convention:
 - **Linux / macOS:** `~/.config/par-term/config.yaml`
 - **Windows:** `%APPDATA%\par-term\config.yaml`
 
-See `src/config.rs` for all available settings and their defaults. For a human-readable reference, see `docs/CONFIG_REFERENCE.md`.
+See `par-term-config/src/config/config_struct/mod.rs` for all available settings and their defaults. For a human-readable reference, see `docs/CONFIG_REFERENCE.md`.
 
 To generate an example configuration file:
 
@@ -336,15 +336,15 @@ make config-example    # Writes config.yaml.example to the project root
 
 ### Adding a Configuration Option
 
-1. Add the field to the `Config` struct in `src/config.rs` with a serde default attribute:
+1. Add the field to the `Config` struct in `par-term-config/src/config/config_struct/mod.rs` with a serde default attribute:
    ```rust
    #[serde(default = "default_my_option")]
    pub my_option: MyType,
    ```
 2. Implement the `default_my_option` function and update the `Default` impl.
 3. Use the config value in the relevant component.
-4. **Required:** Add UI controls in the appropriate settings tab (`src/settings_ui/*_tab.rs`). Set `settings.has_changes = true` and `*changes_this_frame = true` when the value changes.
-5. **Required:** Update the search keywords in `src/settings_ui/sidebar.rs` inside `tab_search_keywords()`.
+4. **Required:** Add UI controls in the appropriate settings tab (`par-term-settings-ui/src/*_tab.rs`). Set `settings.has_changes = true` and `*changes_this_frame = true` when the value changes.
+5. **Required:** Update the search keywords in `par-term-settings-ui/src/sidebar.rs` inside `tab_search_keywords()`.
 
 ### Adding a Keyboard Shortcut
 

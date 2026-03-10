@@ -9,7 +9,7 @@ par-term is a cross-platform GPU-accelerated terminal emulator frontend built in
 **Language**: Rust (Edition 2024)
 **Platform**: Cross-platform (macOS, Linux, Windows)
 **Graphics**: wgpu (Vulkan/Metal/DirectX 12)
-**Version**: 0.24.0
+**Version**: 0.25.0
 
 ## Development Commands
 
@@ -108,7 +108,7 @@ See `docs/ARCHITECTURE.md` for detailed architecture documentation.
 
 | Area | Primary Files | Sub-crate |
 |------|--------------|-----------|
-| **Rendering (pane path)** | `par-term-render/src/cell_renderer/pane_render.rs`, `par-term-render/src/cell_renderer/render.rs`, `src/app/render_pipeline/gpu_submit.rs` | `par-term-render` |
+| **Rendering (pane path)** | `par-term-render/src/cell_renderer/pane_render/mod.rs`, `par-term-render/src/cell_renderer/render.rs`, `src/app/render_pipeline/gpu_submit.rs` | `par-term-render` |
 | **Rendering (search highlights overlay)** | `src/app/window_state/search_highlight.rs` | main |
 | **Cursor rendering** | `par-term-render/src/cell_renderer/bg_instance_builder.rs`, `cursor.rs` | `par-term-render` |
 | **Block characters (▄▀ etc.)** | `par-term-render/src/cell_renderer/block_chars/` | `par-term-render` |
@@ -142,7 +142,7 @@ See `docs/ARCHITECTURE.md` for detailed architecture documentation.
 
 Location (XDG-compliant): `~/.config/par-term/config.yaml` (Linux/macOS), `%APPDATA%\par-term\config.yaml` (Windows)
 
-See `src/config.rs` for all available settings and defaults.
+See `par-term-config/src/config/config_struct/mod.rs` for all available settings and defaults.
 
 ## Sub-Crate Dependency Graph (for version bumps)
 
@@ -182,17 +182,17 @@ Layer 4 — Root crate (bump last):
 3. Bump Layer 2 crate versions
 4. Bump `par-term-render` version + update its `par-term-fonts` ref
 5. Update all version refs in root `Cargo.toml`
-6. Run `cargo check` to verify
+6. Run `cargo check --workspace` to verify
 
 ## Common Development Workflows
 
 ### Adding a New Configuration Option
-1. Add field to `Config` struct in `src/config.rs` with `#[serde(default = "default_my_option")]`
+1. Add field to `Config` struct in `par-term-config/src/config/config_struct/mod.rs` with `#[serde(default = "default_my_option")]`
 2. Update `Default` impl
 3. Use config value in relevant component
-4. **REQUIRED**: Add UI controls in the appropriate `src/settings_ui/*_tab.rs`
+4. **REQUIRED**: Add UI controls in the appropriate `par-term-settings-ui/src/*_tab.rs`
    - Set `settings.has_changes = true` and `*changes_this_frame = true` on change
-5. **REQUIRED**: Update search keywords in `src/settings_ui/sidebar.rs` → `tab_search_keywords()`
+5. **REQUIRED**: Update search keywords in `par-term-settings-ui/src/sidebar.rs` → `tab_search_keywords()`
 
 ### Adding a New Keyboard Shortcut
 1. Add key handling in `src/app/input_events.rs`
@@ -216,9 +216,9 @@ See `docs/CUSTOM_SHADERS.md` for full shader documentation including uniforms, c
 - When debugging one shader type, temporarily disable the other
 
 ### Modifying Rendering
-- Cell backgrounds: `src/cell_renderer/` + `src/shaders/cell_bg.wgsl`
-- Text rendering: `src/cell_renderer/` + `src/shaders/cell_text.wgsl`
-- Scrollbar: `src/scrollbar.rs` + `src/shaders/scrollbar.wgsl`
+- Cell backgrounds: `par-term-render/src/cell_renderer/` + `par-term-render/src/shaders/cell_bg.wgsl`
+- Text rendering: `par-term-render/src/cell_renderer/` + `par-term-render/src/shaders/cell_text.wgsl`
+- Scrollbar: `par-term-render/src/scrollbar.rs` + `par-term-render/src/shaders/scrollbar.wgsl`
 
 ### Debugging PTY Issues
 - Enable logging: `RUST_LOG=debug cargo run`
@@ -235,7 +235,7 @@ See `docs/CUSTOM_SHADERS.md` for full shader documentation including uniforms, c
 - Use `try_lock()` from sync contexts when accessing `tab.terminal` (tokio::sync::Mutex). For user-initiated operations (start/stop coprocess), use `blocking_lock()`. See MEMORY.md for details.
 - `log::info!()` etc. go to stdout, NOT the debug log — use `crate::debug_info!()` macros instead
 - The core library (`par-term-emu-core-rust`) has a `CoprocessManager` wired into the PTY reader thread; don't create separate managers in the frontend
-- **Single rendering path (pane)**: There is ONE rendering path — all rendering goes through `render_split_panes_with_data()` → `CellRenderer::build_pane_instance_buffers()` in `pane_render.rs`. The `build_instance_buffers()` method in `instance_buffers.rs` is only used by the shader intermediate texture path (`render_to_texture` / `render_to_view`). Per-cell overlays (search highlights, URL detection, prettifier substitution) are applied to `pane_data[].cells` AFTER `gather_pane_render_data()` in `gpu_submit.rs`.
+- **Single rendering path (pane)**: There is ONE rendering path — all rendering goes through `render_split_panes_with_data()` → `CellRenderer::build_pane_instance_buffers()` in `pane_render/mod.rs`. The `build_instance_buffers()` method in `instance_buffers.rs` is only used by the shader intermediate texture path (`render_to_texture` / `render_to_view`). Per-cell overlays (search highlights, URL detection, prettifier substitution) are applied to `pane_data[].cells` AFTER `gather_pane_render_data()` in `gpu_submit.rs`.
 - **Render 3-phase ordering**: Cursor overlays MUST render in phase 3 (after text), otherwise beam/underline cursors are hidden under text glyphs. All three callers use `emit_three_phase_draw_calls()` in `render.rs` — the single source of truth for draw call sequencing.
 
 ## Docs Reference (docs/)
@@ -245,9 +245,13 @@ See `docs/CUSTOM_SHADERS.md` for full shader documentation including uniforms, c
 | Architecture overview | `docs/ARCHITECTURE.md` |
 | Crate dependency structure | `docs/CRATE_STRUCTURE.md` |
 | Concurrency / locking | `docs/CONCURRENCY.md` |
+| Mutex patterns reference | `docs/MUTEX_PATTERNS.md` |
 | State lifecycle | `docs/STATE_LIFECYCLE.md` |
 | Custom shaders (background + cursor) | `docs/CUSTOM_SHADERS.md` |
+| Included shader gallery | `docs/SHADERS.md` |
+| GPU compositor / render layers | `docs/COMPOSITOR.md` |
 | Session save/restore | `docs/SESSION_MANAGEMENT.md` |
+| Session logging | `docs/SESSION_LOGGING.md` |
 | Snippets & actions | `docs/SNIPPETS.md` |
 | Keyboard shortcuts | `docs/KEYBOARD_SHORTCUTS.md` |
 | Logging & debug | `docs/LOGGING.md` |
@@ -255,17 +259,46 @@ See `docs/CUSTOM_SHADERS.md` for full shader documentation including uniforms, c
 | Config reference | `docs/CONFIG_REFERENCE.md` |
 | ACP harness | `docs/ACP_HARNESS.md` |
 | Troubleshooting | `docs/TROUBLESHOOTING.md` |
+| Getting started guide | `docs/GETTING_STARTED.md` |
+| Quick start: fonts | `docs/QUICK_START_FONTS.md` |
+| Public API index | `docs/API.md` |
+| Environment variables | `docs/ENVIRONMENT_VARIABLES.md` |
+| Enterprise deployment | `docs/ENTERPRISE_DEPLOYMENT.md` |
+| Automation (triggers, coprocesses) | `docs/AUTOMATION.md` |
+| Content prettifier | `docs/PRETTIFIER.md` |
+| Assistant panel / ACP agents | `docs/ASSISTANT_PANEL.md` |
+| Split tabs | `docs/TABS.md` |
+| Window management | `docs/WINDOW_MANAGEMENT.md` |
+| Window arrangements | `docs/ARRANGEMENTS.md` |
+| Profiles | `docs/PROFILES.md` |
+| Accessibility | `docs/ACCESSIBILITY.md` |
+| Self-update | `docs/SELF_UPDATE.md` |
+| Mouse features | `docs/MOUSE_FEATURES.md` |
+| Copy mode | `docs/COPY_MODE.md` |
+| Search | `docs/SEARCH.md` |
+| Status bar | `docs/STATUS_BAR.md` |
+| Badges | `docs/BADGES.md` |
+| Integrations | `docs/INTEGRATIONS.md` |
+| Command history | `docs/COMMAND_HISTORY.md` |
+| Command separators | `docs/COMMAND_SEPARATORS.md` |
+| File transfers | `docs/FILE_TRANSFERS.md` |
+| Paste special | `docs/PASTE_SPECIAL.md` |
+| Preferences import/export | `docs/PREFERENCES_IMPORT_EXPORT.md` |
+| Progress bars | `docs/PROGRESS_BARS.md` |
+| Scrollback buffer | `docs/SCROLLBACK.md` |
+| Semantic history | `docs/SEMANTIC_HISTORY.md` |
 
 ## Supplemental Memory Notes
 
-Past debugging investigations are preserved in project memory files. Check these before investigating known problem areas:
-- `REMEMBER.md` — Cursor rendering root cause analysis (3-phase rendering, hollow cursor opacity independence)
-- `block_rendering.md` — Block character ▄/▀ banding root cause and what approaches failed
+Key rendering root-cause findings are preserved in `MEMORY.md` (auto-memory file loaded by Claude Code) and inline in the `## Critical Gotchas` section above. The two most important areas to know before touching rendering code:
+
+- **Cursor rendering**: 3-phase draw order (bgs → text → cursor overlays) enforced via `emit_three_phase_draw_calls()`. Hollow cursor opacity is independent of window opacity.
+- **Block characters (▄/▀)**: Both halves rendered entirely via the text pipeline; bg pipeline emits a full-height quad that text overwrites. No partial-cell seam between pipelines.
 
 ## Quick Debugging Checklist by Category
 
 **Rendering issue (wrong color, invisible element, cursor problem):**
-1. All rendering goes through `pane_render.rs` → `emit_three_phase_draw_calls()` in `render.rs`
+1. All rendering goes through `pane_render/mod.rs` → `emit_three_phase_draw_calls()` in `render.rs`
 2. Check 3-phase ordering: bgs → text → cursor overlays
 3. For per-cell overlays: modify `pane_data[].cells` in `gpu_submit.rs` after `gather_pane_render_data()`
 4. Use `make run-debug` and `make tail-log` with `crate::debug_info!("RENDER", ...)`

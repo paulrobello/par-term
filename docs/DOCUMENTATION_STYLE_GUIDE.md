@@ -272,6 +272,12 @@ graph TD
 - "See `pyproject.toml` for current dependency versions"
 - "Minimum Python version specified in `pyproject.toml`"
 
+#### Emoji in Headings
+
+Avoid emoji in section headings within standard documentation files (guides, references, architecture docs). Use the callout box format below for emphasis instead.
+
+**Exception**: The `README.md` What's New / changelog sections use emoji category labels (e.g., "### Security & Safety", "### New Features") as a deliberate visual convention for the release notes format. This is an accepted exception for that specific context. New What's New sections in README.md should continue this pattern; all other documentation files should not use emoji in headings.
+
 #### Callout Boxes
 
 Use blockquotes with emoji indicators for different types of information:

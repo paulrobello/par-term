@@ -94,6 +94,20 @@ impl Tab {
         // Set up session logging if enabled
         if config.auto_log_sessions {
             let logs_dir = config.logs_dir();
+
+            // SEC-010: Ensure the logs directory exists with owner-only permissions
+            // (0o700) so session logs are not world-listable.
+            if let Err(e) = std::fs::create_dir_all(&logs_dir) {
+                log::warn!("Failed to create logs directory {:?}: {}", logs_dir, e);
+            } else {
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    let _ =
+                        std::fs::set_permissions(&logs_dir, std::fs::Permissions::from_mode(0o700));
+                }
+            }
+
             let title_with_ts = Some(format!(
                 "{} - {}",
                 session_title,

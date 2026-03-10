@@ -80,7 +80,12 @@ impl WindowState {
                     let width_px = (cols as f32 * cell_width) as usize;
                     let height_px = (rows as f32 * cell_height) as usize;
                     term.set_cell_dimensions(cell_width as u32, cell_height as u32);
-                    let _ = term.resize_with_pixels(cols, rows, width_px, height_px);
+                    if let Err(e) = term.resize_with_pixels(cols, rows, width_px, height_px) {
+                        crate::debug_error!(
+                            "TERMINAL",
+                            "resize_with_pixels failed (reopen_preserved): {e}"
+                        );
+                    }
                 }
             }
 
@@ -136,7 +141,13 @@ impl WindowState {
                             let width_px = (cols as f32 * cell_width) as usize;
                             let height_px = (rows as f32 * cell_height) as usize;
                             term.set_cell_dimensions(cell_width as u32, cell_height as u32);
-                            let _ = term.resize_with_pixels(cols, rows, width_px, height_px);
+                            if let Err(e) = term.resize_with_pixels(cols, rows, width_px, height_px)
+                            {
+                                crate::debug_error!(
+                                    "TERMINAL",
+                                    "resize_with_pixels failed (reopen_cwd): {e}"
+                                );
+                            }
                         }
                     }
 
@@ -198,7 +209,14 @@ impl WindowState {
                     // On miss: this tab is not resized; corrected on the next Resized event.
                     if let Ok(mut term) = tab.terminal.try_write() {
                         term.set_cell_dimensions(cell_width as u32, cell_height as u32);
-                        let _ = term.resize_with_pixels(new_cols, new_rows, width_px, height_px);
+                        if let Err(e) =
+                            term.resize_with_pixels(new_cols, new_rows, width_px, height_px)
+                        {
+                            crate::debug_error!(
+                                "TERMINAL",
+                                "resize_with_pixels failed (tab_bar_resize): {e}"
+                            );
+                        }
                     }
                     tab.active_cache_mut().cells = None;
                 }

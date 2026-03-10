@@ -95,6 +95,8 @@ impl WindowState {
             trigger_state: TriggerState::default(),
 
             pending_snap_size: None,
+
+            scratch_prettifier_block_ids: std::collections::HashSet::new(),
         }
     }
 
@@ -297,7 +299,11 @@ impl WindowState {
             if let Ok(mut term) = tab.terminal.try_write() {
                 term.set_cell_dimensions(cell_width as u32, cell_height as u32);
                 // Send resize to ensure PTY has correct pixel dimensions
-                let _ = term.resize_with_pixels(renderer_cols, renderer_rows, width_px, height_px);
+                if let Err(e) =
+                    term.resize_with_pixels(renderer_cols, renderer_rows, width_px, height_px)
+                {
+                    crate::debug_error!("TERMINAL", "resize_with_pixels failed (init): {e}");
+                }
                 log::info!(
                     "Initial terminal dimensions: {}x{} ({}x{} px)",
                     renderer_cols,

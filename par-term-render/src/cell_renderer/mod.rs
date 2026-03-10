@@ -1,3 +1,12 @@
+// ARC-009 TODO: This file is 742 lines (limit: 800 — approaching threshold). When it
+// exceeds 800 lines, extract into sub-modules under cell_renderer/:
+//
+//   glyph_ops.rs     — get_or_rasterize_glyph helper (see QA-006: glyph cache logic
+//                      currently duplicated 3x). Also resolves QA-013 scratch buffer.
+//   font_fallback.rs — font fallback chain construction
+//
+// Tracking: Issue ARC-009 in AUDIT.md. See also QA-006 (glyph cache deduplication).
+
 use anyhow::{Context, Result};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -205,6 +214,15 @@ pub struct CellRenderer {
     // Scratch buffers reused across dirty-row iterations (avoids per-row Vec allocation)
     pub(crate) scratch_row_bg: Vec<BackgroundInstance>,
     pub(crate) scratch_row_text: Vec<TextInstance>,
+    /// Scratch buffer for a single row of cells, reused in `build_instance_buffers` to
+    /// avoid cloning `self.cells[start..end]` into a new Vec on every dirty row.
+    pub(crate) scratch_row_cells: Vec<Cell>,
+
+    /// Reusable swash ScaleContext — holds internal caches that must be preserved
+    /// across glyph rasterization calls. Allocating one per glyph throws away these
+    /// caches unnecessarily; keeping it here allows every rasterize_glyph call to
+    /// reuse the same warmed-up context.
+    pub(crate) scale_context: swash::scale::ScaleContext,
 
     // Transparency mode
     /// When true, only default background cells are transparent.
@@ -632,6 +650,8 @@ impl CellRenderer {
             gutter_indicators: Vec::new(),
             scratch_row_bg: Vec::with_capacity(cols),
             scratch_row_text: Vec::with_capacity(cols * 2),
+            scratch_row_cells: Vec::with_capacity(cols),
+            scale_context: swash::scale::ScaleContext::new(),
         };
 
         // Upload a solid white 2x2 pixel block to the atlas for geometric block rendering

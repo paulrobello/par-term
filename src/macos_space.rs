@@ -68,6 +68,19 @@ mod inner {
     static SLS_FNS: OnceLock<Option<SlsFunctions>> = OnceLock::new();
 
     fn load_sls_functions() -> Option<&'static SlsFunctions> {
+        // Guard: reject unsupported macOS versions before touching private SLS symbols.
+        // ABI differences on pre-Ventura releases could cause undefined behavior.
+        if macos_major_version() < MIN_SUPPORTED_MACOS_MAJOR {
+            log::warn!(
+                "macOS version {} is below minimum supported version {} for SLS Space API — \
+                 Space targeting disabled",
+                macos_major_version(),
+                MIN_SUPPORTED_MACOS_MAJOR,
+            );
+            // Initialise as None so subsequent calls return None without re-checking.
+            return SLS_FNS.get_or_init(|| None).as_ref();
+        }
+
         SLS_FNS
             // SAFETY: `dlopen` opens the SkyLight private framework using a well-known,
             // null-terminated C string path. `dlsym` returns either null (checked in the
@@ -76,6 +89,7 @@ mod inner {
             // C ABI matches the actual SLS private function. The transmutation of a
             // non-null `*mut c_void` to a function pointer type is valid on all Apple
             // platforms where function pointers and data pointers are the same size.
+            // Validated on macOS 13 (Ventura), 14 (Sonoma), and 15 (Sequoia).
             .get_or_init(|| unsafe {
                 let handle = libc::dlopen(
                     c"/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight".as_ptr(),
@@ -123,6 +137,35 @@ mod inner {
     // ========================================================================
     // macOS version detection
     // ========================================================================
+
+    /// Minimum macOS major version on which the SLS Space API has been validated.
+    /// Loading private SLS symbols on very old macOS releases may cause undefined
+    /// behavior due to ABI differences. Versions below this threshold cause
+    /// `load_sls_functions()` to return `None`.
+    ///
+    /// Tested on: macOS 13 (Ventura), 14 (Sonoma), 15 (Sequoia).
+    const MIN_SUPPORTED_MACOS_MAJOR: u32 = 13;
+
+    static MACOS_MAJOR_VERSION_SPACE: OnceLock<u32> = OnceLock::new();
+
+    fn macos_major_version() -> u32 {
+        *MACOS_MAJOR_VERSION_SPACE.get_or_init(|| {
+            match std::process::Command::new("sw_vers")
+                .arg("-productVersion")
+                .output()
+            {
+                Ok(output) => {
+                    let s = String::from_utf8_lossy(&output.stdout);
+                    s.trim()
+                        .split('.')
+                        .next()
+                        .and_then(|v| v.parse::<u32>().ok())
+                        .unwrap_or(0)
+                }
+                Err(_) => 0,
+            }
+        })
+    }
 
     static IS_14_5_OR_NEWER: OnceLock<bool> = OnceLock::new();
 

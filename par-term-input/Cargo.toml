@@ -15,10 +15,10 @@ categories = ["command-line-utilities"]
 par-term-config = { path = "../par-term-config", version = "0.7.0" }
 
 # Clipboard access
-arboard = "3.6.1"
+arboard.workspace = true
 
 # Window and key event types
-winit = "0.30"
+winit.workspace = true
 
 # Logging
-log = "0.4.29"
+log.workspace = true

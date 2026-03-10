@@ -12,15 +12,15 @@ categories = ["command-line-utilities"]
 
 [dependencies]
 # JSON serialization for JSON-RPC protocol
-serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.149"
+serde.workspace = true
+serde_json.workspace = true
 
 # Logging
-log = "0.4.29"
+log.workspace = true
 
 # Platform-specific directories for config path resolution
-dirs = "6.0"
-base64 = "0.22.1"
+dirs.workspace = true
+base64.workspace = true
 
 [dev-dependencies]
-tempfile = "3.25"
+tempfile.workspace = true

@@ -12,6 +12,25 @@ A cross-platform, GPU-accelerated terminal emulator frontend built with Rust, po
 
 ![par-term screenshot](https://raw.githubusercontent.com/paulrobello/par-term/main/screenshot.png)
 
+## Table of Contents
+
+- [Getting Started](#getting-started)
+- [What's New](#whats-new-in-0250)
+- [Features](#features)
+- [Documentation](#documentation)
+- [Installation](#installation)
+  - [Homebrew (macOS)](#homebrew-macos)
+  - [Cargo Install](#cargo-install)
+  - [From Source](#from-source)
+  - [macOS Bundle](#macos-bundle)
+  - [Linux Dependencies](#linux-dependencies)
+- [Installing Shaders](#installing-shaders)
+- [Keyboard Shortcuts](#keyboard-shortcuts)
+- [Configuration](#configuration)
+- [Technology](#technology)
+- [Contributing](#contributing)
+- [License](#license)
+
 ## Getting Started
 
 New to par-term? The [Getting Started Guide](docs/GETTING_STARTED.md) walks you through installation, essential keyboard shortcuts, fonts, and split panes — everything you need to be productive in under 10 minutes.
@@ -868,6 +887,16 @@ Essential feature for emacs/vim users.
 brew install --cask paulrobello/tap/par-term
 ```
 
+### Cargo Install
+
+If you have a Rust toolchain installed, install directly from crates.io:
+
+```bash
+cargo install par-term
+```
+
+This builds and installs the binary to `~/.cargo/bin/par-term`.
+
 ### From Source
 
 Requires Rust 1.85+ (2024 edition) and modern graphics drivers:
@@ -877,12 +906,14 @@ Requires Rust 1.85+ (2024 edition) and modern graphics drivers:
 git clone https://github.com/paulrobello/par-term
 cd par-term
 
-# Build and run (debug)
-cargo run
+# Build with the optimized dev-release profile (~30-40s, ~95% of full release performance)
+make build
 
-# Build optimized release version
-cargo build --release
-./target/release/par-term
+# Run
+make run
+
+# Or build the full release binary (~3 min, for distribution)
+make build-full
 
 # Install Claude ACP bridge for Assistant Panel (Claude connector)
 make install-acp
@@ -959,18 +990,24 @@ par-term install-shaders --force
 
 ### Shell Script
 
-Alternatively, use the shell script installer:
+Alternatively, use the shell script installer. The recommended approach is to
+download the script first, inspect it, and then run it:
 
 ```bash
-# Download and run the installer
-curl -sL https://raw.githubusercontent.com/paulrobello/par-term/main/install_shaders.sh | sh
-```
-
-Or download and run manually:
-```bash
+# Recommended: download, inspect, then run
 curl -O https://raw.githubusercontent.com/paulrobello/par-term/main/install_shaders.sh
+# Review the script before executing:
+less install_shaders.sh
 chmod +x install_shaders.sh
 ./install_shaders.sh
+```
+
+> **Note**: The one-liner pipe-to-shell pattern executes remote code without
+> review. Use the download-then-inspect workflow above when security matters.
+
+```bash
+# Convenience only — inspect the script first when possible
+curl -sL https://raw.githubusercontent.com/paulrobello/par-term/main/install_shaders.sh | sh
 ```
 
 ### Manual Install
@@ -1087,7 +1124,9 @@ See `examples/config-complete.yaml` for a full list of options.
 
 ## Contributing
 
-Contributions are welcome! Please ensure you run `make checkall` before submitting any pull requests.
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for the full development setup, build commands, testing workflow, commit message format, and PR process.
+
+Before submitting a pull request:
 
 ```bash
 make fmt       # Format code
@@ -1095,6 +1134,8 @@ make lint      # Run clippy
 make test      # Run test suite
 make checkall  # Run all of the above
 ```
+
+For documentation contributions, follow the conventions in [docs/DOCUMENTATION_STYLE_GUIDE.md](docs/DOCUMENTATION_STYLE_GUIDE.md).
 
 ## License
 

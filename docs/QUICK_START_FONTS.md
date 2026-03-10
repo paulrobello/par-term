@@ -1,10 +1,22 @@
 # Quick Start: Font Features
 
-Get up and running with par-term's advanced font features in 5 minutes!
+Get up and running with par-term's advanced font features in 5 minutes.
+
+## Table of Contents
+
+- [Styled Fonts](#quick-setup-styled-fonts)
+- [CJK Support](#quick-setup-cjk-support)
+- [Emoji](#quick-setup-emoji)
+- [Math Symbols](#quick-setup-math-symbols)
+- [Complete Setup](#complete-setup-everything-together)
+- [Test Script](#test-script)
+- [Troubleshooting](#troubleshooting)
+- [Next Steps](#next-steps)
+- [Pro Tips](#pro-tips)
 
 ---
 
-## 🚀 Quick Setup: Styled Fonts
+## Quick Setup: Styled Fonts
 
 **Goal:** Use proper bold/italic fonts instead of synthetic rendering.
 
@@ -43,7 +55,7 @@ echo -e "\e[1;3mBold+Italic\e[0m"      # Both
 
 ---
 
-## 🌏 Quick Setup: CJK Support
+## Quick Setup: CJK Support
 
 **Goal:** Use proper fonts for Chinese, Japanese, Korean characters.
 
@@ -84,7 +96,7 @@ echo "Korean: 안녕하세요 세계"
 
 ---
 
-## 😀 Quick Setup: Emoji
+## Quick Setup: Emoji
 
 **Goal:** Colorful emoji rendering.
 
@@ -114,7 +126,7 @@ echo "🌟 🔥 💻 📱 ⚡"
 
 ---
 
-## 🔬 Quick Setup: Math Symbols
+## Quick Setup: Math Symbols
 
 **Goal:** Proper rendering for mathematical notation.
 
@@ -150,7 +162,7 @@ echo "∑ᵢ₌₁^n i = n(n+1)/2"
 
 ---
 
-## 🎨 Complete Setup: Everything Together
+## Complete Setup: Everything Together
 
 For the ultimate configuration, use all features:
 
@@ -218,7 +230,7 @@ EOF
 
 ---
 
-## 🧪 Test Script
+## Test Script
 
 Save this as `test_fonts.sh`:
 
@@ -291,7 +303,7 @@ chmod +x test_fonts.sh
 
 ---
 
-## 🔍 Troubleshooting
+## Troubleshooting
 
 ### Problem: Styled fonts not working
 ```bash
@@ -338,7 +350,7 @@ RUST_LOG=debug par-term
 
 ---
 
-## 📚 Next Steps
+## Next Steps
 
 1. **See examples/** directory for complete configs
 2. **Read examples/README.md** for comprehensive guide
@@ -347,7 +359,7 @@ RUST_LOG=debug par-term
 
 ---
 
-## 💡 Pro Tips
+## Pro Tips
 
 1. **Start Simple:** Get styled fonts working first, then add ranges
 2. **Test Each Range:** Add one font_range at a time and test

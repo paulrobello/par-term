@@ -1,3 +1,20 @@
+// ARC-009 TODO: This file is 1035 lines (limit: 800). Extract the following into
+// sibling modules within this pane_render/ directory:
+//
+//   rle_merge.rs    — RLE background-color merge inner loop (currently inlined in
+//                     build_pane_instance_buffers). Extract helper:
+//                     `fn merge_rle_bg_spans(cells, ...) -> Vec<BackgroundInstance>`
+//
+//   powerline.rs    — Powerline fringe-extension logic (~80 lines). Extract helper:
+//                     `fn extend_powerline_fringes(spans, cell_w, cell_h) -> Vec<BackgroundInstance>`
+//
+// IMPORTANT invariants to preserve (see MEMORY.md and CLAUDE.md):
+//   • 3-phase draw ordering: bg instances → text instances → cursor overlays
+//   • `fill_default_bg_cells` controls default-bg skip in bg-image mode
+//   • `skip_solid_background` must NOT be used to gate default-bg rendering
+//
+// Tracking: Issue ARC-009 in AUDIT.md.
+
 use super::block_chars;
 use super::instance_buffers::{
     CURSOR_BRIGHTNESS_THRESHOLD, STIPPLE_OFF_PX, STIPPLE_ON_PX, UNDERLINE_HEIGHT_RATIO,
@@ -5,7 +22,6 @@ use super::instance_buffers::{
 use super::{BackgroundInstance, Cell, CellRenderer, PaneViewport, TextInstance};
 use anyhow::Result;
 use par_term_config::{SeparatorMark, color_u8x4_rgb_to_f32, color_u8x4_rgb_to_f32_a};
-use par_term_fonts::text_shaper::ShapingOptions;
 mod cursor_overlays;
 mod separators;
 
@@ -242,12 +258,6 @@ impl CellRenderer {
             fill_default_bg_cells,
             separator_marks,
         } = p;
-        let _shaping_options = ShapingOptions {
-            enable_ligatures: self.font.enable_ligatures,
-            enable_kerning: self.font.enable_kerning,
-            ..Default::default()
-        };
-
         // Clear previous instance buffers
         for instance in &mut self.bg_instances {
             instance.size = [0.0, 0.0];
@@ -429,7 +439,8 @@ impl CellRenderer {
                 // Snap all edges to pixel boundaries to match the text pipeline and
                 // eliminate sub-pixel gaps between adjacent differently-colored cell runs.
                 let x0 = (content_x + start_col as f32 * self.grid.cell_width).round();
-                let x1 = (content_x + (start_col + run_length) as f32 * self.grid.cell_width).round();
+                let x1 =
+                    (content_x + (start_col + run_length) as f32 * self.grid.cell_width).round();
                 let y0 = (content_y + row as f32 * self.grid.cell_height).round();
                 let y1 = (content_y + (row + 1) as f32 * self.grid.cell_height).round();
 
@@ -453,8 +464,14 @@ impl CellRenderer {
                 let x1 = if col < row_cells.len()
                     && matches!(
                         row_cells[col].grapheme.as_str(),
-                        "\u{E0B0}" | "\u{E0B1}" | "\u{E0B2}" | "\u{E0B3}"
-                            | "\u{E0B4}" | "\u{E0B5}" | "\u{E0B6}" | "\u{E0B7}"
+                        "\u{E0B0}"
+                            | "\u{E0B1}"
+                            | "\u{E0B2}"
+                            | "\u{E0B3}"
+                            | "\u{E0B4}"
+                            | "\u{E0B5}"
+                            | "\u{E0B6}"
+                            | "\u{E0B7}"
                     )
                     && is_default_bg_cell(row_cells[col].bg_color)
                 {
@@ -467,8 +484,14 @@ impl CellRenderer {
                 let x0 = if start_col > 0
                     && matches!(
                         row_cells[start_col - 1].grapheme.as_str(),
-                        "\u{E0B0}" | "\u{E0B1}" | "\u{E0B2}" | "\u{E0B3}"
-                            | "\u{E0B4}" | "\u{E0B5}" | "\u{E0B6}" | "\u{E0B7}"
+                        "\u{E0B0}"
+                            | "\u{E0B1}"
+                            | "\u{E0B2}"
+                            | "\u{E0B3}"
+                            | "\u{E0B4}"
+                            | "\u{E0B5}"
+                            | "\u{E0B6}"
+                            | "\u{E0B7}"
                     )
                     && is_default_bg_cell(row_cells[start_col - 1].bg_color)
                 {
@@ -783,36 +806,22 @@ impl CellRenderer {
                     match glyph_result {
                         Some((font_idx, glyph_id)) => {
                             let cache_key = ((font_idx as u64) << 32) | (glyph_id as u64);
-                            if self.atlas.glyph_cache.contains_key(&cache_key) {
-                                self.lru_remove(cache_key);
-                                self.lru_push_front(cache_key);
-                                break Some(
-                                    self.atlas
-                                        .glyph_cache
-                                        .get(&cache_key)
-                                        .expect(
-                                            "Glyph cache entry must exist after contains_key check",
-                                        )
-                                        .clone(),
-                                );
-                            } else if let Some(raster) =
-                                self.rasterize_glyph(font_idx, glyph_id, force_monochrome)
-                            {
-                                let info = self.upload_glyph(cache_key, &raster);
-                                self.atlas.glyph_cache.insert(cache_key, info.clone());
-                                self.lru_push_front(cache_key);
+                            if let Some(info) = self.get_or_rasterize_glyph(
+                                font_idx,
+                                glyph_id,
+                                force_monochrome,
+                                cache_key,
+                            ) {
                                 break Some(info);
-                            } else {
-                                // Rasterization failed — try next font
-                                excluded_fonts.push(font_idx);
-                                glyph_result = self.font_manager.find_glyph_excluding(
-                                    base_char,
-                                    cell.bold,
-                                    cell.italic,
-                                    &excluded_fonts,
-                                );
-                                continue;
                             }
+                            // Rasterization failed — try next font
+                            excluded_fonts.push(font_idx);
+                            glyph_result = self.font_manager.find_glyph_excluding(
+                                base_char,
+                                cell.bold,
+                                cell.italic,
+                                &excluded_fonts,
+                            );
                         }
                         None => break None,
                     }
@@ -826,24 +835,20 @@ impl CellRenderer {
                     loop {
                         match glyph_result2 {
                             Some((font_idx, glyph_id)) => {
+                                // Bit 63 distinguishes the colored-fallback cache entry.
                                 let cache_key =
                                     ((font_idx as u64) << 32) | (glyph_id as u64) | (1u64 << 63);
-                                if let Some(raster) =
-                                    self.rasterize_glyph(font_idx, glyph_id, false)
+                                if let Some(info) = self
+                                    .get_or_rasterize_glyph(font_idx, glyph_id, false, cache_key)
                                 {
-                                    let info = self.upload_glyph(cache_key, &raster);
-                                    self.atlas.glyph_cache.insert(cache_key, info.clone());
-                                    self.lru_push_front(cache_key);
                                     break Some(info);
-                                } else {
-                                    glyph_result2 = self.font_manager.find_glyph_excluding(
-                                        base_char,
-                                        cell.bold,
-                                        cell.italic,
-                                        &[font_idx],
-                                    );
-                                    continue;
                                 }
+                                glyph_result2 = self.font_manager.find_glyph_excluding(
+                                    base_char,
+                                    cell.bold,
+                                    cell.italic,
+                                    &[font_idx],
+                                );
                             }
                             None => break None,
                         }

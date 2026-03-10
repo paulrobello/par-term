@@ -22,9 +22,11 @@ impl Renderer {
             return Ok(());
         }
 
-        // Build divider instances using the cell renderer's background pipeline
-        // We reuse the bg_instances buffer for dividers
-        let mut instances = Vec::with_capacity(dividers.len() * 3); // Extra capacity for multi-rect styles
+        // Build divider instances using the cell renderer's background pipeline.
+        // We take the scratch buffer from self so the borrow checker allows us to
+        // also borrow self.cell_renderer mutably later in this method.
+        let mut instances = std::mem::take(&mut self.scratch_divider_instances);
+        instances.clear();
 
         let w = self.size.width as f32;
         let h = self.size.height as f32;
@@ -300,6 +302,11 @@ impl Renderer {
         self.cell_renderer
             .queue()
             .submit(std::iter::once(encoder.finish()));
+
+        // Restore the scratch buffer so its capacity is retained for the next frame.
+        instances.clear();
+        self.scratch_divider_instances = instances;
+
         Ok(())
     }
 

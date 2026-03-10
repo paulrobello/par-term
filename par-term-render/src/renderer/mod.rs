@@ -1,3 +1,14 @@
+// ARC-009 TODO: This file is 743 lines (limit: 800 — approaching threshold). When it
+// exceeds 800 lines, extract into sibling sub-modules under renderer/:
+//
+//   frame_timing.rs   — Frame throttle logic and vsync bookkeeping
+//   resize_ops.rs     — Window/surface resize and snap-to-grid
+//
+// The renderer/ directory already has render_passes.rs, rendering.rs, egui_render.rs,
+// graphics.rs, shaders/, params.rs, state.rs — follow that existing split pattern.
+//
+// Tracking: Issue ARC-009 in AUDIT.md.
+
 use crate::cell_renderer::{Cell, CellRenderer, CellRendererConfig, PaneViewport};
 use crate::custom_shader_renderer::CustomShaderRenderer;
 use crate::graphics_renderer::GraphicsRenderer;
@@ -21,31 +32,48 @@ pub use rendering::SplitPanesRenderParams;
 /// Compute which separator marks are visible in the current viewport.
 ///
 /// Maps absolute scrollback line numbers to screen rows for the current view.
-/// Deduplicates marks that are close together (e.g., multi-line prompts generate
-/// both a PromptStart and CommandStart mark within a few lines). When marks are
-/// within `MERGE_THRESHOLD` lines of each other, they are merged — keeping the
-/// earliest screen row (from PromptStart) while inheriting exit code and color
-/// from whichever mark carries them.
+/// Returns only the marks whose absolute line index falls within the visible
+/// window `[viewport_start, viewport_start + visible_lines)`, converting each
+/// to a zero-based screen row. No deduplication or merging is performed; marks
+/// are returned in the same order they appear in `marks`.
 pub fn compute_visible_separator_marks(
     marks: &[par_term_config::ScrollbackMark],
     scrollback_len: usize,
     scroll_offset: usize,
     visible_lines: usize,
 ) -> Vec<SeparatorMark> {
+    let mut out = Vec::new();
+    fill_visible_separator_marks(
+        &mut out,
+        marks,
+        scrollback_len,
+        scroll_offset,
+        visible_lines,
+    );
+    out
+}
+
+/// Fill `out` with the separator marks visible in the current viewport, reusing
+/// the provided allocation to avoid a per-call heap allocation on the render hot path.
+///
+/// The buffer is cleared on entry. Semantics are identical to
+/// [`compute_visible_separator_marks`].
+pub(crate) fn fill_visible_separator_marks(
+    out: &mut Vec<SeparatorMark>,
+    marks: &[par_term_config::ScrollbackMark],
+    scrollback_len: usize,
+    scroll_offset: usize,
+    visible_lines: usize,
+) {
+    out.clear();
     let viewport_start = scrollback_len.saturating_sub(scroll_offset);
     let viewport_end = viewport_start + visible_lines;
-
-    marks
-        .iter()
-        .filter_map(|mark| {
-            if mark.line >= viewport_start && mark.line < viewport_end {
-                let screen_row = mark.line - viewport_start;
-                Some((screen_row, mark.exit_code, mark.color))
-            } else {
-                None
-            }
-        })
-        .collect()
+    for mark in marks {
+        if mark.line >= viewport_start && mark.line < viewport_end {
+            let screen_row = mark.line - viewport_start;
+            out.push((screen_row, mark.exit_code, mark.color));
+        }
+    }
 }
 
 /// Information needed to render a single pane
@@ -194,6 +222,10 @@ pub struct Renderer {
 
     // Debug overlay text
     pub(crate) debug_text: Option<String>,
+
+    // Scratch buffer for divider instances, reused each frame to avoid
+    // per-call heap allocations in `render_dividers`.
+    pub(crate) scratch_divider_instances: Vec<crate::cell_renderer::BackgroundInstance>,
 }
 
 impl Renderer {
@@ -437,6 +469,7 @@ impl Renderer {
             last_scrollbar_state: (usize::MAX, 0, 0, 0, 0, 0, 0, 0, 0, 0), // Force first update
             cursor_shader_disabled_for_alt_screen: false,
             debug_text: None,
+            scratch_divider_instances: Vec::new(),
         })
     }
 

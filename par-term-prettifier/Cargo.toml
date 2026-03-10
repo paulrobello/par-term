@@ -11,17 +11,17 @@ keywords = ["terminal", "prettifier", "markdown", "syntax-highlighting"]
 categories = ["command-line-utilities"]
 
 [dependencies]
-par-term-config = { path = "../par-term-config", version = "0.7.0", features = ["watcher", "wgpu-types"] }
+par-term-config = { path = "../par-term-config", version = "0.7.0" }
 
-regex = "1.12.3"
-serde_json = "1.0.149"
-fontdb = "0.23"
-log = "0.4.29"
-serde = { version = "1.0.228", features = ["derive"] }
-thiserror = "2"
-image = "0.25.9"
-ureq = { version = "3.2.0", default-features = false, features = ["native-tls", "gzip"] }
-native-tls = "0.2.18"
+regex.workspace = true
+serde_json.workspace = true
+fontdb.workspace = true
+log.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+image.workspace = true
+ureq.workspace = true
+native-tls.workspace = true
 
 # Native Mermaid diagram rendering (pure Rust, zero external deps)
 mermaid-rs-renderer = { version = "0.2", default-features = false }

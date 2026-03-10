@@ -20,7 +20,7 @@ field uses its documented default value.
 | `rows` | `usize` | `50` | Number of terminal rows |
 | `window_title` | `string` | `"par-term"` | Window title bar text |
 | `allow_title_change` | `bool` | `true` | Allow OSC sequences to change the window title |
-| `window_padding` | `f32` | `4.0` | Padding in pixels around terminal content |
+| `window_padding` | `f32` | `1.0` | Padding in pixels around terminal content |
 | `hide_window_padding_on_split` | `bool` | `true` | Remove padding when panes are split |
 | `snap_window_to_grid` | `bool` | `true` | Snap window dimensions to exact terminal cell boundaries during resize, eliminating blank background gaps. Disabled automatically in split-pane mode. |
 | `window_opacity` | `f32` | `1.0` | Window transparency (0.0=transparent, 1.0=opaque) |
@@ -57,7 +57,7 @@ field uses its documented default value.
 | `font_antialias` | `bool` | `true` | Anti-aliased font rendering |
 | `font_hinting` | `bool` | `true` | Font hinting for pixel-aligned rendering |
 | `font_thin_strokes` | `enum` | `retina_only` | Stroke weight mode: `never`, `retina_only`, `dark_backgrounds_only`, `retina_dark_backgrounds_only`, `always` |
-| `minimum_contrast` | `f32` | `1.0` | WCAG contrast ratio enforcement (1.0=off, 4.5=AA, 7.0=AAA) |
+| `minimum_contrast` | `f32` | `0.0` | Perceived brightness contrast enforcement on a 0.0–1.0 scale (0.0=disabled, 1.0=maximum). Uses iTerm2-compatible perceived brightness model. Changed from WCAG scale in v0.25.0 — if migrating from an earlier version, set this to `0.0` to disable or `0.5` for moderate enforcement. |
 
 ---
 

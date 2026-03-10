@@ -3830,6 +3830,7 @@ dependencies = [
 name = "par-term-acp"
 version = "0.2.2"
 dependencies = [
+ "dirs",
  "log",
  "serde",
  "serde_json",

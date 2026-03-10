@@ -1,9 +1,18 @@
+// ARC-009 TODO: This file is 705 lines (limit: 800 — approaching threshold). When it
+// exceeds 800 lines, extract into renderer/ siblings:
+//
+//   split_layout.rs  — Split-pane geometry calculations (render_split_panes_with_data)
+//   separator_draw.rs — compute_visible_separator_marks + draw calls (see also QA-001,
+//                       QA-008 which affect this area)
+//
+// Tracking: Issue ARC-009 in AUDIT.md.
+
 use crate::cell_renderer::PaneViewport;
 use anyhow::Result;
 
 use super::{
-    DividerRenderInfo, PaneDividerSettings, PaneRenderInfo, PaneTitleInfo, Renderer,
-    compute_visible_separator_marks,
+    DividerRenderInfo, PaneDividerSettings, PaneRenderInfo, PaneTitleInfo, Renderer, SeparatorMark,
+    fill_visible_separator_marks,
 };
 
 // This file contains the multi-pane frame-level helper `render_split_panes` and `take_screenshot`.
@@ -164,9 +173,13 @@ impl Renderer {
                 }
             }
 
-            // Render each pane's content to the intermediate texture
+            // Render each pane's content to the intermediate texture.
+            // `scratch` is declared outside the loop so its capacity is preserved
+            // across iterations, avoiding a per-pane heap allocation.
+            let mut scratch: Vec<SeparatorMark> = Vec::new();
             for pane in panes.iter() {
-                let separator_marks = compute_visible_separator_marks(
+                fill_visible_separator_marks(
+                    &mut scratch,
                     &pane.marks,
                     pane.scrollback_len,
                     pane.scroll_offset,
@@ -185,7 +198,7 @@ impl Renderer {
                         clear_first: false,
                         skip_background_image: true, // Shader handles background
                         fill_default_bg_cells: false, // Shader shows through default-bg cells
-                        separator_marks: &separator_marks,
+                        separator_marks: &scratch,
                         pane_background: pane.background.as_ref(),
                     },
                 )?;
@@ -311,9 +324,13 @@ impl Renderer {
                 }
             }
 
-            // Render each pane's content (skip background image since we rendered it full-screen)
+            // Render each pane's content (skip background image since we rendered it full-screen).
+            // `scratch` is declared outside the loop so its capacity is preserved
+            // across iterations, avoiding a per-pane heap allocation.
+            let mut scratch: Vec<SeparatorMark> = Vec::new();
             for pane in panes {
-                let separator_marks = compute_visible_separator_marks(
+                fill_visible_separator_marks(
+                    &mut scratch,
                     &pane.marks,
                     pane.scrollback_len,
                     pane.scroll_offset,
@@ -332,7 +349,7 @@ impl Renderer {
                         clear_first: false, // Don't clear - we already cleared the surface
                         skip_background_image: has_background_image || has_custom_shader,
                         fill_default_bg_cells: has_background_image, // Only fill gaps in bg-image mode; shader shows through
-                        separator_marks: &separator_marks,
+                        separator_marks: &scratch,
                         pane_background: pane.background.as_ref(),
                     },
                 )?;
@@ -651,7 +668,9 @@ impl Renderer {
 
         // Wait for GPU to finish
         log::info!("take_screenshot: Waiting for GPU...");
-        let _ = device.poll(wgpu::PollType::wait_indefinitely());
+        if let Err(e) = device.poll(wgpu::PollType::wait_indefinitely()) {
+            log::warn!("take_screenshot: GPU poll returned error: {:?}", e);
+        }
         log::info!("take_screenshot: GPU poll complete, waiting for buffer map...");
         rx.recv()
             .map_err(|e| {

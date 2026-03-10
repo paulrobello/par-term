@@ -39,9 +39,17 @@ Layer 4 — Root crate (bump last):
 ```
 
 3. For each bumped subcrate:
-   - Bump the version in the subcrate's `Cargo.toml` (patch for bug fixes, minor for features)
-   - Update all crates that depend on it to reference the new version
-4. Run `cargo check` to verify all version references are correct
+   - Bump the `version` field in the subcrate's own `Cargo.toml` (patch for bug fixes, minor for features)
+   - Update all crates that depend on it to reference the new version in their `[dependencies]` section
+
+4. **Workspace Dependencies**:
+   The root `Cargo.toml` has a `[workspace.dependencies]` table that centralizes all shared external dependency versions. When upgrading external deps:
+   - Update the version ONLY in the root `[workspace.dependencies]` table — subcrates inherit via `dep.workspace = true`
+   - Do NOT edit individual subcrate `Cargo.toml` files for external dep version bumps
+   - If a subcrate needs an extra feature on a workspace dep, it uses `dep = { workspace = true, features = ["extra"] }`
+   - Internal workspace crate references (par-term-config, par-term-fonts, etc.) are still path deps with explicit version fields — these DO need updating per step 3
+
+5. Run `cargo check --workspace` to verify all version references are correct
 
 This ensures crates.io publishes have the correct versions with all changes, preventing build failures like missing type exports.
 

@@ -282,6 +282,7 @@ impl Default for Config {
             allow_all_env_vars: crate::defaults::bool_false(),
             allow_http_profiles: crate::defaults::bool_false(),
             ai_inspector: AiInspectorConfig::default(),
+            insecure_trigger_names: Vec::new(),
         }
     }
 }

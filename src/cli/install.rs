@@ -46,15 +46,15 @@ pub fn install_shaders_cli(skip_prompt: bool) -> anyhow::Result<()> {
 
     const REPO: &str = "paulrobello/par-term";
     let api_url = format!("https://api.github.com/repos/{}/releases/latest", REPO);
-    let download_url = shader_installer::get_shaders_download_url(&api_url, REPO)
+    let (zip_url, checksum_url) = shader_installer::get_shaders_download_url(&api_url, REPO)
         .map_err(|e| anyhow::anyhow!(e))?;
 
-    println!("Downloading shaders from: {}", download_url);
+    println!("Downloading shaders from: {}", zip_url);
     println!();
 
-    // Download the zip file
-    let zip_data =
-        shader_installer::download_file(&download_url).map_err(|e| anyhow::anyhow!(e))?;
+    // Download the zip file (with optional checksum verification)
+    let zip_data = shader_installer::download_and_verify(&zip_url, checksum_url.as_deref())
+        .map_err(|e| anyhow::anyhow!(e))?;
 
     // Create shaders directory if it doesn't exist
     std::fs::create_dir_all(&shaders_dir)?;

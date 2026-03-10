@@ -8,6 +8,7 @@ A friendly walkthrough to get you up and running with par-term in your first 10 
   - [macOS](#macos)
   - [Linux](#linux)
   - [Windows](#windows)
+  - [Cargo Install](#cargo-install)
   - [From Source](#from-source)
 - [First Launch](#first-launch)
 - [Essential Keyboard Shortcuts](#essential-keyboard-shortcuts)
@@ -73,6 +74,16 @@ sudo pacman -S gtk3 libxkbcommon wayland libxcb alsa-lib
 
 Install from source using `cargo` (see [From Source](#from-source) below). A DirectX 12 capable GPU is required.
 
+### Cargo Install
+
+If you have a Rust toolchain installed, install directly from crates.io:
+
+```bash
+cargo install par-term
+```
+
+This builds and installs the binary to `~/.cargo/bin/par-term`. Ensure `~/.cargo/bin` is on your `PATH`.
+
 ### From Source
 
 Requires a Rust toolchain (stable, 2024 edition) and modern graphics drivers:
@@ -80,8 +91,8 @@ Requires a Rust toolchain (stable, 2024 edition) and modern graphics drivers:
 ```bash
 git clone https://github.com/paulrobello/par-term
 cd par-term
-cargo build --release
-./target/release/par-term
+make build
+make run
 ```
 
 > **📝 Note:** See the [README](../README.md) for full installation details, macOS bundle creation, and troubleshooting Gatekeeper issues.

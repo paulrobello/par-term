@@ -12,28 +12,28 @@ categories = ["command-line-utilities"]
 
 [dependencies]
 # Terminal emulator core
-par-term-emu-core-rust = { version = "0.40.0", default-features = false, features = ["rust-only"] }
+par-term-emu-core-rust.workspace = true
 
 # Configuration (for Theme, Color, Cell types)
 par-term-config = { path = "../par-term-config", version = "0.7.0" }
 
 # Synchronization
-parking_lot = "0.12.5"
+parking_lot.workspace = true
 
 # Async runtime (for paste_with_delay)
-tokio = { version = "1.49", features = ["time", "rt"] }
+tokio = { workspace = true, features = ["time", "rt"] }
 
 # Error handling
-anyhow = "1.0.101"
+anyhow.workspace = true
 
 # Logging
-log = "0.4.29"
+log.workspace = true
 
 # Process tree inspection for running-job detection
-sysinfo = { version = "0.37", default-features = false, features = ["system"] }
+sysinfo = { workspace = true, features = ["system"] }
 
 # Clipboard support
-arboard = "3.6.1"
+arboard.workspace = true
 
 [dev-dependencies]
-tempfile = "3.25"
+tempfile.workspace = true

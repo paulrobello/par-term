@@ -296,9 +296,35 @@ pub async fn handle_permission_request(
                     );
                 }
 
-                if (auto_approve.load(Ordering::Relaxed) && !is_par_term_screenshot_tool)
-                    || is_safe_fs_tool
-                {
+                // SECURITY: auto_approve bypasses the UI prompt, but write tools
+                // must *always* pass the is_safe_write_path check regardless of
+                // auto_approve. Otherwise a compromised or malicious agent could
+                // write to arbitrary system files (e.g. /etc/passwd) without
+                // ever surfacing a permission dialog.
+                let allow = if is_safe_fs_tool {
+                    true
+                } else if auto_approve.load(Ordering::Relaxed) && !is_par_term_screenshot_tool {
+                    // For write-class tools that did not pass is_safe_write_path,
+                    // auto_approve cannot bypass the safe-path restriction.
+                    let is_write_tool = matches!(
+                        lower.as_str(),
+                        "write" | "write_file" | "writefile" | "writetextfile" | "edit"
+                    );
+                    if is_write_tool {
+                        // Write to an unsafe path: escalate to UI even in auto_approve mode.
+                        log::warn!(
+                            "ACP: auto_approve requested for write tool={tool_name} \
+                             but path is not in a safe directory — escalating to UI",
+                        );
+                        false
+                    } else {
+                        true
+                    }
+                } else {
+                    false
+                };
+
+                if allow {
                     // Auto-approve: pick the first "allow" option, or just
                     // the first option available.
                     let option_id = perm_params

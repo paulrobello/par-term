@@ -1,3 +1,11 @@
+// ARC-009 TODO: This file is 726 lines (limit: 800 — approaching threshold). When it
+// exceeds 800 lines, extract into a graphics_renderer/ sub-module directory:
+//
+//   upload.rs    — Texture upload / cache invalidation logic
+//   layout.rs    — Graphics placement and scaling calculations
+//
+// Tracking: Issue ARC-009 in AUDIT.md.
+
 use crate::error::RenderError;
 use crate::gpu_utils;
 use par_term_config::ImageScalingMode;

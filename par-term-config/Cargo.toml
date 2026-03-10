@@ -12,54 +12,46 @@ categories = ["config"]
 
 [dependencies]
 # Serialization
-serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.149"
-serde_yaml_ng = "0.10.0"
-toml = "1.0"
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml_ng.workspace = true
+toml.workspace = true
 
 # UUID for profile identifiers
-uuid = { version = "1.21", features = ["v4", "serde"] }
+uuid.workspace = true
 
 # Error handling
-anyhow = "1.0.101"
-thiserror = "2"
+anyhow.workspace = true
+thiserror.workspace = true
 
 # Logging
-log = "0.4.29"
+log.workspace = true
 
 # Platform-specific directories
-dirs = "6.0"
+dirs.workspace = true
 
 # Regex for variable substitution
-regex = "1.12.3"
+regex.workspace = true
 
 # File watching for config hot reload
-notify = { version = "8.2", default-features = false, optional = true }
+notify = { workspace = true, optional = true }
 
 # GPU types (optional, for wgpu conversions)
-wgpu = { version = "27", optional = true }
+wgpu = { workspace = true, optional = true }
 
 # Mutex for watcher
-parking_lot = "0.12.5"
+parking_lot.workspace = true
 
 # Hostname detection for snippet variables
-hostname = "0.4.2"
+hostname.workspace = true
 
 # Terminal emulator core (required for UnicodeVersion, AmbiguousWidth, NormalizationForm types)
-par-term-emu-core-rust = { version = "0.40.0", default-features = false, features = ["rust-only"] }
+par-term-emu-core-rust.workspace = true
 
 [features]
 default = ["watcher"]
 watcher = ["notify"]
 wgpu-types = ["wgpu"]
 
-[target.'cfg(target_os = "macos")'.dependencies.notify]
-version = "8.2"
-optional = true
-
-[target.'cfg(not(target_os = "macos"))'.dependencies.notify]
-version = "8.2"
-optional = true
-
 [dev-dependencies]
-tempfile = "3.25"
+tempfile.workspace = true

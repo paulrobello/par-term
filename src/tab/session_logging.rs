@@ -33,6 +33,14 @@ impl Tab {
                 log::warn!("Failed to create logs directory: {}", e);
                 return Err(anyhow::anyhow!("Failed to create logs directory: {}", e));
             }
+            // SEC-010: Enforce restrictive directory permissions so that session logs
+            // (which may capture terminal output including passwords) are not
+            // world-listable even if the user's umask is permissive.
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let _ = std::fs::set_permissions(&logs_dir, std::fs::Permissions::from_mode(0o700));
+            }
 
             // Get terminal dimensions
             let dimensions = if let Ok(term) = self.terminal.try_write() {

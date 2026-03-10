@@ -35,14 +35,20 @@ impl WindowManager {
         // Commands that need `WindowState` methods (Notify, SetBadge, etc.) or
         // require permission checks (WriteText, RunCommand, ChangeConfig) are
         // deferred into `pending_actions` and processed in Pass 2.
-        #[allow(clippy::type_complexity)]
-        let (running_state, error_state, new_output, panel_state, pending_actions): (
-            Vec<bool>,
-            Vec<String>,
-            Vec<Vec<String>>,
-            Vec<Option<(String, String)>>,
-            Vec<PendingScriptAction>,
-        ) = if let Some(window_id) = focused
+        struct ScriptPassResult {
+            running_state: Vec<bool>,
+            error_state: Vec<String>,
+            new_output: Vec<Vec<String>>,
+            panel_state: Vec<Option<(String, String)>>,
+            pending_actions: Vec<PendingScriptAction>,
+        }
+        let ScriptPassResult {
+            running_state,
+            error_state,
+            new_output,
+            panel_state,
+            pending_actions,
+        } = if let Some(window_id) = focused
             && let Some(ws) = self.windows.get_mut(&window_id)
             && let Some(tab) = ws.tab_manager.active_tab_mut()
         {
@@ -169,9 +175,21 @@ impl WindowManager {
                 panels.push(panel_val);
             }
 
-            (running, errors, output, panels, pending)
+            ScriptPassResult {
+                running_state: running,
+                error_state: errors,
+                new_output: output,
+                panel_state: panels,
+                pending_actions: pending,
+            }
         } else {
-            (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new())
+            ScriptPassResult {
+                running_state: Vec::new(),
+                error_state: Vec::new(),
+                new_output: Vec::new(),
+                panel_state: Vec::new(),
+                pending_actions: Vec::new(),
+            }
         };
 
         // Pass 2 — Execute deferred actions that need `WindowState` access.

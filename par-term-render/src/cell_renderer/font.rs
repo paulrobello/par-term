@@ -15,7 +15,9 @@ pub(crate) struct FontState {
     // Shaping options
     #[allow(dead_code)] // Config stored for future text shaping pipeline integration
     pub(crate) enable_text_shaping: bool,
+    #[allow(dead_code)] // Config stored for future text shaping pipeline integration
     pub(crate) enable_ligatures: bool,
+    #[allow(dead_code)] // Config stored for future text shaping pipeline integration
     pub(crate) enable_kerning: bool,
     // Rendering options
     /// Enable anti-aliasing for font rendering

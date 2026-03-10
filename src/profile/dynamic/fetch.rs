@@ -77,7 +77,17 @@ fn fetch_profiles_inner(
     // replaced by a network-level attacker (MITM). A malicious profile could
     // influence shell execution, environment, or other terminal behaviour.
     // HTTPS is the default requirement; HTTP is an explicit opt-in.
-    if !source.url.starts_with("https://") && !source.url.starts_with("file://") {
+    // SECURITY: file:// is explicitly rejected — allowing it would enable
+    // arbitrary local file reads via a crafted profile source URL.
+    if source.url.starts_with("file://") {
+        anyhow::bail!(
+            "Dynamic profile URL '{}' uses file:// scheme which is not permitted. \
+             Only https:// URLs are supported.",
+            source.url
+        );
+    }
+
+    if !source.url.starts_with("https://") {
         // Always refuse auth headers over HTTP regardless of the opt-in flag,
         // because credentials would be transmitted in the clear.
         if source.headers.keys().any(|k| {

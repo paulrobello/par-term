@@ -77,7 +77,12 @@ impl WindowState {
                             renderer.cell_width() as u32,
                             renderer.cell_height() as u32,
                         );
-                        let _ = term.resize_with_pixels(cols, rows, width_px, height_px);
+                        if let Err(e) = term.resize_with_pixels(cols, rows, width_px, height_px) {
+                            crate::debug_error!(
+                                "TERMINAL",
+                                "resize_with_pixels failed (tmux_window): {e}"
+                            );
+                        }
                         crate::debug_info!(
                             "TMUX",
                             "Resized tmux tab {} terminal to {}x{}",

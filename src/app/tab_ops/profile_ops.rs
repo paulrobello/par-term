@@ -81,7 +81,12 @@ impl WindowState {
                             renderer.cell_width() as u32,
                             renderer.cell_height() as u32,
                         );
-                        let _ = term.resize_with_pixels(cols, rows, width_px, height_px);
+                        if let Err(e) = term.resize_with_pixels(cols, rows, width_px, height_px) {
+                            crate::debug_error!(
+                                "TERMINAL",
+                                "resize_with_pixels failed (open_profile): {e}"
+                            );
+                        }
                         log::info!(
                             "Opened profile '{}' in tab {} ({}x{} at {}x{} px)",
                             profile.name,

@@ -17,36 +17,6 @@ impl WindowState {
     ) -> bool {
         use winit::keyboard::{Key, NamedKey};
 
-        // Debug: Log ALL keyboard events at entry to diagnose Space issue
-        if let WindowEvent::KeyboardInput {
-            event: key_event, ..
-        } = &event
-        {
-            match &key_event.logical_key {
-                Key::Character(s) => {
-                    log::trace!(
-                        "window_event: Character '{}', state={:?}",
-                        s,
-                        key_event.state
-                    );
-                }
-                Key::Named(named) => {
-                    log::trace!(
-                        "window_event: Named key {:?}, state={:?}",
-                        named,
-                        key_event.state
-                    );
-                }
-                other => {
-                    log::trace!(
-                        "window_event: Other key {:?}, state={:?}",
-                        other,
-                        key_event.state
-                    );
-                }
-            }
-        }
-
         // Let egui handle the event (needed for proper rendering state)
         let (egui_consumed, egui_needs_repaint) =
             if let (Some(egui_state), Some(window)) = (&mut self.egui.state, &self.window) {
@@ -155,7 +125,13 @@ impl WindowState {
                         // keeps its old size until the next resize event. Low risk as scale
                         // factor changes are rare (drag between displays).
                         if let Ok(mut term) = tab.terminal.try_write() {
-                            let _ = term.resize_with_pixels(cols, rows, width_px, height_px);
+                            if let Err(e) = term.resize_with_pixels(cols, rows, width_px, height_px)
+                            {
+                                crate::debug_error!(
+                                    "TERMINAL",
+                                    "resize_with_pixels failed (scale_factor): {e}"
+                                );
+                            }
                         } else {
                             crate::debug::record_try_lock_failure("scale_factor_resize");
                         }
@@ -228,7 +204,13 @@ impl WindowState {
                         // cache is still invalidated below so rendering uses the correct
                         // grid size. The terminal size will be fixed on the next resize event.
                         let new_scrollback_len = if let Ok(mut term) = tab.terminal.try_write() {
-                            let _ = term.resize_with_pixels(cols, rows, width_px, height_px);
+                            if let Err(e) = term.resize_with_pixels(cols, rows, width_px, height_px)
+                            {
+                                crate::debug_error!(
+                                    "TERMINAL",
+                                    "resize_with_pixels failed (Resized): {e}"
+                                );
+                            }
                             Some(term.scrollback_len())
                         } else {
                             crate::debug::record_try_lock_failure("resize");

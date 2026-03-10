@@ -13,6 +13,16 @@ use std::time::SystemTime;
 use crate::app::window_state::WindowState;
 use crate::config::automation::{PrettifyRelayPayload, PrettifyScope};
 use crate::prettifier::types::ContentBlock;
+
+/// Output of [`WindowState::read_terminal_context`].
+pub(super) struct TerminalContext {
+    /// Map from absolute scrollback line index to line text.
+    pub lines_by_abs: HashMap<usize, String>,
+    /// The command that preceded the first matched line (if any).
+    pub preceding_command: Option<String>,
+    /// Per-pending-event `(start_abs, end_abs)` scope range.
+    pub scope_ranges: Vec<(usize, usize)>,
+}
 use crate::tab::Tab;
 
 impl WindowState {
@@ -97,8 +107,11 @@ impl WindowState {
 
         // Read terminal content and metadata we need for scope handling.
         // We lock the terminal once and extract everything we need.
-        let (lines_by_abs, preceding_command, scope_ranges) =
-            Self::read_terminal_context(tab, current_scrollback_len, &pending);
+        let TerminalContext {
+            lines_by_abs,
+            preceding_command,
+            scope_ranges,
+        } = Self::read_terminal_context(tab, current_scrollback_len, &pending);
 
         for (idx, (trigger_id, _grid_row, payload)) in pending.into_iter().enumerate() {
             // Check command_filter: if set, only fire when the preceding command matches.
@@ -194,15 +207,13 @@ impl WindowState {
 
     /// Read terminal content and metadata needed for prettify scope handling.
     ///
-    /// Returns `(lines_by_abs_line, preceding_command, scope_ranges)`.
     /// `scope_ranges` maps each pending index to its `(start_abs, end_abs)` range.
     /// We read all needed lines in one lock acquisition to avoid contention.
     pub(super) fn read_terminal_context(
         tab: &Tab,
         current_scrollback_len: usize,
         pending: &[(u64, usize, PrettifyRelayPayload)],
-    ) -> (HashMap<usize, String>, Option<String>, Vec<(usize, usize)>) {
-        #![allow(clippy::type_complexity)]
+    ) -> TerminalContext {
         let mut lines_by_abs: HashMap<usize, String> = HashMap::new();
         let mut scope_ranges: Vec<(usize, usize)> = Vec::with_capacity(pending.len());
 
@@ -260,10 +271,18 @@ impl WindowState {
                 .and_then(|mark_line| term.scrollback_metadata_for_line(mark_line))
                 .and_then(|m| m.command);
         } else {
-            return (lines_by_abs, None, Vec::new());
+            return TerminalContext {
+                lines_by_abs,
+                preceding_command: None,
+                scope_ranges: Vec::new(),
+            };
         }
 
-        (lines_by_abs, preceding_command, scope_ranges)
+        TerminalContext {
+            lines_by_abs,
+            preceding_command,
+            scope_ranges,
+        }
     }
 
     /// Narrow a block scope range by scanning for a block_end regex match.

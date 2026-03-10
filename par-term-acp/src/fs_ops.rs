@@ -4,10 +4,86 @@
 //! `fs/list_directory`, and `fs/find` RPC calls from the agent.
 //! They are executed directly in the async message handler task
 //! (via `spawn_blocking`) so they do not depend on UI-thread state.
+//!
+//! # Security
+//!
+//! All path-accepting functions enforce two layers of path restriction:
+//!
+//! 1. **Sensitive path blocklist**: Paths under `~/.ssh/`, `~/.gnupg/`, and
+//!    `/etc/` are unconditionally rejected to protect private keys and
+//!    system credentials even when `auto_approve` is enabled.
+//!
+//! 2. **Directory restrictions for listing/find**: `list_directory_entries`
+//!    and `find_files_recursive` additionally apply the same blocklist so
+//!    that a malicious agent cannot enumerate sensitive directories.
 
 /// Maximum file size allowed for reading via ACP (50MB).
 /// This prevents memory exhaustion from reading multi-GB files.
 const MAX_FILE_SIZE: u64 = 50 * 1024 * 1024; // 50MB
+
+// =========================================================================
+// Sensitive path blocklist (SEC-011, SEC-014)
+// =========================================================================
+
+/// Sensitive path prefixes that ACP file operations must never access,
+/// regardless of `auto_approve` mode.
+///
+/// The check is performed on the **canonicalized** absolute path, so
+/// symlink-based traversal attacks are mitigated before the comparison.
+///
+/// # Rationale
+///
+/// - `~/.ssh/`: private keys, authorized_keys, known_hosts
+/// - `~/.gnupg/`: PGP private keys
+/// - `/etc/`: system configuration, passwd, sudoers, shadow
+fn is_sensitive_path(canonical: &std::path::Path) -> bool {
+    // Paths under the user's home directory that contain credentials.
+    if let Some(home) = dirs::home_dir() {
+        let ssh_dir = home.join(".ssh");
+        let gnupg_dir = home.join(".gnupg");
+        if canonical.starts_with(&ssh_dir) || canonical.starts_with(&gnupg_dir) {
+            return true;
+        }
+    }
+    // System credential and configuration directories.
+    if canonical.starts_with("/etc/") || canonical == std::path::Path::new("/etc") {
+        return true;
+    }
+    false
+}
+
+/// Canonicalize `path` and check it against the sensitive path blocklist.
+/// Returns `Ok(canonical)` when safe, `Err(message)` when blocked.
+fn check_path_allowed(path: &str) -> Result<std::path::PathBuf, String> {
+    let p = std::path::Path::new(path);
+
+    // Resolve the canonical path (follows symlinks, resolves ..).
+    // For non-existent paths, canonicalize the parent and re-append the filename
+    // so that new-file creation in safe directories is still allowed.
+    let canonical = if p.exists() {
+        std::fs::canonicalize(p).map_err(|e| format!("Cannot resolve path: {e}"))?
+    } else {
+        let parent = p
+            .parent()
+            .ok_or_else(|| "Path has no parent directory".to_string())?;
+        let canonical_parent =
+            std::fs::canonicalize(parent).map_err(|e| format!("Cannot resolve parent: {e}"))?;
+        let file_name = p
+            .file_name()
+            .ok_or_else(|| "Path has no file name".to_string())?;
+        canonical_parent.join(file_name)
+    };
+
+    if is_sensitive_path(&canonical) {
+        return Err(format!(
+            "Access denied: '{}' is in a restricted directory. \
+             ACP agents cannot read or list ~/.ssh/, ~/.gnupg/, or /etc/.",
+            path
+        ));
+    }
+
+    Ok(canonical)
+}
 
 /// Read a text file, optionally returning a line range.
 ///
@@ -15,13 +91,16 @@ const MAX_FILE_SIZE: u64 = 50 * 1024 * 1024; // 50MB
 ///
 /// # Security
 ///
-/// Files larger than [`MAX_FILE_SIZE`] (50MB) are rejected to prevent
-/// memory exhaustion from reading multi-GB files.
+/// - Files larger than [`MAX_FILE_SIZE`] (50MB) are rejected.
+/// - Paths under `~/.ssh/`, `~/.gnupg/`, and `/etc/` are unconditionally blocked.
 pub fn read_file_with_range(
     path: &str,
     line: Option<u64>,
     limit: Option<u64>,
 ) -> Result<String, String> {
+    // SEC-011: Validate path against sensitive directory blocklist before reading.
+    check_path_allowed(path)?;
+
     // Check file size before reading to prevent memory exhaustion.
     let metadata = std::fs::metadata(path).map_err(|e| e.to_string())?;
     if metadata.len() > MAX_FILE_SIZE {
@@ -68,6 +147,10 @@ pub fn write_file_safe(path: &str, content: &str) -> Result<(), String> {
 ///
 /// Returns a sorted vec of JSON objects with `name`, `path`, `isDirectory`, and
 /// `isFile` fields.
+///
+/// # Security
+///
+/// Paths under `~/.ssh/`, `~/.gnupg/`, and `/etc/` are blocked (SEC-014).
 pub fn list_directory_entries(
     path: &str,
     pattern: Option<&str>,
@@ -76,6 +159,8 @@ pub fn list_directory_entries(
     if !dir.is_absolute() {
         return Err("Path must be absolute".to_string());
     }
+    // SEC-014: Block listing of sensitive directories.
+    check_path_allowed(path)?;
     let entries = std::fs::read_dir(dir).map_err(|e| format!("Failed to read directory: {e}"))?;
 
     let mut result: Vec<serde_json::Value> = Vec::new();
@@ -119,6 +204,7 @@ const MAX_SEARCH_DEPTH: usize = 20;
 ///
 /// - Maximum recursion depth is limited to [`MAX_SEARCH_DEPTH`] to prevent stack overflow.
 /// - Symlinks are skipped to prevent infinite loops from symlink cycles.
+/// - Paths under `~/.ssh/`, `~/.gnupg/`, and `/etc/` are blocked (SEC-014).
 pub fn find_files_recursive(base_path: &str, pattern: &str) -> Result<Vec<String>, String> {
     let base = std::path::Path::new(base_path);
     if !base.is_absolute() {
@@ -127,6 +213,8 @@ pub fn find_files_recursive(base_path: &str, pattern: &str) -> Result<Vec<String
     if !base.exists() {
         return Err(format!("Path does not exist: {base_path}"));
     }
+    // SEC-014: Block recursive search of sensitive directories.
+    check_path_allowed(base_path)?;
 
     let mut results = Vec::new();
     // Strip leading **/ for simple recursive matching.

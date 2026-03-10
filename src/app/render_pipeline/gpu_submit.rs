@@ -114,14 +114,19 @@ impl WindowState {
         // `collect_prettifier_graphics()` function that skips cell writes.
         // Effort: ~1 day. Create a GitHub issue with the "performance" label to track.
         let prettifier_graphics = if let Some(tab) = self.tab_manager.active_tab() {
-            prettifier_cells::apply_prettifier_cell_substitution(
+            // Take the scratch buffer to avoid a borrow conflict between `tab` and `self`.
+            let mut scratch = std::mem::take(&mut self.scratch_prettifier_block_ids);
+            let result = prettifier_cells::apply_prettifier_cell_substitution(
                 tab,
                 &mut cells,
                 is_alt_screen,
                 visible_lines,
                 scrollback_len,
                 grid_cols,
-            )
+                &mut scratch,
+            );
+            self.scratch_prettifier_block_ids = scratch;
+            result
         } else {
             Vec::new()
         };
@@ -325,15 +330,17 @@ impl WindowState {
                             for pane in &mut pane_data {
                                 if pane.viewport.focused {
                                     crate::app::window_state::search_highlight::apply_search_highlights_to_cells(
-                                        &mut pane.cells,
-                                        pane.grid_size.0,
-                                        pane.scroll_offset,
-                                        pane.scrollback_len,
-                                        pane.grid_size.1,
-                                        search_matches,
-                                        current_match_idx,
-                                        highlight_color,
-                                        current_highlight_color,
+                                        crate::app::window_state::search_highlight::SearchHighlightParams {
+                                            cells: &mut pane.cells,
+                                            cols: pane.grid_size.0,
+                                            scroll_offset: pane.scroll_offset,
+                                            scrollback_len: pane.scrollback_len,
+                                            visible_lines: pane.grid_size.1,
+                                            matches: search_matches,
+                                            current_match_idx,
+                                            highlight_color,
+                                            current_highlight_color,
+                                        },
                                     );
                                 }
                             }
@@ -390,6 +397,8 @@ impl WindowState {
                     // pane cells are gathered independently by gather_pane_render_data.
                     {
                         if let Some(tab) = self.tab_manager.active_tab() {
+                            let mut scratch =
+                                std::mem::take(&mut self.scratch_prettifier_block_ids);
                             for pane in &mut pane_data {
                                 if pane.viewport.focused {
                                     let _ = prettifier_cells::apply_prettifier_cell_substitution(
@@ -399,10 +408,12 @@ impl WindowState {
                                         pane.grid_size.1,
                                         pane.scrollback_len,
                                         pane.grid_size.0,
+                                        &mut scratch,
                                     );
                                     break;
                                 }
                             }
+                            self.scratch_prettifier_block_ids = scratch;
                         }
                     }
 
