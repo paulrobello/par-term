@@ -288,6 +288,8 @@ The following mouse-related issues have been resolved:
 
 - **Middle-Click Paste Priority** -- Middle-click paste now takes priority over mouse tracking and alternate screen mode, matching iTerm2 behavior. This ensures paste works reliably even in applications like tmux that enable mouse tracking
 
+- **tmux Selection Stuck Across Panes** -- When a mouse press is consumed by mouse tracking (e.g., clicking a tmux pane), the local selection state is now cleared immediately. Previously, a stale highlight could persist across all panes indefinitely until the next local mouse interaction
+
 ## Related Documentation
 
 - [README.md](../README.md) - Project overview

@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.26.0] - 2026-03-11
+
 ### Security
 - Block `file://` URLs in dynamic profile fetcher to prevent local-file-read via SSRF.
 - ACP `auto_approve` mode now always enforces `is_safe_write_path` for write-class tools.

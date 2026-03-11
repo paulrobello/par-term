@@ -40,51 +40,42 @@ New to par-term? The [Getting Started Guide](docs/GETTING_STARTED.md) walks you 
 - **[Configuration Reference](docs/CONFIG_REFERENCE.md)** — All 200+ configuration options
 - **[Keyboard Shortcuts](docs/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
 
-## What's New in 0.25.0
+## What's New in 0.26.0
 
 ### 🔒 Security & Safety
 
-- **Hardened ACP Subprocess Spawning**: Agents spawn without a shell interpreter when no shell metacharacters are present (SEC-005); process-wide mutex closes TOCTOU race in permission checks (SEC-004)
-- **Session Log Redaction**: 45 new patterns covering API keys, AWS credentials, PEM headers, cloud/vault tokens, database passwords, and 2FA/TOTP prompts (SEC-006)
-- **Automation Warning Banner**: Amber warning shown in Settings → Automation when any trigger has `require_user_action: false` (SEC-002)
-- **Shell Injection Prevention**: File/URL opening uses direct `process::Command` spawn when no shell metacharacters present (SEC-003)
-- **Dependency Security**: Migrated from `serde_yml` to `serde_yaml_ng`; update checker domain allowlists and binary content validation added
-- **Path Traversal Prevention**: Config paths and shader names validated against traversal attacks
+- **ACP Path Hardening**: `file://` URLs blocked in dynamic profile fetcher; sensitive paths (`~/.ssh/`, `~/.gnupg/`, `/etc/`) blocked in ACP file tools; `$SHELL` validated as absolute path to known binary
+- **Shader Integrity Checks**: SHA256 checksum verified on shader downloads; 50 MB response body size limit enforced
+- **macOS API Guards**: Private API calls (`CGSSetWindowBackgroundBlurRadius`, SkyLight SLS) now gated behind OS version check (≥ 13)
+- **Permission Hardening**: Session data files written with `0o600`; session log directories set to `0o700`; config file persistence enforces `0o600`
+- **ACP write-class enforcement**: `auto_approve` mode always runs `is_safe_write_path` before approving write-class tool calls
 
 ### ✨ New Features
 
-- **Jellyfish Shader**: New `jellyfish.glsl` background shader with animated caustic light shimmer and bioluminescent particles
-- **Configurable Chat Font Size**: Assistant panel font size adjustable via 10–24 pt slider (live-reloads)
-- **Arrangement Replace Button**: Overwrites a saved arrangement with the current layout — inline confirmation, no dialog
-- **MP3 Audio Support**: Alert sounds now accept WAV/MP3/OGG/FLAC; file picker ("Browse…") added to each sound path field
-- **Snap Window to Grid**: `snap_window_to_grid` option (default `true`) snaps the window to exact cell boundaries on resize
-- **Visual Bell Color**: Configurable flash color for visual bell (`notification_visual_bell_color`) with color picker in Settings
-- **URL Underline-Only Mode**: `link_highlight_color_enabled: false` underlines links without changing text color
-- **Script Command Handlers**: `WriteText`, `Notify`, `SetBadge`, `SetVariable`, `RunCommand`, `ChangeConfig` with permission opt-ins and rate limiting
-- **Shell Integration Installer**: `make install-shell-integration` copies bash/zsh/fish scripts to `~/.config/par-term/`
-- **Expanded Nerd Font Presets**: "UI Actions" (16 icons) and "Navigation" (16 icons) categories; 4 more icons in "Status & Alerts"
+- **Icon Picker Expansion**: 60+ new icons across six new categories — TypeScript/Go/C/C++/Angular/Vue/Svelte/HTML5/CSS3/Haskell/Scala, OS platform icons, expanded Git & VCS, Weather & Nature, Fun & Seasonal
+- **Workspace Dependencies**: Root `Cargo.toml` now has a `[workspace.dependencies]` table centralizing 38 shared dependency versions across all 15 crates
+- **Sub-Crate READMEs**: `par-term-config`, `par-term-ssh`, and `par-term-mcp` now have individual README files
+- **`cargo install par-term`**: Installation instructions added to README and Getting Started guide
+- **`deny.toml`**: `cargo-deny` license/vulnerability/ban auditing with CI integration
 
 ### 🐛 Bug Fixes
 
-- **Cursor Rendering**: Block/beam/hollow/underline cursors all fixed in pane renderer; 3-phase draw order enforced (bgs → text → cursor overlays)
-- **Shader Pipeline**: Full-content shaders, cursor shaders, and opacity all work correctly in split-pane mode
-- **Half-Block Characters**: ▄/▀ banding eliminated; both halves rendered entirely via text pipeline
-- **Split-Pane Isolation**: Scrollbar, URL highlights, bell, selection, and theme changes all correctly scoped to the focused pane
-- **Scrollbar**: Width stays constant on resize; cross-tab mark contamination fixed; marks cleared on `clear` command
-- **Search Highlights**: Cmd+F highlights now appear in the pane render path
-- **Session Restore**: Single-pane tabs save `pane_layout = None`; alternating launch bug fixed
-- **"Too Many Open Files"**: Switched from kqueue to FSEvents for config/shader watchers — eliminates O_EVTONLY fd exhaustion
-- **Shell Integration**: Exit code capture fixed in bash; close-tab confirmation uses full cleanup path
-- **MCP IPC Path**: `config_update` tool writes IPC files to `~/.config/par-term/` (not `~/Library/Application Support/`)
+- **tmux Mouse Highlight**: Selection no longer gets stuck spanning all panes when mouse tracking (e.g. tmux) consumes a press — local selection state is now cleared immediately
+- **tmux Drag Dead Zone**: Spurious second mouse-press from the image-guard code is now suppressed when mouse tracking is already active, preventing mid-drag word-boundary snapping
+- **Middle-Click Paste Priority**: Middle-click paste takes priority over mouse tracking and alt-screen mode, matching iTerm2 behaviour
+- **Clipboard Wipe on Pane Switch**: Trackpad micro-movements are now suppressed within the same 8 px dead zone as local text selection — clicking between tmux panes no longer wipes the clipboard
+- **Powerline Dark Fringe**: Eliminated the dark gap between powerline separator glyphs and adjacent colored segments in background-image mode
+- **Custom Shader Regression**: Fixed regression where custom shader background was hidden by opaque default-bg cell quads; new `fill_default_bg_cells` flag controls default-bg rendering independently of `skip_solid_background`
+- **Icon Picker Scroll Overlap**: Added right padding inside the icon picker scroll area to prevent scrollbar from overlapping icons
+- **Divider Drag Hit Width**: Default split pane divider drag hit width reduced from 8 px to 5 px for more precise click targeting
 
-### 🏗️ Architecture & Performance
+### 🏗️ Architecture & Quality
 
-- **Settings Consolidated**: Settings sidebar reduced from 20 tabs to 14 tabs
-- **Rendering Unified**: Removed dormant single-pane render path; `emit_three_phase_draw_calls()` is the single draw-call sequencer (~450 lines removed)
-- **GPU Performance**: Pre-allocated pane background uniform buffers; scratch `Vec` reuse in `CellRenderer`; regex caching for triggers
-- **Full Codebase Audit**: All 28 audit findings resolved — no `#[allow(clippy::too_many_arguments)]` suppressions, no dead-code suppression, 12 files split that exceeded 800 lines
-- **Terminal RwLock**: `TerminalManager` migrated from `Mutex` to `RwLock` for better read concurrency
-- **1,065 Tests**: 73 keybinding integration tests and 97 copy-mode state machine tests added
+- **57 Audit Findings Resolved**: Security hardening, named types replacing `#[allow(clippy::type_complexity)]`, shared `get_or_rasterize_glyph()` helper, scratch buffer reuse, dead code removal
+- **`SearchHighlightParams` Struct**: Replaced a 9-parameter function signature with a named struct
+- **`fill_visible_separator_marks()` API**: New scratch-buffer API for separator mark computation
+- **Dark Tab Colors**: Dark-theme tab color presets dimmed by 25% for better visual comfort
+- **Updated Core Library**: `par-term-emu-core-rust` updated to v0.40.0
 
 <details>
 <summary><strong>What's New in 0.24.0</strong></summary>

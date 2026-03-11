@@ -164,22 +164,24 @@ flowchart LR
 
 ### Profile Icon Picker
 
-The profile icon field includes an icon picker popup with ~190 curated Nerd Font icons organized in 12 categories. Nerd Font icons render reliably in the egui-based settings UI and each icon shows a descriptive tooltip on hover.
+The profile icon field includes an icon picker popup with ~250 curated Nerd Font icons organized in 14 categories. Nerd Font icons render reliably in the egui-based settings UI and each icon shows a descriptive tooltip on hover.
 
 | Category | Description | Example Icons |
 |----------|-------------|---------------|
 | Terminal | Shells and terminal emulators | Terminal, Bash, PowerShell, tmux, Prompt |
-| Dev & Tools | Languages and development tools | Code, GitHub, Python, Rust, Node.js, Vim |
+| Dev & Tools | Languages and development tools | Code, GitHub, Python, Rust, TypeScript, Go, C/C++ |
 | Files & Data | Files, folders, and storage | File, Folder, Database, Save, Package |
 | Network & Cloud | Networking and cloud services | Globe, WiFi, Cloud, Server, SSH, AWS |
 | Security | Locks, keys, and access control | Lock, Shield, Key, Eye, Warning |
-| Git & VCS | Version control systems | Branch, Merge, Commit, GitHub, GitLab |
+| Git & VCS | Version control systems | Branch, Merge, Commit, GitHub, GitLab, BitBucket |
+| Weather & Nature | Weather and natural elements | Sun, Moon, Cloud, Rain, Snow, Tree, Leaf |
 | Containers & Infra | Containers and infrastructure | Docker, Kubernetes, CPU, Gear, Memory |
-| OS & Platforms | Operating systems and platforms | Apple, Windows, Linux, Homebrew |
+| OS & Platforms | Operating systems and platforms | Apple, Windows, Linux, Android, Homebrew |
 | Status & Alerts | Status indicators and signals | Check, Bolt, Rocket, Fire, Star |
 | UI Actions | Common interface actions | Search, Edit, Copy, Plus, Refresh, Save |
 | Navigation | Arrows and directional icons | Arrow Up/Down, Angle Left/Right, Reply |
 | People & Misc | People and miscellaneous symbols | User, Robot, Gamepad, Music, Bookmark |
+| Fun & Seasonal | Seasonal and fun symbols | Snowflake, Jack-o-Lantern, Gift, Fireworks, Clover |
 
 Click any icon to set it as the profile icon, or type a custom value directly in the text field. Use the "Clear icon" button to remove the current icon.
 
