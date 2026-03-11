@@ -36,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Table of Contents added to README.md (DOC-006) and QUICK_START_FONTS.md (DOC-009).
 
 ### Changed
+- Split pane divider drag hit width default reduced from 8 px to 5 px for tighter interaction targets.
 - Reduced dark-theme tab color preset brightness by 25% for better visual comfort.
 - Updated `par-term-emu-core-rust` dependency to v0.40.0.
 - CI toolchain pinned to SHA-verified `dtolnay/rust-toolchain` action with `toolchain: 1.91.0` (ARC-005).

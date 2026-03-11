@@ -326,7 +326,7 @@ pub fn pane_divider_width() -> Option<f32> {
 }
 
 pub fn pane_divider_hit_width() -> f32 {
-    8.0 // 8 pixel hit area for drag-to-resize (larger than visual for easier grabbing)
+    5.0 // 5 pixel hit area for drag-to-resize (larger than visual for easier grabbing)
 }
 
 pub fn pane_padding() -> f32 {
