@@ -257,8 +257,23 @@ impl WindowState {
                 // pane-focus click as a drag-selection that wipes the clipboard.
                 if state == ElementState::Pressed {
                     tab.active_mouse_mut().tracking_press_position = Some(mouse_position);
+                    // Clear any stale local selection state.  When mouse tracking
+                    // (e.g. tmux) owns the press, handle_left_mouse_press is never
+                    // called, so any previous local selection would otherwise stay
+                    // visible as a stuck highlight spanning tmux virtual panes.
+                    // Also reset the click anchor fields so a stale click_pixel_position
+                    // from a prior non-tracking press cannot trigger an accidental drag
+                    // selection if a later motion event misses the tracking lock.
+                    let sm = tab.selection_mouse_mut();
+                    sm.selection = None;
+                    sm.is_selecting = false;
+                    sm.click_position = None;
+                    sm.click_pixel_position = None;
+                    sm.click_count = 0;
                 } else {
                     tab.active_mouse_mut().tracking_press_position = None;
+                    // Ensure dragging flag is cleared when tracking consumes the release.
+                    tab.selection_mouse_mut().is_selecting = false;
                 }
             }
             return; // Exit early: terminal app handled the input

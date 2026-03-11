@@ -49,6 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GPU device poll errors now emit `log::warn!` instead of being silently discarded.
 
 ### Fixed
+- tmux mouse highlight no longer gets stuck spanning all panes — when mouse tracking (e.g. tmux) consumes a press, the local selection state is now cleared so stale highlights cannot persist indefinitely.
 - tmux drag-selection no longer snaps to word boundaries mid-drag — the spurious second mouse-press from the image-guard code is now suppressed when mouse tracking is already active.
 - Clicking between tmux panes no longer wipes the clipboard — trackpad micro-movements are now suppressed within the same 8 px dead zone used for local text selection.
 - Middle-click paste now takes priority over mouse tracking and alt-screen mode, matching iTerm2 behaviour.
