@@ -10,67 +10,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Security
-- Block `file://` URLs in dynamic profile fetcher to prevent SSRF/local-file-read (SEC-002).
-- ACP `auto_approve` mode now always enforces `is_safe_write_path` for write-class tools (SEC-003).
-- Shader download verifies SHA256 checksum when `.sha256` asset is present in the release (SEC-004).
-- Added 50 MB response body size limit to shader downloads (SEC-009).
-- macOS private API calls (`CGSSetWindowBackgroundBlurRadius`, SkyLight SLS) now gated behind OS version check (≥ 13) (SEC-006, SEC-007).
-- ACP `read_file_with_range`, `list_directory_entries`, and `find_files_recursive` now block sensitive paths (`~/.ssh/`, `~/.gnupg/`, `/etc/`) (SEC-011, SEC-014).
-- ACP agent validates `$SHELL` is an absolute path to a known shell binary before use (SEC-013).
-- Session data files written with `0o600` permissions; session log directories set to `0o700` (SEC-010, SEC-016).
-- Config file persistence enforces `0o600` permissions to protect `env_vars` secrets (SEC-008).
+- Block `file://` URLs in dynamic profile fetcher to prevent local-file-read via SSRF.
+- ACP `auto_approve` mode now always enforces `is_safe_write_path` for write-class tools.
+- Shader downloads verify SHA256 checksum when a `.sha256` asset is present in the release.
+- Added 50 MB response body size limit to shader downloads.
+- macOS private API calls (`CGSSetWindowBackgroundBlurRadius`, SkyLight SLS) now gated behind an OS version check (≥ 13).
+- ACP file/directory tools (`read_file_with_range`, `list_directory_entries`, `find_files_recursive`) block sensitive paths (`~/.ssh/`, `~/.gnupg/`, `/etc/`).
+- ACP agent validates `$SHELL` is an absolute path to a known shell binary before use.
+- Session data files written with `0o600` permissions; session log directories set to `0o700`.
+- Config file persistence enforces `0o600` permissions to protect secrets in `env_vars`.
 
 ### Added
-- `[workspace.dependencies]` table in root `Cargo.toml` centralizing 38 shared external dependency versions across all 15 crates (ARC-001).
-- `deny.toml` for `cargo-deny` license/vulnerability/ban auditing with CI integration (ARC-010).
-- `assets/Info.plist.template` replacing inline echo chains in Makefile bundle target (ARC-014).
-- `rust-version = "1.91"` MSRV declared in workspace `Cargo.toml` (ARC-015).
-- `get_or_rasterize_glyph()` shared helper extracted to `atlas.rs`, deduplicating glyph cache logic from 3 call sites (QA-006).
-- `SearchHighlightParams` struct replacing 9-parameter function (QA-019).
-- `fill_visible_separator_marks()` scratch-buffer API for reusable separator mark computation (QA-008).
-- Scratch buffers on `Renderer`, `CellRenderer`, and `WindowState` for per-frame allocations: divider instances (QA-014), row cells (QA-016), prettifier block IDs (QA-015).
-- Named types replacing `#[allow(clippy::type_complexity)]` in 5 locations: `ScriptPassResult`, `PrettifierRef`, `PrettifierGraphicRef`, `TerminalContext` (QA-018).
-- Sub-crate README.md files for `par-term-config`, `par-term-ssh`, `par-term-mcp` (DOC-019).
-- `docs/plans/README.md` explaining plans directory purpose and stale line number caveat (DOC-014, DOC-018).
-- `cargo install par-term` installation instructions in README and GETTING_STARTED (DOC-012).
-- Table of Contents added to README.md (DOC-006) and QUICK_START_FONTS.md (DOC-009).
+- `[workspace.dependencies]` table in root `Cargo.toml` centralizing 38 shared dependency versions across all 15 crates.
+- `deny.toml` for `cargo-deny` license/vulnerability/ban auditing with CI integration.
+- `assets/Info.plist.template` replacing inline echo chains in Makefile bundle target.
+- `rust-version = "1.91"` MSRV declared in workspace `Cargo.toml`.
+- `get_or_rasterize_glyph()` shared helper in `atlas.rs`, deduplicating glyph cache logic from 3 call sites.
+- `SearchHighlightParams` struct replacing a 9-parameter function signature.
+- `fill_visible_separator_marks()` scratch-buffer API for separator mark computation.
+- Scratch buffers on `Renderer`, `CellRenderer`, and `WindowState` for per-frame allocations (divider instances, row cells, prettifier block IDs).
+- Named types replacing `#[allow(clippy::type_complexity)]` in 5 locations: `ScriptPassResult`, `PrettifierRef`, `PrettifierGraphicRef`, `TerminalContext`.
+- Sub-crate README files for `par-term-config`, `par-term-ssh`, `par-term-mcp`.
+- `cargo install par-term` installation instructions added to README and GETTING_STARTED.
+- Table of Contents added to README.md and QUICK_START_FONTS.md.
 
 ### Changed
-- Split pane divider drag hit width default reduced from 8 px to 5 px for tighter interaction targets.
+- Split pane divider drag hit width default reduced from 8 px to 5 px.
 - Reduced dark-theme tab color preset brightness by 25% for better visual comfort.
 - Updated `par-term-emu-core-rust` dependency to v0.40.0.
-- CI toolchain pinned to SHA-verified `dtolnay/rust-toolchain` action with `toolchain: 1.91.0` (ARC-005).
-- CI `cargo test` now uses `--workspace` flag to exercise all sub-crate tests (ARC-006).
-- `make checkall` target changed from `fmt` to `fmt-check` to avoid mutating source during checks (ARC-013).
-- Dev tool binaries (`test_cr.rs`, `test_grid.rs`) moved from workspace root to `src/bin/` (ARC-012).
-- Removed `wgpu-types` feature from `par-term-prettifier` dependency on `par-term-config` (ARC-004).
-- Removed 6 unused GPU utility functions from `gpu_utils.rs`; retained only `create_sampler_with_filter` (QA-010).
-- Removed dead `_shaping_options` variable from `pane_render/mod.rs` and `instance_buffers.rs` (QA-007).
-- Replaced `unreachable!()` with graceful `log::warn!` fallback in `bg_instance_builder.rs` (QA-011).
-- Added `log::warn!` on GPU device poll errors instead of silently discarding (QA-020).
+- CI toolchain pinned to SHA-verified `dtolnay/rust-toolchain` action at `toolchain: 1.91.0`.
+- CI `cargo test` now uses `--workspace` to exercise all sub-crate tests.
+- `make checkall` now runs `fmt-check` instead of `fmt` to avoid mutating source during checks.
+- Dev tool binaries (`test_cr.rs`, `test_grid.rs`) moved from workspace root to `src/bin/`.
+- Removed `wgpu-types` feature from `par-term-prettifier`'s dependency on `par-term-config`.
+- Removed 6 unused GPU utility functions from `gpu_utils.rs`; retained only `create_sampler_with_filter`.
+- Removed dead `_shaping_options` variable from `pane_render/mod.rs` and `instance_buffers.rs`.
+- Replaced `unreachable!()` panic with `log::warn!` fallback in `bg_instance_builder.rs`.
+- GPU device poll errors now emit `log::warn!` instead of being silently discarded.
 
 ### Fixed
-- Dragging to highlight text in tmux no longer snaps to a word boundary mid-drag. When a clipboard image was present, the image-guard code sent a spurious second mouse-press event during drag (after the 6 px restore threshold), making tmux treat the two presses as a double-click and activate word-selection mode. The delayed press is now skipped when mouse tracking is already active, since the original press was already forwarded immediately.
-- Clicking between tmux panes no longer wipes the clipboard. Trackpad tap-to-click generates tiny movements between press and release; par-term was forwarding these as `button=32` drag events to tmux, which interpreted them as a completed drag-selection and committed an empty selection, overwriting clipboard contents. Mouse-tracking drag events are now suppressed within the same 8 px dead zone already used for local text selection.
-- Middle-click paste now takes priority over mouse tracking and alt-screen mode, matching iTerm2 behaviour. Previously, middle-click silently forwarded a mouse event to TUI apps (vim, less, etc.) instead of pasting, causing apparent inconsistency with Cmd+V.
-- Eliminated dark fringe ("gap") between powerline separator glyphs and adjacent colored segments in the tmux status bar. In background-image mode all cells render through the same BG pipeline, causing right-pointing separators (E0B0/E0B1/E0B4/E0B5) to overwrite the 1 px colored extension from the adjacent run. The separator's own BG quad is now trimmed by 1 px on the colored-neighbor side so the extension remains visible.
-- Fixed regression where custom shader background was hidden by opaque default-bg cell quads. A new `fill_default_bg_cells` flag now controls default-bg cell rendering independently of `skip_solid_background`: set only in background-image mode (not shader mode), so the shader output shows through default-bg cells as intended.
-- `compute_visible_separator_marks` doc comment now matches actual implementation (no merge pass exists) (QA-001).
-- Stale file paths in CLAUDE.md and CONTRIBUTING.md corrected to current crate locations (DOC-001).
-- `CONFIG_REFERENCE.md` defaults updated: `window_padding` 4.0→1.0, `minimum_contrast` 1.0→0.0 with corrected scale description (DOC-002).
-- Removed references to non-existent `REMEMBER.md` and `block_rendering.md` from CLAUDE.md (DOC-003).
-- Fixed `pane_render.rs` path in CLAUDE.md Key File Map to `pane_render/mod.rs` (DOC-004).
-- README install instructions updated from `cargo build --release` to `make build` / `make run` (DOC-007).
-- `CRATE_STRUCTURE.md` example version placeholder changed from `0.1.0` to `<version>` (DOC-013).
-
-### Documentation
-- Expanded CLAUDE.md Docs Reference table from 13 to 46 entries (DOC-008).
-- Added 12 missing files to `docs/README.md` index (DOC-005).
-- Added links to CONTRIBUTING.md and style guide in README contributing section (DOC-015).
-- Documented emoji-in-headings exception in `DOCUMENTATION_STYLE_GUIDE.md` (DOC-016).
-- Added one-line description to `docs/README.md` (DOC-017).
-- Added field-level doc comments to `par-term-config` Cell and ScrollbackMark structs (DOC-011).
-- Updated `minimum_contrast` documentation with v0.25.0 migration note (DOC-010).
+- tmux drag-selection no longer snaps to word boundaries mid-drag — the spurious second mouse-press from the image-guard code is now suppressed when mouse tracking is already active.
+- Clicking between tmux panes no longer wipes the clipboard — trackpad micro-movements are now suppressed within the same 8 px dead zone used for local text selection.
+- Middle-click paste now takes priority over mouse tracking and alt-screen mode, matching iTerm2 behaviour.
+- Eliminated the dark gap between powerline separator glyphs and adjacent colored segments in the tmux status bar when using background-image mode.
+- Fixed regression where custom shader background was hidden by opaque default-bg cell quads; new `fill_default_bg_cells` flag controls default-bg rendering independently of `skip_solid_background`.
+- `compute_visible_separator_marks` doc comment corrected to match actual implementation.
+- Stale file paths in CLAUDE.md and CONTRIBUTING.md corrected to current crate locations.
+- `CONFIG_REFERENCE.md` defaults updated: `window_padding` 4.0→1.0, `minimum_contrast` 1.0→0.0.
+- README install instructions updated from `cargo build --release` to `make build` / `make run`.
+- Expanded `docs/README.md` index and CLAUDE.md Docs Reference table to cover all current docs.
 
 ---
 
