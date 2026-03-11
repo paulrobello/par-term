@@ -197,7 +197,7 @@ Certain noisy third-party crates are automatically filtered to reduce log volume
 | Module | Level | Reason |
 |--------|-------|--------|
 | `wgpu_core` | Warn | Very verbose GPU internals |
-| `wgpu_hal` | Warn | Hardware abstraction noise |
+| `wgpu_hal` | Warn | Hardware abstraction layer noise |
 | `naga` | Warn | Shader compiler internals |
 | `rodio` | Error | Audio engine noise |
 | `cpal` | Error | Audio device enumeration |

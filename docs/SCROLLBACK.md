@@ -174,9 +174,9 @@ The scrollbar displays both scroll position and command marks.
 **Example Configuration:**
 
 ```yaml
-scrollbar_position: "right"
+scrollbar_position: right
 scrollbar_width: 14.0
-scrollbar_autohide_delay: 3000  # Hide after 3 seconds
+scrollbar_autohide_delay: 3000  # Hide after 3 seconds (0 = never)
 scrollbar_command_marks: true
 scrollbar_mark_tooltips: true
 scrollbar_thumb_color: [0.5, 0.5, 0.5, 0.9]
@@ -192,7 +192,7 @@ Complete scrollback configuration:
 scrollback_lines: 10000
 
 # Scrollbar appearance
-scrollbar_position: "right"
+scrollbar_position: right
 scrollbar_width: 15.0
 scrollbar_autohide_delay: 0
 scrollbar_thumb_color: [0.4, 0.4, 0.4, 0.95]

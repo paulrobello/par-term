@@ -55,7 +55,7 @@ graph TB
         L0[Background Image Layer<br/>Optional background image]
         L1[Terminal Content Layer<br/>Cell Backgrounds + Text + Cursor]
         L2[Inline Graphics Layer<br/>Sixel/iTerm2/Kitty Images]
-        L3[Overlay Layer<br/>Scrollbar + Visual Bell + Dividers]
+        L3[Overlay Layer<br/>Dividers + Pane Titles + Visual Bell + Focus]
         L4[Background Shader Layer<br/>Post-processing Effects]
         L5[Cursor Shader Layer<br/>Cursor Trails + Glows]
         L6[UI Layer<br/>egui Settings Panel]
@@ -78,10 +78,12 @@ graph TB
 ```
 
 > **Note:** Par-term supports two independent custom shaders: a **background shader** for post-processing effects and a **cursor shader** for cursor-specific effects (trails, glows). When shaders are enabled, terminal content (cells, inline graphics, overlays) is first rendered to an intermediate texture, then processed by the background shader (if enabled), then by the cursor shader (if enabled). This ensures shader effects apply to the complete terminal content. The egui UI layer is rendered after all shaders to remain unaffected.
+>
+> **Scrollbars** are rendered within the terminal content phase (inside `render_pane_to_view`), not as a separate overlay pass.
 
 ### Render Order
 
-The rendering pipeline executes in this sequence:
+The rendering pipeline executes in this sequence. All content first renders to a target (surface or intermediate texture), then shaders process it, and finally egui overlays the UI:
 
 ```mermaid
 sequenceDiagram
@@ -96,45 +98,60 @@ sequenceDiagram
     Renderer->>Renderer: Check shader configuration
 
     alt Full Content Mode (Background Shader)
+        Note over Renderer: Terminal content rendered to shader's intermediate texture
         Renderer->>CR: render_pane_to_view(bg_intermediate)
-        CR->>CR: Render cells + overlays to intermediate
-        Renderer->>GR: render_pane_sixel_graphics(intermediate)
+        CR->>CR: 3-phase: bgs -> text -> cursor overlays
+        Renderer->>GR: render_pane_sixel_graphics(bg_intermediate)
         GR->>CR: Overlay graphics (LoadOp::Load)
         Renderer->>BSR: render(content_view)
         BSR->>BSR: Process terminal content via iChannel4
     else Background Shader Only (Background Mode)
+        Note over Renderer: Shader generates background, content composited on top
         Renderer->>BSR: render(content_view)
         BSR->>BSR: Generate background effect
         Renderer->>CR: render_pane_to_view(content_view)
-        CR->>CR: Render cells + overlays
+        CR->>CR: 3-phase: bgs -> text -> cursor overlays
         Renderer->>GR: render_pane_sixel_graphics(content_view)
         GR->>CR: Overlay graphics (LoadOp::Load)
     else Cursor Shader Only
+        Note over Renderer: Content to cursor intermediate, then shader to surface
         Renderer->>CR: render_pane_to_view(cursor_intermediate)
-        CR->>CR: Render cells + overlays
+        CR->>CR: 3-phase: bgs -> text -> cursor overlays
         Renderer->>GR: render_pane_sixel_graphics(cursor_intermediate)
         GR->>CR: Overlay graphics (LoadOp::Load)
         Renderer->>CSR: render(surface_view)
         CSR->>Surface: Apply cursor shader effect
     else Both Shaders Enabled
+        Note over Renderer: Background shader to cursor intermediate, cursor shader to surface
         Renderer->>BSR: render(cursor_intermediate)
         BSR->>BSR: Apply background shader
         Renderer->>CSR: render(surface_view)
         CSR->>Surface: Apply cursor shader effect
     else No Shaders
+        Note over Renderer: Direct rendering to surface
         Renderer->>CR: render_pane_to_view(surface)
-        CR->>Surface: Render all content directly
+        CR->>Surface: 3-phase: bgs -> text -> cursor overlays
         Renderer->>GR: render_pane_sixel_graphics(surface)
         GR->>Surface: Overlay graphics (LoadOp::Load)
     end
+
+    Note over Renderer: Dividers, pane titles, visual bell, focus indicator
 
     opt Settings UI Open
         Renderer->>Egui: render(surface, egui_output)
         Egui->>Surface: Overlay UI (LoadOp::Load)
     end
 
+    Renderer->>CR: render_opaque_alpha(surface)
     Renderer->>Surface: present()
 ```
+
+The 3-phase draw ordering (`emit_three_phase_draw_calls`) ensures cursor overlays render on top of text:
+
+1. **Phase 1**: Cell backgrounds (0 to cursor_overlay_start)
+2. **Phase 1b**: Separator/gutter overlays (if present)
+3. **Phase 2**: Text glyphs (all text instances)
+4. **Phase 3**: Cursor overlays (beam/underline bars, hollow outlines)
 
 ## Transparency and Alpha Compositing
 

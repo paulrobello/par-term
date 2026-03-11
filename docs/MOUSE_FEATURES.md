@@ -40,6 +40,7 @@ graph TD
     Left --> Divider[Pane Dividers]
 
     Middle --> Paste[Paste Primary]
+    Right --> AppMouse[App Mouse Tracking]
     Wheel --> Scroll[Scrolling]
 
     style Mouse fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
@@ -54,6 +55,7 @@ graph TD
     style Scrollbar fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
     style Divider fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
     style Paste fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+    style AppMouse fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
     style Scroll fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
 ```
 
@@ -201,6 +203,10 @@ mouse_scroll_speed: 3.0  # Lines per scroll tick (default)
 
 When a terminal application requests mouse tracking (vim, htop, etc.), scroll events are forwarded to the application instead of scrolling locally.
 
+### Right-Click
+
+Right-click forwards the event to the terminal application when mouse tracking is enabled. This allows applications like tmux and vim to handle right-click for their own context menus or actions.
+
 ## Pane Interaction
 
 ### Focus Panes
@@ -279,6 +285,8 @@ The following mouse-related issues have been resolved:
 - **tmux Pane Click Through Clipboard Guard** -- Clicking to switch tmux panes no longer fails when an image is in the clipboard. The clipboard-image protection guard now correctly allows mouse-tracked clicks to pass through to the terminal application
 
 - **Clipboard Image Loss on Plain Click** -- When an image was present in the system clipboard, a single left-click inside an already-focused terminal window with mouse reporting (e.g., tmux) could clear the image from the clipboard. par-term now snapshots the clipboard image on mouse-down and restores it after a plain click-like gesture (no drag, no modifier keys) if the image was lost during the click
+
+- **Middle-Click Paste Priority** -- Middle-click paste now takes priority over mouse tracking and alternate screen mode, matching iTerm2 behavior. This ensures paste works reliably even in applications like tmux that enable mouse tracking
 
 ## Related Documentation
 

@@ -210,6 +210,6 @@ keybindings:
 
 ## Related Documentation
 
-- [Keyboard Shortcuts](KEYBOARD_SHORTCUTS.md) - Complete keyboard shortcut reference
-- [Mouse Features](MOUSE_FEATURES.md) - Mouse-based text selection
-- [Search](SEARCH.md) - Terminal search (separate from copy mode search)
+- [Keyboard Shortcuts](KEYBOARD_SHORTCUTS.md) - Complete keyboard shortcut reference including copy mode
+- [Mouse Features](MOUSE_FEATURES.md) - Mouse-based text selection and navigation
+- [Search](SEARCH.md) - Terminal search UI (separate from copy mode's vi-style search)

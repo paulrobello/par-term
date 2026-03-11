@@ -36,7 +36,7 @@ par-term is a cross-platform, GPU-accelerated terminal emulator built in Rust. I
 - **Fast rendering** -- GPU-accelerated text and graphics with custom shaders for visual effects
 - **Rich graphics** -- Full support for Sixel, iTerm2, and Kitty inline image protocols
 - **Modern features** -- Split panes, profiles, vi-style copy mode, configurable status bar, and an AI assistant panel
-- **Deep customization** -- 49+ background shaders, cursor effects, configurable keybindings, snippets, and automation triggers
+- **Deep customization** -- 40+ background shaders, cursor effects, configurable keybindings, snippets, and automation triggers
 - **Cross-platform** -- Consistent experience across macOS, Linux, and Windows
 
 ## Installation
@@ -182,7 +182,7 @@ After installation, restart your shell or source your RC file (for example, `sou
 
 ## Installing Shaders
 
-par-term includes 49+ GLSL background shaders (starfield, matrix rain, CRT effects, plasma, and more) and 12+ cursor effect shaders (glow, trail, ripple). These are optional visual enhancements.
+par-term includes 40+ GLSL background shaders (starfield, matrix rain, CRT effects, plasma, and more) and 12+ cursor effect shaders (glow, trail, ripple). These are optional visual enhancements.
 
 **Install via CLI:**
 

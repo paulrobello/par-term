@@ -228,6 +228,7 @@ Each match tracks:
 - `src/search/mod.rs` - Search UI overlay (`SearchUI`)
 - `src/search/engine.rs` - Search engine with regex caching (`SearchEngine`)
 - `src/search/types.rs` - Search types (`SearchMatch`, `SearchConfig`, `SearchAction`)
+- `src/app/window_state/search_highlight.rs` - Search highlight rendering
 - `par-term-config/src/config/config_struct/search_config.rs` - Configuration struct
 - `par-term-settings-ui/src/terminal_tab/search.rs` - Settings UI section
 

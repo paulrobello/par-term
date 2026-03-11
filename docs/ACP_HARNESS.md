@@ -218,8 +218,8 @@ Override the smoke test defaults:
 ```bash
 make acp-smoke \
   ACP_AGENT=claude-ollama.local \
-  ACP_TIMEOUT=60 \
-  ACP_IDLE_TIMEOUT=10 \
+  ACP_TIMEOUT=90 \
+  ACP_IDLE_TIMEOUT=15 \
   ACP_TRANSCRIPT=/tmp/acp-smoke.log
 ```
 

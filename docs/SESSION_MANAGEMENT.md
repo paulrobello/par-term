@@ -132,9 +132,9 @@ Both features restore window layouts, but they serve different purposes:
 | **Trigger** | Automatic on exit/launch | Manual save and restore |
 | **Persistence** | One-time (cleared after restore) | Permanent until deleted |
 | **Scope** | Entire session state | Named layout snapshots |
-| **Priority** | Takes precedence when both enabled | Falls back when no session |
+| **Priority** | Falls back when no arrangement | Takes precedence when both enabled |
 
-When both `restore_session` and `auto_restore_arrangement` are enabled, session restore takes precedence.
+When both `restore_session` and `auto_restore_arrangement` are enabled, auto-restore arrangement takes precedence.
 
 ## Related Documentation
 

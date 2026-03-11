@@ -225,9 +225,9 @@ Step 6 — Verify
 
 **Quick bump checklist:**
 
-1. Bump `par-term-config` version, update all references (including `par-term-prettifier`).
+1. Bump `par-term-config` version, update all references.
 2. Bump Layer 0 crate versions, update root references.
-3. Bump Layer 2 crate versions (including `par-term-prettifier`), update render and root references.
+3. Bump Layer 2 crate versions, update render (for fonts) and root references.
 4. Bump `par-term-render` version, update root reference.
 5. Bump root `par-term` version.
 6. Run `cargo check --workspace` to confirm no version mismatches.

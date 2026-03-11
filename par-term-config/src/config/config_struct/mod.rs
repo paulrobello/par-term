@@ -174,11 +174,11 @@ pub struct Config {
     #[serde(default)]
     pub font_ranges: Vec<FontRange>,
 
-    /// Line height multiplier (1.0 = tight, 1.2 = default, 1.5 = spacious)
+    /// Line height multiplier (1.0 = default/tight, 1.2 = comfortable, 1.5 = spacious)
     #[serde(default = "crate::defaults::line_spacing")]
     pub line_spacing: f32,
 
-    /// Character width multiplier (0.5 = narrow, 0.6 = default, 0.7 = wide)
+    /// Character width multiplier (1.0 = default, values < 1.0 = narrow, values > 1.0 = wide)
     #[serde(default = "crate::defaults::char_spacing")]
     pub char_spacing: f32,
 

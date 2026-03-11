@@ -66,7 +66,7 @@ par-term writes debug logs to a file rather than the terminal, so logging never 
 
 | Platform | Path |
 |----------|------|
-| macOS/Linux | `/tmp/par_term_debug.log` |
+| macOS/Linux | `$TMPDIR/par_term_debug.log` (defaults to `/tmp/`) |
 | Windows | `%TEMP%\par_term_debug.log` |
 
 **Enabling debug logging:**

@@ -8,6 +8,7 @@ document explains the design, decision rules, and correct usage patterns.
 
 - [Why Multiple Synchronization Types?](#why-multiple-synchronization-types)
 - [Decision Matrix](#decision-matrix)
+- [Decision Flowchart](#decision-flowchart)
 - [Key Types and Their Lock Choices](#key-types-and-their-lock-choices)
 - [Accessing `Tab.terminal` from a Sync Context](#accessing-tabterminal-from-a-sync-context)
 - [Accessing `Tab.terminal` from an Async Context](#accessing-tabterminal-from-an-async-context)
@@ -77,6 +78,36 @@ Use `parking_lot::Mutex` when:
 A secondary heuristic: if the critical section must be held across an `.await` point, the
 type **must** be `tokio::sync::RwLock` or `tokio::sync::Mutex`.
 
+## Decision Flowchart
+
+```mermaid
+flowchart TD
+    Start[Need to share state across threads?]
+    AsyncQ{Accessed from async tasks<br/>or held across .await?}
+    PatternQ{Read-heavy with<br/>occasional writes?}
+    SyncQ{High-frequency reads,<br/>infrequent writes?}
+
+    Start --> AsyncQ
+
+    AsyncQ -->|Yes| PatternQ
+    AsyncQ -->|No, all sync| SyncQ
+
+    PatternQ -->|Yes| TokioRwLock["tokio::sync::RwLock<br/>(concurrent readers)"]
+    PatternQ -->|No, all exclusive| TokioMutex["tokio::sync::Mutex<br/>(exclusive only)"]
+
+    SyncQ -->|Yes| ParkingRwLock["parking_lot::RwLock<br/>(sync, concurrent readers)"]
+    SyncQ -->|No| ParkingMutex["parking_lot::Mutex<br/>(sync, exclusive only)"]
+
+    style Start fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+    style AsyncQ fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    style PatternQ fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    style SyncQ fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    style TokioRwLock fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
+    style TokioMutex fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
+    style ParkingRwLock fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+    style ParkingMutex fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+```
+
 ---
 
 ## Key Types and Their Lock Choices
@@ -100,12 +131,12 @@ type **must** be `tokio::sync::RwLock` or `tokio::sync::Mutex`.
 |---|---|---|
 | `SharedSessionLogger` (type alias) | `Arc<parking_lot::Mutex<Option<SessionLogger>>>` | Only accessed from sync event loop and std threads |
 | `SystemMonitor` | `data: Arc<parking_lot::Mutex<SystemMonitorData>>` | Background std thread writer, sync render-thread reader |
-| `StatusBarUI` | `status: Arc<parking_lot::Mutex<GitStatus>>` | Sync git-check thread + sync render thread |
+| `GitBranchPoller` | `status: Arc<parking_lot::Mutex<GitStatus>>` | Sync git-check thread + sync render thread |
 | `DebugLogger` (static) | `OnceLock<parking_lot::Mutex<DebugLogger>>` | Non-async log writes from any thread |
 | `ShaderWatcher` | `Arc<parking_lot::Mutex<HashMap<...>>>` | std thread writer, sync event loop reader |
 | `AudioBell` | `sink: Option<Arc<parking_lot::Mutex<Player>>>` | Rodio plays on a std thread |
 | `BadgeState` | `variables: Arc<parking_lot::RwLock<SessionVariables>>` | RwLock for frequent reads, infrequent writes, all sync |
-| `FileTransferManager` | `error: Arc<parking_lot::Mutex<Option<String>>>` | Error state written from std thread, read from event loop |
+| `ActiveUpload` | `error: Arc<parking_lot::Mutex<Option<String>>>` | Error state written from std thread, read from event loop |
 
 ---
 
@@ -256,7 +287,7 @@ longer than expected, which may warrant investigation.
 
 ## Summary
 
-```
+```text
 tokio::sync::RwLock  — async tasks share the value; use .read().await / .write().await
                        sync callers: try_read()/try_write() (skip-able) or blocking_read()/blocking_write() (must-succeed)
 

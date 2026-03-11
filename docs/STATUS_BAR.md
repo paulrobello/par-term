@@ -25,9 +25,9 @@ The status bar displays contextual information at the top or bottom of the termi
 
 ```mermaid
 graph LR
-    Left["Left Section\nUser@Host │ Directory │ Git Branch"]
+    Left["Left Section\nUser@Host | Directory | Git Branch"]
     Center["Center Section\nCurrent Command"]
-    Right["Right Section\nBell │ ⬆ Update │ Clock"]
+    Right["Right Section\nBell | Clock | Update"]
 
     Left --- Center --- Right
 
@@ -48,21 +48,21 @@ status_bar_enabled: true
 
 ## Built-in Widgets
 
-par-term includes 11 built-in widgets:
+par-term includes 10 built-in widgets plus custom widgets:
 
-| Widget | Description | Default Section | Default State |
-|--------|-------------|-----------------|---------------|
-| **Clock** | Current time with configurable format | Right | Enabled |
-| **User@Hostname** | Current user and machine name | Left | Enabled |
-| **Current Directory** | Working directory of active tab | Left | Enabled |
-| **Git Branch** | Branch name with ahead/behind/dirty indicators | Left | Enabled |
-| **CPU Usage** | Global CPU usage percentage | Right | Disabled |
-| **Memory Usage** | Used/total memory (e.g., "4.0 GB / 16.0 GB") | Right | Disabled |
-| **Network Status** | Receive/transmit rates (KB/s, MB/s, GB/s) | Right | Disabled |
-| **Bell Indicator** | Terminal bell count (shown when > 0) | Right | Enabled |
-| **UpdateAvailable** | Yellow up-arrow with available version (e.g., "⬆ v0.20.0") | Right | Enabled |
-| **Current Command** | Currently executing shell command | Center | Enabled |
-| **Custom Text** | User-defined text with variable interpolation | Configurable | User-created |
+| Widget | YAML ID | Description | Default Section | Default State |
+|--------|---------|-------------|-----------------|---------------|
+| **Clock** | `clock` | Current time with configurable format | Right | Enabled |
+| **User@Hostname** | `username_hostname` | Current user and machine name | Left | Enabled |
+| **Current Directory** | `current_directory` | Working directory of active tab | Left | Enabled |
+| **Git Branch** | `git_branch` | Branch name with ahead/behind/dirty indicators | Left | Enabled |
+| **CPU Usage** | `cpu_usage` | Global CPU usage percentage | Right | Disabled |
+| **Memory Usage** | `memory_usage` | Used/total memory (e.g., "4.0 GB / 16.0 GB") | Right | Disabled |
+| **Network Status** | `network_status` | Receive/transmit rates (KB/s, MB/s, GB/s) | Right | Disabled |
+| **Bell Indicator** | `bell_indicator` | Terminal bell count (shown when > 0) | Right | Enabled |
+| **Update Available** | `update_available` | Yellow up-arrow with available version (e.g., "⬆ v0.20.0") | Right | Enabled |
+| **Current Command** | `current_command` | Currently executing shell command | Center | Enabled |
+| **Custom Text** | `custom:"Name"` | User-defined text with variable interpolation | Configurable | User-created |
 
 ### Clock
 
@@ -131,7 +131,7 @@ Widgets within each section are separated by a configurable separator character 
 |---------|-------------------|
 | **Left** | User@Hostname, Current Directory, Git Branch |
 | **Center** | Current Command |
-| **Right** | CPU (off), Memory (off), Network (off), Bell, UpdateAvailable, Clock |
+| **Right** | CPU (off), Memory (off), Network (off), Bell, Clock, Update Available |
 
 Widgets can be moved between sections and reordered via the Settings UI.
 
@@ -287,32 +287,35 @@ status_bar_system_poll_interval: 2.0     # 0.5-30.0 sec
 status_bar_git_poll_interval: 5.0        # 1.0-60.0 sec
 
 # Widgets (array of widget configurations)
+# Widget IDs use snake_case format: clock, username_hostname, current_directory,
+# git_branch, cpu_usage, memory_usage, network_status, bell_indicator,
+# current_command, update_available, or custom:"My Widget"
 status_bar_widgets:
-  - id: UserHost
+  - id: username_hostname
     enabled: true
     section: left
     order: 0
-  - id: Directory
+  - id: current_directory
     enabled: true
     section: left
     order: 1
-  - id: GitBranch
+  - id: git_branch
     enabled: true
     section: left
     order: 2
-  - id: CurrentCommand
+  - id: current_command
     enabled: true
     section: center
     order: 0
-  - id: Bell
+  - id: bell_indicator
     enabled: true
     section: right
     order: 3
-  - id: UpdateAvailable
+  - id: update_available
     enabled: true
     section: right
     order: 4
-  - id: Clock
+  - id: clock
     enabled: true
     section: right
     order: 5

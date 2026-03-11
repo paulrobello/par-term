@@ -303,8 +303,13 @@ Content prettification framework for detecting and rendering structured content 
 | Type | Description |
 |------|-------------|
 | `ContentDetector` | Trait for content type detectors. Implementations identify structured content in terminal output. |
-| `DetectionResult` | Result from a detector: content type, boundaries, and confidence. |
-| `ContentBlock` | A detected block of structured content with its boundaries. |
+| `ConfigurableDetector` | Extension trait for detectors that support user-config rule overrides. |
+| `DetectionResult` | Result from a detector: format ID string, confidence score, and matched rules. |
+| `ContentBlock` | A block of raw terminal output to be analyzed for content detection. |
+| `DetectionRule` | A single regex rule contributing to format detection. |
+| `RuleScope` | Where in a content block a detection rule should be applied. |
+| `RuleStrength` | Whether a rule alone can trigger detection or needs corroboration. |
+| `DetectionSource` | How a detection was triggered (`AutoDetected` or `TriggerInvoked`). |
 | `RegexDetector` | Generic regex-based detector for user-configured patterns. |
 | `BoundaryTracker` | Line boundary tracking for multi-line content detection. |
 
@@ -313,7 +318,11 @@ Content prettification framework for detecting and rendering structured content 
 | Type | Description |
 |------|-------------|
 | `ContentRenderer` | Trait for format-specific renderers. Converts raw content to styled terminal output. |
-| `RenderOutput` | Rendered output ready for display in the terminal. |
+| `RenderedContent` | Rendered output with styled lines and inline graphics. |
+| `StyledLine` | A single rendered line with styled segments. |
+| `RenderError` | Errors that can occur during content rendering. |
+| `RendererConfig` | Configuration passed to renderers (terminal width, theme colors). |
+| `RendererCapability` | Capabilities a renderer requires (text styling, inline graphics). |
 | `GutterIndicator` | Left-margin mark that flags prettified content blocks in the terminal view. |
 | `GutterManager` | Manages gutter indicators for the viewport. |
 
@@ -322,8 +331,9 @@ Content prettification framework for detecting and rendering structured content 
 | Type | Description |
 |------|-------------|
 | `PrettifierPipeline` | Top-level coordinator holding all detectors and renderers, driving per-line processing. |
-| `RendererRegistry` | Maps content type identifiers to renderer implementations at runtime. |
+| `RendererRegistry` | Maps format ID strings to renderer implementations at runtime. |
 | `RenderCache` | Cache for rendered output to avoid re-rendering unchanged content. |
+| `PrettifierConfig` | Pipeline configuration (enabled, confidence threshold, debounce, scan limits). |
 | `config_bridge` | Module for translating config settings into live `PrettifierPipeline` instances. |
 
 ### Built-in Detectors and Renderers
@@ -334,13 +344,6 @@ Content prettification framework for detecting and rendering structured content 
 | `renderers` | Format-specific renderers for Markdown, JSON, YAML, diffs, stack traces, diagrams. |
 | `claude_code` | Specialized detector/renderer for Claude Code XML tool-call output format. |
 | `custom_renderers` | User-configured external command renderers. |
-
-### Shared Types
-
-| Type | Description |
-|------|-------------|
-| `ContentType` | Enum of recognized content types (Markdown, Json, Yaml, Diff, etc.). |
-| `PrettifierConfig` | Configuration for prettifier behavior (enabled types, thresholds). |
 
 ---
 
@@ -431,21 +434,35 @@ tmux control mode integration.
 
 ## par-term-update
 
-Self-update and release tracking.
+Self-update and release tracking. Types are exported via submodule re-exports.
+
+### Modules
+
+| Module | Description |
+|--------|-------------|
+| `update_checker` | `UpdateChecker`, `UpdateInfo`, `UpdateCheckResult`, `fetch_latest_release()` |
+| `self_updater` | `UpdateResult`, `perform_update()` |
+| `binary_ops` | `DownloadUrls`, `get_asset_name()`, `get_download_urls()`, `cleanup_old_binary()` |
+| `install_methods` | `InstallationType`, `detect_installation()` |
+| `manifest` | Bundled asset tracking (`Manifest`, `ManifestFile`, `FileType`) |
+| `http` | HTTP utilities (`download_file()`, `validate_update_url()`) |
+
+### Key Types (via `self_updater` re-export)
 
 | Type | Description |
 |------|-------------|
-| `UpdateChecker` | Polls GitHub releases API at a configurable frequency and caches the result. |
-| `UpdateInfo` | Information about an available update (version, release notes, URL). |
-| `UpdateCheckResult` | Outcome of a check: `UpToDate`, `UpdateAvailable`, `Disabled`, `Skipped`, or `Error`. |
-| `InstallationType` | How par-term is installed: `Standalone`, `Homebrew`, `Cargo`, `AppBundle`. |
-| `UpdateResult` | Result of applying a self-update. |
+| `UpdateResult` | Result of applying a self-update (old/new versions, install path, restart flag). |
 | `DownloadUrls` | Binary and checksum download URLs for a release. |
+| `InstallationType` | How par-term is installed: `Homebrew`, `CargoInstall`, `MacOSBundle`, `StandaloneBinary`. |
+
+### Key Functions (via `self_updater` re-export)
+
+| Function | Description |
+|----------|-------------|
 | `cleanup_old_binary()` | Remove the old binary left over after an in-place update. |
 | `detect_installation()` | Detect the current installation type. |
 | `get_asset_name()` | Get the platform-specific release asset filename. |
 | `get_download_urls(api_url)` | Fetch binary and checksum URLs from the GitHub API. |
-| `fetch_latest_release()` | Fetch the latest release info from GitHub directly. |
 
 ---
 
@@ -466,7 +483,7 @@ Agent Communication Protocol (ACP) implementation for AI coding agent integratio
 | `RpcError` | JSON-RPC error wrapper. |
 | `IncomingMessage` | An incoming JSON-RPC message (request or notification). |
 
-See `par-term-acp/src/protocol.rs` for the full set of ACP protocol message types (`InitializeParams`, `SessionNewParams`, `SessionUpdate`, permission types, etc.).
+See `par-term-acp/src/protocol/` module for the full set of ACP protocol message types (`InitializeParams`, `SessionNewParams`, `SessionUpdate`, permission types, etc.).
 
 ---
 

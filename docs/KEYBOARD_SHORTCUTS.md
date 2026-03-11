@@ -149,16 +149,14 @@ Vi-style keyboard-driven text selection. See [Copy Mode](COPY_MODE.md) for compl
 | Split horizontally | `Cmd + D` | `Ctrl + Shift + D` |
 | Split vertically | `Cmd + Shift + D` | `Ctrl + Shift + E` |
 | Close focused pane | `Cmd + Shift + W` | `Ctrl + Shift + X` |
-
-| Shortcut | Action |
-| `Cmd/Ctrl + Alt + Left` | Navigate to pane left |
-| `Cmd/Ctrl + Alt + Right` | Navigate to pane right |
-| `Cmd/Ctrl + Alt + Up` | Navigate to pane above |
-| `Cmd/Ctrl + Alt + Down` | Navigate to pane below |
-| `Cmd/Ctrl + Alt + Shift + Left` | Resize pane left |
-| `Cmd/Ctrl + Alt + Shift + Right` | Resize pane right |
-| `Cmd/Ctrl + Alt + Shift + Up` | Resize pane up |
-| `Cmd/Ctrl + Alt + Shift + Down` | Resize pane down |
+| Navigate pane left | `Cmd + Alt + Left` | `Ctrl + Alt + Left` |
+| Navigate pane right | `Cmd + Alt + Right` | `Ctrl + Alt + Right` |
+| Navigate pane up | `Cmd + Alt + Up` | `Ctrl + Alt + Up` |
+| Navigate pane down | `Cmd + Alt + Down` | `Ctrl + Alt + Down` |
+| Resize pane left | `Cmd + Alt + Shift + Left` | `Ctrl + Alt + Shift + Left` |
+| Resize pane right | `Cmd + Alt + Shift + Right` | `Ctrl + Alt + Shift + Right` |
+| Resize pane up | `Cmd + Alt + Shift + Up` | `Ctrl + Alt + Shift + Up` |
+| Resize pane down | `Cmd + Alt + Shift + Down` | `Ctrl + Alt + Shift + Down` |
 
 ## Advanced Features
 
@@ -168,10 +166,11 @@ Vi-style keyboard-driven text selection. See [Copy Mode](COPY_MODE.md) for compl
 | `Cmd/Ctrl + Shift + U` | Toggle cursor shader |
 | `Cmd/Ctrl + Shift + P` | Toggle profile drawer |
 | `Cmd + Shift + S` (macOS) / `Ctrl + Shift + S` (Linux/Win) | SSH Quick Connect |
-| `Cmd + I` (macOS) / `Ctrl + Shift + I` (Linux/Win) | Toggle Assistant panel |
 | `Cmd/Ctrl + Alt + I` | Toggle broadcast input |
 | `Cmd/Ctrl + Alt + T` | Toggle tmux session picker |
 | `Ctrl + ,` | Cycle cursor style |
+
+> **📝 Note:** The Assistant panel (`toggle_ai_inspector`) can be bound via custom keybindings. See [Assistant Panel](ASSISTANT_PANEL.md) for details.
 
 ## Customizing Keybindings
 
@@ -239,9 +238,12 @@ keybindings:
 
 - [README.md](../README.md) - Project overview
 - [Mouse Features](MOUSE_FEATURES.md) - Mouse interactions and semantic history
+- [Copy Mode](COPY_MODE.md) - Vi-style keyboard-driven text selection
+- [Tabs](TABS.md) - Tab and split pane management
 - [Profiles](PROFILES.md) - Profile keyboard shortcuts
 - [Search](SEARCH.md) - Search keyboard shortcuts
 - [Command History](COMMAND_HISTORY.md) - Fuzzy command history search
 - [SSH Host Management](SSH.md) - SSH Quick Connect shortcuts
 - [Session Management](SESSION_MANAGEMENT.md) - Session undo and restore
 - [Window Management](WINDOW_MANAGEMENT.md) - Window arrangements and layout management
+- [Snippets](SNIPPETS.md) - Custom snippet and action keybindings

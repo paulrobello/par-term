@@ -142,12 +142,11 @@ WindowManager                   ← owns all WindowState instances
 |---|---|---|
 | `SharedSessionLogger` (type alias) | `Arc<parking_lot::Mutex<Option<SessionLogger>>>` | Sync event loop + std output callback thread |
 | `SystemMonitor.data` | `Arc<parking_lot::Mutex<SystemMonitorData>>` | Background std thread writes, render thread reads |
-| `StatusBarUI.status` | `Arc<parking_lot::Mutex<GitStatus>>` | Git-check std thread + render thread |
+| `GitBranchPoller.status` | `Arc<parking_lot::Mutex<GitStatus>>` | Git-check std thread + render thread |
 | `DebugLogger` (static) | `OnceLock<parking_lot::Mutex<DebugLogger>>` | Any-thread log writes |
-| `ShaderWatcher` | `Arc<parking_lot::Mutex<HashMap<...>>>` | std watcher thread writes, event loop reads |
 | `AudioBell.sink` | `Option<Arc<parking_lot::Mutex<Player>>>` | Rodio std thread |
 | `BadgeState.variables` | `Arc<parking_lot::RwLock<SessionVariables>>` | Frequent reads, infrequent writes, all sync |
-| `FileTransferManager.error` | `Arc<parking_lot::Mutex<Option<String>>>` | Transfer std thread writes, event loop reads |
+| `ActiveUpload.error` | `Arc<parking_lot::Mutex<Option<String>>>` | Upload std thread writes, event loop reads |
 
 ## Adding New Shared State
 

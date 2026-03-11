@@ -337,8 +337,8 @@ Profiles automatically apply when connecting to remote hosts with matching hostn
 When multiple auto-switch mechanisms could apply, the following priority order determines which profile wins:
 
 1. **Explicit user selection** — manual profile selection always takes precedence
-2. **SSH command detection** — running `ssh` process triggers profile matching
-3. **Hostname match** — remote host detection via OSC 1337
+2. **Hostname match** — remote host detection via OSC 1337 (highest auto priority)
+3. **SSH command detection** — running `ssh` process triggers profile matching
 4. **Directory match** — CWD-based matching
 5. **Default profile** — fallback when no pattern matches
 

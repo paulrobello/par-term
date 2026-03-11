@@ -40,7 +40,6 @@ The Assistant Panel is a DevTools-style right-side panel for terminal state insp
   - [Config File Watcher](#config-file-watcher)
 - [Panel Behavior](#panel-behavior)
 - [Configuration](#configuration)
-- [Known Issues Fixed in v0.22.0](#known-issues-fixed-in-v0220)
 - [Related Documentation](#related-documentation)
 
 ## Overview
@@ -640,17 +639,6 @@ ai_inspector_custom_agents:
     env:
       EXAMPLE_FLAG: "1"
 ```
-
-## Known Issues Fixed in v0.22.0
-
-The following issues affecting the Assistant Panel were resolved in this release:
-
-- **ACP agent connection in app bundle**: The macOS `.app` bundle now resolves `PATH` through a login shell, so ACP connector binaries installed via `npm -g` or Homebrew are found correctly without manual `PATH` configuration
-- **Nested Claude Code session blocking**: par-term no longer leaks the `CLAUDECODE` environment variable into agent subprocesses, which previously caused the Claude ACP bridge to detect a parent Claude session and block startup
-- **Assistant Panel input pushed off-screen**: The chat input area no longer overflows the panel bounds when the conversation log grows long
-- **Escape key closes panel during input**: Pressing `Escape` while the chat input or another widget has focus now releases focus from that widget rather than closing the panel; a second press (with no widget focused) closes the panel
-- **Error status missing details**: Agent error states now display an inline error message in the connection bar with a tooltip showing the full error detail, rather than showing only a red status dot
-- **Agent selector not tracking selection**: The agent dropdown now correctly reflects the currently connected agent after reconnection or agent switching
 
 ## Related Documentation
 

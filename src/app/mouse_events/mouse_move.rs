@@ -131,7 +131,13 @@ impl WindowState {
                 let tracking_press = tab.active_mouse().tracking_press_position;
                 self.pixel_to_pane_cell(position.0, position.1, &focused_pane.bounds)
                     .map(|(col, row)| {
-                        (Arc::clone(&focused_pane.terminal), col, row, btn, tracking_press)
+                        (
+                            Arc::clone(&focused_pane.terminal),
+                            col,
+                            row,
+                            btn,
+                            tracking_press,
+                        )
                     })
             } else {
                 // Single pane mode: use tab's terminal with global coordinates
@@ -172,8 +178,7 @@ impl WindowState {
                             Some((px, py)) => {
                                 let dx = position.0 - px;
                                 let dy = position.1 - py;
-                                (dx * dx + dy * dy)
-                                    < DRAG_THRESHOLD_PX * DRAG_THRESHOLD_PX
+                                (dx * dx + dy * dy) < DRAG_THRESHOLD_PX * DRAG_THRESHOLD_PX
                             }
                         };
 

@@ -88,6 +88,8 @@ Snippets can also access live session variables from the badge/automation system
 | `\(session.bell_count)` | Number of bells received | `5` |
 | `\(session.selection)` | Currently selected text | `selected text` |
 | `\(session.tmux_pane_title)` | tmux pane title (in tmux mode) | `vim` |
+| `\(session.exit_code)` | Last command exit code | `0` |
+| `\(session.current_command)` | Currently running command name | `npm` |
 
 **Variable Priority:**
 1. Custom snippet variables (highest)
@@ -409,8 +411,10 @@ Snippets can be exported to and imported from YAML files for backup or sharing.
 
 1. Open Settings > Snippets tab
 2. Click **Import** and select a YAML file
-3. par-term detects duplicates (by ID) and keybinding conflicts
-4. Choose how to handle conflicts (skip, overwrite, or rename)
+3. par-term automatically handles conflicts:
+   - Snippets with duplicate IDs are skipped (not imported)
+   - Keybindings that conflict with existing ones are cleared from the imported snippet
+4. Imported snippets are added to your existing collection
 
 ## Custom Variables
 
@@ -429,6 +433,13 @@ Each snippet can define custom variables that override built-in and session vari
 1. Custom snippet variables (highest)
 2. Session variables (`session.*`)
 3. Built-in variables (lowest)
+
+## Related Documentation
+
+- [Keyboard Shortcuts](KEYBOARD_SHORTCUTS.md) - Keybinding configuration and management
+- [Automation](AUTOMATION.md) - Triggers, coprocesses, and shell integration
+- [Configuration Reference](CONFIG_REFERENCE.md) - Complete configuration options
+- [Status Bar](STATUS_BAR.md) - Session variables and badge system
 
 ## Future Enhancements
 

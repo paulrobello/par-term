@@ -84,21 +84,34 @@ Extended protocol for multiple concurrent named progress bars. Each bar is ident
 **Sequence format:**
 
 ```
-ESC ] 934 ; name ; state ; percent ST
+ESC ] 934 ; action ; id [ ; key=value ... ] ST
 ```
+
+**Actions:**
+- `set` — Create or update a named progress bar
+- `remove` — Remove a specific named bar
+- `remove_all` — Remove all named bars
+
+**Parameters (key=value):**
+- `state` — Progress state: `normal`, `error`, `indeterminate`, `warning`
+- `percent` — Progress percentage (0-100)
+- `label` — Optional text label displayed in `bar_with_text` style
 
 **Examples:**
 
 ```bash
-# Start two concurrent progress bars
-printf "\033]934;download;1;30\007"
-printf "\033]934;compile;1;60\007"
+# Start two concurrent progress bars with labels
+printf "\033]934;set;download;percent=30;label=Downloading file.tar.gz\007"
+printf "\033]934;set;compile;state=indeterminate;label=Compiling\007"
 
 # Update one
-printf "\033]934;download;1;80\007"
+printf "\033]934;set;download;percent=80;label=Downloading file.tar.gz\007"
 
 # Mark compile as complete and hide
-printf "\033]934;compile;0;100\007"
+printf "\033]934;remove;compile\007"
+
+# Remove all named bars
+printf "\033]934;remove_all\007"
 ```
 
 Multiple concurrent bars stack vertically at the configured position (top or bottom of the terminal window).
@@ -205,17 +218,17 @@ printf "\033]9;4;0;0\007"  # Hide
 
 ```bash
 # Run multiple tasks with individual progress bars
-printf "\033]934;lint;1;0\007"
-printf "\033]934;test;1;0\007"
+printf "\033]934;set;lint;percent=0;label=Linting\007"
+printf "\033]934;set;test;percent=0;label=Testing\007"
 
 # Update as tasks progress
-printf "\033]934;lint;1;50\007"
-printf "\033]934;test;1;25\007"
+printf "\033]934;set;lint;percent=50;label=Linting\007"
+printf "\033]934;set;test;percent=25;label=Testing\007"
 
 # Complete
-printf "\033]934;lint;0;100\007"
-printf "\033]934;test;1;100\007"
-printf "\033]934;test;0;100\007"
+printf "\033]934;remove;lint\007"
+printf "\033]934;set;test;percent=100;label=Testing complete\007"
+printf "\033]934;remove;test\007"
 ```
 
 ## Related Documentation

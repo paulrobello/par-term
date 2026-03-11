@@ -1,13 +1,13 @@
 # Session Logging
 
-par-term provides session logging to record terminal output for later review, sharing, or playback.
+Record terminal sessions for later review, debugging, or sharing with support for multiple formats and built-in sensitive data redaction.
 
 ## Table of Contents
 - [Overview](#overview)
 - [Recording Formats](#recording-formats)
 - [Starting a Recording](#starting-a-recording)
 - [Configuration](#configuration)
-- [Security: Password Redaction](#security-password-redaction)
+- [Security: Sensitive Data Redaction](#security-sensitive-data-redaction)
 - [File Locations](#file-locations)
 - [Playback](#playback)
 - [Asciicast Format Details](#asciicast-format-details)
@@ -129,21 +129,40 @@ The Advanced tab in Settings provides:
 | **Archive session on tab close** | Ensure clean file write on close |
 | **Redact passwords in session logs** | Detect password prompts and replace input with redaction marker |
 
-## Security: Password Redaction
+## Security: Sensitive Data Redaction
 
-Session logs capture raw terminal I/O, which may include passwords and other credentials typed at prompts (sudo, ssh, gpg, etc.).
+Session logs capture raw terminal I/O, which may include passwords and other credentials. When `session_log_redact_passwords` is enabled (default), the logger applies two layers of heuristic protection:
 
-When `session_log_redact_passwords` is enabled (default), the logger:
+### Input Redaction (Password Prompts)
 
 - Monitors terminal output for common password prompt patterns
 - Replaces subsequent keyboard input with `[INPUT REDACTED - echo off]` until Enter is pressed
-- Detects prompts like: `password:`, `[sudo]`, `passphrase:`, `enter pin`, etc.
+- Detects prompts like: `password:`, `[sudo]`, `passphrase:`, `enter pin:`, `api key:`, `token:`, etc.
+- Also supports MFA/2FA prompts, SSH/GPG passphrases, database credentials, and cloud/vault tokens
 
-> **Warning:** Password redaction is heuristic-based and cannot guarantee detection of all sensitive input scenarios. Credentials may still be captured in cases such as:
+### Output Redaction (Credential Patterns)
+
+The logger also monitors **terminal output** for lines that appear to contain sensitive credentials being printed (e.g., `export API_KEY=...`, `aws_secret_access_key = ...`). Matching lines are replaced with:
+
+```
+[OUTPUT REDACTED - sensitive data heuristic matched]
+```
+
+Detected output patterns include:
+- Shell variable exports for credential names (`export aws_secret`, `export api_key`, etc.)
+- AWS credential file patterns (`aws_access_key_id`, `aws_secret_access_key`)
+- Private key markers (`-----BEGIN RSA PRIVATE KEY-----`, etc.)
+- Generic `api_key=`, `secret_key=` assignments
+
+### Limitations
+
+> **Warning:** Redaction is heuristic-based and cannot guarantee detection of all sensitive data. Credentials may still be captured in cases such as:
 > - Custom or localized password prompts not in the pattern list
 > - Credentials pasted into the terminal (no echo-suppress signal)
 > - API keys or tokens typed as command arguments
 > - Applications that suppress echo without emitting a matching prompt string
+> - Base64-encoded or obfuscated secrets
+> - Values printed without recognizable key names
 
 **Recommendation:** If you regularly work with sensitive credentials, disable session logging for those sessions. Do not rely solely on redaction as a security control.
 
@@ -232,5 +251,6 @@ The `.cast` files follow the asciinema v2 specification:
 
 ## Related Documentation
 
-- [README.md](../README.md) - Project overview
+- [CONFIG_REFERENCE.md](CONFIG_REFERENCE.md) - Configuration options reference
 - [KEYBOARD_SHORTCUTS.md](KEYBOARD_SHORTCUTS.md) - Recording hotkey
+- [README.md](../README.md) - Project overview

@@ -84,6 +84,7 @@ All import/export controls are located in **Settings > Advanced > Import/Export 
 
 ## Related Documentation
 
+- [Configuration Reference](CONFIG_REFERENCE.md) - Complete configuration options reference
 - [Window Management](WINDOW_MANAGEMENT.md) - Window and display configuration
 - [Profiles](PROFILES.md) - Profile management (separate from main config)
 - [Arrangements](ARRANGEMENTS.md) - Window arrangements (separate from main config)

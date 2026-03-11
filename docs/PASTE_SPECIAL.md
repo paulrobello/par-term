@@ -1,6 +1,6 @@
 # Paste Special
 
-par-term's Paste Special feature allows you to transform clipboard content before pasting, with 31 different transformations across 5 categories. A configurable paste delay option is also available for slow terminals or remote connections.
+par-term's Paste Special feature allows you to transform clipboard content before pasting, with 29 different transformations across 5 categories. A configurable paste delay option is also available for slow terminals or remote connections.
 
 ## Table of Contents
 - [Overview](#overview)
@@ -8,9 +8,9 @@ par-term's Paste Special feature allows you to transform clipboard content befor
 - [Transformations](#transformations)
   - [Shell Category](#shell-category)
   - [Case Category](#case-category)
+  - [Newline Category](#newline-category)
   - [Whitespace Category](#whitespace-category)
   - [Encoding Category](#encoding-category)
-- [Newline Category](#newline-category)
 - [Paste Delay](#paste-delay)
 - [Using the UI](#using-the-ui)
 - [Related Documentation](#related-documentation)
@@ -44,7 +44,7 @@ graph TD
 
 ## Opening Paste Special
 
-**Keyboard Shortcut:** `Cmd+Shift+V` (macOS) or `Ctrl+Shift+V` (Windows/Linux)
+**Keyboard Shortcut:** `Cmd+Shift+V` (macOS) or `Ctrl+Alt+V` (Windows/Linux)
 
 **Alternative:** From Clipboard History (`Ctrl+Shift+H`), press `Shift+Enter` on an entry.
 
@@ -83,6 +83,19 @@ graph TD
 - Hyphens and underscores
 - camelCase transitions (lowercase to uppercase)
 
+### Newline Category
+
+| Transform | Description | Example |
+|-----------|-------------|---------|
+| **Newline: Paste as Single Line** | Strip all newlines and join with spaces | `hello\nworld` → `hello world` |
+| **Newline: Add Newlines** | Ensure text ends with a newline after each line | `hello\nworld` → `hello\nworld\n` |
+| **Newline: Remove Newlines** | Remove all newline characters | `hello\nworld` → `helloworld` |
+
+**Use Cases:**
+- **Single Line**: Paste multi-line content as one line (e.g., pasting a path that got line-wrapped)
+- **Add Newlines**: Ensure commands are executed when pasted line by line
+- **Remove Newlines**: Clean up content with unwanted line breaks
+
 ### Whitespace Category
 
 | Transform | Description | Example |
@@ -114,19 +127,6 @@ graph TD
 - Invalid URL encoding: Shows error message
 - Invalid JSON escapes: Shows error message
 
-### Newline Category
-
-| Transform | Description | Example |
-|-----------|-------------|---------|
-| **Newline: Paste as Single Line** | Strip all newlines and join with spaces | `hello\nworld` → `hello world` |
-| **Newline: Add Newlines** | Ensure text ends with a newline after each line | `hello\nworld` → `hello\nworld\n` |
-| **Newline: Remove Newlines** | Remove all newline characters | `hello\nworld` → `helloworld` |
-
-**Use Cases:**
-- **Single Line**: Paste multi-line content as one line (e.g., pasting a path that got line-wrapped)
-- **Add Newlines**: Ensure commands are executed when pasted line by line
-- **Remove Newlines**: Clean up content with unwanted line breaks
-
 ## Paste Delay
 
 For slow terminals or remote connections that cannot handle rapid paste, a configurable delay can be added between pasted lines.
@@ -148,22 +148,29 @@ paste_delay_ms: 50  # Add 50ms delay between pasted lines
 
 ### UI Layout
 
-```
-┌─────────────────────────────────────────────────┐
-│ Search: [____________________]                  │
-├──────────────────┬──────────────────────────────┤
-│ Transformations  │ Preview                      │
-│ ───────────────  │ ────────                     │
-│ > Shell:...      │ Original:                    │
-│   Case:...       │ [truncated preview]          │
-│   Whitespace:... │                              │
-│   Encode:...     │ Result:                      │
-│                  │ [result or error]            │
-└──────────────────┴──────────────────────────────┘
-│ [Apply & Paste] [Cancel]         [content size] │
-├──────────────────────────────────────────────────┤
-│ ↑↓ Navigate  Enter Apply  Esc Cancel            │
-└──────────────────────────────────────────────────┘
+```mermaid
+graph TB
+    subgraph Window["Paste Special Window"]
+        Search["Search: [_____________]"]
+        subgraph Columns["Two-Column Layout"]
+            Transforms["Transformations List<br/>Shell: Single Quotes<br/>Shell: Double Quotes<br/>..."]
+            Preview["Preview Panel<br/>Original: [content]<br/>Result: [transformed]"]
+        end
+        Buttons["[Apply & Paste] [Cancel]    123 chars"]
+        Hints["Navigation: Enter Apply | Esc Cancel"]
+    end
+
+    Search --> Transforms
+    Transforms --> Preview
+    Preview --> Buttons
+    Buttons --> Hints
+
+    style Window fill:#1E1E1E,stroke:#78909c,stroke-width:2px,color:#ffffff
+    style Search fill:#37474f,stroke:#78909c,stroke-width:1px,color:#ffffff
+    style Transforms fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    style Preview fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
+    style Buttons fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    style Hints fill:#37474f,stroke:#78909c,stroke-width:1px,color:#ffffff
 ```
 
 ### Navigation
@@ -192,5 +199,6 @@ The right panel shows:
 
 ## Related Documentation
 
-- [README.md](../README.md) - Project overview
 - [KEYBOARD_SHORTCUTS.md](KEYBOARD_SHORTCUTS.md) - All keyboard shortcuts
+- [CONFIG_REFERENCE.md](CONFIG_REFERENCE.md) - Configuration options including `paste_delay_ms`
+- [MOUSE_FEATURES.md](MOUSE_FEATURES.md) - Mouse-based copy/paste operations

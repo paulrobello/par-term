@@ -43,7 +43,7 @@ graph TD
 
 | Action | macOS | Linux/Windows |
 |--------|-------|---------------|
-| Open command history | `Cmd + R` | `Ctrl + R` |
+| Open command history | `Cmd + R` | `Ctrl + Alt + R` |
 
 The overlay appears over the terminal with a search input field and a scrollable list of previous commands.
 
@@ -80,6 +80,8 @@ Each history entry displays:
 - **Command text** with fuzzy match highlighting
 - **Exit code indicator**: green circle for success (exit 0), red circle for failure (non-zero), gray circle for unknown
 - **Relative timestamp**: how long ago the command was executed (e.g., "2m ago", "1h ago", "3d ago")
+
+Hover over an entry to see a tooltip with full details including command duration (when available).
 
 ## History Capture
 

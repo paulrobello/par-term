@@ -175,13 +175,10 @@ graph TD
     Render --> Config
     Render --> Fonts
     Settings --> Config
-    Settings --> Fonts
-    Settings --> Render
     Input --> Config
     Keybind --> Config
     Scripting --> Config
     Tmux --> Config
-    Tmux --> Terminal
     Prettifier --> Config
 
     style Main fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
@@ -259,7 +256,7 @@ All public types from workspace crates are re-exported from the main `par-term` 
 
 *   **TabManager (`src/tab/manager.rs`)**: Manages multiple terminal tabs within a window, handling tab creation, switching, reordering, and cleanup.
 *   **Tab (`src/tab/mod.rs`)**: Represents a single terminal session with its own terminal, scroll state, mouse state, bell state, render cache, and pane tree.
-*   **TabBarUI (`src/tab_bar_ui/`)**: egui-based tab bar renderer with click handling, close buttons, activity indicators, and bell icons.
+*   **TabBarUI (`src/tab_bar_ui/`)**: egui-based tab bar renderer with click handling, close buttons, activity indicators, bell icons, context menus, and drag-drop reordering (9 modules).
 *   **PaneManager (`src/pane/manager/`)**: Coordinates pane operations within a tab, managing split creation, resizing, and navigation.
 *   **Pane (`src/pane/types.rs`)**: Represents a single terminal pane with its own state. Uses a tree structure (`PaneNode`) for nested splits.
 

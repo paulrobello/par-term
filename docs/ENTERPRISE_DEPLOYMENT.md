@@ -360,16 +360,16 @@ To disable automation entirely in managed deployments, deploy a config with no `
 
 For environments with data-handling requirements (PCI-DSS, HIPAA, SOC 2):
 
-- Disable session logging in the managed config: `session_log_enabled: false`
+- Disable session logging in the managed config: `auto_log_sessions: false`
 - Or restrict the log directory permissions so only the owning user can read logs.
-- The `redact_passwords` option (default: `true`) applies heuristic redaction but is not a compliance-grade control.
+- The `session_log_redact_passwords` option (default: `true`) applies heuristic redaction but is not a compliance-grade control.
 
 ### AI Panel (ACP)
 
 The [AI panel](ASSISTANT_PANEL.md) launches AI coding agents (Claude Code, Codex CLI, etc.) as subprocesses with filesystem access. In environments where AI tooling is restricted:
 
-- Disable the panel: `acp_enabled: false`
-- Or deploy a config with no `custom_acp_agents` entries to prevent custom agent registration.
+- Disable the panel: `ai_inspector_enabled: false`
+- Or deploy a config with no `ai_inspector_custom_agents` entries to prevent custom agent registration.
 
 ---
 

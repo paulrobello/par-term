@@ -154,6 +154,7 @@ custom_shader_full_content: false
 | `custom_shader_text_opacity` | `f32` | `1.0` | Text opacity when shader is active (0.0-1.0) |
 | `custom_shader_brightness` | `f32` | `1.0` | Brightness multiplier (0.05-1.0) |
 | `custom_shader_full_content` | `bool` | `false` | When true, shader can manipulate terminal content |
+| `custom_shader_use_background_as_channel0` | `bool` | `false` | Use app's background image as iChannel0 texture |
 
 ### Cursor Shader Settings
 

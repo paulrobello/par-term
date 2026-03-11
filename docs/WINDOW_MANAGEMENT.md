@@ -75,18 +75,23 @@ graph TD
 
 Edge windows provide dropdown/sidebar terminal experiences:
 
-```
-┌────────────────────────────────────┐
-│         EdgeTop Window             │  ← Spans full width
-│         (dropdown style)           │
-└────────────────────────────────────┘
+```mermaid
+graph TB
+    subgraph EdgeTop["EdgeTop Window (dropdown style)"]
+        Direction["Spans full width of screen"]
+    end
 
-┌─────────┬──────────────────────────┐
-│ EdgeLeft│                          │
-│ Window  │      Desktop Area        │  ← EdgeLeft spans full height
-│ (sidebar│                          │
-│  style) │                          │
-└─────────┴──────────────────────────┘
+    subgraph SideLayout["Horizontal Layout"]
+        EdgeLeft["EdgeLeft Window<br/>(sidebar style)<br/>Spans full height"]
+        Desktop["Desktop Area"]
+        EdgeRight["EdgeRight Window<br/>(sidebar style)<br/>Spans full height"]
+    end
+
+    style EdgeTop fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    style EdgeLeft fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    style EdgeRight fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    style Desktop fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+    style SideLayout fill:#1E1E1E,stroke:#333333,stroke-width:1px,color:#ffffff
 ```
 
 **Use Cases:**
@@ -231,7 +236,7 @@ pane_divider_style: solid  # solid, double, dashed, shadow
 Window padding adds space between the terminal content and the window edges.
 
 ```yaml
-window_padding: 0.0  # Padding in pixels (default: 0.0)
+window_padding: 1.0  # Padding in pixels (default: 1.0)
 ```
 
 Changes to window padding in the Settings UI take effect immediately without requiring an app restart. The terminal grid recalculates to fit the new padding, and pane sizes adjust accordingly.
@@ -348,7 +353,7 @@ restore_session: false
 
 **What gets saved:** Open windows with positions and sizes, all tabs with working directories, split pane trees with ratios, and active tab indices.
 
-**Behavior:** The session file saves on clean exit and clears after successful restore to prevent stale state. Missing directories fall back to `$HOME`. When both `restore_session` and `auto_restore_arrangement` are enabled, session restore takes precedence.
+**Behavior:** The session file saves on clean exit and clears after successful restore to prevent stale state. Missing directories fall back to `$HOME`. When both `restore_session` and `auto_restore_arrangement` are enabled, auto-restore arrangement takes precedence.
 
 For full details on session persistence including session undo, see [Session Management](SESSION_MANAGEMENT.md).
 
@@ -364,7 +369,7 @@ For full details on status bar configuration, widgets, and customization, see [S
 status_bar_enabled: true
 status_bar_position: bottom  # top or bottom
 status_bar_auto_hide_fullscreen: true
-status_bar_auto_hide_mouse: false
+status_bar_auto_hide_mouse_inactive: false
 ```
 
 **Settings UI:** Settings > Status Bar
@@ -451,7 +456,7 @@ show_window_number: false
 window_opacity: 1.0
 transparency_affects_only_default_background: true
 keep_text_opaque: true
-window_padding: 0.0  # Padding in pixels
+window_padding: 1.0  # Padding in pixels
 hide_window_padding_on_split: true  # Remove window padding when panes are split
 
 # macOS blur

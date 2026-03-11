@@ -130,6 +130,7 @@ Each trigger requires:
 | `name` | string | Yes | -- | Human-readable identifier |
 | `pattern` | string | Yes | -- | Regex pattern to match against terminal output |
 | `enabled` | boolean | No | `true` | Whether the trigger is active |
+| `require_user_action` | boolean | No | `true` | Whether dangerous actions (`RunCommand`, `SendText`) require user interaction to fire |
 | `actions` | array | No | `[]` | List of actions to fire on match |
 
 ### Regex Pattern Syntax
@@ -163,7 +164,9 @@ triggers:
 
 ## Trigger Actions
 
-Each trigger can have multiple actions that all fire when the pattern matches. Actions are defined in the trigger's `actions` array. There are seven action types.
+Each trigger can have multiple actions that all fire when the pattern matches. Actions are defined in the trigger's `actions` array. There are eight action types.
+
+> **📝 Note:** Dangerous actions (`RunCommand`, `SendText`) are suppressed when triggered solely by passive terminal output unless the trigger has `require_user_action: false`. Safe actions (`Highlight`, `Notify`, `MarkLine`, `SetVariable`, `PlaySound`, `Prettify`) always fire.
 
 ### Highlight
 
@@ -277,6 +280,29 @@ Writes text to the terminal's PTY input, as if the user had typed it. An optiona
 | `delay_ms` | integer | No | `0` | Milliseconds to wait before sending |
 
 > **⚠️ Warning:** Use `send_text` with care. Sending text to the terminal is equivalent to typing it, and recursive matches (where the sent text triggers the same trigger again) can cause infinite loops. Make sure your pattern does not match the text you are sending.
+
+### Prettify
+
+Invokes a prettifier renderer on matched content. This allows triggers to explicitly render structured content (JSON, Markdown, diffs, etc.) instead of relying on auto-detection.
+
+```yaml
+- type: prettify
+  format: "json"                # Renderer to use (e.g., "json", "markdown", "diff")
+  scope: "command_output"       # Optional: "line", "block", or "command_output" (default)
+  block_end: "^```$"            # Optional: Regex for block end (when scope: "block")
+  sub_format: "plantuml"        # Optional: Sub-format (e.g., for diagram languages)
+  command_filter: "^cat\\s"     # Optional: Only trigger if preceding command matches
+```
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `format` | string | Yes | -- | Renderer to invoke (e.g., `"json"`, `"markdown"`, `"diff"`, `"none"`) |
+| `scope` | enum | No | `command_output` | What to render: `line`, `block`, or `command_output` |
+| `block_end` | string | No | `null` | Regex pattern for block end (required when `scope: block`) |
+| `sub_format` | string | No | `null` | Sub-format specifier (e.g., `"plantuml"` for diagrams) |
+| `command_filter` | string | No | `null` | Regex to filter by preceding command |
+
+See [Content Prettifier](PRETTIFIER.md) for details on available renderers and detection rules.
 
 ## Trigger Highlights
 
@@ -536,6 +562,13 @@ Each script definition supports:
 | `restart_delay_ms` | integer | No | `0` | Delay in milliseconds before restarting |
 | `subscriptions` | array of strings | No | `[]` | Event types to receive (empty = all events) |
 | `env_vars` | object | No | `{}` | Additional environment variables for the script process |
+| `allow_write_text` | boolean | No | `false` | Allow `WriteText` command to inject text into PTY |
+| `allow_run_command` | boolean | No | `false` | Allow `RunCommand` to spawn external processes |
+| `allow_change_config` | boolean | No | `false` | Allow `ChangeConfig` to modify runtime configuration |
+| `write_text_rate_limit` | integer | No | `10` | Maximum `WriteText` writes per second (0 = default) |
+| `run_command_rate_limit` | integer | No | `1` | Maximum `RunCommand` executions per second (0 = default) |
+
+> **🔒 Security:** The `allow_*` permission flags are off by default and must be explicitly enabled. Restricted commands (`WriteText`, `RunCommand`, `ChangeConfig`) are blocked unless the corresponding flag is set. Rate limiting prevents abuse even when enabled.
 
 ### JSON Protocol
 
@@ -578,17 +611,17 @@ The terminal sends events to the script's stdin. Each event has a `kind` field (
 
 Scripts write JSON commands to stdout to control the terminal. Each command has a `type` field that identifies the command:
 
-| Command | Fields | Description |
-|---------|--------|-------------|
-| `Log` | `level`, `message` | Write a log message (`level`: `"info"`, `"warn"`, `"error"`, `"debug"`) |
-| `Notify` | `title`, `body` | Show a desktop notification |
-| `SetBadge` | `text` | Set the tab's badge text |
-| `SetVariable` | `name`, `value` | Set a user variable |
-| `WriteText` | `text` | Write text to the PTY (as if typed) |
-| `RunCommand` | `command` | Execute a shell command |
-| `ChangeConfig` | `key`, `value` | Change a configuration value |
-| `SetPanel` | `title`, `content` | Display a markdown panel in the UI |
-| `ClearPanel` | -- | Remove the markdown panel |
+| Command | Fields | Permission Required | Description |
+|---------|--------|---------------------|-------------|
+| `Log` | `level`, `message` | No | Write a log message (`level`: `"info"`, `"warn"`, `"error"`, `"debug"`) |
+| `Notify` | `title`, `body` | No | Show a desktop notification |
+| `SetBadge` | `text` | No | Set the tab's badge text |
+| `SetVariable` | `name`, `value` | No | Set a user variable |
+| `SetPanel` | `title`, `content` | No | Display a markdown panel in the UI |
+| `ClearPanel` | -- | No | Remove the markdown panel |
+| `WriteText` | `text` | `allow_write_text` | Write text to the PTY (as if typed); VT sequences are stripped |
+| `RunCommand` | `command` | `allow_run_command` | Execute a shell command; checked against denylist |
+| `ChangeConfig` | `key`, `value` | `allow_change_config` | Change a configuration value; allowlisted keys only |
 
 **Command examples:**
 
@@ -596,6 +629,7 @@ Scripts write JSON commands to stdout to control the terminal. Each command has 
 {"type": "Log", "level": "info", "message": "Script started"}
 {"type": "Notify", "title": "Alert", "body": "Something happened"}
 {"type": "SetBadge", "text": "3 errors"}
+{"type": "SetVariable", "name": "build_status", "value": "failed"}
 {"type": "SetPanel", "title": "Dashboard", "content": "## Status\n- All clear"}
 {"type": "WriteText", "text": "ls -la\n"}
 {"type": "ClearPanel"}
@@ -897,6 +931,10 @@ scripts:
     subscriptions: ["command_complete", "cwd_changed"]
     env_vars:
       LOG_LEVEL: "debug"
+    # Security: enable only the commands this script needs
+    allow_write_text: false
+    allow_run_command: false
+    allow_change_config: false
 ```
 
 ### Full Automation Configuration
@@ -969,6 +1007,7 @@ scripts:
     script_path: "scripts/examples/hello_observer.py"
     auto_start: true
     subscriptions: ["bell_rang", "cwd_changed", "command_complete"]
+    # This script only uses safe commands (Log, Notify, SetPanel)
 
   - name: "Build dashboard"
     script_path: "~/.config/par-term/scripts/build_dashboard.py"
@@ -977,11 +1016,15 @@ scripts:
     restart_delay_ms: 2000
     env_vars:
       PROJECT_ROOT: "/home/user/myproject"
+    # This script runs commands on build completion
+    allow_run_command: true
+    run_command_rate_limit: 1
 ```
 
 ## Related Documentation
 
 - [Architecture](ARCHITECTURE.md) - System design and data flow overview
+- [Content Prettifier](PRETTIFIER.md) - Auto-detection and rendering of structured content
 - [Scrollback](SCROLLBACK.md) - Scrollbar marks, command markers, and navigation
 - [Tabs](TABS.md) - Tab management and per-tab state
 - [Badges](BADGES.md) - Dynamic badge display using trigger variables

@@ -262,19 +262,21 @@ Example structure:
       index: 0
       position: [0, 0]
       size: [2560, 1440]
+      scale_factor: 1.0
   windows:
     - monitor:
         name: "DELL U2720Q"
         index: 0
         position: [0, 0]
         size: [2560, 1440]
+        scale_factor: 1.0
       position_relative: [100, 200]
       size: [800, 600]
       tabs:
         - cwd: "/home/user/projects"
           title: "zsh"
           user_title: "Editor"
-          custom_color: [255, 165, 0, 255]
+          custom_color: [255, 165, 0]
           custom_icon: "rocket"
         - cwd: "/home/user/logs"
           title: "zsh"
@@ -288,14 +290,16 @@ Example structure:
 
 ## Architecture
 
-The arrangements module is organized into four submodules within `src/arrangements/`:
+The arrangements module is organized across several crates:
 
 ```mermaid
 graph TD
-    Mod[mod.rs<br/>Types & ArrangementManager]
-    Capture[capture.rs<br/>Capture Live State]
-    Restore[restore.rs<br/>Monitor Mapping & Clamping]
-    Storage[storage.rs<br/>YAML Persistence]
+    SettingsUIArr[arrangements.rs<br/>par-term-settings-ui<br/>Types & ArrangementManager]
+    ConfigSnapshot[snapshot_types.rs<br/>par-term-config<br/>TabSnapshot shared type]
+    Capture[capture.rs<br/>src/arrangements<br/>Capture Live State]
+    Restore[restore.rs<br/>src/arrangements<br/>Monitor Mapping & Clamping]
+    Storage[storage.rs<br/>src/arrangements<br/>YAML Persistence]
+    Mod[mod.rs<br/>src/arrangements<br/>Re-exports from settings-ui]
     WinMgr[WindowManager<br/>Orchestration]
     SettingsUI[Window Tab<br/>Arrangements Section<br/>egui UI]
     Menu[View Menu<br/>Save Item]
@@ -310,24 +314,31 @@ graph TD
     Mod --> Capture
     Mod --> Restore
     Mod --> Storage
+    SettingsUIArr --> ConfigSnapshot
+    Mod --> SettingsUIArr
 
-    style Mod fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+    style SettingsUIArr fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+    style ConfigSnapshot fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
     style Capture fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
     style Restore fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
     style Storage fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    style Mod fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
     style WinMgr fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
     style SettingsUI fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
     style Menu fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
     style Input fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
 ```
 
-**Key types in `src/arrangements/mod.rs`:**
+**Key types in `par-term-settings-ui/src/arrangements.rs`:**
 
-- `MonitorInfo`: Captures monitor name, index, position, and size at save time
-- `TabSnapshot`: Stores a tab's working directory, title, and optional per-tab customizations (user-set name, custom color, custom icon)
+- `MonitorInfo`: Captures monitor name, index, position, size, and scale factor at save time
 - `WindowSnapshot`: Stores a window's monitor, relative position, size, tabs, and active tab index
 - `WindowArrangement`: A named collection of window snapshots with monitor layout and metadata
 - `ArrangementManager`: Manages the collection of saved arrangements with ordering, lookup by name, and CRUD operations
+
+**Shared type in `par-term-config/src/snapshot_types.rs`:**
+
+- `TabSnapshot`: Stores a tab's working directory, title, and optional per-tab customizations (user-set name, custom color, custom icon). Shared between arrangements and session restore.
 
 **Capture flow** (`src/arrangements/capture.rs`): Enumerates all monitors via the winit event loop, iterates over all open windows, determines each window's monitor, computes the position relative to the monitor origin, and collects tab CWDs, titles, and per-tab customizations (user-set names, custom colors, and custom icons).
 

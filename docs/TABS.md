@@ -113,8 +113,8 @@ For full details on session undo configuration and shell session preservation, s
 |--------|----------|
 | Next tab | `Cmd+Shift+]` or `Ctrl+Tab` |
 | Previous tab | `Cmd+Shift+[` or `Ctrl+Shift+Tab` |
-| Go to tab 1-9 | `Cmd+1` through `Cmd+9` (macOS) / `Ctrl+1` through `Ctrl+9` |
-| Go to last tab | `Cmd+9` (macOS) / `Ctrl+9` |
+| Go to tab 1-9 | `Cmd+1` through `Cmd+9` (macOS) / `Alt+1` through `Alt+9` |
+| Go to last tab | `Cmd+9` (macOS) / `Alt+9` |
 
 ## Reordering Tabs
 

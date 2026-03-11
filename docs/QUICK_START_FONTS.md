@@ -4,15 +4,16 @@ Get up and running with par-term's advanced font features in 5 minutes.
 
 ## Table of Contents
 
-- [Styled Fonts](#quick-setup-styled-fonts)
-- [CJK Support](#quick-setup-cjk-support)
-- [Emoji](#quick-setup-emoji)
-- [Math Symbols](#quick-setup-math-symbols)
-- [Complete Setup](#complete-setup-everything-together)
+- [Quick Setup: Styled Fonts](#quick-setup-styled-fonts)
+- [Quick Setup: CJK Support](#quick-setup-cjk-support)
+- [Quick Setup: Emoji](#quick-setup-emoji)
+- [Quick Setup: Math Symbols](#quick-setup-math-symbols)
+- [Complete Setup: Everything Together](#complete-setup-everything-together)
 - [Test Script](#test-script)
 - [Troubleshooting](#troubleshooting)
 - [Next Steps](#next-steps)
 - [Pro Tips](#pro-tips)
+- [Related Documentation](#related-documentation)
 
 ---
 
@@ -51,7 +52,7 @@ echo -e "\e[3mItalic Text\e[0m"         # Italic
 echo -e "\e[1;3mBold+Italic\e[0m"      # Both
 ```
 
-**Expected result:** Crisp, professionally-designed bold/italic text!
+**Expected result:** Crisp, professionally-designed bold/italic text.
 
 ---
 
@@ -92,7 +93,7 @@ echo "Japanese: こんにちは 世界"
 echo "Korean: 안녕하세요 세계"
 ```
 
-**Expected result:** Beautiful CJK characters with proper font!
+**Expected result:** Beautiful CJK characters with proper font.
 
 ---
 
@@ -122,7 +123,7 @@ echo "😀 🚀 ⭐ 🎉 ❤️ 👍"
 echo "🌟 🔥 💻 📱 ⚡"
 ```
 
-**Expected result:** Colorful emoji!
+**Expected result:** Colorful emoji.
 
 ---
 
@@ -158,7 +159,7 @@ echo "∫₀^∞ e^(-x²)dx = √π/2"
 echo "∑ᵢ₌₁^n i = n(n+1)/2"
 ```
 
-**Expected result:** Beautiful math symbols!
+**Expected result:** Beautiful math symbols.
 
 ---
 
@@ -175,6 +176,11 @@ font_size: 14.0
 font_family_bold: "JetBrains Mono Bold"
 font_family_italic: "JetBrains Mono Italic"
 font_family_bold_italic: "JetBrains Mono Bold Italic"
+
+# Text shaping (enabled by default)
+enable_text_shaping: true
+enable_ligatures: true
+enable_kerning: true
 
 # Unicode ranges
 font_ranges:
@@ -339,8 +345,9 @@ sudo apt install fonts-noto-color-emoji
 
 ### Problem: Not sure what's working
 ```bash
-# Enable debug logging
-RUST_LOG=debug par-term
+# Enable debug logging to file
+make run-debug
+make tail-log
 
 # Look for font loading messages:
 # "Successfully loaded primary font: ..."
@@ -352,10 +359,10 @@ RUST_LOG=debug par-term
 
 ## Next Steps
 
-1. **See examples/** directory for complete configs
+1. **See examples/ directory** for complete config examples
 2. **Read examples/README.md** for comprehensive guide
-3. **Check [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** for technical details
-4. **Experiment!** Try different font combinations
+3. **Check CONFIG_REFERENCE.md** for all font configuration options
+4. **Experiment** - Try different font combinations
 
 ---
 
@@ -363,10 +370,14 @@ RUST_LOG=debug par-term
 
 1. **Start Simple:** Get styled fonts working first, then add ranges
 2. **Test Each Range:** Add one font_range at a time and test
-3. **Check Logs:** Use `RUST_LOG=info par-term` to see what fonts load
+3. **Check Logs:** Use `make run-debug` to see what fonts load
 4. **Font Names:** Use exact names from `fc-list` output
 5. **Mix Fonts:** You can use different fonts for italic (e.g., Victor Mono Italic with Fira Code regular)
 
 ---
 
-Enjoy your beautifully rendered terminal! 🎉
+## Related Documentation
+
+- [examples/README.md](../examples/README.md) - Detailed configuration examples and Unicode range reference
+- [CONFIG_REFERENCE.md](CONFIG_REFERENCE.md) - Complete configuration options
+- [LOGGING.md](LOGGING.md) - Debug logging for font loading issues

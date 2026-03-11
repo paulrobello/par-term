@@ -6,8 +6,9 @@ use serde::{Deserialize, Serialize};
 pub struct UpdateConfig {
     /// How often to check for new par-term releases
     /// - never: Disable automatic update checks
-    /// - daily: Check once per day
-    /// - weekly: Check once per week (default)
+    /// - hourly: Check every hour
+    /// - daily: Check once per day (default)
+    /// - weekly: Check once per week
     /// - monthly: Check once per month
     #[serde(default = "crate::defaults::update_check_frequency")]
     pub update_check_frequency: UpdateCheckFrequency,

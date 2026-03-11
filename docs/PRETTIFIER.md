@@ -21,6 +21,7 @@ The Content Prettifier detects structured content in terminal output (Markdown, 
   - [Diagrams](#diagrams)
   - [SQL Results](#sql-results)
   - [Stack Trace](#stack-trace)
+- [Security: Allowed Commands](#security-allowed-commands)
 - [Custom Renderers](#custom-renderers)
   - [Defining a Custom Renderer](#defining-a-custom-renderer)
   - [ANSI Color Support](#ansi-color-support)
@@ -143,7 +144,7 @@ graph TD
 
 ## Built-in Renderers
 
-All 11 built-in renderers are enabled by default with priority 50. Each has a dedicated detector and renderer pair.
+All 11 built-in renderers are enabled by default with priority 50 (diagrams uses 55). Each has a dedicated detector and renderer pair.
 
 ### Markdown
 
@@ -252,6 +253,24 @@ Tabular result set rendering. Detects SQL result output patterns and formats the
 **Format ID**: `stack_trace` | **Badge**: `STK`
 
 Error and exception trace highlighting. Detects common stack trace patterns across languages and applies color-coded formatting to file paths, line numbers, and error messages.
+
+## Security: Allowed Commands
+
+Custom renderers can invoke external commands to render content. The `allowed_commands` setting controls which commands are permitted to execute:
+
+```yaml
+content_prettifier:
+  allowed_commands:
+    - bat
+    - /usr/local/bin/protoc
+```
+
+| State | Behavior |
+|-------|----------|
+| **Empty list (default)** | All custom renderer commands are allowed to execute, but a security warning is logged for each execution |
+| **Non-empty list** | Only commands whose basename or full path matches an entry in the list are permitted; others are refused with a warning |
+
+Commands can be specified by basename (e.g., `bat`) or full path (e.g., `/usr/local/bin/protoc`). When using basename matching, any command with that name in PATH will be allowed.
 
 ## Custom Renderers
 
@@ -377,17 +396,13 @@ When copying text from prettified content blocks, the clipboard behavior is conf
 content_prettifier:
   clipboard:
     default_copy: "rendered"
-    source_copy_modifier: "Alt"
-    vi_copy_mode: "source"
 ```
 
 | Setting | Values | Default | Description |
 |---------|--------|---------|-------------|
-| `default_copy` | `"rendered"`, `"source"` | `"rendered"` | What to copy by default when selecting text in a prettified block |
-| `source_copy_modifier` | `"Alt"`, `"Shift"`, `"Ctrl"` | `"Alt"` | Hold this modifier while copying to get the alternative form |
-| `vi_copy_mode` | `"source"`, `"rendered"` | `"source"` | What vi copy mode (`y` yank) copies from prettified blocks |
+| `default_copy` | `"rendered"`, `"source"` | `"rendered"` | What to copy when selecting text in a prettified block |
 
-When `default_copy` is `"rendered"`, a normal copy gets the styled/formatted text and holding Alt copies the original source. When `default_copy` is `"source"`, the behavior is reversed.
+When `default_copy` is `"rendered"`, copying gets the styled/formatted text. When `default_copy` is `"source"`, copying gets the original unformatted text.
 
 ## Claude Code Integration
 
@@ -537,8 +552,6 @@ content_prettifier:
   # Clipboard behavior for prettified blocks
   clipboard:
     default_copy: "rendered"        # "rendered" or "source"
-    source_copy_modifier: "Alt"     # Modifier key for alternative copy
-    vi_copy_mode: "source"          # "source" or "rendered"
 
   # Per-renderer enable/disable and priority
   renderers:
@@ -569,7 +582,7 @@ content_prettifier:
       priority: 50
     diagrams:
       enabled: true
-      priority: 50
+      priority: 55                  # Default is 55 (higher than other renderers)
       engine: null                  # null ("auto"), "native", "local", "kroki", or "text_fallback"
       kroki_server: null            # null (https://kroki.io) or custom URL
     sql_results:
@@ -578,6 +591,11 @@ content_prettifier:
     stack_trace:
       enabled: true
       priority: 50
+
+  # Security: commands allowed for custom renderers
+  # When empty (default), all custom renderer commands run with a warning
+  # When non-empty, only listed commands are permitted
+  allowed_commands: []
 
   # User-defined custom renderers
   custom_renderers:
@@ -650,8 +668,6 @@ The prettifier has a dedicated settings tab accessible via **Settings > Content 
 
 **Clipboard Behavior:**
 - Default copy mode (rendered or source)
-- Source copy modifier key
-- Vi copy mode selection
 
 **Cache Settings:**
 - Max entries input

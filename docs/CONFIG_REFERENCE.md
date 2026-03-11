@@ -10,14 +10,53 @@ field uses its documented default value.
 > safe variables (HOME, USER, SHELL, XDG_*, PAR_TERM_*, LC_*) are substituted
 > by default. Set `allow_all_env_vars: true` to allow all variables.
 
+## Table of Contents
+- [Window / General](#window--general)
+- [Fonts](#fonts)
+- [Rendering](#rendering)
+- [Background & Images](#background--images)
+- [Custom Shaders (Background)](#custom-shaders-background)
+- [Custom Shaders (Cursor)](#custom-shaders-cursor)
+- [Keyboard Input](#keyboard-input)
+- [Selection & Clipboard](#selection--clipboard)
+- [Mouse](#mouse)
+- [Word Selection & Copy Mode](#word-selection--copy-mode)
+- [Scrollback & Unicode](#scrollback--unicode)
+- [Cursor](#cursor)
+- [Scrollbar](#scrollbar)
+- [Theme & Colors](#theme--colors)
+- [Shell Behavior](#shell-behavior)
+- [Semantic History (File/URL Detection)](#semantic-history-fileurl-detection)
+- [Tabs](#tabs)
+- [Split Panes](#split-panes)
+- [tmux Integration](#tmux-integration)
+- [Notifications](#notifications)
+- [SSH](#ssh)
+- [Session Logging](#session-logging)
+- [Search](#search)
+- [Status Bar](#status-bar)
+- [Progress Bar](#progress-bar)
+- [Badge (Session Label)](#badge-session-label)
+- [Automation & Scripting](#automation--scripting)
+- [AI Inspector](#ai-inspector)
+- [Update Checking](#update-checking)
+- [Security](#security)
+- [Content Prettifier](#content-prettifier)
+- [Settings UI](#settings-ui)
+- [Sessions & Arrangements](#sessions--arrangements)
+- [Profiles](#profiles)
+- [Command Separator Lines](#command-separator-lines)
+- [Debug Logging](#debug-logging)
+- [Related Documentation](#related-documentation)
+
 ---
 
 ## Window / General
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `cols` | `usize` | `220` | Number of terminal columns |
-| `rows` | `usize` | `50` | Number of terminal rows |
+| `cols` | `usize` | `80` | Number of terminal columns |
+| `rows` | `usize` | `24` | Number of terminal rows |
 | `window_title` | `string` | `"par-term"` | Window title bar text |
 | `allow_title_change` | `bool` | `true` | Allow OSC sequences to change the window title |
 | `window_padding` | `f32` | `1.0` | Padding in pixels around terminal content |
@@ -34,7 +73,7 @@ field uses its documented default value.
 | `transparency_affects_only_default_background` | `bool` | `true` | Only make default background transparent, not colored areas |
 | `keep_text_opaque` | `bool` | `true` | Render text at full opacity regardless of window transparency |
 | `blur_enabled` | `bool` | `false` | macOS: blur content visible through transparent window |
-| `blur_radius` | `u32` | `10` | macOS: blur radius in points (0–64) |
+| `blur_radius` | `u32` | `8` | macOS: blur radius in points (0–64) |
 | `screenshot_format` | `string` | `"png"` | Screenshot file format: `png`, `jpeg`, `svg`, `html` |
 
 ---
@@ -44,13 +83,13 @@ field uses its documented default value.
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `font_size` | `f32` | `13.0` | Font size in points |
-| `font_family` | `string` | `"Menlo"` | Regular/normal font family name |
+| `font_family` | `string` | `"JetBrains Mono"` | Regular/normal font family name |
 | `font_family_bold` | `string?` | `null` | Bold font family (falls back to `font_family`) |
 | `font_family_italic` | `string?` | `null` | Italic font family (falls back to `font_family`) |
 | `font_family_bold_italic` | `string?` | `null` | Bold italic font family (falls back to `font_family`) |
 | `font_ranges` | `array` | `[]` | Custom font mappings for Unicode ranges; each entry: `{start, end, font_family}` |
-| `line_spacing` | `f32` | `1.2` | Line height multiplier (1.0=tight, 1.5=spacious) |
-| `char_spacing` | `f32` | `0.6` | Character width multiplier |
+| `line_spacing` | `f32` | `1.0` | Line height multiplier (1.0=tight, 1.5=spacious) |
+| `char_spacing` | `f32` | `1.0` | Character width multiplier |
 | `enable_text_shaping` | `bool` | `true` | Enable HarfBuzz text shaping for ligatures and complex scripts |
 | `enable_ligatures` | `bool` | `true` | Render font ligatures (requires `enable_text_shaping`) |
 | `enable_kerning` | `bool` | `true` | Apply kerning adjustments (requires `enable_text_shaping`) |
@@ -74,7 +113,7 @@ field uses its documented default value.
 | `throughput_render_interval_ms` | `u32` | `100` | Render interval when throughput mode is active (50–500ms) |
 | `pause_shaders_on_blur` | `bool` | `true` | Pause shader animations when window loses focus |
 | `pause_refresh_on_blur` | `bool` | `true` | Reduce refresh rate when window is unfocused |
-| `unfocused_fps` | `u32` | `10` | Target FPS when window is not focused (if `pause_refresh_on_blur`) |
+| `unfocused_fps` | `u32` | `30` | Target FPS when window is not focused (if `pause_refresh_on_blur`) |
 | `inactive_tab_fps` | `u32` | `2` | Target FPS for background tabs (reduces CPU usage) |
 
 ---
@@ -88,7 +127,7 @@ field uses its documented default value.
 | `background_image` | `string?` | `null` | Path to background image (supports `~`) |
 | `background_image_enabled` | `bool` | `true` | Enable/disable background image rendering |
 | `background_image_mode` | `enum` | `stretch` | `fit`, `fill`, `stretch`, `tile`, `center` |
-| `background_image_opacity` | `f32` | `0.5` | Background image opacity (0.0–1.0) |
+| `background_image_opacity` | `f32` | `1.0` | Background image opacity (0.0–1.0) |
 | `image_scaling_mode` | `enum` | `linear` | Inline image scaling: `nearest` (sharp), `linear` (smooth) |
 | `image_preserve_aspect_ratio` | `bool` | `true` | Preserve aspect ratio when scaling inline images |
 | `pane_backgrounds` | `array` | `[]` | Per-pane background configs: `{index, image, mode, opacity, darken}` |
@@ -212,7 +251,7 @@ field uses its documented default value.
 | `lock_cursor_style` | `bool` | `false` | Prevent applications from changing cursor style |
 | `lock_cursor_blink` | `bool` | `false` | Prevent applications from enabling blink |
 | `cursor_guide_enabled` | `bool` | `false` | Show horizontal highlight line at cursor row |
-| `cursor_guide_color` | `[u8;4]` | `[128,128,128,30]` | Cursor guide color `[R, G, B, A]` |
+| `cursor_guide_color` | `[u8;4]` | `[255,255,255,20]` | Cursor guide color `[R, G, B, A]` |
 | `cursor_shadow_enabled` | `bool` | `false` | Show drop shadow behind cursor |
 | `cursor_shadow_color` | `[u8;4]` | (dark) | Shadow color `[R, G, B, A]` |
 | `cursor_shadow_offset` | `[f32;2]` | `[2.0,2.0]` | Shadow offset in pixels `[x, y]` |
@@ -240,10 +279,10 @@ field uses its documented default value.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `theme` | `string` | `"Builtin Dark"` | Color theme name |
+| `theme` | `string` | `"dark-background"` | Color theme name |
 | `auto_dark_mode` | `bool` | `false` | Automatically switch theme based on system light/dark mode |
-| `light_theme` | `string` | `"Builtin Light"` | Theme to use in system light mode |
-| `dark_theme` | `string` | `"Builtin Dark"` | Theme to use in system dark mode |
+| `light_theme` | `string` | `"light-background"` | Theme to use in system light mode |
+| `dark_theme` | `string` | `"dark-background"` | Theme to use in system dark mode |
 
 ---
 
@@ -296,7 +335,7 @@ field uses its documented default value.
 | `tab_title_mode` | `enum` | `auto` | How tab titles update: `auto`, `osc_only` |
 | `tab_bar_height` | `f32` | `28.0` | Tab bar height in pixels |
 | `tab_bar_position` | `enum` | `top` | Tab bar position: `top`, `bottom`, `left` |
-| `tab_bar_width` | `f32` | `200.0` | Tab bar width in pixels (when position is `left`) |
+| `tab_bar_width` | `f32` | `160.0` | Tab bar width in pixels (when position is `left`) |
 | `tab_bar_background` | `[u8;3]` | `[40,40,40]` | Tab bar background color `[R, G, B]` |
 | `tab_active_background` | `[u8;3]` | `[60,60,60]` | Active tab background color |
 | `tab_inactive_background` | `[u8;3]` | `[40,40,40]` | Inactive tab background color |
@@ -314,10 +353,10 @@ field uses its documented default value.
 | `tab_inherit_cwd` | `bool` | `true` | New tabs inherit working directory from active tab |
 | `max_tabs` | `usize` | `0` | Maximum tabs per window (0=unlimited) |
 | `show_profile_drawer_button` | `bool` | `false` | Show profile drawer button in tab bar |
-| `tab_min_width` | `f32` | `80.0` | Minimum tab width before horizontal scrolling |
-| `tab_stretch_to_fill` | `bool` | `false` | Stretch tabs to fill available tab bar width |
+| `tab_min_width` | `f32` | `120.0` | Minimum tab width before horizontal scrolling |
+| `tab_stretch_to_fill` | `bool` | `true` | Stretch tabs to fill available tab bar width |
 | `tab_html_titles` | `bool` | `false` | Render tab titles as limited HTML |
-| `tab_border_width` | `f32` | `0.0` | Tab border width in pixels (0=no border) |
+| `tab_border_width` | `f32` | `1.0` | Tab border width in pixels (0=no border) |
 | `tab_inactive_outline_only` | `bool` | `true` | Render inactive tabs as outline only |
 | `dim_inactive_tabs` | `bool` | `true` | Visually dim inactive tabs |
 | `inactive_tab_opacity` | `f32` | `0.6` | Inactive tab opacity (0.0–1.0) |
@@ -330,7 +369,7 @@ field uses its documented default value.
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `pane_divider_width` | `f32?` | `2.0` | Divider line width in pixels |
-| `pane_divider_hit_width` | `f32` | `8.0` | Drag-target width for resizing panes |
+| `pane_divider_hit_width` | `f32` | `5.0` | Drag-target width for resizing panes |
 | `pane_padding` | `f32` | `1.0` | Padding inside each pane in pixels |
 | `pane_min_size` | `usize` | `10` | Minimum pane size in terminal cells |
 | `pane_background_opacity` | `f32` | `1.0` | Pane background opacity (allows shader/image show-through) |

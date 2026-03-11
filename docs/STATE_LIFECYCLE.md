@@ -59,13 +59,13 @@ graph TD
 
 | Type | Location | Owned by | Lock |
 |---|---|---|---|
-| `WindowManager` | `src/app/window_manager.rs` | `App` | None — main thread only |
+| `WindowManager` | `src/app/window_manager/mod.rs` | `App` | None — main thread only |
 | `WindowState` | `src/app/window_state/mod.rs` | `WindowManager` | None — main thread only |
 | `TabManager` | `src/tab/manager.rs` | `WindowState` | None — main thread only |
 | `Tab` | `src/tab/mod.rs` | `TabManager` | None — main thread only |
-| `PaneManager` | `src/pane/manager.rs` | `Tab` | None — main thread only |
+| `PaneManager` | `src/pane/manager/mod.rs` | `Tab` | None — main thread only |
 | `Pane` | `src/pane/types/pane.rs` | `PaneManager` | None — main thread only |
-| `TerminalManager` | `par-term-terminal` | `Tab` / `Pane` | `Arc<tokio::sync::RwLock<...>>` |
+| `TerminalManager` | `par-term-terminal/src/terminal/mod.rs` | `Tab` / `Pane` | `Arc<tokio::sync::RwLock<...>>` |
 
 ## Window Lifecycle
 
