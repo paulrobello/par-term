@@ -183,9 +183,23 @@ impl WindowState {
             guard.suppress_terminal_mouse_click = false;
         }
 
+        // When mouse tracking is active the original press was already forwarded immediately
+        // (should_suppress_terminal_mouse_click_for_image_guard returns false in that case).
+        // Sending a second press here would appear to tmux as a double-click, causing it to
+        // snap to word selection mid-drag.  Skip the delayed press; the guard was needed only
+        // to watch the clipboard, not to delay the click.
+        if self.active_terminal_mouse_tracking_enabled_at(position) {
+            crate::debug_log!(
+                "MOUSE",
+                "Released image clipboard click guard on drag (mouse tracking active; press already forwarded)"
+            );
+            return;
+        }
+
         if self.try_send_mouse_event(0, true) {
             if let Some(tab) = self.tab_manager.active_tab_mut() {
                 tab.active_mouse_mut().button_pressed = true;
+                tab.active_mouse_mut().tracking_press_position = Some(position);
             }
             crate::debug_log!(
                 "MOUSE",
