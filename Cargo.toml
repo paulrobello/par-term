@@ -345,5 +345,3 @@ codegen-units = 16
 opt-level = 0
 debug = true
 
-[patch.crates-io]
-par-term-emu-core-rust = { path = "../../../../par-term-emu-core-rust" }
