@@ -251,6 +251,7 @@ impl WindowState {
                 command_is_direct,
                 focus_new_pane,
                 delay_ms,
+                split_percent,
                 title,
                 ..
             } => {
@@ -264,6 +265,7 @@ impl WindowState {
                 let is_direct = *command_is_direct;
                 let command = command.clone();
                 let delay = *delay_ms;
+                let percent = *split_percent;
                 let title = title.clone();
 
                 crate::debug_info!(
@@ -288,7 +290,7 @@ impl WindowState {
                 };
 
                 let new_pane_id =
-                    self.split_pane_direction(pane_direction, focus, initial_command);
+                    self.split_pane_direction(pane_direction, focus, initial_command, percent);
 
                 // For shell-mode commands, send text to the new pane after a delay.
                 if !is_direct {

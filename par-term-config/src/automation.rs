@@ -120,6 +120,10 @@ pub enum TriggerActionConfig {
         focus_new_pane: bool,
         #[serde(default)]
         target: TriggerSplitTarget,
+        /// Percent of the current pane that the existing pane retains after the split.
+        /// Range 10–90. Default: 66 (existing pane keeps 66%, new pane gets 34%).
+        #[serde(default = "default_split_percent")]
+        split_percent: u8,
     },
 }
 
@@ -160,6 +164,10 @@ pub enum SplitPaneCommand {
 
 fn default_split_send_delay() -> u64 {
     200
+}
+
+fn default_split_percent() -> u8 {
+    66
 }
 
 /// Policy for restarting a coprocess when it exits
@@ -291,6 +299,7 @@ impl TriggerActionConfig {
                 command,
                 focus_new_pane,
                 target,
+                split_percent: _,
             } => {
                 // Use fully-qualified core paths to avoid shadowing the config-side types.
                 let core_direction = match direction {
@@ -682,12 +691,14 @@ direction: horizontal
             command,
             focus_new_pane,
             target,
+            split_percent,
             ..
         } = action
         {
             assert!(command.is_none());
             assert!(focus_new_pane); // defaults true
             assert_eq!(target, TriggerSplitTarget::Active); // defaults Active
+            assert_eq!(split_percent, 66); // defaults 66%
         } else {
             panic!("wrong variant");
         }

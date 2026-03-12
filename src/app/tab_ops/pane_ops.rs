@@ -18,6 +18,7 @@ impl WindowState {
         direction: crate::pane::SplitDirection,
         focus_new: bool,
         initial_command: Option<(String, Vec<String>)>,
+        split_percent: u8,
     ) -> Option<crate::pane::PaneId> {
         // Calculate status bar height for proper content area
         let is_tmux_connected = self.is_tmux_connected();
@@ -79,6 +80,7 @@ impl WindowState {
                 Arc::clone(&self.runtime),
                 dpi_scale,
                 initial_command,
+                split_percent,
             ),
             crate::pane::SplitDirection::Vertical => tab.split_vertical(
                 focus_new,
@@ -86,6 +88,7 @@ impl WindowState {
                 Arc::clone(&self.runtime),
                 dpi_scale,
                 initial_command,
+                split_percent,
             ),
         };
 
@@ -126,7 +129,7 @@ impl WindowState {
             return;
         }
         // Fall through to local split if tmux command failed or not connected
-        self.split_pane_direction(crate::pane::SplitDirection::Horizontal, true, None);
+        self.split_pane_direction(crate::pane::SplitDirection::Horizontal, true, None, 50);
     }
 
     /// Split the current pane vertically (panes side by side)
@@ -137,7 +140,7 @@ impl WindowState {
             return;
         }
         // Fall through to local split if tmux command failed or not connected
-        self.split_pane_direction(crate::pane::SplitDirection::Vertical, true, None);
+        self.split_pane_direction(crate::pane::SplitDirection::Vertical, true, None, 50);
     }
 
     /// Close the focused pane in the current tab

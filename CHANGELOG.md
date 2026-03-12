@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`split_percent` for `split_pane` actions** — both custom actions and trigger `split_pane` now accept a `split_percent` field (10–90, default `66`). This controls how much of the current pane the *existing* pane retains after the split; the new pane receives the remainder. Keyboard-shortcut splits (`Ctrl+\` etc.) are unaffected and continue to split 50/50. The settings UI displays the percent in the type indicator (`[Split-vert-66]`) and exposes a drag-control in the editor. Config example: `split_percent: 66`.
 - **`split_pane` custom action** — a new action type that splits the active pane and optionally runs a command in the new pane. Supports two command modes:
   - **Shell mode** (`command_is_direct: false`, default): the command is sent as text to the shell with a trailing newline; the shell stays running when the command finishes.
   - **Direct mode** (`command_is_direct: true`): the new pane's PTY runs the command directly as its process; the pane closes automatically when the command exits. Best for interactive tools like `htop`, `vim`, or `watch`.

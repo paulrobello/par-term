@@ -357,6 +357,8 @@ pub struct SettingsUI {
     pub temp_action_split_delay_ms: u64,
     /// When true, command is the pane's initial process (not sent to shell)
     pub temp_action_split_command_is_direct: bool,
+    /// Split percent for SplitPane type (10–90, default 66)
+    pub temp_action_split_percent: u8,
     /// Whether the add-new-action form is active
     pub adding_new_action: bool,
     /// Whether currently recording a keybinding for an action

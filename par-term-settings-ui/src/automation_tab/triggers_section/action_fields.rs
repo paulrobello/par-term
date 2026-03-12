@@ -132,6 +132,7 @@ pub(super) fn show_action_fields(ui: &mut egui::Ui, action: &mut TriggerActionCo
             command,
             focus_new_pane,
             target,
+            split_percent,
         } => {
             ui.vertical(|ui| {
                 // Direction row
@@ -176,6 +177,19 @@ pub(super) fn show_action_fields(ui: &mut egui::Ui, action: &mut TriggerActionCo
 
                 // Focus new pane checkbox
                 ui.checkbox(focus_new_pane, "Focus new pane after splitting");
+
+                // Split percent
+                ui.horizontal(|ui| {
+                    ui.label("Split %:");
+                    let mut pct = *split_percent as u32;
+                    if ui
+                        .add(egui::DragValue::new(&mut pct).range(10..=90).suffix("%"))
+                        .on_hover_text("Existing pane size after split (new pane gets the rest). Default: 66%.")
+                        .changed()
+                    {
+                        *split_percent = pct as u8;
+                    }
+                });
 
                 // Command type selector
                 // Determine current command type index: 0=None, 1=SendText, 2=InitialCommand

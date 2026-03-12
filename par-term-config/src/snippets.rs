@@ -121,6 +121,11 @@ const fn default_split_pane_delay_ms() -> u64 {
     200
 }
 
+/// Default split percent: existing pane keeps 66% of the space.
+const fn default_split_percent() -> u8 {
+    66
+}
+
 /// Split direction for a custom action pane split.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
@@ -276,6 +281,11 @@ pub enum CustomActionConfig {
         /// Only used when `command_is_direct` is `false`.
         #[serde(default = "default_split_pane_delay_ms")]
         delay_ms: u64,
+
+        /// Percent of the current pane that the existing pane retains after the split.
+        /// Range 10–90. Default: 66 (existing pane keeps 66%, new pane gets 34%).
+        #[serde(default = "default_split_percent")]
+        split_percent: u8,
 
         /// Optional keyboard shortcut to trigger the action
         #[serde(default)]
@@ -630,8 +640,10 @@ mod tests {
             title: "Split and run htop".to_string(),
             direction: ActionSplitDirection::Vertical,
             command: Some("htop".to_string()),
+            command_is_direct: true,
             focus_new_pane: true,
             delay_ms: 200,
+            split_percent: 66,
             keybinding: Some("Ctrl+Shift+H".to_string()),
             keybinding_enabled: true,
             description: None,

@@ -87,10 +87,20 @@ fn show_actions_section(
 
                         // Type indicator
                         let type_label = match action {
-                            CustomActionConfig::ShellCommand { .. } => "Shell",
-                            CustomActionConfig::InsertText { .. } => "Text",
-                            CustomActionConfig::KeySequence { .. } => "Keys",
-                            CustomActionConfig::SplitPane { .. } => "Split",
+                            CustomActionConfig::ShellCommand { .. } => "Shell".to_string(),
+                            CustomActionConfig::InsertText { .. } => "Text".to_string(),
+                            CustomActionConfig::KeySequence { .. } => "Keys".to_string(),
+                            CustomActionConfig::SplitPane {
+                                direction,
+                                split_percent,
+                                ..
+                            } => {
+                                let dir = match direction {
+                                    par_term_config::snippets::ActionSplitDirection::Horizontal => "horiz",
+                                    par_term_config::snippets::ActionSplitDirection::Vertical => "vert",
+                                };
+                                format!("Split-{}-{}", dir, split_percent)
+                            }
                         };
                         ui.label(
                             egui::RichText::new(format!("[{}]", type_label))
@@ -126,15 +136,18 @@ fn show_actions_section(
                                     format!("[{}]", keys)
                                 }
                                 CustomActionConfig::SplitPane {
-                                    direction, command, ..
+                                    direction,
+                                    command,
+                                    split_percent,
+                                    ..
                                 } => {
                                     let dir = match direction {
                                         par_term_config::snippets::ActionSplitDirection::Horizontal => "horiz",
                                         par_term_config::snippets::ActionSplitDirection::Vertical => "vert",
                                     };
                                     match command {
-                                        Some(cmd) => format!("{} — {}", dir, cmd),
-                                        None => dir.to_string(),
+                                        Some(cmd) => format!("{}-{}% — {}", dir, split_percent, cmd),
+                                        None => format!("{}-{}%", dir, split_percent),
                                     }
                                 }
                             };
@@ -197,6 +210,7 @@ fn show_actions_section(
                         command_is_direct,
                         focus_new_pane,
                         delay_ms,
+                        split_percent,
                         ..
                     } => {
                         settings.temp_action_type = 3;
@@ -209,6 +223,7 @@ fn show_actions_section(
                         settings.temp_action_split_command_is_direct = *command_is_direct;
                         settings.temp_action_split_focus_new = *focus_new_pane;
                         settings.temp_action_split_delay_ms = *delay_ms;
+                        settings.temp_action_split_percent = *split_percent;
                     }
                 }
             }
@@ -235,6 +250,7 @@ fn show_actions_section(
                 settings.temp_action_split_command_is_direct = false;
                 settings.temp_action_split_focus_new = true;
                 settings.temp_action_split_delay_ms = 200;
+                settings.temp_action_split_percent = 66;
             }
         },
     );
@@ -311,6 +327,7 @@ fn show_action_edit_form(
                     command_is_direct: settings.temp_action_split_command_is_direct,
                     focus_new_pane: settings.temp_action_split_focus_new,
                     delay_ms: settings.temp_action_split_delay_ms,
+                    split_percent: settings.temp_action_split_percent,
                     keybinding,
                     keybinding_enabled: true,
                     description: None,
@@ -528,6 +545,23 @@ fn show_action_edit_form(
                             )
                             .changed()
                         {
+                            *changes_this_frame = true;
+                        }
+                    });
+
+                    ui.horizontal(|ui| {
+                        ui.label("Split percent (existing pane):");
+                        let mut pct = settings.temp_action_split_percent as u32;
+                        if ui
+                            .add(egui::DragValue::new(&mut pct).range(10..=90).suffix("%"))
+                            .on_hover_text(
+                                "Percentage of the current pane that the existing pane retains.\n\
+                                 The new pane receives the remainder.\n\
+                                 Default: 66% (existing keeps 2/3, new gets 1/3).",
+                            )
+                            .changed()
+                        {
+                            settings.temp_action_split_percent = pct as u8;
                             *changes_this_frame = true;
                         }
                     });
