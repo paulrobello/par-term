@@ -105,16 +105,16 @@ impl WindowState {
                             // If mouse tracking is active (e.g., tmux with mouse on),
                             // send a left-click press then release at the cursor
                             // position to focus the pane before the paste lands.
-                            if term.is_mouse_tracking_enabled() {
-                                if let Some((col, row)) = click_cell {
-                                    let press = term.encode_mouse_event(0, col, row, true, 0);
-                                    let release = term.encode_mouse_event(0, col, row, false, 0);
-                                    if !press.is_empty() {
-                                        let _ = term.write(&press);
-                                    }
-                                    if !release.is_empty() {
-                                        let _ = term.write(&release);
-                                    }
+                            if term.is_mouse_tracking_enabled()
+                                && let Some((col, row)) = click_cell
+                            {
+                                let press = term.encode_mouse_event(0, col, row, true, 0);
+                                let release = term.encode_mouse_event(0, col, row, false, 0);
+                                if !press.is_empty() {
+                                    let _ = term.write(&press);
+                                }
+                                if !release.is_empty() {
+                                    let _ = term.write(&release);
                                 }
                             }
 

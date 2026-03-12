@@ -356,6 +356,9 @@ impl WindowState {
                     // Pane identify overlay (large index numbers centered on each pane)
                     egui_overlays::render_pane_identify_overlay(ctx, &pane_identify_bounds);
 
+                    // Trigger action confirmation dialog (center modal, shown when pending_trigger_actions is non-empty)
+                    egui_overlays::render_trigger_prompt_dialog(ctx, &mut self.trigger_state);
+
                     // Render file transfer progress overlay (bottom-right corner)
                     crate::app::file_transfers::render_file_transfer_overlay(
                         &self.file_transfer_state,

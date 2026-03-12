@@ -28,6 +28,8 @@ pub(crate) struct TriggerState {
     pub(crate) trigger_regex_cache: HashMap<String, Regex>,
     /// Queue of dangerous actions waiting for user confirmation
     pub(crate) pending_trigger_actions: Vec<PendingTriggerAction>,
+    /// Dialog-approved actions awaiting execution on the next frame
+    pub(crate) approved_pending_actions: Vec<ActionResult>,
     /// Trigger IDs the user has approved for auto-execution this session
     pub(crate) always_allow_trigger_ids: HashSet<u64>,
     /// Whether the confirmation dialog is currently open (prevents stacking)
@@ -36,12 +38,15 @@ pub(crate) struct TriggerState {
     pub(crate) trigger_prompt_activated_frame: Option<u64>,
 }
 
+// `Regex` does not implement `Default`, so `TriggerState` cannot derive Default.
+#[allow(clippy::derivable_impls)]
 impl Default for TriggerState {
     fn default() -> Self {
         Self {
             trigger_spawned_processes: HashMap::new(),
             trigger_regex_cache: HashMap::new(),
             pending_trigger_actions: Vec::new(),
+            approved_pending_actions: Vec::new(),
             always_allow_trigger_ids: HashSet::new(),
             trigger_prompt_dialog_open: false,
             trigger_prompt_activated_frame: None,

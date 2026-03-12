@@ -10,7 +10,7 @@ resolver = "2"
 # ---------------------------------------------------------------------------
 [workspace.dependencies]
 # Terminal emulator core
-par-term-emu-core-rust = { version = "0.40.0", default-features = false, features = ["rust-only"] }
+par-term-emu-core-rust = { version = "0.41.0", default-features = false, features = ["rust-only"] }
 
 # Async runtime
 tokio = { version = "1.49", features = ["full"] }

@@ -70,7 +70,6 @@ fn expand_tilde(path: &str) -> String {
     path.to_string()
 }
 
-
 impl WindowState {
     /// Check for trigger action results and dispatch them.
     ///
@@ -93,7 +92,7 @@ impl WindowState {
         // are consistent with the row values the trigger system produced.
         // try_lock: intentional — trigger polling in about_to_wait (sync event loop).
         // On miss: triggers are not processed this frame; they will be on the next poll.
-        let (action_results, current_scrollback_len, custom_vars) =
+        let (mut action_results, current_scrollback_len, custom_vars) =
             if let Ok(term) = tab.terminal.try_write() {
                 let ar = term.poll_action_results();
                 let sl = term.scrollback_len();
@@ -127,6 +126,32 @@ impl WindowState {
             }
         }
 
+        // Drain dialog-approved actions from previous frame (dialog ran last frame).
+        // Pre-populate approved_this_frame with their IDs so they bypass the prompt check.
+        let mut approved_this_frame: std::collections::HashSet<u64> =
+            std::collections::HashSet::new();
+        if !self.trigger_state.approved_pending_actions.is_empty() {
+            let mut pre_approved: Vec<ActionResult> = self
+                .trigger_state
+                .approved_pending_actions
+                .drain(..)
+                .collect();
+            for action in &pre_approved {
+                let tid = match action {
+                    ActionResult::RunCommand { trigger_id, .. }
+                    | ActionResult::SendText { trigger_id, .. }
+                    | ActionResult::SplitPane { trigger_id, .. } => Some(*trigger_id),
+                    _ => None,
+                };
+                if let Some(id) = tid {
+                    approved_this_frame.insert(id);
+                }
+            }
+            // Prepend pre-approved to action_results so they execute this frame
+            pre_approved.extend(action_results);
+            action_results = pre_approved;
+        }
+
         if action_results.is_empty() {
             return;
         }
@@ -145,11 +170,6 @@ impl WindowState {
             } else {
                 std::collections::HashMap::new()
             };
-
-        // Tracks triggers approved via dialog this frame so we skip the prompt
-        // for subsequent actions from the same trigger in the same batch.
-        let mut approved_this_frame: std::collections::HashSet<u64> =
-            std::collections::HashSet::new();
 
         // Collect MarkLine events for batch deduplication (processed after the loop).
         // Between frames, the core may fire the same trigger multiple times for the
@@ -180,15 +200,19 @@ impl WindowState {
                         .copied()
                         .unwrap_or(true);
                     if prompt
-                        && !self.trigger_state.always_allow_trigger_ids.contains(&trigger_id)
+                        && !self
+                            .trigger_state
+                            .always_allow_trigger_ids
+                            .contains(&trigger_id)
                         && !approved_this_frame.contains(&trigger_id)
                     {
                         let trigger_name = trigger_names
                             .get(&trigger_id)
                             .cloned()
                             .unwrap_or_else(|| format!("trigger #{}", trigger_id));
-                        let description =
-                            format!("Run command: {} {}", command, args.join(" ")).trim().to_string();
+                        let description = format!("Run command: {} {}", command, args.join(" "))
+                            .trim()
+                            .to_string();
                         self.trigger_state.pending_trigger_actions.push(
                             crate::app::window_state::PendingTriggerAction {
                                 trigger_id,
@@ -216,20 +240,19 @@ impl WindowState {
                     }
 
                     // Security check: rate limiting (skip for dialog-approved actions this frame)
-                    if !approved_this_frame.contains(&trigger_id) {
-                        if let Some(tab) = self.tab_manager.active_tab_mut()
-                            && !tab
-                                .scripting
-                                .trigger_rate_limiter
-                                .check_and_update(trigger_id)
-                        {
-                            log::warn!(
-                                "Trigger {} RunCommand RATE-LIMITED: '{}' (too frequent)",
-                                trigger_id,
-                                command,
-                            );
-                            continue;
-                        }
+                    if !approved_this_frame.contains(&trigger_id)
+                        && let Some(tab) = self.tab_manager.active_tab_mut()
+                        && !tab
+                            .scripting
+                            .trigger_rate_limiter
+                            .check_and_update(trigger_id)
+                    {
+                        log::warn!(
+                            "Trigger {} RunCommand RATE-LIMITED: '{}' (too frequent)",
+                            trigger_id,
+                            command,
+                        );
+                        continue;
                     }
 
                     log::info!(
@@ -332,7 +355,10 @@ impl WindowState {
                         .copied()
                         .unwrap_or(true);
                     if prompt
-                        && !self.trigger_state.always_allow_trigger_ids.contains(&trigger_id)
+                        && !self
+                            .trigger_state
+                            .always_allow_trigger_ids
+                            .contains(&trigger_id)
                         && !approved_this_frame.contains(&trigger_id)
                     {
                         let trigger_name = trigger_names
@@ -356,20 +382,19 @@ impl WindowState {
                     }
 
                     // Security check: rate limiting (skip for dialog-approved actions this frame)
-                    if !approved_this_frame.contains(&trigger_id) {
-                        if let Some(tab) = self.tab_manager.active_tab_mut()
-                            && !tab
-                                .scripting
-                                .trigger_rate_limiter
-                                .check_and_update(trigger_id)
-                        {
-                            log::warn!(
-                                "Trigger {} SendText RATE-LIMITED: '{}' (too frequent)",
-                                trigger_id,
-                                text,
-                            );
-                            continue;
-                        }
+                    if !approved_this_frame.contains(&trigger_id)
+                        && let Some(tab) = self.tab_manager.active_tab_mut()
+                        && !tab
+                            .scripting
+                            .trigger_rate_limiter
+                            .check_and_update(trigger_id)
+                    {
+                        log::warn!(
+                            "Trigger {} SendText RATE-LIMITED: '{}' (too frequent)",
+                            trigger_id,
+                            text,
+                        );
+                        continue;
                     }
 
                     log::info!(
@@ -435,9 +460,52 @@ impl WindowState {
                     direction,
                     command,
                     focus_new_pane,
-                    target: _target,
-                    source_pane_id: _source_pane_id,
+                    target,
+                    source_pane_id,
                 } => {
+                    // Security check: prompt_before_run — queue action for dialog if not pre-approved
+                    let prompt = trigger_prompt_before_run
+                        .get(&trigger_id)
+                        .copied()
+                        .unwrap_or(true);
+                    if prompt
+                        && !self
+                            .trigger_state
+                            .always_allow_trigger_ids
+                            .contains(&trigger_id)
+                        && !approved_this_frame.contains(&trigger_id)
+                    {
+                        let trigger_name = trigger_names
+                            .get(&trigger_id)
+                            .cloned()
+                            .unwrap_or_else(|| format!("trigger #{}", trigger_id));
+                        let dir_str = match direction {
+                            par_term_emu_core_rust::terminal::TriggerSplitDirection::Horizontal => {
+                                "horizontal"
+                            }
+                            par_term_emu_core_rust::terminal::TriggerSplitDirection::Vertical => {
+                                "vertical"
+                            }
+                        };
+                        let description = format!("Split pane ({}) and run command", dir_str);
+                        self.trigger_state.pending_trigger_actions.push(
+                            crate::app::window_state::PendingTriggerAction {
+                                trigger_id,
+                                trigger_name,
+                                action: ActionResult::SplitPane {
+                                    trigger_id,
+                                    direction,
+                                    command,
+                                    focus_new_pane,
+                                    target,
+                                    source_pane_id,
+                                },
+                                description,
+                            },
+                        );
+                        continue;
+                    }
+
                     // Security check: rate limiting
                     if let Some(tab) = self.tab_manager.active_tab_mut()
                         && !tab

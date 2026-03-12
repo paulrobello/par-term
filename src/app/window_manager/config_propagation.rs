@@ -233,6 +233,10 @@ impl WindowManager {
                 }
             }
 
+            // Clear session-level "always allow" approvals when config is reloaded,
+            // so users must re-approve after a config change.
+            window_state.trigger_state.always_allow_trigger_ids.clear();
+
             // Rebuild prettifier pipelines for all tabs when config changes.
             if changes.prettifier_changed {
                 for tab in window_state.tab_manager.tabs_mut() {

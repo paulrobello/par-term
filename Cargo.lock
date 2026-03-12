@@ -3864,7 +3864,7 @@ dependencies = [
 
 [[package]]
 name = "par-term-emu-core-rust"
-version = "0.40.0"
+version = "0.41.0"
 dependencies = [
  "base64",
  "bitflags 2.11.0",
