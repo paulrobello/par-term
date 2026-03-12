@@ -146,6 +146,71 @@ impl Pane {
         })
     }
 
+    /// Create a pane that launches `command args` instead of the configured login shell.
+    ///
+    /// Identical to `Pane::new()` except the PTY is started with the given command.
+    /// All other fields (scroll state, cache, refresh task, etc.) are the same as `new()`.
+    pub fn new_with_command(
+        id: PaneId,
+        config: &Config,
+        _runtime: Arc<Runtime>,
+        working_directory: Option<String>,
+        command: String,
+        args: Vec<String>,
+    ) -> anyhow::Result<Self> {
+        // Create terminal with scrollback from config
+        let mut terminal = TerminalManager::new_with_scrollback(
+            config.cols,
+            config.rows,
+            config.scrollback.scrollback_lines,
+        )?;
+
+        // Apply common terminal configuration (theme, clipboard limits, cursor style, unicode)
+        configure_terminal_from_config(&mut terminal, config);
+
+        // Determine working directory
+        let work_dir = working_directory
+            .as_deref()
+            .or(config.working_directory.as_deref());
+
+        // Spawn the caller-supplied command instead of the login shell
+        let shell_env = build_shell_env(config.shell_env.as_ref());
+        terminal.spawn_custom_shell_with_dir(
+            &command,
+            Some(args.as_slice()),
+            work_dir,
+            shell_env.as_ref(),
+        )?;
+
+        // Create shared session logger
+        let session_logger = create_shared_logger();
+
+        let terminal = Arc::new(RwLock::new(terminal));
+
+        Ok(Self {
+            id,
+            terminal,
+            scroll_state: ScrollState::new(),
+            mouse: MouseState::new(),
+            bell: BellState::new(),
+            cache: RenderCache::new(),
+            refresh_task: None,
+            working_directory: working_directory.or_else(|| config.working_directory.clone()),
+            last_activity_time: std::time::Instant::now(),
+            last_seen_generation: 0,
+            anti_idle_last_activity: std::time::Instant::now(),
+            anti_idle_last_generation: 0,
+            silence_notified: false,
+            exit_notified: false,
+            session_logger,
+            bounds: PaneBounds::default(),
+            background: PaneBackground::new(),
+            restart_state: None,
+            is_active: Arc::new(AtomicBool::new(false)),
+            shutdown_fast: false,
+        })
+    }
+
     /// Create a primary pane that wraps an already-running terminal session.
     ///
     /// Unlike [`Pane::new`], this constructor does **not** spawn a new shell.
