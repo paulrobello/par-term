@@ -52,7 +52,7 @@ const PROCESS_CLEANUP_AGE_SECS: u64 = 300; // 5 minutes
 
 use par_term_emu_core_rust::terminal::ActionResult;
 
-use crate::config::automation::{PRETTIFY_RELAY_PREFIX, PrettifyRelayPayload};
+use crate::config::automation::{PRETTIFY_RELAY_PREFIX, PrettifyRelayPayload, TriggerActionConfig};
 
 use super::window_state::WindowState;
 
@@ -170,6 +170,27 @@ impl WindowState {
             } else {
                 std::collections::HashMap::new()
             };
+
+        // Build trigger_split_percent map: trigger_id → split_percent from config.
+        // Correlates the trigger name (from core) with the TriggerActionConfig.
+        let trigger_split_percent: std::collections::HashMap<u64, u8> = trigger_names
+            .iter()
+            .filter_map(|(&id, name)| {
+                self.config
+                    .triggers
+                    .iter()
+                    .find(|t| &t.name == name)
+                    .and_then(|t| {
+                        t.actions.iter().find_map(|a| {
+                            if let TriggerActionConfig::SplitPane { split_percent, .. } = a {
+                                Some((id, *split_percent))
+                            } else {
+                                None
+                            }
+                        })
+                    })
+            })
+            .collect();
 
         // Collect MarkLine events for batch deduplication (processed after the loop).
         // Between frames, the core may fire the same trigger multiple times for the
@@ -537,7 +558,8 @@ impl WindowState {
                         focus_new_pane
                     );
 
-                    let new_pane_id = self.split_pane_direction(pane_direction, focus_new_pane, None);
+                    let pct = trigger_split_percent.get(&trigger_id).copied().unwrap_or(66);
+                    let new_pane_id = self.split_pane_direction(pane_direction, focus_new_pane, None, pct);
 
                     // After split, optionally send a command to the new pane.
                     if let (Some(pane_id), Some(cmd)) = (new_pane_id, command) {

@@ -218,6 +218,7 @@ Split the active pane horizontally (new pane below) or vertically (new pane to t
 | `command_is_direct` | When `true`, `command` is the pane's initial process — the pane closes when it exits. When `false`, `command` is sent as text to the shell. | `false` |
 | `focus_new_pane` | Move focus to the new pane after splitting | `true` |
 | `delay_ms` | Milliseconds to wait before sending shell-mode text (ignored when `command_is_direct: true`) | `200` |
+| `split_percent` | Percentage of the current pane the **existing** pane retains (10–90). The new pane receives the remainder. | `66` |
 
 **Command modes:**
 
@@ -237,6 +238,7 @@ Direction: Vertical (right)
 Command: htop
 Run as pane command: ✓ (checked)
 Focus new pane: true
+Split percent: 66%
 ```
 
 **Example — shell mode (shell stays after command):**
@@ -248,6 +250,7 @@ Command: tail -f /var/log/system.log
 Run as pane command: (unchecked)
 Focus new pane: false
 Command delay: 200 ms
+Split percent: 33%
 ```
 
 ### Creating Actions
@@ -302,6 +305,7 @@ actions:
     command: htop
     command_is_direct: true     # pane IS htop; closes when htop quits
     focus_new_pane: true
+    split_percent: 66           # existing pane keeps 66%, htop pane gets 34%
     keybinding: "Ctrl+Shift+H"
 ```
 
@@ -317,10 +321,11 @@ actions:
     command_is_direct: false    # default — typed into the shell
     focus_new_pane: false
     delay_ms: 200               # wait for shell to start (shell mode only)
+    split_percent: 66           # existing pane keeps 66%, log pane gets 34%
     keybinding: "Ctrl+Shift+L"
 ```
 
-Omit `command` entirely to split without running anything.
+Omit `command` entirely to split without running anything. Omit `split_percent` to use the default (66%).
 
 > **Tip:** For `command_is_direct: false`, increase `delay_ms` (e.g., to 500) for slow-starting shells such as remote SSH sessions.
 
@@ -366,6 +371,7 @@ actions:
     command_is_direct: false    # send as shell text (default)
     focus_new_pane: true
     delay_ms: 200               # ms before sending text (shell mode only)
+    split_percent: 66           # existing pane keeps 66% (default)
     keybinding: "Ctrl+Shift+L"
 
   - id: "action_003"
@@ -375,6 +381,7 @@ actions:
     command: htop
     command_is_direct: true     # pane IS htop; closes when htop exits
     focus_new_pane: true
+    split_percent: 66           # existing pane keeps 66% (default)
     keybinding: "Ctrl+Shift+H"
 
 # Keybindings (auto-generated from snippets and actions)
@@ -468,6 +475,7 @@ Open a monitoring or companion pane with a single key press:
   direction: horizontal
   command: "tail -f /var/log/system.log"
   command_is_direct: false    # default
+  split_percent: 66           # existing pane keeps 2/3
   keybinding: "Ctrl+Shift+L"
 ```
 
@@ -480,22 +488,21 @@ Open a monitoring or companion pane with a single key press:
   command: htop
   command_is_direct: true     # pane closes on exit
   focus_new_pane: true
+  split_percent: 66           # existing pane keeps 2/3
   keybinding: "Ctrl+Shift+H"
 ```
 
-**Open htop to the right without stealing focus:**
+**50/50 split — equal panes:**
 ```yaml
-- id: split-htop-bg
-  title: "Open htop (background)"
+- id: split-equal
+  title: "Equal split (right)"
   type: split_pane
   direction: vertical
-  command: htop
-  command_is_direct: true
-  focus_new_pane: false
-  keybinding: "Ctrl+Shift+H"
+  split_percent: 50
+  keybinding: "Ctrl+Shift+E"
 ```
 
-**Just split — no command:**
+**Just split — no command (uses default 66%):**
 ```yaml
 - id: split-blank
   title: "New blank pane (right)"

@@ -73,6 +73,7 @@ fn default_action_for_type(type_index: usize) -> TriggerActionConfig {
             command: None,
             focus_new_pane: true,
             target: TriggerSplitTarget::default(),
+            split_percent: 66,
         },
         _ => TriggerActionConfig::Highlight {
             fg: None,

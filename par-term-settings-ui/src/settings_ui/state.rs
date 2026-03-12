@@ -208,6 +208,7 @@ impl SettingsUI {
             temp_action_split_focus_new: true,
             temp_action_split_delay_ms: 200,
             temp_action_split_command_is_direct: false,
+            temp_action_split_percent: 66,
             adding_new_action: false,
             recording_snippet_keybinding: false,
             snippet_recorded_combo: None,

@@ -135,6 +135,7 @@ impl PaneManager {
         config: &Config,
         runtime: Arc<Runtime>,
         initial_command: Option<(String, Vec<String>)>,
+        ratio: f32,
     ) -> Result<Option<PaneId>> {
         let focused_id = match self.focused_pane_id {
             Some(id) => id,
@@ -195,7 +196,7 @@ impl PaneManager {
 
         // Find and split the focused pane
         if let Some(root) = self.root.take() {
-            let (new_root, _) = Self::split_node(root, focused_id, direction, Some(new_pane));
+            let (new_root, _) = Self::split_node(root, focused_id, direction, Some(new_pane), ratio);
             self.root = Some(new_root);
         }
 
@@ -229,6 +230,7 @@ impl PaneManager {
         target_id: PaneId,
         direction: SplitDirection,
         new_pane: Option<Pane>,
+        ratio: f32,
     ) -> (PaneNode, Option<Pane>) {
         match node {
             PaneNode::Leaf(pane) => {
@@ -238,7 +240,7 @@ impl PaneManager {
                         (
                             PaneNode::split(
                                 direction,
-                                0.5, // 50/50 split
+                                ratio,
                                 PaneNode::leaf(*pane),
                                 PaneNode::leaf(new),
                             ),
@@ -255,20 +257,20 @@ impl PaneManager {
             }
             PaneNode::Split {
                 direction: split_dir,
-                ratio,
+                ratio: existing_ratio,
                 first,
                 second,
             } => {
                 // Try to insert in first child
                 let (new_first, remaining) =
-                    Self::split_node(*first, target_id, direction, new_pane);
+                    Self::split_node(*first, target_id, direction, new_pane, ratio);
 
                 if remaining.is_none() {
                     // Target was found in first child
                     (
                         PaneNode::Split {
                             direction: split_dir,
-                            ratio,
+                            ratio: existing_ratio,
                             first: Box::new(new_first),
                             second,
                         },
@@ -277,11 +279,11 @@ impl PaneManager {
                 } else {
                     // Target not in first, try second
                     let (new_second, remaining) =
-                        Self::split_node(*second, target_id, direction, remaining);
+                        Self::split_node(*second, target_id, direction, remaining, ratio);
                     (
                         PaneNode::Split {
                             direction: split_dir,
-                            ratio,
+                            ratio: existing_ratio,
                             first: Box::new(new_first),
                             second: Box::new(new_second),
                         },

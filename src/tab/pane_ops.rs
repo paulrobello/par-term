@@ -39,6 +39,7 @@ impl Tab {
         runtime: Arc<Runtime>,
         dpi_scale: f32,
         initial_command: Option<(String, Vec<String>)>,
+        split_percent: u8,
     ) -> anyhow::Result<Option<crate::pane::PaneId>> {
         self.split(
             SplitDirection::Horizontal,
@@ -47,6 +48,7 @@ impl Tab {
             runtime,
             dpi_scale,
             initial_command,
+            split_percent,
         )
     }
 
@@ -63,6 +65,7 @@ impl Tab {
         runtime: Arc<Runtime>,
         dpi_scale: f32,
         initial_command: Option<(String, Vec<String>)>,
+        split_percent: u8,
     ) -> anyhow::Result<Option<crate::pane::PaneId>> {
         self.split(
             SplitDirection::Vertical,
@@ -71,6 +74,7 @@ impl Tab {
             runtime,
             dpi_scale,
             initial_command,
+            split_percent,
         )
     }
 
@@ -86,6 +90,7 @@ impl Tab {
         runtime: Arc<Runtime>,
         dpi_scale: f32,
         initial_command: Option<(String, Vec<String>)>,
+        split_percent: u8,
     ) -> anyhow::Result<Option<crate::pane::PaneId>> {
         // Check max panes limit
         if config.max_panes > 0 && self.pane_count() >= config.max_panes {
@@ -131,7 +136,8 @@ impl Tab {
 
         // Perform the split
         if let Some(ref mut pm) = self.pane_manager {
-            let new_pane_id = pm.split(direction, focus_new, config, Arc::clone(&runtime), initial_command)?;
+            let ratio = (split_percent.clamp(10, 90) as f32) / 100.0;
+            let new_pane_id = pm.split(direction, focus_new, config, Arc::clone(&runtime), initial_command, ratio)?;
             if let Some(id) = new_pane_id {
                 log::info!("Split tab {} {:?}, new pane {}", self.id, direction, id);
             }

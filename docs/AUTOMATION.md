@@ -316,6 +316,7 @@ Opens a new terminal pane (horizontal or vertical split) and optionally runs a c
   direction: horizontal
   target: active
   focus_new_pane: true
+  split_percent: 66        # existing pane keeps 66%, new pane gets 34%
   command:
     type: send_text
     text: "tail -f build.log"
@@ -327,6 +328,7 @@ Opens a new terminal pane (horizontal or vertical split) and optionally runs a c
 | `direction` | `horizontal` \| `vertical` | required | `horizontal` = new pane below, `vertical` = new pane to the right |
 | `target` | `active` \| `source` | `active` | Which pane to split. `source` degrades to `active` until per-pane polling is implemented |
 | `focus_new_pane` | bool | `true` | Whether to move focus to the new pane after splitting |
+| `split_percent` | integer (10–90) | `66` | Percentage of the current pane the **existing** pane retains. The new pane receives the remainder. |
 | `command` | object \| null | `null` | Optional command to run in the new pane (see below) |
 
 **Command types:**
@@ -359,6 +361,7 @@ triggers:
     actions:
       - type: split_pane
         direction: horizontal
+        split_percent: 66
         command:
           type: send_text
           text: "tail -f build.log"
@@ -366,7 +369,7 @@ triggers:
         target: active
 ```
 
-> **Note:** `split_pane` is considered a dangerous action. When `prompt_before_run: true` (the default), a confirmation dialog appears before the pane is opened. When `target: source`, the pane whose output matched the pattern is split; this currently degrades to splitting the active pane until per-pane source tracking is implemented.
+> **Note:** `split_pane` is considered a dangerous action. When `prompt_before_run: true` (the default), a confirmation dialog appears before the pane is opened. When `target: source`, the pane whose output matched the pattern is split; this currently degrades to splitting the active pane until per-pane source tracking is implemented. `split_percent` defaults to `66` — the existing pane keeps two-thirds of the space and the new pane gets one-third. Keyboard-shortcut splits are unaffected and remain 50/50.
 
 ## Trigger Highlights
 
