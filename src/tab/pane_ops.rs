@@ -38,7 +38,13 @@ impl Tab {
         runtime: Arc<Runtime>,
         dpi_scale: f32,
     ) -> anyhow::Result<Option<crate::pane::PaneId>> {
-        self.split(SplitDirection::Horizontal, focus_new, config, runtime, dpi_scale)
+        self.split(
+            SplitDirection::Horizontal,
+            focus_new,
+            config,
+            runtime,
+            dpi_scale,
+        )
     }
 
     /// Split the current pane vertically (panes side by side)
@@ -53,7 +59,13 @@ impl Tab {
         runtime: Arc<Runtime>,
         dpi_scale: f32,
     ) -> anyhow::Result<Option<crate::pane::PaneId>> {
-        self.split(SplitDirection::Vertical, focus_new, config, runtime, dpi_scale)
+        self.split(
+            SplitDirection::Vertical,
+            focus_new,
+            config,
+            runtime,
+            dpi_scale,
+        )
     }
 
     /// Split the focused pane in the given direction.

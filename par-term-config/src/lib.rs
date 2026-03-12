@@ -68,8 +68,8 @@ pub use types::{
 // KeyModifier is exported for potential future use (e.g., custom keybinding UI)
 pub use automation::{
     CoprocessDefConfig, RestartPolicy, SplitPaneCommand, TriggerActionConfig, TriggerConfig,
-    TriggerRateLimiter, TriggerSplitDirection, TriggerSplitTarget,
-    check_command_denylist, warn_prompt_before_run_false,
+    TriggerRateLimiter, TriggerSplitDirection, TriggerSplitTarget, check_command_denylist,
+    warn_prompt_before_run_false,
 };
 // Scripting / observer scripts
 pub use scripting::ScriptConfig;

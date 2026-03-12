@@ -165,11 +165,7 @@ pub(super) fn show_action_fields(ui: &mut egui::Ui, action: &mut TriggerActionCo
                             TriggerSplitTarget::Source => "Source Pane (when available)",
                         })
                         .show_ui(ui, |ui| {
-                            ui.selectable_value(
-                                target,
-                                TriggerSplitTarget::Active,
-                                "Active Pane",
-                            );
+                            ui.selectable_value(target, TriggerSplitTarget::Active, "Active Pane");
                             ui.selectable_value(
                                 target,
                                 TriggerSplitTarget::Source,
@@ -245,10 +241,7 @@ pub(super) fn show_action_fields(ui: &mut egui::Ui, action: &mut TriggerActionCo
                             ui.label("Arguments (space-separated):");
                             let mut args_str = args.join(" ");
                             if ui.text_edit_singleline(&mut args_str).changed() {
-                                *args = args_str
-                                    .split_whitespace()
-                                    .map(String::from)
-                                    .collect();
+                                *args = args_str.split_whitespace().map(String::from).collect();
                             }
                         });
                     }

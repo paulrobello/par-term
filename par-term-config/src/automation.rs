@@ -49,10 +49,7 @@ pub struct TriggerConfig {
     ///
     /// Previously named `require_user_action`. The old name is accepted as an alias for
     /// backward compatibility with existing config files.
-    #[serde(
-        default = "crate::defaults::bool_true",
-        alias = "require_user_action"
-    )]
+    #[serde(default = "crate::defaults::bool_true", alias = "require_user_action")]
     pub prompt_before_run: bool,
 }
 
@@ -139,8 +136,8 @@ pub enum TriggerSplitDirection {
 #[serde(rename_all = "snake_case")]
 pub enum TriggerSplitTarget {
     #[default]
-    Active,  // split the currently focused pane
-    Source,  // split the pane whose PTY output matched (degrades to Active for now)
+    Active, // split the currently focused pane
+    Source, // split the pane whose PTY output matched (degrades to Active for now)
 }
 
 /// How to run a command in the newly created pane.

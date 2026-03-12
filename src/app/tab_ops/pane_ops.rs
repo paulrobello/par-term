@@ -43,8 +43,7 @@ impl WindowState {
         let tab = self.tab_manager.active_tab_mut()?;
 
         // Set pane bounds before split if we have renderer info
-        if let Some((size, padding, content_offset_y, cell_width, cell_height, scale)) =
-            bounds_info
+        if let Some((size, padding, content_offset_y, cell_width, cell_height, scale)) = bounds_info
         {
             // After split there will be multiple panes, so use 0 padding if configured
             let effective_padding = if self.config.hide_window_padding_on_split {
@@ -53,8 +52,7 @@ impl WindowState {
                 padding
             };
             // Scale status_bar_height from logical to physical pixels
-            let physical_status_bar_height =
-                (status_bar_height + custom_status_bar_height) * scale;
+            let physical_status_bar_height = (status_bar_height + custom_status_bar_height) * scale;
             let content_width = size.width as f32 - effective_padding * 2.0;
             let content_height = size.height as f32
                 - content_offset_y
@@ -70,12 +68,18 @@ impl WindowState {
         }
 
         let result = match direction {
-            crate::pane::SplitDirection::Horizontal => {
-                tab.split_horizontal(focus_new, &self.config, Arc::clone(&self.runtime), dpi_scale)
-            }
-            crate::pane::SplitDirection::Vertical => {
-                tab.split_vertical(focus_new, &self.config, Arc::clone(&self.runtime), dpi_scale)
-            }
+            crate::pane::SplitDirection::Horizontal => tab.split_horizontal(
+                focus_new,
+                &self.config,
+                Arc::clone(&self.runtime),
+                dpi_scale,
+            ),
+            crate::pane::SplitDirection::Vertical => tab.split_vertical(
+                focus_new,
+                &self.config,
+                Arc::clone(&self.runtime),
+                dpi_scale,
+            ),
         };
 
         match result {
@@ -94,7 +98,10 @@ impl WindowState {
                 Some(pane_id)
             }
             Ok(None) => {
-                log::info!("{:?} split not yet functional (renderer integration pending)", direction);
+                log::info!(
+                    "{:?} split not yet functional (renderer integration pending)",
+                    direction
+                );
                 None
             }
             Err(e) => {
