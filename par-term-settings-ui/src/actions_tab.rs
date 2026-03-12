@@ -148,77 +148,50 @@ fn show_actions_section(
                     // Show inline edit form for this action
                     show_action_edit_form(ui, settings, changes_this_frame, Some(i));
                 } else {
-                    // Show action summary row
-                    ui.horizontal(|ui| {
-                        // Title (bold)
-                        ui.label(egui::RichText::new(action.title()).strong());
-
-                        // Type indicator
-                        let type_label = match action {
-                            CustomActionConfig::ShellCommand { .. } => "Shell".to_string(),
-                            CustomActionConfig::InsertText { .. } => "Text".to_string(),
-                            CustomActionConfig::KeySequence { .. } => "Keys".to_string(),
-                            CustomActionConfig::SplitPane {
-                                direction,
-                                split_percent,
-                                ..
-                            } => {
-                                let dir = match direction {
-                                    par_term_config::snippets::ActionSplitDirection::Horizontal => "horiz",
-                                    par_term_config::snippets::ActionSplitDirection::Vertical => "vert",
-                                };
-                                format!("Split-{}-{}", dir, split_percent)
-                            }
-                        };
-                        ui.label(
-                            egui::RichText::new(format!("[{}]", type_label))
-                                .monospace()
-                                .color(egui::Color32::from_rgb(150, 150, 200)),
-                        );
-
-                        // Right-aligned buttons + truncated detail for remaining space
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            // Delete button (rightmost)
-                            if ui
-                                .small_button(
-                                    egui::RichText::new("Delete")
-                                        .color(egui::Color32::from_rgb(200, 80, 80)),
-                                )
-                                .clicked()
-                            {
-                                delete_index = Some(i);
-                            }
-
-                            // Edit button
-                            if ui.small_button("Edit").clicked() {
-                                start_edit_index = Some(i);
-                            }
-
-                            // Type-specific details (truncated to remaining space)
-                            let detail_text = match action {
-                                CustomActionConfig::ShellCommand { command, .. } => {
-                                    command.to_string()
+                    let type_label = match action {
+                        CustomActionConfig::ShellCommand { .. } => "Shell".to_string(),
+                        CustomActionConfig::InsertText { .. } => "Text".to_string(),
+                        CustomActionConfig::KeySequence { .. } => "Keys".to_string(),
+                        CustomActionConfig::SplitPane {
+                            direction,
+                            split_percent,
+                            ..
+                        } => {
+                            let dir = match direction {
+                                par_term_config::snippets::ActionSplitDirection::Horizontal => {
+                                    "horiz"
                                 }
-                                CustomActionConfig::InsertText { text, .. } => text.clone(),
-                                CustomActionConfig::KeySequence { keys, .. } => {
-                                    format!("[{}]", keys)
-                                }
-                                CustomActionConfig::SplitPane {
-                                    direction,
-                                    command,
-                                    split_percent,
-                                    ..
-                                } => {
-                                    let dir = match direction {
-                                        par_term_config::snippets::ActionSplitDirection::Horizontal => "horiz",
-                                        par_term_config::snippets::ActionSplitDirection::Vertical => "vert",
-                                    };
-                                    match command {
-                                        Some(cmd) => format!("{}-{}% — {}", dir, split_percent, cmd),
-                                        None => format!("{}-{}%", dir, split_percent),
-                                    }
-                                }
+                                par_term_config::snippets::ActionSplitDirection::Vertical => "vert",
                             };
+                            format!("Split-{}-{}", dir, split_percent)
+                        }
+                    };
+                    let detail_text = match action {
+                        CustomActionConfig::ShellCommand { command, .. } => command.to_string(),
+                        CustomActionConfig::InsertText { text, .. } => text.clone(),
+                        CustomActionConfig::KeySequence { keys, .. } => format!("[{}]", keys),
+                        CustomActionConfig::SplitPane { command, .. } => {
+                            command.clone().unwrap_or_default()
+                        }
+                    };
+
+                    // Keep buttons pinned on the right and truncate the descriptive text first.
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui
+                            .small_button(
+                                egui::RichText::new("Delete")
+                                    .color(egui::Color32::from_rgb(200, 80, 80)),
+                            )
+                            .clicked()
+                        {
+                            delete_index = Some(i);
+                        }
+
+                        if ui.small_button("Edit").clicked() {
+                            start_edit_index = Some(i);
+                        }
+
+                        if !detail_text.is_empty() {
                             ui.add(
                                 egui::Label::new(
                                     egui::RichText::new(detail_text)
@@ -227,7 +200,18 @@ fn show_actions_section(
                                 )
                                 .truncate(),
                             );
-                        });
+                        }
+
+                        ui.label(
+                            egui::RichText::new(format!("[{}]", type_label))
+                                .monospace()
+                                .color(egui::Color32::from_rgb(150, 150, 200)),
+                        );
+
+                        ui.add(
+                            egui::Label::new(egui::RichText::new(action.title()).strong())
+                                .truncate(),
+                        );
                     });
                 }
             }
