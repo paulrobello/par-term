@@ -194,7 +194,7 @@ impl Tab {
             profile: TabProfileState::default(),
             scripting: TabScriptingState {
                 coprocess_ids,
-                trigger_security,
+                trigger_prompt_before_run: trigger_security,
                 ..TabScriptingState::default()
             },
             prettifier: crate::prettifier::config_bridge::create_pipeline_from_config(

@@ -67,7 +67,7 @@ impl Config {
             // Migrate legacy values that may be stored in user configs.
             config.migrate_legacy_values();
 
-            // Warn about triggers with require_user_action: false, since the
+            // Warn about triggers with prompt_before_run: false, since the
             // denylist is the only protection in that mode and it is bypassable.
             config.warn_insecure_triggers();
 
@@ -514,8 +514,8 @@ impl Config {
     }
 
     /// Collect and emit security warnings for any triggers configured with
-    /// `require_user_action: false` that also contain dangerous actions
-    /// (`RunCommand` or `SendText`).
+    /// `prompt_before_run: false` that also contain dangerous actions
+    /// (`RunCommand`, `SendText`, or `SplitPane`).
     ///
     /// Called during config load so that users are immediately informed when
     /// their configuration reduces the security posture. In addition to
@@ -525,8 +525,8 @@ impl Config {
     pub(crate) fn warn_insecure_triggers(&mut self) {
         self.insecure_trigger_names.clear();
         for trigger in &self.triggers {
-            if !trigger.require_user_action && trigger.actions.iter().any(|a| a.is_dangerous()) {
-                crate::automation::warn_require_user_action_false(&trigger.name);
+            if !trigger.prompt_before_run && trigger.actions.iter().any(|a| a.is_dangerous()) {
+                crate::automation::warn_prompt_before_run_false(&trigger.name);
                 self.insecure_trigger_names.push(trigger.name.clone());
             }
         }

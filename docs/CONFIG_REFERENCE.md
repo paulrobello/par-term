@@ -529,7 +529,7 @@ field uses its documented default value.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `triggers` | `array` | `[]` | Regex trigger definitions. Each entry: `{name, pattern, enabled, actions, require_user_action}` |
+| `triggers` | `array` | `[]` | Regex trigger definitions. Each entry: `{name, pattern, enabled, prompt_before_run, actions}`. `prompt_before_run` (alias: `require_user_action`) defaults to `true` — shows a confirmation dialog before dangerous actions fire. Actions include `highlight`, `notify`, `mark_line`, `set_variable`, `run_command`, `play_sound`, `send_text`, `split_pane`. |
 | `coprocesses` | `array` | `[]` | Coprocess definitions. Each entry: `{name, command, args, auto_start, copy_terminal_output, restart_policy, restart_delay_ms}` |
 | `scripts` | `array` | `[]` | External observer script definitions |
 | `snippets` | `array` | `[]` | Text snippets: `{id, title, content, keybinding, folder, enabled, auto_execute}` |

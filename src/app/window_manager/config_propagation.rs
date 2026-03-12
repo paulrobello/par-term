@@ -229,9 +229,13 @@ impl WindowManager {
             // Resync triggers from config into core registry for all tabs
             for tab in window_state.tab_manager.tabs_mut() {
                 if let Ok(term) = tab.terminal.try_write() {
-                    tab.scripting.trigger_security = term.sync_triggers(&config.triggers);
+                    tab.scripting.trigger_prompt_before_run = term.sync_triggers(&config.triggers);
                 }
             }
+
+            // Clear session-level "always allow" approvals when config is reloaded,
+            // so users must re-approve after a config change.
+            window_state.trigger_state.always_allow_trigger_ids.clear();
 
             // Rebuild prettifier pipelines for all tabs when config changes.
             if changes.prettifier_changed {

@@ -44,30 +44,13 @@ pub struct TriggerConfig {
     pub enabled: bool,
     #[serde(default)]
     pub actions: Vec<TriggerActionConfig>,
-    /// When true (the default and **recommended** setting), dangerous actions
-    /// (`RunCommand`, `SendText`) are suppressed when triggered solely by
-    /// passive terminal output. This prevents malicious terminal output
-    /// (e.g., `cat malicious_file`) from executing arbitrary commands via
-    /// pattern matching.
+    /// When true (default), dangerous actions show a confirmation dialog before executing.
+    /// When false, they execute automatically (with rate-limit + denylist guards still applied).
     ///
-    /// Safe actions (`Highlight`, `Notify`, `MarkLine`, `SetVariable`,
-    /// `PlaySound`, `Prettify`) always fire regardless of this flag.
-    ///
-    /// # SECURITY WARNING
-    ///
-    /// Setting this to `false` allows terminal output to directly trigger
-    /// `RunCommand` and `SendText` actions. When `false`, the only automated
-    /// protection is the command denylist (`check_command_denylist`), which
-    /// uses **substring matching only** and can be bypassed by:
-    ///
-    /// - Shell wrappers: `sh -c "..."`, `bash -c "..."` (partially mitigated)
-    /// - Environment wrappers: `/usr/bin/env <cmd>` (partially mitigated)
-    /// - Encoding/obfuscation, variable indirection, path variations, etc.
-    ///
-    /// **Only set `require_user_action: false` if you fully trust the commands
-    /// configured and the environment in which the trigger will fire.**
-    #[serde(default = "crate::defaults::bool_true")]
-    pub require_user_action: bool,
+    /// Previously named `require_user_action`. The old name is accepted as an alias for
+    /// backward compatibility with existing config files.
+    #[serde(default = "crate::defaults::bool_true", alias = "require_user_action")]
+    pub prompt_before_run: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -128,6 +111,55 @@ pub enum TriggerActionConfig {
         #[serde(default)]
         command_filter: Option<String>,
     },
+    /// Open a new pane (horizontal or vertical split) and optionally run a command in it.
+    SplitPane {
+        direction: TriggerSplitDirection,
+        #[serde(default)]
+        command: Option<SplitPaneCommand>,
+        #[serde(default = "crate::defaults::bool_true")]
+        focus_new_pane: bool,
+        #[serde(default)]
+        target: TriggerSplitTarget,
+    },
+}
+
+/// Split orientation for a new pane created by a trigger action.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum TriggerSplitDirection {
+    Horizontal, // new pane below (panes stacked vertically)
+    Vertical,   // new pane to the right (side by side)
+}
+
+/// Which pane to split when a SplitPane trigger fires.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum TriggerSplitTarget {
+    #[default]
+    Active, // split the currently focused pane
+    Source, // split the pane whose PTY output matched (degrades to Active for now)
+}
+
+/// How to run a command in the newly created pane.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum SplitPaneCommand {
+    /// Send text to the shell with a trailing newline. Best-effort; shell must be running.
+    SendText {
+        text: String,
+        #[serde(default = "default_split_send_delay")]
+        delay_ms: u64,
+    },
+    /// Launch the pane with this command instead of the login shell.
+    InitialCommand {
+        command: String,
+        #[serde(default)]
+        args: Vec<String>,
+    },
+}
+
+fn default_split_send_delay() -> u64 {
+    200
 }
 
 /// Policy for restarting a coprocess when it exits
@@ -196,10 +228,13 @@ impl TriggerActionConfig {
     /// Returns true if this action is considered dangerous when triggered by
     /// passive terminal output (i.e., without explicit user interaction).
     ///
-    /// Dangerous actions: `RunCommand`, `SendText`
+    /// Dangerous actions: `RunCommand`, `SendText`, `SplitPane`
     /// Safe actions: `Highlight`, `Notify`, `MarkLine`, `SetVariable`, `PlaySound`, `Prettify`
     pub fn is_dangerous(&self) -> bool {
-        matches!(self, Self::RunCommand { .. } | Self::SendText { .. })
+        matches!(
+            self,
+            Self::RunCommand { .. } | Self::SendText { .. } | Self::SplitPane { .. }
+        )
     }
 
     /// Convert to core library TriggerAction
@@ -251,6 +286,50 @@ impl TriggerActionConfig {
                     color: None,
                 }
             }
+            Self::SplitPane {
+                direction,
+                command,
+                focus_new_pane,
+                target,
+            } => {
+                // Use fully-qualified core paths to avoid shadowing the config-side types.
+                let core_direction = match direction {
+                    crate::automation::TriggerSplitDirection::Horizontal => {
+                        par_term_emu_core_rust::terminal::TriggerSplitDirection::Horizontal
+                    }
+                    crate::automation::TriggerSplitDirection::Vertical => {
+                        par_term_emu_core_rust::terminal::TriggerSplitDirection::Vertical
+                    }
+                };
+                let core_command = command.map(|c| match c {
+                    crate::automation::SplitPaneCommand::SendText { text, delay_ms } => {
+                        par_term_emu_core_rust::terminal::TriggerSplitCommand::SendText {
+                            text,
+                            delay_ms,
+                        }
+                    }
+                    crate::automation::SplitPaneCommand::InitialCommand { command, args } => {
+                        par_term_emu_core_rust::terminal::TriggerSplitCommand::InitialCommand {
+                            command,
+                            args,
+                        }
+                    }
+                });
+                let core_target = match target {
+                    crate::automation::TriggerSplitTarget::Active => {
+                        par_term_emu_core_rust::terminal::TriggerSplitTarget::Active
+                    }
+                    crate::automation::TriggerSplitTarget::Source => {
+                        par_term_emu_core_rust::terminal::TriggerSplitTarget::Source
+                    }
+                };
+                TriggerAction::SplitPane {
+                    direction: core_direction,
+                    command: core_command,
+                    focus_new_pane,
+                    target: core_target,
+                }
+            }
         }
     }
 }
@@ -277,9 +356,9 @@ impl TriggerActionConfig {
 /// - Path variations: `/usr/bin/rm -rf /` vs `rm -rf /`
 /// - Argument reordering: `rm / -rf`
 ///
-/// **The recommended security setting is `require_user_action: true` (the default).**
+/// **The recommended security setting is `prompt_before_run: true` (the default).**
 /// The denylist is a secondary defense layer for triggers that opt in to
-/// `require_user_action: false`, not a substitute for user confirmation.
+/// `prompt_before_run: false`, not a substitute for user confirmation.
 const DENIED_COMMAND_PATTERNS: &[&str] = &[
     // Destructive file operations
     "rm -rf /",
@@ -314,7 +393,7 @@ const DENIED_COMMAND_PATTERNS: &[&str] = &[
 ///
 /// Detecting wrappers via substring matching is still bypassable (e.g. through
 /// quoting, encoding, or unusual shell invocations). This is a best-effort
-/// heuristic only. **Use `require_user_action: true` for real protection.**
+/// heuristic only. **Use `prompt_before_run: true` for real protection.**
 const BYPASS_WRAPPER_PATTERNS: &[&str] = &[
     "env ",
     "/usr/bin/env ",
@@ -356,10 +435,10 @@ const PIPE_SHELL_TARGETS: &[&str] = &["bash", "sh", "zsh", "fish", "dash", "ksh"
 /// - **Argument reordering**: `rm / -rf` — patterns that depend on argument order
 /// - **Commands not on the list**: Anything not explicitly enumerated is allowed
 ///
-/// **The recommended and default setting is `require_user_action: true`.**
-/// When `require_user_action` is `false`, the denylist is the only automated
+/// **The recommended and default setting is `prompt_before_run: true`.**
+/// When `prompt_before_run` is `false`, the denylist is the only automated
 /// protection against malicious terminal output triggering dangerous commands.
-/// For any trigger that uses `require_user_action: false`, users should
+/// For any trigger that uses `prompt_before_run: false`, users should
 /// carefully audit the command and args to ensure they cannot be exploited.
 ///
 /// # Why Not Shell Parsing?
@@ -369,7 +448,7 @@ const PIPE_SHELL_TARGETS: &[&str] = &["bash", "sh", "zsh", "fish", "dash", "ksh"
 /// subshells before checking against any policy. Implementing a complete POSIX shell
 /// parser is a significant undertaking and would itself introduce a large attack surface.
 /// This function intentionally does not attempt shell parsing and instead relies on
-/// `require_user_action: true` as the primary security control. The denylist exists
+/// `prompt_before_run: true` as the primary security control. The denylist exists
 /// only as a best-effort secondary guard.
 ///
 /// Returns `Some(pattern)` if denied, `None` if allowed.
@@ -476,31 +555,18 @@ fn check_pipe_to_shell(s: &str, shell: &str) -> bool {
     false
 }
 
-/// Emit a security warning when a trigger is configured with `require_user_action: false`.
+/// Emit a security warning when a trigger is configured with `prompt_before_run: false`.
 ///
-/// This function should be called during config load or validation for any trigger
-/// that has `require_user_action: false` **and** contains dangerous actions
-/// (`RunCommand` or `SendText`). It writes a prominent warning to stderr so that
-/// users are aware of the security implications.
-///
-/// # Security Model
-///
-/// When `require_user_action` is `false`, terminal output pattern matches can
-/// directly execute commands or send text to the PTY. The only remaining automated
-/// protection is the command denylist, which is a best-effort heuristic and can
-/// be bypassed. Users should treat `require_user_action: false` as an advanced
-/// opt-in feature and audit all associated commands carefully.
-///
-/// **Recommendation**: Keep `require_user_action: true` (the default) unless you
-/// have a specific use case that requires output-driven automation and you fully
-/// understand and accept the security trade-offs.
-pub fn warn_require_user_action_false(trigger_name: &str) {
+/// Called during config load for any trigger with `prompt_before_run: false` that contains
+/// dangerous actions. With `prompt_before_run: false`, dangerous actions execute automatically
+/// without user confirmation; only the rate-limiter and denylist provide protection.
+pub fn warn_prompt_before_run_false(trigger_name: &str) {
     eprintln!(
-        "[par-term SECURITY WARNING] Trigger '{trigger_name}' has `require_user_action: false`.\n\
-         This allows terminal output to directly trigger RunCommand/SendText actions.\n\
-         The command denylist provides only limited protection and can be bypassed.\n\
+        "[par-term SECURITY WARNING] Trigger '{trigger_name}' has `prompt_before_run: false`.\n\
+         This allows terminal output to directly trigger RunCommand/SendText/SplitPane actions\n\
+         without confirmation. The command denylist provides only limited protection.\n\
          Only use this setting if you fully trust the configured commands and environment.\n\
-         Recommendation: set `require_user_action: true` (the default) for safety."
+         Recommendation: set `prompt_before_run: true` (the default) to require confirmation."
     );
 }
 
@@ -557,5 +623,84 @@ impl TriggerRateLimiter {
         let max_age = std::time::Duration::from_secs(max_age_secs);
         self.last_fire
             .retain(|_, last| now.duration_since(*last) < max_age);
+    }
+}
+
+#[cfg(test)]
+mod split_pane_tests {
+    use super::*;
+
+    #[test]
+    fn test_split_pane_config_deserialize_send_text() {
+        let yaml = r#"
+type: split_pane
+direction: horizontal
+command:
+  type: send_text
+  text: "tail -f build.log"
+  delay_ms: 300
+focus_new_pane: true
+target: active
+"#;
+        let action: TriggerActionConfig = serde_yaml_ng::from_str(yaml).unwrap();
+        assert!(matches!(action, TriggerActionConfig::SplitPane { .. }));
+        assert!(action.is_dangerous());
+    }
+
+    #[test]
+    fn test_split_pane_config_deserialize_initial_command() {
+        let yaml = r#"
+type: split_pane
+direction: vertical
+command:
+  type: initial_command
+  command: htop
+  args: []
+focus_new_pane: false
+target: source
+"#;
+        let action: TriggerActionConfig = serde_yaml_ng::from_str(yaml).unwrap();
+        assert!(matches!(
+            action,
+            TriggerActionConfig::SplitPane {
+                direction: TriggerSplitDirection::Vertical,
+                focus_new_pane: false,
+                target: TriggerSplitTarget::Source,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn test_split_pane_defaults() {
+        let yaml = r#"
+type: split_pane
+direction: horizontal
+"#;
+        let action: TriggerActionConfig = serde_yaml_ng::from_str(yaml).unwrap();
+        if let TriggerActionConfig::SplitPane {
+            command,
+            focus_new_pane,
+            target,
+            ..
+        } = action
+        {
+            assert!(command.is_none());
+            assert!(focus_new_pane); // defaults true
+            assert_eq!(target, TriggerSplitTarget::Active); // defaults Active
+        } else {
+            panic!("wrong variant");
+        }
+    }
+
+    #[test]
+    fn test_send_text_default_delay() {
+        let yaml = r#"type: send_text
+text: "hello"
+"#;
+        let cmd: SplitPaneCommand = serde_yaml_ng::from_str(yaml).unwrap();
+        if let SplitPaneCommand::SendText { delay_ms, .. } = cmd {
+            assert_eq!(delay_ms, 200);
+        }
     }
 }

@@ -16,12 +16,13 @@
 //! controlling terminal output (e.g., `cat malicious_file`) could trigger
 //! arbitrary command execution. To mitigate this:
 //!
-//! 1. **`require_user_action` flag** (default: `true`): When set, dangerous
-//!    actions (`RunCommand`, `SendText`) are suppressed since all trigger
-//!    matches come from passive terminal output. Users must opt-in to
-//!    output-triggered dangerous actions by setting this to `false`.
+//! 1. **`prompt_before_run` flag** (default: `true`): When set, dangerous
+//!    actions (`RunCommand`, `SendText`) are queued in `TriggerState::pending_trigger_actions`
+//!    and presented to the user via a confirmation dialog before execution. Users must
+//!    explicitly approve (once or always) each action. Setting `prompt_before_run: false`
+//!    bypasses the dialog and executes immediately.
 //!
-//! 2. **Command denylist**: Even when `require_user_action` is `false`,
+//! 2. **Command denylist**: Even when `prompt_before_run` is `false`,
 //!    `RunCommand` actions are checked against a denylist of dangerous
 //!    patterns (rm -rf, curl|bash, eval, etc.).
 //!
@@ -69,34 +70,6 @@ fn expand_tilde(path: &str) -> String {
     path.to_string()
 }
 
-/// Check if a dangerous action from a trigger should be suppressed.
-///
-/// Returns `true` if the action should be blocked, `false` if it should proceed.
-/// This checks the `require_user_action` flag for the trigger. Since all trigger
-/// matches come from passive terminal output, `require_user_action: true` means
-/// the action is always suppressed.
-fn should_suppress_dangerous_action(
-    trigger_id: u64,
-    action_name: &str,
-    trigger_security: &HashMap<u64, bool>,
-) -> bool {
-    // Look up the require_user_action flag for this trigger.
-    // Default to true (suppress) for unknown trigger IDs (safe default).
-    let require_user_action = trigger_security.get(&trigger_id).copied().unwrap_or(true);
-
-    if require_user_action {
-        log::warn!(
-            "Trigger {} {} BLOCKED: require_user_action=true (output-triggered dangerous actions \
-             are suppressed by default; set require_user_action: false in trigger config to allow)",
-            trigger_id,
-            action_name,
-        );
-        return true;
-    }
-
-    false
-}
-
 impl WindowState {
     /// Check for trigger action results and dispatch them.
     ///
@@ -104,7 +77,7 @@ impl WindowState {
     /// ActionResult events and executes the appropriate frontend action.
     ///
     /// Security restrictions are enforced for dangerous actions:
-    /// - `require_user_action` flag blocks RunCommand/SendText from output triggers
+    /// - `prompt_before_run` flag queues RunCommand/SendText for dialog confirmation
     /// - Command denylist blocks obviously dangerous RunCommand patterns
     /// - Rate limiting prevents rapid-fire dangerous action execution
     pub(crate) fn check_trigger_actions(&mut self) {
@@ -119,7 +92,7 @@ impl WindowState {
         // are consistent with the row values the trigger system produced.
         // try_lock: intentional — trigger polling in about_to_wait (sync event loop).
         // On miss: triggers are not processed this frame; they will be on the next poll.
-        let (action_results, current_scrollback_len, custom_vars) =
+        let (mut action_results, current_scrollback_len, custom_vars) =
             if let Ok(term) = tab.terminal.try_write() {
                 let ar = term.poll_action_results();
                 let sl = term.scrollback_len();
@@ -153,17 +126,50 @@ impl WindowState {
             }
         }
 
+        // Drain dialog-approved actions from previous frame (dialog ran last frame).
+        // Pre-populate approved_this_frame with their IDs so they bypass the prompt check.
+        let mut approved_this_frame: std::collections::HashSet<u64> =
+            std::collections::HashSet::new();
+        if !self.trigger_state.approved_pending_actions.is_empty() {
+            let mut pre_approved: Vec<ActionResult> = self
+                .trigger_state
+                .approved_pending_actions
+                .drain(..)
+                .collect();
+            for action in &pre_approved {
+                let tid = match action {
+                    ActionResult::RunCommand { trigger_id, .. }
+                    | ActionResult::SendText { trigger_id, .. }
+                    | ActionResult::SplitPane { trigger_id, .. } => Some(*trigger_id),
+                    _ => None,
+                };
+                if let Some(id) = tid {
+                    approved_this_frame.insert(id);
+                }
+            }
+            // Prepend pre-approved to action_results so they execute this frame
+            pre_approved.extend(action_results);
+            action_results = pre_approved;
+        }
+
         if action_results.is_empty() {
             return;
         }
 
-        // Snapshot the trigger security map from the active tab for checking
-        // require_user_action. We clone the reference to avoid borrow issues.
-        let trigger_security = if let Some(t) = self.tab_manager.active_tab() {
-            t.scripting.trigger_security.clone()
-        } else {
-            return;
-        };
+        // Snapshot trigger_prompt_before_run flags so we can check them without
+        // re-borrowing the tab inside the action loop.
+        let trigger_prompt_before_run: std::collections::HashMap<u64, bool> =
+            tab.scripting.trigger_prompt_before_run.clone();
+
+        // Snapshot trigger names for use in dialog descriptions.
+        // Uses the TerminalManager::trigger_names() helper which internally locks
+        // the core terminal synchronously (safe: called from the sync event loop).
+        let trigger_names: std::collections::HashMap<u64, String> =
+            if let Ok(term) = tab.terminal.try_read() {
+                term.trigger_names()
+            } else {
+                std::collections::HashMap::new()
+            };
 
         // Collect MarkLine events for batch deduplication (processed after the loop).
         // Between frames, the core may fire the same trigger multiple times for the
@@ -186,14 +192,56 @@ impl WindowState {
                     let command = expand_tilde(&command);
                     let args: Vec<String> = args.iter().map(|a| expand_tilde(a)).collect();
 
-                    // Security check 1: require_user_action flag
-                    if should_suppress_dangerous_action(trigger_id, "RunCommand", &trigger_security)
+                    // Security check: prompt_before_run — if the trigger requires confirmation
+                    // and has not been pre-approved this session (always_allow) or this frame,
+                    // enqueue the action for dialog presentation and skip direct execution.
+                    let prompt = trigger_prompt_before_run
+                        .get(&trigger_id)
+                        .copied()
+                        .unwrap_or(true);
+                    if prompt
+                        && !self
+                            .trigger_state
+                            .always_allow_trigger_ids
+                            .contains(&trigger_id)
+                        && !approved_this_frame.contains(&trigger_id)
                     {
+                        let trigger_name = trigger_names
+                            .get(&trigger_id)
+                            .cloned()
+                            .unwrap_or_else(|| format!("trigger #{}", trigger_id));
+                        let description = format!("Run command: {} {}", command, args.join(" "))
+                            .trim()
+                            .to_string();
+                        self.trigger_state.pending_trigger_actions.push(
+                            crate::app::window_state::PendingTriggerAction {
+                                trigger_id,
+                                trigger_name,
+                                action: ActionResult::RunCommand {
+                                    trigger_id,
+                                    command,
+                                    args,
+                                },
+                                description,
+                            },
+                        );
                         continue;
                     }
 
-                    // Security check 2: rate limiting
-                    if let Some(tab) = self.tab_manager.active_tab_mut()
+                    // Security check: command denylist (always applied, even for approved actions)
+                    if let Some(denied_pattern) = check_command_denylist(&command, &args) {
+                        log::error!(
+                            "Trigger {} RunCommand DENIED: '{}' matches denylist pattern '{}'",
+                            trigger_id,
+                            command,
+                            denied_pattern,
+                        );
+                        continue;
+                    }
+
+                    // Security check: rate limiting (skip for dialog-approved actions this frame)
+                    if !approved_this_frame.contains(&trigger_id)
+                        && let Some(tab) = self.tab_manager.active_tab_mut()
                         && !tab
                             .scripting
                             .trigger_rate_limiter
@@ -203,17 +251,6 @@ impl WindowState {
                             "Trigger {} RunCommand RATE-LIMITED: '{}' (too frequent)",
                             trigger_id,
                             command,
-                        );
-                        continue;
-                    }
-
-                    // Security check 3: command denylist
-                    if let Some(denied_pattern) = check_command_denylist(&command, &args) {
-                        log::error!(
-                            "Trigger {} RunCommand DENIED: '{}' matches denylist pattern '{}'",
-                            trigger_id,
-                            command,
-                            denied_pattern,
                         );
                         continue;
                     }
@@ -310,13 +347,43 @@ impl WindowState {
                     text,
                     delay_ms,
                 } => {
-                    // Security check 1: require_user_action flag
-                    if should_suppress_dangerous_action(trigger_id, "SendText", &trigger_security) {
+                    // Security check: prompt_before_run — if the trigger requires confirmation
+                    // and has not been pre-approved this session (always_allow) or this frame,
+                    // enqueue the action for dialog presentation and skip direct execution.
+                    let prompt = trigger_prompt_before_run
+                        .get(&trigger_id)
+                        .copied()
+                        .unwrap_or(true);
+                    if prompt
+                        && !self
+                            .trigger_state
+                            .always_allow_trigger_ids
+                            .contains(&trigger_id)
+                        && !approved_this_frame.contains(&trigger_id)
+                    {
+                        let trigger_name = trigger_names
+                            .get(&trigger_id)
+                            .cloned()
+                            .unwrap_or_else(|| format!("trigger #{}", trigger_id));
+                        let description = format!("Send text: '{}'", text);
+                        self.trigger_state.pending_trigger_actions.push(
+                            crate::app::window_state::PendingTriggerAction {
+                                trigger_id,
+                                trigger_name,
+                                action: ActionResult::SendText {
+                                    trigger_id,
+                                    text,
+                                    delay_ms,
+                                },
+                                description,
+                            },
+                        );
                         continue;
                     }
 
-                    // Security check 2: rate limiting
-                    if let Some(tab) = self.tab_manager.active_tab_mut()
+                    // Security check: rate limiting (skip for dialog-approved actions this frame)
+                    if !approved_this_frame.contains(&trigger_id)
+                        && let Some(tab) = self.tab_manager.active_tab_mut()
                         && !tab
                             .scripting
                             .trigger_rate_limiter
@@ -387,6 +454,140 @@ impl WindowState {
                     // Trigger notifications always deliver (bypass focus suppression)
                     // since the user explicitly configured them
                     self.deliver_notification_force(&title, &message);
+                }
+                ActionResult::SplitPane {
+                    trigger_id,
+                    direction,
+                    command,
+                    focus_new_pane,
+                    target,
+                    source_pane_id,
+                } => {
+                    // Security check: prompt_before_run — queue action for dialog if not pre-approved
+                    let prompt = trigger_prompt_before_run
+                        .get(&trigger_id)
+                        .copied()
+                        .unwrap_or(true);
+                    if prompt
+                        && !self
+                            .trigger_state
+                            .always_allow_trigger_ids
+                            .contains(&trigger_id)
+                        && !approved_this_frame.contains(&trigger_id)
+                    {
+                        let trigger_name = trigger_names
+                            .get(&trigger_id)
+                            .cloned()
+                            .unwrap_or_else(|| format!("trigger #{}", trigger_id));
+                        let dir_str = match direction {
+                            par_term_emu_core_rust::terminal::TriggerSplitDirection::Horizontal => {
+                                "horizontal"
+                            }
+                            par_term_emu_core_rust::terminal::TriggerSplitDirection::Vertical => {
+                                "vertical"
+                            }
+                        };
+                        let description = format!("Split pane ({}) and run command", dir_str);
+                        self.trigger_state.pending_trigger_actions.push(
+                            crate::app::window_state::PendingTriggerAction {
+                                trigger_id,
+                                trigger_name,
+                                action: ActionResult::SplitPane {
+                                    trigger_id,
+                                    direction,
+                                    command,
+                                    focus_new_pane,
+                                    target,
+                                    source_pane_id,
+                                },
+                                description,
+                            },
+                        );
+                        continue;
+                    }
+
+                    // Security check: rate limiting
+                    if let Some(tab) = self.tab_manager.active_tab_mut()
+                        && !tab
+                            .scripting
+                            .trigger_rate_limiter
+                            .check_and_update(trigger_id)
+                    {
+                        log::warn!(
+                            "Trigger {} SplitPane RATE-LIMITED (too frequent)",
+                            trigger_id,
+                        );
+                        continue;
+                    }
+
+                    let pane_direction = match direction {
+                        par_term_emu_core_rust::terminal::TriggerSplitDirection::Horizontal => {
+                            crate::pane::SplitDirection::Horizontal
+                        }
+                        par_term_emu_core_rust::terminal::TriggerSplitDirection::Vertical => {
+                            crate::pane::SplitDirection::Vertical
+                        }
+                    };
+
+                    crate::debug_info!(
+                        "TRIGGER",
+                        "AUDIT SplitPane trigger_id={} direction={:?} focus_new={}",
+                        trigger_id,
+                        pane_direction,
+                        focus_new_pane
+                    );
+
+                    let new_pane_id = self.split_pane_direction(pane_direction, focus_new_pane);
+
+                    // After split, optionally send a command to the new pane.
+                    if let (Some(pane_id), Some(cmd)) = (new_pane_id, command) {
+                        let (text, delay_ms) = match cmd {
+                            par_term_emu_core_rust::terminal::TriggerSplitCommand::SendText {
+                                text,
+                                delay_ms,
+                            } => (format!("{}\n", text), delay_ms),
+                            par_term_emu_core_rust::terminal::TriggerSplitCommand::InitialCommand {
+                                command: cmd_name,
+                                args,
+                            } => {
+                                // InitialCommand is not yet supported for trigger-created panes.
+                                // Fall back to sending command as text to the new shell.
+                                log::warn!(
+                                    "Trigger {} SplitPane InitialCommand not fully supported; \
+                                     sending as text",
+                                    trigger_id
+                                );
+                                let full = if args.is_empty() {
+                                    format!("{}\n", cmd_name)
+                                } else {
+                                    format!("{} {}\n", cmd_name, args.join(" "))
+                                };
+                                (full, 200)
+                            }
+                        };
+
+                        // Send text to the new pane's terminal with optional delay.
+                        if let Some(tab) = self.tab_manager.active_tab()
+                            && let Some(pm) = tab.pane_manager()
+                            && let Some(pane) = pm.get_pane(pane_id)
+                        {
+                            let terminal = std::sync::Arc::clone(&pane.terminal);
+                            std::thread::spawn(move || {
+                                if delay_ms > 0 {
+                                    std::thread::sleep(std::time::Duration::from_millis(delay_ms));
+                                }
+                                if let Ok(term) = terminal.try_write()
+                                    && let Err(e) = term.write(text.as_bytes())
+                                {
+                                    log::error!(
+                                        "SplitPane SendText write failed for pane {}: {}",
+                                        pane_id,
+                                        e
+                                    );
+                                }
+                            });
+                        }
+                    }
                 }
                 ActionResult::MarkLine {
                     trigger_id,

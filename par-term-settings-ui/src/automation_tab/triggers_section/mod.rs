@@ -10,7 +10,7 @@
 
 use crate::SettingsUI;
 use crate::section::{collapsing_section, section_matches};
-use par_term_config::automation::TriggerActionConfig;
+use par_term_config::automation::{TriggerActionConfig, TriggerSplitDirection, TriggerSplitTarget};
 use std::collections::HashSet;
 
 mod action_fields;
@@ -26,6 +26,7 @@ const ACTION_TYPE_NAMES: &[&str] = &[
     "Play Sound",
     "Send Text",
     "Prettify",
+    "Split Pane",
 ];
 
 /// Create a default action for the given type index.
@@ -66,6 +67,12 @@ fn default_action_for_type(type_index: usize) -> TriggerActionConfig {
             block_end: None,
             sub_format: None,
             command_filter: None,
+        },
+        8 => TriggerActionConfig::SplitPane {
+            direction: TriggerSplitDirection::Horizontal,
+            command: None,
+            focus_new_pane: true,
+            target: TriggerSplitTarget::default(),
         },
         _ => TriggerActionConfig::Highlight {
             fg: None,
@@ -118,7 +125,7 @@ fn show_triggers_collapsing(
             ui.add_space(4.0);
 
             // SEC-002: Section-level warning banner when any trigger has
-            // `require_user_action: false` AND contains a dangerous action.
+            // `prompt_before_run: false` AND contains a dangerous action.
             // Individual per-trigger warnings are shown in the edit form and
             // list row; this banner gives a prominent at-a-glance signal when
             // opening the Automation tab.
@@ -126,7 +133,7 @@ fn show_triggers_collapsing(
                 .config
                 .triggers
                 .iter()
-                .any(|t| !t.require_user_action && t.actions.iter().any(|a| a.is_dangerous()));
+                .any(|t| !t.prompt_before_run && t.actions.iter().any(|a| a.is_dangerous()));
             if has_unsafe_trigger {
                 egui::Frame::new()
                     .fill(egui::Color32::from_rgb(80, 50, 10))
@@ -141,7 +148,7 @@ fn show_triggers_collapsing(
                             );
                             ui.label(
                                 egui::RichText::new(
-                                    "One or more triggers have `require_user_action: false` \
+                                    "One or more triggers have `prompt_before_run: false` \
                                      with dangerous actions (RunCommand / SendText). \
                                      These can be fired directly by terminal output — \
                                      malicious content could exploit pattern matching to \
@@ -205,7 +212,7 @@ fn show_triggers_collapsing(
                 settings.temp_trigger_name = trigger.name.clone();
                 settings.temp_trigger_pattern = trigger.pattern.clone();
                 settings.temp_trigger_actions = trigger.actions.clone();
-                settings.temp_trigger_require_user_action = trigger.require_user_action;
+                settings.temp_trigger_prompt_before_run = trigger.prompt_before_run;
                 settings.trigger_pattern_error = None;
             }
 
@@ -227,7 +234,7 @@ fn show_triggers_collapsing(
                 settings.temp_trigger_name = String::new();
                 settings.temp_trigger_pattern = String::new();
                 settings.temp_trigger_actions = Vec::new();
-                settings.temp_trigger_require_user_action = true;
+                settings.temp_trigger_prompt_before_run = true;
                 settings.trigger_pattern_error = None;
             }
         },
@@ -273,7 +280,7 @@ fn show_trigger_row(
 
         // Security indicator: warn if trigger allows dangerous
         // actions from terminal output
-        if !trigger.require_user_action && trigger.actions.iter().any(|a| a.is_dangerous()) {
+        if !trigger.prompt_before_run && trigger.actions.iter().any(|a| a.is_dangerous()) {
             ui.label(
                 egui::RichText::new("[unsafe]")
                     .small()

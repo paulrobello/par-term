@@ -198,8 +198,8 @@ pub struct SettingsUI {
     pub temp_trigger_pattern: String,
     /// Temporary trigger actions for edit form
     pub temp_trigger_actions: Vec<par_term_config::automation::TriggerActionConfig>,
-    /// Temporary require_user_action flag for trigger edit form
-    pub temp_trigger_require_user_action: bool,
+    /// Temporary prompt_before_run flag for trigger edit form
+    pub temp_trigger_prompt_before_run: bool,
     /// Whether the add-new-trigger form is active
     pub adding_new_trigger: bool,
     /// Regex validation error for trigger pattern

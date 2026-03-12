@@ -1584,7 +1584,7 @@ pub struct Config {
     // ========================================================================
     // Runtime security state (never serialized to disk)
     // ========================================================================
-    /// Names of triggers that have `require_user_action: false` with dangerous
+    /// Names of triggers that have `prompt_before_run: false` with dangerous
     /// actions (`RunCommand` or `SendText`).
     ///
     /// Populated by [`Config::warn_insecure_triggers`] during config load.

@@ -229,6 +229,140 @@ pub(super) fn render_copy_mode_status_bar(
         });
 }
 
+/// Render the trigger confirmation dialog (center modal).
+///
+/// Shows the first pending trigger action and presents Allow Once / Always Allow / Deny buttons.
+/// On approval: moves the action to `approved_pending_actions` for next-frame execution.
+/// On deny: discards the action.
+///
+/// Uses `trigger_prompt_activated_frame` as a flicker guard to prevent the click that opens
+/// the dialog from immediately dismissing it.
+pub(super) fn render_trigger_prompt_dialog(
+    ctx: &egui::Context,
+    trigger_state: &mut crate::app::window_state::TriggerState,
+) {
+    if trigger_state.pending_trigger_actions.is_empty() {
+        trigger_state.trigger_prompt_dialog_open = false;
+        trigger_state.trigger_prompt_activated_frame = None;
+        return;
+    }
+
+    // Record activation frame on first open (flicker guard)
+    if !trigger_state.trigger_prompt_dialog_open {
+        trigger_state.trigger_prompt_dialog_open = true;
+        trigger_state.trigger_prompt_activated_frame = Some(ctx.cumulative_frame_nr());
+    }
+
+    let activated_frame = trigger_state.trigger_prompt_activated_frame.unwrap_or(0);
+    let current_frame = ctx.cumulative_frame_nr();
+
+    // Extract display info before the egui closure to avoid re-borrowing trigger_state inside it
+    let trigger_name = trigger_state.pending_trigger_actions[0]
+        .trigger_name
+        .clone();
+    let description = trigger_state.pending_trigger_actions[0].description.clone();
+    let pending_count = trigger_state.pending_trigger_actions.len();
+
+    let mut approved = false;
+    let mut always_approve = false;
+    let mut denied = false;
+
+    egui::Window::new("Trigger Action Confirmation")
+        .id(egui::Id::new("trigger_prompt_dialog"))
+        .collapsible(false)
+        .resizable(false)
+        .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
+        .show(ctx, |ui| {
+            ui.set_min_width(380.0);
+            ui.set_max_width(500.0);
+
+            ui.add_space(4.0);
+            ui.label(
+                egui::RichText::new("Trigger Action Requires Confirmation")
+                    .strong()
+                    .size(15.0),
+            );
+            ui.add_space(8.0);
+            ui.label(format!("Trigger: {}", trigger_name));
+            ui.add_space(4.0);
+
+            egui::Frame::NONE
+                .fill(egui::Color32::from_rgba_unmultiplied(0, 0, 0, 40))
+                .inner_margin(egui::Margin::same(8))
+                .corner_radius(4.0)
+                .show(ui, |ui| {
+                    ui.label(egui::RichText::new(&description).monospace());
+                });
+
+            ui.add_space(4.0);
+            ui.label(
+                egui::RichText::new(
+                    "A trigger matched terminal output and wants to run this action.",
+                )
+                .weak()
+                .small(),
+            );
+
+            ui.add_space(12.0);
+            ui.separator();
+            ui.add_space(8.0);
+
+            ui.horizontal(|ui| {
+                if ui
+                    .button(egui::RichText::new("Deny").color(egui::Color32::from_rgb(220, 60, 60)))
+                    .clicked()
+                    && current_frame > activated_frame
+                {
+                    denied = true;
+                }
+                ui.add_space(4.0);
+                if ui.button("Allow Once").clicked() && current_frame > activated_frame {
+                    approved = true;
+                }
+                ui.add_space(4.0);
+                if ui
+                    .button(
+                        egui::RichText::new("Always Allow")
+                            .color(egui::Color32::from_rgb(80, 180, 80)),
+                    )
+                    .clicked()
+                    && current_frame > activated_frame
+                {
+                    always_approve = true;
+                    approved = true;
+                }
+            });
+
+            if pending_count > 1 {
+                ui.add_space(4.0);
+                ui.label(
+                    egui::RichText::new(format!("({} more pending actions)", pending_count - 1))
+                        .weak()
+                        .small(),
+                );
+            }
+        });
+
+    if denied || approved {
+        let pending = trigger_state.pending_trigger_actions.remove(0);
+        if approved {
+            if always_approve {
+                trigger_state
+                    .always_allow_trigger_ids
+                    .insert(pending.trigger_id);
+            }
+            trigger_state.approved_pending_actions.push(pending.action);
+        }
+        if trigger_state.pending_trigger_actions.is_empty() {
+            trigger_state.trigger_prompt_dialog_open = false;
+            trigger_state.trigger_prompt_activated_frame = None;
+        } else {
+            // More actions queued — reset activated frame for the next one
+            trigger_state.trigger_prompt_activated_frame = Some(ctx.cumulative_frame_nr());
+        }
+    }
+}
+
 /// Render large pane index labels centered on each pane (used by the "identify panes" feature).
 ///
 /// Each entry in `pane_bounds` is `(pane_index, PaneBounds)`.
