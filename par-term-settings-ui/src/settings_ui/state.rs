@@ -215,6 +215,8 @@ impl SettingsUI {
             snippet_recorded_combo: None,
             recording_action_keybinding: false,
             action_recorded_combo: None,
+            recording_custom_action_prefix_key: false,
+            custom_action_prefix_key_recorded_combo: None,
             dynamic_source_editing: None,
             dynamic_source_edit_buffer: None,
             dynamic_source_new_header_key: String::new(),

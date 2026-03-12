@@ -66,15 +66,40 @@ fn show_actions_section(
             ui.label("Custom actions for shell commands, text insertion, or key sequences.");
             ui.add_space(4.0);
 
-            ui.label(egui::RichText::new("Prefix key").strong());
             ui.horizontal(|ui| {
-                if ui
-                    .text_edit_singleline(&mut settings.config.custom_action_prefix_key)
-                    .changed()
-                {
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
+                ui.add_sized(
+                    [80.0, ui.spacing().interact_size.y],
+                    egui::Label::new(egui::RichText::new("Prefix key:").strong()),
+                );
+
+                if settings.recording_custom_action_prefix_key {
+                    ui.label(egui::RichText::new("🔴 Recording...").color(egui::Color32::RED));
+                    if let Some(combo) = capture_key_combo(ui) {
+                        settings.custom_action_prefix_key_recorded_combo = Some(combo.clone());
+                        settings.config.custom_action_prefix_key = combo;
+                        settings.recording_custom_action_prefix_key = false;
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
+                } else {
+                    if ui
+                        .text_edit_singleline(&mut settings.config.custom_action_prefix_key)
+                        .changed()
+                    {
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
+
+                    if ui
+                        .small_button("🎤")
+                        .on_hover_text("Record prefix key")
+                        .clicked()
+                    {
+                        settings.recording_custom_action_prefix_key = true;
+                        settings.custom_action_prefix_key_recorded_combo = None;
+                    }
                 }
+
                 ui.label(
                     egui::RichText::new("Press this first, then a per-action prefix char")
                         .small()

@@ -367,6 +367,10 @@ pub struct SettingsUI {
     pub recording_action_keybinding: bool,
     /// Recorded keybinding combo for action (displayed during recording)
     pub action_recorded_combo: Option<String>,
+    /// Whether currently recording the section-level custom action prefix key
+    pub recording_custom_action_prefix_key: bool,
+    /// Recorded combo for the section-level custom action prefix key
+    pub custom_action_prefix_key_recorded_combo: Option<String>,
 
     // Dynamic profile sources editing state
     /// Index of dynamic source currently being edited (None = not editing)
