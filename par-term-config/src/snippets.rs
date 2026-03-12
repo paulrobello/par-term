@@ -116,6 +116,37 @@ pub struct SnippetLibrary {
     pub snippets: Vec<SnippetConfig>,
 }
 
+/// Default delay in ms before sending text to a newly split pane.
+const fn default_split_pane_delay_ms() -> u64 {
+    200
+}
+
+/// Split direction for a custom action pane split.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ActionSplitDirection {
+    /// New pane below (panes stacked top/bottom)
+    #[default]
+    Horizontal,
+    /// New pane to the right (side by side)
+    Vertical,
+}
+
+impl ActionSplitDirection {
+    /// All directions for UI dropdowns.
+    pub fn all() -> &'static [ActionSplitDirection] {
+        &[Self::Horizontal, Self::Vertical]
+    }
+
+    /// Human-readable label.
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Horizontal => "Horizontal (below)",
+            Self::Vertical => "Vertical (right)",
+        }
+    }
+}
+
 /// A custom action that can be triggered via keybinding.
 ///
 /// Actions can execute shell commands, insert text, or simulate key sequences.
@@ -209,24 +240,75 @@ pub enum CustomActionConfig {
         #[serde(default)]
         description: Option<String>,
     },
+
+    /// Split the active pane and optionally send a command to the new pane
+    SplitPane {
+        /// Action identifier
+        id: String,
+
+        /// Human-readable title
+        title: String,
+
+        /// Split direction: horizontal (new pane below) or vertical (new pane right)
+        #[serde(default)]
+        direction: ActionSplitDirection,
+
+        /// Command for the new pane.
+        ///
+        /// Behaviour depends on `command_is_direct`:
+        /// - `false` (default): text is sent to the shell with a trailing newline after `delay_ms`.
+        /// - `true`: the string is split on whitespace and used as the pane's initial process
+        ///   (like running `htop` directly). The pane closes when the process exits.
+        #[serde(default)]
+        command: Option<String>,
+
+        /// When `true`, `command` is the pane's initial process (argv), not a shell command.
+        /// The pane closes when the process exits. `delay_ms` is ignored.
+        /// When `false` (default), `command` is sent as text to the shell.
+        #[serde(default)]
+        command_is_direct: bool,
+
+        /// Whether to focus the new pane after splitting (default: true)
+        #[serde(default = "crate::defaults::bool_true")]
+        focus_new_pane: bool,
+
+        /// Delay in ms before sending the command text to the new pane (default: 200).
+        /// Only used when `command_is_direct` is `false`.
+        #[serde(default = "default_split_pane_delay_ms")]
+        delay_ms: u64,
+
+        /// Optional keyboard shortcut to trigger the action
+        #[serde(default)]
+        keybinding: Option<String>,
+
+        /// Whether the keybinding is enabled (default: true)
+        #[serde(default = "crate::defaults::bool_true")]
+        keybinding_enabled: bool,
+
+        /// Optional description
+        #[serde(default)]
+        description: Option<String>,
+    },
 }
 
 impl CustomActionConfig {
     /// Get the action ID (for keybinding reference).
     pub fn id(&self) -> &str {
         match self {
-            Self::ShellCommand { id, .. } => id,
-            Self::InsertText { id, .. } => id,
-            Self::KeySequence { id, .. } => id,
+            Self::ShellCommand { id, .. }
+            | Self::InsertText { id, .. }
+            | Self::KeySequence { id, .. }
+            | Self::SplitPane { id, .. } => id,
         }
     }
 
     /// Get the action title (for UI display).
     pub fn title(&self) -> &str {
         match self {
-            Self::ShellCommand { title, .. } => title,
-            Self::InsertText { title, .. } => title,
-            Self::KeySequence { title, .. } => title,
+            Self::ShellCommand { title, .. }
+            | Self::InsertText { title, .. }
+            | Self::KeySequence { title, .. }
+            | Self::SplitPane { title, .. } => title,
         }
     }
 
@@ -235,7 +317,8 @@ impl CustomActionConfig {
         match self {
             Self::ShellCommand { keybinding, .. }
             | Self::InsertText { keybinding, .. }
-            | Self::KeySequence { keybinding, .. } => keybinding.as_deref(),
+            | Self::KeySequence { keybinding, .. }
+            | Self::SplitPane { keybinding, .. } => keybinding.as_deref(),
         }
     }
 
@@ -250,6 +333,9 @@ impl CustomActionConfig {
             }
             | Self::KeySequence {
                 keybinding_enabled, ..
+            }
+            | Self::SplitPane {
+                keybinding_enabled, ..
             } => *keybinding_enabled,
         }
     }
@@ -259,7 +345,8 @@ impl CustomActionConfig {
         match self {
             Self::ShellCommand { keybinding, .. }
             | Self::InsertText { keybinding, .. }
-            | Self::KeySequence { keybinding, .. } => *keybinding = kb,
+            | Self::KeySequence { keybinding, .. }
+            | Self::SplitPane { keybinding, .. } => *keybinding = kb,
         }
     }
 
@@ -273,6 +360,9 @@ impl CustomActionConfig {
                 keybinding_enabled, ..
             }
             | Self::KeySequence {
+                keybinding_enabled, ..
+            }
+            | Self::SplitPane {
                 keybinding_enabled, ..
             } => *keybinding_enabled = enabled,
         }
@@ -291,6 +381,11 @@ impl CustomActionConfig {
     /// Check if this is a key sequence action.
     pub fn is_key_sequence(&self) -> bool {
         matches!(self, Self::KeySequence { .. })
+    }
+
+    /// Check if this is a split pane action.
+    pub fn is_split_pane(&self) -> bool {
+        matches!(self, Self::SplitPane { .. })
     }
 }
 
@@ -525,5 +620,27 @@ mod tests {
         assert!(action.is_shell_command());
         assert!(!action.is_insert_text());
         assert!(!action.is_key_sequence());
+        assert!(!action.is_split_pane());
+    }
+
+    #[test]
+    fn test_split_pane_action() {
+        let action = CustomActionConfig::SplitPane {
+            id: "split-htop".to_string(),
+            title: "Split and run htop".to_string(),
+            direction: ActionSplitDirection::Vertical,
+            command: Some("htop".to_string()),
+            focus_new_pane: true,
+            delay_ms: 200,
+            keybinding: Some("Ctrl+Shift+H".to_string()),
+            keybinding_enabled: true,
+            description: None,
+        };
+
+        assert_eq!(action.id(), "split-htop");
+        assert_eq!(action.title(), "Split and run htop");
+        assert!(action.is_split_pane());
+        assert!(!action.is_shell_command());
+        assert_eq!(action.keybinding(), Some("Ctrl+Shift+H"));
     }
 }

@@ -13,6 +13,7 @@ par-term supports text snippets and custom actions, similar to iTerm2's snippets
   - [Action Types](#action-types)
   - [Creating Actions](#creating-actions)
   - [Using Actions](#using-actions)
+  - [Split Pane Actions](#split-pane-actions)
 - [Configuration](#configuration)
 - [Examples](#examples)
 
@@ -148,11 +149,11 @@ Snippets can be organized into folders for better management:
 
 ## Custom Actions
 
-Custom actions allow you to execute shell commands, insert text, or simulate key sequences via keyboard shortcuts.
+Custom actions allow you to execute shell commands, insert text, simulate key sequences, or split a pane and run a command in it — all via keyboard shortcuts.
 
 ### Action Types
 
-par-term supports three types of custom actions:
+par-term supports four types of custom actions:
 
 #### 1. Shell Command
 Execute a shell command with optional arguments.
@@ -206,6 +207,49 @@ Type: Key Sequence
 Sequence: Escape :wq Enter
 ```
 
+#### 4. Split Pane
+Split the active pane horizontally (new pane below) or vertically (new pane to the right) and optionally send a command to the new pane.
+
+**Fields:**
+| Field | Description | Default |
+|-------|-------------|---------|
+| `direction` | `horizontal` (below) or `vertical` (right) | `horizontal` |
+| `command` | Optional command for the new pane (see `command_is_direct`) | _(none)_ |
+| `command_is_direct` | When `true`, `command` is the pane's initial process — the pane closes when it exits. When `false`, `command` is sent as text to the shell. | `false` |
+| `focus_new_pane` | Move focus to the new pane after splitting | `true` |
+| `delay_ms` | Milliseconds to wait before sending shell-mode text (ignored when `command_is_direct: true`) | `200` |
+
+**Command modes:**
+
+- **Shell mode** (`command_is_direct: false`, default): the command string is typed into the shell with a trailing Enter, just like you typed it yourself. The shell remains running after the command finishes.
+- **Direct mode** (`command_is_direct: true`): the pane's PTY runs the command directly as its process (no shell wrapper). **The pane closes automatically when the command exits.** Useful for tools like `htop`, `vim`, or `watch` where you want the pane to disappear when you quit the tool.
+
+**Use cases:**
+- Open a monitoring tool (e.g., `htop`, `watch`, log tail) alongside your current work
+- Start a server or dev watcher in a companion pane
+- Any workflow where you want to run something in a new pane without leaving your current one
+
+**Example — direct mode (pane closes when htop exits):**
+```yaml
+Title: Split and run htop
+Type: Split Pane
+Direction: Vertical (right)
+Command: htop
+Run as pane command: ✓ (checked)
+Focus new pane: true
+```
+
+**Example — shell mode (shell stays after command):**
+```yaml
+Title: Split and tail log
+Type: Split Pane
+Direction: Horizontal (below)
+Command: tail -f /var/log/system.log
+Run as pane command: (unchecked)
+Focus new pane: false
+Command delay: 200 ms
+```
+
 ### Creating Actions
 
 1. Open Settings (⌘+, / Ctrl+,)
@@ -213,7 +257,7 @@ Sequence: Escape :wq Enter
 3. Scroll to the **Custom Actions** section and click **+ Add Action**
 4. Fill in the action details:
    - **Title**: A human-readable name (e.g., "Run Tests")
-   - **Type**: Select from Shell Command, Insert Text, or Key Sequence
+   - **Type**: Select from Shell Command, Insert Text, Key Sequence, or Split Pane
    - **Keybinding** (optional): Keyboard shortcut to trigger the action
      - Click the **🎤 Record** button and press the desired key combination
      - Or type it manually (e.g., `Ctrl+Shift+T`)
@@ -242,6 +286,43 @@ Actions are triggered via keyboard shortcuts. You can assign keybindings in two 
 - A **🔴 Recording...** indicator appears while recording
 - **⚠️ Conflict warnings** show if the keybinding is already used elsewhere
 - When editing, the current keybinding is excluded from conflict detection
+
+## Split Pane Actions
+
+Split Pane actions open a new pane next to the active one and optionally run a command in it. There are two command modes:
+
+**Direct mode** (`command_is_direct: true`) — the pane runs the command as its own process. The pane closes automatically when the command exits. Best for interactive tools like `htop`, `vim`, or `watch`.
+
+```yaml
+actions:
+  - id: "split-htop"
+    title: "Split and run htop"
+    type: split_pane
+    direction: vertical
+    command: htop
+    command_is_direct: true     # pane IS htop; closes when htop quits
+    focus_new_pane: true
+    keybinding: "Ctrl+Shift+H"
+```
+
+**Shell mode** (`command_is_direct: false`, default) — the command is sent as text to the shell with a trailing newline. The shell remains running after the command finishes.
+
+```yaml
+actions:
+  - id: "split-tail"
+    title: "Split and tail log"
+    type: split_pane
+    direction: horizontal
+    command: "tail -f /var/log/system.log"
+    command_is_direct: false    # default — typed into the shell
+    focus_new_pane: false
+    delay_ms: 200               # wait for shell to start (shell mode only)
+    keybinding: "Ctrl+Shift+L"
+```
+
+Omit `command` entirely to split without running anything.
+
+> **Tip:** For `command_is_direct: false`, increase `delay_ms` (e.g., to 500) for slow-starting shells such as remote SSH sessions.
 
 ## Configuration
 
@@ -272,10 +353,29 @@ snippets:
 actions:
   - id: "action_001"
     title: "Run Tests"
-    type: "shell_command"       # or "insert_text", "key_sequence"
+    type: shell_command         # shell_command | insert_text | key_sequence | split_pane
     command: "npm"
     args: ["test"]
     notify_on_success: true
+
+  - id: "action_002"
+    title: "Split and tail log"
+    type: split_pane
+    direction: horizontal       # new pane below
+    command: "tail -f /var/log/system.log"
+    command_is_direct: false    # send as shell text (default)
+    focus_new_pane: true
+    delay_ms: 200               # ms before sending text (shell mode only)
+    keybinding: "Ctrl+Shift+L"
+
+  - id: "action_003"
+    title: "Split and run htop"
+    type: split_pane
+    direction: vertical         # new pane to the right
+    command: htop
+    command_is_direct: true     # pane IS htop; closes when htop exits
+    focus_new_pane: true
+    keybinding: "Ctrl+Shift+H"
 
 # Keybindings (auto-generated from snippets and actions)
 keybindings:
@@ -285,6 +385,8 @@ keybindings:
     action: "snippet:snippet_002"
   - key: "Ctrl+Shift+R"
     action: "action:action_001"
+  - key: "Ctrl+Shift+L"
+    action: "action:action_002"
 ```
 
 ## Examples
@@ -354,7 +456,55 @@ Content: |
   npm init -y
 ```
 
-### Example 4: Server Management
+### Example 4: Split Pane Workflows
+
+Open a monitoring or companion pane with a single key press:
+
+**Tail a log in a new pane below (shell mode — shell stays when `tail` exits):**
+```yaml
+- id: tail-log
+  title: "Tail system log"
+  type: split_pane
+  direction: horizontal
+  command: "tail -f /var/log/system.log"
+  command_is_direct: false    # default
+  keybinding: "Ctrl+Shift+L"
+```
+
+**Open htop to the right — pane closes when you quit htop (direct mode):**
+```yaml
+- id: split-htop
+  title: "Open htop (right)"
+  type: split_pane
+  direction: vertical
+  command: htop
+  command_is_direct: true     # pane closes on exit
+  focus_new_pane: true
+  keybinding: "Ctrl+Shift+H"
+```
+
+**Open htop to the right without stealing focus:**
+```yaml
+- id: split-htop-bg
+  title: "Open htop (background)"
+  type: split_pane
+  direction: vertical
+  command: htop
+  command_is_direct: true
+  focus_new_pane: false
+  keybinding: "Ctrl+Shift+H"
+```
+
+**Just split — no command:**
+```yaml
+- id: split-blank
+  title: "New blank pane (right)"
+  type: split_pane
+  direction: vertical
+  keybinding: "Ctrl+Shift+N"
+```
+
+### Example 5: Server Management
 
 Snippets for SSH connections:
 
@@ -396,6 +546,8 @@ Folder: SSH
 10. **Folders Don't Change Directories**: The folder field is only for organizing snippets in the UI
     - To run commands in a specific directory, include `cd /path/to/dir &&` in the snippet content
     - Example: `cd ~/projects/myapp && npm test`
+11. **Split Pane vs. Trigger SplitPane**: Custom action Split Pane is triggered manually via keybinding; [trigger SplitPane](AUTOMATION.md#split-pane) fires automatically when a regex pattern matches terminal output. Use custom actions for on-demand splits and triggers for automated splits.
+12. **Increase delay_ms for slow shells**: The default 200 ms delay before sending a command to a new pane is enough for local shells. For SSH sessions or slow-starting environments, increase it to 500–1000 ms.
 
 ## Import and Export
 

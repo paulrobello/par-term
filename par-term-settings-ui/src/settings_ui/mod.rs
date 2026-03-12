@@ -331,7 +331,7 @@ pub struct SettingsUI {
     // Actions tab state
     /// Index of action currently being edited (None = not editing)
     pub editing_action_index: Option<usize>,
-    /// Temporary action type for edit form (0=ShellCommand, 1=InsertText, 2=KeySequence)
+    /// Temporary action type for edit form (0=ShellCommand, 1=InsertText, 2=KeySequence, 3=SplitPane)
     pub temp_action_type: usize,
     /// Temporary action ID for edit form
     pub temp_action_id: String,
@@ -347,6 +347,16 @@ pub struct SettingsUI {
     pub temp_action_keys: String,
     /// Temporary action keybinding for edit form
     pub temp_action_keybinding: String,
+    /// Split direction index for SplitPane type (0=Horizontal, 1=Vertical)
+    pub temp_action_split_direction: usize,
+    /// Optional command text for SplitPane type (empty = no command)
+    pub temp_action_split_command: String,
+    /// Whether to focus new pane for SplitPane type
+    pub temp_action_split_focus_new: bool,
+    /// Delay ms before sending command for SplitPane type
+    pub temp_action_split_delay_ms: u64,
+    /// When true, command is the pane's initial process (not sent to shell)
+    pub temp_action_split_command_is_direct: bool,
     /// Whether the add-new-action form is active
     pub adding_new_action: bool,
     /// Whether currently recording a keybinding for an action

@@ -9,10 +9,15 @@ impl WindowState {
     ///
     /// Handles renderer bounds query, tmux delegation, and the split call.
     /// Returns the new pane ID on success, None on failure.
+    ///
+    /// `initial_command` — when `Some((cmd, args))` the new pane launches that
+    /// process directly instead of the login shell. The pane closes when the
+    /// process exits.
     pub(crate) fn split_pane_direction(
         &mut self,
         direction: crate::pane::SplitDirection,
         focus_new: bool,
+        initial_command: Option<(String, Vec<String>)>,
     ) -> Option<crate::pane::PaneId> {
         // Calculate status bar height for proper content area
         let is_tmux_connected = self.is_tmux_connected();
@@ -73,12 +78,14 @@ impl WindowState {
                 &self.config,
                 Arc::clone(&self.runtime),
                 dpi_scale,
+                initial_command,
             ),
             crate::pane::SplitDirection::Vertical => tab.split_vertical(
                 focus_new,
                 &self.config,
                 Arc::clone(&self.runtime),
                 dpi_scale,
+                initial_command,
             ),
         };
 
@@ -119,7 +126,7 @@ impl WindowState {
             return;
         }
         // Fall through to local split if tmux command failed or not connected
-        self.split_pane_direction(crate::pane::SplitDirection::Horizontal, true);
+        self.split_pane_direction(crate::pane::SplitDirection::Horizontal, true, None);
     }
 
     /// Split the current pane vertically (panes side by side)
@@ -130,7 +137,7 @@ impl WindowState {
             return;
         }
         // Fall through to local split if tmux command failed or not connected
-        self.split_pane_direction(crate::pane::SplitDirection::Vertical, true);
+        self.split_pane_direction(crate::pane::SplitDirection::Vertical, true, None);
     }
 
     /// Close the focused pane in the current tab

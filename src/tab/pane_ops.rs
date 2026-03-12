@@ -31,12 +31,14 @@ impl Tab {
     /// Returns the new pane ID if successful.
     /// `dpi_scale` converts logical pixel config values to physical pixels.
     /// `focus_new` controls whether the new pane receives focus after splitting.
+    /// `initial_command` — when `Some((cmd, args))` the new pane runs that process directly.
     pub fn split_horizontal(
         &mut self,
         focus_new: bool,
         config: &Config,
         runtime: Arc<Runtime>,
         dpi_scale: f32,
+        initial_command: Option<(String, Vec<String>)>,
     ) -> anyhow::Result<Option<crate::pane::PaneId>> {
         self.split(
             SplitDirection::Horizontal,
@@ -44,6 +46,7 @@ impl Tab {
             config,
             runtime,
             dpi_scale,
+            initial_command,
         )
     }
 
@@ -52,12 +55,14 @@ impl Tab {
     /// Returns the new pane ID if successful.
     /// `dpi_scale` converts logical pixel config values to physical pixels.
     /// `focus_new` controls whether the new pane receives focus after splitting.
+    /// `initial_command` — when `Some((cmd, args))` the new pane runs that process directly.
     pub fn split_vertical(
         &mut self,
         focus_new: bool,
         config: &Config,
         runtime: Arc<Runtime>,
         dpi_scale: f32,
+        initial_command: Option<(String, Vec<String>)>,
     ) -> anyhow::Result<Option<crate::pane::PaneId>> {
         self.split(
             SplitDirection::Vertical,
@@ -65,12 +70,14 @@ impl Tab {
             config,
             runtime,
             dpi_scale,
+            initial_command,
         )
     }
 
     /// Split the focused pane in the given direction.
     /// `dpi_scale` is used to convert logical pixel config values to physical pixels.
     /// `focus_new` controls whether the new pane receives focus after splitting.
+    /// `initial_command` — when `Some((cmd, args))` the new pane runs that process directly.
     fn split(
         &mut self,
         direction: SplitDirection,
@@ -78,6 +85,7 @@ impl Tab {
         config: &Config,
         runtime: Arc<Runtime>,
         dpi_scale: f32,
+        initial_command: Option<(String, Vec<String>)>,
     ) -> anyhow::Result<Option<crate::pane::PaneId>> {
         // Check max panes limit
         if config.max_panes > 0 && self.pane_count() >= config.max_panes {
@@ -123,7 +131,7 @@ impl Tab {
 
         // Perform the split
         if let Some(ref mut pm) = self.pane_manager {
-            let new_pane_id = pm.split(direction, focus_new, config, Arc::clone(&runtime))?;
+            let new_pane_id = pm.split(direction, focus_new, config, Arc::clone(&runtime), initial_command)?;
             if let Some(id) = new_pane_id {
                 log::info!("Split tab {} {:?}, new pane {}", self.id, direction, id);
             }

@@ -245,6 +245,83 @@ impl WindowState {
 
                 false
             }
+            CustomActionConfig::SplitPane {
+                direction,
+                command,
+                command_is_direct,
+                focus_new_pane,
+                delay_ms,
+                title,
+                ..
+            } => {
+                use crate::config::snippets::ActionSplitDirection;
+
+                let pane_direction = match direction {
+                    ActionSplitDirection::Horizontal => crate::pane::SplitDirection::Horizontal,
+                    ActionSplitDirection::Vertical => crate::pane::SplitDirection::Vertical,
+                };
+                let focus = *focus_new_pane;
+                let is_direct = *command_is_direct;
+                let command = command.clone();
+                let delay = *delay_ms;
+                let title = title.clone();
+
+                crate::debug_info!(
+                    "TAB_ACTION",
+                    "SplitPane action '{}' direction={:?} focus_new={} direct={}",
+                    title,
+                    pane_direction,
+                    focus,
+                    is_direct
+                );
+
+                // For direct commands, parse argv and pass as the pane's initial process.
+                let initial_command = if is_direct {
+                    command.as_deref().map(|cmd_str| {
+                        let mut parts = cmd_str.split_whitespace();
+                        let cmd = parts.next().unwrap_or("").to_string();
+                        let args: Vec<String> = parts.map(|s| s.to_string()).collect();
+                        (cmd, args)
+                    })
+                } else {
+                    None
+                };
+
+                let new_pane_id =
+                    self.split_pane_direction(pane_direction, focus, initial_command);
+
+                // For shell-mode commands, send text to the new pane after a delay.
+                if !is_direct {
+                    if let (Some(pane_id), Some(text)) = (new_pane_id, command) {
+                        let text_with_nl = format!("{}\n", text);
+                        if let Some(tab) = self.tab_manager.active_tab()
+                            && let Some(pm) = tab.pane_manager()
+                            && let Some(pane) = pm.get_pane(pane_id)
+                        {
+                            let terminal = std::sync::Arc::clone(&pane.terminal);
+                            std::thread::spawn(move || {
+                                if delay > 0 {
+                                    std::thread::sleep(std::time::Duration::from_millis(delay));
+                                }
+                                // try_write: background thread; on contention skip the write.
+                                // Shell may not be ready — user can retry the keybinding.
+                                if let Ok(term) = terminal.try_write() {
+                                    if let Err(e) = term.write(text_with_nl.as_bytes()) {
+                                        log::error!(
+                                            "SplitPane action '{}' write failed for pane {}: {}",
+                                            title,
+                                            pane_id,
+                                            e
+                                        );
+                                    }
+                                }
+                            });
+                        }
+                    }
+                }
+
+                new_pane_id.is_some()
+            }
             CustomActionConfig::KeySequence { keys, title, .. } => {
                 use crate::keybindings::parse_key_sequence;
 

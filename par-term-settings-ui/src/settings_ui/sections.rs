@@ -119,11 +119,24 @@ impl SettingsUI {
     }
 
     /// Check if a keybinding conflicts with existing keybindings.
+    ///
+    /// `exclude_id` is the snippet or action ID being edited — its own keybinding
+    /// entries (both in `config.keybindings` and in `config.snippets`) are skipped
+    /// so that editing an existing item never reports a false self-conflict.
     pub fn check_keybinding_conflict(&self, key: &str, exclude_id: Option<&str>) -> Option<String> {
         for binding in &self.config.keybindings {
-            if binding.key == key {
-                return Some(format!("Already bound to: {}", binding.action));
+            if binding.key != key {
+                continue;
             }
+            // Skip the excluded item's own entry (stored as "action:<id>" or "snippet:<id>")
+            if let Some(id) = exclude_id {
+                let action_entry = format!("action:{}", id);
+                let snippet_entry = format!("snippet:{}", id);
+                if binding.action == action_entry || binding.action == snippet_entry {
+                    continue;
+                }
+            }
+            return Some(format!("Already bound to: {}", binding.action));
         }
 
         for snippet in &self.config.snippets {

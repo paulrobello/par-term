@@ -537,7 +537,7 @@ impl WindowState {
                         focus_new_pane
                     );
 
-                    let new_pane_id = self.split_pane_direction(pane_direction, focus_new_pane);
+                    let new_pane_id = self.split_pane_direction(pane_direction, focus_new_pane, None);
 
                     // After split, optionally send a command to the new pane.
                     if let (Some(pane_id), Some(cmd)) = (new_pane_id, command) {

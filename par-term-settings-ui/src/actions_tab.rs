@@ -37,6 +37,8 @@ pub fn show(
             "keybinding",
             "execute",
             "run",
+            "split",
+            "pane",
         ],
     ) {
         show_actions_section(ui, settings, changes_this_frame, collapsed);
@@ -88,6 +90,7 @@ fn show_actions_section(
                             CustomActionConfig::ShellCommand { .. } => "Shell",
                             CustomActionConfig::InsertText { .. } => "Text",
                             CustomActionConfig::KeySequence { .. } => "Keys",
+                            CustomActionConfig::SplitPane { .. } => "Split",
                         };
                         ui.label(
                             egui::RichText::new(format!("[{}]", type_label))
@@ -121,6 +124,18 @@ fn show_actions_section(
                                 CustomActionConfig::InsertText { text, .. } => text.clone(),
                                 CustomActionConfig::KeySequence { keys, .. } => {
                                     format!("[{}]", keys)
+                                }
+                                CustomActionConfig::SplitPane {
+                                    direction, command, ..
+                                } => {
+                                    let dir = match direction {
+                                        par_term_config::snippets::ActionSplitDirection::Horizontal => "horiz",
+                                        par_term_config::snippets::ActionSplitDirection::Vertical => "vert",
+                                    };
+                                    match command {
+                                        Some(cmd) => format!("{} — {}", dir, cmd),
+                                        None => dir.to_string(),
+                                    }
                                 }
                             };
                             ui.add(
@@ -176,6 +191,25 @@ fn show_actions_section(
                         settings.temp_action_type = 2;
                         settings.temp_action_keys = keys.clone();
                     }
+                    CustomActionConfig::SplitPane {
+                        direction,
+                        command,
+                        command_is_direct,
+                        focus_new_pane,
+                        delay_ms,
+                        ..
+                    } => {
+                        settings.temp_action_type = 3;
+                        settings.temp_action_split_direction = match direction {
+                            par_term_config::snippets::ActionSplitDirection::Horizontal => 0,
+                            par_term_config::snippets::ActionSplitDirection::Vertical => 1,
+                        };
+                        settings.temp_action_split_command =
+                            command.clone().unwrap_or_default();
+                        settings.temp_action_split_command_is_direct = *command_is_direct;
+                        settings.temp_action_split_focus_new = *focus_new_pane;
+                        settings.temp_action_split_delay_ms = *delay_ms;
+                    }
                 }
             }
 
@@ -196,6 +230,11 @@ fn show_actions_section(
                 settings.temp_action_text = String::new();
                 settings.temp_action_keys = String::new();
                 settings.temp_action_keybinding = String::new();
+                settings.temp_action_split_direction = 0;
+                settings.temp_action_split_command = String::new();
+                settings.temp_action_split_command_is_direct = false;
+                settings.temp_action_split_focus_new = true;
+                settings.temp_action_split_delay_ms = 200;
             }
         },
     );
@@ -256,6 +295,26 @@ fn show_action_edit_form(
                     keybinding_enabled: true,
                     description: None,
                 },
+                3 => CustomActionConfig::SplitPane {
+                    id: settings.temp_action_id.clone(),
+                    title: settings.temp_action_title.clone(),
+                    direction: if settings.temp_action_split_direction == 0 {
+                        par_term_config::snippets::ActionSplitDirection::Horizontal
+                    } else {
+                        par_term_config::snippets::ActionSplitDirection::Vertical
+                    },
+                    command: if settings.temp_action_split_command.is_empty() {
+                        None
+                    } else {
+                        Some(settings.temp_action_split_command.clone())
+                    },
+                    command_is_direct: settings.temp_action_split_command_is_direct,
+                    focus_new_pane: settings.temp_action_split_focus_new,
+                    delay_ms: settings.temp_action_split_delay_ms,
+                    keybinding,
+                    keybinding_enabled: true,
+                    description: None,
+                },
                 _ => unreachable!(),
             };
 
@@ -305,7 +364,7 @@ fn show_action_edit_form(
             );
 
             ui.label("Type:");
-            let types = ["Shell Command", "Insert Text", "Key Sequence"];
+            let types = ["Shell Command", "Insert Text", "Key Sequence", "Split Pane"];
             egui::ComboBox::from_id_salt("action_type")
                 .selected_text(types[settings.temp_action_type])
                 .width(150.0)
@@ -342,25 +401,6 @@ fn show_action_edit_form(
                         *changes_this_frame = true;
                     }
 
-                    // Check for conflicts
-                    if !settings.temp_action_keybinding.is_empty() {
-                        let exclude_id = if let Some(i) = edit_index {
-                            settings.config.actions.get(i).map(|a| a.id())
-                        } else {
-                            None
-                        };
-
-                        if let Some(conflict) = settings
-                            .check_keybinding_conflict(&settings.temp_action_keybinding, exclude_id)
-                        {
-                            ui.label(
-                                egui::RichText::new(format!("⚠️ {}", conflict))
-                                    .color(egui::Color32::from_rgb(255, 180, 0))
-                                    .small(),
-                            );
-                        }
-                    }
-
                     // Record button
                     if ui
                         .small_button("🎤")
@@ -372,6 +412,25 @@ fn show_action_edit_form(
                     }
                 }
             });
+
+            // Conflict warning — shown below the keybinding row so it doesn't push the record button off-screen
+            if !settings.recording_action_keybinding && !settings.temp_action_keybinding.is_empty()
+            {
+                let exclude_id = if let Some(i) = edit_index {
+                    settings.config.actions.get(i).map(|a| a.id())
+                } else {
+                    None
+                };
+                if let Some(conflict) = settings
+                    .check_keybinding_conflict(&settings.temp_action_keybinding, exclude_id)
+                {
+                    ui.label(
+                        egui::RichText::new(format!("⚠️ {}", conflict))
+                            .color(egui::Color32::from_rgb(255, 180, 0))
+                            .small(),
+                    );
+                }
+            }
 
             // Type-specific fields
             match settings.temp_action_type {
@@ -412,6 +471,84 @@ fn show_action_edit_form(
                         *changes_this_frame = true;
                     }
                 }
+                3 => {
+                    // Split Pane
+                    ui.label("Direction:");
+                    let dir_labels = ["Horizontal (below)", "Vertical (right)"];
+                    egui::ComboBox::from_id_salt("split_direction")
+                        .selected_text(dir_labels[settings.temp_action_split_direction])
+                        .width(160.0)
+                        .show_ui(ui, |ui| {
+                            for (i, &label) in dir_labels.iter().enumerate() {
+                                if ui
+                                    .selectable_label(
+                                        settings.temp_action_split_direction == i,
+                                        label,
+                                    )
+                                    .clicked()
+                                {
+                                    settings.temp_action_split_direction = i;
+                                    *changes_this_frame = true;
+                                }
+                            }
+                        });
+
+                    ui.label("Command (optional):");
+                    if ui
+                        .text_edit_singleline(&mut settings.temp_action_split_command)
+                        .changed()
+                    {
+                        *changes_this_frame = true;
+                    }
+
+                    if !settings.temp_action_split_command.is_empty() {
+                        ui.horizontal(|ui| {
+                            if ui
+                                .checkbox(
+                                    &mut settings.temp_action_split_command_is_direct,
+                                    "Run as pane command (pane closes when done)",
+                                )
+                                .on_hover_text(
+                                    "When checked, the command is the pane's initial process \
+                                     (like running htop directly). The pane closes when it exits.\n\
+                                     When unchecked, the command is sent as text to the shell.",
+                                )
+                                .changed()
+                            {
+                                *changes_this_frame = true;
+                            }
+                        });
+                    }
+
+                    ui.horizontal(|ui| {
+                        if ui
+                            .checkbox(
+                                &mut settings.temp_action_split_focus_new,
+                                "Focus new pane",
+                            )
+                            .changed()
+                        {
+                            *changes_this_frame = true;
+                        }
+                    });
+
+                    // Delay only applies to shell-mode commands
+                    if !settings.temp_action_split_command.is_empty()
+                        && !settings.temp_action_split_command_is_direct
+                    {
+                        ui.horizontal(|ui| {
+                            ui.label("Command delay (ms):");
+                            let mut delay_str =
+                                settings.temp_action_split_delay_ms.to_string();
+                            if ui.text_edit_singleline(&mut delay_str).changed() {
+                                if let Ok(v) = delay_str.parse::<u64>() {
+                                    settings.temp_action_split_delay_ms = v;
+                                }
+                                *changes_this_frame = true;
+                            }
+                        });
+                    }
+                }
                 _ => {}
             }
         });
@@ -438,5 +575,10 @@ pub fn keywords() -> &'static [&'static str] {
         "title",
         "name",
         "arguments",
+        "split",
+        "split pane",
+        "pane",
+        "horizontal",
+        "vertical",
     ]
 }

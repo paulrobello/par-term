@@ -123,13 +123,18 @@ impl PaneManager {
 
     /// Split the focused pane in the given direction
     ///
-    /// Returns the ID of the new pane, or None if no pane is focused
+    /// Returns the ID of the new pane, or None if no pane is focused.
+    ///
+    /// `initial_command` — when `Some((cmd, args))` the new pane launches that
+    /// process directly instead of the login shell. The pane closes when the
+    /// process exits.
     pub fn split(
         &mut self,
         direction: SplitDirection,
         focus_new: bool,
         config: &Config,
         runtime: Arc<Runtime>,
+        initial_command: Option<(String, Vec<String>)>,
     ) -> Result<Option<PaneId>> {
         let focused_id = match self.focused_pane_id {
             Some(id) => id,
@@ -168,7 +173,11 @@ impl PaneManager {
         let new_id = self.next_pane_id;
         self.next_pane_id += 1;
 
-        let mut new_pane = Pane::new(new_id, &pane_config, runtime, working_dir)?;
+        let mut new_pane = if let Some((cmd, args)) = initial_command {
+            Pane::new_with_command(new_id, &pane_config, runtime, working_dir, cmd, args)?
+        } else {
+            Pane::new(new_id, &pane_config, runtime, working_dir)?
+        };
 
         // Apply per-pane background from config if available
         // The new pane will be at the end of the pane list, so its index is the current count
