@@ -1,6 +1,8 @@
 //! Inline field rendering for each trigger action variant.
 
-use par_term_config::automation::TriggerActionConfig;
+use par_term_config::automation::{
+    SplitPaneCommand, TriggerActionConfig, TriggerSplitDirection, TriggerSplitTarget,
+};
 use par_term_config::color_u8_to_f32;
 
 /// Show inline fields for a trigger action (for editing within the action row).
@@ -124,6 +126,135 @@ pub(super) fn show_action_fields(ui: &mut egui::Ui, action: &mut TriggerActionCo
             ui.add(egui::TextEdit::singleline(text).desired_width(100.0));
             ui.label("delay:");
             ui.add(egui::DragValue::new(delay_ms).range(0..=10000).speed(10.0));
+        }
+        TriggerActionConfig::SplitPane {
+            direction,
+            command,
+            focus_new_pane,
+            target,
+        } => {
+            ui.vertical(|ui| {
+                // Direction row
+                ui.horizontal(|ui| {
+                    ui.label("Direction:");
+                    egui::ComboBox::from_id_salt("split_pane_direction")
+                        .selected_text(match direction {
+                            TriggerSplitDirection::Horizontal => "Horizontal (new pane below)",
+                            TriggerSplitDirection::Vertical => "Vertical (new pane to the right)",
+                        })
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(
+                                direction,
+                                TriggerSplitDirection::Horizontal,
+                                "Horizontal (new pane below)",
+                            );
+                            ui.selectable_value(
+                                direction,
+                                TriggerSplitDirection::Vertical,
+                                "Vertical (new pane to the right)",
+                            );
+                        });
+                });
+
+                // Target row
+                ui.horizontal(|ui| {
+                    ui.label("Target:");
+                    egui::ComboBox::from_id_salt("split_pane_target")
+                        .selected_text(match target {
+                            TriggerSplitTarget::Active => "Active Pane",
+                            TriggerSplitTarget::Source => "Source Pane (when available)",
+                        })
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(
+                                target,
+                                TriggerSplitTarget::Active,
+                                "Active Pane",
+                            );
+                            ui.selectable_value(
+                                target,
+                                TriggerSplitTarget::Source,
+                                "Source Pane (when available)",
+                            );
+                        });
+                });
+
+                // Focus new pane checkbox
+                ui.checkbox(focus_new_pane, "Focus new pane after splitting");
+
+                // Command type selector
+                // Determine current command type index: 0=None, 1=SendText, 2=InitialCommand
+                let current_cmd_type: usize = match command {
+                    None => 0,
+                    Some(SplitPaneCommand::SendText { .. }) => 1,
+                    Some(SplitPaneCommand::InitialCommand { .. }) => 2,
+                };
+                let mut new_cmd_type = current_cmd_type;
+
+                ui.horizontal(|ui| {
+                    ui.label("Command:");
+                    egui::ComboBox::from_id_salt("split_pane_cmd_type")
+                        .selected_text(match current_cmd_type {
+                            1 => "Send Text",
+                            2 => "Initial Command",
+                            _ => "None",
+                        })
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(&mut new_cmd_type, 0, "None");
+                            ui.selectable_value(&mut new_cmd_type, 1, "Send Text");
+                            ui.selectable_value(&mut new_cmd_type, 2, "Initial Command");
+                        });
+                });
+
+                // Apply command type change if user switched
+                if new_cmd_type != current_cmd_type {
+                    *command = match new_cmd_type {
+                        0 => None,
+                        1 => Some(SplitPaneCommand::SendText {
+                            text: String::new(),
+                            delay_ms: 200,
+                        }),
+                        2 => Some(SplitPaneCommand::InitialCommand {
+                            command: String::new(),
+                            args: Vec::new(),
+                        }),
+                        _ => None,
+                    };
+                }
+
+                // Sub-fields for the selected command type
+                match command {
+                    Some(SplitPaneCommand::SendText { text, delay_ms }) => {
+                        ui.horizontal(|ui| {
+                            ui.label("Text to send:");
+                            ui.text_edit_singleline(text);
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label("Delay (ms):");
+                            ui.add(egui::DragValue::new(delay_ms).range(0..=5000).speed(10.0));
+                        });
+                    }
+                    Some(SplitPaneCommand::InitialCommand {
+                        command: cmd_str,
+                        args,
+                    }) => {
+                        ui.horizontal(|ui| {
+                            ui.label("Command:");
+                            ui.text_edit_singleline(cmd_str);
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label("Arguments (space-separated):");
+                            let mut args_str = args.join(" ");
+                            if ui.text_edit_singleline(&mut args_str).changed() {
+                                *args = args_str
+                                    .split_whitespace()
+                                    .map(String::from)
+                                    .collect();
+                            }
+                        });
+                    }
+                    None => {}
+                }
+            });
         }
         TriggerActionConfig::Prettify {
             format,

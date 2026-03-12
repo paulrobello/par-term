@@ -10,7 +10,7 @@
 
 use crate::SettingsUI;
 use crate::section::{collapsing_section, section_matches};
-use par_term_config::automation::TriggerActionConfig;
+use par_term_config::automation::{TriggerActionConfig, TriggerSplitDirection, TriggerSplitTarget};
 use std::collections::HashSet;
 
 mod action_fields;
@@ -26,6 +26,7 @@ const ACTION_TYPE_NAMES: &[&str] = &[
     "Play Sound",
     "Send Text",
     "Prettify",
+    "Split Pane",
 ];
 
 /// Create a default action for the given type index.
@@ -66,6 +67,12 @@ fn default_action_for_type(type_index: usize) -> TriggerActionConfig {
             block_end: None,
             sub_format: None,
             command_filter: None,
+        },
+        8 => TriggerActionConfig::SplitPane {
+            direction: TriggerSplitDirection::Horizontal,
+            command: None,
+            focus_new_pane: true,
+            target: TriggerSplitTarget::default(),
         },
         _ => TriggerActionConfig::Highlight {
             fg: None,
