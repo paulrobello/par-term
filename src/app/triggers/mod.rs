@@ -435,11 +435,91 @@ impl WindowState {
                     direction,
                     command,
                     focus_new_pane,
-                    target,
-                    source_pane_id: _,
+                    target: _target,
+                    source_pane_id: _source_pane_id,
                 } => {
-                    // TODO(Task 10): enqueue for dialog / execute split
-                    let _ = (trigger_id, direction, command, focus_new_pane, target);
+                    // Security check: rate limiting
+                    if let Some(tab) = self.tab_manager.active_tab_mut()
+                        && !tab
+                            .scripting
+                            .trigger_rate_limiter
+                            .check_and_update(trigger_id)
+                    {
+                        log::warn!(
+                            "Trigger {} SplitPane RATE-LIMITED (too frequent)",
+                            trigger_id,
+                        );
+                        continue;
+                    }
+
+                    let pane_direction = match direction {
+                        par_term_emu_core_rust::terminal::TriggerSplitDirection::Horizontal => {
+                            crate::pane::SplitDirection::Horizontal
+                        }
+                        par_term_emu_core_rust::terminal::TriggerSplitDirection::Vertical => {
+                            crate::pane::SplitDirection::Vertical
+                        }
+                    };
+
+                    crate::debug_info!(
+                        "TRIGGER",
+                        "AUDIT SplitPane trigger_id={} direction={:?} focus_new={}",
+                        trigger_id,
+                        pane_direction,
+                        focus_new_pane
+                    );
+
+                    let new_pane_id = self.split_pane_direction(pane_direction, focus_new_pane);
+
+                    // After split, optionally send a command to the new pane.
+                    if let (Some(pane_id), Some(cmd)) = (new_pane_id, command) {
+                        let (text, delay_ms) = match cmd {
+                            par_term_emu_core_rust::terminal::TriggerSplitCommand::SendText {
+                                text,
+                                delay_ms,
+                            } => (format!("{}\n", text), delay_ms),
+                            par_term_emu_core_rust::terminal::TriggerSplitCommand::InitialCommand {
+                                command: cmd_name,
+                                args,
+                            } => {
+                                // InitialCommand is not yet supported for trigger-created panes.
+                                // Fall back to sending command as text to the new shell.
+                                log::warn!(
+                                    "Trigger {} SplitPane InitialCommand not fully supported; \
+                                     sending as text",
+                                    trigger_id
+                                );
+                                let full = if args.is_empty() {
+                                    format!("{}\n", cmd_name)
+                                } else {
+                                    format!("{} {}\n", cmd_name, args.join(" "))
+                                };
+                                (full, 200)
+                            }
+                        };
+
+                        // Send text to the new pane's terminal with optional delay.
+                        if let Some(tab) = self.tab_manager.active_tab()
+                            && let Some(pm) = tab.pane_manager()
+                            && let Some(pane) = pm.get_pane(pane_id)
+                        {
+                            let terminal = std::sync::Arc::clone(&pane.terminal);
+                            std::thread::spawn(move || {
+                                if delay_ms > 0 {
+                                    std::thread::sleep(std::time::Duration::from_millis(delay_ms));
+                                }
+                                if let Ok(term) = terminal.try_write()
+                                    && let Err(e) = term.write(text.as_bytes())
+                                {
+                                    log::error!(
+                                        "SplitPane SendText write failed for pane {}: {}",
+                                        pane_id,
+                                        e
+                                    );
+                                }
+                            });
+                        }
+                    }
                 }
                 ActionResult::MarkLine {
                     trigger_id,

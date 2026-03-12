@@ -289,13 +289,50 @@ impl TriggerActionConfig {
                     color: None,
                 }
             }
-            // SplitPane is handled entirely in the frontend (not forwarded to core).
-            // Emit a no-op Notify so the core trigger pipeline still fires an ActionResult
-            // that the frontend can intercept.
-            Self::SplitPane { .. } => TriggerAction::Notify {
-                title: String::new(),
-                message: String::new(),
-            },
+            Self::SplitPane {
+                direction,
+                command,
+                focus_new_pane,
+                target,
+            } => {
+                // Use fully-qualified core paths to avoid shadowing the config-side types.
+                let core_direction = match direction {
+                    crate::automation::TriggerSplitDirection::Horizontal => {
+                        par_term_emu_core_rust::terminal::TriggerSplitDirection::Horizontal
+                    }
+                    crate::automation::TriggerSplitDirection::Vertical => {
+                        par_term_emu_core_rust::terminal::TriggerSplitDirection::Vertical
+                    }
+                };
+                let core_command = command.map(|c| match c {
+                    crate::automation::SplitPaneCommand::SendText { text, delay_ms } => {
+                        par_term_emu_core_rust::terminal::TriggerSplitCommand::SendText {
+                            text,
+                            delay_ms,
+                        }
+                    }
+                    crate::automation::SplitPaneCommand::InitialCommand { command, args } => {
+                        par_term_emu_core_rust::terminal::TriggerSplitCommand::InitialCommand {
+                            command,
+                            args,
+                        }
+                    }
+                });
+                let core_target = match target {
+                    crate::automation::TriggerSplitTarget::Active => {
+                        par_term_emu_core_rust::terminal::TriggerSplitTarget::Active
+                    }
+                    crate::automation::TriggerSplitTarget::Source => {
+                        par_term_emu_core_rust::terminal::TriggerSplitTarget::Source
+                    }
+                };
+                TriggerAction::SplitPane {
+                    direction: core_direction,
+                    command: core_command,
+                    focus_new_pane,
+                    target: core_target,
+                }
+            }
         }
     }
 }
