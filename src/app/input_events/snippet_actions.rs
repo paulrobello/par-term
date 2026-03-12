@@ -3,7 +3,9 @@
 use crate::app::window_state::WindowState;
 use crate::config::snippets::{CustomActionConfig, normalize_action_prefix_char};
 use winit::event::{ElementState, KeyEvent};
-use winit::keyboard::{Key, NamedKey};
+use winit::keyboard::{Key, KeyCode, NamedKey, PhysicalKey};
+
+const CUSTOM_ACTION_PREFIX_TOAST: &str = "Actions: prefix... (Esc to cancel)";
 
 fn prefix_action_for_char(actions: &[CustomActionConfig], input_char: char) -> Option<String> {
     let normalized_input = normalize_action_prefix_char(input_char);
@@ -15,6 +17,22 @@ fn prefix_action_for_char(actions: &[CustomActionConfig], input_char: char) -> O
 }
 
 impl WindowState {
+    fn show_custom_action_prefix_toast(&mut self) {
+        self.overlay_state.toast_message = Some(CUSTOM_ACTION_PREFIX_TOAST.to_string());
+        self.overlay_state.toast_hide_time = None;
+        self.focus_state.needs_redraw = true;
+        self.request_redraw();
+    }
+
+    fn clear_custom_action_prefix_toast(&mut self) {
+        if self.overlay_state.toast_message.as_deref() == Some(CUSTOM_ACTION_PREFIX_TOAST) {
+            self.overlay_state.toast_message = None;
+            self.overlay_state.toast_hide_time = None;
+            self.focus_state.needs_redraw = true;
+            self.request_redraw();
+        }
+    }
+
     /// Handle the global custom-action prefix key and its single-character follow-up.
     pub(crate) fn handle_custom_action_prefix_key(&mut self, event: &KeyEvent) -> bool {
         if event.state != ElementState::Pressed {
@@ -37,6 +55,11 @@ impl WindowState {
             }
 
             self.custom_action_prefix_state.exit();
+            self.clear_custom_action_prefix_toast();
+
+            if matches!(event.logical_key, Key::Named(NamedKey::Escape)) {
+                return true;
+            }
 
             let Some(input_char) = extract_prefix_action_char(event) else {
                 self.show_toast("Actions: unsupported key");
@@ -75,7 +98,7 @@ impl WindowState {
 
         if matcher.matches_with_physical_preference(prefix_combo, self.config.use_physical_keys) {
             self.custom_action_prefix_state.enter();
-            self.show_toast("Actions: prefix...");
+            self.show_custom_action_prefix_toast();
             return true;
         }
 
@@ -450,17 +473,92 @@ impl WindowState {
 }
 
 fn extract_prefix_action_char(event: &KeyEvent) -> Option<char> {
-    match &event.logical_key {
-        Key::Character(text) => text.chars().next().filter(|ch| !ch.is_whitespace()),
-        _ => None,
-    }
+    event
+        .text
+        .as_ref()
+        .and_then(|text| text.chars().next())
+        .filter(|ch| !ch.is_whitespace())
+        .or_else(|| match &event.logical_key {
+            Key::Character(text) => text.chars().next().filter(|ch| !ch.is_whitespace()),
+            _ => None,
+        })
+        .or(match event.physical_key {
+            PhysicalKey::Code(code) => match code {
+                KeyCode::KeyA => Some('a'),
+                KeyCode::KeyB => Some('b'),
+                KeyCode::KeyC => Some('c'),
+                KeyCode::KeyD => Some('d'),
+                KeyCode::KeyE => Some('e'),
+                KeyCode::KeyF => Some('f'),
+                KeyCode::KeyG => Some('g'),
+                KeyCode::KeyH => Some('h'),
+                KeyCode::KeyI => Some('i'),
+                KeyCode::KeyJ => Some('j'),
+                KeyCode::KeyK => Some('k'),
+                KeyCode::KeyL => Some('l'),
+                KeyCode::KeyM => Some('m'),
+                KeyCode::KeyN => Some('n'),
+                KeyCode::KeyO => Some('o'),
+                KeyCode::KeyP => Some('p'),
+                KeyCode::KeyQ => Some('q'),
+                KeyCode::KeyR => Some('r'),
+                KeyCode::KeyS => Some('s'),
+                KeyCode::KeyT => Some('t'),
+                KeyCode::KeyU => Some('u'),
+                KeyCode::KeyV => Some('v'),
+                KeyCode::KeyW => Some('w'),
+                KeyCode::KeyX => Some('x'),
+                KeyCode::KeyY => Some('y'),
+                KeyCode::KeyZ => Some('z'),
+                KeyCode::Digit0 => Some('0'),
+                KeyCode::Digit1 => Some('1'),
+                KeyCode::Digit2 => Some('2'),
+                KeyCode::Digit3 => Some('3'),
+                KeyCode::Digit4 => Some('4'),
+                KeyCode::Digit5 => Some('5'),
+                KeyCode::Digit6 => Some('6'),
+                KeyCode::Digit7 => Some('7'),
+                KeyCode::Digit8 => Some('8'),
+                KeyCode::Digit9 => Some('9'),
+                KeyCode::Minus => Some('-'),
+                KeyCode::Equal => Some('='),
+                KeyCode::BracketLeft => Some('['),
+                KeyCode::BracketRight => Some(']'),
+                KeyCode::Backslash => Some('\\'),
+                KeyCode::Semicolon => Some(';'),
+                KeyCode::Quote => Some('\''),
+                KeyCode::Backquote => Some('`'),
+                KeyCode::Comma => Some(','),
+                KeyCode::Period => Some('.'),
+                KeyCode::Slash => Some('/'),
+                KeyCode::Space => Some(' '),
+                _ => None,
+            },
+            _ => None,
+        })
+        .filter(|ch| !ch.is_whitespace())
 }
 
 #[cfg(test)]
 mod tests {
-    use super::prefix_action_for_char;
+    use super::{extract_prefix_action_char, prefix_action_for_char};
     use crate::config::snippets::CustomActionConfig;
     use std::collections::HashMap;
+    use winit::event::{ElementState, KeyEvent};
+    use winit::keyboard::{Key, KeyCode, KeyLocation, PhysicalKey};
+
+    fn make_key_event(logical_key: Key, physical_key: PhysicalKey, text: Option<&str>) -> KeyEvent {
+        unsafe {
+            let mut event: KeyEvent = std::mem::zeroed();
+            std::ptr::write(&mut event.physical_key, physical_key);
+            std::ptr::write(&mut event.logical_key, logical_key);
+            std::ptr::write(&mut event.text, text.map(Into::into));
+            std::ptr::write(&mut event.location, KeyLocation::Standard);
+            std::ptr::write(&mut event.state, ElementState::Pressed);
+            std::ptr::write(&mut event.repeat, false);
+            event
+        }
+    }
 
     #[test]
     fn prefix_action_matching_is_case_insensitive_for_letters() {
@@ -502,5 +600,27 @@ mod tests {
             Some("split".to_string())
         );
         assert_eq!(prefix_action_for_char(&actions, '5'), None);
+    }
+
+    #[test]
+    fn extract_prefix_action_char_prefers_event_text() {
+        let event = make_key_event(
+            Key::Named(winit::keyboard::NamedKey::Enter),
+            PhysicalKey::Code(KeyCode::KeyR),
+            Some("r"),
+        );
+
+        assert_eq!(extract_prefix_action_char(&event), Some('r'));
+    }
+
+    #[test]
+    fn extract_prefix_action_char_falls_back_to_physical_key() {
+        let event = make_key_event(
+            Key::Named(winit::keyboard::NamedKey::Enter),
+            PhysicalKey::Code(KeyCode::KeyR),
+            None,
+        );
+
+        assert_eq!(extract_prefix_action_char(&event), Some('r'));
     }
 }
