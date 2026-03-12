@@ -17,6 +17,7 @@ Par Terminal provides an automation system that lets you react to terminal outpu
   - [Run Command](#run-command)
   - [Play Sound](#play-sound)
   - [Send Text](#send-text)
+  - [Split Pane](#split-pane)
 - [Trigger Highlights](#trigger-highlights)
 - [Action Dispatch](#action-dispatch)
 - [Trigger Marks on Scrollbar](#trigger-marks-on-scrollbar)
@@ -130,7 +131,7 @@ Each trigger requires:
 | `name` | string | Yes | -- | Human-readable identifier |
 | `pattern` | string | Yes | -- | Regex pattern to match against terminal output |
 | `enabled` | boolean | No | `true` | Whether the trigger is active |
-| `require_user_action` | boolean | No | `true` | Whether dangerous actions (`RunCommand`, `SendText`) require user interaction to fire |
+| `prompt_before_run` | boolean | No | `true` | Whether dangerous actions (`RunCommand`, `SendText`, `SplitPane`) show a confirmation dialog before firing |
 | `actions` | array | No | `[]` | List of actions to fire on match |
 
 ### Regex Pattern Syntax
@@ -164,9 +165,11 @@ triggers:
 
 ## Trigger Actions
 
-Each trigger can have multiple actions that all fire when the pattern matches. Actions are defined in the trigger's `actions` array. There are eight action types.
+Each trigger can have multiple actions that all fire when the pattern matches. Actions are defined in the trigger's `actions` array. There are nine action types.
 
-> **📝 Note:** Dangerous actions (`RunCommand`, `SendText`) are suppressed when triggered solely by passive terminal output unless the trigger has `require_user_action: false`. Safe actions (`Highlight`, `Notify`, `MarkLine`, `SetVariable`, `PlaySound`, `Prettify`) always fire.
+> **📝 Note:** Dangerous actions (`RunCommand`, `SendText`, `SplitPane`) show an interactive confirmation dialog before executing when `prompt_before_run: true` (the default). The dialog offers three choices: **Allow** (run once), **Always Allow** (run automatically for the rest of the session, cleared on config reload), and **Deny** (discard the pending action). Setting `prompt_before_run: false` allows automatic execution — only the rate-limiter and denylist apply. Safe actions (`Highlight`, `Notify`, `MarkLine`, `SetVariable`, `PlaySound`, `Prettify`) always fire without prompting.
+>
+> **Backward compatibility:** The old field name `require_user_action` is accepted as a YAML alias for `prompt_before_run`. Existing configs that use `require_user_action` continue to work without modification.
 
 ### Highlight
 
@@ -303,6 +306,67 @@ Invokes a prettifier renderer on matched content. This allows triggers to explic
 | `command_filter` | string | No | `null` | Regex to filter by preceding command |
 
 See [Content Prettifier](PRETTIFIER.md) for details on available renderers and detection rules.
+
+### Split Pane
+
+Opens a new terminal pane (horizontal or vertical split) and optionally runs a command in it.
+
+```yaml
+- type: split_pane
+  direction: horizontal
+  target: active
+  focus_new_pane: true
+  command:
+    type: send_text
+    text: "tail -f build.log"
+    delay_ms: 200
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `direction` | `horizontal` \| `vertical` | required | `horizontal` = new pane below, `vertical` = new pane to the right |
+| `target` | `active` \| `source` | `active` | Which pane to split. `source` degrades to `active` until per-pane polling is implemented |
+| `focus_new_pane` | bool | `true` | Whether to move focus to the new pane after splitting |
+| `command` | object \| null | `null` | Optional command to run in the new pane (see below) |
+
+**Command types:**
+
+`send_text` — sends text to the new pane's shell after a short delay:
+
+```yaml
+command:
+  type: send_text
+  text: "tail -f build.log"
+  delay_ms: 200  # default: 200
+```
+
+`initial_command` — launches the pane with a specific command instead of the login shell:
+
+```yaml
+command:
+  type: initial_command
+  command: htop
+  args: []
+```
+
+**Example:**
+
+```yaml
+triggers:
+  - name: "Open build log on error"
+    pattern: "ERROR|FAILED"
+    prompt_before_run: true
+    actions:
+      - type: split_pane
+        direction: horizontal
+        command:
+          type: send_text
+          text: "tail -f build.log"
+        focus_new_pane: true
+        target: active
+```
+
+> **Note:** `split_pane` is considered a dangerous action. When `prompt_before_run: true` (the default), a confirmation dialog appears before the pane is opened. When `target: source`, the pane whose output matched the pattern is split; this currently degrades to splitting the active pane until per-pane source tracking is implemented.
 
 ## Trigger Highlights
 
