@@ -135,7 +135,7 @@ impl SettingsUI {
             temp_trigger_name: String::new(),
             temp_trigger_pattern: String::new(),
             temp_trigger_actions: Vec::new(),
-            temp_trigger_require_user_action: true,
+            temp_trigger_prompt_before_run: true,
             adding_new_trigger: false,
             trigger_pattern_error: None,
             editing_coprocess_index: None,

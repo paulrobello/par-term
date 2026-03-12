@@ -47,15 +47,14 @@ pub(super) fn show_trigger_edit_form(
         if has_dangerous {
             ui.add_space(4.0);
             ui.checkbox(
-                &mut settings.temp_trigger_require_user_action,
-                "Require user action (safe default)",
+                &mut settings.temp_trigger_prompt_before_run,
+                "Prompt before running dangerous actions",
             )
             .on_hover_text(
-                "When checked, RunCommand and SendText actions are blocked when triggered \
-                 by passive terminal output. Uncheck ONLY if you trust all terminal output \
-                 sources — malicious content could exploit pattern matching to run commands.",
+                "When enabled, a confirmation dialog is shown before RunCommand, SendText, \
+                 or SplitPane actions execute. Disable to allow the trigger to run automatically.",
             );
-            if !settings.temp_trigger_require_user_action {
+            if !settings.temp_trigger_prompt_before_run {
                 ui.colored_label(
                     egui::Color32::from_rgb(220, 160, 50),
                     "Warning: Dangerous actions can be triggered by terminal output. \
@@ -162,7 +161,7 @@ fn show_save_cancel(
                 pattern: settings.temp_trigger_pattern.trim().to_string(),
                 enabled: true,
                 actions: settings.temp_trigger_actions.clone(),
-                prompt_before_run: settings.temp_trigger_require_user_action,
+                prompt_before_run: settings.temp_trigger_prompt_before_run,
             };
 
             if let Some(i) = edit_index {

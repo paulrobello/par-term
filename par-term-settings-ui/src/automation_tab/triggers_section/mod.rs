@@ -205,7 +205,7 @@ fn show_triggers_collapsing(
                 settings.temp_trigger_name = trigger.name.clone();
                 settings.temp_trigger_pattern = trigger.pattern.clone();
                 settings.temp_trigger_actions = trigger.actions.clone();
-                settings.temp_trigger_require_user_action = trigger.prompt_before_run;
+                settings.temp_trigger_prompt_before_run = trigger.prompt_before_run;
                 settings.trigger_pattern_error = None;
             }
 
@@ -227,7 +227,7 @@ fn show_triggers_collapsing(
                 settings.temp_trigger_name = String::new();
                 settings.temp_trigger_pattern = String::new();
                 settings.temp_trigger_actions = Vec::new();
-                settings.temp_trigger_require_user_action = true;
+                settings.temp_trigger_prompt_before_run = true;
                 settings.trigger_pattern_error = None;
             }
         },
