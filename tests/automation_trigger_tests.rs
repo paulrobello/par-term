@@ -30,7 +30,7 @@ fn test_trigger_config_yaml_roundtrip() {
                 message: "Found an error".to_string(),
             },
         ],
-        require_user_action: true,
+        prompt_before_run: true,
     };
 
     let yaml = serde_yaml_ng::to_string(&trigger).unwrap();
@@ -280,7 +280,7 @@ fn test_config_with_triggers_and_coprocesses_yaml_roundtrip() {
             bg: None,
             duration_ms: 5000,
         }],
-        require_user_action: true,
+        prompt_before_run: true,
     }];
     config.coprocesses = vec![CoprocessDefConfig {
         name: "logger".to_string(),
@@ -440,7 +440,7 @@ fn test_trigger_with_prettify_action_roundtrip() {
             sub_format: None,
             command_filter: None,
         }],
-        require_user_action: true,
+        prompt_before_run: true,
     };
 
     let yaml = serde_yaml_ng::to_string(&trigger).unwrap();

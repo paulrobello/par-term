@@ -38,7 +38,7 @@ pub(super) fn show_trigger_edit_form(
             ui.colored_label(egui::Color32::RED, err);
         }
 
-        // Security: require_user_action checkbox
+        // Security: prompt_before_run checkbox
         // Only shown when the trigger has dangerous actions (RunCommand, SendText).
         let has_dangerous = settings
             .temp_trigger_actions
@@ -137,6 +137,7 @@ fn action_type_label(action: &TriggerActionConfig) -> &'static str {
         TriggerActionConfig::PlaySound { .. } => "Play Sound",
         TriggerActionConfig::SendText { .. } => "Send Text",
         TriggerActionConfig::Prettify { .. } => "Prettify",
+        TriggerActionConfig::SplitPane { .. } => "Split Pane",
     }
 }
 
@@ -161,7 +162,7 @@ fn show_save_cancel(
                 pattern: settings.temp_trigger_pattern.trim().to_string(),
                 enabled: true,
                 actions: settings.temp_trigger_actions.clone(),
-                require_user_action: settings.temp_trigger_require_user_action,
+                prompt_before_run: settings.temp_trigger_require_user_action,
             };
 
             if let Some(i) = edit_index {

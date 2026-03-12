@@ -16,12 +16,12 @@
 //! controlling terminal output (e.g., `cat malicious_file`) could trigger
 //! arbitrary command execution. To mitigate this:
 //!
-//! 1. **`require_user_action` flag** (default: `true`): When set, dangerous
+//! 1. **`prompt_before_run` flag** (default: `true`): When set, dangerous
 //!    actions (`RunCommand`, `SendText`) are suppressed since all trigger
 //!    matches come from passive terminal output. Users must opt-in to
 //!    output-triggered dangerous actions by setting this to `false`.
 //!
-//! 2. **Command denylist**: Even when `require_user_action` is `false`,
+//! 2. **Command denylist**: Even when `prompt_before_run` is `false`,
 //!    `RunCommand` actions are checked against a denylist of dangerous
 //!    patterns (rm -rf, curl|bash, eval, etc.).
 //!
@@ -72,22 +72,22 @@ fn expand_tilde(path: &str) -> String {
 /// Check if a dangerous action from a trigger should be suppressed.
 ///
 /// Returns `true` if the action should be blocked, `false` if it should proceed.
-/// This checks the `require_user_action` flag for the trigger. Since all trigger
-/// matches come from passive terminal output, `require_user_action: true` means
+/// This checks the `prompt_before_run` flag for the trigger. Since all trigger
+/// matches come from passive terminal output, `prompt_before_run: true` means
 /// the action is always suppressed.
 fn should_suppress_dangerous_action(
     trigger_id: u64,
     action_name: &str,
     trigger_security: &HashMap<u64, bool>,
 ) -> bool {
-    // Look up the require_user_action flag for this trigger.
+    // Look up the prompt_before_run flag for this trigger.
     // Default to true (suppress) for unknown trigger IDs (safe default).
-    let require_user_action = trigger_security.get(&trigger_id).copied().unwrap_or(true);
+    let prompt_before_run = trigger_security.get(&trigger_id).copied().unwrap_or(true);
 
-    if require_user_action {
+    if prompt_before_run {
         log::warn!(
-            "Trigger {} {} BLOCKED: require_user_action=true (output-triggered dangerous actions \
-             are suppressed by default; set require_user_action: false in trigger config to allow)",
+            "Trigger {} {} BLOCKED: prompt_before_run=true (output-triggered dangerous actions \
+             are suppressed by default; set prompt_before_run: false in trigger config to allow)",
             trigger_id,
             action_name,
         );
@@ -104,7 +104,7 @@ impl WindowState {
     /// ActionResult events and executes the appropriate frontend action.
     ///
     /// Security restrictions are enforced for dangerous actions:
-    /// - `require_user_action` flag blocks RunCommand/SendText from output triggers
+    /// - `prompt_before_run` flag blocks RunCommand/SendText from output triggers
     /// - Command denylist blocks obviously dangerous RunCommand patterns
     /// - Rate limiting prevents rapid-fire dangerous action execution
     pub(crate) fn check_trigger_actions(&mut self) {
@@ -158,9 +158,9 @@ impl WindowState {
         }
 
         // Snapshot the trigger security map from the active tab for checking
-        // require_user_action. We clone the reference to avoid borrow issues.
+        // prompt_before_run. We clone the reference to avoid borrow issues.
         let trigger_security = if let Some(t) = self.tab_manager.active_tab() {
-            t.scripting.trigger_security.clone()
+            t.scripting.trigger_prompt_before_run.clone()
         } else {
             return;
         };
@@ -186,7 +186,7 @@ impl WindowState {
                     let command = expand_tilde(&command);
                     let args: Vec<String> = args.iter().map(|a| expand_tilde(a)).collect();
 
-                    // Security check 1: require_user_action flag
+                    // Security check 1: prompt_before_run flag
                     if should_suppress_dangerous_action(trigger_id, "RunCommand", &trigger_security)
                     {
                         continue;
@@ -310,7 +310,7 @@ impl WindowState {
                     text,
                     delay_ms,
                 } => {
-                    // Security check 1: require_user_action flag
+                    // Security check 1: prompt_before_run flag
                     if should_suppress_dangerous_action(trigger_id, "SendText", &trigger_security) {
                         continue;
                     }

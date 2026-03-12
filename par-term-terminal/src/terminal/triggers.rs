@@ -10,9 +10,9 @@ use super::TerminalManager;
 impl TerminalManager {
     /// Sync trigger configs from Config into the core TriggerRegistry.
     ///
-    /// Returns a map of `trigger_id -> require_user_action` for each
-    /// successfully registered trigger, so the frontend can enforce
-    /// security restrictions on dangerous actions.
+    /// Returns a map of `trigger_id -> prompt_before_run` for each
+    /// successfully registered trigger, so the frontend can decide whether
+    /// to show a confirmation dialog for dangerous actions.
     pub fn sync_triggers(
         &self,
         triggers: &[par_term_config::TriggerConfig],
@@ -45,12 +45,12 @@ impl TerminalManager {
                     if !trigger_config.enabled {
                         term.set_trigger_enabled(id, false);
                     }
-                    security_map.insert(id, trigger_config.require_user_action);
+                    security_map.insert(id, trigger_config.prompt_before_run);
                     log::info!(
-                        "Trigger '{}' registered (id={}, require_user_action={})",
+                        "Trigger '{}' registered (id={}, prompt_before_run={})",
                         trigger_config.name,
                         id,
-                        trigger_config.require_user_action,
+                        trigger_config.prompt_before_run,
                     );
                 }
                 Err(e) => {

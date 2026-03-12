@@ -44,30 +44,16 @@ pub struct TriggerConfig {
     pub enabled: bool,
     #[serde(default)]
     pub actions: Vec<TriggerActionConfig>,
-    /// When true (the default and **recommended** setting), dangerous actions
-    /// (`RunCommand`, `SendText`) are suppressed when triggered solely by
-    /// passive terminal output. This prevents malicious terminal output
-    /// (e.g., `cat malicious_file`) from executing arbitrary commands via
-    /// pattern matching.
+    /// When true (default), dangerous actions show a confirmation dialog before executing.
+    /// When false, they execute automatically (with rate-limit + denylist guards still applied).
     ///
-    /// Safe actions (`Highlight`, `Notify`, `MarkLine`, `SetVariable`,
-    /// `PlaySound`, `Prettify`) always fire regardless of this flag.
-    ///
-    /// # SECURITY WARNING
-    ///
-    /// Setting this to `false` allows terminal output to directly trigger
-    /// `RunCommand` and `SendText` actions. When `false`, the only automated
-    /// protection is the command denylist (`check_command_denylist`), which
-    /// uses **substring matching only** and can be bypassed by:
-    ///
-    /// - Shell wrappers: `sh -c "..."`, `bash -c "..."` (partially mitigated)
-    /// - Environment wrappers: `/usr/bin/env <cmd>` (partially mitigated)
-    /// - Encoding/obfuscation, variable indirection, path variations, etc.
-    ///
-    /// **Only set `require_user_action: false` if you fully trust the commands
-    /// configured and the environment in which the trigger will fire.**
-    #[serde(default = "crate::defaults::bool_true")]
-    pub require_user_action: bool,
+    /// Previously named `require_user_action`. The old name is accepted as an alias for
+    /// backward compatibility with existing config files.
+    #[serde(
+        default = "crate::defaults::bool_true",
+        alias = "require_user_action"
+    )]
+    pub prompt_before_run: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -336,9 +322,9 @@ impl TriggerActionConfig {
 /// - Path variations: `/usr/bin/rm -rf /` vs `rm -rf /`
 /// - Argument reordering: `rm / -rf`
 ///
-/// **The recommended security setting is `require_user_action: true` (the default).**
+/// **The recommended security setting is `prompt_before_run: true` (the default).**
 /// The denylist is a secondary defense layer for triggers that opt in to
-/// `require_user_action: false`, not a substitute for user confirmation.
+/// `prompt_before_run: false`, not a substitute for user confirmation.
 const DENIED_COMMAND_PATTERNS: &[&str] = &[
     // Destructive file operations
     "rm -rf /",
@@ -373,7 +359,7 @@ const DENIED_COMMAND_PATTERNS: &[&str] = &[
 ///
 /// Detecting wrappers via substring matching is still bypassable (e.g. through
 /// quoting, encoding, or unusual shell invocations). This is a best-effort
-/// heuristic only. **Use `require_user_action: true` for real protection.**
+/// heuristic only. **Use `prompt_before_run: true` for real protection.**
 const BYPASS_WRAPPER_PATTERNS: &[&str] = &[
     "env ",
     "/usr/bin/env ",
@@ -415,10 +401,10 @@ const PIPE_SHELL_TARGETS: &[&str] = &["bash", "sh", "zsh", "fish", "dash", "ksh"
 /// - **Argument reordering**: `rm / -rf` — patterns that depend on argument order
 /// - **Commands not on the list**: Anything not explicitly enumerated is allowed
 ///
-/// **The recommended and default setting is `require_user_action: true`.**
-/// When `require_user_action` is `false`, the denylist is the only automated
+/// **The recommended and default setting is `prompt_before_run: true`.**
+/// When `prompt_before_run` is `false`, the denylist is the only automated
 /// protection against malicious terminal output triggering dangerous commands.
-/// For any trigger that uses `require_user_action: false`, users should
+/// For any trigger that uses `prompt_before_run: false`, users should
 /// carefully audit the command and args to ensure they cannot be exploited.
 ///
 /// # Why Not Shell Parsing?
@@ -428,7 +414,7 @@ const PIPE_SHELL_TARGETS: &[&str] = &["bash", "sh", "zsh", "fish", "dash", "ksh"
 /// subshells before checking against any policy. Implementing a complete POSIX shell
 /// parser is a significant undertaking and would itself introduce a large attack surface.
 /// This function intentionally does not attempt shell parsing and instead relies on
-/// `require_user_action: true` as the primary security control. The denylist exists
+/// `prompt_before_run: true` as the primary security control. The denylist exists
 /// only as a best-effort secondary guard.
 ///
 /// Returns `Some(pattern)` if denied, `None` if allowed.
@@ -535,31 +521,18 @@ fn check_pipe_to_shell(s: &str, shell: &str) -> bool {
     false
 }
 
-/// Emit a security warning when a trigger is configured with `require_user_action: false`.
+/// Emit a security warning when a trigger is configured with `prompt_before_run: false`.
 ///
-/// This function should be called during config load or validation for any trigger
-/// that has `require_user_action: false` **and** contains dangerous actions
-/// (`RunCommand` or `SendText`). It writes a prominent warning to stderr so that
-/// users are aware of the security implications.
-///
-/// # Security Model
-///
-/// When `require_user_action` is `false`, terminal output pattern matches can
-/// directly execute commands or send text to the PTY. The only remaining automated
-/// protection is the command denylist, which is a best-effort heuristic and can
-/// be bypassed. Users should treat `require_user_action: false` as an advanced
-/// opt-in feature and audit all associated commands carefully.
-///
-/// **Recommendation**: Keep `require_user_action: true` (the default) unless you
-/// have a specific use case that requires output-driven automation and you fully
-/// understand and accept the security trade-offs.
-pub fn warn_require_user_action_false(trigger_name: &str) {
+/// Called during config load for any trigger with `prompt_before_run: false` that contains
+/// dangerous actions. With `prompt_before_run: false`, dangerous actions execute automatically
+/// without user confirmation; only the rate-limiter and denylist provide protection.
+pub fn warn_prompt_before_run_false(trigger_name: &str) {
     eprintln!(
-        "[par-term SECURITY WARNING] Trigger '{trigger_name}' has `require_user_action: false`.\n\
-         This allows terminal output to directly trigger RunCommand/SendText actions.\n\
-         The command denylist provides only limited protection and can be bypassed.\n\
+        "[par-term SECURITY WARNING] Trigger '{trigger_name}' has `prompt_before_run: false`.\n\
+         This allows terminal output to directly trigger RunCommand/SendText/SplitPane actions\n\
+         without confirmation. The command denylist provides only limited protection.\n\
          Only use this setting if you fully trust the configured commands and environment.\n\
-         Recommendation: set `require_user_action: true` (the default) for safety."
+         Recommendation: set `prompt_before_run: true` (the default) to require confirmation."
     );
 }
 

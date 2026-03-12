@@ -18,10 +18,9 @@ pub(crate) struct TabScriptingState {
     pub(crate) coprocess_ids: Vec<Option<par_term_emu_core_rust::coprocess::CoprocessId>>,
     /// Trigger-generated scrollbar marks (from MarkLine actions)
     pub(crate) trigger_marks: Vec<crate::scrollback_metadata::ScrollbackMark>,
-    /// Security metadata: maps trigger_id -> require_user_action flag.
-    /// When true, dangerous actions (RunCommand, SendText) from that trigger
-    /// are suppressed when fired from passive terminal output.
-    pub(crate) trigger_security: std::collections::HashMap<u64, bool>,
+    /// Security metadata: maps trigger_id -> prompt_before_run flag.
+    /// When true, dangerous actions show a confirmation dialog instead of executing automatically.
+    pub(crate) trigger_prompt_before_run: std::collections::HashMap<u64, bool>,
     /// Rate limiter for output-triggered dangerous actions.
     pub(crate) trigger_rate_limiter: par_term_config::TriggerRateLimiter,
 }
@@ -35,7 +34,7 @@ impl Default for TabScriptingState {
             script_forwarders: Vec::new(),
             coprocess_ids: Vec::new(),
             trigger_marks: Vec::new(),
-            trigger_security: std::collections::HashMap::new(),
+            trigger_prompt_before_run: std::collections::HashMap::new(),
             trigger_rate_limiter: par_term_config::TriggerRateLimiter::default(),
         }
     }

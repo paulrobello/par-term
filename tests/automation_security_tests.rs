@@ -1,4 +1,4 @@
-//! Tests for automation security — command denylist, require_user_action field,
+//! Tests for automation security — command denylist, prompt_before_run field,
 //! and the is_dangerous classification for trigger actions.
 
 use par_term::config::automation::PrettifyScope;
@@ -9,8 +9,8 @@ use par_term::config::{TriggerActionConfig, TriggerConfig, check_command_denylis
 // ============================================================================
 
 #[test]
-fn test_require_user_action_defaults_to_true() {
-    // When not specified in YAML, require_user_action defaults to true (safe)
+fn test_prompt_before_run_defaults_to_true() {
+    // When not specified in YAML, prompt_before_run defaults to true (safe)
     let yaml = r#"
 name: test
 pattern: "foo"
@@ -21,13 +21,52 @@ actions:
 "#;
     let trigger: TriggerConfig = serde_yaml_ng::from_str(yaml).unwrap();
     assert!(
-        trigger.require_user_action,
-        "require_user_action should default to true for safety"
+        trigger.prompt_before_run,
+        "prompt_before_run should default to true for safety"
     );
 }
 
 #[test]
-fn test_require_user_action_explicit_false() {
+fn test_prompt_before_run_explicit_false() {
+    let yaml = r#"
+name: test
+pattern: "foo"
+prompt_before_run: false
+actions:
+  - type: run_command
+    command: echo
+    args: ["hello"]
+"#;
+    let trigger: TriggerConfig = serde_yaml_ng::from_str(yaml).unwrap();
+    assert!(
+        !trigger.prompt_before_run,
+        "prompt_before_run should be false when explicitly set"
+    );
+}
+
+#[test]
+fn test_prompt_before_run_roundtrip() {
+    let trigger = TriggerConfig {
+        name: "test".to_string(),
+        pattern: "foo".to_string(),
+        enabled: true,
+        actions: vec![TriggerActionConfig::RunCommand {
+            command: "echo".into(),
+            args: vec!["hello".into()],
+        }],
+        prompt_before_run: false,
+    };
+
+    let yaml = serde_yaml_ng::to_string(&trigger).unwrap();
+    let deserialized: TriggerConfig = serde_yaml_ng::from_str(&yaml).unwrap();
+    assert_eq!(trigger, deserialized);
+    assert!(!deserialized.prompt_before_run);
+}
+
+#[test]
+fn test_backward_compat_require_user_action_alias() {
+    // Verify the old field name `require_user_action` still deserializes
+    // correctly via the serde alias for backward compatibility.
     let yaml = r#"
 name: test
 pattern: "foo"
@@ -39,28 +78,9 @@ actions:
 "#;
     let trigger: TriggerConfig = serde_yaml_ng::from_str(yaml).unwrap();
     assert!(
-        !trigger.require_user_action,
-        "require_user_action should be false when explicitly set"
+        !trigger.prompt_before_run,
+        "require_user_action alias should deserialize to prompt_before_run=false"
     );
-}
-
-#[test]
-fn test_require_user_action_roundtrip() {
-    let trigger = TriggerConfig {
-        name: "test".to_string(),
-        pattern: "foo".to_string(),
-        enabled: true,
-        actions: vec![TriggerActionConfig::RunCommand {
-            command: "echo".into(),
-            args: vec!["hello".into()],
-        }],
-        require_user_action: false,
-    };
-
-    let yaml = serde_yaml_ng::to_string(&trigger).unwrap();
-    let deserialized: TriggerConfig = serde_yaml_ng::from_str(&yaml).unwrap();
-    assert_eq!(trigger, deserialized);
-    assert!(!deserialized.require_user_action);
 }
 
 #[test]
@@ -280,8 +300,8 @@ fn test_denylist_blocks_pipe_to_fish() {
 // ============================================================================
 
 #[test]
-fn test_existing_config_without_require_user_action_gets_safe_default() {
-    // Simulate an existing config YAML that doesn't have require_user_action
+fn test_existing_config_without_prompt_before_run_gets_safe_default() {
+    // Simulate an existing config YAML that doesn't have prompt_before_run
     let yaml = r#"
 name: old-trigger
 pattern: "error"
@@ -293,15 +313,15 @@ actions:
 "#;
     let trigger: TriggerConfig = serde_yaml_ng::from_str(yaml).unwrap();
     assert!(
-        trigger.require_user_action,
-        "Existing configs without require_user_action should get the safe default (true)"
+        trigger.prompt_before_run,
+        "Existing configs without prompt_before_run should get the safe default (true)"
     );
 }
 
 #[test]
 fn test_trigger_with_only_safe_actions_not_affected() {
     // Triggers that only have safe actions (Highlight, Notify, etc.) are not affected
-    // by require_user_action at all
+    // by prompt_before_run at all
     let trigger = TriggerConfig {
         name: "safe-trigger".to_string(),
         pattern: "ERROR".to_string(),
@@ -321,7 +341,7 @@ fn test_trigger_with_only_safe_actions_not_affected() {
                 color: Some([255, 0, 0]),
             },
         ],
-        require_user_action: true,
+        prompt_before_run: true,
     };
 
     // None of these actions are dangerous
