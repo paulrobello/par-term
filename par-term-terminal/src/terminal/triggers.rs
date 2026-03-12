@@ -65,4 +65,18 @@ impl TerminalManager {
 
         security_map
     }
+
+    /// Returns a snapshot of all registered trigger names keyed by trigger ID.
+    ///
+    /// Used by the frontend to display human-readable trigger names in confirmation
+    /// dialogs for dangerous actions (`RunCommand`, `SendText`).
+    pub fn trigger_names(&self) -> std::collections::HashMap<u64, String> {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let term = terminal.lock();
+        term.list_triggers()
+            .iter()
+            .map(|t| (t.id, t.name.clone()))
+            .collect()
+    }
 }

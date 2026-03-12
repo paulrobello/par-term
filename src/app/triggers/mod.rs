@@ -131,6 +131,26 @@ impl WindowState {
             return;
         }
 
+        // Snapshot trigger_prompt_before_run flags so we can check them without
+        // re-borrowing the tab inside the action loop.
+        let trigger_prompt_before_run: std::collections::HashMap<u64, bool> =
+            tab.scripting.trigger_prompt_before_run.clone();
+
+        // Snapshot trigger names for use in dialog descriptions.
+        // Uses the TerminalManager::trigger_names() helper which internally locks
+        // the core terminal synchronously (safe: called from the sync event loop).
+        let trigger_names: std::collections::HashMap<u64, String> =
+            if let Ok(term) = tab.terminal.try_read() {
+                term.trigger_names()
+            } else {
+                std::collections::HashMap::new()
+            };
+
+        // Tracks triggers approved via dialog this frame so we skip the prompt
+        // for subsequent actions from the same trigger in the same batch.
+        let mut approved_this_frame: std::collections::HashSet<u64> =
+            std::collections::HashSet::new();
+
         // Collect MarkLine events for batch deduplication (processed after the loop).
         // Between frames, the core may fire the same trigger multiple times for the
         // same physical line (once per PTY read). Each scan records a different grid
@@ -152,22 +172,39 @@ impl WindowState {
                     let command = expand_tilde(&command);
                     let args: Vec<String> = args.iter().map(|a| expand_tilde(a)).collect();
 
-                    // Security check 1: rate limiting
-                    if let Some(tab) = self.tab_manager.active_tab_mut()
-                        && !tab
-                            .scripting
-                            .trigger_rate_limiter
-                            .check_and_update(trigger_id)
+                    // Security check: prompt_before_run — if the trigger requires confirmation
+                    // and has not been pre-approved this session (always_allow) or this frame,
+                    // enqueue the action for dialog presentation and skip direct execution.
+                    let prompt = trigger_prompt_before_run
+                        .get(&trigger_id)
+                        .copied()
+                        .unwrap_or(true);
+                    if prompt
+                        && !self.trigger_state.always_allow_trigger_ids.contains(&trigger_id)
+                        && !approved_this_frame.contains(&trigger_id)
                     {
-                        log::warn!(
-                            "Trigger {} RunCommand RATE-LIMITED: '{}' (too frequent)",
-                            trigger_id,
-                            command,
+                        let trigger_name = trigger_names
+                            .get(&trigger_id)
+                            .cloned()
+                            .unwrap_or_else(|| format!("trigger #{}", trigger_id));
+                        let description =
+                            format!("Run command: {} {}", command, args.join(" ")).trim().to_string();
+                        self.trigger_state.pending_trigger_actions.push(
+                            crate::app::window_state::PendingTriggerAction {
+                                trigger_id,
+                                trigger_name,
+                                action: ActionResult::RunCommand {
+                                    trigger_id,
+                                    command,
+                                    args,
+                                },
+                                description,
+                            },
                         );
                         continue;
                     }
 
-                    // Security check 3: command denylist
+                    // Security check: command denylist (always applied, even for approved actions)
                     if let Some(denied_pattern) = check_command_denylist(&command, &args) {
                         log::error!(
                             "Trigger {} RunCommand DENIED: '{}' matches denylist pattern '{}'",
@@ -176,6 +213,23 @@ impl WindowState {
                             denied_pattern,
                         );
                         continue;
+                    }
+
+                    // Security check: rate limiting (skip for dialog-approved actions this frame)
+                    if !approved_this_frame.contains(&trigger_id) {
+                        if let Some(tab) = self.tab_manager.active_tab_mut()
+                            && !tab
+                                .scripting
+                                .trigger_rate_limiter
+                                .check_and_update(trigger_id)
+                        {
+                            log::warn!(
+                                "Trigger {} RunCommand RATE-LIMITED: '{}' (too frequent)",
+                                trigger_id,
+                                command,
+                            );
+                            continue;
+                        }
                     }
 
                     log::info!(
@@ -270,19 +324,52 @@ impl WindowState {
                     text,
                     delay_ms,
                 } => {
-                    // Security check 1: rate limiting
-                    if let Some(tab) = self.tab_manager.active_tab_mut()
-                        && !tab
-                            .scripting
-                            .trigger_rate_limiter
-                            .check_and_update(trigger_id)
+                    // Security check: prompt_before_run — if the trigger requires confirmation
+                    // and has not been pre-approved this session (always_allow) or this frame,
+                    // enqueue the action for dialog presentation and skip direct execution.
+                    let prompt = trigger_prompt_before_run
+                        .get(&trigger_id)
+                        .copied()
+                        .unwrap_or(true);
+                    if prompt
+                        && !self.trigger_state.always_allow_trigger_ids.contains(&trigger_id)
+                        && !approved_this_frame.contains(&trigger_id)
                     {
-                        log::warn!(
-                            "Trigger {} SendText RATE-LIMITED: '{}' (too frequent)",
-                            trigger_id,
-                            text,
+                        let trigger_name = trigger_names
+                            .get(&trigger_id)
+                            .cloned()
+                            .unwrap_or_else(|| format!("trigger #{}", trigger_id));
+                        let description = format!("Send text: '{}'", text);
+                        self.trigger_state.pending_trigger_actions.push(
+                            crate::app::window_state::PendingTriggerAction {
+                                trigger_id,
+                                trigger_name,
+                                action: ActionResult::SendText {
+                                    trigger_id,
+                                    text,
+                                    delay_ms,
+                                },
+                                description,
+                            },
                         );
                         continue;
+                    }
+
+                    // Security check: rate limiting (skip for dialog-approved actions this frame)
+                    if !approved_this_frame.contains(&trigger_id) {
+                        if let Some(tab) = self.tab_manager.active_tab_mut()
+                            && !tab
+                                .scripting
+                                .trigger_rate_limiter
+                                .check_and_update(trigger_id)
+                        {
+                            log::warn!(
+                                "Trigger {} SendText RATE-LIMITED: '{}' (too frequent)",
+                                trigger_id,
+                                text,
+                            );
+                            continue;
+                        }
                     }
 
                     log::info!(
@@ -343,9 +430,16 @@ impl WindowState {
                     // since the user explicitly configured them
                     self.deliver_notification_force(&title, &message);
                 }
-                ActionResult::SplitPane { .. } => {
-                    // TODO(Task 9): enqueue into pending_trigger_actions for dialog confirmation
-                    // or immediate execution depending on prompt_before_run flag.
+                ActionResult::SplitPane {
+                    trigger_id,
+                    direction,
+                    command,
+                    focus_new_pane,
+                    target,
+                    source_pane_id: _,
+                } => {
+                    // TODO(Task 10): enqueue for dialog / execute split
+                    let _ = (trigger_id, direction, command, focus_new_pane, target);
                 }
                 ActionResult::MarkLine {
                     trigger_id,
