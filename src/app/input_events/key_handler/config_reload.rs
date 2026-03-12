@@ -113,6 +113,15 @@ impl WindowState {
                     log::info!("Keybindings reloaded");
                 }
 
+                if new_config.custom_action_prefix_key != self.config.custom_action_prefix_key {
+                    self.custom_action_prefix_combo = Self::parse_custom_action_prefix_combo(
+                        &new_config.custom_action_prefix_key,
+                    );
+                    self.custom_action_prefix_state.exit();
+                    self.config.custom_action_prefix_key = new_config.custom_action_prefix_key;
+                    log::info!("Custom action prefix key reloaded");
+                }
+
                 // Request redraw to apply theme changes
                 self.request_redraw();
             }

@@ -418,6 +418,10 @@ pub fn tmux_prefix_key() -> String {
     "C-b".to_string() // Standard tmux prefix (Ctrl+B)
 }
 
+pub fn custom_action_prefix_key() -> String {
+    String::new() // Disabled by default
+}
+
 pub fn tmux_status_bar_refresh_ms() -> u64 {
     1000 // Default: 1 second refresh interval
 }

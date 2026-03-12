@@ -8,7 +8,7 @@ use super::{
 use crate::badge::BadgeState;
 use crate::config::Config;
 use crate::input::InputHandler;
-use crate::keybindings::KeybindingRegistry;
+use crate::keybindings::{KeyCombo, KeybindingRegistry};
 use crate::smart_selection::SmartSelectionCache;
 use crate::status_bar::StatusBarUI;
 use crate::tab::TabManager;
@@ -20,9 +20,30 @@ use tokio::runtime::Runtime;
 use winit::window::Window;
 
 impl WindowState {
+    pub(crate) fn parse_custom_action_prefix_combo(prefix_key: &str) -> Option<KeyCombo> {
+        let trimmed = prefix_key.trim();
+        if trimmed.is_empty() {
+            return None;
+        }
+
+        match crate::keybindings::parser::parse_key_combo(trimmed) {
+            Ok(combo) => Some(combo),
+            Err(error) => {
+                log::warn!(
+                    "Invalid custom action prefix key '{}': {}",
+                    prefix_key,
+                    error
+                );
+                None
+            }
+        }
+    }
+
     /// Create a new window state with the given configuration
     pub fn new(config: Config, runtime: Arc<Runtime>) -> Self {
         let keybinding_registry = KeybindingRegistry::from_config(&config.keybindings);
+        let custom_action_prefix_combo =
+            Self::parse_custom_action_prefix_combo(&config.custom_action_prefix_key);
         let shaders_dir = Config::shaders_dir();
         let tmux_prefix_key = crate::tmux::PrefixKey::parse(&config.tmux_prefix_key);
 
@@ -77,6 +98,8 @@ impl WindowState {
             overlay_state: OverlayState::default(),
 
             keybinding_registry,
+            custom_action_prefix_combo,
+            custom_action_prefix_state: crate::tmux::PrefixState::default(),
 
             smart_selection_cache: SmartSelectionCache::new(),
 

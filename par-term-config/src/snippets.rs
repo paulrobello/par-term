@@ -121,6 +121,17 @@ const fn default_split_pane_delay_ms() -> u64 {
     200
 }
 
+/// Normalize an action prefix character for matching and conflict detection.
+///
+/// ASCII letters are matched case-insensitively; all other characters remain exact.
+pub fn normalize_action_prefix_char(ch: char) -> char {
+    if ch.is_ascii_alphabetic() {
+        ch.to_ascii_lowercase()
+    } else {
+        ch
+    }
+}
+
 /// Default split percent: existing pane keeps 66% of the space.
 const fn default_split_percent() -> u8 {
     66
@@ -185,6 +196,10 @@ pub enum CustomActionConfig {
         #[serde(default)]
         keybinding: Option<String>,
 
+        /// Optional single character triggered after the global custom action prefix key.
+        #[serde(default)]
+        prefix_char: Option<char>,
+
         /// Whether the keybinding is enabled (default: true)
         #[serde(default = "crate::defaults::bool_true")]
         keybinding_enabled: bool,
@@ -213,6 +228,10 @@ pub enum CustomActionConfig {
         #[serde(default)]
         keybinding: Option<String>,
 
+        /// Optional single character triggered after the global custom action prefix key.
+        #[serde(default)]
+        prefix_char: Option<char>,
+
         /// Whether the keybinding is enabled (default: true)
         #[serde(default = "crate::defaults::bool_true")]
         keybinding_enabled: bool,
@@ -236,6 +255,10 @@ pub enum CustomActionConfig {
         /// Optional keyboard shortcut to trigger the action
         #[serde(default)]
         keybinding: Option<String>,
+
+        /// Optional single character triggered after the global custom action prefix key.
+        #[serde(default)]
+        prefix_char: Option<char>,
 
         /// Whether the keybinding is enabled (default: true)
         #[serde(default = "crate::defaults::bool_true")]
@@ -291,6 +314,10 @@ pub enum CustomActionConfig {
         #[serde(default)]
         keybinding: Option<String>,
 
+        /// Optional single character triggered after the global custom action prefix key.
+        #[serde(default)]
+        prefix_char: Option<char>,
+
         /// Whether the keybinding is enabled (default: true)
         #[serde(default = "crate::defaults::bool_true")]
         keybinding_enabled: bool,
@@ -332,6 +359,21 @@ impl CustomActionConfig {
         }
     }
 
+    /// Get the optional prefix character for this action.
+    pub fn prefix_char(&self) -> Option<char> {
+        match self {
+            Self::ShellCommand { prefix_char, .. }
+            | Self::InsertText { prefix_char, .. }
+            | Self::KeySequence { prefix_char, .. }
+            | Self::SplitPane { prefix_char, .. } => *prefix_char,
+        }
+    }
+
+    /// Get the normalized prefix character for this action, if configured.
+    pub fn normalized_prefix_char(&self) -> Option<char> {
+        self.prefix_char().map(normalize_action_prefix_char)
+    }
+
     /// Check if the keybinding is enabled.
     pub fn keybinding_enabled(&self) -> bool {
         match self {
@@ -357,6 +399,28 @@ impl CustomActionConfig {
             | Self::InsertText { keybinding, .. }
             | Self::KeySequence { keybinding, .. }
             | Self::SplitPane { keybinding, .. } => *keybinding = kb,
+        }
+    }
+
+    /// Set the prefix character for this action.
+    pub fn set_prefix_char(&mut self, prefix_char: Option<char>) {
+        match self {
+            Self::ShellCommand {
+                prefix_char: current,
+                ..
+            }
+            | Self::InsertText {
+                prefix_char: current,
+                ..
+            }
+            | Self::KeySequence {
+                prefix_char: current,
+                ..
+            }
+            | Self::SplitPane {
+                prefix_char: current,
+                ..
+            } => *current = prefix_char,
         }
     }
 
@@ -621,6 +685,7 @@ mod tests {
             notify_on_success: false,
             timeout_secs: 30,
             keybinding: None,
+            prefix_char: Some('G'),
             keybinding_enabled: true,
             description: None,
         };
@@ -631,6 +696,8 @@ mod tests {
         assert!(!action.is_insert_text());
         assert!(!action.is_key_sequence());
         assert!(!action.is_split_pane());
+        assert_eq!(action.prefix_char(), Some('G'));
+        assert_eq!(action.normalized_prefix_char(), Some('g'));
     }
 
     #[test]
@@ -645,6 +712,7 @@ mod tests {
             delay_ms: 200,
             split_percent: 66,
             keybinding: Some("Ctrl+Shift+H".to_string()),
+            prefix_char: None,
             keybinding_enabled: true,
             description: None,
         };

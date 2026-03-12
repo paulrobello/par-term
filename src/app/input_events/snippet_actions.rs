@@ -1,8 +1,87 @@
 //! Snippet and custom action execution helpers for WindowState keybindings.
 
 use crate::app::window_state::WindowState;
+use crate::config::snippets::{CustomActionConfig, normalize_action_prefix_char};
+use winit::event::{ElementState, KeyEvent};
+use winit::keyboard::{Key, NamedKey};
+
+fn prefix_action_for_char(actions: &[CustomActionConfig], input_char: char) -> Option<String> {
+    let normalized_input = normalize_action_prefix_char(input_char);
+
+    actions
+        .iter()
+        .find(|action| action.normalized_prefix_char() == Some(normalized_input))
+        .map(|action| action.id().to_string())
+}
 
 impl WindowState {
+    /// Handle the global custom-action prefix key and its single-character follow-up.
+    pub(crate) fn handle_custom_action_prefix_key(&mut self, event: &KeyEvent) -> bool {
+        if event.state != ElementState::Pressed {
+            return false;
+        }
+
+        if self.custom_action_prefix_state.is_active() {
+            let is_modifier_only = matches!(
+                event.logical_key,
+                Key::Named(
+                    NamedKey::Shift
+                        | NamedKey::Control
+                        | NamedKey::Alt
+                        | NamedKey::Super
+                        | NamedKey::Meta
+                )
+            );
+            if is_modifier_only {
+                return false;
+            }
+
+            self.custom_action_prefix_state.exit();
+
+            let Some(input_char) = extract_prefix_action_char(event) else {
+                self.show_toast("Actions: unsupported key");
+                return true;
+            };
+
+            if let Some(action_id) = prefix_action_for_char(&self.config.actions, input_char) {
+                if !self.execute_custom_action(&action_id) {
+                    self.show_toast("Actions: failed");
+                }
+                return true;
+            }
+
+            self.show_toast(format!("Actions: no binding for {}", input_char));
+            return true;
+        }
+
+        let Some(prefix_combo) = self.custom_action_prefix_combo.as_ref() else {
+            return false;
+        };
+
+        if !self
+            .config
+            .actions
+            .iter()
+            .any(|action| action.prefix_char().is_some())
+        {
+            return false;
+        }
+
+        let matcher = crate::keybindings::KeybindingMatcher::from_event_with_remapping(
+            event,
+            &self.input_handler.modifiers,
+            &self.config.modifier_remapping,
+        );
+
+        if matcher.matches_with_physical_preference(prefix_combo, self.config.use_physical_keys) {
+            self.custom_action_prefix_state.enter();
+            self.show_toast("Actions: prefix...");
+            return true;
+        }
+
+        false
+    }
+
     /// Execute a snippet by ID.
     ///
     /// Returns true if the snippet was found and executed, false otherwise.
@@ -82,8 +161,6 @@ impl WindowState {
     ///
     /// Returns true if the action was found and executed, false otherwise.
     pub(crate) fn execute_custom_action(&mut self, action_id: &str) -> bool {
-        use crate::config::snippets::CustomActionConfig;
-
         // Find the action by ID
         let action = match self.config.actions.iter().find(|a| a.id() == action_id) {
             Some(a) => a,
@@ -293,32 +370,30 @@ impl WindowState {
                     self.split_pane_direction(pane_direction, focus, initial_command, percent);
 
                 // For shell-mode commands, send text to the new pane after a delay.
-                if !is_direct {
-                    if let (Some(pane_id), Some(text)) = (new_pane_id, command) {
-                        let text_with_nl = format!("{}\n", text);
-                        if let Some(tab) = self.tab_manager.active_tab()
-                            && let Some(pm) = tab.pane_manager()
-                            && let Some(pane) = pm.get_pane(pane_id)
-                        {
-                            let terminal = std::sync::Arc::clone(&pane.terminal);
-                            std::thread::spawn(move || {
-                                if delay > 0 {
-                                    std::thread::sleep(std::time::Duration::from_millis(delay));
-                                }
-                                // try_write: background thread; on contention skip the write.
-                                // Shell may not be ready — user can retry the keybinding.
-                                if let Ok(term) = terminal.try_write() {
-                                    if let Err(e) = term.write(text_with_nl.as_bytes()) {
-                                        log::error!(
-                                            "SplitPane action '{}' write failed for pane {}: {}",
-                                            title,
-                                            pane_id,
-                                            e
-                                        );
-                                    }
-                                }
-                            });
-                        }
+                if !is_direct && let (Some(pane_id), Some(text)) = (new_pane_id, command) {
+                    let text_with_nl = format!("{}\n", text);
+                    if let Some(tab) = self.tab_manager.active_tab()
+                        && let Some(pm) = tab.pane_manager()
+                        && let Some(pane) = pm.get_pane(pane_id)
+                    {
+                        let terminal = std::sync::Arc::clone(&pane.terminal);
+                        std::thread::spawn(move || {
+                            if delay > 0 {
+                                std::thread::sleep(std::time::Duration::from_millis(delay));
+                            }
+                            // try_write: background thread; on contention skip the write.
+                            // Shell may not be ready — user can retry the keybinding.
+                            if let Ok(term) = terminal.try_write()
+                                && let Err(e) = term.write(text_with_nl.as_bytes())
+                            {
+                                log::error!(
+                                    "SplitPane action '{}' write failed for pane {}: {}",
+                                    title,
+                                    pane_id,
+                                    e
+                                );
+                            }
+                        });
                     }
                 }
 
@@ -371,5 +446,61 @@ impl WindowState {
                 true
             }
         }
+    }
+}
+
+fn extract_prefix_action_char(event: &KeyEvent) -> Option<char> {
+    match &event.logical_key {
+        Key::Character(text) => text.chars().next().filter(|ch| !ch.is_whitespace()),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::prefix_action_for_char;
+    use crate::config::snippets::CustomActionConfig;
+    use std::collections::HashMap;
+
+    #[test]
+    fn prefix_action_matching_is_case_insensitive_for_letters() {
+        let actions = vec![CustomActionConfig::InsertText {
+            id: "git-status".to_string(),
+            title: "Git Status".to_string(),
+            text: "git status".to_string(),
+            variables: HashMap::new(),
+            keybinding: None,
+            prefix_char: Some('G'),
+            keybinding_enabled: true,
+            description: None,
+        }];
+
+        assert_eq!(
+            prefix_action_for_char(&actions, 'g'),
+            Some("git-status".to_string())
+        );
+        assert_eq!(
+            prefix_action_for_char(&actions, 'G'),
+            Some("git-status".to_string())
+        );
+    }
+
+    #[test]
+    fn prefix_action_matching_keeps_symbol_bindings_exact() {
+        let actions = vec![CustomActionConfig::KeySequence {
+            id: "split".to_string(),
+            title: "Split".to_string(),
+            keys: "Ctrl+C".to_string(),
+            keybinding: None,
+            prefix_char: Some('%'),
+            keybinding_enabled: true,
+            description: None,
+        }];
+
+        assert_eq!(
+            prefix_action_for_char(&actions, '%'),
+            Some("split".to_string())
+        );
+        assert_eq!(prefix_action_for_char(&actions, '5'), None);
     }
 }

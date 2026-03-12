@@ -117,7 +117,7 @@ use crate::app::window_state::debug_state::DebugState;
 use crate::badge::BadgeState;
 use crate::config::Config;
 use crate::input::InputHandler;
-use crate::keybindings::KeybindingRegistry;
+use crate::keybindings::{KeyCombo, KeybindingRegistry};
 use crate::renderer::Renderer;
 use crate::smart_selection::SmartSelectionCache;
 use crate::status_bar::StatusBarUI;
@@ -236,6 +236,8 @@ pub struct WindowState {
     // Keybinding & smart selection caches
     // =========================================================================
     pub(crate) keybinding_registry: KeybindingRegistry,
+    pub(crate) custom_action_prefix_combo: Option<KeyCombo>,
+    pub(crate) custom_action_prefix_state: crate::tmux::PrefixState,
     pub(crate) smart_selection_cache: SmartSelectionCache,
 
     // =========================================================================

@@ -33,6 +33,7 @@ fn test_custom_action_shell_command() {
         notify_on_success: false,
         timeout_secs: 30,
         keybinding: None,
+        prefix_char: None,
         keybinding_enabled: true,
         description: None,
     };
@@ -52,6 +53,7 @@ fn test_custom_action_insert_text() {
         text: "echo 'test'".to_string(),
         variables: HashMap::new(),
         keybinding: None,
+        prefix_char: None,
         keybinding_enabled: true,
         description: None,
     };
@@ -69,6 +71,7 @@ fn test_custom_action_key_sequence() {
         title: "Test Action".to_string(),
         keys: "Ctrl+C".to_string(),
         keybinding: None,
+        prefix_char: None,
         keybinding_enabled: true,
         description: None,
     };
@@ -89,6 +92,7 @@ fn test_action_serialization() {
         notify_on_success: true,
         timeout_secs: 30,
         keybinding: Some("Ctrl+Shift+R".to_string()),
+        prefix_char: Some('r'),
         keybinding_enabled: true,
         description: Some("Run tests".to_string()),
     };
@@ -114,6 +118,7 @@ fn test_action_types_serialization_roundtrip() {
             notify_on_success: false,
             timeout_secs: 30,
             keybinding: Some("Ctrl+Shift+S".to_string()),
+            prefix_char: None,
             keybinding_enabled: true,
             description: None,
         },
@@ -123,6 +128,7 @@ fn test_action_types_serialization_roundtrip() {
             text: "hello".to_string(),
             variables: HashMap::new(),
             keybinding: None,
+            prefix_char: None,
             keybinding_enabled: true,
             description: None,
         },
@@ -131,6 +137,7 @@ fn test_action_types_serialization_roundtrip() {
             title: "Keys".to_string(),
             keys: "Ctrl+C".to_string(),
             keybinding: Some("Ctrl+Shift+K".to_string()),
+            prefix_char: None,
             keybinding_enabled: false,
             description: None,
         },
@@ -165,15 +172,20 @@ fn test_action_keybinding_accessors() {
         notify_on_success: false,
         timeout_secs: 30,
         keybinding: None,
+        prefix_char: None,
         keybinding_enabled: true,
         description: None,
     };
 
     assert!(action.keybinding().is_none());
     assert!(action.keybinding_enabled());
+    assert!(action.prefix_char().is_none());
 
     action.set_keybinding(Some("Ctrl+Shift+T".to_string()));
     assert_eq!(action.keybinding(), Some("Ctrl+Shift+T"));
+    action.set_prefix_char(Some('g'));
+    assert_eq!(action.prefix_char(), Some('g'));
+    assert_eq!(action.normalized_prefix_char(), Some('g'));
 
     action.set_keybinding_enabled(false);
     assert!(!action.keybinding_enabled());
@@ -189,6 +201,7 @@ fn test_action_keybinding_serialization_roundtrip() {
         notify_on_success: false,
         timeout_secs: 30,
         keybinding: Some("Ctrl+Shift+T".to_string()),
+        prefix_char: Some('T'),
         keybinding_enabled: true,
         description: None,
     };
@@ -200,6 +213,8 @@ fn test_action_keybinding_serialization_roundtrip() {
     // Deserialize
     let deserialized: CustomActionConfig = serde_yaml_ng::from_str(&yaml).unwrap();
     assert_eq!(deserialized.keybinding(), Some("Ctrl+Shift+T"));
+    assert_eq!(deserialized.prefix_char(), Some('T'));
+    assert_eq!(deserialized.normalized_prefix_char(), Some('t'));
     assert!(deserialized.keybinding_enabled());
 }
 
@@ -221,6 +236,7 @@ fn test_generate_action_keybindings() {
         notify_on_success: false,
         timeout_secs: 30,
         keybinding: Some("Ctrl+Shift+R".to_string()),
+        prefix_char: None,
         keybinding_enabled: true,
         description: None,
     });
@@ -249,6 +265,7 @@ fn test_generate_action_keybindings_no_duplicates() {
         notify_on_success: false,
         timeout_secs: 30,
         keybinding: Some("Ctrl+Shift+R".to_string()),
+        prefix_char: None,
         keybinding_enabled: true,
         description: None,
     });
@@ -278,6 +295,7 @@ fn test_generate_action_keybindings_disabled() {
         notify_on_success: false,
         timeout_secs: 30,
         keybinding: Some("Ctrl+Shift+R".to_string()),
+        prefix_char: None,
         keybinding_enabled: false,
         description: None,
     });
@@ -301,6 +319,7 @@ fn test_generate_action_keybindings_update_existing() {
         notify_on_success: false,
         timeout_secs: 30,
         keybinding: Some("Ctrl+Shift+R".to_string()),
+        prefix_char: None,
         keybinding_enabled: true,
         description: None,
     });
@@ -338,6 +357,7 @@ fn test_generate_action_keybindings_remove_when_cleared() {
         notify_on_success: false,
         timeout_secs: 30,
         keybinding: Some("Ctrl+Shift+R".to_string()),
+        prefix_char: None,
         keybinding_enabled: true,
         description: None,
     });
@@ -379,6 +399,7 @@ fn test_config_persistence_actions() {
         notify_on_success: false,
         timeout_secs: 30,
         keybinding: None,
+        prefix_char: Some('x'),
         keybinding_enabled: true,
         description: None,
     });

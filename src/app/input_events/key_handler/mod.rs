@@ -110,6 +110,16 @@ impl WindowState {
             }
         }
 
+        // Prefix systems must run before normal keybindings so the follow-up key
+        // is consumed by the two-stroke action instead of another shortcut.
+        if self.handle_tmux_prefix_key(&event) {
+            return;
+        }
+
+        if self.handle_custom_action_prefix_key(&event) {
+            return;
+        }
+
         // Check user-defined keybindings first (before hardcoded shortcuts)
         if event.state == ElementState::Pressed
             && let Some(action) = self.keybinding_registry.lookup_with_options(
@@ -331,11 +341,6 @@ impl WindowState {
         {
             tab.selection_mouse_mut().selection = None;
             self.request_redraw();
-        }
-
-        // Handle tmux prefix key mode
-        if self.handle_tmux_prefix_key(&event) {
-            return; // Key was handled by prefix system
         }
 
         // Get terminal modes (if available)

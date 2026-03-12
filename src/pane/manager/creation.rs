@@ -196,7 +196,8 @@ impl PaneManager {
 
         // Find and split the focused pane
         if let Some(root) = self.root.take() {
-            let (new_root, _) = Self::split_node(root, focused_id, direction, Some(new_pane), ratio);
+            let (new_root, _) =
+                Self::split_node(root, focused_id, direction, Some(new_pane), ratio);
             self.root = Some(new_root);
         }
 

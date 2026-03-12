@@ -186,6 +186,10 @@ keybindings:
     action: "split_horizontal"
 ```
 
+Custom actions also support an optional two-stroke trigger. Set `custom_action_prefix_key`
+globally, then assign a single-character `prefix_char` on each action. Press the prefix key,
+then the action character to execute it. See [Snippets](SNIPPETS.md) for the full action format.
+
 ### Available Modifiers
 
 | Modifier | Description |

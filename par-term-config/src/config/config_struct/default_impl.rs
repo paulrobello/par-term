@@ -234,6 +234,7 @@ impl Default for Config {
             shader_configs: HashMap::new(),
             cursor_shader_configs: HashMap::new(),
             keybindings: crate::defaults::keybindings(),
+            custom_action_prefix_key: crate::defaults::custom_action_prefix_key(),
             shader_install_prompt: ShaderInstallPrompt::default(),
             shell_integration_state: InstallPromptState::default(),
             integration_versions: IntegrationVersions::default(),

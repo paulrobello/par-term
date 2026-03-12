@@ -35,6 +35,7 @@ pub fn show(
             "sequence",
             "macro",
             "keybinding",
+            "prefix",
             "execute",
             "run",
             "split",
@@ -64,6 +65,48 @@ fn show_actions_section(
         |ui| {
             ui.label("Custom actions for shell commands, text insertion, or key sequences.");
             ui.add_space(4.0);
+
+            ui.label(egui::RichText::new("Prefix key").strong());
+            ui.horizontal(|ui| {
+                if ui
+                    .text_edit_singleline(&mut settings.config.custom_action_prefix_key)
+                    .changed()
+                {
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+                ui.label(
+                    egui::RichText::new("Press this first, then a per-action prefix char")
+                        .small()
+                        .color(egui::Color32::GRAY),
+                );
+            });
+
+            if !settings.config.custom_action_prefix_key.trim().is_empty() {
+                if let Some(conflict) = settings
+                    .check_keybinding_conflict(&settings.config.custom_action_prefix_key, None)
+                {
+                    ui.label(
+                        egui::RichText::new(format!("⚠️ {}", conflict))
+                            .color(egui::Color32::from_rgb(255, 180, 0))
+                            .small(),
+                    );
+                }
+
+                if settings.config.tmux_enabled
+                    && settings.config.custom_action_prefix_key == settings.config.tmux_prefix_key
+                {
+                    ui.label(
+                        egui::RichText::new(
+                            "⚠️ Matches the tmux prefix key while tmux integration is enabled",
+                        )
+                        .color(egui::Color32::from_rgb(255, 180, 0))
+                        .small(),
+                    );
+                }
+            }
+
+            ui.add_space(8.0);
 
             // Collect mutations to apply after iteration
             let mut delete_index: Option<usize> = None;
@@ -185,6 +228,10 @@ fn show_actions_section(
                 settings.temp_action_title = action.title().to_string();
                 settings.temp_action_keybinding =
                     action.keybinding().unwrap_or_default().to_string();
+                settings.temp_action_prefix_char = action
+                    .prefix_char()
+                    .map(|c| c.to_string())
+                    .unwrap_or_default();
                 match action {
                     CustomActionConfig::ShellCommand {
                         command,
@@ -218,8 +265,7 @@ fn show_actions_section(
                             par_term_config::snippets::ActionSplitDirection::Horizontal => 0,
                             par_term_config::snippets::ActionSplitDirection::Vertical => 1,
                         };
-                        settings.temp_action_split_command =
-                            command.clone().unwrap_or_default();
+                        settings.temp_action_split_command = command.clone().unwrap_or_default();
                         settings.temp_action_split_command_is_direct = *command_is_direct;
                         settings.temp_action_split_focus_new = *focus_new_pane;
                         settings.temp_action_split_delay_ms = *delay_ms;
@@ -245,6 +291,7 @@ fn show_actions_section(
                 settings.temp_action_text = String::new();
                 settings.temp_action_keys = String::new();
                 settings.temp_action_keybinding = String::new();
+                settings.temp_action_prefix_char = String::new();
                 settings.temp_action_split_direction = 0;
                 settings.temp_action_split_command = String::new();
                 settings.temp_action_split_command_is_direct = false;
@@ -273,6 +320,7 @@ fn show_action_edit_form(
             } else {
                 Some(settings.temp_action_keybinding.clone())
             };
+            let prefix_char = settings.temp_action_prefix_char.chars().next();
 
             let action = match settings.temp_action_type {
                 0 => CustomActionConfig::ShellCommand {
@@ -291,6 +339,7 @@ fn show_action_edit_form(
                     notify_on_success: false,
                     timeout_secs: 30, // Default timeout
                     keybinding,
+                    prefix_char,
                     keybinding_enabled: true,
                     description: None,
                 },
@@ -300,6 +349,7 @@ fn show_action_edit_form(
                     text: settings.temp_action_text.clone(),
                     variables: std::collections::HashMap::new(),
                     keybinding,
+                    prefix_char,
                     keybinding_enabled: true,
                     description: None,
                 },
@@ -308,6 +358,7 @@ fn show_action_edit_form(
                     title: settings.temp_action_title.clone(),
                     keys: settings.temp_action_keys.clone(),
                     keybinding,
+                    prefix_char,
                     keybinding_enabled: true,
                     description: None,
                 },
@@ -329,6 +380,7 @@ fn show_action_edit_form(
                     delay_ms: settings.temp_action_split_delay_ms,
                     split_percent: settings.temp_action_split_percent,
                     keybinding,
+                    prefix_char,
                     keybinding_enabled: true,
                     description: None,
                 },
@@ -438,8 +490,40 @@ fn show_action_edit_form(
                 } else {
                     None
                 };
-                if let Some(conflict) = settings
-                    .check_keybinding_conflict(&settings.temp_action_keybinding, exclude_id)
+                if let Some(conflict) =
+                    settings.check_keybinding_conflict(&settings.temp_action_keybinding, exclude_id)
+                {
+                    ui.label(
+                        egui::RichText::new(format!("⚠️ {}", conflict))
+                            .color(egui::Color32::from_rgb(255, 180, 0))
+                            .small(),
+                    );
+                }
+            }
+
+            ui.label("Prefix char:");
+            if ui
+                .text_edit_singleline(&mut settings.temp_action_prefix_char)
+                .changed()
+            {
+                settings.temp_action_prefix_char = settings
+                    .temp_action_prefix_char
+                    .chars()
+                    .find(|ch| !ch.is_whitespace())
+                    .map(|ch| ch.to_string())
+                    .unwrap_or_default();
+                *changes_this_frame = true;
+            }
+
+            if let Some(prefix_char) = settings.temp_action_prefix_char.chars().next() {
+                let exclude_id = if let Some(i) = edit_index {
+                    settings.config.actions.get(i).map(|a| a.id())
+                } else {
+                    None
+                };
+
+                if let Some(conflict) =
+                    settings.check_action_prefix_char_conflict(prefix_char, exclude_id)
                 {
                     ui.label(
                         egui::RichText::new(format!("⚠️ {}", conflict))
@@ -539,10 +623,7 @@ fn show_action_edit_form(
 
                     ui.horizontal(|ui| {
                         if ui
-                            .checkbox(
-                                &mut settings.temp_action_split_focus_new,
-                                "Focus new pane",
-                            )
+                            .checkbox(&mut settings.temp_action_split_focus_new, "Focus new pane")
                             .changed()
                         {
                             *changes_this_frame = true;
@@ -572,8 +653,7 @@ fn show_action_edit_form(
                     {
                         ui.horizontal(|ui| {
                             ui.label("Command delay (ms):");
-                            let mut delay_str =
-                                settings.temp_action_split_delay_ms.to_string();
+                            let mut delay_str = settings.temp_action_split_delay_ms.to_string();
                             if ui.text_edit_singleline(&mut delay_str).changed() {
                                 if let Ok(v) = delay_str.parse::<u64>() {
                                     settings.temp_action_split_delay_ms = v;

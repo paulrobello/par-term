@@ -1293,6 +1293,12 @@ pub struct Config {
     #[serde(default = "crate::defaults::keybindings")]
     pub keybindings: Vec<KeyBinding>,
 
+    /// Optional global prefix key for custom actions using per-action prefix chars.
+    /// Uses the same combo format as normal keybindings (for example "Ctrl+B").
+    /// Leave empty to disable prefix-mode custom actions.
+    #[serde(default = "crate::defaults::custom_action_prefix_key")]
+    pub custom_action_prefix_key: String,
+
     // ========================================================================
     // Shader Installation
     // ========================================================================

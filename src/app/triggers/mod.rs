@@ -558,8 +558,12 @@ impl WindowState {
                         focus_new_pane
                     );
 
-                    let pct = trigger_split_percent.get(&trigger_id).copied().unwrap_or(66);
-                    let new_pane_id = self.split_pane_direction(pane_direction, focus_new_pane, None, pct);
+                    let pct = trigger_split_percent
+                        .get(&trigger_id)
+                        .copied()
+                        .unwrap_or(66);
+                    let new_pane_id =
+                        self.split_pane_direction(pane_direction, focus_new_pane, None, pct);
 
                     // After split, optionally send a command to the new pane.
                     if let (Some(pane_id), Some(cmd)) = (new_pane_id, command) {

@@ -53,6 +53,12 @@ impl WindowManager {
                 );
             }
 
+            window_state.custom_action_prefix_combo =
+                crate::app::window_state::WindowState::parse_custom_action_prefix_combo(
+                    &config.custom_action_prefix_key,
+                );
+            window_state.custom_action_prefix_state.exit();
+
             // Sync AI Inspector chat font size to the panel
             if changes.ai_inspector_chat_font_size {
                 window_state.overlay_ui.ai_inspector.chat_font_size =

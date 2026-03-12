@@ -151,6 +151,14 @@ Snippets can be organized into folders for better management:
 
 Custom actions allow you to execute shell commands, insert text, simulate key sequences, or split a pane and run a command in it — all via keyboard shortcuts.
 
+Custom actions can also use a two-stroke prefix trigger:
+
+- Set a global **Prefix key** in Settings -> **Snippets & Actions** -> **Custom Actions** (for example `Ctrl+B`)
+- Give an action a single-character **Prefix char** (for example `g` or `%`)
+- Press the prefix key, then the action's prefix char to run it
+
+This works alongside the existing per-action keybinding, so an action can have either trigger style or both.
+
 ### Action Types
 
 par-term supports four types of custom actions:
@@ -261,6 +269,7 @@ Split percent: 33%
 4. Fill in the action details:
    - **Title**: A human-readable name (e.g., "Run Tests")
    - **Type**: Select from Shell Command, Insert Text, Key Sequence, or Split Pane
+   - **Prefix char** (optional): Single character used after the global custom action prefix key
    - **Keybinding** (optional): Keyboard shortcut to trigger the action
      - Click the **🎤 Record** button and press the desired key combination
      - Or type it manually (e.g., `Ctrl+Shift+T`)
@@ -277,6 +286,12 @@ Actions are triggered via keyboard shortcuts. You can assign keybindings in two 
 3. Click the **🎤 Record** button in the Keybinding field
 4. Press the desired key combination
 5. Save the action
+
+**Via Prefix Key:**
+1. Open Settings -> **Snippets & Actions** -> **Custom Actions**
+2. Set the section-level **Prefix key** once (for example `Ctrl+B`)
+3. Give one or more actions a **Prefix char**
+4. Press the prefix key, then the action character to execute it
 
 **Via Keybindings List:**
 1. Open Settings → **Input** tab

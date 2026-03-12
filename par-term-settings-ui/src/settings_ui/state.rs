@@ -203,6 +203,7 @@ impl SettingsUI {
             temp_action_text: String::new(),
             temp_action_keys: String::new(),
             temp_action_keybinding: String::new(),
+            temp_action_prefix_char: String::new(),
             temp_action_split_direction: 0,
             temp_action_split_command: String::new(),
             temp_action_split_focus_new: true,

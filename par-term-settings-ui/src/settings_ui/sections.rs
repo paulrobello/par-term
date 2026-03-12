@@ -3,6 +3,7 @@
 //! Contains: show_settings_sections(), show_tab_content(), check_keybinding_conflict().
 
 use crate::sidebar::SettingsTab;
+use par_term_config::snippets::normalize_action_prefix_char;
 
 use super::SettingsUI;
 
@@ -147,6 +148,27 @@ impl SettingsUI {
                     continue;
                 }
                 return Some(format!("Already bound to snippet: {}", snippet.title));
+            }
+        }
+
+        None
+    }
+
+    /// Check whether a custom action prefix character conflicts with another action.
+    pub fn check_action_prefix_char_conflict(
+        &self,
+        prefix_char: char,
+        exclude_id: Option<&str>,
+    ) -> Option<String> {
+        let normalized_prefix_char = normalize_action_prefix_char(prefix_char);
+
+        for action in &self.config.actions {
+            if exclude_id == Some(action.id()) {
+                continue;
+            }
+
+            if action.normalized_prefix_char() == Some(normalized_prefix_char) {
+                return Some(format!("Already used by action: {}", action.title()));
             }
         }
 

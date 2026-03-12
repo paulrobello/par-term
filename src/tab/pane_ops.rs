@@ -10,6 +10,13 @@ use crate::tab::Tab;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 
+struct SplitRequest {
+    focus_new: bool,
+    dpi_scale: f32,
+    initial_command: Option<(String, Vec<String>)>,
+    split_percent: u8,
+}
+
 impl Tab {
     /// Check if this tab has multiple panes (split)
     pub fn has_multiple_panes(&self) -> bool {
@@ -43,12 +50,14 @@ impl Tab {
     ) -> anyhow::Result<Option<crate::pane::PaneId>> {
         self.split(
             SplitDirection::Horizontal,
-            focus_new,
             config,
             runtime,
-            dpi_scale,
-            initial_command,
-            split_percent,
+            SplitRequest {
+                focus_new,
+                dpi_scale,
+                initial_command,
+                split_percent,
+            },
         )
     }
 
@@ -69,12 +78,14 @@ impl Tab {
     ) -> anyhow::Result<Option<crate::pane::PaneId>> {
         self.split(
             SplitDirection::Vertical,
-            focus_new,
             config,
             runtime,
-            dpi_scale,
-            initial_command,
-            split_percent,
+            SplitRequest {
+                focus_new,
+                dpi_scale,
+                initial_command,
+                split_percent,
+            },
         )
     }
 
@@ -85,12 +96,9 @@ impl Tab {
     fn split(
         &mut self,
         direction: SplitDirection,
-        focus_new: bool,
         config: &Config,
         runtime: Arc<Runtime>,
-        dpi_scale: f32,
-        initial_command: Option<(String, Vec<String>)>,
-        split_percent: u8,
+        request: SplitRequest,
     ) -> anyhow::Result<Option<crate::pane::PaneId>> {
         // Check max panes limit
         if config.max_panes > 0 && self.pane_count() >= config.max_panes {
@@ -113,8 +121,8 @@ impl Tab {
             if self.pane_manager.is_none() {
                 let mut pm = PaneManager::new();
                 // Scale from logical pixels (config) to physical pixels for layout
-                pm.set_divider_width(config.pane_divider_width.unwrap_or(2.0) * dpi_scale);
-                pm.set_divider_hit_width(config.pane_divider_hit_width * dpi_scale);
+                pm.set_divider_width(config.pane_divider_width.unwrap_or(2.0) * request.dpi_scale);
+                pm.set_divider_hit_width(config.pane_divider_hit_width * request.dpi_scale);
                 self.pane_manager = Some(pm);
             }
 
@@ -136,8 +144,15 @@ impl Tab {
 
         // Perform the split
         if let Some(ref mut pm) = self.pane_manager {
-            let ratio = (split_percent.clamp(10, 90) as f32) / 100.0;
-            let new_pane_id = pm.split(direction, focus_new, config, Arc::clone(&runtime), initial_command, ratio)?;
+            let ratio = (request.split_percent.clamp(10, 90) as f32) / 100.0;
+            let new_pane_id = pm.split(
+                direction,
+                request.focus_new,
+                config,
+                Arc::clone(&runtime),
+                request.initial_command,
+                ratio,
+            )?;
             if let Some(id) = new_pane_id {
                 log::info!("Split tab {} {:?}, new pane {}", self.id, direction, id);
             }

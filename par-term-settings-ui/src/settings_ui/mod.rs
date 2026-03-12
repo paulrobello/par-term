@@ -347,6 +347,8 @@ pub struct SettingsUI {
     pub temp_action_keys: String,
     /// Temporary action keybinding for edit form
     pub temp_action_keybinding: String,
+    /// Temporary single-character suffix used after the global custom action prefix key
+    pub temp_action_prefix_char: String,
     /// Split direction index for SplitPane type (0=Horizontal, 1=Vertical)
     pub temp_action_split_direction: usize,
     /// Optional command text for SplitPane type (empty = no command)
