@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`split_pane` trigger action** — triggers can now open a new horizontal or vertical pane and optionally run a command in it when a regex pattern matches terminal output. Supports `send_text` and `initial_command` sub-types for the post-split command, and a `target` field (`active` or `source`) for future per-pane source tracking.
+- **`prompt_before_run` confirmation dialog** — dangerous trigger actions (`RunCommand`, `SendText`, `SplitPane`) now show an interactive modal dialog before executing. The dialog offers three choices: **Allow Once** (run this one time), **Always Allow** (auto-approve for the rest of the session), and **Deny** (discard). Setting `prompt_before_run: false` bypasses the dialog; the rate-limiter and command denylist still apply.
+- Updated `par-term-emu-core-rust` dependency to v0.41.0 (adds `TriggerAction::SplitPane` / `ActionResult::SplitPane`).
+
+### Changed
+- **`require_user_action` renamed to `prompt_before_run`** on trigger definitions. The old name is accepted as a YAML alias — existing config files continue to work without modification.
+
 ### Fixed
 - `PageUp`/`PageDown` are now forwarded to terminal applications (e.g., `joe`, `less`, `vim`) as `\x1b[5~`/`\x1b[6~`; scrollback navigation now requires `Shift+PageUp`/`Shift+PageDown`, consistent with `Shift+Home`/`Shift+End`.
 - Middle-click paste in tmux now focuses the clicked pane before pasting — a synthetic left-click press/release is sent at the cursor position when mouse tracking is active, matching iTerm2 behaviour.
