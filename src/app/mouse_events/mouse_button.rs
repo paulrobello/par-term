@@ -81,13 +81,49 @@ impl WindowState {
                     {
                         let text = crate::paste_transform::sanitize_paste_content(&text);
                         let terminal_clone = Arc::clone(&tab.terminal);
+
+                        // Get click cell coordinates to send a focus-click to tmux
+                        // (or any other app with mouse tracking enabled).  We encode
+                        // a synthetic left-press + left-release at the click position
+                        // so tmux moves focus to the clicked pane before the paste
+                        // text arrives — matching iTerm2's behaviour.
+                        let click_cell = if let Some(ref pm) = tab.pane_manager
+                            && let Some(focused_pane) = pm.focused_pane()
+                        {
+                            self.pixel_to_pane_cell(
+                                mouse_position.0,
+                                mouse_position.1,
+                                &focused_pane.bounds,
+                            )
+                        } else {
+                            self.pixel_to_cell(mouse_position.0, mouse_position.1)
+                        };
+
                         self.runtime.spawn(async move {
                             let term = terminal_clone.write().await;
+
+                            // If mouse tracking is active (e.g., tmux with mouse on),
+                            // send a left-click press then release at the cursor
+                            // position to focus the pane before the paste lands.
+                            if term.is_mouse_tracking_enabled() {
+                                if let Some((col, row)) = click_cell {
+                                    let press = term.encode_mouse_event(0, col, row, true, 0);
+                                    let release = term.encode_mouse_event(0, col, row, false, 0);
+                                    if !press.is_empty() {
+                                        let _ = term.write(&press);
+                                    }
+                                    if !release.is_empty() {
+                                        let _ = term.write(&release);
+                                    }
+                                }
+                            }
+
                             let _ = term.paste(&text);
                         });
                     }
-                    // Don't forward press/release to mouse tracking: the middle button is
-                    // reserved for paste when this option is enabled.
+                    // Don't forward the middle button press/release itself to mouse
+                    // tracking: the button is reserved for paste when this option is
+                    // enabled (sending it would also trigger tmux's own paste-buffer).
                 } else {
                     // Paste disabled — forward to terminal if mouse tracking is active.
                     self.try_send_mouse_event(1, state == ElementState::Pressed);

@@ -40,8 +40,8 @@ Complete reference for all par-term keyboard shortcuts.
 
 | Shortcut | Action |
 |----------|--------|
-| `PageUp` | Scroll up one page |
-| `PageDown` | Scroll down one page |
+| `Shift + PageUp` | Scroll up one page |
+| `Shift + PageDown` | Scroll down one page |
 | `Shift + Home` | Jump to top of scrollback |
 | `Shift + End` | Jump to bottom |
 | `Mouse Wheel` | Scroll up/down |

@@ -23,13 +23,13 @@ impl WindowState {
                 self.scroll_to_next_mark();
                 true
             }
-            Key::Named(NamedKey::PageUp) => {
-                // Scroll up one page
+            Key::Named(NamedKey::PageUp) if shift => {
+                // Shift+PageUp: Scroll up one page in scrollback
                 self.scroll_up_page();
                 true
             }
-            Key::Named(NamedKey::PageDown) => {
-                // Scroll down one page
+            Key::Named(NamedKey::PageDown) if shift => {
+                // Shift+PageDown: Scroll down one page in scrollback
                 self.scroll_down_page();
                 true
             }

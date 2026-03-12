@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- `PageUp`/`PageDown` are now forwarded to terminal applications (e.g., `joe`, `less`, `vim`) as `\x1b[5~`/`\x1b[6~`; scrollback navigation now requires `Shift+PageUp`/`Shift+PageDown`, consistent with `Shift+Home`/`Shift+End`.
+- Middle-click paste in tmux now focuses the clicked pane before pasting — a synthetic left-click press/release is sent at the cursor position when mouse tracking is active, matching iTerm2 behaviour.
+
 ---
 
 ## [0.26.0] - 2026-03-11
