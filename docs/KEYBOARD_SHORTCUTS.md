@@ -188,7 +188,8 @@ keybindings:
 
 Custom actions also support an optional two-stroke trigger. Set `custom_action_prefix_key`
 globally, then assign a single-character `prefix_char` on each action. Press the prefix key,
-then the action character to execute it. See [Snippets](SNIPPETS.md) for the full action format.
+release it, then press the action character to execute it. While prefix mode is armed, a toast
+remains visible; press `Esc` to cancel it. See [Snippets](SNIPPETS.md) for the full action format.
 
 ### Available Modifiers
 
