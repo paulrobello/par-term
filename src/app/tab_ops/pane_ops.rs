@@ -5,15 +5,15 @@ use std::sync::Arc;
 use super::super::window_state::WindowState;
 
 impl WindowState {
-    /// Split the current pane horizontally (panes stacked top/bottom)
-    pub fn split_pane_horizontal(&mut self) {
-        // In tmux mode, send split command to tmux instead
-        if self.is_tmux_connected() && self.split_pane_via_tmux(false) {
-            crate::debug_info!("TMUX", "Sent horizontal split command to tmux");
-            return;
-        }
-        // Fall through to local split if tmux command failed or not connected
-
+    /// Shared implementation for trigger- and keyboard-initiated pane splits.
+    ///
+    /// Handles renderer bounds query, tmux delegation, and the split call.
+    /// Returns the new pane ID on success, None on failure.
+    pub(crate) fn split_pane_direction(
+        &mut self,
+        direction: crate::pane::SplitDirection,
+        focus_new: bool,
+    ) -> Option<crate::pane::PaneId> {
         // Calculate status bar height for proper content area
         let is_tmux_connected = self.is_tmux_connected();
         let status_bar_height =
@@ -40,56 +40,79 @@ impl WindowState {
 
         let dpi_scale = bounds_info.map(|b| b.5).unwrap_or(1.0);
 
-        if let Some(tab) = self.tab_manager.active_tab_mut() {
-            // Set pane bounds before split if we have renderer info
-            if let Some((size, padding, content_offset_y, cell_width, cell_height, scale)) =
-                bounds_info
-            {
-                // After split there will be multiple panes, so use 0 padding if configured
-                let effective_padding = if self.config.hide_window_padding_on_split {
-                    0.0
-                } else {
-                    padding
-                };
-                // Scale status_bar_height from logical to physical pixels
-                let physical_status_bar_height =
-                    (status_bar_height + custom_status_bar_height) * scale;
-                let content_width = size.width as f32 - effective_padding * 2.0;
-                let content_height = size.height as f32
-                    - content_offset_y
-                    - effective_padding
-                    - physical_status_bar_height;
-                let bounds = crate::pane::PaneBounds::new(
-                    effective_padding,
-                    content_offset_y,
-                    content_width,
-                    content_height,
-                );
-                tab.set_pane_bounds(bounds, cell_width, cell_height);
-            }
+        let tab = self.tab_manager.active_tab_mut()?;
 
-            match tab.split_horizontal(&self.config, Arc::clone(&self.runtime), dpi_scale) {
-                Ok(Some(pane_id)) => {
-                    log::info!("Split pane horizontally, new pane {}", pane_id);
-                    // Clear renderer cells to remove stale single-pane data
-                    if let Some(renderer) = &mut self.renderer {
-                        renderer.clear_all_cells();
-                    }
-                    // Invalidate tab cache
+        // Set pane bounds before split if we have renderer info
+        if let Some((size, padding, content_offset_y, cell_width, cell_height, scale)) =
+            bounds_info
+        {
+            // After split there will be multiple panes, so use 0 padding if configured
+            let effective_padding = if self.config.hide_window_padding_on_split {
+                0.0
+            } else {
+                padding
+            };
+            // Scale status_bar_height from logical to physical pixels
+            let physical_status_bar_height =
+                (status_bar_height + custom_status_bar_height) * scale;
+            let content_width = size.width as f32 - effective_padding * 2.0;
+            let content_height = size.height as f32
+                - content_offset_y
+                - effective_padding
+                - physical_status_bar_height;
+            let bounds = crate::pane::PaneBounds::new(
+                effective_padding,
+                content_offset_y,
+                content_width,
+                content_height,
+            );
+            tab.set_pane_bounds(bounds, cell_width, cell_height);
+        }
+
+        let result = match direction {
+            crate::pane::SplitDirection::Horizontal => {
+                tab.split_horizontal(focus_new, &self.config, Arc::clone(&self.runtime), dpi_scale)
+            }
+            crate::pane::SplitDirection::Vertical => {
+                tab.split_vertical(focus_new, &self.config, Arc::clone(&self.runtime), dpi_scale)
+            }
+        };
+
+        match result {
+            Ok(Some(pane_id)) => {
+                log::info!("Split pane {:?}, new pane {}", direction, pane_id);
+                // Clear renderer cells to remove stale single-pane data
+                if let Some(renderer) = &mut self.renderer {
+                    renderer.clear_all_cells();
+                }
+                // Invalidate tab cache — must re-borrow since we moved tab above
+                if let Some(tab) = self.tab_manager.active_tab_mut() {
                     tab.active_cache_mut().cells = None;
-                    self.focus_state.needs_redraw = true;
-                    self.request_redraw();
                 }
-                Ok(None) => {
-                    log::info!(
-                        "Horizontal split not yet functional (renderer integration pending)"
-                    );
-                }
-                Err(e) => {
-                    log::error!("Failed to split pane horizontally: {}", e);
-                }
+                self.focus_state.needs_redraw = true;
+                self.request_redraw();
+                Some(pane_id)
+            }
+            Ok(None) => {
+                log::info!("{:?} split not yet functional (renderer integration pending)", direction);
+                None
+            }
+            Err(e) => {
+                log::error!("Failed to split pane {:?}: {}", direction, e);
+                None
             }
         }
+    }
+
+    /// Split the current pane horizontally (panes stacked top/bottom)
+    pub fn split_pane_horizontal(&mut self) {
+        // In tmux mode, send split command to tmux instead
+        if self.is_tmux_connected() && self.split_pane_via_tmux(false) {
+            crate::debug_info!("TMUX", "Sent horizontal split command to tmux");
+            return;
+        }
+        // Fall through to local split if tmux command failed or not connected
+        self.split_pane_direction(crate::pane::SplitDirection::Horizontal, true);
     }
 
     /// Split the current pane vertically (panes side by side)
@@ -100,81 +123,7 @@ impl WindowState {
             return;
         }
         // Fall through to local split if tmux command failed or not connected
-
-        // Calculate status bar height for proper content area
-        let is_tmux_connected = self.is_tmux_connected();
-        let status_bar_height =
-            crate::tmux_status_bar_ui::TmuxStatusBarUI::height(&self.config, is_tmux_connected);
-        let custom_status_bar_height = self.status_bar_ui.height(&self.config, self.is_fullscreen);
-
-        // Get bounds info from renderer for proper pane sizing
-        let bounds_info = self.renderer.as_ref().map(|r| {
-            let size = r.size();
-            let padding = r.window_padding();
-            let content_offset_y = r.content_offset_y();
-            let cell_width = r.cell_width();
-            let cell_height = r.cell_height();
-            let scale = r.scale_factor();
-            (
-                size,
-                padding,
-                content_offset_y,
-                cell_width,
-                cell_height,
-                scale,
-            )
-        });
-
-        let dpi_scale = bounds_info.map(|b| b.5).unwrap_or(1.0);
-
-        if let Some(tab) = self.tab_manager.active_tab_mut() {
-            // Set pane bounds before split if we have renderer info
-            if let Some((size, padding, content_offset_y, cell_width, cell_height, scale)) =
-                bounds_info
-            {
-                // After split there will be multiple panes, so use 0 padding if configured
-                let effective_padding = if self.config.hide_window_padding_on_split {
-                    0.0
-                } else {
-                    padding
-                };
-                // Scale status_bar_height from logical to physical pixels
-                let physical_status_bar_height =
-                    (status_bar_height + custom_status_bar_height) * scale;
-                let content_width = size.width as f32 - effective_padding * 2.0;
-                let content_height = size.height as f32
-                    - content_offset_y
-                    - effective_padding
-                    - physical_status_bar_height;
-                let bounds = crate::pane::PaneBounds::new(
-                    effective_padding,
-                    content_offset_y,
-                    content_width,
-                    content_height,
-                );
-                tab.set_pane_bounds(bounds, cell_width, cell_height);
-            }
-
-            match tab.split_vertical(&self.config, Arc::clone(&self.runtime), dpi_scale) {
-                Ok(Some(pane_id)) => {
-                    log::info!("Split pane vertically, new pane {}", pane_id);
-                    // Clear renderer cells to remove stale single-pane data
-                    if let Some(renderer) = &mut self.renderer {
-                        renderer.clear_all_cells();
-                    }
-                    // Invalidate tab cache
-                    tab.active_cache_mut().cells = None;
-                    self.focus_state.needs_redraw = true;
-                    self.request_redraw();
-                }
-                Ok(None) => {
-                    log::info!("Vertical split not yet functional (renderer integration pending)");
-                }
-                Err(e) => {
-                    log::error!("Failed to split pane vertically: {}", e);
-                }
-            }
-        }
+        self.split_pane_direction(crate::pane::SplitDirection::Vertical, true);
     }
 
     /// Close the focused pane in the current tab

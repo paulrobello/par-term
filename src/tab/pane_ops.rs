@@ -30,33 +30,39 @@ impl Tab {
     ///
     /// Returns the new pane ID if successful.
     /// `dpi_scale` converts logical pixel config values to physical pixels.
+    /// `focus_new` controls whether the new pane receives focus after splitting.
     pub fn split_horizontal(
         &mut self,
+        focus_new: bool,
         config: &Config,
         runtime: Arc<Runtime>,
         dpi_scale: f32,
     ) -> anyhow::Result<Option<crate::pane::PaneId>> {
-        self.split(SplitDirection::Horizontal, config, runtime, dpi_scale)
+        self.split(SplitDirection::Horizontal, focus_new, config, runtime, dpi_scale)
     }
 
     /// Split the current pane vertically (panes side by side)
     ///
     /// Returns the new pane ID if successful.
     /// `dpi_scale` converts logical pixel config values to physical pixels.
+    /// `focus_new` controls whether the new pane receives focus after splitting.
     pub fn split_vertical(
         &mut self,
+        focus_new: bool,
         config: &Config,
         runtime: Arc<Runtime>,
         dpi_scale: f32,
     ) -> anyhow::Result<Option<crate::pane::PaneId>> {
-        self.split(SplitDirection::Vertical, config, runtime, dpi_scale)
+        self.split(SplitDirection::Vertical, focus_new, config, runtime, dpi_scale)
     }
 
     /// Split the focused pane in the given direction.
     /// `dpi_scale` is used to convert logical pixel config values to physical pixels.
+    /// `focus_new` controls whether the new pane receives focus after splitting.
     fn split(
         &mut self,
         direction: SplitDirection,
+        focus_new: bool,
         config: &Config,
         runtime: Arc<Runtime>,
         dpi_scale: f32,
@@ -105,7 +111,7 @@ impl Tab {
 
         // Perform the split
         if let Some(ref mut pm) = self.pane_manager {
-            let new_pane_id = pm.split(direction, config, Arc::clone(&runtime))?;
+            let new_pane_id = pm.split(direction, focus_new, config, Arc::clone(&runtime))?;
             if let Some(id) = new_pane_id {
                 log::info!("Split tab {} {:?}, new pane {}", self.id, direction, id);
             }

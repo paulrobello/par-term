@@ -127,6 +127,7 @@ impl PaneManager {
     pub fn split(
         &mut self,
         direction: SplitDirection,
+        focus_new: bool,
         config: &Config,
         runtime: Arc<Runtime>,
     ) -> Result<Option<PaneId>> {
@@ -192,8 +193,10 @@ impl PaneManager {
         // Recalculate bounds
         self.recalculate_bounds();
 
-        // Focus the new pane
-        self.focused_pane_id = Some(new_id);
+        // Focus the new pane only if requested
+        if focus_new {
+            self.focused_pane_id = Some(new_id);
+        }
 
         crate::debug_info!(
             "PANE_SPLIT",
