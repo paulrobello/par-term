@@ -17,9 +17,10 @@
 //! arbitrary command execution. To mitigate this:
 //!
 //! 1. **`prompt_before_run` flag** (default: `true`): When set, dangerous
-//!    actions (`RunCommand`, `SendText`) are suppressed since all trigger
-//!    matches come from passive terminal output. Users must opt-in to
-//!    output-triggered dangerous actions by setting this to `false`.
+//!    actions (`RunCommand`, `SendText`) are queued in `TriggerState::pending_trigger_actions`
+//!    and presented to the user via a confirmation dialog before execution. Users must
+//!    explicitly approve (once or always) each action. Setting `prompt_before_run: false`
+//!    bypasses the dialog and executes immediately.
 //!
 //! 2. **Command denylist**: Even when `prompt_before_run` is `false`,
 //!    `RunCommand` actions are checked against a denylist of dangerous
@@ -69,33 +70,6 @@ fn expand_tilde(path: &str) -> String {
     path.to_string()
 }
 
-/// Check if a dangerous action from a trigger should be suppressed.
-///
-/// Returns `true` if the action should be blocked, `false` if it should proceed.
-/// This checks the `prompt_before_run` flag for the trigger. Since all trigger
-/// matches come from passive terminal output, `prompt_before_run: true` means
-/// the action is always suppressed.
-fn should_suppress_dangerous_action(
-    trigger_id: u64,
-    action_name: &str,
-    trigger_security: &HashMap<u64, bool>,
-) -> bool {
-    // Look up the prompt_before_run flag for this trigger.
-    // Default to true (suppress) for unknown trigger IDs (safe default).
-    let prompt_before_run = trigger_security.get(&trigger_id).copied().unwrap_or(true);
-
-    if prompt_before_run {
-        log::warn!(
-            "Trigger {} {} BLOCKED: prompt_before_run=true (output-triggered dangerous actions \
-             are suppressed by default; set prompt_before_run: false in trigger config to allow)",
-            trigger_id,
-            action_name,
-        );
-        return true;
-    }
-
-    false
-}
 
 impl WindowState {
     /// Check for trigger action results and dispatch them.
@@ -104,7 +78,7 @@ impl WindowState {
     /// ActionResult events and executes the appropriate frontend action.
     ///
     /// Security restrictions are enforced for dangerous actions:
-    /// - `prompt_before_run` flag blocks RunCommand/SendText from output triggers
+    /// - `prompt_before_run` flag queues RunCommand/SendText for dialog confirmation
     /// - Command denylist blocks obviously dangerous RunCommand patterns
     /// - Rate limiting prevents rapid-fire dangerous action execution
     pub(crate) fn check_trigger_actions(&mut self) {
@@ -157,14 +131,6 @@ impl WindowState {
             return;
         }
 
-        // Snapshot the trigger security map from the active tab for checking
-        // prompt_before_run. We clone the reference to avoid borrow issues.
-        let trigger_security = if let Some(t) = self.tab_manager.active_tab() {
-            t.scripting.trigger_prompt_before_run.clone()
-        } else {
-            return;
-        };
-
         // Collect MarkLine events for batch deduplication (processed after the loop).
         // Between frames, the core may fire the same trigger multiple times for the
         // same physical line (once per PTY read). Each scan records a different grid
@@ -186,13 +152,7 @@ impl WindowState {
                     let command = expand_tilde(&command);
                     let args: Vec<String> = args.iter().map(|a| expand_tilde(a)).collect();
 
-                    // Security check 1: prompt_before_run flag
-                    if should_suppress_dangerous_action(trigger_id, "RunCommand", &trigger_security)
-                    {
-                        continue;
-                    }
-
-                    // Security check 2: rate limiting
+                    // Security check 1: rate limiting
                     if let Some(tab) = self.tab_manager.active_tab_mut()
                         && !tab
                             .scripting
@@ -310,12 +270,7 @@ impl WindowState {
                     text,
                     delay_ms,
                 } => {
-                    // Security check 1: prompt_before_run flag
-                    if should_suppress_dangerous_action(trigger_id, "SendText", &trigger_security) {
-                        continue;
-                    }
-
-                    // Security check 2: rate limiting
+                    // Security check 1: rate limiting
                     if let Some(tab) = self.tab_manager.active_tab_mut()
                         && !tab
                             .scripting
@@ -387,6 +342,10 @@ impl WindowState {
                     // Trigger notifications always deliver (bypass focus suppression)
                     // since the user explicitly configured them
                     self.deliver_notification_force(&title, &message);
+                }
+                ActionResult::SplitPane { .. } => {
+                    // TODO(Task 9): enqueue into pending_trigger_actions for dialog confirmation
+                    // or immediate execution depending on prompt_before_run flag.
                 }
                 ActionResult::MarkLine {
                     trigger_id,
