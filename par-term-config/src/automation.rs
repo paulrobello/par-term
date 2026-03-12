@@ -128,6 +128,55 @@ pub enum TriggerActionConfig {
         #[serde(default)]
         command_filter: Option<String>,
     },
+    /// Open a new pane (horizontal or vertical split) and optionally run a command in it.
+    SplitPane {
+        direction: TriggerSplitDirection,
+        #[serde(default)]
+        command: Option<SplitPaneCommand>,
+        #[serde(default = "crate::defaults::bool_true")]
+        focus_new_pane: bool,
+        #[serde(default)]
+        target: TriggerSplitTarget,
+    },
+}
+
+/// Split orientation for a new pane created by a trigger action.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum TriggerSplitDirection {
+    Horizontal, // new pane below (panes stacked vertically)
+    Vertical,   // new pane to the right (side by side)
+}
+
+/// Which pane to split when a SplitPane trigger fires.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum TriggerSplitTarget {
+    #[default]
+    Active,  // split the currently focused pane
+    Source,  // split the pane whose PTY output matched (degrades to Active for now)
+}
+
+/// How to run a command in the newly created pane.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum SplitPaneCommand {
+    /// Send text to the shell with a trailing newline. Best-effort; shell must be running.
+    SendText {
+        text: String,
+        #[serde(default = "default_split_send_delay")]
+        delay_ms: u64,
+    },
+    /// Launch the pane with this command instead of the login shell.
+    InitialCommand {
+        command: String,
+        #[serde(default)]
+        args: Vec<String>,
+    },
+}
+
+fn default_split_send_delay() -> u64 {
+    200
 }
 
 /// Policy for restarting a coprocess when it exits
@@ -196,10 +245,13 @@ impl TriggerActionConfig {
     /// Returns true if this action is considered dangerous when triggered by
     /// passive terminal output (i.e., without explicit user interaction).
     ///
-    /// Dangerous actions: `RunCommand`, `SendText`
+    /// Dangerous actions: `RunCommand`, `SendText`, `SplitPane`
     /// Safe actions: `Highlight`, `Notify`, `MarkLine`, `SetVariable`, `PlaySound`, `Prettify`
     pub fn is_dangerous(&self) -> bool {
-        matches!(self, Self::RunCommand { .. } | Self::SendText { .. })
+        matches!(
+            self,
+            Self::RunCommand { .. } | Self::SendText { .. } | Self::SplitPane { .. }
+        )
     }
 
     /// Convert to core library TriggerAction
@@ -251,6 +303,13 @@ impl TriggerActionConfig {
                     color: None,
                 }
             }
+            // SplitPane is handled entirely in the frontend (not forwarded to core).
+            // Emit a no-op Notify so the core trigger pipeline still fires an ActionResult
+            // that the frontend can intercept.
+            Self::SplitPane { .. } => TriggerAction::Notify {
+                title: String::new(),
+                message: String::new(),
+            },
         }
     }
 }
@@ -557,5 +616,84 @@ impl TriggerRateLimiter {
         let max_age = std::time::Duration::from_secs(max_age_secs);
         self.last_fire
             .retain(|_, last| now.duration_since(*last) < max_age);
+    }
+}
+
+#[cfg(test)]
+mod split_pane_tests {
+    use super::*;
+
+    #[test]
+    fn test_split_pane_config_deserialize_send_text() {
+        let yaml = r#"
+type: split_pane
+direction: horizontal
+command:
+  type: send_text
+  text: "tail -f build.log"
+  delay_ms: 300
+focus_new_pane: true
+target: active
+"#;
+        let action: TriggerActionConfig = serde_yaml_ng::from_str(yaml).unwrap();
+        assert!(matches!(action, TriggerActionConfig::SplitPane { .. }));
+        assert!(action.is_dangerous());
+    }
+
+    #[test]
+    fn test_split_pane_config_deserialize_initial_command() {
+        let yaml = r#"
+type: split_pane
+direction: vertical
+command:
+  type: initial_command
+  command: htop
+  args: []
+focus_new_pane: false
+target: source
+"#;
+        let action: TriggerActionConfig = serde_yaml_ng::from_str(yaml).unwrap();
+        assert!(matches!(
+            action,
+            TriggerActionConfig::SplitPane {
+                direction: TriggerSplitDirection::Vertical,
+                focus_new_pane: false,
+                target: TriggerSplitTarget::Source,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn test_split_pane_defaults() {
+        let yaml = r#"
+type: split_pane
+direction: horizontal
+"#;
+        let action: TriggerActionConfig = serde_yaml_ng::from_str(yaml).unwrap();
+        if let TriggerActionConfig::SplitPane {
+            command,
+            focus_new_pane,
+            target,
+            ..
+        } = action
+        {
+            assert!(command.is_none());
+            assert!(focus_new_pane); // defaults true
+            assert_eq!(target, TriggerSplitTarget::Active); // defaults Active
+        } else {
+            panic!("wrong variant");
+        }
+    }
+
+    #[test]
+    fn test_send_text_default_delay() {
+        let yaml = r#"type: send_text
+text: "hello"
+"#;
+        let cmd: SplitPaneCommand = serde_yaml_ng::from_str(yaml).unwrap();
+        if let SplitPaneCommand::SendText { delay_ms, .. } = cmd {
+            assert_eq!(delay_ms, 200);
+        }
     }
 }
