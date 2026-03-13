@@ -1058,13 +1058,13 @@ fn show_action_edit_form(
                                         }
                                     }
                                 });
-                            if step_idx > 0 && ui.small_button("\u{2191}").on_hover_text("Move up").clicked() {
+                            if step_idx > 0 && ui.small_button("\u{f062}").on_hover_text("Move up").clicked() {
                                 step_to_move_up = Some(step_idx);
                             }
-                            if step_idx + 1 < step_count && ui.small_button("\u{2193}").on_hover_text("Move down").clicked() {
+                            if step_idx + 1 < step_count && ui.small_button("\u{f063}").on_hover_text("Move down").clicked() {
                                 step_to_move_down = Some(step_idx);
                             }
-                            if ui.small_button(egui::RichText::new("\u{2715}").color(egui::Color32::from_rgb(200, 80, 80))).on_hover_text("Remove step").clicked() {
+                            if ui.small_button(egui::RichText::new("\u{f00d}").color(egui::Color32::from_rgb(200, 80, 80))).on_hover_text("Remove step").clicked() {
                                 step_to_delete = Some(step_idx);
                             }
                         });
