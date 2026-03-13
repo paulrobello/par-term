@@ -331,7 +331,7 @@ pub struct SettingsUI {
     // Actions tab state
     /// Index of action currently being edited (None = not editing)
     pub editing_action_index: Option<usize>,
-    /// Temporary action type for edit form (0=ShellCommand, 1=NewTab, 2=InsertText, 3=KeySequence, 4=SplitPane)
+    /// Temporary action type for edit form (0=ShellCommand, 1=NewTab, 2=InsertText, 3=KeySequence, 4=SplitPane, 5=Sequence, 6=Condition, 7=Repeat)
     pub temp_action_type: usize,
     /// Temporary action ID for edit form
     pub temp_action_id: String,
@@ -373,6 +373,43 @@ pub struct SettingsUI {
     pub recording_custom_action_prefix_key: bool,
     /// Recorded combo for the section-level custom action prefix key
     pub custom_action_prefix_key_recorded_combo: Option<String>,
+
+    // Workflow: Sequence action type
+    /// Steps in a Sequence action (action_id, delay_ms, on_failure behavior)
+    pub temp_action_steps: Vec<(String, u64, par_term_config::snippets::SequenceStepBehavior)>,
+
+    // Workflow: Condition action type
+    /// Check type index: 0=exit_code, 1=output_contains, 2=env_var, 3=dir_matches, 4=git_branch
+    pub temp_action_check_type: usize,
+    /// Check value (exit code as string, or glob/regex pattern)
+    pub temp_action_check_value: String,
+    /// Case sensitive flag (for output_contains check type)
+    pub temp_action_case_sensitive: bool,
+    /// Environment variable name (for env_var check type)
+    pub temp_action_env_name: String,
+    /// Environment variable expected value (for env_var check type, empty = existence-only)
+    pub temp_action_env_value: String,
+    /// Whether to check env var existence only (for env_var check type)
+    pub temp_action_env_check_existence: bool,
+    /// Action ID to execute when condition is true
+    pub temp_action_on_true_id: String,
+    /// Action ID to execute when condition is false
+    pub temp_action_on_false_id: String,
+
+    // Workflow: Repeat action type
+    /// Action ID to repeat
+    pub temp_action_repeat_action_id: String,
+    /// Number of repetitions (1–100)
+    pub temp_action_repeat_count: u32,
+    /// Delay in milliseconds between repetitions
+    pub temp_action_repeat_delay_ms: u64,
+    /// Stop repeating when the action succeeds
+    pub temp_action_stop_on_success: bool,
+    /// Stop repeating when the action fails
+    pub temp_action_stop_on_failure: bool,
+
+    /// Temporary keybinding_enabled flag for action edit form
+    pub temp_action_keybinding_enabled: bool,
 
     // Dynamic profile sources editing state
     /// Index of dynamic source currently being edited (None = not editing)

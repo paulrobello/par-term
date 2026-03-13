@@ -171,6 +171,22 @@ fn show_actions_section(
                                         };
                                         format!("Split-{}-{}", dir, split_percent)
                                     }
+                                    CustomActionConfig::Sequence { steps, .. } => {
+                                        format!("Sequence ({} steps)", steps.len())
+                                    }
+                                    CustomActionConfig::Condition { check, .. } => {
+                                        let check_label = match check {
+                                            par_term_config::snippets::ConditionCheck::ExitCode { .. } => "exit_code",
+                                            par_term_config::snippets::ConditionCheck::OutputContains { .. } => "output_contains",
+                                            par_term_config::snippets::ConditionCheck::EnvVar { .. } => "env_var",
+                                            par_term_config::snippets::ConditionCheck::DirMatches { .. } => "dir_matches",
+                                            par_term_config::snippets::ConditionCheck::GitBranch { .. } => "git_branch",
+                                        };
+                                        format!("Condition ({})", check_label)
+                                    }
+                                    CustomActionConfig::Repeat { count, .. } => {
+                                        format!("Repeat \u{d7}{}", count)
+                                    }
                                 };
                                 let detail_text = match action {
                                     CustomActionConfig::ShellCommand { command, .. } => {
@@ -185,6 +201,11 @@ fn show_actions_section(
                                     }
                                     CustomActionConfig::SplitPane { command, .. } => {
                                         command.clone().unwrap_or_default()
+                                    }
+                                    CustomActionConfig::Sequence { .. } => String::new(),
+                                    CustomActionConfig::Condition { .. } => String::new(),
+                                    CustomActionConfig::Repeat { action_id, .. } => {
+                                        action_id.clone()
                                     }
                                 };
 
@@ -329,6 +350,84 @@ fn show_actions_section(
                         settings.temp_action_split_delay_ms = *delay_ms;
                         settings.temp_action_split_percent = *split_percent;
                     }
+                    CustomActionConfig::Sequence { steps, keybinding_enabled, .. } => {
+                        settings.temp_action_type = 5;
+                        settings.temp_action_keybinding_enabled = *keybinding_enabled;
+                        settings.temp_action_steps = steps.iter().map(|s| (s.action_id.clone(), s.delay_ms, s.on_failure)).collect();
+                        // Reset non-sequence fields
+                        settings.temp_action_check_type = 0;
+                        settings.temp_action_check_value = String::new();
+                        settings.temp_action_case_sensitive = false;
+                        settings.temp_action_env_name = String::new();
+                        settings.temp_action_env_value = String::new();
+                        settings.temp_action_env_check_existence = false;
+                        settings.temp_action_on_true_id = String::new();
+                        settings.temp_action_on_false_id = String::new();
+                        settings.temp_action_repeat_action_id = String::new();
+                        settings.temp_action_repeat_count = 3;
+                        settings.temp_action_repeat_delay_ms = 0;
+                        settings.temp_action_stop_on_success = false;
+                        settings.temp_action_stop_on_failure = false;
+                    }
+                    CustomActionConfig::Condition { check, on_true_id, on_false_id, keybinding_enabled, .. } => {
+                        settings.temp_action_type = 6;
+                        settings.temp_action_keybinding_enabled = *keybinding_enabled;
+                        match check {
+                            par_term_config::snippets::ConditionCheck::ExitCode { value } => {
+                                settings.temp_action_check_type = 0;
+                                settings.temp_action_check_value = value.to_string();
+                                settings.temp_action_case_sensitive = false;
+                            }
+                            par_term_config::snippets::ConditionCheck::OutputContains { pattern, case_sensitive } => {
+                                settings.temp_action_check_type = 1;
+                                settings.temp_action_check_value = pattern.clone();
+                                settings.temp_action_case_sensitive = *case_sensitive;
+                            }
+                            par_term_config::snippets::ConditionCheck::EnvVar { name, value } => {
+                                settings.temp_action_check_type = 2;
+                                settings.temp_action_env_name = name.clone();
+                                settings.temp_action_env_check_existence = value.is_none();
+                                settings.temp_action_env_value = value.clone().unwrap_or_default();
+                            }
+                            par_term_config::snippets::ConditionCheck::DirMatches { pattern } => {
+                                settings.temp_action_check_type = 3;
+                                settings.temp_action_check_value = pattern.clone();
+                            }
+                            par_term_config::snippets::ConditionCheck::GitBranch { pattern } => {
+                                settings.temp_action_check_type = 4;
+                                settings.temp_action_check_value = pattern.clone();
+                            }
+                        }
+                        settings.temp_action_on_true_id = on_true_id.clone().unwrap_or_default();
+                        settings.temp_action_on_false_id = on_false_id.clone().unwrap_or_default();
+                        // Reset non-condition fields
+                        settings.temp_action_steps = Vec::new();
+                        settings.temp_action_env_name = if settings.temp_action_check_type != 2 { String::new() } else { settings.temp_action_env_name.clone() };
+                        settings.temp_action_repeat_action_id = String::new();
+                        settings.temp_action_repeat_count = 3;
+                        settings.temp_action_repeat_delay_ms = 0;
+                        settings.temp_action_stop_on_success = false;
+                        settings.temp_action_stop_on_failure = false;
+                    }
+                    CustomActionConfig::Repeat { action_id, count, delay_ms, stop_on_success, stop_on_failure, keybinding_enabled, .. } => {
+                        settings.temp_action_type = 7;
+                        settings.temp_action_keybinding_enabled = *keybinding_enabled;
+                        settings.temp_action_repeat_action_id = action_id.clone();
+                        settings.temp_action_repeat_count = *count;
+                        settings.temp_action_repeat_delay_ms = *delay_ms;
+                        settings.temp_action_stop_on_success = *stop_on_success;
+                        settings.temp_action_stop_on_failure = *stop_on_failure;
+                        // Reset non-repeat fields
+                        settings.temp_action_steps = Vec::new();
+                        settings.temp_action_check_type = 0;
+                        settings.temp_action_check_value = String::new();
+                        settings.temp_action_case_sensitive = false;
+                        settings.temp_action_env_name = String::new();
+                        settings.temp_action_env_value = String::new();
+                        settings.temp_action_env_check_existence = false;
+                        settings.temp_action_on_true_id = String::new();
+                        settings.temp_action_on_false_id = String::new();
+                    }
                 }
             }
 
@@ -357,6 +456,21 @@ fn show_actions_section(
                 settings.temp_action_split_focus_new = true;
                 settings.temp_action_split_delay_ms = 200;
                 settings.temp_action_split_percent = 66;
+                settings.temp_action_keybinding_enabled = true;
+                settings.temp_action_steps = Vec::new();
+                settings.temp_action_check_type = 0;
+                settings.temp_action_check_value = String::new();
+                settings.temp_action_case_sensitive = false;
+                settings.temp_action_env_name = String::new();
+                settings.temp_action_env_value = String::new();
+                settings.temp_action_env_check_existence = false;
+                settings.temp_action_on_true_id = String::new();
+                settings.temp_action_on_false_id = String::new();
+                settings.temp_action_repeat_action_id = String::new();
+                settings.temp_action_repeat_count = 3;
+                settings.temp_action_repeat_delay_ms = 0;
+                settings.temp_action_stop_on_success = false;
+                settings.temp_action_stop_on_failure = false;
             }
         },
     );
@@ -397,9 +511,10 @@ fn show_action_edit_form(
                     },
                     notify_on_success: false,
                     timeout_secs: 30, // Default timeout
+                    capture_output: false,
                     keybinding,
                     prefix_char,
-                    keybinding_enabled: true,
+                    keybinding_enabled: settings.temp_action_keybinding_enabled,
                     description: None,
                 },
                 1 => CustomActionConfig::NewTab {
@@ -456,6 +571,62 @@ fn show_action_edit_form(
                     keybinding_enabled: true,
                     description: None,
                 },
+                5 => {
+                    let steps = settings.temp_action_steps.iter().map(|(id, delay, behavior)| {
+                        par_term_config::snippets::SequenceStep {
+                            action_id: id.clone(),
+                            delay_ms: *delay,
+                            on_failure: *behavior,
+                        }
+                    }).collect();
+                    CustomActionConfig::Sequence {
+                        id: settings.temp_action_id.clone(),
+                        title: settings.temp_action_title.clone(),
+                        keybinding,
+                        prefix_char,
+                        keybinding_enabled: settings.temp_action_keybinding_enabled,
+                        description: None,
+                        steps,
+                    }
+                }
+                6 => {
+                    use par_term_config::snippets::ConditionCheck;
+                    let check = match settings.temp_action_check_type {
+                        0 => ConditionCheck::ExitCode { value: settings.temp_action_check_value.parse().unwrap_or(0) },
+                        1 => ConditionCheck::OutputContains { pattern: settings.temp_action_check_value.clone(), case_sensitive: settings.temp_action_case_sensitive },
+                        2 => ConditionCheck::EnvVar {
+                            name: settings.temp_action_env_name.clone(),
+                            value: if settings.temp_action_env_check_existence { None } else { Some(settings.temp_action_env_value.clone()) },
+                        },
+                        3 => ConditionCheck::DirMatches { pattern: settings.temp_action_check_value.clone() },
+                        4 => ConditionCheck::GitBranch { pattern: settings.temp_action_check_value.clone() },
+                        _ => ConditionCheck::ExitCode { value: 0 },
+                    };
+                    CustomActionConfig::Condition {
+                        id: settings.temp_action_id.clone(),
+                        title: settings.temp_action_title.clone(),
+                        keybinding,
+                        prefix_char,
+                        keybinding_enabled: settings.temp_action_keybinding_enabled,
+                        description: None,
+                        check,
+                        on_true_id: if settings.temp_action_on_true_id.is_empty() { None } else { Some(settings.temp_action_on_true_id.clone()) },
+                        on_false_id: if settings.temp_action_on_false_id.is_empty() { None } else { Some(settings.temp_action_on_false_id.clone()) },
+                    }
+                }
+                7 => CustomActionConfig::Repeat {
+                    id: settings.temp_action_id.clone(),
+                    title: settings.temp_action_title.clone(),
+                    keybinding,
+                    prefix_char,
+                    keybinding_enabled: settings.temp_action_keybinding_enabled,
+                    description: None,
+                    action_id: settings.temp_action_repeat_action_id.clone(),
+                    count: settings.temp_action_repeat_count.clamp(1, 100),
+                    delay_ms: settings.temp_action_repeat_delay_ms,
+                    stop_on_success: settings.temp_action_stop_on_success,
+                    stop_on_failure: settings.temp_action_stop_on_failure,
+                },
                 _ => unreachable!(),
             };
 
@@ -511,6 +682,9 @@ fn show_action_edit_form(
                 "Insert Text",
                 "Key Sequence",
                 "Split Pane",
+                "Sequence",
+                "Condition",
+                "Repeat",
             ];
             egui::ComboBox::from_id_salt("action_type")
                 .selected_text(types[settings.temp_action_type])
@@ -762,6 +936,257 @@ fn show_action_edit_form(
                         });
                     }
                 }
+                5 => {
+                    // Sequence
+                    ui.label(egui::RichText::new("Steps:").strong());
+                    let action_ids: Vec<(String, String)> = settings.config.actions.iter().map(|a| (a.id().to_string(), a.title().to_string())).collect();
+                    let mut step_to_delete: Option<usize> = None;
+                    let mut step_to_move_up: Option<usize> = None;
+                    let mut step_to_move_down: Option<usize> = None;
+                    let step_count = settings.temp_action_steps.len();
+                    for step_idx in 0..step_count {
+                        ui.horizontal(|ui| {
+                            ui.label(format!("{}.", step_idx + 1));
+                            // Action ID dropdown
+                            let current_id = settings.temp_action_steps[step_idx].0.clone();
+                            let display_text = action_ids.iter().find(|(id, _)| id == &current_id).map(|(_, title)| format!("{} ({})", title, current_id)).unwrap_or_else(|| if current_id.is_empty() { "(none)".to_string() } else { current_id.clone() });
+                            egui::ComboBox::from_id_salt(format!("seq_step_action_{}", step_idx))
+                                .selected_text(display_text)
+                                .width(200.0)
+                                .show_ui(ui, |ui| {
+                                    for (id, title) in &action_ids {
+                                        let label = format!("{} ({})", title, id);
+                                        if ui.selectable_label(settings.temp_action_steps[step_idx].0 == *id, &label).clicked() {
+                                            settings.temp_action_steps[step_idx].0 = id.clone();
+                                            *changes_this_frame = true;
+                                        }
+                                    }
+                                });
+                            // Delay
+                            ui.label("delay ms:");
+                            let mut delay = settings.temp_action_steps[step_idx].1;
+                            if ui.add(egui::DragValue::new(&mut delay).range(0..=60000)).changed() {
+                                settings.temp_action_steps[step_idx].1 = delay;
+                                *changes_this_frame = true;
+                            }
+                            // On-failure dropdown
+                            let behavior_labels = ["Abort", "Stop", "Continue"];
+                            let cur_behavior = settings.temp_action_steps[step_idx].2;
+                            let cur_behavior_idx = match cur_behavior {
+                                par_term_config::snippets::SequenceStepBehavior::Abort => 0,
+                                par_term_config::snippets::SequenceStepBehavior::Stop => 1,
+                                par_term_config::snippets::SequenceStepBehavior::Continue => 2,
+                            };
+                            egui::ComboBox::from_id_salt(format!("seq_step_fail_{}", step_idx))
+                                .selected_text(behavior_labels[cur_behavior_idx])
+                                .width(90.0)
+                                .show_ui(ui, |ui| {
+                                    for (i, &label) in behavior_labels.iter().enumerate() {
+                                        let behavior = match i {
+                                            0 => par_term_config::snippets::SequenceStepBehavior::Abort,
+                                            1 => par_term_config::snippets::SequenceStepBehavior::Stop,
+                                            _ => par_term_config::snippets::SequenceStepBehavior::Continue,
+                                        };
+                                        if ui.selectable_label(cur_behavior_idx == i, label).clicked() {
+                                            settings.temp_action_steps[step_idx].2 = behavior;
+                                            *changes_this_frame = true;
+                                        }
+                                    }
+                                });
+                            if step_idx > 0 && ui.small_button("\u{2191}").on_hover_text("Move up").clicked() {
+                                step_to_move_up = Some(step_idx);
+                            }
+                            if step_idx + 1 < step_count && ui.small_button("\u{2193}").on_hover_text("Move down").clicked() {
+                                step_to_move_down = Some(step_idx);
+                            }
+                            if ui.small_button(egui::RichText::new("\u{2715}").color(egui::Color32::from_rgb(200, 80, 80))).on_hover_text("Remove step").clicked() {
+                                step_to_delete = Some(step_idx);
+                            }
+                        });
+                    }
+                    if let Some(i) = step_to_delete {
+                        settings.temp_action_steps.remove(i);
+                        *changes_this_frame = true;
+                    } else if let Some(i) = step_to_move_up {
+                        settings.temp_action_steps.swap(i - 1, i);
+                        *changes_this_frame = true;
+                    } else if let Some(i) = step_to_move_down {
+                        settings.temp_action_steps.swap(i, i + 1);
+                        *changes_this_frame = true;
+                    }
+                    if ui.button("+ Add Step").clicked() {
+                        settings.temp_action_steps.push((String::new(), 0u64, par_term_config::snippets::SequenceStepBehavior::Abort));
+                        *changes_this_frame = true;
+                    }
+                }
+                6 => {
+                    // Condition
+                    let check_labels = ["exit_code", "output_contains", "env_var", "dir_matches", "git_branch"];
+                    ui.horizontal(|ui| {
+                        ui.label("Check type:");
+                        egui::ComboBox::from_id_salt("condition_check_type")
+                            .selected_text(check_labels[settings.temp_action_check_type.min(4)])
+                            .width(150.0)
+                            .show_ui(ui, |ui| {
+                                for (i, &label) in check_labels.iter().enumerate() {
+                                    if ui.selectable_label(settings.temp_action_check_type == i, label).clicked() {
+                                        settings.temp_action_check_type = i;
+                                        *changes_this_frame = true;
+                                    }
+                                }
+                            });
+                    });
+                    match settings.temp_action_check_type {
+                        0 => {
+                            // exit_code
+                            ui.horizontal(|ui| {
+                                ui.label("Exit code:");
+                                if ui.text_edit_singleline(&mut settings.temp_action_check_value).changed() {
+                                    *changes_this_frame = true;
+                                }
+                            });
+                        }
+                        1 => {
+                            // output_contains
+                            ui.label("Pattern:");
+                            if ui.text_edit_singleline(&mut settings.temp_action_check_value).changed() {
+                                *changes_this_frame = true;
+                            }
+                            ui.horizontal(|ui| {
+                                if ui.checkbox(&mut settings.temp_action_case_sensitive, "Case sensitive").changed() {
+                                    *changes_this_frame = true;
+                                }
+                            });
+                        }
+                        2 => {
+                            // env_var
+                            ui.horizontal(|ui| {
+                                ui.label("Var name:");
+                                if ui.text_edit_singleline(&mut settings.temp_action_env_name).changed() {
+                                    *changes_this_frame = true;
+                                }
+                            });
+                            ui.horizontal(|ui| {
+                                if ui.checkbox(&mut settings.temp_action_env_check_existence, "Check existence only").changed() {
+                                    *changes_this_frame = true;
+                                }
+                            });
+                            if !settings.temp_action_env_check_existence {
+                                ui.horizontal(|ui| {
+                                    ui.label("Expected value:");
+                                    if ui.text_edit_singleline(&mut settings.temp_action_env_value).changed() {
+                                        *changes_this_frame = true;
+                                    }
+                                });
+                            }
+                        }
+                        3 => {
+                            // dir_matches
+                            ui.label("Pattern (glob):");
+                            if ui.text_edit_singleline(&mut settings.temp_action_check_value).on_hover_text("e.g. /home/user/projects/*").changed() {
+                                *changes_this_frame = true;
+                            }
+                        }
+                        4 => {
+                            // git_branch
+                            ui.label("Pattern (glob):");
+                            if ui.text_edit_singleline(&mut settings.temp_action_check_value).on_hover_text("e.g. feature/*").changed() {
+                                *changes_this_frame = true;
+                            }
+                        }
+                        _ => {}
+                    }
+                    // On true / on false action pickers
+                    let action_ids: Vec<(String, String)> = settings.config.actions.iter().map(|a| (a.id().to_string(), a.title().to_string())).collect();
+                    ui.horizontal(|ui| {
+                        ui.label("On True:");
+                        let true_display = if settings.temp_action_on_true_id.is_empty() { "(none)".to_string() } else { action_ids.iter().find(|(id, _)| id == &settings.temp_action_on_true_id).map(|(_, title)| format!("{} ({})", title, settings.temp_action_on_true_id)).unwrap_or_else(|| settings.temp_action_on_true_id.clone()) };
+                        egui::ComboBox::from_id_salt("condition_on_true")
+                            .selected_text(true_display)
+                            .width(200.0)
+                            .show_ui(ui, |ui| {
+                                if ui.selectable_label(settings.temp_action_on_true_id.is_empty(), "(none)").clicked() {
+                                    settings.temp_action_on_true_id = String::new();
+                                    *changes_this_frame = true;
+                                }
+                                for (id, title) in &action_ids {
+                                    let label = format!("{} ({})", title, id);
+                                    if ui.selectable_label(settings.temp_action_on_true_id == *id, &label).clicked() {
+                                        settings.temp_action_on_true_id = id.clone();
+                                        *changes_this_frame = true;
+                                    }
+                                }
+                            });
+                        ui.label(egui::RichText::new("(standalone only)").small().color(egui::Color32::GRAY));
+                    });
+                    ui.horizontal(|ui| {
+                        ui.label("On False:");
+                        let false_display = if settings.temp_action_on_false_id.is_empty() { "(none)".to_string() } else { action_ids.iter().find(|(id, _)| id == &settings.temp_action_on_false_id).map(|(_, title)| format!("{} ({})", title, settings.temp_action_on_false_id)).unwrap_or_else(|| settings.temp_action_on_false_id.clone()) };
+                        egui::ComboBox::from_id_salt("condition_on_false")
+                            .selected_text(false_display)
+                            .width(200.0)
+                            .show_ui(ui, |ui| {
+                                if ui.selectable_label(settings.temp_action_on_false_id.is_empty(), "(none)").clicked() {
+                                    settings.temp_action_on_false_id = String::new();
+                                    *changes_this_frame = true;
+                                }
+                                for (id, title) in &action_ids {
+                                    let label = format!("{} ({})", title, id);
+                                    if ui.selectable_label(settings.temp_action_on_false_id == *id, &label).clicked() {
+                                        settings.temp_action_on_false_id = id.clone();
+                                        *changes_this_frame = true;
+                                    }
+                                }
+                            });
+                        ui.label(egui::RichText::new("(standalone only)").small().color(egui::Color32::GRAY));
+                    });
+                }
+                7 => {
+                    // Repeat
+                    let action_ids: Vec<(String, String)> = settings.config.actions.iter().map(|a| (a.id().to_string(), a.title().to_string())).collect();
+                    ui.horizontal(|ui| {
+                        ui.label("Action:");
+                        let repeat_display = if settings.temp_action_repeat_action_id.is_empty() { "(none)".to_string() } else { action_ids.iter().find(|(id, _)| id == &settings.temp_action_repeat_action_id).map(|(_, title)| format!("{} ({})", title, settings.temp_action_repeat_action_id)).unwrap_or_else(|| settings.temp_action_repeat_action_id.clone()) };
+                        egui::ComboBox::from_id_salt("repeat_action_id")
+                            .selected_text(repeat_display)
+                            .width(200.0)
+                            .show_ui(ui, |ui| {
+                                if ui.selectable_label(settings.temp_action_repeat_action_id.is_empty(), "(none)").clicked() {
+                                    settings.temp_action_repeat_action_id = String::new();
+                                    *changes_this_frame = true;
+                                }
+                                for (id, title) in &action_ids {
+                                    let label = format!("{} ({})", title, id);
+                                    if ui.selectable_label(settings.temp_action_repeat_action_id == *id, &label).clicked() {
+                                        settings.temp_action_repeat_action_id = id.clone();
+                                        *changes_this_frame = true;
+                                    }
+                                }
+                            });
+                    });
+                    ui.horizontal(|ui| {
+                        ui.label("Count (1-100):");
+                        if ui.add(egui::DragValue::new(&mut settings.temp_action_repeat_count).range(1..=100)).changed() {
+                            *changes_this_frame = true;
+                        }
+                    });
+                    ui.horizontal(|ui| {
+                        ui.label("Delay between (ms):");
+                        if ui.add(egui::DragValue::new(&mut settings.temp_action_repeat_delay_ms).range(0..=60000)).changed() {
+                            *changes_this_frame = true;
+                        }
+                    });
+                    ui.horizontal(|ui| {
+                        if ui.checkbox(&mut settings.temp_action_stop_on_success, "Stop on success").changed() {
+                            *changes_this_frame = true;
+                        }
+                    });
+                    ui.horizontal(|ui| {
+                        if ui.checkbox(&mut settings.temp_action_stop_on_failure, "Stop on failure").changed() {
+                            *changes_this_frame = true;
+                        }
+                    });
+                }
                 _ => {}
             }
         });
@@ -780,6 +1205,7 @@ fn clone_action(action: &CustomActionConfig) -> CustomActionConfig {
             args,
             notify_on_success,
             timeout_secs,
+            capture_output,
             keybinding_enabled,
             description,
             ..
@@ -790,6 +1216,7 @@ fn clone_action(action: &CustomActionConfig) -> CustomActionConfig {
             args: args.clone(),
             notify_on_success: *notify_on_success,
             timeout_secs: *timeout_secs,
+            capture_output: *capture_output,
             keybinding: None,
             prefix_char: None,
             keybinding_enabled: *keybinding_enabled,
@@ -866,6 +1293,63 @@ fn clone_action(action: &CustomActionConfig) -> CustomActionConfig {
             prefix_char: None,
             keybinding_enabled: *keybinding_enabled,
             description: description.clone(),
+        },
+        CustomActionConfig::Sequence {
+            title,
+            keybinding_enabled,
+            description,
+            steps,
+            ..
+        } => CustomActionConfig::Sequence {
+            id: new_id,
+            title: format!("{}-copy", title),
+            keybinding: None,
+            prefix_char: None,
+            keybinding_enabled: *keybinding_enabled,
+            description: description.clone(),
+            steps: steps.clone(),
+        },
+        CustomActionConfig::Condition {
+            title,
+            keybinding_enabled,
+            description,
+            check,
+            on_true_id,
+            on_false_id,
+            ..
+        } => CustomActionConfig::Condition {
+            id: new_id,
+            title: format!("{}-copy", title),
+            keybinding: None,
+            prefix_char: None,
+            keybinding_enabled: *keybinding_enabled,
+            description: description.clone(),
+            check: check.clone(),
+            on_true_id: on_true_id.clone(),
+            on_false_id: on_false_id.clone(),
+        },
+        CustomActionConfig::Repeat {
+            title,
+            keybinding_enabled,
+            description,
+            action_id,
+            count,
+            delay_ms,
+            stop_on_success,
+            stop_on_failure,
+            ..
+        } => CustomActionConfig::Repeat {
+            id: new_id,
+            title: format!("{}-copy", title),
+            keybinding: None,
+            prefix_char: None,
+            keybinding_enabled: *keybinding_enabled,
+            description: description.clone(),
+            action_id: action_id.clone(),
+            count: *count,
+            delay_ms: *delay_ms,
+            stop_on_success: *stop_on_success,
+            stop_on_failure: *stop_on_failure,
         },
     }
 }
