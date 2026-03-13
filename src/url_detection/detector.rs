@@ -78,18 +78,38 @@ fn file_path_regex() -> &'static Regex {
     })
 }
 
+/// Strip trailing sentence punctuation (`.`, `!`, `?`) from a detected match.
+///
+/// These characters are valid in URLs and file paths but when they appear at
+/// the very end of a match, they are almost always sentence punctuation rather
+/// than part of the URL/path. For example: "the file is at ~/thefile.txt."
+///
+/// Returns the stripped string and the number of bytes removed.
+fn strip_trailing_sentence_punctuation(s: &str) -> (&str, usize) {
+    let trimmed = s.trim_end_matches(|c: char| matches!(c, '.' | '!' | '?'));
+    let stripped = s.len() - trimmed.len();
+    (trimmed, stripped)
+}
+
 /// Detect URLs in a line of text using regex patterns
 pub fn detect_urls_in_line(text: &str, row: usize) -> Vec<DetectedUrl> {
     let regex = url_regex();
     let mut urls = Vec::new();
 
     for mat in regex.find_iter(text) {
-        let url = mat.as_str().to_string();
+        let matched = mat.as_str();
         let start_col = mat.start();
-        let end_col = mat.end();
+
+        // Strip trailing sentence punctuation (the \b in the regex handles
+        // most cases, but this catches any edge cases)
+        let (url, stripped) = strip_trailing_sentence_punctuation(matched);
+        if url.is_empty() {
+            continue;
+        }
+        let end_col = mat.end() - stripped;
 
         urls.push(DetectedUrl {
-            url,
+            url: url.to_string(),
             start_col,
             end_col,
             row,
@@ -124,8 +144,17 @@ pub fn detect_file_paths_in_line(text: &str, row: usize) -> Vec<DetectedUrl> {
             full_match
         };
 
+        // Strip trailing sentence punctuation before parsing line numbers.
+        // "the file is at ~/thefile.txt." → "~/thefile.txt"
+        let (stripped_match, punct_bytes) =
+            strip_trailing_sentence_punctuation(trimmed_match);
+        if stripped_match.is_empty() {
+            continue;
+        }
+        let end_col = end_col - punct_bytes;
+
         // Parse line and column numbers from the path
-        let (path, line, column) = parse_path_with_line_number(trimmed_match);
+        let (path, line, column) = parse_path_with_line_number(stripped_match);
 
         paths.push(DetectedUrl {
             url: path,

@@ -243,6 +243,97 @@ fn test_home_path_stops_at_tmux_box_drawing_separator() {
     assert_eq!(paths[0].url, "~/Documents/file.txt");
 }
 
+// --- trailing sentence punctuation stripping ---
+
+#[test]
+fn test_file_path_strips_trailing_period() {
+    // Common case: file path at end of sentence
+    let text = "the file is at ~/thefile.txt.";
+    let paths = detect_file_paths_in_line(text, 0);
+    assert_eq!(paths.len(), 1);
+    assert_eq!(paths[0].url, "~/thefile.txt");
+    assert_eq!(paths[0].end_col, text.len() - 1); // excludes the trailing '.'
+}
+
+#[test]
+fn test_file_path_strips_trailing_period_absolute() {
+    let text = "see /Users/probello/readme.md.";
+    let paths = detect_file_paths_in_line(text, 0);
+    assert_eq!(paths.len(), 1);
+    assert_eq!(paths[0].url, "/Users/probello/readme.md");
+}
+
+#[test]
+fn test_file_path_strips_trailing_ellipsis() {
+    let text = "loading ~/Documents/file.txt...";
+    let paths = detect_file_paths_in_line(text, 0);
+    assert_eq!(paths.len(), 1);
+    assert_eq!(paths[0].url, "~/Documents/file.txt");
+}
+
+#[test]
+fn test_file_path_strips_trailing_exclamation() {
+    let text = "check ~/important/file.rs!";
+    let paths = detect_file_paths_in_line(text, 0);
+    assert_eq!(paths.len(), 1);
+    assert_eq!(paths[0].url, "~/important/file.rs");
+}
+
+#[test]
+fn test_file_path_strips_trailing_question() {
+    let text = "did you mean ~/config/settings.yaml?";
+    let paths = detect_file_paths_in_line(text, 0);
+    assert_eq!(paths.len(), 1);
+    assert_eq!(paths[0].url, "~/config/settings.yaml");
+}
+
+#[test]
+fn test_file_path_preserves_internal_dots() {
+    // Internal dots should NOT be stripped
+    let text = "~/src/file.tar.gz is the archive";
+    let paths = detect_file_paths_in_line(text, 0);
+    assert_eq!(paths.len(), 1);
+    assert_eq!(paths[0].url, "~/src/file.tar.gz");
+}
+
+#[test]
+fn test_file_path_preserves_dotfiles() {
+    let text = "edit ~/.gitignore";
+    let paths = detect_file_paths_in_line(text, 0);
+    assert_eq!(paths.len(), 1);
+    assert_eq!(paths[0].url, "~/.gitignore");
+}
+
+#[test]
+fn test_file_path_with_line_number_and_trailing_period() {
+    let text = "error at ./src/main.rs:42.";
+    let paths = detect_file_paths_in_line(text, 0);
+    assert_eq!(paths.len(), 1);
+    assert_eq!(paths[0].url, "./src/main.rs");
+    if let DetectedItemType::FilePath { line, column } = &paths[0].item_type {
+        assert_eq!(*line, Some(42));
+        assert_eq!(*column, None);
+    } else {
+        panic!("Expected FilePath type");
+    }
+}
+
+#[test]
+fn test_url_strips_trailing_period() {
+    let text = "Visit https://example.com.";
+    let urls = detect_urls_in_line(text, 0);
+    assert_eq!(urls.len(), 1);
+    assert_eq!(urls[0].url, "https://example.com");
+}
+
+#[test]
+fn test_url_preserves_internal_dots() {
+    let text = "Visit https://www.example.com/page.html for info";
+    let urls = detect_urls_in_line(text, 0);
+    assert_eq!(urls.len(), 1);
+    assert_eq!(urls[0].url, "https://www.example.com/page.html");
+}
+
 // --- ensure_url_scheme tests ---
 
 #[test]

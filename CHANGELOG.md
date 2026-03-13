@@ -23,10 +23,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`require_user_action` renamed to `prompt_before_run`** on trigger definitions. The old name is accepted as a YAML alias — existing config files continue to work without modification.
 
 ### Fixed
+- URL and file path detection now strips trailing sentence punctuation (`.`, `!`, `?`) so that paths at the end of sentences (e.g., "the file is at ~/thefile.txt.") no longer include the trailing period in the highlight or click-to-open target.
 - Custom action keybinding conflict checker no longer reports a false conflict when re-editing an action that already has a saved keybinding.
 - Keybinding conflict warning in the action editor is now shown below the input row instead of inline, preventing the Record button from being pushed off-screen.
 - `PageUp`/`PageDown` are now forwarded to terminal applications (e.g., `joe`, `less`, `vim`) as `\x1b[5~`/`\x1b[6~`; scrollback navigation now requires `Shift+PageUp`/`Shift+PageDown`, consistent with `Shift+Home`/`Shift+End`.
 - Middle-click paste in tmux now focuses the clicked pane before pasting — a synthetic left-click press/release is sent at the cursor position when mouse tracking is active, matching iTerm2 behaviour.
+- File drops now target the pane under the cursor — in split-pane and tmux modes the dropped file path is sent to the pane at the drop position instead of always going to the focused pane. In tmux gateway mode the text is routed through `send-keys` to the correct tmux pane.
 
 ---
 
