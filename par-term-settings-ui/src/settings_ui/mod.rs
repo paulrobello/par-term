@@ -407,6 +407,8 @@ pub struct SettingsUI {
     pub temp_action_stop_on_success: bool,
     /// Stop repeating when the action fails
     pub temp_action_stop_on_failure: bool,
+    /// Whether to capture stdout/stderr for use in Condition checks (for ShellCommand type)
+    pub temp_action_capture_output: bool,
 
     /// Temporary keybinding_enabled flag for action edit form
     pub temp_action_keybinding_enabled: bool,

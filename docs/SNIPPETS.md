@@ -634,6 +634,12 @@ Each snippet can define custom variables that override built-in and session vari
 
 Workflow actions let you compose, branch, and repeat existing actions from within par-term's config. Three new action types enable multi-step automation without leaving the terminal.
 
+> **UI responsiveness note**: Sequence and Repeat actions are executed synchronously on the
+> event loop thread. Steps with `delay_ms > 0` or `ShellCommand` steps with `capture_output:
+> true` will block the UI for their duration. To keep the terminal responsive, keep `delay_ms`
+> at `0` where possible, and prefer short-running commands inside `capture_output` steps.
+> Long-running captured commands (e.g. a full build) will freeze input until they complete.
+
 ### Sequence
 
 Runs a list of actions in order. Each step can have a delay and an on-failure behavior.

@@ -304,8 +304,7 @@ impl WindowState {
                 // directly or indirectly references it will be caught when execute_action_as_step
                 // checks visited at entry.
                 let steps = steps.clone();
-                self.execute_sequence_steps(&steps, ctx, visited);
-                StepOutcome::Success
+                self.execute_sequence_steps(&steps, ctx, visited)
             }
             CustomActionConfig::Repeat {
                 action_id: rep_id,
@@ -321,22 +320,29 @@ impl WindowState {
                 let rep_delay = *rep_delay;
                 let stop_on_success = *stop_on_success;
                 let stop_on_failure = *stop_on_failure;
+                let mut final_outcome = StepOutcome::Success;
                 for i in 0..count {
                     let outcome = self.execute_action_as_step(&rep_id, ctx, visited);
                     // Reset visited between repetitions: re-entering the same action
                     // in the next iteration is not a cycle.
                     visited.clear();
                     match outcome {
-                        StepOutcome::Abort => break,
+                        StepOutcome::Abort => {
+                            final_outcome = StepOutcome::Abort;
+                            break;
+                        }
                         StepOutcome::Success if stop_on_success => break,
-                        StepOutcome::Failure if stop_on_failure => break,
+                        StepOutcome::Failure if stop_on_failure => {
+                            final_outcome = StepOutcome::Failure;
+                            break;
+                        }
                         _ => {}
                     }
                     if rep_delay > 0 && i < count - 1 {
                         std::thread::sleep(std::time::Duration::from_millis(rep_delay));
                     }
                 }
-                StepOutcome::Success
+                final_outcome
             }
             _ => {
                 // InsertText, KeySequence, NewTab, SplitPane always succeed
@@ -452,12 +458,18 @@ impl WindowState {
     /// detection is shared across nested Sequence and Repeat actions within a single
     /// workflow execution. The `visited` set grows as actions are entered and shrinks
     /// as they return, allowing the same action to appear in separate (non-nested) steps.
+    ///
+    /// Returns:
+    /// - `StepOutcome::Abort` — a step aborted (missing action, circular ref), or a step
+    ///   failed with `on_failure = Abort` (toast already shown)
+    /// - `StepOutcome::Failure` — a step failed with `on_failure = Stop` (silent early exit)
+    /// - `StepOutcome::Success` — all steps completed (including any `Continue`-on-failure steps)
     fn execute_sequence_steps(
         &mut self,
         steps: &[par_term_config::snippets::SequenceStep],
         ctx: &Arc<Mutex<Option<WorkflowContext>>>,
         visited: &mut HashSet<String>,
-    ) {
+    ) -> StepOutcome {
         for step in steps {
             if step.delay_ms > 0 {
                 std::thread::sleep(std::time::Duration::from_millis(step.delay_ms));
@@ -468,7 +480,7 @@ impl WindowState {
             match outcome {
                 StepOutcome::Abort => {
                     // Already showed toast in execute_action_as_step
-                    return;
+                    return StepOutcome::Abort;
                 }
                 StepOutcome::Success => {
                     // Continue to next step
@@ -480,10 +492,10 @@ impl WindowState {
                                 "Workflow: step '{}' failed, aborting sequence",
                                 step.action_id
                             ));
-                            return;
+                            return StepOutcome::Abort;
                         }
                         SequenceStepBehavior::Stop => {
-                            return; // silent stop
+                            return StepOutcome::Failure; // silent stop, propagate as failure
                         }
                         SequenceStepBehavior::Continue => {
                             // continue to next step
@@ -492,6 +504,7 @@ impl WindowState {
                 }
             }
         }
+        StepOutcome::Success
     }
 
     /// Execute a Condition action when triggered directly (not inside a Sequence).

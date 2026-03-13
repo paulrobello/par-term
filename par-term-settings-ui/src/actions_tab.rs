@@ -311,12 +311,14 @@ fn show_actions_section(
                     CustomActionConfig::ShellCommand {
                         command,
                         args,
+                        capture_output,
                         notify_on_success: _,
                         ..
                     } => {
                         settings.temp_action_type = 0;
                         settings.temp_action_command = command.clone();
                         settings.temp_action_args = args.join(" ");
+                        settings.temp_action_capture_output = *capture_output;
                     }
                     CustomActionConfig::NewTab { command, .. } => {
                         settings.temp_action_type = 1;
@@ -499,6 +501,7 @@ fn show_actions_section(
                 settings.temp_action_repeat_delay_ms = 0;
                 settings.temp_action_stop_on_success = false;
                 settings.temp_action_stop_on_failure = false;
+                settings.temp_action_capture_output = false;
             }
         },
     );
@@ -539,7 +542,7 @@ fn show_action_edit_form(
                     },
                     notify_on_success: false,
                     timeout_secs: 30, // Default timeout
-                    capture_output: false,
+                    capture_output: settings.temp_action_capture_output,
                     keybinding,
                     prefix_char,
                     keybinding_enabled: settings.temp_action_keybinding_enabled,
@@ -852,6 +855,15 @@ fn show_action_edit_form(
                     ui.label("Arguments (space-separated):");
                     if ui
                         .text_edit_singleline(&mut settings.temp_action_args)
+                        .changed()
+                    {
+                        *changes_this_frame = true;
+                    }
+                    if ui
+                        .checkbox(
+                            &mut settings.temp_action_capture_output,
+                            "Capture output (makes exit code and stdout available to Condition checks)",
+                        )
                         .changed()
                     {
                         *changes_this_frame = true;
@@ -1432,5 +1444,14 @@ pub fn keywords() -> &'static [&'static str] {
         "pane",
         "horizontal",
         "vertical",
+        // Workflow action types
+        "workflow",
+        "sequence",
+        "condition",
+        "repeat",
+        "capture output",
+        "capture_output",
+        "exit code",
+        "step",
     ]
 }

@@ -232,6 +232,7 @@ impl SettingsUI {
             temp_action_repeat_delay_ms: 0,
             temp_action_stop_on_success: false,
             temp_action_stop_on_failure: false,
+            temp_action_capture_output: false,
             temp_action_keybinding_enabled: true,
             dynamic_source_editing: None,
             dynamic_source_edit_buffer: None,
