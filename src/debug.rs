@@ -63,7 +63,9 @@ impl DebugLogger {
 
         let log_path = std::env::temp_dir().join("par_term_debug.log");
 
-        // Security: refuse to open symlinks (prevents symlink attacks)
+        // Security: refuse to open symlinks (prevents symlink attacks).
+        // Remove any existing symlink before opening; O_NOFOLLOW (Unix-only, below) closes
+        // the TOCTOU race between this removal and the open call.
         if log_path
             .symlink_metadata()
             .map(|m| m.file_type().is_symlink())
@@ -72,6 +74,24 @@ impl DebugLogger {
             let _ = std::fs::remove_file(&log_path);
         }
 
+        // SEC-010: Use O_NOFOLLOW on Unix to atomically reject symlinks at open time,
+        // eliminating the TOCTOU race between the symlink check above and this open call.
+        // On non-Unix platforms the check-then-open approach is the only available option.
+        #[cfg(unix)]
+        let file = {
+            use std::os::unix::fs::OpenOptionsExt;
+            // O_NOFOLLOW (0x20000 on Linux / 0x100 on macOS) causes open() to fail with
+            // ELOOP if the final path component is a symlink, regardless of who created it.
+            OpenOptions::new()
+                .write(true)
+                .truncate(true)
+                .create(true)
+                .custom_flags(libc::O_NOFOLLOW)
+                .open(&log_path)
+                .ok()
+        };
+
+        #[cfg(not(unix))]
         let file = OpenOptions::new()
             .write(true)
             .truncate(true)

@@ -26,13 +26,13 @@ Complete reference for all par-term keyboard shortcuts.
 | New tab | `Cmd + T` | `Ctrl + Shift + T` |
 | Close tab/window | `Cmd + W` | `Ctrl + Shift + W` |
 | Quit application | `Cmd + Q` | `Ctrl + Q` |
-| Next tab | `Cmd + Shift + ]` | `Cmd + Shift + ]` |
-| Previous tab | `Cmd + Shift + [` | `Cmd + Shift + [` |
+| Next tab | `Cmd + Shift + ]` | `Ctrl + Shift + ]` |
+| Previous tab | `Cmd + Shift + [` | `Ctrl + Shift + [` |
 | Next tab (alt) | `Ctrl + Tab` | `Ctrl + Tab` |
 | Previous tab (alt) | `Ctrl + Shift + Tab` | `Ctrl + Shift + Tab` |
 | Switch to tab 1-9 | `Cmd + 1-9` | `Alt + 1-9` |
-| Move tab left | `Cmd + Shift + Left` | `Cmd + Shift + Left` |
-| Move tab right | `Cmd + Shift + Right` | `Cmd + Shift + Right` |
+| Move tab left | `Cmd + Shift + Left` | `Ctrl + Shift + Left` |
+| Move tab right | `Cmd + Shift + Right` | `Ctrl + Shift + Right` |
 | Reopen closed tab | `Cmd + Z` | `Ctrl + Shift + Z` |
 | Save window arrangement | View menu: "Save Window Arrangement..." | View menu: "Save Window Arrangement..." |
 

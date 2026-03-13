@@ -2,6 +2,7 @@ use anyhow::Result;
 
 use super::{DividerRenderInfo, PaneDividerSettings, PaneTitleInfo, Renderer};
 use crate::cell_renderer::PaneViewport;
+use crate::cell_renderer::pane_render::ATLAS_SIZE;
 
 impl Renderer {
     /// Render pane dividers on top of pane content
@@ -602,8 +603,8 @@ impl Renderer {
                             info.width as f32 / width * 2.0,
                             info.height as f32 / height * 2.0,
                         ],
-                        tex_offset: [info.x as f32 / 2048.0, info.y as f32 / 2048.0],
-                        tex_size: [info.width as f32 / 2048.0, info.height as f32 / 2048.0],
+                        tex_offset: [info.x as f32 / ATLAS_SIZE, info.y as f32 / ATLAS_SIZE],
+                        tex_size: [info.width as f32 / ATLAS_SIZE, info.height as f32 / ATLAS_SIZE],
                         color: text_color,
                         is_colored: if info.is_colored { 1 } else { 0 },
                     });

@@ -220,6 +220,58 @@ impl WindowState {
                         .get(&trigger_id)
                         .copied()
                         .unwrap_or(true);
+
+                    // SEC-001: If prompt_before_run is false but i_accept_the_risk is not set,
+                    // block execution and log an audit-level warning.
+                    if !prompt && !approved_this_frame.contains(&trigger_id) {
+                        let trigger_name = trigger_names
+                            .get(&trigger_id)
+                            .cloned()
+                            .unwrap_or_else(|| format!("trigger #{}", trigger_id));
+                        if self
+                            .config
+                            .unaccepted_risk_trigger_names
+                            .contains(&trigger_name)
+                        {
+                            log::warn!(
+                                "Trigger '{}' (id={}) RunCommand BLOCKED: \
+                                 `prompt_before_run: false` requires `i_accept_the_risk: true` \
+                                 to execute dangerous actions without confirmation. \
+                                 Add `i_accept_the_risk: true` to this trigger or set \
+                                 `prompt_before_run: true`.",
+                                trigger_name,
+                                trigger_id,
+                            );
+                            crate::debug_error!(
+                                "TRIGGER",
+                                "AUDIT RunCommand BLOCKED trigger_id={} trigger_name={} \
+                                 reason=missing_i_accept_the_risk",
+                                trigger_id,
+                                trigger_name,
+                            );
+                            continue;
+                        }
+                        // SEC-001: Log audit warning for every prompt_before_run:false execution.
+                        log::warn!(
+                            "SECURITY: Trigger '{}' (id={}) executing RunCommand without \
+                             confirmation (prompt_before_run: false). \
+                             command='{}' args={:?}",
+                            trigger_name,
+                            trigger_id,
+                            command,
+                            args,
+                        );
+                        crate::debug_info!(
+                            "TRIGGER",
+                            "AUDIT RunCommand no-prompt trigger_id={} trigger_name={} \
+                             command={} args={:?}",
+                            trigger_id,
+                            trigger_name,
+                            command,
+                            args,
+                        );
+                    }
+
                     if prompt
                         && !self
                             .trigger_state

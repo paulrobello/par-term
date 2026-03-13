@@ -275,6 +275,7 @@ impl SettingsUI {
         self.vsync_warning = warning;
     }
 
+    /// Open a native file picker dialog and return the selected file path.
     pub fn pick_file_path(&self, title: &str) -> Option<String> {
         FileDialog::new()
             .set_title(title)
@@ -282,6 +283,7 @@ impl SettingsUI {
             .map(|p| p.display().to_string())
     }
 
+    /// Open a native folder picker dialog and return the selected directory path.
     pub fn pick_folder_path(&self, title: &str) -> Option<String> {
         FileDialog::new()
             .set_title(title)

@@ -589,6 +589,23 @@ mod tests {
     use winit::keyboard::{Key, KeyCode, KeyLocation, PhysicalKey};
 
     fn make_key_event(logical_key: Key, physical_key: PhysicalKey, text: Option<&str>) -> KeyEvent {
+        // SEC-009: `KeyEvent` in winit (tested with winit 0.30.x / workspace dependency)
+        // does not expose a public constructor. `std::mem::zeroed()` produces a valid
+        // zero-initialised backing store because all fields in `KeyEvent` are either
+        // primitive types, enums with a zero discriminant, or `Option<T>` (which is
+        // `None` when zero-initialised for non-nullable inner types).
+        //
+        // Each semantically important field is immediately overwritten via `std::ptr::write`
+        // before the value is used, so no field is read in a zeroed state.
+        //
+        // SAFETY: `KeyEvent` has no fields that are immediately invalid when zero-initialised
+        // (no raw pointers that must point to valid memory, no `NonNull`, no `NonZero*`).
+        // All public fields are set before the event is returned. This pattern is required
+        // because winit intentionally omits a public constructor for `KeyEvent` to keep
+        // the API opaque. If winit adds a public constructor in a future release, prefer
+        // that over this workaround.
+        //
+        // Winit workspace dependency: see Cargo.toml `winit.workspace = true`.
         unsafe {
             let mut event: KeyEvent = std::mem::zeroed();
             std::ptr::write(&mut event.physical_key, physical_key);

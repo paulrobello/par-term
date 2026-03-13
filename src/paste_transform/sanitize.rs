@@ -1,5 +1,31 @@
 //! Paste content sanitization: strips dangerous terminal control characters.
 
+/// Check whether a paste string contains dangerous control characters that would
+/// be stripped by [`sanitize_paste_content`].
+///
+/// Returns `true` if the input contains any of:
+/// - C0 control characters (0x00-0x1F) other than Tab, Newline, Carriage Return
+/// - ESC (0x1B)
+/// - DEL (0x7F)
+/// - C1 control characters (0x80-0x9F) including CSI (0x9B)
+///
+/// Used to generate a warning log entry when `warn_paste_control_chars` is enabled.
+pub fn paste_contains_control_chars(input: &str) -> bool {
+    input.chars().any(|ch| {
+        let code = ch as u32;
+        if ch == '\t' || ch == '\n' || ch == '\r' {
+            return false;
+        }
+        if code <= 0x1F {
+            return true;
+        }
+        if code == 0x7F {
+            return true;
+        }
+        (0x80..=0x9F).contains(&code)
+    })
+}
+
 /// Sanitize clipboard paste content by stripping dangerous control characters.
 ///
 /// Removes characters that could inject terminal escape sequences when pasted:

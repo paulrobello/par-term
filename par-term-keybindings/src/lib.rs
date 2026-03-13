@@ -14,7 +14,9 @@ pub mod platform;
 
 pub use matcher::KeybindingMatcher;
 pub use parser::KeyCombo;
-// ParseError exported for consumers who might want to handle parsing errors
+// `ParseError` is consumed by `src/keybindings/mod.rs` in the root crate.
+// The suppression is intentional: nothing inside par-term-keybindings itself
+// imports this re-export, so the lint fires even though downstream consumers use it.
 #[allow(unused_imports)]
 pub use parser::ParseError;
 pub use parser::{key_combo_to_bytes, parse_key_sequence};

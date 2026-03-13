@@ -139,6 +139,27 @@ impl WindowState {
     }
 
     pub(crate) fn paste_text(&mut self, text: &str) {
+        // SEC-007: Warn when paste content contains control characters that will be stripped.
+        // Control characters in clipboard content (ESC, C0, C1) can inject terminal escape
+        // sequences. The sanitizer always strips them; this warning alerts the user that
+        // clipboard content was modified before pasting.
+        if self.config.warn_paste_control_chars
+            && crate::paste_transform::paste_contains_control_chars(text)
+        {
+            log::warn!(
+                "Clipboard paste content contained control characters (ESC, C0, C1) that were \
+                 stripped before pasting to prevent terminal escape sequence injection. \
+                 This may indicate the clipboard contains crafted or binary content. \
+                 Set `warn_paste_control_chars: false` in config to suppress this warning."
+            );
+            crate::debug_info!(
+                "PASTE",
+                "SECURITY: paste content contained control chars — stripped before PTY write \
+                 ({} chars original)",
+                text.len(),
+            );
+        }
+
         // Sanitize clipboard content to strip dangerous control characters
         // (escape sequences, C0/C1 controls) before sending to PTY
         let text = crate::paste_transform::sanitize_paste_content(text);

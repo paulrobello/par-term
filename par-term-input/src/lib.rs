@@ -1,3 +1,14 @@
+//! Keyboard input handling and VT byte sequence generation for par-term.
+//!
+//! This crate converts `winit` keyboard events into the terminal input byte
+//! sequences expected by shell applications. It handles character input,
+//! named keys, function keys, modifier combinations, Option/Alt key modes,
+//! clipboard operations, and the modifyOtherKeys protocol extension.
+//!
+//! The primary entry point is [`InputHandler`], which tracks modifier state
+//! and translates each [`winit::event::KeyEvent`] into a `Vec<u8>` suitable
+//! for writing directly to the PTY.
+
 use arboard::Clipboard;
 use winit::event::{ElementState, KeyEvent, Modifiers};
 use winit::keyboard::{Key, KeyCode, NamedKey, PhysicalKey};

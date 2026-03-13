@@ -214,7 +214,8 @@ mod tests {
     #[test]
     fn test_calculate_font_metrics_embedded() {
         // Test with embedded font (no font family specified)
-        let metrics = calculate_font_metrics(None, 13.0, 1.0, 1.0, 1.0).unwrap();
+        let metrics = calculate_font_metrics(None, 13.0, 1.0, 1.0, 1.0)
+            .expect("embedded font metrics calculation should succeed");
 
         assert!(metrics.cell_width > 0.0);
         assert!(metrics.cell_height > 0.0);
@@ -251,8 +252,10 @@ mod tests {
 
     #[test]
     fn test_line_spacing_affects_cell_height() {
-        let metrics_tight = calculate_font_metrics(None, 13.0, 1.0, 1.0, 1.0).unwrap();
-        let metrics_spacious = calculate_font_metrics(None, 13.0, 1.5, 1.0, 1.0).unwrap();
+        let metrics_tight = calculate_font_metrics(None, 13.0, 1.0, 1.0, 1.0)
+            .expect("tight line spacing metrics should succeed");
+        let metrics_spacious = calculate_font_metrics(None, 13.0, 1.5, 1.0, 1.0)
+            .expect("spacious line spacing metrics should succeed");
 
         // Cell height should be 50% larger with 1.5 line spacing
         let ratio = metrics_spacious.cell_height / metrics_tight.cell_height;
@@ -261,8 +264,10 @@ mod tests {
 
     #[test]
     fn test_char_spacing_affects_cell_width() {
-        let metrics_normal = calculate_font_metrics(None, 13.0, 1.0, 1.0, 1.0).unwrap();
-        let metrics_wide = calculate_font_metrics(None, 13.0, 1.0, 1.5, 1.0).unwrap();
+        let metrics_normal = calculate_font_metrics(None, 13.0, 1.0, 1.0, 1.0)
+            .expect("normal char spacing metrics should succeed");
+        let metrics_wide = calculate_font_metrics(None, 13.0, 1.0, 1.5, 1.0)
+            .expect("wide char spacing metrics should succeed");
 
         // Cell width should be 50% larger with 1.5 char spacing
         let ratio = metrics_wide.cell_width / metrics_normal.cell_width;
@@ -271,8 +276,10 @@ mod tests {
 
     #[test]
     fn test_scale_factor_affects_metrics() {
-        let metrics_1x = calculate_font_metrics(None, 13.0, 1.0, 1.0, 1.0).unwrap();
-        let metrics_2x = calculate_font_metrics(None, 13.0, 1.0, 1.0, 2.0).unwrap();
+        let metrics_1x = calculate_font_metrics(None, 13.0, 1.0, 1.0, 1.0)
+            .expect("1x scale factor metrics should succeed");
+        let metrics_2x = calculate_font_metrics(None, 13.0, 1.0, 1.0, 2.0)
+            .expect("2x scale factor metrics should succeed");
 
         // At 2x scale, metrics should be doubled
         let width_ratio = metrics_2x.cell_width / metrics_1x.cell_width;

@@ -439,26 +439,3 @@ fn show_auto_restore_section(
     );
 }
 
-/// Search keywords (kept for reference; content is inlined into window_tab::keywords()).
-#[allow(dead_code)]
-pub fn keywords() -> &'static [&'static str] {
-    &[
-        "arrangement",
-        "arrangements",
-        "layout",
-        "workspace",
-        "save",
-        "restore",
-        "monitor",
-        "window layout",
-        "auto-restore",
-        // Arrangement management
-        "rename",
-        "delete",
-        "reorder",
-        "move up",
-        "move down",
-        "overwrite",
-        "startup",
-    ]
-}

@@ -2,24 +2,29 @@
 
 // ── Primitive helpers ──────────────────────────────────────────────────────
 
+/// Serde default returning `false`.
 pub fn bool_false() -> bool {
     false
 }
 
+/// Serde default returning `true`.
 pub fn bool_true() -> bool {
     true
 }
 
+/// Serde default returning `0`.
 pub fn zero() -> usize {
     0
 }
 
+/// Default mDNS service discovery timeout in seconds.
 pub fn mdns_timeout() -> u32 {
     3
 }
 
 // ── Update ─────────────────────────────────────────────────────────────────
 
+/// Default update check frequency.
 pub fn update_check_frequency() -> crate::types::UpdateCheckFrequency {
     crate::types::UpdateCheckFrequency::Daily
 }
@@ -247,112 +252,137 @@ pub fn keybindings() -> Vec<crate::types::KeyBinding> {
 
 // ── Command separator ──────────────────────────────────────────────────────
 
+/// Default command separator line thickness in pixels.
 pub fn command_separator_thickness() -> f32 {
     1.0 // 1 pixel line
 }
 
+/// Default command separator line opacity (0.0–1.0).
 pub fn command_separator_opacity() -> f32 {
     0.4 // Subtle by default
 }
 
 // ── Cursor shadow / boost ──────────────────────────────────────────────────
 
+/// Default cursor drop shadow pixel offset as `[x, y]`.
 pub fn cursor_shadow_offset() -> [f32; 2] {
     [2.0, 2.0] // 2 pixels offset in both directions
 }
 
+/// Default cursor drop shadow blur radius in pixels.
 pub fn cursor_shadow_blur() -> f32 {
     3.0 // 3 pixel blur radius
 }
 
+/// Default cursor brightness boost amount (0.0 = disabled).
 pub fn cursor_boost() -> f32 {
     0.0 // Disabled by default
 }
 
 // ── Badge ──────────────────────────────────────────────────────────────────
 
+/// Default badge format string.
 pub fn badge_format() -> String {
     "\\(session.username)@\\(session.hostname)".to_string()
 }
 
+/// Default badge text opacity (0.0–1.0).
 pub fn badge_color_alpha() -> f32 {
     0.5 // 50% opacity (semi-transparent)
 }
 
+/// Default badge top margin in pixels.
 pub fn badge_top_margin() -> f32 {
     0.0 // 0 pixels from top
 }
 
+/// Default badge right margin in pixels.
 pub fn badge_right_margin() -> f32 {
     16.0 // 16 pixels from right
 }
 
+/// Default badge maximum width as a fraction of terminal width (0.0–1.0).
 pub fn badge_max_width() -> f32 {
     0.5 // 50% of terminal width
 }
 
+/// Default badge maximum height as a fraction of terminal height (0.0–1.0).
 pub fn badge_max_height() -> f32 {
     0.2 // 20% of terminal height
 }
 
 // ── Progress bar ───────────────────────────────────────────────────────────
 
+/// Default progress bar height in pixels.
 pub fn progress_bar_height() -> f32 {
     4.0 // Height in pixels
 }
 
+/// Default progress bar opacity (0.0–1.0).
 pub fn progress_bar_opacity() -> f32 {
     0.8
 }
 
 // ── Unicode ────────────────────────────────────────────────────────────────
 
+/// Default Unicode version for character width calculations.
 pub fn unicode_version() -> par_term_emu_core_rust::UnicodeVersion {
     par_term_emu_core_rust::UnicodeVersion::Auto
 }
 
+/// Default treatment of ambiguous-width Unicode characters.
 pub fn ambiguous_width() -> par_term_emu_core_rust::AmbiguousWidth {
     par_term_emu_core_rust::AmbiguousWidth::Narrow
 }
 
+/// Default Unicode normalization form applied to terminal input.
 pub fn normalization_form() -> par_term_emu_core_rust::NormalizationForm {
     par_term_emu_core_rust::NormalizationForm::NFC
 }
 
 // ── Pane layout ────────────────────────────────────────────────────────────
 
+/// Default split-pane divider visual width in pixels (`None` = use theme default).
 pub fn pane_divider_width() -> Option<f32> {
     Some(2.0) // 2 pixel divider between panes
 }
 
+/// Default split-pane divider drag hit area width in pixels.
 pub fn pane_divider_hit_width() -> f32 {
     5.0 // 5 pixel hit area for drag-to-resize (larger than visual for easier grabbing)
 }
 
+/// Default padding in pixels inside each pane (between content and border/divider).
 pub fn pane_padding() -> f32 {
     1.0 // 1 pixel padding inside panes (space between content and border/divider)
 }
 
+/// Default minimum pane size in terminal cells (applies to both columns and rows).
 pub fn pane_min_size() -> usize {
     10 // Minimum pane size in cells (columns or rows)
 }
 
+/// Default pane background opacity (1.0 = fully opaque).
 pub fn pane_background_opacity() -> f32 {
     1.0 // Fully opaque by default
 }
 
+/// Default opacity for inactive (unfocused) panes (0.0–1.0).
 pub fn inactive_pane_opacity() -> f32 {
     0.7 // 70% opacity for inactive panes
 }
 
+/// Default maximum number of panes allowed per tab.
 pub fn max_panes() -> usize {
     16 // Maximum panes per tab
 }
 
+/// Default pane title bar height in pixels.
 pub fn pane_title_height() -> f32 {
     20.0 // 20 pixel title bar height for panes
 }
 
+/// Default focused pane border width in pixels.
 pub fn pane_focus_width() -> f32 {
     1.0 // 1 pixel border around focused pane
 }
@@ -406,30 +436,37 @@ pub fn tmux_path() -> String {
     "tmux".to_string()
 }
 
+/// Default tmux session name to connect to (`None` = no default).
 pub fn tmux_default_session() -> Option<String> {
     None // No default session name
 }
 
+/// Default tmux session to auto-attach on startup (`None` = disabled).
 pub fn tmux_auto_attach_session() -> Option<String> {
     None // No auto-attach session
 }
 
+/// Default tmux prefix key string (standard Ctrl+B).
 pub fn tmux_prefix_key() -> String {
     "C-b".to_string() // Standard tmux prefix (Ctrl+B)
 }
 
+/// Default custom action prefix key (empty = disabled).
 pub fn custom_action_prefix_key() -> String {
     String::new() // Disabled by default
 }
 
+/// Default tmux status bar refresh interval in milliseconds.
 pub fn tmux_status_bar_refresh_ms() -> u64 {
     1000 // Default: 1 second refresh interval
 }
 
+/// Default tmux status bar left-side format string.
 pub fn tmux_status_bar_left() -> String {
     "[{session}] {windows}".to_string()
 }
 
+/// Default tmux status bar right-side format string.
 pub fn tmux_status_bar_right() -> String {
     "{pane} | {time:%H:%M}".to_string()
 }

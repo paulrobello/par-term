@@ -68,8 +68,8 @@ What the reader needs to know or have before proceeding...
 
 ## Related Documentation
 
-- [Relevant Doc 1](link1.md) - Brief description
-- [Relevant Doc 2](link2.md) - Brief description
+- [Relevant Doc 1](../docs/relevant-doc-1.md) - Brief description
+- [Relevant Doc 2](../docs/relevant-doc-2.md) - Brief description
 ```
 
 ### Section Hierarchy
@@ -740,7 +740,7 @@ graph LR
 > - Old: `/api/resource`
 > - New: `/api/v2/resources`
 >
-> Migration guide: [See MIGRATION_V2.md](MIGRATION_V2.md)
+> Migration guide: See `MIGRATION_V2.md` (example filename — replace with actual migration guide path)
 ```
 
 ### Cross-Reference Management
@@ -1016,7 +1016,7 @@ try {
 
 ## API Reference
 
-See [API_DOCUMENTATION.md](API_DOCUMENTATION.md) for complete reference.
+See `API_DOCUMENTATION.md` for complete reference (example filename — replace with actual API docs path).
 
 ## Troubleshooting
 

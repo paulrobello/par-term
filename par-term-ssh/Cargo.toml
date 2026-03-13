@@ -2,6 +2,7 @@
 name = "par-term-ssh"
 version = "0.1.3"
 edition = "2024"
+rust-version = "1.91"
 authors = ["Paul Robello <probello@gmail.com>"]
 description = "SSH host management and discovery for par-term terminal emulator"
 license = "MIT"

@@ -15,7 +15,7 @@ A cross-platform, GPU-accelerated terminal emulator frontend built with Rust, po
 ## Table of Contents
 
 - [Getting Started](#getting-started)
-- [What's New](#whats-new-in-0250)
+- [What's New](#whats-new-in-0260)
 - [Features](#features)
 - [Documentation](#documentation)
 - [Installation](#installation)
@@ -890,7 +890,7 @@ This builds and installs the binary to `~/.cargo/bin/par-term`.
 
 ### From Source
 
-Requires Rust 1.85+ (2024 edition) and modern graphics drivers:
+Requires Rust 1.91+ (stable, 2024 edition) and modern graphics drivers:
 
 ```bash
 # Clone the repository

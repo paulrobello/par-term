@@ -65,7 +65,6 @@ pub use types::{
     UnfocusedCursorStyle, UpdateCheckFrequency, VsyncMode, WindowType,
     default_smart_selection_rules,
 };
-// KeyModifier is exported for potential future use (e.g., custom keybinding UI)
 pub use automation::{
     CoprocessDefConfig, RestartPolicy, SplitPaneCommand, TriggerActionConfig, TriggerConfig,
     TriggerRateLimiter, TriggerSplitDirection, TriggerSplitTarget, check_command_denylist,
@@ -111,6 +110,10 @@ pub use config::prettifier::{
 // Until that migration is complete, callers must use `par_term_config::UnicodeVersion`
 // etc. (not `par_term_emu_core_rust::UnicodeVersion`) to avoid fragile dual imports.
 pub use par_term_emu_core_rust::{AmbiguousWidth, NormalizationForm, UnicodeVersion};
+// `KeyModifier` and the Resolved*ShaderConfig types are re-exported for downstream crates
+// (e.g., root crate's src/config/mod.rs facade). Rust's unused-import lint fires here
+// because nothing inside par-term-config itself consumes these re-exports directly.
+// The suppressions are intentional — do not remove without auditing all consumers first.
 #[allow(unused_imports)]
 pub use types::KeyModifier;
 #[allow(unused_imports)]

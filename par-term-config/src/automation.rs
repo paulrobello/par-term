@@ -51,6 +51,17 @@ pub struct TriggerConfig {
     /// backward compatibility with existing config files.
     #[serde(default = "crate::defaults::bool_true", alias = "require_user_action")]
     pub prompt_before_run: bool,
+    /// Explicit opt-in required when `prompt_before_run: false` is set for any trigger
+    /// that contains dangerous actions (`RunCommand`, `SendText`, `SplitPane`).
+    ///
+    /// When `prompt_before_run: false`, the denylist is the only automated protection
+    /// against malicious terminal output triggering arbitrary command execution.
+    /// Setting this to `true` signals that you have reviewed and accepted this risk.
+    ///
+    /// If `prompt_before_run: false` AND this is `false` (default), the trigger will
+    /// not execute and a warning will be logged.
+    #[serde(default)]
+    pub i_accept_the_risk: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -569,14 +580,28 @@ fn check_pipe_to_shell(s: &str, shell: &str) -> bool {
 /// Called during config load for any trigger with `prompt_before_run: false` that contains
 /// dangerous actions. With `prompt_before_run: false`, dangerous actions execute automatically
 /// without user confirmation; only the rate-limiter and denylist provide protection.
-pub fn warn_prompt_before_run_false(trigger_name: &str) {
-    eprintln!(
-        "[par-term SECURITY WARNING] Trigger '{trigger_name}' has `prompt_before_run: false`.\n\
-         This allows terminal output to directly trigger RunCommand/SendText/SplitPane actions\n\
-         without confirmation. The command denylist provides only limited protection.\n\
-         Only use this setting if you fully trust the configured commands and environment.\n\
-         Recommendation: set `prompt_before_run: true` (the default) to require confirmation."
-    );
+///
+/// When `i_accept_the_risk` is `false`, the warning additionally notes that the trigger
+/// will be blocked until the explicit opt-in is added to the config.
+pub fn warn_prompt_before_run_false(trigger_name: &str, i_accept_the_risk: bool) {
+    if i_accept_the_risk {
+        eprintln!(
+            "[par-term SECURITY WARNING] Trigger '{trigger_name}' has `prompt_before_run: false`.\n\
+             This allows terminal output to directly trigger RunCommand/SendText/SplitPane actions\n\
+             without confirmation. The command denylist provides only limited protection.\n\
+             Only use this setting if you fully trust the configured commands and environment.\n\
+             Recommendation: set `prompt_before_run: true` (the default) to require confirmation."
+        );
+    } else {
+        eprintln!(
+            "[par-term SECURITY BLOCK] Trigger '{trigger_name}' has `prompt_before_run: false` \
+             but is missing `i_accept_the_risk: true`.\n\
+             Dangerous actions (RunCommand/SendText/SplitPane) will NOT execute for this trigger \
+             until you add `i_accept_the_risk: true` to acknowledge the risk.\n\
+             This opt-in is required when bypassing the confirmation dialog for dangerous actions.\n\
+             Recommendation: set `prompt_before_run: true` (the default) instead."
+        );
+    }
 }
 
 /// Rate limiter for output-triggered actions.
