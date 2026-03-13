@@ -503,6 +503,8 @@ jobs:
           zip -r binaries/shaders.zip shaders/ -x "*.DS_Store"
           echo "Created shaders.zip with contents:"
           unzip -l binaries/shaders.zip | tail -20
+          shasum -a 256 binaries/shaders.zip | awk '{print $1}' > binaries/shaders.zip.sha256
+          echo "SHA256: $(cat binaries/shaders.zip.sha256)"
 
       - name: List downloaded binaries
         run: ls -lh binaries/
