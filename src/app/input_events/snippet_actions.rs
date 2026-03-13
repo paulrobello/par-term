@@ -358,10 +358,10 @@ impl WindowState {
     ) -> bool {
         match check {
             ConditionCheck::ExitCode { value } => {
-                if let Ok(guard) = ctx.lock() {
-                    if let Some(wf_ctx) = guard.as_ref() {
-                        return wf_ctx.last_exit_code == Some(*value);
-                    }
+                if let Ok(guard) = ctx.lock()
+                    && let Some(wf_ctx) = guard.as_ref()
+                {
+                    return wf_ctx.last_exit_code == Some(*value);
                 }
                 false
             }
@@ -369,16 +369,15 @@ impl WindowState {
                 pattern,
                 case_sensitive,
             } => {
-                if let Ok(guard) = ctx.lock() {
-                    if let Some(wf_ctx) = guard.as_ref() {
-                        if let Some(output) = &wf_ctx.last_output {
-                            return if *case_sensitive {
-                                output.contains(pattern.as_str())
-                            } else {
-                                output.to_lowercase().contains(&pattern.to_lowercase())
-                            };
-                        }
-                    }
+                if let Ok(guard) = ctx.lock()
+                    && let Some(wf_ctx) = guard.as_ref()
+                    && let Some(output) = &wf_ctx.last_output
+                {
+                    return if *case_sensitive {
+                        output.contains(pattern.as_str())
+                    } else {
+                        output.to_lowercase().contains(&pattern.to_lowercase())
+                    };
                 }
                 false
             }
