@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Clone button for custom actions** — each custom action row in Settings → Actions now has a "Clone" button that duplicates the action, appends `-copy` to its title, assigns a fresh ID, and inserts the copy immediately below the original. The keybinding and prefix char are cleared on the clone to avoid immediate conflicts.
+
+### Fixed
+- **Shell integration installer uses `$HOME`** — the source and PATH lines written to `.bashrc` / `.zshrc` / `config.fish` during shell integration install now use `$HOME/` instead of the literal home-directory path, making the entries portable across user renames and shared dotfile repositories.
+
 ---
 
 ## [0.27.0] - 2026-03-12

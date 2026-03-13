@@ -317,6 +317,18 @@ fn remove_from_rc_file(rc_file: &Path) -> Result<bool, String> {
     Ok(true)
 }
 
+/// Convert an absolute path to a `$HOME`-relative string when possible.
+///
+/// `/Users/alice/.config/par-term/bin` → `$HOME/.config/par-term/bin`
+fn home_relative_str(path: &Path) -> String {
+    if let Some(home) = dirs::home_dir() {
+        if let Ok(rel) = path.strip_prefix(&home) {
+            return format!("$HOME/{}", rel.display());
+        }
+    }
+    path.display().to_string()
+}
+
 /// Generate the source block with markers for a given shell
 fn generate_source_block(shell: ShellType) -> String {
     let integration_dir = Config::shell_integration_dir();
@@ -324,9 +336,8 @@ fn generate_source_block(shell: ShellType) -> String {
     let script_path = integration_dir.join(&script_filename);
     let bin_dir = integration_dir.join("bin");
 
-    // Use display() for path - will work on all platforms
-    let script_path_str = script_path.display();
-    let bin_dir_str = bin_dir.display();
+    let script_path_str = home_relative_str(&script_path);
+    let bin_dir_str = home_relative_str(&bin_dir);
 
     match shell {
         ShellType::Fish => {
@@ -425,7 +436,7 @@ mod tests {
         assert!(block.contains("source"));
         assert!(block.contains(".bash"));
         assert!(block.contains("export PATH="));
-        assert!(block.contains("/bin"));
+        assert!(block.contains("$HOME/"));
     }
 
     #[test]
@@ -436,7 +447,7 @@ mod tests {
         assert!(block.contains("source"));
         assert!(block.contains(".zsh"));
         assert!(block.contains("export PATH="));
-        assert!(block.contains("/bin"));
+        assert!(block.contains("$HOME/"));
     }
 
     #[test]
@@ -450,7 +461,7 @@ mod tests {
         assert!(block.contains("if test -f"));
         assert!(block.contains("end"));
         assert!(block.contains("set -gx PATH"));
-        assert!(block.contains("/bin"));
+        assert!(block.contains("$HOME/"));
     }
 
     #[test]

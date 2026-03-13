@@ -135,6 +135,7 @@ fn show_actions_section(
 
             // Collect mutations to apply after iteration
             let mut delete_index: Option<usize> = None;
+            let mut clone_index: Option<usize> = None;
             let mut start_edit_index: Option<usize> = None;
 
             let action_count = settings.config.actions.len();
@@ -190,7 +191,7 @@ fn show_actions_section(
                                 // Reserve a fixed area for action buttons so the text segment
                                 // can't push them outside the visible row.
                                 ui.horizontal(|ui| {
-                                    let button_area_width = 110.0;
+                                    let button_area_width = 165.0;
                                     let row_height = ui.spacing().interact_size.y;
                                     let text_area_width =
                                         (ui.available_width() - button_area_width).max(0.0);
@@ -233,6 +234,14 @@ fn show_actions_section(
                                                 delete_index = Some(i);
                                             }
 
+                                            if ui
+                                                .small_button("Clone")
+                                                .on_hover_text("Duplicate this action")
+                                                .clicked()
+                                            {
+                                                clone_index = Some(i);
+                                            }
+
                                             if ui.small_button("Edit").clicked() {
                                                 start_edit_index = Some(i);
                                             }
@@ -255,6 +264,13 @@ fn show_actions_section(
                     settings.editing_action_index = None;
                     settings.adding_new_action = false;
                 }
+            }
+
+            if let Some(i) = clone_index {
+                let cloned = clone_action(&settings.config.actions[i]);
+                settings.config.actions.insert(i + 1, cloned);
+                settings.has_changes = true;
+                *changes_this_frame = true;
             }
 
             if let Some(i) = start_edit_index {
@@ -751,6 +767,107 @@ fn show_action_edit_form(
         });
 
     ui.separator();
+}
+
+/// Create a duplicate of `action` with a fresh id, title suffixed with "-copy",
+/// and keybinding/prefix_char cleared to avoid immediate conflicts.
+fn clone_action(action: &CustomActionConfig) -> CustomActionConfig {
+    let new_id = format!("action_{}", uuid::Uuid::new_v4());
+    match action {
+        CustomActionConfig::ShellCommand {
+            title,
+            command,
+            args,
+            notify_on_success,
+            timeout_secs,
+            keybinding_enabled,
+            description,
+            ..
+        } => CustomActionConfig::ShellCommand {
+            id: new_id,
+            title: format!("{}-copy", title),
+            command: command.clone(),
+            args: args.clone(),
+            notify_on_success: *notify_on_success,
+            timeout_secs: *timeout_secs,
+            keybinding: None,
+            prefix_char: None,
+            keybinding_enabled: *keybinding_enabled,
+            description: description.clone(),
+        },
+        CustomActionConfig::NewTab {
+            title,
+            command,
+            keybinding_enabled,
+            description,
+            ..
+        } => CustomActionConfig::NewTab {
+            id: new_id,
+            title: format!("{}-copy", title),
+            command: command.clone(),
+            keybinding: None,
+            prefix_char: None,
+            keybinding_enabled: *keybinding_enabled,
+            description: description.clone(),
+        },
+        CustomActionConfig::InsertText {
+            title,
+            text,
+            variables,
+            keybinding_enabled,
+            description,
+            ..
+        } => CustomActionConfig::InsertText {
+            id: new_id,
+            title: format!("{}-copy", title),
+            text: text.clone(),
+            variables: variables.clone(),
+            keybinding: None,
+            prefix_char: None,
+            keybinding_enabled: *keybinding_enabled,
+            description: description.clone(),
+        },
+        CustomActionConfig::KeySequence {
+            title,
+            keys,
+            keybinding_enabled,
+            description,
+            ..
+        } => CustomActionConfig::KeySequence {
+            id: new_id,
+            title: format!("{}-copy", title),
+            keys: keys.clone(),
+            keybinding: None,
+            prefix_char: None,
+            keybinding_enabled: *keybinding_enabled,
+            description: description.clone(),
+        },
+        CustomActionConfig::SplitPane {
+            title,
+            direction,
+            command,
+            command_is_direct,
+            focus_new_pane,
+            delay_ms,
+            split_percent,
+            keybinding_enabled,
+            description,
+            ..
+        } => CustomActionConfig::SplitPane {
+            id: new_id,
+            title: format!("{}-copy", title),
+            direction: *direction,
+            command: command.clone(),
+            command_is_direct: *command_is_direct,
+            focus_new_pane: *focus_new_pane,
+            delay_ms: *delay_ms,
+            split_percent: *split_percent,
+            keybinding: None,
+            prefix_char: None,
+            keybinding_enabled: *keybinding_enabled,
+            description: description.clone(),
+        },
+    }
 }
 
 /// Search keywords for the Actions settings tab.
