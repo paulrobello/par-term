@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`split_pane` custom action** — a new action type that splits the active pane and optionally runs a command in the new pane. Supports two command modes:
   - **Shell mode** (`command_is_direct: false`, default): the command is sent as text to the shell with a trailing newline; the shell stays running when the command finishes.
   - **Direct mode** (`command_is_direct: true`): the new pane's PTY runs the command directly as its process; the pane closes automatically when the command exits. Best for interactive tools like `htop`, `vim`, or `watch`.
+- **`new_tab` custom action** — custom actions can now open a new tab and optionally send a command to that tab's shell after launch. The settings UI exposes this as a dedicated **New Tab** action type with a multiline command editor.
 - **Custom-action prefix mode** — custom actions can now be triggered with a tmux-style two-stroke binding: configure a global `custom_action_prefix_key`, assign a single-character `prefix_char` to each action, then press the prefix key, release it, and press that character. The settings UI exposes both fields, supports recording the prefix combo, warns about duplicate prefix chars and prefix-key conflicts, keeps the prefix toast visible while the mode is armed, and lets you cancel prefix mode with `Esc`.
 - **`split_pane` trigger action** — triggers can now open a new horizontal or vertical pane and optionally run a command in it when a regex pattern matches terminal output. Supports `send_text` and `initial_command` sub-types for the post-split command, and a `target` field (`active` or `source`) for future per-pane source tracking.
 - **`prompt_before_run` confirmation dialog** — dangerous trigger actions (`RunCommand`, `SendText`, `SplitPane`) now show an interactive modal dialog before executing. The dialog offers three choices: **Allow Once** (run this one time), **Always Allow** (auto-approve for the rest of the session), and **Deny** (discard). Setting `prompt_before_run: false` bypasses the dialog; the rate-limiter and command denylist still apply.
@@ -21,9 +22,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **`require_user_action` renamed to `prompt_before_run`** on trigger definitions. The old name is accepted as a YAML alias — existing config files continue to work without modification.
+- The standalone settings window now opens 10% wider by default, giving the custom-actions editor and list more room before truncation.
 
 ### Fixed
+- "Skip This Version" in the update dialog now persists across restarts — the `save_config` flag from the render pass was not being acted on, so `skipped_version` was never written to disk.
 - URL and file path detection now strips trailing sentence punctuation (`.`, `!`, `?`) so that paths at the end of sentences (e.g., "the file is at ~/thefile.txt.") no longer include the trailing period in the highlight or click-to-open target.
+- Custom-action prefix follow-up keys are now fully captured while prefix mode is armed, so bound prefix chars and `Esc` no longer leak through to the terminal.
+- The custom-actions list now renders in its own full-width container below the prefix-key row, keeping item text left-aligned and preserving the `Edit` / `Delete` buttons on narrower settings windows.
 - Custom action keybinding conflict checker no longer reports a false conflict when re-editing an action that already has a saved keybinding.
 - Keybinding conflict warning in the action editor is now shown below the input row instead of inline, preventing the Record button from being pushed off-screen.
 - `PageUp`/`PageDown` are now forwarded to terminal applications (e.g., `joe`, `less`, `vim`) as `\x1b[5~`/`\x1b[6~`; scrollback navigation now requires `Shift+PageUp`/`Shift+PageDown`, consistent with `Shift+Home`/`Shift+End`.

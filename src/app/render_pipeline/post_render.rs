@@ -34,8 +34,13 @@ impl WindowState {
             quit_confirm,
             remote_install,
             ssh_connect,
-            save_config: _,
+            save_config,
         } = actions;
+
+        // Persist config if any render-pass handler requested it (e.g., "Skip This Version").
+        if save_config && let Err(e) = self.save_config_debounced() {
+            log::error!("Failed to save config after render action: {}", e);
+        }
 
         // Sync AI Inspector panel width after the render pass.
         // This catches drag-resize changes that update self.overlay_ui.ai_inspector.width during show().
