@@ -1,9 +1,10 @@
 ---
 description: Bump version, update docs, sanity check and deploy project
 ---
-ensure project is using latest published version of core library
-run 'make pre-commit' fix all issues
-bump version update changelog and readme
+
+- Ensure project is using latest published version of core library
+- Run 'make pre-commit' fix all issues
+- Bump version update changelog and readme
 
 **IMPORTANT: Subcrate Version Bumping**
 Before committing, check if any workspace subcrates have changes since their last published version:
@@ -55,4 +56,6 @@ This ensures crates.io publishes have the correct versions with all changes, pre
 
 use docs/DOCUMENTATION_STYLE_GUIDE.md to update all docs/ and or create new docs for all the changes since last release
 commit and push all changes
-run 'make deploy' to trigger cicd deployment
+
+- Run 'make deploy' to trigger cicd deployment
+- Monitor cicd every 5 minutes for issues and fix any found and re-trigger deploy
