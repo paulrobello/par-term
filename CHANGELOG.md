@@ -9,6 +9,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- **Trigger `i_accept_the_risk` guard** — triggers with `prompt_before_run: false` now require an explicit `i_accept_the_risk: true` field; execution is blocked with an audit warning if absent. Every no-prompt execution is logged at warn level.
+- **Shader installer requires checksum** — installing shaders from a GitHub release without a `.sha256` asset now returns a hard error instead of proceeding with a warning.
+- **Custom SHA-256 replaced with `sha2` crate** — removed the hand-rolled SHA-256 implementation in the shader installer; uses the `sha2` workspace dependency.
+- **Prettifier external commands default-deny** — `ExternalCommandRenderer` now refuses execution when `allowed_commands` is empty (the default); users must explicitly list permitted commands.
+- **Clipboard paste control-char warning** — adds `warn_paste_control_chars` config option (default `true`) that logs a warning when clipboard content contains VT escape sequences.
+- **`O_NOFOLLOW` for debug log file** — the debug log open path on Unix now uses `O_NOFOLLOW` to close a TOCTOU symlink-race window.
+- **`allow_all_env_vars` startup warning** — a prominent warning is emitted at startup when `allow_all_env_vars: true` is detected in config, recommending a local-only override file.
+- **Session logging warning** — a one-time notice is printed when session logging starts, showing the log path and advising that sensitive data may be captured.
+
+### Added
+- **`typecheck` Makefile target** — `make typecheck` runs `cargo check --workspace`; also added to `make checkall`.
+- **Sub-crate READMEs** — created README.md for 11 previously undocumented sub-crates: `par-term-acp`, `par-term-fonts`, `par-term-input`, `par-term-keybindings`, `par-term-prettifier`, `par-term-render`, `par-term-scripting`, `par-term-settings-ui`, `par-term-terminal`, `par-term-tmux`, `par-term-update`.
+- **`ATLAS_SIZE` constant** — replaced 16 scattered `2048.0` magic literals in the render pipeline with `pub(crate) const ATLAS_SIZE: f32 = 2048.0;`.
+- **151 docstrings** added to `par-term-config/src/defaults/` functions and other undocumented public API items.
+- **`//!` crate-level doc comment** added to `par-term-input/src/lib.rs`.
+
+### Changed
+- **Rust toolchain pinned to 1.91.0** — `release.yml` `RUST_VERSION` updated from `1.85.0` to `1.91.0` to match CI; `rust-toolchain.toml` channel pinned from `"stable"` to `"1.91.0"`.
+- **`rust-version = "1.91"` added to all 14 sub-crate `Cargo.toml` files** — aligns MSRV declarations across the workspace.
+- **Removed redundant `resolver = "2"`** from root `Cargo.toml` (Edition 2024 defaults to resolver v2).
+- **`Tab::Drop` no longer sleeps 50 ms** — removed the blocking `std::thread::sleep(50ms)` on tab close; `abort()` is non-blocking.
+- **Render-path `.unwrap()` replaced with `.expect()`** — the 3 `unwrap()` calls in `par-term-render/src/renderer/rendering.rs` now carry descriptive invariant messages.
+- **Keyboard shortcuts doc corrected** — Linux/Windows column for Next/Prev tab and Move tab left/right now shows `Ctrl+Shift` (was `Cmd+Shift`).
+- **README updated to v0.26.0 and Rust 1.91+**.
+- **CHANGELOG comparison links added** per Keep a Changelog spec.
+
+### Fixed
+- Clippy `field_reassign_with_default` violation in `par-term-config` prettifier test — replaced with struct initializer form.
+- Removed dead `segment_texts()` helper from `par-term-prettifier` markdown inline tests.
+- Removed 3 dead `keywords()` functions from settings-ui badge, progress-bar, and arrangements tabs.
+
 ### Added
 - **`split_percent` for `split_pane` actions** — both custom actions and trigger `split_pane` now accept a `split_percent` field (10–90, default `66`). This controls how much of the current pane the *existing* pane retains after the split; the new pane receives the remainder. Keyboard-shortcut splits (`Ctrl+\` etc.) are unaffected and continue to split 50/50. The settings UI displays the percent in the type indicator (`[Split-vert-66]`) and exposes a drag-control in the editor. Config example: `split_percent: 66`.
 - **`split_pane` custom action** — a new action type that splits the active pane and optionally runs a command in the new pane. Supports two command modes:
