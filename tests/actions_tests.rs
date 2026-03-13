@@ -1,6 +1,6 @@
 //! Integration tests for the custom actions system.
 //!
-//! Covers: action type variants (ShellCommand, InsertText, KeySequence),
+//! Covers: action type variants (ShellCommand, NewTab, InsertText, KeySequence),
 //! keybinding accessors and serialization, action keybinding generation,
 //! config persistence for actions, and key sequence parsing.
 
@@ -61,6 +61,25 @@ fn test_custom_action_insert_text() {
     assert_eq!(action.id(), "test_action");
     assert!(action.is_insert_text());
     assert!(!action.is_shell_command());
+    assert!(!action.is_key_sequence());
+}
+
+#[test]
+fn test_custom_action_new_tab() {
+    let action = CustomActionConfig::NewTab {
+        id: "test_action".to_string(),
+        title: "Open Test Tab".to_string(),
+        command: Some("cargo test".to_string()),
+        keybinding: None,
+        prefix_char: None,
+        keybinding_enabled: true,
+        description: None,
+    };
+
+    assert_eq!(action.id(), "test_action");
+    assert!(action.is_new_tab());
+    assert!(!action.is_shell_command());
+    assert!(!action.is_insert_text());
     assert!(!action.is_key_sequence());
 }
 
@@ -132,6 +151,15 @@ fn test_action_types_serialization_roundtrip() {
             keybinding_enabled: true,
             description: None,
         },
+        CustomActionConfig::NewTab {
+            id: "tab".to_string(),
+            title: "Tab".to_string(),
+            command: Some("lazygit".to_string()),
+            keybinding: Some("Ctrl+Shift+T".to_string()),
+            prefix_char: None,
+            keybinding_enabled: true,
+            description: None,
+        },
         CustomActionConfig::KeySequence {
             id: "keys".to_string(),
             title: "Keys".to_string(),
@@ -153,8 +181,25 @@ fn test_action_types_serialization_roundtrip() {
         assert_eq!(deserialized.id(), action.id());
         assert_eq!(deserialized.title(), action.title());
         assert_eq!(deserialized.is_shell_command(), action.is_shell_command());
+        assert_eq!(deserialized.is_new_tab(), action.is_new_tab());
         assert_eq!(deserialized.is_insert_text(), action.is_insert_text());
         assert_eq!(deserialized.is_key_sequence(), action.is_key_sequence());
+    }
+}
+
+#[test]
+fn test_new_tab_command_optional_deserialization() {
+    let yaml = r#"
+type: new_tab
+id: open_shell
+title: Open Shell
+keybinding_enabled: true
+"#;
+
+    let action: CustomActionConfig = serde_yaml_ng::from_str(yaml).unwrap();
+    match action {
+        CustomActionConfig::NewTab { command, .. } => assert_eq!(command, None),
+        other => panic!("expected NewTab, got {:?}", other),
     }
 }
 

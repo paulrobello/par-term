@@ -331,7 +331,7 @@ pub struct SettingsUI {
     // Actions tab state
     /// Index of action currently being edited (None = not editing)
     pub editing_action_index: Option<usize>,
-    /// Temporary action type for edit form (0=ShellCommand, 1=InsertText, 2=KeySequence, 3=SplitPane)
+    /// Temporary action type for edit form (0=ShellCommand, 1=NewTab, 2=InsertText, 3=KeySequence, 4=SplitPane)
     pub temp_action_type: usize,
     /// Temporary action ID for edit form
     pub temp_action_id: String,
@@ -341,6 +341,8 @@ pub struct SettingsUI {
     pub temp_action_command: String,
     /// Temporary action args (for ShellCommand type)
     pub temp_action_args: String,
+    /// Temporary command text for NewTab type (empty = open an empty tab)
+    pub temp_action_new_tab_command: String,
     /// Temporary action text (for InsertText type)
     pub temp_action_text: String,
     /// Temporary action keys (for KeySequence type)

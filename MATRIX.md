@@ -536,14 +536,14 @@ iTerm2 has a system for saved text snippets and custom actions.
 | Snippet shortcuts | ✅ | ✅ | ✅ | ⭐⭐ | 🟡 | Keyboard shortcuts for snippets |
 | Snippet variables | ✅ | ✅ | ✅ | ⭐ | 🟡 | Dynamic values in snippets (10 built-in variables) |
 | Snippet library | ✅ | ✅ | ✅ | ⭐⭐ | 🟡 | Organize snippets into folders, import/export YAML libraries |
-| Custom actions | ✅ | ✅ | ✅ | ⭐ | 🟡 | Shell commands, text insertion, and key sequence simulation |
+| Custom actions | ✅ | ✅ | ✅ | ⭐ | 🟡 | Shell commands, new-tab launchers, text insertion, split panes, and key sequence simulation |
 | Action key bindings | ✅ | ✅ | ✅ | ⭐ | 🟡 | Assign keys to actions via UI or config (auto-generated on load) |
 
 ### Implementation Details (v0.11.0+)
 
 **Data Structures** (`src/config/snippets.rs`):
 - `SnippetConfig`: id, title, content, keybinding, folder, enabled, description, variables (HashMap)
-- `CustomActionConfig`: Tagged enum with ShellCommand, InsertText, KeySequence variants
+- `CustomActionConfig`: Tagged enum with ShellCommand, NewTab, InsertText, KeySequence, and SplitPane variants
 - `BuiltInVariable`: Enum for 10 built-in variables with runtime resolution
 
 **Variable Substitution** (`src/snippets/mod.rs`):

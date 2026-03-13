@@ -110,6 +110,16 @@ impl WindowState {
             }
         }
 
+        // When custom-action prefix mode is armed, it owns the next key press.
+        // Swallow all follow-up key events while armed so they can't leak through
+        // to tmux shortcuts, user keybindings, or the terminal PTY.
+        if self.custom_action_prefix_state.is_active() {
+            let handled = self.handle_custom_action_prefix_key(&event);
+            if handled || self.custom_action_prefix_state.is_active() {
+                return;
+            }
+        }
+
         // Prefix systems must run before normal keybindings so the follow-up key
         // is consumed by the two-stroke action instead of another shortcut.
         if self.handle_tmux_prefix_key(&event) {

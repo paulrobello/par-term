@@ -137,83 +137,112 @@ fn show_actions_section(
             let mut delete_index: Option<usize> = None;
             let mut start_edit_index: Option<usize> = None;
 
-            // List existing actions
             let action_count = settings.config.actions.len();
-            for i in 0..action_count {
-                let action = &settings.config.actions[i];
-                let is_editing =
-                    settings.editing_action_index == Some(i) && !settings.adding_new_action;
+            if action_count > 0 {
+                egui::Frame::group(ui.style())
+                    .inner_margin(egui::Margin::symmetric(8, 6))
+                    .show(ui, |ui| {
+                        // List existing actions
+                        for i in 0..action_count {
+                            let action = &settings.config.actions[i];
+                            let is_editing =
+                                settings.editing_action_index == Some(i) && !settings.adding_new_action;
 
-                if is_editing {
-                    // Show inline edit form for this action
-                    show_action_edit_form(ui, settings, changes_this_frame, Some(i));
-                } else {
-                    let type_label = match action {
-                        CustomActionConfig::ShellCommand { .. } => "Shell".to_string(),
-                        CustomActionConfig::InsertText { .. } => "Text".to_string(),
-                        CustomActionConfig::KeySequence { .. } => "Keys".to_string(),
-                        CustomActionConfig::SplitPane {
-                            direction,
-                            split_percent,
-                            ..
-                        } => {
-                            let dir = match direction {
-                                par_term_config::snippets::ActionSplitDirection::Horizontal => {
-                                    "horiz"
-                                }
-                                par_term_config::snippets::ActionSplitDirection::Vertical => "vert",
-                            };
-                            format!("Split-{}-{}", dir, split_percent)
+                            if is_editing {
+                                // Show inline edit form for this action
+                                show_action_edit_form(ui, settings, changes_this_frame, Some(i));
+                            } else {
+                                let type_label = match action {
+                                    CustomActionConfig::ShellCommand { .. } => "Shell".to_string(),
+                                    CustomActionConfig::NewTab { .. } => "NewTab".to_string(),
+                                    CustomActionConfig::InsertText { .. } => "Text".to_string(),
+                                    CustomActionConfig::KeySequence { .. } => "Keys".to_string(),
+                                    CustomActionConfig::SplitPane {
+                                        direction,
+                                        split_percent,
+                                        ..
+                                    } => {
+                                        let dir = match direction {
+                                            par_term_config::snippets::ActionSplitDirection::Horizontal => {
+                                                "horiz"
+                                            }
+                                            par_term_config::snippets::ActionSplitDirection::Vertical => "vert",
+                                        };
+                                        format!("Split-{}-{}", dir, split_percent)
+                                    }
+                                };
+                                let detail_text = match action {
+                                    CustomActionConfig::ShellCommand { command, .. } => {
+                                        command.to_string()
+                                    }
+                                    CustomActionConfig::NewTab { command, .. } => {
+                                        command.clone().unwrap_or_default()
+                                    }
+                                    CustomActionConfig::InsertText { text, .. } => text.clone(),
+                                    CustomActionConfig::KeySequence { keys, .. } => {
+                                        format!("[{}]", keys)
+                                    }
+                                    CustomActionConfig::SplitPane { command, .. } => {
+                                        command.clone().unwrap_or_default()
+                                    }
+                                };
+
+                                // Reserve a fixed area for action buttons so the text segment
+                                // can't push them outside the visible row.
+                                ui.horizontal(|ui| {
+                                    let button_area_width = 110.0;
+                                    let row_height = ui.spacing().interact_size.y;
+                                    let text_area_width =
+                                        (ui.available_width() - button_area_width).max(0.0);
+
+                                    ui.allocate_ui_with_layout(
+                                        egui::vec2(text_area_width, row_height),
+                                        egui::Layout::left_to_right(egui::Align::Center),
+                                        |ui| {
+                                            ui.label(egui::RichText::new(action.title()).strong());
+                                            ui.label(
+                                                egui::RichText::new(format!("[{}]", type_label))
+                                                    .monospace()
+                                                    .color(egui::Color32::from_rgb(150, 150, 200)),
+                                            );
+
+                                            if !detail_text.is_empty() {
+                                                ui.add(
+                                                    egui::Label::new(
+                                                        egui::RichText::new(detail_text)
+                                                            .monospace()
+                                                            .color(egui::Color32::GRAY),
+                                                    )
+                                                    .truncate(),
+                                                );
+                                            }
+                                        },
+                                    );
+
+                                    ui.allocate_ui_with_layout(
+                                        egui::vec2(button_area_width, row_height),
+                                        egui::Layout::right_to_left(egui::Align::Center),
+                                        |ui| {
+                                            if ui
+                                                .small_button(
+                                                    egui::RichText::new("Delete")
+                                                        .color(egui::Color32::from_rgb(200, 80, 80)),
+                                                )
+                                                .clicked()
+                                            {
+                                                delete_index = Some(i);
+                                            }
+
+                                            if ui.small_button("Edit").clicked() {
+                                                start_edit_index = Some(i);
+                                            }
+                                        },
+                                    );
+                                });
+                            }
                         }
-                    };
-                    let detail_text = match action {
-                        CustomActionConfig::ShellCommand { command, .. } => command.to_string(),
-                        CustomActionConfig::InsertText { text, .. } => text.clone(),
-                        CustomActionConfig::KeySequence { keys, .. } => format!("[{}]", keys),
-                        CustomActionConfig::SplitPane { command, .. } => {
-                            command.clone().unwrap_or_default()
-                        }
-                    };
-
-                    // Keep buttons pinned on the right and truncate the descriptive text first.
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui
-                            .small_button(
-                                egui::RichText::new("Delete")
-                                    .color(egui::Color32::from_rgb(200, 80, 80)),
-                            )
-                            .clicked()
-                        {
-                            delete_index = Some(i);
-                        }
-
-                        if ui.small_button("Edit").clicked() {
-                            start_edit_index = Some(i);
-                        }
-
-                        if !detail_text.is_empty() {
-                            ui.add(
-                                egui::Label::new(
-                                    egui::RichText::new(detail_text)
-                                        .monospace()
-                                        .color(egui::Color32::GRAY),
-                                )
-                                .truncate(),
-                            );
-                        }
-
-                        ui.label(
-                            egui::RichText::new(format!("[{}]", type_label))
-                                .monospace()
-                                .color(egui::Color32::from_rgb(150, 150, 200)),
-                        );
-
-                        ui.add(
-                            egui::Label::new(egui::RichText::new(action.title()).strong())
-                                .truncate(),
-                        );
                     });
-                }
+                ui.add_space(6.0);
             }
 
             // Apply mutations after iteration
@@ -252,12 +281,16 @@ fn show_actions_section(
                         settings.temp_action_command = command.clone();
                         settings.temp_action_args = args.join(" ");
                     }
-                    CustomActionConfig::InsertText { text, .. } => {
+                    CustomActionConfig::NewTab { command, .. } => {
                         settings.temp_action_type = 1;
+                        settings.temp_action_new_tab_command = command.clone().unwrap_or_default();
+                    }
+                    CustomActionConfig::InsertText { text, .. } => {
+                        settings.temp_action_type = 2;
                         settings.temp_action_text = text.clone();
                     }
                     CustomActionConfig::KeySequence { keys, .. } => {
-                        settings.temp_action_type = 2;
+                        settings.temp_action_type = 3;
                         settings.temp_action_keys = keys.clone();
                     }
                     CustomActionConfig::SplitPane {
@@ -269,7 +302,7 @@ fn show_actions_section(
                         split_percent,
                         ..
                     } => {
-                        settings.temp_action_type = 3;
+                        settings.temp_action_type = 4;
                         settings.temp_action_split_direction = match direction {
                             par_term_config::snippets::ActionSplitDirection::Horizontal => 0,
                             par_term_config::snippets::ActionSplitDirection::Vertical => 1,
@@ -297,6 +330,7 @@ fn show_actions_section(
                 settings.temp_action_type = 0;
                 settings.temp_action_command = String::new();
                 settings.temp_action_args = String::new();
+                settings.temp_action_new_tab_command = String::new();
                 settings.temp_action_text = String::new();
                 settings.temp_action_keys = String::new();
                 settings.temp_action_keybinding = String::new();
@@ -352,7 +386,20 @@ fn show_action_edit_form(
                     keybinding_enabled: true,
                     description: None,
                 },
-                1 => CustomActionConfig::InsertText {
+                1 => CustomActionConfig::NewTab {
+                    id: settings.temp_action_id.clone(),
+                    title: settings.temp_action_title.clone(),
+                    command: if settings.temp_action_new_tab_command.is_empty() {
+                        None
+                    } else {
+                        Some(settings.temp_action_new_tab_command.clone())
+                    },
+                    keybinding,
+                    prefix_char,
+                    keybinding_enabled: true,
+                    description: None,
+                },
+                2 => CustomActionConfig::InsertText {
                     id: settings.temp_action_id.clone(),
                     title: settings.temp_action_title.clone(),
                     text: settings.temp_action_text.clone(),
@@ -362,7 +409,7 @@ fn show_action_edit_form(
                     keybinding_enabled: true,
                     description: None,
                 },
-                2 => CustomActionConfig::KeySequence {
+                3 => CustomActionConfig::KeySequence {
                     id: settings.temp_action_id.clone(),
                     title: settings.temp_action_title.clone(),
                     keys: settings.temp_action_keys.clone(),
@@ -371,7 +418,7 @@ fn show_action_edit_form(
                     keybinding_enabled: true,
                     description: None,
                 },
-                3 => CustomActionConfig::SplitPane {
+                4 => CustomActionConfig::SplitPane {
                     id: settings.temp_action_id.clone(),
                     title: settings.temp_action_title.clone(),
                     direction: if settings.temp_action_split_direction == 0 {
@@ -442,7 +489,13 @@ fn show_action_edit_form(
             );
 
             ui.label("Type:");
-            let types = ["Shell Command", "Insert Text", "Key Sequence", "Split Pane"];
+            let types = [
+                "Shell Command",
+                "New Tab",
+                "Insert Text",
+                "Key Sequence",
+                "Split Pane",
+            ];
             egui::ComboBox::from_id_salt("action_type")
                 .selected_text(types[settings.temp_action_type])
                 .width(150.0)
@@ -562,6 +615,27 @@ fn show_action_edit_form(
                     }
                 }
                 1 => {
+                    // New Tab
+                    ui.label("Command to run in the new tab (optional):");
+                    if ui
+                        .add(
+                            egui::TextEdit::multiline(&mut settings.temp_action_new_tab_command)
+                                .desired_rows(3)
+                                .desired_width(f32::INFINITY),
+                        )
+                        .changed()
+                    {
+                        *changes_this_frame = true;
+                    }
+                    ui.label(
+                        egui::RichText::new(
+                            "Leave empty to open a normal shell tab with no startup command.",
+                        )
+                        .small()
+                        .color(egui::Color32::GRAY),
+                    );
+                }
+                2 => {
                     // Insert Text
                     ui.label("Text to insert:");
                     if ui
@@ -571,7 +645,7 @@ fn show_action_edit_form(
                         *changes_this_frame = true;
                     }
                 }
-                2 => {
+                3 => {
                     // Key Sequence
                     ui.label("Key sequence:");
                     if ui
@@ -581,7 +655,7 @@ fn show_action_edit_form(
                         *changes_this_frame = true;
                     }
                 }
-                3 => {
+                4 => {
                     // Split Pane
                     ui.label("Direction:");
                     let dir_labels = ["Horizontal (below)", "Vertical (right)"];
@@ -686,6 +760,7 @@ pub fn keywords() -> &'static [&'static str] {
         "actions",
         "custom action",
         "shell command",
+        "new tab",
         "text insert",
         "key sequence",
         "macro",

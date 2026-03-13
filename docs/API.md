@@ -155,7 +155,7 @@ Configuration loading, saving, and type definitions for the terminal emulator. T
 |------|-------------|
 | `SnippetConfig` | A text snippet with optional variable substitution and keybinding. |
 | `SnippetLibrary` | The full collection of snippets, indexed by ID. |
-| `CustomActionConfig` | A custom action: shell command, text insert, or key sequence. |
+| `CustomActionConfig` | A custom action: shell command, new tab, text insert, key sequence, or split pane. |
 | `BuiltInVariable` | Built-in snippet variable names (Date, Time, User, etc.). |
 
 ### Scripting

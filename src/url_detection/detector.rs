@@ -86,7 +86,7 @@ fn file_path_regex() -> &'static Regex {
 ///
 /// Returns the stripped string and the number of bytes removed.
 fn strip_trailing_sentence_punctuation(s: &str) -> (&str, usize) {
-    let trimmed = s.trim_end_matches(|c: char| matches!(c, '.' | '!' | '?'));
+    let trimmed = s.trim_end_matches(['.', '!', '?']);
     let stripped = s.len() - trimmed.len();
     (trimmed, stripped)
 }
@@ -146,8 +146,7 @@ pub fn detect_file_paths_in_line(text: &str, row: usize) -> Vec<DetectedUrl> {
 
         // Strip trailing sentence punctuation before parsing line numbers.
         // "the file is at ~/thefile.txt." → "~/thefile.txt"
-        let (stripped_match, punct_bytes) =
-            strip_trailing_sentence_punctuation(trimmed_match);
+        let (stripped_match, punct_bytes) = strip_trailing_sentence_punctuation(trimmed_match);
         if stripped_match.is_empty() {
             continue;
         }

@@ -485,7 +485,7 @@ Configurable normalization form (NFC/NFD/NFKC/NFKD/None) in Settings > Terminal 
 Text automation and custom actions (iTerm2 parity).
 
 - **Text Snippets**: Save text blocks with variable substitution (`\(variable)` syntax), 10 built-in + 12 session variables
-- **Custom Actions**: Shell commands, text insertion, and keyboard shortcuts triggered via keybindings
+- **Custom Actions**: Shell commands, new-tab launchers, text insertion, pane splits, and keyboard shortcuts triggered via keybindings
 - **Settings UI**: Two new tabs — Snippets (📝) and Actions (🚀) — with keybinding recording and conflict detection
 - **Auto-Execute**: Optional checkbox to run commands immediately when keybinding is pressed
 

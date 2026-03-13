@@ -60,8 +60,8 @@ impl SettingsWindow {
         // Create the window
         let window_attrs = Window::default_attributes()
             .with_title("Settings")
-            .with_inner_size(winit::dpi::LogicalSize::new(700, 800))
-            .with_min_inner_size(winit::dpi::LogicalSize::new(500, 400))
+            .with_inner_size(winit::dpi::LogicalSize::new(770, 800))
+            .with_min_inner_size(winit::dpi::LogicalSize::new(550, 400))
             .with_resizable(true);
 
         let window = Arc::new(event_loop.create_window(window_attrs)?);

@@ -200,6 +200,7 @@ impl SettingsUI {
             temp_action_title: String::new(),
             temp_action_command: String::new(),
             temp_action_args: String::new(),
+            temp_action_new_tab_command: String::new(),
             temp_action_text: String::new(),
             temp_action_keys: String::new(),
             temp_action_keybinding: String::new(),

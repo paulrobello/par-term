@@ -6,6 +6,7 @@ use winit::event::{ElementState, KeyEvent};
 use winit::keyboard::{Key, KeyCode, NamedKey, PhysicalKey};
 
 const CUSTOM_ACTION_PREFIX_TOAST: &str = "Actions: prefix... (Esc to cancel)";
+const NEW_TAB_COMMAND_DELAY_MS: u64 = 200;
 
 fn prefix_action_for_char(actions: &[CustomActionConfig], input_char: char) -> Option<String> {
     let normalized_input = normalize_action_prefix_char(input_char);
@@ -35,11 +36,11 @@ impl WindowState {
 
     /// Handle the global custom-action prefix key and its single-character follow-up.
     pub(crate) fn handle_custom_action_prefix_key(&mut self, event: &KeyEvent) -> bool {
-        if event.state != ElementState::Pressed {
-            return false;
-        }
-
         if self.custom_action_prefix_state.is_active() {
+            if event.state != ElementState::Pressed {
+                return true;
+            }
+
             let is_modifier_only = matches!(
                 event.logical_key,
                 Key::Named(
@@ -51,7 +52,7 @@ impl WindowState {
                 )
             );
             if is_modifier_only {
-                return false;
+                return true;
             }
 
             self.custom_action_prefix_state.exit();
@@ -75,6 +76,10 @@ impl WindowState {
 
             self.show_toast(format!("Actions: no binding for {}", input_char));
             return true;
+        }
+
+        if event.state != ElementState::Pressed {
+            return false;
         }
 
         let Some(prefix_combo) = self.custom_action_prefix_combo.as_ref() else {
@@ -308,6 +313,42 @@ impl WindowState {
                 });
 
                 // Return immediately - command is running in background
+                true
+            }
+            CustomActionConfig::NewTab { command, title, .. } => {
+                let command = command.clone();
+                let title = title.clone();
+                let tab_count_before = self.tab_manager.tab_count();
+                self.new_tab();
+
+                let opened_new_tab = self.tab_manager.tab_count() > tab_count_before;
+                if !opened_new_tab {
+                    log::warn!("NewTab action '{}' did not open a tab", title);
+                    return false;
+                }
+
+                if let Some(command) = command.filter(|cmd| !cmd.trim().is_empty())
+                    && let Some(tab) = self.tab_manager.active_tab()
+                {
+                    let text_with_nl = format!("{}\n", command);
+                    let terminal = std::sync::Arc::clone(&tab.terminal);
+                    let title = title.clone();
+
+                    std::thread::spawn(move || {
+                        std::thread::sleep(std::time::Duration::from_millis(
+                            NEW_TAB_COMMAND_DELAY_MS,
+                        ));
+
+                        // try_write: background thread; on contention skip the write.
+                        // Shell may not be ready yet — user can re-run the action.
+                        if let Ok(term) = terminal.try_write()
+                            && let Err(e) = term.write(text_with_nl.as_bytes())
+                        {
+                            log::error!("NewTab action '{}' write failed: {}", title, e);
+                        }
+                    });
+                }
+
                 true
             }
             CustomActionConfig::InsertText {

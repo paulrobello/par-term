@@ -165,7 +165,8 @@ impl ActionSplitDirection {
 
 /// A custom action that can be triggered via keybinding.
 ///
-/// Actions can execute shell commands, insert text, or simulate key sequences.
+/// Actions can execute shell commands, open a new tab, insert text, simulate key
+/// sequences, or split the active pane.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum CustomActionConfig {
@@ -193,6 +194,35 @@ pub enum CustomActionConfig {
         timeout_secs: u64,
 
         /// Optional keyboard shortcut to trigger the action (e.g., "Ctrl+Shift+R")
+        #[serde(default)]
+        keybinding: Option<String>,
+
+        /// Optional single character triggered after the global custom action prefix key.
+        #[serde(default)]
+        prefix_char: Option<char>,
+
+        /// Whether the keybinding is enabled (default: true)
+        #[serde(default = "crate::defaults::bool_true")]
+        keybinding_enabled: bool,
+
+        /// Optional description
+        #[serde(default)]
+        description: Option<String>,
+    },
+
+    /// Open a new tab and optionally run a command in its shell
+    NewTab {
+        /// Action identifier
+        id: String,
+
+        /// Human-readable title
+        title: String,
+
+        /// Optional command to send to the new tab's shell after it opens
+        #[serde(default)]
+        command: Option<String>,
+
+        /// Optional keyboard shortcut to trigger the action
         #[serde(default)]
         keybinding: Option<String>,
 
@@ -333,6 +363,7 @@ impl CustomActionConfig {
     pub fn id(&self) -> &str {
         match self {
             Self::ShellCommand { id, .. }
+            | Self::NewTab { id, .. }
             | Self::InsertText { id, .. }
             | Self::KeySequence { id, .. }
             | Self::SplitPane { id, .. } => id,
@@ -343,6 +374,7 @@ impl CustomActionConfig {
     pub fn title(&self) -> &str {
         match self {
             Self::ShellCommand { title, .. }
+            | Self::NewTab { title, .. }
             | Self::InsertText { title, .. }
             | Self::KeySequence { title, .. }
             | Self::SplitPane { title, .. } => title,
@@ -353,6 +385,7 @@ impl CustomActionConfig {
     pub fn keybinding(&self) -> Option<&str> {
         match self {
             Self::ShellCommand { keybinding, .. }
+            | Self::NewTab { keybinding, .. }
             | Self::InsertText { keybinding, .. }
             | Self::KeySequence { keybinding, .. }
             | Self::SplitPane { keybinding, .. } => keybinding.as_deref(),
@@ -363,6 +396,7 @@ impl CustomActionConfig {
     pub fn prefix_char(&self) -> Option<char> {
         match self {
             Self::ShellCommand { prefix_char, .. }
+            | Self::NewTab { prefix_char, .. }
             | Self::InsertText { prefix_char, .. }
             | Self::KeySequence { prefix_char, .. }
             | Self::SplitPane { prefix_char, .. } => *prefix_char,
@@ -378,6 +412,9 @@ impl CustomActionConfig {
     pub fn keybinding_enabled(&self) -> bool {
         match self {
             Self::ShellCommand {
+                keybinding_enabled, ..
+            }
+            | Self::NewTab {
                 keybinding_enabled, ..
             }
             | Self::InsertText {
@@ -396,6 +433,7 @@ impl CustomActionConfig {
     pub fn set_keybinding(&mut self, kb: Option<String>) {
         match self {
             Self::ShellCommand { keybinding, .. }
+            | Self::NewTab { keybinding, .. }
             | Self::InsertText { keybinding, .. }
             | Self::KeySequence { keybinding, .. }
             | Self::SplitPane { keybinding, .. } => *keybinding = kb,
@@ -406,6 +444,10 @@ impl CustomActionConfig {
     pub fn set_prefix_char(&mut self, prefix_char: Option<char>) {
         match self {
             Self::ShellCommand {
+                prefix_char: current,
+                ..
+            }
+            | Self::NewTab {
                 prefix_char: current,
                 ..
             }
@@ -430,6 +472,9 @@ impl CustomActionConfig {
             Self::ShellCommand {
                 keybinding_enabled, ..
             }
+            | Self::NewTab {
+                keybinding_enabled, ..
+            }
             | Self::InsertText {
                 keybinding_enabled, ..
             }
@@ -445,6 +490,11 @@ impl CustomActionConfig {
     /// Check if this is a shell command action.
     pub fn is_shell_command(&self) -> bool {
         matches!(self, Self::ShellCommand { .. })
+    }
+
+    /// Check if this is a new tab action.
+    pub fn is_new_tab(&self) -> bool {
+        matches!(self, Self::NewTab { .. })
     }
 
     /// Check if this is an insert text action.
@@ -693,6 +743,7 @@ mod tests {
         assert_eq!(action.id(), "test-action");
         assert_eq!(action.title(), "Test Action");
         assert!(action.is_shell_command());
+        assert!(!action.is_new_tab());
         assert!(!action.is_insert_text());
         assert!(!action.is_key_sequence());
         assert!(!action.is_split_pane());
@@ -722,5 +773,26 @@ mod tests {
         assert!(action.is_split_pane());
         assert!(!action.is_shell_command());
         assert_eq!(action.keybinding(), Some("Ctrl+Shift+H"));
+    }
+
+    #[test]
+    fn test_new_tab_action() {
+        let action = CustomActionConfig::NewTab {
+            id: "new-tab-lazygit".to_string(),
+            title: "Open lazygit tab".to_string(),
+            command: Some("lazygit".to_string()),
+            keybinding: Some("Ctrl+Shift+G".to_string()),
+            prefix_char: Some('g'),
+            keybinding_enabled: true,
+            description: None,
+        };
+
+        assert_eq!(action.id(), "new-tab-lazygit");
+        assert_eq!(action.title(), "Open lazygit tab");
+        assert!(action.is_new_tab());
+        assert!(!action.is_shell_command());
+        assert!(!action.is_split_pane());
+        assert_eq!(action.keybinding(), Some("Ctrl+Shift+G"));
+        assert_eq!(action.normalized_prefix_char(), Some('g'));
     }
 }

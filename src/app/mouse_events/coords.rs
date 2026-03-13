@@ -175,7 +175,9 @@ impl WindowState {
     /// Handle a file being dropped into the terminal window.
     ///
     /// Quotes the file path according to the configured style and writes it
-    /// to the active terminal session.
+    /// to the terminal session under the drop position. In split-pane and tmux
+    /// modes the pane under the cursor is focused first so the text lands in
+    /// the correct pane.
     pub(crate) fn handle_dropped_file(&mut self, path: std::path::PathBuf) {
         use crate::shell_quote::quote_path;
 
@@ -189,9 +191,45 @@ impl WindowState {
             self.config.dropped_file_quote_style
         );
 
-        // Write the quoted path to the terminal
+        // Use the last known cursor position to focus the pane under the drop.
+        // winit keeps CursorMoved firing during the drag, so position is current.
+        let drop_pos = self
+            .tab_manager
+            .active_tab()
+            .map(|tab| tab.active_mouse().position);
+
+        if let Some((mx, my)) = drop_pos
+            && let Some(tab) = self.tab_manager.active_tab_mut()
+            && tab.has_multiple_panes()
+            && let Some(pane_id) = tab.focus_pane_at(mx as f32, my as f32)
+        {
+            log::debug!("File drop focused pane {} at ({}, {})", pane_id, mx, my);
+            // Update tmux focused pane so send-keys targets it
+            self.set_tmux_focused_pane_from_native(pane_id);
+            self.focus_state.needs_redraw = true;
+        }
+
+        // In tmux gateway mode, route through send-keys so the text reaches
+        // the (now-focused) tmux pane instead of the gateway PTY.
+        if self.is_tmux_connected() && self.paste_via_tmux(&quoted_path) {
+            self.request_redraw();
+            return;
+        }
+
+        // Native mode: write to the focused pane's terminal (or the tab's
+        // primary terminal for single-pane tabs).
         if let Some(tab) = self.tab_manager.active_tab() {
-            let terminal_clone = Arc::clone(&tab.terminal);
+            let terminal_clone = if tab.has_multiple_panes() {
+                // Use the focused pane's terminal
+                tab.pane_manager()
+                    .and_then(|pm| pm.focused_pane_id())
+                    .and_then(|id| tab.pane_manager().and_then(|pm| pm.get_pane(id)))
+                    .map(|pane| Arc::clone(&pane.terminal))
+            } else {
+                None
+            }
+            .unwrap_or_else(|| Arc::clone(&tab.terminal));
+
             let runtime = Arc::clone(&self.runtime);
 
             runtime.spawn(async move {

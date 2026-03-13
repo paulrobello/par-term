@@ -149,7 +149,7 @@ Snippets can be organized into folders for better management:
 
 ## Custom Actions
 
-Custom actions allow you to execute shell commands, insert text, simulate key sequences, or split a pane and run a command in it — all via keyboard shortcuts.
+Custom actions allow you to execute shell commands, open a new tab with an optional command, insert text, simulate key sequences, or split a pane and run a command in it — all via keyboard shortcuts.
 
 Custom actions can also use a two-stroke prefix trigger:
 
@@ -162,7 +162,7 @@ This works alongside the existing per-action keybinding, so an action can have e
 
 ### Action Types
 
-par-term supports four types of custom actions:
+par-term supports five types of custom actions:
 
 #### 1. Shell Command
 Execute a shell command with optional arguments.
@@ -181,7 +181,26 @@ Arguments: test
 Notify on Success: true
 ```
 
-#### 2. Insert Text
+#### 2. New Tab
+Open a new tab and optionally run a command in that tab's shell.
+
+**Use cases:**
+- Open a clean shell in a new tab
+- Start a watcher, server, or TUI in a separate tab
+- Launch a project-specific command without disturbing the current tab
+
+**Behavior:**
+- If **Command** is empty, the action just opens a normal new tab.
+- If **Command** is set, par-term opens a new tab and sends that command to the new tab's shell.
+
+**Example:**
+```yaml
+Title: Open lazygit tab
+Type: New Tab
+Command: lazygit
+```
+
+#### 3. Insert Text
 Insert text into the terminal (similar to snippets, but without the editing UI).
 
 **Use cases:**
@@ -195,7 +214,7 @@ Title: SSH to Server
 Text: ssh user@\(hostname).example.com
 ```
 
-#### 3. Key Sequence
+#### 4. Key Sequence
 Simulate keyboard input by sending terminal byte sequences to the PTY.
 
 **Supported sequences:**
@@ -216,7 +235,7 @@ Type: Key Sequence
 Sequence: Escape :wq Enter
 ```
 
-#### 4. Split Pane
+#### 5. Split Pane
 Split the active pane horizontally (new pane below) or vertically (new pane to the right) and optionally send a command to the new pane.
 
 **Fields:**
@@ -269,7 +288,7 @@ Split percent: 33%
 3. Scroll to the **Custom Actions** section and click **+ Add Action**
 4. Fill in the action details:
    - **Title**: A human-readable name (e.g., "Run Tests")
-   - **Type**: Select from Shell Command, Insert Text, Key Sequence, or Split Pane
+   - **Type**: Select from Shell Command, New Tab, Insert Text, Key Sequence, or Split Pane
    - **Prefix char** (optional): Single character used after the global custom action prefix key
    - **Keybinding** (optional): Keyboard shortcut to trigger the action
      - Click the **🎤 Record** button and press the desired key combination
