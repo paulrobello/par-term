@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Workflow action types** — three new custom action types enable multi-step automation without leaving the terminal:
+  - **`sequence`** — runs a list of actions in order. Each step has an optional `delay_ms` and an `on_failure` policy (`abort` / `stop` / `continue`). Sequences can nest inside other sequences; circular references are detected at execution time and show an error toast.
+  - **`condition`** — evaluates a check and branches to a different action based on the result. Five check kinds: `exit_code`, `output_contains`, `env_var`, `dir_matches` (glob), `git_branch` (glob). Standalone use dispatches `on_true_id` / `on_false_id`; as a sequence step, the result drives the step's `on_failure` behavior.
+  - **`repeat`** — runs a single action up to N times with an optional delay between iterations. Supports `stop_on_success` and `stop_on_failure` for early exit.
+- **`capture_output` for `shell_command` actions** — set `capture_output: true` to capture the command's stdout+stderr (capped at 64 KB) and exit code. Subsequent `condition` checks against `exit_code` or `output_contains` read from this captured context.
 - **Clone button for custom actions** — each custom action row in Settings → Actions now has a "Clone" button that duplicates the action, appends `-copy` to its title, assigns a fresh ID, and inserts the copy immediately below the original. The keybinding and prefix char are cleared on the clone to avoid immediate conflicts.
 
 ### Fixed
