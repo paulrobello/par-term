@@ -163,6 +163,56 @@ impl ActionSplitDirection {
     }
 }
 
+/// What to do when a sequence step "fails".
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum SequenceStepBehavior {
+    /// Halt sequence and show error toast (default).
+    #[default]
+    Abort,
+    /// Halt sequence silently.
+    Stop,
+    /// Ignore failure and continue to the next step.
+    Continue,
+}
+
+/// A single step in a Sequence action.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SequenceStep {
+    /// ID of the action to execute.
+    pub action_id: String,
+    /// Delay in milliseconds before this step runs (default: 0).
+    #[serde(default)]
+    pub delay_ms: u64,
+    /// What to do if this step fails (default: Abort).
+    #[serde(default)]
+    pub on_failure: SequenceStepBehavior,
+}
+
+/// Condition to check for a Condition action.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum ConditionCheck {
+    /// Check the exit code of the last captured ShellCommand.
+    ExitCode { value: i32 },
+    /// Check whether the last captured output contains a pattern.
+    OutputContains {
+        pattern: String,
+        #[serde(default)]
+        case_sensitive: bool,
+    },
+    /// Check an environment variable (None value = existence check only).
+    EnvVar {
+        name: String,
+        #[serde(default)]
+        value: Option<String>,
+    },
+    /// Glob match on the current terminal CWD.
+    DirMatches { pattern: String },
+    /// Glob match on the current git branch.
+    GitBranch { pattern: String },
+}
+
 /// A custom action that can be triggered via keybinding.
 ///
 /// Actions can execute shell commands, open a new tab, insert text, simulate key
@@ -192,6 +242,11 @@ pub enum CustomActionConfig {
         /// Timeout in seconds for the command (default: 30)
         #[serde(default = "default_shell_command_timeout_secs")]
         timeout_secs: u64,
+
+        /// Capture stdout+stderr into WorkflowContext for use by Sequence/Condition actions.
+        /// When true, output is capped at 64 KB. Default: false.
+        #[serde(default)]
+        capture_output: bool,
 
         /// Optional keyboard shortcut to trigger the action (e.g., "Ctrl+Shift+R")
         #[serde(default)]
@@ -356,6 +411,90 @@ pub enum CustomActionConfig {
         #[serde(default)]
         description: Option<String>,
     },
+
+    /// Run an ordered list of actions (steps) in sequence.
+    Sequence {
+        /// Action identifier
+        id: String,
+        /// Human-readable title
+        title: String,
+        /// Optional keyboard shortcut
+        #[serde(default)]
+        keybinding: Option<String>,
+        /// Optional single character triggered after the global custom action prefix key.
+        #[serde(default)]
+        prefix_char: Option<char>,
+        /// Whether the keybinding is enabled (default: true)
+        #[serde(default = "crate::defaults::bool_true")]
+        keybinding_enabled: bool,
+        /// Optional description
+        #[serde(default)]
+        description: Option<String>,
+        /// Ordered list of steps to execute.
+        #[serde(default)]
+        steps: Vec<SequenceStep>,
+    },
+
+    /// Evaluate a condition and branch to different actions.
+    Condition {
+        /// Action identifier
+        id: String,
+        /// Human-readable title
+        title: String,
+        /// Optional keyboard shortcut
+        #[serde(default)]
+        keybinding: Option<String>,
+        /// Optional single character triggered after the global custom action prefix key.
+        #[serde(default)]
+        prefix_char: Option<char>,
+        /// Whether the keybinding is enabled (default: true)
+        #[serde(default = "crate::defaults::bool_true")]
+        keybinding_enabled: bool,
+        /// Optional description
+        #[serde(default)]
+        description: Option<String>,
+        /// The condition to evaluate.
+        check: ConditionCheck,
+        /// Action ID to execute when check is true (standalone use only; ignored in Sequence).
+        #[serde(default)]
+        on_true_id: Option<String>,
+        /// Action ID to execute when check is false (standalone use only; ignored in Sequence).
+        #[serde(default)]
+        on_false_id: Option<String>,
+    },
+
+    /// Execute an action repeatedly up to N times.
+    Repeat {
+        /// Action identifier
+        id: String,
+        /// Human-readable title
+        title: String,
+        /// Optional keyboard shortcut
+        #[serde(default)]
+        keybinding: Option<String>,
+        /// Optional single character triggered after the global custom action prefix key.
+        #[serde(default)]
+        prefix_char: Option<char>,
+        /// Whether the keybinding is enabled (default: true)
+        #[serde(default = "crate::defaults::bool_true")]
+        keybinding_enabled: bool,
+        /// Optional description
+        #[serde(default)]
+        description: Option<String>,
+        /// ID of the action to repeat.
+        action_id: String,
+        /// Maximum number of repetitions (1–100).
+        count: u32,
+        /// Delay in milliseconds between repetitions (default: 0).
+        #[serde(default)]
+        delay_ms: u64,
+        /// Stop early when the action succeeds (default: false).
+        #[serde(default)]
+        stop_on_success: bool,
+        /// Stop early when the action fails (default: false).
+        #[serde(default)]
+        stop_on_failure: bool,
+    },
 }
 
 impl CustomActionConfig {
@@ -366,7 +505,10 @@ impl CustomActionConfig {
             | Self::NewTab { id, .. }
             | Self::InsertText { id, .. }
             | Self::KeySequence { id, .. }
-            | Self::SplitPane { id, .. } => id,
+            | Self::SplitPane { id, .. }
+            | Self::Sequence { id, .. }
+            | Self::Condition { id, .. }
+            | Self::Repeat { id, .. } => id,
         }
     }
 
@@ -377,7 +519,10 @@ impl CustomActionConfig {
             | Self::NewTab { title, .. }
             | Self::InsertText { title, .. }
             | Self::KeySequence { title, .. }
-            | Self::SplitPane { title, .. } => title,
+            | Self::SplitPane { title, .. }
+            | Self::Sequence { title, .. }
+            | Self::Condition { title, .. }
+            | Self::Repeat { title, .. } => title,
         }
     }
 
@@ -388,7 +533,10 @@ impl CustomActionConfig {
             | Self::NewTab { keybinding, .. }
             | Self::InsertText { keybinding, .. }
             | Self::KeySequence { keybinding, .. }
-            | Self::SplitPane { keybinding, .. } => keybinding.as_deref(),
+            | Self::SplitPane { keybinding, .. }
+            | Self::Sequence { keybinding, .. }
+            | Self::Condition { keybinding, .. }
+            | Self::Repeat { keybinding, .. } => keybinding.as_deref(),
         }
     }
 
@@ -399,7 +547,10 @@ impl CustomActionConfig {
             | Self::NewTab { prefix_char, .. }
             | Self::InsertText { prefix_char, .. }
             | Self::KeySequence { prefix_char, .. }
-            | Self::SplitPane { prefix_char, .. } => *prefix_char,
+            | Self::SplitPane { prefix_char, .. }
+            | Self::Sequence { prefix_char, .. }
+            | Self::Condition { prefix_char, .. }
+            | Self::Repeat { prefix_char, .. } => *prefix_char,
         }
     }
 
@@ -425,6 +576,15 @@ impl CustomActionConfig {
             }
             | Self::SplitPane {
                 keybinding_enabled, ..
+            }
+            | Self::Sequence {
+                keybinding_enabled, ..
+            }
+            | Self::Condition {
+                keybinding_enabled, ..
+            }
+            | Self::Repeat {
+                keybinding_enabled, ..
             } => *keybinding_enabled,
         }
     }
@@ -436,7 +596,10 @@ impl CustomActionConfig {
             | Self::NewTab { keybinding, .. }
             | Self::InsertText { keybinding, .. }
             | Self::KeySequence { keybinding, .. }
-            | Self::SplitPane { keybinding, .. } => *keybinding = kb,
+            | Self::SplitPane { keybinding, .. }
+            | Self::Sequence { keybinding, .. }
+            | Self::Condition { keybinding, .. }
+            | Self::Repeat { keybinding, .. } => *keybinding = kb,
         }
     }
 
@@ -462,6 +625,18 @@ impl CustomActionConfig {
             | Self::SplitPane {
                 prefix_char: current,
                 ..
+            }
+            | Self::Sequence {
+                prefix_char: current,
+                ..
+            }
+            | Self::Condition {
+                prefix_char: current,
+                ..
+            }
+            | Self::Repeat {
+                prefix_char: current,
+                ..
             } => *current = prefix_char,
         }
     }
@@ -482,6 +657,15 @@ impl CustomActionConfig {
                 keybinding_enabled, ..
             }
             | Self::SplitPane {
+                keybinding_enabled, ..
+            }
+            | Self::Sequence {
+                keybinding_enabled, ..
+            }
+            | Self::Condition {
+                keybinding_enabled, ..
+            }
+            | Self::Repeat {
                 keybinding_enabled, ..
             } => *keybinding_enabled = enabled,
         }
@@ -734,6 +918,7 @@ mod tests {
             args: vec!["hello".to_string()],
             notify_on_success: false,
             timeout_secs: 30,
+            capture_output: false,
             keybinding: None,
             prefix_char: Some('G'),
             keybinding_enabled: true,
@@ -794,5 +979,94 @@ mod tests {
         assert!(!action.is_split_pane());
         assert_eq!(action.keybinding(), Some("Ctrl+Shift+G"));
         assert_eq!(action.normalized_prefix_char(), Some('g'));
+    }
+
+    #[test]
+    fn test_sequence_action_round_trip() {
+        use crate::snippets::{SequenceStep, SequenceStepBehavior};
+        let action = CustomActionConfig::Sequence {
+            id: "build-and-test".to_string(),
+            title: "Build and Test".to_string(),
+            keybinding: None,
+            prefix_char: None,
+            keybinding_enabled: true,
+            description: None,
+            steps: vec![
+                SequenceStep {
+                    action_id: "build".to_string(),
+                    delay_ms: 0,
+                    on_failure: SequenceStepBehavior::Abort,
+                },
+                SequenceStep {
+                    action_id: "test".to_string(),
+                    delay_ms: 500,
+                    on_failure: SequenceStepBehavior::Continue,
+                },
+            ],
+        };
+        let yaml = serde_yaml_ng::to_string(&action).unwrap();
+        let roundtrip: CustomActionConfig = serde_yaml_ng::from_str(&yaml).unwrap();
+        assert_eq!(action, roundtrip);
+        assert_eq!(action.id(), "build-and-test");
+        assert_eq!(action.title(), "Build and Test");
+    }
+
+    #[test]
+    fn test_condition_action_round_trip() {
+        use crate::snippets::ConditionCheck;
+        let action = CustomActionConfig::Condition {
+            id: "check-main".to_string(),
+            title: "Check Main Branch".to_string(),
+            keybinding: None,
+            prefix_char: None,
+            keybinding_enabled: true,
+            description: None,
+            check: ConditionCheck::GitBranch {
+                pattern: "main".to_string(),
+            },
+            on_true_id: Some("deploy".to_string()),
+            on_false_id: None,
+        };
+        let yaml = serde_yaml_ng::to_string(&action).unwrap();
+        let roundtrip: CustomActionConfig = serde_yaml_ng::from_str(&yaml).unwrap();
+        assert_eq!(action, roundtrip);
+        assert_eq!(action.id(), "check-main");
+    }
+
+    #[test]
+    fn test_repeat_action_round_trip() {
+        let action = CustomActionConfig::Repeat {
+            id: "retry-deploy".to_string(),
+            title: "Retry Deploy".to_string(),
+            keybinding: None,
+            prefix_char: None,
+            keybinding_enabled: true,
+            description: None,
+            action_id: "deploy".to_string(),
+            count: 3,
+            delay_ms: 1000,
+            stop_on_success: true,
+            stop_on_failure: false,
+        };
+        let yaml = serde_yaml_ng::to_string(&action).unwrap();
+        let roundtrip: CustomActionConfig = serde_yaml_ng::from_str(&yaml).unwrap();
+        assert_eq!(action, roundtrip);
+        assert_eq!(action.id(), "retry-deploy");
+    }
+
+    #[test]
+    fn test_shell_command_capture_output_default_false() {
+        let yaml = r#"
+type: shell_command
+id: test
+title: Test
+command: echo
+"#;
+        let action: CustomActionConfig = serde_yaml_ng::from_str(yaml).unwrap();
+        if let CustomActionConfig::ShellCommand { capture_output, .. } = action {
+            assert!(!capture_output);
+        } else {
+            panic!("expected ShellCommand");
+        }
     }
 }
