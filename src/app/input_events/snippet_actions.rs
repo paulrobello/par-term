@@ -293,19 +293,45 @@ impl WindowState {
                     StepOutcome::Failure
                 }
             }
-            CustomActionConfig::Sequence { .. } | CustomActionConfig::Repeat { .. } => {
-                // Recursive: pass current context and visited set
-                let action_id_str = action.id().to_string();
-                // Remove from visited BEFORE recursive call so we can detect actual cycles,
-                // not re-entry from the parent frame. Re-insert after.
-                visited.remove(&action_id_str);
-                let result = self.execute_custom_action(&action_id_str);
-                visited.insert(action_id_str);
-                if result {
-                    StepOutcome::Success
-                } else {
-                    StepOutcome::Failure
+            CustomActionConfig::Sequence { steps, .. } => {
+                // Use the same visited set so that cross-sequence cycles are detected.
+                // action_id is already in visited (inserted above); any nested action that
+                // directly or indirectly references it will be caught when execute_action_as_step
+                // checks visited at entry.
+                let steps = steps.clone();
+                self.execute_sequence_steps(&steps, ctx, visited);
+                StepOutcome::Success
+            }
+            CustomActionConfig::Repeat {
+                action_id: rep_id,
+                count,
+                delay_ms: rep_delay,
+                stop_on_success,
+                stop_on_failure,
+                ..
+            } => {
+                // Use the same visited set so that cross-repeat cycles are detected.
+                let rep_id = rep_id.clone();
+                let count = *count;
+                let rep_delay = *rep_delay;
+                let stop_on_success = *stop_on_success;
+                let stop_on_failure = *stop_on_failure;
+                for i in 0..count {
+                    let outcome = self.execute_action_as_step(&rep_id, ctx, visited);
+                    // Reset visited between repetitions: re-entering the same action
+                    // in the next iteration is not a cycle.
+                    visited.clear();
+                    match outcome {
+                        StepOutcome::Abort => break,
+                        StepOutcome::Success if stop_on_success => break,
+                        StepOutcome::Failure if stop_on_failure => break,
+                        _ => {}
+                    }
+                    if rep_delay > 0 && i < count - 1 {
+                        std::thread::sleep(std::time::Duration::from_millis(rep_delay));
+                    }
                 }
+                StepOutcome::Success
             }
             _ => {
                 // InsertText, KeySequence, NewTab, SplitPane always succeed
@@ -362,15 +388,36 @@ impl WindowState {
                 Err(_) => false,
             },
             ConditionCheck::DirMatches { pattern } => {
-                let cwd = std::env::current_dir()
-                    .ok()
-                    .and_then(|p| p.to_str().map(|s| s.to_string()))
-                    .unwrap_or_default();
+                // Use the terminal's reported CWD (from shell integration / OSC 7) stored
+                // in session variables, rather than par-term's own process CWD.
+                let cwd = {
+                    let vars = self.badge_state.variables.read();
+                    vars.path.clone()
+                };
+                let cwd = if cwd.is_empty() {
+                    // Fallback to process CWD if shell has not yet reported its path.
+                    std::env::current_dir()
+                        .ok()
+                        .and_then(|p| p.to_str().map(|s| s.to_string()))
+                        .unwrap_or_default()
+                } else {
+                    cwd
+                };
                 glob_match(pattern, &cwd)
             }
             ConditionCheck::GitBranch { pattern } => {
-                let branch = std::process::Command::new("git")
-                    .args(["rev-parse", "--abbrev-ref", "HEAD"])
+                // Run git in the terminal's CWD so the branch reflects the active shell's
+                // repository, not par-term's own process directory.
+                let cwd = {
+                    let vars = self.badge_state.variables.read();
+                    vars.path.clone()
+                };
+                let mut cmd = std::process::Command::new("git");
+                cmd.args(["rev-parse", "--abbrev-ref", "HEAD"]);
+                if !cwd.is_empty() {
+                    cmd.current_dir(&cwd);
+                }
+                let branch = cmd
                     .output()
                     .ok()
                     .and_then(|o| String::from_utf8(o.stdout).ok())
@@ -381,29 +428,38 @@ impl WindowState {
         }
     }
 
-    /// Execute a Sequence action: run each step in order, respecting delays and on_failure behavior.
-    fn execute_sequence(
-        &mut self,
-        steps: Vec<par_term_config::snippets::SequenceStep>,
-        ctx: Arc<Mutex<Option<WorkflowContext>>>,
-    ) {
-        self.execute_sequence_sync(steps, &ctx);
-    }
-
     /// Execute sequence steps synchronously (called from event loop thread or background thread).
+    ///
+    /// # Blocking note
+    ///
+    /// This method is called from the event loop thread. Steps with `delay_ms > 0` will
+    /// block the event loop for the delay duration. Future work: dispatch to Tokio runtime
+    /// or use a timer queue to avoid blocking the UI.
     fn execute_sequence_sync(
         &mut self,
         steps: Vec<par_term_config::snippets::SequenceStep>,
         ctx: &Arc<Mutex<Option<WorkflowContext>>>,
     ) {
         let mut visited: HashSet<String> = HashSet::new();
+        self.execute_sequence_steps(&steps, ctx, &mut visited);
+    }
 
-        for step in &steps {
+    /// Core sequence execution loop. Accepts an external `visited` set so that cycle
+    /// detection is shared across nested Sequence and Repeat actions within a single
+    /// workflow execution. The `visited` set grows as actions are entered and shrinks
+    /// as they return, allowing the same action to appear in separate (non-nested) steps.
+    fn execute_sequence_steps(
+        &mut self,
+        steps: &[par_term_config::snippets::SequenceStep],
+        ctx: &Arc<Mutex<Option<WorkflowContext>>>,
+        visited: &mut HashSet<String>,
+    ) {
+        for step in steps {
             if step.delay_ms > 0 {
                 std::thread::sleep(std::time::Duration::from_millis(step.delay_ms));
             }
 
-            let outcome = self.execute_action_as_step(&step.action_id, ctx, &mut visited);
+            let outcome = self.execute_action_as_step(&step.action_id, ctx, visited);
 
             match outcome {
                 StepOutcome::Abort => {
@@ -451,6 +507,12 @@ impl WindowState {
     }
 
     /// Execute a Repeat action: run action_id up to count times with optional delay.
+    ///
+    /// # Blocking note
+    ///
+    /// This method is called from the event loop thread. Iterations with `delay_ms > 0` will
+    /// block the event loop for the delay duration. Future work: dispatch to Tokio runtime
+    /// or use a timer queue to avoid blocking the UI.
     fn execute_repeat(
         &mut self,
         action_id: &str,
@@ -871,7 +933,7 @@ impl WindowState {
             CustomActionConfig::Sequence { steps, .. } => {
                 let steps = steps.clone();
                 let ctx = Arc::clone(&self.last_workflow_context);
-                self.execute_sequence(steps, ctx);
+                self.execute_sequence_sync(steps, &ctx);
                 true
             }
             CustomActionConfig::Condition {
