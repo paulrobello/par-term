@@ -695,6 +695,21 @@ impl CustomActionConfig {
     pub fn is_split_pane(&self) -> bool {
         matches!(self, Self::SplitPane { .. })
     }
+
+    /// Check if this is a sequence action.
+    pub fn is_sequence(&self) -> bool {
+        matches!(self, Self::Sequence { .. })
+    }
+
+    /// Check if this is a condition action.
+    pub fn is_condition(&self) -> bool {
+        matches!(self, Self::Condition { .. })
+    }
+
+    /// Check if this is a repeat action.
+    pub fn is_repeat(&self) -> bool {
+        matches!(self, Self::Repeat { .. })
+    }
 }
 
 /// Built-in variables available for snippet substitution.
@@ -983,7 +998,6 @@ mod tests {
 
     #[test]
     fn test_sequence_action_round_trip() {
-        use crate::snippets::{SequenceStep, SequenceStepBehavior};
         let action = CustomActionConfig::Sequence {
             id: "build-and-test".to_string(),
             title: "Build and Test".to_string(),
@@ -1013,7 +1027,6 @@ mod tests {
 
     #[test]
     fn test_condition_action_round_trip() {
-        use crate::snippets::ConditionCheck;
         let action = CustomActionConfig::Condition {
             id: "check-main".to_string(),
             title: "Check Main Branch".to_string(),
