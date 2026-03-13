@@ -321,10 +321,10 @@ fn remove_from_rc_file(rc_file: &Path) -> Result<bool, String> {
 ///
 /// `/Users/alice/.config/par-term/bin` → `$HOME/.config/par-term/bin`
 fn home_relative_str(path: &Path) -> String {
-    if let Some(home) = dirs::home_dir() {
-        if let Ok(rel) = path.strip_prefix(&home) {
-            return format!("$HOME/{}", rel.display());
-        }
+    if let Some(home) = dirs::home_dir()
+        && let Ok(rel) = path.strip_prefix(&home)
+    {
+        return format!("$HOME/{}", rel.display());
     }
     path.display().to_string()
 }

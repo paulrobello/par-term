@@ -223,13 +223,40 @@ impl WindowState {
             .and_then(|t| t.active_mouse().dragging_divider);
 
         if let Some(divider_index) = divider_dragging {
-            // Actively dragging a divider
-            if let Some(tab) = self.tab_manager.active_tab_mut() {
-                tab.drag_divider(divider_index, position.0 as f32, position.1 as f32);
+            // Guard: if the mouse button is no longer pressed the drag ended but the release
+            // was silently consumed by mouse tracking (e.g. tmux with `mouse on` — the release
+            // lands inside a tracked pane, `try_send_mouse_event` returns true, and
+            // `handle_left_mouse_release` is never called).  Without this check every
+            // subsequent mouse-move would hit the early-return below, hover detection would
+            // never run, and the divider highlight would stay on permanently.
+            let button_still_pressed = self
+                .tab_manager
+                .active_tab()
+                .is_some_and(|t| t.active_mouse().button_pressed);
+
+            if !button_still_pressed {
+                // End the drag gracefully: clear state and sync tmux layout.
+                let divider_is_horizontal = self
+                    .tab_manager
+                    .active_tab()
+                    .and_then(|t| Some(t.get_divider(divider_index)?.is_horizontal));
+                if let Some(tab) = self.tab_manager.active_tab_mut() {
+                    tab.active_mouse_mut().dragging_divider = None;
+                }
+                if let Some(is_horizontal) = divider_is_horizontal {
+                    self.sync_pane_resize_to_tmux(is_horizontal);
+                }
+                self.focus_state.needs_redraw = true;
+                // Fall through to hover detection so the highlight clears immediately.
+            } else {
+                // Actively dragging a divider
+                if let Some(tab) = self.tab_manager.active_tab_mut() {
+                    tab.drag_divider(divider_index, position.0 as f32, position.1 as f32);
+                }
+                self.focus_state.needs_redraw = true;
+                self.request_redraw();
+                return; // Exit early: divider dragging takes precedence
             }
-            self.focus_state.needs_redraw = true;
-            self.request_redraw();
-            return; // Exit early: divider dragging takes precedence
         }
 
         // --- 4c. Divider Hover Detection ---
