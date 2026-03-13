@@ -2,7 +2,9 @@
 
 use crate::app::window_state::WindowState;
 use crate::app::window_state::WorkflowContext;
-use crate::config::snippets::{ConditionCheck, CustomActionConfig, SequenceStepBehavior, normalize_action_prefix_char};
+use crate::config::snippets::{
+    ConditionCheck, CustomActionConfig, SequenceStepBehavior, normalize_action_prefix_char,
+};
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 use winit::event::{ElementState, KeyEvent};
@@ -212,7 +214,10 @@ impl WindowState {
         visited: &mut HashSet<String>,
     ) -> StepOutcome {
         if visited.contains(action_id) {
-            self.show_toast(format!("Workflow: circular reference detected ({})", action_id));
+            self.show_toast(format!(
+                "Workflow: circular reference detected ({})",
+                action_id
+            ));
             return StepOutcome::Abort;
         }
 
@@ -641,10 +646,7 @@ impl WindowState {
                                     *guard = Some(ctx);
                                 }
                                 if output.status.success() {
-                                    log::info!(
-                                        "Shell command '{}' completed successfully",
-                                        title
-                                    );
+                                    log::info!("Shell command '{}' completed successfully", title);
                                     if notify_on_success {
                                         log::info!("Command '{}' output available", title);
                                     }
@@ -657,17 +659,12 @@ impl WindowState {
                                 }
                             }
                             Err(e) => {
-                                log::error!(
-                                    "Failed to spawn shell command '{}': {}",
-                                    title,
-                                    e
-                                );
+                                log::error!("Failed to spawn shell command '{}': {}", title, e);
                             }
                         }
                     } else {
                         // Use spawn to run the command and wait with timeout
-                        let child_result =
-                            std::process::Command::new(&command).args(&args).spawn();
+                        let child_result = std::process::Command::new(&command).args(&args).spawn();
 
                         match child_result {
                             Ok(mut child) => {
@@ -945,11 +942,7 @@ impl WindowState {
                 let check = check.clone();
                 let on_true = on_true_id.as_deref().map(|s| s.to_string());
                 let on_false = on_false_id.as_deref().map(|s| s.to_string());
-                self.execute_condition_standalone(
-                    &check,
-                    on_true.as_deref(),
-                    on_false.as_deref(),
-                );
+                self.execute_condition_standalone(&check, on_true.as_deref(), on_false.as_deref());
                 true
             }
             CustomActionConfig::Repeat {
@@ -966,7 +959,14 @@ impl WindowState {
                 let stop_on_success = *stop_on_success;
                 let stop_on_failure = *stop_on_failure;
                 let ctx = Arc::clone(&self.last_workflow_context);
-                self.execute_repeat(&action_id, count, delay_ms, stop_on_success, stop_on_failure, ctx);
+                self.execute_repeat(
+                    &action_id,
+                    count,
+                    delay_ms,
+                    stop_on_success,
+                    stop_on_failure,
+                    ctx,
+                );
                 true
             }
         }

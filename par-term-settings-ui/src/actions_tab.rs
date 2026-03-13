@@ -350,10 +350,17 @@ fn show_actions_section(
                         settings.temp_action_split_delay_ms = *delay_ms;
                         settings.temp_action_split_percent = *split_percent;
                     }
-                    CustomActionConfig::Sequence { steps, keybinding_enabled, .. } => {
+                    CustomActionConfig::Sequence {
+                        steps,
+                        keybinding_enabled,
+                        ..
+                    } => {
                         settings.temp_action_type = 5;
                         settings.temp_action_keybinding_enabled = *keybinding_enabled;
-                        settings.temp_action_steps = steps.iter().map(|s| (s.action_id.clone(), s.delay_ms, s.on_failure)).collect();
+                        settings.temp_action_steps = steps
+                            .iter()
+                            .map(|s| (s.action_id.clone(), s.delay_ms, s.on_failure))
+                            .collect();
                         // Reset non-sequence fields
                         settings.temp_action_check_type = 0;
                         settings.temp_action_check_value = String::new();
@@ -369,7 +376,13 @@ fn show_actions_section(
                         settings.temp_action_stop_on_success = false;
                         settings.temp_action_stop_on_failure = false;
                     }
-                    CustomActionConfig::Condition { check, on_true_id, on_false_id, keybinding_enabled, .. } => {
+                    CustomActionConfig::Condition {
+                        check,
+                        on_true_id,
+                        on_false_id,
+                        keybinding_enabled,
+                        ..
+                    } => {
                         settings.temp_action_type = 6;
                         settings.temp_action_keybinding_enabled = *keybinding_enabled;
                         match check {
@@ -378,7 +391,10 @@ fn show_actions_section(
                                 settings.temp_action_check_value = value.to_string();
                                 settings.temp_action_case_sensitive = false;
                             }
-                            par_term_config::snippets::ConditionCheck::OutputContains { pattern, case_sensitive } => {
+                            par_term_config::snippets::ConditionCheck::OutputContains {
+                                pattern,
+                                case_sensitive,
+                            } => {
                                 settings.temp_action_check_type = 1;
                                 settings.temp_action_check_value = pattern.clone();
                                 settings.temp_action_case_sensitive = *case_sensitive;
@@ -402,14 +418,26 @@ fn show_actions_section(
                         settings.temp_action_on_false_id = on_false_id.clone().unwrap_or_default();
                         // Reset non-condition fields
                         settings.temp_action_steps = Vec::new();
-                        settings.temp_action_env_name = if settings.temp_action_check_type != 2 { String::new() } else { settings.temp_action_env_name.clone() };
+                        settings.temp_action_env_name = if settings.temp_action_check_type != 2 {
+                            String::new()
+                        } else {
+                            settings.temp_action_env_name.clone()
+                        };
                         settings.temp_action_repeat_action_id = String::new();
                         settings.temp_action_repeat_count = 3;
                         settings.temp_action_repeat_delay_ms = 0;
                         settings.temp_action_stop_on_success = false;
                         settings.temp_action_stop_on_failure = false;
                     }
-                    CustomActionConfig::Repeat { action_id, count, delay_ms, stop_on_success, stop_on_failure, keybinding_enabled, .. } => {
+                    CustomActionConfig::Repeat {
+                        action_id,
+                        count,
+                        delay_ms,
+                        stop_on_success,
+                        stop_on_failure,
+                        keybinding_enabled,
+                        ..
+                    } => {
                         settings.temp_action_type = 7;
                         settings.temp_action_keybinding_enabled = *keybinding_enabled;
                         settings.temp_action_repeat_action_id = action_id.clone();
@@ -572,13 +600,17 @@ fn show_action_edit_form(
                     description: None,
                 },
                 5 => {
-                    let steps = settings.temp_action_steps.iter().map(|(id, delay, behavior)| {
-                        par_term_config::snippets::SequenceStep {
-                            action_id: id.clone(),
-                            delay_ms: *delay,
-                            on_failure: *behavior,
-                        }
-                    }).collect();
+                    let steps = settings
+                        .temp_action_steps
+                        .iter()
+                        .map(
+                            |(id, delay, behavior)| par_term_config::snippets::SequenceStep {
+                                action_id: id.clone(),
+                                delay_ms: *delay,
+                                on_failure: *behavior,
+                            },
+                        )
+                        .collect();
                     CustomActionConfig::Sequence {
                         id: settings.temp_action_id.clone(),
                         title: settings.temp_action_title.clone(),
@@ -592,14 +624,27 @@ fn show_action_edit_form(
                 6 => {
                     use par_term_config::snippets::ConditionCheck;
                     let check = match settings.temp_action_check_type {
-                        0 => ConditionCheck::ExitCode { value: settings.temp_action_check_value.parse().unwrap_or(0) },
-                        1 => ConditionCheck::OutputContains { pattern: settings.temp_action_check_value.clone(), case_sensitive: settings.temp_action_case_sensitive },
+                        0 => ConditionCheck::ExitCode {
+                            value: settings.temp_action_check_value.parse().unwrap_or(0),
+                        },
+                        1 => ConditionCheck::OutputContains {
+                            pattern: settings.temp_action_check_value.clone(),
+                            case_sensitive: settings.temp_action_case_sensitive,
+                        },
                         2 => ConditionCheck::EnvVar {
                             name: settings.temp_action_env_name.clone(),
-                            value: if settings.temp_action_env_check_existence { None } else { Some(settings.temp_action_env_value.clone()) },
+                            value: if settings.temp_action_env_check_existence {
+                                None
+                            } else {
+                                Some(settings.temp_action_env_value.clone())
+                            },
                         },
-                        3 => ConditionCheck::DirMatches { pattern: settings.temp_action_check_value.clone() },
-                        4 => ConditionCheck::GitBranch { pattern: settings.temp_action_check_value.clone() },
+                        3 => ConditionCheck::DirMatches {
+                            pattern: settings.temp_action_check_value.clone(),
+                        },
+                        4 => ConditionCheck::GitBranch {
+                            pattern: settings.temp_action_check_value.clone(),
+                        },
                         _ => ConditionCheck::ExitCode { value: 0 },
                     };
                     CustomActionConfig::Condition {
@@ -610,8 +655,16 @@ fn show_action_edit_form(
                         keybinding_enabled: settings.temp_action_keybinding_enabled,
                         description: None,
                         check,
-                        on_true_id: if settings.temp_action_on_true_id.is_empty() { None } else { Some(settings.temp_action_on_true_id.clone()) },
-                        on_false_id: if settings.temp_action_on_false_id.is_empty() { None } else { Some(settings.temp_action_on_false_id.clone()) },
+                        on_true_id: if settings.temp_action_on_true_id.is_empty() {
+                            None
+                        } else {
+                            Some(settings.temp_action_on_true_id.clone())
+                        },
+                        on_false_id: if settings.temp_action_on_false_id.is_empty() {
+                            None
+                        } else {
+                            Some(settings.temp_action_on_false_id.clone())
+                        },
                     }
                 }
                 7 => CustomActionConfig::Repeat {
