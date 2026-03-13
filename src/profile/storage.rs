@@ -96,7 +96,8 @@ mod tests {
         let temp = tempdir().expect("failed to create temp dir");
         let path = temp.path().join("nonexistent.yaml");
 
-        let manager = load_profiles_from(path).expect("loading from nonexistent path should return empty manager");
+        let manager = load_profiles_from(path)
+            .expect("loading from nonexistent path should return empty manager");
         assert!(manager.is_empty());
     }
 
@@ -106,7 +107,8 @@ mod tests {
         let path = temp.path().join("empty.yaml");
         std::fs::write(&path, "").expect("failed to write empty file");
 
-        let manager = load_profiles_from(path).expect("loading empty file should return empty manager");
+        let manager =
+            load_profiles_from(path).expect("loading empty file should return empty manager");
         assert!(manager.is_empty());
     }
 

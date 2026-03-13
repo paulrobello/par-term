@@ -555,7 +555,8 @@ impl Config {
                 );
                 self.insecure_trigger_names.push(trigger.name.clone());
                 if !trigger.i_accept_the_risk {
-                    self.unaccepted_risk_trigger_names.push(trigger.name.clone());
+                    self.unaccepted_risk_trigger_names
+                        .push(trigger.name.clone());
                 }
             }
         }

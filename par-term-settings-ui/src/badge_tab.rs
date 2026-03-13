@@ -366,4 +366,3 @@ fn show_variables_section(
         },
     );
 }
-

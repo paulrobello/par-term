@@ -268,4 +268,3 @@ fn show_colors_section(
         },
     );
 }
-

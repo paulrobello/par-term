@@ -136,7 +136,9 @@ impl Renderer {
         // This must happen outside the `custom_shader_renderer` mutable borrow scope
         // because rendering panes requires `&mut self`.
         if full_content_mode {
-            let custom_shader = self.custom_shader_renderer.as_mut()
+            let custom_shader = self
+                .custom_shader_renderer
+                .as_mut()
                 .expect("custom_shader_renderer must be Some when full_content_mode is true");
             custom_shader.clear_intermediate_texture(
                 self.cell_renderer.device(),
@@ -446,11 +448,11 @@ impl Renderer {
                 .as_mut()
                 .expect("cursor_shader_renderer must be Some when use_cursor_shader is true")
                 .render(
-                self.cell_renderer.device(),
-                self.cell_renderer.queue(),
-                &surface_view,
-                true, // Apply opacity - final render to surface
-            )?;
+                    self.cell_renderer.device(),
+                    self.cell_renderer.queue(),
+                    &surface_view,
+                    true, // Apply opacity - final render to surface
+                )?;
         }
 
         // Render egui overlay if provided

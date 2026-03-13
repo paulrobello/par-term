@@ -438,4 +438,3 @@ fn show_auto_restore_section(
         },
     );
 }
-

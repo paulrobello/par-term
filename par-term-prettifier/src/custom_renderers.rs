@@ -122,8 +122,7 @@ impl ContentRenderer for ExternalCommandRenderer {
             return Err(RenderError::RenderFailed(format!(
                 "command '{}' blocked: prettifier.allowed_commands is empty (default-deny). \
                  Add '{}' to allowed_commands to permit external renderers.",
-                self.render_command,
-                cmd_basename,
+                self.render_command, cmd_basename,
             )));
         } else if !config
             .allowed_commands

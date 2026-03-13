@@ -52,6 +52,11 @@ pub use types::{
 };
 
 // Re-export config types
+pub use automation::{
+    CoprocessDefConfig, RestartPolicy, SplitPaneCommand, TriggerActionConfig, TriggerConfig,
+    TriggerRateLimiter, TriggerSplitDirection, TriggerSplitTarget, check_command_denylist,
+    warn_prompt_before_run_false,
+};
 pub use types::{
     AlertEvent, AlertSoundConfig, BackgroundImageMode, BackgroundMode, CursorShaderConfig,
     CursorShaderMetadata, CursorStyle, DividerRect, DividerStyle, DownloadSaveLocation,
@@ -64,11 +69,6 @@ pub use types::{
     StatusBarPosition, TabBarMode, TabBarPosition, TabId, TabStyle, TabTitleMode, ThinStrokesMode,
     UnfocusedCursorStyle, UpdateCheckFrequency, VsyncMode, WindowType,
     default_smart_selection_rules,
-};
-pub use automation::{
-    CoprocessDefConfig, RestartPolicy, SplitPaneCommand, TriggerActionConfig, TriggerConfig,
-    TriggerRateLimiter, TriggerSplitDirection, TriggerSplitTarget, check_command_denylist,
-    warn_prompt_before_run_false,
 };
 // Scripting / observer scripts
 pub use scripting::ScriptConfig;

@@ -242,7 +242,6 @@ pub fn verify_sha256(data: &[u8], expected_hex: &str) -> Result<(), String> {
     }
 }
 
-
 /// Extract shaders from zip data to target directory
 pub fn extract_shaders(zip_data: &[u8], target_dir: &Path) -> Result<(), String> {
     use std::io::Cursor;

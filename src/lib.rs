@@ -5,23 +5,19 @@
 //! par-term uses three mutex types for different concurrency scenarios.
 //! New code should follow these rules:
 //!
-//!   - `tokio::sync::RwLock`   — canonical choice for `TerminalManager` and other
-//!                               state shared between async tasks and the sync
-//!                               winit event loop.  From sync contexts use
-//!                               `try_read()` / `try_write()` (non-blocking) or
-//!                               `blocking_read()` / `blocking_write()` only for
-//!                               infrequent user-initiated operations.  Never call
-//!                               the blocking variants from within a Tokio worker
-//!                               thread — it will deadlock.
+//! - `tokio::sync::RwLock` — canonical choice for `TerminalManager` and other state
+//!   shared between async tasks and the sync winit event loop. From sync contexts
+//!   use `try_read()` / `try_write()` (non-blocking) or `blocking_read()` /
+//!   `blocking_write()` only for infrequent user-initiated operations. Never call
+//!   the blocking variants from within a Tokio worker thread — it will deadlock.
 //!
-//!   - `parking_lot::Mutex`    — use for sync-only state where a fast, non-async
-//!                               lock is needed (e.g. upload-error field, watcher
-//!                               state).  Do NOT call `blocking_lock()` on a
-//!                               tokio mutex from within an async context.
+//! - `parking_lot::Mutex` — use for sync-only state where a fast, non-async lock
+//!   is needed (e.g. upload-error field, watcher state). Do NOT call
+//!   `blocking_lock()` on a tokio mutex from within an async context.
 //!
-//!   - `std::sync::Mutex`      — acceptable for simple, short-lived locks in code
-//!                               that cannot depend on parking_lot (e.g. platform
-//!                               FFI modules).  Prefer parking_lot for new code.
+//! - `std::sync::Mutex` — acceptable for simple, short-lived locks in code that
+//!   cannot depend on parking_lot (e.g. platform FFI modules). Prefer parking_lot
+//!   for new code.
 //!
 //! Canonical Tab-level locking rules are documented on [`tab::Tab`].
 //! See `docs/MUTEX_PATTERNS.md` for detailed patterns, deadlock avoidance rules,

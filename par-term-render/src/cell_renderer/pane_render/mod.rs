@@ -930,7 +930,10 @@ impl CellRenderer {
                                 final_h / self.config.height as f32 * 2.0,
                             ],
                             tex_offset: [info.x as f32 / ATLAS_SIZE, info.y as f32 / ATLAS_SIZE],
-                            tex_size: [info.width as f32 / ATLAS_SIZE, info.height as f32 / ATLAS_SIZE],
+                            tex_size: [
+                                info.width as f32 / ATLAS_SIZE,
+                                info.height as f32 / ATLAS_SIZE,
+                            ],
                             color: render_fg_color,
                             is_colored: if info.is_colored { 1 } else { 0 },
                         };
