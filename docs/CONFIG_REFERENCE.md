@@ -197,6 +197,7 @@ field uses its documented default value.
 | `dropped_file_quote_style` | `enum` | `single_quotes` | Quote style for dropped paths: `single_quotes`, `double_quotes`, `backslash`, `none` |
 | `clipboard_max_sync_events` | `usize` | `64` | Maximum clipboard sync events retained |
 | `clipboard_max_event_bytes` | `usize` | `2048` | Maximum bytes per clipboard sync event |
+| `warn_paste_control_chars` | `bool` | `true` | Log a warning when clipboard paste content contains VT escape sequences |
 
 ---
 
@@ -529,11 +530,12 @@ field uses its documented default value.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `triggers` | `array` | `[]` | Regex trigger definitions. Each entry: `{name, pattern, enabled, prompt_before_run, actions}`. `prompt_before_run` (alias: `require_user_action`) defaults to `true` — shows a confirmation dialog before dangerous actions fire. Actions include `highlight`, `notify`, `mark_line`, `set_variable`, `run_command`, `play_sound`, `send_text`, `split_pane` (accepts `split_percent` 10–90, default `66`). |
+| `triggers` | `array` | `[]` | Regex trigger definitions. Each entry: `{name, pattern, enabled, prompt_before_run, i_accept_the_risk, actions}`. `prompt_before_run` (alias: `require_user_action`) defaults to `true`. When `prompt_before_run: false`, `i_accept_the_risk: true` is required; execution is blocked without it. Actions include `highlight`, `notify`, `mark_line`, `set_variable`, `run_command`, `play_sound`, `send_text`, `split_pane` (accepts `split_percent` 10–90, default `66`). |
 | `coprocesses` | `array` | `[]` | Coprocess definitions. Each entry: `{name, command, args, auto_start, copy_terminal_output, restart_policy, restart_delay_ms}` |
 | `scripts` | `array` | `[]` | External observer script definitions |
 | `snippets` | `array` | `[]` | Text snippets: `{id, title, content, keybinding, folder, enabled, auto_execute}` |
-| `actions` | `array` | `[]` | Custom shell/text/key/split actions: `{type: shell_command\|insert_text\|key_sequence\|split_pane, id, title, ...}`. `split_pane` entries accept `direction`, `command`, `command_is_direct`, `focus_new_pane`, `delay_ms`, and `split_percent` (10–90, default `66`). |
+| `actions` | `array` | `[]` | Custom actions: `{type: shell_command\|insert_text\|key_sequence\|split_pane\|new_tab, id, title, prefix_char, ...}`. `split_pane` accepts `direction`, `command`, `command_is_direct`, `focus_new_pane`, `delay_ms`, `split_percent` (10–90, default `66`). `new_tab` accepts `command`. |
+| `custom_action_prefix_key` | `string` | `""` | Global prefix key for tmux-style two-stroke action triggers (e.g. `Ctrl+B`). When set, actions with a `prefix_char` can be triggered by pressing this key then the prefix char. |
 
 ---
 

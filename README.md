@@ -40,7 +40,45 @@ New to par-term? The [Getting Started Guide](docs/GETTING_STARTED.md) walks you 
 - **[Configuration Reference](docs/CONFIG_REFERENCE.md)** — All 200+ configuration options
 - **[Keyboard Shortcuts](docs/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
 
-## What's New in 0.26.0
+## What's New in 0.27.0
+
+### 🔒 Security & Safety
+
+- **`i_accept_the_risk` Guard**: Triggers with `prompt_before_run: false` now require an explicit `i_accept_the_risk: true` field; execution blocked with an audit warning if absent
+- **Shader Installer Requires Checksum**: Installing shaders without a `.sha256` asset is now a hard error instead of a warning
+- **Prettifier External Commands Default-Deny**: `ExternalCommandRenderer` refuses execution when `allowed_commands` is empty (the default)
+- **Clipboard Paste Control-Char Warning**: New `warn_paste_control_chars` config option (default `true`) warns when clipboard content contains VT escape sequences
+- **`O_NOFOLLOW` for Debug Log**: Debug log open path on Unix uses `O_NOFOLLOW` to close a TOCTOU symlink-race window
+- **`allow_all_env_vars` Startup Warning**: Prominent warning emitted at startup when `allow_all_env_vars: true` is detected
+
+### ✨ New Features
+
+- **`split_pane` Custom Action**: Split the active pane and optionally run a command — shell mode (text to shell) or direct mode (PTY process, closes on exit)
+- **`new_tab` Custom Action**: Open a new tab and optionally send a command to it; exposed in settings UI as a dedicated **New Tab** action type
+- **Custom-Action Prefix Mode**: tmux-style two-stroke bindings — configure a global `custom_action_prefix_key` and assign a `prefix_char` per action
+- **`split_percent` for `split_pane` Actions**: Control the split ratio (10–90, default `66`) for both custom actions and trigger split_pane; displayed in settings UI as `[Split-vert-66]`
+- **`split_pane` Trigger Action**: Triggers can now open a new pane when a regex matches terminal output
+- **`prompt_before_run` Confirmation Dialog**: Dangerous trigger actions show an interactive modal (Allow Once / Always Allow / Deny) before executing
+
+### 🐛 Bug Fixes
+
+- **"Skip This Version" Now Persists**: `skipped_version` is now properly written to disk when clicking "Skip This Version" in the update dialog
+- **URL/Path Trailing Punctuation Stripped**: `.`, `!`, `?` at end of detected URLs/paths are no longer included in highlights or click targets
+- **Prefix Key Capture**: Bound prefix chars and `Esc` no longer leak to the terminal while prefix mode is armed
+- **`PageUp`/`PageDown` Forwarded**: Now forwarded to terminal apps as `\x1b[5~`/`\x1b[6~`; scrollback requires `Shift+PageUp`/`Shift+PageDown`
+- **Middle-Click tmux Paste**: Now focuses the clicked pane before pasting, matching iTerm2 behaviour
+- **File Drops Target Pane Under Cursor**: In split-pane and tmux modes, dropped files go to the pane at the drop position
+
+### 🏗️ Architecture & Quality
+
+- **36 Audit Findings Resolved**: Security hardening, doc coverage, dead code removal, render path cleanup
+- **Sub-Crate READMEs**: 11 previously undocumented sub-crates now have individual README files
+- **`dev-release` Profile Optimized**: ~1-2s incremental rebuilds at ~90-95% of full release performance
+- **`ATLAS_SIZE` Constant**: 16 scattered `2048.0` magic literals replaced with a named constant
+- **151 New Docstrings**: `par-term-config/src/defaults/` fully documented
+
+<details>
+<summary><strong>What's New in 0.26.0</strong></summary>
 
 ### 🔒 Security & Safety
 
@@ -76,6 +114,8 @@ New to par-term? The [Getting Started Guide](docs/GETTING_STARTED.md) walks you 
 - **`fill_visible_separator_marks()` API**: New scratch-buffer API for separator mark computation
 - **Dark Tab Colors**: Dark-theme tab color presets dimmed by 25% for better visual comfort
 - **Updated Core Library**: `par-term-emu-core-rust` updated to v0.40.0
+
+</details>
 
 <details>
 <summary><strong>What's New in 0.24.0</strong></summary>

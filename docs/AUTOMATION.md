@@ -132,6 +132,7 @@ Each trigger requires:
 | `pattern` | string | Yes | -- | Regex pattern to match against terminal output |
 | `enabled` | boolean | No | `true` | Whether the trigger is active |
 | `prompt_before_run` | boolean | No | `true` | Whether dangerous actions (`RunCommand`, `SendText`, `SplitPane`) show a confirmation dialog before firing |
+| `i_accept_the_risk` | boolean | No | `false` | Required when `prompt_before_run: false`. Without this explicit opt-in, execution is blocked with an audit warning. |
 | `actions` | array | No | `[]` | List of actions to fire on match |
 
 ### Regex Pattern Syntax
@@ -168,6 +169,8 @@ triggers:
 Each trigger can have multiple actions that all fire when the pattern matches. Actions are defined in the trigger's `actions` array. There are nine action types.
 
 > **📝 Note:** Dangerous actions (`RunCommand`, `SendText`, `SplitPane`) show an interactive confirmation dialog before executing when `prompt_before_run: true` (the default). The dialog offers three choices: **Allow** (run once), **Always Allow** (run automatically for the rest of the session, cleared on config reload), and **Deny** (discard the pending action). Setting `prompt_before_run: false` allows automatic execution — only the rate-limiter and denylist apply. Safe actions (`Highlight`, `Notify`, `MarkLine`, `SetVariable`, `PlaySound`, `Prettify`) always fire without prompting.
+>
+> **Security guard:** When `prompt_before_run: false`, you must also set `i_accept_the_risk: true` on the trigger. Without this explicit opt-in, execution is blocked and an audit warning is logged. This prevents accidental auto-execution after config copy/paste.
 >
 > **Backward compatibility:** The old field name `require_user_action` is accepted as a YAML alias for `prompt_before_run`. Existing configs that use `require_user_action` continue to work without modification.
 

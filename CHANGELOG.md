@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.27.0] - 2026-03-12
+
 ### Security
 - **Trigger `i_accept_the_risk` guard** — triggers with `prompt_before_run: false` now require an explicit `i_accept_the_risk: true` field; execution is blocked with an audit warning if absent. Every no-prompt execution is logged at warn level.
 - **Shader installer requires checksum** — installing shaders from a GitHub release without a `.sha256` asset now returns a hard error instead of proceeding with a warning.
@@ -20,41 +24,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Session logging warning** — a one-time notice is printed when session logging starts, showing the log path and advising that sensitive data may be captured.
 
 ### Added
+- **`split_pane` custom action** — a new action type that splits the active pane and optionally runs a command in the new pane. Supports two command modes:
+  - **Shell mode** (`command_is_direct: false`, default): the command is sent as text to the shell with a trailing newline; the shell stays running when the command finishes.
+  - **Direct mode** (`command_is_direct: true`): the new pane's PTY runs the command directly as its process; the pane closes automatically when the command exits. Best for interactive tools like `htop`, `vim`, or `watch`.
+- **`new_tab` custom action** — custom actions can now open a new tab and optionally send a command to that tab's shell after launch. The settings UI exposes this as a dedicated **New Tab** action type with a multiline command editor.
+- **Custom-action prefix mode** — custom actions can now be triggered with a tmux-style two-stroke binding: configure a global `custom_action_prefix_key`, assign a single-character `prefix_char` to each action, then press the prefix key, release it, and press that character. The settings UI exposes both fields, supports recording the prefix combo, warns about duplicate prefix chars and prefix-key conflicts, keeps the prefix toast visible while the mode is armed, and lets you cancel prefix mode with `Esc`.
+- **`split_percent` for `split_pane` actions** — both custom actions and trigger `split_pane` now accept a `split_percent` field (10–90, default `66`). This controls how much of the current pane the *existing* pane retains after the split; the new pane receives the remainder. Keyboard-shortcut splits (`Ctrl+\` etc.) are unaffected and continue to split 50/50. The settings UI displays the percent in the type indicator (`[Split-vert-66]`) and exposes a drag-control in the editor. Config example: `split_percent: 66`.
+- **`split_pane` trigger action** — triggers can now open a new horizontal or vertical pane and optionally run a command in it when a regex pattern matches terminal output. Supports `send_text` and `initial_command` sub-types for the post-split command, and a `target` field (`active` or `source`) for future per-pane source tracking.
+- **`prompt_before_run` confirmation dialog** — dangerous trigger actions (`RunCommand`, `SendText`, `SplitPane`) now show an interactive modal dialog before executing. The dialog offers three choices: **Allow Once** (run this one time), **Always Allow** (auto-approve for the rest of the session), and **Deny** (discard). Setting `prompt_before_run: false` bypasses the dialog; the rate-limiter and command denylist still apply.
 - **`typecheck` Makefile target** — `make typecheck` runs `cargo check --workspace`; also added to `make checkall`.
 - **Sub-crate READMEs** — created README.md for 11 previously undocumented sub-crates: `par-term-acp`, `par-term-fonts`, `par-term-input`, `par-term-keybindings`, `par-term-prettifier`, `par-term-render`, `par-term-scripting`, `par-term-settings-ui`, `par-term-terminal`, `par-term-tmux`, `par-term-update`.
 - **`ATLAS_SIZE` constant** — replaced 16 scattered `2048.0` magic literals in the render pipeline with `pub(crate) const ATLAS_SIZE: f32 = 2048.0;`.
 - **151 docstrings** added to `par-term-config/src/defaults/` functions and other undocumented public API items.
 - **`//!` crate-level doc comment** added to `par-term-input/src/lib.rs`.
+- Updated `par-term-emu-core-rust` dependency to v0.41.0 (adds `TriggerAction::SplitPane` / `ActionResult::SplitPane`).
 
 ### Changed
+- **`require_user_action` renamed to `prompt_before_run`** on trigger definitions. The old name is accepted as a YAML alias — existing config files continue to work without modification.
+- **Settings window opens 10% wider** by default, giving the custom-actions editor and list more room before truncation.
 - **Rust toolchain pinned to 1.91.0** — `release.yml` `RUST_VERSION` updated from `1.85.0` to `1.91.0` to match CI; `rust-toolchain.toml` channel pinned from `"stable"` to `"1.91.0"`.
 - **`rust-version = "1.91"` added to all 14 sub-crate `Cargo.toml` files** — aligns MSRV declarations across the workspace.
 - **Removed redundant `resolver = "2"`** from root `Cargo.toml` (Edition 2024 defaults to resolver v2).
 - **`Tab::Drop` no longer sleeps 50 ms** — removed the blocking `std::thread::sleep(50ms)` on tab close; `abort()` is non-blocking.
 - **Render-path `.unwrap()` replaced with `.expect()`** — the 3 `unwrap()` calls in `par-term-render/src/renderer/rendering.rs` now carry descriptive invariant messages.
 - **Keyboard shortcuts doc corrected** — Linux/Windows column for Next/Prev tab and Move tab left/right now shows `Ctrl+Shift` (was `Cmd+Shift`).
-- **README updated to v0.26.0 and Rust 1.91+**.
-- **CHANGELOG comparison links added** per Keep a Changelog spec.
-
-### Fixed
-- Clippy `field_reassign_with_default` violation in `par-term-config` prettifier test — replaced with struct initializer form.
-- Removed dead `segment_texts()` helper from `par-term-prettifier` markdown inline tests.
-- Removed 3 dead `keywords()` functions from settings-ui badge, progress-bar, and arrangements tabs.
-
-### Added
-- **`split_percent` for `split_pane` actions** — both custom actions and trigger `split_pane` now accept a `split_percent` field (10–90, default `66`). This controls how much of the current pane the *existing* pane retains after the split; the new pane receives the remainder. Keyboard-shortcut splits (`Ctrl+\` etc.) are unaffected and continue to split 50/50. The settings UI displays the percent in the type indicator (`[Split-vert-66]`) and exposes a drag-control in the editor. Config example: `split_percent: 66`.
-- **`split_pane` custom action** — a new action type that splits the active pane and optionally runs a command in the new pane. Supports two command modes:
-  - **Shell mode** (`command_is_direct: false`, default): the command is sent as text to the shell with a trailing newline; the shell stays running when the command finishes.
-  - **Direct mode** (`command_is_direct: true`): the new pane's PTY runs the command directly as its process; the pane closes automatically when the command exits. Best for interactive tools like `htop`, `vim`, or `watch`.
-- **`new_tab` custom action** — custom actions can now open a new tab and optionally send a command to that tab's shell after launch. The settings UI exposes this as a dedicated **New Tab** action type with a multiline command editor.
-- **Custom-action prefix mode** — custom actions can now be triggered with a tmux-style two-stroke binding: configure a global `custom_action_prefix_key`, assign a single-character `prefix_char` to each action, then press the prefix key, release it, and press that character. The settings UI exposes both fields, supports recording the prefix combo, warns about duplicate prefix chars and prefix-key conflicts, keeps the prefix toast visible while the mode is armed, and lets you cancel prefix mode with `Esc`.
-- **`split_pane` trigger action** — triggers can now open a new horizontal or vertical pane and optionally run a command in it when a regex pattern matches terminal output. Supports `send_text` and `initial_command` sub-types for the post-split command, and a `target` field (`active` or `source`) for future per-pane source tracking.
-- **`prompt_before_run` confirmation dialog** — dangerous trigger actions (`RunCommand`, `SendText`, `SplitPane`) now show an interactive modal dialog before executing. The dialog offers three choices: **Allow Once** (run this one time), **Always Allow** (auto-approve for the rest of the session), and **Deny** (discard). Setting `prompt_before_run: false` bypasses the dialog; the rate-limiter and command denylist still apply.
-- Updated `par-term-emu-core-rust` dependency to v0.41.0 (adds `TriggerAction::SplitPane` / `ActionResult::SplitPane`).
-
-### Changed
-- **`require_user_action` renamed to `prompt_before_run`** on trigger definitions. The old name is accepted as a YAML alias — existing config files continue to work without modification.
-- The standalone settings window now opens 10% wider by default, giving the custom-actions editor and list more room before truncation.
+- **README updated to v0.27.0 and Rust 1.91+**.
 
 ### Fixed
 - "Skip This Version" in the update dialog now persists across restarts — the `save_config` flag from the render pass was not being acted on, so `skipped_version` was never written to disk.
@@ -66,6 +60,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `PageUp`/`PageDown` are now forwarded to terminal applications (e.g., `joe`, `less`, `vim`) as `\x1b[5~`/`\x1b[6~`; scrollback navigation now requires `Shift+PageUp`/`Shift+PageDown`, consistent with `Shift+Home`/`Shift+End`.
 - Middle-click paste in tmux now focuses the clicked pane before pasting — a synthetic left-click press/release is sent at the cursor position when mouse tracking is active, matching iTerm2 behaviour.
 - File drops now target the pane under the cursor — in split-pane and tmux modes the dropped file path is sent to the pane at the drop position instead of always going to the focused pane. In tmux gateway mode the text is routed through `send-keys` to the correct tmux pane.
+- Clippy `field_reassign_with_default` violation in `par-term-config` prettifier test — replaced with struct initializer form.
+- Removed dead `segment_texts()` helper from `par-term-prettifier` markdown inline tests.
+- Removed 3 dead `keywords()` functions from settings-ui badge, progress-bar, and arrangements tabs.
+
+### Performance
+- **`dev-release` profile optimized** — `opt-level 2`, no LTO, `codegen-units = 16`, `incremental = true`, `strip = false` for ~1-2s incremental rebuilds at ~90-95% of full release performance.
 
 ---
 
@@ -1110,7 +1110,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-[Unreleased]: https://github.com/paulrobello/par-term/compare/v0.26.0...HEAD
+[Unreleased]: https://github.com/paulrobello/par-term/compare/v0.27.0...HEAD
+[0.27.0]: https://github.com/paulrobello/par-term/compare/v0.26.0...v0.27.0
 [0.26.0]: https://github.com/paulrobello/par-term/compare/v0.25.0...v0.26.0
 [0.25.0]: https://github.com/paulrobello/par-term/compare/v0.24.0...v0.25.0
 [0.24.0]: https://github.com/paulrobello/par-term/compare/v0.23.0...v0.24.0

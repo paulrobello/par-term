@@ -1,6 +1,6 @@
 [package]
 name = "par-term-scripting"
-version = "0.1.7"
+version = "0.1.8"
 edition = "2024"
 rust-version = "1.91"
 authors = ["Paul Robello <probello@gmail.com>"]
@@ -13,7 +13,7 @@ categories = ["command-line-utilities"]
 
 [dependencies]
 # Configuration types (ScriptConfig)
-par-term-config = { path = "../par-term-config", version = "0.7.1" }
+par-term-config = { path = "../par-term-config", version = "0.8.0" }
 
 # Terminal event observer trait
 par-term-emu-core-rust.workspace = true

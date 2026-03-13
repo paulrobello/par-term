@@ -1,6 +1,6 @@
 [package]
 name = "par-term-fonts"
-version = "0.1.6"
+version = "0.1.7"
 edition = "2024"
 rust-version = "1.91"
 authors = ["Paul Robello <probello@gmail.com>"]
@@ -28,7 +28,7 @@ unicode-segmentation.workspace = true
 lru.workspace = true
 
 # Configuration types (FontRange)
-par-term-config = { path = "../par-term-config", version = "0.7.1" }
+par-term-config = { path = "../par-term-config", version = "0.8.0" }
 
 # Error handling
 anyhow.workspace = true
