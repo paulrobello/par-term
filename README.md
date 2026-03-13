@@ -68,6 +68,8 @@ New to par-term? The [Getting Started Guide](docs/GETTING_STARTED.md) walks you 
 - **`PageUp`/`PageDown` Forwarded**: Now forwarded to terminal apps as `\x1b[5~`/`\x1b[6~`; scrollback requires `Shift+PageUp`/`Shift+PageDown`
 - **Middle-Click tmux Paste**: Now focuses the clicked pane before pasting, matching iTerm2 behaviour
 - **File Drops Target Pane Under Cursor**: In split-pane and tmux modes, dropped files go to the pane at the drop position
+- **Text Selection in Native Split Panes**: Clicking within the already-focused pane now correctly anchors a selection; previously the pane-focus handler always returned early for any multi-pane click, blocking selection entirely
+- **Selection Highlight Row Alignment in Split Panes**: Fixed up-to-half-cell row misalignment during drag-selection caused by the renderer's centering offset (`center_offset_y`) not being subtracted in pixel-to-cell coordinate mapping
 
 ### 🏗️ Architecture & Quality
 
