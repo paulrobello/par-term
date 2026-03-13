@@ -334,12 +334,16 @@ codegen-units = 1
 strip = true
 
 # Fast optimized builds for day-to-day development and testing.
-# Use `cargo build --profile dev-release` or `make fast-release`.
-# ~30-40s vs ~3min for full release. Performance is ~95% of release.
+# Use `cargo build --profile dev-release` or `make build`.
+# Incremental + opt-level 2 + no LTO → fast rebuilds (~1-2s after initial).
+# Performance is ~90-95% of full release.
 [profile.dev-release]
 inherits = "release"
-lto = "thin"
+opt-level = 2
+lto = false
 codegen-units = 16
+incremental = true
+strip = false
 
 [profile.dev]
 opt-level = 0

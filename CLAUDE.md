@@ -15,10 +15,10 @@ par-term is a cross-platform GPU-accelerated terminal emulator frontend built in
 
 ### Build & Run
 
-**IMPORTANT**: Use `make build` / `make run` for day-to-day development. These use the `dev-release` profile (opt-level 3, thin LTO, 16 codegen-units) which compiles in ~30-40s with ~95% of full release performance. Only use `make build-debug` when you need debug symbols for stepping through code, and `make build-full` / `make release` for distribution builds.
+**IMPORTANT**: Use `make build` / `make run` for day-to-day development. These use the `dev-release` profile (opt-level 2, no LTO, incremental) which rebuilds in ~1-2s after code changes (~1m20s clean build) with ~90-95% of full release performance. Only use `make build-debug` when you need debug symbols for stepping through code, and `make build-full` / `make release` for distribution builds.
 
 ```bash
-make build          # Dev-release build (optimized, thin LTO — ~30-40s, preferred)
+make build          # Dev-release build (optimized, incremental — ~1-2s rebuild, preferred)
 make build-full     # Full release build (LTO, single codegen unit — ~3min, for distribution)
 make build-debug    # Debug build (unoptimized, for stepping through code)
 make run            # Run in dev-release mode (preferred)
