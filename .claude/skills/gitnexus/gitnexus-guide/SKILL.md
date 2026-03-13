@@ -1,11 +1,11 @@
 ---
 name: gitnexus-guide
-description: "Use when the user asks about GitNexus itself — available tools, how to query the knowledge graph, MCP resources, graph schema, or workflow reference. Examples: \"What GitNexus tools are available?\", \"How do I use GitNexus?\""
+description: "Use when the user asks about GitNexus itself — available tools, how to query the knowledge graph, graph schema, or workflow reference. Examples: \"What GitNexus tools are available?\", \"How do I use GitNexus?\""
 ---
 
 # GitNexus Guide
 
-Quick reference for all GitNexus CLI commands and the knowledge graph schema.
+Quick reference for all GitNexus CLI commands, tools, and the knowledge graph schema.
 
 > **IMPORTANT — How to use GitNexus**: GitNexus is a standalone CLI tool. Run it directly via `gitnexus <command>` in the Bash tool (e.g., `gitnexus query "auth flow"`, `gitnexus impact "myFunc" --direction upstream`). Do **NOT** use `mcpl call gitnexus ...` — gitnexus is not invoked through mcpl.
 
@@ -36,13 +36,17 @@ All commands are run directly via the Bash tool. Do **not** use `mcpl`.
 
 | Command | What it gives you | Example |
 | ------- | ----------------- | ------- |
-| `gitnexus query "<concept>"` | Execution flows related to a concept | `gitnexus query "auth flow"` |
-| `gitnexus context "<symbol>"` | 360-degree symbol view — callers, callees, processes | `gitnexus context "validateUser"` |
-| `gitnexus impact "<symbol>" --direction upstream` | Blast radius — what breaks at depth 1/2/3 | `gitnexus impact "myFunc" --direction upstream` |
-| `gitnexus cypher "<query>"` | Raw Cypher graph queries | `gitnexus cypher "MATCH ..."` |
+| `gitnexus query "<concept>" --repo par-term` | Process-grouped code intelligence — execution flows related to a concept | `gitnexus query "auth flow" --repo par-term` |
+| `gitnexus context "<symbol>" --repo par-term` | 360-degree symbol view — categorized refs, processes it participates in | `gitnexus context "validateUser" --repo par-term` |
+| `gitnexus impact "<symbol>" --direction upstream --repo par-term` | Symbol blast radius — what breaks at depth 1/2/3 with confidence | `gitnexus impact "myFunc" --direction upstream --repo par-term` |
+| `gitnexus detect-changes --repo par-term` | Git-diff impact — what do your current changes affect | `gitnexus detect-changes --repo par-term` |
+| `gitnexus rename "<old>" "<new>" --repo par-term` | Multi-file coordinated rename with confidence-tagged edits | `gitnexus rename "myFunc" "myNewFunc" --repo par-term` |
+| `gitnexus cypher "<query>" --repo par-term` | Raw graph queries | `gitnexus cypher "MATCH ..." --repo par-term` |
 | `gitnexus status` | Index freshness check | `gitnexus status` |
 | `gitnexus analyze` | Build or refresh the index | `gitnexus analyze` |
-| `gitnexus list` | List all indexed repos | `gitnexus list` |
+| `gitnexus list` | Discover indexed repos | `gitnexus list` |
+
+> **Multi-repo note**: This workspace has multiple repos indexed. Always pass `--repo par-term` to every command to avoid "multiple repositories" errors.
 
 ## Graph Schema
 
