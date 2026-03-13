@@ -27,6 +27,10 @@ mod separators;
 
 use cursor_overlays::CursorOverlayParams;
 
+/// Atlas texture size in pixels. Must match the value used at atlas creation time.
+/// See `PREFERRED_ATLAS_SIZE` in `pipeline.rs` and `atlas_size` on `CellRendererAtlas`.
+pub(crate) const ATLAS_SIZE: f32 = 2048.0;
+
 /// Parameters for rendering a single pane to a surface texture view.
 pub struct PaneRenderViewParams<'a> {
     pub viewport: &'a PaneViewport,
@@ -364,6 +368,12 @@ impl CellRenderer {
                 let pane_alpha = bg_alpha * opacity_multiplier;
                 let mut bg_color = color_u8x4_rgb_to_f32_a(cell.bg_color, pane_alpha);
 
+                // TODO(QA-002/QA-008): extract into `render_cursor_cell()` helper.
+                // Signature would be:
+                //   fn render_cursor_cell(&mut self, col: usize, row: usize,
+                //       content_x: f32, content_y: f32, bg_color: [f32; 4],
+                //       cursor_opacity: f32, render_hollow_here: bool,
+                //       bg_index: &mut usize)
                 // Handle cursor at this position
                 if has_cursor {
                     use par_term_emu_core_rust::cursor::CursorStyle;
@@ -603,6 +613,10 @@ impl CellRenderer {
                     color_u8x4_rgb_to_f32_a(cell.fg_color, text_alpha)
                 };
 
+                // TODO(QA-002/QA-008): extract into `render_block_char()` helper.
+                // The block char path returns early via `continue` — the helper would
+                // return `bool` (true = rendered, caller should continue) and write
+                // directly into `self.text_instances[text_index]`.
                 // Check for block characters that should be rendered geometrically
                 let char_type = block_chars::classify_char(ch);
                 if chars.len() == 1 && block_chars::should_render_geometrically(char_type) {
@@ -655,10 +669,10 @@ impl CellRenderer {
                                         final_h / self.config.height as f32 * 2.0,
                                     ],
                                     tex_offset: [
-                                        self.atlas.solid_pixel_offset.0 as f32 / 2048.0,
-                                        self.atlas.solid_pixel_offset.1 as f32 / 2048.0,
+                                        self.atlas.solid_pixel_offset.0 as f32 / ATLAS_SIZE,
+                                        self.atlas.solid_pixel_offset.1 as f32 / ATLAS_SIZE,
                                     ],
-                                    tex_size: [1.0 / 2048.0, 1.0 / 2048.0],
+                                    tex_size: [1.0 / ATLAS_SIZE, 1.0 / ATLAS_SIZE],
                                     color: render_fg_color,
                                     is_colored: 0,
                                 };
@@ -684,10 +698,10 @@ impl CellRenderer {
                         };
 
                         let tex_offset = [
-                            self.atlas.solid_pixel_offset.0 as f32 / 2048.0,
-                            self.atlas.solid_pixel_offset.1 as f32 / 2048.0,
+                            self.atlas.solid_pixel_offset.0 as f32 / ATLAS_SIZE,
+                            self.atlas.solid_pixel_offset.1 as f32 / ATLAS_SIZE,
                         ];
-                        let tex_size = [1.0 / 2048.0, 1.0 / 2048.0];
+                        let tex_size = [1.0 / ATLAS_SIZE, 1.0 / ATLAS_SIZE];
 
                         // Top half: [y0, y_mid)
                         if text_index < self.buffers.max_text_instances {
@@ -764,10 +778,10 @@ impl CellRenderer {
                                     final_h / self.config.height as f32 * 2.0,
                                 ],
                                 tex_offset: [
-                                    self.atlas.solid_pixel_offset.0 as f32 / 2048.0,
-                                    self.atlas.solid_pixel_offset.1 as f32 / 2048.0,
+                                    self.atlas.solid_pixel_offset.0 as f32 / ATLAS_SIZE,
+                                    self.atlas.solid_pixel_offset.1 as f32 / ATLAS_SIZE,
                                 ],
-                                tex_size: [1.0 / 2048.0, 1.0 / 2048.0],
+                                tex_size: [1.0 / ATLAS_SIZE, 1.0 / ATLAS_SIZE],
                                 color: render_fg_color,
                                 is_colored: 0,
                             };
@@ -790,6 +804,11 @@ impl CellRenderer {
                     (false, ch)
                 };
 
+                // TODO(QA-002/QA-008): extract into `resolve_glyph_with_fallback()` helper.
+                // The loop iterates over font fallbacks until a rasterizable glyph is found.
+                // Signature would be:
+                //   fn resolve_glyph_with_fallback(&mut self, cell: &Cell, base_char: char,
+                //       force_monochrome: bool) -> Option<GlyphInfo>
                 // Regular glyph rendering — use single-char lookup when force_monochrome
                 // strips VS16, otherwise grapheme-aware lookup for multi-char sequences.
                 let mut glyph_result = if force_monochrome || chars.len() == 1 {
@@ -910,8 +929,11 @@ impl CellRenderer {
                                 final_w / self.config.width as f32 * 2.0,
                                 final_h / self.config.height as f32 * 2.0,
                             ],
-                            tex_offset: [info.x as f32 / 2048.0, info.y as f32 / 2048.0],
-                            tex_size: [info.width as f32 / 2048.0, info.height as f32 / 2048.0],
+                            tex_offset: [info.x as f32 / ATLAS_SIZE, info.y as f32 / ATLAS_SIZE],
+                            tex_size: [
+                                info.width as f32 / ATLAS_SIZE,
+                                info.height as f32 / ATLAS_SIZE,
+                            ],
                             color: render_fg_color,
                             is_colored: if info.is_colored { 1 } else { 0 },
                         };
@@ -927,10 +949,10 @@ impl CellRenderer {
                     .max(1.0)
                     .round();
                 let tex_offset = [
-                    self.atlas.solid_pixel_offset.0 as f32 / 2048.0,
-                    self.atlas.solid_pixel_offset.1 as f32 / 2048.0,
+                    self.atlas.solid_pixel_offset.0 as f32 / ATLAS_SIZE,
+                    self.atlas.solid_pixel_offset.1 as f32 / ATLAS_SIZE,
                 ];
-                let tex_size = [1.0 / 2048.0, 1.0 / 2048.0];
+                let tex_size = [1.0 / ATLAS_SIZE, 1.0 / ATLAS_SIZE];
                 let y0 = content_y + (row + 1) as f32 * self.grid.cell_height - underline_thickness;
                 let ndc_y = 1.0 - (y0 / self.config.height as f32 * 2.0);
                 let ndc_h = underline_thickness / self.config.height as f32 * 2.0;

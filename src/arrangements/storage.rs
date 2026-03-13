@@ -102,26 +102,28 @@ mod tests {
 
     #[test]
     fn test_load_nonexistent_file() {
-        let temp = tempdir().unwrap();
+        let temp = tempdir().expect("failed to create temp dir");
         let path = temp.path().join("nonexistent.yaml");
 
-        let manager = load_arrangements_from(path).unwrap();
+        let manager = load_arrangements_from(path)
+            .expect("loading from nonexistent path should return empty manager");
         assert!(manager.is_empty());
     }
 
     #[test]
     fn test_load_empty_file() {
-        let temp = tempdir().unwrap();
+        let temp = tempdir().expect("failed to create temp dir");
         let path = temp.path().join("empty.yaml");
-        std::fs::write(&path, "").unwrap();
+        std::fs::write(&path, "").expect("failed to write empty file");
 
-        let manager = load_arrangements_from(path).unwrap();
+        let manager =
+            load_arrangements_from(path).expect("loading empty file should return empty manager");
         assert!(manager.is_empty());
     }
 
     #[test]
     fn test_save_and_load_roundtrip() {
-        let temp = tempdir().unwrap();
+        let temp = tempdir().expect("failed to create temp dir");
         let path = temp.path().join("arrangements.yaml");
 
         let mut manager = ArrangementManager::new();
@@ -158,9 +160,9 @@ mod tests {
             order: 0,
         });
 
-        save_arrangements_to(&manager, path.clone()).unwrap();
+        save_arrangements_to(&manager, path.clone()).expect("failed to save arrangements");
 
-        let loaded = load_arrangements_from(path).unwrap();
+        let loaded = load_arrangements_from(path).expect("failed to load saved arrangements");
         assert_eq!(loaded.len(), 1);
 
         let arrangements = loaded.arrangements_ordered();
@@ -175,7 +177,7 @@ mod tests {
 
     #[test]
     fn test_roundtrip_preserves_custom_tab_properties() {
-        let temp = tempdir().unwrap();
+        let temp = tempdir().expect("failed to create temp dir");
         let path = temp.path().join("arrangements.yaml");
 
         let mut manager = ArrangementManager::new();
@@ -228,9 +230,11 @@ mod tests {
             order: 0,
         });
 
-        save_arrangements_to(&manager, path.clone()).unwrap();
+        save_arrangements_to(&manager, path.clone())
+            .expect("failed to save custom-props arrangements");
 
-        let loaded = load_arrangements_from(path).unwrap();
+        let loaded =
+            load_arrangements_from(path).expect("failed to load custom-props arrangements");
         let arrangements = loaded.arrangements_ordered();
         let tabs = &arrangements[0].windows[0].tabs;
 
@@ -252,7 +256,7 @@ mod tests {
 
     #[test]
     fn test_save_creates_parent_directory() {
-        let temp = tempdir().unwrap();
+        let temp = tempdir().expect("failed to create temp dir");
         let path = temp
             .path()
             .join("nested")
@@ -260,16 +264,17 @@ mod tests {
             .join("arrangements.yaml");
 
         let manager = ArrangementManager::new();
-        save_arrangements_to(&manager, path.clone()).unwrap();
+        save_arrangements_to(&manager, path.clone())
+            .expect("failed to save arrangements to nested dir");
 
         assert!(path.exists());
     }
 
     #[test]
     fn test_load_corrupt_file_returns_error() {
-        let temp = tempdir().unwrap();
+        let temp = tempdir().expect("failed to create temp dir");
         let path = temp.path().join("corrupt.yaml");
-        std::fs::write(&path, "not: valid: yaml: [[[").unwrap();
+        std::fs::write(&path, "not: valid: yaml: [[[").expect("failed to write corrupt file");
 
         let result = load_arrangements_from(path);
         assert!(result.is_err());

@@ -268,25 +268,3 @@ fn show_colors_section(
         },
     );
 }
-
-/// Search keywords (kept for reference; content is inlined into appearance_tab::keywords()).
-#[allow(dead_code)]
-pub fn keywords() -> &'static [&'static str] {
-    &[
-        "progress",
-        "progress bar",
-        "bar",
-        "percent",
-        "osc 934",
-        "osc 9;4",
-        "indeterminate",
-        "normal",
-        "warning",
-        "error",
-        "bar height",
-        "bar style",
-        "bar position",
-        "bar color",
-        "opacity",
-    ]
-}

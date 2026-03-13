@@ -12,12 +12,15 @@ pub(crate) struct FontState {
     pub(crate) font_leading: f32,
     pub(crate) font_size_pixels: f32,
     pub(crate) char_advance: f32,
-    // Shaping options
-    #[allow(dead_code)] // Config stored for future text shaping pipeline integration
+    // Shaping option flags — written from config but not yet consumed by the cell
+    // renderer itself. The active shaping pipeline lives in `par-term-fonts::TextShaper`
+    // which reads these values via `CellRendererParams`. These fields are retained here
+    // so the renderer can pass them down when a future direct-shaping path is added.
+    #[allow(dead_code)] // Config stored for future direct text shaping pipeline integration
     pub(crate) enable_text_shaping: bool,
-    #[allow(dead_code)] // Config stored for future text shaping pipeline integration
+    #[allow(dead_code)] // Config stored for future direct text shaping pipeline integration
     pub(crate) enable_ligatures: bool,
-    #[allow(dead_code)] // Config stored for future text shaping pipeline integration
+    #[allow(dead_code)] // Config stored for future direct text shaping pipeline integration
     pub(crate) enable_kerning: bool,
     // Rendering options
     /// Enable anti-aliasing for font rendering

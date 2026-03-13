@@ -24,7 +24,7 @@ mod tests;
 use std::fmt;
 
 // Re-export the public API
-pub use sanitize::sanitize_paste_content;
+pub use sanitize::{paste_contains_control_chars, sanitize_paste_content};
 
 use case::{camel_case, kebab_case, pascal_case, screaming_snake_case, snake_case, title_case};
 use encoding::{

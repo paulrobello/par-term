@@ -74,6 +74,7 @@ impl Default for Config {
             copy_trailing_newline: crate::defaults::bool_false(),
             middle_click_paste: crate::defaults::bool_true(),
             paste_delay_ms: crate::defaults::paste_delay_ms(),
+            warn_paste_control_chars: crate::defaults::bool_true(),
             dropped_file_quote_style: DroppedFileQuoteStyle::default(),
             mouse_scroll_speed: crate::defaults::scroll_speed(),
             mouse_double_click_threshold: crate::defaults::double_click_threshold(),
@@ -284,6 +285,7 @@ impl Default for Config {
             allow_http_profiles: crate::defaults::bool_false(),
             ai_inspector: AiInspectorConfig::default(),
             insecure_trigger_names: Vec::new(),
+            unaccepted_risk_trigger_names: Vec::new(),
         }
     }
 }

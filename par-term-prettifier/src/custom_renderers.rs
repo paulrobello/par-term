@@ -88,11 +88,10 @@ impl ContentRenderer for ExternalCommandRenderer {
     ) -> Result<RenderedContent, RenderError> {
         let input = content.full_text();
 
-        // SECURITY: Before executing a user-configured external command, check whether
-        // the config has populated an allowlist. If `allowed_commands` is non-empty,
-        // the command basename must appear in it; otherwise execution is refused and
-        // a warning is logged. When the allowlist is empty (default), the command is
-        // allowed but a warning is always emitted so users are aware of the risk.
+        // SEC-003: Before executing a user-configured external command, require an explicit
+        // allowlist (prettifier.allowed_commands). When the allowlist is empty (default),
+        // execution is denied with an error — an empty allowlist means "deny all" to prevent
+        // a shared or imported config from silently running arbitrary commands.
         //
         // The command and arguments still come directly from the user's config file with
         // no further sanitisation — see the struct-level doc comment for the full risk
@@ -102,49 +101,53 @@ impl ContentRenderer for ExternalCommandRenderer {
             .and_then(|n| n.to_str())
             .unwrap_or(&self.render_command);
 
-        if !config.allowed_commands.is_empty() {
-            if !config
-                .allowed_commands
-                .iter()
-                .any(|allowed| allowed == cmd_basename || allowed == &self.render_command)
-            {
-                // The allowlist is configured and this command is not on it — refuse.
-                crate::debug_error!(
-                    "PRETTIFIER",
-                    "ExternalCommandRenderer: command '{}' (basename '{}') is not in the \
-                     allowed_commands list. Skipping execution. Add it to \
-                     prettifier.allowed_commands in your config to permit it.",
-                    self.render_command,
-                    cmd_basename,
-                );
-                log::warn!(
-                    "par-term prettifier: external command '{}' is not in the \
-                     allowed_commands allowlist and will not be executed. \
-                     Add it to prettifier.allowed_commands in your config to permit it.",
-                    self.render_command,
-                );
-                return Err(RenderError::RenderFailed(format!(
-                    "command '{}' is not in the prettifier allowed_commands list",
-                    self.render_command,
-                )));
-            }
-        } else {
-            // No allowlist configured — allow execution but warn loudly.
+        if config.allowed_commands.is_empty() {
+            // No allowlist configured — deny execution (default-deny).
             crate::debug_error!(
                 "PRETTIFIER",
-                "SECURITY WARNING: ExternalCommandRenderer is executing '{}' (format: {}) \
-                 with no command allowlist configured. Set prettifier.allowed_commands in \
-                 your config to restrict which commands can be run. Only load configs from \
-                 trusted sources.",
+                "SEC-003: ExternalCommandRenderer is blocking '{}' (format: {}) because \
+                 prettifier.allowed_commands is empty (default-deny). \
+                 Add the command basename to prettifier.allowed_commands in your config \
+                 to permit it. Only load configs from trusted sources.",
                 self.render_command,
                 self.format_id,
             );
             log::warn!(
-                "par-term prettifier: executing external command '{}' with no allowlist \
-                 configured. Consider setting prettifier.allowed_commands to restrict \
-                 which commands can be run by custom renderers.",
+                "par-term prettifier: external command '{}' was NOT executed because \
+                 prettifier.allowed_commands is empty. \
+                 Add '{}' to prettifier.allowed_commands in your config to permit it.",
+                self.render_command,
+                cmd_basename,
+            );
+            return Err(RenderError::RenderFailed(format!(
+                "command '{}' blocked: prettifier.allowed_commands is empty (default-deny). \
+                 Add '{}' to allowed_commands to permit external renderers.",
+                self.render_command, cmd_basename,
+            )));
+        } else if !config
+            .allowed_commands
+            .iter()
+            .any(|allowed| allowed == cmd_basename || allowed == &self.render_command)
+        {
+            // The allowlist is configured and this command is not on it — refuse.
+            crate::debug_error!(
+                "PRETTIFIER",
+                "ExternalCommandRenderer: command '{}' (basename '{}') is not in the \
+                 allowed_commands list. Skipping execution. Add it to \
+                 prettifier.allowed_commands in your config to permit it.",
+                self.render_command,
+                cmd_basename,
+            );
+            log::warn!(
+                "par-term prettifier: external command '{}' is not in the \
+                 allowed_commands allowlist and will not be executed. \
+                 Add it to prettifier.allowed_commands in your config to permit it.",
                 self.render_command,
             );
+            return Err(RenderError::RenderFailed(format!(
+                "command '{}' is not in the prettifier allowed_commands list",
+                self.render_command,
+            )));
         }
 
         crate::debug_info!(

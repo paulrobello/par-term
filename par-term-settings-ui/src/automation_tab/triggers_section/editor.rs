@@ -162,6 +162,11 @@ fn show_save_cancel(
                 enabled: true,
                 actions: settings.temp_trigger_actions.clone(),
                 prompt_before_run: settings.temp_trigger_prompt_before_run,
+                // Preserve existing i_accept_the_risk when editing; default false for new triggers.
+                i_accept_the_risk: edit_index
+                    .and_then(|i| settings.config.triggers.get(i))
+                    .map(|t| t.i_accept_the_risk)
+                    .unwrap_or(false),
             };
 
             if let Some(i) = edit_index {

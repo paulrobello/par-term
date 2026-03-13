@@ -81,6 +81,18 @@ pub fn load_session_from(path: PathBuf) -> Result<Option<SessionState>> {
         return Ok(None);
     }
 
+    // SEC-011: Trust boundary note — this file is loaded from the user's own config
+    // directory (~/.config/par-term/last_session.yaml) with 0o600 permissions.
+    // The trust boundary is the user themselves: only the user (and root) can write
+    // this file, so the deserialization is equivalent to loading any other user config.
+    // `serde_yaml_ng` does not support arbitrary code execution during deserialization,
+    // so there is no remote-code-execution risk from crafted YAML. The worst a modified
+    // file can do is cause a deserialization error (caught above) or produce unexpected
+    // session state.
+    //
+    // Schema validation: serde_yaml_ng validates field types at deserialization time.
+    // Any field with an unexpected type or value outside the Rust type constraints will
+    // return an Err, which is propagated as an anyhow error above.
     let state: SessionState = serde_yaml_ng::from_str(&contents)
         .with_context(|| format!("Failed to parse session state from {:?}", path))?;
 

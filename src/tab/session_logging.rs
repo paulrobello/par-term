@@ -65,6 +65,20 @@ impl Tab {
             logger.set_redact_passwords(config.session_log_redact_passwords);
             logger.start()?;
 
+            // SEC-002: Emit a prominent one-time warning when session logging is enabled.
+            // Session logs capture raw terminal I/O and may include passwords, API keys,
+            // tokens, and other credentials even with heuristic redaction active.
+            eprintln!(
+                "\n[par-term SESSION LOGGING ENABLED]\n\
+                 Session output is now being recorded to: {}\n\
+                 WARNING: Session logs may capture sensitive data (passwords, API keys, tokens)\n\
+                 despite heuristic redaction. Password-prompt detection is enabled: {}\n\
+                 Do NOT share session log files unless you have reviewed their contents.\n\
+                 Disable session logging when working with sensitive credentials.\n",
+                logs_dir.display(),
+                config.session_log_redact_passwords,
+            );
+
             // Set up output callback to record PTY output
             let logger_clone = Arc::clone(&self.session_logger);
             if let Ok(term) = self.terminal.try_write() {

@@ -60,6 +60,23 @@ impl Config {
             // Pre-scan the raw YAML for `allow_all_env_vars: true` before
             // variable substitution, since the config isn't parsed yet.
             let allow_all = super::env_vars::pre_scan_allow_all_env_vars(&contents);
+
+            // SEC-005: Emit a startup warning when allow_all_env_vars: true is detected.
+            // This setting allows any environment variable (including secrets) to be
+            // substituted into config values, which can expose sensitive data if a
+            // shared or imported config file uses ${SECRET_VAR} references.
+            if allow_all {
+                eprintln!(
+                    "[par-term SECURITY WARNING] Config option `allow_all_env_vars: true` is set.\n\
+                     This allows ALL environment variables to be interpolated into config values,\n\
+                     including sensitive variables such as API keys, tokens, and passwords.\n\
+                     A shared or imported config with ${{SENSITIVE_VAR}} references could expose\n\
+                     your secrets. Only use this setting in a non-shared, local-only config.\n\
+                     Recommendation: use a CLAUDE.local.md-style local override, or remove\n\
+                     `allow_all_env_vars: true` and add needed variables to the allowlist instead."
+                );
+            }
+
             let contents =
                 super::env_vars::substitute_variables_with_allowlist(&contents, allow_all);
             let mut config: Config = serde_yaml_ng::from_str(&contents)?;
@@ -522,12 +539,25 @@ impl Config {
     /// writing a prominent warning to stderr, the insecure trigger names are
     /// stored in [`Config::insecure_trigger_names`] so the UI layer can
     /// render a persistent visual warning banner.
+    ///
+    /// Triggers with `prompt_before_run: false` that do not also set
+    /// `i_accept_the_risk: true` are recorded in
+    /// [`Config::unaccepted_risk_trigger_names`] and will be blocked at
+    /// execution time.
     pub(crate) fn warn_insecure_triggers(&mut self) {
         self.insecure_trigger_names.clear();
+        self.unaccepted_risk_trigger_names.clear();
         for trigger in &self.triggers {
             if !trigger.prompt_before_run && trigger.actions.iter().any(|a| a.is_dangerous()) {
-                crate::automation::warn_prompt_before_run_false(&trigger.name);
+                crate::automation::warn_prompt_before_run_false(
+                    &trigger.name,
+                    trigger.i_accept_the_risk,
+                );
                 self.insecure_trigger_names.push(trigger.name.clone());
+                if !trigger.i_accept_the_risk {
+                    self.unaccepted_risk_trigger_names
+                        .push(trigger.name.clone());
+                }
             }
         }
     }

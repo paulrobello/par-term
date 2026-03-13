@@ -478,6 +478,19 @@ pub struct Config {
     #[serde(default = "crate::defaults::paste_delay_ms")]
     pub paste_delay_ms: u64,
 
+    /// When `true` (default), log a warning when clipboard paste content contains
+    /// control characters that were stripped by the paste sanitizer.
+    ///
+    /// Control characters in paste content (ESC, C0, C1) can inject terminal escape
+    /// sequences and execute commands when pasted into a shell. The sanitizer always
+    /// strips them; this flag controls whether a warning is logged so users can
+    /// investigate unexpected behaviour.
+    ///
+    /// Set to `false` to suppress warnings for pastes that regularly contain
+    /// control characters (e.g., when pasting binary content intentionally).
+    #[serde(default = "crate::defaults::bool_true")]
+    pub warn_paste_control_chars: bool,
+
     /// Quote style for dropped file paths
     /// - single_quotes: Wrap in single quotes (safest for most shells)
     /// - double_quotes: Wrap in double quotes
@@ -1601,4 +1614,16 @@ pub struct Config {
     /// runtime and never written to or read from the config file.
     #[serde(skip)]
     pub insecure_trigger_names: Vec<String>,
+
+    /// Names of triggers with `prompt_before_run: false` that are missing the
+    /// explicit `i_accept_the_risk: true` opt-in.
+    ///
+    /// Dangerous actions for these triggers are **blocked** at execution time.
+    /// Users must add `i_accept_the_risk: true` to each such trigger to permit
+    /// automatic execution without the confirmation dialog.
+    ///
+    /// This field is intentionally skipped by serde — it is computed at
+    /// runtime and never written to or read from the config file.
+    #[serde(skip)]
+    pub unaccepted_risk_trigger_names: Vec<String>,
 }

@@ -14,7 +14,7 @@ permissions:
   id-token: write
 
 env:
-  RUST_VERSION: "1.85.0"
+  RUST_VERSION: "1.91.0"
 
 jobs:
   # Preflight checks - verify Cargo.toml is ready for release

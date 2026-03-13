@@ -175,10 +175,8 @@ impl Drop for Tab {
             }
         }
 
+        // abort() is non-blocking; no sleep needed after it.
         self.stop_refresh_task();
-
-        // Give the task time to abort
-        std::thread::sleep(std::time::Duration::from_millis(50));
 
         // Kill the terminal
         if let Ok(mut term) = self.terminal.try_write()

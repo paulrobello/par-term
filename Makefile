@@ -1,7 +1,7 @@
 # Makefile for par-term
 # Cross-platform terminal emulator frontend
 
-.PHONY: help build build-debug run run-release run-error run-warn run-info run-debug run-trace release test check clean fmt lint checkall install install-shell-integration install-acp acp-harness acp-smoke doc doc-open coverage test-fonts benchmark-shaping test-text-shaping bundle bundle-install run-bundle deploy
+.PHONY: help build build-debug run run-release run-error run-warn run-info run-debug run-trace release test check typecheck clean fmt lint checkall install install-shell-integration install-acp acp-harness acp-smoke doc doc-open coverage test-fonts benchmark-shaping test-text-shaping bundle bundle-install run-bundle deploy
 
 ACP_AGENT ?= claude-ollama.local
 ACP_TIMEOUT ?= 45
@@ -54,9 +54,10 @@ help:
 	@echo "Testing & Quality:"
 	@echo "  make test        - Run all tests"
 	@echo "  make check       - Check code without building"
+	@echo "  make typecheck   - Type-check entire workspace (cargo check --workspace)"
 	@echo "  make fmt         - Format code using rustfmt"
 	@echo "  make lint        - Run clippy linter"
-	@echo "  make checkall    - Format, lint, and test"
+	@echo "  make checkall    - Format, lint, typecheck, and test"
 	@echo "  make all         - Format, lint, test, and build"
 	@echo ""
 	@echo "macOS Bundle:"
@@ -183,6 +184,11 @@ check-all:
 	@echo "Checking all targets..."
 	cargo check --all-targets
 
+# Type-check the entire workspace (alias for cargo check --workspace)
+typecheck:
+	@echo "Type-checking workspace..."
+	cargo check --workspace
+
 # Format code
 fmt:
 	@echo "Formatting code..."
@@ -203,8 +209,8 @@ lint-all:
 	@echo "Running clippy on all targets..."
 	cargo clippy --all-targets -- -D warnings
 
-# Run all quality checks (format-check, lint, test) — does NOT mutate files
-checkall: fmt-check lint test
+# Run all quality checks (format-check, lint, typecheck, test) — does NOT mutate files
+checkall: fmt-check lint typecheck test
 	@echo "All quality checks passed!"
 
 # Clean build artifacts

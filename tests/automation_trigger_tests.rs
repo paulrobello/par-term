@@ -31,6 +31,7 @@ fn test_trigger_config_yaml_roundtrip() {
             },
         ],
         prompt_before_run: true,
+        i_accept_the_risk: false,
     };
 
     let yaml = serde_yaml_ng::to_string(&trigger).unwrap();
@@ -281,6 +282,7 @@ fn test_config_with_triggers_and_coprocesses_yaml_roundtrip() {
             duration_ms: 5000,
         }],
         prompt_before_run: true,
+        i_accept_the_risk: false,
     }];
     config.coprocesses = vec![CoprocessDefConfig {
         name: "logger".to_string(),
@@ -441,6 +443,7 @@ fn test_trigger_with_prettify_action_roundtrip() {
             command_filter: None,
         }],
         prompt_before_run: true,
+        i_accept_the_risk: false,
     };
 
     let yaml = serde_yaml_ng::to_string(&trigger).unwrap();

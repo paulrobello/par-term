@@ -20,10 +20,6 @@ fn render_line(line: &str) -> crate::types::StyledLine {
     renderer().render_line(line, &test_config(), &mut None)
 }
 
-fn segment_texts(line: &crate::types::StyledLine) -> Vec<&str> {
-    line.segments.iter().map(|s| s.text.as_str()).collect()
-}
-
 // -- Bold --
 
 #[test]
