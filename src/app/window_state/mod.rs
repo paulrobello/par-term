@@ -140,6 +140,19 @@ pub(crate) struct ClipboardImageClickGuard {
     pub(crate) suppress_terminal_mouse_click: bool,
 }
 
+/// Transient context shared between chained workflow actions.
+///
+/// Created by `ShellCommand` actions with `capture_output: true` and
+/// consumed by `Condition` checks (`ExitCode`, `OutputContains`).
+/// Never serialized to disk.
+#[derive(Debug, Clone)]
+pub(crate) struct WorkflowContext {
+    /// Exit code from the last captured shell command.
+    pub(crate) last_exit_code: Option<i32>,
+    /// Captured stdout+stderr from the last shell command (capped at 64 KB).
+    pub(crate) last_output: Option<String>,
+}
+
 /// Per-window state that manages a single terminal window with multiple tabs.
 pub struct WindowState {
     // =========================================================================
@@ -231,6 +244,9 @@ pub struct WindowState {
     pub(crate) file_transfer_state: crate::app::file_transfers::FileTransferState,
     /// Snapshot of clipboard image for restore after tmux clicks
     pub(crate) clipboard_image_click_guard: Option<ClipboardImageClickGuard>,
+    /// Shared transient context for chained workflow actions (Sequence / Condition / Repeat).
+    /// Written by background ShellCommand threads (capture_output=true); read by Condition checks.
+    pub(crate) last_workflow_context: std::sync::Arc<std::sync::Mutex<Option<WorkflowContext>>>,
 
     // =========================================================================
     // Keybinding & smart selection caches

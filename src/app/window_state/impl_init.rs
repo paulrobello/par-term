@@ -120,6 +120,8 @@ impl WindowState {
             pending_snap_size: None,
 
             scratch_prettifier_block_ids: std::collections::HashSet::new(),
+
+            last_workflow_context: std::sync::Arc::new(std::sync::Mutex::new(None)),
         }
     }
 

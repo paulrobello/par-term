@@ -1,7 +1,10 @@
 //! Snippet and custom action execution helpers for WindowState keybindings.
 
 use crate::app::window_state::WindowState;
-use crate::config::snippets::{CustomActionConfig, normalize_action_prefix_char};
+use crate::app::window_state::WorkflowContext;
+use crate::config::snippets::{ConditionCheck, CustomActionConfig, SequenceStepBehavior, normalize_action_prefix_char};
+use std::collections::HashSet;
+use std::sync::{Arc, Mutex};
 use winit::event::{ElementState, KeyEvent};
 use winit::keyboard::{Key, KeyCode, NamedKey, PhysicalKey};
 
@@ -15,6 +18,16 @@ fn prefix_action_for_char(actions: &[CustomActionConfig], input_char: char) -> O
         .iter()
         .find(|action| action.normalized_prefix_char() == Some(normalized_input))
         .map(|action| action.id().to_string())
+}
+
+/// Result of executing a single workflow step.
+enum StepOutcome {
+    /// Step completed successfully.
+    Success,
+    /// Step "failed" (ShellCommand non-zero exit, or Condition false).
+    Failure,
+    /// Unrecoverable error (action not found, circular reference); always halts.
+    Abort,
 }
 
 impl WindowState {
@@ -185,6 +198,295 @@ impl WindowState {
         false
     }
 
+    /// Execute an action as a workflow step and return a typed outcome.
+    ///
+    /// Returns:
+    /// - `StepOutcome::Success` for most action types (they don't "fail")
+    /// - `StepOutcome::Failure` if a `ShellCommand` with `capture_output` exits non-zero,
+    ///   or if a `Condition` check evaluates to false
+    /// - `StepOutcome::Abort` if the action is not found or a circular reference is detected
+    fn execute_action_as_step(
+        &mut self,
+        action_id: &str,
+        ctx: &Arc<Mutex<Option<WorkflowContext>>>,
+        visited: &mut HashSet<String>,
+    ) -> StepOutcome {
+        if visited.contains(action_id) {
+            self.show_toast(format!("Workflow: circular reference detected ({})", action_id));
+            return StepOutcome::Abort;
+        }
+
+        let action = match self.config.actions.iter().find(|a| a.id() == action_id) {
+            Some(a) => a.clone(),
+            None => {
+                self.show_toast(format!("Workflow: action '{}' not found", action_id));
+                return StepOutcome::Abort;
+            }
+        };
+
+        visited.insert(action_id.to_string());
+
+        let outcome = match &action {
+            CustomActionConfig::ShellCommand {
+                capture_output,
+                command,
+                args,
+                notify_on_success,
+                timeout_secs: _,
+                title,
+                ..
+            } => {
+                if *capture_output {
+                    // Run synchronously to get exit code for step outcome
+                    let output_result = std::process::Command::new(command).args(args).output();
+                    match output_result {
+                        Ok(output) => {
+                            let exit_code = output.status.code().unwrap_or(-1);
+                            let mut combined = String::new();
+                            combined.push_str(&String::from_utf8_lossy(&output.stdout));
+                            combined.push_str(&String::from_utf8_lossy(&output.stderr));
+                            if combined.len() > 65536 {
+                                combined.truncate(65536);
+                            }
+                            let wf_ctx = WorkflowContext {
+                                last_exit_code: Some(exit_code),
+                                last_output: if combined.is_empty() {
+                                    None
+                                } else {
+                                    Some(combined)
+                                },
+                            };
+                            if let Ok(mut guard) = ctx.lock() {
+                                *guard = Some(wf_ctx);
+                            }
+                            if output.status.success() {
+                                log::info!("Step ShellCommand '{}' succeeded", title);
+                                if *notify_on_success {
+                                    log::info!("Command '{}' output captured", title);
+                                }
+                                StepOutcome::Success
+                            } else {
+                                log::error!(
+                                    "Step ShellCommand '{}' failed with exit code {}",
+                                    title,
+                                    exit_code
+                                );
+                                StepOutcome::Failure
+                            }
+                        }
+                        Err(e) => {
+                            log::error!("Failed to spawn step command '{}': {}", title, e);
+                            StepOutcome::Abort
+                        }
+                    }
+                } else {
+                    // Fire-and-forget for non-capturing shell commands (always succeed from step perspective)
+                    let id = action.id().to_string();
+                    self.execute_custom_action(&id);
+                    StepOutcome::Success
+                }
+            }
+            CustomActionConfig::Condition { check, .. } => {
+                if self.evaluate_condition_check(check, ctx) {
+                    StepOutcome::Success
+                } else {
+                    StepOutcome::Failure
+                }
+            }
+            CustomActionConfig::Sequence { .. } | CustomActionConfig::Repeat { .. } => {
+                // Recursive: pass current context and visited set
+                let action_id_str = action.id().to_string();
+                // Remove from visited BEFORE recursive call so we can detect actual cycles,
+                // not re-entry from the parent frame. Re-insert after.
+                visited.remove(&action_id_str);
+                let result = self.execute_custom_action(&action_id_str);
+                visited.insert(action_id_str);
+                if result {
+                    StepOutcome::Success
+                } else {
+                    StepOutcome::Failure
+                }
+            }
+            _ => {
+                // InsertText, KeySequence, NewTab, SplitPane always succeed
+                let id = action.id().to_string();
+                self.execute_custom_action(&id);
+                StepOutcome::Success
+            }
+        };
+
+        visited.remove(action_id);
+        outcome
+    }
+
+    /// Evaluate a `ConditionCheck` and return true if the check passes.
+    fn evaluate_condition_check(
+        &self,
+        check: &ConditionCheck,
+        ctx: &Arc<Mutex<Option<WorkflowContext>>>,
+    ) -> bool {
+        match check {
+            ConditionCheck::ExitCode { value } => {
+                if let Ok(guard) = ctx.lock() {
+                    if let Some(wf_ctx) = guard.as_ref() {
+                        return wf_ctx.last_exit_code == Some(*value);
+                    }
+                }
+                false
+            }
+            ConditionCheck::OutputContains {
+                pattern,
+                case_sensitive,
+            } => {
+                if let Ok(guard) = ctx.lock() {
+                    if let Some(wf_ctx) = guard.as_ref() {
+                        if let Some(output) = &wf_ctx.last_output {
+                            return if *case_sensitive {
+                                output.contains(pattern.as_str())
+                            } else {
+                                output.to_lowercase().contains(&pattern.to_lowercase())
+                            };
+                        }
+                    }
+                }
+                false
+            }
+            ConditionCheck::EnvVar { name, value } => match std::env::var(name) {
+                Ok(env_val) => {
+                    if let Some(expected) = value {
+                        &env_val == expected
+                    } else {
+                        true // existence check
+                    }
+                }
+                Err(_) => false,
+            },
+            ConditionCheck::DirMatches { pattern } => {
+                let cwd = std::env::current_dir()
+                    .ok()
+                    .and_then(|p| p.to_str().map(|s| s.to_string()))
+                    .unwrap_or_default();
+                glob_match(pattern, &cwd)
+            }
+            ConditionCheck::GitBranch { pattern } => {
+                let branch = std::process::Command::new("git")
+                    .args(["rev-parse", "--abbrev-ref", "HEAD"])
+                    .output()
+                    .ok()
+                    .and_then(|o| String::from_utf8(o.stdout).ok())
+                    .map(|s| s.trim().to_string())
+                    .unwrap_or_default();
+                glob_match(pattern, &branch)
+            }
+        }
+    }
+
+    /// Execute a Sequence action: run each step in order, respecting delays and on_failure behavior.
+    fn execute_sequence(
+        &mut self,
+        steps: Vec<par_term_config::snippets::SequenceStep>,
+        ctx: Arc<Mutex<Option<WorkflowContext>>>,
+    ) {
+        self.execute_sequence_sync(steps, &ctx);
+    }
+
+    /// Execute sequence steps synchronously (called from event loop thread or background thread).
+    fn execute_sequence_sync(
+        &mut self,
+        steps: Vec<par_term_config::snippets::SequenceStep>,
+        ctx: &Arc<Mutex<Option<WorkflowContext>>>,
+    ) {
+        let mut visited: HashSet<String> = HashSet::new();
+
+        for step in &steps {
+            if step.delay_ms > 0 {
+                std::thread::sleep(std::time::Duration::from_millis(step.delay_ms));
+            }
+
+            let outcome = self.execute_action_as_step(&step.action_id, ctx, &mut visited);
+
+            match outcome {
+                StepOutcome::Abort => {
+                    // Already showed toast in execute_action_as_step
+                    return;
+                }
+                StepOutcome::Success => {
+                    // Continue to next step
+                }
+                StepOutcome::Failure => {
+                    match step.on_failure {
+                        SequenceStepBehavior::Abort => {
+                            self.show_toast(format!(
+                                "Workflow: step '{}' failed, aborting sequence",
+                                step.action_id
+                            ));
+                            return;
+                        }
+                        SequenceStepBehavior::Stop => {
+                            return; // silent stop
+                        }
+                        SequenceStepBehavior::Continue => {
+                            // continue to next step
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Execute a Condition action when triggered directly (not inside a Sequence).
+    fn execute_condition_standalone(
+        &mut self,
+        check: &ConditionCheck,
+        on_true_id: Option<&str>,
+        on_false_id: Option<&str>,
+    ) {
+        let ctx = Arc::clone(&self.last_workflow_context);
+        let result = self.evaluate_condition_check(check, &ctx);
+        let target_id = if result { on_true_id } else { on_false_id };
+        if let Some(id) = target_id {
+            let id = id.to_string();
+            self.execute_custom_action(&id);
+        }
+    }
+
+    /// Execute a Repeat action: run action_id up to count times with optional delay.
+    fn execute_repeat(
+        &mut self,
+        action_id: &str,
+        count: u32,
+        delay_ms: u64,
+        stop_on_success: bool,
+        stop_on_failure: bool,
+        ctx: Arc<Mutex<Option<WorkflowContext>>>,
+    ) {
+        let mut visited: HashSet<String> = HashSet::new();
+
+        for i in 0..count {
+            let outcome = self.execute_action_as_step(action_id, &ctx, &mut visited);
+            visited.clear(); // Reset visited between repetitions to allow re-entry
+
+            match outcome {
+                StepOutcome::Abort => break,
+                StepOutcome::Success => {
+                    if stop_on_success {
+                        break;
+                    }
+                }
+                StepOutcome::Failure => {
+                    if stop_on_failure {
+                        break;
+                    }
+                }
+            }
+
+            // Sleep between iterations (not after the last one)
+            if delay_ms > 0 && i < count - 1 {
+                std::thread::sleep(std::time::Duration::from_millis(delay_ms));
+            }
+        }
+    }
+
     /// Execute a custom action by ID.
     ///
     /// Returns true if the action was found and executed, false otherwise.
@@ -205,6 +507,7 @@ impl WindowState {
                 notify_on_success,
                 timeout_secs,
                 title,
+                capture_output,
                 ..
             } => {
                 // Clone values for the spawned thread
@@ -213,6 +516,8 @@ impl WindowState {
                 let notify_on_success = *notify_on_success;
                 let timeout_secs = *timeout_secs;
                 let title = title.clone();
+                let capture_output = *capture_output;
+                let ctx_arc = Arc::clone(&self.last_workflow_context);
 
                 log::info!(
                     "Executing shell command '{}' (timeout={}s): {} {}",
@@ -248,66 +553,120 @@ impl WindowState {
                     let timeout = std::time::Duration::from_secs(timeout_secs);
                     let start = std::time::Instant::now();
 
-                    // Use spawn to run the command and wait with timeout
-                    let child_result = std::process::Command::new(&command).args(&args).spawn();
+                    if capture_output {
+                        // Collect stdout+stderr, cap at 64KB
+                        let output_result =
+                            std::process::Command::new(&command).args(&args).output();
 
-                    match child_result {
-                        Ok(mut child) => {
-                            // Poll for completion with timeout
-                            loop {
-                                match child.try_wait() {
-                                    Ok(Some(status)) => {
-                                        let elapsed = start.elapsed();
-                                        if status.success() {
-                                            log::info!(
-                                                "Shell command '{}' completed successfully in {:.2}s",
-                                                title,
-                                                elapsed.as_secs_f64()
-                                            );
-                                            if notify_on_success {
+                        match output_result {
+                            Ok(output) => {
+                                let exit_code = output.status.code().unwrap_or(-1);
+                                let mut combined = String::new();
+                                combined.push_str(&String::from_utf8_lossy(&output.stdout));
+                                combined.push_str(&String::from_utf8_lossy(&output.stderr));
+                                if combined.len() > 65536 {
+                                    combined.truncate(65536);
+                                }
+                                let ctx = WorkflowContext {
+                                    last_exit_code: Some(exit_code),
+                                    last_output: if combined.is_empty() {
+                                        None
+                                    } else {
+                                        Some(combined)
+                                    },
+                                };
+                                if let Ok(mut guard) = ctx_arc.lock() {
+                                    *guard = Some(ctx);
+                                }
+                                if output.status.success() {
+                                    log::info!(
+                                        "Shell command '{}' completed successfully",
+                                        title
+                                    );
+                                    if notify_on_success {
+                                        log::info!("Command '{}' output available", title);
+                                    }
+                                } else {
+                                    log::error!(
+                                        "Shell command '{}' failed with exit code {}",
+                                        title,
+                                        exit_code
+                                    );
+                                }
+                            }
+                            Err(e) => {
+                                log::error!(
+                                    "Failed to spawn shell command '{}': {}",
+                                    title,
+                                    e
+                                );
+                            }
+                        }
+                    } else {
+                        // Use spawn to run the command and wait with timeout
+                        let child_result =
+                            std::process::Command::new(&command).args(&args).spawn();
+
+                        match child_result {
+                            Ok(mut child) => {
+                                // Poll for completion with timeout
+                                loop {
+                                    match child.try_wait() {
+                                        Ok(Some(status)) => {
+                                            let elapsed = start.elapsed();
+                                            if status.success() {
                                                 log::info!(
-                                                    "Command '{}' output available (check terminal or logs)",
-                                                    title
+                                                    "Shell command '{}' completed successfully in {:.2}s",
+                                                    title,
+                                                    elapsed.as_secs_f64()
+                                                );
+                                                if notify_on_success {
+                                                    log::info!(
+                                                        "Command '{}' output available (check terminal or logs)",
+                                                        title
+                                                    );
+                                                }
+                                            } else {
+                                                log::error!(
+                                                    "Shell command '{}' failed with status: {} after {:.2}s",
+                                                    title,
+                                                    status,
+                                                    elapsed.as_secs_f64()
                                                 );
                                             }
-                                        } else {
-                                            log::error!(
-                                                "Shell command '{}' failed with status: {} after {:.2}s",
-                                                title,
-                                                status,
-                                                elapsed.as_secs_f64()
-                                            );
-                                        }
-                                        break;
-                                    }
-                                    Ok(None) => {
-                                        // Still running, check timeout
-                                        if start.elapsed() > timeout {
-                                            log::error!(
-                                                "Shell command '{}' timed out after {}s, terminating",
-                                                title,
-                                                timeout_secs
-                                            );
-                                            let _ = child.kill();
-                                            let _ = child.wait();
                                             break;
                                         }
-                                        // Small sleep to avoid busy-waiting
-                                        std::thread::sleep(std::time::Duration::from_millis(50));
-                                    }
-                                    Err(e) => {
-                                        log::error!(
-                                            "Shell command '{}' error checking status: {}",
-                                            title,
-                                            e
-                                        );
-                                        break;
+                                        Ok(None) => {
+                                            // Still running, check timeout
+                                            if start.elapsed() > timeout {
+                                                log::error!(
+                                                    "Shell command '{}' timed out after {}s, terminating",
+                                                    title,
+                                                    timeout_secs
+                                                );
+                                                let _ = child.kill();
+                                                let _ = child.wait();
+                                                break;
+                                            }
+                                            // Small sleep to avoid busy-waiting
+                                            std::thread::sleep(std::time::Duration::from_millis(
+                                                50,
+                                            ));
+                                        }
+                                        Err(e) => {
+                                            log::error!(
+                                                "Shell command '{}' error checking status: {}",
+                                                title,
+                                                e
+                                            );
+                                            break;
+                                        }
                                     }
                                 }
                             }
-                        }
-                        Err(e) => {
-                            log::error!("Failed to spawn shell command '{}': {}", title, e);
+                            Err(e) => {
+                                log::error!("Failed to spawn shell command '{}': {}", title, e);
+                            }
                         }
                     }
                 });
@@ -509,8 +868,81 @@ impl WindowState {
                 );
                 true
             }
+            CustomActionConfig::Sequence { steps, .. } => {
+                let steps = steps.clone();
+                let ctx = Arc::clone(&self.last_workflow_context);
+                self.execute_sequence(steps, ctx);
+                true
+            }
+            CustomActionConfig::Condition {
+                check,
+                on_true_id,
+                on_false_id,
+                ..
+            } => {
+                let check = check.clone();
+                let on_true = on_true_id.as_deref().map(|s| s.to_string());
+                let on_false = on_false_id.as_deref().map(|s| s.to_string());
+                self.execute_condition_standalone(
+                    &check,
+                    on_true.as_deref(),
+                    on_false.as_deref(),
+                );
+                true
+            }
+            CustomActionConfig::Repeat {
+                action_id,
+                count,
+                delay_ms,
+                stop_on_success,
+                stop_on_failure,
+                ..
+            } => {
+                let action_id = action_id.clone();
+                let count = *count;
+                let delay_ms = *delay_ms;
+                let stop_on_success = *stop_on_success;
+                let stop_on_failure = *stop_on_failure;
+                let ctx = Arc::clone(&self.last_workflow_context);
+                self.execute_repeat(&action_id, count, delay_ms, stop_on_success, stop_on_failure, ctx);
+                true
+            }
         }
     }
+}
+
+/// Simple glob pattern matching (supports `*` as wildcard, no `?` or `[` brackets).
+fn glob_match(pattern: &str, text: &str) -> bool {
+    // Fast path: no wildcard
+    if !pattern.contains('*') {
+        return pattern == text;
+    }
+    // Split pattern on '*' and check all parts are present in order
+    let parts: Vec<&str> = pattern.split('*').collect();
+    let mut remaining = text;
+    for (i, part) in parts.iter().enumerate() {
+        if part.is_empty() {
+            continue;
+        }
+        if i == 0 {
+            // First part must match the start
+            if !remaining.starts_with(part) {
+                return false;
+            }
+            remaining = &remaining[part.len()..];
+        } else if i == parts.len() - 1 {
+            // Last part must match the end
+            return remaining.ends_with(part);
+        } else {
+            // Middle parts must appear somewhere
+            if let Some(pos) = remaining.find(part) {
+                remaining = &remaining[pos + part.len()..];
+            } else {
+                return false;
+            }
+        }
+    }
+    true
 }
 
 fn extract_prefix_action_char(event: &KeyEvent) -> Option<char> {
@@ -582,7 +1014,7 @@ fn extract_prefix_action_char(event: &KeyEvent) -> Option<char> {
 
 #[cfg(test)]
 mod tests {
-    use super::{extract_prefix_action_char, prefix_action_for_char};
+    use super::{extract_prefix_action_char, glob_match, prefix_action_for_char};
     use crate::config::snippets::CustomActionConfig;
     use std::collections::HashMap;
     use winit::event::{ElementState, KeyEvent};
@@ -680,5 +1112,18 @@ mod tests {
         );
 
         assert_eq!(extract_prefix_action_char(&event), Some('r'));
+    }
+
+    #[test]
+    fn test_glob_match_exact() {
+        assert!(glob_match("main", "main"));
+        assert!(!glob_match("main", "master"));
+    }
+
+    #[test]
+    fn test_glob_match_wildcard() {
+        assert!(glob_match("feat/*", "feat/login"));
+        assert!(glob_match("*", "anything"));
+        assert!(!glob_match("feat/*", "fix/bug"));
     }
 }
