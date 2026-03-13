@@ -545,9 +545,11 @@ detection_rules:
 
     #[test]
     fn test_resolve_inherits_omitted_fields() {
-        let mut global = PrettifierYamlConfig::default();
-        global.respect_alternate_screen = false;
-        global.per_block_toggle = false;
+        let global = PrettifierYamlConfig {
+            respect_alternate_screen: false,
+            per_block_toggle: false,
+            ..Default::default()
+        };
 
         // Profile overrides only one field
         let profile = PrettifierConfigOverride {
