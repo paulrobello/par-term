@@ -309,7 +309,7 @@ graph TD
 ```
 
 - **[Copy Mode](COPY_MODE.md)** -- Vi-style keyboard-driven text selection with search, marks, and visual modes
-- **[Snippets & Actions](SNIPPETS.md)** -- Save text blocks with variables, create custom actions bound to keybindings
+- **[Snippets & Actions](SNIPPETS.md)** -- Save text blocks with variables; create custom actions (shell commands, key sequences, splits) bound to keybindings; compose multi-step workflows with Sequence, Condition, and Repeat action types
 - **[SSH Quick Connect](SSH.md)** -- Browse and connect to SSH hosts from your config, known hosts, and shell history
 - **[tmux Integration](TABS.md)** -- Native tmux status bar rendering, bidirectional pane resize, and session picker
 - **[Assistant Panel](ASSISTANT_PANEL.md)** -- Chat with AI agents (Claude Code, GitHub Copilot, and others) directly in your terminal

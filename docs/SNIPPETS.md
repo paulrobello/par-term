@@ -630,6 +630,199 @@ Each snippet can define custom variables that override built-in and session vari
 2. Session variables (`session.*`)
 3. Built-in variables (lowest)
 
+## Workflow Actions
+
+Workflow actions let you compose, branch, and repeat existing actions from within par-term's config. Three new action types enable multi-step automation without leaving the terminal.
+
+> **UI responsiveness note**: Sequence and Repeat actions are executed synchronously on the
+> event loop thread. Steps with `delay_ms > 0` or `ShellCommand` steps with `capture_output:
+> true` will block the UI for their duration. To keep the terminal responsive, keep `delay_ms`
+> at `0` where possible, and prefer short-running commands inside `capture_output` steps.
+> Long-running captured commands (e.g. a full build) will freeze input until they complete.
+
+### Sequence
+
+Runs a list of actions in order. Each step can have a delay and an on-failure behavior.
+
+```yaml
+actions:
+  - type: sequence
+    id: build-and-test
+    title: Build and Test
+    keybinding: "Ctrl+Shift+B"
+    steps:
+      - action_id: run-build        # runs the "run-build" action first
+        delay_ms: 0
+        on_failure: abort           # stop and show error toast
+      - action_id: run-tests
+        delay_ms: 500               # wait 500ms before running tests
+        on_failure: continue        # report but keep going
+      - action_id: notify-done
+        delay_ms: 0
+        on_failure: stop            # halt silently on failure
+```
+
+**Step failure**: A step "fails" when:
+- It is a `ShellCommand` with `capture_output: true` and exits with a non-zero code
+- It is a `Condition` whose check evaluates to false
+- Steps of all other types (InsertText, KeySequence, NewTab, SplitPane) always succeed
+
+**`on_failure` values**:
+| Value | Effect |
+|-------|--------|
+| `abort` (default) | Halt sequence and show an error toast |
+| `stop` | Halt sequence silently |
+| `continue` | Ignore failure and proceed to the next step |
+
+**Sequence composition**: Sequences can reference other Sequence actions. Circular references are detected at execution time and show an error toast.
+
+---
+
+### Condition
+
+Evaluates a check and branches to a different action based on the result.
+
+**Standalone use** (direct keybinding): executes `on_true_id` or `on_false_id` depending on the check result.
+
+**Inside a Sequence step**: the check result determines success/failure for the step's `on_failure` behavior. `on_true_id`/`on_false_id` are ignored in this context.
+
+```yaml
+actions:
+  # Check exit code of the last captured ShellCommand
+  - type: condition
+    id: check-build-ok
+    title: Check Build Result
+    check:
+      kind: exit_code
+      value: 0
+    on_true_id: deploy-action       # run if exit code == 0
+    on_false_id: notify-failure     # run if exit code != 0
+
+  # Check whether output contains a pattern
+  - type: condition
+    id: check-tests-pass
+    title: Check Test Output
+    check:
+      kind: output_contains
+      pattern: "test result: ok"
+      case_sensitive: false
+    on_true_id: merge-action
+
+  # Check an environment variable
+  - type: condition
+    id: check-ci-env
+    title: Check CI Environment
+    keybinding: "Ctrl+Shift+C"
+    check:
+      kind: env_var
+      name: CI
+      # value: omit to check existence only; set a value to check equality
+    on_true_id: ci-deploy
+    on_false_id: local-deploy
+
+  # Match the current shell directory with a glob
+  - type: condition
+    id: check-project-dir
+    title: Check Project Directory
+    check:
+      kind: dir_matches
+      pattern: "/home/user/projects/*"
+    on_true_id: project-action
+
+  # Match the current git branch with a glob
+  - type: condition
+    id: check-main-branch
+    title: Check Main Branch
+    keybinding: "Ctrl+Shift+M"
+    check:
+      kind: git_branch
+      pattern: "main"
+    on_true_id: deploy-to-prod
+    on_false_id: deploy-to-staging
+```
+
+**Check types**:
+| Kind | Fields | Description |
+|------|--------|-------------|
+| `exit_code` | `value: i32` | Compares last captured shell command exit code |
+| `output_contains` | `pattern: String`, `case_sensitive: bool` | Searches last captured output |
+| `env_var` | `name: String`, `value?: String` | Checks env var existence or equality |
+| `dir_matches` | `pattern: String` (glob) | Matches shell's current working directory |
+| `git_branch` | `pattern: String` (glob) | Matches current git branch name |
+
+**Note**: `exit_code` and `output_contains` require a preceding `ShellCommand` with `capture_output: true`.
+
+---
+
+### Repeat
+
+Runs a single action up to N times with an optional delay between repetitions.
+
+```yaml
+actions:
+  # Retry a deploy up to 3 times, stop when one succeeds
+  - type: repeat
+    id: retry-deploy
+    title: Retry Deploy (up to 3×)
+    keybinding: "Ctrl+Shift+D"
+    action_id: deploy-action        # any action type, including Sequence
+    count: 3
+    delay_ms: 2000                  # wait 2s between retries
+    stop_on_success: true           # stop early if action succeeds
+    stop_on_failure: false          # keep trying even on failure
+
+  # Run a check 5 times with no delay
+  - type: repeat
+    id: run-health-checks
+    title: Run 5 Health Checks
+    action_id: health-check-action
+    count: 5
+```
+
+**Fields**:
+| Field | Default | Description |
+|-------|---------|-------------|
+| `action_id` | required | ID of the action to repeat (any type) |
+| `count` | required | Maximum repetitions (1–100) |
+| `delay_ms` | `0` | Milliseconds to wait between repetitions |
+| `stop_on_success` | `false` | Stop early if the action succeeds |
+| `stop_on_failure` | `false` | Stop early if the action fails |
+
+---
+
+### Capturing Shell Output for Conditions
+
+Add `capture_output: true` to a `ShellCommand` action to make its stdout/stderr and exit code available to subsequent `Condition` checks:
+
+```yaml
+actions:
+  - type: shell_command
+    id: run-build
+    title: Run Build
+    command: cargo
+    args: ["build", "--release"]
+    capture_output: true            # capture stdout+stderr (capped at 64 KB)
+
+  - type: condition
+    id: after-build
+    title: After Build Branch
+    check:
+      kind: exit_code
+      value: 0
+    on_true_id: run-deploy
+    on_false_id: show-build-errors
+
+  - type: sequence
+    id: build-then-deploy
+    title: Build Then Deploy
+    keybinding: "Ctrl+Shift+R"
+    steps:
+      - action_id: run-build
+        on_failure: abort
+      - action_id: after-build
+        on_failure: stop
+```
+
 ## Related Documentation
 
 - [Keyboard Shortcuts](KEYBOARD_SHORTCUTS.md) - Keybinding configuration and management

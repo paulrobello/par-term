@@ -191,7 +191,9 @@ keybindings:
 Custom actions also support an optional two-stroke trigger. Set `custom_action_prefix_key`
 globally, then assign a single-character `prefix_char` on each action. Press the prefix key,
 release it, then press the action character to execute it. While prefix mode is armed, a toast
-remains visible; press `Esc` to cancel it. See [Snippets](SNIPPETS.md) for the full action format.
+remains visible; press `Esc` to cancel it. All action types — including the workflow types
+`sequence`, `condition`, and `repeat` — accept keybindings and prefix chars. See
+[Snippets](SNIPPETS.md) for the full action format and workflow action reference.
 
 ### Available Modifiers
 

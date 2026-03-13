@@ -60,31 +60,36 @@ impl WindowState {
         // the already-focused pane must fall through to selection anchoring.
         // (Returning early for same-pane clicks was the bug: it prevented drag-select
         // from ever starting because the selection anchor was never stored.)
+        //
+        // prev_focused is captured via an immutable borrow before the mutable
+        // borrow used for focus_pane_at, so the two borrows do not overlap.
+        let prev_focused = self
+            .tab_manager
+            .active_tab()
+            .filter(|t| t.has_multiple_panes())
+            .and_then(|t| t.focused_pane_id());
+
         if let Some(tab) = self.tab_manager.active_tab_mut()
             && tab.has_multiple_panes()
+            && let Some(pane_id) = tab.focus_pane_at(mouse_x, mouse_y)
+            && prev_focused != Some(pane_id)
         {
-            let prev_focused = tab.focused_pane_id();
-
-            if let Some(pane_id) = tab.focus_pane_at(mouse_x, mouse_y) {
-                if prev_focused != Some(pane_id) {
-                    log::debug!(
-                        "Focused pane {} via mouse click (switched from {:?})",
-                        pane_id,
-                        prev_focused
-                    );
-                    // End any active drag on the OLD focused pane before switching focus.
-                    // The selection itself persists (visible but inactive), matching iTerm2 behavior.
-                    tab.selection_mouse_mut().is_selecting = false;
-                    // Also update tmux focused pane for correct input routing
-                    self.set_tmux_focused_pane_from_native(pane_id);
-                    // Reset scroll to bottom when switching pane focus so the
-                    // newly-focused pane doesn't inherit the previous pane's scroll offset.
-                    self.set_scroll_target(0);
-                    self.focus_state.needs_redraw = true;
-                    return;
-                }
-                // Same pane clicked: fall through to selection anchoring below.
-            }
+            log::debug!(
+                "Focused pane {} via mouse click (switched from {:?})",
+                pane_id,
+                prev_focused
+            );
+            // End any active drag on the OLD focused pane before switching focus.
+            // The selection itself persists (visible but inactive), matching iTerm2 behavior.
+            tab.selection_mouse_mut().is_selecting = false;
+            // Also update tmux focused pane for correct input routing
+            self.set_tmux_focused_pane_from_native(pane_id);
+            // Reset scroll to bottom when switching pane focus so the
+            // newly-focused pane doesn't inherit the previous pane's scroll offset.
+            self.set_scroll_target(0);
+            self.focus_state.needs_redraw = true;
+            return;
+            // Same pane clicked: fall through to selection anchoring below.
         }
 
         // --- 5d. Prettifier Gutter Click ---
