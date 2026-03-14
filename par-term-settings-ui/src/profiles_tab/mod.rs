@@ -120,5 +120,9 @@ pub fn keywords() -> &'static [&'static str] {
         "max download",
         "download size",
         "fetch timeout",
+        // Tmux auto-connect
+        "tmux",
+        "tmux session",
+        "auto-connect",
     ]
 }

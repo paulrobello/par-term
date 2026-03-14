@@ -42,6 +42,8 @@ impl ProfileModalUI {
         self.temp_ssh_port.clear();
         self.temp_ssh_identity_file.clear();
         self.temp_ssh_extra_args.clear();
+        self.temp_tmux_session_name.clear();
+        self.temp_tmux_connection_mode = par_term_config::TmuxConnectionMode::default();
         self.validation_error = None;
     }
 
@@ -82,6 +84,9 @@ impl ProfileModalUI {
         self.temp_ssh_port = profile.ssh_port.map(|p| p.to_string()).unwrap_or_default();
         self.temp_ssh_identity_file = profile.ssh_identity_file.clone().unwrap_or_default();
         self.temp_ssh_extra_args = profile.ssh_extra_args.clone().unwrap_or_default();
+        // Tmux auto-connect fields
+        self.temp_tmux_session_name = profile.tmux_session_name.clone().unwrap_or_default();
+        self.temp_tmux_connection_mode = profile.tmux_connection_mode;
     }
 
     /// Create a profile from form fields
@@ -179,6 +184,11 @@ impl ProfileModalUI {
         if !self.temp_ssh_extra_args.is_empty() {
             profile.ssh_extra_args = Some(self.temp_ssh_extra_args.clone());
         }
+        // Tmux auto-connect fields
+        if !self.temp_tmux_session_name.is_empty() {
+            profile.tmux_session_name = Some(self.temp_tmux_session_name.clone());
+        }
+        profile.tmux_connection_mode = self.temp_tmux_connection_mode;
 
         profile
     }

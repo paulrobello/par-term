@@ -234,6 +234,69 @@ impl ProfileModalUI {
         );
     }
 
+    /// Render the tmux auto-connect collapsing section.
+    pub(super) fn render_tmux_section(
+        &mut self,
+        ui: &mut egui::Ui,
+        collapsed: &mut HashSet<String>,
+    ) {
+        collapsing_section(
+            ui,
+            "Tmux Auto-Connect",
+            "profile_tmux",
+            false,
+            collapsed,
+            |ui| {
+                ui.label(
+                    egui::RichText::new(
+                        "Automatically connect to a tmux session when this profile opens.",
+                    )
+                    .small()
+                    .color(egui::Color32::GRAY),
+                );
+                ui.add_space(6.0);
+
+                egui::Grid::new("profile_tmux_form")
+                    .num_columns(2)
+                    .spacing([10.0, 8.0])
+                    .show(ui, |ui| {
+                        ui.label("Session Name:");
+                        ui.horizontal(|ui| {
+                            ui.text_edit_singleline(&mut self.temp_tmux_session_name);
+                            ui.label(
+                                egui::RichText::new("(empty = disabled)")
+                                    .small()
+                                    .color(egui::Color32::GRAY),
+                            );
+                        });
+                        ui.end_row();
+
+                        ui.label("Connection Mode:");
+                        ui.horizontal(|ui| {
+                            ui.radio_value(
+                                &mut self.temp_tmux_connection_mode,
+                                par_term_config::TmuxConnectionMode::ControlMode,
+                                "Control Mode",
+                            )
+                            .on_hover_text(
+                                "Full par-term integration via tmux -CC. Enables pane sync, layout, and input routing.",
+                            );
+                            ui.add_space(8.0);
+                            ui.radio_value(
+                                &mut self.temp_tmux_connection_mode,
+                                par_term_config::TmuxConnectionMode::Normal,
+                                "Normal",
+                            )
+                            .on_hover_text(
+                                "Plain tmux running in the terminal. No par-term integration.",
+                            );
+                        });
+                        ui.end_row();
+                    });
+            },
+        );
+    }
+
     /// Render the SSH connection collapsing section.
     pub(super) fn render_ssh_section(
         &mut self,
