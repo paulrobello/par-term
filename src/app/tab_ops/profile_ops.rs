@@ -42,6 +42,8 @@ impl WindowState {
         // Get current grid size from renderer
         let grid_size = self.renderer.as_ref().map(|r| r.grid_size());
 
+        let prior_active_idx = self.tab_manager.active_tab_index();
+
         match self.tab_manager.new_tab_from_profile(
             &self.config,
             Arc::clone(&self.runtime),
@@ -49,6 +51,12 @@ impl WindowState {
             grid_size,
         ) {
             Ok(tab_id) => {
+                if self.config.new_tab_position == crate::config::NewTabPosition::AfterActive {
+                    if let Some(idx) = prior_active_idx {
+                        self.tab_manager.move_tab_to_index(tab_id, idx + 1);
+                    }
+                }
+
                 // Set profile icon on the new tab
                 if let Some(tab) = self.tab_manager.get_tab_mut(tab_id) {
                     tab.profile.profile_icon = profile.icon.clone();
