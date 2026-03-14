@@ -15,17 +15,23 @@ impl WindowState {
         let suppress_terminal_mouse_click = self
             .should_suppress_terminal_mouse_click_for_image_guard(button, state, mouse_position);
 
-        // On left button release, always clear button_pressed before any early returns so
-        // that drag-state guards in handle_mouse_move stay consistent even when the release
+        // On left button release, always clear button_pressed and end any active selection
+        // drag BEFORE any early returns so that state stays consistent when the release
         // lands in the tab bar, profile drawer, or context menu (all of which return early
-        // without reaching the normal button_pressed update further below).  Without this,
-        // dragging_divider can stay set with button_pressed=true and the next mouse-move
-        // would continue phantom-dragging the divider with the button already up.
+        // without reaching the normal cleanup further below).
+        //
+        // Without button_pressed=false: dragging_divider can stay set and the next
+        // mouse-move would continue phantom-dragging the divider with the button up.
+        //
+        // Without is_selecting=false: if the user dragged from the terminal into the tab
+        // bar and released there, handle_left_mouse_release is never called, leaving
+        // is_selecting=true and a visible selection highlight until the next terminal click.
         if button == MouseButton::Left
             && state == ElementState::Released
             && let Some(tab) = self.tab_manager.active_tab_mut()
         {
             tab.active_mouse_mut().button_pressed = false;
+            tab.selection_mouse_mut().is_selecting = false;
         }
 
         // Check if profile drawer is open - let egui handle all mouse events
