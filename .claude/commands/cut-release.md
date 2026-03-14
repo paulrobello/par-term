@@ -59,3 +59,27 @@ commit and push all changes
 
 - Run 'make deploy' to trigger cicd deployment
 - Monitor cicd every 5 minutes for issues and fix any found and re-trigger deploy
+
+## Final Release Summary
+
+Once the CI/CD run completes successfully, output a release summary in this exact format:
+
+**vX.Y.Z release complete.** Summary:
+
+| Job | Result |
+|-----|--------|
+| Preflight Checks | ✓ |
+| Publish to crates.io | ✓ |
+| Build — Linux x86_64 | ✓ |
+| Build — Linux ARM64 | ✓ |
+| Build — macOS x86_64 | ✓ |
+| Build — macOS ARM64 | ✓ |
+| Build — Windows x86_64 | ✓ |
+| Create GitHub Release | ✓ |
+| Publish Homebrew Cask | ✓ |
+
+**What shipped:**
+- Bullet-point list of all Added features from the [Unreleased] changelog section
+- Bullet-point list of all Fixed items from the [Unreleased] changelog section
+
+Use the CHANGELOG.md [Unreleased] entries (before they were moved to the release section) as the source for "What shipped". Keep each bullet concise — one line per feature/fix.
