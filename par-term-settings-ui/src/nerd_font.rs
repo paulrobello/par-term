@@ -11,13 +11,38 @@ const NERD_FONT_BYTES: &[u8] = include_bytes!("../../assets/fonts/SymbolsNerdFon
 /// Call this once after creating each `egui::Context` (main window and settings window).
 /// Adds the Nerd Font as the last fallback in the Proportional and Monospace families
 /// so that standard Latin text still uses egui's default font, but Nerd Font codepoints render.
+///
+/// Also attempts to load a system font that covers the Braille Patterns Unicode block
+/// (U+2800–U+28FF). These characters are used by CLI spinners such as Claude Code's thinking
+/// indicator (⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏). None of egui's default fonts nor SymbolsNerdFontMono cover
+/// this block, so without this fallback they render as □.
 pub fn configure_nerd_font(ctx: &egui::Context) {
     let mut fonts = egui::FontDefinitions::default();
     fonts.font_data.insert(
         "nerd_font_symbols".to_owned(),
         egui::FontData::from_static(NERD_FONT_BYTES).into(),
     );
-    // Add as last fallback for Proportional family
+
+    // Add a system font that covers the Braille Patterns block (U+2800–U+28FF) so that
+    // CLI spinner characters render correctly in the tab bar.
+    if let Some(braille_bytes) = load_braille_font() {
+        fonts.font_data.insert(
+            "braille_fallback".to_owned(),
+            egui::FontData::from_owned(braille_bytes).into(),
+        );
+        fonts
+            .families
+            .entry(egui::FontFamily::Proportional)
+            .or_default()
+            .push("braille_fallback".to_owned());
+        fonts
+            .families
+            .entry(egui::FontFamily::Monospace)
+            .or_default()
+            .push("braille_fallback".to_owned());
+    }
+
+    // Add Nerd Font as last fallback for Proportional family
     fonts
         .families
         .entry(egui::FontFamily::Proportional)
@@ -30,6 +55,54 @@ pub fn configure_nerd_font(ctx: &egui::Context) {
         .or_default()
         .push("nerd_font_symbols".to_owned());
     ctx.set_fonts(fonts);
+}
+
+/// Try to find a system font that covers the Braille Patterns Unicode block (U+2800–U+28FF).
+///
+/// Returns the font file bytes if a suitable font is found, or `None` if no font is available.
+/// The candidates are platform-specific well-known fonts that include the full Braille block.
+fn load_braille_font() -> Option<Vec<u8>> {
+    for path in braille_font_candidates() {
+        if let Ok(data) = std::fs::read(path) {
+            return Some(data);
+        }
+    }
+    None
+}
+
+/// Platform-specific candidate paths for fonts that cover the Braille Patterns block.
+fn braille_font_candidates() -> &'static [&'static str] {
+    #[cfg(target_os = "macos")]
+    {
+        &[
+            // Apple Braille — ships with every macOS, covers all 256 Braille patterns
+            "/System/Library/Fonts/Apple Braille.ttf",
+            "/System/Library/Fonts/Apple Braille Outline 6 Dot.ttf",
+        ]
+    }
+    #[cfg(target_os = "linux")]
+    {
+        &[
+            // DejaVu Sans Mono — excellent Unicode coverage including full Braille block
+            "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+            "/usr/share/fonts/dejavu/DejaVuSansMono.ttf",
+            "/usr/share/fonts/TTF/DejaVuSansMono.ttf",
+            // GNU FreeFont — also covers Braille
+            "/usr/share/fonts/truetype/freefont/FreeMono.ttf",
+            "/usr/share/fonts/gnu-free/FreeMono.ttf",
+        ]
+    }
+    #[cfg(target_os = "windows")]
+    {
+        &[
+            // Segoe UI Symbol covers Braille on modern Windows
+            r"C:\Windows\Fonts\seguisym.ttf",
+        ]
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+    {
+        &[]
+    }
 }
 
 /// Curated Nerd Font icon presets organized by category for the profile icon picker.
