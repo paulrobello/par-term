@@ -72,6 +72,16 @@ graph TD
     style Clamping fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
 ```
 
+## tmux Session Capture and Restore
+
+When saving an arrangement, par-term captures the active tmux session name for each window (if connected in control mode). When restoring the arrangement, each window automatically reconnects to its saved tmux session.
+
+**Capture**: The session name stored in `window_state.tmux_state.tmux_session_name` is written to the arrangement YAML as `tmux_session_name` on the `WindowSnapshot`.
+
+**Restore**: On restore, if `tmux_session_name` is set and `tmux_enabled = true`, `initiate_tmux_gateway(Some(session_name))` is called for that window. Failures are logged as warnings but do not prevent the window from opening.
+
+**Normal mode sessions**: Sessions connected in Normal mode (plain tmux in PTY) are not captured — par-term has no visibility into their session name. Only control-mode sessions are preserved across arrangement save/restore.
+
 ## Saving Arrangements
 
 Saving an arrangement captures a snapshot of every open window, including its position, size, monitor, tabs, and active tab index.
@@ -272,6 +282,7 @@ Example structure:
         scale_factor: 1.0
       position_relative: [100, 200]
       size: [800, 600]
+      tmux_session_name: "work-session"
       tabs:
         - cwd: "/home/user/projects"
           title: "zsh"

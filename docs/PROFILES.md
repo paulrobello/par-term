@@ -90,6 +90,8 @@ Each profile can customize the following:
 | **Hostname Patterns** | Glob patterns for SSH-based auto-switching | No |
 | **Directory Patterns** | Glob patterns for CWD-based auto-switching | No |
 | **Tmux Session Patterns** | Glob patterns for auto-switching (e.g., `work-*`) | No |
+| **Tmux Session** | tmux session to auto-connect when this profile opens (uses create-or-attach) | No |
+| **Tmux Mode** | Connection mode: Control Mode (full integration) or Normal (plain tmux in PTY) | No |
 | **Badge Text** | Custom badge format for this profile | No |
 | **Badge Appearance** | Override badge color, font, position, size | No |
 | **Content Prettifier** | Override prettifier settings per-profile | No |
@@ -357,6 +359,41 @@ When a profile is auto-applied via any switching mechanism (directory, hostname,
 | **Command** | Executes the profile's command (if configured) |
 
 The original tab title saves when an auto-profile applies and restores when the auto-profile clears.
+
+## Tmux Auto-Connect
+
+Profiles can automatically connect to a named tmux session when opened. This is separate from the global `tmux_auto_attach` startup option — per-profile sessions let different profiles connect to different named sessions.
+
+### Configuration
+
+Set `tmux_session_name` on a profile to enable auto-connect. The profile uses **create-or-attach** semantics (`tmux new-session -A -s <name>`), so opening the profile either creates the session if it doesn't exist or attaches to it if it does.
+
+```yaml
+profiles:
+  - name: Work
+    tmux_session_name: work-session
+    tmux_connection_mode: control_mode  # or: normal
+```
+
+### Connection Modes
+
+| Mode | YAML value | Behavior |
+|------|-----------|----------|
+| **Control Mode** (default) | `control_mode` | Full par-term integration via `tmux -CC`. Enables pane sync, window tabs, and input routing. |
+| **Normal** | `normal` | Plain tmux UI runs in the PTY. No par-term integration. |
+
+### UI
+
+In the profile editor (Settings → Profiles), the **Tmux Auto-Connect** collapsible section appears below the badge settings:
+
+- **Session Name** — leave empty to disable auto-connect
+- **Connection Mode** — radio buttons for Control Mode vs Normal
+
+### Behavior
+
+- Auto-connect only fires when `tmux_enabled = true` in global config
+- If the window is already connected to tmux (gateway active), the auto-connect is skipped silently
+- Errors are logged via the debug log (`make tail-log`)
 
 ## Per-Profile Badge Configuration
 
