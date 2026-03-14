@@ -240,6 +240,32 @@ pub enum StatusBarPosition {
     Bottom,
 }
 
+/// Controls where newly created tabs are inserted in the tab bar.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum NewTabPosition {
+    /// Append to the end of the tab bar (default — existing behavior).
+    #[default]
+    End,
+    /// Insert immediately to the right of the currently active tab.
+    AfterActive,
+}
+
+impl NewTabPosition {
+    /// Human-readable label for the settings UI combo box.
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            Self::End => "End of tab bar",
+            Self::AfterActive => "After active tab",
+        }
+    }
+
+    /// All variants in display order.
+    pub fn all() -> &'static [Self] {
+        &[Self::End, Self::AfterActive]
+    }
+}
+
 #[cfg(test)]
 mod remote_format_tests {
     use super::*;
@@ -262,5 +288,35 @@ mod remote_format_tests {
             RemoteTabTitleFormat::default(),
             RemoteTabTitleFormat::UserAtHost
         );
+    }
+}
+
+#[cfg(test)]
+mod new_tab_position_tests {
+    use super::*;
+
+    #[test]
+    fn default_is_end() {
+        assert_eq!(NewTabPosition::default(), NewTabPosition::End);
+    }
+
+    #[test]
+    fn all_has_two_variants() {
+        assert_eq!(NewTabPosition::all().len(), 2);
+    }
+
+    #[test]
+    fn display_name_non_empty() {
+        for v in NewTabPosition::all() {
+            assert!(!v.display_name().is_empty());
+        }
+    }
+
+    #[test]
+    fn serde_round_trip() {
+        let end: NewTabPosition = serde_json::from_str("\"end\"").unwrap();
+        assert_eq!(end, NewTabPosition::End);
+        let after: NewTabPosition = serde_json::from_str("\"after_active\"").unwrap();
+        assert_eq!(after, NewTabPosition::AfterActive);
     }
 }
