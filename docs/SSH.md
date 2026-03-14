@@ -17,6 +17,7 @@ par-term provides comprehensive SSH host management with automatic discovery, qu
   - [Hostname-Based Switching](#hostname-based-switching)
   - [Command-Based Switching](#command-based-switching)
   - [Auto-Revert on Disconnect](#auto-revert-on-disconnect)
+- [Remote Tab Title Format](#remote-tab-title-format)
 - [Configuration](#configuration)
 - [Settings UI](#settings-ui)
 - [Troubleshooting](#troubleshooting)
@@ -212,6 +213,28 @@ When an SSH session ends, par-term automatically reverts to the previous profile
 
 This behavior is controlled by the `ssh_revert_profile_on_disconnect` config option (default: `true`).
 
+## Remote Tab Title Format
+
+When shell integration detects a remote host (via OSC 7 or OSC 1337 RemoteHost sequences), par-term can automatically update the tab title to reflect the remote connection. The format is controlled by `remote_tab_title_format`:
+
+| Value | Format | Example |
+|-------|--------|---------|
+| `user_at_host` (default) | `user@hostname` | `deploy@prod.example.com` |
+| `host` | hostname only | `prod.example.com` |
+| `host_and_cwd` | `hostname:~/cwd` | `prod.example.com:~/app` |
+
+```yaml
+remote_tab_title_format: user_at_host  # default
+
+# When true (default), explicit OSC title sequences take precedence over
+# remote_tab_title_format. Set to false to always use the format above.
+remote_tab_title_osc_priority: true
+```
+
+**Settings UI:** Settings > Window > Tab Bar > "Remote Tab Title Format"
+
+> **📝 Note:** `remote_tab_title_format` requires shell integration to be installed on the remote host so that OSC 7 or OSC 1337 RemoteHost sequences are emitted. See [Integrations](INTEGRATIONS.md) for installation instructions.
+
 ## Configuration
 
 ```yaml
@@ -222,6 +245,10 @@ mdns_scan_timeout_secs: 3          # range: 1-10, default: 3
 # Automatic profile switching
 ssh_auto_profile_switch: true      # default: true
 ssh_revert_profile_on_disconnect: true  # default: true
+
+# Remote tab title format (requires shell integration on the remote host)
+remote_tab_title_format: user_at_host  # user_at_host | host | host_and_cwd
+remote_tab_title_osc_priority: true    # OSC titles take priority over format
 ```
 
 **Profile SSH fields** (in `profiles.yaml`):

@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.28.0] - 2026-03-14
+
 ### Added
 - **Duplicate Tab keybinding** — `duplicate_tab` is now a named keybinding action, allowing users to assign any hotkey to clone the current tab via **Settings → Keyboard → Actions**. The action was previously only accessible via the tab context menu and macOS menu bar.
 - **New tab position** — new config option `new_tab_position` controls where new tabs are inserted in the tab bar. `end` (default) preserves existing behavior; `after_active` inserts the new tab immediately to the right of the currently active tab. Applies consistently to all user-initiated new-tab actions (keyboard shortcut, "+" button, profile picker, custom `NewTab` actions). Session undo and arrangement restore are unaffected — they always restore tabs to their original positions. Configurable in **Settings → Window → Tab Bar**; searchable via "new tab position" / "after active".

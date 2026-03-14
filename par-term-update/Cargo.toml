@@ -13,7 +13,7 @@ categories = ["command-line-utilities"]
 
 [dependencies]
 # Configuration types (Config, UpdateCheckFrequency)
-par-term-config = { path = "../par-term-config", version = "0.8.0" }
+par-term-config = { path = "../par-term-config", version = "0.9.0" }
 
 # HTTP client for downloading updates and checking releases
 ureq.workspace = true

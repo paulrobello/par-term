@@ -15,7 +15,7 @@ A cross-platform, GPU-accelerated terminal emulator frontend built with Rust, po
 ## Table of Contents
 
 - [Getting Started](#getting-started)
-- [What's New](#whats-new-in-0260)
+- [What's New](#whats-new-in-0280)
 - [Features](#features)
 - [Documentation](#documentation)
 - [Installation](#installation)
@@ -40,7 +40,33 @@ New to par-term? The [Getting Started Guide](docs/GETTING_STARTED.md) walks you 
 - **[Configuration Reference](docs/CONFIG_REFERENCE.md)** — All 200+ configuration options
 - **[Keyboard Shortcuts](docs/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
 
-## What's New in 0.27.0
+## What's New in 0.28.0
+
+### ✨ New Features
+
+- **Duplicate Tab Keybinding**: `duplicate_tab` is now a named keybinding action (default: `Cmd+Shift+N` / `Ctrl+Shift+N`). Assign any hotkey via **Settings → Keyboard → Actions**.
+- **New Tab Position**: New config option `new_tab_position` — `end` (default) or `after_active` to insert new tabs immediately to the right of the active tab. Configurable in **Settings → Window → Tab Bar**.
+- **Per-Tab Tmux Auto-Connect**: Profiles can automatically connect to a named tmux session on open. Arrangements capture and restore the session name. Configurable via the **Tmux Auto-Connect** section in the profile editor (`control_mode` or `normal` mode).
+- **Remote Tab Title Format**: Two new config fields control SSH tab display — `remote_tab_title_format` (`user_at_host` / `host` / `host_and_cwd`) and `remote_tab_title_osc_priority`. Exposed in **Settings → Window → Tab Bar**.
+- **Workflow Action Types**: Three new custom action types for multi-step automation:
+  - **`sequence`** — runs a list of actions in order with per-step `delay_ms` and `on_failure` policy (`abort` / `stop` / `continue`)
+  - **`condition`** — evaluates a check (`exit_code`, `output_contains`, `env_var`, `dir_matches`, `git_branch`) and branches on the result
+  - **`repeat`** — runs an action up to N times with optional delay; supports `stop_on_success` / `stop_on_failure`
+- **`capture_output` for Shell Commands**: Set `capture_output: true` on a `shell_command` action to capture stdout+stderr (up to 64 KB) for use by subsequent `condition` checks.
+- **Clone Button for Custom Actions**: Each action row in **Settings → Actions** now has a **Clone** button that duplicates the action with a fresh ID, clears the keybinding and prefix char.
+
+### 🐛 Bug Fixes
+
+- **Tab Click Selection Stuck**: Releasing the mouse in the tab bar no longer leaves a persistent text-selection highlight on the terminal pane.
+- **Local Tab Titles Showing Hostname Only**: Local tabs no longer incorrectly show the remote-host title format when shell integration is active.
+- **Braille Spinner Characters in Tab Bar**: Claude Code's thinking indicator (⠋⠙⠹…) and other Braille block characters now render correctly via a platform system-font fallback.
+- **Text Selection in Native Split Panes**: Clicking within the already-focused pane now correctly anchors a selection.
+- **Selection Highlight Row Alignment in Split Panes**: Fixed up-to-half-cell row offset during drag-selection caused by missing centering offset in pixel-to-cell mapping.
+- **Split-Pane Divider Highlight Stuck**: Releasing the mouse outside the terminal (e.g. in tab bar or context menu) no longer freezes the divider hover highlight.
+- **Shell Integration `$HOME` Path**: The entries written to `.bashrc` / `.zshrc` / `config.fish` now use `$HOME/` instead of a literal home path, making them portable across user renames.
+
+<details>
+<summary><strong>What's New in 0.27.0</strong></summary>
 
 ### 🔒 Security & Safety
 
@@ -78,6 +104,8 @@ New to par-term? The [Getting Started Guide](docs/GETTING_STARTED.md) walks you 
 - **`dev-release` Profile Optimized**: ~1-2s incremental rebuilds at ~90-95% of full release performance
 - **`ATLAS_SIZE` Constant**: 16 scattered `2048.0` magic literals replaced with a named constant
 - **151 New Docstrings**: `par-term-config/src/defaults/` fully documented
+
+</details>
 
 <details>
 <summary><strong>What's New in 0.26.0</strong></summary>

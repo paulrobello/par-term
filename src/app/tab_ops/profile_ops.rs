@@ -51,10 +51,10 @@ impl WindowState {
             grid_size,
         ) {
             Ok(tab_id) => {
-                if self.config.new_tab_position == crate::config::NewTabPosition::AfterActive {
-                    if let Some(idx) = prior_active_idx {
-                        self.tab_manager.move_tab_to_index(tab_id, idx + 1);
-                    }
+                if self.config.new_tab_position == crate::config::NewTabPosition::AfterActive
+                    && let Some(idx) = prior_active_idx
+                {
+                    self.tab_manager.move_tab_to_index(tab_id, idx + 1);
                 }
 
                 // Set profile icon on the new tab

@@ -288,13 +288,15 @@ Split percent: 33%
 3. Scroll to the **Custom Actions** section and click **+ Add Action**
 4. Fill in the action details:
    - **Title**: A human-readable name (e.g., "Run Tests")
-   - **Type**: Select from Shell Command, New Tab, Insert Text, Key Sequence, or Split Pane
+   - **Type**: Select from Shell Command, New Tab, Insert Text, Key Sequence, Split Pane, Sequence, Condition, or Repeat
    - **Prefix char** (optional): Single character used after the global custom action prefix key
    - **Keybinding** (optional): Keyboard shortcut to trigger the action
      - Click the **🎤 Record** button and press the desired key combination
      - Or type it manually (e.g., `Ctrl+Shift+T`)
      - Conflict warnings appear if the keybinding is already in use (⚠️)
    - **Type-specific fields**: Enter command, text, or key sequence based on type
+
+To duplicate an existing action, click the **Clone** button next to the action in the list. The clone receives a fresh unique ID so editing it does not affect the original.
 
 ### Using Actions
 

@@ -21,6 +21,7 @@ par-term provides a multi-tab interface for managing multiple terminal sessions 
   - [HTML Titles](#html-titles)
   - [Inactive Tab Outline-Only Mode](#inactive-tab-outline-only-mode)
 - [Tab Title Mode](#tab-title-mode)
+  - [Remote Tab Title Format](#remote-tab-title-format)
   - [Renaming Tabs](#renaming-tabs)
   - [Session Persistence for Tab Names and Colors](#session-persistence-for-tab-names-and-colors)
 - [Tab Appearance](#tab-appearance)
@@ -364,6 +365,27 @@ tab_title_mode: auto
 
 **Settings UI:** Settings > Window > Tab Bar > "Tab title mode"
 
+### Remote Tab Title Format
+
+When shell integration detects that the terminal is connected to a remote host (via SSH or similar), the tab title can automatically reflect the remote context. Control the format with `remote_tab_title_format`:
+
+| Value | Format | Example |
+|-------|--------|---------|
+| `user_at_host` (default) | `user@hostname` | `deploy@prod.example.com` |
+| `host` | hostname only | `prod.example.com` |
+| `host_and_cwd` | `hostname:~/cwd` | `prod.example.com:~/app` |
+
+```yaml
+remote_tab_title_format: user_at_host  # user_at_host | host | host_and_cwd
+
+# When true (default), explicit OSC title sequences override this format.
+remote_tab_title_osc_priority: true
+```
+
+**Settings UI:** Settings > Window > Tab Bar > "Remote Tab Title Format"
+
+> **📝 Note:** Requires shell integration on the remote host to emit OSC 7 or OSC 1337 RemoteHost sequences. See [Integrations](INTEGRATIONS.md).
+
 ### Renaming Tabs
 
 Right-click any tab and select **Rename Tab** to set a custom name. Manually named tabs are static — they are never auto-updated regardless of the title mode setting.
@@ -429,6 +451,11 @@ tab_bar_mode: "always"
 
 # Tab title mode: "auto", "osc_only"
 tab_title_mode: auto
+
+# Remote tab title format: "user_at_host", "host", "host_and_cwd"
+remote_tab_title_format: user_at_host
+# When true (default), explicit OSC titles override remote_tab_title_format
+remote_tab_title_osc_priority: true
 
 # Tab style preset: "dark", "light", "compact", "minimal", "high_contrast", "automatic"
 tab_style: dark

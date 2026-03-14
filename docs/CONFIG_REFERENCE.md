@@ -334,6 +334,8 @@ field uses its documented default value.
 | `dark_tab_style` | `enum` | `dark` | Tab style for system dark mode (when `tab_style: automatic`) |
 | `tab_bar_mode` | `enum` | `always` | Tab bar visibility: `always`, `when_multiple`, `never` |
 | `tab_title_mode` | `enum` | `auto` | How tab titles update: `auto`, `osc_only` |
+| `remote_tab_title_format` | `enum` | `user_at_host` | Tab title format when shell integration detects a remote host: `user_at_host` (`user@host`), `host` (hostname only), `host_and_cwd` (`host:~/cwd`) |
+| `remote_tab_title_osc_priority` | `bool` | `true` | When `true`, explicit OSC title sequences take precedence over `remote_tab_title_format` |
 | `tab_bar_height` | `f32` | `28.0` | Tab bar height in pixels |
 | `tab_bar_position` | `enum` | `top` | Tab bar position: `top`, `bottom`, `left` |
 | `tab_bar_width` | `f32` | `160.0` | Tab bar width in pixels (when position is `left`) |
@@ -614,6 +616,13 @@ field uses its documented default value.
 Profiles are stored in a separate `~/.config/par-term/profiles.yaml` file.
 Each profile can override shell, working directory, badge, SSH host, and more.
 See [PROFILES.md](PROFILES.md) for full documentation.
+
+**Per-profile tmux auto-connect fields** (in `profiles.yaml`):
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `tmux_session_name` | `string?` | `null` | tmux session to auto-connect when this profile opens. Uses create-or-attach semantics (`tmux new-session -A -s <name>`). Requires `tmux_enabled: true`. |
+| `tmux_connection_mode` | `enum` | `control_mode` | How to connect: `control_mode` (full par-term integration via `tmux -CC`) or `normal` (plain tmux UI in the PTY) |
 
 Dynamic profiles can be fetched from remote URLs:
 

@@ -51,10 +51,10 @@ impl WindowState {
         ) {
             Ok(tab_id) => {
                 // Reposition new tab if configured
-                if self.config.new_tab_position == crate::config::NewTabPosition::AfterActive {
-                    if let Some(idx) = prior_active_idx {
-                        self.tab_manager.move_tab_to_index(tab_id, idx + 1);
-                    }
+                if self.config.new_tab_position == crate::config::NewTabPosition::AfterActive
+                    && let Some(idx) = prior_active_idx
+                {
+                    self.tab_manager.move_tab_to_index(tab_id, idx + 1);
                 }
 
                 // Check if tab bar visibility changed (e.g., from 1 to 2 tabs with WhenMultiple mode)
