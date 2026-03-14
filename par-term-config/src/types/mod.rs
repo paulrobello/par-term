@@ -50,7 +50,8 @@ pub use shader::{
 };
 pub use shell::{ShellExitAction, ShellType, StartupDirectoryMode};
 pub use tab_bar::{
-    StatusBarPosition, TabBarMode, TabBarPosition, TabStyle, TabTitleMode, WindowType,
+    RemoteTabTitleFormat, StatusBarPosition, TabBarMode, TabBarPosition, TabStyle, TabTitleMode,
+    WindowType,
 };
 pub use terminal::{
     CursorStyle, LinkUnderlineStyle, LogLevel, ModifierRemapping, ModifierTarget, OptionKeyMode,

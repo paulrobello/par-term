@@ -128,6 +128,43 @@ pub enum TabTitleMode {
 }
 
 // ============================================================================
+// Remote Tab Title Format
+// ============================================================================
+
+/// Controls the tab title format when shell integration detects a remote host
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum RemoteTabTitleFormat {
+    /// "user@host" — SSH-style identifier (default)
+    #[default]
+    UserAtHost,
+    /// "host" — remote hostname only
+    Host,
+    /// "host:~/dir" — hostname plus abbreviated CWD
+    HostAndCwd,
+}
+
+impl RemoteTabTitleFormat {
+    /// Display name for UI combo box
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            RemoteTabTitleFormat::UserAtHost => "user@host",
+            RemoteTabTitleFormat::Host       => "host",
+            RemoteTabTitleFormat::HostAndCwd => "host:~/cwd",
+        }
+    }
+
+    /// All variants for UI iteration
+    pub fn all() -> &'static [RemoteTabTitleFormat] {
+        &[
+            RemoteTabTitleFormat::UserAtHost,
+            RemoteTabTitleFormat::Host,
+            RemoteTabTitleFormat::HostAndCwd,
+        ]
+    }
+}
+
+// ============================================================================
 // Window Types
 // ============================================================================
 
@@ -201,4 +238,26 @@ pub enum StatusBarPosition {
     /// Status bar at the bottom of the window (default)
     #[default]
     Bottom,
+}
+
+#[cfg(test)]
+mod remote_format_tests {
+    use super::*;
+
+    #[test]
+    fn all_returns_three_variants() {
+        assert_eq!(RemoteTabTitleFormat::all().len(), 3);
+    }
+
+    #[test]
+    fn display_name_covers_all_variants() {
+        for v in RemoteTabTitleFormat::all() {
+            assert!(!v.display_name().is_empty());
+        }
+    }
+
+    #[test]
+    fn default_is_user_at_host() {
+        assert_eq!(RemoteTabTitleFormat::default(), RemoteTabTitleFormat::UserAtHost);
+    }
 }
