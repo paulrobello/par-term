@@ -95,6 +95,19 @@ new_tab_shortcut_shows_profiles: true  # default: false
 
 **Settings UI:** Settings > Window > Tab Behavior > "New Tab Shortcut Shows Profiles"
 
+### New Tab Position
+
+Control where new tabs are inserted in the tab bar:
+
+```yaml
+new_tab_position: end          # default — append to the end of the tab bar
+new_tab_position: after_active # insert immediately to the right of the active tab
+```
+
+`after_active` applies to all user-initiated new-tab actions: `Cmd+T` / `+` button / profile picker / custom `NewTab` actions. Session undo and arrangement restore always restore tabs to their original positions regardless of this setting.
+
+**Settings UI:** Settings > Window > Tab Behavior > "New Tab Position"
+
 ## Reopening Closed Tabs
 
 Accidentally closed tabs can be recovered using session undo:
@@ -147,17 +160,16 @@ Click and drag any tab in the tab bar to move it to a new position:
 
 ## Duplicating Tabs
 
-Any tab can be duplicated via the context menu:
+Any tab can be duplicated via the context menu or keyboard shortcut:
 
-1. **Right-click** on any tab in the tab bar to open the context menu
-2. Select **Duplicate Tab**
-3. A new tab opens immediately adjacent to the source tab
+1. **Right-click** on any tab in the tab bar to open the context menu and select **Duplicate Tab**, or
+2. Press `Cmd+Shift+N` (macOS) / `Ctrl+Shift+N` (Linux/Windows) to duplicate the active tab
 
 **Behavior:**
 - The duplicated tab inherits the working directory of the source tab
 - Any custom tab color set on the source tab carries over to the new tab
 - Any custom tab icon set on the source tab carries over to the new tab
-- Duplication works on any tab, not just the currently active tab
+- Duplication works on any tab via context menu, not just the currently active tab
 - The new tab starts a fresh shell session in the inherited directory
 
 > **📝 Note:** The duplicated tab launches a new shell process. Running commands or session state from the original tab are not carried over.
@@ -443,6 +455,7 @@ tab_html_titles: true
 
 # Profile selection
 new_tab_shortcut_shows_profiles: false  # Show profile picker on Cmd+T
+new_tab_position: end  # "end" or "after_active"
 ```
 
 ## Related Documentation

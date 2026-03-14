@@ -22,8 +22,9 @@ Complete reference for all par-term keyboard shortcuts.
 
 | Action | macOS | Linux/Windows |
 |--------|-------|---------------|
-| New window | `Cmd + N` | `Ctrl + Shift + N` |
+| New window | `Cmd + N` | — |
 | New tab | `Cmd + T` | `Ctrl + Shift + T` |
+| Duplicate tab | `Cmd + Shift + N` | `Ctrl + Shift + N` |
 | Close tab/window | `Cmd + W` | `Ctrl + Shift + W` |
 | Quit application | `Cmd + Q` | `Ctrl + Q` |
 | Next tab | `Cmd + Shift + ]` | `Ctrl + Shift + ]` |
@@ -208,7 +209,7 @@ remains visible; press `Esc` to cancel it. All action types — including the wo
 ### Available Actions
 
 **Tab Management:**
-- `new_tab`, `close_tab`, `next_tab`, `prev_tab`
+- `new_tab`, `close_tab`, `duplicate_tab`, `next_tab`, `prev_tab`
 - `move_tab_left`, `move_tab_right`
 - `switch_to_tab_1` through `switch_to_tab_9`
 - `reopen_closed_tab`

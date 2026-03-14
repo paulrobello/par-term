@@ -362,6 +362,7 @@ field uses its documented default value.
 | `dim_inactive_tabs` | `bool` | `true` | Visually dim inactive tabs |
 | `inactive_tab_opacity` | `f32` | `0.6` | Inactive tab opacity (0.0–1.0) |
 | `new_tab_shortcut_shows_profiles` | `bool` | `false` | Show profile selector instead of opening default tab |
+| `new_tab_position` | `enum` | `end` | Where new tabs are inserted: `end` (append to tab bar) or `after_active` (insert right of current tab) |
 
 ---
 
