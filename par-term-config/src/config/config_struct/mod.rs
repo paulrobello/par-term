@@ -96,10 +96,10 @@ use crate::snippets::{CustomActionConfig, SnippetConfig};
 use crate::types::{
     BackgroundImageMode, BackgroundMode, CursorShaderConfig, CursorStyle, DividerStyle,
     DownloadSaveLocation, DroppedFileQuoteStyle, FontRange, ImageScalingMode, InstallPromptState,
-    IntegrationVersions, KeyBinding, LogLevel, ModifierRemapping, OptionKeyMode, PaneTitlePosition,
-    PowerPreference, ProgressBarPosition, ProgressBarStyle, RemoteTabTitleFormat,
-    SemanticHistoryEditorMode, SessionLogFormat, ShaderConfig, ShaderInstallPrompt,
-    NewTabPosition, ShellExitAction, SmartSelectionRule, StartupDirectoryMode, TabBarMode,
+    IntegrationVersions, KeyBinding, LogLevel, ModifierRemapping, NewTabPosition, OptionKeyMode,
+    PaneTitlePosition, PowerPreference, ProgressBarPosition, ProgressBarStyle,
+    RemoteTabTitleFormat, SemanticHistoryEditorMode, SessionLogFormat, ShaderConfig,
+    ShaderInstallPrompt, ShellExitAction, SmartSelectionRule, StartupDirectoryMode, TabBarMode,
     TabBarPosition, TabStyle, TabTitleMode, ThinStrokesMode, UnfocusedCursorStyle, VsyncMode,
     WindowType,
 };

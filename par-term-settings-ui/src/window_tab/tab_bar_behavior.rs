@@ -2,7 +2,9 @@
 
 use crate::SettingsUI;
 use crate::section::collapsing_section;
-use par_term_config::{NewTabPosition, RemoteTabTitleFormat, TabBarMode, TabBarPosition, TabStyle, TabTitleMode};
+use par_term_config::{
+    NewTabPosition, RemoteTabTitleFormat, TabBarMode, TabBarPosition, TabStyle, TabTitleMode,
+};
 use std::collections::HashSet;
 
 pub(super) fn show_tab_bar_section(

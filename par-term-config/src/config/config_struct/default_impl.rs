@@ -8,9 +8,9 @@ use std::collections::HashMap;
 use crate::types::{
     BackgroundImageMode, BackgroundMode, CursorStyle, DividerStyle, DroppedFileQuoteStyle,
     ImageScalingMode, InstallPromptState, IntegrationVersions, LogLevel, ModifierRemapping,
-    OptionKeyMode, PaneTitlePosition, PowerPreference, ProgressBarPosition, ProgressBarStyle,
-    RemoteTabTitleFormat, SemanticHistoryEditorMode, SessionLogFormat, ShaderInstallPrompt,
-    NewTabPosition, ShellExitAction, TabBarMode, TabBarPosition, TabStyle, TabTitleMode,
+    NewTabPosition, OptionKeyMode, PaneTitlePosition, PowerPreference, ProgressBarPosition,
+    ProgressBarStyle, RemoteTabTitleFormat, SemanticHistoryEditorMode, SessionLogFormat,
+    ShaderInstallPrompt, ShellExitAction, TabBarMode, TabBarPosition, TabStyle, TabTitleMode,
     ThinStrokesMode, UnfocusedCursorStyle, VsyncMode, WindowType, default_smart_selection_rules,
 };
 
