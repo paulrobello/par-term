@@ -149,6 +149,15 @@ impl WindowManager {
                         }
                     }
                 }
+
+                // Auto-connect tmux session if this window had one saved
+                if let Some(ref session_name) = window_snapshot.tmux_session_name {
+                    if window_state.config.tmux_enabled && !session_name.is_empty() {
+                        if let Err(e) = window_state.initiate_tmux_gateway(Some(session_name)) {
+                            log::warn!("Arrangement restore: tmux auto-connect failed: {}", e);
+                        }
+                    }
+                }
             }
         }
 
