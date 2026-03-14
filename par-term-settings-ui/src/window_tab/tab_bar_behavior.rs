@@ -2,7 +2,7 @@
 
 use crate::SettingsUI;
 use crate::section::collapsing_section;
-use par_term_config::{TabBarMode, TabBarPosition, TabStyle, TabTitleMode};
+use par_term_config::{RemoteTabTitleFormat, TabBarMode, TabBarPosition, TabStyle, TabTitleMode};
 use std::collections::HashSet;
 
 pub(super) fn show_tab_bar_section(
@@ -145,6 +145,51 @@ pub(super) fn show_tab_bar_section(
                 *changes_this_frame = true;
             }
         });
+
+        ui.horizontal(|ui| {
+            ui.label("Remote tab title format:");
+            egui::ComboBox::from_id_salt("window_remote_tab_title_format")
+                .selected_text(settings.config.remote_tab_title_format.display_name())
+                .show_ui(ui, |ui| {
+                    for &fmt in RemoteTabTitleFormat::all() {
+                        if ui
+                            .selectable_value(
+                                &mut settings.config.remote_tab_title_format,
+                                fmt,
+                                fmt.display_name(),
+                            )
+                            .on_hover_text(match fmt {
+                                RemoteTabTitleFormat::UserAtHost => {
+                                    "Show username and hostname (e.g. paul@server)"
+                                }
+                                RemoteTabTitleFormat::Host => "Show hostname only",
+                                RemoteTabTitleFormat::HostAndCwd => {
+                                    "Show hostname and current directory (e.g. server:~/projects)"
+                                }
+                            })
+                            .changed()
+                        {
+                            settings.has_changes = true;
+                            *changes_this_frame = true;
+                        }
+                    }
+                });
+        });
+
+        if ui
+            .checkbox(
+                &mut settings.config.remote_tab_title_osc_priority,
+                "OSC title takes priority on remote hosts",
+            )
+            .on_hover_text(
+                "When checked, explicit OSC title sequences (\\033]0;) \
+                 override the remote tab title format",
+            )
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
 
         ui.horizontal(|ui| {
             ui.label("Position:");

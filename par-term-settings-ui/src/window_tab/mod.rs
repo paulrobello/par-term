@@ -125,6 +125,12 @@ pub fn show(
             "html titles",
             "inherit directory",
             "max tabs",
+            "remote tab title",
+            "ssh title",
+            "remote host",
+            "user at host",
+            "remote format",
+            "osc priority",
         ],
     ) {
         tab_bar::show_tab_bar_section(ui, settings, changes_this_frame, collapsed);
@@ -284,6 +290,12 @@ pub fn keywords() -> &'static [&'static str] {
         "profile picker",
         "new tab profile",
         "max tabs",
+        "remote tab title",
+        "ssh title",
+        "remote host",
+        "user at host",
+        "remote format",
+        "osc priority",
         // Tab bar appearance
         "tab min width",
         "tab border",
