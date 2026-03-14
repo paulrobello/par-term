@@ -72,7 +72,13 @@ impl WindowState {
         // session restore, tab.terminal may be orphaned/dead while restored panes
         // have their own independent PTYs.
         let is_running = if let Some(tab) = self.tab_manager.active_tab() {
-            if let Some(pm) = tab.pane_manager() {
+            // Tmux-managed tabs (gateway and display) have no local PTY process —
+            // panes are created via Pane::new_for_tmux() which does not spawn a shell,
+            // so PtySession::running is initialized to false. Never treat these as
+            // exited; the actual process is the remote tmux session.
+            if tab.tmux.tmux_gateway_active || tab.tmux.tmux_pane_id.is_some() {
+                true
+            } else if let Some(pm) = tab.pane_manager() {
                 pm.all_panes().iter().any(|p| p.is_running())
             } else {
                 // Fallback: no pane manager, check tab.terminal directly

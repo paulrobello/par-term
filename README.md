@@ -64,6 +64,7 @@ New to par-term? The [Getting Started Guide](docs/GETTING_STARTED.md) walks you 
 - **Selection Highlight Row Alignment in Split Panes**: Fixed up-to-half-cell row offset during drag-selection caused by missing centering offset in pixel-to-cell mapping.
 - **Split-Pane Divider Highlight Stuck**: Releasing the mouse outside the terminal (e.g. in tab bar or context menu) no longer freezes the divider hover highlight.
 - **Shell Integration `$HOME` Path**: The entries written to `.bashrc` / `.zshrc` / `config.fish` now use `$HOME/` instead of a literal home path, making them portable across user renames.
+- **tmux Control Mode Crash on Key Press**: Pressing any key while a tmux display tab was active caused the entire app to exit. Tmux panes (`Pane::new_for_tmux`) have no local PTY process, so `PtySession::running` is initialized to `false` — the key handler's shell-exit check now correctly treats tmux-managed tabs as always running.
 
 <details>
 <summary><strong>What's New in 0.27.0</strong></summary>
