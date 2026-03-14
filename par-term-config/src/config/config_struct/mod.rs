@@ -97,10 +97,10 @@ use crate::types::{
     BackgroundImageMode, BackgroundMode, CursorShaderConfig, CursorStyle, DividerStyle,
     DownloadSaveLocation, DroppedFileQuoteStyle, FontRange, ImageScalingMode, InstallPromptState,
     IntegrationVersions, KeyBinding, LogLevel, ModifierRemapping, OptionKeyMode, PaneTitlePosition,
-    PowerPreference, ProgressBarPosition, ProgressBarStyle, SemanticHistoryEditorMode,
-    SessionLogFormat, ShaderConfig, ShaderInstallPrompt, ShellExitAction, SmartSelectionRule,
-    StartupDirectoryMode, TabBarMode, TabBarPosition, TabStyle, TabTitleMode, ThinStrokesMode,
-    UnfocusedCursorStyle, VsyncMode, WindowType,
+    PowerPreference, ProgressBarPosition, ProgressBarStyle, RemoteTabTitleFormat,
+    SemanticHistoryEditorMode, SessionLogFormat, ShaderConfig, ShaderInstallPrompt, ShellExitAction,
+    SmartSelectionRule, StartupDirectoryMode, TabBarMode, TabBarPosition, TabStyle, TabTitleMode,
+    ThinStrokesMode, UnfocusedCursorStyle, VsyncMode, WindowType,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -953,6 +953,14 @@ pub struct Config {
     /// Controls how tab titles are automatically updated (auto or osc_only)
     #[serde(default)]
     pub tab_title_mode: TabTitleMode,
+
+    /// Format for tab title when shell integration detects a remote host
+    #[serde(default)]
+    pub remote_tab_title_format: RemoteTabTitleFormat,
+
+    /// When true, explicit OSC title sequences override remote_tab_title_format
+    #[serde(default = "crate::defaults::bool_true")]
+    pub remote_tab_title_osc_priority: bool,
 
     /// Tab bar height in pixels
     #[serde(default = "crate::defaults::tab_bar_height")]

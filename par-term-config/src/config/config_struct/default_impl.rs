@@ -9,9 +9,9 @@ use crate::types::{
     BackgroundImageMode, BackgroundMode, CursorStyle, DividerStyle, DroppedFileQuoteStyle,
     ImageScalingMode, InstallPromptState, IntegrationVersions, LogLevel, ModifierRemapping,
     OptionKeyMode, PaneTitlePosition, PowerPreference, ProgressBarPosition, ProgressBarStyle,
-    SemanticHistoryEditorMode, SessionLogFormat, ShaderInstallPrompt, ShellExitAction, TabBarMode,
-    TabBarPosition, TabStyle, TabTitleMode, ThinStrokesMode, UnfocusedCursorStyle, VsyncMode,
-    WindowType, default_smart_selection_rules,
+    RemoteTabTitleFormat, SemanticHistoryEditorMode, SessionLogFormat, ShaderInstallPrompt,
+    ShellExitAction, TabBarMode, TabBarPosition, TabStyle, TabTitleMode, ThinStrokesMode,
+    UnfocusedCursorStyle, VsyncMode, WindowType, default_smart_selection_rules,
 };
 
 use super::{
@@ -165,6 +165,8 @@ impl Default for Config {
             dark_tab_style: crate::defaults::dark_tab_style(),
             tab_bar_mode: TabBarMode::default(),
             tab_title_mode: TabTitleMode::default(),
+            remote_tab_title_format: RemoteTabTitleFormat::default(),
+            remote_tab_title_osc_priority: true,
             tab_bar_height: crate::defaults::tab_bar_height(),
             tab_bar_position: TabBarPosition::default(),
             tab_bar_width: crate::defaults::tab_bar_width(),
