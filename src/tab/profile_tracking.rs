@@ -44,9 +44,9 @@ impl Tab {
         if let Ok(term) = self.terminal.try_write() {
             // Collect all values in a single lock acquisition
             let osc_title = term.get_title();
-            let hostname  = term.shell_integration_hostname();
-            let username  = term.shell_integration_username();
-            let cwd       = term.shell_integration_cwd();
+            let hostname = term.shell_integration_hostname();
+            let username = term.shell_integration_username();
+            let cwd = term.shell_integration_cwd();
             drop(term); // release lock before mutating self
 
             // A terminal is "remote" only when the OSC 7 hostname differs from the

@@ -72,6 +72,11 @@ pub struct WindowSnapshot {
     /// Index of the active tab
     #[serde(default)]
     pub active_tab_index: usize,
+
+    /// tmux session name that was active when this window was saved.
+    /// On restore, the window will auto-connect to this session (control mode only).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tmux_session_name: Option<String>,
 }
 
 /// A saved window arrangement
@@ -340,6 +345,7 @@ mod tests {
                     custom_icon: None,
                 }],
                 active_tab_index: 0,
+                tmux_session_name: None,
             }],
             created_at: "2024-01-01T00:00:00Z".to_string(),
             order: 0,

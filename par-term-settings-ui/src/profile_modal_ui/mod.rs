@@ -87,6 +87,9 @@ pub struct ProfileModalUI {
     pub(super) temp_ssh_port: String,
     pub(super) temp_ssh_identity_file: String,
     pub(super) temp_ssh_extra_args: String,
+    // tmux auto-connect fields
+    pub(super) temp_tmux_session_name: String,
+    pub(super) temp_tmux_connection_mode: par_term_config::TmuxConnectionMode,
 
     /// Selected profile in list view
     pub(super) selected_id: Option<ProfileId>,
@@ -138,6 +141,8 @@ impl ProfileModalUI {
             temp_ssh_port: String::new(),
             temp_ssh_identity_file: String::new(),
             temp_ssh_extra_args: String::new(),
+            temp_tmux_session_name: String::new(),
+            temp_tmux_connection_mode: par_term_config::TmuxConnectionMode::default(),
             selected_id: None,
             has_changes: false,
             validation_error: None,

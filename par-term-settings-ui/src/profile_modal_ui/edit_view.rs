@@ -343,6 +343,10 @@ impl ProfileModalUI {
                 ui.add_space(8.0);
                 self.render_badge_section(ui, collapsed);
 
+                // Tmux auto-connect section
+                ui.add_space(8.0);
+                self.render_tmux_section(ui, collapsed);
+
                 // SSH Connection section
                 ui.add_space(8.0);
                 self.render_ssh_section(ui, collapsed);

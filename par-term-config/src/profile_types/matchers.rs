@@ -376,6 +376,15 @@ impl ProfileManager {
             } else {
                 profile.tmux_session_patterns.clone()
             },
+            tmux_session_name: profile
+                .tmux_session_name
+                .clone()
+                .or(resolved_parent.tmux_session_name),
+            tmux_connection_mode: if profile.tmux_session_name.is_some() {
+                profile.tmux_connection_mode
+            } else {
+                resolved_parent.tmux_connection_mode
+            },
             directory_patterns: if profile.directory_patterns.is_empty() {
                 resolved_parent.directory_patterns
             } else {

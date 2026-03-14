@@ -142,6 +142,7 @@ mod tests {
                     custom_icon: None,
                 }],
                 active_tab_index: 0,
+                tmux_session_name: None,
             }],
             created_at: "2024-01-01T00:00:00Z".to_string(),
             order: 0,

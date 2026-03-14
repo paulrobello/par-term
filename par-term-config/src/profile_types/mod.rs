@@ -17,4 +17,4 @@ pub mod profile;
 // so that all external call sites continue to compile without any changes.
 pub use dynamic::ProfileSource;
 pub use matchers::ProfileManager;
-pub use profile::{Profile, ProfileId};
+pub use profile::{Profile, ProfileId, TmuxConnectionMode};

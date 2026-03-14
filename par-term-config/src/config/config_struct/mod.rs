@@ -98,9 +98,9 @@ use crate::types::{
     DownloadSaveLocation, DroppedFileQuoteStyle, FontRange, ImageScalingMode, InstallPromptState,
     IntegrationVersions, KeyBinding, LogLevel, ModifierRemapping, OptionKeyMode, PaneTitlePosition,
     PowerPreference, ProgressBarPosition, ProgressBarStyle, RemoteTabTitleFormat,
-    SemanticHistoryEditorMode, SessionLogFormat, ShaderConfig, ShaderInstallPrompt, ShellExitAction,
-    SmartSelectionRule, StartupDirectoryMode, TabBarMode, TabBarPosition, TabStyle, TabTitleMode,
-    ThinStrokesMode, UnfocusedCursorStyle, VsyncMode, WindowType,
+    SemanticHistoryEditorMode, SessionLogFormat, ShaderConfig, ShaderInstallPrompt,
+    ShellExitAction, SmartSelectionRule, StartupDirectoryMode, TabBarMode, TabBarPosition,
+    TabStyle, TabTitleMode, ThinStrokesMode, UnfocusedCursorStyle, VsyncMode, WindowType,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

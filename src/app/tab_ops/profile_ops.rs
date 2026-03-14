@@ -104,6 +104,37 @@ impl WindowState {
 
                 self.focus_state.needs_redraw = true;
                 self.request_redraw();
+
+                // Auto-connect tmux session if profile has one configured
+                if let Some(ref session_name) = profile.tmux_session_name
+                    && self.config.tmux_enabled
+                    && !self.is_gateway_active()
+                {
+                    match profile.tmux_connection_mode {
+                        par_term_config::TmuxConnectionMode::ControlMode => {
+                            if let Err(e) = self.initiate_tmux_gateway(Some(session_name)) {
+                                crate::debug_error!(
+                                    "TMUX",
+                                    "Profile tmux auto-connect failed: {}",
+                                    e
+                                );
+                            }
+                        }
+                        par_term_config::TmuxConnectionMode::Normal => {
+                            // Write plain tmux command directly to the PTY
+                            let cmd = format!(
+                                "{} new-session -A -s '{}'\n",
+                                self.config.tmux_path,
+                                session_name.replace('\'', "'\\''")
+                            );
+                            if let Some(tab) = self.tab_manager.active_tab_mut()
+                                && let Ok(term) = tab.terminal.try_write()
+                            {
+                                let _ = term.write(cmd.as_bytes());
+                            }
+                        }
+                    }
+                }
             }
             Err(e) => {
                 log::error!("Failed to open profile '{}': {}", profile.name, e);
