@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Remote tab title format** — two new config fields control how the tab title is displayed when shell integration detects a remote host (via SSH):
+  - `remote_tab_title_format` — choose between `user_at_host` (e.g. `alice@server`, default), `host` (hostname only), or `host_and_cwd` (e.g. `server:~/projects`). The `host_and_cwd` format abbreviates the remote user's home directory to `~` using the remote username, not the local `$HOME`.
+  - `remote_tab_title_osc_priority` — when `true` (default), an explicit OSC title sequence (`\033]0;...`) takes priority over the remote format; when `false`, the format always wins.
+  - Both options are exposed in **Settings → Window → Tab Bar** with a combo box and checkbox below the existing "Tab title mode" control. All six new options are discoverable via settings search (`remote tab title`, `ssh title`, `osc priority`, etc.).
 - **Workflow action types** — three new custom action types enable multi-step automation without leaving the terminal:
   - **`sequence`** — runs a list of actions in order. Each step has an optional `delay_ms` and an `on_failure` policy (`abort` / `stop` / `continue`). Sequences can nest inside other sequences; circular references are detected at execution time and show an error toast.
   - **`condition`** — evaluates a check and branches to a different action based on the result. Five check kinds: `exit_code`, `output_contains`, `env_var`, `dir_matches` (glob), `git_branch` (glob). Standalone use dispatches `on_true_id` / `on_false_id`; as a sequence step, the result drives the step's `on_failure` behavior.
