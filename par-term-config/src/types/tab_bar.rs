@@ -149,7 +149,7 @@ impl RemoteTabTitleFormat {
     pub fn display_name(&self) -> &'static str {
         match self {
             RemoteTabTitleFormat::UserAtHost => "user@host",
-            RemoteTabTitleFormat::Host       => "host",
+            RemoteTabTitleFormat::Host => "host",
             RemoteTabTitleFormat::HostAndCwd => "host:~/cwd",
         }
     }
@@ -258,6 +258,9 @@ mod remote_format_tests {
 
     #[test]
     fn default_is_user_at_host() {
-        assert_eq!(RemoteTabTitleFormat::default(), RemoteTabTitleFormat::UserAtHost);
+        assert_eq!(
+            RemoteTabTitleFormat::default(),
+            RemoteTabTitleFormat::UserAtHost
+        );
     }
 }
