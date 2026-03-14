@@ -2,7 +2,7 @@
 
 use crate::SettingsUI;
 use crate::section::collapsing_section;
-use par_term_config::{RemoteTabTitleFormat, TabBarMode, TabBarPosition, TabStyle, TabTitleMode};
+use par_term_config::{NewTabPosition, RemoteTabTitleFormat, TabBarMode, TabBarPosition, TabStyle, TabTitleMode};
 use std::collections::HashSet;
 
 pub(super) fn show_tab_bar_section(
@@ -307,6 +307,36 @@ pub(super) fn show_tab_bar_section(
             settings.has_changes = true;
             *changes_this_frame = true;
         }
+
+        ui.add_space(4.0);
+        ui.horizontal(|ui| {
+            ui.label("New tab position:");
+            egui::ComboBox::from_id_salt("window_new_tab_position")
+                .selected_text(settings.config.new_tab_position.display_name())
+                .show_ui(ui, |ui| {
+                    for &pos in NewTabPosition::all() {
+                        if ui
+                            .selectable_value(
+                                &mut settings.config.new_tab_position,
+                                pos,
+                                pos.display_name(),
+                            )
+                            .on_hover_text(match pos {
+                                NewTabPosition::End => {
+                                    "New tabs are added to the end of the tab bar"
+                                }
+                                NewTabPosition::AfterActive => {
+                                    "New tabs open immediately to the right of the active tab"
+                                }
+                            })
+                            .changed()
+                        {
+                            settings.has_changes = true;
+                            *changes_this_frame = true;
+                        }
+                    }
+                });
+        });
 
         if ui
             .checkbox(

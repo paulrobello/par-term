@@ -318,6 +318,10 @@ pub fn keywords() -> &'static [&'static str] {
         // Tab bar layout
         "tab bar position",
         "tab bar width",
+        "new tab position",
+        "after active",
+        "tab order",
+        "insert tab",
         // Split panes
         "panes",
         "split",
