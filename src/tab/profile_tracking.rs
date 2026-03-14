@@ -62,26 +62,26 @@ impl Tab {
             } else if !osc_title.is_empty() {
                 self.title = osc_title;
                 self.has_default_title = false;
-            } else if title_mode == par_term_config::TabTitleMode::Auto {
-                if let Some(cwd) = cwd {
-                    // Abbreviate home directory to ~
-                    let abbreviated = if let Some(home) = dirs::home_dir() {
-                        cwd.replace(&home.to_string_lossy().to_string(), "~")
-                    } else {
-                        cwd
-                    };
-                    // Use just the last component for brevity (original pattern)
-                    if let Some(last) = abbreviated.rsplit('/').next() {
-                        if !last.is_empty() {
-                            self.title = last.to_string();
-                        } else {
-                            self.title = abbreviated;
-                        }
+            } else if title_mode == par_term_config::TabTitleMode::Auto
+                && let Some(cwd) = cwd
+            {
+                // Abbreviate home directory to ~
+                let abbreviated = if let Some(home) = dirs::home_dir() {
+                    cwd.replace(&home.to_string_lossy().to_string(), "~")
+                } else {
+                    cwd
+                };
+                // Use just the last component for brevity (original pattern)
+                if let Some(last) = abbreviated.rsplit('/').next() {
+                    if !last.is_empty() {
+                        self.title = last.to_string();
                     } else {
                         self.title = abbreviated;
                     }
-                    self.has_default_title = false;
+                } else {
+                    self.title = abbreviated;
                 }
+                self.has_default_title = false;
             }
             // else: keep existing title
         }
@@ -249,10 +249,19 @@ fn format_remote_title(
                 let abbrev = if let Some(ref user) = username {
                     let linux_home = format!("/home/{}", user);
                     let macos_home = format!("/Users/{}", user);
-                    if cwd.starts_with(&linux_home) {
-                        cwd.replacen(&linux_home, "~", 1)
-                    } else if cwd.starts_with(&macos_home) {
-                        cwd.replacen(&macos_home, "~", 1)
+                    let abbrev_with = |home: &str| -> Option<String> {
+                        if cwd == home {
+                            Some("~".to_string())
+                        } else if cwd.starts_with(&format!("{}/", home)) {
+                            Some(format!("~{}", &cwd[home.len()..]))
+                        } else {
+                            None
+                        }
+                    };
+                    if let Some(a) = abbrev_with(&linux_home) {
+                        a
+                    } else if let Some(a) = abbrev_with(&macos_home) {
+                        a
                     } else {
                         cwd
                     }
@@ -347,6 +356,28 @@ mod format_remote_title_tests {
             RemoteTabTitleFormat::HostAndCwd,
         );
         assert_eq!(result, "server:/var/log");
+    }
+
+    #[test]
+    fn host_and_cwd_does_not_abbreviate_partial_username_match() {
+        let result = format_remote_title(
+            Some("server".into()),
+            Some("alice".into()),
+            Some("/home/alice2/projects".into()),
+            RemoteTabTitleFormat::HostAndCwd,
+        );
+        assert_eq!(result, "server:/home/alice2/projects");
+    }
+
+    #[test]
+    fn host_and_cwd_exact_home_dir_shows_tilde() {
+        let result = format_remote_title(
+            Some("server".into()),
+            Some("alice".into()),
+            Some("/home/alice".into()),
+            RemoteTabTitleFormat::HostAndCwd,
+        );
+        assert_eq!(result, "server:~");
     }
 }
 
