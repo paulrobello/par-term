@@ -36,6 +36,9 @@ impl WindowState {
         // Remember tab count before creating new tab to detect tab bar visibility change
         let old_tab_count = self.tab_manager.tab_count();
 
+        // Capture BEFORE creation — tab_manager switches active to the new tab inside new_tab()
+        let prior_active_idx = self.tab_manager.active_tab_index();
+
         // Get current grid size from renderer to pass to new tab
         // This accounts for possible tab bar height changes
         let grid_size = self.renderer.as_ref().map(|r| r.grid_size());
@@ -47,6 +50,13 @@ impl WindowState {
             grid_size,
         ) {
             Ok(tab_id) => {
+                // Reposition new tab if configured
+                if self.config.new_tab_position == crate::config::NewTabPosition::AfterActive {
+                    if let Some(idx) = prior_active_idx {
+                        self.tab_manager.move_tab_to_index(tab_id, idx + 1);
+                    }
+                }
+
                 // Check if tab bar visibility changed (e.g., from 1 to 2 tabs with WhenMultiple mode)
                 let new_tab_count = self.tab_manager.tab_count();
                 let old_tab_bar_height = self.tab_bar_ui.get_height(old_tab_count, &self.config);
