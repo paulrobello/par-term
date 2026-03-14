@@ -10,6 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Per-tab tmux auto-connect via profiles and arrangements** — profiles can now automatically connect to a named tmux session when opened, and arrangements capture/restore that session on save/restore:
+  - **Profile fields** — `tmux_session_name` (string, empty = disabled) and `tmux_connection_mode` (`control_mode` / `normal`). Uses create-or-attach semantics (`tmux new-session -A -s <name>`), so the session is created if absent or reattached if it already exists.
+  - **Control Mode** (default) — connects via `tmux -CC` for full par-term integration: pane sync, window tabs per tmux window, and input routing.
+  - **Normal Mode** — writes a plain `tmux new-session -A -s <name>` command to the PTY; tmux runs in the terminal with no par-term integration.
+  - **Arrangement capture/restore** — saving an arrangement records the active control-mode session name per window; restoring reconnects each window to its saved session automatically (failures are logged as warnings, not errors).
+  - **Settings UI** — a collapsible **Tmux Auto-Connect** section in the profile editor provides a session name text field and radio buttons for Control Mode vs Normal. Discoverable via settings search (`tmux`, `tmux session`, `auto-connect`).
+  - Auto-connect is skipped silently when `tmux_enabled = false` or when the window is already connected to a tmux gateway.
 - **Remote tab title format** — two new config fields control how the tab title is displayed when shell integration detects a remote host (via SSH):
   - `remote_tab_title_format` — choose between `user_at_host` (e.g. `alice@server`, default), `host` (hostname only), or `host_and_cwd` (e.g. `server:~/projects`). The `host_and_cwd` format abbreviates the remote user's home directory to `~` using the remote username, not the local `$HOME`.
   - `remote_tab_title_osc_priority` — when `true` (default), an explicit OSC title sequence (`\033]0;...`) takes priority over the remote format; when `false`, the format always wins.
