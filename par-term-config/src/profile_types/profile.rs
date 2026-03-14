@@ -8,6 +8,24 @@ use super::dynamic::ProfileSource;
 /// Unique identifier for a profile
 pub type ProfileId = Uuid;
 
+/// How to connect this profile to a tmux session when it opens.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum TmuxConnectionMode {
+    /// Full par-term integration via `tmux -CC` (control mode)
+    #[default]
+    ControlMode,
+    /// Plain tmux running in the PTY — no par-term integration
+    Normal,
+}
+
+impl TmuxConnectionMode {
+    /// Returns true if this is the default ControlMode (used for skip_serializing_if)
+    pub fn is_control_mode(v: &Self) -> bool {
+        *v == Self::ControlMode
+    }
+}
+
 /// A terminal session profile containing configuration for how to start a session
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Profile {
@@ -73,6 +91,15 @@ pub struct Profile {
     /// Supports glob patterns (e.g., "work-*", "dev-session", "*-production")
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tmux_session_patterns: Vec<String>,
+
+    /// tmux session to auto-connect to when this profile is opened.
+    /// Uses create-or-attach semantics (tmux new-session -A -s <name>).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tmux_session_name: Option<String>,
+
+    /// How to connect: control mode (full integration) or normal (plain tmux in PTY).
+    #[serde(default, skip_serializing_if = "TmuxConnectionMode::is_control_mode")]
+    pub tmux_connection_mode: TmuxConnectionMode,
 
     /// Directory patterns for automatic profile switching based on CWD
     /// Supports glob patterns (e.g., "/Users/*/projects/work-*", "/home/user/dev/*")
@@ -170,6 +197,8 @@ impl Profile {
             keyboard_shortcut: None,
             hostname_patterns: Vec::new(),
             tmux_session_patterns: Vec::new(),
+            tmux_session_name: None,
+            tmux_connection_mode: TmuxConnectionMode::default(),
             directory_patterns: Vec::new(),
             badge_text: None,
             badge_color: None,
@@ -209,6 +238,8 @@ impl Profile {
             keyboard_shortcut: None,
             hostname_patterns: Vec::new(),
             tmux_session_patterns: Vec::new(),
+            tmux_session_name: None,
+            tmux_connection_mode: TmuxConnectionMode::default(),
             directory_patterns: Vec::new(),
             badge_text: None,
             badge_color: None,
@@ -305,6 +336,18 @@ impl Profile {
     /// Builder method to set tmux session patterns
     pub fn tmux_session_patterns(mut self, patterns: Vec<String>) -> Self {
         self.tmux_session_patterns = patterns;
+        self
+    }
+
+    /// Builder method to set tmux session name for auto-connect
+    pub fn tmux_session_name(mut self, name: impl Into<String>) -> Self {
+        self.tmux_session_name = Some(name.into());
+        self
+    }
+
+    /// Builder method to set tmux connection mode
+    pub fn tmux_connection_mode(mut self, mode: TmuxConnectionMode) -> Self {
+        self.tmux_connection_mode = mode;
         self
     }
 

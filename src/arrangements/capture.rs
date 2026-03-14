@@ -113,6 +113,7 @@ pub fn capture_arrangement(
             size,
             tabs,
             active_tab_index,
+            tmux_session_name: None,
         });
     }
 

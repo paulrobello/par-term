@@ -79,7 +79,7 @@ pub use status_bar::{StatusBarSection, StatusBarWidgetConfig, WidgetId, default_
 // Profile configuration
 pub use profile::{ConflictResolution, DynamicProfileSource};
 // Profile types and manager
-pub use profile_types::{Profile, ProfileId, ProfileManager, ProfileSource};
+pub use profile_types::{Profile, ProfileId, ProfileManager, ProfileSource, TmuxConnectionMode};
 // Shader config resolution
 pub use shader_config::{resolve_cursor_shader_config, resolve_shader_config};
 // Shader metadata
