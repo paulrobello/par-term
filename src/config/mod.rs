@@ -50,7 +50,7 @@ pub use par_term_config::{
     CursorShaderMetadata, CursorStyle, DividerRect, DividerStyle, DownloadSaveLocation,
     DroppedFileQuoteStyle, FontRange, ImageScalingMode, InstallPromptState, IntegrationVersions,
     KeyBinding, KeyModifier, LinkUnderlineStyle, LogLevel, ModifierRemapping, ModifierTarget,
-    OptionKeyMode, PaneBackground, PaneBackgroundConfig, PaneId, PaneTitlePosition,
+    NewTabPosition, OptionKeyMode, PaneBackground, PaneBackgroundConfig, PaneId, PaneTitlePosition,
     PowerPreference, ProgressBarPosition, ProgressBarStyle, ResolvedCursorShaderConfig,
     ResolvedShaderConfig, SemanticHistoryEditorMode, SeparatorMark, SessionLogFormat, ShaderConfig,
     ShaderInstallPrompt, ShaderMetadata, ShellExitAction, ShellType, SmartSelectionPrecision,

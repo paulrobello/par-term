@@ -10,8 +10,8 @@ use crate::types::{
     ImageScalingMode, InstallPromptState, IntegrationVersions, LogLevel, ModifierRemapping,
     OptionKeyMode, PaneTitlePosition, PowerPreference, ProgressBarPosition, ProgressBarStyle,
     RemoteTabTitleFormat, SemanticHistoryEditorMode, SessionLogFormat, ShaderInstallPrompt,
-    ShellExitAction, TabBarMode, TabBarPosition, TabStyle, TabTitleMode, ThinStrokesMode,
-    UnfocusedCursorStyle, VsyncMode, WindowType, default_smart_selection_rules,
+    NewTabPosition, ShellExitAction, TabBarMode, TabBarPosition, TabStyle, TabTitleMode,
+    ThinStrokesMode, UnfocusedCursorStyle, VsyncMode, WindowType, default_smart_selection_rules,
 };
 
 use super::{
@@ -176,6 +176,7 @@ impl Default for Config {
             max_tabs: crate::defaults::zero(),
             show_profile_drawer_button: crate::defaults::bool_false(),
             new_tab_shortcut_shows_profiles: crate::defaults::bool_false(),
+            new_tab_position: NewTabPosition::default(),
             tab_bar_background: crate::defaults::tab_bar_background(),
             tab_active_background: crate::defaults::tab_active_background(),
             tab_inactive_background: crate::defaults::tab_inactive_background(),

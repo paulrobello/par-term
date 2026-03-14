@@ -99,8 +99,9 @@ use crate::types::{
     IntegrationVersions, KeyBinding, LogLevel, ModifierRemapping, OptionKeyMode, PaneTitlePosition,
     PowerPreference, ProgressBarPosition, ProgressBarStyle, RemoteTabTitleFormat,
     SemanticHistoryEditorMode, SessionLogFormat, ShaderConfig, ShaderInstallPrompt,
-    ShellExitAction, SmartSelectionRule, StartupDirectoryMode, TabBarMode, TabBarPosition,
-    TabStyle, TabTitleMode, ThinStrokesMode, UnfocusedCursorStyle, VsyncMode, WindowType,
+    NewTabPosition, ShellExitAction, SmartSelectionRule, StartupDirectoryMode, TabBarMode,
+    TabBarPosition, TabStyle, TabTitleMode, ThinStrokesMode, UnfocusedCursorStyle, VsyncMode,
+    WindowType,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -1000,6 +1001,11 @@ pub struct Config {
     #[serde(default = "crate::defaults::bool_false")]
     pub new_tab_shortcut_shows_profiles: bool,
 
+    /// Where to insert new tabs in the tab bar.
+    /// `end` appends to the end (default); `after_active` inserts right of the active tab.
+    #[serde(default)]
+    pub new_tab_position: NewTabPosition,
+
     // ========================================================================
     // Tab Bar Colors
     // ========================================================================
@@ -1634,4 +1640,31 @@ pub struct Config {
     /// runtime and never written to or read from the config file.
     #[serde(skip)]
     pub unaccepted_risk_trigger_names: Vec<String>,
+}
+
+#[cfg(test)]
+mod new_tab_position_config_tests {
+    use super::*;
+    use crate::NewTabPosition;
+
+    #[test]
+    fn new_tab_position_defaults_to_end() {
+        let config = Config::default();
+        assert_eq!(config.new_tab_position, NewTabPosition::End);
+    }
+
+    #[test]
+    fn new_tab_position_deserializes_from_yaml() {
+        let yaml = "new_tab_position: after_active";
+        let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
+        assert_eq!(config.new_tab_position, NewTabPosition::AfterActive);
+    }
+
+    #[test]
+    fn config_without_new_tab_position_deserializes_to_default() {
+        // Existing configs that don't have this field must deserialize cleanly — zero migration.
+        let yaml = "tab_inherit_cwd: true";
+        let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
+        assert_eq!(config.new_tab_position, NewTabPosition::End);
+    }
 }
