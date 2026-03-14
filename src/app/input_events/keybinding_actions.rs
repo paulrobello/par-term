@@ -159,6 +159,11 @@ impl WindowState {
                 }
                 true
             }
+            "duplicate_tab" => {
+                self.duplicate_tab();
+                log::info!("Tab duplicated via keybinding");
+                true
+            }
             "next_tab" => {
                 self.next_tab();
                 log::debug!("Switched to next tab via keybinding");

@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Duplicate Tab keybinding** — `duplicate_tab` is now a named keybinding action, allowing users to assign any hotkey to clone the current tab via **Settings → Keyboard → Actions**. The action was previously only accessible via the tab context menu and macOS menu bar.
 - **New tab position** — new config option `new_tab_position` controls where new tabs are inserted in the tab bar. `end` (default) preserves existing behavior; `after_active` inserts the new tab immediately to the right of the currently active tab. Applies consistently to all user-initiated new-tab actions (keyboard shortcut, "+" button, profile picker, custom `NewTab` actions). Session undo and arrangement restore are unaffected — they always restore tabs to their original positions. Configurable in **Settings → Window → Tab Bar**; searchable via "new tab position" / "after active".
 - **Per-tab tmux auto-connect via profiles and arrangements** — profiles can now automatically connect to a named tmux session when opened, and arrangements capture/restore that session on save/restore:
   - **Profile fields** — `tmux_session_name` (string, empty = disabled) and `tmux_connection_mode` (`control_mode` / `normal`). Uses create-or-attach semantics (`tmux new-session -A -s <name>`), so the session is created if absent or reattached if it already exists.
