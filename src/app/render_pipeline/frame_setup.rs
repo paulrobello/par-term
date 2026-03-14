@@ -51,8 +51,11 @@ impl WindowState {
         };
 
         // Update tab titles from terminal OSC sequences
-        self.tab_manager
-            .update_all_titles(self.config.tab_title_mode);
+        self.tab_manager.update_all_titles(
+            self.config.tab_title_mode,
+            self.config.remote_tab_title_format,
+            self.config.remote_tab_title_osc_priority,
+        );
 
         // Rebuild renderer if font-related settings changed
         if self.render_loop.pending_font_rebuild {

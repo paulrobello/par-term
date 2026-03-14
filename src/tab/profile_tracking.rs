@@ -18,39 +18,72 @@ impl Tab {
         }
     }
 
-    /// Update tab title from terminal OSC sequences
-    pub fn update_title(&mut self, title_mode: par_term_config::TabTitleMode) {
+    /// Update tab title from terminal OSC sequences or shell integration data.
+    ///
+    /// Priority when on a **remote** host (hostname detected via OSC 7):
+    ///   1. Explicit OSC title (`\033]0;...\007`) if `remote_osc_priority` is true
+    ///   2. `remote_format` — formatted from hostname/username/cwd
+    ///
+    /// Priority when **local**:
+    ///   1. Explicit OSC title
+    ///   2. Last CWD component (only in `TabTitleMode::Auto`)
+    ///
+    /// User-named tabs are never auto-updated.
+    pub fn update_title(
+        &mut self,
+        title_mode: par_term_config::TabTitleMode,
+        remote_format: par_term_config::RemoteTabTitleFormat,
+        remote_osc_priority: bool,
+    ) {
         // User-named tabs are static — never auto-update
         if self.user_named {
             return;
         }
+        // try_write: intentional — called every frame from the render path; blocking would
+        // stall rendering. On miss: title is not updated this frame. No data loss.
         if let Ok(term) = self.terminal.try_write() {
+            // Collect all values in a single lock acquisition
             let osc_title = term.get_title();
-            if !osc_title.is_empty() {
+            let hostname  = term.shell_integration_hostname();
+            let username  = term.shell_integration_username();
+            let cwd       = term.shell_integration_cwd();
+            drop(term); // release lock before mutating self
+
+            let is_remote = hostname.is_some();
+
+            if is_remote {
+                if remote_osc_priority && !osc_title.is_empty() {
+                    self.title = osc_title;
+                    self.has_default_title = false;
+                } else {
+                    self.title = format_remote_title(hostname, username, cwd, remote_format);
+                    self.has_default_title = false;
+                }
+            } else if !osc_title.is_empty() {
                 self.title = osc_title;
                 self.has_default_title = false;
-            } else if title_mode == par_term_config::TabTitleMode::Auto
-                && let Some(cwd) = term.shell_integration_cwd()
-            {
-                // Abbreviate home directory to ~
-                let abbreviated = if let Some(home) = dirs::home_dir() {
-                    cwd.replace(&home.to_string_lossy().to_string(), "~")
-                } else {
-                    cwd
-                };
-                // Use just the last component for brevity
-                if let Some(last) = abbreviated.rsplit('/').next() {
-                    if !last.is_empty() {
-                        self.title = last.to_string();
+            } else if title_mode == par_term_config::TabTitleMode::Auto {
+                if let Some(cwd) = cwd {
+                    // Abbreviate home directory to ~
+                    let abbreviated = if let Some(home) = dirs::home_dir() {
+                        cwd.replace(&home.to_string_lossy().to_string(), "~")
+                    } else {
+                        cwd
+                    };
+                    // Use just the last component for brevity (original pattern)
+                    if let Some(last) = abbreviated.rsplit('/').next() {
+                        if !last.is_empty() {
+                            self.title = last.to_string();
+                        } else {
+                            self.title = abbreviated;
+                        }
                     } else {
                         self.title = abbreviated;
                     }
-                } else {
-                    self.title = abbreviated;
+                    self.has_default_title = false;
                 }
-                self.has_default_title = false;
             }
-            // Otherwise keep the existing title (e.g., "Tab N")
+            // else: keep existing title
         }
     }
 
@@ -186,6 +219,134 @@ impl Tab {
             self.title = original;
         }
         self.profile.badge_override = None;
+    }
+}
+
+/// Format a tab title for a remote host based on the configured format.
+///
+/// Uses the remote username to abbreviate the home directory in `HostAndCwd` mode
+/// (e.g. `/home/alice/projects` → `~/projects`) rather than the local `$HOME`,
+/// which never matches remote paths.
+fn format_remote_title(
+    hostname: Option<String>,
+    username: Option<String>,
+    cwd: Option<String>,
+    format: par_term_config::RemoteTabTitleFormat,
+) -> String {
+    use par_term_config::RemoteTabTitleFormat;
+    let host = hostname.unwrap_or_default();
+    match format {
+        RemoteTabTitleFormat::UserAtHost => {
+            if let Some(user) = username {
+                format!("{}@{}", user, host)
+            } else {
+                host
+            }
+        }
+        RemoteTabTitleFormat::Host => host,
+        RemoteTabTitleFormat::HostAndCwd => {
+            if let Some(cwd) = cwd {
+                let abbrev = if let Some(ref user) = username {
+                    let linux_home = format!("/home/{}", user);
+                    let macos_home = format!("/Users/{}", user);
+                    if cwd.starts_with(&linux_home) {
+                        cwd.replacen(&linux_home, "~", 1)
+                    } else if cwd.starts_with(&macos_home) {
+                        cwd.replacen(&macos_home, "~", 1)
+                    } else {
+                        cwd
+                    }
+                } else {
+                    cwd
+                };
+                format!("{}:{}", host, abbrev)
+            } else {
+                host
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod format_remote_title_tests {
+    use super::format_remote_title;
+    use par_term_config::RemoteTabTitleFormat;
+
+    #[test]
+    fn user_at_host_with_both() {
+        let result = format_remote_title(
+            Some("server".into()),
+            Some("alice".into()),
+            None,
+            RemoteTabTitleFormat::UserAtHost,
+        );
+        assert_eq!(result, "alice@server");
+    }
+
+    #[test]
+    fn user_at_host_no_username_falls_back_to_host() {
+        let result = format_remote_title(
+            Some("server".into()),
+            None,
+            None,
+            RemoteTabTitleFormat::UserAtHost,
+        );
+        assert_eq!(result, "server");
+    }
+
+    #[test]
+    fn host_only() {
+        let result = format_remote_title(
+            Some("mybox".into()),
+            Some("bob".into()),
+            Some("/home/bob/projects".into()),
+            RemoteTabTitleFormat::Host,
+        );
+        assert_eq!(result, "mybox");
+    }
+
+    #[test]
+    fn host_and_cwd_abbreviates_linux_home() {
+        let result = format_remote_title(
+            Some("server".into()),
+            Some("alice".into()),
+            Some("/home/alice/projects/foo".into()),
+            RemoteTabTitleFormat::HostAndCwd,
+        );
+        assert_eq!(result, "server:~/projects/foo");
+    }
+
+    #[test]
+    fn host_and_cwd_abbreviates_macos_home() {
+        let result = format_remote_title(
+            Some("mac".into()),
+            Some("alice".into()),
+            Some("/Users/alice/dev".into()),
+            RemoteTabTitleFormat::HostAndCwd,
+        );
+        assert_eq!(result, "mac:~/dev");
+    }
+
+    #[test]
+    fn host_and_cwd_no_cwd_falls_back_to_host() {
+        let result = format_remote_title(
+            Some("server".into()),
+            Some("alice".into()),
+            None,
+            RemoteTabTitleFormat::HostAndCwd,
+        );
+        assert_eq!(result, "server");
+    }
+
+    #[test]
+    fn host_and_cwd_unknown_path_no_abbreviation() {
+        let result = format_remote_title(
+            Some("server".into()),
+            Some("alice".into()),
+            Some("/var/log".into()),
+            RemoteTabTitleFormat::HostAndCwd,
+        );
+        assert_eq!(result, "server:/var/log");
     }
 }
 

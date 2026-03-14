@@ -72,7 +72,11 @@ impl WindowState {
                         tab.user_named = false;
                         tab.has_default_title = true;
                         // Trigger immediate title update
-                        tab.update_title(self.config.tab_title_mode);
+                        tab.update_title(
+                            self.config.tab_title_mode,
+                            self.config.remote_tab_title_format,
+                            self.config.remote_tab_title_osc_priority,
+                        );
                     } else {
                         tab.title = name;
                         tab.user_named = true;

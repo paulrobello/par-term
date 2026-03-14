@@ -301,9 +301,14 @@ impl TabManager {
     }
 
     /// Update titles for all tabs
-    pub fn update_all_titles(&mut self, title_mode: par_term_config::TabTitleMode) {
+    pub fn update_all_titles(
+        &mut self,
+        title_mode: par_term_config::TabTitleMode,
+        remote_format: par_term_config::RemoteTabTitleFormat,
+        remote_osc_priority: bool,
+    ) {
         for tab in &mut self.tabs {
-            tab.update_title(title_mode);
+            tab.update_title(title_mode, remote_format, remote_osc_priority);
         }
     }
 
