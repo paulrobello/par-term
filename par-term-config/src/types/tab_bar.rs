@@ -140,7 +140,7 @@ pub enum RemoteTabTitleFormat {
     UserAtHost,
     /// "host" — remote hostname only
     Host,
-    /// "host:~/dir" — hostname plus abbreviated CWD
+    /// "host:~/cwd" — hostname plus abbreviated CWD
     HostAndCwd,
 }
 
