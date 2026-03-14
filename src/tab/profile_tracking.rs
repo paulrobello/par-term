@@ -53,13 +53,17 @@ impl Tab {
             // local machine's hostname.  `shell_integration_hostname()` returns
             // `Some(local_hostname)` for ordinary local shells with shell integration
             // enabled, so we must not treat every non-None value as a remote host.
-            let local_hostname = hostname::get()
-                .ok()
-                .and_then(|h| h.into_string().ok())
-                .unwrap_or_default();
-            let is_remote = match &hostname {
-                Some(h) => h != &local_hostname,
-                None => false,
+            //
+            // If we cannot determine the local hostname (hostname::get() error or
+            // non-UTF-8 result), we conservatively assume the tab is local.
+            let is_remote = if let Some(reported_host) = &hostname {
+                hostname::get()
+                    .ok()
+                    .and_then(|h| h.into_string().ok())
+                    .map(|local| !reported_host.eq_ignore_ascii_case(&local))
+                    .unwrap_or(false)
+            } else {
+                false
             };
 
             if is_remote {
