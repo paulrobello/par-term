@@ -49,7 +49,18 @@ impl Tab {
             let cwd       = term.shell_integration_cwd();
             drop(term); // release lock before mutating self
 
-            let is_remote = hostname.is_some();
+            // A terminal is "remote" only when the OSC 7 hostname differs from the
+            // local machine's hostname.  `shell_integration_hostname()` returns
+            // `Some(local_hostname)` for ordinary local shells with shell integration
+            // enabled, so we must not treat every non-None value as a remote host.
+            let local_hostname = hostname::get()
+                .ok()
+                .and_then(|h| h.into_string().ok())
+                .unwrap_or_default();
+            let is_remote = match &hostname {
+                Some(h) => h != &local_hostname,
+                None => false,
+            };
 
             if is_remote {
                 if remote_osc_priority && !osc_title.is_empty() {
