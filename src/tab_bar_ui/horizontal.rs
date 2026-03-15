@@ -23,7 +23,8 @@ impl TabBarUI {
         profiles: &crate::profile::ProfileManager,
         right_reserved_width: f32,
     ) -> TabBarAction {
-        let tab_count = tabs.tab_count();
+        let tab_count = tabs.visible_tab_count();
+        let visible_tabs = tabs.visible_tabs();
 
         // Clear per-frame tab rect cache
         self.tab_rects.clear();
@@ -130,7 +131,7 @@ impl TabBarUI {
                             ui.horizontal(|ui| {
                                 ui.spacing_mut().item_spacing = egui::vec2(tab_spacing, 0.0);
 
-                                for (index, tab) in tabs.tabs().iter().enumerate() {
+                                for (index, tab) in visible_tabs.iter().enumerate() {
                                     let is_active = Some(tab.id) == active_tab_id;
                                     let is_bell_active = tab.is_bell_active();
                                     let (tab_action, tab_rect) = self.render_tab_with_width(
@@ -182,7 +183,7 @@ impl TabBarUI {
                     }
                 } else {
                     // No scrolling needed - render all tabs with equal width
-                    for (index, tab) in tabs.tabs().iter().enumerate() {
+                    for (index, tab) in visible_tabs.iter().enumerate() {
                         let is_active = Some(tab.id) == active_tab_id;
                         let is_bell_active = tab.is_bell_active();
                         let (tab_action, tab_rect) = self.render_tab_with_width(

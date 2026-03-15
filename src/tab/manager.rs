@@ -252,6 +252,16 @@ impl TabManager {
         self.tabs.len()
     }
 
+    /// Get the number of visible (non-hidden) tabs
+    pub fn visible_tab_count(&self) -> usize {
+        self.tabs.iter().filter(|t| !t.is_hidden).count()
+    }
+
+    /// Get all visible (non-hidden) tabs as a slice-like iterator
+    pub fn visible_tabs(&self) -> Vec<&Tab> {
+        self.tabs.iter().filter(|t| !t.is_hidden).collect()
+    }
+
     /// Check if there are multiple tabs
     pub fn has_multiple_tabs(&self) -> bool {
         self.tabs.len() > 1

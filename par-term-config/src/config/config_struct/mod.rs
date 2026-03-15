@@ -1208,6 +1208,13 @@ pub struct Config {
     #[serde(default = "crate::defaults::bool_true")]
     pub tmux_clipboard_sync: bool,
 
+    /// Hide the tmux control-mode gateway tab while tmux windows are active.
+    /// When enabled, the tab running `tmux -CC` is hidden from the tab bar once
+    /// the first tmux window tab appears. It is restored when the session ends.
+    /// Default: false
+    #[serde(default = "crate::defaults::bool_false")]
+    pub tmux_hide_gateway_tab: bool,
+
     /// Profile to switch to when connected to tmux
     /// When profiles feature is implemented, this will automatically
     /// switch to the specified profile when entering tmux mode

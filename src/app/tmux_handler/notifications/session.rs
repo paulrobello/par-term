@@ -119,6 +119,9 @@ impl WindowState {
     pub(super) fn handle_tmux_session_ended(&mut self) {
         crate::debug_info!("TMUX", "Session ended");
 
+        // Restore gateway tab visibility before tearing down tmux state
+        self.show_gateway_tab();
+
         // Collect tmux display tabs to close (tabs with tmux_pane_id set, excluding gateway)
         let gateway_tab_id = self.tmux_state.tmux_gateway_tab_id;
         let tmux_tabs_to_close: Vec<crate::tab::TabId> = self

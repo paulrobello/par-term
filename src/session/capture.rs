@@ -25,10 +25,10 @@ pub fn capture_session(windows: &HashMap<WindowId, WindowState>) -> SessionState
         let window_pos = window.outer_position().unwrap_or_default();
         let inner_size = window.inner_size();
 
-        // Capture tabs
-        let tabs: Vec<SessionTab> = window_state
-            .tab_manager
-            .tabs()
+        // Capture visible tabs only — hidden tabs (e.g. tmux gateway) are
+        // transient control-mode connections that should not be persisted.
+        let visible_tabs = window_state.tab_manager.visible_tabs();
+        let tabs: Vec<SessionTab> = visible_tabs
             .iter()
             .map(|tab| {
                 // Only capture pane_layout for multi-pane (Split) layouts.
@@ -62,7 +62,11 @@ pub fn capture_session(windows: &HashMap<WindowId, WindowState>) -> SessionState
             })
             .collect();
 
-        let active_tab_index = window_state.tab_manager.active_tab_index().unwrap_or(0);
+        // active_tab_index must be relative to the visible-only list
+        let active_tab_id = window_state.tab_manager.active_tab_id();
+        let active_tab_index = active_tab_id
+            .and_then(|id| visible_tabs.iter().position(|t| t.id == id))
+            .unwrap_or(0);
 
         session_windows.push(SessionWindow {
             position: (
@@ -75,6 +79,7 @@ pub fn capture_session(windows: &HashMap<WindowId, WindowState>) -> SessionState
             ),
             tabs,
             active_tab_index,
+            tmux_session_name: window_state.tmux_state.tmux_session_name.clone(),
         });
     }
 

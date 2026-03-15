@@ -77,7 +77,7 @@ impl WindowState {
                 log::info!("Close requested for window");
 
                 // Check if prompt_on_quit is enabled and there are active sessions
-                let tab_count = self.tab_manager.tab_count();
+                let tab_count = self.tab_manager.visible_tab_count();
                 if self.config.prompt_on_quit
                     && tab_count > 0
                     && !self.overlay_ui.quit_confirmation_ui.is_visible()

@@ -104,6 +104,21 @@ Automatically save the current session state on clean exit and restore it when p
 - Custom tab icons -- icons assigned via the tab context menu are persisted and restored
 - Split pane trees with split ratios
 - Active tab index per window
+- Active tmux control-mode session name per window (if connected)
+
+Hidden tabs (such as the tmux gateway tab when `tmux_hide_gateway_tab` is enabled) are excluded from the saved tab list — they are transient connections, not user tabs.
+
+### tmux Session Restore
+
+When a window was connected to a tmux session in control mode at the time of save, the session name is persisted alongside the window. On restore:
+
+1. A single empty gateway shell tab is created for the window.
+2. `initiate_tmux_gateway(session_name)` is called to reconnect to the tmux session using create-or-attach semantics.
+3. The real tmux window tabs are populated by the tmux session via normal layout-change notifications — the saved tab list is not used to spawn additional shells.
+
+This avoids duplicate tabs (ghost shells + real tmux windows) that would otherwise appear if saved tab CWDs were restored alongside a live tmux reconnect.
+
+Requires `tmux_enabled: true`. Failures to reconnect are logged as warnings; the window opens normally with the gateway shell tab in that case.
 
 ### Restore Behavior
 

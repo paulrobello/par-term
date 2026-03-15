@@ -143,6 +143,25 @@ pub(super) fn show_tmux_section(
 
             ui.add_space(8.0);
 
+            // Gateway Tab
+            ui.label(egui::RichText::new("Gateway Tab").strong());
+            if ui
+                .checkbox(
+                    &mut settings.config.tmux_hide_gateway_tab,
+                    "Hide control-mode tab",
+                )
+                .on_hover_text(
+                    "Hide the tmux -CC gateway tab from the tab bar while tmux windows are active. \
+                     The tab is restored when the session ends.",
+                )
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+
+            ui.add_space(8.0);
+
             // Status Bar
             ui.label(egui::RichText::new("Status Bar").strong());
             if ui

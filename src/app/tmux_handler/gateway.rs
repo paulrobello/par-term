@@ -174,6 +174,9 @@ impl WindowState {
 
     /// Disconnect from the current tmux session
     pub fn disconnect_tmux_session(&mut self) {
+        // Restore gateway tab visibility before clearing state
+        self.show_gateway_tab();
+
         // Clear the gateway tab ID
         self.tmux_state.tmux_gateway_tab_id = None;
 
@@ -460,6 +463,50 @@ impl WindowState {
                     if is_horizontal_divider { rows } else { cols }
                 );
             }
+        }
+    }
+
+    // =========================================================================
+    // Gateway Tab Visibility
+    // =========================================================================
+
+    /// Hide the gateway tab from the tab bar once tmux windows are active.
+    ///
+    /// Called after the first tmux window tab is created so the control-mode
+    /// connection tab no longer clutters the tab bar. The tab still exists and
+    /// all PTY I/O continues to flow through it; it is simply excluded from the
+    /// visible tab list. The tab is restored when the session ends.
+    ///
+    /// No-op when `config.tmux_hide_gateway_tab` is false.
+    pub(crate) fn hide_gateway_tab(&mut self) {
+        if !self.config.tmux_hide_gateway_tab {
+            return;
+        }
+        if let Some(gateway_tab_id) = self.tmux_state.tmux_gateway_tab_id
+            && let Some(tab) = self.tab_manager.get_tab_mut(gateway_tab_id)
+            && !tab.is_hidden
+        {
+            tab.is_hidden = true;
+            crate::debug_info!(
+                "TMUX",
+                "Gateway tab {} hidden (tmux windows active)",
+                gateway_tab_id
+            );
+        }
+    }
+
+    /// Restore the gateway tab to the tab bar when no tmux windows are active.
+    pub(crate) fn show_gateway_tab(&mut self) {
+        if let Some(gateway_tab_id) = self.tmux_state.tmux_gateway_tab_id
+            && let Some(tab) = self.tab_manager.get_tab_mut(gateway_tab_id)
+            && tab.is_hidden
+        {
+            tab.is_hidden = false;
+            crate::debug_info!(
+                "TMUX",
+                "Gateway tab {} restored to tab bar",
+                gateway_tab_id
+            );
         }
     }
 

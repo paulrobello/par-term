@@ -76,9 +76,11 @@ graph TD
 
 When saving an arrangement, par-term captures the active tmux session name for each window (if connected in control mode). When restoring the arrangement, each window automatically reconnects to its saved tmux session.
 
-**Capture**: The session name stored in `window_state.tmux_state.tmux_session_name` is written to the arrangement YAML as `tmux_session_name` on the `WindowSnapshot`.
+**Capture**: The session name stored in `window_state.tmux_state.tmux_session_name` is written to the arrangement YAML as `tmux_session_name` on the `WindowSnapshot`. Only visible tabs are captured — the hidden control-mode gateway tab is excluded from the tab list because it is a transient PTY connection, not a user tab.
 
-**Restore**: On restore, if `tmux_session_name` is set and `tmux_enabled = true`, `initiate_tmux_gateway(Some(session_name))` is called for that window. Failures are logged as warnings but do not prevent the window from opening.
+**Restore**: On restore, if `tmux_session_name` is set and `tmux_enabled = true`, a single empty gateway shell tab is created and `initiate_tmux_gateway(Some(session_name))` is called. The real tmux window tabs are then re-created by the tmux session via normal layout-change notifications — they are never reconstructed from the saved tab list. Failures to connect are logged as warnings but do not prevent the window from opening.
+
+**Why only one shell tab**: The saved tab list contains the tmux display tabs from the previous session. If those CWDs were used to spawn new shell processes on restore, you would end up with duplicate tabs (the ghost shells plus the real tmux windows). By passing only one empty CWD, the gateway shell is the only process spawned; the rest of the tab bar is populated by tmux itself.
 
 **Normal mode sessions**: Sessions connected in Normal mode (plain tmux in PTY) are not captured — par-term has no visibility into their session name. Only control-mode sessions are preserved across arrangement save/restore.
 

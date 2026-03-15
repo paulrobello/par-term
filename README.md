@@ -54,6 +54,8 @@ New to par-term? The [Getting Started Guide](docs/GETTING_STARTED.md) walks you 
   - **`repeat`** — runs an action up to N times with optional delay; supports `stop_on_success` / `stop_on_failure`
 - **`capture_output` for Shell Commands**: Set `capture_output: true` on a `shell_command` action to capture stdout+stderr (up to 64 KB) for use by subsequent `condition` checks.
 - **Clone Button for Custom Actions**: Each action row in **Settings → Actions** now has a **Clone** button that duplicates the action with a fresh ID, clears the keybinding and prefix char.
+- **Hide tmux Control-Mode Gateway Tab**: New `tmux_hide_gateway_tab` config option (default `false`). When enabled, the tmux control-mode PTY connection tab is hidden from the tab bar — only the real tmux window tabs are visible, matching iTerm2's "auto-hide tmux client session" behaviour. The gateway tab reappears automatically when the tmux session ends. Configurable in **Settings → Advanced → Tmux**.
+- **tmux Session Name Persisted Across Restarts**: Window arrangements and auto-session restore now capture the active tmux control-mode session name per window. On restore, the window reconnects to the saved session (create-or-attach semantics) and lets the live tmux session repopulate tabs — eliminating duplicate "ghost shell" tabs that previously appeared alongside the real tmux windows.
 
 ### 🐛 Bug Fixes
 
@@ -64,7 +66,6 @@ New to par-term? The [Getting Started Guide](docs/GETTING_STARTED.md) walks you 
 - **Selection Highlight Row Alignment in Split Panes**: Fixed up-to-half-cell row offset during drag-selection caused by missing centering offset in pixel-to-cell mapping.
 - **Split-Pane Divider Highlight Stuck**: Releasing the mouse outside the terminal (e.g. in tab bar or context menu) no longer freezes the divider hover highlight.
 - **Shell Integration `$HOME` Path**: The entries written to `.bashrc` / `.zshrc` / `config.fish` now use `$HOME/` instead of a literal home path, making them portable across user renames.
-- **tmux Control Mode Crash on Key Press**: Pressing any key while a tmux display tab was active caused the entire app to exit. Tmux panes (`Pane::new_for_tmux`) have no local PTY process, so `PtySession::running` is initialized to `false` — the key handler's shell-exit check now correctly treats tmux-managed tabs as always running.
 
 <details>
 <summary><strong>What's New in 0.27.0</strong></summary>

@@ -222,6 +222,7 @@ impl Default for Config {
             tmux_auto_attach: crate::defaults::bool_false(),
             tmux_auto_attach_session: crate::defaults::tmux_auto_attach_session(),
             tmux_clipboard_sync: crate::defaults::bool_true(),
+            tmux_hide_gateway_tab: crate::defaults::bool_false(),
             tmux_profile: None,
             tmux_show_status_bar: crate::defaults::bool_false(),
             tmux_status_bar_refresh_ms: crate::defaults::tmux_status_bar_refresh_ms(),

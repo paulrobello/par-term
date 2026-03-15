@@ -102,5 +102,8 @@ impl WindowState {
                 );
             }
         }
+
+        // Hide the gateway tab now that a tmux window tab exists
+        self.hide_gateway_tab();
     }
 }

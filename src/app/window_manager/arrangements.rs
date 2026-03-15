@@ -120,7 +120,17 @@ impl WindowManager {
                 continue;
             };
 
-            let tab_cwds = crate::arrangements::restore::tab_cwds(&arrangement, i);
+            // When a tmux session is saved, the visible tabs are tmux display tabs that
+            // will be re-created by the tmux session on reconnect.  Pass only a single
+            // empty tab CWD so create_window_with_overrides spawns just the gateway
+            // shell; the real tmux tabs arrive via layout-change notifications.
+            let tab_cwds: Vec<Option<String>> =
+                if window_snapshot.tmux_session_name.is_some() {
+                    vec![None]
+                } else {
+                    crate::arrangements::restore::tab_cwds(&arrangement, i)
+                };
+
             let created_window_id = self.create_window_with_overrides(
                 event_loop,
                 (x, y),
@@ -129,34 +139,35 @@ impl WindowManager {
                 window_snapshot.active_tab_index,
             );
 
-            // Restore user titles, custom colors, and icons from arrangement
             if let Some(window_id) = created_window_id
                 && let Some(window_state) = self.windows.get_mut(&window_id)
             {
-                let tabs = window_state.tab_manager.tabs_mut();
-                for (tab_idx, snapshot) in window_snapshot.tabs.iter().enumerate() {
-                    if let Some(tab) = tabs.get_mut(tab_idx) {
-                        if let Some(ref user_title) = snapshot.user_title {
-                            tab.title = user_title.clone();
-                            tab.user_named = true;
-                            tab.has_default_title = false;
-                        }
-                        if let Some(color) = snapshot.custom_color {
-                            tab.set_custom_color(color);
-                        }
-                        if let Some(ref icon) = snapshot.custom_icon {
-                            tab.custom_icon = Some(icon.clone());
-                        }
-                    }
-                }
-
                 // Auto-connect tmux session if this window had one saved
                 if let Some(ref session_name) = window_snapshot.tmux_session_name
                     && window_state.config.tmux_enabled
                     && !session_name.is_empty()
-                    && let Err(e) = window_state.initiate_tmux_gateway(Some(session_name))
                 {
-                    log::warn!("Arrangement restore: tmux auto-connect failed: {}", e);
+                    if let Err(e) = window_state.initiate_tmux_gateway(Some(session_name)) {
+                        log::warn!("Arrangement restore: tmux auto-connect failed: {}", e);
+                    }
+                } else {
+                    // Non-tmux window: restore user titles, custom colors, and icons
+                    let tabs = window_state.tab_manager.tabs_mut();
+                    for (tab_idx, snapshot) in window_snapshot.tabs.iter().enumerate() {
+                        if let Some(tab) = tabs.get_mut(tab_idx) {
+                            if let Some(ref user_title) = snapshot.user_title {
+                                tab.title = user_title.clone();
+                                tab.user_named = true;
+                                tab.has_default_title = false;
+                            }
+                            if let Some(color) = snapshot.custom_color {
+                                tab.set_custom_color(color);
+                            }
+                            if let Some(ref icon) = snapshot.custom_icon {
+                                tab.custom_icon = Some(icon.clone());
+                            }
+                        }
+                    }
                 }
             }
         }

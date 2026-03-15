@@ -75,7 +75,7 @@ impl WindowState {
     pub(super) fn sync_layout(&mut self) {
         // Sync tab bar offsets with renderer's content offsets
         // This ensures the terminal grid correctly accounts for the tab bar position
-        let tab_count = self.tab_manager.tab_count();
+        let tab_count = self.tab_manager.visible_tab_count();
         let tab_bar_height = self.tab_bar_ui.get_height(tab_count, &self.config);
         let tab_bar_width = self.tab_bar_ui.get_width(tab_count, &self.config);
         crate::debug_trace!(

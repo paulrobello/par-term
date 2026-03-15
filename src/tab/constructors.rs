@@ -204,6 +204,7 @@ impl Tab {
             was_alt_screen: false,
             is_active,
             shutdown_fast: false,
+            is_hidden: false,
         })
     }
 
@@ -429,6 +430,7 @@ impl Tab {
             was_alt_screen: false,
             is_active,
             shutdown_fast: false,
+            is_hidden: false,
         }
     }
 }

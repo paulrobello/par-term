@@ -405,6 +405,7 @@ field uses its documented default value.
 | `tmux_auto_attach_session` | `string?` | `null` | Session name to auto-attach to |
 | `tmux_default_session` | `string?` | `null` | Default session name for new sessions |
 | `tmux_clipboard_sync` | `bool` | `true` | Sync clipboard with tmux paste buffer |
+| `tmux_hide_gateway_tab` | `bool` | `false` | Hide the control-mode gateway tab from the tab bar while tmux windows are active; the tab is restored when the session ends |
 | `tmux_profile` | `string?` | `null` | Profile to use for tmux sessions |
 | `tmux_show_status_bar` | `bool` | `false` | Show tmux status bar in par-term UI |
 | `tmux_prefix_key` | `string` | `"C-b"` | tmux prefix key combination |

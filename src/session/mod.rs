@@ -55,6 +55,9 @@ pub struct SessionWindow {
     pub tabs: Vec<SessionTab>,
     /// Index of the active tab
     pub active_tab_index: usize,
+    /// tmux session name to auto-reconnect on restore (if any)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tmux_session_name: Option<String>,
 }
 
 /// A single tab in a saved session.

@@ -335,7 +335,7 @@ impl WindowState {
 
                     // Render progress bar overlay
                     if let (Some(snap), Some(size)) = (progress_snapshot, window_size_for_badge) {
-                        let tab_count = self.tab_manager.tab_count();
+                        let tab_count = self.tab_manager.visible_tab_count();
                         let tb_height = self.tab_bar_ui.get_height(tab_count, &self.config);
                         let (top_inset, bottom_inset) = match self.config.tab_bar_position {
                             par_term_config::TabBarPosition::Top => (tb_height, 0.0),
@@ -367,7 +367,7 @@ impl WindowState {
 
                     // Render badge overlay (top-right corner, offset by UI insets)
                     if let (Some(badge), Some(size)) = (&badge_state, window_size_for_badge) {
-                        let tab_count = self.tab_manager.tab_count();
+                        let tab_count = self.tab_manager.visible_tab_count();
                         let tb_height = self.tab_bar_ui.get_height(tab_count, &self.config);
 
                         let top_inset = match self.config.tab_bar_position {

@@ -248,7 +248,7 @@ Control when the tab bar appears:
 | Mode | Description |
 |------|-------------|
 | `always` | Tab bar always visible (default) |
-| `when_multiple` | Show only when 2+ tabs exist |
+| `when_multiple` | Show only when 2+ visible tabs exist (hidden tabs such as the tmux gateway tab do not count) |
 | `never` | Tab bar never shown |
 
 ```yaml

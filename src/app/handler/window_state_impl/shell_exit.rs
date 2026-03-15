@@ -115,7 +115,7 @@ impl WindowState {
 
                 for tab_id in &tabs_to_close {
                     log::info!("Closing tab {} - all panes exited", tab_id);
-                    if self.tab_manager.tab_count() <= 1 {
+                    if self.tab_manager.visible_tab_count() <= 1 {
                         log::info!("Last tab, closing window");
                         self.is_shutting_down = true;
                         for tab in self.tab_manager.tabs_mut() {

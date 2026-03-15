@@ -131,6 +131,8 @@ pub struct Tab {
     pub(in crate::tab) is_active: Arc<AtomicBool>,
     /// When true, Drop impl skips cleanup (terminal Arcs are dropped on background threads)
     pub(crate) shutdown_fast: bool,
+    /// When true, this tab is hidden from the tab bar (e.g., tmux gateway tab while windows are active)
+    pub(crate) is_hidden: bool,
 }
 
 /// Parameters that differ between `Tab::new()` and `Tab::new_from_profile()`.

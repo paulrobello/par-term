@@ -119,6 +119,9 @@ impl WindowState {
                 }
 
                 self.tab_manager.switch_to(new_tab_id);
+
+                // Hide the gateway tab now that a tmux window tab exists
+                self.hide_gateway_tab();
             }
             Err(e) => {
                 crate::debug_error!(

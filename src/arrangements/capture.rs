@@ -87,10 +87,10 @@ pub fn capture_arrangement(
             (inner_size.height as f64 / scale) as u32,
         );
 
-        // Capture tabs
-        let tabs: Vec<TabSnapshot> = window_state
-            .tab_manager
-            .tabs()
+        // Capture visible tabs only — hidden tabs (e.g. tmux gateway) are
+        // transient control-mode connections that should not be persisted.
+        let visible_tabs = window_state.tab_manager.visible_tabs();
+        let tabs: Vec<TabSnapshot> = visible_tabs
             .iter()
             .map(|tab| TabSnapshot {
                 cwd: tab.get_cwd(),
@@ -105,7 +105,11 @@ pub fn capture_arrangement(
             })
             .collect();
 
-        let active_tab_index = window_state.tab_manager.active_tab_index().unwrap_or(0);
+        // active_tab_index must be relative to the visible-only list
+        let active_tab_id = window_state.tab_manager.active_tab_id();
+        let active_tab_index = active_tab_id
+            .and_then(|id| visible_tabs.iter().position(|t| t.id == id))
+            .unwrap_or(0);
 
         window_snapshots.push(WindowSnapshot {
             monitor: monitor_info,
