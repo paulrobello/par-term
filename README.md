@@ -66,6 +66,7 @@ New to par-term? The [Getting Started Guide](docs/GETTING_STARTED.md) walks you 
 - **Selection Highlight Row Alignment in Split Panes**: Fixed up-to-half-cell row offset during drag-selection caused by missing centering offset in pixel-to-cell mapping.
 - **Split-Pane Divider Highlight Stuck**: Releasing the mouse outside the terminal (e.g. in tab bar or context menu) no longer freezes the divider hover highlight.
 - **Shell Integration `$HOME` Path**: The entries written to `.bashrc` / `.zshrc` / `config.fish` now use `$HOME/` instead of a literal home path, making them portable across user renames.
+- **Profile Drawer Behind Status Bar**: The profile drawer side panel now stops above the custom status bar instead of extending behind it.
 
 <details>
 <summary><strong>What's New in 0.27.0</strong></summary>
