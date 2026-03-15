@@ -91,16 +91,31 @@ impl ProfileDrawerUI {
         );
     }
 
-    /// Render the profile drawer and return any action triggered
+    /// Render the profile drawer and return any action triggered.
+    ///
+    /// `bottom_margin` should be set to the height of any floating status bar
+    /// (e.g. the custom status bar rendered as an `egui::Area`) so the side
+    /// panel stops above it rather than extending behind it.
     pub fn render(
         &mut self,
         ctx: &egui::Context,
         profile_manager: &ProfileManager,
         config: &Config,
         modal_visible: bool,
+        bottom_margin: f32,
     ) -> ProfileDrawerAction {
         let mut action = ProfileDrawerAction::None;
         let mut toggle_clicked = false;
+
+        // Reserve space for any floating status bar rendered via egui::Area.
+        // egui::Area does not participate in the panel layout, so without this
+        // spacer the SidePanel would extend behind the status bar.
+        if bottom_margin > 0.0 {
+            egui::TopBottomPanel::bottom("profile_drawer_bottom_margin")
+                .exact_height(bottom_margin)
+                .frame(egui::Frame::NONE)
+                .show(ctx, |_ui| {});
+        }
 
         // Render the side panel FIRST if expanded, so we get the current width
         // This ensures the toggle button position is accurate during resize
