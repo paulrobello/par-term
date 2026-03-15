@@ -208,6 +208,24 @@ impl WindowState {
     /// Returns true if the window should close (last tab was closed)
     pub fn close_current_tab_immediately(&mut self) -> bool {
         if let Some(tab_id) = self.tab_manager.active_tab_id() {
+            // If the tab being closed is the tmux gateway, send detach-client first so
+            // that tmux can cleanly detach rather than treating the disconnect as a crash
+            // (which may destroy the session if destroy-unattached is enabled).
+            let is_tmux_gateway = self.config.tmux_enabled
+                && self.tmux_state.tmux_gateway_tab_id == Some(tab_id)
+                && self.is_gateway_active();
+            if is_tmux_gateway {
+                self.write_to_gateway("detach-client\n");
+                self.disconnect_tmux_session();
+            }
+
+            // Track whether this is a tmux display tab (non-gateway tab that shows tmux window
+            // content) so we can restore the hidden gateway tab after it is closed.
+            let is_tmux_display_tab = self.config.tmux_enabled
+                && self.tmux_state.tmux_gateway_tab_id.is_some()
+                && self.tmux_state.tmux_gateway_tab_id != Some(tab_id)
+                && self.is_gateway_active();
+
             // Remember tab count before closing to detect tab bar visibility change
             let old_tab_count = self.tab_manager.tab_count();
             let old_tab_bar_height = self.tab_bar_ui.get_height(old_tab_count, &self.config);
@@ -284,6 +302,25 @@ impl WindowState {
 
                 self.tab_manager.close_tab(tab_id)
             };
+
+            // After closing a tmux display tab, check if the hidden gateway tab needs to
+            // be restored.  This happens when the user manually closes all display tabs
+            // while still connected — the gateway tab was hidden but is the only one left.
+            if is_tmux_display_tab && self.is_gateway_active() {
+                let gateway_tab_id = self.tmux_state.tmux_gateway_tab_id;
+                let has_other_visible = self
+                    .tab_manager
+                    .tabs()
+                    .iter()
+                    .any(|t| !t.is_hidden && Some(t.id) != gateway_tab_id);
+                if !has_other_visible {
+                    self.show_gateway_tab();
+                    // Switch focus to the gateway tab so the user can interact with it
+                    if let Some(gtid) = gateway_tab_id {
+                        self.tab_manager.switch_to(gtid);
+                    }
+                }
+            }
 
             // Play tab close alert sound if configured
             self.play_alert_sound(crate::config::AlertEvent::TabClose);

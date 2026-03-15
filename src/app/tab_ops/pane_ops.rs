@@ -148,11 +148,33 @@ impl WindowState {
     /// If this is the last pane, the tab is closed.
     /// Returns true if the window should close (last tab was closed).
     pub fn close_focused_pane(&mut self) -> bool {
-        // In tmux mode, send kill-pane command to tmux
-        if self.is_tmux_connected() && self.close_pane_via_tmux() {
-            crate::debug_info!("TMUX", "Sent kill-pane command to tmux");
-            // Don't close the local pane - wait for tmux layout change
-            return false;
+        if self.is_tmux_connected() {
+            // Display tabs show tmux window content but are not the gateway.  Closing
+            // a pane via par-term's UI on a display tab should close the display tab
+            // itself — not kill the underlying tmux pane.  Killing tmux panes is tmux's
+            // responsibility (prefix+x, etc.).
+            let active_tab_id = self.tab_manager.active_tab_id();
+            let is_tmux_display_tab = active_tab_id
+                .map(|id| {
+                    self.tmux_state.tmux_gateway_tab_id.is_some()
+                        && self.tmux_state.tmux_gateway_tab_id != Some(id)
+                })
+                .unwrap_or(false);
+
+            if is_tmux_display_tab {
+                crate::debug_info!(
+                    "TMUX",
+                    "close_focused_pane on display tab — closing display tab instead of kill-pane"
+                );
+                return self.close_current_tab_immediately();
+            }
+
+            // Gateway tab (or connected but display tab check failed): send kill-pane.
+            if self.close_pane_via_tmux() {
+                crate::debug_info!("TMUX", "Sent kill-pane command to tmux");
+                // Don't close the local pane - wait for tmux layout change
+                return false;
+            }
         }
         // Fall through to local close if tmux command failed or not connected
 

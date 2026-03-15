@@ -23,24 +23,14 @@ pub(super) type BoundsInfo = Option<(winit::dpi::PhysicalSize<u32>, f32, f32, f3
 impl WindowState {
     /// Request content refresh for specific panes
     ///
-    /// After learning about panes from a layout change, we need to trigger
-    /// each pane to send its content. tmux only sends %output for NEW content,
-    /// not existing screen content when attaching.
-    ///
-    /// We use two approaches:
-    /// 1. Send Ctrl+L (C-l) to each pane, which triggers shell screen redraw
-    /// 2. Use capture-pane -p to get the current pane content (comes as command response)
+    /// After learning about panes from a layout change, we ask tmux to refresh
+    /// the client view so that existing pane content is re-sent via %output.
+    /// We deliberately avoid sending C-l (Ctrl+L) to individual panes because
+    /// doing so causes TUI apps (vim, htop, etc.) to re-emit their full escape
+    /// sequence initialisation (alt-screen, mouse-tracking, etc.), which would
+    /// corrupt par-term's local virtual terminal state and break mouse focus.
     pub(super) fn request_pane_refresh(&self, pane_ids: &[crate::tmux::TmuxPaneId]) {
-        for pane_id in pane_ids {
-            // Approach 1: Send Ctrl+L (screen redraw signal) to trigger shell to repaint
-            // This works for interactive shells that respond to SIGWINCH-like events
-            let cmd = format!("send-keys -t %{} C-l\n", pane_id);
-            if self.write_to_gateway(&cmd) {
-                crate::debug_trace!("TMUX", "Sent C-l to pane %{} for refresh", pane_id);
-            }
-        }
-
-        // Request client refresh which may help with layout sync
+        // Request client refresh so tmux re-sends current pane content
         let refresh_cmd = "refresh-client\n";
         if self.write_to_gateway(refresh_cmd) {
             crate::debug_info!(

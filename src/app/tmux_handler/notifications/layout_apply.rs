@@ -216,7 +216,7 @@ impl WindowState {
         window_id: TmuxWindowId,
         parsed_layout: &crate::tmux::TmuxLayout,
         pane_ids: &[crate::tmux::TmuxPaneId],
-        _bounds_info: BoundsInfo,
+        bounds_info: BoundsInfo,
     ) {
         let existing_tmux_ids: std::collections::HashSet<_> = self
             .tmux_state
@@ -258,6 +258,14 @@ impl WindowState {
                         tab_id,
                         pane_mappings.len()
                     );
+
+                    // Resize pane terminals to their actual display sizes so that
+                    // when tmux sends %output the content fills each pane correctly.
+                    // NOTE: must happen before tab.tmux is accessed so that pm's
+                    // mutable borrow of tab ends here (NLL: last use of pm).
+                    if let Some((_, _, _, _, cell_width, cell_height, _)) = bounds_info {
+                        pm.resize_all_terminals(cell_width, cell_height);
+                    }
 
                     if !pane_ids.is_empty() && tab.tmux.tmux_pane_id.is_none() {
                         tab.tmux.tmux_pane_id = Some(pane_ids[0]);

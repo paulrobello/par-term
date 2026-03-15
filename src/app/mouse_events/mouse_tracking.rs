@@ -18,8 +18,8 @@ impl WindowState {
 
         let mouse_position = tab.active_mouse().position;
 
-        // Get the correct terminal and cell coordinates based on whether split panes exist
-        let (terminal_arc, col, row) = if let Some(ref pm) = tab.pane_manager
+        // Get the correct terminal, cell coordinates, and (for tmux routing) native pane ID
+        let (terminal_arc, col, row, native_pane_id) = if let Some(ref pm) = tab.pane_manager
             && let Some(focused_pane) = pm.focused_pane()
         {
             // Split pane mode: use focused pane's terminal with pane-relative coordinates
@@ -28,13 +28,18 @@ impl WindowState {
             else {
                 return false;
             };
-            (Arc::clone(&focused_pane.terminal), col, row)
+            (
+                Arc::clone(&focused_pane.terminal),
+                col,
+                row,
+                Some(focused_pane.id),
+            )
         } else {
             // Single pane: use tab's terminal with global coordinates
             let Some((col, row)) = self.pixel_to_cell(mouse_position.0, mouse_position.1) else {
                 return false;
             };
-            (Arc::clone(&tab.terminal), col, row)
+            (Arc::clone(&tab.terminal), col, row, None)
         };
 
         // try_lock: intentional — mouse button handler runs in the sync event loop.
@@ -52,15 +57,30 @@ impl WindowState {
         if term.is_mouse_tracking_enabled() {
             // Encode mouse event
             let encoded = term.encode_mouse_event(button, col, row, pressed, 0);
+            // Release the write lock before any I/O so we don't hold it across awaits
+            drop(term);
 
             if !encoded.is_empty() {
-                // Send to PTY using async lock to ensure write completes
-                let terminal_clone = Arc::clone(&terminal_arc);
-                let runtime = Arc::clone(&self.runtime);
-                runtime.spawn(async move {
-                    let t = terminal_clone.write().await;
-                    let _ = t.write(&encoded);
-                });
+                // For tmux display panes: route via the gateway so the TUI app running
+                // inside the real tmux pane actually receives the mouse event.  Writing
+                // to the local virtual terminal (no PTY) silently drops the bytes.
+                if self.is_tmux_connected()
+                    && let Some(native_id) = native_pane_id
+                    && let Some(&tmux_pane_id) =
+                        self.tmux_state.native_pane_to_tmux_pane.get(&native_id)
+                {
+                    let escaped = crate::tmux::escape_keys_for_tmux(&encoded);
+                    let cmd = format!("send-keys -t %{} {}\n", tmux_pane_id, escaped);
+                    self.write_to_gateway(&cmd);
+                } else {
+                    // Non-tmux path: write directly to the local PTY
+                    let terminal_clone = Arc::clone(&terminal_arc);
+                    let runtime = Arc::clone(&self.runtime);
+                    runtime.spawn(async move {
+                        let t = terminal_clone.write().await;
+                        let _ = t.write(&encoded);
+                    });
+                }
             }
             return true; // Event consumed by mouse tracking
         }
