@@ -14,18 +14,24 @@ impl WindowState {
         // Check if the terminal application (e.g., vim, htop) has requested mouse tracking.
         // If enabled, we forward wheel events to the PTY instead of scrolling locally.
         // In split pane mode, check and route to the focused pane's terminal.
-        let (terminal_for_tracking, is_mouse_tracking) =
+        //
+        // IMPORTANT: On try_lock miss, return `(terminal, None)` so the caller can
+        // distinguish "lock failed" from "lock succeeded, tracking is off". When the
+        // lock fails we must NOT fall through to local scrolling — doing so scrolls
+        // par-term's own scrollback while tmux (which has mouse tracking on) expects
+        // the events, causing a brief flash of old scrollback content.
+        let (terminal_for_tracking, mouse_tracking_state): (Option<Arc<_>>, Option<bool>) =
             if let Some(tab) = self.tab_manager.active_tab() {
                 if let Some(ref pm) = tab.pane_manager
                     && let Some(focused_pane) = pm.focused_pane()
                 {
                     // try_lock: intentional — scroll wheel handler in sync event loop.
-                    // On miss: tracking check returns false; scroll is handled locally.
+                    // On miss: returns None so the event is skipped entirely.
                     let tracking = focused_pane
                         .terminal
                         .try_write()
                         .ok()
-                        .is_some_and(|term| term.is_mouse_tracking_enabled());
+                        .map(|term| term.is_mouse_tracking_enabled());
                     (Some(Arc::clone(&focused_pane.terminal)), tracking)
                 } else {
                     // try_lock: intentional — same rationale as focused_pane path above.
@@ -33,12 +39,20 @@ impl WindowState {
                         .terminal
                         .try_write()
                         .ok()
-                        .is_some_and(|term| term.is_mouse_tracking_enabled());
+                        .map(|term| term.is_mouse_tracking_enabled());
                     (Some(Arc::clone(&tab.terminal)), tracking)
                 }
             } else {
-                (None, false)
+                (None, Some(false))
             };
+
+        // Lock contention — skip this scroll event entirely. The next scroll tick
+        // will re-check. This prevents local scrollback jumps when tmux (or another
+        // app with mouse tracking) is running and the PTY reader holds the lock.
+        if mouse_tracking_state.is_none() {
+            return;
+        }
+        let is_mouse_tracking = mouse_tracking_state.unwrap_or(false);
 
         if is_mouse_tracking && let Some(terminal_arc) = terminal_for_tracking {
             // Calculate scroll amounts based on delta type (Line vs Pixel)
