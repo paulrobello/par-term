@@ -54,7 +54,8 @@ Layer 4 — Root crate (bump last):
 
 This ensures crates.io publishes have the correct versions with all changes, preventing build failures like missing type exports.
 
-use docs/DOCUMENTATION_STYLE_GUIDE.md to update all docs/ and or create new docs for all the changes since last release
+Use docs/DOCUMENTATION_STYLE_GUIDE.md to update all docs/ and or create new docs for all the changes since last release. Cleanup and summarize changelog for this releaswe.
+
 commit and push all changes
 
 - Run 'make deploy' to trigger cicd deployment
