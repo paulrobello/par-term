@@ -129,7 +129,7 @@ pub(super) fn gather_pane_render_data(
     let mut focused_viewport: Option<PaneViewport> = None;
 
     for pane_id in &all_pane_ids {
-        let Some(pane) = pm.get_pane(*pane_id) else {
+        let Some(pane) = pm.get_pane_mut(*pane_id) else {
             continue;
         };
         let is_focused = Some(*pane_id) == focused_pane_id;
@@ -220,7 +220,9 @@ pub(super) fn gather_pane_render_data(
             });
         }
 
-        // Gather cells
+        // Gather cells — fall back to cached cells on lock contention to prevent
+        // empty-frame flashes (animated shaders trigger 60fps redraws, so lock
+        // contention with the PTY reader is common during heavy output).
         let scroll_offset = if is_focused { tab_scroll_offset } else { 0 };
         let cells = if let Ok(term) = pane.terminal.try_write() {
             let selection = pane.mouse.selection.map(|sel| sel.normalized());
@@ -229,26 +231,35 @@ pub(super) fn gather_pane_render_data(
                 .selection
                 .map(|sel| sel.mode == SelectionMode::Rectangular)
                 .unwrap_or(false);
-            term.get_cells_with_scrollback(scroll_offset, selection, rectangular, None)
+            let fresh = term.get_cells_with_scrollback(scroll_offset, selection, rectangular, None);
+            // Cache for fallback on future lock misses
+            pane.cache.pane_cells = Some(fresh.clone());
+            fresh
+        } else if let Some(ref cached) = pane.cache.pane_cells {
+            // try_lock miss — use last successfully gathered cells to avoid
+            // rendering an empty pane for this frame.
+            cached.clone()
         } else {
             Vec::new()
         };
 
-        // Gather marks and scrollback length
+        // Gather marks and scrollback length — use cached scrollback_len on lock miss
         let (marks, pane_scrollback_len) = if need_marks {
             if let Ok(mut term) = pane.terminal.try_write() {
                 let sb_len = term.scrollback_len();
                 term.update_scrollback_metadata(sb_len, 0);
+                pane.cache.pane_scrollback_len = sb_len;
                 (term.scrollback_marks(), sb_len)
             } else {
-                (Vec::new(), 0)
+                (Vec::new(), pane.cache.pane_scrollback_len)
             }
         } else {
             // Still need scrollback_len for graphics position math
             let sb_len = if let Ok(term) = pane.terminal.try_write() {
-                term.scrollback_len()
+                pane.cache.pane_scrollback_len = term.scrollback_len();
+                pane.cache.pane_scrollback_len
             } else {
-                0
+                pane.cache.pane_scrollback_len
             };
             (Vec::new(), sb_len)
         };

@@ -100,6 +100,11 @@ impl WindowState {
         };
 
         // Extract terminal cells using the focused tab_snapshot helper.
+        let was_alt_screen = self
+            .tab_manager
+            .active_tab()
+            .map(|t| t.was_alt_screen)
+            .unwrap_or(false);
         let snap = self.extract_tab_cells(tab_snapshot::TabCellsParams {
             scroll_offset,
             mouse_selection,
@@ -109,6 +114,7 @@ impl WindowState {
             cache_cursor_pos,
             cache_selection,
             terminal: terminal.clone(),
+            was_alt_screen,
         })?;
 
         let mut cells = snap.cells;

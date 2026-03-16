@@ -12,6 +12,8 @@ pub struct RenderCache {
     pub(crate) selection: Option<Selection>, // Last selection state (for cache invalidation)
     pub(crate) terminal_title: String, // Last known terminal title (for change detection)
     pub(crate) scrollback_len: usize, // Last known scrollback length
+    pub(crate) pane_cells: Option<Vec<Cell>>, // Cached cells for pane rendering (fallback on try_lock miss)
+    pub(crate) pane_scrollback_len: usize, // Cached scrollback_len for pane rendering
     pub(crate) prettifier_feed_generation: u64, // Last terminal generation fed to prettifier
     pub(crate) prettifier_feed_scroll_offset: usize, // Last scroll offset fed to prettifier
     pub(crate) prettifier_command_start_line: Option<usize>, // Absolute line from CommandStarted
@@ -30,6 +32,8 @@ impl RenderCache {
             selection: None,
             terminal_title: String::new(),
             scrollback_len: 0,
+            pane_cells: None,
+            pane_scrollback_len: 0,
             prettifier_feed_generation: 0,
             prettifier_feed_scroll_offset: usize::MAX, // Force first feed
             prettifier_command_start_line: None,

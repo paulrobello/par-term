@@ -22,6 +22,8 @@ pub(super) struct TabCellsParams {
     pub cache_cursor_pos: Option<(usize, usize)>,
     pub cache_selection: Option<crate::selection::Selection>,
     pub terminal: Arc<tokio::sync::RwLock<par_term_terminal::TerminalManager>>,
+    /// Previous frame's alt-screen state (used as fallback when terminal is locked).
+    pub was_alt_screen: bool,
 }
 
 /// Data returned by `extract_tab_cells`.
@@ -56,6 +58,7 @@ impl WindowState {
             cache_cursor_pos,
             cache_selection,
             terminal,
+            was_alt_screen,
         } = p;
         if let Ok(term) = terminal.try_write() {
             // Get current generation to check if terminal content has changed
@@ -181,7 +184,7 @@ impl WindowState {
                 cells: cached_vec,
                 cursor_pos: cache_cursor_pos,
                 cursor_style: None,
-                is_alt_screen: false,
+                is_alt_screen: was_alt_screen,
                 current_generation: cache_generation,
             })
         } else {
