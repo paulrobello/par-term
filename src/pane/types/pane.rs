@@ -70,12 +70,12 @@ pub struct Pane {
     pub session_logger: SharedSessionLogger,
     /// Current bounds of this pane (updated on layout calculation)
     pub bounds: PaneBounds,
+    /// Per-pane background settings (overrides global config if image_path is set)
+    pub background: PaneBackground,
     /// Last-known title from OSC sequences or CWD fallback (empty if never set)
     pub title: String,
     /// True when pane still has its default/fallback title
     pub has_default_title: bool,
-    /// Per-pane background settings (overrides global config if image_path is set)
-    pub background: PaneBackground,
     /// State for shell restart behavior (None = shell running or closed normally)
     pub restart_state: Option<RestartState>,
     /// Whether the parent tab is active (shared with tab for refresh throttling)
