@@ -82,6 +82,22 @@ impl WindowState {
             // End any active drag on the OLD focused pane before switching focus.
             // The selection itself persists (visible but inactive), matching iTerm2 behavior.
             tab.selection_mouse_mut().is_selecting = false;
+            // Clear button_pressed on the OLD pane. handle_left_mouse_button sets
+            // button_pressed=true on the currently-focused pane *before* calling us,
+            // so after focus_pane_at() the old pane retains a stale button_pressed=true.
+            // On mouse-move after the click, handle_mouse_move reads the NEW focused
+            // pane's state, so the stale flag is invisible there — but when the user
+            // later clicks back to the old pane, handle_left_mouse_press returns early
+            // again (pane-switch path) without setting click_pixel_position. The next
+            // mouse-move then sees button_pressed=true + an old click_pixel_position
+            // potentially far from the current position, triggering an accidental
+            // drag-selection that highlights text.
+            if let Some(old_id) = prev_focused
+                && let Some(pm) = tab.pane_manager.as_mut()
+                && let Some(old_pane) = pm.get_pane_mut(old_id)
+            {
+                old_pane.mouse.button_pressed = false;
+            }
             // Also update tmux focused pane for correct input routing
             self.set_tmux_focused_pane_from_native(pane_id);
             // Reset scroll to bottom when switching pane focus so the
