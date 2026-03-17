@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Per-pane title tracking** — each pane now stores its own last-known title (`title` + `has_default_title` fields on `Pane`). `Tab::update_title()` iterates all panes each frame and updates each pane's title from its own terminal's OSC sequences and shell-integration CWD, then derives the tab bar title from the focused pane. Switching focus between split panes now instantly reflects the correct title without waiting for the next terminal output. Local hostname and home-directory lookups are hoisted once per frame (not once per pane) to avoid redundant syscalls in split-pane configurations.
+
 ---
 
 ## [0.28.0] - 2026-03-14
