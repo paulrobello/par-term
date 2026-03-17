@@ -48,6 +48,10 @@ impl Tab {
             .as_ref()
             .and_then(|pm| pm.focused_pane_id());
 
+        // Cache per-frame values that are constant across all panes (avoid syscall per pane).
+        let local_hostname = hostname::get().ok().and_then(|h| h.into_string().ok());
+        let home_dir = dirs::home_dir();
+
         // Step 3 — Iterate all panes and update each one's title from its own terminal.
         // try_write: intentional — called every frame; blocking would stall rendering.
         // On contention: skip that pane this frame, no data loss.
@@ -61,10 +65,9 @@ impl Tab {
                     drop(term);
 
                     let is_remote = if let Some(reported_host) = &hostname {
-                        hostname::get()
-                            .ok()
-                            .and_then(|h| h.into_string().ok())
-                            .map(|local| !reported_host.eq_ignore_ascii_case(&local))
+                        local_hostname
+                            .as_ref()
+                            .map(|local| !reported_host.eq_ignore_ascii_case(local))
                             .unwrap_or(false)
                     } else {
                         false
@@ -85,7 +88,7 @@ impl Tab {
                     } else if title_mode == par_term_config::TabTitleMode::Auto
                         && let Some(cwd) = cwd
                     {
-                        let abbreviated = if let Some(home) = dirs::home_dir() {
+                        let abbreviated = if let Some(ref home) = home_dir {
                             cwd.replace(&home.to_string_lossy().to_string(), "~")
                         } else {
                             cwd
@@ -108,11 +111,11 @@ impl Tab {
         // mutable borrow of pane_manager ends here
 
         // Step 4 — Derive tab.title from the focused pane (immutable re-borrow is now safe).
-        if let Some((focused_id, pm)) = focused_id.zip(self.pane_manager.as_ref()) {
-            if let Some(pane) = pm.get_pane(focused_id) {
-                self.title = pane.title.clone();
-                self.has_default_title = pane.has_default_title;
-            }
+        if let Some((focused_id, pm)) = focused_id.zip(self.pane_manager.as_ref())
+            && let Some(pane) = pm.get_pane(focused_id)
+        {
+            self.title = pane.title.clone();
+            self.has_default_title = pane.has_default_title;
         }
     }
 
