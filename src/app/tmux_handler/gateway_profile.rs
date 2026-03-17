@@ -94,7 +94,7 @@ impl WindowState {
                     tab.profile.pre_profile_title = Some(tab.title.clone());
                 }
                 // Apply profile tab name (fall back to profile name)
-                tab.title = tab_name.unwrap_or_else(|| profile_name.to_string());
+                tab.set_title(&tab_name.unwrap_or_else(|| profile_name.to_string()));
 
                 // Apply badge text override if configured
                 if let Some(badge_text) = badge_text {

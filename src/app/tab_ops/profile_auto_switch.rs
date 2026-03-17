@@ -57,7 +57,7 @@ impl WindowState {
                     tab.profile.badge_override = None;
                     // Restore original tab title
                     if let Some(original) = tab.profile.pre_profile_title.take() {
-                        tab.title = original;
+                        tab.set_title(&original);
                     }
 
                     // Revert SSH auto-switch if active
@@ -121,7 +121,7 @@ impl WindowState {
                     tab.profile.pre_profile_title = Some(tab.title.clone());
                 }
                 // Apply profile tab name (fall back to profile name)
-                tab.title = profile_tab_name.unwrap_or_else(|| profile_name.clone());
+                tab.set_title(&profile_tab_name.unwrap_or_else(|| profile_name.clone()));
 
                 // Apply badge text override if configured
                 if let Some(badge_text) = profile_badge_text {
@@ -233,7 +233,7 @@ impl WindowState {
                 tab.profile.profile_icon = None;
                 tab.profile.badge_override = None;
                 if let Some(original) = tab.profile.pre_profile_title.take() {
-                    tab.title = original;
+                    tab.set_title(&original);
                 }
             }
             true // Trigger redraw to reflect reverted state
@@ -293,7 +293,7 @@ impl WindowState {
                     tab.profile.pre_profile_title = Some(tab.title.clone());
                 }
                 // Apply profile tab name (fall back to profile name)
-                tab.title = profile_tab_name.unwrap_or_else(|| profile_name.clone());
+                tab.set_title(&profile_tab_name.unwrap_or_else(|| profile_name.clone()));
 
                 // Apply badge text override if configured
                 if let Some(badge_text) = profile_badge_text {
@@ -352,7 +352,7 @@ impl WindowState {
                 tab.profile.badge_override = None;
                 // Restore original tab title
                 if let Some(original) = tab.profile.pre_profile_title.take() {
-                    tab.title = original;
+                    tab.set_title(&original);
                 }
             }
             false

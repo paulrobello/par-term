@@ -71,6 +71,15 @@ impl WindowState {
                         // Blank name: revert to auto title mode
                         tab.user_named = false;
                         tab.has_default_title = true;
+                        // Reset focused pane so the per-pane loop re-derives its title from scratch
+                        if let Some(pane) = tab
+                            .pane_manager
+                            .as_mut()
+                            .and_then(|pm| pm.focused_pane_mut())
+                        {
+                            pane.title = String::new();
+                            pane.has_default_title = true;
+                        }
                         // Trigger immediate title update
                         tab.update_title(
                             self.config.tab_title_mode,
@@ -78,9 +87,9 @@ impl WindowState {
                             self.config.remote_tab_title_osc_priority,
                         );
                     } else {
-                        tab.title = name;
+                        tab.set_title(&name);
                         tab.user_named = true;
-                        tab.has_default_title = false;
+                        // has_default_title = false is already set by set_title()
                     }
                 }
                 self.request_redraw();

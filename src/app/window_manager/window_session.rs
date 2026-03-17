@@ -70,16 +70,15 @@ impl WindowManager {
             // will be re-created by the tmux session on reconnect.  Pass only a single
             // empty tab CWD so create_window_with_overrides spawns just the gateway
             // shell; the real tmux tabs arrive via layout-change notifications.
-            let tab_cwds: Vec<Option<String>> =
-                if session_window.tmux_session_name.is_some() {
-                    vec![None]
-                } else {
-                    session_window
-                        .tabs
-                        .iter()
-                        .map(|tab| crate::session::restore::validate_cwd(&tab.snapshot.cwd))
-                        .collect()
-                };
+            let tab_cwds: Vec<Option<String>> = if session_window.tmux_session_name.is_some() {
+                vec![None]
+            } else {
+                session_window
+                    .tabs
+                    .iter()
+                    .map(|tab| crate::session::restore::validate_cwd(&tab.snapshot.cwd))
+                    .collect()
+            };
 
             let created_window_id = self.create_window_with_overrides(
                 event_loop,
@@ -97,9 +96,7 @@ impl WindowManager {
                     && window_state.config.tmux_enabled
                     && !session_name.is_empty()
                 {
-                    if let Err(e) =
-                        window_state.initiate_tmux_gateway(Some(session_name))
-                    {
+                    if let Err(e) = window_state.initiate_tmux_gateway(Some(session_name)) {
                         log::warn!("Session restore: tmux auto-connect failed: {}", e);
                     }
                 } else {
@@ -120,9 +117,8 @@ impl WindowManager {
                     for (tab_idx, session_tab) in session_window.tabs.iter().enumerate() {
                         if let Some(tab) = tabs.get_mut(tab_idx) {
                             if let Some(ref user_title) = session_tab.snapshot.user_title {
-                                tab.title = user_title.clone();
+                                tab.set_title(user_title);
                                 tab.user_named = true;
-                                tab.has_default_title = false;
                             }
                             if let Some(color) = session_tab.snapshot.custom_color {
                                 tab.set_custom_color(color);

@@ -110,8 +110,7 @@ impl WindowState {
                     // Restore title and custom color
                     if let Some(tab) = self.tab_manager.get_tab_mut(tab_id) {
                         if !info.has_default_title {
-                            tab.title = info.title;
-                            tab.has_default_title = false;
+                            tab.set_title(&info.title);
                         }
                         tab.custom_color = info.custom_color;
                     }

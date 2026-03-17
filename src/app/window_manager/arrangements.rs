@@ -124,12 +124,11 @@ impl WindowManager {
             // will be re-created by the tmux session on reconnect.  Pass only a single
             // empty tab CWD so create_window_with_overrides spawns just the gateway
             // shell; the real tmux tabs arrive via layout-change notifications.
-            let tab_cwds: Vec<Option<String>> =
-                if window_snapshot.tmux_session_name.is_some() {
-                    vec![None]
-                } else {
-                    crate::arrangements::restore::tab_cwds(&arrangement, i)
-                };
+            let tab_cwds: Vec<Option<String>> = if window_snapshot.tmux_session_name.is_some() {
+                vec![None]
+            } else {
+                crate::arrangements::restore::tab_cwds(&arrangement, i)
+            };
 
             let created_window_id = self.create_window_with_overrides(
                 event_loop,
@@ -156,9 +155,9 @@ impl WindowManager {
                     for (tab_idx, snapshot) in window_snapshot.tabs.iter().enumerate() {
                         if let Some(tab) = tabs.get_mut(tab_idx) {
                             if let Some(ref user_title) = snapshot.user_title {
-                                tab.title = user_title.clone();
+                                tab.set_title(user_title);
                                 tab.user_named = true;
-                                tab.has_default_title = false;
+                                // has_default_title = false is already set by set_title()
                             }
                             if let Some(color) = snapshot.custom_color {
                                 tab.set_custom_color(color);
