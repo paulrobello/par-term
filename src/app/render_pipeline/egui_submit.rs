@@ -328,14 +328,13 @@ impl WindowState {
                     // Render profile drawer (right side panel).
                     // Pass the custom status bar height as a bottom margin so the
                     // panel does not extend behind the floating Area-based status bar.
-                    let profile_drawer_bottom_margin =
-                        if self.config.status_bar.status_bar_position
-                            == par_term_config::StatusBarPosition::Bottom
-                        {
-                            badge_custom_sb_height
-                        } else {
-                            0.0
-                        };
+                    let profile_drawer_bottom_margin = if self.config.status_bar.status_bar_position
+                        == par_term_config::StatusBarPosition::Bottom
+                    {
+                        badge_custom_sb_height
+                    } else {
+                        0.0
+                    };
                     actions.profile_drawer = self.overlay_ui.profile_drawer_ui.render(
                         ctx,
                         &self.overlay_ui.profile_manager,

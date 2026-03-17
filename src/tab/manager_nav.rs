@@ -23,7 +23,12 @@ impl TabManager {
 
     /// Switch to the next tab (wraps around, skips hidden tabs)
     pub fn next_tab(&mut self) {
-        let visible: Vec<TabId> = self.tabs.iter().filter(|t| !t.is_hidden).map(|t| t.id).collect();
+        let visible: Vec<TabId> = self
+            .tabs
+            .iter()
+            .filter(|t| !t.is_hidden)
+            .map(|t| t.id)
+            .collect();
         if visible.len() <= 1 {
             return;
         }
@@ -36,13 +41,22 @@ impl TabManager {
 
     /// Switch to the previous tab (wraps around, skips hidden tabs)
     pub fn prev_tab(&mut self) {
-        let visible: Vec<TabId> = self.tabs.iter().filter(|t| !t.is_hidden).map(|t| t.id).collect();
+        let visible: Vec<TabId> = self
+            .tabs
+            .iter()
+            .filter(|t| !t.is_hidden)
+            .map(|t| t.id)
+            .collect();
         if visible.len() <= 1 {
             return;
         }
         if let Some(active_id) = self.active_tab_id {
             let current_pos = visible.iter().position(|&id| id == active_id).unwrap_or(0);
-            let prev_pos = if current_pos == 0 { visible.len() - 1 } else { current_pos - 1 };
+            let prev_pos = if current_pos == 0 {
+                visible.len() - 1
+            } else {
+                current_pos - 1
+            };
             let prev_id = visible[prev_pos];
             self.switch_to(prev_id);
         }
@@ -50,7 +64,12 @@ impl TabManager {
 
     /// Switch to tab by index (1-based for Cmd+1-9, skips hidden tabs)
     pub fn switch_to_index(&mut self, index: usize) {
-        let visible: Vec<TabId> = self.tabs.iter().filter(|t| !t.is_hidden).map(|t| t.id).collect();
+        let visible: Vec<TabId> = self
+            .tabs
+            .iter()
+            .filter(|t| !t.is_hidden)
+            .map(|t| t.id)
+            .collect();
         if index > 0 && index <= visible.len() {
             let id = visible[index - 1];
             self.switch_to(id);

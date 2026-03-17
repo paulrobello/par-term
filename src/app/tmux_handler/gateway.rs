@@ -502,11 +502,7 @@ impl WindowState {
             && tab.is_hidden
         {
             tab.is_hidden = false;
-            crate::debug_info!(
-                "TMUX",
-                "Gateway tab {} restored to tab bar",
-                gateway_tab_id
-            );
+            crate::debug_info!("TMUX", "Gateway tab {} restored to tab bar", gateway_tab_id);
         }
     }
 
