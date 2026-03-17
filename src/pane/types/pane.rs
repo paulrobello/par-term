@@ -70,6 +70,10 @@ pub struct Pane {
     pub session_logger: SharedSessionLogger,
     /// Current bounds of this pane (updated on layout calculation)
     pub bounds: PaneBounds,
+    /// Last-known title from OSC sequences or CWD fallback (empty if never set)
+    pub title: String,
+    /// True when pane still has its default/fallback title
+    pub has_default_title: bool,
     /// Per-pane background settings (overrides global config if image_path is set)
     pub background: PaneBackground,
     /// State for shell restart behavior (None = shell running or closed normally)
@@ -139,6 +143,8 @@ impl Pane {
             exit_notified: false,
             session_logger,
             bounds: PaneBounds::default(),
+            title: String::new(),
+            has_default_title: true,
             background: PaneBackground::new(),
             restart_state: None,
             is_active: Arc::new(AtomicBool::new(false)),
@@ -204,6 +210,8 @@ impl Pane {
             exit_notified: false,
             session_logger,
             bounds: PaneBounds::default(),
+            title: String::new(),
+            has_default_title: true,
             background: PaneBackground::new(),
             restart_state: None,
             is_active: Arc::new(AtomicBool::new(false)),
@@ -251,6 +259,8 @@ impl Pane {
             exit_notified: false,
             session_logger,
             bounds: PaneBounds::default(),
+            title: String::new(),
+            has_default_title: true,
             background: PaneBackground::new(),
             restart_state: None,
             is_active,
@@ -300,6 +310,8 @@ impl Pane {
             exit_notified: false,
             session_logger,
             bounds: PaneBounds::default(),
+            title: String::new(),
+            has_default_title: true,
             background: PaneBackground::new(),
             restart_state: None,
             is_active: Arc::new(AtomicBool::new(false)),

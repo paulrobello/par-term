@@ -39,73 +39,98 @@ impl Tab {
         if self.user_named {
             return;
         }
-        // try_write: intentional — called every frame from the render path; blocking would
-        // stall rendering. On miss: title is not updated this frame. No data loss.
-        if let Ok(term) = self.terminal.try_write() {
-            // Collect all values in a single lock acquisition
-            let osc_title = term.get_title();
-            let hostname = term.shell_integration_hostname();
-            let username = term.shell_integration_username();
-            let cwd = term.shell_integration_cwd();
-            drop(term); // release lock before mutating self
 
-            // A terminal is "remote" only when the OSC 7 hostname differs from the
-            // local machine's hostname.  `shell_integration_hostname()` returns
-            // `Some(local_hostname)` for ordinary local shells with shell integration
-            // enabled, so we must not treat every non-None value as a remote host.
-            //
-            // If we cannot determine the local hostname (hostname::get() error or
-            // non-UTF-8 result), we conservatively assume the tab is local.
-            let is_remote = if let Some(reported_host) = &hostname {
-                hostname::get()
-                    .ok()
-                    .and_then(|h| h.into_string().ok())
-                    .map(|local| !reported_host.eq_ignore_ascii_case(&local))
-                    .unwrap_or(false)
-            } else {
-                false
-            };
+        // Step 2 — Snapshot focused pane ID before the mutable borrow.
+        // This avoids a Rust borrow-checker conflict: all_panes_mut() takes &mut pane_manager,
+        // and we must re-borrow it immutably in Step 4 after the loop ends.
+        let focused_id = self
+            .pane_manager
+            .as_ref()
+            .and_then(|pm| pm.focused_pane_id());
 
-            if is_remote {
-                if remote_osc_priority && !osc_title.is_empty() {
-                    self.title = osc_title;
-                    self.has_default_title = false;
-                } else {
-                    self.title = format_remote_title(hostname, username, cwd, remote_format);
-                    self.has_default_title = false;
-                }
-            } else if !osc_title.is_empty() {
-                self.title = osc_title;
-                self.has_default_title = false;
-            } else if title_mode == par_term_config::TabTitleMode::Auto
-                && let Some(cwd) = cwd
-            {
-                // Abbreviate home directory to ~
-                let abbreviated = if let Some(home) = dirs::home_dir() {
-                    cwd.replace(&home.to_string_lossy().to_string(), "~")
-                } else {
-                    cwd
-                };
-                // Use just the last component for brevity (original pattern)
-                if let Some(last) = abbreviated.rsplit('/').next() {
-                    if !last.is_empty() {
-                        self.title = last.to_string();
+        // Step 3 — Iterate all panes and update each one's title from its own terminal.
+        // try_write: intentional — called every frame; blocking would stall rendering.
+        // On contention: skip that pane this frame, no data loss.
+        if let Some(pm) = self.pane_manager.as_mut() {
+            for pane in pm.all_panes_mut() {
+                if let Ok(term) = pane.terminal.try_write() {
+                    let osc_title = term.get_title();
+                    let hostname = term.shell_integration_hostname();
+                    let username = term.shell_integration_username();
+                    let cwd = term.shell_integration_cwd();
+                    drop(term);
+
+                    let is_remote = if let Some(reported_host) = &hostname {
+                        hostname::get()
+                            .ok()
+                            .and_then(|h| h.into_string().ok())
+                            .map(|local| !reported_host.eq_ignore_ascii_case(&local))
+                            .unwrap_or(false)
                     } else {
-                        self.title = abbreviated;
+                        false
+                    };
+
+                    if is_remote {
+                        if remote_osc_priority && !osc_title.is_empty() {
+                            pane.title = osc_title;
+                            pane.has_default_title = false;
+                        } else {
+                            pane.title =
+                                format_remote_title(hostname, username, cwd, remote_format);
+                            pane.has_default_title = false;
+                        }
+                    } else if !osc_title.is_empty() {
+                        pane.title = osc_title;
+                        pane.has_default_title = false;
+                    } else if title_mode == par_term_config::TabTitleMode::Auto
+                        && let Some(cwd) = cwd
+                    {
+                        let abbreviated = if let Some(home) = dirs::home_dir() {
+                            cwd.replace(&home.to_string_lossy().to_string(), "~")
+                        } else {
+                            cwd
+                        };
+                        if let Some(last) = abbreviated.rsplit('/').next() {
+                            if !last.is_empty() {
+                                pane.title = last.to_string();
+                            } else {
+                                pane.title = abbreviated;
+                            }
+                        } else {
+                            pane.title = abbreviated;
+                        }
+                        pane.has_default_title = false;
                     }
-                } else {
-                    self.title = abbreviated;
+                    // else: keep existing pane.title unchanged this frame
                 }
-                self.has_default_title = false;
             }
-            // else: keep existing title
+        }
+        // mutable borrow of pane_manager ends here
+
+        // Step 4 — Derive tab.title from the focused pane (immutable re-borrow is now safe).
+        if let Some((focused_id, pm)) = focused_id.zip(self.pane_manager.as_ref()) {
+            if let Some(pane) = pm.get_pane(focused_id) {
+                self.title = pane.title.clone();
+                self.has_default_title = pane.has_default_title;
+            }
         }
     }
 
     /// Set the tab's default title based on its position
     pub fn set_default_title(&mut self, tab_number: usize) {
         if self.has_default_title {
-            self.title = format!("Tab {}", tab_number);
+            let title = format!("Tab {}", tab_number);
+            self.title = title.clone();
+            // Also write pane.title for every pane that still has a default title so
+            // update_title()'s Step 4 derivation from pane.title returns "Tab N" correctly
+            // (a brand-new pane has pane.title == "" which would otherwise overwrite).
+            if let Some(pm) = self.pane_manager.as_mut() {
+                for pane in pm.all_panes_mut() {
+                    if pane.has_default_title {
+                        pane.title = title.clone();
+                    }
+                }
+            }
         }
     }
 
@@ -115,6 +140,15 @@ impl Tab {
     pub fn set_title(&mut self, title: &str) {
         self.title = title.to_string();
         self.has_default_title = false;
+        // Sync focused pane so update_title() doesn't overwrite on the next frame.
+        if let Some(pane) = self
+            .pane_manager
+            .as_mut()
+            .and_then(|pm| pm.focused_pane_mut())
+        {
+            pane.title = title.to_string();
+            pane.has_default_title = false;
+        }
     }
 
     /// Check if the terminal in this tab is still running
@@ -231,7 +265,7 @@ impl Tab {
         self.profile.auto_applied_dir_profile_id = None;
         self.profile.profile_icon = None;
         if let Some(original) = self.profile.pre_profile_title.take() {
-            self.title = original;
+            self.set_title(&original);
         }
         self.profile.badge_override = None;
     }
@@ -459,5 +493,65 @@ mod tests {
             Tab::parse_hostname_from_osc7_url("file://host"),
             Some("host".to_string())
         );
+    }
+}
+
+#[cfg(test)]
+mod default_title_tests {
+    use crate::tab::Tab;
+
+    /// set_default_title() must write pane.title for default-titled panes
+    /// so that update_title()'s Step 4 derivation doesn't produce an empty string.
+    #[test]
+    fn set_default_title_syncs_pane_title() {
+        let mut tab = Tab::new_stub(1, 1);
+        // Fresh pane: has default title, pane.title starts as ""
+        {
+            let pm = tab.pane_manager.as_ref().unwrap();
+            let pane = pm.focused_pane().unwrap();
+            assert!(pane.has_default_title);
+            assert_eq!(pane.title, "");
+        }
+        tab.set_default_title(3);
+        assert_eq!(tab.title, "Tab 3");
+        // Pane must also be updated so derivation survives the next frame
+        let pm = tab.pane_manager.as_ref().unwrap();
+        let pane = pm.focused_pane().unwrap();
+        assert_eq!(pane.title, "Tab 3");
+        assert!(pane.has_default_title);
+    }
+
+    /// set_default_title() must NOT overwrite panes that already have a real title.
+    #[test]
+    fn set_default_title_skips_non_default_panes() {
+        let mut tab = Tab::new_stub(1, 1);
+        // Simulate pane having received a real title
+        {
+            let pm = tab.pane_manager.as_mut().unwrap();
+            let pane = pm.focused_pane_mut().unwrap();
+            pane.title = "vim".to_string();
+            pane.has_default_title = false;
+        }
+        // tab.has_default_title stays true (simulates multi-pane where focused has real title
+        // but tab-level tracking is slightly stale)
+        tab.has_default_title = true;
+        tab.set_default_title(2);
+        // Pane with a real title must be untouched
+        let pm = tab.pane_manager.as_ref().unwrap();
+        let pane = pm.focused_pane().unwrap();
+        assert_eq!(pane.title, "vim");
+        assert!(!pane.has_default_title);
+    }
+
+    #[test]
+    fn set_title_syncs_focused_pane() {
+        let mut tab = Tab::new_stub(1, 1);
+        tab.set_title("my-session");
+        assert_eq!(tab.title, "my-session");
+        assert!(!tab.has_default_title);
+        let pm = tab.pane_manager.as_ref().unwrap();
+        let pane = pm.focused_pane().unwrap();
+        assert_eq!(pane.title, "my-session");
+        assert!(!pane.has_default_title);
     }
 }
