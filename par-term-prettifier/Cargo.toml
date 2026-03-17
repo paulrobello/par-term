@@ -12,7 +12,7 @@ keywords = ["terminal", "prettifier", "markdown", "syntax-highlighting"]
 categories = ["command-line-utilities"]
 
 [dependencies]
-par-term-config = { path = "../par-term-config", version = "0.9.0" }
+par-term-config = { path = "../par-term-config", version = "0.10.0" }
 
 regex.workspace = true
 serde_json.workspace = true

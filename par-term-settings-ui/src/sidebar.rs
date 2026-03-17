@@ -219,7 +219,7 @@ fn tab_contents_summary(tab: SettingsTab) -> &'static str {
         }
         SettingsTab::AiInspector => "Assistant agent integration, panel settings, permissions",
         SettingsTab::Advanced => {
-            "tmux integration, logging, file transfers, updates, debug logging"
+            "tmux integration, gateway tab, logging, file transfers, updates, debug logging"
         }
     }
 }

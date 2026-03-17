@@ -40,7 +40,22 @@ New to par-term? The [Getting Started Guide](docs/GETTING_STARTED.md) walks you 
 - **[Configuration Reference](docs/CONFIG_REFERENCE.md)** — All 200+ configuration options
 - **[Keyboard Shortcuts](docs/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
 
-## What's New in 0.28.0
+## What's New in 0.29.0
+
+### ✨ New Features
+
+- **Per-Pane Title Tracking**: Each split pane now tracks its own title independently. Switching focus between panes instantly updates the tab bar title without waiting for the next terminal output. Local hostname and home-directory lookups are hoisted once per frame to avoid redundant syscalls in split-pane configurations.
+- **Hide tmux Control-Mode Gateway Tab**: New `tmux_hide_gateway_tab` config option hides the `tmux -CC` gateway tab while tmux window tabs are active. The gateway tab is automatically restored when the session ends. Configurable in **Settings → Advanced → Tmux**.
+- **Tmux Session Persistence Across Restarts**: The active tmux control-mode session name is saved and restored with window session state, automatically reconnecting on app restart.
+
+### 🐛 Bug Fixes
+
+- **Stale Mouse State on Pane Focus Switch**: Clicking to switch focus between split panes no longer leaves a stale `button_pressed` flag that caused spurious text selection on the next click back.
+- **Tmux Control-Mode Crash on Key Press**: Fixed a panic when pressing keys in tmux control mode before the session was fully initialized.
+- **Tmux Control-Mode Display-Tab and Mouse Routing**: Fixed display-tab close handling, TUI content rendering, and mouse event routing in tmux control-mode panes.
+
+<details>
+<summary><strong>What's New in 0.28.0</strong></summary>
 
 ### ✨ New Features
 
@@ -54,8 +69,6 @@ New to par-term? The [Getting Started Guide](docs/GETTING_STARTED.md) walks you 
   - **`repeat`** — runs an action up to N times with optional delay; supports `stop_on_success` / `stop_on_failure`
 - **`capture_output` for Shell Commands**: Set `capture_output: true` on a `shell_command` action to capture stdout+stderr (up to 64 KB) for use by subsequent `condition` checks.
 - **Clone Button for Custom Actions**: Each action row in **Settings → Actions** now has a **Clone** button that duplicates the action with a fresh ID, clears the keybinding and prefix char.
-- **Hide tmux Control-Mode Gateway Tab**: New `tmux_hide_gateway_tab` config option (default `false`). When enabled, the tmux control-mode PTY connection tab is hidden from the tab bar — only the real tmux window tabs are visible, matching iTerm2's "auto-hide tmux client session" behaviour. The gateway tab reappears automatically when the tmux session ends. Configurable in **Settings → Advanced → Tmux**.
-- **tmux Session Name Persisted Across Restarts**: Window arrangements and auto-session restore now capture the active tmux control-mode session name per window. On restore, the window reconnects to the saved session (create-or-attach semantics) and lets the live tmux session repopulate tabs — eliminating duplicate "ghost shell" tabs that previously appeared alongside the real tmux windows.
 
 ### 🐛 Bug Fixes
 
@@ -67,6 +80,9 @@ New to par-term? The [Getting Started Guide](docs/GETTING_STARTED.md) walks you 
 - **Split-Pane Divider Highlight Stuck**: Releasing the mouse outside the terminal (e.g. in tab bar or context menu) no longer freezes the divider hover highlight.
 - **Shell Integration `$HOME` Path**: The entries written to `.bashrc` / `.zshrc` / `config.fish` now use `$HOME/` instead of a literal home path, making them portable across user renames.
 - **Profile Drawer Behind Status Bar**: The profile drawer side panel now stops above the custom status bar instead of extending behind it.
+- **Scrollback Flash in Tmux on Lock Contention**: Mouse scroll events during lock contention no longer briefly scroll par-term's own scrollback instead of forwarding to tmux. Added a per-pane cell cache for lock-miss fallback.
+
+</details>
 
 <details>
 <summary><strong>What's New in 0.27.0</strong></summary>

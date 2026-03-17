@@ -21,6 +21,7 @@ par-term provides a multi-tab interface for managing multiple terminal sessions 
   - [HTML Titles](#html-titles)
   - [Inactive Tab Outline-Only Mode](#inactive-tab-outline-only-mode)
 - [Tab Title Mode](#tab-title-mode)
+  - [Per-Pane Title Tracking](#per-pane-title-tracking)
   - [Remote Tab Title Format](#remote-tab-title-format)
   - [Renaming Tabs](#renaming-tabs)
   - [Session Persistence for Tab Names and Colors](#session-persistence-for-tab-names-and-colors)
@@ -364,6 +365,17 @@ tab_title_mode: auto
 ```
 
 **Settings UI:** Settings > Window > Tab Bar > "Tab title mode"
+
+### Per-Pane Title Tracking
+
+When a tab contains split panes, each pane tracks its own title independently. The tab bar displays the title of the currently focused pane.
+
+**How it works:**
+
+- Each pane stores its own last-known title from OSC sequences and shell-integration CWD
+- `Tab::update_title()` iterates all panes each frame and updates each pane's title from its terminal
+- Switching focus between split panes instantly reflects the correct title in the tab bar without waiting for new terminal output
+- Local hostname and home-directory lookups are performed once per frame (not once per pane) to avoid redundant syscalls
 
 ### Remote Tab Title Format
 

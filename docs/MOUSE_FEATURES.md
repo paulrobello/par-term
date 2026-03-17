@@ -292,6 +292,8 @@ The following mouse-related issues have been resolved:
 
 - **tmux Selection Stuck Across Panes** -- When a mouse press is consumed by mouse tracking (e.g., clicking a tmux pane), the local selection state is now cleared immediately. Previously, a stale highlight could persist across all panes indefinitely until the next local mouse interaction
 
+- **Stale Mouse State on Pane Focus Switch** -- Clicking to switch focus between split panes could leave `button_pressed = true` on the old pane, causing spurious text selection on the next click back. The old pane's mouse state is now explicitly cleared during focus transfer
+
 ## Related Documentation
 
 - [README.md](../README.md) - Project overview
