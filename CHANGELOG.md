@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **URL hover cursor no longer gets stuck as a pointer** — moving the mouse from a URL link into the tab bar or opening the profile drawer left the `Pointer` cursor permanently set. The URL hover cleanup path was only reached inside the terminal-content area; early returns for the tab bar and profile drawer bypassed it entirely. `clear_url_hover_if_needed()` is now called before each early return so the cursor and title are always restored when leaving a URL.
+
 ---
 
 ## [0.29.0] - 2026-03-17

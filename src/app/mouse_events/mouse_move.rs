@@ -20,6 +20,7 @@ impl WindowState {
 
         // Check if profile drawer is open - let egui handle mouse events
         if self.overlay_ui.profile_drawer_ui.expanded {
+            self.clear_url_hover_if_needed();
             self.request_redraw();
             return;
         }
@@ -36,6 +37,7 @@ impl WindowState {
             .map(|w| w.scale_factor())
             .unwrap_or(1.0);
         if position.1 < tab_bar_height as f64 * scale_factor {
+            self.clear_url_hover_if_needed();
             // Request redraw so egui can update hover states
             self.request_redraw();
             return; // Mouse is on tab bar, let egui handle it
@@ -394,6 +396,40 @@ impl WindowState {
                     }
                     self.request_redraw();
                 }
+            }
+        }
+    }
+
+    /// Clear URL hover state (hovered_url, cursor, title) if a URL is currently hovered.
+    ///
+    /// Called before early returns that skip the main URL detection block (e.g. tab bar,
+    /// profile drawer) so the Pointer cursor is never left stuck after leaving a URL.
+    fn clear_url_hover_if_needed(&mut self) {
+        let (hovered, terminal_title) = self
+            .tab_manager
+            .active_tab()
+            .map(|t| {
+                (
+                    t.active_mouse().hovered_url.is_some(),
+                    t.active_cache().terminal_title.clone(),
+                )
+            })
+            .unwrap_or((false, String::new()));
+
+        if !hovered {
+            return;
+        }
+
+        if let Some(tab) = self.tab_manager.active_tab_mut() {
+            tab.active_mouse_mut().hovered_url = None;
+            tab.active_mouse_mut().hovered_url_bounds = None;
+        }
+        if let Some(window) = &self.window {
+            window.set_cursor(winit::window::CursorIcon::Text);
+            if self.config.allow_title_change && !terminal_title.is_empty() {
+                window.set_title(&self.format_title(&terminal_title));
+            } else {
+                window.set_title(&self.format_title(&self.config.window_title));
             }
         }
     }
