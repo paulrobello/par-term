@@ -40,19 +40,15 @@ New to par-term? The [Getting Started Guide](docs/GETTING_STARTED.md) walks you 
 - **[Configuration Reference](docs/CONFIG_REFERENCE.md)** — All 200+ configuration options
 - **[Keyboard Shortcuts](docs/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
 
-## What's New in 0.29.0
-
-### ✨ New Features
-
-- **Per-Pane Title Tracking**: Each split pane now tracks its own title independently. Switching focus between panes instantly updates the tab bar title without waiting for the next terminal output. Local hostname and home-directory lookups are hoisted once per frame to avoid redundant syscalls in split-pane configurations.
-- **Hide tmux Control-Mode Gateway Tab**: New `tmux_hide_gateway_tab` config option hides the `tmux -CC` gateway tab while tmux window tabs are active. The gateway tab is automatically restored when the session ends. Configurable in **Settings → Advanced → Tmux**.
-- **Tmux Session Persistence Across Restarts**: The active tmux control-mode session name is saved and restored with window session state, automatically reconnecting on app restart.
+## What's New in 0.29.1
 
 ### 🐛 Bug Fixes
 
-- **Stale Mouse State on Pane Focus Switch**: Clicking to switch focus between split panes no longer leaves a stale `button_pressed` flag that caused spurious text selection on the next click back.
-- **Tmux Control-Mode Crash on Key Press**: Fixed a panic when pressing keys in tmux control mode before the session was fully initialized.
-- **Tmux Control-Mode Display-Tab and Mouse Routing**: Fixed display-tab close handling, TUI content rendering, and mouse event routing in tmux control-mode panes.
+- **URL Hover Cursor Fix**: Moving from a URL link into the tab bar or profile drawer no longer leaves a stuck pointer cursor.
+- **Split-Pane Paste Routing**: Keyboard and middle-click paste now targets the focused pane instead of always using the primary pane.
+- **Split-Pane URL Detection**: URL underlines no longer persist or appear at wrong positions when switching between split panes.
+- **Middle-Click Focus**: Middle-clicking a non-focused split pane now switches keyboard focus before dispatching the paste.
+- **macOS Activation Click (acceptsFirstMouse)**: Clicking a tab while the app is in the background now selects that tab on the first click.
 
 <details>
 <summary><strong>What's New in 0.28.0</strong></summary>

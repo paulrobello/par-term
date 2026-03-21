@@ -9,12 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.29.1] - 2026-03-20
+
 ### Fixed
-- **URL hover cursor no longer gets stuck as a pointer** — moving the mouse from a URL link into the tab bar or opening the profile drawer left the `Pointer` cursor permanently set. The URL hover cleanup path was only reached inside the terminal-content area; early returns for the tab bar and profile drawer bypassed it entirely. `clear_url_hover_if_needed()` is now called before each early return so the cursor and title are always restored when leaving a URL.
-- **Paste (keyboard and middle-click) now routes to the focused pane in native split panes** — both paste paths always used `tab.terminal` (the primary/first pane's PTY), so paste always landed in the first pane regardless of which pane had focus. Each path now resolves the terminal Arc via `pane_manager.focused_pane().terminal`, falling back to `tab.terminal` in single-pane mode (same Arc, no behaviour change).
-- **URL detection underlines no longer persist or appear at wrong positions in native split panes** — URL detection was gated on a cache-miss check that used the primary pane's terminal generation as the dirty signal. When a secondary pane was focused, changes to it (new output, terminal clear, content scroll) left the primary pane's generation unchanged, so `cache_hit = true` every frame and URL detection never re-ran. Stale underlines then persisted over empty cells after a clear, or appeared at wrong row positions as content changed. The cache-miss check now uses the focused pane's terminal generation in both `gather_render_data` and `flush_cell_cache`, so any content change in the focused pane correctly triggers re-detection.
-- **Middle-click paste now focuses the clicked pane in native split panes** — middle-clicking on a non-focused pane pasted to the correct pane (after the paste-routing fix) but did not switch keyboard focus. The handler now runs the same two-step focus-switch as left-click: `focus_pane_at()` identifies and focuses the clicked pane, clears stale selection/button state on the old pane, calls `set_tmux_focused_pane_from_native`, and resets scroll — all before the paste is dispatched to the newly focused pane's terminal.
-- **Clicking a tab while the app is in the background now selects that tab (macOS)** — macOS silently discards the activation click by default (`acceptsFirstMouse = NO`), so clicking the tab bar to focus the window required a second click to actually switch tabs. `with_accepts_first_mouse(true)` is now set on window creation so the activation click is forwarded to the app. The existing focus-click suppression path still guards the terminal area against forwarding PTY mouse events to mouse-tracking apps (tmux, etc.).
+- **URL hover cursor no longer gets stuck as a pointer** — moving the mouse from a URL link into the tab bar or opening the profile drawer now correctly restores the cursor and title when leaving a URL.
+- **Paste routes to the focused pane in native split panes** — keyboard and middle-click paste now targets the focused pane's PTY instead of always using the primary pane.
+- **URL detection underlines no longer persist or appear at wrong positions in split panes** — the cache-miss check now uses the focused pane's terminal generation, so content changes correctly trigger URL re-detection.
+- **Middle-click paste now focuses the clicked pane in split panes** — middle-clicking a non-focused pane now switches keyboard focus before dispatching the paste.
+- **Clicking a tab while the app is in the background now selects that tab (macOS)** — `acceptsFirstMouse` is now enabled so the activation click is forwarded to the app.
+- **Updated dependencies** — bumped `clap`, `objc2`, `rodio`, and `tar` to latest versions.
 
 ---
 

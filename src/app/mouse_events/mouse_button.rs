@@ -134,23 +134,23 @@ impl WindowState {
                             // Route paste to the focused pane's terminal and compute
                             // pane-local click coordinates for the mouse-tracking focus-click.
                             // Falls back to tab.terminal + window coords (single-pane mode).
-                            let (terminal_clone, click_cell) =
-                                if let Some(ref pm) = tab.pane_manager
-                                    && let Some(focused_pane) = pm.focused_pane()
-                                {
-                                    let terminal = Arc::clone(&focused_pane.terminal);
-                                    let cell = self.pixel_to_pane_cell(
-                                        mouse_position.0,
-                                        mouse_position.1,
-                                        &focused_pane.bounds,
-                                    );
-                                    (terminal, cell)
-                                } else {
-                                    (
-                                        Arc::clone(&tab.terminal),
-                                        self.pixel_to_cell(mouse_position.0, mouse_position.1),
-                                    )
-                                };
+                            let (terminal_clone, click_cell) = if let Some(ref pm) =
+                                tab.pane_manager
+                                && let Some(focused_pane) = pm.focused_pane()
+                            {
+                                let terminal = Arc::clone(&focused_pane.terminal);
+                                let cell = self.pixel_to_pane_cell(
+                                    mouse_position.0,
+                                    mouse_position.1,
+                                    &focused_pane.bounds,
+                                );
+                                (terminal, cell)
+                            } else {
+                                (
+                                    Arc::clone(&tab.terminal),
+                                    self.pixel_to_cell(mouse_position.0, mouse_position.1),
+                                )
+                            };
 
                             self.runtime.spawn(async move {
                                 let term = terminal_clone.write().await;
