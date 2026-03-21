@@ -214,7 +214,7 @@ open.workspace = true          # Cross-platform URL opener
 shell-words.workspace = true   # Safe shell command parsing (prevents argument injection)
 
 # Audio playback for bell sound
-rodio = { version = "0.22.1", features = ["mp3"] }
+rodio = { version = "0.22.2", features = ["mp3"] }
 
 # Desktop notifications
 notify-rust = "4.12"
@@ -245,7 +245,7 @@ naga.workspace = true
 # Native window menus
 muda = "0.17.1"
 libc = "0.2.182"
-clap = { version = "4.5.59", features = ["derive"] }
+clap = { version = "4.6.0", features = ["derive"] }
 ureq.workspace = true
 native-tls.workspace = true
 zip.workspace = true
@@ -256,7 +256,7 @@ sha2.workspace = true
 hostname.workspace = true      # Cross-platform hostname detection
 base64.workspace = true        # Base64 decoding for OSC 1337 SetBadgeFormat
 flate2 = "1.1.9"               # Gzip compression for upload tar.gz archives
-tar = "0.4.44"                 # Tar archive creation for upload (iTerm2 tgz format)
+tar = "0.4.45"                 # Tar archive creation for upload (iTerm2 tgz format)
 lru.workspace = true
 fuzzy-matcher = "0.3.7"        # Fuzzy string matching for command history search
 sysinfo = { workspace = true, features = ["system"] }  # Cross-platform CPU/memory/network monitoring for status bar
@@ -269,7 +269,7 @@ features = ["gtk"]
 
 # macOS-specific: Access CAMetalLayer for performance optimization
 [target.'cfg(target_os = "macos")'.dependencies]
-objc2 = "0.6.3"
+objc2 = "0.6.4"
 objc2-app-kit = "0.3.2"
 objc2-foundation = "0.3.2"
 objc2-quartz-core = "0.3.2"
