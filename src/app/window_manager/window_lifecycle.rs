@@ -92,6 +92,19 @@ impl WindowManager {
             self.config.window_opacity
         );
 
+        // macOS: accept the first mouse click so that clicking the tab bar or
+        // any other UI element while the window is in the background both brings
+        // the window into focus AND delivers the click to the application.
+        // Without this, macOS silently eats the activation click and the user
+        // must click a second time to interact.  The existing focus-click
+        // suppression path (`focus_click_pending`) still guards the terminal
+        // area against forwarding clicks to PTY mouse-tracking apps.
+        #[cfg(target_os = "macos")]
+        {
+            use winit::platform::macos::WindowAttributesExtMacOS as _;
+            window_attrs = window_attrs.with_accepts_first_mouse(true);
+        }
+
         match event_loop.create_window(window_attrs) {
             Ok(window) => {
                 let window_id = window.id();

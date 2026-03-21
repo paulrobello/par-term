@@ -204,6 +204,13 @@ impl WindowManager {
 
         window_attrs = window_attrs.with_transparent(true);
 
+        // macOS: accept the first mouse click (see window_lifecycle.rs for rationale).
+        #[cfg(target_os = "macos")]
+        {
+            use winit::platform::macos::WindowAttributesExtMacOS as _;
+            window_attrs = window_attrs.with_accepts_first_mouse(true);
+        }
+
         match event_loop.create_window(window_attrs) {
             Ok(window) => {
                 let window_id = window.id();
