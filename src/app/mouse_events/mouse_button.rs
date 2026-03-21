@@ -94,51 +94,86 @@ impl WindowState {
                 // less, etc.) instead of pasting, causing apparent "different content"
                 // compared to Cmd+V.
                 if self.config.middle_click_paste {
-                    if state == ElementState::Pressed
-                        && let Some(text) = self.input_handler.paste_from_primary_selection()
-                        && let Some(tab) = self.tab_manager.active_tab()
-                    {
-                        let text = crate::paste_transform::sanitize_paste_content(&text);
-                        let terminal_clone = Arc::clone(&tab.terminal);
-
-                        // Get click cell coordinates to send a focus-click to tmux
-                        // (or any other app with mouse tracking enabled).  We encode
-                        // a synthetic left-press + left-release at the click position
-                        // so tmux moves focus to the clicked pane before the paste
-                        // text arrives — matching iTerm2's behaviour.
-                        let click_cell = if let Some(ref pm) = tab.pane_manager
-                            && let Some(focused_pane) = pm.focused_pane()
+                    if state == ElementState::Pressed {
+                        // Phase 1: Focus the pane under the click, if it differs from the
+                        // current focus. Must run before Phase 2's terminal lookup so that
+                        // focused_pane() returns the clicked pane, not the old one.
                         {
-                            self.pixel_to_pane_cell(
-                                mouse_position.0,
-                                mouse_position.1,
-                                &focused_pane.bounds,
-                            )
-                        } else {
-                            self.pixel_to_cell(mouse_position.0, mouse_position.1)
-                        };
+                            let prev_focused = self
+                                .tab_manager
+                                .active_tab()
+                                .filter(|t| t.has_multiple_panes())
+                                .and_then(|t| t.focused_pane_id());
 
-                        self.runtime.spawn(async move {
-                            let term = terminal_clone.write().await;
-
-                            // If mouse tracking is active (e.g., tmux with mouse on),
-                            // send a left-click press then release at the cursor
-                            // position to focus the pane before the paste lands.
-                            if term.is_mouse_tracking_enabled()
-                                && let Some((col, row)) = click_cell
+                            if let Some(tab) = self.tab_manager.active_tab_mut()
+                                && tab.has_multiple_panes()
+                                && let Some(pane_id) = tab
+                                    .focus_pane_at(mouse_position.0 as f32, mouse_position.1 as f32)
+                                && prev_focused != Some(pane_id)
                             {
-                                let press = term.encode_mouse_event(0, col, row, true, 0);
-                                let release = term.encode_mouse_event(0, col, row, false, 0);
-                                if !press.is_empty() {
-                                    let _ = term.write(&press);
+                                tab.selection_mouse_mut().is_selecting = false;
+                                if let Some(old_id) = prev_focused
+                                    && let Some(pm) = tab.pane_manager.as_mut()
+                                    && let Some(old_pane) = pm.get_pane_mut(old_id)
+                                {
+                                    old_pane.mouse.button_pressed = false;
                                 }
-                                if !release.is_empty() {
-                                    let _ = term.write(&release);
-                                }
+                                // tab borrow ends here (NLL) — safe to call self methods.
+                                self.set_tmux_focused_pane_from_native(pane_id);
+                                self.set_scroll_target(0);
+                                self.focus_state.needs_redraw = true;
                             }
+                        }
 
-                            let _ = term.paste(&text);
-                        });
+                        // Phase 2: Read primary selection and paste into the now-focused pane.
+                        if let Some(text) = self.input_handler.paste_from_primary_selection()
+                            && let Some(tab) = self.tab_manager.active_tab()
+                        {
+                            let text = crate::paste_transform::sanitize_paste_content(&text);
+
+                            // Route paste to the focused pane's terminal and compute
+                            // pane-local click coordinates for the mouse-tracking focus-click.
+                            // Falls back to tab.terminal + window coords (single-pane mode).
+                            let (terminal_clone, click_cell) =
+                                if let Some(ref pm) = tab.pane_manager
+                                    && let Some(focused_pane) = pm.focused_pane()
+                                {
+                                    let terminal = Arc::clone(&focused_pane.terminal);
+                                    let cell = self.pixel_to_pane_cell(
+                                        mouse_position.0,
+                                        mouse_position.1,
+                                        &focused_pane.bounds,
+                                    );
+                                    (terminal, cell)
+                                } else {
+                                    (
+                                        Arc::clone(&tab.terminal),
+                                        self.pixel_to_cell(mouse_position.0, mouse_position.1),
+                                    )
+                                };
+
+                            self.runtime.spawn(async move {
+                                let term = terminal_clone.write().await;
+
+                                // If mouse tracking is active (e.g., tmux with mouse on),
+                                // send a left-click press then release at the cursor
+                                // position to focus the pane before the paste lands.
+                                if term.is_mouse_tracking_enabled()
+                                    && let Some((col, row)) = click_cell
+                                {
+                                    let press = term.encode_mouse_event(0, col, row, true, 0);
+                                    let release = term.encode_mouse_event(0, col, row, false, 0);
+                                    if !press.is_empty() {
+                                        let _ = term.write(&press);
+                                    }
+                                    if !release.is_empty() {
+                                        let _ = term.write(&release);
+                                    }
+                                }
+
+                                let _ = term.paste(&text);
+                            });
+                        }
                     }
                     // Don't forward the middle button press/release itself to mouse
                     // tracking: the button is reserved for paste when this option is

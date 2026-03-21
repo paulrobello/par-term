@@ -243,7 +243,17 @@ impl WindowState {
             return;
         }
         if let Some(tab) = self.tab_manager.active_tab_mut() {
-            let new_gen = if let Ok(term) = tab.terminal.try_write() {
+            // Use the focused pane's terminal to store the generation, matching the
+            // terminal used for cache invalidation in gather_render_data. If we stored
+            // the primary pane's generation but checked the focused pane's generation
+            // next frame, a mismatch would force a cache miss every frame in split mode.
+            let focused_terminal = tab
+                .pane_manager
+                .as_ref()
+                .and_then(|pm| pm.focused_pane())
+                .map(|p| p.terminal.clone())
+                .unwrap_or_else(|| tab.terminal.clone());
+            let new_gen = if let Ok(term) = focused_terminal.try_write() {
                 Some(term.update_generation())
             } else {
                 None

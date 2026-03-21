@@ -77,7 +77,17 @@ impl WindowState {
             hovered_url,
         ) = match self.tab_manager.active_tab() {
             Some(t) => (
-                t.terminal.clone(),
+                // Use the focused pane's terminal for cache invalidation.
+                // In single-pane mode this is the same Arc as tab.terminal.
+                // In split-pane mode, using the primary pane's terminal means changes
+                // to a secondary focused pane never trigger a cache miss, so URL
+                // detection never re-runs and stale underlines persist after content
+                // changes or terminal clears in the focused pane.
+                t.pane_manager
+                    .as_ref()
+                    .and_then(|pm| pm.focused_pane())
+                    .map(|p| p.terminal.clone())
+                    .unwrap_or_else(|| t.terminal.clone()),
                 t.active_scroll_state().offset,
                 t.selection_mouse().selection,
                 t.active_cache().cells.clone(),

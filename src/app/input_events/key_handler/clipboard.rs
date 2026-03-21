@@ -172,7 +172,14 @@ impl WindowState {
         // Fall back to direct terminal paste
         if let Some(tab) = self.tab_manager.active_tab() {
             use std::sync::Arc;
-            let terminal_clone = Arc::clone(&tab.terminal);
+            // Route to focused pane's terminal in split-pane mode.
+            // In single-pane mode the focused pane wraps Tab::terminal (same Arc).
+            let terminal_clone = tab
+                .pane_manager
+                .as_ref()
+                .and_then(|pm| pm.focused_pane())
+                .map(|pane| Arc::clone(&pane.terminal))
+                .unwrap_or_else(|| Arc::clone(&tab.terminal));
             let delay_ms = self.config.paste_delay_ms;
             self.runtime.spawn(async move {
                 let term = terminal_clone.write().await;
