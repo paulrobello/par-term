@@ -24,11 +24,22 @@ impl WindowState {
             && shift
             && matches!(event.logical_key, Key::Character(ref c) if c.as_str() == "k" || c.as_str() == "K")
         {
-            // Clear scrollback if terminal is available
+            // Clear scrollback for the focused pane (or tab's root terminal)
             let cleared = if let Some(tab) = self.tab_manager.active_tab_mut() {
+                // Use the focused pane's terminal so Ctrl+Shift+K clears the
+                // correct pane in split-pane mode.
+                let terminal = if let Some(ref pm) = tab.pane_manager {
+                    if let Some(focused_pane) = pm.focused_pane() {
+                        Arc::clone(&focused_pane.terminal)
+                    } else {
+                        Arc::clone(&tab.terminal)
+                    }
+                } else {
+                    Arc::clone(&tab.terminal)
+                };
                 // try_lock: intentional — keyboard shortcut handler in sync event loop.
                 // On miss: scrollback is not cleared this keypress. User can press again.
-                let did_clear = if let Ok(mut term) = tab.terminal.try_write() {
+                let did_clear = if let Ok(mut term) = terminal.try_write() {
                     term.clear_scrollback();
                     term.clear_scrollback_metadata();
                     true
@@ -57,7 +68,17 @@ impl WindowState {
             && matches!(event.logical_key, Key::Character(ref c) if c.as_str() == "l" || c.as_str() == "L")
         {
             if let Some(tab) = self.tab_manager.active_tab() {
-                let terminal_clone = Arc::clone(&tab.terminal);
+                // Use the focused pane's terminal so Ctrl+L clears the correct
+                // pane in split-pane mode, falling back to the tab's root terminal.
+                let terminal_clone = if let Some(ref pm) = tab.pane_manager {
+                    if let Some(focused_pane) = pm.focused_pane() {
+                        Arc::clone(&focused_pane.terminal)
+                    } else {
+                        Arc::clone(&tab.terminal)
+                    }
+                } else {
+                    Arc::clone(&tab.terminal)
+                };
                 // Send the "clear" command sequence (Ctrl+L)
                 let clear_sequence = vec![0x0C]; // Ctrl+L character
                 self.runtime.spawn(async move {
@@ -74,8 +95,8 @@ impl WindowState {
         }
 
         // Ctrl+Plus/Equals: Increase font size (applies live)
+        // Also handles Ctrl+Shift+= (which produces "+") so the character doesn't leak to the PTY
         if ctrl
-            && !shift
             && (matches!(event.logical_key, Key::Character(ref c) if c.as_str() == "+" || c.as_str() == "="))
         {
             self.config.font_size = (self.config.font_size + 1.0).min(72.0);
@@ -89,8 +110,8 @@ impl WindowState {
         }
 
         // Ctrl+Minus: Decrease font size (applies live)
+        // Also handles Ctrl+Shift+- (which produces "_") so the character doesn't leak to the PTY
         if ctrl
-            && !shift
             && matches!(event.logical_key, Key::Character(ref c) if c.as_str() == "-" || c.as_str() == "_")
         {
             self.config.font_size = (self.config.font_size - 1.0).max(6.0);

@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Cmd+Shift+/- characters no longer leak to the terminal** — font size increase/decrease shortcuts now also handle the shifted variants (`Cmd+Shift+=` producing `+`, `Cmd+Shift+-` producing `_`) so the characters are consumed instead of being forwarded to the PTY.
+- **Ctrl+L and Ctrl+Shift+K now target the focused pane in split-pane mode** — clear screen and clear scrollback were always operating on the tab's root terminal; they now route through the focused pane's terminal, matching normal keyboard input routing.
+
 ---
 
 ## [0.29.1] - 2026-03-20
