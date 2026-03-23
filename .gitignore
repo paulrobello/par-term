@@ -43,3 +43,4 @@ settings.local.json.bak
 .claude/settings.local.json
 settings.local.json
 .claude/scheduled_tasks.lock
+.claude/.cc2cc-session-id
