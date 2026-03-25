@@ -271,6 +271,18 @@ impl TabBarUI {
         self.context_menu_tab.is_some()
     }
 
+    /// Return the tab ID at the given egui logical-pixel position, using the
+    /// tab rects cached from the last render frame.  Returns `None` if the
+    /// position doesn't fall inside any rendered tab.
+    pub fn tab_at_logical_pos(&self, pos: egui::Pos2) -> Option<TabId> {
+        for (id, rect) in &self.tab_rects {
+            if rect.contains(pos) {
+                return Some(*id);
+            }
+        }
+        None
+    }
+
     /// Check if the tab rename text field is active
     pub fn is_renaming(&self) -> bool {
         self.renaming_tab && self.context_menu_tab.is_some()

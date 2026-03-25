@@ -2,6 +2,7 @@
 //!
 //! Extracted from `WindowState` as part of the God Object decomposition (ARC-001).
 
+use crate::tab::TabId;
 use std::time::Instant;
 
 /// State for window focus, redraw tracking, and render throttling.
@@ -27,6 +28,11 @@ pub(crate) struct FocusState {
     pub(crate) focus_click_pending: bool,
     /// Timestamp when a focus click was suppressed (to prevent double-handling)
     pub(crate) focus_click_suppressed_while_unfocused_at: Option<Instant>,
+    /// Tab to switch to on the next post-render pass when a focus-click landed
+    /// directly on a tab.  Set by the native event handler (using cached tab
+    /// rects) as a fallback in case egui's own click detection doesn't fire
+    /// (e.g. pointer state was stale when the window was unfocused).
+    pub(crate) pending_focus_tab_switch: Option<TabId>,
 }
 
 impl Default for FocusState {
@@ -41,6 +47,7 @@ impl Default for FocusState {
             ui_consumed_mouse_press: false,
             focus_click_pending: false,
             focus_click_suppressed_while_unfocused_at: None,
+            pending_focus_tab_switch: None,
         }
     }
 }

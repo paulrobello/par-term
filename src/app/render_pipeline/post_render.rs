@@ -47,8 +47,20 @@ impl WindowState {
         // Done here to avoid borrow conflicts with the renderer block above.
         self.sync_ai_inspector_width();
 
-        // Handle tab bar actions collected during egui rendering
-        self.handle_tab_bar_action_after_render(tab_action);
+        // Handle tab bar actions collected during egui rendering.
+        // If egui didn't detect a tab click but a focus-click landed on a known
+        // tab (stored in pending_focus_tab_switch), apply the switch now as a
+        // fallback.  This covers the case where egui's pointer state was stale
+        // when the window was unfocused and clicked_by() didn't fire.
+        let effective_tab_action = if tab_action != crate::tab_bar_ui::TabBarAction::None {
+            self.focus_state.pending_focus_tab_switch = None;
+            tab_action
+        } else if let Some(tab_id) = self.focus_state.pending_focus_tab_switch.take() {
+            crate::tab_bar_ui::TabBarAction::SwitchTo(tab_id)
+        } else {
+            tab_action
+        };
+        self.handle_tab_bar_action_after_render(effective_tab_action);
 
         // Handle clipboard actions collected during egui rendering
         self.handle_clipboard_history_action_after_render(clipboard);

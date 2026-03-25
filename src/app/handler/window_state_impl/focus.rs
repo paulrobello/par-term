@@ -36,6 +36,7 @@ impl WindowState {
         } else {
             self.focus_state.focus_click_pending = false;
             self.focus_state.focus_click_suppressed_while_unfocused_at = None;
+            self.focus_state.pending_focus_tab_switch = None;
         }
 
         // Update renderer focus state for unfocused cursor styling

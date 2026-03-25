@@ -370,6 +370,22 @@ impl WindowState {
                         .map(|t| t.active_mouse().position)
                         .unwrap_or((0.0, 0.0));
                     if self.is_mouse_in_tab_bar(mouse_position) {
+                        // Direct hit-test against the tab rects cached from the last render
+                        // frame.  egui's clicked_by() can miss focus-clicks because pointer
+                        // state may be stale when the window was unfocused.  Storing the
+                        // target here lets post_render apply the switch as a fallback.
+                        let scale_factor = self
+                            .window
+                            .as_ref()
+                            .map(|w| w.scale_factor())
+                            .unwrap_or(1.0) as f32;
+                        let logical_pos = egui::pos2(
+                            mouse_position.0 as f32 / scale_factor,
+                            mouse_position.1 as f32 / scale_factor,
+                        );
+                        self.focus_state.pending_focus_tab_switch =
+                            self.tab_bar_ui.tab_at_logical_pos(logical_pos);
+
                         // Don't suppress — egui needs both press and release to fire clicked_by()
                         self.focus_state.ui_consumed_mouse_press = false;
                         self.begin_clipboard_image_click_guard(button, state);

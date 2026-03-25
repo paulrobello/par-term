@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Clicking a tab while the app is unfocused now reliably selects that tab** — focus-clicks on the tab bar were forwarded to egui, but egui's `clicked_by()` detection could miss them if pointer state was stale from when the window lost focus. The native event handler now also hit-tests the cached tab rects directly and stores a pending switch that fires in post-render if egui doesn't detect the click itself.
 - **Cmd+Shift+/- characters no longer leak to the terminal** — font size increase/decrease shortcuts now also handle the shifted variants (`Cmd+Shift+=` producing `+`, `Cmd+Shift+-` producing `_`) so the characters are consumed instead of being forwarded to the PTY.
 - **Ctrl+L and Ctrl+Shift+K now target the focused pane in split-pane mode** — clear screen and clear scrollback were always operating on the tab's root terminal; they now route through the focused pane's terminal, matching normal keyboard input routing.
 - **`--shader` CLI flag now overrides configured shader and background image** — `create_window()` was reloading config from disk after `App::new()` patched it with the CLI shader, silently discarding the override. The patch is now re-applied after each config reload so `--shader <name>` and `--screenshot` work correctly for gallery generation.
