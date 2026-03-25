@@ -66,14 +66,14 @@ Paths are detected when they start with:
 - `./` (current directory)
 - `../` (parent directory)
 - `~/` (home directory)
-
-> **Note:** Absolute paths starting with `/` are not automatically detected to avoid false positives with command output.
+- `/` (absolute path — must have at least two components and appear at the start of a line or after whitespace to reduce false positives)
 
 ### Supported Path Formats
 
 | Format | Example | Description |
 |--------|---------|-------------|
 | Path only | `./src/main.rs` | Opens file at line 1 |
+| Path only (absolute) | `/usr/local/bin/cargo` | Opens absolute path (two+ components required) |
 | Path:line | `./src/main.rs:42` | Opens file at line 42 |
 | Path:line:col | `./src/main.rs:42:10` | Opens file at line 42, column 10 |
 | Bracket notation | `./src/main.rs[42]` | Opens file at line 42 |
@@ -244,8 +244,8 @@ Cmd/Ctrl+Click on `../shared/utils.rs:30` resolves the relative path and opens a
 
 **Paths are not highlighted:**
 - Verify `semantic_history_enabled` is `true` in config
-- Only paths starting with `./`, `../`, or `~/` are detected
-- Absolute paths (e.g., `/usr/local/bin/...`) are not auto-detected
+- Relative paths must start with `./`, `../`, or `~/`
+- Absolute paths (starting with `/`) are detected only when they have at least two path components and appear at the start of a line or after whitespace
 
 **Editor doesn't open:**
 - Check that the editor command is correct and the editor is in your PATH

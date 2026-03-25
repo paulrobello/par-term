@@ -585,7 +585,7 @@ When a dynamic profile has the same ID as a local profile, the `conflict_resolut
 
 ### Security
 
-- **HTTPS enforcement**: When `headers` contain authentication tokens, par-term requires the URL to use HTTPS. HTTP URLs with auth headers are rejected at load time
+- **HTTPS enforcement**: HTTP URLs are rejected by default for all dynamic profile sources. To permit plain HTTP, set `allow_http_profiles: true` in your global `config.yaml` (not recommended)
 - **Size limits**: The `max_size_bytes` setting prevents downloading unexpectedly large payloads
 
 ### Visual Indicators

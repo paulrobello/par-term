@@ -75,7 +75,7 @@ The prettifier is built on two core traits defined in `par-term-prettifier/src/t
 | `display_name()` | Human-readable name for the settings UI |
 | `capabilities()` | Required capabilities (text styling, inline graphics, external command, network) |
 | `render(content, config)` | Render a content block into styled output |
-| `format_badge()` | Short badge text for the gutter indicator (e.g., `"MD"`, `"JSON"`) |
+| `format_badge()` | Short badge text for the gutter indicator (e.g., `"📝"`, `"{}"`) |
 
 Both traits require `Send + Sync` for thread safety.
 
@@ -148,7 +148,7 @@ All 11 built-in renderers are enabled by default with priority 50 (diagrams uses
 
 ### Markdown
 
-**Format ID**: `markdown` | **Badge**: `MD`
+**Format ID**: `markdown` | **Badge**: `📝`
 
 Renders Markdown content with full inline formatting:
 
@@ -166,7 +166,7 @@ Renders Markdown content with full inline formatting:
 
 ### JSON
 
-**Format ID**: `json` | **Badge**: `JSON`
+**Format ID**: `json` | **Badge**: `{}`
 
 Syntax-highlighted JSON with proper indentation. Colors keys, string values, numbers, booleans, and null distinctly.
 
@@ -250,7 +250,7 @@ Tabular result set rendering. Detects SQL result output patterns and formats the
 
 ### Stack Trace
 
-**Format ID**: `stack_trace` | **Badge**: `STK`
+**Format ID**: `stack_trace` | **Badge**: `TRACE`
 
 Error and exception trace highlighting. Detects common stack trace patterns across languages and applies color-coded formatting to file paths, line numbers, and error messages.
 

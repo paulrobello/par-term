@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - **Cmd+Shift+/- characters no longer leak to the terminal** — font size increase/decrease shortcuts now also handle the shifted variants (`Cmd+Shift+=` producing `+`, `Cmd+Shift+-` producing `_`) so the characters are consumed instead of being forwarded to the PTY.
 - **Ctrl+L and Ctrl+Shift+K now target the focused pane in split-pane mode** — clear screen and clear scrollback were always operating on the tab's root terminal; they now route through the focused pane's terminal, matching normal keyboard input routing.
+- **`--shader` CLI flag now overrides configured shader and background image** — `create_window()` was reloading config from disk after `App::new()` patched it with the CLI shader, silently discarding the override. The patch is now re-applied after each config reload so `--shader <name>` and `--screenshot` work correctly for gallery generation.
+
+### Changed
+- **Gallery screenshots added for `jellyfish.glsl` and `rain-glass.glsl`** — two background shaders were missing from `gh-pages/gallery/`.
+- **Shader manifest regenerated** — `shaders/manifest.json` updated to include SHA256 hashes for all 75 shader bundle files.
+- **Documentation sync** — corrected stale values across multiple docs: `blur_radius` default (`20` → `8` in WINDOW_MANAGEMENT.md), `tab_html_titles` default (`true` → `false` in TABS.md), settings section label in ACCESSIBILITY.md, badge display values in PRETTIFIER.md, shader debug file paths in TROUBLESHOOTING.md, and missing child-process environment variables in ENVIRONMENT_VARIABLES.md. README shader count updated to 52+.
 
 ---
 

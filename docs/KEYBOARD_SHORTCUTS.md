@@ -57,7 +57,7 @@ Complete reference for all par-term keyboard shortcuts.
 | Paste | `Cmd + V` | `Ctrl + Shift + V` |
 | Paste (X11 fallback) | `Shift + Insert` | `Shift + Insert` |
 | Paste Special | `Cmd + Shift + V` | `Ctrl + Alt + V` |
-| Clipboard history | `Cmd + Shift + H` | `Ctrl + Shift + H` |
+| Clipboard history | `Ctrl + Shift + H` | `Ctrl + Shift + H` |
 | Select all | `Cmd + A` | `Ctrl + Shift + A` |
 
 **Mouse Selection:**
@@ -128,9 +128,9 @@ Vi-style keyboard-driven text selection. See [Copy Mode](COPY_MODE.md) for compl
 
 | Shortcut | Action |
 |----------|--------|
-| `Cmd/Ctrl + +` or `Cmd/Ctrl + =` | Increase font size |
-| `Cmd/Ctrl + -` | Decrease font size |
-| `Cmd/Ctrl + 0` | Reset font size to default |
+| `Ctrl + +` or `Ctrl + =` | Increase font size |
+| `Ctrl + -` | Decrease font size |
+| `Ctrl + 0` | Reset font size to default |
 
 ## UI Toggles & Display
 
@@ -142,7 +142,6 @@ Vi-style keyboard-driven text selection. See [Copy Mode](COPY_MODE.md) for compl
 | `F11` | Toggle fullscreen |
 | `F12` | Open Settings |
 | `Cmd + ,` (macOS) | Open Settings |
-| `Ctrl + ,` (Windows/Linux) | Open Settings |
 | `Escape` | Close current UI panel |
 
 ## Pane Management
@@ -173,7 +172,7 @@ Vi-style keyboard-driven text selection. See [Copy Mode](COPY_MODE.md) for compl
 | `Cmd/Ctrl + Alt + T` | Toggle tmux session picker |
 | `Ctrl + ,` | Cycle cursor style |
 
-> **📝 Note:** The Assistant panel (`toggle_ai_inspector`) can be bound via custom keybindings. See [Assistant Panel](ASSISTANT_PANEL.md) for details.
+> **📝 Note:** The Assistant panel is toggled with `Cmd + I` (macOS) or `Ctrl + Shift + I` (Linux/Windows) when `ai_inspector_enabled` is `true`. It can also be bound via custom keybindings. See [Assistant Panel](ASSISTANT_PANEL.md) for details.
 
 ## Customizing Keybindings
 

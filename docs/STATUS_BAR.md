@@ -311,11 +311,11 @@ status_bar_widgets:
     enabled: true
     section: right
     order: 3
-  - id: update_available
+  - id: clock
     enabled: true
     section: right
     order: 4
-  - id: clock
+  - id: update_available
     enabled: true
     section: right
     order: 5

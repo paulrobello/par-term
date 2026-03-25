@@ -298,6 +298,8 @@ All update settings are accessible through Settings (`F12`) under **Advanced > U
 
 - **HTTPS only**: All communication with the GitHub API and asset downloads use HTTPS with TLS
 - **GitHub API**: Release information is fetched from the official GitHub Releases API (`api.github.com`), and binaries are downloaded from GitHub's release asset URLs
+- **SHA256 checksum verification**: After downloading, the binary is verified against a `.sha256` checksum file published alongside each release asset. If the checksum is present and the hashes do not match, the update is aborted. If no checksum file is available (older releases), a warning is logged and the update proceeds
+- **Content validation**: The downloaded archive is inspected before checksum verification to catch obvious bad responses (e.g., HTML error pages) and provide a clear error rather than a checksum mismatch message
 - **No code execution during download**: Downloaded binaries are written to disk first and are not executed as part of the update process. The user must restart par-term to use the new version
 - **Permission preservation**: On Unix systems, the new binary receives standard executable permissions (`0o755`). On macOS app bundles, Unix permissions from the zip archive entries are preserved
 - **Atomic replacement on Unix**: The `rename()` system call provides atomic replacement, ensuring the binary is never in a partially-written state

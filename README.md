@@ -15,7 +15,7 @@ A cross-platform, GPU-accelerated terminal emulator frontend built with Rust, po
 ## Table of Contents
 
 - [Getting Started](#getting-started)
-- [What's New](#whats-new-in-0280)
+- [What's New](#whats-new-in-0291)
 - [Features](#features)
 - [Documentation](#documentation)
 - [Installation](#installation)
@@ -869,7 +869,7 @@ Essential feature for emacs/vim users.
 - **Intelligent Reflow**: Full content reflow on window resize, preserving scrollback and visible state.
 
 ### Modern UI & Visuals
-- **Custom GLSL Shaders**: 49+ included shaders with hot reload, per-shader config, and cubemap support.
+- **Custom GLSL Shaders**: 52+ included shaders with hot reload, per-shader config, and cubemap support.
 - **Background Images**: Support for PNG/JPEG backgrounds with configurable opacity and scaling modes.
 - **Window Transparency**: True per-pixel alpha with macOS blur support and text clarity options.
 - **Visual Bell**: Flash-based alerts for terminal bell events.
@@ -944,7 +944,7 @@ Essential feature for emacs/vim users.
 - **[Debug Logging](docs/LOGGING.md)** - Configurable log levels and troubleshooting.
 
 ### Shaders
-- **[Shader Gallery](https://paulrobello.github.io/par-term/)** - Visual gallery of 49+ included shaders with screenshots.
+- **[Shader Gallery](https://paulrobello.github.io/par-term/)** - Visual gallery of 52+ included shaders with screenshots.
 - **[Shader Reference](docs/SHADERS.md)** - Complete list of bundled shaders.
 - **[Custom Shaders Guide](docs/CUSTOM_SHADERS.md)** - Create custom GLSL shaders with hot reload and per-shader config.
 - **[Compositor Details](docs/COMPOSITOR.md)** - Deep dive into the rendering architecture.
@@ -1047,7 +1047,7 @@ xattr -cr /Applications/par-term.app
 
 ## Installing Shaders
 
-par-term includes 49+ custom GLSL shaders for background effects and cursor animations. These need to be installed to your config directory.
+par-term includes 52+ custom GLSL shaders for background effects and cursor animations. These need to be installed to your config directory.
 
 ### Built-in Installer (Recommended)
 

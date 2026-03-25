@@ -120,10 +120,11 @@ You can configure where the save dialog opens by default. The setting controls t
 par-term sends desktop notifications for file transfer lifecycle events:
 
 - **Upload Requested** -- When a remote application requests a file upload
-- **Download Saved** -- After a file is successfully saved, including filename and size
+- **Download Received** -- When download data has been fully received (before the save dialog)
+- **Download Saved** -- After a file is successfully written to disk, including filename, path, and size
 - **Download Save Failed** -- If writing the file to disk fails
-- **Upload Sent** -- After upload data is successfully transmitted
-- **Upload Failed** -- If the upload file cannot be read or the terminal is unavailable
+- **Upload Complete** -- After upload data is successfully transmitted
+- **Upload Failed** -- If the upload file cannot be read or archived
 - **File Transfer Failed** -- When a transfer fails for any reason
 
 ## File Uploads

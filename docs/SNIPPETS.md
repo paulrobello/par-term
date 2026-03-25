@@ -23,7 +23,7 @@ Snippets are saved text blocks that can be quickly inserted into the terminal. T
 
 ### Creating Snippets
 
-1. Open Settings (⌘+, / Ctrl+,)
+1. Open Settings (`F12` or `⌘+,` on macOS)
 2. Navigate to the **Snippets** tab
 3. Click **+ Add Snippet**
 4. Fill in the snippet details:
@@ -162,7 +162,7 @@ This works alongside the existing per-action keybinding, so an action can have e
 
 ### Action Types
 
-par-term supports five types of custom actions:
+par-term supports eight types of custom actions (five primary types plus three workflow types described in [Workflow Actions](#workflow-actions)):
 
 #### 1. Shell Command
 Execute a shell command with optional arguments.
@@ -232,7 +232,7 @@ Simulate keyboard input by sending terminal byte sequences to the PTY.
 ```yaml
 Title: Exit Vim
 Type: Key Sequence
-Sequence: Escape :wq Enter
+Keys: Escape :wq Enter
 ```
 
 #### 5. Split Pane
@@ -283,7 +283,7 @@ Split percent: 33%
 
 ### Creating Actions
 
-1. Open Settings (⌘+, / Ctrl+,)
+1. Open Settings (`F12` or `⌘+,` on macOS)
 2. Navigate to the **Snippets & Actions** tab
 3. Scroll to the **Custom Actions** section and click **+ Add Action**
 4. Fill in the action details:

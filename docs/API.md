@@ -379,7 +379,7 @@ egui-based settings interface decoupled from the main terminal crate via traits.
 | `TabSnapshot` | Snapshot of a single tab's state within a window snapshot. |
 | `MonitorInfo` | Display monitor dimensions and position for arrangement DPI handling. |
 | `ShaderDetectModifiedFn` | Function pointer type for detecting modified bundled shaders. |
-| `InstallResult` | Result of shader installation (installed, skipped, removed counts). |
+| `ShaderInstallResult` | Result of shader installation (installed, skipped, removed counts). |
 | `SettingsWindowAction` | Actions returned by settings UI for the main app to process. |
 | `UpdateCheckResult` | Result of an update check (UpToDate, UpdateAvailable, Error, etc.). |
 | `UpdateCheckInfo` | Information about an available update. |

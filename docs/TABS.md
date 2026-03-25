@@ -490,7 +490,7 @@ tab_min_width: 120.0
 max_tabs: 0  # 0 = unlimited
 
 # Tab titles
-tab_html_titles: true
+tab_html_titles: false
 
 # Profile selection
 new_tab_shortcut_shows_profiles: false  # Show profile picker on Cmd+T

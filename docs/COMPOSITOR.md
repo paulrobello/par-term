@@ -260,7 +260,7 @@ Par-term provides a comprehensive set of Shadertoy-compatible uniforms:
 | `iChannel2` | `sampler2D` | User texture channel 2 |
 | `iChannel3` | `sampler2D` | User texture channel 3 |
 | `iChannel4` | `sampler2D` | Terminal content texture (par-term specific) |
-| `iChannelResolution[0-4]` | `vec4` | Channel resolutions `[width, height, 1.0, 0.0]` |
+| `iChannelResolution[0-4]` | `vec3` | Channel resolutions `[width, height, 1.0]` (Shadertoy-compatible array) |
 | `iCubemap` | `samplerCube` | Cubemap texture for environment mapping |
 | `iCubemapResolution` | `vec4` | Cubemap face size `[size, size, 1.0, 0.0]` |
 

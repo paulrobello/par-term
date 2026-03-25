@@ -57,8 +57,13 @@ Use `make tail-log` or `tail -f /tmp/par_term_debug.log` to monitor the log in r
 |----------|---------|-------------|
 | `SHELL` | `/bin/bash` | Path to the shell to launch in new terminal tabs. Falls back to `/bin/bash` if unset. |
 | `TERM` | — | Terminal type reported to child processes. Also used in config variable substitution. |
-| `TERM_PROGRAM` | — | Terminal program identifier. Populated by par-term shell integration. |
-| `PATH` | — | System executable search path. Read at startup to locate the shell and other programs. |
+| `TERM_PROGRAM` | `iTerm.app` | Set by par-term in every child process environment for maximum protocol compatibility. Tools that check `TERM_PROGRAM` for feature detection (OSC 8 hyperlinks, OSC 9;4 progress bars, OSC 52 clipboard, OSC 1337 file transfer) will enable those features. |
+| `TERM_PROGRAM_VERSION` | `3.6.6` | Set by par-term alongside `TERM_PROGRAM` to advertise the iTerm2 protocol version. |
+| `LC_TERMINAL` | `iTerm2` | Set by par-term for tools that check this variable for iTerm2 feature compatibility. |
+| `LC_TERMINAL_VERSION` | `3.6.6` | Set by par-term alongside `LC_TERMINAL`. |
+| `ITERM_SESSION_ID` | `w0t0p0:<uuid>` | Set by par-term per session. Used by Claude Code and other tools for OSC 52 clipboard detection. Format: `w{window}t{tab}p{pane}:{UUID}`. |
+| `__PAR_TERM` | `1` | Set by par-term as an identity marker. Shell integration scripts use this to detect they are running inside par-term. |
+| `PATH` | — | System executable search path. Read at startup to locate the shell and other programs. par-term augments `PATH` with common tool directories (e.g., `/opt/homebrew/bin`, `~/.cargo/bin`) when launching child processes. |
 | `LANG` | — | Locale setting forwarded to the child shell. |
 | `COLORTERM` | — | Color capability hint (`truecolor` or `24bit`). Forwarded to child processes. |
 

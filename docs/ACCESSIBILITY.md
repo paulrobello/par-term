@@ -69,7 +69,7 @@ minimum_contrast: 0.0
 
 ### Settings UI
 
-The minimum contrast slider is located in **Settings > Appearance > Fonts**:
+The minimum contrast slider is located in **Settings > Appearance > Font Rendering**:
 
 - **Slider range**: 0.0 to 0.99
 - **Dynamic label** shows the current level:

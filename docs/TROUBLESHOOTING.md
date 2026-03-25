@@ -353,12 +353,13 @@ Set `cursor_shader_hides_cursor: true` in your config. This tells the renderer t
 
 ### Debugging Shaders
 
-par-term writes intermediate shader files to `/tmp/` for debugging:
+par-term writes intermediate shader files for debugging. Paths use the OS temp directory (`$TMPDIR` on macOS/Linux, `%TEMP%` on Windows):
 
 | File | Description |
 |------|-------------|
-| `/tmp/par_term_<shader_name>_shader.wgsl` | Transpiled WGSL output for each shader |
-| `/tmp/par_term_debug_wrapped.glsl` | Wrapped GLSL input (last shader processed) |
+| `/tmp/par_term_<shader_name>_shader.wgsl` | Transpiled WGSL output for each shader (hardcoded `/tmp/`) |
+| `<temp_dir>/par_term_debug_wrapped.glsl` | Wrapped GLSL input sent to the transpiler (last shader processed) |
+| `<temp_dir>/par_term_debug_wrapped_source.glsl` | Raw GLSL source before wrapping (last shader processed) |
 
 Enable `shader_hot_reload: true` in your config for faster iteration during shader development. Set `shader_hot_reload_delay: 100` (milliseconds) for the debounce interval.
 

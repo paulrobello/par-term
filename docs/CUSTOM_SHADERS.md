@@ -135,9 +135,9 @@ custom_shader_animation_speed: 1.0
 # Text opacity when shader is active (0.0 - 1.0)
 custom_shader_text_opacity: 1.0
 
-# Shader brightness (0.05 - 1.0, default 1.0)
+# Shader brightness (0.05 - 1.0, default 0.15)
 # Dims the shader background to improve text readability
-custom_shader_brightness: 0.5
+custom_shader_brightness: 0.15
 
 # Full content mode: shader can distort/modify text
 # false = text composited on top of shader output (recommended)
@@ -152,7 +152,7 @@ custom_shader_full_content: false
 | `custom_shader_animation` | `bool` | `true` | Enable animation (updates iTime each frame) |
 | `custom_shader_animation_speed` | `f32` | `1.0` | Animation speed multiplier |
 | `custom_shader_text_opacity` | `f32` | `1.0` | Text opacity when shader is active (0.0-1.0) |
-| `custom_shader_brightness` | `f32` | `1.0` | Brightness multiplier (0.05-1.0) |
+| `custom_shader_brightness` | `f32` | `0.15` | Brightness multiplier (0.05-1.0) |
 | `custom_shader_full_content` | `bool` | `false` | When true, shader can manipulate terminal content |
 | `custom_shader_use_background_as_channel0` | `bool` | `false` | Use app's background image as iChannel0 texture |
 

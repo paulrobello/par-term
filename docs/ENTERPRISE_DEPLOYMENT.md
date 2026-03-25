@@ -116,7 +116,7 @@ cargo build --profile dev-release --locked
 #!/usr/bin/env bash
 set -euo pipefail
 
-PAR_TERM_VERSION="0.25.0"
+PAR_TERM_VERSION="0.29.1"
 INSTALL_DIR="/usr/local/bin"
 PLATFORM="aarch64-apple-darwin"   # adjust for target arch
 BINARY="par-term-${PLATFORM}"
@@ -145,7 +145,7 @@ echo "par-term ${PAR_TERM_VERSION} installed successfully."
 
 ```powershell
 # deploy-par-term.ps1
-$Version  = "0.25.0"
+$Version  = "0.29.1"
 $Platform = "x86_64-pc-windows-msvc"
 $InstDir  = "C:\Program Files\par-term"
 $Url      = "https://github.com/paulrobello/par-term/releases/download/v$Version/par-term-$Platform.exe"
@@ -246,7 +246,7 @@ For environments where updates are managed centrally, disable the auto-update ch
 update_check_frequency: never
 ```
 
-Valid values: `startup`, `daily`, `weekly`, `monthly`, `never`.
+Valid values: `hourly`, `daily`, `weekly`, `monthly`, `never`.
 
 ### Version Pinning
 
@@ -254,7 +254,7 @@ Valid values: `startup`, `daily`, `weekly`, `monthly`, `never`.
 |----------------|-------------|
 | Homebrew | `brew pin par-term` |
 | Standalone binary | Replace binary file only during planned maintenance windows |
-| Cargo | `cargo install --locked --version 0.25.0 par-term` |
+| Cargo | `cargo install --locked --version 0.29.1 par-term` |
 
 ### Managed Update Workflow
 
@@ -285,9 +285,9 @@ chmod 755 /tmp/par-term-pkg/usr/local/bin/par-term
 pkgbuild \
   --root /tmp/par-term-pkg \
   --identifier com.paulrobello.par-term \
-  --version 0.25.0 \
+  --version 0.29.1 \
   --install-location / \
-  par-term-0.25.0.pkg
+  par-term-0.29.1.pkg
 ```
 
 Upload the `.pkg` to Jamf Pro and deploy via a policy scoped to the target computer group.
@@ -347,9 +347,9 @@ EOF
 
 par-term's [Automation](AUTOMATION.md) system can execute shell commands in response to terminal output patterns. In enterprise deployments:
 
-- `require_user_action` defaults to `true` — users must confirm before commands run.
-- Set `require_user_action: false` only for commands your org explicitly approves.
-- The Settings UI displays an amber warning banner when any trigger has `require_user_action: false`.
+- `prompt_before_run` defaults to `true` — users must confirm before commands run.
+- Set `prompt_before_run: false` only for commands your org explicitly approves, and also set `i_accept_the_risk: true` on that trigger to acknowledge automated execution.
+- The Settings UI displays an amber warning banner when any trigger has `prompt_before_run: false`.
 - The built-in command denylist blocks known dangerous commands but is bypassable via obfuscation. Do not rely on it as a security boundary.
 
 To disable automation entirely in managed deployments, deploy a config with no `triggers` entries and no `automation_scripts`.

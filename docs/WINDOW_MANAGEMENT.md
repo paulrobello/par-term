@@ -275,7 +275,7 @@ keep_text_opaque: true
 
 ```yaml
 blur_enabled: true   # Enable background blur
-blur_radius: 20      # Blur intensity (1-64)
+blur_radius: 8       # Blur intensity (0-64, default: 8)
 ```
 
 ## Fullscreen
@@ -461,7 +461,7 @@ hide_window_padding_on_split: true  # Remove window padding when panes are split
 
 # macOS blur
 blur_enabled: false
-blur_radius: 20
+blur_radius: 8
 
 # Initial size
 cols: 80

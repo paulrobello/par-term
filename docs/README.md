@@ -20,7 +20,7 @@ Navigation index for all par-term documentation. Start with the [Getting Started
 | [Copy Mode](COPY_MODE.md) | Vi-style keyboard-driven text selection and navigation |
 | [Scrollback & Command Marks](SCROLLBACK.md) | Scrollback buffer management, command markers, and prompt navigation |
 | [Command History](COMMAND_HISTORY.md) | Fuzzy command history search overlay for finding and re-executing previous commands |
-| [Paste Special](PASTE_SPECIAL.md) | Clipboard content transformations (31 transforms across 5 categories) before pasting |
+| [Paste Special](PASTE_SPECIAL.md) | Clipboard content transformations (29 transforms across 5 categories) before pasting |
 | [Snippets & Actions](SNIPPETS.md) | Saved text blocks, shell commands, and automated tasks via keyboard shortcuts |
 | [SSH Host Management](SSH.md) | SSH host discovery, quick connect, SSH profiles, and automatic profile switching |
 | [File Transfers](FILE_TRANSFERS.md) | Native file transfer support using the iTerm2 OSC 1337 protocol with progress overlay |

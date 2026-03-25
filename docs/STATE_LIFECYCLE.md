@@ -239,7 +239,7 @@ sequenceDiagram
 6. The **async PTY reader task** reads those bytes and calls the core VT parser, which
    updates the in-memory cell grid, scrollback, and graphics state.
 7. On the next frame, the **render pipeline** calls `gather_render_data()` which locks
-   the `TerminalManager` via `try_lock()` and snapshots the current cell grid.
+   the `TerminalManager` via `try_write()` and snapshots the current cell grid.
 8. The snapshot is passed to the GPU renderer, which uploads changed cells to the glyph
    atlas and submits a wgpu command buffer.
 9. The frame is presented to the display.

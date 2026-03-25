@@ -182,7 +182,7 @@ After installation, restart your shell or source your RC file (for example, `sou
 
 ## Installing Shaders
 
-par-term includes 40+ GLSL background shaders (starfield, matrix rain, CRT effects, plasma, and more) and 12+ cursor effect shaders (glow, trail, ripple). These are optional visual enhancements.
+par-term includes 40 GLSL background shaders (starfield, matrix rain, CRT effects, plasma, and more) and 12 cursor effect shaders (glow, trail, ripple). These are optional visual enhancements.
 
 **Install via CLI:**
 

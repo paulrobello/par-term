@@ -41,6 +41,8 @@ impl App {
         if let Some(ref shader) = runtime_options.shader {
             config.shader.custom_shader = Some(shader.clone());
             config.shader.custom_shader_enabled = true;
+            // Disable background image so it doesn't compete with the shader
+            config.background_image_enabled = false;
             log::info!("CLI override: using shader '{}'", shader);
         }
 

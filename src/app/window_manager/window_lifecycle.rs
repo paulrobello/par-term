@@ -35,6 +35,13 @@ impl WindowManager {
             self.config = fresh_config;
         }
 
+        // Re-apply CLI shader override (fresh config load above would wipe it)
+        if let Some(ref shader) = self.runtime_options.shader {
+            self.config.shader.custom_shader = Some(shader.clone());
+            self.config.shader.custom_shader_enabled = true;
+            self.config.background_image_enabled = false;
+        }
+
         // Calculate window size from cols/rows BEFORE window creation.
         let (width, height) = window_size_from_config(&self.config, 1.0).unwrap_or((800, 600));
 

@@ -190,9 +190,9 @@ See [SHADERS.md](SHADERS.md) for the complete shader gallery.
 **Method 1: First-Run Dialog**
 
 On first launch, par-term offers to install the shader collection. Choose:
-- **Yes, Install**: Downloads and installs immediately
-- **Never**: Saves preference, never ask again
-- **Later**: Dismiss for this session
+- **Install Selected**: Downloads and installs immediately
+- **Skip**: Dismiss for this session
+- **Never Ask**: Saves preference, never ask again
 
 **Method 2: Settings UI**
 

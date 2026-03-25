@@ -1,6 +1,6 @@
 {
-  "version": "0.24.0",
-  "generated": "2026-03-07T18:17:58.976671+00:00",
+  "version": "0.29.1",
+  "generated": "2026-03-25T23:39:48.724513+00:00",
   "files": [
     {
       "path": "animated-gradient-shader.glsl",
