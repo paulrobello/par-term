@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Bug Fixes
+- **tmux text selection: highlight persists and clipboard not populated on release** — when clicking between tmux panes, trackpad tap jitter could cause a press→drag→release sequence to be forwarded to tmux (which interpreted it as an empty selection), while simultaneously starting a local selection that was never finished. Root cause: `try_send_mouse_event` uses `try_write()` which can miss the lock during press (PTY reader holds it), causing the press to be handled locally (starting a selection); the release then succeeds via the alt-screen path and is consumed by tracking without completing the local selection. Fix: after tracking consumes a release, check for a pending local selection and call `handle_left_mouse_release()` to copy the text and clear the highlight.
+
 ### Security
 - **ACP sensitive-path blocklist extended** — `is_sensitive_path()` now blocks `~/.aws/`, `~/.docker/`, `~/.netrc`, `~/.config/gh/`, and `~/.config/gcloud/` in addition to the existing `~/.ssh/`, `~/.gnupg/`, `/etc/` entries, closing a credential-exfiltration vector for connected AI agents with `auto_approve` enabled.
 - **`NotebookEdit` reclassified as write operation** — previously listed as a read-only tool in the ACP permission auto-approval logic, allowing agents to silently modify Jupyter notebooks. Now routes through the write-path escalation and requires user approval.
