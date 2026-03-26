@@ -362,15 +362,20 @@ impl InputHandler {
         // Get the base character for the key
         let base_char = self.get_base_character(event)?;
 
-        // Mode 1: Only report modifiers for keys that normally don't report them
-        // Mode 2: Report modifiers for all keys
-        if mode == 1 {
-            // In mode 1, only use modifyOtherKeys for keys that would normally
-            // lose modifier information (e.g., Ctrl+letter becomes control character)
-            // Skip Shift-only since shifted letters are normally different characters
-            if shift && !ctrl && !alt {
-                return None;
-            }
+        // Skip Shift-only modifier combinations for alphabetic keys in both mode 1 and mode 2.
+        //
+        // Mode 1 rationale: shifted letters already produce different characters ('A' vs 'a'),
+        // so no modifier information is lost by skipping the encoding.
+        //
+        // Mode 2 rationale: many crossterm-based applications (e.g. Claude Code) receive
+        // Char('a') + SHIFT from the `CSI 27;2;97~` encoding but do not apply the SHIFT
+        // modifier to uppercase the character, causing Shift+a → 'a'. Falling through to the
+        // normal logical-key path sends 'A' (0x41) directly, which all applications handle
+        // correctly.  For Shift+non-alphabetic keys (digits, punctuation) the mode 2 encoding
+        // is still useful because the base char and the shifted char differ meaningfully
+        // (e.g. Shift+1 → '!' is not derivable from '1' alone in all layouts).
+        if shift && !ctrl && !alt && (mode == 1 || base_char.is_ascii_alphabetic()) {
+            return None;
         }
 
         // Calculate the modifier value
