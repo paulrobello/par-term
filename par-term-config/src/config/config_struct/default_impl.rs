@@ -11,12 +11,12 @@ use crate::types::{
     NewTabPosition, OptionKeyMode, PaneTitlePosition, PowerPreference, ProgressBarPosition,
     ProgressBarStyle, RemoteTabTitleFormat, SemanticHistoryEditorMode, SessionLogFormat,
     ShaderInstallPrompt, ShellExitAction, TabBarMode, TabBarPosition, TabStyle, TabTitleMode,
-    ThinStrokesMode, UnfocusedCursorStyle, VsyncMode, WindowType, default_smart_selection_rules,
+    UnfocusedCursorStyle, VsyncMode, WindowType, default_smart_selection_rules,
 };
 
 use super::{
-    AiInspectorConfig, Config, CopyModeConfig, GlobalShaderConfig, NotificationConfig,
-    ScrollbackConfig, SearchConfig, SshConfig, StatusBarConfig, UnicodeConfig,
+    AiInspectorConfig, Config, CopyModeConfig, FontRenderingConfig, GlobalShaderConfig,
+    NotificationConfig, ScrollbackConfig, SearchConfig, SshConfig, StatusBarConfig, UnicodeConfig,
 };
 
 impl Default for Config {
@@ -35,10 +35,7 @@ impl Default for Config {
             enable_text_shaping: crate::defaults::text_shaping(),
             enable_ligatures: crate::defaults::bool_true(),
             enable_kerning: crate::defaults::bool_true(),
-            font_antialias: crate::defaults::bool_true(),
-            font_hinting: true,
-            font_thin_strokes: ThinStrokesMode::default(),
-            minimum_contrast: crate::defaults::minimum_contrast(),
+            font_rendering: FontRenderingConfig::default(),
             copy_mode: CopyModeConfig::default(),
             scrollback: ScrollbackConfig::default(),
             unicode: UnicodeConfig::default(),

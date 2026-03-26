@@ -1,5 +1,5 @@
-// ARC-009 TODO: This file is 1035 lines (limit: 800). Extract the following into
-// sibling modules within this pane_render/ directory:
+// ARC-005 / ARC-009 TODO: This file is ~1000 lines (limit: 800). Remaining extraction
+// candidates (require a more involved refactor since they mutate `self.bg_instances` in-place):
 //
 //   rle_merge.rs    — RLE background-color merge inner loop (currently inlined in
 //                     build_pane_instance_buffers). Extract helper:
@@ -8,16 +8,19 @@
 //   powerline.rs    — Powerline fringe-extension logic (~80 lines). Extract helper:
 //                     `fn extend_powerline_fringes(spans, cell_w, cell_h) -> Vec<BackgroundInstance>`
 //
+// Note: The glyph font-fallback loop previously duplicated here has been extracted to
+// `CellRenderer::resolve_glyph_with_fallback()` in `atlas.rs` (ARC-004 / QA-003).
+//
 // IMPORTANT invariants to preserve (see MEMORY.md and CLAUDE.md):
 //   • 3-phase draw ordering: bg instances → text instances → cursor overlays
 //   • `fill_default_bg_cells` controls default-bg skip in bg-image mode
 //   • `skip_solid_background` must NOT be used to gate default-bg rendering
 //
-// Tracking: Issue ARC-009 in AUDIT.md.
+// Tracking: Issues ARC-005 and ARC-009 in AUDIT.md.
 
 use super::block_chars;
 use super::instance_buffers::{
-    CURSOR_BRIGHTNESS_THRESHOLD, STIPPLE_OFF_PX, STIPPLE_ON_PX, UNDERLINE_HEIGHT_RATIO,
+    compute_cursor_text_color, STIPPLE_OFF_PX, STIPPLE_ON_PX, UNDERLINE_HEIGHT_RATIO,
 };
 use super::{BackgroundInstance, Cell, CellRenderer, PaneViewport, TextInstance};
 use anyhow::Result;
@@ -585,30 +588,29 @@ impl CellRenderer {
                     continue;
                 }
 
-                let chars: Vec<char> = cell.grapheme.chars().collect();
-                if chars.is_empty() {
+                // Avoid Vec<char> allocation: use iterator-based char access.
+                let Some(ch) = cell.grapheme.chars().next() else {
                     continue;
-                }
-
-                let ch = chars[0];
+                };
+                let second_char = cell.grapheme.chars().nth(1);
+                // grapheme_len is 1, 2, or "more than 2" — we stop counting at 3.
+                let grapheme_len = match second_char {
+                    None => 1usize,
+                    Some(_) => {
+                        if cell.grapheme.chars().nth(2).is_none() { 2 } else { 3 }
+                    }
+                };
 
                 // Determine text color - apply cursor_text_color (or auto-contrast) when the
                 // block cursor is on this cell, otherwise use the cell's foreground color.
                 let render_fg_color: [f32; 4] = if cursor_is_block_on_this_row
                     && cursor_pos.is_some_and(|(cx, _)| cx == col_idx)
                 {
-                    if let Some(cursor_text) = self.cursor.text_color {
-                        [cursor_text[0], cursor_text[1], cursor_text[2], text_alpha]
-                    } else {
-                        let cursor_brightness =
-                            (self.cursor.color[0] + self.cursor.color[1] + self.cursor.color[2])
-                                / 3.0;
-                        if cursor_brightness > CURSOR_BRIGHTNESS_THRESHOLD {
-                            [0.0, 0.0, 0.0, text_alpha]
-                        } else {
-                            [1.0, 1.0, 1.0, text_alpha]
-                        }
-                    }
+                    compute_cursor_text_color(
+                        self.cursor.color,
+                        self.cursor.text_color,
+                        text_alpha,
+                    )
                 } else {
                     color_u8x4_rgb_to_f32_a(cell.fg_color, text_alpha)
                 };
@@ -619,7 +621,7 @@ impl CellRenderer {
                 // directly into `self.text_instances[text_index]`.
                 // Check for block characters that should be rendered geometrically
                 let char_type = block_chars::classify_char(ch);
-                if chars.len() == 1 && block_chars::should_render_geometrically(char_type) {
+                if grapheme_len == 1 && block_chars::should_render_geometrically(char_type) {
                     let char_w = if cell.wide_char {
                         self.grid.cell_width * 2.0
                     } else {
@@ -793,88 +795,28 @@ impl CellRenderer {
 
                 // Check if this character should be rendered as a monochrome symbol.
                 // Also handle symbol + VS16 (U+FE0F): strip VS16, render monochrome.
-                let (force_monochrome, base_char) = if chars.len() == 1 {
+                let (force_monochrome, base_char) = if grapheme_len == 1 {
                     (super::atlas::should_render_as_symbol(ch), ch)
-                } else if chars.len() == 2
-                    && chars[1] == '\u{FE0F}'
-                    && super::atlas::should_render_as_symbol(chars[0])
+                } else if grapheme_len == 2
+                    && second_char == Some('\u{FE0F}')
+                    && super::atlas::should_render_as_symbol(ch)
                 {
-                    (true, chars[0])
+                    // Symbol + VS16: strip VS16 and render base char as monochrome
+                    (true, ch)
                 } else {
                     (false, ch)
                 };
 
-                // TODO(QA-002/QA-008): extract into `resolve_glyph_with_fallback()` helper.
-                // The loop iterates over font fallbacks until a rasterizable glyph is found.
-                // Signature would be:
-                //   fn resolve_glyph_with_fallback(&mut self, cell: &Cell, base_char: char,
-                //       force_monochrome: bool) -> Option<GlyphInfo>
-                // Regular glyph rendering — use single-char lookup when force_monochrome
-                // strips VS16, otherwise grapheme-aware lookup for multi-char sequences.
-                let mut glyph_result = if force_monochrome || chars.len() == 1 {
-                    self.font_manager
-                        .find_glyph(base_char, cell.bold, cell.italic)
-                } else {
-                    self.font_manager
-                        .find_grapheme_glyph(&cell.grapheme, cell.bold, cell.italic)
-                };
-
-                // Try to find a renderable glyph with font fallback for failures.
-                let mut excluded_fonts: Vec<usize> = Vec::new();
-                let resolved_info = loop {
-                    match glyph_result {
-                        Some((font_idx, glyph_id)) => {
-                            let cache_key = ((font_idx as u64) << 32) | (glyph_id as u64);
-                            if let Some(info) = self.get_or_rasterize_glyph(
-                                font_idx,
-                                glyph_id,
-                                force_monochrome,
-                                cache_key,
-                            ) {
-                                break Some(info);
-                            }
-                            // Rasterization failed — try next font
-                            excluded_fonts.push(font_idx);
-                            glyph_result = self.font_manager.find_glyph_excluding(
-                                base_char,
-                                cell.bold,
-                                cell.italic,
-                                &excluded_fonts,
-                            );
-                        }
-                        None => break None,
-                    }
-                };
-
-                // Last resort: colored emoji when no font has vector outlines
-                let resolved_info = if resolved_info.is_none() && force_monochrome {
-                    let mut glyph_result2 =
-                        self.font_manager
-                            .find_glyph(base_char, cell.bold, cell.italic);
-                    loop {
-                        match glyph_result2 {
-                            Some((font_idx, glyph_id)) => {
-                                // Bit 63 distinguishes the colored-fallback cache entry.
-                                let cache_key =
-                                    ((font_idx as u64) << 32) | (glyph_id as u64) | (1u64 << 63);
-                                if let Some(info) = self
-                                    .get_or_rasterize_glyph(font_idx, glyph_id, false, cache_key)
-                                {
-                                    break Some(info);
-                                }
-                                glyph_result2 = self.font_manager.find_glyph_excluding(
-                                    base_char,
-                                    cell.bold,
-                                    cell.italic,
-                                    &[font_idx],
-                                );
-                            }
-                            None => break None,
-                        }
-                    }
-                } else {
-                    resolved_info
-                };
+                // Resolve a renderable glyph via the shared font-fallback helper (ARC-004 / QA-003).
+                // This replaces the duplicated excluded_fonts/get_or_rasterize_glyph loop
+                // that previously existed in both pane_render/mod.rs and text_instance_builder.rs.
+                let resolved_info = self.resolve_glyph_with_fallback(
+                    base_char,
+                    &cell.grapheme,
+                    cell.bold,
+                    cell.italic,
+                    force_monochrome,
+                );
 
                 if let Some(info) = resolved_info {
                     let char_w = if cell.wide_char {
@@ -902,7 +844,7 @@ impl CellRenderer {
                     let render_h = info.height as f32 * scale_y;
 
                     let (final_left, final_top, final_w, final_h) =
-                        if chars.len() == 1 && block_chars::should_snap_to_boundaries(char_type) {
+                        if grapheme_len == 1 && block_chars::should_snap_to_boundaries(char_type) {
                             block_chars::snap_glyph_to_cell(block_chars::SnapGlyphParams {
                                 glyph_left,
                                 glyph_top,

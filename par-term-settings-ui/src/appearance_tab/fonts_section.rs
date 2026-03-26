@@ -358,7 +358,7 @@ pub(super) fn show_font_rendering_section(
             collapsed,
             |ui| {
                 if ui
-                    .checkbox(&mut settings.config.font_antialias, "Anti-aliasing")
+                    .checkbox(&mut settings.config.font_rendering.font_antialias, "Anti-aliasing")
                     .on_hover_text("Enable smooth font edges. Disable for crisp, pixelated text.")
                     .changed()
                 {
@@ -367,7 +367,7 @@ pub(super) fn show_font_rendering_section(
                 }
 
                 if ui
-                    .checkbox(&mut settings.config.font_hinting, "Hinting")
+                    .checkbox(&mut settings.config.font_rendering.font_hinting, "Hinting")
                     .on_hover_text(
                         "Align glyphs to pixel boundaries for sharper text at small sizes.",
                     )
@@ -379,7 +379,7 @@ pub(super) fn show_font_rendering_section(
 
                 ui.horizontal(|ui| {
                     ui.label("Thin strokes:");
-                    let current_mode = settings.config.font_thin_strokes;
+                    let current_mode = settings.config.font_rendering.font_thin_strokes;
                     let mode_label = match current_mode {
                         ThinStrokesMode::Never => "Never",
                         ThinStrokesMode::RetinaOnly => "Retina Only",
@@ -405,7 +405,7 @@ pub(super) fn show_font_rendering_section(
                                 (ThinStrokesMode::Always, "Always"),
                             ] {
                                 if ui.selectable_label(current_mode == mode, label).clicked() {
-                                    settings.config.font_thin_strokes = mode;
+                                    settings.config.font_rendering.font_thin_strokes = mode;
                                     settings.has_changes = true;
                                     *changes_this_frame = true;
                                 }
@@ -422,21 +422,21 @@ pub(super) fn show_font_rendering_section(
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {
                     ui.label("Minimum contrast:");
-                    let mut contrast = settings.config.minimum_contrast;
+                    let mut contrast = settings.config.font_rendering.minimum_contrast;
                     let slider = egui::Slider::new(&mut contrast, 0.0..=0.99)
                         .text("")
                         .clamping(egui::SliderClamping::Always);
                     if ui.add(slider).changed() {
-                        settings.config.minimum_contrast = contrast;
+                        settings.config.font_rendering.minimum_contrast = contrast;
                         settings.has_changes = true;
                         *changes_this_frame = true;
                     }
                 });
-                let contrast_label = if settings.config.minimum_contrast <= 0.0 {
+                let contrast_label = if settings.config.font_rendering.minimum_contrast <= 0.0 {
                     "Disabled"
-                } else if settings.config.minimum_contrast < 0.5 {
+                } else if settings.config.font_rendering.minimum_contrast < 0.5 {
                     "Low"
-                } else if settings.config.minimum_contrast < 0.97 {
+                } else if settings.config.font_rendering.minimum_contrast < 0.97 {
                     "High"
                 } else {
                     "Maximum (near B&W)"

@@ -219,10 +219,10 @@ impl ConfigChanges {
                 || (new.font_size - old.font_size).abs() > f32::EPSILON
                 || (new.line_spacing - old.line_spacing).abs() > f32::EPSILON
                 || (new.char_spacing - old.char_spacing).abs() > f32::EPSILON,
-            font_rendering: new.font_antialias != old.font_antialias
-                || new.font_hinting != old.font_hinting
-                || new.font_thin_strokes != old.font_thin_strokes
-                || (new.minimum_contrast - old.minimum_contrast).abs() > f32::EPSILON,
+            font_rendering: new.font_rendering.font_antialias != old.font_rendering.font_antialias
+                || new.font_rendering.font_hinting != old.font_rendering.font_hinting
+                || new.font_rendering.font_thin_strokes != old.font_rendering.font_thin_strokes
+                || (new.font_rendering.minimum_contrast - old.font_rendering.minimum_contrast).abs() > f32::EPSILON,
             padding: (new.window_padding - old.window_padding).abs() > f32::EPSILON
                 || new.hide_window_padding_on_split != old.hide_window_padding_on_split,
 

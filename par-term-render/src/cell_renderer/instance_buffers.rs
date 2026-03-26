@@ -1,4 +1,4 @@
-use super::{BackgroundInstance, CellRenderer, RowCacheEntry, TextInstance};
+use super::{BackgroundInstance, CellRenderer, TextInstance};
 use anyhow::Result;
 
 /// Number of extra background instance slots reserved for cursor overlays
@@ -47,6 +47,36 @@ pub(crate) const STIPPLE_OFF_PX: f32 = 2.0;
 /// Number of text instances pre-allocated per terminal cell.
 /// 2× because wide (double-width) characters can emit two instances.
 pub(crate) const TEXT_INSTANCES_PER_CELL: usize = 2;
+
+/// Compute the text foreground color when a block cursor covers a cell.
+///
+/// If the cursor has an explicit `text_color` (RGB, 3 components), that is used
+/// directly with `text_alpha` appended.  Otherwise, a simple luminance-based
+/// auto-contrast rule is applied: cursors brighter than `CURSOR_BRIGHTNESS_THRESHOLD`
+/// get dark text; darker cursors get light text.
+///
+/// `cursor_color` and `cursor_text_color` are 3-component RGB (no alpha) as stored in
+/// `CursorState`. The returned value is a 4-component RGBA with `text_alpha` as alpha.
+///
+/// This is a free function rather than a method so it can be called from
+/// both `text_instance_builder.rs` and `pane_render/mod.rs` without any
+/// borrowing conflicts.
+pub(crate) fn compute_cursor_text_color(
+    cursor_color: [f32; 3],
+    cursor_text_color: Option<[f32; 3]>,
+    text_alpha: f32,
+) -> [f32; 4] {
+    if let Some(cursor_text) = cursor_text_color {
+        [cursor_text[0], cursor_text[1], cursor_text[2], text_alpha]
+    } else {
+        let cursor_brightness = (cursor_color[0] + cursor_color[1] + cursor_color[2]) / 3.0;
+        if cursor_brightness > CURSOR_BRIGHTNESS_THRESHOLD {
+            [0.0, 0.0, 0.0, text_alpha] // Dark text on bright cursor
+        } else {
+            [1.0, 1.0, 1.0, text_alpha] // Bright text on dark cursor
+        }
+    }
+}
 
 impl CellRenderer {
     /// Orchestrate a full instance-buffer update for the current frame.
@@ -113,7 +143,7 @@ impl CellRenderer {
                     ),
                 );
 
-                self.row_cache[row] = Some(RowCacheEntry {});
+                self.row_cache[row] = Some(true);
                 self.dirty_rows[row] = false;
 
                 // Restore the scratch buffer so its capacity is retained for the next row.

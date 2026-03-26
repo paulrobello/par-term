@@ -1,14 +1,44 @@
 /// Comprehensive debugging infrastructure for par-term
 ///
-/// Two logging systems are unified into a single log file:
+/// # Dual Logging Systems (ARC-008)
 ///
-/// 1. **Custom debug macros** (`crate::debug_info!()`, etc.)
+/// par-term intentionally runs **two parallel logging systems** that both funnel into the
+/// same log file. This coexistence is by design, not accident:
+///
+/// 1. **Custom debug macros** (`crate::debug_info!()`, `crate::debug_log!()`, etc.)
 ///    - Controlled by `DEBUG_LEVEL` environment variable (0-4)
 ///    - Best for high-frequency rendering/input logging with category tags
+///    - Categories (e.g., `"RENDER"`, `"TAB"`, `"SHADER"`) allow selective filtering
+///    - Zero overhead when `DEBUG_LEVEL=0` (the default)
 ///
-/// 2. **Standard `log` crate** (`log::info!()`, etc.)
+/// 2. **Standard `log` crate** (`log::info!()`, `log::warn!()`, etc.)
 ///    - Controlled by `RUST_LOG` environment variable
-///    - Used by most application code and third-party crates
+///    - Used by application lifecycle code (startup, config load, errors)
+///    - Required for third-party crates (wgpu, tokio, etc.) that emit via `log`
+///
+/// ## Why Both Systems Coexist
+///
+/// The custom macros predate widespread `tracing` adoption and were purpose-built for
+/// GPU-loop debugging where `RUST_LOG=debug` would produce millions of lines per second.
+/// The category/level system lets a developer write `DEBUG_LEVEL=3` and see only
+/// rendering events without drowning in tokio internals.
+///
+/// The `log` crate is kept because third-party dependencies (wgpu, tokio, egui) emit
+/// through it exclusively, and because lifecycle events (startup, config) benefit from
+/// the standard `env_logger`/`RUST_LOG` filtering UX.
+///
+/// ## Migration Path (TODO ARC-008)
+///
+/// Long-term, both systems should be unified under `tracing` (the modern Rust async-aware
+/// tracing framework). Migration path:
+///   1. Replace `crate::debug_info!()` macros with `tracing::trace!(category = "RENDER", ...)`
+///   2. Replace `log::info!()` calls with `tracing::info!()`
+///   3. Bridge `log` crate output to tracing with `tracing_log::LogTracer`
+///   4. Use `tracing_subscriber` with `EnvFilter` for unified level/category control
+///   5. Keep the file sink; replace the custom `DebugLogger` with a tracing file appender
+///
+/// This is a non-trivial migration touching ~500 call sites. Do not attempt without
+/// a dedicated effort. Until then, the dual system is the accepted state.
 ///
 /// Both write to `<temp_dir>/par_term_debug.log` (respects `$TMPDIR` on Unix, `%TEMP%` on Windows).
 /// The log file is always created so that errors are captured even in GUI-only contexts

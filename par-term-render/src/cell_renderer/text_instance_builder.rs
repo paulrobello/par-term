@@ -1,6 +1,6 @@
 use super::block_chars;
 use super::instance_buffers::{
-    CURSOR_BRIGHTNESS_THRESHOLD, GLYPH_SNAP_EXTENSION_PX, GLYPH_SNAP_THRESHOLD_PX, STIPPLE_OFF_PX,
+    compute_cursor_text_color, GLYPH_SNAP_EXTENSION_PX, GLYPH_SNAP_THRESHOLD_PX, STIPPLE_OFF_PX,
     STIPPLE_ON_PX, UNDERLINE_HEIGHT_RATIO,
 };
 use super::{Cell, CellRenderer, TextInstance};
@@ -74,19 +74,7 @@ impl CellRenderer {
             let render_fg_color: [f32; 4] = if cursor_is_block_on_this_row
                 && current_col == self.cursor.pos.0
             {
-                if let Some(cursor_text) = self.cursor.text_color {
-                    [cursor_text[0], cursor_text[1], cursor_text[2], text_alpha]
-                } else {
-                    // Auto-contrast: use cursor color as a starting point
-                    // Simple inversion: if cursor is bright, use dark text; if dark, use bright
-                    let cursor_brightness =
-                        (self.cursor.color[0] + self.cursor.color[1] + self.cursor.color[2]) / 3.0;
-                    if cursor_brightness > CURSOR_BRIGHTNESS_THRESHOLD {
-                        [0.0, 0.0, 0.0, text_alpha] // Dark text on bright cursor
-                    } else {
-                        [1.0, 1.0, 1.0, text_alpha] // Bright text on dark cursor
-                    }
-                }
+                compute_cursor_text_color(self.cursor.color, self.cursor.text_color, text_alpha)
             } else {
                 // Determine the effective background color for contrast calculation
                 // If the cell has a non-default bg, use that; otherwise use terminal background
@@ -109,16 +97,26 @@ impl CellRenderer {
                 self.ensure_minimum_contrast(base_fg, effective_bg)
             };
 
-            let chars: Vec<char> = grapheme.chars().collect();
+            // Avoid Vec<char> allocation: determine first/second char from iterator directly.
+            // grapheme_len is 1, 2, or "more than 2" (we only care which case we're in).
+            let first_char = grapheme.chars().next();
+            let second_char = grapheme.chars().nth(1);
+            // Count chars lazily: stop after 2 to avoid scanning long sequences.
+            let grapheme_len = match second_char {
+                None => 1usize,
+                Some(_) => {
+                    if grapheme.chars().nth(2).is_none() { 2 } else { 3 }
+                }
+            };
             #[allow(clippy::collapsible_if)]
-            if let Some(ch) = chars.first() {
+            if let Some(ch) = first_char {
                 // Classify the character for rendering optimization
                 // Only classify based on first char for block drawing detection
-                let char_type = block_chars::classify_char(*ch);
+                let char_type = block_chars::classify_char(ch);
 
                 // Check if we should render this character geometrically
                 // (only for single-char graphemes that are block drawing chars)
-                if chars.len() == 1 && block_chars::should_render_geometrically(char_type) {
+                if grapheme_len == 1 && block_chars::should_render_geometrically(char_type) {
                     let char_w = if is_wide {
                         self.grid.cell_width * 2.0
                     } else {
@@ -140,7 +138,7 @@ impl CellRenderer {
                     // Try box drawing geometry first (for lines, corners, junctions)
                     // Pass aspect ratio so vertical lines have same visual thickness as horizontal
                     let aspect_ratio = snapped_cell_height / char_w;
-                    if let Some(box_geo) = block_chars::get_box_drawing_geometry(*ch, aspect_ratio)
+                    if let Some(box_geo) = block_chars::get_box_drawing_geometry(ch, aspect_ratio)
                     {
                         for segment in &box_geo.segments {
                             let rect = segment
@@ -200,7 +198,7 @@ impl CellRenderer {
                     // The BG pipeline skips these cells entirely.
                     // Use snapped cell edges (no extensions) so adjacent cells tile
                     // perfectly without overlap artifacts.
-                    if *ch == '\u{2584}' || *ch == '\u{2580}' {
+                    if ch == '\u{2584}' || ch == '\u{2580}' {
                         // Compute snapped right edge to match next cell's x0
                         let x1 = (self.grid.window_padding
                             + self.grid.content_offset_x
@@ -212,7 +210,7 @@ impl CellRenderer {
                         let y_mid = y0 + self.grid.cell_height / 2.0;
 
                         let bg_half_color = color_u8x4_rgb_to_f32_a(bg_color, text_alpha);
-                        let (top_color, bottom_color) = if *ch == '\u{2584}' {
+                        let (top_color, bottom_color) = if ch == '\u{2584}' {
                             (bg_half_color, render_fg_color) // ▄: top=bg, bottom=fg
                         } else {
                             (render_fg_color, bg_half_color) // ▀: top=fg, bottom=bg
@@ -265,7 +263,7 @@ impl CellRenderer {
                     }
 
                     // Try block element geometry (for solid blocks, partial blocks, etc.)
-                    if let Some(geo_block) = block_chars::get_geometric_block(*ch) {
+                    if let Some(geo_block) = block_chars::get_geometric_block(ch) {
                         let rect = geo_block.to_pixel_rect(x0, y0, char_w, self.grid.cell_height);
 
                         // Add small extension to prevent gaps (1 pixel overlap).
@@ -319,7 +317,7 @@ impl CellRenderer {
 
                     // Try geometric shape (aspect-ratio-aware squares, rectangles)
                     if let Some(rect) = block_chars::get_geometric_shape_rect(
-                        *ch,
+                        ch,
                         x0,
                         y0,
                         char_w,
@@ -358,89 +356,23 @@ impl CellRenderer {
                 // (dingbats, etc.) rather than colorful emoji.
                 // Also handle symbol + VS16 (U+FE0F emoji presentation selector):
                 // in terminal contexts, symbols should remain monochrome even with VS16.
-                let (force_monochrome, base_char) = if chars.len() == 1 {
-                    (super::atlas::should_render_as_symbol(*ch), *ch)
-                } else if chars.len() == 2
-                    && chars[1] == '\u{FE0F}'
-                    && super::atlas::should_render_as_symbol(chars[0])
+                let (force_monochrome, base_char) = if grapheme_len == 1 {
+                    (super::atlas::should_render_as_symbol(ch), ch)
+                } else if grapheme_len == 2
+                    && second_char == Some('\u{FE0F}')
+                    && super::atlas::should_render_as_symbol(ch)
                 {
                     // Symbol + VS16: strip VS16 and render base char as monochrome
-                    (true, chars[0])
+                    (true, ch)
                 } else {
-                    (false, *ch)
+                    (false, ch)
                 };
 
-                // Use grapheme-aware glyph lookup for multi-character sequences
-                // (flags, emoji with skin tones, ZWJ sequences, combining chars).
-                // When force_monochrome strips VS16, use single-char lookup instead.
-                let mut glyph_result = if force_monochrome || chars.len() == 1 {
-                    self.font_manager.find_glyph(base_char, bold, italic)
-                } else {
-                    self.font_manager
-                        .find_grapheme_glyph(grapheme, bold, italic)
-                };
-
-                // Try to find a renderable glyph. Some fonts (e.g., Apple Color
-                // Emoji) have charmap entries for characters but produce empty
-                // outlines. When rasterization fails, retry with alternative fonts.
-                let mut excluded_fonts: Vec<usize> = Vec::new();
-                let resolved_info = loop {
-                    match glyph_result {
-                        Some((font_idx, glyph_id)) => {
-                            let cache_key = ((font_idx as u64) << 32) | (glyph_id as u64);
-                            if let Some(info) = self.get_or_rasterize_glyph(
-                                font_idx,
-                                glyph_id,
-                                force_monochrome,
-                                cache_key,
-                            ) {
-                                break Some(info);
-                            }
-                            // Rasterization failed — try next font
-                            excluded_fonts.push(font_idx);
-                            glyph_result = self.font_manager.find_glyph_excluding(
-                                base_char,
-                                bold,
-                                italic,
-                                &excluded_fonts,
-                            );
-                        }
-                        None => break None,
-                    }
-                };
-
-                // Last resort: if monochrome rendering failed across all fonts
-                // (no font has vector outlines for this character), retry with
-                // colored emoji rendering. Characters like ✨ only exist in
-                // Apple Color Emoji — rendering them colored is better than
-                // rendering nothing.
-                let resolved_info = if resolved_info.is_none() && force_monochrome {
-                    let mut glyph_result2 = self.font_manager.find_glyph(base_char, bold, italic);
-                    loop {
-                        match glyph_result2 {
-                            Some((font_idx, glyph_id)) => {
-                                // Bit 63 distinguishes the colored-fallback cache entry from the
-                                // monochrome entry for the same (font_idx, glyph_id) pair.
-                                let cache_key =
-                                    ((font_idx as u64) << 32) | (glyph_id as u64) | (1u64 << 63);
-                                if let Some(info) = self
-                                    .get_or_rasterize_glyph(font_idx, glyph_id, false, cache_key)
-                                {
-                                    break Some(info);
-                                }
-                                glyph_result2 = self.font_manager.find_glyph_excluding(
-                                    base_char,
-                                    bold,
-                                    italic,
-                                    &[font_idx],
-                                );
-                            }
-                            None => break None,
-                        }
-                    }
-                } else {
-                    resolved_info
-                };
+                // Resolve a renderable glyph via the shared font-fallback helper (ARC-004).
+                // This replaces the duplicated excluded_fonts/get_or_rasterize_glyph loop
+                // that previously existed in both this file and pane_render/mod.rs.
+                let resolved_info =
+                    self.resolve_glyph_with_fallback(base_char, grapheme, bold, italic, force_monochrome);
 
                 let info = match resolved_info {
                     Some(info) => info,
@@ -496,7 +428,7 @@ impl CellRenderer {
                 // apply snapping to cell boundaries with sub-pixel extension.
                 // Only apply to single-char graphemes (multi-char are never block chars)
                 let (final_left, final_top, final_w, final_h) =
-                    if chars.len() == 1 && block_chars::should_snap_to_boundaries(char_type) {
+                    if grapheme_len == 1 && block_chars::should_snap_to_boundaries(char_type) {
                         // Snap threshold of 3 pixels, extension of 0.5 pixels
                         block_chars::snap_glyph_to_cell(block_chars::SnapGlyphParams {
                             glyph_left,

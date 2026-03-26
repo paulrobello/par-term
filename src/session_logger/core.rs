@@ -132,6 +132,17 @@ pub(super) const SENSITIVE_OUTPUT_PATTERNS: &[&str] = &[
     "secret_key=",
     "private_key=",
     "client_secret=",
+    // CI/CD and hosting service tokens
+    "github_token=",
+    "gh_token=",
+    "heroku_api_key=",
+    "heroku_api_token=",
+    "npm_token=",
+    "pypi_token=",
+    "gitlab_token=",
+    "circleci_token=",
+    // HTTP Authorization Bearer tokens (e.g. from curl -v output or httpie)
+    "bearer ",
     // .env file content echoed to terminal
     "dotenv",
     // Token/key output from CLI tools
@@ -265,9 +276,22 @@ impl SessionLogger {
         self.active = true;
         self.start_time = std::time::Instant::now();
 
-        // Write header for HTML format
-        if self.format == SessionLogFormat::Html {
-            self.write_html_header()?;
+        // Write format-specific header / startup comment.
+        match self.format {
+            SessionLogFormat::Html => {
+                self.write_html_header()?;
+            }
+            SessionLogFormat::Plain => {
+                // SEC-004: Write a startup warning so readers of the log file are
+                // aware of the redaction limitations. This comment appears at the
+                // top of every plain-text session log.
+                self.write_plain_redaction_warning()?;
+            }
+            SessionLogFormat::Asciicast => {
+                // Asciicast format: the header is written during finalization.
+                // No startup banner is added here; warnings are in the log file
+                // at the application level via log::warn!.
+            }
         }
 
         log::info!("Session logging started: {:?}", self.output_path);

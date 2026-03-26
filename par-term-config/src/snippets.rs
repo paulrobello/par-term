@@ -710,6 +710,41 @@ impl CustomActionConfig {
     pub fn is_repeat(&self) -> bool {
         matches!(self, Self::Repeat { .. })
     }
+
+    /// Produce a duplicate of this action suitable for "Clone" in the settings UI.
+    ///
+    /// The returned action has:
+    /// - A fresh UUID-based `id` to avoid keybinding conflicts.
+    /// - The original `title` suffixed with `"-copy"`.
+    /// - `keybinding` and `prefix_char` cleared to prevent immediate conflicts.
+    ///
+    /// All other fields are deep-cloned from `self`.
+    ///
+    /// This replaces the `clone_action` helper that was previously inlined in
+    /// `par-term-settings-ui/src/actions_tab.rs` (see ARC-006). Keeping the logic here
+    /// ensures it stays in sync with the `Clone` derive on `CustomActionConfig`.
+    pub fn into_copy(&self) -> Self {
+        let new_id = format!("action_{}", uuid::Uuid::new_v4());
+        let new_title = format!("{}-copy", self.title());
+        let mut cloned = self.clone();
+        // Patch fields that must differ on the copy.
+        match &mut cloned {
+            Self::ShellCommand { id, title, keybinding, prefix_char, .. }
+            | Self::NewTab { id, title, keybinding, prefix_char, .. }
+            | Self::InsertText { id, title, keybinding, prefix_char, .. }
+            | Self::KeySequence { id, title, keybinding, prefix_char, .. }
+            | Self::SplitPane { id, title, keybinding, prefix_char, .. }
+            | Self::Sequence { id, title, keybinding, prefix_char, .. }
+            | Self::Condition { id, title, keybinding, prefix_char, .. }
+            | Self::Repeat { id, title, keybinding, prefix_char, .. } => {
+                *id = new_id;
+                *title = new_title;
+                *keybinding = None;
+                *prefix_char = None;
+            }
+        }
+        cloned
+    }
 }
 
 /// Built-in variables available for snippet substitution.

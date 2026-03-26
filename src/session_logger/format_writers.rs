@@ -10,6 +10,35 @@ use super::core::SessionLogger;
 use crate::config::SessionLogFormat;
 
 impl SessionLogger {
+    /// Write a plain-text redaction limitation warning at the start of a Plain log file.
+    ///
+    /// SEC-004: This comment informs readers of session logs that credential
+    /// redaction is heuristic and may miss secrets that are not expressed in
+    /// well-known `KEY=value` or prompt patterns. Users should disable session
+    /// logging when working with credentials directly in the terminal.
+    pub(super) fn write_plain_redaction_warning(&mut self) -> Result<()> {
+        use std::io::Write;
+        let warning = "\
+# par-term session log
+# WARNING: Credential redaction is heuristic and has known limitations.
+# Patterns matched: common KEY=value exports, password/passphrase prompts,
+#   Bearer tokens, PEM private key blocks, CI tokens (GITHUB_TOKEN, HEROKU_API_KEY, etc.)
+# Known gaps: secrets printed without a recognisable variable name, base64-encoded
+#   tokens, secrets embedded in JSON/YAML output, or any novel credential format.
+# RECOMMENDATION: Disable session logging (Settings > Logging) before working with
+#   credentials, API keys, or other sensitive values in the terminal.
+\n";
+        if let Some(ref mut writer) = self.writer {
+            writer.write_all(warning.as_bytes()).with_context(|| {
+                format!(
+                    "Failed to write redaction warning to {:?}",
+                    self.output_path
+                )
+            })?;
+        }
+        Ok(())
+    }
+
     /// Write the HTML document header to the log file.
     pub(super) fn write_html_header(&mut self) -> Result<()> {
         use std::io::Write;

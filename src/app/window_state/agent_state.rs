@@ -48,6 +48,10 @@ pub(crate) struct AgentState {
 }
 
 impl AgentState {
+    /// Create a new `AgentState` with no connected agent.
+    ///
+    /// All channel handles and task handles start as `None`; the agent is
+    /// connected lazily when the user opens the Assistant panel for the first time.
     pub(crate) fn new(available_agents: Vec<AgentConfig>) -> Self {
         Self {
             agent_rx: None,

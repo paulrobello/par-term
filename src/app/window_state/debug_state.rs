@@ -1,17 +1,30 @@
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 
-/// State related to debug metrics and FPS overlay
+/// Timing metrics and FPS overlay state for the window.
+///
+/// Tracks per-frame timing data used to compute and display the live FPS
+/// overlay (toggled with F3). All durations are reset at the start of each
+/// frame and updated during the render pass.
 pub(crate) struct DebugState {
-    pub(crate) frame_times: VecDeque<Duration>, // Last 60 frame times for FPS calculation
-    pub(crate) cell_gen_time: Duration,         // Time spent generating cells last frame
-    pub(crate) render_time: Duration,           // Time spent rendering last frame
-    pub(crate) cache_hit: bool,                 // Whether last frame used cached cells
-    pub(crate) last_frame_start: Option<Instant>, // Start time of last frame
-    pub(crate) render_start: Option<Instant>, // Start time of current render frame (for end-of-frame timing)
-    pub(crate) show_fps_overlay: bool,        // Whether to show FPS overlay (toggle with F3)
-    pub(crate) fps_value: f64,                // Current FPS value for overlay display
-    pub(crate) last_egui_time: Duration,      // Time spent on egui overlay rendering last frame
+    /// Last 60 frame durations for rolling FPS calculation.
+    pub(crate) frame_times: VecDeque<Duration>,
+    /// Time spent building the styled cell buffer for the current frame.
+    pub(crate) cell_gen_time: Duration,
+    /// Time spent executing the GPU render pass for the current frame.
+    pub(crate) render_time: Duration,
+    /// Whether the current frame reused the cached cell buffer (no PTY output).
+    pub(crate) cache_hit: bool,
+    /// Wall-clock start time of the current frame (set at the top of the event loop).
+    pub(crate) last_frame_start: Option<Instant>,
+    /// Wall-clock start of the GPU render phase (for end-of-frame timing).
+    pub(crate) render_start: Option<Instant>,
+    /// Whether the FPS/timing overlay is visible. Toggled with F3.
+    pub(crate) show_fps_overlay: bool,
+    /// Current smoothed FPS value displayed by the overlay.
+    pub(crate) fps_value: f64,
+    /// Time spent on the egui overlay render pass during the last frame.
+    pub(crate) last_egui_time: Duration,
 }
 
 impl Default for DebugState {
@@ -21,6 +34,7 @@ impl Default for DebugState {
 }
 
 impl DebugState {
+    /// Create a zeroed `DebugState` with a 60-frame time ring allocated.
     pub(crate) fn new() -> Self {
         Self {
             frame_times: VecDeque::with_capacity(60),

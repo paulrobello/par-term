@@ -213,10 +213,12 @@ lint-all:
 checkall: fmt-check lint typecheck test
 	@echo "All quality checks passed!"
 
-# Clean build artifacts
+# Clean build artifacts and project-root log files
 clean:
 	@echo "Cleaning build artifacts..."
 	cargo clean
+	@echo "Removing project-root log files..."
+	@rm -f *.log
 
 # Install the binary (reuses release build)
 install: release
