@@ -31,6 +31,13 @@ use winit::keyboard::{Key, NamedKey};
 
 impl WindowState {
     pub(crate) fn handle_key_event(&mut self, event: KeyEvent, event_loop: &ActiveEventLoop) {
+        // Synthesize modifier state from physical key events.  On Windows, WM_NCACTIVATE can
+        // cause ModifiersChanged(empty) without a matching WM_KILLFOCUS, leaving modifier state
+        // permanently zeroed until the key is re-pressed.  Synthesizing here ensures the state
+        // is always in sync with actual key press/release events regardless of ModifiersChanged
+        // delivery reliability.
+        self.input_handler.sync_modifier_from_key_event(&event);
+
         // Track Alt key press/release for Option key mode detection
         self.input_handler.track_alt_key(&event);
 
