@@ -9,6 +9,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- **ACP sensitive-path blocklist extended** — `is_sensitive_path()` now blocks `~/.aws/`, `~/.docker/`, `~/.netrc`, `~/.config/gh/`, and `~/.config/gcloud/` in addition to the existing `~/.ssh/`, `~/.gnupg/`, `/etc/` entries, closing a credential-exfiltration vector for connected AI agents with `auto_approve` enabled.
+- **`NotebookEdit` reclassified as write operation** — previously listed as a read-only tool in the ACP permission auto-approval logic, allowing agents to silently modify Jupyter notebooks. Now routes through the write-path escalation and requires user approval.
+- **ACP agent TOML override warning** — when a user-config-dir agent TOML overrides a built-in embedded agent identity, a warning is now logged and displayed, making the substitution visible.
+- **Session logger credential redaction expanded** — added patterns for `GITHUB_TOKEN=`, `HEROKU_API_KEY=`, `npm_token=`, `pypi_token=`, `gitlab_token=`, `circleci_token=`, and `Bearer <token>`. Plain-text log files now include a header warning documenting known redaction limitations.
+- **`resolve_shell_path()` validates `$SHELL` against allowlist** — the function now checks the shell basename against a known-shells allowlist before use, falling back to `/bin/sh` with a warning for unknown values.
+- **`make clean` removes project-root log files** — `*.log` files at the repo root are now deleted by the `clean` target.
+
+### Architecture
+- **Resolved `render_pipeline` `#[path]` module redirect** — `render_pipeline` was declared via `#[path = "../render_pipeline/mod.rs"]` inside `window_state`, making it a logical child while physically a sibling. It is now declared directly in `src/app/mod.rs`, fixing silent `super::` path resolution and unblocking future `WindowState` decomposition.
+- **`FontRenderingConfig` extracted from `Config`** — `font_antialias`, `font_hinting`, `font_thin_strokes`, and `minimum_contrast` are now grouped under `#[serde(flatten)] pub font_rendering: FontRenderingConfig`. Fully backward compatible with existing YAML configs.
+- **`WindowConfig` extracted from `Config`** — `window_opacity`, `window_always_on_top`, `window_decorations`, `blur_enabled`, `blur_radius`, `window_padding`, `hide_window_padding_on_split`, and `snap_window_to_grid` now live under `#[serde(flatten)] pub window: WindowConfig`. Fully backward compatible with existing YAML configs.
+- **Glyph font-fallback loop deduplicated** — `resolve_glyph_with_fallback()` extracted as a shared `CellRenderer` method; `text_instance_builder.rs` and `pane_render/mod.rs` both call it, eliminating the duplicated ~60-line font-fallback loop.
+- **`pane_render/mod.rs` reduced below 800-line target** — powerline fringe logic extracted to `powerline.rs` (116 lines) and block-character rendering extracted to `block_char_render.rs` (222 lines). File reduced from 1,062 → 792 lines.
+
+### Code Quality
+- **`check_trigger_actions` refactored** — the 630-line God method now delegates to focused private helpers: `dispatch_trigger_action`, `handle_run_command_action`, `handle_send_text_action`, `handle_split_pane_action`, `handle_mark_line_action`.
+- **Cursor-contrast logic deduplicated** — `compute_cursor_text_color()` extracted as a shared `pub(crate)` free function in `instance_buffers.rs`; both render paths now call it.
+- **`show_action_edit_form` decomposed** — per-action-type form rendering extracted into eight private helper functions (~60 lines each), replacing a single 413-line inline match block.
+- **`Vec<char>` hot-path allocation eliminated** — per-cell `grapheme.chars().collect::<Vec<char>>()` in the render loop replaced with direct iterator calls (`chars().next()`, `chars().nth(1)`).
+- **`RowCacheEntry` phantom struct replaced** — `pub(crate) struct RowCacheEntry {}` replaced with `pub(crate) type RowCacheEntry = bool`.
+- **`ActionBase` helper added to `CustomActionConfig`** — `base()` / `apply_base()` methods reduce `set_keybinding`, `set_prefix_char`, `set_keybinding_enabled` from 18-line match blocks to 4-line calls; `into_copy()` reduced from ~70 lines to 10.
+- **Repeat action bounded** — `MAX_SAFE_REPEAT_COUNT = 100` guard added in `snippet_actions.rs` to prevent config-based DoS from unbounded `thread::sleep` loops.
+- **Orphaned `test_cr.rs` and `test_grid.rs` deleted** — standalone files at repo root that were not part of any crate.
+
+### Documentation
+- **`CONTRIBUTING.md` factual corrections** — fixed stale module paths (`src/terminal/` → `par-term-terminal/src/`), wrong sub-crate count (13 → 14, added `par-term-prettifier` to Layer 2 table), wrong `input_events` path (file → directory), wrong incremental build time (30–40s → 1–2s), and wrong `dev-release` profile specs (opt-level 3 / thin LTO → opt-level 2 / no LTO).
+- **README config default corrected** — `tab_bar_mode` example corrected from `when_multiple` to `always` (the actual default since v0.20.0).
+- **`docs/MIGRATION.md` created** — documents breaking behavior changes across v0.20.0, v0.25.0, and v0.27.0 including renamed config fields, security-gated trigger execution, and prettifier external-commands default-deny.
+- **`docs/README.md` navigation improvements** — added `Contributing` link to Architecture & Development table; added `Getting Started` as first row in the Getting Started table.
+- **README CI badge added** — GitHub Actions CI status badge now shown in the badge row.
+- **`docs/DOCUMENTATION_STYLE_GUIDE.md` updated** — added explicit "Actual Layout: Flat docs/ Directory" section documenting the conscious deviation from the prescribed subdirectory structure.
+
 ---
 
 ## [0.29.2] - 2026-03-25
