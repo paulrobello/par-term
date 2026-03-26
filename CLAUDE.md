@@ -34,6 +34,8 @@ make pre-commit     # Run pre-commit checks (fmt-check, lint, test)
 make ci             # Full CI checks (fmt-check, lint-all, test, check-all)
 make fmt            # Format code with rustfmt
 make lint           # Run clippy
+make typecheck      # Type-check entire workspace (cargo check --workspace)
+make checkall       # Format, lint, typecheck, and test
 cargo test -- --include-ignored  # Run all tests including PTY-dependent ones
 ```
 
@@ -94,7 +96,7 @@ make bundle            # Create macOS .app bundle (macOS only)
 
 See `docs/ARCHITECTURE.md` for detailed architecture documentation.
 
-**Key layers**: App (`src/app/`) → Terminal (`src/terminal/`) → Renderer (`src/renderer/`, `src/cell_renderer/`) → GPU Shaders (`src/shaders/`)
+**Key layers**: App (`src/app/`) → Terminal (`src/terminal/`) → Renderer (`par-term-render/src/cell_renderer/`) → GPU Shaders (`par-term-render/src/shaders/`)
 
 **Data flow**: Window Events → Input Handler → PTY → VT Parser → Styled Segments → GPU Renderer (three passes: cells → graphics → egui overlay)
 
@@ -195,7 +197,7 @@ Layer 4 — Root crate (bump last):
 5. **REQUIRED**: Update search keywords in `par-term-settings-ui/src/sidebar.rs` → `tab_search_keywords()`
 
 ### Adding a New Keyboard Shortcut
-1. Add key handling in `src/app/input_events.rs`
+1. Add key handling in `src/app/input_events/` (directory — `mod.rs` + `keybinding_actions.rs`)
 2. If needed, add sequence generation in `src/input.rs` → `InputHandler`
 
 ### Adding Snippet or Action Keybindings
@@ -287,13 +289,6 @@ See `docs/CUSTOM_SHADERS.md` for full shader documentation including uniforms, c
 | Progress bars | `docs/PROGRESS_BARS.md` |
 | Scrollback buffer | `docs/SCROLLBACK.md` |
 | Semantic history | `docs/SEMANTIC_HISTORY.md` |
-
-## Supplemental Memory Notes
-
-Key rendering root-cause findings are preserved in `MEMORY.md` (auto-memory file loaded by Claude Code) and inline in the `## Critical Gotchas` section above. The two most important areas to know before touching rendering code:
-
-- **Cursor rendering**: 3-phase draw order (bgs → text → cursor overlays) enforced via `emit_three_phase_draw_calls()`. Hollow cursor opacity is independent of window opacity.
-- **Block characters (▄/▀)**: Both halves rendered entirely via the text pipeline; bg pipeline emits a full-height quad that text overwrites. No partial-cell seam between pipelines.
 
 ## Quick Debugging Checklist by Category
 
