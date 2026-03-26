@@ -41,7 +41,28 @@ New to par-term? The [Getting Started Guide](docs/GETTING_STARTED.md) walks you 
 - **[Configuration Reference](docs/CONFIG_REFERENCE.md)** — All 200+ configuration options
 - **[Keyboard Shortcuts](docs/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
 
-## What's New in 0.29.2
+## What's New in 0.30.0
+
+### 🔒 Security
+
+- **ACP Sensitive-Path Blocklist Extended**: `~/.aws/`, `~/.docker/`, `~/.netrc`, `~/.config/gh/`, and `~/.config/gcloud/` now blocked by `is_sensitive_path()`, closing a credential-exfiltration vector for AI agents with `auto_approve` enabled.
+- **`NotebookEdit` Reclassified as Write**: Previously auto-approved as read-only; now requires user approval, preventing silent Jupyter notebook modification.
+- **Session Logger Credential Redaction**: Added `GITHUB_TOKEN=`, `HEROKU_API_KEY=`, `npm_token=`, `pypi_token=`, `gitlab_token=`, `circleci_token=`, and `Bearer <token>` patterns to the redaction list.
+- **`$SHELL` Allowlist Validation**: `resolve_shell_path()` now validates the shell basename against a known-shells allowlist before use.
+
+### 🐛 Bug Fixes
+
+- **Windows Modifier Keys After Focus Loss**: `Shift`/`Ctrl`/`Alt` no longer become permanently broken after a notification or popup briefly steals focus. `InputHandler` now synthesizes modifier state directly from physical key events as a fallback.
+- **Tmux Text Selection**: Highlight no longer persists and clipboard is now populated correctly when a press→drag→release sequence spans a lock-miss on the PTY reader.
+
+### 🏗 Architecture
+
+- **`FontRenderingConfig` Extracted**: `font_antialias`, `font_hinting`, `font_thin_strokes`, and `minimum_contrast` grouped under `font_rendering` sub-struct (backward-compatible YAML).
+- **`WindowConfig` Extracted**: Window appearance fields (`window_opacity`, `blur_enabled`, `blur_radius`, etc.) grouped under `window` sub-struct (backward-compatible YAML).
+- **Render Loop Deduplicated**: `resolve_glyph_with_fallback()` extracted as a shared method; `pane_render/mod.rs` reduced from 1,062 → 792 lines.
+
+<details>
+<summary><strong>What's New in 0.29.2</strong></summary>
 
 ### 🐛 Bug Fixes
 
@@ -49,6 +70,8 @@ New to par-term? The [Getting Started Guide](docs/GETTING_STARTED.md) walks you 
 - **Cmd+Shift Font-Size Keys**: `Cmd+Shift+=` (`+`) and `Cmd+Shift+-` (`_`) no longer leak to the terminal when adjusting font size.
 - **Ctrl+L / Ctrl+Shift+K in Split Panes**: Clear screen and clear scrollback now target the focused pane instead of always the root pane.
 - **`--shader` CLI Override**: The `--shader` flag and `--screenshot` mode now correctly override the configured shader even after `create_window()` reloads config from disk.
+
+</details>
 
 <details>
 <summary><strong>What's New in 0.29.1</strong></summary>

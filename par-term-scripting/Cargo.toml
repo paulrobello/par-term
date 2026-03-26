@@ -13,7 +13,7 @@ categories = ["command-line-utilities"]
 
 [dependencies]
 # Configuration types (ScriptConfig)
-par-term-config = { path = "../par-term-config", version = "0.10.0" }
+par-term-config = { path = "../par-term-config", version = "0.10.1" }
 
 # Terminal event observer trait
 par-term-emu-core-rust.workspace = true

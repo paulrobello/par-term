@@ -424,6 +424,17 @@ Enable `shader_hot_reload: true` in your config for faster iteration during shad
 3. See [KEYBOARD_SHORTCUTS.md](KEYBOARD_SHORTCUTS.md) for the complete shortcut reference
 4. Custom keybindings in `config.yaml` override defaults -- check for conflicts
 
+### Windows Modifier Keys Break After Notification
+
+**Symptom:** On Windows, after a toast notification or popup briefly steals focus, `Shift`, `Ctrl`, or `Alt` stop working or behave incorrectly until the key is physically re-pressed.
+
+**Cause:** `WM_NCACTIVATE(false)` fires when a notification becomes active, causing winit to emit `ModifiersChanged(empty)`. Because keyboard focus is never actually lost, no `WM_SETFOCUS` fires to restore state.
+
+**Solution:**
+
+1. Press and release the broken modifier key once to resynchronize state
+2. Update to par-term v0.30.0+ — modifier state is now synthesized directly from physical `KeyboardInput` events as a fallback, preventing permanent breakage
+
 ### Copy and Paste Issues
 
 **Symptom:** `Cmd+V` or `Ctrl+V` does not paste, or copied text is empty.

@@ -153,6 +153,10 @@ Detected output patterns include:
 - AWS credential file patterns (`aws_access_key_id`, `aws_secret_access_key`)
 - Private key markers (`-----BEGIN RSA PRIVATE KEY-----`, etc.)
 - Generic `api_key=`, `secret_key=` assignments
+- CI/CD and service tokens: `GITHUB_TOKEN=`, `HEROKU_API_KEY=`, `npm_token=`, `pypi_token=`, `gitlab_token=`, `circleci_token=`
+- Bearer token headers: `Bearer <token>`
+
+> **Note:** Log files include a header warning documenting known redaction limitations — not all credential formats can be detected.
 
 ### Limitations
 

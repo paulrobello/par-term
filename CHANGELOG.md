@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.30.0] - 2026-03-26
+
 ### Bug Fixes
 - **Windows: Shift/Ctrl/Alt stop working after a notification or popup briefly steals focus** — on Windows, `WM_NCACTIVATE(false)` fires when any notification balloon or popup window becomes active, causing winit to emit `ModifiersChanged(empty)` and zero out all modifier state. Because keyboard focus is never actually lost, no `WM_SETFOCUS` fires to restore the state, leaving Shift/Ctrl/Alt permanently broken until the key is re-pressed. Fix: `InputHandler` now synthesizes modifier-state updates directly from `KeyboardInput` events for physical modifier keys (ShiftLeft/Right, ControlLeft/Right, AltLeft/Right, SuperLeft/Right). This is a no-op in the normal path (winit guarantees `ModifiersChanged` fires before `KeyboardInput`) and only corrects state when `ModifiersChanged` delivery is stale or missing.
 - **tmux text selection: highlight persists and clipboard not populated on release** — when clicking between tmux panes, trackpad tap jitter could cause a press→drag→release sequence to be forwarded to tmux (which interpreted it as an empty selection), while simultaneously starting a local selection that was never finished. Root cause: `try_send_mouse_event` uses `try_write()` which can miss the lock during press (PTY reader holds it), causing the press to be handled locally (starting a selection); the release then succeeds via the alt-screen path and is consumed by tracking without completing the local selection. Fix: after tracking consumes a release, check for a pending local selection and call `handle_left_mouse_release()` to copy the text and clear the highlight.
@@ -1225,7 +1229,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-[Unreleased]: https://github.com/paulrobello/par-term/compare/v0.27.0...HEAD
+[Unreleased]: https://github.com/paulrobello/par-term/compare/v0.30.0...HEAD
+[0.30.0]: https://github.com/paulrobello/par-term/compare/v0.29.2...v0.30.0
+[0.29.2]: https://github.com/paulrobello/par-term/compare/v0.29.1...v0.29.2
+[0.29.1]: https://github.com/paulrobello/par-term/compare/v0.29.0...v0.29.1
+[0.29.0]: https://github.com/paulrobello/par-term/compare/v0.28.0...v0.29.0
+[0.28.0]: https://github.com/paulrobello/par-term/compare/v0.27.0...v0.28.0
 [0.27.0]: https://github.com/paulrobello/par-term/compare/v0.26.0...v0.27.0
 [0.26.0]: https://github.com/paulrobello/par-term/compare/v0.25.0...v0.26.0
 [0.25.0]: https://github.com/paulrobello/par-term/compare/v0.24.0...v0.25.0

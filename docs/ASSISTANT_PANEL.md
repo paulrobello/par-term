@@ -221,6 +221,25 @@ Writes to the par-term configuration and shader directories are auto-approved be
 
 For Claude-compatible local backends, par-term also blocks unsupported `Skill` tool permission requests that some models may emit incorrectly.
 
+### Sensitive Path Filtering
+
+par-term blocks ACP agent access to directories that commonly contain credentials and private data, regardless of `auto_approve` settings:
+
+| Blocked Path | Contents |
+|---|---|
+| `~/.aws/` | AWS credentials and configuration |
+| `~/.docker/` | Docker authentication tokens |
+| `~/.netrc` | Automatic login credentials |
+| `~/.config/gh/` | GitHub CLI tokens |
+| `~/.config/gcloud/` | Google Cloud credentials |
+| `~/.ssh/` | SSH private keys |
+| `~/.gnupg/` | GPG keyring |
+| `/etc/` | System configuration |
+
+Requests targeting these paths are automatically denied without a permission dialog. This restriction is not configurable.
+
+When an agent TOML in the user config directory overrides a built-in embedded agent identity, par-term logs a warning and displays it in the panel so the substitution is always visible.
+
 For visual debugging workflows, agents can use the `terminal_screenshot` MCP tool to request a screenshot of the terminal renderer output (for example shader output). Screenshot requests are permission-gated and are treated separately from normal file/config permissions. The `terminal_screenshot` tool is registered in par-term's built-in MCP server and requires the **Allow Agent Screenshots** setting to be enabled before requests are even presented for approval.
 
 ### Reset Permission Approvals

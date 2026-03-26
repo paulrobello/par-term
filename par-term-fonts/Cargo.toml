@@ -28,7 +28,7 @@ unicode-segmentation.workspace = true
 lru.workspace = true
 
 # Configuration types (FontRange)
-par-term-config = { path = "../par-term-config", version = "0.10.0" }
+par-term-config = { path = "../par-term-config", version = "0.10.1" }
 
 # Error handling
 anyhow.workspace = true

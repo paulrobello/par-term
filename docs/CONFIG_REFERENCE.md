@@ -53,6 +53,8 @@ field uses its documented default value.
 
 ## Window / General
 
+> **v0.30.0:** Window appearance fields (`window_opacity`, `window_always_on_top`, `window_decorations`, `blur_enabled`, `blur_radius`, `window_padding`, `hide_window_padding_on_split`, `snap_window_to_grid`) are now internally grouped under a `WindowConfig` sub-struct. Existing YAML configs are fully backward-compatible.
+
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `cols` | `usize` | `80` | Number of terminal columns |
@@ -93,6 +95,9 @@ field uses its documented default value.
 | `enable_text_shaping` | `bool` | `true` | Enable HarfBuzz text shaping for ligatures and complex scripts |
 | `enable_ligatures` | `bool` | `true` | Render font ligatures (requires `enable_text_shaping`) |
 | `enable_kerning` | `bool` | `true` | Apply kerning adjustments (requires `enable_text_shaping`) |
+
+> **v0.30.0:** The following rendering fields are now internally grouped under a `FontRenderingConfig` sub-struct. Existing YAML configs are fully backward-compatible.
+
 | `font_antialias` | `bool` | `true` | Anti-aliased font rendering |
 | `font_hinting` | `bool` | `true` | Font hinting for pixel-aligned rendering |
 | `font_thin_strokes` | `enum` | `retina_only` | Stroke weight mode: `never`, `retina_only`, `dark_backgrounds_only`, `retina_dark_backgrounds_only`, `always` |
