@@ -1,15 +1,16 @@
-// ARC-005 / ARC-009 TODO: This file is ~1000 lines (limit: 800). Remaining extraction
-// candidates (require a more involved refactor since they mutate `self.bg_instances` in-place):
+// ARC-005 completed: file reduced from ~1004 lines to ~791 lines (target: <800).
 //
-//   rle_merge.rs    — RLE background-color merge inner loop (currently inlined in
-//                     build_pane_instance_buffers). Extract helper:
-//                     `fn merge_rle_bg_spans(cells, ...) -> Vec<BackgroundInstance>`
+// Extracted submodules:
+//   powerline.rs        — Powerline fringe-extension logic (pure fn, no self access).
+//                         `extend_powerline_fringes()` adjusts bg-quad x0/x1 to eliminate
+//                         anti-aliased dark fringes at separator boundaries.
+//   block_char_render.rs — Geometric rendering of block/box-drawing characters via the text
+//                          pipeline. `render_block_char_geometrically()` returns Some(new_idx)
+//                          when rendered; caller continues the per-cell loop.
 //
-//   powerline.rs    — Powerline fringe-extension logic (~80 lines). Extract helper:
-//                     `fn extend_powerline_fringes(spans, cell_w, cell_h) -> Vec<BackgroundInstance>`
-//
-// Note: The glyph font-fallback loop previously duplicated here has been extracted to
-// `CellRenderer::resolve_glyph_with_fallback()` in `atlas.rs` (ARC-004 / QA-003).
+// Note: The glyph font-fallback loop was extracted to `CellRenderer::resolve_glyph_with_fallback()`
+// in `atlas.rs` (ARC-004 / QA-003). The RLE bg-instance merge inner loop remains inlined
+// as it mutates self.bg_instances in place with no clean free-function boundary.
 //
 // IMPORTANT invariants to preserve (see MEMORY.md and CLAUDE.md):
 //   • 3-phase draw ordering: bg instances → text instances → cursor overlays
@@ -25,8 +26,12 @@ use super::instance_buffers::{
 use super::{BackgroundInstance, Cell, CellRenderer, PaneViewport, TextInstance};
 use anyhow::Result;
 use par_term_config::{SeparatorMark, color_u8x4_rgb_to_f32, color_u8x4_rgb_to_f32_a};
+mod block_char_render;
 mod cursor_overlays;
+mod powerline;
 mod separators;
+
+use block_char_render::BlockCharRenderParams;
 
 use cursor_overlays::CursorOverlayParams;
 
@@ -459,81 +464,18 @@ impl CellRenderer {
 
                 // Extend the colored bg quad 1 px under adjacent powerline separator glyphs
                 // to eliminate the dark fringe at their anti-aliased edges.
-                //
-                // Powerline separators with default bg rely on the viewport fill (no BG quad
-                // in normal mode). Their anti-aliased corner/edge pixels blend:
-                //   fg * alpha + dark_fill * (1 - alpha)  →  visible dark fringe
-                // Extending the adjacent colored quad by 1 px underneath changes the blend to:
-                //   fg * alpha + colored * (1 - alpha)  →  seamless transition
-                // The 1 px is small enough to be hidden under the glyph itself.
-                let is_default_bg_cell = |bg: [u8; 4]| -> bool {
-                    let f = color_u8x4_rgb_to_f32(bg);
-                    (f[0] - self.background_color[0]).abs() < 0.001
-                        && (f[1] - self.background_color[1]).abs() < 0.001
-                        && (f[2] - self.background_color[2]).abs() < 0.001
-                };
-                // Extend right if the next cell is any powerline separator with default bg.
-                // Covers anti-aliased left edges and transparent left corners of left-pointing seps.
-                let x1 = if col < row_cells.len()
-                    && matches!(
-                        row_cells[col].grapheme.as_str(),
-                        "\u{E0B0}"
-                            | "\u{E0B1}"
-                            | "\u{E0B2}"
-                            | "\u{E0B3}"
-                            | "\u{E0B4}"
-                            | "\u{E0B5}"
-                            | "\u{E0B6}"
-                            | "\u{E0B7}"
-                    )
-                    && is_default_bg_cell(row_cells[col].bg_color)
-                {
-                    x1 + 1.0
-                } else {
-                    x1
-                };
-                // Extend left if the previous cell is any powerline separator with default bg.
-                // Covers anti-aliased right edges and transparent right corners of right-pointing seps.
-                let x0 = if start_col > 0
-                    && matches!(
-                        row_cells[start_col - 1].grapheme.as_str(),
-                        "\u{E0B0}"
-                            | "\u{E0B1}"
-                            | "\u{E0B2}"
-                            | "\u{E0B3}"
-                            | "\u{E0B4}"
-                            | "\u{E0B5}"
-                            | "\u{E0B6}"
-                            | "\u{E0B7}"
-                    )
-                    && is_default_bg_cell(row_cells[start_col - 1].bg_color)
-                {
-                    x0 - 1.0
-                } else {
-                    x0
-                };
-
-                // In background-image mode (skip_solid_background=true), right-pointing
-                // separator cells (E0B0/E0B1/E0B4/E0B5) are rendered in the RLE path and
-                // their BG quad is drawn AFTER the adjacent colored run's quad. This causes
-                // them to overwrite the 1px EXT-RIGHT extension from the colored run.
-                //
-                // Fix: when this cell IS a right-pointing separator with a colored left
-                // neighbor, trim our own BG quad x0 by 1px so the colored extension stays
-                // visible under the separator's left edge.
-                let x0 = if skip_solid_background
-                    && is_default_bg
-                    && matches!(
-                        row_cells[start_col].grapheme.as_str(),
-                        "\u{E0B0}" | "\u{E0B1}" | "\u{E0B4}" | "\u{E0B5}"
-                    )
-                    && start_col > 0
-                    && !is_default_bg_cell(row_cells[start_col - 1].bg_color)
-                {
-                    x0 + 1.0
-                } else {
-                    x0
-                };
+                // See powerline.rs for full rationale.
+                let (x0, x1) =
+                    powerline::extend_powerline_fringes(powerline::PowerlineFringeParams {
+                        row_cells,
+                        start_col,
+                        col,
+                        x0,
+                        x1,
+                        skip_solid_background,
+                        is_default_bg,
+                        background_color: self.background_color,
+                    });
 
                 if bg_index < self.buffers.max_bg_instances {
                     self.bg_instances[bg_index] = BackgroundInstance {
@@ -615,182 +557,27 @@ impl CellRenderer {
                     color_u8x4_rgb_to_f32_a(cell.fg_color, text_alpha)
                 };
 
-                // TODO(QA-002/QA-008): extract into `render_block_char()` helper.
-                // The block char path returns early via `continue` — the helper would
-                // return `bool` (true = rendered, caller should continue) and write
-                // directly into `self.text_instances[text_index]`.
-                // Check for block characters that should be rendered geometrically
+                // Classify character for block/box-drawing detection and glyph snapping.
                 let char_type = block_chars::classify_char(ch);
-                if grapheme_len == 1 && block_chars::should_render_geometrically(char_type) {
-                    let char_w = if cell.wide_char {
-                        self.grid.cell_width * 2.0
-                    } else {
-                        self.grid.cell_width
-                    };
-                    let x0 = (content_x + col_idx as f32 * self.grid.cell_width).round();
-                    let y0 = (content_y + row as f32 * self.grid.cell_height).round();
-                    let y1 = (content_y + (row + 1) as f32 * self.grid.cell_height).round();
-                    let snapped_cell_height = y1 - y0;
 
-                    // Try box drawing geometry first
-                    let aspect_ratio = snapped_cell_height / char_w;
-                    if let Some(box_geo) = block_chars::get_box_drawing_geometry(ch, aspect_ratio) {
-                        for segment in &box_geo.segments {
-                            let rect = segment
-                                .to_pixel_rect(x0, y0, char_w, snapped_cell_height)
-                                .snap_to_pixels();
-
-                            // Extension for seamless lines
-                            let extension = 1.0;
-                            let ext_x = if segment.x <= 0.01 { extension } else { 0.0 };
-                            let ext_y = if segment.y <= 0.01 { extension } else { 0.0 };
-                            let ext_w = if segment.x + segment.width >= 0.99 {
-                                extension
-                            } else {
-                                0.0
-                            };
-                            let ext_h = if segment.y + segment.height >= 0.99 {
-                                extension
-                            } else {
-                                0.0
-                            };
-
-                            let final_x = rect.x - ext_x;
-                            let final_y = rect.y - ext_y;
-                            let final_w = rect.width + ext_x + ext_w;
-                            let final_h = rect.height + ext_y + ext_h;
-
-                            if text_index < self.buffers.max_text_instances {
-                                self.text_instances[text_index] = TextInstance {
-                                    position: [
-                                        final_x / self.config.width as f32 * 2.0 - 1.0,
-                                        1.0 - (final_y / self.config.height as f32 * 2.0),
-                                    ],
-                                    size: [
-                                        final_w / self.config.width as f32 * 2.0,
-                                        final_h / self.config.height as f32 * 2.0,
-                                    ],
-                                    tex_offset: [
-                                        self.atlas.solid_pixel_offset.0 as f32 / ATLAS_SIZE,
-                                        self.atlas.solid_pixel_offset.1 as f32 / ATLAS_SIZE,
-                                    ],
-                                    tex_size: [1.0 / ATLAS_SIZE, 1.0 / ATLAS_SIZE],
-                                    color: render_fg_color,
-                                    is_colored: 0,
-                                };
-                                text_index += 1;
-                            }
-                        }
-                        continue;
-                    }
-
-                    // Half-block characters (▄/▀): render BOTH halves through the
-                    // text pipeline to eliminate cross-pipeline coordinate seams.
-                    // Use snapped cell edges (no extensions) for seamless tiling.
-                    if ch == '\u{2584}' || ch == '\u{2580}' {
-                        let x1 = (content_x + (col_idx + 1) as f32 * self.grid.cell_width).round();
-                        let cell_w = x1 - x0;
-                        let y_mid = y0 + self.grid.cell_height / 2.0;
-
-                        let bg_half_color = color_u8x4_rgb_to_f32_a(cell.bg_color, text_alpha);
-                        let (top_color, bottom_color) = if ch == '\u{2584}' {
-                            (bg_half_color, render_fg_color) // ▄: top=bg, bottom=fg
-                        } else {
-                            (render_fg_color, bg_half_color) // ▀: top=fg, bottom=bg
-                        };
-
-                        let tex_offset = [
-                            self.atlas.solid_pixel_offset.0 as f32 / ATLAS_SIZE,
-                            self.atlas.solid_pixel_offset.1 as f32 / ATLAS_SIZE,
-                        ];
-                        let tex_size = [1.0 / ATLAS_SIZE, 1.0 / ATLAS_SIZE];
-
-                        // Top half: [y0, y_mid)
-                        if text_index < self.buffers.max_text_instances {
-                            self.text_instances[text_index] = TextInstance {
-                                position: [
-                                    x0 / self.config.width as f32 * 2.0 - 1.0,
-                                    1.0 - (y0 / self.config.height as f32 * 2.0),
-                                ],
-                                size: [
-                                    cell_w / self.config.width as f32 * 2.0,
-                                    (y_mid - y0) / self.config.height as f32 * 2.0,
-                                ],
-                                tex_offset,
-                                tex_size,
-                                color: top_color,
-                                is_colored: 0,
-                            };
-                            text_index += 1;
-                        }
-
-                        // Bottom half: [y_mid, y1)
-                        if text_index < self.buffers.max_text_instances {
-                            self.text_instances[text_index] = TextInstance {
-                                position: [
-                                    x0 / self.config.width as f32 * 2.0 - 1.0,
-                                    1.0 - (y_mid / self.config.height as f32 * 2.0),
-                                ],
-                                size: [
-                                    cell_w / self.config.width as f32 * 2.0,
-                                    (y1 - y_mid) / self.config.height as f32 * 2.0,
-                                ],
-                                tex_offset,
-                                tex_size,
-                                color: bottom_color,
-                                is_colored: 0,
-                            };
-                            text_index += 1;
-                        }
-                        continue;
-                    }
-
-                    // Try block element geometry
-                    if let Some(geo_block) = block_chars::get_geometric_block(ch) {
-                        let rect = geo_block.to_pixel_rect(x0, y0, char_w, self.grid.cell_height);
-
-                        // Add small extension to prevent gaps (1 pixel overlap).
-                        let extension = 1.0;
-                        let ext_x = if geo_block.x == 0.0 { extension } else { 0.0 };
-                        let ext_y = if geo_block.y == 0.0 { extension } else { 0.0 };
-                        let ext_w = if geo_block.x + geo_block.width >= 1.0 {
-                            extension
-                        } else {
-                            0.0
-                        };
-                        let ext_h = if geo_block.y + geo_block.height >= 1.0 {
-                            extension
-                        } else {
-                            0.0
-                        };
-
-                        let final_x = rect.x - ext_x;
-                        let final_y = rect.y - ext_y;
-                        let final_w = rect.width + ext_x + ext_w;
-                        let final_h = rect.height + ext_y + ext_h;
-
-                        if text_index < self.buffers.max_text_instances {
-                            self.text_instances[text_index] = TextInstance {
-                                position: [
-                                    final_x / self.config.width as f32 * 2.0 - 1.0,
-                                    1.0 - (final_y / self.config.height as f32 * 2.0),
-                                ],
-                                size: [
-                                    final_w / self.config.width as f32 * 2.0,
-                                    final_h / self.config.height as f32 * 2.0,
-                                ],
-                                tex_offset: [
-                                    self.atlas.solid_pixel_offset.0 as f32 / ATLAS_SIZE,
-                                    self.atlas.solid_pixel_offset.1 as f32 / ATLAS_SIZE,
-                                ],
-                                tex_size: [1.0 / ATLAS_SIZE, 1.0 / ATLAS_SIZE],
-                                color: render_fg_color,
-                                is_colored: 0,
-                            };
-                            text_index += 1;
-                        }
-                        continue;
-                    }
+                // Attempt geometric rendering for block/box-drawing characters.
+                // See block_char_render.rs for the full implementation.
+                let block_x0 = (content_x + col_idx as f32 * self.grid.cell_width).round();
+                let block_y0 = (content_y + row as f32 * self.grid.cell_height).round();
+                let block_y1 = (content_y + (row + 1) as f32 * self.grid.cell_height).round();
+                if let Some(new_idx) = self.render_block_char_geometrically(BlockCharRenderParams {
+                    cell,
+                    ch,
+                    grapheme_len,
+                    x0_pixel: block_x0,
+                    y0_pixel: block_y0,
+                    y1_pixel: block_y1,
+                    render_fg_color,
+                    text_alpha,
+                    text_index,
+                }) {
+                    text_index = new_idx;
+                    continue;
                 }
 
                 // Check if this character should be rendered as a monochrome symbol.

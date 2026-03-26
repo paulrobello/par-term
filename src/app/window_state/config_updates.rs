@@ -171,7 +171,7 @@ impl ConfigChanges {
                 != old.shader.cursor_shader_disable_in_alt_screen,
 
             window_title: new.window_title != old.window_title,
-            window_decorations: new.window_decorations != old.window_decorations,
+            window_decorations: new.window.window_decorations != old.window.window_decorations,
             lock_window_size: new.lock_window_size != old.lock_window_size,
             show_window_number: new.show_window_number != old.show_window_number,
             max_fps: new.max_fps != old.max_fps,
@@ -225,8 +225,9 @@ impl ConfigChanges {
                 || (new.font_rendering.minimum_contrast - old.font_rendering.minimum_contrast)
                     .abs()
                     > f32::EPSILON,
-            padding: (new.window_padding - old.window_padding).abs() > f32::EPSILON
-                || new.hide_window_padding_on_split != old.hide_window_padding_on_split,
+            padding: (new.window.window_padding - old.window.window_padding).abs() > f32::EPSILON
+                || new.window.hide_window_padding_on_split
+                    != old.window.hide_window_padding_on_split,
 
             shader_hot_reload: new.shader_hot_reload != old.shader_hot_reload,
             shader_hot_reload_delay: new.shader_hot_reload_delay != old.shader_hot_reload_delay,
@@ -236,7 +237,8 @@ impl ConfigChanges {
             keep_text_opaque: new.keep_text_opaque != old.keep_text_opaque,
             link_underline_style: new.link_underline_style != old.link_underline_style,
 
-            blur: new.blur_enabled != old.blur_enabled || new.blur_radius != old.blur_radius,
+            blur: new.window.blur_enabled != old.window.blur_enabled
+                || new.window.blur_radius != old.window.blur_radius,
 
             keybindings: new.keybindings != old.keybindings,
 

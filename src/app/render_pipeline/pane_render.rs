@@ -69,7 +69,7 @@ pub(super) fn gather_pane_render_data(
     pane_count: usize,
     focused_scrollbar_inset: f32,
 ) -> PaneRenderDataResult {
-    let effective_padding = if pane_count > 1 && config.hide_window_padding_on_split {
+    let effective_padding = if pane_count > 1 && config.window.hide_window_padding_on_split {
         0.0
     } else {
         sizing.padding

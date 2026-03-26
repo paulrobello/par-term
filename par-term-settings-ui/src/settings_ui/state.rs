@@ -77,7 +77,7 @@ impl SettingsUI {
             temp_pane_bg_opacity: 1.0,
             temp_pane_bg_darken: 0.0,
             temp_pane_bg_index: None,
-            last_live_opacity: config.window_opacity,
+            last_live_opacity: config.window.window_opacity,
             current_cols: initial_cols,
             current_rows: initial_rows,
             supported_vsync_modes: vec![
@@ -311,7 +311,7 @@ impl SettingsUI {
     pub fn update_config(&mut self, config: Config) {
         if !self.has_changes {
             self.config = config;
-            self.last_live_opacity = self.config.window_opacity;
+            self.last_live_opacity = self.config.window.window_opacity;
             if !self.font_pending_changes {
                 self.sync_font_temps_from_config();
             }
@@ -390,7 +390,7 @@ impl SettingsUI {
             .custom_shader_cubemap
             .clone()
             .unwrap_or_default();
-        self.last_live_opacity = self.config.window_opacity;
+        self.last_live_opacity = self.config.window.window_opacity;
     }
 
     /// Reset all settings to their default values

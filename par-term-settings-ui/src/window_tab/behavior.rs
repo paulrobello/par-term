@@ -20,7 +20,7 @@ pub(super) fn show_behavior_section(
         |ui| {
             if ui
                 .checkbox(
-                    &mut settings.config.window_decorations,
+                    &mut settings.config.window.window_decorations,
                     "Window decorations",
                 )
                 .changed()
@@ -30,7 +30,10 @@ pub(super) fn show_behavior_section(
             }
 
             if ui
-                .checkbox(&mut settings.config.window_always_on_top, "Always on top")
+                .checkbox(
+                    &mut settings.config.window.window_always_on_top,
+                    "Always on top",
+                )
                 .changed()
             {
                 settings.has_changes = true;

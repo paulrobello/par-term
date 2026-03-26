@@ -222,13 +222,13 @@ impl SettingsUI {
         }
 
         let config_for_live_update = if self.visible {
-            if (self.config.window_opacity - self.last_live_opacity).abs() > f32::EPSILON {
+            if (self.config.window.window_opacity - self.last_live_opacity).abs() > f32::EPSILON {
                 log::info!(
                     "SettingsUI: live opacity {:.3} (last {:.3})",
-                    self.config.window_opacity,
+                    self.config.window.window_opacity,
                     self.last_live_opacity
                 );
-                self.last_live_opacity = self.config.window_opacity;
+                self.last_live_opacity = self.config.window.window_opacity;
             }
             Some(self.config.clone())
         } else {
@@ -355,13 +355,13 @@ impl SettingsUI {
         }
 
         let config_for_live_update = {
-            if (self.config.window_opacity - self.last_live_opacity).abs() > f32::EPSILON {
+            if (self.config.window.window_opacity - self.last_live_opacity).abs() > f32::EPSILON {
                 log::info!(
                     "SettingsUI: live opacity {:.3} (last {:.3})",
-                    self.config.window_opacity,
+                    self.config.window.window_opacity,
                     self.last_live_opacity
                 );
-                self.last_live_opacity = self.config.window_opacity;
+                self.last_live_opacity = self.config.window.window_opacity;
             }
             Some(self.config.clone())
         };

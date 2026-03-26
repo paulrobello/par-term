@@ -56,7 +56,7 @@ impl WindowManager {
         let mut window_attrs = Window::default_attributes()
             .with_title(&title)
             .with_inner_size(winit::dpi::LogicalSize::new(width, height))
-            .with_decorations(self.config.window_decorations);
+            .with_decorations(self.config.window.window_decorations);
 
         // Lock window size if requested (prevent resize)
         if self.config.lock_window_size {
@@ -87,7 +87,7 @@ impl WindowManager {
         }
 
         // Set window always-on-top if requested
-        if self.config.window_always_on_top {
+        if self.config.window.window_always_on_top {
             window_attrs = window_attrs.with_window_level(winit::window::WindowLevel::AlwaysOnTop);
             log::info!("Window always-on-top enabled");
         }
@@ -96,7 +96,7 @@ impl WindowManager {
         window_attrs = window_attrs.with_transparent(true);
         log::info!(
             "Window transparency enabled (opacity: {})",
-            self.config.window_opacity
+            self.config.window.window_opacity
         );
 
         // macOS: accept the first mouse click so that clicking the tab bar or

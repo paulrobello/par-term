@@ -266,31 +266,11 @@ pub struct Config {
     #[serde(default = "crate::defaults::throughput_render_interval_ms")]
     pub throughput_render_interval_ms: u32,
 
-    /// Window padding in pixels
-    #[serde(default = "crate::defaults::window_padding")]
-    pub window_padding: f32,
-
-    /// Automatically hide window padding when panes are split
-    /// When true (default), window padding becomes 0 when the active tab has multiple panes
-    #[serde(default = "crate::defaults::bool_true")]
-    pub hide_window_padding_on_split: bool,
-
-    /// Snap window dimensions to exact terminal cell boundaries during resize,
-    /// eliminating blank background gaps. Disabled automatically in split-pane mode.
-    #[serde(default = "crate::defaults::snap_window_to_grid")]
-    pub snap_window_to_grid: bool,
-
-    /// Window opacity/transparency (0.0 = fully transparent, 1.0 = fully opaque)
-    #[serde(default = "crate::defaults::window_opacity")]
-    pub window_opacity: f32,
-
-    /// Keep window always on top of other windows
-    #[serde(default = "crate::defaults::bool_false")]
-    pub window_always_on_top: bool,
-
-    /// Show window decorations (title bar, borders)
-    #[serde(default = "crate::defaults::bool_true")]
-    pub window_decorations: bool,
+    /// Window appearance settings (opacity, padding, decorations, blur, etc.)
+    /// Serialised flat at the top level via `#[serde(flatten)]` so that
+    /// existing YAML config files require no changes.
+    #[serde(flatten)]
+    pub window: WindowConfig,
 
     /// Window type (normal, fullscreen, or edge-anchored)
     /// - normal: Standard window (default)
@@ -330,16 +310,6 @@ pub struct Config {
     /// This ensures text remains crisp and readable even with transparent backgrounds.
     #[serde(default = "crate::defaults::bool_true")]
     pub keep_text_opaque: bool,
-
-    /// Enable window blur effect (macOS only)
-    /// Blurs content behind the transparent window for better readability
-    #[serde(default = "crate::defaults::bool_false")]
-    pub blur_enabled: bool,
-
-    /// Blur radius in points (0-64, macOS only)
-    /// Higher values = more blur. Default: 10
-    #[serde(default = "crate::defaults::blur_radius")]
-    pub blur_radius: u32,
 
     /// Background image path (optional, supports ~ for home directory)
     #[serde(default)]

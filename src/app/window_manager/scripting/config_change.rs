@@ -119,7 +119,7 @@ impl WindowManager {
             "window_opacity" => {
                 if let Some(v) = value.as_f64() {
                     let new_opacity = (v as f32).clamp(0.0, 1.0);
-                    ws.config.window_opacity = new_opacity;
+                    ws.config.window.window_opacity = new_opacity;
                     if let Some(renderer) = &mut ws.renderer {
                         renderer.update_opacity(new_opacity);
                     }

@@ -138,13 +138,13 @@ impl WindowManager {
                     window.set_title(&title);
                 }
                 if changes.window_decorations {
-                    window.set_decorations(config.window_decorations);
+                    window.set_decorations(config.window.window_decorations);
                 }
                 if changes.lock_window_size {
                     window.set_resizable(!config.lock_window_size);
                     log::info!("Window resizable set to: {}", !config.lock_window_size);
                 }
-                window.set_window_level(if config.window_always_on_top {
+                window.set_window_level(if config.window.window_always_on_top {
                     winit::window::WindowLevel::AlwaysOnTop
                 } else {
                     winit::window::WindowLevel::Normal
@@ -153,11 +153,12 @@ impl WindowManager {
                 // Apply blur changes (macOS only)
                 #[cfg(target_os = "macos")]
                 if changes.blur {
-                    let blur_radius = if config.blur_enabled && config.window_opacity < 1.0 {
-                        config.blur_radius
-                    } else {
-                        0 // Disable blur when not enabled or fully opaque
-                    };
+                    let blur_radius =
+                        if config.window.blur_enabled && config.window.window_opacity < 1.0 {
+                            config.window.blur_radius
+                        } else {
+                            0 // Disable blur when not enabled or fully opaque
+                        };
                     if let Err(e) = crate::macos_blur::set_window_blur(window, blur_radius) {
                         log::warn!("Failed to set window blur: {}", e);
                     }
@@ -171,7 +172,7 @@ impl WindowManager {
                 && let Some(renderer) = &mut window_state.renderer
             {
                 if let Some((new_cols, new_rows)) =
-                    renderer.update_window_padding(config.window_padding)
+                    renderer.update_window_padding(config.window.window_padding)
                 {
                     let cell_width = renderer.cell_width();
                     let cell_height = renderer.cell_height();

@@ -104,7 +104,7 @@ pub(super) fn show_display_section(
             if ui
                 .add_sized(
                     [SLIDER_WIDTH, SLIDER_HEIGHT],
-                    egui::Slider::new(&mut settings.config.window_padding, 0.0..=50.0),
+                    egui::Slider::new(&mut settings.config.window.window_padding, 0.0..=50.0),
                 )
                 .changed()
             {
@@ -115,7 +115,7 @@ pub(super) fn show_display_section(
 
         if ui
             .checkbox(
-                &mut settings.config.hide_window_padding_on_split,
+                &mut settings.config.window.hide_window_padding_on_split,
                 "Hide padding on split",
             )
             .on_hover_text(
@@ -129,7 +129,7 @@ pub(super) fn show_display_section(
 
         if ui
             .checkbox(
-                &mut settings.config.snap_window_to_grid,
+                &mut settings.config.window.snap_window_to_grid,
                 "Snap window to grid",
             )
             .on_hover_text(
