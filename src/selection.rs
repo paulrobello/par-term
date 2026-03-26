@@ -52,7 +52,7 @@ impl Selection {
     /// `is_cell_selected` never matches them.  Rows shifted below the viewport are
     /// left as-is (they exceed the row count and are also never matched).
     pub fn viewport_adjusted(&self, current_scroll_offset: usize) -> Self {
-        let delta = self.scroll_offset as isize - current_scroll_offset as isize;
+        let delta = current_scroll_offset as isize - self.scroll_offset as isize;
         let adjust = |row: usize| -> usize {
             let adjusted = row as isize + delta;
             if adjusted < 0 {
