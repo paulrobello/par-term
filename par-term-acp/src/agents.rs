@@ -364,7 +364,8 @@ fn load_agents_from_dir(dir: &Path, agents: &mut Vec<AgentConfig>, is_user_confi
                     Ok(config) => {
                         // SEC-003: Warn when a user-config-dir agent overrides a built-in identity.
                         // User agents are trusted user code but the override should be visible in logs.
-                        if is_user_config && BUILT_IN_IDENTITIES.contains(&config.identity.as_str()) {
+                        if is_user_config && BUILT_IN_IDENTITIES.contains(&config.identity.as_str())
+                        {
                             log::warn!(
                                 "ACP agent config '{}' overrides built-in identity '{}'.\n\
                                  User-config-dir agents are executed with par-term's privileges.\n\

@@ -729,14 +729,62 @@ impl CustomActionConfig {
         let mut cloned = self.clone();
         // Patch fields that must differ on the copy.
         match &mut cloned {
-            Self::ShellCommand { id, title, keybinding, prefix_char, .. }
-            | Self::NewTab { id, title, keybinding, prefix_char, .. }
-            | Self::InsertText { id, title, keybinding, prefix_char, .. }
-            | Self::KeySequence { id, title, keybinding, prefix_char, .. }
-            | Self::SplitPane { id, title, keybinding, prefix_char, .. }
-            | Self::Sequence { id, title, keybinding, prefix_char, .. }
-            | Self::Condition { id, title, keybinding, prefix_char, .. }
-            | Self::Repeat { id, title, keybinding, prefix_char, .. } => {
+            Self::ShellCommand {
+                id,
+                title,
+                keybinding,
+                prefix_char,
+                ..
+            }
+            | Self::NewTab {
+                id,
+                title,
+                keybinding,
+                prefix_char,
+                ..
+            }
+            | Self::InsertText {
+                id,
+                title,
+                keybinding,
+                prefix_char,
+                ..
+            }
+            | Self::KeySequence {
+                id,
+                title,
+                keybinding,
+                prefix_char,
+                ..
+            }
+            | Self::SplitPane {
+                id,
+                title,
+                keybinding,
+                prefix_char,
+                ..
+            }
+            | Self::Sequence {
+                id,
+                title,
+                keybinding,
+                prefix_char,
+                ..
+            }
+            | Self::Condition {
+                id,
+                title,
+                keybinding,
+                prefix_char,
+                ..
+            }
+            | Self::Repeat {
+                id,
+                title,
+                keybinding,
+                prefix_char,
+                ..
+            } => {
                 *id = new_id;
                 *title = new_title;
                 *keybinding = None;

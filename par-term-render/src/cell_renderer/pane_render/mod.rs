@@ -20,7 +20,7 @@
 
 use super::block_chars;
 use super::instance_buffers::{
-    compute_cursor_text_color, STIPPLE_OFF_PX, STIPPLE_ON_PX, UNDERLINE_HEIGHT_RATIO,
+    STIPPLE_OFF_PX, STIPPLE_ON_PX, UNDERLINE_HEIGHT_RATIO, compute_cursor_text_color,
 };
 use super::{BackgroundInstance, Cell, CellRenderer, PaneViewport, TextInstance};
 use anyhow::Result;
@@ -597,7 +597,11 @@ impl CellRenderer {
                 let grapheme_len = match second_char {
                     None => 1usize,
                     Some(_) => {
-                        if cell.grapheme.chars().nth(2).is_none() { 2 } else { 3 }
+                        if cell.grapheme.chars().nth(2).is_none() {
+                            2
+                        } else {
+                            3
+                        }
                     }
                 };
 
@@ -606,11 +610,7 @@ impl CellRenderer {
                 let render_fg_color: [f32; 4] = if cursor_is_block_on_this_row
                     && cursor_pos.is_some_and(|(cx, _)| cx == col_idx)
                 {
-                    compute_cursor_text_color(
-                        self.cursor.color,
-                        self.cursor.text_color,
-                        text_alpha,
-                    )
+                    compute_cursor_text_color(self.cursor.color, self.cursor.text_color, text_alpha)
                 } else {
                     color_u8x4_rgb_to_f32_a(cell.fg_color, text_alpha)
                 };

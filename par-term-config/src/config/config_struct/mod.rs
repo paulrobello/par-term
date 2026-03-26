@@ -104,8 +104,7 @@ use crate::types::{
     PaneTitlePosition, PowerPreference, ProgressBarPosition, ProgressBarStyle,
     RemoteTabTitleFormat, SemanticHistoryEditorMode, SessionLogFormat, ShaderConfig,
     ShaderInstallPrompt, ShellExitAction, SmartSelectionRule, StartupDirectoryMode, TabBarMode,
-    TabBarPosition, TabStyle, TabTitleMode, UnfocusedCursorStyle, VsyncMode,
-    WindowType,
+    TabBarPosition, TabStyle, TabTitleMode, UnfocusedCursorStyle, VsyncMode, WindowType,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

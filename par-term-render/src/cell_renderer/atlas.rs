@@ -442,7 +442,7 @@ impl CellRenderer {
     /// * `bold`            — bold style flag
     /// * `italic`          — italic style flag
     /// * `force_monochrome` — when true use single-char lookup and suppress colored-emoji
-    ///                        rasterization; falls back to colored-emoji as last resort
+    ///   rasterization; falls back to colored-emoji as last resort
     ///
     /// # Returns
     /// The first [`GlyphInfo`] that rasterizes successfully, or `None` if every font
@@ -466,7 +466,8 @@ impl CellRenderer {
         let mut glyph_result = if force_monochrome || chars.len() == 1 {
             self.font_manager.find_glyph(base_char, bold, italic)
         } else {
-            self.font_manager.find_grapheme_glyph(grapheme, bold, italic)
+            self.font_manager
+                .find_grapheme_glyph(grapheme, bold, italic)
         };
 
         // Walk font fallbacks until a glyph rasterizes successfully.

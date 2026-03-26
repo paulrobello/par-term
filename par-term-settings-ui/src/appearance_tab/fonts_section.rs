@@ -358,7 +358,10 @@ pub(super) fn show_font_rendering_section(
             collapsed,
             |ui| {
                 if ui
-                    .checkbox(&mut settings.config.font_rendering.font_antialias, "Anti-aliasing")
+                    .checkbox(
+                        &mut settings.config.font_rendering.font_antialias,
+                        "Anti-aliasing",
+                    )
                     .on_hover_text("Enable smooth font edges. Disable for crisp, pixelated text.")
                     .changed()
                 {

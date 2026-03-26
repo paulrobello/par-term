@@ -118,8 +118,10 @@ impl WindowManager {
                     let mut updated = false;
                     updated |= renderer.update_font_antialias(config.font_rendering.font_antialias);
                     updated |= renderer.update_font_hinting(config.font_rendering.font_hinting);
-                    updated |= renderer.update_font_thin_strokes(config.font_rendering.font_thin_strokes);
-                    updated |= renderer.update_minimum_contrast(config.font_rendering.minimum_contrast);
+                    updated |=
+                        renderer.update_font_thin_strokes(config.font_rendering.font_thin_strokes);
+                    updated |=
+                        renderer.update_minimum_contrast(config.font_rendering.minimum_contrast);
                     if updated {
                         window_state.focus_state.needs_redraw = true;
                     }

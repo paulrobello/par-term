@@ -274,11 +274,11 @@ pub async fn handle_permission_request(
                     || lower == "terminal_screenshot";
                 let is_safe_fs_tool = {
                     // SEC-002: `NotebookEdit` / `notebook_edit` is a *write* operation that
-                // modifies notebook cells. It was previously misclassified as read-only,
-                // which caused it to be auto-approved without a path-safety check. It is
-                // intentionally absent here and falls through to the `is_write_tool` branch
-                // (or escalates to the UI if it does not match any known write-tool name).
-                let is_read_only = matches!(
+                    // modifies notebook cells. It was previously misclassified as read-only,
+                    // which caused it to be auto-approved without a path-safety check. It is
+                    // intentionally absent here and falls through to the `is_write_tool` branch
+                    // (or escalates to the UI if it does not match any known write-tool name).
+                    let is_read_only = matches!(
                         lower.as_str(),
                         "read"
                             | "read_file"

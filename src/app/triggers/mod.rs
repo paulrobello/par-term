@@ -223,12 +223,7 @@ impl WindowState {
         };
 
         for action in action_results {
-            self.dispatch_trigger_action(
-                action,
-                &ctx,
-                &mut pending_marks,
-                &mut pending_prettify,
-            );
+            self.dispatch_trigger_action(action, &ctx, &mut pending_marks, &mut pending_prettify);
         }
 
         // Periodically clean up stale rate limiter entries (every ~60 seconds of entries)
@@ -639,6 +634,7 @@ impl WindowState {
     }
 
     /// Handle a SplitPane trigger action, including security checks and pane creation.
+    #[allow(clippy::too_many_arguments)]
     fn handle_split_pane_action(
         &mut self,
         trigger_id: u64,
@@ -668,9 +664,7 @@ impl WindowState {
                 .cloned()
                 .unwrap_or_else(|| format!("trigger #{}", trigger_id));
             let dir_str = match direction {
-                par_term_emu_core_rust::terminal::TriggerSplitDirection::Horizontal => {
-                    "horizontal"
-                }
+                par_term_emu_core_rust::terminal::TriggerSplitDirection::Horizontal => "horizontal",
                 par_term_emu_core_rust::terminal::TriggerSplitDirection::Vertical => "vertical",
             };
             let description = format!("Split pane ({}) and run command", dir_str);
@@ -728,8 +722,7 @@ impl WindowState {
             .get(&trigger_id)
             .copied()
             .unwrap_or(66);
-        let new_pane_id =
-            self.split_pane_direction(pane_direction, focus_new_pane, None, pct);
+        let new_pane_id = self.split_pane_direction(pane_direction, focus_new_pane, None, pct);
 
         // After split, optionally send a command to the new pane.
         if let (Some(pane_id), Some(cmd)) = (new_pane_id, command) {

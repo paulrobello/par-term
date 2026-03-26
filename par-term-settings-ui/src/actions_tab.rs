@@ -894,11 +894,7 @@ fn show_shell_command_form(
 }
 
 /// Render form fields for the NewTab action type.
-fn show_new_tab_form(
-    ui: &mut egui::Ui,
-    settings: &mut SettingsUI,
-    changes_this_frame: &mut bool,
-) {
+fn show_new_tab_form(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
     ui.label("Command to run in the new tab (optional):");
     if ui
         .add(
@@ -1040,11 +1036,7 @@ fn show_split_pane_form(
 }
 
 /// Render form fields for the Sequence action type.
-fn show_sequence_form(
-    ui: &mut egui::Ui,
-    settings: &mut SettingsUI,
-    changes_this_frame: &mut bool,
-) {
+fn show_sequence_form(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
     ui.label(egui::RichText::new("Steps:").strong());
     let action_ids: Vec<(String, String)> = settings
         .config
@@ -1078,10 +1070,7 @@ fn show_sequence_form(
                     for (id, title) in &action_ids {
                         let label = format!("{} ({})", title, id);
                         if ui
-                            .selectable_label(
-                                settings.temp_action_steps[step_idx].0 == *id,
-                                &label,
-                            )
+                            .selectable_label(settings.temp_action_steps[step_idx].0 == *id, &label)
                             .clicked()
                         {
                             settings.temp_action_steps[step_idx].0 = id.clone();
@@ -1298,9 +1287,7 @@ fn show_condition_form(
             action_ids
                 .iter()
                 .find(|(id, _)| id == &settings.temp_action_on_true_id)
-                .map(|(_, title)| {
-                    format!("{} ({})", title, settings.temp_action_on_true_id)
-                })
+                .map(|(_, title)| format!("{} ({})", title, settings.temp_action_on_true_id))
                 .unwrap_or_else(|| settings.temp_action_on_true_id.clone())
         };
         egui::ComboBox::from_id_salt("condition_on_true")
@@ -1339,9 +1326,7 @@ fn show_condition_form(
             action_ids
                 .iter()
                 .find(|(id, _)| id == &settings.temp_action_on_false_id)
-                .map(|(_, title)| {
-                    format!("{} ({})", title, settings.temp_action_on_false_id)
-                })
+                .map(|(_, title)| format!("{} ({})", title, settings.temp_action_on_false_id))
                 .unwrap_or_else(|| settings.temp_action_on_false_id.clone())
         };
         egui::ComboBox::from_id_salt("condition_on_false")
@@ -1375,11 +1360,7 @@ fn show_condition_form(
 }
 
 /// Render form fields for the Repeat action type.
-fn show_repeat_form(
-    ui: &mut egui::Ui,
-    settings: &mut SettingsUI,
-    changes_this_frame: &mut bool,
-) {
+fn show_repeat_form(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
     let action_ids: Vec<(String, String)> = settings
         .config
         .actions
@@ -1394,9 +1375,7 @@ fn show_repeat_form(
             action_ids
                 .iter()
                 .find(|(id, _)| id == &settings.temp_action_repeat_action_id)
-                .map(|(_, title)| {
-                    format!("{} ({})", title, settings.temp_action_repeat_action_id)
-                })
+                .map(|(_, title)| format!("{} ({})", title, settings.temp_action_repeat_action_id))
                 .unwrap_or_else(|| settings.temp_action_repeat_action_id.clone())
         };
         egui::ComboBox::from_id_salt("repeat_action_id")
@@ -1404,10 +1383,7 @@ fn show_repeat_form(
             .width(200.0)
             .show_ui(ui, |ui| {
                 if ui
-                    .selectable_label(
-                        settings.temp_action_repeat_action_id.is_empty(),
-                        "(none)",
-                    )
+                    .selectable_label(settings.temp_action_repeat_action_id.is_empty(), "(none)")
                     .clicked()
                 {
                     settings.temp_action_repeat_action_id = String::new();
@@ -1416,10 +1392,7 @@ fn show_repeat_form(
                 for (id, title) in &action_ids {
                     let label = format!("{} ({})", title, id);
                     if ui
-                        .selectable_label(
-                            settings.temp_action_repeat_action_id == *id,
-                            &label,
-                        )
+                        .selectable_label(settings.temp_action_repeat_action_id == *id, &label)
                         .clicked()
                     {
                         settings.temp_action_repeat_action_id = id.clone();
@@ -1440,10 +1413,7 @@ fn show_repeat_form(
     ui.horizontal(|ui| {
         ui.label("Delay between (ms):");
         if ui
-            .add(
-                egui::DragValue::new(&mut settings.temp_action_repeat_delay_ms)
-                    .range(0..=60000),
-            )
+            .add(egui::DragValue::new(&mut settings.temp_action_repeat_delay_ms).range(0..=60000))
             .changed()
         {
             *changes_this_frame = true;

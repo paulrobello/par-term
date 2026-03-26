@@ -1,7 +1,7 @@
 use super::block_chars;
 use super::instance_buffers::{
-    compute_cursor_text_color, GLYPH_SNAP_EXTENSION_PX, GLYPH_SNAP_THRESHOLD_PX, STIPPLE_OFF_PX,
-    STIPPLE_ON_PX, UNDERLINE_HEIGHT_RATIO,
+    GLYPH_SNAP_EXTENSION_PX, GLYPH_SNAP_THRESHOLD_PX, STIPPLE_OFF_PX, STIPPLE_ON_PX,
+    UNDERLINE_HEIGHT_RATIO, compute_cursor_text_color,
 };
 use super::{Cell, CellRenderer, TextInstance};
 use par_term_config::color_u8x4_rgb_to_f32_a;
@@ -71,31 +71,30 @@ impl CellRenderer {
 
             // Determine text color - use cursor_text_color if this is the cursor position
             // with a block cursor, otherwise use the cell's foreground color
-            let render_fg_color: [f32; 4] = if cursor_is_block_on_this_row
-                && current_col == self.cursor.pos.0
-            {
-                compute_cursor_text_color(self.cursor.color, self.cursor.text_color, text_alpha)
-            } else {
-                // Determine the effective background color for contrast calculation
-                // If the cell has a non-default bg, use that; otherwise use terminal background
-                let effective_bg = if bg_color[3] > 0 {
-                    // Cell has explicit background
-                    color_u8x4_rgb_to_f32_a(bg_color, 1.0)
+            let render_fg_color: [f32; 4] =
+                if cursor_is_block_on_this_row && current_col == self.cursor.pos.0 {
+                    compute_cursor_text_color(self.cursor.color, self.cursor.text_color, text_alpha)
                 } else {
-                    // Use terminal default background
-                    [
-                        self.background_color[0],
-                        self.background_color[1],
-                        self.background_color[2],
-                        1.0,
-                    ]
+                    // Determine the effective background color for contrast calculation
+                    // If the cell has a non-default bg, use that; otherwise use terminal background
+                    let effective_bg = if bg_color[3] > 0 {
+                        // Cell has explicit background
+                        color_u8x4_rgb_to_f32_a(bg_color, 1.0)
+                    } else {
+                        // Use terminal default background
+                        [
+                            self.background_color[0],
+                            self.background_color[1],
+                            self.background_color[2],
+                            1.0,
+                        ]
+                    };
+
+                    let base_fg = color_u8x4_rgb_to_f32_a(fg_color, text_alpha);
+
+                    // Apply minimum contrast adjustment if enabled
+                    self.ensure_minimum_contrast(base_fg, effective_bg)
                 };
-
-                let base_fg = color_u8x4_rgb_to_f32_a(fg_color, text_alpha);
-
-                // Apply minimum contrast adjustment if enabled
-                self.ensure_minimum_contrast(base_fg, effective_bg)
-            };
 
             // Avoid Vec<char> allocation: determine first/second char from iterator directly.
             // grapheme_len is 1, 2, or "more than 2" (we only care which case we're in).
@@ -105,7 +104,11 @@ impl CellRenderer {
             let grapheme_len = match second_char {
                 None => 1usize,
                 Some(_) => {
-                    if grapheme.chars().nth(2).is_none() { 2 } else { 3 }
+                    if grapheme.chars().nth(2).is_none() {
+                        2
+                    } else {
+                        3
+                    }
                 }
             };
             #[allow(clippy::collapsible_if)]
@@ -138,8 +141,7 @@ impl CellRenderer {
                     // Try box drawing geometry first (for lines, corners, junctions)
                     // Pass aspect ratio so vertical lines have same visual thickness as horizontal
                     let aspect_ratio = snapped_cell_height / char_w;
-                    if let Some(box_geo) = block_chars::get_box_drawing_geometry(ch, aspect_ratio)
-                    {
+                    if let Some(box_geo) = block_chars::get_box_drawing_geometry(ch, aspect_ratio) {
                         for segment in &box_geo.segments {
                             let rect = segment
                                 .to_pixel_rect(x0, y0, char_w, snapped_cell_height)
@@ -371,8 +373,13 @@ impl CellRenderer {
                 // Resolve a renderable glyph via the shared font-fallback helper (ARC-004).
                 // This replaces the duplicated excluded_fonts/get_or_rasterize_glyph loop
                 // that previously existed in both this file and pane_render/mod.rs.
-                let resolved_info =
-                    self.resolve_glyph_with_fallback(base_char, grapheme, bold, italic, force_monochrome);
+                let resolved_info = self.resolve_glyph_with_fallback(
+                    base_char,
+                    grapheme,
+                    bold,
+                    italic,
+                    force_monochrome,
+                );
 
                 let info = match resolved_info {
                     Some(info) => info,
