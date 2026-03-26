@@ -31,34 +31,18 @@
 //! **Blocker:** All 84 `impl WindowState` blocks must be audited before moving any
 //! field to ensure no method holds simultaneous mutable borrows across sub-systems.
 //! Recommend using `cargo expand` or GitNexus impact analysis on each field before
-//! moving it.
+//! moving it. The `#[path]` redirect blocker (ARC-003) has been resolved — field
+//! extraction from step 3+ can now proceed.
 //!
 //! **Tracking:** Issue ARC-002 in AUDIT.md.
 //!
-//! # ARC-003: render_pipeline `#[path]` Redirect (Blocked by ARC-002)
+//! # ARC-003: render_pipeline `#[path]` Redirect — RESOLVED
 //!
-//! Line 34 below declares `render_pipeline` as a sub-module of `window_state` using
-//! `#[path = "../render_pipeline/mod.rs"]`. The directory layout contradicts the
-//! module hierarchy: `render_pipeline/` physically lives next to `window_state/` under
-//! `src/app/`, but logically belongs inside it.
-//!
-//! **Two valid resolutions (choose one before ARC-002 extraction):**
-//!
-//! Option A (preferred): Move `src/app/render_pipeline/` into
-//!   `src/app/window_state/render_pipeline/` so the directory matches the module tree.
-//!   All existing `super::` references inside `render_pipeline/*.rs` that currently
-//!   navigate to `window_state` will need adjustment (they already resolve correctly
-//!   via the `#[path]` redirect today).
-//!
-//! Option B: Make `render_pipeline` a top-level module under `src/app/` declared in
-//!   `src/app/mod.rs`, and replace all `window_state::render_pipeline::` imports with
-//!   `app::render_pipeline::`. This requires updating ~30 use-statements but avoids
-//!   moving files.
-//!
-//! **Requirement:** Resolve ARC-003 before extracting any `WindowState` fields that
-//! are referenced inside `render_pipeline/` (ARC-002 step 3+).
-//!
-//! **Tracking:** Issue ARC-003 in AUDIT.md.
+//! The `#[path = "../render_pipeline/mod.rs"]` redirect has been removed.
+//! `render_pipeline` is now declared as a first-class module in `src/app/mod.rs`,
+//! matching the physical directory layout (`src/app/render_pipeline/`).
+//! All `super::` references inside `render_pipeline/*.rs` correctly resolve to
+//! the `render_pipeline` module itself (unchanged). See ARC-001 in AUDIT.md.
 
 mod action_handlers;
 mod agent_config;
@@ -83,8 +67,6 @@ mod overlay_state;
 pub(crate) mod overlay_ui_state;
 mod prettify_helpers;
 mod render_loop_state;
-#[path = "../render_pipeline/mod.rs"]
-mod render_pipeline;
 pub(crate) mod renderer_init;
 mod renderer_ops;
 pub(crate) mod scroll_ops;
