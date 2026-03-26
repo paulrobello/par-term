@@ -38,6 +38,11 @@ regex.workspace = true
 notify = { workspace = true, optional = true }
 
 # GPU types (optional, for wgpu conversions)
+# TODO(ARC-011): This optional wgpu dependency belongs in par-term-render, not par-term-config.
+# par-term-config is a pure data/config crate and should not know about GPU types.
+# Migration plan: move WgpuColor/wgpu conversion helpers to par-term-render and update
+# any callers that currently use par_term_config's wgpu-types feature.
+# Blocked on: identifying all call sites that rely on par_term_config's wgpu re-exports.
 wgpu = { workspace = true, optional = true }
 
 # Mutex for watcher

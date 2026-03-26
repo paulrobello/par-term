@@ -117,6 +117,39 @@ pub fn resolve_binary_in_path_str(binary: &str, path_var: &str) -> Option<std::p
     None
 }
 
+/// Known-good shell basenames that are accepted by [`resolve_shell_path`] and
+/// [`connect`]-style callers.
+///
+/// This allowlist prevents an attacker-controlled `$SHELL` environment variable
+/// from causing par-term to execute an arbitrary binary when probing for `PATH`.
+///
+/// Only the **basename** of the shell binary is checked (e.g. `zsh` from
+/// `/usr/local/bin/zsh`). The full path is preserved for the spawn call so that
+/// non-standard installation prefixes (e.g. Homebrew `/opt/homebrew/bin/zsh`)
+/// still work, while names like `../../usr/bin/evil` are rejected.
+const KNOWN_SHELLS: &[&str] = &[
+    "sh", "bash", "zsh", "fish", "dash", "ksh", "tcsh", "csh", "elvish", "nu",
+];
+
+/// Validate that `shell_path` is an acceptable shell binary.
+///
+/// Returns `true` when the **basename** of `shell_path` is in [`KNOWN_SHELLS`].
+/// The full path may be absolute or relative; only the last component is checked.
+///
+/// # Security
+///
+/// This is a defense-in-depth measure against a tampered `$SHELL` environment
+/// variable. It does not verify that the binary at the path is actually a shell —
+/// that would require executing it. The goal is to prevent obviously malicious
+/// values (e.g. a path to a custom binary, or a shell name with embedded flags).
+pub fn is_known_shell(shell_path: &str) -> bool {
+    let basename = std::path::Path::new(shell_path)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("");
+    KNOWN_SHELLS.contains(&basename)
+}
+
 /// Get the full PATH from the user's login interactive shell.
 ///
 /// This is necessary because app-bundle launches (Finder, Dock, Spotlight)
@@ -128,8 +161,26 @@ pub fn resolve_binary_in_path_str(binary: &str, path_var: &str) -> Option<std::p
 /// We spawn `$SHELL -lic 'printf "%s" "$PATH"'` which is both login (`-l`)
 /// and interactive (`-i`), causing all profile files to be sourced.  Because
 /// stdio is piped (no tty), readline does not emit control sequences.
+///
+/// # Security
+///
+/// The value of `$SHELL` is validated against [`KNOWN_SHELLS`] before use.
+/// If the value is absent, empty, or not in the allowlist, `/bin/sh` is used
+/// as a safe fallback. This prevents a tampered environment variable from
+/// causing an arbitrary binary to be executed.
 pub fn resolve_shell_path() -> Option<String> {
-    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
+    let raw_shell = std::env::var("SHELL").unwrap_or_default();
+    let shell = if !raw_shell.is_empty() && is_known_shell(&raw_shell) {
+        raw_shell
+    } else {
+        if !raw_shell.is_empty() {
+            log::warn!(
+                "resolve_shell_path: $SHELL={raw_shell:?} is not in the known-shells allowlist; \
+                 falling back to /bin/sh"
+            );
+        }
+        "/bin/sh".to_string()
+    };
     let output = std::process::Command::new(&shell)
         .args(["-lic", r#"printf "%s" "$PATH""#])
         .stdin(std::process::Stdio::null())
@@ -239,6 +290,21 @@ type = "coding"
 "#,
 ];
 
+/// The set of built-in agent identities defined in [`EMBEDDED_AGENTS`].
+///
+/// Used by [`load_agents_from_dir`] to detect when a user-supplied TOML file
+/// overrides a built-in identity and emit a security warning.
+const BUILT_IN_IDENTITIES: &[&str] = &[
+    "claude.com",
+    "openai.com",
+    "geminicli.com",
+    "copilot.github.com",
+    "ampcode.com",
+    "augmentcode.com",
+    "docker.com",
+    "openhands.dev",
+];
+
 pub fn discover_agents(user_config_dir: &Path) -> Vec<AgentConfig> {
     let mut agents = Vec::new();
 
@@ -254,12 +320,18 @@ pub fn discover_agents(user_config_dir: &Path) -> Vec<AgentConfig> {
         .ok()
         .and_then(|p| p.parent().map(|p| p.join("agents")));
     if let Some(ref dir) = bundled_dir {
-        load_agents_from_dir(dir, &mut agents);
+        load_agents_from_dir(dir, &mut agents, false);
     }
 
-    // 3. Load user agents (override bundled/embedded with same identity)
+    // 3. Load user agents (override bundled/embedded with same identity).
+    //
+    // SEC-003: User-config-dir agents are **trusted user code** — they are
+    // loaded from `<user_config_dir>/agents/` and executed with the same
+    // privileges as par-term itself. No cryptographic integrity verification
+    // is performed. A warning is emitted when a user TOML overrides a
+    // built-in identity so that the change is visible in logs.
     let user_agents_dir = user_config_dir.join("agents");
-    load_agents_from_dir(&user_agents_dir, &mut agents);
+    load_agents_from_dir(&user_agents_dir, &mut agents, true);
 
     agents.retain(|a| a.is_active());
 
@@ -273,7 +345,11 @@ pub fn discover_agents(user_config_dir: &Path) -> Vec<AgentConfig> {
 
 /// Load all `.toml` agent config files from a directory.
 /// If an agent with the same identity already exists in the list, it is replaced.
-fn load_agents_from_dir(dir: &Path, agents: &mut Vec<AgentConfig>) {
+///
+/// When `is_user_config` is `true`, a warning is logged whenever a loaded
+/// agent replaces a built-in identity. This makes it visible in logs when
+/// user-supplied TOML alters trusted built-in agent definitions (SEC-003).
+fn load_agents_from_dir(dir: &Path, agents: &mut Vec<AgentConfig>, is_user_config: bool) {
     if !dir.exists() {
         return;
     }
@@ -286,6 +362,19 @@ fn load_agents_from_dir(dir: &Path, agents: &mut Vec<AgentConfig>) {
             match std::fs::read_to_string(&path) {
                 Ok(content) => match toml::from_str::<AgentConfig>(&content) {
                     Ok(config) => {
+                        // SEC-003: Warn when a user-config-dir agent overrides a built-in identity.
+                        // User agents are trusted user code but the override should be visible in logs.
+                        if is_user_config && BUILT_IN_IDENTITIES.contains(&config.identity.as_str())
+                        {
+                            log::warn!(
+                                "ACP agent config '{}' overrides built-in identity '{}'.\n\
+                                 User-config-dir agents are executed with par-term's privileges.\n\
+                                 Verify that '{}' is a trusted file you created intentionally.",
+                                path.display(),
+                                config.identity,
+                                path.display(),
+                            );
+                        }
                         // Remove any existing agent with the same identity (allows user override)
                         agents.retain(|a| a.identity != config.identity);
                         agents.push(config);

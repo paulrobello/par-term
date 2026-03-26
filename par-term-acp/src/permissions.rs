@@ -35,6 +35,25 @@ use tokio::sync::mpsc;
 /// permission checks are serialised, so each check sees the filesystem in a
 /// consistent state relative to every other check. This reduces (but does not
 /// eliminate) the effective TOCTOU window.
+///
+/// # Defense-in-Depth: OS-Level Sandboxing
+///
+/// For deployments requiring a stronger TOCTOU guarantee, the application-level
+/// mutex should be complemented by OS-level sandboxing:
+///
+/// - **macOS App Sandbox** (`com.apple.security.app-sandbox`): restricts which
+///   file-system paths the process may access at the kernel level, independently
+///   of any in-process path checks. Symlink swaps that escape the sandbox
+///   boundary are denied by the kernel before the write reaches the filesystem.
+///
+/// - **Linux Landlock** (`landlock_create_ruleset` / `landlock_restrict_self`):
+///   allows the process to restrict its own file-system access to an explicit
+///   allowlist of paths. Combined with seccomp, this can prevent writes to
+///   paths outside the declared safe roots even if the in-process check is raced.
+///
+/// These OS-level controls are the recommended long-term mitigation for the
+/// residual TOCTOU window. The in-process mutex and canonicalization remain as
+/// a best-effort defense layer for environments where sandboxing is not active.
 static SAFE_PATH_CHECK_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 /// Directories considered safe for agent writes (auto-approved).
@@ -73,6 +92,10 @@ pub struct SafePaths {
 /// without kernel primitives. The canonicalize step is kept as a
 /// defense-in-depth measure against accidental traversal, not as a security
 /// boundary against a local adversary with write access to the safe roots.
+///
+/// For a stronger guarantee, deploy par-term under an OS-level sandbox:
+/// macOS App Sandbox or Linux Landlock. See [`SAFE_PATH_CHECK_LOCK`] for
+/// details on how OS-level sandboxing complements the in-process check.
 pub fn is_safe_write_path(tool_call: &serde_json::Value, safe_paths: &SafePaths) -> bool {
     // Try to extract the path from various locations in the tool_call JSON.
     // Claude Code puts it in rawInput.file_path, rawInput.path, or the title
@@ -250,6 +273,11 @@ pub async fn handle_permission_request(
                     .contains("par-term-config__terminal_screenshot")
                     || lower == "terminal_screenshot";
                 let is_safe_fs_tool = {
+                    // SEC-002: `NotebookEdit` / `notebook_edit` is a *write* operation that
+                    // modifies notebook cells. It was previously misclassified as read-only,
+                    // which caused it to be auto-approved without a path-safety check. It is
+                    // intentionally absent here and falls through to the `is_write_tool` branch
+                    // (or escalates to the UI if it does not match any known write-tool name).
                     let is_read_only = matches!(
                         lower.as_str(),
                         "read"
@@ -263,8 +291,6 @@ pub async fn handle_permission_request(
                             | "listdirectory"
                             | "toolsearch"
                             | "tool_search"
-                            | "notebookedit"
-                            | "notebook_edit"
                             | "config"
                             | "config_update"
                             | "configupdate"

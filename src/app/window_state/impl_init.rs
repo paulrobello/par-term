@@ -249,9 +249,10 @@ impl WindowState {
                 log::warn!("Failed to set initial Metal layer opacity: {}", e);
             }
             // Apply initial blur settings if enabled
-            if self.config.blur_enabled
-                && self.config.window_opacity < 1.0
-                && let Err(e) = crate::macos_blur::set_window_blur(&window, self.config.blur_radius)
+            if self.config.window.blur_enabled
+                && self.config.window.window_opacity < 1.0
+                && let Err(e) =
+                    crate::macos_blur::set_window_blur(&window, self.config.window.blur_radius)
             {
                 log::warn!("Failed to set initial window blur: {}", e);
             }

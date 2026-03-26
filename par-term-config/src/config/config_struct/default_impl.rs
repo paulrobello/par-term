@@ -11,12 +11,13 @@ use crate::types::{
     NewTabPosition, OptionKeyMode, PaneTitlePosition, PowerPreference, ProgressBarPosition,
     ProgressBarStyle, RemoteTabTitleFormat, SemanticHistoryEditorMode, SessionLogFormat,
     ShaderInstallPrompt, ShellExitAction, TabBarMode, TabBarPosition, TabStyle, TabTitleMode,
-    ThinStrokesMode, UnfocusedCursorStyle, VsyncMode, WindowType, default_smart_selection_rules,
+    UnfocusedCursorStyle, VsyncMode, WindowType, default_smart_selection_rules,
 };
 
 use super::{
-    AiInspectorConfig, Config, CopyModeConfig, GlobalShaderConfig, NotificationConfig,
-    ScrollbackConfig, SearchConfig, SshConfig, StatusBarConfig, UnicodeConfig,
+    AiInspectorConfig, Config, CopyModeConfig, FontRenderingConfig, GlobalShaderConfig,
+    NotificationConfig, ScrollbackConfig, SearchConfig, SshConfig, StatusBarConfig, UnicodeConfig,
+    WindowConfig,
 };
 
 impl Default for Config {
@@ -35,10 +36,7 @@ impl Default for Config {
             enable_text_shaping: crate::defaults::text_shaping(),
             enable_ligatures: crate::defaults::bool_true(),
             enable_kerning: crate::defaults::bool_true(),
-            font_antialias: crate::defaults::bool_true(),
-            font_hinting: true,
-            font_thin_strokes: ThinStrokesMode::default(),
-            minimum_contrast: crate::defaults::minimum_contrast(),
+            font_rendering: FontRenderingConfig::default(),
             copy_mode: CopyModeConfig::default(),
             scrollback: ScrollbackConfig::default(),
             unicode: UnicodeConfig::default(),
@@ -93,12 +91,7 @@ impl Default for Config {
             reduce_flicker_delay_ms: crate::defaults::reduce_flicker_delay_ms(),
             maximize_throughput: crate::defaults::maximize_throughput(),
             throughput_render_interval_ms: crate::defaults::throughput_render_interval_ms(),
-            window_padding: crate::defaults::window_padding(),
-            hide_window_padding_on_split: crate::defaults::bool_true(),
-            snap_window_to_grid: crate::defaults::snap_window_to_grid(),
-            window_opacity: crate::defaults::window_opacity(),
-            window_always_on_top: crate::defaults::bool_false(),
-            window_decorations: crate::defaults::bool_true(),
+            window: WindowConfig::default(),
             window_type: WindowType::default(),
             target_monitor: None,
             target_space: None,
@@ -106,8 +99,6 @@ impl Default for Config {
             show_window_number: crate::defaults::bool_false(),
             transparency_affects_only_default_background: crate::defaults::bool_true(),
             keep_text_opaque: crate::defaults::bool_true(),
-            blur_enabled: crate::defaults::bool_false(),
-            blur_radius: crate::defaults::blur_radius(),
             background_image: None,
             background_image_enabled: crate::defaults::bool_true(),
             background_image_mode: BackgroundImageMode::default(),

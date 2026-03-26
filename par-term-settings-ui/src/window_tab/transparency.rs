@@ -23,12 +23,12 @@ pub(super) fn show_transparency_section(
                 ui.label("Opacity:");
                 let response = ui.add_sized(
                     [SLIDER_WIDTH, SLIDER_HEIGHT],
-                    egui::Slider::new(&mut settings.config.window_opacity, 0.1..=1.0),
+                    egui::Slider::new(&mut settings.config.window.window_opacity, 0.1..=1.0),
                 );
                 if response.changed() {
                     log::info!(
                         "Opacity slider changed to: {}",
-                        settings.config.window_opacity
+                        settings.config.window.window_opacity
                     );
                     settings.has_changes = true;
                     *changes_this_frame = true;
@@ -66,7 +66,7 @@ pub(super) fn show_transparency_section(
                 ui.add_space(8.0);
 
                 if ui
-                    .checkbox(&mut settings.config.blur_enabled, "Enable window blur")
+                    .checkbox(&mut settings.config.window.blur_enabled, "Enable window blur")
                     .on_hover_text(
                         "Blur content behind the transparent window for better readability (requires transparency)",
                     )
@@ -76,17 +76,17 @@ pub(super) fn show_transparency_section(
                     *changes_this_frame = true;
                 }
 
-                if settings.config.blur_enabled {
+                if settings.config.window.blur_enabled {
                     ui.horizontal(|ui| {
                         ui.label("Blur radius:");
                         // Convert u32 to i32 for slider, clamp to valid range
-                        let mut radius_i32 = settings.config.blur_radius.min(64) as i32;
+                        let mut radius_i32 = settings.config.window.blur_radius.min(64) as i32;
                         if ui
                             .add(egui::Slider::new(&mut radius_i32, 1..=64))
                             .on_hover_text("Blur intensity (higher = more blur)")
                             .changed()
                         {
-                            settings.config.blur_radius = radius_i32 as u32;
+                            settings.config.window.blur_radius = radius_i32 as u32;
                             settings.has_changes = true;
                             *changes_this_frame = true;
                         }

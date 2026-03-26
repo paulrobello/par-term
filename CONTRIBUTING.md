@@ -89,15 +89,15 @@ cd par-term
 make build
 ```
 
-The first build downloads and compiles all dependencies, which takes several minutes. Subsequent incremental builds complete in roughly 30-40 seconds with `make build`.
+The first build downloads and compiles all dependencies, which takes several minutes. Subsequent incremental builds complete in roughly 1–2 seconds with `make build`.
 
 ## Build Commands
 
-> **Use `make build` for all day-to-day development.** The `dev-release` Cargo profile (opt-level 3, thin LTO, 16 codegen-units) delivers approximately 95% of full-release performance with a much shorter compile time. Only switch to `make build-full` when preparing distribution binaries.
+> **Use `make build` for all day-to-day development.** The `dev-release` Cargo profile (opt-level 2, no LTO, 16 codegen-units, incremental) delivers approximately 90–95% of full-release performance with ~1–2s incremental rebuilds. Only switch to `make build-full` when preparing distribution binaries.
 
 | Command | Cargo Profile | Compile Time | Description |
 |---------|---------------|--------------|-------------|
-| `make build` | `dev-release` | ~30-40s | Optimized, thin LTO. **Preferred for development.** |
+| `make build` | `dev-release` | ~1-2s (incremental) | Optimized, incremental. **Preferred for development.** |
 | `make build-full` | `release` | ~3 min | Full LTO, single codegen unit. Use for distribution. |
 | `make build-debug` | `debug` | Fast | Unoptimized, includes debug symbols. Use when stepping through code with a debugger. |
 | `make release` | `release` | ~3 min | Alias for `make build-full`. |
@@ -242,9 +242,9 @@ For a detailed description of the codebase structure, data flow, threading model
 
 ```
 App (src/app/)
-  └── Terminal (src/terminal/)
-        └── Renderer (src/renderer/, src/cell_renderer/)
-              └── GPU Shaders (src/shaders/)
+  └── Terminal (par-term-terminal/src/)
+        └── Renderer (par-term-render/src/)
+              └── GPU Shaders (par-term-render/src/shaders/)
 ```
 
 **Data flow:**
@@ -267,7 +267,7 @@ Window Events → Input Handler → PTY → VT Parser → Styled Segments
 
 - **Target:** Keep all source files under 500 lines.
 - **Refactor threshold:** Any file exceeding 800 lines must be split into sub-modules.
-- Follow the existing patterns: `src/app/`, `src/terminal/`, `src/cell_renderer/`.
+- Follow the existing patterns: `src/app/`, `par-term-terminal/src/`, `par-term-render/src/`.
 - Centralize constants; avoid magic numbers scattered across files.
 - Prefer composition over duplication; create helper traits for shared functionality.
 
@@ -348,18 +348,18 @@ make config-example    # Writes config.yaml.example to the project root
 
 ### Adding a Keyboard Shortcut
 
-1. Add key handling in `src/app/input_events.rs`.
+1. Add key handling in `src/app/input_events/` (a directory with 6+ files; the main dispatch logic is in `keybinding_actions.rs`).
 2. If the shortcut generates a terminal sequence, add sequence generation in `src/input.rs` via `InputHandler`.
 
 For snippet or action keybindings, see `docs/SNIPPETS.md`. Key points:
 
 - Snippets use `snippet:<id>`, actions use `action:<id>` as keybinding action names.
 - Bindings are auto-generated during config load via `generate_snippet_action_keybindings()`.
-- `execute_keybinding_action()` in `input_events.rs` handles execution.
+- `execute_keybinding_action()` in `src/app/input_events/keybinding_actions.rs` handles execution.
 
 ## Sub-Crate Architecture
 
-par-term is organized as a Cargo workspace with 13 sub-crates plus the root application crate. The dependency graph is a strict layered DAG.
+par-term is organized as a Cargo workspace with 14 sub-crates plus the root application crate. The dependency graph is a strict layered DAG.
 
 ### Dependency Layers
 
@@ -367,7 +367,7 @@ par-term is organized as a Cargo workspace with 13 sub-crates plus the root appl
 |-------|--------|-------|
 | **Layer 0** | `par-term-acp`, `par-term-ssh`, `par-term-mcp` | No internal deps; bump in any order |
 | **Layer 1** | `par-term-config` | Foundation; depends only on external `par-term-emu-core-rust` |
-| **Layer 2** | `par-term-fonts`, `par-term-input`, `par-term-keybindings`, `par-term-scripting`, `par-term-settings-ui`, `par-term-terminal`, `par-term-tmux`, `par-term-update` | All depend on `par-term-config` |
+| **Layer 2** | `par-term-fonts`, `par-term-input`, `par-term-keybindings`, `par-term-prettifier`, `par-term-scripting`, `par-term-settings-ui`, `par-term-terminal`, `par-term-tmux`, `par-term-update` | All depend on `par-term-config` |
 | **Layer 3** | `par-term-render` | Depends on `par-term-config` and `par-term-fonts` |
 | **Layer 4** | `par-term` (root) | Depends on all of the above |
 

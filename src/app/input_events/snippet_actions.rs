@@ -316,7 +316,13 @@ impl WindowState {
             } => {
                 // Use the same visited set so that cross-repeat cycles are detected.
                 let rep_id = rep_id.clone();
-                let count = *count;
+                // QA-004: Clamp repeat count to prevent config-based DoS.
+                // TODO(QA-004): Sequences with delays block the event-loop thread via
+                // thread::sleep. The proper fix is to dispatch to a background Tokio
+                // task and communicate completion back via mpsc channel so the GPU
+                // continues rendering. Until then, a count cap of 100 limits the freeze.
+                const MAX_SAFE_REPEAT_COUNT: u32 = 100;
+                let count = (*count).min(MAX_SAFE_REPEAT_COUNT);
                 let rep_delay = *rep_delay;
                 let stop_on_success = *stop_on_success;
                 let stop_on_failure = *stop_on_failure;

@@ -132,7 +132,7 @@ impl CellRenderer {
             self.grid.rows = new_rows;
             self.cells = vec![Cell::default(); self.grid.cols * self.grid.rows];
             self.dirty_rows = vec![true; self.grid.rows];
-            self.row_cache = (0..self.grid.rows).map(|_| None::<RowCacheEntry>).collect();
+            self.row_cache = vec![None::<RowCacheEntry>; self.grid.rows];
             self.recreate_instance_buffers();
         }
 

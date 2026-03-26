@@ -430,6 +430,103 @@ impl CellRenderer {
         self.lru_push_front(cache_key);
         Some(info)
     }
+
+    /// Resolve a renderable glyph for a character, walking font fallbacks until one succeeds.
+    ///
+    /// This is the single canonical implementation of the font-fallback loop previously
+    /// duplicated in `text_instance_builder.rs` and `pane_render/mod.rs` (see ARC-004 / QA-003).
+    ///
+    /// # Arguments
+    /// * `base_char`       — the base Unicode scalar to look up (after stripping VS16 etc.)
+    /// * `grapheme`        — the full grapheme cluster string (may be multi-char for ZWJ/flags)
+    /// * `bold`            — bold style flag
+    /// * `italic`          — italic style flag
+    /// * `force_monochrome` — when true use single-char lookup and suppress colored-emoji
+    ///   rasterization; falls back to colored-emoji as last resort
+    ///
+    /// # Returns
+    /// The first [`GlyphInfo`] that rasterizes successfully, or `None` if every font
+    /// (including the colored-emoji last-resort) fails.
+    ///
+    /// # Caching
+    /// Results are cached in the glyph atlas.  The cache key encodes `(font_idx, glyph_id)`
+    /// as `((font_idx as u64) << 32) | (glyph_id as u64)`, with bit 63 set for the
+    /// colored-emoji fallback variant.
+    pub(crate) fn resolve_glyph_with_fallback(
+        &mut self,
+        base_char: char,
+        grapheme: &str,
+        bold: bool,
+        italic: bool,
+        force_monochrome: bool,
+    ) -> Option<GlyphInfo> {
+        // Initial lookup: use grapheme-aware path for multi-char sequences (flags, ZWJ emoji,
+        // skin-tone modifiers), unless force_monochrome has already stripped VS16 to a single char.
+        let chars: Vec<char> = grapheme.chars().collect();
+        let mut glyph_result = if force_monochrome || chars.len() == 1 {
+            self.font_manager.find_glyph(base_char, bold, italic)
+        } else {
+            self.font_manager
+                .find_grapheme_glyph(grapheme, bold, italic)
+        };
+
+        // Walk font fallbacks until a glyph rasterizes successfully.
+        // Rasterization can fail even when a font has a charmap entry (e.g. Apple Color Emoji
+        // charmap entries exist for some symbols but produce empty outlines).
+        let mut excluded_fonts: Vec<usize> = Vec::new();
+        let resolved = loop {
+            match glyph_result {
+                Some((font_idx, glyph_id)) => {
+                    let cache_key = ((font_idx as u64) << 32) | (glyph_id as u64);
+                    if let Some(info) =
+                        self.get_or_rasterize_glyph(font_idx, glyph_id, force_monochrome, cache_key)
+                    {
+                        break Some(info);
+                    }
+                    // This font's outline was empty — exclude it and retry.
+                    excluded_fonts.push(font_idx);
+                    glyph_result = self.font_manager.find_glyph_excluding(
+                        base_char,
+                        bold,
+                        italic,
+                        &excluded_fonts,
+                    );
+                }
+                None => break None,
+            }
+        };
+
+        // Last resort: if monochrome rendering failed across all fonts (no font has vector
+        // outlines for this char), retry with colored-emoji rasterization.  Characters like ✨
+        // only exist in Apple Color Emoji — rendering them colored is better than nothing.
+        // Bit 63 of the cache key distinguishes the colored-fallback entry from the monochrome
+        // entry for the same (font_idx, glyph_id) pair.
+        if resolved.is_none() && force_monochrome {
+            let mut glyph_result2 = self.font_manager.find_glyph(base_char, bold, italic);
+            loop {
+                match glyph_result2 {
+                    Some((font_idx, glyph_id)) => {
+                        let cache_key =
+                            ((font_idx as u64) << 32) | (glyph_id as u64) | (1u64 << 63);
+                        if let Some(info) =
+                            self.get_or_rasterize_glyph(font_idx, glyph_id, false, cache_key)
+                        {
+                            break Some(info);
+                        }
+                        glyph_result2 = self.font_manager.find_glyph_excluding(
+                            base_char,
+                            bold,
+                            italic,
+                            &[font_idx],
+                        );
+                    }
+                    None => break None,
+                }
+            }
+        } else {
+            resolved
+        }
+    }
 }
 
 /// Convert a swash subpixel mask into an RGBA alpha mask.

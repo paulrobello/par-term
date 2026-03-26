@@ -72,6 +72,7 @@
 mod ai_inspector_config;
 mod copy_mode_config;
 mod default_impl;
+mod font_config;
 mod global_shader_config;
 mod notification_config;
 mod scrollback_config;
@@ -80,9 +81,11 @@ mod ssh_config;
 mod status_bar_config;
 mod unicode_config;
 mod update;
+mod window_config;
 
 pub use ai_inspector_config::AiInspectorConfig;
 pub use copy_mode_config::CopyModeConfig;
+pub use font_config::FontRenderingConfig;
 pub use global_shader_config::GlobalShaderConfig;
 pub use notification_config::NotificationConfig;
 pub use scrollback_config::ScrollbackConfig;
@@ -91,6 +94,7 @@ pub use ssh_config::SshConfig;
 pub use status_bar_config::StatusBarConfig;
 pub use unicode_config::UnicodeConfig;
 pub use update::UpdateConfig;
+pub use window_config::WindowConfig;
 
 use crate::snippets::{CustomActionConfig, SnippetConfig};
 use crate::types::{
@@ -100,8 +104,7 @@ use crate::types::{
     PaneTitlePosition, PowerPreference, ProgressBarPosition, ProgressBarStyle,
     RemoteTabTitleFormat, SemanticHistoryEditorMode, SessionLogFormat, ShaderConfig,
     ShaderInstallPrompt, ShellExitAction, SmartSelectionRule, StartupDirectoryMode, TabBarMode,
-    TabBarPosition, TabStyle, TabTitleMode, ThinStrokesMode, UnfocusedCursorStyle, VsyncMode,
-    WindowType,
+    TabBarPosition, TabStyle, TabTitleMode, UnfocusedCursorStyle, VsyncMode, WindowType,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -196,36 +199,15 @@ pub struct Config {
     #[serde(default = "crate::defaults::bool_true")]
     pub enable_kerning: bool,
 
-    /// Enable anti-aliasing for font rendering
-    /// When false, text is rendered without smoothing (aliased/pixelated)
-    #[serde(default = "crate::defaults::bool_true")]
-    pub font_antialias: bool,
-
-    /// Enable hinting for font rendering
-    /// Hinting improves text clarity at small sizes by aligning glyphs to pixel boundaries
-    /// Disable for a softer, more "true to design" appearance
-    #[serde(default = "crate::defaults::bool_true")]
-    pub font_hinting: bool,
-
-    /// Thin strokes / font smoothing mode
-    /// Controls stroke weight adjustment for improved rendering on different displays.
-    /// - never: Standard stroke weight everywhere
-    /// - retina_only: Lighter strokes on HiDPI displays (default)
-    /// - dark_backgrounds_only: Lighter strokes on dark backgrounds
-    /// - retina_dark_backgrounds_only: Lighter strokes only on HiDPI + dark backgrounds
-    /// - always: Always use lighter strokes
-    #[serde(default)]
-    pub font_thin_strokes: ThinStrokesMode,
-
-    /// Minimum contrast between text and background (iTerm2-compatible)
-    /// When set, adjusts foreground colors to ensure a minimum perceived brightness
-    /// difference against the background.
-    /// - 0.0: No adjustment (disabled)
-    /// - Values near 1.0: Maximum contrast (nearly black & white)
+    // --- Font Rendering Quality (extracted to FontRenderingConfig) ---
+    /// Font rendering quality settings: anti-aliasing, hinting, stroke weight, minimum contrast.
     ///
-    /// Range: 0.0 to 1.0
-    #[serde(default = "crate::defaults::minimum_contrast")]
-    pub minimum_contrast: f32,
+    /// Flattened into the top-level YAML so existing config files remain compatible.
+    /// Access via `config.font_rendering.font_antialias`, etc.
+    ///
+    /// See [`FontRenderingConfig`] for field documentation.
+    #[serde(flatten)]
+    pub font_rendering: FontRenderingConfig,
 
     /// Window title
     #[serde(default = "crate::defaults::window_title")]
@@ -284,31 +266,11 @@ pub struct Config {
     #[serde(default = "crate::defaults::throughput_render_interval_ms")]
     pub throughput_render_interval_ms: u32,
 
-    /// Window padding in pixels
-    #[serde(default = "crate::defaults::window_padding")]
-    pub window_padding: f32,
-
-    /// Automatically hide window padding when panes are split
-    /// When true (default), window padding becomes 0 when the active tab has multiple panes
-    #[serde(default = "crate::defaults::bool_true")]
-    pub hide_window_padding_on_split: bool,
-
-    /// Snap window dimensions to exact terminal cell boundaries during resize,
-    /// eliminating blank background gaps. Disabled automatically in split-pane mode.
-    #[serde(default = "crate::defaults::snap_window_to_grid")]
-    pub snap_window_to_grid: bool,
-
-    /// Window opacity/transparency (0.0 = fully transparent, 1.0 = fully opaque)
-    #[serde(default = "crate::defaults::window_opacity")]
-    pub window_opacity: f32,
-
-    /// Keep window always on top of other windows
-    #[serde(default = "crate::defaults::bool_false")]
-    pub window_always_on_top: bool,
-
-    /// Show window decorations (title bar, borders)
-    #[serde(default = "crate::defaults::bool_true")]
-    pub window_decorations: bool,
+    /// Window appearance settings (opacity, padding, decorations, blur, etc.)
+    /// Serialised flat at the top level via `#[serde(flatten)]` so that
+    /// existing YAML config files require no changes.
+    #[serde(flatten)]
+    pub window: WindowConfig,
 
     /// Window type (normal, fullscreen, or edge-anchored)
     /// - normal: Standard window (default)
@@ -348,16 +310,6 @@ pub struct Config {
     /// This ensures text remains crisp and readable even with transparent backgrounds.
     #[serde(default = "crate::defaults::bool_true")]
     pub keep_text_opaque: bool,
-
-    /// Enable window blur effect (macOS only)
-    /// Blurs content behind the transparent window for better readability
-    #[serde(default = "crate::defaults::bool_false")]
-    pub blur_enabled: bool,
-
-    /// Blur radius in points (0-64, macOS only)
-    /// Higher values = more blur. Default: 10
-    #[serde(default = "crate::defaults::blur_radius")]
-    pub blur_radius: u32,
 
     /// Background image path (optional, supports ~ for home directory)
     #[serde(default)]

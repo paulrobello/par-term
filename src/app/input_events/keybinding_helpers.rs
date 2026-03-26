@@ -54,7 +54,7 @@ impl WindowState {
                 par_term_render::renderer::shaders::CustomShaderEnableParams {
                     enabled: self.config.shader.custom_shader_enabled,
                     shader_path: self.config.shader.custom_shader.as_deref(),
-                    window_opacity: self.config.window_opacity,
+                    window_opacity: self.config.window.window_opacity,
                     animation_enabled: self.config.shader.custom_shader_animation,
                     animation_speed: resolved.animation_speed,
                     full_content: resolved.full_content,
@@ -86,7 +86,7 @@ impl WindowState {
             let _ = renderer.set_cursor_shader_enabled(
                 self.config.shader.cursor_shader_enabled,
                 self.config.shader.cursor_shader.as_deref(),
-                self.config.window_opacity,
+                self.config.window.window_opacity,
                 self.config.shader.cursor_shader_animation,
                 self.config.shader.cursor_shader_animation_speed,
             );

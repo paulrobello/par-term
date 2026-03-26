@@ -6,6 +6,7 @@ Navigation index for all par-term documentation. Start with the [Getting Started
 
 | Document | Description |
 |----------|-------------|
+| [Getting Started](GETTING_STARTED.md) | Install, launch, and configure par-term in under 10 minutes |
 | [Keyboard Shortcuts](KEYBOARD_SHORTCUTS.md) | Complete reference for all keyboard shortcuts, customizable keybindings, and available actions |
 | [Mouse Features](MOUSE_FEATURES.md) | Text selection, URL handling, cursor positioning, and semantic history via mouse |
 | [Integrations](INTEGRATIONS.md) | Shell integration setup, shader collection, and third-party tool support |
@@ -67,6 +68,7 @@ Navigation index for all par-term documentation. Start with the [Getting Started
 
 | Document | Description |
 |----------|-------------|
+| [Contributing](../CONTRIBUTING.md) | Development setup, build commands, code style, sub-crate architecture, and PR guidelines |
 | [Getting Started](GETTING_STARTED.md) | Install, launch, and configure par-term in under 10 minutes |
 | [Architecture](ARCHITECTURE.md) | High-level system architecture, core components, data flow, and rendering pipeline |
 | [Crate Structure](CRATE_STRUCTURE.md) | Workspace crate dependency layers, version bump order, and adding new sub-crates |
@@ -74,6 +76,7 @@ Navigation index for all par-term documentation. Start with the [Getting Started
 | [Mutex Patterns](MUTEX_PATTERNS.md) | Practical reference for the three-mutex system used across the codebase |
 | [State Lifecycle](STATE_LIFECYCLE.md) | Lifecycle of key state objects from creation through teardown |
 | [Config Reference](CONFIG_REFERENCE.md) | Complete reference for all 200+ configuration options |
+| [Migration Guide](MIGRATION.md) | Breaking config changes and upgrade notes across major version groups |
 | [Environment Variables](ENVIRONMENT_VARIABLES.md) | Runtime environment variable reference |
 | [API](API.md) | Public types across all workspace crates |
 | [Logging](LOGGING.md) | Debug logging configuration, log levels, and custom debug macros |

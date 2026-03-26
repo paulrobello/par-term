@@ -29,7 +29,7 @@ pub(super) fn apply_renderer_config(
     };
 
     // Update opacity
-    renderer.update_opacity(config.window_opacity);
+    renderer.update_opacity(config.window.window_opacity);
 
     // Update transparency mode if changed
     if changes.transparency_mode {
@@ -309,7 +309,7 @@ pub(super) fn apply_renderer_config(
                 par_term_render::renderer::shaders::CustomShaderEnableParams {
                     enabled: config.shader.custom_shader_enabled,
                     shader_path: config.shader.custom_shader.as_deref(),
-                    window_opacity: config.window_opacity,
+                    window_opacity: config.window.window_opacity,
                     animation_enabled: config.shader.custom_shader_animation,
                     animation_speed: resolved.animation_speed,
                     full_content: resolved.full_content,
@@ -344,7 +344,7 @@ pub(super) fn apply_renderer_config(
             r.set_cursor_shader_enabled(
                 config.shader.cursor_shader_enabled,
                 config.shader.cursor_shader.as_deref(),
-                config.window_opacity,
+                config.window.window_opacity,
                 config.shader.cursor_shader_animation,
                 config.shader.cursor_shader_animation_speed,
             )

@@ -214,7 +214,7 @@ impl WindowState {
             && let Some(pm) = tab.pane_manager_mut()
         {
             // Tmux layouts always have multiple panes; hide window padding if configured
-            let effective_padding = if self.config.hide_window_padding_on_split {
+            let effective_padding = if self.config.window.hide_window_padding_on_split {
                 0.0
             } else {
                 padding

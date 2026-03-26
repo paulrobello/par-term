@@ -36,6 +36,17 @@ impl WindowManager {
             let changes = ConfigChanges::detect(&window_state.config, config);
 
             // Update the config
+            // PROPAGATION TAX: Every call to apply_config_to_windows clones the full Config
+            // struct (268+ fields) into every open WindowState. With N windows open this is
+            // N allocations per settings change. For a single-window app this is negligible,
+            // but scales linearly with window count.
+            //
+            // TODO(ARC-007): Replace per-window config clones with Arc<RwLock<Config>> shared
+            // across all WindowState instances. WindowState would hold Arc<RwLock<Config>>
+            // and read config fields through the lock. Settings changes would write once to
+            // the shared Arc instead of cloning into every window. This requires coordinating
+            // with the renderer (which caches derived values from config) and keybinding
+            // registry (which must rebuild on keybinding changes). Track in issue ARC-007.
             window_state.config = config.clone();
 
             if changes.ai_inspector_custom_agents {
@@ -105,10 +116,12 @@ impl WindowManager {
             if changes.font_rendering {
                 if let Some(renderer) = &mut window_state.renderer {
                     let mut updated = false;
-                    updated |= renderer.update_font_antialias(config.font_antialias);
-                    updated |= renderer.update_font_hinting(config.font_hinting);
-                    updated |= renderer.update_font_thin_strokes(config.font_thin_strokes);
-                    updated |= renderer.update_minimum_contrast(config.minimum_contrast);
+                    updated |= renderer.update_font_antialias(config.font_rendering.font_antialias);
+                    updated |= renderer.update_font_hinting(config.font_rendering.font_hinting);
+                    updated |=
+                        renderer.update_font_thin_strokes(config.font_rendering.font_thin_strokes);
+                    updated |=
+                        renderer.update_minimum_contrast(config.font_rendering.minimum_contrast);
                     if updated {
                         window_state.focus_state.needs_redraw = true;
                     }
@@ -125,13 +138,13 @@ impl WindowManager {
                     window.set_title(&title);
                 }
                 if changes.window_decorations {
-                    window.set_decorations(config.window_decorations);
+                    window.set_decorations(config.window.window_decorations);
                 }
                 if changes.lock_window_size {
                     window.set_resizable(!config.lock_window_size);
                     log::info!("Window resizable set to: {}", !config.lock_window_size);
                 }
-                window.set_window_level(if config.window_always_on_top {
+                window.set_window_level(if config.window.window_always_on_top {
                     winit::window::WindowLevel::AlwaysOnTop
                 } else {
                     winit::window::WindowLevel::Normal
@@ -140,11 +153,12 @@ impl WindowManager {
                 // Apply blur changes (macOS only)
                 #[cfg(target_os = "macos")]
                 if changes.blur {
-                    let blur_radius = if config.blur_enabled && config.window_opacity < 1.0 {
-                        config.blur_radius
-                    } else {
-                        0 // Disable blur when not enabled or fully opaque
-                    };
+                    let blur_radius =
+                        if config.window.blur_enabled && config.window.window_opacity < 1.0 {
+                            config.window.blur_radius
+                        } else {
+                            0 // Disable blur when not enabled or fully opaque
+                        };
                     if let Err(e) = crate::macos_blur::set_window_blur(window, blur_radius) {
                         log::warn!("Failed to set window blur: {}", e);
                     }
@@ -158,7 +172,7 @@ impl WindowManager {
                 && let Some(renderer) = &mut window_state.renderer
             {
                 if let Some((new_cols, new_rows)) =
-                    renderer.update_window_padding(config.window_padding)
+                    renderer.update_window_padding(config.window.window_padding)
                 {
                     let cell_width = renderer.cell_width();
                     let cell_height = renderer.cell_height();

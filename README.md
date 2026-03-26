@@ -1,5 +1,6 @@
 # par-term
 
+[![CI](https://github.com/paulrobello/par-term/actions/workflows/ci.yml/badge.svg)](https://github.com/paulrobello/par-term/actions/workflows/ci.yml)
 [![Crates.io](https://img.shields.io/crates/v/par-term)](https://crates.io/crates/par-term)
 ![Runs on Linux | MacOS | Windows](https://img.shields.io/badge/runs%20on-Linux%20%7C%20MacOS%20%7C%20Windows-blue)
 ![Arch x86-64 | ARM | AppleSilicon](https://img.shields.io/badge/arch-x86--64%20%7C%20ARM%20%7C%20AppleSilicon-blue)
@@ -344,7 +345,7 @@ Major refactoring into modular workspace crates for maintainability.
 - **par-term-fonts**: Font management and text shaping
 - **par-term-terminal**: Terminal manager, scrollback, styled content
 - **par-term-render**: GPU rendering engine, shaders, cell renderer
-- **par-term-settings-ui**: Complete settings UI (28 tabs, sidebar, section helpers)
+- **par-term-settings-ui**: Complete settings UI (28 tabs at the time of extraction; later consolidated to 14 tabs in subsequent releases, sidebar, section helpers)
 - All types re-exported from main crate for backward compatibility
 
 ### 📁 File Transfer UI
@@ -1166,7 +1167,7 @@ window_opacity: 0.95
 scrollbar_position: "right"
 
 # Tab bar settings
-tab_bar_mode: "when_multiple"  # always, when_multiple, never
+tab_bar_mode: "always"  # always (default), when_multiple, never
 tab_bar_height: 28.0
 tab_show_close_button: true
 tab_inherit_cwd: true

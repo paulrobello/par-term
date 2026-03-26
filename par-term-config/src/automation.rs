@@ -49,6 +49,27 @@ pub struct TriggerConfig {
     ///
     /// Previously named `require_user_action`. The old name is accepted as an alias for
     /// backward compatibility with existing config files.
+    ///
+    /// # SECURITY WARNING
+    ///
+    /// Setting `prompt_before_run: false` is a **high-risk configuration** that allows
+    /// terminal output — including output produced by commands you run in the terminal —
+    /// to trigger `RunCommand`, `SendText`, and `SplitPane` actions **without any user
+    /// confirmation**. This is effectively a terminal-output-to-command-execution path.
+    ///
+    /// Known risks with `prompt_before_run: false`:
+    ///
+    /// - **Prompt injection**: a web page, log file, or remote server response printed
+    ///   to the terminal could contain text that matches your trigger pattern and causes
+    ///   arbitrary commands to run.
+    /// - **Denylist bypass**: the command denylist is a best-effort heuristic, not a
+    ///   security boundary. Encoded or obfuscated payloads can bypass it.
+    /// - **No audit trail**: commands execute silently; there is no confirmation step
+    ///   that would give you a chance to notice unexpected execution.
+    ///
+    /// **This field MUST remain `true` (the default) unless you have a specific,
+    /// well-understood automation need and have set `i_accept_the_risk: true` to
+    /// explicitly acknowledge the above risks.**
     #[serde(default = "crate::defaults::bool_true", alias = "require_user_action")]
     pub prompt_before_run: bool,
     /// Explicit opt-in required when `prompt_before_run: false` is set for any trigger

@@ -280,7 +280,7 @@ impl WindowState {
                         // else: this resize was triggered by our own snap request — done.
                     }
 
-                    if self.pending_snap_size.is_none() && self.config.snap_window_to_grid {
+                    if self.pending_snap_size.is_none() && self.config.window.snap_window_to_grid {
                         // Only snap in single-pane mode (split pane handled separately).
                         let is_split = self
                             .tab_manager

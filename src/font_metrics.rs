@@ -188,7 +188,7 @@ pub fn window_size_from_config(config: &Config, scale_factor: f32) -> Result<(u3
         config.rows,
         metrics.cell_width,
         metrics.cell_height,
-        config.window_padding,
+        config.window.window_padding,
         tab_bar_height,
     );
 
@@ -200,7 +200,7 @@ pub fn window_size_from_config(config: &Config, scale_factor: f32) -> Result<(u3
         config.rows,
         metrics.cell_width,
         metrics.cell_height,
-        config.window_padding,
+        config.window.window_padding,
         tab_bar_height
     );
 

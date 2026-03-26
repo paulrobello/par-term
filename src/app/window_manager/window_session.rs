@@ -182,7 +182,7 @@ impl WindowManager {
                 position.0 as f64,
                 position.1 as f64,
             ))
-            .with_decorations(self.config.window_decorations);
+            .with_decorations(self.config.window.window_decorations);
 
         if self.config.lock_window_size {
             window_attrs = window_attrs.with_resizable(false);
@@ -198,7 +198,7 @@ impl WindowManager {
             }
         }
 
-        if self.config.window_always_on_top {
+        if self.config.window.window_always_on_top {
             window_attrs = window_attrs.with_window_level(winit::window::WindowLevel::AlwaysOnTop);
         }
 

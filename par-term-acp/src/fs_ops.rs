@@ -35,13 +35,31 @@ const MAX_FILE_SIZE: u64 = 50 * 1024 * 1024; // 50MB
 ///
 /// - `~/.ssh/`: private keys, authorized_keys, known_hosts
 /// - `~/.gnupg/`: PGP private keys
+/// - `~/.aws/`: AWS credentials and config
+/// - `~/.docker/`: Docker credentials (config.json may contain auth tokens)
+/// - `~/.netrc`: plaintext credentials for curl, ftp, and other tools
+/// - `~/.config/gh/`: GitHub CLI authentication tokens
+/// - `~/.config/gcloud/`: Google Cloud SDK credentials and service account keys
 /// - `/etc/`: system configuration, passwd, sudoers, shadow
 fn is_sensitive_path(canonical: &std::path::Path) -> bool {
     // Paths under the user's home directory that contain credentials.
     if let Some(home) = dirs::home_dir() {
         let ssh_dir = home.join(".ssh");
         let gnupg_dir = home.join(".gnupg");
-        if canonical.starts_with(&ssh_dir) || canonical.starts_with(&gnupg_dir) {
+        let aws_dir = home.join(".aws");
+        let docker_dir = home.join(".docker");
+        let netrc_file = home.join(".netrc");
+        let gh_config_dir = home.join(".config").join("gh");
+        let gcloud_config_dir = home.join(".config").join("gcloud");
+
+        if canonical.starts_with(&ssh_dir)
+            || canonical.starts_with(&gnupg_dir)
+            || canonical.starts_with(&aws_dir)
+            || canonical.starts_with(&docker_dir)
+            || canonical == netrc_file
+            || canonical.starts_with(&gh_config_dir)
+            || canonical.starts_with(&gcloud_config_dir)
+        {
             return true;
         }
     }
@@ -77,7 +95,8 @@ fn check_path_allowed(path: &str) -> Result<std::path::PathBuf, String> {
     if is_sensitive_path(&canonical) {
         return Err(format!(
             "Access denied: '{}' is in a restricted directory. \
-             ACP agents cannot read or list ~/.ssh/, ~/.gnupg/, or /etc/.",
+             ACP agents cannot read or list ~/.ssh/, ~/.gnupg/, ~/.aws/, ~/.docker/, \
+             ~/.netrc, ~/.config/gh/, ~/.config/gcloud/, or /etc/.",
             path
         ));
     }

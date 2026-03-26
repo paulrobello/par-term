@@ -255,11 +255,11 @@ fn test_font_size_default_in_valid_range() {
 fn test_window_opacity_default_in_valid_range() {
     let config = Config::default();
     assert!(
-        config.window_opacity >= 0.0,
+        config.window.window_opacity >= 0.0,
         "Default window_opacity should be >= 0.0"
     );
     assert!(
-        config.window_opacity <= 1.0,
+        config.window.window_opacity <= 1.0,
         "Default window_opacity should be <= 1.0"
     );
 }
@@ -390,7 +390,7 @@ fn test_has_changes_multiple_modifications() {
     settings.config.font_size = 16.0;
     settings.has_changes = true;
 
-    settings.config.window_opacity = 0.9;
+    settings.config.window.window_opacity = 0.9;
     // has_changes stays true (no intermediate reset)
 
     assert!(
@@ -398,7 +398,7 @@ fn test_has_changes_multiple_modifications() {
         "has_changes should remain true across multiple changes"
     );
     assert_eq!(settings.config.font_size, 16.0);
-    assert!((settings.config.window_opacity - 0.9).abs() < f32::EPSILON);
+    assert!((settings.config.window.window_opacity - 0.9).abs() < f32::EPSILON);
 }
 
 #[test]

@@ -70,6 +70,18 @@ fn expand_tilde(path: &str) -> String {
     path.to_string()
 }
 
+/// Shared context for dispatching a single trigger action.
+///
+/// Groups the per-frame data that every action handler needs so we can
+/// pass it as a single argument instead of threading four separate
+/// `HashMap` references through every helper.
+struct DispatchContext<'a> {
+    trigger_prompt_before_run: &'a HashMap<u64, bool>,
+    approved_this_frame: &'a std::collections::HashSet<u64>,
+    trigger_names: &'a HashMap<u64, String>,
+    trigger_split_percent: &'a HashMap<u64, u8>,
+}
+
 impl WindowState {
     /// Check for trigger action results and dispatch them.
     ///
@@ -203,497 +215,15 @@ impl WindowState {
         // Tuple: (trigger_id, matched_grid_row, payload).
         let mut pending_prettify: Vec<(u64, usize, PrettifyRelayPayload)> = Vec::new();
 
+        let ctx = DispatchContext {
+            trigger_prompt_before_run: &trigger_prompt_before_run,
+            approved_this_frame: &approved_this_frame,
+            trigger_names: &trigger_names,
+            trigger_split_percent: &trigger_split_percent,
+        };
+
         for action in action_results {
-            match action {
-                ActionResult::RunCommand {
-                    trigger_id,
-                    command,
-                    args,
-                } => {
-                    let command = expand_tilde(&command);
-                    let args: Vec<String> = args.iter().map(|a| expand_tilde(a)).collect();
-
-                    // Security check: prompt_before_run — if the trigger requires confirmation
-                    // and has not been pre-approved this session (always_allow) or this frame,
-                    // enqueue the action for dialog presentation and skip direct execution.
-                    let prompt = trigger_prompt_before_run
-                        .get(&trigger_id)
-                        .copied()
-                        .unwrap_or(true);
-
-                    // SEC-001: If prompt_before_run is false but i_accept_the_risk is not set,
-                    // block execution and log an audit-level warning.
-                    if !prompt && !approved_this_frame.contains(&trigger_id) {
-                        let trigger_name = trigger_names
-                            .get(&trigger_id)
-                            .cloned()
-                            .unwrap_or_else(|| format!("trigger #{}", trigger_id));
-                        if self
-                            .config
-                            .unaccepted_risk_trigger_names
-                            .contains(&trigger_name)
-                        {
-                            log::warn!(
-                                "Trigger '{}' (id={}) RunCommand BLOCKED: \
-                                 `prompt_before_run: false` requires `i_accept_the_risk: true` \
-                                 to execute dangerous actions without confirmation. \
-                                 Add `i_accept_the_risk: true` to this trigger or set \
-                                 `prompt_before_run: true`.",
-                                trigger_name,
-                                trigger_id,
-                            );
-                            crate::debug_error!(
-                                "TRIGGER",
-                                "AUDIT RunCommand BLOCKED trigger_id={} trigger_name={} \
-                                 reason=missing_i_accept_the_risk",
-                                trigger_id,
-                                trigger_name,
-                            );
-                            continue;
-                        }
-                        // SEC-001: Log audit warning for every prompt_before_run:false execution.
-                        log::warn!(
-                            "SECURITY: Trigger '{}' (id={}) executing RunCommand without \
-                             confirmation (prompt_before_run: false). \
-                             command='{}' args={:?}",
-                            trigger_name,
-                            trigger_id,
-                            command,
-                            args,
-                        );
-                        crate::debug_info!(
-                            "TRIGGER",
-                            "AUDIT RunCommand no-prompt trigger_id={} trigger_name={} \
-                             command={} args={:?}",
-                            trigger_id,
-                            trigger_name,
-                            command,
-                            args,
-                        );
-                    }
-
-                    if prompt
-                        && !self
-                            .trigger_state
-                            .always_allow_trigger_ids
-                            .contains(&trigger_id)
-                        && !approved_this_frame.contains(&trigger_id)
-                    {
-                        let trigger_name = trigger_names
-                            .get(&trigger_id)
-                            .cloned()
-                            .unwrap_or_else(|| format!("trigger #{}", trigger_id));
-                        let description = format!("Run command: {} {}", command, args.join(" "))
-                            .trim()
-                            .to_string();
-                        self.trigger_state.pending_trigger_actions.push(
-                            crate::app::window_state::PendingTriggerAction {
-                                trigger_id,
-                                trigger_name,
-                                action: ActionResult::RunCommand {
-                                    trigger_id,
-                                    command,
-                                    args,
-                                },
-                                description,
-                            },
-                        );
-                        continue;
-                    }
-
-                    // Security check: command denylist (always applied, even for approved actions)
-                    if let Some(denied_pattern) = check_command_denylist(&command, &args) {
-                        log::error!(
-                            "Trigger {} RunCommand DENIED: '{}' matches denylist pattern '{}'",
-                            trigger_id,
-                            command,
-                            denied_pattern,
-                        );
-                        continue;
-                    }
-
-                    // Security check: rate limiting (skip for dialog-approved actions this frame)
-                    if !approved_this_frame.contains(&trigger_id)
-                        && let Some(tab) = self.tab_manager.active_tab_mut()
-                        && !tab
-                            .scripting
-                            .trigger_rate_limiter
-                            .check_and_update(trigger_id)
-                    {
-                        log::warn!(
-                            "Trigger {} RunCommand RATE-LIMITED: '{}' (too frequent)",
-                            trigger_id,
-                            command,
-                        );
-                        continue;
-                    }
-
-                    log::info!(
-                        "Trigger {} firing RunCommand: {} {:?}",
-                        trigger_id,
-                        command,
-                        args
-                    );
-
-                    // Clean up old process entries (assume completed after timeout)
-                    let now = Instant::now();
-                    self.trigger_state
-                        .trigger_spawned_processes
-                        .retain(|_pid, spawn_time| {
-                            now.duration_since(*spawn_time).as_secs() < PROCESS_CLEANUP_AGE_SECS
-                        });
-
-                    // Check process limit to prevent resource exhaustion
-                    if self.trigger_state.trigger_spawned_processes.len() >= MAX_TRIGGER_PROCESSES {
-                        log::warn!(
-                            "Trigger {} RunCommand DENIED: max concurrent processes ({}) reached",
-                            trigger_id,
-                            MAX_TRIGGER_PROCESSES
-                        );
-                        continue;
-                    }
-
-                    // Spawn process with stdout/stderr redirected to null to prevent
-                    // terminal corruption from inherited file descriptors
-                    match std::process::Command::new(&command)
-                        .args(&args)
-                        .stdout(Stdio::null())
-                        .stderr(Stdio::null())
-                        .spawn()
-                    {
-                        Ok(child) => {
-                            let pid = child.id();
-                            log::debug!("RunCommand spawned successfully (PID={})", pid);
-                            // Security audit trail: record every successful trigger-spawned
-                            // process at INFO level so it appears in the debug log even
-                            // without DEBUG_LEVEL set.  This allows post-incident review of
-                            // which commands were executed via triggers.
-                            crate::debug_info!(
-                                "TRIGGER",
-                                "AUDIT RunCommand trigger_id={} pid={} command={} args={:?}",
-                                trigger_id,
-                                pid,
-                                command,
-                                args
-                            );
-                            // Track the spawned process for resource management
-                            self.trigger_state
-                                .trigger_spawned_processes
-                                .insert(pid, Instant::now());
-                        }
-                        Err(e) => {
-                            log::error!("RunCommand failed to spawn '{}': {}", command, e);
-                            crate::debug_error!(
-                                "TRIGGER",
-                                "AUDIT RunCommand FAILED trigger_id={} command={} error={}",
-                                trigger_id,
-                                command,
-                                e
-                            );
-                        }
-                    }
-                }
-                ActionResult::PlaySound {
-                    trigger_id,
-                    sound_id,
-                    volume,
-                } => {
-                    let sound_id = expand_tilde(&sound_id);
-                    log::info!(
-                        "Trigger {} firing PlaySound: '{}' at volume {}",
-                        trigger_id,
-                        sound_id,
-                        volume
-                    );
-                    if sound_id == "bell" || sound_id.is_empty() {
-                        if let Some(tab) = self.tab_manager.active_tab()
-                            && let Some(ref audio_bell) = tab.active_bell().audio
-                        {
-                            audio_bell.play(volume);
-                        }
-                    } else {
-                        Self::play_sound_file(&sound_id, volume);
-                    }
-                }
-                ActionResult::SendText {
-                    trigger_id,
-                    text,
-                    delay_ms,
-                } => {
-                    // Security check: prompt_before_run — if the trigger requires confirmation
-                    // and has not been pre-approved this session (always_allow) or this frame,
-                    // enqueue the action for dialog presentation and skip direct execution.
-                    let prompt = trigger_prompt_before_run
-                        .get(&trigger_id)
-                        .copied()
-                        .unwrap_or(true);
-                    if prompt
-                        && !self
-                            .trigger_state
-                            .always_allow_trigger_ids
-                            .contains(&trigger_id)
-                        && !approved_this_frame.contains(&trigger_id)
-                    {
-                        let trigger_name = trigger_names
-                            .get(&trigger_id)
-                            .cloned()
-                            .unwrap_or_else(|| format!("trigger #{}", trigger_id));
-                        let description = format!("Send text: '{}'", text);
-                        self.trigger_state.pending_trigger_actions.push(
-                            crate::app::window_state::PendingTriggerAction {
-                                trigger_id,
-                                trigger_name,
-                                action: ActionResult::SendText {
-                                    trigger_id,
-                                    text,
-                                    delay_ms,
-                                },
-                                description,
-                            },
-                        );
-                        continue;
-                    }
-
-                    // Security check: rate limiting (skip for dialog-approved actions this frame)
-                    if !approved_this_frame.contains(&trigger_id)
-                        && let Some(tab) = self.tab_manager.active_tab_mut()
-                        && !tab
-                            .scripting
-                            .trigger_rate_limiter
-                            .check_and_update(trigger_id)
-                    {
-                        log::warn!(
-                            "Trigger {} SendText RATE-LIMITED: '{}' (too frequent)",
-                            trigger_id,
-                            text,
-                        );
-                        continue;
-                    }
-
-                    log::info!(
-                        "Trigger {} firing SendText: '{}' (delay={}ms)",
-                        trigger_id,
-                        text,
-                        delay_ms
-                    );
-                    // Security audit trail: record every SendText execution so
-                    // post-incident analysis can reconstruct what text was injected
-                    // into the terminal via trigger automation.
-                    crate::debug_info!(
-                        "TRIGGER",
-                        "AUDIT SendText trigger_id={} delay_ms={} text={:?}",
-                        trigger_id,
-                        delay_ms,
-                        text
-                    );
-                    if let Some(tab) = self.tab_manager.active_tab() {
-                        if delay_ms == 0 {
-                            // try_lock: intentional — trigger SendText in sync event loop.
-                            // On miss: the triggered text is not sent this frame. Low risk:
-                            // triggers fire on repeated output patterns and will retry.
-                            if let Ok(term) = tab.terminal.try_write()
-                                && let Err(e) = term.write(text.as_bytes())
-                            {
-                                log::error!("SendText write failed: {}", e);
-                            }
-                        } else {
-                            let terminal = std::sync::Arc::clone(&tab.terminal);
-                            let text_owned = text;
-                            std::thread::spawn(move || {
-                                std::thread::sleep(std::time::Duration::from_millis(delay_ms));
-                                // try_lock: intentional — delayed SendText from spawned thread.
-                                // On miss: the delayed text is not sent. Acceptable; trigger
-                                // automation has inherent timing flexibility.
-                                if let Ok(term) = terminal.try_write()
-                                    && let Err(e) = term.write(text_owned.as_bytes())
-                                {
-                                    log::error!("Delayed SendText write failed: {}", e);
-                                }
-                            });
-                        }
-                    }
-                }
-                ActionResult::Notify {
-                    trigger_id,
-                    title,
-                    message,
-                } => {
-                    log::info!(
-                        "Trigger {} firing Notify: '{}' - '{}'",
-                        trigger_id,
-                        title,
-                        message
-                    );
-                    // Trigger notifications always deliver (bypass focus suppression)
-                    // since the user explicitly configured them
-                    self.deliver_notification_force(&title, &message);
-                }
-                ActionResult::SplitPane {
-                    trigger_id,
-                    direction,
-                    command,
-                    focus_new_pane,
-                    target,
-                    source_pane_id,
-                } => {
-                    // Security check: prompt_before_run — queue action for dialog if not pre-approved
-                    let prompt = trigger_prompt_before_run
-                        .get(&trigger_id)
-                        .copied()
-                        .unwrap_or(true);
-                    if prompt
-                        && !self
-                            .trigger_state
-                            .always_allow_trigger_ids
-                            .contains(&trigger_id)
-                        && !approved_this_frame.contains(&trigger_id)
-                    {
-                        let trigger_name = trigger_names
-                            .get(&trigger_id)
-                            .cloned()
-                            .unwrap_or_else(|| format!("trigger #{}", trigger_id));
-                        let dir_str = match direction {
-                            par_term_emu_core_rust::terminal::TriggerSplitDirection::Horizontal => {
-                                "horizontal"
-                            }
-                            par_term_emu_core_rust::terminal::TriggerSplitDirection::Vertical => {
-                                "vertical"
-                            }
-                        };
-                        let description = format!("Split pane ({}) and run command", dir_str);
-                        self.trigger_state.pending_trigger_actions.push(
-                            crate::app::window_state::PendingTriggerAction {
-                                trigger_id,
-                                trigger_name,
-                                action: ActionResult::SplitPane {
-                                    trigger_id,
-                                    direction,
-                                    command,
-                                    focus_new_pane,
-                                    target,
-                                    source_pane_id,
-                                },
-                                description,
-                            },
-                        );
-                        continue;
-                    }
-
-                    // Security check: rate limiting
-                    if let Some(tab) = self.tab_manager.active_tab_mut()
-                        && !tab
-                            .scripting
-                            .trigger_rate_limiter
-                            .check_and_update(trigger_id)
-                    {
-                        log::warn!(
-                            "Trigger {} SplitPane RATE-LIMITED (too frequent)",
-                            trigger_id,
-                        );
-                        continue;
-                    }
-
-                    let pane_direction = match direction {
-                        par_term_emu_core_rust::terminal::TriggerSplitDirection::Horizontal => {
-                            crate::pane::SplitDirection::Horizontal
-                        }
-                        par_term_emu_core_rust::terminal::TriggerSplitDirection::Vertical => {
-                            crate::pane::SplitDirection::Vertical
-                        }
-                    };
-
-                    crate::debug_info!(
-                        "TRIGGER",
-                        "AUDIT SplitPane trigger_id={} direction={:?} focus_new={}",
-                        trigger_id,
-                        pane_direction,
-                        focus_new_pane
-                    );
-
-                    let pct = trigger_split_percent
-                        .get(&trigger_id)
-                        .copied()
-                        .unwrap_or(66);
-                    let new_pane_id =
-                        self.split_pane_direction(pane_direction, focus_new_pane, None, pct);
-
-                    // After split, optionally send a command to the new pane.
-                    if let (Some(pane_id), Some(cmd)) = (new_pane_id, command) {
-                        let (text, delay_ms) = match cmd {
-                            par_term_emu_core_rust::terminal::TriggerSplitCommand::SendText {
-                                text,
-                                delay_ms,
-                            } => (format!("{}\n", text), delay_ms),
-                            par_term_emu_core_rust::terminal::TriggerSplitCommand::InitialCommand {
-                                command: cmd_name,
-                                args,
-                            } => {
-                                // InitialCommand is not yet supported for trigger-created panes.
-                                // Fall back to sending command as text to the new shell.
-                                log::warn!(
-                                    "Trigger {} SplitPane InitialCommand not fully supported; \
-                                     sending as text",
-                                    trigger_id
-                                );
-                                let full = if args.is_empty() {
-                                    format!("{}\n", cmd_name)
-                                } else {
-                                    format!("{} {}\n", cmd_name, args.join(" "))
-                                };
-                                (full, 200)
-                            }
-                        };
-
-                        // Send text to the new pane's terminal with optional delay.
-                        if let Some(tab) = self.tab_manager.active_tab()
-                            && let Some(pm) = tab.pane_manager()
-                            && let Some(pane) = pm.get_pane(pane_id)
-                        {
-                            let terminal = std::sync::Arc::clone(&pane.terminal);
-                            std::thread::spawn(move || {
-                                if delay_ms > 0 {
-                                    std::thread::sleep(std::time::Duration::from_millis(delay_ms));
-                                }
-                                if let Ok(term) = terminal.try_write()
-                                    && let Err(e) = term.write(text.as_bytes())
-                                {
-                                    log::error!(
-                                        "SplitPane SendText write failed for pane {}: {}",
-                                        pane_id,
-                                        e
-                                    );
-                                }
-                            });
-                        }
-                    }
-                }
-                ActionResult::MarkLine {
-                    trigger_id,
-                    row,
-                    label,
-                    color,
-                } => {
-                    // Check if this is a prettify relay (packed into MarkLine by to_core_action).
-                    if let Some(ref lbl) = label
-                        && let Some(json) = lbl.strip_prefix(PRETTIFY_RELAY_PREFIX)
-                    {
-                        if let Ok(payload) = serde_json::from_str::<PrettifyRelayPayload>(json) {
-                            pending_prettify.push((trigger_id, row, payload));
-                        } else {
-                            log::error!(
-                                "Trigger {} prettify relay: invalid payload: {}",
-                                trigger_id,
-                                json
-                            );
-                        }
-                        continue;
-                    }
-                    pending_marks
-                        .entry(trigger_id)
-                        .or_default()
-                        .push((row, label, color));
-                }
-            }
+            self.dispatch_trigger_action(action, &ctx, &mut pending_marks, &mut pending_prettify);
         }
 
         // Periodically clean up stale rate limiter entries (every ~60 seconds of entries)
@@ -710,5 +240,573 @@ impl WindowState {
         if !pending_prettify.is_empty() {
             self.apply_prettify_triggers(pending_prettify, current_scrollback_len);
         }
+    }
+
+    /// Dispatch a single trigger action result to the appropriate handler.
+    fn dispatch_trigger_action(
+        &mut self,
+        action: ActionResult,
+        ctx: &DispatchContext<'_>,
+        pending_marks: &mut HashMap<u64, Vec<MarkLineEntry>>,
+        pending_prettify: &mut Vec<(u64, usize, PrettifyRelayPayload)>,
+    ) {
+        match action {
+            ActionResult::RunCommand {
+                trigger_id,
+                command,
+                args,
+            } => {
+                let command = expand_tilde(&command);
+                let args: Vec<String> = args.iter().map(|a| expand_tilde(a)).collect();
+                self.handle_run_command_action(trigger_id, command, args, ctx);
+            }
+            ActionResult::PlaySound {
+                trigger_id,
+                sound_id,
+                volume,
+            } => {
+                let sound_id = expand_tilde(&sound_id);
+                log::info!(
+                    "Trigger {} firing PlaySound: '{}' at volume {}",
+                    trigger_id,
+                    sound_id,
+                    volume
+                );
+                if sound_id == "bell" || sound_id.is_empty() {
+                    if let Some(tab) = self.tab_manager.active_tab()
+                        && let Some(ref audio_bell) = tab.active_bell().audio
+                    {
+                        audio_bell.play(volume);
+                    }
+                } else {
+                    Self::play_sound_file(&sound_id, volume);
+                }
+            }
+            ActionResult::SendText {
+                trigger_id,
+                text,
+                delay_ms,
+            } => {
+                self.handle_send_text_action(trigger_id, text, delay_ms, ctx);
+            }
+            ActionResult::Notify {
+                trigger_id,
+                title,
+                message,
+            } => {
+                log::info!(
+                    "Trigger {} firing Notify: '{}' - '{}'",
+                    trigger_id,
+                    title,
+                    message
+                );
+                // Trigger notifications always deliver (bypass focus suppression)
+                // since the user explicitly configured them
+                self.deliver_notification_force(&title, &message);
+            }
+            ActionResult::SplitPane {
+                trigger_id,
+                direction,
+                command,
+                focus_new_pane,
+                target,
+                source_pane_id,
+            } => {
+                self.handle_split_pane_action(
+                    trigger_id,
+                    direction,
+                    command,
+                    focus_new_pane,
+                    target,
+                    source_pane_id,
+                    ctx,
+                );
+            }
+            ActionResult::MarkLine {
+                trigger_id,
+                row,
+                label,
+                color,
+            } => {
+                self.handle_mark_line_action(
+                    trigger_id,
+                    row,
+                    label,
+                    color,
+                    pending_marks,
+                    pending_prettify,
+                );
+            }
+        }
+    }
+
+    /// Handle a RunCommand trigger action, including security checks and process spawn.
+    fn handle_run_command_action(
+        &mut self,
+        trigger_id: u64,
+        command: String,
+        args: Vec<String>,
+        ctx: &DispatchContext<'_>,
+    ) {
+        let prompt = ctx
+            .trigger_prompt_before_run
+            .get(&trigger_id)
+            .copied()
+            .unwrap_or(true);
+
+        // SEC-001: If prompt_before_run is false but i_accept_the_risk is not set,
+        // block execution and log an audit-level warning.
+        if !prompt && !ctx.approved_this_frame.contains(&trigger_id) {
+            let trigger_name = ctx
+                .trigger_names
+                .get(&trigger_id)
+                .cloned()
+                .unwrap_or_else(|| format!("trigger #{}", trigger_id));
+            if self
+                .config
+                .unaccepted_risk_trigger_names
+                .contains(&trigger_name)
+            {
+                log::warn!(
+                    "Trigger '{}' (id={}) RunCommand BLOCKED: \
+                     `prompt_before_run: false` requires `i_accept_the_risk: true` \
+                     to execute dangerous actions without confirmation. \
+                     Add `i_accept_the_risk: true` to this trigger or set \
+                     `prompt_before_run: true`.",
+                    trigger_name,
+                    trigger_id,
+                );
+                crate::debug_error!(
+                    "TRIGGER",
+                    "AUDIT RunCommand BLOCKED trigger_id={} trigger_name={} \
+                     reason=missing_i_accept_the_risk",
+                    trigger_id,
+                    trigger_name,
+                );
+                return;
+            }
+            // SEC-001: Log audit warning for every prompt_before_run:false execution.
+            log::warn!(
+                "SECURITY: Trigger '{}' (id={}) executing RunCommand without \
+                 confirmation (prompt_before_run: false). \
+                 command='{}' args={:?}",
+                trigger_name,
+                trigger_id,
+                command,
+                args,
+            );
+            crate::debug_info!(
+                "TRIGGER",
+                "AUDIT RunCommand no-prompt trigger_id={} trigger_name={} \
+                 command={} args={:?}",
+                trigger_id,
+                trigger_name,
+                command,
+                args,
+            );
+        }
+
+        if prompt
+            && !self
+                .trigger_state
+                .always_allow_trigger_ids
+                .contains(&trigger_id)
+            && !ctx.approved_this_frame.contains(&trigger_id)
+        {
+            let trigger_name = ctx
+                .trigger_names
+                .get(&trigger_id)
+                .cloned()
+                .unwrap_or_else(|| format!("trigger #{}", trigger_id));
+            let description = format!("Run command: {} {}", command, args.join(" "))
+                .trim()
+                .to_string();
+            self.trigger_state.pending_trigger_actions.push(
+                crate::app::window_state::PendingTriggerAction {
+                    trigger_id,
+                    trigger_name,
+                    action: ActionResult::RunCommand {
+                        trigger_id,
+                        command,
+                        args,
+                    },
+                    description,
+                },
+            );
+            return;
+        }
+
+        // Security check: command denylist (always applied, even for approved actions)
+        if let Some(denied_pattern) = check_command_denylist(&command, &args) {
+            log::error!(
+                "Trigger {} RunCommand DENIED: '{}' matches denylist pattern '{}'",
+                trigger_id,
+                command,
+                denied_pattern,
+            );
+            return;
+        }
+
+        // Security check: rate limiting (skip for dialog-approved actions this frame)
+        if !ctx.approved_this_frame.contains(&trigger_id)
+            && let Some(tab) = self.tab_manager.active_tab_mut()
+            && !tab
+                .scripting
+                .trigger_rate_limiter
+                .check_and_update(trigger_id)
+        {
+            log::warn!(
+                "Trigger {} RunCommand RATE-LIMITED: '{}' (too frequent)",
+                trigger_id,
+                command,
+            );
+            return;
+        }
+
+        log::info!(
+            "Trigger {} firing RunCommand: {} {:?}",
+            trigger_id,
+            command,
+            args
+        );
+
+        // Clean up old process entries (assume completed after timeout)
+        let now = Instant::now();
+        self.trigger_state
+            .trigger_spawned_processes
+            .retain(|_pid, spawn_time| {
+                now.duration_since(*spawn_time).as_secs() < PROCESS_CLEANUP_AGE_SECS
+            });
+
+        // Check process limit to prevent resource exhaustion
+        if self.trigger_state.trigger_spawned_processes.len() >= MAX_TRIGGER_PROCESSES {
+            log::warn!(
+                "Trigger {} RunCommand DENIED: max concurrent processes ({}) reached",
+                trigger_id,
+                MAX_TRIGGER_PROCESSES
+            );
+            return;
+        }
+
+        // Spawn process with stdout/stderr redirected to null to prevent
+        // terminal corruption from inherited file descriptors
+        match std::process::Command::new(&command)
+            .args(&args)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+        {
+            Ok(child) => {
+                let pid = child.id();
+                log::debug!("RunCommand spawned successfully (PID={})", pid);
+                // Security audit trail: record every successful trigger-spawned
+                // process at INFO level so it appears in the debug log even
+                // without DEBUG_LEVEL set.  This allows post-incident review of
+                // which commands were executed via triggers.
+                crate::debug_info!(
+                    "TRIGGER",
+                    "AUDIT RunCommand trigger_id={} pid={} command={} args={:?}",
+                    trigger_id,
+                    pid,
+                    command,
+                    args
+                );
+                // Track the spawned process for resource management
+                self.trigger_state
+                    .trigger_spawned_processes
+                    .insert(pid, Instant::now());
+            }
+            Err(e) => {
+                log::error!("RunCommand failed to spawn '{}': {}", command, e);
+                crate::debug_error!(
+                    "TRIGGER",
+                    "AUDIT RunCommand FAILED trigger_id={} command={} error={}",
+                    trigger_id,
+                    command,
+                    e
+                );
+            }
+        }
+    }
+
+    /// Handle a SendText trigger action, including security checks and optional delay.
+    fn handle_send_text_action(
+        &mut self,
+        trigger_id: u64,
+        text: String,
+        delay_ms: u64,
+        ctx: &DispatchContext<'_>,
+    ) {
+        // Security check: prompt_before_run — if the trigger requires confirmation
+        // and has not been pre-approved this session (always_allow) or this frame,
+        // enqueue the action for dialog presentation and skip direct execution.
+        let prompt = ctx
+            .trigger_prompt_before_run
+            .get(&trigger_id)
+            .copied()
+            .unwrap_or(true);
+        if prompt
+            && !self
+                .trigger_state
+                .always_allow_trigger_ids
+                .contains(&trigger_id)
+            && !ctx.approved_this_frame.contains(&trigger_id)
+        {
+            let trigger_name = ctx
+                .trigger_names
+                .get(&trigger_id)
+                .cloned()
+                .unwrap_or_else(|| format!("trigger #{}", trigger_id));
+            let description = format!("Send text: '{}'", text);
+            self.trigger_state.pending_trigger_actions.push(
+                crate::app::window_state::PendingTriggerAction {
+                    trigger_id,
+                    trigger_name,
+                    action: ActionResult::SendText {
+                        trigger_id,
+                        text,
+                        delay_ms,
+                    },
+                    description,
+                },
+            );
+            return;
+        }
+
+        // Security check: rate limiting (skip for dialog-approved actions this frame)
+        if !ctx.approved_this_frame.contains(&trigger_id)
+            && let Some(tab) = self.tab_manager.active_tab_mut()
+            && !tab
+                .scripting
+                .trigger_rate_limiter
+                .check_and_update(trigger_id)
+        {
+            log::warn!(
+                "Trigger {} SendText RATE-LIMITED: '{}' (too frequent)",
+                trigger_id,
+                text,
+            );
+            return;
+        }
+
+        log::info!(
+            "Trigger {} firing SendText: '{}' (delay={}ms)",
+            trigger_id,
+            text,
+            delay_ms
+        );
+        // Security audit trail: record every SendText execution so
+        // post-incident analysis can reconstruct what text was injected
+        // into the terminal via trigger automation.
+        crate::debug_info!(
+            "TRIGGER",
+            "AUDIT SendText trigger_id={} delay_ms={} text={:?}",
+            trigger_id,
+            delay_ms,
+            text
+        );
+        if let Some(tab) = self.tab_manager.active_tab() {
+            if delay_ms == 0 {
+                // try_lock: intentional — trigger SendText in sync event loop.
+                // On miss: the triggered text is not sent this frame. Low risk:
+                // triggers fire on repeated output patterns and will retry.
+                if let Ok(term) = tab.terminal.try_write()
+                    && let Err(e) = term.write(text.as_bytes())
+                {
+                    log::error!("SendText write failed: {}", e);
+                }
+            } else {
+                let terminal = std::sync::Arc::clone(&tab.terminal);
+                let text_owned = text;
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_millis(delay_ms));
+                    // try_lock: intentional — delayed SendText from spawned thread.
+                    // On miss: the delayed text is not sent. Acceptable; trigger
+                    // automation has inherent timing flexibility.
+                    if let Ok(term) = terminal.try_write()
+                        && let Err(e) = term.write(text_owned.as_bytes())
+                    {
+                        log::error!("Delayed SendText write failed: {}", e);
+                    }
+                });
+            }
+        }
+    }
+
+    /// Handle a SplitPane trigger action, including security checks and pane creation.
+    #[allow(clippy::too_many_arguments)]
+    fn handle_split_pane_action(
+        &mut self,
+        trigger_id: u64,
+        direction: par_term_emu_core_rust::terminal::TriggerSplitDirection,
+        command: Option<par_term_emu_core_rust::terminal::TriggerSplitCommand>,
+        focus_new_pane: bool,
+        target: par_term_emu_core_rust::terminal::TriggerSplitTarget,
+        source_pane_id: Option<u64>,
+        ctx: &DispatchContext<'_>,
+    ) {
+        // Security check: prompt_before_run — queue action for dialog if not pre-approved
+        let prompt = ctx
+            .trigger_prompt_before_run
+            .get(&trigger_id)
+            .copied()
+            .unwrap_or(true);
+        if prompt
+            && !self
+                .trigger_state
+                .always_allow_trigger_ids
+                .contains(&trigger_id)
+            && !ctx.approved_this_frame.contains(&trigger_id)
+        {
+            let trigger_name = ctx
+                .trigger_names
+                .get(&trigger_id)
+                .cloned()
+                .unwrap_or_else(|| format!("trigger #{}", trigger_id));
+            let dir_str = match direction {
+                par_term_emu_core_rust::terminal::TriggerSplitDirection::Horizontal => "horizontal",
+                par_term_emu_core_rust::terminal::TriggerSplitDirection::Vertical => "vertical",
+            };
+            let description = format!("Split pane ({}) and run command", dir_str);
+            self.trigger_state.pending_trigger_actions.push(
+                crate::app::window_state::PendingTriggerAction {
+                    trigger_id,
+                    trigger_name,
+                    action: ActionResult::SplitPane {
+                        trigger_id,
+                        direction,
+                        command,
+                        focus_new_pane,
+                        target,
+                        source_pane_id,
+                    },
+                    description,
+                },
+            );
+            return;
+        }
+
+        // Security check: rate limiting
+        if let Some(tab) = self.tab_manager.active_tab_mut()
+            && !tab
+                .scripting
+                .trigger_rate_limiter
+                .check_and_update(trigger_id)
+        {
+            log::warn!(
+                "Trigger {} SplitPane RATE-LIMITED (too frequent)",
+                trigger_id,
+            );
+            return;
+        }
+
+        let pane_direction = match direction {
+            par_term_emu_core_rust::terminal::TriggerSplitDirection::Horizontal => {
+                crate::pane::SplitDirection::Horizontal
+            }
+            par_term_emu_core_rust::terminal::TriggerSplitDirection::Vertical => {
+                crate::pane::SplitDirection::Vertical
+            }
+        };
+
+        crate::debug_info!(
+            "TRIGGER",
+            "AUDIT SplitPane trigger_id={} direction={:?} focus_new={}",
+            trigger_id,
+            pane_direction,
+            focus_new_pane
+        );
+
+        let pct = ctx
+            .trigger_split_percent
+            .get(&trigger_id)
+            .copied()
+            .unwrap_or(66);
+        let new_pane_id = self.split_pane_direction(pane_direction, focus_new_pane, None, pct);
+
+        // After split, optionally send a command to the new pane.
+        if let (Some(pane_id), Some(cmd)) = (new_pane_id, command) {
+            let (text, delay_ms) = match cmd {
+                par_term_emu_core_rust::terminal::TriggerSplitCommand::SendText {
+                    text,
+                    delay_ms,
+                } => (format!("{}\n", text), delay_ms),
+                par_term_emu_core_rust::terminal::TriggerSplitCommand::InitialCommand {
+                    command: cmd_name,
+                    args,
+                } => {
+                    // InitialCommand is not yet supported for trigger-created panes.
+                    // Fall back to sending command as text to the new shell.
+                    log::warn!(
+                        "Trigger {} SplitPane InitialCommand not fully supported; \
+                         sending as text",
+                        trigger_id
+                    );
+                    let full = if args.is_empty() {
+                        format!("{}\n", cmd_name)
+                    } else {
+                        format!("{} {}\n", cmd_name, args.join(" "))
+                    };
+                    (full, 200)
+                }
+            };
+
+            // Send text to the new pane's terminal with optional delay.
+            if let Some(tab) = self.tab_manager.active_tab()
+                && let Some(pm) = tab.pane_manager()
+                && let Some(pane) = pm.get_pane(pane_id)
+            {
+                let terminal = std::sync::Arc::clone(&pane.terminal);
+                std::thread::spawn(move || {
+                    if delay_ms > 0 {
+                        std::thread::sleep(std::time::Duration::from_millis(delay_ms));
+                    }
+                    if let Ok(term) = terminal.try_write()
+                        && let Err(e) = term.write(text.as_bytes())
+                    {
+                        log::error!(
+                            "SplitPane SendText write failed for pane {}: {}",
+                            pane_id,
+                            e
+                        );
+                    }
+                });
+            }
+        }
+    }
+
+    /// Handle a MarkLine trigger action, including prettify relay detection.
+    ///
+    /// Prettify relay events (MarkLine with `__prettify__` label prefix) are
+    /// separated out into `pending_prettify` for post-loop processing.
+    /// Regular MarkLine events are batched in `pending_marks` for deduplication.
+    fn handle_mark_line_action(
+        &mut self,
+        trigger_id: u64,
+        row: usize,
+        label: Option<String>,
+        color: Option<(u8, u8, u8)>,
+        pending_marks: &mut HashMap<u64, Vec<MarkLineEntry>>,
+        pending_prettify: &mut Vec<(u64, usize, PrettifyRelayPayload)>,
+    ) {
+        // Check if this is a prettify relay (packed into MarkLine by to_core_action).
+        if let Some(ref lbl) = label
+            && let Some(json) = lbl.strip_prefix(PRETTIFY_RELAY_PREFIX)
+        {
+            if let Ok(payload) = serde_json::from_str::<PrettifyRelayPayload>(json) {
+                pending_prettify.push((trigger_id, row, payload));
+            } else {
+                log::error!(
+                    "Trigger {} prettify relay: invalid payload: {}",
+                    trigger_id,
+                    json
+                );
+            }
+            return;
+        }
+        pending_marks
+            .entry(trigger_id)
+            .or_default()
+            .push((row, label, color));
     }
 }

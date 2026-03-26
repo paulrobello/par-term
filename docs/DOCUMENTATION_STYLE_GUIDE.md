@@ -607,7 +607,31 @@ sequenceDiagram
 
 ## File Organization
 
-### Directory Structure
+### Actual Layout: Flat docs/ Directory
+
+> **Project-specific deviation**: par-term uses a flat `docs/` directory rather than the
+> subdirectory structure described in the generic template below. This is a conscious
+> choice: the project has 50+ documentation files that cover a wide variety of topics,
+> and a flat layout makes every file directly discoverable from `docs/README.md` without
+> requiring contributors to navigate a nested hierarchy. All files live at `docs/*.md`
+> with no subdirectories. Do not create subdirectories inside `docs/` — add new files at
+> the top level and link them from `docs/README.md`.
+
+```
+docs/
+├── README.md                    # Documentation index — link all new docs here
+├── DOCUMENTATION_STYLE_GUIDE.md # This guide
+├── ARCHITECTURE.md
+├── CONTRIBUTING.md              # At repo root, linked from docs/README.md
+├── CONFIG_REFERENCE.md
+├── GETTING_STARTED.md
+└── ... (50+ files, all flat)
+```
+
+### Generic Template (for reference only)
+
+The subdirectory structure below is included for projects that prefer topic-based
+organization. **It does not describe par-term's actual layout.**
 
 ```
 docs/

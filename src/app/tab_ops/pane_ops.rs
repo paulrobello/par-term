@@ -52,7 +52,7 @@ impl WindowState {
         if let Some((size, padding, content_offset_y, cell_width, cell_height, scale)) = bounds_info
         {
             // After split there will be multiple panes, so use 0 padding if configured
-            let effective_padding = if self.config.hide_window_padding_on_split {
+            let effective_padding = if self.config.window.hide_window_padding_on_split {
                 0.0
             } else {
                 padding

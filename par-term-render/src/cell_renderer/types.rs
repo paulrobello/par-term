@@ -46,8 +46,12 @@ pub(crate) struct GlyphInfo {
     pub next: Option<u64>,
 }
 
-/// Row cache entry
-pub(crate) struct RowCacheEntry {}
+/// Row cache validity marker.
+///
+/// `true` means the row's GPU instance data is up-to-date and does not need
+/// to be rebuilt this frame.  Previously a phantom `RowCacheEntry {}` struct
+/// was used as `Option<RowCacheEntry>`; replaced with `bool` for clarity.
+pub(crate) type RowCacheEntry = bool;
 
 /// Viewport for rendering a single pane
 ///
