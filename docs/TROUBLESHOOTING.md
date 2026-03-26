@@ -424,6 +424,16 @@ Enable `shader_hot_reload: true` in your config for faster iteration during shad
 3. See [KEYBOARD_SHORTCUTS.md](KEYBOARD_SHORTCUTS.md) for the complete shortcut reference
 4. Custom keybindings in `config.yaml` override defaults -- check for conflicts
 
+### Shift+Letter Produces Lowercase in crossterm Apps (macOS/Linux)
+
+**Symptom:** On macOS or Linux, pressing `Shift+a` inside a crossterm-based application (e.g. Claude Code, Ratatui TUIs) produces lowercase `a` instead of `A`.
+
+**Cause:** The application sets modifyOtherKeys mode 2, which caused par-term to encode `Shift+a` as `CSI 27;2;97~`. Crossterm receives this event as `KeyEvent { code: Char('a'), modifiers: SHIFT }` but does not apply the SHIFT modifier to uppercase the character.
+
+**Solution:**
+
+Update to par-term v0.30.1+ — shift-only alphabetic key combinations are now exempted from modifyOtherKeys mode-2 encoding (matching the existing mode-1 exemption), allowing the logical-key path to send `'A'` directly.
+
 ### Windows Modifier Keys Break After Notification
 
 **Symptom:** On Windows, after a toast notification or popup briefly steals focus, `Shift`, `Ctrl`, or `Alt` stop working or behave incorrectly until the key is physically re-pressed.
@@ -447,6 +457,16 @@ Enable `shader_hot_reload: true` in your config for faster iteration during shad
 2. If paste does not work in the settings window, par-term injects paste events directly -- this is handled automatically
 3. For clipboard images, `Cmd+V` forwards to the terminal when the clipboard contains an image but no text
 4. If focus-clicking clears your clipboard, this is a known mitigation where the first mouse click that focuses the window is suppressed
+
+### Text Selection Highlight Stays Fixed While Scrolling
+
+**Symptom:** After making a text selection and then scrolling, the highlight remains frozen at its original visual position on screen while the selected content scrolls out of view.
+
+**Cause:** In versions before v0.30.1, selection coordinates were stored as viewport-relative rows with no record of the scroll offset at capture time. After scrolling, the highlight tested the original viewport rows, freezing it visually.
+
+**Solution:**
+
+Update to par-term v0.30.1+ — `Selection` now records the scroll offset at capture time, and the renderer adjusts the highlighted rows by the offset delta before drawing. This applies to normal, line, and rectangular selection modes in both single-pane and split-pane layouts.
 
 ### Mouse Behavior Issues
 

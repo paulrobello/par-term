@@ -41,7 +41,15 @@ New to par-term? The [Getting Started Guide](docs/GETTING_STARTED.md) walks you 
 - **[Configuration Reference](docs/CONFIG_REFERENCE.md)** — All 200+ configuration options
 - **[Keyboard Shortcuts](docs/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
 
-## What's New in 0.30.0
+## What's New in 0.30.1
+
+### 🐛 Bug Fixes
+
+- **macOS/Linux Shift+Letter in modifyOtherKeys Mode 2**: Shift+letter combinations no longer produce lowercase output in crossterm-based apps (e.g. Claude Code). Shift-only alphabetic keys are now exempted from mode-2 encoding, matching the existing mode-1 exemption.
+- **Text Selection Highlight Follows Scroll**: The selection highlight no longer freezes at its original viewport position after scrolling. `Selection` now records the scroll offset at capture time and the renderer adjusts accordingly — applies to normal, line, and rectangular selection modes in all layouts.
+
+<details>
+<summary><strong>What's New in 0.30.0</strong></summary>
 
 ### 🔒 Security
 
@@ -60,6 +68,8 @@ New to par-term? The [Getting Started Guide](docs/GETTING_STARTED.md) walks you 
 - **`FontRenderingConfig` Extracted**: `font_antialias`, `font_hinting`, `font_thin_strokes`, and `minimum_contrast` grouped under `font_rendering` sub-struct (backward-compatible YAML).
 - **`WindowConfig` Extracted**: Window appearance fields (`window_opacity`, `blur_enabled`, `blur_radius`, etc.) grouped under `window` sub-struct (backward-compatible YAML).
 - **Render Loop Deduplicated**: `resolve_glyph_with_fallback()` extracted as a shared method; `pane_render/mod.rs` reduced from 1,062 → 792 lines.
+
+</details>
 
 <details>
 <summary><strong>What's New in 0.29.2</strong></summary>

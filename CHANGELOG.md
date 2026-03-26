@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.30.1] - 2026-03-26
+
 ### Bug Fixes
 - **macOS/Linux: Shift+letter broken inside apps using modifyOtherKeys mode 2** — applications built with crossterm (e.g. Claude Code) set modifyOtherKeys mode 2, which caused par-term to encode `Shift+a` as `CSI 27;2;97~`. Crossterm receives this as `KeyEvent { code: Char('a'), modifiers: SHIFT }` but does not apply the SHIFT modifier to uppercase the character, producing lowercase `a`. Fix: shift-only alphabetic key combinations are now exempted from mode-2 encoding (matching the existing mode-1 exemption), allowing the logical-key path to send `'A'` directly.
 - **Text selection highlight does not follow content when scrolling** — selection coordinates were stored as viewport-relative rows with no record of the scroll offset at capture time. After scrolling, `is_cell_selected` still tested the original viewport rows, freezing the highlight at those visual positions while the selected content moved. Fix: `Selection` now records `scroll_offset` at capture time; the renderer adjusts rows by the delta between the stored and current offsets before highlighting. Applies to all selection modes (normal, line, rectangular) in both single-pane and split-pane layouts.
