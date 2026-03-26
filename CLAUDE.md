@@ -307,4 +307,3 @@ See `docs/CUSTOM_SHADERS.md` for full shader documentation including uniforms, c
 2. Store `ui.ctx().cumulative_frame_nr()` on activation
 3. Guard click-outside with `&& current_frame > self.*_activated_frame`
 4. If opening an egui Popup: also add `&& !self.*_picking` to click-outside guard
-
