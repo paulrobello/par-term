@@ -225,7 +225,10 @@ pub(super) fn gather_pane_render_data(
         // contention with the PTY reader is common during heavy output).
         let scroll_offset = if is_focused { tab_scroll_offset } else { 0 };
         let cells = if let Ok(term) = pane.terminal.try_write() {
-            let selection = pane.mouse.selection.map(|sel| sel.normalized());
+            let selection = pane
+                .mouse
+                .selection
+                .map(|sel| sel.viewport_adjusted(scroll_offset).normalized());
             let rectangular = pane
                 .mouse
                 .selection

@@ -46,6 +46,29 @@ impl Selection {
         }
     }
 
+    /// Return a copy of this selection with rows adjusted to `current_scroll_offset`.
+    ///
+    /// Rows that shift above the top of the viewport become `usize::MAX` so that
+    /// `is_cell_selected` never matches them.  Rows shifted below the viewport are
+    /// left as-is (they exceed the row count and are also never matched).
+    pub fn viewport_adjusted(&self, current_scroll_offset: usize) -> Self {
+        let delta = self.scroll_offset as isize - current_scroll_offset as isize;
+        let adjust = |row: usize| -> usize {
+            let adjusted = row as isize + delta;
+            if adjusted < 0 {
+                usize::MAX
+            } else {
+                adjusted as usize
+            }
+        };
+        Self {
+            start: (self.start.0, adjust(self.start.1)),
+            end: (self.end.0, adjust(self.end.1)),
+            mode: self.mode,
+            scroll_offset: current_scroll_offset,
+        }
+    }
+
     /// Get normalized selection (ensures start is before end)
     pub fn normalized(&self) -> ((usize, usize), (usize, usize)) {
         let (start_col, start_row) = self.start;

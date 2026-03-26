@@ -69,25 +69,9 @@ impl WindowState {
             // them to the current `scroll_offset` so the highlight tracks the content
             // when the user scrolls after making a selection.
             let (selection, rectangular) = if let Some(sel) = mouse_selection {
-                let delta = sel.scroll_offset as isize - scroll_offset as isize;
-                let adjust_row = |row: usize| -> usize {
-                    let adjusted = row as isize + delta;
-                    if adjusted < 0 {
-                        usize::MAX // content scrolled above viewport — no match
-                    } else {
-                        adjusted as usize
-                    }
-                };
-                let adjusted_start = (sel.start.0, adjust_row(sel.start.1));
-                let adjusted_end = (sel.end.0, adjust_row(sel.end.1));
-                let adjusted_sel = crate::selection::Selection {
-                    start: adjusted_start,
-                    end: adjusted_end,
-                    mode: sel.mode,
-                    scroll_offset,
-                };
+                let adjusted = sel.viewport_adjusted(scroll_offset);
                 (
-                    Some(adjusted_sel.normalized()),
+                    Some(adjusted.normalized()),
                     sel.mode == SelectionMode::Rectangular,
                 )
             } else {
