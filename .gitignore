@@ -1,6 +1,9 @@
 # Rust
 /target/
 
+# Generated rustdoc output
+/doc/
+
 # Local Claude overrides
 CLAUDE.local.md
 
