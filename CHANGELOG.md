@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.29.2] - 2026-03-25
+
 ### Fixed
 - **Clicking a tab while the app is unfocused now reliably selects that tab** — focus-clicks on the tab bar were forwarded to egui, but egui's `clicked_by()` detection could miss them if pointer state was stale from when the window lost focus. The native event handler now also hit-tests the cached tab rects directly and stores a pending switch that fires in post-render if egui doesn't detect the click itself.
 - **Cmd+Shift+/- characters no longer leak to the terminal** — font size increase/decrease shortcuts now also handle the shifted variants (`Cmd+Shift+=` producing `+`, `Cmd+Shift+-` producing `_`) so the characters are consumed instead of being forwarded to the PTY.

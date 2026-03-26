@@ -40,7 +40,17 @@ New to par-term? The [Getting Started Guide](docs/GETTING_STARTED.md) walks you 
 - **[Configuration Reference](docs/CONFIG_REFERENCE.md)** — All 200+ configuration options
 - **[Keyboard Shortcuts](docs/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
 
-## What's New in 0.29.1
+## What's New in 0.29.2
+
+### 🐛 Bug Fixes
+
+- **Tab Focus-Click**: Clicking a tab while the app is unfocused now reliably selects that tab — egui hit-test misses are handled by a direct rect check with pending-switch fallback.
+- **Cmd+Shift Font-Size Keys**: `Cmd+Shift+=` (`+`) and `Cmd+Shift+-` (`_`) no longer leak to the terminal when adjusting font size.
+- **Ctrl+L / Ctrl+Shift+K in Split Panes**: Clear screen and clear scrollback now target the focused pane instead of always the root pane.
+- **`--shader` CLI Override**: The `--shader` flag and `--screenshot` mode now correctly override the configured shader even after `create_window()` reloads config from disk.
+
+<details>
+<summary><strong>What's New in 0.29.1</strong></summary>
 
 ### 🐛 Bug Fixes
 
@@ -49,6 +59,8 @@ New to par-term? The [Getting Started Guide](docs/GETTING_STARTED.md) walks you 
 - **Split-Pane URL Detection**: URL underlines no longer persist or appear at wrong positions when switching between split panes.
 - **Middle-Click Focus**: Middle-clicking a non-focused split pane now switches keyboard focus before dispatching the paste.
 - **macOS Activation Click (acceptsFirstMouse)**: Clicking a tab while the app is in the background now selects that tab on the first click.
+
+</details>
 
 <details>
 <summary><strong>What's New in 0.28.0</strong></summary>
