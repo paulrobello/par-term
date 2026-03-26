@@ -137,6 +137,49 @@ const fn default_split_percent() -> u8 {
     66
 }
 
+/// The six fields that are identical across every [`CustomActionConfig`] variant.
+///
+/// # Note on `#[serde(flatten)]`
+///
+/// Serde does not support combining `#[serde(tag = "type")]` (internally tagged enum)
+/// with `#[serde(flatten)]` on a variant field — the combination silently produces
+/// incorrect output or a runtime error depending on the format. Therefore `ActionBase`
+/// is **not** used as a flattened serde field inside the enum variants; the six fields
+/// remain individually declared in each variant to preserve existing YAML compatibility.
+///
+/// `ActionBase` is used purely as a value-transfer helper in [`CustomActionConfig::base`]
+/// and [`CustomActionConfig::apply_base`], which together eliminate the eight-arm match
+/// repetition in every mutator method.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct ActionBase {
+    /// Action identifier (for keybinding reference).
+    pub id: String,
+    /// Human-readable title.
+    pub title: String,
+    /// Optional keyboard shortcut.
+    pub keybinding: Option<String>,
+    /// Optional single character triggered after the global prefix key.
+    pub prefix_char: Option<char>,
+    /// Whether the keybinding is active (default: `true`).
+    pub keybinding_enabled: bool,
+    /// Optional human-readable description.
+    pub description: Option<String>,
+}
+
+impl ActionBase {
+    /// Create a minimal base with just an id and title.
+    pub fn new(id: impl Into<String>, title: impl Into<String>) -> Self {
+        Self {
+            id: id.into(),
+            title: title.into(),
+            keybinding: None,
+            prefix_char: None,
+            keybinding_enabled: true,
+            description: None,
+        }
+    }
+}
+
 /// Split direction for a custom action pane split.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
@@ -498,6 +541,183 @@ pub enum CustomActionConfig {
 }
 
 impl CustomActionConfig {
+    /// Return a snapshot of the six shared base fields.
+    ///
+    /// Use this to read multiple base fields at once without repeated match arms.
+    /// For single-field reads, prefer the dedicated accessors (`id()`, `title()`, etc.).
+    pub fn base(&self) -> ActionBase {
+        match self {
+            Self::ShellCommand {
+                id,
+                title,
+                keybinding,
+                prefix_char,
+                keybinding_enabled,
+                description,
+                ..
+            }
+            | Self::NewTab {
+                id,
+                title,
+                keybinding,
+                prefix_char,
+                keybinding_enabled,
+                description,
+                ..
+            }
+            | Self::InsertText {
+                id,
+                title,
+                keybinding,
+                prefix_char,
+                keybinding_enabled,
+                description,
+                ..
+            }
+            | Self::KeySequence {
+                id,
+                title,
+                keybinding,
+                prefix_char,
+                keybinding_enabled,
+                description,
+                ..
+            }
+            | Self::SplitPane {
+                id,
+                title,
+                keybinding,
+                prefix_char,
+                keybinding_enabled,
+                description,
+                ..
+            }
+            | Self::Sequence {
+                id,
+                title,
+                keybinding,
+                prefix_char,
+                keybinding_enabled,
+                description,
+                ..
+            }
+            | Self::Condition {
+                id,
+                title,
+                keybinding,
+                prefix_char,
+                keybinding_enabled,
+                description,
+                ..
+            }
+            | Self::Repeat {
+                id,
+                title,
+                keybinding,
+                prefix_char,
+                keybinding_enabled,
+                description,
+                ..
+            } => ActionBase {
+                id: id.clone(),
+                title: title.clone(),
+                keybinding: keybinding.clone(),
+                prefix_char: *prefix_char,
+                keybinding_enabled: *keybinding_enabled,
+                description: description.clone(),
+            },
+        }
+    }
+
+    /// Overwrite all six shared base fields from an [`ActionBase`] snapshot.
+    ///
+    /// This is the single mutation point that replaces the eight-arm match duplication
+    /// previously found in `set_keybinding`, `set_prefix_char`, `set_keybinding_enabled`,
+    /// and `into_copy`.
+    pub fn apply_base(&mut self, base: ActionBase) {
+        match self {
+            Self::ShellCommand {
+                id,
+                title,
+                keybinding,
+                prefix_char,
+                keybinding_enabled,
+                description,
+                ..
+            }
+            | Self::NewTab {
+                id,
+                title,
+                keybinding,
+                prefix_char,
+                keybinding_enabled,
+                description,
+                ..
+            }
+            | Self::InsertText {
+                id,
+                title,
+                keybinding,
+                prefix_char,
+                keybinding_enabled,
+                description,
+                ..
+            }
+            | Self::KeySequence {
+                id,
+                title,
+                keybinding,
+                prefix_char,
+                keybinding_enabled,
+                description,
+                ..
+            }
+            | Self::SplitPane {
+                id,
+                title,
+                keybinding,
+                prefix_char,
+                keybinding_enabled,
+                description,
+                ..
+            }
+            | Self::Sequence {
+                id,
+                title,
+                keybinding,
+                prefix_char,
+                keybinding_enabled,
+                description,
+                ..
+            }
+            | Self::Condition {
+                id,
+                title,
+                keybinding,
+                prefix_char,
+                keybinding_enabled,
+                description,
+                ..
+            }
+            | Self::Repeat {
+                id,
+                title,
+                keybinding,
+                prefix_char,
+                keybinding_enabled,
+                description,
+                ..
+            } => {
+                *id = base.id;
+                *title = base.title;
+                *keybinding = base.keybinding;
+                *prefix_char = base.prefix_char;
+                *keybinding_enabled = base.keybinding_enabled;
+                *description = base.description;
+            }
+        }
+    }
+
     /// Get the action ID (for keybinding reference).
     pub fn id(&self) -> &str {
         match self {
@@ -591,84 +811,23 @@ impl CustomActionConfig {
 
     /// Set the keybinding for this action.
     pub fn set_keybinding(&mut self, kb: Option<String>) {
-        match self {
-            Self::ShellCommand { keybinding, .. }
-            | Self::NewTab { keybinding, .. }
-            | Self::InsertText { keybinding, .. }
-            | Self::KeySequence { keybinding, .. }
-            | Self::SplitPane { keybinding, .. }
-            | Self::Sequence { keybinding, .. }
-            | Self::Condition { keybinding, .. }
-            | Self::Repeat { keybinding, .. } => *keybinding = kb,
-        }
+        let mut base = self.base();
+        base.keybinding = kb;
+        self.apply_base(base);
     }
 
     /// Set the prefix character for this action.
     pub fn set_prefix_char(&mut self, prefix_char: Option<char>) {
-        match self {
-            Self::ShellCommand {
-                prefix_char: current,
-                ..
-            }
-            | Self::NewTab {
-                prefix_char: current,
-                ..
-            }
-            | Self::InsertText {
-                prefix_char: current,
-                ..
-            }
-            | Self::KeySequence {
-                prefix_char: current,
-                ..
-            }
-            | Self::SplitPane {
-                prefix_char: current,
-                ..
-            }
-            | Self::Sequence {
-                prefix_char: current,
-                ..
-            }
-            | Self::Condition {
-                prefix_char: current,
-                ..
-            }
-            | Self::Repeat {
-                prefix_char: current,
-                ..
-            } => *current = prefix_char,
-        }
+        let mut base = self.base();
+        base.prefix_char = prefix_char;
+        self.apply_base(base);
     }
 
     /// Set whether the keybinding is enabled.
     pub fn set_keybinding_enabled(&mut self, enabled: bool) {
-        match self {
-            Self::ShellCommand {
-                keybinding_enabled, ..
-            }
-            | Self::NewTab {
-                keybinding_enabled, ..
-            }
-            | Self::InsertText {
-                keybinding_enabled, ..
-            }
-            | Self::KeySequence {
-                keybinding_enabled, ..
-            }
-            | Self::SplitPane {
-                keybinding_enabled, ..
-            }
-            | Self::Sequence {
-                keybinding_enabled, ..
-            }
-            | Self::Condition {
-                keybinding_enabled, ..
-            }
-            | Self::Repeat {
-                keybinding_enabled, ..
-            } => *keybinding_enabled = enabled,
-        }
+        let mut base = self.base();
+        base.keybinding_enabled = enabled;
+        self.apply_base(base);
     }
 
     /// Check if this is a shell command action.
@@ -724,73 +883,14 @@ impl CustomActionConfig {
     /// `par-term-settings-ui/src/actions_tab.rs` (see ARC-006). Keeping the logic here
     /// ensures it stays in sync with the `Clone` derive on `CustomActionConfig`.
     pub fn into_copy(&self) -> Self {
-        let new_id = format!("action_{}", uuid::Uuid::new_v4());
-        let new_title = format!("{}-copy", self.title());
         let mut cloned = self.clone();
-        // Patch fields that must differ on the copy.
-        match &mut cloned {
-            Self::ShellCommand {
-                id,
-                title,
-                keybinding,
-                prefix_char,
-                ..
-            }
-            | Self::NewTab {
-                id,
-                title,
-                keybinding,
-                prefix_char,
-                ..
-            }
-            | Self::InsertText {
-                id,
-                title,
-                keybinding,
-                prefix_char,
-                ..
-            }
-            | Self::KeySequence {
-                id,
-                title,
-                keybinding,
-                prefix_char,
-                ..
-            }
-            | Self::SplitPane {
-                id,
-                title,
-                keybinding,
-                prefix_char,
-                ..
-            }
-            | Self::Sequence {
-                id,
-                title,
-                keybinding,
-                prefix_char,
-                ..
-            }
-            | Self::Condition {
-                id,
-                title,
-                keybinding,
-                prefix_char,
-                ..
-            }
-            | Self::Repeat {
-                id,
-                title,
-                keybinding,
-                prefix_char,
-                ..
-            } => {
-                *id = new_id;
-                *title = new_title;
-                *keybinding = None;
-                *prefix_char = None;
-            }
-        }
+        // Patch the four base fields that must differ on the copy; keep the rest.
+        let mut base = cloned.base();
+        base.id = format!("action_{}", uuid::Uuid::new_v4());
+        base.title = format!("{}-copy", base.title);
+        base.keybinding = None;
+        base.prefix_char = None;
+        cloned.apply_base(base);
         cloned
     }
 }
