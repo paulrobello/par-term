@@ -366,6 +366,24 @@ impl WindowState {
                     tab.selection_mouse_mut().is_selecting = false;
                 }
             }
+            // If tracking consumed this release but a local selection was already in
+            // progress (which happens when the press's try_lock missed while the PTY
+            // reader held the terminal write lock, so try_send_mouse_event returned false
+            // for the press but true for the release), finish the selection now.
+            // get_selected_text() uses blocking_write() so this always succeeds.
+            if state == ElementState::Released {
+                let has_pending_selection = self
+                    .tab_manager
+                    .active_tab()
+                    .is_some_and(|t| t.selection_mouse().selection.is_some());
+                if has_pending_selection {
+                    crate::debug_log!(
+                        "MOUSE",
+                        "Tracking consumed release but local selection pending — finishing selection"
+                    );
+                    self.handle_left_mouse_release();
+                }
+            }
             return; // Exit early: terminal app handled the input
         }
         if suppress_terminal_mouse_click {
