@@ -96,10 +96,12 @@ impl WindowState {
 
         // Now update per-pane selection state
         if let Some(tab) = self.tab_manager.active_tab_mut() {
+            let so = tab.active_scroll_state().offset;
             tab.selection_mouse_mut().selection = Some(Selection::new(
                 (start_col, row),
                 (end_col, row),
                 SelectionMode::Normal,
+                so,
             ));
         }
     }
@@ -124,10 +126,12 @@ impl WindowState {
 
         // Store the row in start/end - Line mode uses rows only
         if let Some(tab) = self.tab_manager.active_tab_mut() {
+            let so = tab.active_scroll_state().offset;
             tab.selection_mouse_mut().selection = Some(Selection::new(
                 (0, row),
                 (cols.saturating_sub(1), row),
                 SelectionMode::Line,
+                so,
             ));
         }
     }
@@ -167,21 +171,24 @@ impl WindowState {
         };
 
         // Now update per-pane selection
-        if let Some(tab) = self.tab_manager.active_tab_mut()
-            && let Some(ref mut selection) = tab.selection_mouse_mut().selection
-            && selection.mode == SelectionMode::Line
-        {
-            // For line selection, always ensure full lines are selected
-            // by setting columns appropriately based on drag direction
-            if current_row >= anchor_row {
-                // Dragging down or same row: start at col 0, end at last col
-                selection.start = (0, anchor_row);
-                selection.end = (cols.saturating_sub(1), current_row);
-            } else {
-                // Dragging up: start at last col (anchor row), end at col 0 (current row)
-                // After normalization, this becomes: start=(0, current_row), end=(cols-1, anchor_row)
-                selection.start = (cols.saturating_sub(1), anchor_row);
-                selection.end = (0, current_row);
+        if let Some(tab) = self.tab_manager.active_tab_mut() {
+            let so = tab.active_scroll_state().offset;
+            if let Some(ref mut selection) = tab.selection_mouse_mut().selection
+                && selection.mode == SelectionMode::Line
+            {
+                // For line selection, always ensure full lines are selected
+                // by setting columns appropriately based on drag direction
+                selection.scroll_offset = so;
+                if current_row >= anchor_row {
+                    // Dragging down or same row: start at col 0, end at last col
+                    selection.start = (0, anchor_row);
+                    selection.end = (cols.saturating_sub(1), current_row);
+                } else {
+                    // Dragging up: start at last col (anchor row), end at col 0 (current row)
+                    // After normalization, this becomes: start=(0, current_row), end=(cols-1, anchor_row)
+                    selection.start = (cols.saturating_sub(1), anchor_row);
+                    selection.end = (0, current_row);
+                }
             }
         }
     }

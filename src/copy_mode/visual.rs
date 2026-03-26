@@ -73,6 +73,6 @@ impl CopyModeState {
         let start = (anchor_col, anchor_row);
         let end = (self.cursor_col, cursor_row);
 
-        Some(Selection::new(start, end, mode))
+        Some(Selection::new(start, end, mode, scroll_offset))
     }
 }

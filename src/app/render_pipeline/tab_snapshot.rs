@@ -64,10 +64,30 @@ impl WindowState {
             // Get current generation to check if terminal content has changed
             let current_generation = term.update_generation();
 
-            // Normalize selection if it exists and extract mode
+            // Normalize selection if it exists and extract mode.
+            // Selection rows are viewport-relative at `sel.scroll_offset`.  Adjust
+            // them to the current `scroll_offset` so the highlight tracks the content
+            // when the user scrolls after making a selection.
             let (selection, rectangular) = if let Some(sel) = mouse_selection {
+                let delta = sel.scroll_offset as isize - scroll_offset as isize;
+                let adjust_row = |row: usize| -> usize {
+                    let adjusted = row as isize + delta;
+                    if adjusted < 0 {
+                        usize::MAX // content scrolled above viewport — no match
+                    } else {
+                        adjusted as usize
+                    }
+                };
+                let adjusted_start = (sel.start.0, adjust_row(sel.start.1));
+                let adjusted_end = (sel.end.0, adjust_row(sel.end.1));
+                let adjusted_sel = crate::selection::Selection {
+                    start: adjusted_start,
+                    end: adjusted_end,
+                    mode: sel.mode,
+                    scroll_offset,
+                };
                 (
-                    Some(sel.normalized()),
+                    Some(adjusted_sel.normalized()),
                     sel.mode == SelectionMode::Rectangular,
                 )
             } else {

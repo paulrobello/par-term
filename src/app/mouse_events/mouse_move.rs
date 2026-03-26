@@ -376,9 +376,10 @@ impl WindowState {
                 };
 
                 if let Some(tab) = self.tab_manager.active_tab_mut() {
+                    let scroll_offset = tab.active_scroll_state().offset;
                     let sm = tab.selection_mouse_mut();
                     sm.is_selecting = true;
-                    sm.selection = Some(Selection::new(click_pos, (col, row), mode));
+                    sm.selection = Some(Selection::new(click_pos, (col, row), mode, scroll_offset));
                 }
                 self.request_redraw();
             } else if is_selecting && let Some(mode) = selection_mode {
@@ -389,10 +390,12 @@ impl WindowState {
                     self.request_redraw();
                 } else {
                     // Normal/Rectangular mode: update end cell
-                    if let Some(tab) = self.tab_manager.active_tab_mut()
-                        && let Some(ref mut sel) = tab.selection_mouse_mut().selection
-                    {
-                        sel.end = (col, row);
+                    if let Some(tab) = self.tab_manager.active_tab_mut() {
+                        let scroll_offset = tab.active_scroll_state().offset;
+                        if let Some(ref mut sel) = tab.selection_mouse_mut().selection {
+                            sel.end = (col, row);
+                            sel.scroll_offset = scroll_offset;
+                        }
                     }
                     self.request_redraw();
                 }
