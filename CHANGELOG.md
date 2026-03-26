@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Bug Fixes
+- **macOS/Linux: Shift+letter broken inside apps using modifyOtherKeys mode 2** — applications built with crossterm (e.g. Claude Code) set modifyOtherKeys mode 2, which caused par-term to encode `Shift+a` as `CSI 27;2;97~`. Crossterm receives this as `KeyEvent { code: Char('a'), modifiers: SHIFT }` but does not apply the SHIFT modifier to uppercase the character, producing lowercase `a`. Fix: shift-only alphabetic key combinations are now exempted from mode-2 encoding (matching the existing mode-1 exemption), allowing the logical-key path to send `'A'` directly.
+
 ---
 
 ## [0.30.0] - 2026-03-26
