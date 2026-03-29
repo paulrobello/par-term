@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Performance
+- **Eliminate blocking mutex contention in render loop** — `get_cells_with_scrollback()` used blocking `lock()` on internal `PtySession` and `Terminal` mutexes, causing the render thread to stall when the PTY reader was processing output. Added non-blocking `try_get_cells_with_scrollback()` variant using `try_lock()` with cache fallback. Both `extract_tab_cells` and `gather_pane_render_data` now use the non-blocking path, falling back to cached cells on contention. Fixes severe FPS drops (60→5) with animated shaders when tmux has many active panes.
+- **Skip redundant cell generation for focused pane** — `get_cells_with_scrollback()` was called twice per frame for the focused pane: once in `extract_tab_cells` (for URL/prettifier) and again in `gather_pane_render_data` (for rendering). The focused pane's cells are now cached after the first call and reused by the pane render path, eliminating one full cell generation + blocking lock acquisition per frame.
+- **Upload only used portion of pane instance buffers** — `build_pane_instance_buffers` previously uploaded the entire `bg_instance_buffer` and `text_instance_buffer` arrays (sized for the full window grid) via `write_buffer`, even though each pane only uses a fraction. Now uploads only `[..bg_index]` and `[..text_index]`, reducing per-pane GPU staging bandwidth.
+
 ---
 
 ## [0.30.1] - 2026-03-26

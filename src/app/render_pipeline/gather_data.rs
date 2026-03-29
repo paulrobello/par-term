@@ -147,6 +147,19 @@ impl WindowState {
         // Flush regenerated cells into the render cache (no-op on cache hit).
         self.flush_cell_cache(&cells, current_cursor_pos);
 
+        // Pre-populate the focused pane's cell cache so that gather_pane_render_data
+        // can skip the redundant (and blocking) get_cells_with_scrollback() call.
+        // The cells generated above use identical parameters (scroll_offset, selection,
+        // cursor=None) — see extract_tab_cells comment.
+        if !self.debug.cache_hit
+            && let Some(tab) = self.tab_manager.active_tab_mut()
+            && let Some(ref mut pm) = tab.pane_manager
+            && let Some(pane) = pm.focused_pane_mut()
+        {
+            pane.cache.pane_cells = Some(cells.clone());
+            pane.cache.pane_cells_generation = current_generation;
+        }
+
         let mut show_scrollbar = self.should_show_scrollbar();
 
         let (scrollback_len, terminal_title, shell_lifecycle_events) = self

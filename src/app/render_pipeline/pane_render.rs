@@ -223,8 +223,22 @@ pub(super) fn gather_pane_render_data(
         // Gather cells — fall back to cached cells on lock contention to prevent
         // empty-frame flashes (animated shaders trigger 60fps redraws, so lock
         // contention with the PTY reader is common during heavy output).
+        //
+        // For the focused pane, gather_render_data already called
+        // get_cells_with_scrollback() in extract_tab_cells and stored the result
+        // in pane.cache.pane_cells with the current generation.  Reuse those cells
+        // to avoid a second blocking terminal.lock() call, which is the primary
+        // cause of FPS drops when the PTY reader is busy (e.g. tmux with many panes).
         let scroll_offset = if is_focused { tab_scroll_offset } else { 0 };
-        let cells = if let Ok(term) = pane.terminal.try_write() {
+        let cells = if is_focused
+            && pane.cache.pane_cells_generation > 0
+            && pane.cache.pane_cells.is_some()
+        {
+            // Fresh cells from extract_tab_cells — take ownership to avoid a clone.
+            // Reset generation so this path only fires once per frame.
+            pane.cache.pane_cells_generation = 0;
+            pane.cache.pane_cells.take().unwrap()
+        } else if let Ok(term) = pane.terminal.try_write() {
             let selection = pane
                 .mouse
                 .selection
@@ -234,10 +248,17 @@ pub(super) fn gather_pane_render_data(
                 .selection
                 .map(|sel| sel.mode == SelectionMode::Rectangular)
                 .unwrap_or(false);
-            let fresh = term.get_cells_with_scrollback(scroll_offset, selection, rectangular, None);
-            // Cache for fallback on future lock misses
-            pane.cache.pane_cells = Some(fresh.clone());
-            fresh
+            // Use try_get_cells_with_scrollback to avoid blocking on the internal
+            // terminal mutex when the PTY reader is processing output.  Falls through
+            // to the pane_cells cache on contention.
+            if let Some(fresh) = term.try_get_cells_with_scrollback(scroll_offset, selection, rectangular) {
+                pane.cache.pane_cells = Some(fresh.clone());
+                fresh
+            } else if let Some(ref cached) = pane.cache.pane_cells {
+                cached.clone()
+            } else {
+                Vec::new()
+            }
         } else if let Some(ref cached) = pane.cache.pane_cells {
             // try_lock miss — use last successfully gathered cells to avoid
             // rendering an empty pane for this frame.

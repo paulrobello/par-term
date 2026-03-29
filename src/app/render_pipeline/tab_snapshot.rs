@@ -91,8 +91,6 @@ impl WindowState {
                 None
             };
 
-            let cursor = current_cursor_pos.map(|pos| (pos, self.cursor_anim.cursor_opacity));
-
             // Get cursor style for geometric rendering.
             // In copy mode, always use SteadyBlock for clear visibility.
             // If lock_cursor_style is enabled, use the config's cursor style instead of the
@@ -151,9 +149,22 @@ impl WindowState {
 
             let cell_gen_start = std::time::Instant::now();
             let (cells, is_cache_hit) = if needs_regeneration {
-                let fresh_cells =
-                    term.get_cells_with_scrollback(scroll_offset, selection, rectangular, cursor);
-                (fresh_cells, false)
+                // Use try_get_cells_with_scrollback to avoid blocking on the internal
+                // pty_session / terminal mutexes when the PTY reader is processing
+                // output.  Falls back to the tab-level cell cache on contention.
+                if let Some(fresh_cells) =
+                    term.try_get_cells_with_scrollback(scroll_offset, selection, rectangular)
+                {
+                    (fresh_cells, false)
+                } else if let Some(ref cached) = cache_cells {
+                    // Internal lock contention — use cached cells.
+                    (cached.as_ref().clone(), true)
+                } else {
+                    // No cache available — fall back to blocking lock for first frame.
+                    let fresh_cells =
+                        term.get_cells_with_scrollback(scroll_offset, selection, rectangular, None);
+                    (fresh_cells, false)
+                }
             } else {
                 (
                     cache_cells

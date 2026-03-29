@@ -20,6 +20,97 @@ pub(crate) struct RowRenderContext<'a> {
 }
 
 impl TerminalManager {
+    /// Non-blocking variant of [`get_cells_with_scrollback`].
+    ///
+    /// Uses `try_lock()` on the internal `PtySession` and `Terminal` mutexes
+    /// instead of blocking `lock()`.  Returns `None` when either lock is held
+    /// by the PTY reader thread, allowing the caller to fall back to cached
+    /// cells without stalling the render loop.
+    pub fn try_get_cells_with_scrollback(
+        &self,
+        scroll_offset: usize,
+        selection: Option<((usize, usize), (usize, usize))>,
+        rectangular: bool,
+    ) -> Option<Vec<Cell>> {
+        let pty = self.pty_session.try_lock()?;
+        let terminal = pty.terminal();
+        let mut term = terminal.try_lock()?;
+        let grid = term.active_grid();
+
+        let rows = grid.rows();
+        let cols = grid.cols();
+        let scrollback_len = grid.scrollback_len();
+        let clamped_offset = scroll_offset.min(scrollback_len);
+        let total_lines = scrollback_len + rows;
+        let end_line = total_lines.saturating_sub(clamped_offset);
+        let start_line = end_line.saturating_sub(rows);
+
+        let mut cells = Vec::with_capacity(rows * cols);
+
+        for line_idx in start_line..end_line {
+            let screen_row = line_idx - start_line;
+
+            if line_idx < scrollback_len {
+                if let Some(line) = grid.scrollback_line(line_idx) {
+                    Self::push_line_from_slice(
+                        line,
+                        &mut RowRenderContext {
+                            cols,
+                            dest: &mut cells,
+                            screen_row,
+                            selection,
+                            rectangular,
+                            cursor: None,
+                            theme: &self.theme,
+                        },
+                    );
+                } else {
+                    Self::push_empty_cells(cols, &mut cells);
+                }
+            } else {
+                let grid_row = line_idx - scrollback_len;
+                Self::push_grid_row(
+                    grid,
+                    grid_row,
+                    &mut RowRenderContext {
+                        cols,
+                        dest: &mut cells,
+                        screen_row,
+                        selection,
+                        rectangular,
+                        cursor: None,
+                        theme: &self.theme,
+                    },
+                );
+            }
+        }
+
+        // Apply trigger highlights on top of cell colors
+        let highlights = term.get_trigger_highlights();
+        for highlight in &highlights {
+            let abs_row = scrollback_len + highlight.row;
+            if abs_row < start_line || abs_row >= end_line {
+                continue;
+            }
+            let screen_row = abs_row - start_line;
+
+            for col in highlight.col_start..highlight.col_end.min(cols) {
+                let cell_idx = screen_row * cols + col;
+                if cell_idx < cells.len() {
+                    if let Some((r, g, b)) = highlight.fg {
+                        cells[cell_idx].fg_color = [r, g, b, 255];
+                    }
+                    if let Some((r, g, b)) = highlight.bg {
+                        cells[cell_idx].bg_color = [r, g, b, 255];
+                    }
+                }
+            }
+        }
+        term.clear_expired_highlights();
+
+        Some(cells)
+    }
+
     /// Get terminal grid with scrollback offset as Cell array for CellRenderer
     pub fn get_cells_with_scrollback(
         &self,

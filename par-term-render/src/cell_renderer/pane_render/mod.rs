@@ -774,17 +774,24 @@ impl CellRenderer {
         self.buffers.actual_bg_instances = bg_index;
         self.buffers.actual_text_instances = text_index;
 
-        // Upload instance buffers to GPU
-        self.queue.write_buffer(
-            &self.buffers.bg_instance_buffer,
-            0,
-            bytemuck::cast_slice(&self.bg_instances),
-        );
-        self.queue.write_buffer(
-            &self.buffers.text_instance_buffer,
-            0,
-            bytemuck::cast_slice(&self.text_instances),
-        );
+        // Upload only the used portion of instance buffers to GPU.
+        // Each pane typically uses a fraction of the full-window buffer, so uploading
+        // only [0..count] instead of the entire array significantly reduces per-pane
+        // staging bandwidth — critical when rendering many split panes per frame.
+        if bg_index > 0 {
+            self.queue.write_buffer(
+                &self.buffers.bg_instance_buffer,
+                0,
+                bytemuck::cast_slice(&self.bg_instances[..bg_index]),
+            );
+        }
+        if text_index > 0 {
+            self.queue.write_buffer(
+                &self.buffers.text_instance_buffer,
+                0,
+                bytemuck::cast_slice(&self.text_instances[..text_index]),
+            );
+        }
 
         Ok(cursor_overlay_start)
     }
