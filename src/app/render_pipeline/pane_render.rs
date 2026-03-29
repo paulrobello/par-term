@@ -251,7 +251,9 @@ pub(super) fn gather_pane_render_data(
             // Use try_get_cells_with_scrollback to avoid blocking on the internal
             // terminal mutex when the PTY reader is processing output.  Falls through
             // to the pane_cells cache on contention.
-            if let Some(fresh) = term.try_get_cells_with_scrollback(scroll_offset, selection, rectangular) {
+            if let Some(fresh) =
+                term.try_get_cells_with_scrollback(scroll_offset, selection, rectangular)
+            {
                 pane.cache.pane_cells = Some(fresh.clone());
                 fresh
             } else if let Some(ref cached) = pane.cache.pane_cells {

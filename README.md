@@ -41,12 +41,23 @@ New to par-term? The [Getting Started Guide](docs/GETTING_STARTED.md) walks you 
 - **[Configuration Reference](docs/CONFIG_REFERENCE.md)** — All 200+ configuration options
 - **[Keyboard Shortcuts](docs/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
 
-## What's New in 0.30.1
+## What's New in 0.30.2
+
+### ⚡ Performance
+
+- **Non-blocking Render Loop**: Replaced blocking mutex locks in the cell generation path with `try_lock()` + cache fallback, fixing severe FPS drops (60→5) with animated shaders when tmux has many active panes.
+- **Focused Pane Cell Caching**: Focused pane cells are cached per frame, eliminating a redundant cell generation + lock acquisition.
+- **Efficient GPU Buffer Uploads**: Pane instance buffers now upload only the populated slice instead of the full window-grid-sized array.
+
+<details>
+<summary><strong>What's New in 0.30.1</strong></summary>
 
 ### 🐛 Bug Fixes
 
 - **macOS/Linux Shift+Letter in modifyOtherKeys Mode 2**: Shift+letter combinations no longer produce lowercase output in crossterm-based apps (e.g. Claude Code). Shift-only alphabetic keys are now exempted from mode-2 encoding, matching the existing mode-1 exemption.
 - **Text Selection Highlight Follows Scroll**: The selection highlight no longer freezes at its original viewport position after scrolling. `Selection` now records the scroll offset at capture time and the renderer adjusts accordingly — applies to normal, line, and rectangular selection modes in all layouts.
+
+</details>
 
 <details>
 <summary><strong>What's New in 0.30.0</strong></summary>
