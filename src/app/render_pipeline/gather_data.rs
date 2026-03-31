@@ -152,11 +152,14 @@ impl WindowState {
         self.flush_cell_cache(&cells, current_cursor_pos, cell_grid_dims);
 
         // Pre-populate the focused pane's cell cache so that gather_pane_render_data
-        // can skip the redundant (and blocking) get_cells_with_scrollback() call.
-        // The cells generated above use identical parameters (scroll_offset, selection,
-        // cursor=None) — see extract_tab_cells comment.
-        if !self.debug.cache_hit
-            && let Some(tab) = self.tab_manager.active_tab_mut()
+        // uses the SAME cells that URL detection saw.  This is critical: without it,
+        // gather_pane_render_data can independently acquire the terminal lock (which
+        // may have been released since extract_tab_cells) and get fresher cells,
+        // creating a mismatch where underlines lag behind content in alt-screen apps
+        // like editors.  The clone cost on cache-hit frames is acceptable because
+        // lock-contention cache hits are infrequent, and on !needs_regeneration
+        // cache hits the content is identical anyway.
+        if let Some(tab) = self.tab_manager.active_tab_mut()
             && let Some(ref mut pm) = tab.pane_manager
             && let Some(pane) = pm.focused_pane_mut()
         {
