@@ -73,6 +73,7 @@ impl WindowState {
             cache_cursor_pos,
             cache_selection,
             cached_scrollback_len,
+            cache_grid_dims,
             cached_terminal_title,
             hovered_url,
         ) = match self.tab_manager.active_tab() {
@@ -96,6 +97,7 @@ impl WindowState {
                 t.active_cache().cursor_pos,
                 t.active_cache().selection,
                 t.active_cache().scrollback_len,
+                t.active_cache().grid_dims,
                 t.active_cache().terminal_title.clone(),
                 t.active_mouse().hovered_url.clone(),
             ),
@@ -123,6 +125,7 @@ impl WindowState {
             cache_scroll_offset,
             cache_cursor_pos,
             cache_selection,
+            cache_grid_dims,
             terminal: terminal.clone(),
             was_alt_screen,
         })?;
@@ -132,6 +135,7 @@ impl WindowState {
         let cursor_style = snap.cursor_style;
         let is_alt_screen = snap.is_alt_screen;
         let current_generation = snap.current_generation;
+        let cell_grid_dims = snap.grid_dims;
 
         // Sync prettifier alt-screen state, cell dims, and debounce.
         self.sync_prettifier_state(is_alt_screen);
@@ -145,7 +149,7 @@ impl WindowState {
         }
 
         // Flush regenerated cells into the render cache (no-op on cache hit).
-        self.flush_cell_cache(&cells, current_cursor_pos);
+        self.flush_cell_cache(&cells, current_cursor_pos, cell_grid_dims);
 
         // Pre-populate the focused pane's cell cache so that gather_pane_render_data
         // can skip the redundant (and blocking) get_cells_with_scrollback() call.
@@ -503,7 +507,7 @@ impl WindowState {
         let debug_url_detect_time = self.apply_url_and_search_highlights(
             &mut cells,
             &renderer_size,
-            grid_cols,
+            cell_grid_dims,
             scroll_offset,
             scrollback_len,
             visible_lines,

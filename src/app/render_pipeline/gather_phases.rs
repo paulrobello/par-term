@@ -159,27 +159,27 @@ impl WindowState {
         &mut self,
         cells: &mut [Cell],
         _renderer_size: &PhysicalSize<u32>,
-        grid_cols: usize,
+        cell_grid_dims: (usize, usize),
         scroll_offset: usize,
         _scrollback_len: usize,
         visible_lines: usize,
     ) -> std::time::Duration {
         let url_detect_start = Instant::now();
         let debug_url_detect_time = if !self.debug.cache_hit {
-            // Derive actual column count from cells rather than using the
-            // renderer's grid_cols.  When the scrollbar is visible the focused
-            // pane's terminal has fewer columns than the renderer grid (due to
-            // scrollbar inset), so using grid_cols would mis-align row
+            // Use the terminal's actual grid dimensions (from TabCellsSnapshot)
+            // rather than the renderer's grid_cols.  In split-pane mode or when
+            // the scrollbar is visible, the pane terminal has different dimensions
+            // than the renderer grid.  Using renderer dims would mis-align row
             // boundaries in the cell array and produce wrong URL positions.
-            let actual_cols = if visible_lines > 0 && !cells.is_empty() {
-                cells.len() / visible_lines
-            } else {
-                grid_cols
-            };
+            let (actual_cols, actual_rows) = cell_grid_dims;
             self.detect_urls(crate::app::window_state::url_hover::UrlDetectData {
                 cells,
-                cols: actual_cols,
-                rows: visible_lines,
+                cols: if actual_cols > 0 { actual_cols } else { 1 },
+                rows: if actual_rows > 0 {
+                    actual_rows
+                } else {
+                    visible_lines
+                },
                 scroll_offset,
             });
             url_detect_start.elapsed()
@@ -253,6 +253,7 @@ impl WindowState {
         &mut self,
         cells: &[Cell],
         current_cursor_pos: Option<(usize, usize)>,
+        grid_dims: (usize, usize),
     ) {
         if self.debug.cache_hit {
             return;
@@ -281,6 +282,7 @@ impl WindowState {
                 tab.active_cache_mut().scroll_offset = current_scroll_offset;
                 tab.active_cache_mut().cursor_pos = current_cursor_pos;
                 tab.active_cache_mut().selection = current_selection;
+                tab.active_cache_mut().grid_dims = grid_dims;
             }
         }
     }

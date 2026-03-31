@@ -21,6 +21,7 @@ pub(super) struct TabCellsParams {
     pub cache_scroll_offset: usize,
     pub cache_cursor_pos: Option<(usize, usize)>,
     pub cache_selection: Option<crate::selection::Selection>,
+    pub cache_grid_dims: (usize, usize),
     pub terminal: Arc<tokio::sync::RwLock<par_term_terminal::TerminalManager>>,
     /// Previous frame's alt-screen state (used as fallback when terminal is locked).
     pub was_alt_screen: bool,
@@ -30,6 +31,10 @@ pub(super) struct TabCellsParams {
 pub(super) struct TabCellsSnapshot {
     /// Rendered cell grid (with selection marks, cursor blink applied)
     pub(super) cells: Vec<crate::cell_renderer::Cell>,
+    /// Actual terminal grid dimensions (cols, rows) at the time cells were generated.
+    /// May differ from the renderer grid when split panes are active or a scrollbar
+    /// inset reduces the column count.
+    pub(super) grid_dims: (usize, usize),
     /// Cursor position on screen (col, row), None if hidden or scrolled away
     pub(super) cursor_pos: Option<(usize, usize)>,
     /// Cursor glyph style (after config overrides)
@@ -57,6 +62,7 @@ impl WindowState {
             cache_scroll_offset,
             cache_cursor_pos,
             cache_selection,
+            cache_grid_dims,
             terminal,
             was_alt_screen,
         } = p;
@@ -181,9 +187,11 @@ impl WindowState {
             self.debug.cell_gen_time = cell_gen_start.elapsed();
 
             let is_alt_screen = term.is_alt_screen_active();
+            let grid_dims = term.dimensions();
 
             Some(TabCellsSnapshot {
                 cells,
+                grid_dims,
                 cursor_pos: current_cursor_pos,
                 cursor_style,
                 is_alt_screen,
@@ -197,6 +205,7 @@ impl WindowState {
             let cached_vec = Arc::try_unwrap(cached).unwrap_or_else(|a| (*a).clone());
             Some(TabCellsSnapshot {
                 cells: cached_vec,
+                grid_dims: cache_grid_dims,
                 cursor_pos: cache_cursor_pos,
                 cursor_style: None,
                 is_alt_screen: was_alt_screen,

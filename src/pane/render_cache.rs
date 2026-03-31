@@ -10,6 +10,7 @@ pub struct RenderCache {
     pub(crate) scroll_offset: usize, // Last scroll offset (for cache invalidation)
     pub(crate) cursor_pos: Option<(usize, usize)>, // Last cursor position (for cache invalidation)
     pub(crate) selection: Option<Selection>, // Last selection state (for cache invalidation)
+    pub(crate) grid_dims: (usize, usize), // Last known terminal grid dimensions (cols, rows)
     pub(crate) terminal_title: String, // Last known terminal title (for change detection)
     pub(crate) scrollback_len: usize, // Last known scrollback length
     pub(crate) pane_cells: Option<Vec<Cell>>, // Cached cells for pane rendering (fallback on try_lock miss)
@@ -31,6 +32,7 @@ impl RenderCache {
             scroll_offset: 0,
             cursor_pos: None,
             selection: None,
+            grid_dims: (0, 0),
             terminal_title: String::new(),
             scrollback_len: 0,
             pane_cells: None,
