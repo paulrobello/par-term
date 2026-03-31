@@ -3,25 +3,49 @@
 //! This module contains methods for detecting URLs in the terminal
 //! and applying visual styling to indicate clickable links.
 
+use crate::cell_renderer::Cell;
 use crate::url_detection;
 
 use super::WindowState;
 
+/// Pre-gathered data for URL detection, avoiding redundant cell generation.
+pub(crate) struct UrlDetectData<'a> {
+    pub cells: &'a [Cell],
+    pub cols: usize,
+    pub rows: usize,
+    pub scroll_offset: usize,
+}
+
 impl WindowState {
-    /// Detect URLs in the visible terminal area (both regex-detected and OSC 8 hyperlinks)
-    pub(crate) fn detect_urls(&mut self) {
-        // Gather data from active tab.
-        // Returns None if the terminal lock could not be acquired.  In that case we
-        // keep existing detected_urls so highlights don't flicker during streaming output.
-        let terminal_data = {
+    /// Detect URLs in the visible terminal area (both regex-detected and OSC 8 hyperlinks).
+    ///
+    /// Accepts pre-generated cells from the render pipeline to avoid a redundant
+    /// (and potentially blocking) `get_cells_with_scrollback()` call.  Only the
+    /// hyperlink metadata still requires a terminal lock, which is acquired
+    /// non-blockingly via `try_get_all_hyperlinks()`.
+    pub(crate) fn detect_urls(&mut self, data: UrlDetectData<'_>) {
+        let UrlDetectData {
+            cells: visible_cells,
+            cols,
+            rows,
+            scroll_offset,
+        } = data;
+
+        if visible_cells.is_empty() || cols == 0 {
+            return;
+        }
+
+        // Fetch OSC 8 hyperlink metadata non-blockingly.
+        // On lock contention (PTY reader busy), skip hyperlink detection for this
+        // frame — regex-based URLs still work, and stale OSC 8 data from the
+        // previous successful fetch is acceptable.
+        let hyperlink_urls = {
             let tab = if let Some(t) = self.tab_manager.active_tab() {
                 t
             } else {
                 return;
             };
 
-            // Use the focused pane's terminal, not tab.terminal, so that URL
-            // detection operates on the correct pane's content when split.
             let pane_terminal = tab
                 .pane_manager
                 .as_ref()
@@ -32,51 +56,25 @@ impl WindowState {
                 None => std::sync::Arc::clone(&tab.terminal),
             };
 
-            // try_read: intentional — URL detection only needs read access (dimensions +
-            // cell snapshot). Using try_read instead of try_write reduces contention with
-            // other concurrent readers. On miss: stale URLs are kept from prior detection,
-            // which is preferable to clearing all highlights and causing a visible flicker.
+            // try_read: intentional — hyperlink metadata only needs read access.
+            // On miss: skip OSC 8 hyperlink detection (regex URLs still detected).
             if let Ok(term) = pane_terminal.try_read() {
-                let (cols, rows) = term.dimensions();
-                let scroll_offset = tab.active_scroll_state().offset;
-                let visible_cells =
-                    term.get_cells_with_scrollback(scroll_offset, None, false, None);
-
-                if visible_cells.is_empty() || cols == 0 {
-                    return;
-                }
-
-                // Build hyperlink ID to URL mapping from terminal
-                let mut hyperlink_urls = std::collections::HashMap::new();
-                let all_hyperlinks = term.get_all_hyperlinks();
-                for hyperlink_info in all_hyperlinks {
-                    // Get the hyperlink ID from the first position
-                    if let Some((col, row)) = hyperlink_info.positions.first() {
-                        // Get the cell at this position to find the hyperlink_id
-                        let cell_idx = row * cols + col;
-                        if let Some(cell) = visible_cells.get(cell_idx)
-                            && let Some(id) = cell.hyperlink_id
-                        {
-                            hyperlink_urls.insert(id, hyperlink_info.url.clone());
+                let mut map = std::collections::HashMap::new();
+                if let Some(all_hyperlinks) = term.try_get_all_hyperlinks() {
+                    for hyperlink_info in all_hyperlinks {
+                        if let Some((col, row)) = hyperlink_info.positions.first() {
+                            let cell_idx = row * cols + col;
+                            if let Some(cell) = visible_cells.get(cell_idx)
+                                && let Some(id) = cell.hyperlink_id
+                            {
+                                map.insert(id, hyperlink_info.url.clone());
+                            }
                         }
                     }
                 }
-
-                Some((cols, rows, visible_cells, scroll_offset, hyperlink_urls))
+                map
             } else {
-                None
-            }
-        };
-
-        // If the terminal lock was not available, keep existing detected_urls.
-        // Clearing them would cause all URL highlights to flicker off for multiple frames
-        // during streaming output (when the PTY writer frequently holds the write lock).
-        // Keeping stale positions is preferable — any brief mis-coloring on changed cells
-        // lasts at most one frame and is far less noticeable than a 100ms highlight blackout.
-        let (cols, rows, visible_cells, scroll_offset, hyperlink_urls) = match terminal_data {
-            Some(data) => data,
-            None => {
-                return;
+                std::collections::HashMap::new()
             }
         };
 
@@ -125,9 +123,11 @@ impl WindowState {
             }));
 
             // Detect OSC 8 hyperlinks in this row (already use column indices)
-            let osc8_urls =
-                url_detection::detect_osc8_hyperlinks(row_cells, absolute_row, &hyperlink_urls);
-            new_urls.extend(osc8_urls);
+            if !hyperlink_urls.is_empty() {
+                let osc8_urls =
+                    url_detection::detect_osc8_hyperlinks(row_cells, absolute_row, &hyperlink_urls);
+                new_urls.extend(osc8_urls);
+            }
 
             // Detect file paths for semantic history (if enabled)
             if self.config.semantic_history_enabled {
@@ -156,6 +156,7 @@ impl WindowState {
         // occur if we reset the cursor here and then had to restore it immediately after.
         if let Some(tab) = self.tab_manager.active_tab_mut() {
             tab.active_mouse_mut().detected_urls = new_urls;
+            tab.active_mouse_mut().url_detect_scroll_offset = scroll_offset;
         }
     }
 }

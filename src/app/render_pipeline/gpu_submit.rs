@@ -361,15 +361,23 @@ impl WindowState {
                                 let do_color = self.config.link_highlight_color_enabled;
                                 let do_underline = self.config.link_highlight_underline;
                                 let hovered_bounds = tab.active_mouse().hovered_url_bounds;
+                                // Use the scroll offset that was active when URLs
+                                // were detected, not the pane's current scroll
+                                // offset.  On cache-hit frames (lock contention
+                                // during scroll), old URLs are retained but
+                                // pane.scroll_offset may have advanced, causing
+                                // viewport_row to drift and underlines to shift.
+                                let url_scroll_offset =
+                                    tab.active_mouse().url_detect_scroll_offset;
                                 for pane in &mut pane_data {
                                     if pane.viewport.focused {
                                         let cols = pane.grid_size.0;
-                                        let scroll_offset = pane.scroll_offset;
                                         for url in detected_urls.iter() {
-                                            if url.row < scroll_offset {
+                                            if url.row < url_scroll_offset {
                                                 continue;
                                             }
-                                            let viewport_row = url.row - scroll_offset;
+                                            let viewport_row =
+                                                url.row - url_scroll_offset;
                                             let is_hovered = hovered_bounds
                                                 == Some((url.row, url.start_col, url.end_col));
                                             for col in url.start_col..url.end_col {

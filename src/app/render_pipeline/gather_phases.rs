@@ -157,16 +157,31 @@ impl WindowState {
     /// Returns the elapsed time spent on URL detection (zero on cache hit).
     pub(super) fn apply_url_and_search_highlights(
         &mut self,
-        _cells: &mut [Cell],
+        cells: &mut [Cell],
         _renderer_size: &PhysicalSize<u32>,
-        _grid_cols: usize,
-        _scroll_offset: usize,
+        grid_cols: usize,
+        scroll_offset: usize,
         _scrollback_len: usize,
         visible_lines: usize,
     ) -> std::time::Duration {
         let url_detect_start = Instant::now();
         let debug_url_detect_time = if !self.debug.cache_hit {
-            self.detect_urls();
+            // Derive actual column count from cells rather than using the
+            // renderer's grid_cols.  When the scrollbar is visible the focused
+            // pane's terminal has fewer columns than the renderer grid (due to
+            // scrollbar inset), so using grid_cols would mis-align row
+            // boundaries in the cell array and produce wrong URL positions.
+            let actual_cols = if visible_lines > 0 && !cells.is_empty() {
+                cells.len() / visible_lines
+            } else {
+                grid_cols
+            };
+            self.detect_urls(crate::app::window_state::url_hover::UrlDetectData {
+                cells,
+                cols: actual_cols,
+                rows: visible_lines,
+                scroll_offset,
+            });
             url_detect_start.elapsed()
         } else {
             std::time::Duration::ZERO
