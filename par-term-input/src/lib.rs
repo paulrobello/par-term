@@ -249,6 +249,100 @@ impl InputHandler {
 
                 let shift = self.modifiers.state().shift_key();
 
+                // Compute xterm modifier parameter for named keys.
+                // Standard: bit0=Shift, bit1=Alt, bit2=Ctrl; value = bits + 1.
+                // Only applied when at least one modifier is held.
+                let has_modifier = shift || alt || ctrl;
+                let modifier_param = if has_modifier {
+                    let mut bits = 0u8;
+                    if shift {
+                        bits |= 1;
+                    }
+                    if alt {
+                        bits |= 2;
+                    }
+                    if ctrl {
+                        bits |= 4;
+                    }
+                    Some(bits + 1)
+                } else {
+                    None
+                };
+
+                // Keys that use the "letter" form: CSI 1;modifier letter (with modifier)
+                // or CSI letter / SS3 letter (without modifier).
+                // Note: SS3 (application cursor mode) is only used when no modifier is
+                // present — with a modifier the sequence switches to CSI form per xterm.
+                if let Some(suffix) = match named_key {
+                    NamedKey::ArrowUp => Some('A'),
+                    NamedKey::ArrowDown => Some('B'),
+                    NamedKey::ArrowRight => Some('C'),
+                    NamedKey::ArrowLeft => Some('D'),
+                    NamedKey::Home => Some('H'),
+                    NamedKey::End => Some('F'),
+                    _ => None,
+                } {
+                    return if let Some(m) = modifier_param {
+                        // CSI 1 ; modifier letter
+                        Some(format!("\x1b[1;{m}{suffix}").into_bytes())
+                    } else if application_cursor
+                        && matches!(
+                            named_key,
+                            NamedKey::ArrowUp
+                                | NamedKey::ArrowDown
+                                | NamedKey::ArrowRight
+                                | NamedKey::ArrowLeft
+                        )
+                    {
+                        // SS3 letter (application cursor, no modifier)
+                        Some(format!("\x1bO{suffix}").into_bytes())
+                    } else {
+                        // CSI letter (normal mode, no modifier)
+                        Some(format!("\x1b[{suffix}").into_bytes())
+                    };
+                }
+
+                // Keys that use the "tilde" form: CSI keycode ; modifier ~ (with modifier)
+                // or CSI keycode ~ (without modifier).
+                if let Some(keycode) = match named_key {
+                    NamedKey::Insert => Some(2),
+                    NamedKey::Delete => Some(3),
+                    NamedKey::PageUp => Some(5),
+                    NamedKey::PageDown => Some(6),
+                    NamedKey::F5 => Some(15),
+                    NamedKey::F6 => Some(17),
+                    NamedKey::F7 => Some(18),
+                    NamedKey::F8 => Some(19),
+                    NamedKey::F9 => Some(20),
+                    NamedKey::F10 => Some(21),
+                    NamedKey::F11 => Some(23),
+                    NamedKey::F12 => Some(24),
+                    _ => None,
+                } {
+                    return if let Some(m) = modifier_param {
+                        Some(format!("\x1b[{keycode};{m}~").into_bytes())
+                    } else {
+                        Some(format!("\x1b[{keycode}~").into_bytes())
+                    };
+                }
+
+                // F1-F4 use SS3 form without modifier, CSI form with modifier.
+                // SS3 P/Q/R/S → CSI 1;modifier P/Q/R/S
+                if let Some(suffix) = match named_key {
+                    NamedKey::F1 => Some('P'),
+                    NamedKey::F2 => Some('Q'),
+                    NamedKey::F3 => Some('R'),
+                    NamedKey::F4 => Some('S'),
+                    _ => None,
+                } {
+                    return if let Some(m) = modifier_param {
+                        Some(format!("\x1b[1;{m}{suffix}").into_bytes())
+                    } else {
+                        Some(format!("\x1bO{suffix}").into_bytes())
+                    };
+                }
+
+                // Remaining keys with special handling (no modifier encoding)
                 let seq = match named_key {
                     // Shift+Enter sends LF (newline) for soft line breaks (like iTerm2)
                     // Regular Enter sends CR (carriage return) for command execution
@@ -271,59 +365,6 @@ impl InputHandler {
                     NamedKey::Space => " ",
                     NamedKey::Backspace => "\x7f",
                     NamedKey::Escape => "\x1b",
-                    NamedKey::Insert => "\x1b[2~",
-                    NamedKey::Delete => "\x1b[3~",
-
-                    // Arrow keys - use SS3 (ESC O) in application cursor mode,
-                    // CSI (ESC [) in normal mode
-                    NamedKey::ArrowUp => {
-                        if application_cursor {
-                            "\x1bOA"
-                        } else {
-                            "\x1b[A"
-                        }
-                    }
-                    NamedKey::ArrowDown => {
-                        if application_cursor {
-                            "\x1bOB"
-                        } else {
-                            "\x1b[B"
-                        }
-                    }
-                    NamedKey::ArrowRight => {
-                        if application_cursor {
-                            "\x1bOC"
-                        } else {
-                            "\x1b[C"
-                        }
-                    }
-                    NamedKey::ArrowLeft => {
-                        if application_cursor {
-                            "\x1bOD"
-                        } else {
-                            "\x1b[D"
-                        }
-                    }
-
-                    // Navigation keys
-                    NamedKey::Home => "\x1b[H",
-                    NamedKey::End => "\x1b[F",
-                    NamedKey::PageUp => "\x1b[5~",
-                    NamedKey::PageDown => "\x1b[6~",
-
-                    // Function keys
-                    NamedKey::F1 => "\x1bOP",
-                    NamedKey::F2 => "\x1bOQ",
-                    NamedKey::F3 => "\x1bOR",
-                    NamedKey::F4 => "\x1bOS",
-                    NamedKey::F5 => "\x1b[15~",
-                    NamedKey::F6 => "\x1b[17~",
-                    NamedKey::F7 => "\x1b[18~",
-                    NamedKey::F8 => "\x1b[19~",
-                    NamedKey::F9 => "\x1b[20~",
-                    NamedKey::F10 => "\x1b[21~",
-                    NamedKey::F11 => "\x1b[23~",
-                    NamedKey::F12 => "\x1b[24~",
 
                     _ => return None,
                 };
