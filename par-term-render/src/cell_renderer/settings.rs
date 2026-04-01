@@ -43,17 +43,14 @@ impl CellRenderer {
         let win_w = self.config.width as f32;
         let win_h = self.config.height as f32;
 
-        // Top inset: space above the pane
+        // Derive insets purely from the pane viewport bounds.  Do NOT add
+        // global egui/content insets here — the viewport already accounts for
+        // them (pane bounds are computed from content that subtracts those
+        // insets).  Adding them again would double-count, shifting the
+        // scrollbar and shrinking the track on HiDPI displays.
         let pane_content_offset_y = viewport.y;
-
-        // Bottom inset: space below the pane + existing egui bottom inset
-        let pane_bottom_inset =
-            (win_h - (viewport.y + viewport.height)).max(0.0) + self.grid.egui_bottom_inset;
-
-        // Right inset: space to the right of the pane + existing egui/panel right inset
-        let pane_right_inset = (win_w - (viewport.x + viewport.width)).max(0.0)
-            + self.grid.content_inset_right
-            + self.grid.egui_right_inset;
+        let pane_bottom_inset = (win_h - (viewport.y + viewport.height)).max(0.0);
+        let pane_right_inset = (win_w - (viewport.x + viewport.width)).max(0.0);
 
         self.scrollbar.update(
             &self.queue,
