@@ -41,13 +41,29 @@ New to par-term? The [Getting Started Guide](docs/GETTING_STARTED.md) walks you 
 - **[Configuration Reference](docs/CONFIG_REFERENCE.md)** — All 200+ configuration options
 - **[Keyboard Shortcuts](docs/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
 
-## What's New in 0.30.2
+## What's New in 0.30.3
+
+### 🐛 Bug Fixes
+
+- **Modifier Keys for Special Keys Outside Tmux**: Shift/Ctrl/Alt now work correctly with arrow keys, Home, End, PageUp/Down, Insert, Delete, and F1-F12 outside tmux.
+- **URL Underline Positioning**: Fixed underlines starting at wrong position in split panes, drifting on scroll, and lagging in alt-screen editors (joe, vim).
+- **Split Pane Scrollbar**: Scrollbar now shows for all panes with scrollback (not just focused), with stable column counts across focus changes.
+- **HiDPI Scrollbar**: Fixed scrollbar positioning and width scaling on Retina/HiDPI displays.
+
+### ⚡ Performance
+
+- **Non-blocking URL Detection**: Eliminated blocking locks in URL detection during render, fixing FPS drops with tmux 6+ panes.
+
+<details>
+<summary><strong>What's New in 0.30.2</strong></summary>
 
 ### ⚡ Performance
 
 - **Non-blocking Render Loop**: Replaced blocking mutex locks in the cell generation path with `try_lock()` + cache fallback, fixing severe FPS drops (60→5) with animated shaders when tmux has many active panes.
 - **Focused Pane Cell Caching**: Focused pane cells are cached per frame, eliminating a redundant cell generation + lock acquisition.
 - **Efficient GPU Buffer Uploads**: Pane instance buffers now upload only the populated slice instead of the full window-grid-sized array.
+
+</details>
 
 <details>
 <summary><strong>What's New in 0.30.1</strong></summary>

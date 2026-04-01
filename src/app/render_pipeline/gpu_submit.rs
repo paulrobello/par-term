@@ -366,8 +366,7 @@ impl WindowState {
                                 // during scroll), old URLs are retained but
                                 // pane.scroll_offset may have advanced, causing
                                 // viewport_row to drift and underlines to shift.
-                                let url_scroll_offset =
-                                    tab.active_mouse().url_detect_scroll_offset;
+                                let url_scroll_offset = tab.active_mouse().url_detect_scroll_offset;
                                 for pane in &mut pane_data {
                                     if pane.viewport.focused {
                                         let cols = pane.grid_size.0;
@@ -375,8 +374,7 @@ impl WindowState {
                                             if url.row < url_scroll_offset {
                                                 continue;
                                             }
-                                            let viewport_row =
-                                                url.row - url_scroll_offset;
+                                            let viewport_row = url.row - url_scroll_offset;
                                             let is_hovered = hovered_bounds
                                                 == Some((url.row, url.start_col, url.end_col));
                                             for col in url.start_col..url.end_col {

@@ -153,7 +153,11 @@ This is useful for quickly navigating through command history in a long terminal
 
 ### Split Pane Support
 
-Scrollback and scrollbar work correctly in split pane mode. Each pane maintains its own independent scrollback buffer, and the scrollbar tracks the focused pane's scroll position. The scrollbar renders within the focused pane's bounds rather than spanning the full window.
+Scrollback and scrollbar work correctly in split pane mode. Each pane maintains its own independent scrollback buffer. The scrollbar appears on every pane that has scrollback content, not just the focused pane, and renders within each pane's bounds rather than spanning the full window.
+
+All panes in a split layout reserve space for the scrollbar inset, regardless of whether the scrollbar is currently visible. This ensures stable column counts when focus changes between panes and prevents text reflow caused by width fluctuations.
+
+On HiDPI displays, the scrollbar width and positioning scale correctly with the display's DPI factor. The scrollbar also rescales dynamically when a window moves between displays with different DPI values.
 
 ## Scrollbar
 

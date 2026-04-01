@@ -26,8 +26,10 @@ Centralized guide for diagnosing and resolving common issues with par-term. Each
 - [Terminal Behavior Issues](#terminal-behavior-issues)
   - [Shell Integration Not Working](#shell-integration-not-working)
   - [Keyboard Shortcuts Not Recognized](#keyboard-shortcuts-not-recognized)
+  - [Modifier Keys Ignored for Special Keys Outside tmux](#modifier-keys-ignored-for-special-keys-outside-tmux)
   - [Copy and Paste Issues](#copy-and-paste-issues)
   - [Mouse Behavior Issues](#mouse-behavior-issues)
+  - [URL Underline Misaligned in Split Panes or During Scroll](#url-underline-misaligned-in-split-panes-or-during-scroll)
 - [SSH and Remote Issues](#ssh-and-remote-issues)
   - [Hosts Not Appearing in Quick Connect](#hosts-not-appearing-in-quick-connect)
   - [Profile Not Auto-Switching on SSH](#profile-not-auto-switching-on-ssh)
@@ -234,15 +236,16 @@ sudo pacman -S gtk3 libxkbcommon wayland libxcb alsa-lib
 
 ### HiDPI and Scaling Issues
 
-**Symptom:** UI elements appear too large, too small, or incorrectly scaled on high-DPI displays.
+**Symptom:** UI elements appear too large, too small, or incorrectly scaled on high-DPI displays. The scrollbar appears at the wrong position or with incorrect width on HiDPI screens or after moving a window between displays with different DPI values.
 
-**Cause:** Pixel-dimension config values or window positions not scaling correctly for the display's DPI factor.
+**Cause:** Pixel-dimension config values or window positions not scaling correctly for the display's DPI factor. Scrollbar width and position calculations may not account for the current scale factor.
 
 **Solution:**
 
 1. Ensure your operating system's display scaling is configured correctly.
 2. par-term auto-detects the display scale factor. If text or UI elements appear incorrect, try adjusting the font size in **Settings > Appearance**.
 3. For multi-monitor setups with mixed DPI values, par-term stores window positions in logical pixels and applies per-monitor DPI conversion automatically. If positions seem off, save and restore a window arrangement to recalibrate.
+4. Scrollbar width and positioning scale with the display DPI factor and rescale dynamically when a window moves between monitors with different DPI values.
 
 ### Inline Graphics Not Displaying
 
@@ -445,6 +448,18 @@ Update to par-term v0.30.1+ — shift-only alphabetic key combinations are now e
 1. Press and release the broken modifier key once to resynchronize state
 2. Update to par-term v0.30.0+ — modifier state is now synthesized directly from physical `KeyboardInput` events as a fallback, preventing permanent breakage
 
+### Modifier Keys Ignored for Special Keys Outside tmux
+
+**Symptom:** Pressing `Shift+Arrow`, `Ctrl+Home`, `Alt+F1`, or other modifier combinations with special keys (arrows, Home, End, Insert, Delete, PageUp, PageDown, F1--F12) has no effect or sends the unmodified key sequence. This affects applications like vim, emacs, and readline that rely on modifier-parameterized sequences.
+
+**Cause:** The input handler was not emitting xterm-standard modifier-parameterized escape sequences (e.g., `CSI 1;2A` for `Shift+Up`) for special keys when running outside tmux.
+
+**Solution:**
+
+par-term now emits correct xterm-standard modifier-parameterized sequences for all special keys with `Shift`, `Ctrl`, `Alt`, and their combinations when running outside a tmux session. No configuration changes are required.
+
+> **📝 Note:** Inside tmux, tmux handles modifier encoding independently.
+
 ### Copy and Paste Issues
 
 **Symptom:** `Cmd+V` or `Ctrl+V` does not paste, or copied text is empty.
@@ -479,6 +494,16 @@ Update to par-term v0.30.1+ — `Selection` now records the scroll offset at cap
 1. To select text when an application has mouse tracking enabled, hold `Shift` while clicking or dragging to bypass the application's mouse capture
 2. par-term includes a drag dead-zone to suppress accidental micro-selections from trackpad jitter
 3. Check mouse-related settings in **Settings > Input > Mouse**
+
+### URL Underline Misaligned in Split Panes or During Scroll
+
+**Symptom:** Hovering over a URL shows the underline at the wrong position -- offset horizontally in split panes, vertically during scroll, misaligned when a scrollbar is present, or incorrectly placed in alt-screen editors (vim, nano, etc.).
+
+**Cause:** The URL detection overlay was not accounting for pane offsets in split layouts, scroll position, scrollbar width, or alt-screen viewport coordinates.
+
+**Solution:**
+
+URL underline positioning now correctly accounts for split pane offsets, scrollbar width, scroll position, and alt-screen mode. URL detection also runs without blocking the render loop, eliminating brief frame stalls when hovering over text. No configuration changes are required.
 
 ## SSH and Remote Issues
 

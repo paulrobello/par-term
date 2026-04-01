@@ -9,18 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.30.3] - 2026-04-01
+
 ### Bug Fixes
-- **Shift/Ctrl/Alt modifiers ignored for special keys outside tmux** — arrow keys, Home, End, PageUp/Down, Insert, Delete, and F1-F12 sent unmodified escape sequences regardless of held modifiers (e.g. Shift+Up sent `CSI A` instead of `CSI 1;2A`). Alt-screen applications (vim, htop, etc.) could not distinguish Shift+Arrow from plain Arrow. Inside tmux this was masked because tmux re-encodes the sequences. Fix: named keys now emit xterm-standard modifier-parameterized sequences (`CSI 1;modifier letter` for arrows/Home/End, `CSI keycode;modifier ~` for tilde-form keys, `CSI 1;modifier letter` for F1-F4).
-- **URL underline wrong in split panes and with scrollbar** — URL detection used the renderer's grid dimensions, which differ from the focused pane's terminal dimensions in split-pane mode or when the scrollbar is visible. This caused row boundary misalignment and incorrect underline positions (underlines starting at the left edge or spanning wrong columns). Fix: capture actual terminal grid dimensions in the cell snapshot and use them for URL detection.
-- **URL underline drifts when scrolling** — on cache-hit frames (lock contention during scroll), old detected URLs retained the previous scroll offset but the renderer used the new scroll offset for viewport row conversion, causing underlines to shift relative to content. Fix: store the scroll offset used during URL detection and use it consistently during rendering.
-- **URL underline lags behind content in alt-screen editors** — when scrolling in editors like joe, the terminal lock could be released between URL detection and pane cell generation, allowing the pane to show fresher content while underlines remained at old positions. Fix: always populate the pane cell cache from `extract_tab_cells` so the pane renders the same cells URL detection saw.
-- **Content wraps incorrectly when clicking into a split pane with scrollbar** — when focusing a split pane caused the scrollbar to appear, the pane rendered cached cells generated at the old (wider) column count in the new (narrower) viewport, causing incorrect text wrapping until the next content change. Fix: invalidate cached pane cells when their dimensions don't match the current grid size after a scrollbar-induced resize.
-- **Scrollbar disappears when split pane loses focus, causing layout reflow on click** — the scrollbar inset was only applied to the focused pane, so clicking a different pane caused the scrollbar to appear, the column count to shrink, and content to visibly reflow. Fix: apply scrollbar inset to all panes in split mode for stable column counts, and show scrollbar for any pane with scrollback (not just the focused pane).
-- **Per-pane scrollbar positioning incorrect on HiDPI displays** — `update_scrollbar_for_pane` double-counted global egui/content insets (already baked into the pane viewport bounds), shifting the scrollbar track and thumb on Retina displays. Fix: derive insets purely from viewport bounds.
-- **Scrollbar width not rescaled on DPI change** — moving the window between displays with different scale factors left the scrollbar at the old DPI width. Fix: rescale scrollbar width in `set_scale_factor` alongside other physical-pixel values.
+- **Modifier keys ignored for special keys outside tmux** — Shift/Ctrl/Alt+Arrow, Home, End, PageUp/Down, Insert, Delete, and F1-F12 sent unmodified escape sequences. Alt-screen apps (vim, htop) could not distinguish modified from plain keys. Now emits xterm-standard modifier-parameterized sequences.
+- **URL underline position wrong in split panes and with scrollbar** — URL detection used renderer grid dimensions instead of actual pane terminal dimensions, causing row misalignment and underlines at wrong positions. Fixed by capturing terminal grid dims in the cell snapshot.
+- **URL underline drifts when scrolling** — on lock-contention frames, stale URLs used old scroll offset while the renderer used the new one. Fixed by storing and using the detection-time scroll offset consistently.
+- **URL underline lags behind content in alt-screen editors** — pane could acquire fresher cells than URL detection saw. Fixed by always populating pane cell cache from `extract_tab_cells`.
+- **Content wraps incorrectly on split pane focus change** — clicking a pane with a scrollbar caused one frame of wrong text wrapping. Fixed by invalidating cached cells when dimensions don't match after scrollbar-induced resize.
+- **Scrollbar disappears when split pane loses focus** — scrollbar inset was only applied to the focused pane, causing layout reflow on click. Fixed: scrollbar inset now applies to all panes in split mode; scrollbar shows for any pane with scrollback.
+- **Per-pane scrollbar positioning wrong on HiDPI** — double-counted global insets already baked into viewport bounds. Fixed by deriving insets purely from viewport bounds.
+- **Scrollbar width not rescaled on DPI change** — moving window between displays left scrollbar at old DPI width. Fixed by rescaling in `set_scale_factor`.
 
 ### Performance
-- **Eliminate blocking lock in URL detection during render** — `detect_urls()` called blocking `pty_session.lock()` + `terminal.lock()` via `get_cells_with_scrollback()` on every cache-miss frame. With tmux running 6+ panes, the PTY reader holds these locks longer per batch, stalling the render thread and dropping FPS from 60 to ~12. Fix: reuse the cells already generated by `extract_tab_cells` (eliminating both the blocking lock and redundant cell generation), and fetch OSC 8 hyperlink metadata via new non-blocking `try_get_all_hyperlinks()`.
+- **Eliminate blocking lock in URL detection** — reuse cells from `extract_tab_cells` instead of re-acquiring `pty_session.lock()` + `terminal.lock()`. Eliminates FPS drops (60→12) with tmux 6+ panes. OSC 8 hyperlinks now fetched via non-blocking `try_get_all_hyperlinks()`.
 
 ---
 

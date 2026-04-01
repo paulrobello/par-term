@@ -21,7 +21,7 @@ pub struct MouseState {
     pub(crate) tracking_press_position: Option<(f64, f64)>,
     pub(crate) detected_urls: Vec<url_detection::DetectedUrl>, // URLs detected in visible terminal area
     pub(crate) url_detect_scroll_offset: usize, // scroll_offset used when detected_urls were computed
-    pub(crate) hovered_url: Option<String>,                    // URL currently under mouse cursor
+    pub(crate) hovered_url: Option<String>,     // URL currently under mouse cursor
     pub(crate) hovered_url_bounds: Option<(usize, usize, usize)>, // (row, start_col, end_col) of hovered URL
 
     // Divider drag state

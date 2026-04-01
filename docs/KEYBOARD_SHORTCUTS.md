@@ -49,6 +49,12 @@ Complete reference for all par-term keyboard shortcuts.
 | `Shift + End` | Jump to bottom |
 | `Mouse Wheel` | Scroll up/down |
 
+### Modifier Keys With Special Keys
+
+Modifier keys (`Shift`, `Ctrl`, `Alt`, and combinations) work with special keys such as arrows, `Home`, `End`, `Insert`, `Delete`, `PageUp`, `PageDown`, and `F1`--`F12`. par-term emits xterm-standard modifier-parameterized escape sequences (e.g., `CSI 1;2A` for `Shift+Up`) so that terminal applications such as vim, tmux, and readline correctly interpret modified special keys.
+
+> **📝 Note:** Inside a tmux session, tmux handles modifier encoding independently. The sequences described here apply to sessions running outside tmux.
+
 ## Copy, Paste & Selection
 
 | Action | macOS | Linux/Windows |
