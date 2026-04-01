@@ -56,10 +56,10 @@ pub(super) type PaneRenderDataResult = Option<(
 ///
 /// Returns `None` when no pane manager is present or the tab is absent.
 /// # Arguments
-/// * `focused_scrollbar_inset` - Physical pixels to subtract from the focused pane's
-///   content width for the scrollbar.  Pass `scrollbar_width` when the scrollbar is
-///   visible, `0.0` when hidden.  This reduces the PTY column count so text wraps
-///   before the scrollbar rather than rendering behind it.
+/// * `scrollbar_inset` - Physical pixels to subtract from each pane's content width
+///   for the scrollbar.  In split-pane mode this is applied to ALL panes so the
+///   column count never changes on focus switch (preventing layout reflow).
+///   The scrollbar is shown per-pane based on each pane's scrollback state.
 pub(super) fn gather_pane_render_data(
     tab: &mut crate::tab::Tab,
     config: &Config,
@@ -67,7 +67,7 @@ pub(super) fn gather_pane_render_data(
     effective_pane_padding: f32,
     cursor_opacity: f32,
     pane_count: usize,
-    focused_scrollbar_inset: f32,
+    scrollbar_inset: f32,
 ) -> PaneRenderDataResult {
     let effective_padding = if pane_count > 1 && config.window.hide_window_padding_on_split {
         0.0
@@ -98,8 +98,8 @@ pub(super) fn gather_pane_render_data(
     );
     pm.set_bounds(bounds);
 
-    // Terminal resize is done per-pane in the loop below so the focused pane
-    // can subtract `focused_scrollbar_inset` from its column calculation.
+    // Terminal resize is done per-pane in the loop below so each pane
+    // subtracts `scrollbar_inset` from its column calculation.
     // This avoids two competing resize calls that would cause SIGWINCH storms.
     // Note: title_height_offset is not needed here because `viewport_height`
     // (computed per-pane below) already subtracts the title bar height.
@@ -152,13 +152,9 @@ pub(super) fn gather_pane_render_data(
 
         // Compute grid size and resize the PTY BEFORE gathering cells so that
         // get_cells_with_scrollback returns cells at the correct dimensions.
-        // The focused pane subtracts the scrollbar inset so text wraps before
-        // the scrollbar instead of rendering behind it.
-        let sb_inset = if is_focused {
-            focused_scrollbar_inset
-        } else {
-            0.0
-        };
+        // All panes subtract the scrollbar inset so column counts remain stable
+        // across focus changes (preventing layout reflow on pane click).
+        let sb_inset = scrollbar_inset;
         let content_w =
             (bounds.width - physical_pane_padding * 2.0 - sb_inset).max(sizing.cell_width);
         let content_h = (viewport_height - physical_pane_padding * 2.0).max(sizing.cell_height);
@@ -445,7 +441,14 @@ impl crate::app::window_state::WindowState {
                 grid_size: pane.grid_size,
                 cursor_pos: pane.cursor_pos,
                 cursor_opacity: pane.cursor_opacity,
-                show_scrollbar: show_scrollbar && focused,
+                // Focused pane: respect autohide via show_scrollbar flag.
+                // Unfocused panes: always show scrollbar when they have scrollback
+                // content, so the scrollbar doesn't disappear on focus loss.
+                show_scrollbar: if focused {
+                    show_scrollbar && pane.scrollback_len > 0
+                } else {
+                    pane.scrollback_len > 0
+                },
                 marks: pane.marks,
                 scrollback_len: pane.scrollback_len,
                 scroll_offset: pane.scroll_offset,

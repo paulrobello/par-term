@@ -294,11 +294,10 @@ impl WindowState {
                         effective_pane_padding,
                         self.cursor_anim.cursor_opacity,
                         pane_count,
-                        if show_scrollbar {
-                            sizing.scrollbar_width
-                        } else {
-                            0.0
-                        },
+                        // Always pass scrollbar width in split-pane mode so all
+                        // panes have a stable column count regardless of focus or
+                        // scrollback state — prevents layout reflow on pane click.
+                        sizing.scrollbar_width,
                     )
                 });
 
