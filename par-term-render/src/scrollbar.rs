@@ -549,6 +549,14 @@ impl Scrollbar {
         self.width
     }
 
+    pub fn thumb_color(&self) -> [f32; 4] {
+        self.thumb_color
+    }
+
+    pub fn track_color(&self) -> [f32; 4] {
+        self.track_color
+    }
+
     pub fn position_right(&self) -> bool {
         self.position_right
     }

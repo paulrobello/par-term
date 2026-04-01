@@ -585,6 +585,13 @@ impl Renderer {
             self.cell_renderer
                 .update_window_padding(new_physical_padding);
 
+            // Rescale scrollbar width
+            let logical_scrollbar = self.cell_renderer.scrollbar.width() / old_scale;
+            let new_physical_scrollbar = logical_scrollbar * new_scale;
+            self.cell_renderer
+                .scrollbar
+                .update_appearance(new_physical_scrollbar, self.cell_renderer.scrollbar.thumb_color(), self.cell_renderer.scrollbar.track_color());
+
             // Sync new scale factor to shader renderers for cursor sizing
             if let Some(ref mut cs) = self.custom_shader_renderer {
                 cs.set_scale_factor(new_scale);
