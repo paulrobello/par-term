@@ -146,41 +146,23 @@ impl Renderer {
             );
             let intermediate_view = custom_shader.intermediate_texture_view().clone();
 
-            // Update scrollbar state before rendering panes to intermediate
-            for pane in panes.iter() {
-                if pane.viewport.focused && pane.show_scrollbar {
-                    let total_lines = pane.scrollback_len + pane.grid_size.1;
-                    let new_state = (
-                        pane.scroll_offset,
-                        pane.grid_size.1,
-                        total_lines,
-                        pane.marks.len(),
-                        self.cell_renderer.config.width,
-                        self.cell_renderer.config.height,
-                        pane.viewport.x.to_bits(),
-                        pane.viewport.y.to_bits(),
-                        pane.viewport.width.to_bits(),
-                        pane.viewport.height.to_bits(),
-                    );
-                    if new_state != self.last_scrollbar_state {
-                        self.last_scrollbar_state = new_state;
-                        self.cell_renderer.update_scrollbar_for_pane(
-                            pane.scroll_offset,
-                            pane.grid_size.1,
-                            total_lines,
-                            &pane.marks,
-                            &pane.viewport,
-                        );
-                    }
-                    break;
-                }
-            }
-
             // Render each pane's content to the intermediate texture.
+            // Scrollbar geometry is updated per-pane before each render call so
+            // unfocused panes can also show their own scrollbar.
             // `scratch` is declared outside the loop so its capacity is preserved
             // across iterations, avoiding a per-pane heap allocation.
             let mut scratch: Vec<SeparatorMark> = Vec::new();
             for pane in panes.iter() {
+                if pane.show_scrollbar {
+                    let total_lines = pane.scrollback_len + pane.grid_size.1;
+                    self.cell_renderer.update_scrollbar_for_pane(
+                        pane.scroll_offset,
+                        pane.grid_size.1,
+                        total_lines,
+                        &pane.marks,
+                        &pane.viewport,
+                    );
+                }
                 fill_visible_separator_marks(
                     &mut scratch,
                     &pane.marks,
@@ -291,47 +273,23 @@ impl Renderer {
         // texture and the shader output includes the processed terminal content.
         // Skip re-rendering panes to the content view.
         if !full_content_mode {
-            // Update scrollbar state for the focused pane before rendering.
-            // In single-pane mode this is done in the main render loop; in split mode
-            // we must do it here, constrained to the pane's pixel bounds, so the
-            // track and thumb appear inside the focused pane rather than spanning
-            // the full window height/width.
-            for pane in panes.iter() {
-                if pane.viewport.focused && pane.show_scrollbar {
-                    let total_lines = pane.scrollback_len + pane.grid_size.1;
-                    let new_state = (
-                        pane.scroll_offset,
-                        pane.grid_size.1,
-                        total_lines,
-                        pane.marks.len(),
-                        self.cell_renderer.config.width,
-                        self.cell_renderer.config.height,
-                        // Include pane viewport bounds so splits/resizes trigger
-                        // a scrollbar geometry update (viewport changes position/size).
-                        pane.viewport.x.to_bits(),
-                        pane.viewport.y.to_bits(),
-                        pane.viewport.width.to_bits(),
-                        pane.viewport.height.to_bits(),
-                    );
-                    if new_state != self.last_scrollbar_state {
-                        self.last_scrollbar_state = new_state;
-                        self.cell_renderer.update_scrollbar_for_pane(
-                            pane.scroll_offset,
-                            pane.grid_size.1,
-                            total_lines,
-                            &pane.marks,
-                            &pane.viewport,
-                        );
-                    }
-                    break;
-                }
-            }
-
             // Render each pane's content (skip background image since we rendered it full-screen).
+            // Scrollbar geometry is updated per-pane before each render call so
+            // unfocused panes can also show their own scrollbar.
             // `scratch` is declared outside the loop so its capacity is preserved
             // across iterations, avoiding a per-pane heap allocation.
             let mut scratch: Vec<SeparatorMark> = Vec::new();
             for pane in panes {
+                if pane.show_scrollbar {
+                    let total_lines = pane.scrollback_len + pane.grid_size.1;
+                    self.cell_renderer.update_scrollbar_for_pane(
+                        pane.scroll_offset,
+                        pane.grid_size.1,
+                        total_lines,
+                        &pane.marks,
+                        &pane.viewport,
+                    );
+                }
                 fill_visible_separator_marks(
                     &mut scratch,
                     &pane.marks,
