@@ -81,14 +81,22 @@ pub(crate) fn build_shell_env(
         format!("w0t0p0:{session_uuid}"),
     );
 
-    // Inherit locale environment variables from the parent process so that
-    // programs like tmux can detect UTF-8 support.  Without these, tmux falls
-    // back to ACS (Alternate Character Set) line-drawing instead of Unicode
-    // box-drawing characters, causing TUI borders to render as ASCII dashes.
+    // Ensure UTF-8 locale is set so programs like tmux, starship, and TUI apps
+    // can detect UTF-8 support and use Unicode box-drawing characters.
+    // First try inheriting from the parent process; if nothing is set (common
+    // when launched from Finder/Dock on macOS), fall back to en_US.UTF-8.
     for key in &["LANG", "LC_ALL", "LC_CTYPE", "LC_COLLATE", "LC_MESSAGES"] {
         if let Ok(val) = std::env::var(key) {
             env.insert((*key).to_string(), val);
         }
+    }
+    // Guarantee LANG is always set — without it, tmux and starship fall back
+    // to ASCII.  Only set the default if no locale var was inherited above.
+    if !env.contains_key("LANG")
+        && !env.contains_key("LC_ALL")
+        && !env.contains_key("LC_CTYPE")
+    {
+        env.insert("LANG".to_string(), "en_US.UTF-8".to_string());
     }
 
     // Merge user-configured shell_env (user values take precedence)
