@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Bug Fixes
+- **Tab click leaks mouse press to tmux** — clicking a tab sometimes caused text selection/highlight in tmux panes. Stale mouse position (from skipped `CursorMoved` updates while egui claimed the pointer) let presses bypass the tab-bar guard and reach tmux mouse tracking. Fixed by always updating stored mouse position on cursor move, and marking tab-bar presses as consumed so the matching release is also blocked.
+
 ---
 
 ## [0.30.3] - 2026-04-01

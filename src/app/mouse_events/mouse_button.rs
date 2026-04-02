@@ -59,6 +59,12 @@ impl WindowState {
         // Check if click is in the tab bar area - if so, let egui handle it
         // IMPORTANT: Do this BEFORE setting button_pressed to avoid selection state issues
         if self.is_mouse_in_tab_bar(mouse_position) {
+            // Mark press as consumed so the matching release is also blocked,
+            // even if is_egui_using_pointer() was stale when the press arrived
+            // and didn't set ui_consumed_mouse_press in handle_window_event.
+            if state == ElementState::Pressed {
+                self.focus_state.ui_consumed_mouse_press = true;
+            }
             // Request redraw so egui can process the click event
             self.request_redraw();
             return; // Click is on tab bar, don't process as terminal event

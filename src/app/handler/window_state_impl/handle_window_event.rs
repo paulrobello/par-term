@@ -425,6 +425,16 @@ impl WindowState {
             }
 
             WindowEvent::CursorMoved { position, .. } => {
+                // Always update the stored mouse position so that hit-testing
+                // (is_mouse_in_tab_bar, pixel_to_cell, etc.) uses the latest
+                // coordinates even when egui claims the pointer and
+                // handle_mouse_move() is skipped.  Without this, a stale position
+                // can cause a subsequent MouseInput press to bypass the tab-bar
+                // guard and leak through to tmux mouse tracking.
+                if let Some(tab) = self.tab_manager.active_tab_mut() {
+                    tab.active_mouse_mut().position = (position.x, position.y);
+                }
+
                 // Skip terminal handling if egui UI is visible or using the pointer
                 if any_ui_visible || self.is_egui_using_pointer() {
                     // Request redraw so egui can update hover states
