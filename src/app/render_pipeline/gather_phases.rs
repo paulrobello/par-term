@@ -41,41 +41,58 @@ impl WindowState {
             // 1. Scrollback marks (populated via set_mark_command_at from grid text extraction)
             // 2. Core library command history (populated by the terminal emulator core)
             //
-            // synced_commands gates the first-time add. For subsequent frames, if the
-            // exit code was stored as None (command finished before the D-marker was
-            // processed), we allow an update to Some(n) from either source.
-            for mark in term.scrollback_marks() {
-                if let Some(ref cmd) = mark.command
-                    && !cmd.is_empty()
-                {
-                    if self.overlay_ui.synced_commands.insert(cmd.clone()) {
-                        self.overlay_ui.command_history.add(
-                            cmd.clone(),
-                            mark.exit_code,
-                            mark.duration_ms,
-                        );
-                    } else if mark.exit_code.is_some() {
-                        self.overlay_ui.command_history.update_exit_code_if_unknown(
-                            cmd,
-                            mark.exit_code,
-                            mark.duration_ms,
-                        );
+            // Only run when scrollback has grown since last sync — both
+            // scrollback_marks() and core_command_history() clone the FULL
+            // internal Vec on each call, which is O(n) where n grows with
+            // session time. Skipping when scrollback is unchanged avoids
+            // these allocations entirely on idle frames, preventing the
+            // gradual FPS degradation seen in long tmux sessions.
+            if sb_len > cached_scrollback_len {
+                let marks = term.scrollback_marks();
+                let prev_mark_count = self.overlay_ui.synced_mark_count;
+                if marks.len() > prev_mark_count {
+                    for mark in marks.iter().skip(prev_mark_count) {
+                        if let Some(ref cmd) = mark.command
+                            && !cmd.is_empty()
+                        {
+                            if self.overlay_ui.synced_commands.insert(cmd.clone()) {
+                                self.overlay_ui.command_history.add(
+                                    cmd.clone(),
+                                    mark.exit_code,
+                                    mark.duration_ms,
+                                );
+                            } else if mark.exit_code.is_some() {
+                                self.overlay_ui.command_history.update_exit_code_if_unknown(
+                                    cmd,
+                                    mark.exit_code,
+                                    mark.duration_ms,
+                                );
+                            }
+                        }
                     }
+                    self.overlay_ui.synced_mark_count = marks.len();
                 }
-            }
-            for (cmd, exit_code, duration_ms) in term.core_command_history() {
-                if !cmd.is_empty() {
-                    if self.overlay_ui.synced_commands.insert(cmd.clone()) {
-                        self.overlay_ui
-                            .command_history
-                            .add(cmd, exit_code, duration_ms);
-                    } else if exit_code.is_some() {
-                        self.overlay_ui.command_history.update_exit_code_if_unknown(
-                            &cmd,
-                            exit_code,
-                            duration_ms,
-                        );
+                let history = term.core_command_history();
+                let prev_history_count = self.overlay_ui.synced_core_history_count;
+                if history.len() > prev_history_count {
+                    for (cmd, exit_code, duration_ms) in history.iter().skip(prev_history_count) {
+                        if !cmd.is_empty() {
+                            if self.overlay_ui.synced_commands.insert(cmd.clone()) {
+                                self.overlay_ui
+                                    .command_history
+                                    .add(cmd.clone(), *exit_code, *duration_ms);
+                            } else if exit_code.is_some() {
+                                self.overlay_ui
+                                    .command_history
+                                    .update_exit_code_if_unknown(
+                                        cmd,
+                                        *exit_code,
+                                        *duration_ms,
+                                    );
+                            }
+                        }
                     }
+                    self.overlay_ui.synced_core_history_count = history.len();
                 }
             }
 

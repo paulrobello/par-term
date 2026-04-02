@@ -35,6 +35,10 @@ pub(crate) struct OverlayUiState {
     /// `pub(crate)` rather than fully private because access goes through
     /// `self.overlay_ui.synced_commands` from `impl WindowState` methods.
     pub(crate) synced_commands: std::collections::HashSet<String>,
+    /// Number of scrollback marks already synced (skip on next iteration).
+    pub(crate) synced_mark_count: usize,
+    /// Number of core command history entries already synced.
+    pub(crate) synced_core_history_count: usize,
     pub(crate) paste_special_ui: PasteSpecialUI,
     pub(crate) tmux_session_picker_ui: TmuxSessionPickerUI,
     pub(crate) tmux_status_bar_ui: TmuxStatusBarUI,
@@ -74,6 +78,8 @@ impl OverlayUiState {
                 ch
             },
             synced_commands: std::collections::HashSet::new(),
+            synced_mark_count: 0,
+            synced_core_history_count: 0,
             paste_special_ui: PasteSpecialUI::new(),
             tmux_session_picker_ui: TmuxSessionPickerUI::new(),
             tmux_status_bar_ui: TmuxStatusBarUI::new(),
