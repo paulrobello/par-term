@@ -367,12 +367,14 @@ impl WindowState {
         }
 
         // Get terminal modes (if available)
-        // try_lock: intentional — reading terminal mode flags from the sync event loop.
-        // On miss: fall back to defaults (0, false). This means a key press encodes with
-        // default cursor/modify-other-keys mode for one frame — safe for interactive typing.
+        // try_read: intentional — only reading terminal mode flags, no mutation needed.
+        // Using try_read instead of try_write dramatically reduces contention with
+        // the render thread (multiple readers can hold the lock simultaneously),
+        // preventing intermittent fallback to wrong modes that caused modifier keys
+        // (especially Shift) to stop working in alt-screen/TUI apps.
         let (modify_other_keys_mode, application_cursor) =
             if let Some(tab) = self.tab_manager.active_tab() {
-                if let Ok(term) = tab.terminal.try_write() {
+                if let Ok(term) = tab.terminal.try_read() {
                     (term.modify_other_keys_mode(), term.application_cursor())
                 } else {
                     (0, false)
