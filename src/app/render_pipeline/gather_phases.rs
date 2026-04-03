@@ -78,17 +78,17 @@ impl WindowState {
                     for (cmd, exit_code, duration_ms) in history.iter().skip(prev_history_count) {
                         if !cmd.is_empty() {
                             if self.overlay_ui.synced_commands.insert(cmd.clone()) {
-                                self.overlay_ui
-                                    .command_history
-                                    .add(cmd.clone(), *exit_code, *duration_ms);
+                                self.overlay_ui.command_history.add(
+                                    cmd.clone(),
+                                    *exit_code,
+                                    *duration_ms,
+                                );
                             } else if exit_code.is_some() {
-                                self.overlay_ui
-                                    .command_history
-                                    .update_exit_code_if_unknown(
-                                        cmd,
-                                        *exit_code,
-                                        *duration_ms,
-                                    );
+                                self.overlay_ui.command_history.update_exit_code_if_unknown(
+                                    cmd,
+                                    *exit_code,
+                                    *duration_ms,
+                                );
                             }
                         }
                     }

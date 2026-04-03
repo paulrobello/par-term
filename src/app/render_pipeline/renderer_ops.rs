@@ -205,6 +205,10 @@ pub(super) fn update_gpu_renderer_state(
         && let Some(tab) = tab_manager.active_tab()
         && let Ok(terminal) = tab.terminal.try_write()
     {
+        // Remove graphics whose rows have been overwritten by cell writes
+        // (e.g. tmux redraw after split/clear doesn't send ED 2).
+        terminal.invalidate_overwritten_graphics();
+
         let mut graphics = terminal.get_graphics_with_animations();
         let scrollback_len_for_gfx = terminal.scrollback_len();
 

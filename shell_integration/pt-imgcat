@@ -42,6 +42,113 @@ _pt_print_st() {
     fi
 }
 
+# Get image pixel dimensions as "width height".
+# Returns empty string on failure.
+_pt_image_dims() {
+    _f="$1"
+    if [ ! -f "$_f" ]; then
+        return
+    fi
+    # macOS: sips is always available
+    if command -v sips >/dev/null 2>&1; then
+        _w=$(sips --getProperty pixelWidth "$_f" 2>/dev/null | awk '/pixelWidth/{print $2}')
+        _h=$(sips --getProperty pixelHeight "$_f" 2>/dev/null | awk '/pixelHeight/{print $2}')
+        if [ -n "$_w" ] && [ -n "$_h" ]; then
+            printf '%s %s' "$_w" "$_h"
+            return
+        fi
+    fi
+    # ImageMagick
+    if command -v identify >/dev/null 2>&1; then
+        _dims=$(identify -format '%w %h' "$_f" 2>/dev/null)
+        if [ -n "$_dims" ]; then
+            printf '%s' "$_dims"
+            return
+        fi
+    fi
+    # file(1) — parse "NNN x NNN" from output (works for PNG, JPEG, GIF)
+    if command -v file >/dev/null 2>&1; then
+        _pair=$(file "$_f" 2>/dev/null | grep -oE '[0-9]+ x [0-9]+' | head -1)
+        if [ -n "$_pair" ]; then
+            printf '%s' "$_pair" | sed 's/ x / /'
+            return
+        fi
+    fi
+}
+
+# After displaying an image inside tmux, advance tmux's cursor so the
+# shell prompt appears below the image (tmux's virtual terminal doesn't
+# see passthrough content, so its cursor stays put).
+_pt_tmux_advance_cursor() {
+    _rows_to_advance="$1"
+    if [ "$_rows_to_advance" -le 0 ] 2>/dev/null; then
+        return
+    fi
+    _i=0
+    while [ "$_i" -lt "$_rows_to_advance" ]; do
+        printf '\n'
+        _i=$((_i + 1))
+    done
+}
+
+# Estimate the number of terminal rows the image will occupy.
+# Uses explicit --height if in cell units, otherwise computes from
+# image pixel dimensions and estimated cell metrics.
+_pt_estimate_rows() {
+    _img_file="$1"      # file path (empty for stdin)
+    _opt_width="$2"     # --width value or empty
+    _opt_height="$3"    # --height value or empty
+    _preserve="$4"      # 1 or 0
+
+    # If --height is in cell units (no "px" suffix), use it directly.
+    if [ -n "$_opt_height" ]; then
+        case "$_opt_height" in
+            *px) ;;  # pixel units — fall through to calculation
+            *)
+                printf '%s' "$_opt_height"
+                return
+                ;;
+        esac
+    fi
+
+    # Need image pixel dimensions for calculation.
+    if [ -z "$_img_file" ] || [ ! -f "$_img_file" ]; then
+        return
+    fi
+    _dims=$(_pt_image_dims "$_img_file")
+    if [ -z "$_dims" ]; then
+        return
+    fi
+    _img_w=$(printf '%s' "$_dims" | cut -d' ' -f1)
+    _img_h=$(printf '%s' "$_dims" | cut -d' ' -f2)
+    if [ -z "$_img_w" ] || [ -z "$_img_h" ] || [ "$_img_h" -le 0 ] 2>/dev/null; then
+        return
+    fi
+
+    # Terminal metrics (best-effort estimates).
+    _term_cols=$(tput cols 2>/dev/null || echo 80)
+    _cell_w=8
+    _cell_h=16
+    _term_px_w=$((_term_cols * _cell_w))
+
+    # If explicit pixel height, use that.
+    if [ -n "$_opt_height" ]; then
+        _display_h=$(printf '%s' "$_opt_height" | sed 's/px$//')
+    else
+        # Scale to fit terminal width if image is wider.
+        if [ "$_img_w" -gt "$_term_px_w" ]; then
+            # display_h = img_h * term_px_w / img_w  (integer math)
+            _display_h=$(( _img_h * _term_px_w / _img_w ))
+        else
+            _display_h="$_img_h"
+        fi
+    fi
+
+    # Ceiling division: rows = (display_h + cell_h - 1) / cell_h
+    _rows=$(( (_display_h + _cell_h - 1) / _cell_h ))
+    printf '%s' "$_rows"
+}
+
 # Defaults
 _width=""
 _height=""
@@ -145,4 +252,14 @@ else
     printf '%s' "$_b64data"
     _pt_print_st
     printf '\n'
+
+    # In tmux, advance the cursor so the prompt appears below the image.
+    # tmux's virtual terminal doesn't see passthrough content, so its
+    # cursor stays put without this.
+    if _pt_is_tmux; then
+        _est_rows=$(_pt_estimate_rows "$_file" "$_width" "$_height" "$_preserve_aspect")
+        if [ -n "$_est_rows" ] && [ "$_est_rows" -gt 0 ] 2>/dev/null; then
+            _pt_tmux_advance_cursor "$_est_rows"
+        fi
+    fi
 fi

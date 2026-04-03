@@ -92,10 +92,7 @@ pub(crate) fn build_shell_env(
     }
     // Guarantee LANG is always set — without it, tmux and starship fall back
     // to ASCII.  Only set the default if no locale var was inherited above.
-    if !env.contains_key("LANG")
-        && !env.contains_key("LC_ALL")
-        && !env.contains_key("LC_CTYPE")
-    {
+    if !env.contains_key("LANG") && !env.contains_key("LC_ALL") && !env.contains_key("LC_CTYPE") {
         env.insert("LANG".to_string(), "en_US.UTF-8".to_string());
     }
 

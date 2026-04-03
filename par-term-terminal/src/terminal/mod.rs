@@ -50,6 +50,20 @@ pub struct TerminalManager {
     pub(crate) scrollback_metadata: ScrollbackMetadata,
     /// Shell lifecycle marker state machine (OSC 133 tracking).
     pub(crate) marker_tracker: marker_tracking::MarkerTracker,
+    /// Graphic IDs and their first-seen timestamps.
+    ///
+    /// Used by [`graphics::invalidate_overwritten_graphics`] to enforce a
+    /// time-based grace period: graphics are immune to dirty-row invalidation
+    /// for a short window after first appearing, which survives tmux's
+    /// post-command pane redraw without false positives.
+    known_graphic_times: Mutex<std::collections::HashMap<u64, std::time::Instant>>,
+    /// Scrollback length observed on the previous frame.
+    ///
+    /// Used by [`graphics::invalidate_overwritten_graphics`] to detect when
+    /// the terminal has scrolled.  During scroll the core library repositions
+    /// graphics via `adjust_for_scroll_up_with_scrollback()` and marks all
+    /// rows dirty — those dirty rows must NOT trigger graphic invalidation.
+    prev_scrollback_len: Mutex<usize>,
 }
 
 impl TerminalManager {
@@ -76,6 +90,8 @@ impl TerminalManager {
             theme: Theme::default(),
             scrollback_metadata: ScrollbackMetadata::new(),
             marker_tracker: marker_tracking::MarkerTracker::new(),
+            known_graphic_times: Mutex::new(std::collections::HashMap::new()),
+            prev_scrollback_len: Mutex::new(0),
         })
     }
 

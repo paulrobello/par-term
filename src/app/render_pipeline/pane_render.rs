@@ -327,6 +327,10 @@ pub(super) fn gather_pane_render_data(
 
         // Collect inline graphics (Sixel/iTerm2/Kitty)
         let pane_graphics = if let Ok(term) = pane.terminal.try_write() {
+            // Remove graphics whose rows have been overwritten by cell writes
+            // (e.g. tmux control-mode redraw doesn't send ED 2).
+            term.invalidate_overwritten_graphics();
+
             let mut g = term.get_graphics_with_animations();
             let sb = term.get_scrollback_graphics();
             crate::debug_log!(
