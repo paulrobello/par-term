@@ -64,7 +64,7 @@ Use `make tail-log` or `tail -f /tmp/par_term_debug.log` to monitor the log in r
 | `ITERM_SESSION_ID` | `w0t0p0:<uuid>` | Set by par-term per session. Used by Claude Code and other tools for OSC 52 clipboard detection. Format: `w{window}t{tab}p{pane}:{UUID}`. |
 | `__PAR_TERM` | `1` | Set by par-term as an identity marker. Shell integration scripts use this to detect they are running inside par-term. |
 | `PATH` | — | System executable search path. Read at startup to locate the shell and other programs. par-term augments `PATH` with common tool directories (e.g., `/opt/homebrew/bin`, `~/.cargo/bin`) when launching child processes. |
-| `LANG` | — | Locale setting forwarded to the child shell. |
+| `LANG` | `en_US.UTF-8` | Locale setting inherited from the parent environment and forwarded to the child shell. If no locale variables (`LANG`, `LC_ALL`, `LC_CTYPE`) are set in the parent environment (e.g., when launched from Finder/Dock), defaults to `en_US.UTF-8`. |
 | `COLORTERM` | — | Color capability hint (`truecolor` or `24bit`). Forwarded to child processes. |
 
 ---

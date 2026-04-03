@@ -41,7 +41,22 @@ New to par-term? The [Getting Started Guide](docs/GETTING_STARTED.md) walks you 
 - **[Configuration Reference](docs/CONFIG_REFERENCE.md)** — All 200+ configuration options
 - **[Keyboard Shortcuts](docs/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
 
-## What's New in 0.30.3
+## What's New in 0.30.4
+
+### 🐛 Bug Fixes
+
+- **Stale Inline Graphics in Tmux**: Graphics (Sixel/iTerm2/Kitty) no longer persist after tmux redraws cells over them.
+- **Tab Click Leaks to Tmux**: Clicking a tab no longer causes spurious text selection in tmux panes.
+- **UTF-8 Locale on Finder/Dock Launch**: PTY now defaults to `en_US.UTF-8` when no locale is inherited, fixing tmux/starship ASCII fallback.
+- **Sporadic Modifier Key Failures**: Switched terminal mode queries from write lock to read lock, eliminating intermittent Shift/Ctrl/Alt failures in alt-screen apps.
+- **Tmux Box-Drawing Characters**: Locale env vars are now inherited so tmux uses proper Unicode line-drawing instead of ASCII.
+
+### ⚡ Performance
+
+- **FPS Degradation in Long Tmux Sessions**: Fixed per-frame cell clone on cache hits and O(n) mark/history iteration that caused FPS to drop from 60→12 over time.
+
+<details>
+<summary><strong>What's New in 0.30.3</strong></summary>
 
 ### 🐛 Bug Fixes
 
@@ -53,6 +68,8 @@ New to par-term? The [Getting Started Guide](docs/GETTING_STARTED.md) walks you 
 ### ⚡ Performance
 
 - **Non-blocking URL Detection**: Eliminated blocking locks in URL detection during render, fixing FPS drops with tmux 6+ panes.
+
+</details>
 
 <details>
 <summary><strong>What's New in 0.30.2</strong></summary>

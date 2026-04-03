@@ -9,8 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.30.4] - 2026-04-03
+
 ### Bug Fixes
-- **Tab click leaks mouse press to tmux** — clicking a tab sometimes caused text selection/highlight in tmux panes. Stale mouse position (from skipped `CursorMoved` updates while egui claimed the pointer) let presses bypass the tab-bar guard and reach tmux mouse tracking. Fixed by always updating stored mouse position on cursor move, and marking tab-bar presses as consumed so the matching release is also blocked.
+- **Stale inline graphics persist after tmux split/clear** — when tmux redraws cells over Sixel/iTerm2/Kitty graphics without sending ED 2, images persisted indefinitely. Added three-layer invalidation: scroll detection, 500ms time-based grace period, and per-frame dirty-row threshold (>50% of graphic rows dirty).
+- **Tab click leaks mouse press to tmux** — clicking a tab sometimes caused text selection/highlight in tmux panes. Fixed by always updating stored mouse position on cursor move, and marking tab-bar presses as consumed so the matching release is also blocked.
+- **No UTF-8 locale when launched from Finder/Dock** — PTY environment had no LANG/LC_ALL/LC_CTYPE when launched outside a terminal, causing tmux and starship to fall back to ASCII. Now inherits locale vars from parent and defaults LANG to `en_US.UTF-8` when none are set.
+- **Modifier keys stop working sporadically in alt-screen apps** — key handler used `try_write()` for read-only terminal mode queries; under render-thread write-lock contention, this failed and fell back to mode 0. Switched to `try_read()` for concurrent reader access.
+- **Tmux box-drawing characters render as ASCII** — `build_shell_env()` did not inherit LANG/LC_ALL/LC_CTYPE from the parent process, so tmux fell back to ACS line-drawing. Fixed by inheriting locale env vars before merging user config overrides.
+
+### Performance
+- **FPS degradation in long tmux sessions** — two causes: (1) per-frame full cell Vec clone even on cache-hit frames, and (2) O(n) mark/history iteration growing linearly with session time. Fixed by restoring cache-hit guard and only iterating new entries beyond last synced position.
 
 ---
 
