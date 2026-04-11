@@ -12,6 +12,7 @@ par-term provides a multi-tab interface for managing multiple terminal sessions 
   - [Drag-and-Drop Reordering](#drag-and-drop-reordering)
   - [Keyboard Reordering](#keyboard-reordering)
 - [Duplicating Tabs](#duplicating-tabs)
+- [Moving tabs between windows](#moving-tabs-between-windows)
 - [Tab Icons](#tab-icons)
 - [Tab Bar](#tab-bar)
   - [Tab Bar Position](#tab-bar-position)
@@ -175,6 +176,39 @@ Any tab can be duplicated via the context menu or keyboard shortcut:
 - The new tab starts a fresh shell session in the inherited directory
 
 > **📝 Note:** The duplicated tab launches a new shell process. Running commands or session state from the original tab are not carried over.
+
+## Moving tabs between windows
+
+A tab (including its PTY, scrollback, running processes, split panes, session
+logger, and prettifier state) can be moved to a different window without being
+restarted.
+
+**Context menu:**
+
+- Right-click a tab → **Move Tab to New Window** spawns a new par-term window
+  with the tab as its only occupant. The new window matches the source window's
+  size and is placed 30 pixels down-and-right from the source, clamped to the
+  source monitor's bounds. Disabled when the source window has only one tab
+  (the operation would be a no-op) or when the source window is hosting a tmux
+  gateway.
+- Right-click a tab → **Move Tab to Window →** opens a submenu listing every
+  other par-term window, labeled `Window N — <active tab title>`. Selecting a
+  window transfers the tab there. If the source window becomes empty as a
+  result, it closes. Disabled for tmux-gateway windows; hidden entirely when no
+  other par-term windows exist.
+
+**Keybinding:** Bind the `move_tab_to_new_window` action in
+Settings → Keybindings. There is no default chord. The keybinding only covers
+the "new window" case; the "move to existing window" case is menu-only because
+keybindings cannot parameterize on a specific target window.
+
+**Limitations:**
+
+- Tmux gateway tabs and tmux display tabs cannot be moved — both would break
+  the gateway/display link inside the source window.
+- Per-window state (custom shader, assistant panel, window-level settings)
+  does not travel with the tab. The moved tab adopts the destination window's
+  settings.
 
 ## Tab Icons
 

@@ -85,6 +85,13 @@ impl WindowState {
             crate::tmux_status_bar_ui::TmuxStatusBarUI::height(&self.config, badge_is_tmux);
         let badge_custom_sb_height = self.status_bar_ui.height(&self.config, self.is_fullscreen);
 
+        // Capture move-tab context values BEFORE the egui closure so the
+        // `self.is_gateway_active()` method call (which borrows `&self`) does
+        // not conflict with the closure's unique borrow of `*self`.
+        let move_gateway_active = self.is_gateway_active();
+        let move_tab_count = self.tab_manager.tab_count();
+        let move_candidates = self.overlay_ui.move_tab_candidates.clone();
+
         // Collect pane bounds for identify overlay (before egui borrow)
         let pane_identify_bounds: Vec<(usize, crate::pane::PaneBounds)> =
             if self.overlay_state.pane_identify_hide_time.is_some() {
@@ -174,6 +181,15 @@ impl WindowState {
                     } else {
                         0.0
                     };
+                    // Populate move-tab context so the right-click context
+                    // menu has fresh state. Values captured before the closure
+                    // to avoid borrowing `self` for `is_gateway_active()`
+                    // while the closure already uniquely borrows `*self`.
+                    self.tab_bar_ui.set_move_tab_context(
+                        move_gateway_active,
+                        move_tab_count,
+                        move_candidates.clone(),
+                    );
                     actions.tab_action = self.tab_bar_ui.render(
                         ctx,
                         &self.tab_manager,

@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Features
+- **Move Tab to New Window** — tab context menu gains "Move Tab to New Window" and "Move Tab to Window ▸" (submenu listing every other par-term window). Moving a tab transfers its live PTY, scrollback, split panes, session logger, prettifier state, profile history, and custom title/color/icon without killing the shell. Tmux gateway and display tabs are disabled; solo-tab source windows auto-close after a merge into another window. A new keybinding action `MoveTabToNewWindow` pops the active tab out to a new window.
+
+### Bug Fixes
+- **Tab click sometimes required a second click to switch** — when the FPS gate dropped a `RedrawRequested`, any events already sitting in `egui_winit`'s `raw_input` accumulator (tab click press+release) stalled until an unrelated wake, so the click appeared to be ignored. Added `pending_egui_repaint` tracking in `should_render_frame()` and extended the `about_to_wait` self-heal to re-arm a frame at the earliest eligible time so the gap closes on its own.
+
+### Dependencies
+- Bumped `par-term-emu-core-rust` from 0.41.0 to 0.41.1.
+
 ---
 
 ## [0.30.4] - 2026-04-03

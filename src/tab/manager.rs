@@ -418,6 +418,17 @@ impl Default for TabManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Arc;
+    use tokio::runtime::Builder;
+
+    fn test_runtime() -> Arc<tokio::runtime::Runtime> {
+        Arc::new(
+            Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("build test runtime"),
+        )
+    }
 
     /// Create a TabManager with mock tabs for testing (no PTY, no runtime)
     fn manager_with_ids(ids: &[TabId]) -> TabManager {
@@ -495,5 +506,59 @@ mod tests {
         assert!(mgr.move_tab_to_index(3, 0));
         let ids: Vec<TabId> = mgr.tabs.iter().map(|t| t.id).collect();
         assert_eq!(ids, vec![3, 1, 2]);
+    }
+
+    #[test]
+    #[ignore = "requires PTY spawn"]
+    fn remove_insert_round_trip_preserves_tab_fields() {
+        let mut mgr = TabManager::new();
+        let config = Config::default();
+        let runtime = test_runtime();
+
+        // Create two tabs so removing one leaves the manager non-empty.
+        let _ = mgr
+            .new_tab(&config, Arc::clone(&runtime), false, Some((80, 24)))
+            .expect("create tab 1");
+        let id = mgr
+            .new_tab(&config, Arc::clone(&runtime), false, Some((80, 24)))
+            .expect("create tab 2");
+
+        // Customize the target tab so we can assert round-trip fidelity.
+        {
+            let tab = mgr.get_tab_mut(id).expect("target tab exists");
+            tab.set_title("my-tab");
+            tab.user_named = true;
+            tab.set_custom_color([10, 20, 30]);
+            tab.custom_icon = Some("\u{f120}".to_string());
+        }
+
+        // Snapshot preserved fields.
+        let snapshot = {
+            let tab = mgr.get_tab(id).expect("target tab exists");
+            (
+                tab.id,
+                tab.title.clone(),
+                tab.has_default_title,
+                tab.user_named,
+                tab.custom_color,
+                tab.custom_icon.clone(),
+            )
+        };
+
+        // Round-trip: remove then re-insert at index 1.
+        let (live_tab, is_empty) = mgr.remove_tab(id).expect("remove returns Some");
+        assert!(!is_empty, "manager should still have tab 1");
+        mgr.insert_tab_at(live_tab, 1);
+
+        let after = mgr.get_tab(id).expect("tab still present after round-trip");
+        assert_eq!(after.id, snapshot.0, "id mismatch");
+        assert_eq!(after.title, snapshot.1, "title mismatch");
+        assert_eq!(
+            after.has_default_title, snapshot.2,
+            "has_default_title mismatch"
+        );
+        assert_eq!(after.user_named, snapshot.3, "user_named mismatch");
+        assert_eq!(after.custom_color, snapshot.4, "custom_color mismatch");
+        assert_eq!(after.custom_icon, snapshot.5, "custom_icon mismatch");
     }
 }

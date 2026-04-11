@@ -164,6 +164,20 @@ impl WindowState {
                 log::info!("Tab duplicated via keybinding");
                 true
             }
+            "move_tab_to_new_window" => {
+                if let Some(tab_id) = self.tab_manager.active_tab_id()
+                    && !self.is_gateway_active()
+                    && self.has_multiple_tabs()
+                {
+                    self.overlay_ui.pending_move_tab_request =
+                        Some(crate::app::window_manager::MoveTabRequest {
+                            tab_id,
+                            destination: crate::app::window_manager::MoveDestination::NewWindow,
+                        });
+                    log::info!("Move Tab to New Window triggered via keybinding");
+                }
+                true
+            }
             "next_tab" => {
                 self.next_tab();
                 log::debug!("Switched to next tab via keybinding");

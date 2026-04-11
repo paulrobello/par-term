@@ -243,5 +243,11 @@ pub fn keywords() -> &'static [&'static str] {
         // Smart selection
         "rules",
         "smart selection rules",
+        // Move tab to new window
+        "move tab",
+        "detach",
+        "popout",
+        "new window",
+        "tear off",
     ]
 }

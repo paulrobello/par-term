@@ -113,6 +113,22 @@ impl WindowState {
                 self.request_redraw();
             }
             TabBarAction::None => {}
+            TabBarAction::MoveTabToNewWindow(tab_id) => {
+                self.overlay_ui.pending_move_tab_request =
+                    Some(crate::app::window_manager::MoveTabRequest {
+                        tab_id,
+                        destination: crate::app::window_manager::MoveDestination::NewWindow,
+                    });
+            }
+            TabBarAction::MoveTabToExistingWindow(tab_id, dest_id) => {
+                self.overlay_ui.pending_move_tab_request =
+                    Some(crate::app::window_manager::MoveTabRequest {
+                        tab_id,
+                        destination: crate::app::window_manager::MoveDestination::ExistingWindow(
+                            dest_id,
+                        ),
+                    });
+            }
         }
     }
 }

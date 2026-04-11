@@ -407,15 +407,27 @@ impl WindowState {
             next_wake = next_anti_idle;
         }
 
-        // --- FLUSH PENDING RENDERER DIRTY STATE ---
-        // When a window event (e.g. Focused(false)) sets renderer dirty state but the
-        // FPS gate previously skipped that render, needs_redraw may have been cleared
-        // without the frame ever reaching the GPU (no cursor blink, no terminal output,
-        // no animated shader to re-arm it). Re-arm needs_redraw when the FPS gate allows,
-        // or schedule a wake-up at the earliest renderable time so the gap self-heals.
+        // --- FLUSH PENDING RENDERER DIRTY STATE OR EGUI INPUT ---
+        // Two self-heal cases:
+        //
+        // 1. Renderer dirty state: when a window event (e.g. Focused(false)) sets
+        //    renderer dirty state but the FPS gate previously skipped that render,
+        //    needs_redraw may have been cleared without the frame ever reaching the
+        //    GPU (no cursor blink, no terminal output, no animated shader to re-arm
+        //    it).
+        //
+        // 2. Pending egui input: when `should_render_frame()` rejects a
+        //    `RedrawRequested` because the FPS gate hasn't elapsed, any events that
+        //    were already fed into `egui_winit`'s `raw_input` (e.g. a tab click's
+        //    press+release) are stranded — no frame runs `take_egui_input()`, so
+        //    egui never sees them. Without re-arming, the stall persists until an
+        //    unrelated wake — the "click tab twice to switch" bug.
+        //
+        // Re-arm needs_redraw when the FPS gate allows, or schedule a wake-up at
+        // the earliest renderable time so the gap self-heals.
+        let renderer_dirty = self.renderer.as_ref().is_some_and(|r| r.is_dirty());
         if !self.focus_state.needs_redraw
-            && let Some(renderer) = &self.renderer
-            && renderer.is_dirty()
+            && (renderer_dirty || self.focus_state.pending_egui_repaint)
         {
             if can_render {
                 self.focus_state.needs_redraw = true;

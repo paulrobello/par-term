@@ -61,6 +61,10 @@ pub enum TabBarAction {
     SetTabIcon(TabId, Option<String>),
     /// Toggle the AI assistant panel
     ToggleAssistantPanel,
+    /// Move a tab to a brand-new par-term window.
+    MoveTabToNewWindow(TabId),
+    /// Move a tab into an existing par-term window.
+    MoveTabToExistingWindow(TabId, winit::window::WindowId),
 }
 
 impl TabBarUI {
@@ -375,5 +379,19 @@ impl TabBarUI {
     /// Set rename mode active/inactive; used by integration tests.
     pub fn test_set_renaming(&mut self, value: bool) {
         self.renaming_tab = value;
+    }
+
+    /// Update the move-tab context shown in the right-click context menu.
+    /// Must be called each frame *before* `render()` so the context menu has
+    /// fresh state.
+    pub fn set_move_tab_context(
+        &mut self,
+        gateway_active: bool,
+        tab_count: usize,
+        candidates: Vec<(winit::window::WindowId, String)>,
+    ) {
+        self.move_gateway_active = gateway_active;
+        self.move_source_tab_count = tab_count;
+        self.move_candidates = candidates;
     }
 }

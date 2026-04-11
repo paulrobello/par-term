@@ -50,6 +50,15 @@ pub struct TabBarUI {
     pub(super) scroll_offset: f32,
     /// Whether the new-tab profile popup is open
     pub show_new_tab_profile_menu: bool,
+    /// Set per-frame: candidate destination windows for the "Move Tab to Window →" submenu.
+    /// Each entry is `(WindowId, display_label)` (e.g., `"Window 2 — vim"`).
+    pub(crate) move_candidates: Vec<(winit::window::WindowId, String)>,
+    /// Set per-frame: true if the current window has an active tmux gateway.
+    /// When true, the Move Tab menu entries are disabled for every tab.
+    pub(crate) move_gateway_active: bool,
+    /// Set per-frame: number of tabs in the source window. Used to disable
+    /// "Move Tab to New Window" when `== 1` (solo-tab guard).
+    pub(crate) move_source_tab_count: usize,
 }
 
 impl TabBarUI {
@@ -79,6 +88,9 @@ impl TabBarUI {
             context_menu_icon: None,
             scroll_offset: 0.0,
             show_new_tab_profile_menu: false,
+            move_candidates: Vec::new(),
+            move_gateway_active: false,
+            move_source_tab_count: 0,
         }
     }
 }

@@ -11,6 +11,13 @@ pub(crate) struct FocusState {
     pub(crate) is_focused: bool,
     /// Whether the window needs a redraw (set by event handlers)
     pub(crate) needs_redraw: bool,
+    /// A `RedrawRequested` was delivered but `should_render_frame()` rejected it
+    /// because the FPS gate had not yet elapsed. Events delivered to egui (e.g. a
+    /// tab click's press/release) are now sitting in `egui_winit`'s `raw_input`
+    /// accumulator with nothing scheduled to consume them. `about_to_wait` re-arms
+    /// a frame when the gate opens so the stall self-heals instead of waiting for
+    /// an unrelated wake.
+    pub(crate) pending_egui_repaint: bool,
     /// When the last frame was rendered
     pub(crate) last_render_time: Option<Instant>,
 
@@ -40,6 +47,7 @@ impl Default for FocusState {
         Self {
             is_focused: true, // Assume focused on creation
             needs_redraw: true,
+            pending_egui_repaint: false,
             last_render_time: None,
             cursor_hidden_since: None,
             flicker_pending_render: false,

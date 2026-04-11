@@ -240,7 +240,7 @@ impl WindowManager {
 
                 let runtime = Arc::clone(&self.runtime);
                 if let Err(e) =
-                    runtime.block_on(window_state.initialize_async(window, first_tab_cwd))
+                    runtime.block_on(window_state.initialize_async(window, false, first_tab_cwd))
                 {
                     log::error!("Failed to initialize arranged window: {}", e);
                     return None;

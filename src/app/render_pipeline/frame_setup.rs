@@ -11,6 +11,12 @@ use crate::app::window_state::WindowState;
 impl WindowState {
     /// Returns true if enough time has elapsed since the last frame and rendering should proceed.
     /// Updates last_render_time and resets needs_redraw on success.
+    ///
+    /// When the FPS gate rejects a `RedrawRequested`, `pending_egui_repaint` is set so
+    /// `about_to_wait` can re-arm a frame at the earliest eligible time. Otherwise any
+    /// events already queued into `egui_winit`'s `raw_input` (e.g. a tab click's
+    /// press/release) would stall until the next unrelated wake — the "have to click
+    /// twice to switch tabs" bug.
     pub(super) fn should_render_frame(&mut self) -> bool {
         let target_fps = if self.config.pause_refresh_on_blur && !self.focus_state.is_focused {
             self.config.unfocused_fps
@@ -21,10 +27,12 @@ impl WindowState {
         if let Some(last_render) = self.focus_state.last_render_time
             && last_render.elapsed() < frame_interval
         {
+            self.focus_state.pending_egui_repaint = true;
             return false;
         }
         self.focus_state.last_render_time = Some(std::time::Instant::now());
         self.focus_state.needs_redraw = false;
+        self.focus_state.pending_egui_repaint = false;
         true
     }
 

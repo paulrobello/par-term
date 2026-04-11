@@ -159,11 +159,17 @@ impl WindowState {
 
     /// Initialize the window asynchronously
     ///
+    /// `skip_default_tab` - When `true`, skips creating the default shell tab.
+    /// Used by the "Move Tab to New Window" path to initialize a fully functional
+    /// window that starts with an empty `TabManager`, ready to receive a transferred
+    /// tab via `insert_tab_at`. All normal callers pass `false`.
+    ///
     /// `first_tab_cwd` - Optional working directory for the first tab.
     /// Used by arrangement restore to set the CWD before the shell spawns.
     pub(crate) async fn initialize_async(
         &mut self,
         window: Window,
+        skip_default_tab: bool,
         first_tab_cwd: Option<String>,
     ) -> Result<()> {
         use crate::app::window_state::renderer_init::RendererInitParams;
@@ -304,48 +310,51 @@ impl WindowState {
         self.status_bar_ui.sync_monitor_state(&self.config);
 
         // Create the first tab with the correct grid size from the renderer
-        // This ensures the shell is spawned with dimensions that account for tab bar
-        log::info!(
-            "Creating first tab with grid size {}x{} (accounting for tab bar)",
-            renderer_cols,
-            renderer_rows
-        );
-        let tab_id = self.tab_manager.new_tab_with_cwd(
-            &self.config,
-            Arc::clone(&self.runtime),
-            first_tab_cwd,
-            Some((renderer_cols, renderer_rows)), // Pass correct grid size
-        )?;
+        // This ensures the shell is spawned with dimensions that account for tab bar.
+        // Skipped when `skip_default_tab` is true (e.g. "Move Tab to New Window" path).
+        if !skip_default_tab {
+            log::info!(
+                "Creating first tab with grid size {}x{} (accounting for tab bar)",
+                renderer_cols,
+                renderer_rows
+            );
+            let tab_id = self.tab_manager.new_tab_with_cwd(
+                &self.config,
+                Arc::clone(&self.runtime),
+                first_tab_cwd,
+                Some((renderer_cols, renderer_rows)), // Pass correct grid size
+            )?;
 
-        // Set cell dimensions on the terminal (for TIOCGWINSZ pixel size reporting)
-        if let Some(tab) = self.tab_manager.get_tab_mut(tab_id) {
-            let width_px = (renderer_cols as f32 * cell_width) as usize;
-            let height_px = (renderer_rows as f32 * cell_height) as usize;
+            // Set cell dimensions on the terminal (for TIOCGWINSZ pixel size reporting)
+            if let Some(tab) = self.tab_manager.get_tab_mut(tab_id) {
+                let width_px = (renderer_cols as f32 * cell_width) as usize;
+                let height_px = (renderer_rows as f32 * cell_height) as usize;
 
-            if let Ok(mut term) = tab.terminal.try_write() {
-                term.set_cell_dimensions(cell_width as u32, cell_height as u32);
-                // Send resize to ensure PTY has correct pixel dimensions
-                if let Err(e) =
-                    term.resize_with_pixels(renderer_cols, renderer_rows, width_px, height_px)
-                {
-                    crate::debug_error!("TERMINAL", "resize_with_pixels failed (init): {e}");
+                if let Ok(mut term) = tab.terminal.try_write() {
+                    term.set_cell_dimensions(cell_width as u32, cell_height as u32);
+                    // Send resize to ensure PTY has correct pixel dimensions
+                    if let Err(e) =
+                        term.resize_with_pixels(renderer_cols, renderer_rows, width_px, height_px)
+                    {
+                        crate::debug_error!("TERMINAL", "resize_with_pixels failed (init): {e}");
+                    }
+                    log::info!(
+                        "Initial terminal dimensions: {}x{} ({}x{} px)",
+                        renderer_cols,
+                        renderer_rows,
+                        width_px,
+                        height_px
+                    );
                 }
-                log::info!(
-                    "Initial terminal dimensions: {}x{} ({}x{} px)",
-                    renderer_cols,
-                    renderer_rows,
-                    width_px,
-                    height_px
+
+                // Start refresh task for the first tab
+                tab.start_refresh_task(
+                    Arc::clone(&self.runtime),
+                    Arc::clone(&window),
+                    self.config.max_fps,
+                    self.config.inactive_tab_fps,
                 );
             }
-
-            // Start refresh task for the first tab
-            tab.start_refresh_task(
-                Arc::clone(&self.runtime),
-                Arc::clone(&window),
-                self.config.max_fps,
-                self.config.inactive_tab_fps,
-            );
         }
 
         // Auto-connect agent if panel is open on startup and auto-launch is enabled

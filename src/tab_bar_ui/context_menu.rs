@@ -212,6 +212,42 @@ impl TabBarUI {
                         ui.separator();
                         ui.add_space(4.0);
 
+                        // ----- Move Tab entries -----
+                        let can_move = !self.move_gateway_active;
+                        let has_other_windows = !self.move_candidates.is_empty();
+
+                        // "Move Tab to New Window" — disabled for gateway-active windows
+                        // and for solo-tab source windows (visually a no-op).
+                        let new_window_enabled =
+                            can_move && self.move_source_tab_count >= 2;
+                        ui.add_enabled_ui(new_window_enabled, |ui| {
+                            if menu_item(ui, "Move Tab to New Window") {
+                                action = TabBarAction::MoveTabToNewWindow(tab_id);
+                                close_menu = true;
+                            }
+                        });
+
+                        // "Move Tab to Window →" submenu — hidden entirely if there
+                        // are no other windows or the move is disabled by gateway.
+                        if can_move && has_other_windows {
+                            let candidates = self.move_candidates.clone();
+                            ui.menu_button("Move Tab to Window ▸", |ui| {
+                                for (win_id, label) in candidates {
+                                    if ui.button(&label).clicked() {
+                                        action = TabBarAction::MoveTabToExistingWindow(
+                                            tab_id, win_id,
+                                        );
+                                        close_menu = true;
+                                    }
+                                }
+                            });
+                        }
+
+                        ui.add_space(4.0);
+                        ui.separator();
+                        ui.add_space(4.0);
+                        // ----- end Move Tab entries -----
+
                         // Tab Color section
                         ui.horizontal(|ui| {
                             ui.add_space(8.0);

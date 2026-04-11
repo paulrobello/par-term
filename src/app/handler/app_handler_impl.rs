@@ -263,8 +263,10 @@ impl ApplicationHandler for WindowManager {
         let mut arrangement_restore_name: Option<String> = None;
         let mut reload_dynamic_profiles = false;
         let mut config_changed_by_agent = false;
+        let mut pending_moves: Vec<(WindowId, crate::app::window_manager::MoveTabRequest)> =
+            Vec::new();
 
-        for window_state in self.windows.values_mut() {
+        for (window_id, window_state) in self.windows.iter_mut() {
             if window_state.overlay_state.open_settings_window_requested {
                 window_state.overlay_state.open_settings_window_requested = false;
                 open_settings = true;
@@ -296,6 +298,13 @@ impl ApplicationHandler for WindowManager {
                 profiles_to_update = Some(window_state.overlay_ui.profile_manager.to_vec());
             }
 
+            // Drain any pending "Move Tab to (New/Existing) Window" request.
+            // Actual move happens after the loop so we can take `&mut self`
+            // on `WindowManager`.
+            if let Some(req) = window_state.overlay_ui.pending_move_tab_request.take() {
+                pending_moves.push((*window_id, req));
+            }
+
             window_state.about_to_wait(event_loop);
 
             // If an agent/MCP config update was applied, sync to WindowManager's
@@ -317,6 +326,29 @@ impl ApplicationHandler for WindowManager {
             if let Some(result) = window_state.shader_state.cursor_shader_reload_result.take() {
                 cursor_shader_result = Some(result);
             }
+        }
+
+        // Populate per-window "move tab candidates" caches so the tab
+        // right-click context menu has fresh sibling-window labels each
+        // frame. Two-pass: first read (immutable borrow via
+        // `other_window_labels`), then write (mutable borrow).
+        let all_window_ids: Vec<WindowId> = self.windows.keys().copied().collect();
+        let mut label_sets: Vec<(WindowId, Vec<(WindowId, String)>)> =
+            Vec::with_capacity(all_window_ids.len());
+        for wid in &all_window_ids {
+            label_sets.push((*wid, self.other_window_labels(*wid)));
+        }
+        for (wid, labels) in label_sets {
+            if let Some(ws) = self.windows.get_mut(&wid) {
+                ws.overlay_ui.move_tab_candidates = labels;
+            }
+        }
+
+        // Process any "Move Tab to (New/Existing) Window" requests drained
+        // above. Each call may mutate `self.windows` (creating a new window,
+        // removing an empty source), so we do this outside the main loop.
+        for (source_window_id, req) in pending_moves {
+            self.move_tab(event_loop, source_window_id, req.tab_id, req.destination);
         }
 
         // Sync agent config changes to WindowManager and settings window

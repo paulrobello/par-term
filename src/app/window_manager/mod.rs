@@ -41,6 +41,26 @@ use std::time::Instant;
 use tokio::runtime::Runtime;
 use winit::window::WindowId;
 
+/// Destination for a `move_tab` operation.
+///
+/// `NewWindow` → spawn a fresh par-term window and insert the transferred tab as its only tab.
+/// `ExistingWindow(WindowId)` → append the transferred tab to an already-open window.
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum MoveDestination {
+    NewWindow,
+    ExistingWindow(WindowId),
+}
+
+/// A request to move a tab, stashed on `WindowState::overlay_state` from the
+/// per-window action handler and drained by `WindowManager::about_to_wait`.
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct MoveTabRequest {
+    pub(crate) tab_id: crate::tab::TabId,
+    pub(crate) destination: MoveDestination,
+}
+
 /// Manages multiple terminal windows and shared resources
 pub(crate) struct WindowManager {
     /// Per-window state indexed by window ID

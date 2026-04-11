@@ -56,6 +56,14 @@ pub(crate) struct OverlayUiState {
     pub(crate) ssh_connect_ui: SshConnectUI,
     pub(crate) profile_drawer_ui: ProfileDrawerUI,
     pub(crate) profile_manager: ProfileManager,
+    /// Pending "Move Tab to New Window" / "Move Tab to Window" request,
+    /// drained by `WindowManager::about_to_wait`.
+    #[allow(dead_code)]
+    pub(crate) pending_move_tab_request: Option<crate::app::window_manager::MoveTabRequest>,
+    /// Cached each frame by `about_to_wait`: `(WindowId, label)` pairs for every
+    /// *other* par-term window, used to populate the "Move Tab to Window →"
+    /// submenu in the tab right-click context menu.
+    pub(crate) move_tab_candidates: Vec<(winit::window::WindowId, String)>,
 }
 
 impl OverlayUiState {
@@ -95,6 +103,8 @@ impl OverlayUiState {
             ssh_connect_ui: SshConnectUI::new(),
             profile_drawer_ui: ProfileDrawerUI::new(),
             profile_manager,
+            pending_move_tab_request: None,
+            move_tab_candidates: Vec::new(),
         }
     }
 }

@@ -35,6 +35,7 @@ Complete reference for all par-term keyboard shortcuts.
 | Move tab left | `Cmd + Shift + Left` | `Ctrl + Shift + Left` |
 | Move tab right | `Cmd + Shift + Right` | `Ctrl + Shift + Right` |
 | Reopen closed tab | `Cmd + Z` | `Ctrl + Shift + Z` |
+| Move tab to new window | *(unbound)* | *(unbound)* |
 | Save window arrangement | View menu: "Save Window Arrangement..." | View menu: "Save Window Arrangement..." |
 
 ## Navigation & Scrolling
@@ -218,6 +219,7 @@ remains visible; press `Esc` to cancel it. All action types — including the wo
 - `move_tab_left`, `move_tab_right`
 - `switch_to_tab_1` through `switch_to_tab_9`
 - `reopen_closed_tab`
+- `move_tab_to_new_window` — transfer the active tab to a new window while preserving PTY, scrollback, and split panes
 
 **Window Arrangements:**
 - `save_arrangement` - Save current window layout as a named arrangement
