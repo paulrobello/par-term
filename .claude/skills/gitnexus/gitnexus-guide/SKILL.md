@@ -1,6 +1,6 @@
 ---
 name: gitnexus-guide
-description: "Use when the user asks about GitNexus itself — available tools, how to query the knowledge graph, graph schema, or workflow reference. Examples: \"What GitNexus tools are available?\", \"How do I use GitNexus?\""
+description: "Use when the user asks about GitNexus itself — available tools, how to query the knowledge graph, graph schema, or workflow reference."
 ---
 
 # GitNexus Guide
@@ -8,9 +8,9 @@ description: "Use when the user asks about GitNexus itself — available tools, 
 Quick reference for all GitNexus CLI commands, tools, and the knowledge graph schema.
 
 > **IMPORTANT — How to use GitNexus**: GitNexus is a standalone CLI tool. Run it directly
-> via `gitnexus <command>` in the Bash tool (e.g., `gitnexus query "auth flow"`,
-> `gitnexus impact "myFunc" --direction upstream`). Do **NOT** use `mcpl call gitnexus ...`
-> — gitnexus is not invoked through mcpl.
+> via `gitnexus <command>` in the Bash tool (e.g., `gitnexus query "auth flow" --repo par-term`,
+> `gitnexus impact "myFunc" --direction upstream --repo par-term`). Do **NOT** use
+> `mcpl call gitnexus ...` — gitnexus is not invoked through mcpl.
 
 ## Always Start Here
 
@@ -24,8 +24,8 @@ For any task involving code understanding, debugging, impact analysis, or refact
 
 ## Skills
 
-| Task                                         | Skill to read       |
-| -------------------------------------------- | ------------------- |
+| Task                                         | Skill to read                |
+| -------------------------------------------- | ---------------------------- |
 | Understand architecture / "How does X work?" | `gitnexus-exploring`         |
 | Blast radius / "What breaks if I change X?"  | `gitnexus-impact-analysis`   |
 | Trace bugs / "Why is X failing?"             | `gitnexus-debugging`         |
