@@ -41,7 +41,18 @@ New to par-term? The [Getting Started Guide](docs/GETTING_STARTED.md) walks you 
 - **[Configuration Reference](docs/CONFIG_REFERENCE.md)** — All 200+ configuration options
 - **[Keyboard Shortcuts](docs/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
 
-## What's New in 0.30.4
+## What's New in 0.30.5
+
+### ✨ Features
+
+- **Move Tab to New Window**: Tab context menu now has "Move Tab to New Window" and "Move Tab to Window ▸" (submenu listing every other par-term window). Moving a tab transfers its live PTY, scrollback, split panes, session logger, prettifier state, profile history, and custom title/color/icon — without killing the shell. A new `MoveTabToNewWindow` keybinding action pops the active tab out to a new window.
+
+### 🐛 Bug Fixes
+
+- **Tab Click Sometimes Needed Second Click**: When the FPS gate dropped a `RedrawRequested`, tab click events already sitting in egui's input accumulator stalled until an unrelated wake. Added `pending_egui_repaint` tracking and `about_to_wait` self-heal so the gap closes on its own.
+
+<details>
+<summary><strong>What's New in 0.30.4</strong></summary>
 
 ### 🐛 Bug Fixes
 
@@ -54,6 +65,8 @@ New to par-term? The [Getting Started Guide](docs/GETTING_STARTED.md) walks you 
 ### ⚡ Performance
 
 - **FPS Degradation in Long Tmux Sessions**: Fixed per-frame cell clone on cache hits and O(n) mark/history iteration that caused FPS to drop from 60→12 over time.
+
+</details>
 
 <details>
 <summary><strong>What's New in 0.30.3</strong></summary>

@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.30.5] - 2026-04-11
+
 ### Features
 - **Move Tab to New Window** — tab context menu gains "Move Tab to New Window" and "Move Tab to Window ▸" (submenu listing every other par-term window). Moving a tab transfers its live PTY, scrollback, split panes, session logger, prettifier state, profile history, and custom title/color/icon without killing the shell. Tmux gateway and display tabs are disabled; solo-tab source windows auto-close after a merge into another window. A new keybinding action `MoveTabToNewWindow` pops the active tab out to a new window.
 
