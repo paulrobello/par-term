@@ -194,9 +194,13 @@ impl InputHandler {
         let ctrl = self.modifiers.state().control_key();
         let alt = self.modifiers.state().alt_key();
 
-        // Check if we should use modifyOtherKeys encoding
+        // Check if we should use modifyOtherKeys encoding.
+        //
+        // Both mode 1 and mode 2 use the same encoding path here — the per-mode routing
+        // decisions are made inside `try_modify_other_keys_encoding` (e.g. the Shift-only
+        // exemption that matches iTerm2's reference implementation).
         if modify_other_keys_mode > 0
-            && let Some(bytes) = self.try_modify_other_keys_encoding(&event, modify_other_keys_mode)
+            && let Some(bytes) = self.try_modify_other_keys_encoding(&event)
         {
             return Some(bytes);
         }
@@ -390,7 +394,7 @@ impl InputHandler {
     /// - 6 = Shift+Ctrl
     /// - 7 = Alt+Ctrl
     /// - 8 = Shift+Alt+Ctrl
-    fn try_modify_other_keys_encoding(&self, event: &KeyEvent, mode: u8) -> Option<Vec<u8>> {
+    fn try_modify_other_keys_encoding(&self, event: &KeyEvent) -> Option<Vec<u8>> {
         let ctrl = self.modifiers.state().control_key();
         let alt = self.modifiers.state().alt_key();
         let shift = self.modifiers.state().shift_key();
@@ -403,19 +407,29 @@ impl InputHandler {
         // Get the base character for the key
         let base_char = self.get_base_character(event)?;
 
-        // Skip Shift-only modifier combinations for alphabetic keys in both mode 1 and mode 2.
+        // Skip modifyOtherKeys encoding for any Shift-only combination on printable
+        // characters, regardless of mode or character class.
         //
-        // Mode 1 rationale: shifted letters already produce different characters ('A' vs 'a'),
-        // so no modifier information is lost by skipping the encoding.
+        // This matches iTerm2's reference implementation (sources/iTermModifyOtherKeysMapper.m
+        // and iTermModifyOtherKeysMapper1.m), which is confirmed by its `iTermModifyOtherKeys1Test`
+        // suite: for Shift+letter, Shift+digit, and Shift+symbol iTerm2 returns `nil` from
+        // `keyMapperStringForPreCocoaEvent` and lets Cocoa's text-input system emit the OS-
+        // resolved shifted character (`A`, `!`, `@`, `{`, etc.) directly to the PTY. The same
+        // rule applies in both mode 1 (via `shouldModifyOtherKeysForNumberEvent` / ...Symbol /
+        // ...RegularEvent returning NO) and mode 2 (via the base mapper returning nil unless
+        // Control is held).
         //
-        // Mode 2 rationale: many crossterm-based applications (e.g. Claude Code) receive
-        // Char('a') + SHIFT from the `CSI 27;2;97~` encoding but do not apply the SHIFT
-        // modifier to uppercase the character, causing Shift+a → 'a'. Falling through to the
-        // normal logical-key path sends 'A' (0x41) directly, which all applications handle
-        // correctly.  For Shift+non-alphabetic keys (digits, punctuation) the mode 2 encoding
-        // is still useful because the base char and the shifted char differ meaningfully
-        // (e.g. Shift+1 → '!' is not derivable from '1' alone in all layouts).
-        if shift && !ctrl && !alt && (mode == 1 || base_char.is_ascii_alphabetic()) {
+        // Why this is necessary: winit's `logical_key` already contains the layout-correct
+        // shifted character. TUI applications built on crossterm (Claude Code, etc.) that see
+        // a `CSI 27;2;49~` sequence cannot reverse-map the base codepoint `49` ('1') to the
+        // shifted codepoint `33` ('!') because they have no access to the OS keyboard layout
+        // tables — they just render the base character. Falling through to the normal
+        // `Key::Character` path below sends the winit-provided shifted character as raw bytes,
+        // which every application handles correctly.
+        //
+        // We intentionally keep Shift+Alt/Shift+Ctrl etc. encoded here because those carry
+        // modifier information that cannot be recovered from the character alone.
+        if shift && !ctrl && !alt {
             return None;
         }
 
