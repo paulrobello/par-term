@@ -41,7 +41,14 @@ New to par-term? The [Getting Started Guide](docs/GETTING_STARTED.md) walks you 
 - **[Configuration Reference](docs/CONFIG_REFERENCE.md)** — All 200+ configuration options
 - **[Keyboard Shortcuts](docs/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
 
-## What's New in 0.30.5
+## What's New in 0.30.6
+
+### 🐛 Bug Fixes
+
+- **Shift+Digit/Symbol Sent Unshifted Char to Crossterm Apps**: Claude Code and other crossterm TUIs received `1` instead of `!`, `[` instead of `{`, etc. outside tmux. par-term was encoding any Shift-modified printable through `modifyOtherKeys`, which crossterm could not reverse-map without keyboard-layout tables. Fixed by matching iTerm2's reference behavior: skip `modifyOtherKeys` encoding for any Shift-only combination and let winit's layout-resolved shifted character pass through. Ctrl+digit and Ctrl+Shift+digit still encode as before.
+
+<details>
+<summary><strong>What's New in 0.30.5</strong></summary>
 
 ### ✨ Features
 
@@ -50,6 +57,8 @@ New to par-term? The [Getting Started Guide](docs/GETTING_STARTED.md) walks you 
 ### 🐛 Bug Fixes
 
 - **Tab Click Sometimes Needed Second Click**: When the FPS gate dropped a `RedrawRequested`, tab click events already sitting in egui's input accumulator stalled until an unrelated wake. Added `pending_egui_repaint` tracking and `about_to_wait` self-heal so the gap closes on its own.
+
+</details>
 
 <details>
 <summary><strong>What's New in 0.30.4</strong></summary>

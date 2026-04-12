@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.30.6] - 2026-04-11
+
 ### Bug Fixes
 - **Shift+digit/symbol sends unshifted char to crossterm apps outside tmux** — Claude Code and other crossterm-based TUIs received `1` instead of `!`, `[` instead of `{`, etc. when run in a normal tab (tmux masked the bug by re-encoding). par-term was emitting `modifyOtherKeys` sequences like `CSI 27;2;49~` for any Shift-modified printable, and crossterm cannot reverse-map a base codepoint to the shifted character without keyboard-layout tables. Fixed by matching iTerm2's `iTermModifyOtherKeysMapper` reference exactly: skip `modifyOtherKeys` encoding for any Shift-only combo (regardless of mode or character class) and let winit's layout-resolved shifted character pass through. Ctrl+digit and Ctrl+Shift+digit still encode via `modifyOtherKeys` as before.
 

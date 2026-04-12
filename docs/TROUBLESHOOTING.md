@@ -427,15 +427,15 @@ Enable `shader_hot_reload: true` in your config for faster iteration during shad
 3. See [KEYBOARD_SHORTCUTS.md](KEYBOARD_SHORTCUTS.md) for the complete shortcut reference
 4. Custom keybindings in `config.yaml` override defaults -- check for conflicts
 
-### Shift+Letter Produces Lowercase in crossterm Apps (macOS/Linux)
+### Shift+Letter or Shift+Digit/Symbol Produces Wrong Character in crossterm Apps (macOS/Linux)
 
-**Symptom:** On macOS or Linux, pressing `Shift+a` inside a crossterm-based application (e.g. Claude Code, Ratatui TUIs) produces lowercase `a` instead of `A`.
+**Symptom:** On macOS or Linux, inside a crossterm-based application (e.g. Claude Code, Ratatui TUIs) pressing `Shift+a` produces lowercase `a`, or `Shift+1` produces `1` instead of `!`, `Shift+[` produces `[` instead of `{`, etc. Only reproduces outside tmux — tmux re-encodes the sequence and masks the bug.
 
-**Cause:** The application sets modifyOtherKeys mode 2, which caused par-term to encode `Shift+a` as `CSI 27;2;97~`. Crossterm receives this event as `KeyEvent { code: Char('a'), modifiers: SHIFT }` but does not apply the SHIFT modifier to uppercase the character.
+**Cause:** The application sets modifyOtherKeys mode 2, which caused par-term to encode any Shift-modified printable as `CSI 27;2;<codepoint>~`. Crossterm receives this as `KeyEvent { code: Char(<base>), modifiers: SHIFT }` but cannot reverse-map a base codepoint to the layout-shifted character without keyboard-layout tables.
 
 **Solution:**
 
-Update to par-term v0.30.1+ — shift-only alphabetic key combinations are now exempted from modifyOtherKeys mode-2 encoding (matching the existing mode-1 exemption), allowing the logical-key path to send `'A'` directly.
+Update to par-term v0.30.6+ — par-term now matches iTerm2's `iTermModifyOtherKeysMapper` reference exactly: any Shift-only combination (letters, digits, and symbols alike) is exempted from modifyOtherKeys encoding, and winit's layout-resolved shifted character is passed through verbatim. Ctrl+digit and Ctrl+Shift+digit still encode via modifyOtherKeys as before.
 
 ### Windows Modifier Keys Break After Notification
 
