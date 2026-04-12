@@ -2,7 +2,7 @@
 name = "par-term-input"
 version = "0.1.11"
 edition = "2024"
-rust-version = "1.91"
+rust-version = "1.94"
 authors = ["Paul Robello <probello@gmail.com>"]
 description = "Input sequence generation for par-term terminal emulator"
 license = "MIT"

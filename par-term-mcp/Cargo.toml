@@ -2,7 +2,7 @@
 name = "par-term-mcp"
 version = "0.2.3"
 edition = "2024"
-rust-version = "1.91"
+rust-version = "1.94"
 authors = ["Paul Robello <probello@gmail.com>"]
 description = "MCP (Model Context Protocol) stdio server for par-term terminal emulator"
 license = "MIT"
