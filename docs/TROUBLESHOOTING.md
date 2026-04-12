@@ -645,11 +645,11 @@ URL underline positioning now correctly accounts for split pane offsets, scrollb
 
 **Symptom:** Changes made in the Settings UI revert after closing or restarting par-term.
 
-**Cause:** The settings were not explicitly saved, or the config file is not writable.
+**Cause:** The config file is not writable, or another process is modifying it.
 
 **Solution:**
 
-1. In the Settings UI, ensure you click **Save** after making changes
+1. Settings are saved automatically when the Settings window is closed and are debounced during live editing -- there is no manual Save button
 2. Verify the config directory is writable:
 
    ```bash

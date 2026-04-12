@@ -88,11 +88,19 @@ When enabled, double-click can detect and select:
 - Email addresses
 - File paths
 - IP addresses
+- UUIDs, Java/Python imports, C++ namespaces, quoted strings
 
-Configure:
+Built-in rules are ordered by precision (highest first). Configure custom rules:
 ```yaml
 smart_selection_enabled: true
+smart_selection_rules:
+  - name: "HTTP URL"
+    regex: 'https?://[^\s<>\[\]{}|\\^`\x00-\x1f]+'
+    precision: very_high
+    enabled: true
 ```
+
+Precision levels: `very_low`, `low`, `normal`, `high`, `very_high`. Higher precision rules are checked first.
 
 ### Auto-Copy
 
@@ -125,6 +133,16 @@ Hold `Cmd` (macOS) or `Ctrl` (Windows/Linux) and click a URL to open it.
 **Visual Feedback:**
 - Cursor changes to hand pointer on URL hover
 - Window title shows URL as tooltip
+
+### Custom Link Handler
+
+Override the default browser for URL clicks:
+```yaml
+link_handler_command: "firefox {url}"     # Linux
+link_handler_command: "open -a Safari {url}"  # macOS
+```
+
+When empty (default), URLs open in the system default browser.
 
 ### OSC 8 Hyperlinks
 
@@ -233,6 +251,7 @@ auto_copy_selection: true
 copy_trailing_newline: false
 word_characters: "/-+\\~_."
 smart_selection_enabled: true
+# smart_selection_rules: [...]  # Custom rules (see Smart Selection section)
 
 # Click timing
 mouse_double_click_threshold: 500
@@ -247,6 +266,9 @@ option_click_moves_cursor: true
 
 # Paste behavior
 middle_click_paste: true
+
+# URL handling
+# link_handler_command: ""  # Custom browser command with {url} placeholder
 
 # Window focus
 focus_follows_mouse: false

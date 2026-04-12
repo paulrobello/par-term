@@ -135,8 +135,8 @@ semantic_history_editor_mode: environment_variable
 # Supports {file}, {line}, {col} placeholders
 semantic_history_editor: "code -g {file}:{line}"
 
-# Link highlight color (default: bright cyan #4FC3F7)
-link_highlight_color: "#4FC3F7"
+# Link highlight color as RGB array (default: bright cyan #4FC3F7)
+link_highlight_color: [79, 195, 247]
 
 # Apply highlight color to link text (default: true)
 # Disable to underline only without changing text color

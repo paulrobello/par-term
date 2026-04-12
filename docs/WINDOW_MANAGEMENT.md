@@ -458,6 +458,7 @@ transparency_affects_only_default_background: true
 keep_text_opaque: true
 window_padding: 1.0  # Padding in pixels
 hide_window_padding_on_split: true  # Remove window padding when panes are split
+snap_window_to_grid: true  # Snap window size to exact cell boundaries (single pane only)
 
 # macOS blur
 blur_enabled: false

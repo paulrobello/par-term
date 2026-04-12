@@ -43,7 +43,7 @@ graph TD
 
 Export the current configuration to a YAML file:
 
-1. Open Settings (`F12` or `Cmd/Ctrl + ,`)
+1. Open Settings (`F12` or `Cmd + ,` on macOS)
 2. Navigate to **Advanced** > **Import/Export Preferences**
 3. Click **Export Preferences to File**
 4. Choose a location in the native file dialog

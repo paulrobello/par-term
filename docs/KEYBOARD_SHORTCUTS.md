@@ -22,11 +22,11 @@ Complete reference for all par-term keyboard shortcuts.
 
 | Action | macOS | Linux/Windows |
 |--------|-------|---------------|
-| New window | `Cmd + N` | — |
+| New window | `Cmd + N` | `Ctrl + Shift + N` |
 | New tab | `Cmd + T` | `Ctrl + Shift + T` |
-| Duplicate tab | `Cmd + Shift + N` | `Ctrl + Shift + N` |
+| Duplicate tab | *(unbound)* | *(unbound)* |
 | Close tab/window | `Cmd + W` | `Ctrl + Shift + W` |
-| Quit application | `Cmd + Q` | `Ctrl + Q` |
+| Quit application | `Cmd + Q` | `Ctrl + Shift + Q` |
 | Next tab | `Cmd + Shift + ]` | `Ctrl + Shift + ]` |
 | Previous tab | `Cmd + Shift + [` | `Ctrl + Shift + [` |
 | Next tab (alt) | `Ctrl + Tab` | `Ctrl + Tab` |
@@ -177,7 +177,7 @@ Vi-style keyboard-driven text selection. See [Copy Mode](COPY_MODE.md) for compl
 | `Cmd + Shift + S` (macOS) / `Ctrl + Shift + S` (Linux/Win) | SSH Quick Connect |
 | `Cmd/Ctrl + Alt + I` | Toggle broadcast input |
 | `Cmd/Ctrl + Alt + T` | Toggle tmux session picker |
-| `Ctrl + ,` | Cycle cursor style |
+| *(unbound by default)* | Cycle cursor style (`cycle_cursor_style`) |
 
 > **📝 Note:** The Assistant panel is toggled with `Cmd + I` (macOS) or `Ctrl + Shift + I` (Linux/Windows) when `ai_inspector_enabled` is `true`. It can also be bound via custom keybindings. See [Assistant Panel](ASSISTANT_PANEL.md) for details.
 

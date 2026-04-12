@@ -287,7 +287,7 @@ All public types from workspace crates are re-exported from the main `par-term` 
 ### Additional Features
 
 *   **Search (`src/search/`)**: Terminal search functionality with regex support, debounced search, and match highlighting. Includes egui-based search bar overlay.
-*   **Session Logger (`src/session_logger.rs`)**: Records terminal sessions to files for replay or audit.
+*   **Session Logger (`src/session_logger/`)**: Records terminal sessions to files for replay or audit.
 *   **Session Management (`src/session/`)**: Session save/restore with layout capture and pane state serialization.
 *   **Update Checker (`par-term-update`)**: Checks for new versions of par-term.
 *   **Smart Selection (`src/smart_selection.rs`)**: Intelligent text selection with word/path/URL detection.

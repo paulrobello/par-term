@@ -68,8 +68,9 @@ graph TD
 | Action | macOS | Linux/Windows |
 |--------|-------|---------------|
 | New tab | `Cmd+T` | `Ctrl+Shift+T` |
-| Close tab | `Cmd+W` | `Ctrl+Shift+W` |
-| Close window | `Cmd+Shift+W` | `Ctrl+Shift+W` |
+| Close (smart) | `Cmd+W` | `Ctrl+Shift+W` |
+
+`Close` is a smart action: it closes the active split pane when the tab has splits, or closes the tab itself when there is only one pane. On macOS, press `Cmd+Shift+W` to close the entire window. On Linux/Windows, the window close button or window manager shortcut closes the window.
 
 New tabs inherit the working directory from the current tab (if shell integration is installed) or start in the configured startup directory.
 
@@ -163,10 +164,11 @@ Click and drag any tab in the tab bar to move it to a new position:
 
 ## Duplicating Tabs
 
-Any tab can be duplicated via the context menu or keyboard shortcut:
+Any tab can be duplicated via the context menu:
 
-1. **Right-click** on any tab in the tab bar to open the context menu and select **Duplicate Tab**, or
-2. Press `Cmd+Shift+N` (macOS) / `Ctrl+Shift+N` (Linux/Windows) to duplicate the active tab
+1. **Right-click** on any tab in the tab bar to open the context menu and select **Duplicate Tab**
+
+To assign a keyboard shortcut, bind the `duplicate_tab` action in Settings > Keybindings. There is no default shortcut.
 
 **Behavior:**
 - The duplicated tab inherits the working directory of the source tab
@@ -452,14 +454,60 @@ This persistence also applies to custom tab icons (see [Tab Icons](#tab-icons)).
 
 Customize the visual style of tabs:
 
+### Layout
+
 | Setting | Description | Default |
 |---------|-------------|---------|
 | `tab_bar_height` | Height in pixels | `28.0` |
-| `tab_bar_background` | Background RGB | `[40, 40, 40]` |
-| `tab_active_background` | Active tab background RGB | `[60, 60, 60]` |
-| `tab_inactive_background` | Inactive tab background RGB | `[40, 40, 40]` |
+| `tab_bar_width` | Sidebar width for left position (pixels) | `160.0` |
 | `tab_min_width` | Minimum tab width | `120.0` |
 | `max_tabs` | Maximum tabs per window (0 = unlimited) | `0` |
+| `tab_stretch_to_fill` | Stretch tabs to fill bar width | `true` |
+| `tab_show_close_button` | Show close button on tabs | `true` |
+| `tab_show_index` | Show tab index numbers | `false` |
+| `tab_border_width` | Tab border width in pixels | varies |
+
+### Colors (RGB arrays)
+
+| Setting | Description |
+|---------|-------------|
+| `tab_bar_background` | Tab bar background |
+| `tab_active_background` | Active tab background |
+| `tab_inactive_background` | Inactive tab background |
+| `tab_hover_background` | Hovered tab background |
+| `tab_active_text` | Active tab text color |
+| `tab_inactive_text` | Inactive tab text color |
+| `tab_active_indicator` | Active tab underline/indicator |
+| `tab_activity_indicator` | Activity dot color |
+| `tab_bell_indicator` | Bell indicator color |
+| `tab_close_button` | Close button color |
+| `tab_close_button_hover` | Close button hover color |
+| `tab_border_color` | Tab border color |
+
+### Inactive Tab Styling
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `tab_inactive_outline_only` | Outline-only mode (no fill) | `true` |
+| `dim_inactive_tabs` | Dim inactive tabs with reduced opacity | `true` |
+| `inactive_tab_opacity` | Opacity for dimmed inactive tabs (0.0-1.0) | varies |
+
+### Automatic Style Sub-Styles
+
+When `tab_style` is set to `automatic`, the light and dark sub-styles can be overridden:
+
+```yaml
+tab_style: automatic
+light_tab_style: light     # Style used in light mode
+dark_tab_style: dark       # Style used in dark mode
+```
+
+### Behavior
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `tab_inherit_cwd` | New tab inherits working directory from active tab | `true` |
+| `tab_html_titles` | Render limited HTML in tab titles | `false` |
 
 **Example Configuration:**
 
@@ -471,6 +519,10 @@ tab_inactive_background: [40, 40, 40]
 tab_stretch_to_fill: true
 tab_min_width: 120.0
 tab_html_titles: true
+tab_inactive_outline_only: true
+dim_inactive_tabs: true
+tab_border_color: [80, 80, 80]
+tab_border_width: 1.0
 ```
 
 ## Known Fixes
@@ -505,8 +557,11 @@ remote_tab_title_osc_priority: true
 
 # Tab style preset: "dark", "light", "compact", "minimal", "high_contrast", "automatic"
 tab_style: dark
+# Sub-styles for automatic mode
+light_tab_style: light
+dark_tab_style: dark
 
-# Tab bar appearance
+# Tab bar dimensions
 tab_bar_height: 28.0
 tab_bar_background: [40, 40, 40]
 tab_bar_width: 160.0  # Sidebar width for left position
@@ -514,19 +569,35 @@ tab_bar_width: 160.0  # Sidebar width for left position
 # Tab colors (RGB arrays)
 tab_active_background: [60, 60, 60]
 tab_inactive_background: [40, 40, 40]
+tab_hover_background: [50, 50, 50]
+tab_active_text: [220, 220, 220]
+tab_inactive_text: [160, 160, 160]
+tab_active_indicator: [66, 165, 245]
+tab_activity_indicator: [255, 193, 7]
+tab_bell_indicator: [244, 67, 54]
+tab_close_button: [150, 150, 150]
+tab_close_button_hover: [255, 255, 255]
+tab_border_color: [80, 80, 80]
+tab_border_width: 1.0
 
-# Inactive tab outline-only rendering (no background fill)
+# Inactive tab rendering
 tab_inactive_outline_only: true
+dim_inactive_tabs: true
+inactive_tab_opacity: 0.6
 
-# Tab sizing
+# Tab sizing and layout
 tab_stretch_to_fill: true
 tab_min_width: 120.0
+tab_show_close_button: true
+tab_show_index: false
 max_tabs: 0  # 0 = unlimited
 
 # Tab titles
 tab_html_titles: false
+tab_inherit_cwd: true
 
 # Profile selection
+show_profile_drawer_button: false
 new_tab_shortcut_shows_profiles: false  # Show profile picker on Cmd+T
 new_tab_position: end  # "end" or "after_active"
 ```

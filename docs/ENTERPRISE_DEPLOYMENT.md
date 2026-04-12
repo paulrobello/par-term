@@ -49,12 +49,13 @@ https://github.com/paulrobello/par-term/releases/download/v<VERSION>/par-term-<P
 ```
 
 Supported platform suffixes:
-| Platform | Suffix |
+| Platform | Asset Name |
 |----------|--------|
-| macOS (Apple Silicon) | `aarch64-apple-darwin` |
-| macOS (Intel) | `x86_64-apple-darwin` |
-| Linux (x86_64) | `x86_64-unknown-linux-gnu` |
-| Windows (x86_64) | `x86_64-pc-windows-msvc.exe` |
+| macOS (Apple Silicon) | `macos-aarch64.zip` |
+| macOS (Intel) | `macos-x86_64.zip` |
+| Linux (x86_64) | `linux-x86_64` |
+| Linux (ARM64) | `linux-aarch64` |
+| Windows (x86_64) | `windows-x86_64.exe` |
 
 **Install to a system-wide location:**
 ```bash
@@ -118,17 +119,32 @@ set -euo pipefail
 
 PAR_TERM_VERSION="0.29.1"
 INSTALL_DIR="/usr/local/bin"
-PLATFORM="aarch64-apple-darwin"   # adjust for target arch
-BINARY="par-term-${PLATFORM}"
+PLATFORM="macos-aarch64"   # adjust: macos-x86_64, linux-x86_64, linux-aarch64
+BINARY="par-term-${PLATFORM}.zip"
 RELEASE_URL="https://github.com/paulrobello/par-term/releases/download/v${PAR_TERM_VERSION}/${BINARY}"
 
 echo "Downloading par-term ${PAR_TERM_VERSION}..."
 curl -fsSL "${RELEASE_URL}" -o "/tmp/${BINARY}"
-chmod 755 "/tmp/${BINARY}"
 
-echo "Installing to ${INSTALL_DIR}/par-term..."
-sudo install -m 755 "/tmp/${BINARY}" "${INSTALL_DIR}/par-term"
-rm "/tmp/${BINARY}"
+# For macOS: extract zip and find the binary inside the .app bundle
+# For Linux: the downloaded file is the binary directly
+if [[ "${PLATFORM}" == macos-* ]]; then
+    echo "Extracting macOS archive..."
+    unzip -o "/tmp/${BINARY}" -d /tmp/par-term-extract
+    BINARY_PATH=$(find /tmp/par-term-extract -name "par-term" -path "*/MacOS/*" | head -1)
+    if [[ -z "${BINARY_PATH}" ]]; then
+        # Standalone binary inside zip (not .app bundle)
+        BINARY_PATH=$(find /tmp/par-term-extract -name "par-term" -not -path "*/MacOS/*" | head -1)
+    fi
+    echo "Installing to ${INSTALL_DIR}/par-term..."
+    sudo install -m 755 "${BINARY_PATH}" "${INSTALL_DIR}/par-term"
+    rm -rf /tmp/par-term-extract
+else
+    chmod 755 "/tmp/${BINARY}"
+    echo "Installing to ${INSTALL_DIR}/par-term..."
+    sudo install -m 755 "/tmp/${BINARY}" "${INSTALL_DIR}/par-term"
+fi
+rm -f "/tmp/${BINARY}"
 
 # Deploy base config if not already present
 CONFIG_DIR="${HOME}/.config/par-term"
@@ -146,7 +162,7 @@ echo "par-term ${PAR_TERM_VERSION} installed successfully."
 ```powershell
 # deploy-par-term.ps1
 $Version  = "0.29.1"
-$Platform = "x86_64-pc-windows-msvc"
+$Platform = "windows-x86_64"
 $InstDir  = "C:\Program Files\par-term"
 $Url      = "https://github.com/paulrobello/par-term/releases/download/v$Version/par-term-$Platform.exe"
 

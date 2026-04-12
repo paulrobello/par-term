@@ -332,6 +332,8 @@ cursor_shader_configs:
 - `glow_intensity`: Override glow intensity
 - `trail_duration`: Override trail duration
 - `cursor_color`: Override cursor color `[R, G, B]` (0-255)
+- `hides_cursor`: Override whether to hide the default cursor
+- `disable_in_alt_screen`: Override whether to disable in alt screen apps
 
 **Configuration resolution priority (highest to lowest):**
 1. User overrides from `shader_configs` / `cursor_shader_configs` map

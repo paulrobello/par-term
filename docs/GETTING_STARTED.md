@@ -146,7 +146,7 @@ These are the shortcuts you use most often. On macOS, the primary modifier is `C
 | **Search** | `Cmd + F` | `Ctrl + Shift + F` |
 | **Split horizontal** | `Cmd + D` | `Ctrl + Shift + D` |
 | **Split vertical** | `Cmd + Shift + D` | `Ctrl + Shift + E` |
-| **Open Settings** | `F12` or `Cmd + ,` | `F12` or `Ctrl + ,` |
+| **Open Settings** | `F12` or `Cmd + ,` | `F12` |
 | **Toggle fullscreen** | `F11` | `F11` |
 | **Reload config** | `F5` | `F5` |
 | **Toggle help panel** | `F1` | `F1` |
@@ -204,7 +204,7 @@ Once installed, enable a background shader in Settings under **Background & Effe
 
 ### Opening Settings
 
-Press `F12` (or `Cmd + ,` on macOS / `Ctrl + ,` on Linux and Windows) to open the Settings window. Settings are organized into tabs with a searchable sidebar. Changes apply in real time -- there is no "Apply" button.
+Press `F12` (or `Cmd + ,` on macOS) to open the Settings window. Settings are organized into tabs with a searchable sidebar. Changes apply in real time -- there is no "Apply" button.
 
 ### Profiles
 

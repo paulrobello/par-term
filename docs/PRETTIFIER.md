@@ -256,7 +256,7 @@ Error and exception trace highlighting. Detects common stack trace patterns acro
 
 ## Security: Allowed Commands
 
-Custom renderers can invoke external commands to render content. The `allowed_commands` setting controls which commands are permitted to execute:
+Custom renderers can invoke external commands to render content. The `allowed_commands` setting controls which commands are permitted to execute using a **default-deny** policy:
 
 ```yaml
 content_prettifier:
@@ -267,7 +267,7 @@ content_prettifier:
 
 | State | Behavior |
 |-------|----------|
-| **Empty list (default)** | All custom renderer commands are allowed to execute, but a security warning is logged for each execution |
+| **Empty list (default)** | All custom renderer commands are **blocked**. External renderers return an error instructing the user to add the command to `allowed_commands`. This is the default-deny security posture to prevent shared or imported configs from silently running arbitrary commands. |
 | **Non-empty list** | Only commands whose basename or full path matches an entry in the list are permitted; others are refused with a warning |
 
 Commands can be specified by basename (e.g., `bat`) or full path (e.g., `/usr/local/bin/protoc`). When using basename matching, any command with that name in PATH will be allowed.
@@ -316,19 +316,7 @@ This means any command that produces ANSI-colored output (e.g., `bat`, `pygmenti
 
 ### Custom Diagram Languages
 
-Add custom diagram languages that integrate with the diagram renderer's backend system:
-
-```yaml
-content_prettifier:
-  custom_diagram_languages:
-    - tag: "tikz"
-      display_name: "TikZ"
-      kroki_type: "tikz"
-      local_command: null
-      local_args: []
-```
-
-Custom diagram languages are registered alongside the built-in ones and support the same backend selection (auto, local, kroki, text_fallback).
+> **Note:** Custom diagram language configuration is defined in the codebase (`CustomDiagramLanguageConfig` in `par-term-prettifier/src/custom_renderers.rs`) but is not yet exposed as a config field in `config.yaml`. This feature is planned for a future release. The 10 built-in diagram languages (11 tags) are available without configuration.
 
 ## Detection System
 
@@ -512,7 +500,7 @@ The following fields support profile-level overrides:
 
 | Field | Override Type |
 |-------|-------------|
-| `enabled` | `Option<bool>` |
+| `enabled` | `Option<bool>` (via `profile_enabled` parameter, not in the override struct) |
 | `respect_alternate_screen` | `Option<bool>` |
 | `per_block_toggle` | `Option<bool>` |
 | `detection.scope` | `Option<String>` |
@@ -593,7 +581,7 @@ content_prettifier:
       priority: 50
 
   # Security: commands allowed for custom renderers
-  # When empty (default), all custom renderer commands run with a warning
+  # When empty (default), all custom renderer commands are BLOCKED (default-deny)
   # When non-empty, only listed commands are permitted
   allowed_commands: []
 
