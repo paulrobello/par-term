@@ -27,6 +27,7 @@ Centralized guide for diagnosing and resolving common issues with par-term. Each
   - [Shell Integration Not Working](#shell-integration-not-working)
   - [Keyboard Shortcuts Not Recognized](#keyboard-shortcuts-not-recognized)
   - [Modifier Keys Ignored for Special Keys Outside tmux](#modifier-keys-ignored-for-special-keys-outside-tmux)
+  - [Shift+Enter Ignored Inside Tmux by pi / Other Kitty-Keyboard TUIs](#shiftenter-ignored-inside-tmux-by-pi--other-kitty-keyboard-tuis)
   - [Copy and Paste Issues](#copy-and-paste-issues)
   - [Mouse Behavior Issues](#mouse-behavior-issues)
   - [URL Underline Misaligned in Split Panes or During Scroll](#url-underline-misaligned-in-split-panes-or-during-scroll)
@@ -459,6 +460,20 @@ Update to par-term v0.30.6+ — par-term now matches iTerm2's `iTermModifyOtherK
 par-term now emits correct xterm-standard modifier-parameterized sequences for all special keys with `Shift`, `Ctrl`, `Alt`, and their combinations when running outside a tmux session. No configuration changes are required.
 
 > **📝 Note:** Inside tmux, tmux handles modifier encoding independently.
+
+### Shift+Enter Ignored Inside Tmux by pi / Other Kitty-Keyboard TUIs
+
+**Symptom:** Inside a tmux session, `Shift+Enter` silently does nothing in the `pi` agent (and other TUIs that use the kitty-keyboard protocol), even though it inserts a soft newline correctly outside tmux. Claude Code and non-kitty TUIs are unaffected.
+
+**Cause:** Apps that detect `$TMUX` negotiate the kitty-keyboard protocol with tmux. In that mode a raw `\n` is no longer interpreted as Shift+Enter — only the kitty escape `\x1b[13;2u` is. par-term was always emitting LF per the iTerm2 convention, so the keystroke silently no-op'd once kitty-keyboard was active.
+
+**Solution:**
+
+Update to par-term v0.30.7+ — the input path now detects tmux on both code paths and emits the correct sequence:
+
+1. **Gateway mode (`tmux -CC`):** Shift+Enter is routed via `send-keys -t %N -H 0a` so the literal LF bypasses tmux's per-pane `modifyOtherKeys` re-encoding.
+2. **Subprocess tmux:** a `tmux*` child under the active tab's shell is detected via sysinfo and Shift+Enter emits `\x1b[13;2u` instead of `\n`, letting tmux's `extended-keys on` parser re-encode for whatever keyboard protocol the inner app negotiated.
+3. **Outside tmux:** the iTerm2 `\n` convention is preserved, so Claude Code and other non-kitty TUIs keep seeing a soft newline.
 
 ### Copy and Paste Issues
 

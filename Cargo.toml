@@ -95,7 +95,7 @@ tempfile = "3.25"
 
 [package]
 name = "par-term"
-version = "0.30.6"
+version = "0.30.7"
 edition = "2024"
 rust-version = "1.94"
 authors = ["Paul Robello <probello@gmail.com>"]
@@ -168,7 +168,7 @@ par-term-update = { path = "par-term-update", version = "0.2.5" }
 par-term-mcp = { path = "par-term-mcp", version = "0.2.3" }
 
 # tmux control mode integration
-par-term-tmux = { path = "par-term-tmux", version = "0.1.8" }
+par-term-tmux = { path = "par-term-tmux", version = "0.1.9" }
 
 # Terminal emulator core (with OSC 7/1337 hostname/cwd events, RemoteHost, and OSC 934 named progress bars)
 par-term-emu-core-rust.workspace = true

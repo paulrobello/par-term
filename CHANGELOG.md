@@ -9,8 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.30.7] - 2026-04-15
+
 ### Bug Fixes
-- **Shift+Enter lost as soft-newline in kitty-keyboard TUIs running under tmux** — apps like pi agent detect `$TMUX` and negotiate the kitty-keyboard protocol with tmux, after which a raw `\n` is no longer interpreted as Shift+Enter (only `\x1b[13;2u` is). par-term was emitting LF in every scenario following the iTerm2 convention, so Shift+Enter silently no-op'd inside tmux. Two-part fix: (1) in gateway mode (`tmux -CC`), route Shift+Enter via `send-keys -t %N -H 0a` so the literal LF bypasses tmux's per-pane modifyOtherKeys re-encoding (the old `C-j` path was being rewritten to `\x1b[27;5;106~` for mode-2 apps); (2) in subprocess tmux, detect a `tmux*` process under the active tab's shell via sysinfo and emit `\x1b[13;2u` instead of `\n`, letting tmux's `extended-keys on` parser re-encode for whatever keyboard protocol the inner app has negotiated. Outside tmux the iTerm2 `\n` convention is preserved so Claude Code and other non-kitty TUIs keep working.
+- **Shift+Enter lost as soft-newline in kitty-keyboard TUIs running under tmux** — apps like the pi agent detect `$TMUX` and negotiate the kitty-keyboard protocol with tmux, after which a raw `\n` is no longer interpreted as Shift+Enter (only `\x1b[13;2u` is). par-term was emitting LF in every scenario following the iTerm2 convention, so Shift+Enter silently no-op'd inside tmux. Two-part fix: (1) in gateway mode (`tmux -CC`), route Shift+Enter via `send-keys -t %N -H 0a` so the literal LF bypasses tmux's per-pane `modifyOtherKeys` re-encoding (the old `C-j` path was being rewritten to `\x1b[27;5;106~` for mode-2 apps); (2) in subprocess tmux, detect a `tmux*` process under the active tab's shell via sysinfo and emit `\x1b[13;2u` instead of `\n`, letting tmux's `extended-keys on` parser re-encode for whatever keyboard protocol the inner app has negotiated. Outside tmux the iTerm2 `\n` convention is preserved so Claude Code and other non-kitty TUIs keep working.
+
+### Build
+- **MSRV bumped from 1.91 to 1.94** across all workspace crates (matches latest stable Rust). CI and release workflows updated to use 1.94.1.
 
 ---
 

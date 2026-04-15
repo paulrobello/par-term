@@ -41,11 +41,24 @@ New to par-term? The [Getting Started Guide](docs/GETTING_STARTED.md) walks you 
 - **[Configuration Reference](docs/CONFIG_REFERENCE.md)** — All 200+ configuration options
 - **[Keyboard Shortcuts](docs/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
 
-## What's New in 0.30.6
+## What's New in 0.30.7
+
+### 🐛 Bug Fixes
+
+- **Shift+Enter Lost as Soft-Newline in Kitty-Keyboard TUIs Under Tmux**: Apps like the pi agent detect `$TMUX` and negotiate the kitty-keyboard protocol with tmux, after which a raw `\n` is no longer interpreted as Shift+Enter (only `\x1b[13;2u` is). par-term was emitting LF in every scenario, so Shift+Enter silently no-op'd inside tmux. Two-part fix: (1) in gateway mode (`tmux -CC`), route Shift+Enter via `send-keys -t %N -H 0a` so the literal LF bypasses tmux's per-pane `modifyOtherKeys` re-encoding; (2) in subprocess tmux, detect a `tmux*` process under the active tab's shell via sysinfo and emit `\x1b[13;2u` instead of `\n`, letting tmux's `extended-keys on` parser re-encode for whatever keyboard protocol the inner app has negotiated. Outside tmux the iTerm2 `\n` convention is preserved so Claude Code and other non-kitty TUIs keep working.
+
+### 🔧 Build
+
+- **MSRV bumped from 1.91 to 1.94** across all workspace crates, and CI toolchains updated to match.
+
+<details>
+<summary><strong>What's New in 0.30.6</strong></summary>
 
 ### 🐛 Bug Fixes
 
 - **Shift+Digit/Symbol Sent Unshifted Char to Crossterm Apps**: Claude Code and other crossterm TUIs received `1` instead of `!`, `[` instead of `{`, etc. outside tmux. par-term was encoding any Shift-modified printable through `modifyOtherKeys`, which crossterm could not reverse-map without keyboard-layout tables. Fixed by matching iTerm2's reference behavior: skip `modifyOtherKeys` encoding for any Shift-only combination and let winit's layout-resolved shifted character pass through. Ctrl+digit and Ctrl+Shift+digit still encode as before.
+
+</details>
 
 <details>
 <summary><strong>What's New in 0.30.5</strong></summary>

@@ -1,6 +1,6 @@
 [package]
 name = "par-term-tmux"
-version = "0.1.8"
+version = "0.1.9"
 edition = "2024"
 rust-version = "1.94"
 authors = ["Paul Robello <probello@gmail.com>"]

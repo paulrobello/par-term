@@ -36,7 +36,7 @@ jobs:
       # To find the SHA: git ls-remote https://github.com/dtolnay/rust-toolchain refs/heads/master
       uses: dtolnay/rust-toolchain@4305c38b25bff3e379fbb44ff7dfba641d7aa8ef
       with:
-        toolchain: 1.91.0
+        toolchain: 1.94.1
 
     - name: Install Linux dependencies
       if: runner.os == 'Linux'
@@ -97,7 +97,7 @@ jobs:
       # To find the SHA: git ls-remote https://github.com/dtolnay/rust-toolchain refs/heads/master
       uses: dtolnay/rust-toolchain@4305c38b25bff3e379fbb44ff7dfba641d7aa8ef
       with:
-        toolchain: 1.91.0
+        toolchain: 1.94.1
         components: rustfmt, clippy
 
     - name: Install Linux dependencies
