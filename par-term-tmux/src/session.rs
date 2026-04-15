@@ -338,6 +338,28 @@ impl TmuxSession {
         Some(format!("send-keys -t %{} -l '{}'\n", pane_id, escaped))
     }
 
+    /// Format input as hex-encoded bytes for tmux send-keys -H.
+    ///
+    /// Uses the `-H` flag so tmux injects each byte as a `KEYC_LITERAL` key,
+    /// bypassing tmux's key-name interpretation and encoding. The bytes are
+    /// written directly to the pane's PTY as raw bytes.
+    ///
+    /// Used for sending CSI-u extended key sequences (e.g., `\x1b[13;2u` for
+    /// Shift+Enter) that need to pass through tmux without re-encoding.
+    pub fn format_send_hex_keys(&self, data: &[u8]) -> Option<String> {
+        if !self.is_gateway_active() || self.state != SessionState::Connected {
+            return None;
+        }
+
+        let pane_id = self.focused_pane?;
+        let hex_keys: Vec<String> = data.iter().map(|b| format!("{:02x}", b)).collect();
+        Some(format!(
+            "send-keys -t %{} -H {}\n",
+            pane_id,
+            hex_keys.join(" ")
+        ))
+    }
+
     /// Disconnect from the session
     pub fn disconnect(&mut self) {
         self.reset_gateway();

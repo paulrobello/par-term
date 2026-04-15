@@ -56,6 +56,74 @@ impl WindowState {
         false
     }
 
+    /// Send raw bytes to the focused tmux pane as literal input, bypassing tmux's
+    /// key-name interpretation and any per-pane modifyOtherKeys / extended-keys
+    /// re-encoding.
+    ///
+    /// Uses `send-keys -H`, which tags each byte as `KEYC_LITERAL`. tmux writes
+    /// these bytes straight to the pane's PTY via `bufferevent_write`, skipping
+    /// the `input_key()` encoder entirely — so whatever we put in arrives
+    /// unchanged at the inner application.
+    ///
+    /// Used for cases where the normal `send-keys` path would mangle the bytes,
+    /// e.g. Shift+Enter: the iTerm2 convention is to send raw LF (0x0a), but
+    /// `escape_keys_for_tmux` translates that to `C-j`, and tmux's
+    /// modifyOtherKeys-mode-2 encoder then delivers `\x1b[27;5;106~` instead of
+    /// the literal newline the application expects.
+    pub fn send_literal_bytes_via_tmux(&self, bytes: &[u8]) -> bool {
+        if !self.config.tmux_enabled || !self.is_tmux_connected() {
+            crate::debug_info!(
+                "SHIFTENTER",
+                "send_literal_bytes_via_tmux: refused - enabled={}, connected={}",
+                self.config.tmux_enabled,
+                self.is_tmux_connected(),
+            );
+            return false;
+        }
+
+        let session = match &self.tmux_state.tmux_session {
+            Some(s) => s,
+            None => {
+                crate::debug_info!("SHIFTENTER", "send_literal_bytes_via_tmux: no tmux_session");
+                return false;
+            }
+        };
+
+        let focused = session.focused_pane();
+        let cmd = match session.format_send_hex_keys(bytes) {
+            Some(c) => c,
+            None => {
+                crate::debug_info!(
+                    "SHIFTENTER",
+                    "format_send_hex_keys returned None (focused_pane={:?}, state={:?}, gateway={:?})",
+                    focused,
+                    session.state(),
+                    session.gateway_state(),
+                );
+                return false;
+            }
+        };
+
+        crate::debug_info!(
+            "SHIFTENTER",
+            "writing to gateway (focused_pane={:?}): {:?}",
+            focused,
+            cmd.trim_end(),
+        );
+
+        if self.write_to_gateway(&cmd) {
+            crate::debug_info!(
+                "SHIFTENTER",
+                "send_literal_bytes_via_tmux: success ({} bytes)",
+                bytes.len()
+            );
+            return true;
+        }
+
+        crate::debug_info!("SHIFTENTER", "write_to_gateway failed");
+        false
+    }
+
     /// Format send-keys command for a specific window (if mapping exists)
     fn format_send_keys_for_window(&self, data: &[u8]) -> Option<String> {
         let active_tab_id = self.tab_manager.active_tab_id()?;

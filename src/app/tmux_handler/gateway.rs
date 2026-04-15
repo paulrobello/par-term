@@ -216,6 +216,25 @@ impl WindowState {
             .is_some_and(|s| s.state() == SessionState::Connected)
     }
 
+    /// Return true when a `tmux*` process is running under the active tab's
+    /// shell. Used by the input path to decide whether to encode Shift+Enter
+    /// as raw LF (iTerm2 convention) or as a CSI-u extended-keys sequence
+    /// that tmux's `extended-keys on` parser can relay to the inner app in
+    /// whatever keyboard protocol that app has negotiated (kitty/modifyOtherKeys).
+    pub fn shell_has_tmux_child(&self) -> bool {
+        let tab = match self.tab_manager.active_tab() {
+            Some(t) => t,
+            None => return false,
+        };
+        let term = match tab.terminal.try_read() {
+            Ok(t) => t,
+            Err(_) => return false,
+        };
+        term.get_running_child_processes(&[])
+            .iter()
+            .any(|name| name.eq_ignore_ascii_case("tmux") || name.starts_with("tmux"))
+    }
+
     /// Check if gateway mode is active (connected or connecting)
     pub fn is_gateway_active(&self) -> bool {
         self.tmux_state

@@ -383,12 +383,49 @@ impl WindowState {
                 (0, false)
             };
 
+        // Detect Shift+Enter before the event is consumed by handle_key_event_with_mode.
+        // Par-term follows the iTerm2 convention: regular Enter emits CR (\r) so
+        // shells submit the command line, Shift+Enter emits LF (\n) so chat-style
+        // TUIs (Claude Code, pi agent, etc.) insert a soft newline. Routing this
+        // byte through `send-keys`'s normal encoding path translates 0x0a to `C-j`,
+        // which tmux's modifyOtherKeys-mode-2 encoder rewrites as `\x1b[27;5;106~`,
+        // so the inner app never sees a literal LF. We bypass that by sending the
+        // byte via `send-keys -H` instead.
+        let is_shift_enter = self.input_handler.modifiers.state().shift_key()
+            && matches!(event.logical_key, Key::Named(NamedKey::Enter));
+
         // Normal key handling - send to terminal (or via tmux if connected)
-        if let Some(bytes) = self.input_handler.handle_key_event_with_mode(
+        if let Some(mut bytes) = self.input_handler.handle_key_event_with_mode(
             event,
             modify_other_keys_mode,
             application_cursor,
         ) {
+            // Par-term follows the iTerm2 convention for Shift+Enter: emit raw LF (\n)
+            // so chat-style TUIs (Claude Code, pi agent) can distinguish it from Enter
+            // (\r). That convention breaks when the TUI runs inside tmux and has
+            // negotiated kitty-keyboard with tmux: in that mode the app expects
+            // \x1b[13;2u for Shift+Enter and treats \n as Ctrl+J. Detect tmux by
+            // looking for a tmux process under the active tab's shell, and when
+            // present send CSI-u so tmux's `extended-keys on` parser can re-encode
+            // for the pane's actual mode.
+            if is_shift_enter {
+                // Gateway path already bypasses escape_keys_for_tmux' C-j rewrite
+                // via -H, so we can safely forward the raw LF there.
+                if self.send_literal_bytes_via_tmux(b"\n") {
+                    if let Some(tab) = self.tab_manager.active_tab_mut() {
+                        tab.activity.anti_idle_last_activity = std::time::Instant::now();
+                    }
+                    return;
+                }
+                if self.shell_has_tmux_child() {
+                    crate::debug_info!(
+                        "SHIFTENTER",
+                        "tmux detected under shell — sending CSI-u \\x1b[13;2u instead of LF"
+                    );
+                    bytes = b"\x1b[13;2u".to_vec();
+                }
+            }
+
             // Try to send via tmux if connected (check before borrowing tab)
             if self.send_input_via_tmux(&bytes) {
                 // Still need to reset anti-idle timer
