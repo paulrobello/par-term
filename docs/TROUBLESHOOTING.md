@@ -469,11 +469,11 @@ par-term now emits correct xterm-standard modifier-parameterized sequences for a
 
 **Solution:**
 
-Update to par-term v0.30.7+ — the input path now detects tmux on both code paths and emits the correct sequence:
+Update to par-term v0.30.8+ — the input path now detects tmux on both code paths and emits the correct sequence:
 
 1. **Gateway mode (`tmux -CC`):** Shift+Enter is routed via `send-keys -t %N -H 0a` so the literal LF bypasses tmux's per-pane `modifyOtherKeys` re-encoding.
-2. **Subprocess tmux:** a `tmux*` child under the active tab's shell is detected via sysinfo and Shift+Enter emits `\x1b[13;2u` instead of `\n`, letting tmux's `extended-keys on` parser re-encode for whatever keyboard protocol the inner app negotiated.
-3. **Outside tmux:** the iTerm2 `\n` convention is preserved, so Claude Code and other non-kitty TUIs keep seeing a soft newline.
+2. **Subprocess tmux:** uses the terminal's alternate screen buffer state as the primary detection signal — TUI apps (and tmux wrapping TUIs) always enter alternate screen. When active, Shift+Enter emits `\x1b[13;2u` so tmux's `extended-keys on` parser can re-encode for the pane's negotiated protocol. Process-tree detection via `sysinfo` is kept as a fallback.
+3. **Outside tmux / shell context (no alternate screen):** the iTerm2 `\n` convention is preserved, so Claude Code and other non-kitty TUIs keep seeing a soft newline.
 
 ### Copy and Paste Issues
 
