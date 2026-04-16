@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Bug Fixes
+- **Shift+Enter still broken in kitty-keyboard TUIs under non-gateway tmux** — the previous fix relied on per-keypress `sysinfo` process-tree scanning to detect tmux, which was unreliable (failed silently, falling through to raw LF). tmux converts LF (0x0a) into Ctrl+J (its C0→Ctrl remapping in `tty-keys.c`), then re-encodes as `\x1b[106;5u` for `MODE_KEYS_EXTENDED_2` panes — the inner app never sees Shift+Enter. New approach: use alternate screen buffer state as the primary signal. TUI apps (and tmux wrapping TUIs) always enter alternate screen; when active, emit `\x1b[13;2u` so tmux's `extended-keys on` parser can re-encode for the pane's negotiated protocol. Process-tree detection kept as fallback. Shell context (no alternate screen) preserves the iTerm2 `\n` convention.
+- **Unicode symbol characters (ballot boxes, dingbats) rendered vertically squished** — `BlockCharType::Symbol` characters (U+2600–U+26FF, U+2700–U+27BF) used baseline-relative font metrics that produce glyphs much shorter than the terminal cell height. Now centered in the cell and scaled to fill the cell height while maintaining aspect ratio.
+
 ---
 
 ## [0.30.7] - 2026-04-15

@@ -372,25 +372,37 @@ impl WindowState {
         // the render thread (multiple readers can hold the lock simultaneously),
         // preventing intermittent fallback to wrong modes that caused modifier keys
         // (especially Shift) to stop working in alt-screen/TUI apps.
-        let (modify_other_keys_mode, application_cursor) =
+        let (modify_other_keys_mode, application_cursor, alt_screen_active) =
             if let Some(tab) = self.tab_manager.active_tab() {
                 if let Ok(term) = tab.terminal.try_read() {
-                    (term.modify_other_keys_mode(), term.application_cursor())
+                    (
+                        term.modify_other_keys_mode(),
+                        term.application_cursor(),
+                        term.is_alt_screen_active(),
+                    )
                 } else {
-                    (0, false)
+                    (0, false, false)
                 }
             } else {
-                (0, false)
+                (0, false, false)
             };
 
         // Detect Shift+Enter before the event is consumed by handle_key_event_with_mode.
         // Par-term follows the iTerm2 convention: regular Enter emits CR (\r) so
         // shells submit the command line, Shift+Enter emits LF (\n) so chat-style
-        // TUIs (Claude Code, pi agent, etc.) insert a soft newline. Routing this
-        // byte through `send-keys`'s normal encoding path translates 0x0a to `C-j`,
-        // which tmux's modifyOtherKeys-mode-2 encoder rewrites as `\x1b[27;5;106~`,
-        // so the inner app never sees a literal LF. We bypass that by sending the
-        // byte via `send-keys -H` instead.
+        // TUIs (Claude Code, pi agent, etc.) insert a soft newline.
+        //
+        // That LF convention breaks inside tmux because tmux converts raw 0x0a
+        // (LF) into Ctrl+J (tty-keys.c: C0 control codes except HT/CR/ESC are
+        // converted to Ctrl+key equivalents), then re-encodes Ctrl+J as
+        // \x1b[106;5u for MODE_KEYS_EXTENDED_2 panes. The inner app never sees
+        // a Shift+Enter it recognizes.
+        //
+        // Fix: send \x1b[13;2u (CSI-u Shift+Enter) whenever a TUI context is
+        // active. tmux's extended-keys parser re-encodes for the pane's negotiated
+        // protocol (kitty or modifyOtherKeys), and direct TUIs parse CSI-u
+        // natively. In shell context (no alternate screen), keep the iTerm2 \n
+        // convention for soft newlines.
         let is_shift_enter = self.input_handler.modifiers.state().shift_key()
             && matches!(event.logical_key, Key::Named(NamedKey::Enter));
 
@@ -400,28 +412,48 @@ impl WindowState {
             modify_other_keys_mode,
             application_cursor,
         ) {
-            // Par-term follows the iTerm2 convention for Shift+Enter: emit raw LF (\n)
-            // so chat-style TUIs (Claude Code, pi agent) can distinguish it from Enter
-            // (\r). That convention breaks when the TUI runs inside tmux and has
-            // negotiated kitty-keyboard with tmux: in that mode the app expects
-            // \x1b[13;2u for Shift+Enter and treats \n as Ctrl+J. Detect tmux by
-            // looking for a tmux process under the active tab's shell, and when
-            // present send CSI-u so tmux's `extended-keys on` parser can re-encode
-            // for the pane's actual mode.
             if is_shift_enter {
-                // Gateway path already bypasses escape_keys_for_tmux' C-j rewrite
-                // via -H, so we can safely forward the raw LF there.
+                // Gateway path: route raw LF via send-keys -H so it bypasses
+                // tmux's per-pane re-encoding. The old C-j rewrite was being
+                // turned into \x1b[27;5;106~ for mode-2 apps.
                 if self.send_literal_bytes_via_tmux(b"\n") {
                     if let Some(tab) = self.tab_manager.active_tab_mut() {
                         tab.activity.anti_idle_last_activity = std::time::Instant::now();
                     }
                     return;
                 }
-                if self.shell_has_tmux_child() {
+
+                // Non-gateway path: decide between \n (iTerm2 convention for
+                // shells) and \x1b[13;2u (CSI-u for TUIs).
+                //
+                // Use alternate screen buffer as the primary signal: TUI apps
+                // (including tmux wrapping a TUI) always enter alternate screen.
+                // When active, send CSI-u so tmux can re-encode for the inner
+                // pane's negotiated protocol, or so direct kitty TUIs parse it.
+                //
+                // Fall back to process-tree tmux detection for edge cases where
+                // tmux is running but alternate screen hasn't been entered yet.
+                let send_csi_u = if alt_screen_active {
                     crate::debug_info!(
                         "SHIFTENTER",
-                        "tmux detected under shell — sending CSI-u \\x1b[13;2u instead of LF"
+                        "alt-screen active — sending CSI-u \\x1b[13;2u"
                     );
+                    true
+                } else if self.shell_has_tmux_child() {
+                    crate::debug_info!(
+                        "SHIFTENTER",
+                        "tmux child detected (no alt-screen) — sending CSI-u \\x1b[13;2u"
+                    );
+                    true
+                } else {
+                    crate::debug_info!(
+                        "SHIFTENTER",
+                        "shell context — sending LF (iTerm2 convention)"
+                    );
+                    false
+                };
+
+                if send_csi_u {
                     bytes = b"\x1b[13;2u".to_vec();
                 }
             }
