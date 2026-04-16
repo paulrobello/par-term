@@ -630,39 +630,37 @@ impl CellRenderer {
                     let render_w = info.width as f32 * scale_x;
                     let render_h = info.height as f32 * scale_y;
 
-                    let (final_left, final_top, final_w, final_h) =
-                        if grapheme_len == 1
-                            && char_type == block_chars::BlockCharType::Symbol
-                        {
-                            let height_scale = cell_h / render_h;
-                            let width_scale = cell_w / render_w;
-                            let symbol_scale = height_scale.min(width_scale).max(1.0);
-                            let final_w = render_w * symbol_scale;
-                            let final_h = render_h * symbol_scale;
-                            (
-                                x0 + (cell_w - final_w) / 2.0,
-                                y0 + (cell_h - final_h) / 2.0,
-                                final_w,
-                                final_h,
-                            )
-                        } else if grapheme_len == 1
-                            && block_chars::should_snap_to_boundaries(char_type)
-                        {
-                            block_chars::snap_glyph_to_cell(block_chars::SnapGlyphParams {
-                                glyph_left,
-                                glyph_top,
-                                render_w,
-                                render_h,
-                                cell_x0: x0,
-                                cell_y0: y0,
-                                cell_x1: x1,
-                                cell_y1: y1,
-                                snap_threshold: 3.0,
-                                extension: 0.5,
-                            })
-                        } else {
-                            (glyph_left, glyph_top, render_w, render_h)
-                        };
+                    let (final_left, final_top, final_w, final_h) = if grapheme_len == 1
+                        && char_type == block_chars::BlockCharType::Symbol
+                    {
+                        let height_scale = cell_h / render_h;
+                        let width_scale = cell_w / render_w;
+                        let symbol_scale = height_scale.min(width_scale).max(1.0);
+                        let final_w = render_w * symbol_scale;
+                        let final_h = render_h * symbol_scale;
+                        (
+                            x0 + (cell_w - final_w) / 2.0,
+                            y0 + (cell_h - final_h) / 2.0,
+                            final_w,
+                            final_h,
+                        )
+                    } else if grapheme_len == 1 && block_chars::should_snap_to_boundaries(char_type)
+                    {
+                        block_chars::snap_glyph_to_cell(block_chars::SnapGlyphParams {
+                            glyph_left,
+                            glyph_top,
+                            render_w,
+                            render_h,
+                            cell_x0: x0,
+                            cell_y0: y0,
+                            cell_x1: x1,
+                            cell_y1: y1,
+                            snap_threshold: 3.0,
+                            extension: 0.5,
+                        })
+                    } else {
+                        (glyph_left, glyph_top, render_w, render_h)
+                    };
 
                     if text_index < self.buffers.max_text_instances {
                         self.text_instances[text_index] = TextInstance {
