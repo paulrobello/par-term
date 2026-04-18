@@ -289,3 +289,21 @@ fn test_ctrl_shift_digit_mode2_still_encodes() {
         "Ctrl+Shift+1 in mode 2 must still emit a modifyOtherKeys sequence"
     );
 }
+
+#[test]
+fn test_ctrl_alt_letter_mode0_sends_esc_prefixed_control_byte() {
+    // When modifyOtherKeys is unavailable, Ctrl+Alt+letter must remain distinct
+    // from plain Ctrl+letter so inner TUIs can parse legacy Meta+Ctrl chords.
+    let mut handler = InputHandler::new();
+    handler.update_modifiers(Modifiers::from(
+        ModifiersState::CONTROL | ModifiersState::ALT,
+    ));
+
+    let event = char_event("p", KeyCode::KeyP);
+    let result = handler.handle_key_event_with_mode(event, 0, false);
+    assert_eq!(
+        result,
+        Some(b"\x1b\x10".to_vec()),
+        "Ctrl+Alt+P in mode 0 must send ESC-prefixed Ctrl+P, not collapse to plain Ctrl+P"
+    );
+}

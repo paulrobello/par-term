@@ -215,8 +215,18 @@ impl InputHandler {
                     // Note: Ctrl+V paste is handled at higher level for bracketed paste support
 
                     if ch.is_ascii_alphabetic() {
-                        // Ctrl+A through Ctrl+Z map to ASCII 1-26
+                        // Ctrl+A through Ctrl+Z map to ASCII 1-26.
+                        // When Alt/Option is also held and enhanced modifier reporting is
+                        // unavailable, preserve the Alt modifier using the configured
+                        // Option-key mode so Ctrl+Alt+letter stays distinct from plain
+                        // Ctrl+letter for terminal applications that rely on Meta+Ctrl.
                         let byte = (ch.to_ascii_lowercase() as u8) - b'a' + 1;
+                        if alt {
+                            return Some(match self.get_active_option_mode() {
+                                OptionKeyMode::Meta => vec![byte | 0x80],
+                                OptionKeyMode::Normal | OptionKeyMode::Esc => vec![0x1b, byte],
+                            });
+                        }
                         return Some(vec![byte]);
                     }
                 }
