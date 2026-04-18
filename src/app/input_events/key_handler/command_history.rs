@@ -1,4 +1,9 @@
-//! Command history key handling (Cmd/Ctrl+R) and toggle.
+//! Command history key handling (UI navigation) and toggle.
+//!
+//! The toggle shortcut is driven entirely by the configured keybinding
+//! (`toggle_command_history` action, default `CmdOrCtrl+R`) via the registry's
+//! strict modifier matcher. Only in-UI navigation (Escape/Arrows/Enter) is
+//! handled here.
 
 use crate::app::window_state::WindowState;
 use winit::event::{ElementState, KeyEvent};
@@ -42,18 +47,6 @@ impl WindowState {
             }
             // While command history is visible, consume all key events
             return true;
-        }
-
-        // Cmd+R (macOS) or Ctrl+R (Linux/Windows): Toggle command history UI
-        if event.state == ElementState::Pressed {
-            let mods = self.input_handler.modifiers.state();
-            if crate::platform::primary_modifier(&mods)
-                && !mods.alt_key()
-                && matches!(event.logical_key, Key::Character(ref c) if c.as_str() == "r" || c.as_str() == "R")
-            {
-                self.toggle_command_history();
-                return true;
-            }
         }
 
         false

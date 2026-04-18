@@ -20,40 +20,44 @@
 
 use winit::keyboard::ModifiersState;
 
-/// Returns `true` when the platform's **primary** modifier key is held and
-/// **Shift** is NOT held, i.e.:
+/// Returns `true` when **only** the platform's **primary** modifier key is held
+/// (no Shift, no Alt, and no cross modifier), i.e.:
 ///
-/// - macOS: `Cmd` pressed, `Shift` not pressed
-/// - Windows/Linux: `Ctrl` pressed, `Shift` not pressed
+/// - macOS: `Cmd` pressed; `Shift`, `Alt`, and `Ctrl` not pressed
+/// - Windows/Linux: `Ctrl` pressed; `Shift`, `Alt`, and `Super` not pressed
 ///
-/// Use this for single-key shortcuts (`Cmd+T` on macOS / `Ctrl+T` elsewhere)
-/// when the shortcut explicitly avoids Shift.
+/// Use this for single-key shortcuts (`Cmd+T` on macOS / `Ctrl+T` elsewhere).
+/// Excluding the cross modifier prevents e.g. `Ctrl+Cmd+T` from triggering a
+/// hardcoded `Cmd+T` handler on macOS, which would otherwise shadow any
+/// registered `Ctrl+Cmd+T` keybinding.
 pub fn primary_modifier(mods: &ModifiersState) -> bool {
     #[cfg(target_os = "macos")]
     {
-        mods.super_key() && !mods.shift_key()
+        mods.super_key() && !mods.shift_key() && !mods.alt_key() && !mods.control_key()
     }
     #[cfg(not(target_os = "macos"))]
     {
-        mods.control_key() && !mods.shift_key()
+        mods.control_key() && !mods.shift_key() && !mods.alt_key() && !mods.super_key()
     }
 }
 
-/// Returns `true` when the platform's **primary** modifier key is held and
-/// **Shift is also held**, i.e.:
+/// Returns `true` when the platform's **primary** modifier key and **Shift**
+/// are held, and no other modifiers are held, i.e.:
 ///
-/// - macOS: `Cmd+Shift`
-/// - Windows/Linux: `Ctrl+Shift`
+/// - macOS: `Cmd+Shift`; `Alt` and `Ctrl` not pressed
+/// - Windows/Linux: `Ctrl+Shift`; `Alt` and `Super` not pressed
 ///
 /// Use this for shortcuts that require Shift to avoid conflicts
-/// (`Cmd+Shift+]` on macOS / `Ctrl+Shift+]` elsewhere).
+/// (`Cmd+Shift+]` on macOS / `Ctrl+Shift+]` elsewhere). Like
+/// [`primary_modifier`], this excludes the cross modifier and Alt so that
+/// combos such as `Ctrl+Cmd+Shift+]` do not shadow separate keybindings.
 pub fn primary_modifier_with_shift(mods: &ModifiersState) -> bool {
     #[cfg(target_os = "macos")]
     {
-        mods.super_key() && mods.shift_key()
+        mods.super_key() && mods.shift_key() && !mods.alt_key() && !mods.control_key()
     }
     #[cfg(not(target_os = "macos"))]
     {
-        mods.control_key() && mods.shift_key()
+        mods.control_key() && mods.shift_key() && !mods.alt_key() && !mods.super_key()
     }
 }

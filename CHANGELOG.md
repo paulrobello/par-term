@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Bug Fixes
 - **Ctrl+Alt+letter printable-key chords collapsed to plain Ctrl+letter when enhanced modifier reporting was unavailable** — in the character-input path, `Ctrl+A`–`Ctrl+Z` returned the raw C0 control byte before Alt/Option preservation ran, so `Ctrl+Alt+P` and `Ctrl+P` both reached inner TUIs as `0x10`. This broke apps like pi running under tmux when legacy fallback encoding was in use, because extension shortcuts such as `Ctrl+Alt+R` became indistinguishable from built-in `Ctrl+R`. Fix: when Ctrl+Alt+letter is pressed without `modifyOtherKeys`, par-term now preserves Alt/Option using the configured Option-key mode instead of collapsing the chord; with the default `esc` mode this emits legacy `ESC`-prefixed control bytes (for example `Ctrl+Alt+P` → `\x1b\x10`), which terminal apps can distinguish from plain Ctrl shortcuts.
+- **Hardcoded primary-modifier handlers could shadow registered shortcuts with extra modifiers** — some UI toggle paths treated `Cmd+key`/`Ctrl+key` as matched even when Alt or the platform cross-modifier was also held, so chords like `Ctrl+Cmd+...` on macOS could incorrectly trigger simpler hardcoded shortcuts instead of the configured keybinding action. Fix: `primary_modifier()` and `primary_modifier_with_shift()` now require exclusive modifier sets, and command-history toggle handling no longer duplicates a hardcoded `CmdOrCtrl+R` check outside the keybinding registry.
 
 ---
 
