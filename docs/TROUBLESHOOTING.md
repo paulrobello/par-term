@@ -27,6 +27,7 @@ Centralized guide for diagnosing and resolving common issues with par-term. Each
   - [Shell Integration Not Working](#shell-integration-not-working)
   - [Keyboard Shortcuts Not Recognized](#keyboard-shortcuts-not-recognized)
   - [Modifier Keys Ignored for Special Keys Outside tmux](#modifier-keys-ignored-for-special-keys-outside-tmux)
+  - [Ctrl+Alt+Letter Shortcuts Behave Identically to Plain Ctrl+Letter](#ctrlaltletter-shortcuts-behave-identically-to-plain-ctrlletter)
   - [Shift+Enter Ignored Inside Tmux by pi / Other Kitty-Keyboard TUIs](#shiftenter-ignored-inside-tmux-by-pi--other-kitty-keyboard-tuis)
   - [Copy and Paste Issues](#copy-and-paste-issues)
   - [Mouse Behavior Issues](#mouse-behavior-issues)
@@ -460,6 +461,16 @@ Update to par-term v0.30.6+ — par-term now matches iTerm2's `iTermModifyOtherK
 par-term now emits correct xterm-standard modifier-parameterized sequences for all special keys with `Shift`, `Ctrl`, `Alt`, and their combinations when running outside a tmux session. No configuration changes are required.
 
 > **📝 Note:** Inside tmux, tmux handles modifier encoding independently.
+
+### Ctrl+Alt+Letter Shortcuts Behave Identically to Plain Ctrl+Letter
+
+**Symptom:** An app-level shortcut such as `Ctrl+Alt+R` (or `Ctrl+Alt+P`, etc.) triggers the same action as the plain `Ctrl+letter` shortcut, even when both modifiers are held. This affects TUI apps running under legacy keyboard encoding (no `modifyOtherKeys`/kitty-keyboard).
+
+**Cause:** Without enhanced modifier reporting, `Ctrl+A`–`Ctrl+Z` are normally encoded as C0 control bytes (`\x01`–`\x1a`). The previous input path returned this byte before checking whether Alt/Option was also held, so `Ctrl+Alt+P` and `Ctrl+P` both produced `\x10`.
+
+**Solution:**
+
+par-term now preserves the Alt modifier for Ctrl+letter chords when enhanced modifier reporting is unavailable. With the default `esc` Option-key mode, `Ctrl+Alt+P` emits `\x1b\x10` — an ESC-prefixed control byte that terminals and TUI apps treat as Meta+Ctrl+letter, distinct from plain `Ctrl+P`. The `meta` mode emits the high-bit form (`\x90`) instead. No configuration changes are required.
 
 ### Shift+Enter Ignored Inside Tmux by pi / Other Kitty-Keyboard TUIs
 

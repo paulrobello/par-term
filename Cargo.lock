@@ -3794,7 +3794,7 @@ dependencies = [
 
 [[package]]
 name = "par-term"
-version = "0.30.8"
+version = "0.30.9"
 dependencies = [
  "anyhow",
  "arboard",
@@ -3953,7 +3953,7 @@ dependencies = [
 
 [[package]]
 name = "par-term-input"
-version = "0.1.11"
+version = "0.1.12"
 dependencies = [
  "arboard",
  "log",
