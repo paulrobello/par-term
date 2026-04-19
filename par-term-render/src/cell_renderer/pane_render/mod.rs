@@ -631,8 +631,11 @@ impl CellRenderer {
                     let render_h = info.height as f32 * scale_y;
 
                     let (final_left, final_top, final_w, final_h) = if grapheme_len == 1
-                        && char_type == block_chars::BlockCharType::Symbol
-                    {
+                        && matches!(
+                            char_type,
+                            block_chars::BlockCharType::Symbol
+                                | block_chars::BlockCharType::Geometric
+                        ) {
                         let height_scale = cell_h / render_h;
                         let width_scale = cell_w / render_w;
                         let symbol_scale = height_scale.min(width_scale).max(1.0);

@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Bug Fixes
+- **Geometric shape characters (◼ ◻ ■ □ ▪ ▫ ◾ ◽ ▬ ▮) rendered vertically squished** — the pane render path only handled box-drawing, half-blocks, and block elements (U+2580–U+259F); Geometric Shapes (U+25A0–U+25FF) fell through to the font path and landed on the glyph-snap branch, which preserved the font's short baseline-relative metrics. Filled variants now render as pixel-perfect rectangles via `get_geometric_shape_rect`, and outline variants go through the same center+scale-to-fill treatment previously applied to `Symbol` chars (ballot boxes, dingbats).
+
 ---
 
 ## [0.30.9] - 2026-04-18

@@ -177,6 +177,33 @@ impl CellRenderer {
             return Some(text_index);
         }
 
+        // --- Geometric shape rectangles (filled squares/rectangles, U+25A0–U+25FF) ---
+        // Aspect-ratio-aware filled shapes like ■ ▪ ▬ ▮ ◼ ◾. Outline/hollow shapes
+        // return None and fall through to the font path, where the Symbol/Geometric
+        // scale-to-fill branch in pane_render centers and fills them.
+        if let Some(rect) =
+            block_chars::get_geometric_shape_rect(ch, x0, y0, char_w, snapped_cell_height)
+        {
+            if text_index < self.buffers.max_text_instances {
+                self.text_instances[text_index] = TextInstance {
+                    position: [
+                        rect.x / self.config.width as f32 * 2.0 - 1.0,
+                        1.0 - (rect.y / self.config.height as f32 * 2.0),
+                    ],
+                    size: [
+                        rect.width / self.config.width as f32 * 2.0,
+                        rect.height / self.config.height as f32 * 2.0,
+                    ],
+                    tex_offset: solid_tex_offset,
+                    tex_size: solid_tex_size,
+                    color: render_fg_color,
+                    is_colored: 0,
+                };
+                text_index += 1;
+            }
+            return Some(text_index);
+        }
+
         // --- Block element geometry ---
         if let Some(geo_block) = block_chars::get_geometric_block(ch) {
             let rect = geo_block.to_pixel_rect(x0, y0, char_w, self.grid.cell_height);
