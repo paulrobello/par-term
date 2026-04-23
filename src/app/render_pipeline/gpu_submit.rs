@@ -328,9 +328,10 @@ impl WindowState {
                                 self.config.search.search_current_highlight_color;
                             for pane in &mut pane_data {
                                 if pane.viewport.focused {
+                                    let cells = std::sync::Arc::make_mut(&mut pane.cells);
                                     crate::app::window_state::search_highlight::apply_search_highlights_to_cells(
                                         crate::app::window_state::search_highlight::SearchHighlightParams {
-                                            cells: &mut pane.cells,
+                                            cells,
                                             cols: pane.grid_size.0,
                                             scroll_offset: pane.scroll_offset,
                                             scrollback_len: pane.scrollback_len,
@@ -369,6 +370,7 @@ impl WindowState {
                                 let url_scroll_offset = tab.active_mouse().url_detect_scroll_offset;
                                 for pane in &mut pane_data {
                                     if pane.viewport.focused {
+                                        let cells = std::sync::Arc::make_mut(&mut pane.cells);
                                         let cols = pane.grid_size.0;
                                         for url in detected_urls.iter() {
                                             if url.row < url_scroll_offset {
@@ -379,12 +381,12 @@ impl WindowState {
                                                 == Some((url.row, url.start_col, url.end_col));
                                             for col in url.start_col..url.end_col {
                                                 let cell_idx = viewport_row * cols + col;
-                                                if cell_idx < pane.cells.len() {
+                                                if cell_idx < cells.len() {
                                                     if do_color && is_hovered {
-                                                        pane.cells[cell_idx].fg_color = url_color;
+                                                        cells[cell_idx].fg_color = url_color;
                                                     }
                                                     if do_underline {
-                                                        pane.cells[cell_idx].underline = true;
+                                                        cells[cell_idx].underline = true;
                                                     }
                                                 }
                                             }
@@ -406,9 +408,10 @@ impl WindowState {
                                 std::mem::take(&mut self.scratch_prettifier_block_ids);
                             for pane in &mut pane_data {
                                 if pane.viewport.focused {
+                                    let cells = std::sync::Arc::make_mut(&mut pane.cells);
                                     let _ = prettifier_cells::apply_prettifier_cell_substitution(
                                         tab,
-                                        &mut pane.cells,
+                                        cells,
                                         is_alt_screen,
                                         pane.grid_size.1,
                                         pane.scrollback_len,

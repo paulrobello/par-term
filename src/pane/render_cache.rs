@@ -13,9 +13,10 @@ pub struct RenderCache {
     pub(crate) grid_dims: (usize, usize), // Last known terminal grid dimensions (cols, rows)
     pub(crate) terminal_title: String, // Last known terminal title (for change detection)
     pub(crate) scrollback_len: usize, // Last known scrollback length
-    pub(crate) pane_cells: Option<Vec<Cell>>, // Cached cells for pane rendering (fallback on try_lock miss)
-    pub(crate) pane_cells_generation: u64,    // Generation of cached pane_cells (0 = stale/unset)
-    pub(crate) pane_scrollback_len: usize,    // Cached scrollback_len for pane rendering
+    pub(crate) pane_cells: Option<Arc<Vec<Cell>>>, // Cached cells for pane rendering (reuse across frames)
+    pub(crate) pane_cells_generation: u64, // Generation of cached pane_cells (0 = stale/unset)
+    pub(crate) pane_cells_scroll_offset: usize, // Scroll offset used when pane_cells was generated
+    pub(crate) pane_scrollback_len: usize, // Cached scrollback_len for pane rendering
     pub(crate) prettifier_feed_generation: u64, // Last terminal generation fed to prettifier
     pub(crate) prettifier_feed_scroll_offset: usize, // Last scroll offset fed to prettifier
     pub(crate) prettifier_command_start_line: Option<usize>, // Absolute line from CommandStarted
@@ -37,6 +38,7 @@ impl RenderCache {
             scrollback_len: 0,
             pane_cells: None,
             pane_cells_generation: 0,
+            pane_cells_scroll_offset: 0,
             pane_scrollback_len: 0,
             prettifier_feed_generation: 0,
             prettifier_feed_scroll_offset: usize::MAX, // Force first feed

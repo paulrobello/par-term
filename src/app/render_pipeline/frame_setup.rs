@@ -9,6 +9,8 @@
 use crate::app::window_state::WindowState;
 
 impl WindowState {
+    const TAB_TITLE_REFRESH_INTERVAL: std::time::Duration = std::time::Duration::from_millis(250);
+
     /// Returns true if enough time has elapsed since the last frame and rendering should proceed.
     /// Updates last_render_time and resets needs_redraw on success.
     ///
@@ -58,12 +60,22 @@ impl WindowState {
             false
         };
 
-        // Update tab titles from terminal OSC sequences
-        self.tab_manager.update_all_titles(
-            self.config.tab_title_mode,
-            self.config.remote_tab_title_format,
-            self.config.remote_tab_title_osc_priority,
-        );
+        // Updating titles walks every tab/pane and touches terminal state, so avoid
+        // doing it on every animation frame. A short throttle keeps OSC/CWD-derived
+        // titles responsive without scaling frame cost with idle tab count.
+        let now = std::time::Instant::now();
+        let should_refresh_titles = self
+            .render_loop
+            .last_tab_title_refresh
+            .is_none_or(|last| now.duration_since(last) >= Self::TAB_TITLE_REFRESH_INTERVAL);
+        if should_refresh_titles {
+            self.tab_manager.update_all_titles(
+                self.config.tab_title_mode,
+                self.config.remote_tab_title_format,
+                self.config.remote_tab_title_osc_priority,
+            );
+            self.render_loop.last_tab_title_refresh = Some(now);
+        }
 
         // Rebuild renderer if font-related settings changed
         if self.render_loop.pending_font_rebuild {

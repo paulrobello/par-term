@@ -36,6 +36,11 @@ pub(crate) struct RenderLoopState {
     /// Set when a font-related setting changed; triggers renderer rebuild on
     /// the next frame setup pass.
     pub(crate) pending_font_rebuild: bool,
+    /// Last time tab titles were refreshed from terminal/shell integration state.
+    ///
+    /// Title updates do not need to run every render frame; throttling this avoids
+    /// touching every tab's terminal lock on animated frames.
+    pub(crate) last_tab_title_refresh: Option<std::time::Instant>,
     /// Debounce state for config saves to prevent rapid concurrent writes.
     pub(crate) config_save: ConfigSaveState,
 }

@@ -14,13 +14,14 @@ use crate::renderer::{
 use crate::scrollback_metadata::ScrollbackMark;
 use crate::selection::SelectionMode;
 use anyhow::Result;
+use std::sync::Arc;
 
 /// Pane render data for split pane rendering
 pub(super) struct PaneRenderData {
     /// Viewport bounds and state for this pane
     pub(super) viewport: PaneViewport,
     /// Cells to render (should match viewport grid size)
-    pub(super) cells: Vec<crate::cell_renderer::Cell>,
+    pub(super) cells: Arc<Vec<crate::cell_renderer::Cell>>,
     /// Grid dimensions (cols, rows)
     pub(super) grid_size: (usize, usize),
     /// Cursor position within this pane (col, row), or None if no cursor visible
@@ -232,19 +233,22 @@ pub(super) fn gather_pane_render_data(
         // are generated at the correct dimensions.
         let expected_cell_count = cols * rows;
         let scroll_offset = if is_focused { tab_scroll_offset } else { 0 };
-        let cache_dims_match = is_focused
-            && pane.cache.pane_cells_generation > 0
+        let cache_dims_match = pane.cache.pane_cells_generation > 0
+            && pane.cache.pane_cells_scroll_offset == scroll_offset
             && pane
                 .cache
                 .pane_cells
                 .as_ref()
                 .is_some_and(|c| c.len() == expected_cell_count);
         let cells = if cache_dims_match {
-            // Fresh cells from extract_tab_cells at matching dimensions.
-            // Reset generation so this path only fires once per frame.
-            pane.cache.pane_cells_generation = 0;
-            pane.cache.pane_cells.take().unwrap()
+            Arc::clone(
+                pane.cache
+                    .pane_cells
+                    .as_ref()
+                    .expect("pane_cells must exist when pane cache dimensions match"),
+            )
         } else if let Ok(term) = pane.terminal.try_write() {
+            let current_gen = term.update_generation();
             let selection = pane
                 .mouse
                 .selection
@@ -257,22 +261,31 @@ pub(super) fn gather_pane_render_data(
             // Use try_get_cells_with_scrollback to avoid blocking on the internal
             // terminal mutex when the PTY reader is processing output.  Falls through
             // to the pane_cells cache on contention.
-            if let Some(fresh) =
+            if current_gen == pane.cache.pane_cells_generation
+                && pane.cache.pane_cells_scroll_offset == scroll_offset
+                && let Some(ref cached) = pane.cache.pane_cells
+                && cached.len() == expected_cell_count
+            {
+                Arc::clone(cached)
+            } else if let Some(fresh) =
                 term.try_get_cells_with_scrollback(scroll_offset, selection, rectangular)
             {
-                pane.cache.pane_cells = Some(fresh.clone());
+                let fresh = Arc::new(fresh);
+                pane.cache.pane_cells = Some(Arc::clone(&fresh));
+                pane.cache.pane_cells_generation = current_gen;
+                pane.cache.pane_cells_scroll_offset = scroll_offset;
                 fresh
             } else if let Some(ref cached) = pane.cache.pane_cells {
-                cached.clone()
+                Arc::clone(cached)
             } else {
-                Vec::new()
+                Arc::new(Vec::new())
             }
         } else if let Some(ref cached) = pane.cache.pane_cells {
             // try_lock miss — use last successfully gathered cells to avoid
             // rendering an empty pane for this frame.
-            cached.clone()
+            Arc::clone(cached)
         } else {
-            Vec::new()
+            Arc::new(Vec::new())
         };
 
         // Gather marks and scrollback length — use cached scrollback_len on lock miss
@@ -430,7 +443,7 @@ impl crate::app::window_state::WindowState {
         //
         // Phase 1: Extract cells into a Vec that outlives the render infos.
         // The remaining pane fields are collected into partial render infos.
-        let mut owned_cells: Vec<Vec<crate::cell_renderer::Cell>> =
+        let mut owned_cells: Vec<Arc<Vec<crate::cell_renderer::Cell>>> =
             Vec::with_capacity(pane_data.len());
         let mut partial_infos: Vec<PaneRenderInfo> = Vec::with_capacity(pane_data.len());
 

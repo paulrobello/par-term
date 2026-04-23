@@ -161,8 +161,9 @@ impl WindowState {
             && let Some(ref mut pm) = tab.pane_manager
             && let Some(pane) = pm.focused_pane_mut()
         {
-            pane.cache.pane_cells = Some(cells.clone());
+            pane.cache.pane_cells = Some(std::sync::Arc::new(cells.clone()));
             pane.cache.pane_cells_generation = current_generation;
+            pane.cache.pane_cells_scroll_offset = scroll_offset;
         }
 
         let mut show_scrollbar = self.should_show_scrollbar();
