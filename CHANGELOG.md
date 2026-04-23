@@ -9,10 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Bug Fixes
+---
+
+## [0.30.10] - 2026-04-23
+
+### Performance
 - **Static tmux-heavy tabs could tank FPS even without par-term splits** — the pane-render path is used whenever the tab's pane manager exists, which includes the normal single-pane case. That path rebuilt and cloned pane cell buffers on every frame, so tabs with large static screen contents could render much slower than simpler tabs even when the PTY was idle. Pane cell snapshots are now cached across frames by terminal generation and scroll offset, with copy-on-write only when focused-pane decorations actually mutate the cells.
 - **Animated frames walked every tab title on every render** — `update_animations()` refreshed all tab/pane titles every frame, touching terminal state for every open tab and making idle-tab count reduce FPS. Title refresh is now throttled instead of running at render cadence.
+
+### Bug Fixes
 - **Geometric shape characters (◼ ◻ ■ □ ▪ ▫ ◾ ◽ ▬ ▮) rendered vertically squished** — the pane render path only handled box-drawing, half-blocks, and block elements (U+2580–U+259F); Geometric Shapes (U+25A0–U+25FF) fell through to the font path and landed on the glyph-snap branch, which preserved the font's short baseline-relative metrics. Filled variants now render as pixel-perfect rectangles via `get_geometric_shape_rect`, and outline variants go through the same center+scale-to-fill treatment previously applied to `Symbol` chars (ballot boxes, dingbats).
+
+### Dependencies
+- Bumped `notify-rust`, `muda`, `libc`, and `clap` to latest versions.
+- Bumped `par-term-render` from 0.6.6 to 0.6.7.
 
 ---
 
