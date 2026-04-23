@@ -217,7 +217,7 @@ shell-words.workspace = true   # Safe shell command parsing (prevents argument i
 rodio = { version = "0.22.2", features = ["mp3"] }
 
 # Desktop notifications
-notify-rust = "4.12"
+notify-rust = "4.16"
 
 # GUI for settings interface
 egui.workspace = true
@@ -243,9 +243,9 @@ half.workspace = true
 naga.workspace = true
 
 # Native window menus
-muda = "0.17.1"
-libc = "0.2.182"
-clap = { version = "4.6.0", features = ["derive"] }
+muda = "0.18"
+libc = "0.2.185"
+clap = { version = "4.6.1", features = ["derive"] }
 ureq.workspace = true
 native-tls.workspace = true
 zip.workspace = true
@@ -264,7 +264,7 @@ mdns-sd.workspace = true       # mDNS/Bonjour service discovery for SSH host aut
 
 # Linux-specific: GTK for native menus (muda requires gtk feature on Linux)
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))'.dependencies.muda]
-version = "0.17.1"
+version = "0.18"
 features = ["gtk"]
 
 # macOS-specific: Access CAMetalLayer for performance optimization
