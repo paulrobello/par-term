@@ -73,6 +73,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libxkbcommon-dev libwayland-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libasound2-dev libgtk-3-dev libxdo-dev
 
+      - name: Run tests
+        run: cargo test --workspace --verbose
+
       - name: Get version
         run: |
           VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
@@ -119,6 +122,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libxkbcommon-dev libwayland-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libasound2-dev libgtk-3-dev libxdo-dev
 
+      - name: Run tests
+        run: cargo test --workspace --verbose
+
       - name: Get version
         run: |
           VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
@@ -160,6 +166,9 @@ jobs:
       - name: Add Rust target (ensure installed)
         run: rustup target add x86_64-pc-windows-msvc
 
+      - name: Run tests
+        run: cargo test --workspace --verbose
+
       - name: Get version
         shell: bash
         run: |
@@ -199,6 +208,9 @@ jobs:
 
       - name: Add Rust target (ensure installed)
         run: rustup target add x86_64-apple-darwin
+
+      - name: Run tests
+        run: cargo test --workspace --verbose
 
       - name: Get version
         run: |
@@ -278,6 +290,9 @@ jobs:
 
       - name: Add Rust target (ensure installed)
         run: rustup target add aarch64-apple-darwin
+
+      - name: Run tests
+        run: cargo test --workspace --verbose
 
       - name: Get version
         run: |
