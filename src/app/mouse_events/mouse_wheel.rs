@@ -29,7 +29,7 @@ impl WindowState {
                     // On miss: returns None so the event is skipped entirely.
                     let tracking = focused_pane
                         .terminal
-                        .try_write()
+                        .try_read()
                         .ok()
                         .map(|term| term.is_mouse_tracking_enabled());
                     (Some(Arc::clone(&focused_pane.terminal)), tracking)
@@ -37,7 +37,7 @@ impl WindowState {
                     // try_lock: intentional — same rationale as focused_pane path above.
                     let tracking = tab
                         .terminal
-                        .try_write()
+                        .try_read()
                         .ok()
                         .map(|term| term.is_mouse_tracking_enabled());
                     (Some(Arc::clone(&tab.terminal)), tracking)
@@ -94,7 +94,7 @@ impl WindowState {
                 // try_lock: intentional — scroll wheel encoding in sync event loop.
                 // On miss: the scroll events are not encoded for this wheel tick.
                 // The next wheel tick will succeed. Terminal apps may notice skipped ticks.
-                if let Ok(term) = terminal_arc.try_write() {
+                if let Ok(term) = terminal_arc.try_read() {
                     for _ in 0..count {
                         let encoded = term.encode_mouse_event(button, col, row, true, 0);
                         if !encoded.is_empty() {
@@ -112,7 +112,7 @@ impl WindowState {
                 let count = scroll_x.unsigned_abs().min(10);
 
                 // try_lock: intentional — horizontal scroll encoding, same as vertical above.
-                if let Ok(term) = terminal_arc.try_write() {
+                if let Ok(term) = terminal_arc.try_read() {
                     for _ in 0..count {
                         let encoded = term.encode_mouse_event(button, col, row, true, 0);
                         if !encoded.is_empty() {
@@ -127,7 +127,7 @@ impl WindowState {
                 let terminal_clone = Arc::clone(&terminal_arc);
                 let runtime = Arc::clone(&self.runtime);
                 runtime.spawn(async move {
-                    let t = terminal_clone.write().await;
+                    let t = terminal_clone.read().await;
                     let _ = t.write(&all_encoded);
                 });
             }

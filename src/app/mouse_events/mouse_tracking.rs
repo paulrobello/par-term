@@ -42,10 +42,12 @@ impl WindowState {
             (Arc::clone(&tab.terminal), col, row, None)
         };
 
-        // try_lock: intentional — mouse button handler runs in the sync event loop.
-        // On miss: the mouse event is not forwarded to mouse-tracking apps this click.
-        // The user can click again; no data is permanently lost.
-        let Ok(term) = terminal_arc.try_write() else {
+        // try_read (not try_write): all operations below are &self on TerminalManager
+        // (is_mouse_tracking_enabled, is_alt_screen_active, encode_mouse_event, write).
+        // Using a shared read lock eliminates cascading contention where a previous async
+        // write task holding the outer write lock (blocked on the inner parking_lot Mutex)
+        // prevents new clicks from acquiring the lock — silently dropping them.
+        let Ok(term) = terminal_arc.try_read() else {
             return false;
         };
 
@@ -57,7 +59,7 @@ impl WindowState {
         if term.is_mouse_tracking_enabled() {
             // Encode mouse event
             let encoded = term.encode_mouse_event(button, col, row, pressed, 0);
-            // Release the write lock before any I/O so we don't hold it across awaits
+            // Release the read lock before any I/O so we don't hold it across awaits
             drop(term);
 
             if !encoded.is_empty() {
@@ -73,11 +75,13 @@ impl WindowState {
                     let cmd = format!("send-keys -t %{} {}\n", tmux_pane_id, escaped);
                     self.write_to_gateway(&cmd);
                 } else {
-                    // Non-tmux path: write directly to the local PTY
+                    // Non-tmux path: write directly to the local PTY.
+                    // read().await (not write().await): TerminalManager::write() takes &self,
+                    // mutation happens behind the inner parking_lot::Mutex<PtySession>.
                     let terminal_clone = Arc::clone(&terminal_arc);
                     let runtime = Arc::clone(&self.runtime);
                     runtime.spawn(async move {
-                        let t = terminal_clone.write().await;
+                        let t = terminal_clone.read().await;
                         let _ = t.write(&encoded);
                     });
                 }
@@ -110,12 +114,12 @@ impl WindowState {
             {
                 return false;
             }
-            // try_lock: intentional — querying mouse tracking state from the sync event loop.
+            // try_read (not try_write): is_mouse_tracking_enabled() takes &self.
             // On miss: returns false (no mouse tracking), which may cause a missed mouse
             // event routing. The next mouse move/click will re-query correctly.
             return focused_pane
                 .terminal
-                .try_write()
+                .try_read()
                 .ok()
                 .is_some_and(|term| term.is_mouse_tracking_enabled());
         }
@@ -127,11 +131,11 @@ impl WindowState {
             return false;
         }
 
-        // try_lock: intentional — querying mouse tracking state for the single-pane path.
+        // try_read (not try_write): is_mouse_tracking_enabled() takes &self.
         // On miss: returns false (no tracking detected). Cosmetically incorrect for this
         // event only; the next query will succeed.
         tab.terminal
-            .try_write()
+            .try_read()
             .ok()
             .is_some_and(|term| term.is_mouse_tracking_enabled())
     }

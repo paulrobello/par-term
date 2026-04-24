@@ -150,11 +150,10 @@ impl WindowState {
             };
 
             if let Some((terminal_arc, col, row, button_pressed, tracking_press)) = resolved {
-                // try_lock: intentional — should_report_mouse_motion query from mouse-move
-                // handler in the sync event loop. On miss: assumes no tracking (false) so
-                // the motion event is skipped this frame. High-frequency; acceptable loss.
+                // try_read (not try_write): should_report_mouse_motion() takes &self.
+                // On miss: assumes no tracking (false) so the motion event is skipped this frame.
                 let should_report = terminal_arc
-                    .try_write()
+                    .try_read()
                     .ok()
                     .is_some_and(|term| term.should_report_mouse_motion(button_pressed));
 
@@ -184,15 +183,15 @@ impl WindowState {
                             }
                         };
 
-                    // try_lock: intentional — second lock attempt to encode/write the event.
-                    // On miss: mouse motion encoding is skipped this frame. Same rationale.
-                    if !suppress_drag && let Ok(term) = terminal_arc.try_write() {
+                    // try_read (not try_write): encode_mouse_event() takes &self.
+                    // On miss: mouse motion encoding is skipped this frame.
+                    if !suppress_drag && let Ok(term) = terminal_arc.try_read() {
                         let encoded = term.encode_mouse_event(button, col, row, true, 0);
                         if !encoded.is_empty() {
                             let terminal_clone = Arc::clone(&terminal_arc);
                             let runtime = Arc::clone(&self.runtime);
                             runtime.spawn(async move {
-                                let t = terminal_clone.write().await;
+                                let t = terminal_clone.read().await;
                                 let _ = t.write(&encoded);
                             });
                         }
@@ -307,12 +306,10 @@ impl WindowState {
 
         // --- 5. Drag Selection Logic ---
         // Perform local text selection if mouse tracking is NOT active
-        // try_lock: intentional — alt-screen query during mouse-move in sync event loop.
-        // On miss: is_some_and returns false, treating as not on alt screen — local
-        // selection will proceed even on alt screen for this one motion event. Benign.
+        // try_read (not try_write): is_alt_screen_active() takes &self.
         let alt_screen_active = self.tab_manager.active_tab().is_some_and(|tab| {
             tab.terminal
-                .try_write()
+                .try_read()
                 .ok()
                 .is_some_and(|term| term.is_alt_screen_active())
         });
