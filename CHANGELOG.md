@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.30.12] - 2026-04-25
+
+### Bug Fixes
+- **Unfocused split panes showed stale content** — two compounding bugs caused unfocused split panes to never update. (1) `Pane::start_refresh_task()` was defined but never called at split/restore entry points, so secondary panes had no polling task to detect output and trigger redraws. (2) The cell-cache fast path in `gather_pane_render_data` returned stale cached cells for unfocused panes because nothing refreshed their cache between frames. Fixed by starting per-pane refresh tasks at all split/restore entry points, gating the cache fast path to the focused pane only, and propagating `is_active` to pane refresh tasks on tab focus changes.
+
+---
+
 ## [0.30.11] - 2026-04-24
 
 ### Bug Fixes

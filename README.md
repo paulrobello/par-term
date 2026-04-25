@@ -16,7 +16,7 @@ A cross-platform, GPU-accelerated terminal emulator frontend built with Rust, po
 ## Table of Contents
 
 - [Getting Started](#getting-started)
-- [What's New](#whats-new-in-03011)
+- [What's New](#whats-new-in-03012)
 - [Features](#features)
 - [Documentation](#documentation)
 - [Installation](#installation)
@@ -41,7 +41,14 @@ New to par-term? The [Getting Started Guide](docs/GETTING_STARTED.md) walks you 
 - **[Configuration Reference](docs/CONFIG_REFERENCE.md)** — All 200+ configuration options
 - **[Keyboard Shortcuts](docs/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
 
-## What's New in 0.30.11
+## What's New in 0.30.12
+
+### 🐛 Bug Fixes
+
+- **Unfocused Split Panes Showed Stale Content**: Two compounding bugs caused unfocused split panes to never update — secondary panes had no refresh task to detect output changes, and the cell-cache fast path returned stale cached cells for unfocused panes. Fixed by starting per-pane refresh tasks at all split/restore entry points and gating the cache fast path to the focused pane only.
+
+<details>
+<summary><strong>What's New in 0.30.11</strong></summary>
 
 ### 🐛 Bug Fixes
 
@@ -52,6 +59,8 @@ New to par-term? The [Getting Started Guide](docs/GETTING_STARTED.md) walks you 
 ### ⚡ Performance
 
 - **Frame Timing and Event-Loop Gap Diagnostics**: Added per-phase timing in the render pipeline and inter-frame gap detection in `about_to_wait`. These fire only when thresholds are exceeded (>16ms frame, >100ms gap) and help identify stalls without affecting normal performance.
+
+</details>
 
 <details>
 <summary><strong>What's New in 0.30.10</strong></summary>
