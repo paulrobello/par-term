@@ -29,21 +29,28 @@ impl TabManager {
 
     /// Set the active tab, flipping is_active flags on old and new tabs
     pub(super) fn set_active_tab(&mut self, id: Option<TabId>) {
-        // Deactivate old tab
+        use std::sync::atomic::Ordering;
+        // Deactivate old tab and its panes
         if let Some(old_id) = self.active_tab_id
             && let Some(old_tab) = self.tabs.iter().find(|t| t.id == old_id)
         {
-            old_tab
-                .is_active
-                .store(false, std::sync::atomic::Ordering::Relaxed);
+            old_tab.is_active.store(false, Ordering::Relaxed);
+            if let Some(ref pm) = old_tab.pane_manager {
+                for pane in pm.all_panes() {
+                    pane.is_active.store(false, Ordering::Relaxed);
+                }
+            }
         }
-        // Activate new tab
+        // Activate new tab and its panes
         if let Some(new_id) = id
             && let Some(new_tab) = self.tabs.iter().find(|t| t.id == new_id)
         {
-            new_tab
-                .is_active
-                .store(true, std::sync::atomic::Ordering::Relaxed);
+            new_tab.is_active.store(true, Ordering::Relaxed);
+            if let Some(ref pm) = new_tab.pane_manager {
+                for pane in pm.all_panes() {
+                    pane.is_active.store(true, Ordering::Relaxed);
+                }
+            }
         }
         self.active_tab_id = id;
     }

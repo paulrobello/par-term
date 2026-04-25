@@ -227,13 +227,14 @@ pub(super) fn gather_pane_render_data(
         // to avoid a second blocking terminal.lock() call, which is the primary
         // cause of FPS drops when the PTY reader is busy (e.g. tmux with many panes).
         //
-        // However, the cached cells may have been generated at a different grid
-        // size (e.g., before a scrollbar appeared due to focus change).  If the
-        // cell count doesn't match cols*rows, invalidate the cache so fresh cells
-        // are generated at the correct dimensions.
+        // Unfocused panes MUST NOT use this fast path: nothing refreshes their
+        // cache between frames, so cache_dims_match would return true forever
+        // with stale content.  They always go through try_write() which compares
+        // the terminal's current generation against the cached generation.
         let expected_cell_count = cols * rows;
         let scroll_offset = if is_focused { tab_scroll_offset } else { 0 };
-        let cache_dims_match = pane.cache.pane_cells_generation > 0
+        let cache_dims_match = is_focused
+            && pane.cache.pane_cells_generation > 0
             && pane.cache.pane_cells_scroll_offset == scroll_offset
             && pane
                 .cache

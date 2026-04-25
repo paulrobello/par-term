@@ -103,6 +103,17 @@ impl WindowState {
                 if let Some(tab) = self.tab_manager.active_tab_mut() {
                     tab.active_cache_mut().cells = None;
                 }
+                // Start refresh tasks for all panes so secondary panes trigger redraws
+                if let Some(window) = &self.window
+                    && let Some(tab) = self.tab_manager.active_tab_mut()
+                {
+                    tab.start_pane_refresh_tasks(
+                        Arc::clone(&self.runtime),
+                        Arc::clone(window),
+                        self.config.max_fps,
+                        self.config.inactive_tab_fps,
+                    );
+                }
                 self.focus_state.needs_redraw = true;
                 self.request_redraw();
                 Some(pane_id)

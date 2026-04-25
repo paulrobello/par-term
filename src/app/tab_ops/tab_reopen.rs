@@ -159,6 +159,17 @@ impl WindowState {
                             &self.config,
                             Arc::clone(&self.runtime),
                         );
+                        // Start refresh tasks for restored panes
+                        if let Some(window) = &self.window
+                            && let Some(tab) = self.tab_manager.get_tab_mut(tab_id)
+                        {
+                            tab.start_pane_refresh_tasks(
+                                Arc::clone(&self.runtime),
+                                Arc::clone(window),
+                                self.config.max_fps,
+                                self.config.inactive_tab_fps,
+                            );
+                        }
                     }
 
                     self.play_alert_sound(crate::config::AlertEvent::NewTab);

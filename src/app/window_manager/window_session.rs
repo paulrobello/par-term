@@ -128,6 +128,18 @@ impl WindowManager {
                             }
                         }
                     }
+                    // Start refresh tasks for restored pane layouts so secondary
+                    // panes trigger redraws when they receive output.
+                    if let Some(win) = &window_state.window {
+                        for tab in window_state.tab_manager.tabs_mut() {
+                            tab.start_pane_refresh_tasks(
+                                Arc::clone(&self.runtime),
+                                Arc::clone(win),
+                                self.config.max_fps,
+                                self.config.inactive_tab_fps,
+                            );
+                        }
+                    }
                 }
             }
         }
@@ -280,10 +292,16 @@ impl WindowManager {
                     .tab_manager
                     .switch_to_index(active_tab_index + 1);
 
-                // Start refresh tasks for all tabs
+                // Start refresh tasks for all tabs (and their split panes)
                 if let Some(win) = &window_state.window {
                     for tab in window_state.tab_manager.tabs_mut() {
                         tab.start_refresh_task(
+                            Arc::clone(&self.runtime),
+                            Arc::clone(win),
+                            self.config.max_fps,
+                            self.config.inactive_tab_fps,
+                        );
+                        tab.start_pane_refresh_tasks(
                             Arc::clone(&self.runtime),
                             Arc::clone(win),
                             self.config.max_fps,

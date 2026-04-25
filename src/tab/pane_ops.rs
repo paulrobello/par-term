@@ -7,7 +7,7 @@
 use crate::config::Config;
 use crate::pane::{NavigationDirection, PaneManager, SplitDirection};
 use crate::tab::Tab;
-use std::sync::Arc;
+use std::sync::{Arc, atomic::Ordering};
 use tokio::runtime::Runtime;
 
 struct SplitRequest {
@@ -375,6 +375,34 @@ impl Tab {
                     self.id,
                     e
                 );
+            }
+        }
+    }
+
+    /// Start refresh tasks for all panes that don't already have one.
+    ///
+    /// Must be called after pane creation (split, restore) to ensure each pane's
+    /// terminal output triggers redraws. Without this, only `tab.terminal` is polled
+    /// by the tab refresh task, so secondary panes never trigger redraws.
+    pub fn start_pane_refresh_tasks(
+        &mut self,
+        runtime: Arc<Runtime>,
+        window: Arc<winit::window::Window>,
+        active_fps: u32,
+        inactive_fps: u32,
+    ) {
+        if let Some(ref mut pm) = self.pane_manager {
+            let is_tab_active = self.is_active.load(Ordering::Relaxed);
+            for pane in pm.all_panes_mut() {
+                pane.is_active.store(is_tab_active, Ordering::Relaxed);
+                if pane.refresh_task.is_none() {
+                    pane.start_refresh_task(
+                        Arc::clone(&runtime),
+                        Arc::clone(&window),
+                        active_fps,
+                        inactive_fps,
+                    );
+                }
             }
         }
     }
