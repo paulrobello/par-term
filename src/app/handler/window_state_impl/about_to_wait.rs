@@ -16,6 +16,20 @@ impl WindowState {
             return;
         }
 
+        // Track inter-frame gap to detect event loop stalls.
+        let _atw_t0 = std::time::Instant::now();
+        if let Some(prev) = self.debug.last_about_to_wait {
+            let gap_ms = prev.elapsed().as_millis();
+            if gap_ms > 100 {
+                crate::debug_info!(
+                    "EVENT_LOOP",
+                    "about_to_wait gap: {}ms since last call",
+                    gap_ms
+                );
+            }
+        }
+        self.debug.last_about_to_wait = Some(_atw_t0);
+
         // Emit a periodic telemetry summary when try_lock() failures have occurred.
         // The call is cheap (two atomic loads) when no new failures happened.
         crate::debug::maybe_log_try_lock_telemetry();

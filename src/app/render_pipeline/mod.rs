@@ -38,22 +38,49 @@ impl WindowState {
             return;
         }
 
+        let render_t0 = std::time::Instant::now();
+
         if !self.should_render_frame() {
             return;
         }
 
         self.update_frame_metrics();
-        self.update_animations();
-        self.sync_layout();
 
+        let t_anim = std::time::Instant::now();
+        self.update_animations();
+        let anim_ms = t_anim.elapsed().as_millis();
+
+        let t_layout = std::time::Instant::now();
+        self.sync_layout();
+        let layout_ms = t_layout.elapsed().as_millis();
+
+        let t_gather = std::time::Instant::now();
         let Some(frame_data) = self.gather_render_data() else {
             return;
         };
+        let gather_ms = t_gather.elapsed().as_millis();
 
+        let t_gpu = std::time::Instant::now();
         let actions = self.submit_gpu_frame(frame_data);
-        self.update_post_render_state(actions);
+        let gpu_ms = t_gpu.elapsed().as_millis();
 
-        // Process any pending config saves that were deferred by debouncing
+        let t_post = std::time::Instant::now();
+        self.update_post_render_state(actions);
         self.process_pending_config_save();
+        let post_ms = t_post.elapsed().as_millis();
+
+        let total_ms = render_t0.elapsed().as_millis();
+        if total_ms > 16 {
+            crate::debug_info!(
+                "FRAME_TIMING",
+                "slow frame: total={}ms (anim={} layout={} gather={} gpu={} post={})",
+                total_ms,
+                anim_ms,
+                layout_ms,
+                gather_ms,
+                gpu_ms,
+                post_ms
+            );
+        }
     }
 }

@@ -145,7 +145,7 @@ impl Pane {
                 };
                 tokio::time::sleep(tokio::time::Duration::from_millis(interval_ms)).await;
 
-                let should_redraw = if let Ok(term) = terminal_clone.try_write() {
+                let should_redraw = if let Ok(term) = terminal_clone.try_read() {
                     let current_gen = term.update_generation();
                     if current_gen > last_gen {
                         last_gen = current_gen;

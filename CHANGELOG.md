@@ -10,7 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Bug Fixes
+- **Keyboard input stalls every 1–2 seconds in tmux** — async keyboard writes and refresh polling tasks used exclusive write locks (`write().await` / `try_write()`) on the outer `RwLock<TerminalManager>` when only shared read access was needed for `TerminalManager::write()` and `update_generation()`. This caused lock contention between the keyboard path and the refresh/render pipeline. All paths now use shared read locks (`read().await` / `try_read()`), allowing concurrent access. Investigation also revealed the primary stall source was tmux status-bar plugin scripts blocking tmux's single-threaded event loop (see tmux config recommendations).
 - **Clicks in TUI apps (htop, lazygit, etc.) intermittently failed to register** — mouse event handling used exclusive write locks (`try_write`) on the outer `RwLock<TerminalManager>` when only shared read access was needed. This caused cascading lock contention: a previous async mouse-write task holding the write lock (blocked on the inner terminal mutex) prevented new clicks from acquiring the lock, silently dropping them. All mouse tracking queries and encoding paths now use shared read locks (`try_read`), allowing concurrent access and eliminating the contention chain.
+
+### Performance
+- **Frame timing and event-loop gap diagnostics** — added per-phase timing in the render pipeline (anim, layout, gather, GPU, post) and inter-frame gap detection in `about_to_wait`. These fire only when thresholds are exceeded (>16ms frame, >100ms gap) and help identify stalls without affecting normal performance.
 
 ---
 

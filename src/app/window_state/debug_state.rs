@@ -25,6 +25,8 @@ pub(crate) struct DebugState {
     pub(crate) fps_value: f64,
     /// Time spent on the egui overlay render pass during the last frame.
     pub(crate) last_egui_time: Duration,
+    /// Timestamp of the last `about_to_wait` call (for inter-frame gap detection).
+    pub(crate) last_about_to_wait: Option<Instant>,
 }
 
 impl Default for DebugState {
@@ -46,6 +48,7 @@ impl DebugState {
             show_fps_overlay: false,
             fps_value: 0.0,
             last_egui_time: Duration::ZERO,
+            last_about_to_wait: None,
         }
     }
 }

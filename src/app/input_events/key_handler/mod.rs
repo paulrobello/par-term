@@ -284,7 +284,7 @@ impl WindowState {
                     if let Some(tab) = self.tab_manager.active_tab() {
                         let terminal_clone = Arc::clone(&tab.terminal);
                         self.runtime.spawn(async move {
-                            let term = terminal_clone.write().await;
+                            let term = terminal_clone.read().await;
                             let _ = term.paste(&text);
                         });
                     }
@@ -297,7 +297,7 @@ impl WindowState {
                     if let Some(tab) = self.tab_manager.active_tab() {
                         let terminal_clone = Arc::clone(&tab.terminal);
                         self.runtime.spawn(async move {
-                            let term = terminal_clone.write().await;
+                            let term = terminal_clone.read().await;
                             let _ = term.write(b"\x16");
                         });
                     }
@@ -467,6 +467,50 @@ impl WindowState {
                 return; // Input was routed through tmux
             }
 
+            // When tmux is connected, send_input_via_tmux may have failed because
+            // the gateway terminal's RwLock is held (e.g., by a prior async write
+            // blocked on the inner parking_lot::Mutex while the PTY reader processes
+            // tmux output). Do NOT fall through to the direct PTY write path — that
+            // writes to the wrong terminal (the tmux display tab instead of the
+            // gateway). Instead, retry asynchronously so the keystroke is delivered
+            // as soon as the gateway lock becomes available.
+            if self.is_tmux_connected() {
+                crate::debug_info!(
+                    "TMUX_INPUT",
+                    "Gateway lock contention — queuing {} bytes for async delivery",
+                    bytes.len()
+                );
+                // Format the send-keys command while we still have access to the
+                // tmux session state (synchronous borrow), then write the
+                // pre-formatted command to the gateway PTY asynchronously.
+                let cmd = if let Some(session) = &self.tmux_state.tmux_session {
+                    match session.format_send_keys(&bytes) {
+                        Some(c) => c,
+                        None => {
+                            let escaped = crate::tmux::escape_keys_for_tmux(&bytes);
+                            format!("send-keys {}\n", escaped)
+                        }
+                    }
+                } else {
+                    let escaped = crate::tmux::escape_keys_for_tmux(&bytes);
+                    format!("send-keys {}\n", escaped)
+                };
+                if let Some(gateway_tab_id) = self.tmux_state.tmux_gateway_tab_id
+                    && let Some(tab) = self.tab_manager.get_tab(gateway_tab_id)
+                {
+                    let terminal_clone = Arc::clone(&tab.terminal);
+                    let cmd_bytes = cmd.into_bytes();
+                    self.runtime.spawn(async move {
+                        let term = terminal_clone.read().await;
+                        let _ = term.write(&cmd_bytes);
+                    });
+                }
+                if let Some(tab) = self.tab_manager.active_tab_mut() {
+                    tab.activity.anti_idle_last_activity = std::time::Instant::now();
+                }
+                return;
+            }
+
             // Broadcast input to all panes or just the focused pane
             if let Some(tab) = self.tab_manager.active_tab_mut() {
                 // Reset anti-idle timer on keyboard input
@@ -514,7 +558,7 @@ impl WindowState {
                     let bytes_clone = bytes.clone();
                     self.runtime.spawn(async move {
                         for terminal in terminals {
-                            let term = terminal.write().await;
+                            let term = terminal.read().await;
                             let _ = term.write(&bytes_clone);
                         }
                     });
@@ -534,8 +578,14 @@ impl WindowState {
                     Arc::clone(&tab.terminal)
                 };
 
+                // read() not write(): TerminalManager::write() takes &self (shared
+                // reference) because mutation is serialized by the inner
+                // parking_lot::Mutex.  Using a read lock here prevents the keyboard
+                // write from exclusively holding the outer RwLock while blocked on the
+                // inner Mutex, which would starve the refresh task (try_read) and the
+                // render pipeline (try_write) of their generation checks.
                 self.runtime.spawn(async move {
-                    let term = terminal_clone.write().await;
+                    let term = terminal_clone.read().await;
                     let _ = term.write(&bytes);
                 });
             }
