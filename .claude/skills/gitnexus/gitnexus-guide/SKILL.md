@@ -1,16 +1,18 @@
 ---
 name: gitnexus-guide
-description: "Use when the user asks about GitNexus itself — available tools, how to query the knowledge graph, graph schema, or workflow reference."
+description: "Use when the user asks about GitNexus itself — available CLI commands, how to query the knowledge graph, graph schema, or workflow reference. Examples: \"What GitNexus tools are available?\", \"How do I use GitNexus?\""
 ---
 
 # GitNexus Guide
 
-Quick reference for all GitNexus CLI commands, tools, and the knowledge graph schema.
-
 > **IMPORTANT — How to use GitNexus**: GitNexus is a standalone CLI tool. Run it directly
-> via `gitnexus <command>` in the Bash tool (e.g., `gitnexus query "auth flow" --repo par-term`,
-> `gitnexus impact "myFunc" --direction upstream --repo par-term`). Do **NOT** use
-> `mcpl call gitnexus ...` — gitnexus is not invoked through mcpl.
+> via `gitnexus <command>` in the Bash tool. Do **NOT** use `mcpl call gitnexus ...` or
+> `npx gitnexus ...` — gitnexus is installed globally and invoked by name.
+
+> **Multi-repo note**: Always pass `--repo <name>` to every command that operates on a
+> specific repo to avoid "multiple repositories" errors.
+
+Quick reference for all GitNexus CLI commands and the knowledge graph schema.
 
 ## Always Start Here
 
@@ -24,8 +26,8 @@ For any task involving code understanding, debugging, impact analysis, or refact
 
 ## Skills
 
-| Task                                         | Skill to read                |
-| -------------------------------------------- | ---------------------------- |
+| Task                                         | Skill to read       |
+| -------------------------------------------- | ------------------- |
 | Understand architecture / "How does X work?" | `gitnexus-exploring`         |
 | Blast radius / "What breaks if I change X?"  | `gitnexus-impact-analysis`   |
 | Trace bugs / "Why is X failing?"             | `gitnexus-debugging`         |
@@ -35,22 +37,19 @@ For any task involving code understanding, debugging, impact analysis, or refact
 
 ## CLI Commands Reference
 
-All commands are run directly via the Bash tool. Do **not** use `mcpl`.
+All commands are run directly via the Bash tool. Do **not** use `mcpl` or `npx`.
 
 | Command | What it gives you | Example |
 | ------- | ----------------- | ------- |
-| `gitnexus query "<concept>" --repo <name>` | Process-grouped code intelligence — execution flows related to a concept | `gitnexus query "auth flow" --repo par-term` |
-| `gitnexus context "<symbol>" --repo <name>` | 360-degree symbol view — categorized refs, processes it participates in | `gitnexus context "validateUser" --repo par-term` |
-| `gitnexus impact "<symbol>" --direction upstream --repo <name>` | Symbol blast radius — what breaks at depth 1/2/3 with confidence | `gitnexus impact "myFunc" --direction upstream --repo par-term` |
-| `gitnexus detect-changes --repo <name>` | Git-diff impact — what do your current changes affect | `gitnexus detect-changes --repo par-term` |
-| `gitnexus rename "<old>" "<new>" --repo <name>` | Multi-file coordinated rename with confidence-tagged edits | `gitnexus rename "myFunc" "myNewFunc" --repo par-term` |
-| `gitnexus cypher "<query>" --repo <name>` | Raw graph queries | `gitnexus cypher "MATCH ..." --repo par-term` |
+| `gitnexus query "<concept>" --repo <name>` | Process-grouped code intelligence — execution flows related to a concept | `gitnexus query "auth flow" --repo <name>` |
+| `gitnexus context "<symbol>" --repo <name>` | 360-degree symbol view — categorized refs, processes it participates in | `gitnexus context "validateUser" --repo <name>` |
+| `gitnexus impact "<symbol>" --direction upstream --repo <name>` | Symbol blast radius — what breaks at depth 1/2/3 with confidence | `gitnexus impact "myFunc" --direction upstream --repo <name>` |
+| `gitnexus detect-changes --repo <name>` | Git-diff impact — what do your current changes affect | `gitnexus detect-changes --repo <name>` |
+| `gitnexus rename "<old>" "<new>" --repo <name>` | Multi-file coordinated rename with confidence-tagged edits | `gitnexus rename "myFunc" "myNewFunc" --repo <name> --dry-run` |
+| `gitnexus cypher "<query>" --repo <name>` | Raw graph queries | `gitnexus cypher "MATCH ..." --repo <name>` |
 | `gitnexus status` | Index freshness check | `gitnexus status` |
 | `gitnexus analyze` | Build or refresh the index | `gitnexus analyze` |
 | `gitnexus list` | Discover indexed repos | `gitnexus list` |
-
-> **Multi-repo note**: This workspace has multiple repos indexed. Always pass
-> `--repo <name>` to every command to avoid "multiple repositories" errors.
 
 ## Graph Schema
 

@@ -5,6 +5,13 @@ description: "Use when the user wants to know what will break if they change som
 
 # Impact Analysis with GitNexus
 
+> **IMPORTANT — How to use GitNexus**: GitNexus is a standalone CLI tool. Run it directly
+> via `gitnexus <command>` in the Bash tool. Do **NOT** use `mcpl call gitnexus ...` or
+> `npx gitnexus ...` — gitnexus is installed globally and invoked by name.
+
+> **Multi-repo note**: Always pass `--repo <name>` to every command that operates on a
+> specific repo to avoid "multiple repositories" errors.
+
 ## When to Use
 
 - "Is it safe to change this function?"
@@ -17,22 +24,20 @@ description: "Use when the user wants to know what will break if they change som
 ## Workflow
 
 ```
-1. gitnexus_impact({target: "X", direction: "upstream"})  → What depends on this
-2. READ gitnexus://repo/{name}/processes                   → Check affected execution flows
-3. gitnexus_detect_changes()                               → Map current git changes to affected flows
-4. Assess risk and report to user
+1. gitnexus impact "X" --direction upstream --repo <name>  → What depends on this
+2. gitnexus detect-changes --repo <name>                   → Map current git changes to affected flows
+3. Assess risk and report to user
 ```
 
-> If "Index is stale" → run `npx gitnexus analyze` in terminal.
+> If "Index is stale" → run `gitnexus analyze` in terminal.
 
 ## Checklist
 
 ```
-- [ ] gitnexus_impact({target, direction: "upstream"}) to find dependents
+- [ ] gitnexus impact "<symbol>" --direction upstream --repo <name> to find dependents
 - [ ] Review d=1 items first (these WILL BREAK)
 - [ ] Check high-confidence (>0.8) dependencies
-- [ ] READ processes to check affected execution flows
-- [ ] gitnexus_detect_changes() for pre-commit check
+- [ ] gitnexus detect-changes --repo <name> for pre-commit check
 - [ ] Assess risk level and report to user
 ```
 
@@ -53,45 +58,22 @@ description: "Use when the user wants to know what will break if they change som
 | >15 symbols or many processes  | HIGH     |
 | Critical path (auth, payments) | CRITICAL |
 
-## Tools
+## CLI Commands Reference
 
-**gitnexus_impact** — the primary tool for symbol blast radius:
+All commands are run directly via the Bash tool. Do **not** use `mcpl` or `npx`.
 
-```
-gitnexus_impact({
-  target: "validateUser",
-  direction: "upstream",
-  minConfidence: 0.8,
-  maxDepth: 3
-})
-
-→ d=1 (WILL BREAK):
-  - loginHandler (src/auth/login.ts:42) [CALLS, 100%]
-  - apiMiddleware (src/api/middleware.ts:15) [CALLS, 100%]
-
-→ d=2 (LIKELY AFFECTED):
-  - authRouter (src/routes/auth.ts:22) [CALLS, 95%]
-```
-
-**gitnexus_detect_changes** — git-diff based impact analysis:
-
-```
-gitnexus_detect_changes({scope: "staged"})
-
-→ Changed: 5 symbols in 3 files
-→ Affected: LoginFlow, TokenRefresh, APIMiddlewarePipeline
-→ Risk: MEDIUM
-```
+| Command | What it gives you | Example |
+| ------- | ----------------- | ------- |
+| `gitnexus impact "<symbol>" --direction upstream --repo <name>` | Symbol blast radius — what breaks at depth 1/2/3 with confidence | `gitnexus impact "validateUser" --direction upstream --repo <name>` |
+| `gitnexus detect-changes --repo <name>` | Git-diff impact — what your changes affect | `gitnexus detect-changes --repo <name>` |
+| `gitnexus status` | Index freshness check | `gitnexus status` |
 
 ## Example: "What breaks if I change validateUser?"
 
 ```
-1. gitnexus_impact({target: "validateUser", direction: "upstream"})
+1. gitnexus impact "validateUser" --direction upstream --repo my-app
    → d=1: loginHandler, apiMiddleware (WILL BREAK)
    → d=2: authRouter, sessionManager (LIKELY AFFECTED)
 
-2. READ gitnexus://repo/my-app/processes
-   → LoginFlow and TokenRefresh touch validateUser
-
-3. Risk: 2 direct callers, 2 processes = MEDIUM
+2. Risk: 2 direct callers, 2 processes = MEDIUM
 ```
