@@ -23,10 +23,10 @@ mod tests {
 
     #[test]
     fn test_validate_cwd_existing_dir() {
-        // /tmp should always exist
-        let cwd = Some("/tmp".to_string());
+        let temp_dir = std::env::temp_dir();
+        let cwd = Some(temp_dir.to_string_lossy().to_string());
         let result = validate_cwd(&cwd);
-        assert_eq!(result, Some("/tmp".to_string()));
+        assert_eq!(result, Some(temp_dir.to_string_lossy().to_string()));
     }
 
     #[test]
