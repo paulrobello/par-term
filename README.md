@@ -16,7 +16,7 @@ A cross-platform, GPU-accelerated terminal emulator frontend built with Rust, po
 ## Table of Contents
 
 - [Getting Started](#getting-started)
-- [What's New](#whats-new-in-0306)
+- [What's New](#whats-new-in-03011)
 - [Features](#features)
 - [Documentation](#documentation)
 - [Installation](#installation)
@@ -41,15 +41,44 @@ New to par-term? The [Getting Started Guide](docs/GETTING_STARTED.md) walks you 
 - **[Configuration Reference](docs/CONFIG_REFERENCE.md)** — All 200+ configuration options
 - **[Keyboard Shortcuts](docs/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
 
-## What's New in 0.30.7
+## What's New in 0.30.11
 
 ### 🐛 Bug Fixes
 
-- **Shift+Enter Lost as Soft-Newline in Kitty-Keyboard TUIs Under Tmux**: Apps like the pi agent detect `$TMUX` and negotiate the kitty-keyboard protocol with tmux, after which a raw `\n` is no longer interpreted as Shift+Enter (only `\x1b[13;2u` is). par-term was emitting LF in every scenario, so Shift+Enter silently no-op'd inside tmux. Two-part fix: (1) in gateway mode (`tmux -CC`), route Shift+Enter via `send-keys -t %N -H 0a` so the literal LF bypasses tmux's per-pane `modifyOtherKeys` re-encoding; (2) in subprocess tmux, detect a `tmux*` process under the active tab's shell via sysinfo and emit `\x1b[13;2u` instead of `\n`, letting tmux's `extended-keys on` parser re-encode for whatever keyboard protocol the inner app has negotiated. Outside tmux the iTerm2 `\n` convention is preserved so Claude Code and other non-kitty TUIs keep working.
+- **Keyboard Input Stalls Every 1–2 Seconds in Tmux**: Async keyboard writes and refresh polling used exclusive write locks on the outer `RwLock<TerminalManager>` when only shared read access was needed, causing lock contention between the keyboard path and the render pipeline. All paths now use shared read locks, allowing concurrent access.
+
+- **Clicks Silently Dropped in TUI Apps**: Mouse event handling used exclusive write locks on the outer `RwLock<TerminalManager>`, causing cascading lock contention that silently dropped mouse clicks in apps like htop and lazygit. All mouse tracking queries and encoding paths now use shared read locks.
+
+### ⚡ Performance
+
+- **Frame Timing and Event-Loop Gap Diagnostics**: Added per-phase timing in the render pipeline and inter-frame gap detection in `about_to_wait`. These fire only when thresholds are exceeded (>16ms frame, >100ms gap) and help identify stalls without affecting normal performance.
+
+<details>
+<summary><strong>What's New in 0.30.10</strong></summary>
+
+### ⚡ Performance
+
+- **Static Tmux-Heavy Tabs Could Tank FPS**: Pane cell snapshots are now cached across frames by terminal generation and scroll offset, with copy-on-write only when focused-pane decorations actually mutate the cells.
+- **Animated Frames Walked Every Tab Title on Every Render**: Title refresh is now throttled instead of running at render cadence.
+
+### 🐛 Bug Fixes
+
+- **Geometric Shape Characters Rendered Vertically Squished**: Filled variants (◼ ■ ▪ ◾ ▬ ▮) now render as pixel-perfect rectangles; outline variants (◻ □ ▫ ◽) get center+scale-to-fill treatment.
+
+</details>
+
+<details>
+<summary><strong>What's New in 0.30.7</strong></summary>
+
+### 🐛 Bug Fixes
+
+- **Shift+Enter Lost as Soft-Newline in Kitty-Keyboard TUIs Under Tmux**: Two-part fix routing Shift+Enter correctly in both gateway and subprocess tmux modes. Outside tmux the iTerm2 `\n` convention is preserved.
 
 ### 🔧 Build
 
-- **MSRV bumped from 1.91 to 1.94** across all workspace crates, and CI toolchains updated to match.
+- **MSRV bumped from 1.91 to 1.94** across all workspace crates.
+
+</details>
 
 <details>
 <summary><strong>What's New in 0.30.6</strong></summary>

@@ -513,13 +513,25 @@ Update to par-term v0.30.1+ — `Selection` now records the scroll offset at cap
 
 **Symptom:** Mouse clicks or scroll events behave unexpectedly, or text selection triggers accidentally on trackpad.
 
-**Cause:** Applications running in the terminal may capture mouse events (mouse tracking mode). Trackpad jitter can cause micro-selections.
+**Cause:** Applications running in the terminal may capture mouse events (mouse tracking mode). Trackpad jitter can cause micro-selections. In versions before v0.30.11, mouse event encoding also used exclusive write locks on the terminal, causing clicks to be silently dropped when the lock was contended.
 
 **Solution:**
 
 1. To select text when an application has mouse tracking enabled, hold `Shift` while clicking or dragging to bypass the application's mouse capture
 2. par-term includes a drag dead-zone to suppress accidental micro-selections from trackpad jitter
 3. Check mouse-related settings in **Settings > Input > Mouse**
+4. If clicks are intermittently ignored in TUI apps (htop, lazygit), update to v0.30.11+ where mouse event paths use shared read locks
+
+### Keyboard Input Stalls
+
+**Symptom:** Keyboard input appears to stall or lag every 1–2 seconds, especially in tmux sessions. Keystrokes may be delayed or dropped entirely.
+
+**Cause:** In versions before v0.30.11, keyboard write tasks used exclusive write locks on the outer `RwLock<TerminalManager>`, blocking the render pipeline and refresh polling. The lock contention was especially visible in tmux because tmux status-bar plugin scripts can block tmux's single-threaded event loop, causing the inner PTY mutex to be held longer.
+
+**Solution:**
+
+1. Update to par-term v0.30.11+ where all keyboard write paths use shared read locks
+2. If stalls persist in tmux, check for heavy tmux status-bar plugins (e.g., `tmux-cpu`, `tmux-mem-cpu-load`) that run external scripts every few seconds — these can block tmux's event loop independently of par-term
 
 ### URL Underline Misaligned in Split Panes or During Scroll
 
@@ -623,8 +635,10 @@ URL underline positioning now correctly accounts for split pane offsets, scrollb
 
    ```bash
    par-term --log-level debug
-   grep -i "render\|frame\|fps" /tmp/par_term_debug.log
+   grep -i "render\|frame\|fps\|FRAME_TIMING\|EVENT_LOOP" /tmp/par_term_debug.log
    ```
+
+   Per-phase render timing (`FRAME_TIMING`) reports animation, layout, gather, GPU, and post-render durations for frames exceeding 16ms. Inter-frame gap detection (`EVENT_LOOP`) reports gaps exceeding 100ms in the event loop.
 
 ### High Memory Usage
 

@@ -94,7 +94,7 @@ WindowManager                   ← owns all WindowState instances
        ├─ TabManager            ← owns all Tab instances (sync only)
        │    └─ Tab              ← per-tab state
        │         ├─ terminal: Arc<tokio::sync::RwLock<TerminalManager>>
-       │         │             ← shared with async PTY/input tasks; RwLock for concurrent reads
+       │         │             ← shared with async PTY/input tasks; RwLock for concurrent reads. Most mutating methods (write, paste, mouse encoding) take &self — inner parking_lot::Mutex serializes PTY writes
        │         └─ PaneManager ← sync only, owns all Pane instances
        │              └─ Pane
        │                   └─ terminal: Arc<tokio::sync::RwLock<TerminalManager>>
@@ -132,7 +132,7 @@ WindowManager                   ← owns all WindowState instances
 
 | Location | Type | Reason |
 |---|---|---|
-| `Tab.terminal` | `Arc<tokio::sync::RwLock<TerminalManager>>` | PTY reader + input sender tasks; RwLock allows concurrent reads |
+| `Tab.terminal` | `Arc<tokio::sync::RwLock<TerminalManager>>` | PTY reader + input sender tasks; RwLock allows concurrent reads. Most mutating methods (`write`, `paste`, `encode_mouse_event`) take `&self` — inner `parking_lot::Mutex` serializes PTY writes, so use read locks even for these |
 | `Pane.terminal` | `Arc<tokio::sync::RwLock<TerminalManager>>` | Same — each pane has its own PTY |
 | `AgentState.agent` | `Option<Arc<tokio::sync::Mutex<Agent>>>` | ACP prompt tasks |
 
@@ -165,23 +165,33 @@ When introducing a new value that must be shared across threads:
 
 ```rust
 // For tokio::sync::RwLock from the winit event loop:
-// Non-blocking read (safe to skip if contended):
+
+// Non-blocking read (use for MOST operations, including write/paste/mouse encoding):
 if let Ok(guard) = terminal.try_read() {
-    // use guard for reading
+    guard.write(data);  // &self method — inner Mutex handles PTY serialization
 } else {
     crate::debug::record_try_lock_failure("my_site");
 }
 
-// Non-blocking write:
+// Non-blocking write (only for true &mut self methods like resize):
 if let Ok(mut guard) = terminal.try_write() {
-    // use guard for writing
+    guard.resize(cols, rows);  // &mut self method
 } else {
     crate::debug::record_try_lock_failure("my_site_write");
 }
 
-// Blocking write (must not be skipped, but never call from a Tokio worker thread):
+// Blocking read (for user-initiated operations that call &self methods):
+let guard = terminal.blocking_read();
+guard.paste(text);  // &self method
+
+// Blocking write (only for true &mut self operations):
 let mut guard = terminal.blocking_write();
 ```
+
+**Important**: `TerminalManager::write()`, `paste()`, `update_generation()`, and all mouse
+encoding methods take `&self`. The inner `parking_lot::Mutex<PtySession>` serializes PTY
+writes. Using `try_write()` / `write().await` for these operations is an anti-pattern that
+causes lock contention (see v0.30.11 keyboard stall and click-drop fixes).
 
 5. **Document the mutex choice** with an inline comment explaining which tasks share
    the value, following the pattern in `Tab` and `Pane`.

@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [0.30.11] - 2026-04-24
 
 ### Bug Fixes
 - **Keyboard input stalls every 1–2 seconds in tmux** — async keyboard writes and refresh polling tasks used exclusive write locks (`write().await` / `try_write()`) on the outer `RwLock<TerminalManager>` when only shared read access was needed for `TerminalManager::write()` and `update_generation()`. This caused lock contention between the keyboard path and the refresh/render pipeline. All paths now use shared read locks (`read().await` / `try_read()`), allowing concurrent access. Investigation also revealed the primary stall source was tmux status-bar plugin scripts blocking tmux's single-threaded event loop (see tmux config recommendations).

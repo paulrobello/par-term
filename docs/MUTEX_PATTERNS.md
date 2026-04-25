@@ -116,7 +116,7 @@ flowchart TD
 
 | Type | Field | Reason |
 |---|---|---|
-| `Tab` | `terminal: Arc<tokio::sync::RwLock<TerminalManager>>` | Shared with async PTY reader and input tasks; read-heavy |
+| `Tab` | `terminal: Arc<tokio::sync::RwLock<TerminalManager>>` | Shared with async PTY reader and input tasks; read-heavy. Most mutating methods (`write`, `paste`, mouse encoding) take `&self` — use read locks |
 | `Pane` | `terminal: Arc<tokio::sync::RwLock<TerminalManager>>` | Same — each pane has its own PTY; read-heavy |
 
 ### `tokio::sync::Mutex`
@@ -165,7 +165,9 @@ if let Ok(mut term) = tab.terminal.try_write() {
 
 Use `try_read()` / `try_write()` for:
 - Per-frame rendering polls (read)
-- Resize propagation (write)
+- Keyboard input writes (read — `TerminalManager::write()` takes `&self`)
+- Mouse event encoding (read — `encode_mouse_event()` takes `&self`)
+- Resize propagation (write — `resize()` takes `&mut self`)
 - Any operation that can safely be deferred to the next frame
 
 ### `blocking_read()` / `blocking_write()` — Blocking wait
@@ -192,12 +194,18 @@ methods, Tokio will deadlock.
 
 ```rust
 // Inside runtime.spawn() or an async fn
-let term = terminal_clone.read().await;  // For read-only access
-// term is held across the await — safe with tokio::sync::RwLock
 
+// Preferred for most operations — TerminalManager::write(), paste(), mouse encoding all take &self
+let term = terminal_clone.read().await;
+term.write(data);  // &self method — inner Mutex handles PTY serialization
+
+// Only needed for true &mut self methods like resize()
 let mut term = terminal_clone.write().await;  // For exclusive write access
-// term is held across the await — safe with tokio::sync::RwLock
 ```
+
+**Important**: Using `.write().await` for `&self` methods like `write()` or `encode_mouse_event()`
+is an anti-pattern that causes lock contention. The v0.30.11 keyboard stall and click-drop
+fixes were caused by this exact mistake.
 
 Never use `try_read()` / `try_write()` from async code to guard long-lived operations;
 prefer `.read().await` / `.write().await` so the task yields instead of spinning.
@@ -261,6 +269,22 @@ let log: Arc<tokio::sync::RwLock<Logger>> = Arc::new(tokio::sync::RwLock::new(Lo
 // BETTER
 let log: Arc<parking_lot::Mutex<Logger>> = Arc::new(parking_lot::Mutex::new(Logger::new()));
 ```
+
+### Using `.write()` / `try_write()` for `&self` methods on `TerminalManager`
+
+```rust
+// BAD — write() blocks all concurrent readers for an operation that only needs &self
+let mut term = terminal.write().await;
+term.write(data);  // TerminalManager::write() takes &self, not &mut self
+
+// GOOD — read() allows concurrent access; inner Mutex serializes the PTY write
+let term = terminal.read().await;
+term.write(data);
+```
+
+This was the root cause of the v0.30.11 keyboard input stalls and dropped mouse clicks.
+The outer `RwLock` should only see `write()` / `try_write()` for true `&mut self` methods
+like `resize()`.
 
 ---
 
