@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Bug Fixes
+- **Tab clicks intermittently failed and caused accidental text selection** — two compounding bugs in the mouse event routing layer. (1) When a mouse release was consumed by `handle_window_event` (because egui claimed the pointer while the mouse was over the tab bar), `button_pressed` and `is_selecting` were never cleared — the cleanup only existed inside `handle_mouse_button()`, which was skipped. The next mouse move into the terminal area then saw `button_pressed == true` and started an unwanted drag selection. Fixed by adding the same unconditional cleanup to the release-consumed path in `handle_window_event`. (2) When `is_egui_using_pointer()` returned `false` due to stale egui state (after window focus changes or rapid pointer movement), the press bypassed egui entirely and was caught only by the `is_mouse_in_tab_bar()` hit test — but egui's `clicked_by()` never fired without seeing the press, so the tab switch was silently dropped. Fixed by storing a `pending_focus_tab_switch` in the tab bar guard so `post_render` can apply the switch as a fallback, reusing the same mechanism already used for focus-clicks.
+
+---
+
 ## [0.30.12] - 2026-04-25
 
 ### Bug Fixes

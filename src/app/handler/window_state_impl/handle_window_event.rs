@@ -343,6 +343,7 @@ impl WindowState {
 
             WindowEvent::MouseInput { button, state, .. } => {
                 use winit::event::ElementState;
+                use winit::event::MouseButton;
 
                 // Eat the first mouse press that brings the window into focus.
                 // Without this, the click is forwarded to the PTY where mouse-aware
@@ -414,6 +415,21 @@ impl WindowState {
                         // Release: block if we consumed the press OR if UI wants pointer
                         if self.focus_state.ui_consumed_mouse_press || ui_wants_pointer {
                             self.focus_state.ui_consumed_mouse_press = false;
+
+                            // Clear terminal mouse state when the release is consumed
+                            // here instead of in handle_mouse_button(). Without this,
+                            // a press that set button_pressed=true in the terminal
+                            // followed by a release consumed by egui (e.g., pointer
+                            // moved into the tab bar) leaves button_pressed stuck as
+                            // true. The next mouse-move into the terminal then starts
+                            // an accidental drag-selection.
+                            if button == MouseButton::Left
+                                && let Some(tab) = self.tab_manager.active_tab_mut()
+                            {
+                                tab.active_mouse_mut().button_pressed = false;
+                                tab.selection_mouse_mut().is_selecting = false;
+                            }
+
                             self.request_redraw();
                         } else {
                             self.begin_clipboard_image_click_guard(button, state);

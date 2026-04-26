@@ -381,6 +381,12 @@ impl TabBarUI {
         self.renaming_tab = value;
     }
 
+    /// Set cached tab rects directly; used by integration tests to exercise
+    /// `tab_at_logical_pos` without requiring a live egui render pass.
+    pub fn test_set_tab_rects(&mut self, rects: Vec<(TabId, egui::Rect)>) {
+        self.tab_rects = rects;
+    }
+
     /// Update the move-tab context shown in the right-click context menu.
     /// Must be called each frame *before* `render()` so the context menu has
     /// fresh state.

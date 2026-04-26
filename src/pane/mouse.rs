@@ -57,4 +57,42 @@ impl MouseState {
             hovered_divider_index: None,
         }
     }
+
+    // Test accessors for integration tests
+    pub fn test_new() -> Self {
+        Self::new()
+    }
+    pub fn test_set_button_pressed(&mut self, v: bool) {
+        self.button_pressed = v;
+    }
+    pub fn test_button_pressed(&self) -> bool {
+        self.button_pressed
+    }
+    pub fn test_set_is_selecting(&mut self, v: bool) {
+        self.is_selecting = v;
+    }
+    pub fn test_is_selecting(&self) -> bool {
+        self.is_selecting
+    }
+    pub fn test_set_selection(&mut self, sel: Option<Selection>) {
+        self.selection = sel;
+    }
+    pub fn test_selection(&self) -> Option<&Selection> {
+        self.selection.as_ref()
+    }
+    pub fn test_set_click_pixel_position(&mut self, pos: Option<(f64, f64)>) {
+        self.click_pixel_position = pos;
+    }
+    pub fn test_set_click_position(&mut self, pos: Option<(usize, usize)>) {
+        self.click_position = pos;
+    }
+    pub fn test_set_click_count(&mut self, count: u32) {
+        self.click_count = count;
+    }
+    pub fn test_set_dragging_divider(&mut self, idx: Option<usize>) {
+        self.dragging_divider = idx;
+    }
+    pub fn test_dragging_divider(&self) -> Option<usize> {
+        self.dragging_divider
+    }
 }

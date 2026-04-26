@@ -64,6 +64,23 @@ impl WindowState {
             // and didn't set ui_consumed_mouse_press in handle_window_event.
             if state == ElementState::Pressed {
                 self.focus_state.ui_consumed_mouse_press = true;
+
+                // Store a fallback tab switch: if the press bypassed egui's
+                // wants_pointer_input() (stale state after window focus change
+                // or rapid pointer movement), egui won't see the press and
+                // clicked_by() won't fire. post_render checks this field and
+                // applies the switch as a fallback.
+                let scale_factor = self
+                    .window
+                    .as_ref()
+                    .map(|w| w.scale_factor())
+                    .unwrap_or(1.0) as f32;
+                let logical_pos = egui::pos2(
+                    mouse_position.0 as f32 / scale_factor,
+                    mouse_position.1 as f32 / scale_factor,
+                );
+                self.focus_state.pending_focus_tab_switch =
+                    self.tab_bar_ui.tab_at_logical_pos(logical_pos);
             }
             // Request redraw so egui can process the click event
             self.request_redraw();
