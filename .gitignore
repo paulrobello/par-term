@@ -49,3 +49,4 @@ settings.local.json
 .claude/.cc2cc-session-id
 *.local
 *.local.*
+.pi/extensions/discord-relay/state.json
