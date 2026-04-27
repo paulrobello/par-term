@@ -74,6 +74,7 @@ impl WindowState {
             self.clear_custom_action_prefix_toast();
 
             if matches!(event.logical_key, Key::Named(NamedKey::Escape)) {
+                crate::debug_log!("PREFIX_ACTION", "Esc pressed, prefix mode cancelled");
                 return true;
             }
 
@@ -107,6 +108,10 @@ impl WindowState {
             .iter()
             .any(|action| action.prefix_char().is_some())
         {
+            crate::debug_log!(
+                "PREFIX_ACTION",
+                "No actions with prefix_char configured, skipping"
+            );
             return false;
         }
 
@@ -117,6 +122,10 @@ impl WindowState {
         );
 
         if matcher.matches_with_physical_preference(prefix_combo, self.config.use_physical_keys) {
+            crate::debug_info!(
+                "PREFIX_ACTION",
+                "Prefix combo matched, entering prefix mode"
+            );
             self.custom_action_prefix_state.enter();
             self.show_custom_action_prefix_toast();
             return true;

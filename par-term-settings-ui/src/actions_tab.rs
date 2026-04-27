@@ -227,6 +227,13 @@ fn show_actions_section(
                                                     .monospace()
                                                     .color(egui::Color32::from_rgb(150, 150, 200)),
                                             );
+                                            if let Some(ch) = action.prefix_char() {
+                                                ui.label(
+                                                    egui::RichText::new(format!("pre:{}", ch))
+                                                        .monospace()
+                                                        .color(egui::Color32::from_rgb(100, 200, 100)),
+                                                );
+                                            }
 
                                             if !detail_text.is_empty() {
                                                 ui.add(

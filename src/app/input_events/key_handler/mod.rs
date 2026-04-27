@@ -127,6 +127,12 @@ impl WindowState {
         // Swallow all follow-up key events while armed so they can't leak through
         // to tmux shortcuts, user keybindings, or the terminal PTY.
         if self.custom_action_prefix_state.is_active() {
+            crate::debug_info!(
+                "PREFIX_ACTION",
+                "Mode active, handling follow-up key={:?} state={:?}",
+                event.logical_key,
+                event.state
+            );
             let handled = self.handle_custom_action_prefix_key(&event);
             if handled || self.custom_action_prefix_state.is_active() {
                 return;

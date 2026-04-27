@@ -35,6 +35,7 @@ impl TabBarUI {
         // Layout constants
         let tab_spacing = TAB_SPACING;
         let left_padding = TAB_LEFT_PADDING;
+        let btn_h = config.tab_bar_height - TAB_DRAW_SHRINK_Y * 2.0;
         // Show the chevron dropdown when there's menu content:
         // profiles to pick from, or the AI assistant toggle.
         let show_chevron = !profiles.is_empty() || config.ai_inspector.ai_inspector_enabled;
@@ -101,171 +102,205 @@ impl TabBarUI {
             // Clamp scroll offset
             self.scroll_offset = self.scroll_offset.clamp(0.0, max_scroll);
 
-            ui.horizontal(|ui| {
-                let spacing = ui.spacing_mut();
-                spacing.item_spacing = egui::vec2(tab_spacing, 0.0);
-                // Zero button padding so buttons (◀▶+▾) don't exceed panel height
-                spacing.button_padding = egui::vec2(0.0, 0.0);
-                // Small left padding so the first tab's border isn't clipped by the panel edge
-                ui.add_space(left_padding);
+            // Fixed-height row prevents any child widget (ScrollArea, buttons)
+            // from expanding the vertical space and pushing tab pills down.
+            ui.allocate_ui_with_layout(
+                egui::vec2(total_bar_width, btn_h),
+                egui::Layout::left_to_right(egui::Align::Center),
+                |ui| {
+                    ui.spacing_mut().item_spacing = egui::vec2(tab_spacing, 0.0);
+                    ui.spacing_mut().button_padding = egui::vec2(0.0, 0.0);
+                    // Small left padding so the first tab's border isn't clipped by the panel edge
+                    ui.add_space(left_padding);
 
-                if needs_scroll {
-                    // Left scroll button
-                    let can_scroll_left = self.scroll_offset > 0.0;
-                    let left_btn = ui.add_enabled(
-                        can_scroll_left,
-                        egui::Button::new("◀")
-                            .min_size(egui::vec2(
-                                scroll_btn_width,
-                                config.tab_bar_height - TAB_DRAW_SHRINK_Y * 2.0,
-                            ))
-                            .fill(egui::Color32::TRANSPARENT),
-                    );
-                    if left_btn.clicked() {
-                        self.scroll_offset =
-                            (self.scroll_offset - tab_width - tab_spacing).max(0.0);
-                    }
-
-                    // Scrollable tab area
-                    let scroll_area_response = egui::ScrollArea::horizontal()
-                        .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
-                        .max_width(tabs_area_width)
-                        .horizontal_scroll_offset(self.scroll_offset)
-                        .show(ui, |ui| {
-                            ui.horizontal(|ui| {
-                                ui.spacing_mut().item_spacing = egui::vec2(tab_spacing, 0.0);
-
-                                for (index, tab) in visible_tabs.iter().enumerate() {
-                                    let is_active = Some(tab.id) == active_tab_id;
-                                    let is_bell_active = tab.is_bell_active();
-                                    let (tab_action, tab_rect) = self.render_tab_with_width(
-                                        ui,
-                                        TabRenderParams {
-                                            id: tab.id,
-                                            index,
-                                            title: &tab.title,
-                                            profile_icon: tab
-                                                .custom_icon
-                                                .as_deref()
-                                                .or(tab.profile.profile_icon.as_deref()),
-                                            custom_icon: tab.custom_icon.as_deref(),
-                                            is_active,
-                                            has_activity: tab.activity.has_activity,
-                                            is_bell_active,
-                                            custom_color: tab.custom_color,
-                                            config,
-                                            tab_size: tab_width,
-                                            tab_count,
-                                        },
-                                    );
-                                    self.tab_rects.push((tab.id, tab_rect));
-
-                                    if tab_action != TabBarAction::None {
-                                        action = tab_action;
-                                    }
-                                }
-                            });
-                        });
-
-                    // Update scroll offset from scroll area
-                    self.scroll_offset = scroll_area_response.state.offset.x;
-
-                    // Right scroll button
-                    let can_scroll_right = self.scroll_offset < max_scroll;
-                    let right_btn = ui.add_enabled(
-                        can_scroll_right,
-                        egui::Button::new("▶")
-                            .min_size(egui::vec2(
-                                scroll_btn_width,
-                                config.tab_bar_height - TAB_DRAW_SHRINK_Y * 2.0,
-                            ))
-                            .fill(egui::Color32::TRANSPARENT),
-                    );
-                    if right_btn.clicked() {
-                        self.scroll_offset =
-                            (self.scroll_offset + tab_width + tab_spacing).min(max_scroll);
-                    }
-                } else {
-                    // No scrolling needed - render all tabs with equal width
-                    for (index, tab) in visible_tabs.iter().enumerate() {
-                        let is_active = Some(tab.id) == active_tab_id;
-                        let is_bell_active = tab.is_bell_active();
-                        let (tab_action, tab_rect) = self.render_tab_with_width(
-                            ui,
-                            TabRenderParams {
-                                id: tab.id,
-                                index,
-                                title: &tab.title,
-                                profile_icon: tab
-                                    .custom_icon
-                                    .as_deref()
-                                    .or(tab.profile.profile_icon.as_deref()),
-                                custom_icon: tab.custom_icon.as_deref(),
-                                is_active,
-                                has_activity: tab.activity.has_activity,
-                                is_bell_active,
-                                custom_color: tab.custom_color,
-                                config,
-                                tab_size: tab_width,
-                                tab_count,
-                            },
+                    if needs_scroll {
+                        // Left scroll button
+                        let can_scroll_left = self.scroll_offset > 0.0;
+                        let (left_rect, left_resp) = ui.allocate_exact_size(
+                            egui::vec2(scroll_btn_width, btn_h),
+                            egui::Sense::click(),
                         );
-                        self.tab_rects.push((tab.id, tab_rect));
+                        if left_resp.clicked() && can_scroll_left {
+                            self.scroll_offset =
+                                (self.scroll_offset - tab_width - tab_spacing).max(0.0);
+                        }
+                        let left_color = if can_scroll_left {
+                            egui::Color32::from_rgb(180, 180, 180)
+                        } else {
+                            egui::Color32::from_rgba_unmultiplied(100, 100, 100, 80)
+                        };
+                        ui.painter().text(
+                            left_rect.center(),
+                            egui::Align2::CENTER_CENTER,
+                            "<",
+                            egui::FontId::proportional(14.0),
+                            left_color,
+                        );
 
-                        if tab_action != TabBarAction::None {
-                            action = tab_action;
+                        // Tab area — child UI with explicit clip rect for horizontal
+                        // clipping. No ScrollArea (it adds vertical padding that shifts
+                        // tab pills down).
+                        let (tab_area_rect, _) = ui.allocate_exact_size(
+                            egui::vec2(tabs_area_width, btn_h),
+                            egui::Sense::hover(),
+                        );
+                        let mut tab_ui = ui.new_child(
+                            egui::UiBuilder::new()
+                                .max_rect(tab_area_rect)
+                                .layout(egui::Layout::left_to_right(egui::Align::Center)),
+                        );
+                        // Clip the child UI to the tab area so tabs don't bleed into buttons
+                        tab_ui.set_clip_rect(tab_area_rect.intersect(tab_ui.clip_rect()));
+                        tab_ui.allocate_space(egui::vec2(self.scroll_offset, 0.0));
+                        tab_ui.spacing_mut().item_spacing = egui::vec2(tab_spacing, 0.0);
+
+                        for (index, tab) in visible_tabs.iter().enumerate() {
+                            let is_active = Some(tab.id) == active_tab_id;
+                            let is_bell_active = tab.is_bell_active();
+                            let (tab_action, tab_rect) = self.render_tab_with_width(
+                                &mut tab_ui,
+                                TabRenderParams {
+                                    id: tab.id,
+                                    index,
+                                    title: &tab.title,
+                                    profile_icon: tab
+                                        .custom_icon
+                                        .as_deref()
+                                        .or(tab.profile.profile_icon.as_deref()),
+                                    custom_icon: tab.custom_icon.as_deref(),
+                                    is_active,
+                                    has_activity: tab.activity.has_activity,
+                                    is_bell_active,
+                                    custom_color: tab.custom_color,
+                                    config,
+                                    tab_size: tab_width,
+                                    tab_count,
+                                },
+                            );
+                            self.tab_rects.push((tab.id, tab_rect));
+
+                            if tab_action != TabBarAction::None {
+                                action = tab_action;
+                            }
+                        }
+
+                        // Right scroll button
+                        let can_scroll_right = self.scroll_offset < max_scroll;
+                        let (right_rect, right_resp) = ui.allocate_exact_size(
+                            egui::vec2(scroll_btn_width, btn_h),
+                            egui::Sense::click(),
+                        );
+                        if right_resp.clicked() && can_scroll_right {
+                            self.scroll_offset =
+                                (self.scroll_offset + tab_width + tab_spacing).min(max_scroll);
+                        }
+                        let right_color = if can_scroll_right {
+                            egui::Color32::from_rgb(180, 180, 180)
+                        } else {
+                            egui::Color32::from_rgba_unmultiplied(100, 100, 100, 80)
+                        };
+                        ui.painter().text(
+                            right_rect.center(),
+                            egui::Align2::CENTER_CENTER,
+                            ">",
+                            egui::FontId::proportional(14.0),
+                            right_color,
+                        );
+                    } else {
+                        // No scrolling needed - render all tabs with equal width
+                        for (index, tab) in visible_tabs.iter().enumerate() {
+                            let is_active = Some(tab.id) == active_tab_id;
+                            let is_bell_active = tab.is_bell_active();
+                            let (tab_action, tab_rect) = self.render_tab_with_width(
+                                ui,
+                                TabRenderParams {
+                                    id: tab.id,
+                                    index,
+                                    title: &tab.title,
+                                    profile_icon: tab
+                                        .custom_icon
+                                        .as_deref()
+                                        .or(tab.profile.profile_icon.as_deref()),
+                                    custom_icon: tab.custom_icon.as_deref(),
+                                    is_active,
+                                    has_activity: tab.activity.has_activity,
+                                    is_bell_active,
+                                    custom_color: tab.custom_color,
+                                    config,
+                                    tab_size: tab_width,
+                                    tab_count,
+                                },
+                            );
+                            self.tab_rects.push((tab.id, tab_rect));
+
+                            if tab_action != TabBarAction::None {
+                                action = tab_action;
+                            }
                         }
                     }
-                }
 
-                // New tab split button: [+][▾]
-                // The 4px gap from the last widget's cursor advance provides the
-                // natural spacing between tabs and the button.
+                    // New tab split button: [+][chevron]
 
-                // Use zero spacing between + and ▾ so they render as one split button
-                let prev_spacing = ui.spacing().item_spacing.x;
-                ui.spacing_mut().item_spacing.x = 0.0;
+                    let prev_spacing = ui.spacing().item_spacing.x;
+                    ui.spacing_mut().item_spacing.x = 0.0;
 
-                // "+" button — creates default tab
-                let plus_btn = ui.add(
-                    egui::Button::new("+")
-                        .min_size(egui::vec2(
-                            TAB_NEW_BTN_BASE_WIDTH,
-                            config.tab_bar_height - TAB_DRAW_SHRINK_Y * 2.0,
-                        ))
-                        .fill(egui::Color32::TRANSPARENT),
-                );
-                if plus_btn.clicked_by(egui::PointerButton::Primary) {
-                    action = TabBarAction::NewTab;
-                }
-                if plus_btn.hovered() {
-                    #[cfg(target_os = "macos")]
-                    plus_btn.on_hover_text("New Tab (Cmd+T)");
-                    #[cfg(not(target_os = "macos"))]
-                    plus_btn.on_hover_text("New Tab (Ctrl+Shift+T)");
-                }
-
-                // "▾" chevron — opens dropdown (profiles and/or assistant toggle)
-                if show_chevron {
-                    let chevron_btn = ui.add(
-                        egui::Button::new("⏷")
-                            .min_size(egui::vec2(
-                                CHEVRON_RESERVED / 2.0,
-                                config.tab_bar_height - TAB_DRAW_SHRINK_Y * 2.0,
-                            ))
-                            .fill(egui::Color32::TRANSPARENT),
+                    // "+" button — creates default tab
+                    let (plus_rect, plus_resp) = ui.allocate_exact_size(
+                        egui::vec2(TAB_NEW_BTN_BASE_WIDTH, btn_h),
+                        egui::Sense::click(),
                     );
-                    if chevron_btn.clicked_by(egui::PointerButton::Primary) {
-                        self.show_new_tab_profile_menu = !self.show_new_tab_profile_menu;
+                    if plus_resp.clicked_by(egui::PointerButton::Primary) {
+                        action = TabBarAction::NewTab;
                     }
-                    if chevron_btn.hovered() {
-                        chevron_btn.on_hover_text("New tab from profile");
+                    let plus_color = if plus_resp.hovered() {
+                        egui::Color32::WHITE
+                    } else {
+                        egui::Color32::from_rgb(180, 180, 180)
+                    };
+                    ui.painter().text(
+                        plus_rect.center(),
+                        egui::Align2::CENTER_CENTER,
+                        "+",
+                        egui::FontId::proportional(16.0),
+                        plus_color,
+                    );
+                    if plus_resp.hovered() {
+                        #[cfg(target_os = "macos")]
+                        plus_resp.on_hover_text("New Tab (Cmd+T)");
+                        #[cfg(not(target_os = "macos"))]
+                        plus_resp.on_hover_text("New Tab (Ctrl+Shift+T)");
                     }
-                }
 
-                // Restore original spacing
-                ui.spacing_mut().item_spacing.x = prev_spacing;
-            });
+                    // Chevron — opens dropdown (profiles and/or assistant toggle)
+                    if show_chevron {
+                        let (chev_rect, chev_resp) = ui.allocate_exact_size(
+                            egui::vec2(CHEVRON_RESERVED / 2.0, btn_h),
+                            egui::Sense::click(),
+                        );
+                        if chev_resp.clicked_by(egui::PointerButton::Primary) {
+                            self.show_new_tab_profile_menu = !self.show_new_tab_profile_menu;
+                        }
+                        let chev_color = if chev_resp.hovered() {
+                            egui::Color32::WHITE
+                        } else {
+                            egui::Color32::from_rgb(180, 180, 180)
+                        };
+                        ui.painter().text(
+                            chev_rect.center(),
+                            egui::Align2::CENTER_CENTER,
+                            "v",
+                            egui::FontId::proportional(10.0),
+                            chev_color,
+                        );
+                        if chev_resp.hovered() {
+                            chev_resp.on_hover_text("New tab from profile");
+                        }
+                    }
+
+                    // Restore original spacing
+                    ui.spacing_mut().item_spacing.x = prev_spacing;
+                },
+            );
 
             // Handle drag feedback and drop detection (outside horizontal layout
             // so we can paint over the tab bar)
