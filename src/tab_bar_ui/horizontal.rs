@@ -71,6 +71,7 @@ impl TabBarUI {
 
             // Determine if scrolling is needed
             let needs_scroll = tab_count > 0 && min_total_tabs_width > base_tabs_area_width;
+            self.needs_horizontal_scroll = needs_scroll;
 
             // Actual tabs area width (accounting for scroll buttons if needed)
             let tabs_area_width = if needs_scroll {

@@ -1,6 +1,8 @@
 //! `TabBarUI` struct definition and constructor.
 
 use crate::tab::TabId;
+use crate::ui_constants::TAB_SPACING;
+use winit::event::MouseScrollDelta;
 
 /// Tab bar UI state
 pub struct TabBarUI {
@@ -48,6 +50,9 @@ pub struct TabBarUI {
     pub(super) context_menu_icon: Option<String>,
     /// Horizontal scroll offset for tabs (in pixels)
     pub(super) scroll_offset: f32,
+    /// Whether the horizontal tab bar needs scroll (more tabs than fit).
+    /// Set each frame by `render_horizontal`.
+    pub(super) needs_horizontal_scroll: bool,
     /// Whether the new-tab profile popup is open
     pub show_new_tab_profile_menu: bool,
     /// Set per-frame: candidate destination windows for the "Move Tab to Window →" submenu.
@@ -87,6 +92,7 @@ impl TabBarUI {
             icon_buffer: String::new(),
             context_menu_icon: None,
             scroll_offset: 0.0,
+            needs_horizontal_scroll: false,
             show_new_tab_profile_menu: false,
             move_candidates: Vec::new(),
             move_gateway_active: false,
@@ -98,5 +104,36 @@ impl TabBarUI {
 impl Default for TabBarUI {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl TabBarUI {
+    /// Handle mouse wheel when hovering over the horizontal tab bar.
+    /// Converts vertical scroll delta to horizontal tab scrolling.
+    /// Returns `true` if the event was consumed.
+    pub fn handle_mouse_wheel(
+        &mut self,
+        delta: &MouseScrollDelta,
+        tab_min_width: f32,
+        tab_count: usize,
+    ) -> bool {
+        if !self.needs_horizontal_scroll || tab_count == 0 {
+            return false;
+        }
+
+        // Convert vertical wheel delta to horizontal scroll.
+        // Positive y = scroll up = scroll left (decrease offset).
+        let scroll_amount = match delta {
+            MouseScrollDelta::LineDelta(_x, y) => *y * (tab_min_width + TAB_SPACING),
+            MouseScrollDelta::PixelDelta(pos) => pos.y as f32,
+        };
+
+        if scroll_amount.abs() < 0.5 {
+            return false;
+        }
+
+        // Invert: scroll-up (positive y) moves tabs left (decrease offset)
+        self.scroll_offset = (self.scroll_offset - scroll_amount).max(0.0);
+        true
     }
 }

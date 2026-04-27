@@ -332,11 +332,28 @@ impl WindowState {
             }
 
             WindowEvent::MouseWheel { delta, .. } => {
-                // Skip terminal handling if egui UI is visible or using the pointer
-                // Note: any_ui_visible check is needed because is_egui_using_pointer()
-                // returns false before egui is initialized (e.g., at startup when
-                // shader_install_ui is shown before first render)
-                if !any_ui_visible && !self.is_egui_using_pointer() {
+                // Check if mouse is over the tab bar — convert vertical wheel
+                // to horizontal tab scrolling when the bar overflows.
+                let mouse_position = self
+                    .tab_manager
+                    .active_tab()
+                    .map(|t| t.active_mouse().position)
+                    .unwrap_or((0.0, 0.0));
+                let tab_count = self.tab_manager.visible_tab_count();
+
+                if self.is_mouse_in_tab_bar(mouse_position)
+                    && self.tab_bar_ui.handle_mouse_wheel(
+                        &delta,
+                        self.config.tab_min_width,
+                        tab_count,
+                    )
+                {
+                    self.request_redraw();
+                } else if !any_ui_visible && !self.is_egui_using_pointer() {
+                    // Skip terminal handling if egui UI is visible or using the pointer
+                    // Note: any_ui_visible check is needed because is_egui_using_pointer()
+                    // returns false before egui is initialized (e.g., at startup when
+                    // shader_install_ui is shown before first render)
                     self.handle_mouse_wheel(delta);
                 }
             }
