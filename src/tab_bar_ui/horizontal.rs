@@ -102,7 +102,10 @@ impl TabBarUI {
             self.scroll_offset = self.scroll_offset.clamp(0.0, max_scroll);
 
             ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing = egui::vec2(tab_spacing, 0.0);
+                let spacing = ui.spacing_mut();
+                spacing.item_spacing = egui::vec2(tab_spacing, 0.0);
+                // Zero button padding so buttons (◀▶+▾) don't exceed panel height
+                spacing.button_padding = egui::vec2(0.0, 0.0);
                 // Small left padding so the first tab's border isn't clipped by the panel edge
                 ui.add_space(left_padding);
 
