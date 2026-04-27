@@ -7,7 +7,7 @@
 
 use crate::ui_constants::{
     TAB_CLOSE_BTN_MARGIN, TAB_CLOSE_BTN_SIZE_V, TAB_CONTENT_PAD_X, TAB_CONTENT_PAD_Y,
-    TAB_CONTEXT_PADDING, TAB_HOTKEY_LABEL_WIDTH,
+    TAB_CONTEXT_PADDING, TAB_DRAW_SHRINK_Y, TAB_HOTKEY_LABEL_WIDTH,
 };
 use egui::emath::GuiRounding as _;
 
@@ -50,17 +50,19 @@ impl TabBarUI {
         // Whether this inactive tab should render as outline-only (no fill)
         let outline_only = config.tab_inactive_outline_only && !is_active;
 
-        // Tab frame - allocate space for the tab
-        let (tab_rect, _) = ui.allocate_exact_size(
-            egui::vec2(tab_width, config.tab_bar_height),
-            egui::Sense::hover(),
-        );
+        // Tab frame - allocate space for the tab.
+        // Subtract TAB_DRAW_SHRINK_Y from each side to stay within the panel's
+        // clip rect (which can be slightly smaller than tab_bar_height at
+        // non-integer DPI scale factors due to pixel rounding).
+        let tab_height = config.tab_bar_height - TAB_DRAW_SHRINK_Y * 2.0;
+        let (tab_rect, _) =
+            ui.allocate_exact_size(egui::vec2(tab_width, tab_height), egui::Sense::hover());
 
         // Draw tab background with pill shape
         // Use rounding based on tab height for a smooth pill appearance
         // Shrink vertically so borders are fully visible within tab bar
         let tab_draw_rect = tab_rect
-            .shrink2(egui::vec2(0.0, 2.0))
+            .shrink2(egui::vec2(0.0, TAB_DRAW_SHRINK_Y))
             .round_to_pixels(ui.pixels_per_point());
         let tab_rounding = tab_draw_rect.height() / 2.0;
         if ui.is_rect_visible(tab_rect) {
