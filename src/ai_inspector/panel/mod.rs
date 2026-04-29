@@ -24,6 +24,7 @@ use crate::ai_inspector::snapshot::{SnapshotData, SnapshotScope};
 use crate::config::Config;
 use crate::ui_constants::{AI_PANEL_MAX_WIDTH_RATIO, AI_PANEL_MIN_WIDTH};
 use par_term_acp::{AgentConfig, AgentStatus};
+use std::path::Path;
 
 use types::RESIZE_HANDLE_WIDTH;
 
@@ -74,6 +75,10 @@ pub struct AIInspectorPanel {
     pub connected_agent_name: Option<String>,
     /// Identity of the most recently requested/connected agent.
     pub connected_agent_identity: Option<String>,
+    /// Project root resolved for the active agent session.
+    pub connected_agent_project_root: Option<String>,
+    /// Working directory sent to the active agent session.
+    pub connected_agent_cwd: Option<String>,
     /// Font size for chat message body text (points).
     pub chat_font_size: f32,
     /// Id of the chat input text field, used to check focus for Escape key handling.
@@ -106,6 +111,8 @@ impl AIInspectorPanel {
             selected_agent_index: 0,
             connected_agent_name: None,
             connected_agent_identity: None,
+            connected_agent_project_root: None,
+            connected_agent_cwd: None,
             chat_font_size: config.ai_inspector.ai_inspector_chat_font_size,
             chat_input_id: None,
         }
@@ -139,6 +146,16 @@ impl AIInspectorPanel {
         } else {
             0.0
         }
+    }
+
+    pub(super) fn agent_project_label(&self) -> Option<String> {
+        let root = self.connected_agent_project_root.as_deref()?;
+        let name = Path::new(root)
+            .file_name()
+            .and_then(|name| name.to_str())
+            .filter(|name| !name.is_empty())
+            .unwrap_or(root);
+        Some(format!("Project: {name}"))
     }
 
     /// Whether the user is currently drag-resizing the panel.
@@ -394,5 +411,28 @@ mod tests {
         assert_eq!(panel.view_mode, ViewMode::Tree);
         assert!(!panel.live_update);
         assert!(panel.show_zones);
+        assert_eq!(panel.connected_agent_project_root, None);
+        assert_eq!(panel.connected_agent_cwd, None);
+    }
+
+    #[test]
+    fn test_agent_project_label_uses_project_directory_name() {
+        let config = Config::default();
+        let mut panel = AIInspectorPanel::new(&config);
+        panel.connected_agent_project_root = Some("/Users/example/Repos/par-term".to_string());
+
+        assert_eq!(
+            panel.agent_project_label(),
+            Some("Project: par-term".to_string())
+        );
+    }
+
+    #[test]
+    fn test_agent_project_label_falls_back_to_full_path_for_root() {
+        let config = Config::default();
+        let mut panel = AIInspectorPanel::new(&config);
+        panel.connected_agent_project_root = Some("/".to_string());
+
+        assert_eq!(panel.agent_project_label(), Some("Project: /".to_string()));
     }
 }

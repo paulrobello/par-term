@@ -566,6 +566,7 @@ field uses its documented default value.
 | `ai_inspector_agent_terminal_access` | `bool` | `false` | Allow AI agent to write input to terminal |
 | `ai_inspector_agent_screenshot_access` | `bool` | `true` | Allow AI agent to request screenshots |
 | `ai_inspector_chat_font_size` | `f32` | `14.0` | Font size for chat messages in points |
+| `ai_inspector_extra_agent_roots` | `array` | `[]` | Additional filesystem roots made available to supported ACP agents; the par-term shaders directory is always included automatically |
 | `ai_inspector_custom_agents` | `array` | `[]` | Additional ACP agent definitions (overrides discovered agents with same identity) |
 
 ---

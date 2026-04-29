@@ -9,6 +9,78 @@ use std::path::Path;
 
 use super::agents::AgentConfig;
 
+fn shell_quote_arg(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "'\\''"))
+}
+
+fn is_codex_agent(agent_config: &AgentConfig, run_command: &str) -> bool {
+    agent_config.identity == "openai.com" || run_command.contains("codex-acp")
+}
+
+fn is_gemini_agent(agent_config: &AgentConfig, run_command: &str) -> bool {
+    agent_config.identity == "geminicli.com"
+        || run_command
+            .split_whitespace()
+            .next()
+            .is_some_and(|binary| binary == "gemini" || binary.ends_with("/gemini"))
+}
+
+/// Add known-agent extra-root flags to an ACP subprocess run command.
+pub fn adapt_run_command_for_extra_roots(
+    agent_config: &AgentConfig,
+    run_command: &str,
+    extra_roots: &[String],
+) -> String {
+    if extra_roots.is_empty() {
+        return run_command.to_string();
+    }
+
+    if is_codex_agent(agent_config, run_command) {
+        let roots_array = extra_roots
+            .iter()
+            .map(|root| serde_json::to_string(root).expect("string serialization cannot fail"))
+            .collect::<Vec<_>>()
+            .join(",");
+        let sandbox_mode = shell_quote_arg("sandbox_mode=\"workspace-write\"");
+        let writable_roots = shell_quote_arg(&format!(
+            "sandbox_workspace_write.writable_roots=[{roots_array}]"
+        ));
+        return format!("{run_command} -c {sandbox_mode} -c {writable_roots}");
+    }
+
+    if is_gemini_agent(agent_config, run_command) {
+        let include_dirs = shell_quote_arg(&extra_roots.join(","));
+        return format!("{run_command} --include-directories {include_dirs}");
+    }
+
+    run_command.to_string()
+}
+
+/// Build optional session metadata, including generic extra roots.
+pub fn build_session_meta(
+    agent_config: &AgentConfig,
+    run_command_template: &str,
+    extra_roots: &[String],
+) -> Option<serde_json::Value> {
+    let mut meta = build_claude_session_meta(agent_config, run_command_template)
+        .unwrap_or_else(|| serde_json::json!({}));
+
+    if !extra_roots.is_empty()
+        && let Some(object) = meta.as_object_mut()
+    {
+        object.insert(
+            "additionalRoots".to_string(),
+            serde_json::json!(extra_roots),
+        );
+    }
+
+    if meta.as_object().is_some_and(|object| !object.is_empty()) {
+        Some(meta)
+    } else {
+        None
+    }
+}
+
 /// Build the MCP server descriptor for the embedded `par-term-config` server.
 ///
 /// The MCP server exposes `config_update` and `terminal_screenshot` tools so
@@ -112,4 +184,88 @@ pub fn build_claude_session_meta(
             "append": runtime_note
         }
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    fn agent(identity: &str) -> AgentConfig {
+        AgentConfig {
+            identity: identity.to_string(),
+            name: identity.to_string(),
+            short_name: identity.to_string(),
+            protocol: "acp".to_string(),
+            r#type: "coding".to_string(),
+            active: None,
+            run_command: HashMap::from([("*".to_string(), "agent-acp".to_string())]),
+            env: HashMap::new(),
+            install_command: None,
+            actions: HashMap::new(),
+            connector_installed: false,
+        }
+    }
+
+    #[test]
+    fn session_meta_includes_additional_roots_for_generic_agents() {
+        let meta = build_session_meta(
+            &agent("generic.example"),
+            "agent-acp",
+            &["/workspace/shared".to_string(), "/tmp/shaders".to_string()],
+        )
+        .expect("meta");
+
+        assert_eq!(
+            meta.get("additionalRoots"),
+            Some(&serde_json::json!(["/workspace/shared", "/tmp/shaders"]))
+        );
+    }
+
+    #[test]
+    fn session_meta_merges_claude_options_and_additional_roots() {
+        let meta = build_session_meta(
+            &agent("claude.com"),
+            "claude-agent-acp",
+            &["/workspace/shared".to_string()],
+        )
+        .expect("meta");
+
+        assert_eq!(
+            meta.pointer("/claudeCode/options/settingSources"),
+            Some(&serde_json::json!(["user"]))
+        );
+        assert_eq!(
+            meta.get("additionalRoots"),
+            Some(&serde_json::json!(["/workspace/shared"]))
+        );
+    }
+
+    #[test]
+    fn codex_run_command_gets_writable_roots_config() {
+        let command = adapt_run_command_for_extra_roots(
+            &agent("openai.com"),
+            "npx @zed-industries/codex-acp",
+            &["/workspace/shared".to_string(), "/tmp/shaders".to_string()],
+        );
+
+        assert!(command.contains("-c 'sandbox_mode=\"workspace-write\"'"));
+        assert!(command.contains(
+            "-c 'sandbox_workspace_write.writable_roots=[\"/workspace/shared\",\"/tmp/shaders\"]'"
+        ));
+    }
+
+    #[test]
+    fn gemini_run_command_gets_include_directories() {
+        let command = adapt_run_command_for_extra_roots(
+            &agent("geminicli.com"),
+            "gemini --experimental-acp",
+            &["/workspace/shared".to_string(), "/tmp/shaders".to_string()],
+        );
+
+        assert_eq!(
+            command,
+            "gemini --experimental-acp --include-directories '/workspace/shared,/tmp/shaders'"
+        );
+    }
 }

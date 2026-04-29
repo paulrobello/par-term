@@ -71,6 +71,10 @@ pub struct AiInspectorConfig {
     #[serde(default = "default_ai_inspector_chat_font_size")]
     pub ai_inspector_chat_font_size: f32,
 
+    /// Additional filesystem roots made available to ACP agents that support them.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub ai_inspector_extra_agent_roots: Vec<String>,
+
     /// Additional ACP agents defined directly in `config.yaml`.
     ///
     /// Entries here are merged into discovered agents and override agents with
@@ -159,7 +163,36 @@ impl Default for AiInspectorConfig {
             ai_inspector_agent_terminal_access: default_ai_inspector_agent_terminal_access(),
             ai_inspector_agent_screenshot_access: default_ai_inspector_agent_screenshot_access(),
             ai_inspector_chat_font_size: default_ai_inspector_chat_font_size(),
+            ai_inspector_extra_agent_roots: Vec::new(),
             ai_inspector_custom_agents: Vec::new(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AiInspectorConfig;
+
+    #[test]
+    fn default_extra_agent_roots_is_empty() {
+        let config = AiInspectorConfig::default();
+
+        assert!(config.ai_inspector_extra_agent_roots.is_empty());
+    }
+
+    #[test]
+    fn deserializes_extra_agent_roots() {
+        let yaml = r#"
+ai_inspector_extra_agent_roots:
+  - ~/Repos/shared
+  - /opt/project
+"#;
+
+        let config: AiInspectorConfig = serde_yaml_ng::from_str(yaml).expect("deserialize");
+
+        assert_eq!(
+            config.ai_inspector_extra_agent_roots,
+            vec!["~/Repos/shared".to_string(), "/opt/project".to_string()]
+        );
     }
 }

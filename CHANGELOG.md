@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Features
+- **Assistant extra agent roots** — Assistant settings now include `ai_inspector_extra_agent_roots`, always add the par-term shaders directory so agents can edit shaders directly, and pass extra roots through supported adapters (`_meta.additionalRoots`, Codex writable roots, and Gemini include directories).
 - **Assistant shader diagnostics tool** — added a `shader_diagnostics` MCP tool that lets ACP agents query the running app for active background/cursor shader names, enabled state, last compile/reload errors, shader directory, and generated debug WGSL/wrapped GLSL paths. Shader assistant guidance and docs now tell agents to use it after activation or when shader output appears broken.
 - **Assistant agent selector prioritizes Codex** — Codex now appears as the first option in the Assistant panel agent selector while preserving the relative order of the other agents.
 - **Expanded custom shader controls** — background shader `// control` uniforms now support int sliders, select dropdowns, vec2 controls, normalized point controls, range controls, logarithmic sliders, angle controls, and channel selectors for choosing existing `iChannel0`..`iChannel4` sources. Documentation and assistant shader guidance now explain the syntax, defaults, limits, and when to use each control type.
@@ -19,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Content Prettifier** — removed the `par-term-prettifier` workspace crate and all content-prettifier runtime wiring, settings UI, config/profile fields, trigger action, keybinding action, render substitutions, and documentation page.
 
 ### Bug Fixes
+- **Shader parameter edits reset animation time** — changing shader controls or other runtime shader parameters no longer restarts `iTime` when animation was already enabled. Shader source reload also preserves the timer and refreshes the generated debug WGSL file, so toggling shaders off/on is no longer needed just to force regeneration.
 - **Shader hot reload left custom controls stale in Settings** — successful background shader hot reload now invalidates the active shader's metadata and parsed-control caches so added, removed, or changed `// control` uniforms appear immediately in the settings UI.
 - **Global shader brightness slider had no effect on shaders with metadata defaults** — changing `custom_shader_brightness` now overrides a shader's embedded brightness default once the global value differs from the app default, while explicit per-shader overrides still take highest priority.
 - **Horizontal tab scrolling moved in the wrong direction** — overflowing tab bars now position the clipped tab content at `tab_area_left - scroll_offset`, so mouse-wheel scrolling reveals tabs to the right instead of shifting the visible content the wrong way.

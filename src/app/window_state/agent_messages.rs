@@ -18,7 +18,7 @@ use crate::ai_inspector::chat::{
 };
 use crate::app::window_state::WindowState;
 use crate::app::window_state::agent_message_helpers::is_terminal_screenshot_permission_tool;
-use par_term_acp::AgentMessage;
+use par_term_acp::{AgentMessage, AgentStatus};
 
 impl WindowState {
     /// Process incoming ACP agent messages for this render tick and refresh
@@ -44,6 +44,10 @@ impl WindowState {
                 AgentMessage::StatusChanged(status) => {
                     // Flush any pending agent text on status change.
                     self.overlay_ui.ai_inspector.chat.flush_agent_message();
+                    if matches!(status, AgentStatus::Disconnected | AgentStatus::Error(_)) {
+                        self.overlay_ui.ai_inspector.connected_agent_project_root = None;
+                        self.overlay_ui.ai_inspector.connected_agent_cwd = None;
+                    }
                     self.overlay_ui.ai_inspector.agent_status = status;
                     self.focus_state.needs_redraw = true;
                 }

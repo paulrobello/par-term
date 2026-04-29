@@ -152,6 +152,28 @@ impl AIInspectorPanel {
             });
         });
 
+        if matches!(
+            self.agent_status,
+            AgentStatus::Connected | AgentStatus::Connecting
+        ) && let Some(project_label) = self.agent_project_label()
+        {
+            let mut hover_lines = vec![format!(
+                "Project root: {}",
+                self.connected_agent_project_root
+                    .as_deref()
+                    .unwrap_or_default()
+            )];
+            if let Some(cwd) = &self.connected_agent_cwd {
+                hover_lines.push(format!("Session cwd: {cwd}"));
+            }
+            ui.label(
+                RichText::new(project_label)
+                    .small()
+                    .color(Color32::from_gray(150)),
+            )
+            .on_hover_text(hover_lines.join("\n"));
+        }
+
         // Show install buttons only for agents whose connector binary is not in PATH
         if matches!(
             self.agent_status,

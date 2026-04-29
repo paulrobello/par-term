@@ -51,6 +51,32 @@ use pipeline::{
 use textures::{ChannelTexture, load_channel_textures};
 use transpiler::transpile_glsl_to_wgsl;
 
+fn debug_shader_wgsl_filename(shader_name: &str) -> String {
+    format!("/tmp/par_term_{shader_name}_shader.wgsl")
+}
+
+fn write_debug_shader_wgsl(shader_name: &str, wgsl_source: &str) {
+    let debug_filename = debug_shader_wgsl_filename(shader_name);
+    if let Err(e) = std::fs::write(&debug_filename, wgsl_source) {
+        log::warn!("Failed to write debug shader: {}", e);
+    } else {
+        log::info!("Wrote debug shader to {}", debug_filename);
+    }
+}
+
+fn animation_start_after_enabled_update(
+    currently_enabled: bool,
+    enabled: bool,
+    current_start: Instant,
+    now: Instant,
+) -> Instant {
+    if enabled && !currently_enabled {
+        now
+    } else {
+        current_start
+    }
+}
+
 /// Custom shader renderer that applies post-processing effects
 pub struct CustomShaderRenderer {
     /// The render pipeline for the custom shader
@@ -254,12 +280,7 @@ impl CustomShaderRenderer {
             .file_stem()
             .and_then(|s| s.to_str())
             .unwrap_or("unknown");
-        let debug_filename = format!("/tmp/par_term_{}_shader.wgsl", shader_name);
-        if let Err(e) = std::fs::write(&debug_filename, &wgsl_source) {
-            log::warn!("Failed to write debug shader: {}", e);
-        } else {
-            log::info!("Wrote debug shader to {}", debug_filename);
-        }
+        write_debug_shader_wgsl(shader_name, &wgsl_source);
 
         // Pre-validate WGSL
         let module = naga::front::wgsl::parse_str(&wgsl_source)
@@ -526,10 +547,14 @@ impl CustomShaderRenderer {
 
     /// Set animation enabled state
     pub fn set_animation_enabled(&mut self, enabled: bool) {
+        let now = Instant::now();
+        self.start_time = animation_start_after_enabled_update(
+            self.animation_enabled,
+            enabled,
+            self.start_time,
+            now,
+        );
         self.animation_enabled = enabled;
-        if enabled {
-            self.start_time = Instant::now();
-        }
     }
 
     /// Update animation speed multiplier
@@ -737,5 +762,57 @@ impl CustomShaderRenderer {
     /// the right inset area, ensuring effects don't appear under the panel.
     pub fn set_content_inset_right(&mut self, inset: f32) {
         self.content_inset_right = inset;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    #[test]
+    fn enabling_animation_when_already_enabled_preserves_start_time() {
+        let start_time = Instant::now() - Duration::from_secs(5);
+        let now = Instant::now();
+
+        assert_eq!(
+            animation_start_after_enabled_update(true, true, start_time, now),
+            start_time
+        );
+    }
+
+    #[test]
+    fn enabling_animation_from_disabled_starts_at_now() {
+        let start_time = Instant::now() - Duration::from_secs(5);
+        let now = Instant::now();
+
+        assert_eq!(
+            animation_start_after_enabled_update(false, true, start_time, now),
+            now
+        );
+    }
+
+    #[test]
+    fn debug_shader_wgsl_filename_matches_new_renderer_output_path() {
+        assert_eq!(
+            debug_shader_wgsl_filename("matrix"),
+            "/tmp/par_term_matrix_shader.wgsl"
+        );
+    }
+
+    #[test]
+    fn write_debug_shader_wgsl_refreshes_existing_output() {
+        let shader_name = format!("par_term_test_{}", std::process::id());
+        let path = debug_shader_wgsl_filename(&shader_name);
+        let _ = std::fs::remove_file(&path);
+
+        write_debug_shader_wgsl(&shader_name, "first");
+        write_debug_shader_wgsl(&shader_name, "second");
+
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("read debug wgsl"),
+            "second"
+        );
+        std::fs::remove_file(&path).expect("remove debug wgsl");
     }
 }

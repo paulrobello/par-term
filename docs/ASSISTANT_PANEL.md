@@ -617,7 +617,7 @@ graph TD
 
 ## Configuration
 
-All Assistant Panel settings are available in the Settings UI under the **Assistant** tab. The custom ACP agent editor in this tab manages `ai_inspector_custom_agents` (including per-agent environment variables) and writes the entries to `config.yaml`.
+All Assistant Panel settings are available in the Settings UI under the **Assistant** tab. The custom ACP agent editor in this tab manages `ai_inspector_custom_agents` (including per-agent environment variables) and writes the entries to `config.yaml`. The Agent section manages extra agent roots; par-term always adds `~/.config/par-term/shaders` so supported agents can edit shader files directly.
 
 The following configuration options are supported in `config.yaml`:
 
@@ -638,7 +638,10 @@ The following configuration options are supported in `config.yaml`:
 | `ai_inspector_agent_terminal_access` | bool | `false` | Allow the agent to write directly to the terminal |
 | `ai_inspector_agent_screenshot_access` | bool | `true` | Allow the agent to request terminal screenshots (still permission-gated per request) |
 | `ai_inspector_chat_font_size` | float | `14.0` | Font size for chat messages in points |
+| `ai_inspector_extra_agent_roots` | list | `[]` | Extra filesystem roots made available to supported ACP agents; `~/.config/par-term/shaders` is always included automatically |
 | `ai_inspector_custom_agents` | list | `[]` | Extra ACP agent definitions merged into discovery (override by `identity`) |
+
+Extra roots are passed through adapter-specific mechanisms when known: Claude-compatible ACP adapters receive `_meta.additionalRoots`, Codex receives workspace-write `writable_roots` config overrides, and Gemini CLI receives `--include-directories`. Other ACP agents receive `_meta.additionalRoots` and may ignore it if unsupported.
 
 **Example configuration:**
 
@@ -652,6 +655,8 @@ ai_inspector_auto_context: false
 ai_inspector_auto_approve: false
 ai_inspector_agent_terminal_access: false
 ai_inspector_agent_screenshot_access: true
+ai_inspector_extra_agent_roots:
+  - ~/Repos/shared-lib
 ai_inspector_custom_agents:
   - identity: "local.my-agent"
     name: "My Local ACP Agent"

@@ -141,13 +141,19 @@ impl Agent {
         &mut self,
         cwd: &str,
         capabilities: ClientCapabilities,
+        extra_roots: &[String],
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // Resolve the run command for the current platform.
-        let run_command_template = self
+        let base_run_command_template = self
             .config
             .run_command_for_platform()
             .ok_or("No run command for current platform")?
             .to_string();
+        let run_command_template = super::session::adapt_run_command_for_extra_roots(
+            &self.config,
+            &base_run_command_template,
+            extra_roots,
+        );
 
         self.set_status(AgentStatus::Connecting);
 
@@ -395,7 +401,7 @@ impl Agent {
             &self.mcp_server_bin,
         );
         let session_meta =
-            super::session::build_claude_session_meta(&self.config, &run_command_template);
+            super::session::build_session_meta(&self.config, &run_command_template, extra_roots);
 
         let session_params = SessionNewParams {
             cwd: cwd.to_string(),

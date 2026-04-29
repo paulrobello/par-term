@@ -7,9 +7,9 @@
 use anyhow::{Context, Result};
 use wgpu::*;
 
-use super::CustomShaderRenderer;
 use super::pipeline::create_render_pipeline;
 use super::transpiler::transpile_glsl_to_wgsl_source;
+use super::{CustomShaderRenderer, write_debug_shader_wgsl};
 
 impl CustomShaderRenderer {
     /// Reload the shader from a GLSL source string.
@@ -40,6 +40,7 @@ impl CustomShaderRenderer {
             wgsl_source.len()
         );
         log::debug!("Generated WGSL:\n{}", wgsl_source);
+        write_debug_shader_wgsl(name, &wgsl_source);
 
         // Pre-validate WGSL
         let module = naga::front::wgsl::parse_str(&wgsl_source)
@@ -64,8 +65,6 @@ impl CustomShaderRenderer {
             Some("Custom Shader Pipeline (reloaded)"),
         );
         self.custom_controls = custom_controls;
-
-        self.start_time = std::time::Instant::now();
 
         log::info!("Custom shader reloaded successfully from source");
         Ok(())

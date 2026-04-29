@@ -165,7 +165,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         config: true,
     };
 
-    if let Err(e) = agent.connect(&cwd, capabilities).await {
+    let extra_roots: Vec<String> = Vec::new();
+    if let Err(e) = agent.connect(&cwd, capabilities, &extra_roots).await {
         return Err(format!("Connect failed: {e}").into());
     }
 

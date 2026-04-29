@@ -79,6 +79,11 @@ pub fn keywords() -> &'static [&'static str] {
         "auto send",
         "max context",
         "context lines",
+        "extra roots",
+        "agent roots",
+        "additional directories",
+        "writable roots",
+        "shader roots",
         "auto-launch",
         "auto launch",
         // View modes

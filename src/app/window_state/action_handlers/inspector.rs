@@ -120,6 +120,8 @@ impl WindowState {
                 self.agent_state.agent_client = None;
                 self.overlay_ui.ai_inspector.connected_agent_name = None;
                 self.overlay_ui.ai_inspector.connected_agent_identity = None;
+                self.overlay_ui.ai_inspector.connected_agent_project_root = None;
+                self.overlay_ui.ai_inspector.connected_agent_cwd = None;
                 // Abort any queued send tasks.
                 for handle in self.agent_state.pending_send_handles.drain(..) {
                     handle.abort();

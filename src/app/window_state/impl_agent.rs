@@ -6,8 +6,82 @@ use par_term_acp::{
     Agent, AgentConfig, AgentMessage, AgentStatus, ClientCapabilities, FsCapabilities, SafePaths,
     discover_agents,
 };
+use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::mpsc;
+
+/// Resolve the project root displayed for the connected ACP agent session.
+fn resolve_agent_project_root(cwd: &Path) -> PathBuf {
+    let start = if cwd.is_dir() {
+        cwd.to_path_buf()
+    } else {
+        cwd.parent().unwrap_or(cwd).to_path_buf()
+    };
+
+    for dir in start.ancestors() {
+        if dir.join(".git").exists() {
+            return dir.to_path_buf();
+        }
+    }
+
+    start
+}
+
+fn normalize_absolute_path(path: &Path) -> PathBuf {
+    let mut normalized = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                normalized.pop();
+            }
+            Component::Normal(part) => normalized.push(part),
+            Component::RootDir | Component::Prefix(_) => normalized.push(component.as_os_str()),
+        }
+    }
+    normalized
+}
+
+fn expand_agent_root(root: &str, cwd: &Path) -> Option<PathBuf> {
+    let trimmed = root.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    let expanded = if trimmed == "~" {
+        dirs::home_dir()?
+    } else if let Some(rest) = trimmed.strip_prefix("~/") {
+        dirs::home_dir()?.join(rest)
+    } else {
+        PathBuf::from(trimmed)
+    };
+
+    let absolute = if expanded.is_absolute() {
+        expanded
+    } else {
+        cwd.join(expanded)
+    };
+    Some(normalize_absolute_path(&absolute))
+}
+
+fn resolve_extra_agent_roots(
+    configured_roots: &[String],
+    cwd: &Path,
+    shader_dir: &Path,
+) -> Vec<String> {
+    let mut roots = Vec::new();
+    for path in configured_roots
+        .iter()
+        .filter_map(|root| expand_agent_root(root, cwd))
+        .chain(std::iter::once(normalize_absolute_path(shader_dir)))
+    {
+        let root = path.to_string_lossy().to_string();
+        if !roots.contains(&root) {
+            roots.push(root);
+        }
+    }
+    roots
+}
 
 /// Reconstruct a merged list of ACP agent configs by combining discovered built-in agents
 /// with user-defined custom agents from the config file.
@@ -135,6 +209,68 @@ mod tests {
             vec!["openai.com", "claude.com", "geminicli.com"]
         );
     }
+
+    #[test]
+    fn resolve_agent_project_root_uses_nearest_git_marker() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let repo = temp.path().join("repo");
+        let nested = repo.join("src/app");
+        std::fs::create_dir_all(repo.join(".git")).expect("create .git");
+        std::fs::create_dir_all(&nested).expect("create nested dir");
+
+        assert_eq!(resolve_agent_project_root(&nested), repo);
+    }
+
+    #[test]
+    fn resolve_agent_project_root_falls_back_to_cwd_without_git_marker() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let project = temp.path().join("plain");
+        std::fs::create_dir_all(&project).expect("create project dir");
+
+        assert_eq!(resolve_agent_project_root(&project), project);
+    }
+
+    #[test]
+    fn resolve_extra_agent_roots_always_includes_shader_dir_and_dedupes() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let cwd = temp.path().join("repo");
+        let shared = temp.path().join("shared");
+        let shaders = temp.path().join("shaders");
+        std::fs::create_dir_all(&cwd).expect("create cwd");
+        std::fs::create_dir_all(&shared).expect("create shared");
+        std::fs::create_dir_all(&shaders).expect("create shaders");
+
+        let roots = resolve_extra_agent_roots(
+            &[
+                shared.to_string_lossy().to_string(),
+                shaders.to_string_lossy().to_string(),
+            ],
+            &cwd,
+            &shaders,
+        );
+
+        assert_eq!(
+            roots,
+            vec![
+                shared.to_string_lossy().to_string(),
+                shaders.to_string_lossy().to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn resolve_extra_agent_roots_resolves_relative_paths_against_session_cwd() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let cwd = temp.path().join("repo");
+        let shaders = temp.path().join("shaders");
+        std::fs::create_dir_all(&cwd).expect("create cwd");
+        std::fs::create_dir_all(&shaders).expect("create shaders");
+
+        let roots = resolve_extra_agent_roots(&["../shared".to_string()], &cwd, &shaders);
+
+        assert_eq!(roots[0], temp.path().join("shared").to_string_lossy());
+        assert_eq!(roots[1], shaders.to_string_lossy());
+    }
 }
 
 impl WindowState {
@@ -213,6 +349,19 @@ impl WindowState {
             } else {
                 fallback_cwd
             };
+            self.overlay_ui.ai_inspector.connected_agent_cwd = Some(cwd.clone());
+            self.overlay_ui.ai_inspector.connected_agent_project_root = Some(
+                resolve_agent_project_root(Path::new(&cwd))
+                    .to_string_lossy()
+                    .to_string(),
+            );
+            let shader_dir = Config::shaders_dir();
+            let _ = std::fs::create_dir_all(&shader_dir);
+            let extra_roots = resolve_extra_agent_roots(
+                &self.config.ai_inspector.ai_inspector_extra_agent_roots,
+                Path::new(&cwd),
+                &shader_dir,
+            );
 
             let capabilities = ClientCapabilities {
                 fs: FsCapabilities {
@@ -229,7 +378,7 @@ impl WindowState {
             let runtime = self.runtime.clone();
             runtime.spawn(async move {
                 let mut agent = agent.lock().await;
-                if let Err(e) = agent.connect(&cwd, capabilities).await {
+                if let Err(e) = agent.connect(&cwd, capabilities, &extra_roots).await {
                     log::error!("ACP: failed to connect to agent: {e}");
                     return;
                 }

@@ -293,6 +293,62 @@ pub(super) fn show_agent_section(
                     *changes_this_frame = true;
                 }
             });
+
+            ui.add_space(8.0);
+            ui.strong("Extra agent roots");
+            ui.label(
+                "Additional directories the assistant may access when supported. \
+                 The par-term shader directory is always included automatically.",
+            );
+
+            let mut remove_root_index: Option<usize> = None;
+            for i in 0..settings
+                .config
+                .ai_inspector
+                .ai_inspector_extra_agent_roots
+                .len()
+            {
+                ui.horizontal(|ui| {
+                    let mut root =
+                        settings.config.ai_inspector.ai_inspector_extra_agent_roots[i].clone();
+                    if ui
+                        .add(
+                            egui::TextEdit::singleline(&mut root)
+                                .desired_width(260.0)
+                                .hint_text("~/Repos/shared-lib"),
+                        )
+                        .on_hover_text("Absolute, ~/..., or relative to the agent session cwd.")
+                        .changed()
+                    {
+                        settings.config.ai_inspector.ai_inspector_extra_agent_roots[i] = root;
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
+                    if ui.button("Remove").clicked() {
+                        remove_root_index = Some(i);
+                    }
+                });
+            }
+
+            if let Some(index) = remove_root_index {
+                settings
+                    .config
+                    .ai_inspector
+                    .ai_inspector_extra_agent_roots
+                    .remove(index);
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+
+            if ui.button("Add Extra Root").clicked() {
+                settings
+                    .config
+                    .ai_inspector
+                    .ai_inspector_extra_agent_roots
+                    .push(String::new());
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
         });
     }
 }

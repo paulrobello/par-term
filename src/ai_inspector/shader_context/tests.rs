@@ -548,5 +548,6 @@ fn test_context_how_to_apply_section() {
     assert!(ctx.contains("Call `shader_diagnostics` after activation"));
     assert!(ctx.contains("custom_shader_enabled"));
     assert!(ctx.contains("cursor_shader_enabled"));
+    assert!(ctx.contains("Custom shader-only changes do not require `make checkall`"));
     assert!(ctx.contains("Do NOT edit config.yaml directly"));
 }

@@ -36,7 +36,7 @@
 //! let mut agent = Agent::new(config, tx, safe_paths, PathBuf::from("par-term"));
 //!
 //! // Connect and handle messages
-//! agent.connect("/working/dir", capabilities).await?;
+//! agent.connect("/working/dir", capabilities, &[]).await?;
 //! while let Some(msg) = rx.recv().await {
 //!     match msg {
 //!         AgentMessage::SessionUpdate(update) => { /* handle */ }

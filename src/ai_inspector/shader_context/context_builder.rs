@@ -322,6 +322,9 @@ When to use controls:
     ctx.push_str(
         "   You can write a new file directly to the shader directory path (for example `vortex_checker.glsl`) and then activate it.\n",
     );
+    ctx.push_str(
+        "8. Custom shader-only changes do not require `make checkall`; use `shader_diagnostics` and `terminal_screenshot` instead.\n",
+    );
 
     ctx.push('\n');
 
