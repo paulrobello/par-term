@@ -204,7 +204,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {}
 name: "Controlled Color Shader"
 defaults:
   uniforms:
-    iTint: [1.0, 0.5]
+    iTint: [1.0, 0.5, 0.0, 0.8, 0.1]
     iGlow: 0.5
 */
 

@@ -1,6 +1,7 @@
 //! Shader configuration types: per-shader settings, metadata, and resolved configs.
 
 use serde::de::Error as DeError;
+use serde::ser::SerializeSeq;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -103,22 +104,59 @@ impl ShaderColorValue {
 #[derive(Debug, Clone, PartialEq)]
 pub enum ShaderUniformValue {
     Float(f32),
+    Int(i32),
     Bool(bool),
     Color(ShaderColorValue),
+    Vec2([f32; 2]),
 }
 
 impl ShaderUniformValue {
+    fn numeric_component(component: &serde_yaml_ng::Value, context: &str) -> Result<f32, String> {
+        let value = match component {
+            serde_yaml_ng::Value::Number(number) => number
+                .as_f64()
+                .ok_or_else(|| format!("{} component must be numeric", context))?,
+            _ => return Err(format!("{} components must be numeric", context)),
+        };
+
+        if !value.is_finite() {
+            return Err(format!("{} components must be finite", context));
+        }
+
+        Ok(value as f32)
+    }
+
+    fn vec2_from_components(components: &[serde_yaml_ng::Value]) -> Result<[f32; 2], String> {
+        if components.len() != 2 {
+            return Err("vec2 array must have exactly 2 finite numeric components".to_string());
+        }
+
+        Ok([
+            Self::numeric_component(&components[0], "vec2 array")?,
+            Self::numeric_component(&components[1], "vec2 array")?,
+        ])
+    }
+
     fn from_yaml_value(value: &serde_yaml_ng::Value) -> Result<Self, String> {
         match value {
             serde_yaml_ng::Value::Bool(value) => Ok(Self::Bool(*value)),
             serde_yaml_ng::Value::Number(number) => {
                 let value = number
                     .as_f64()
-                    .ok_or_else(|| "float uniform value must be numeric".to_string())?;
+                    .ok_or_else(|| "numeric uniform value must be numeric".to_string())?;
                 if !value.is_finite() {
-                    return Err("float uniform value must be finite".to_string());
+                    return Err("numeric uniform value must be finite".to_string());
                 }
-                Ok(Self::Float(value as f32))
+
+                if value.fract() == 0.0 {
+                    if value >= f64::from(i32::MIN) && value <= f64::from(i32::MAX) {
+                        Ok(Self::Int(value as i32))
+                    } else {
+                        Err("integer uniform value must fit i32".to_string())
+                    }
+                } else {
+                    Ok(Self::Float(value as f32))
+                }
             }
             serde_yaml_ng::Value::String(value) if value.starts_with('#') => {
                 ShaderColorValue::from_hex(value).map(Self::Color)
@@ -126,8 +164,16 @@ impl ShaderUniformValue {
             serde_yaml_ng::Value::String(_) => {
                 Err("string uniform values are only supported for color hex strings".to_string())
             }
-            serde_yaml_ng::Value::Sequence(components) => {
+            serde_yaml_ng::Value::Sequence(components) if components.len() == 2 => {
+                Self::vec2_from_components(components).map(Self::Vec2)
+            }
+            serde_yaml_ng::Value::Sequence(components)
+                if components.len() == 3 || components.len() == 4 =>
+            {
                 ShaderColorValue::from_components(components).map(Self::Color)
+            }
+            serde_yaml_ng::Value::Sequence(_) => {
+                Err("shader uniform arrays must have length 2 (vec2) or 3/4 (color)".to_string())
             }
             _ => Err("unsupported shader uniform value type".to_string()),
         }
@@ -141,8 +187,15 @@ impl Serialize for ShaderUniformValue {
     {
         match self {
             Self::Float(value) => serializer.serialize_f32(*value),
+            Self::Int(value) => serializer.serialize_i32(*value),
             Self::Bool(value) => serializer.serialize_bool(*value),
             Self::Color(value) => serializer.serialize_str(&value.to_hex_string()),
+            Self::Vec2(value) => {
+                let mut sequence = serializer.serialize_seq(Some(2))?;
+                sequence.serialize_element(&value[0])?;
+                sequence.serialize_element(&value[1])?;
+                sequence.end()
+            }
         }
     }
 }
@@ -342,5 +395,58 @@ impl Default for ResolvedCursorShaderConfig {
             trail_duration: 0.5,
             cursor_color: [255, 255, 255],
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn shader_uniform_values_parse_int_float_and_vec2_defaults() {
+        let yaml = r#"
+uniforms:
+  iCount: 4
+  iGlow: 0.75
+  iOrigin: [0.25, 0.5]
+  iTint: [1.0, 0.5, 0.0]
+  iEnabled: true
+  iBadVec2: [0.0, .inf]
+  iBadString: not-a-color
+"#;
+
+        let config: ShaderConfig =
+            serde_yaml_ng::from_str(yaml).expect("deserialize shader config");
+
+        assert_eq!(
+            config.uniforms.get("iCount"),
+            Some(&ShaderUniformValue::Int(4))
+        );
+        assert_eq!(
+            config.uniforms.get("iGlow"),
+            Some(&ShaderUniformValue::Float(0.75))
+        );
+        assert_eq!(
+            config.uniforms.get("iOrigin"),
+            Some(&ShaderUniformValue::Vec2([0.25, 0.5]))
+        );
+        assert_eq!(
+            config.uniforms.get("iTint"),
+            Some(&ShaderUniformValue::Color(ShaderColorValue([
+                1.0, 0.5, 0.0, 1.0,
+            ])))
+        );
+        assert_eq!(
+            config.uniforms.get("iEnabled"),
+            Some(&ShaderUniformValue::Bool(true))
+        );
+        assert!(!config.uniforms.contains_key("iBadVec2"));
+        assert!(!config.uniforms.contains_key("iBadString"));
+
+        let serialized = serde_yaml_ng::to_string(&config).expect("serialize shader config");
+        assert!(serialized.contains("iCount: 4"));
+        assert!(serialized.contains("iOrigin:\n"));
+        assert!(serialized.contains("- 0.25"));
+        assert!(serialized.contains("- 0.5"));
     }
 }

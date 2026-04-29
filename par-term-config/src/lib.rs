@@ -85,8 +85,8 @@ pub use profile_types::{Profile, ProfileId, ProfileManager, ProfileSource, TmuxC
 pub use shader_config::{resolve_cursor_shader_config, resolve_shader_config};
 // Shader controls
 pub use shader_controls::{
-    ShaderControl, ShaderControlKind, ShaderControlParseResult, ShaderControlWarning,
-    fallback_value_for_control, parse_shader_controls,
+    AngleUnit, ShaderControl, ShaderControlKind, ShaderControlParseResult, ShaderControlWarning,
+    SliderScale, fallback_value_for_control, parse_shader_controls,
 };
 // Shader metadata
 pub use shader_metadata::{CursorShaderMetadataCache, ShaderMetadataCache};

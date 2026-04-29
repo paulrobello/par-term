@@ -72,6 +72,8 @@ enum ActiveCustomControl {
     Float { index: usize },
     Bool { index: usize },
     Color { index: usize },
+    Int { index: usize },
+    Vec2 { index: usize },
 }
 
 fn active_custom_controls(
@@ -80,18 +82,21 @@ fn active_custom_controls(
     let mut float_index = 0usize;
     let mut bool_index = 0usize;
     let mut color_index = 0usize;
+    let mut int_index = 0usize;
+    let mut vec2_index = 0usize;
     let mut active_controls = std::collections::HashMap::new();
 
     for control in controls {
         match &control.kind {
-            par_term_config::ShaderControlKind::Slider { .. } => {
+            par_term_config::ShaderControlKind::Slider { .. }
+            | par_term_config::ShaderControlKind::Angle { .. } => {
                 active_controls.insert(
                     control.name.clone(),
                     ActiveCustomControl::Float { index: float_index },
                 );
                 float_index += 1;
             }
-            par_term_config::ShaderControlKind::Checkbox => {
+            par_term_config::ShaderControlKind::Checkbox { .. } => {
                 active_controls.insert(
                     control.name.clone(),
                     ActiveCustomControl::Bool { index: bool_index },
@@ -104,6 +109,24 @@ fn active_custom_controls(
                     ActiveCustomControl::Color { index: color_index },
                 );
                 color_index += 1;
+            }
+            par_term_config::ShaderControlKind::Int { .. }
+            | par_term_config::ShaderControlKind::Select { .. }
+            | par_term_config::ShaderControlKind::Channel { .. } => {
+                active_controls.insert(
+                    control.name.clone(),
+                    ActiveCustomControl::Int { index: int_index },
+                );
+                int_index += 1;
+            }
+            par_term_config::ShaderControlKind::Vec2 { .. }
+            | par_term_config::ShaderControlKind::Point { .. }
+            | par_term_config::ShaderControlKind::Range { .. } => {
+                active_controls.insert(
+                    control.name.clone(),
+                    ActiveCustomControl::Vec2 { index: vec2_index },
+                );
+                vec2_index += 1;
             }
         }
     }
@@ -134,6 +157,15 @@ fn active_custom_control_define(
         )),
         (ActiveCustomControl::Color { index }, "vec4") => {
             Some(format!("#define {name} iCustomColorUniforms[{index}]\n"))
+        }
+        (ActiveCustomControl::Int { index }, "int") => Some(format!(
+            "#define {} iCustomIntUniforms[{}].{}\n",
+            name,
+            index / 4,
+            ["x", "y", "z", "w"][index % 4]
+        )),
+        (ActiveCustomControl::Vec2 { index }, "vec2") => {
+            Some(format!("#define {name} iCustomVec2Uniforms[{index}].xy\n"))
         }
         _ => None,
     }
@@ -167,14 +199,41 @@ fn parse_control_key_values<'a>(
         .collect()
 }
 
+fn tokenize_attached_control_directive(rest: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
+    let mut current = String::new();
+    let mut in_quotes = false;
+
+    for character in rest.chars() {
+        match character {
+            '"' => {
+                in_quotes = !in_quotes;
+                current.push(character);
+            }
+            character if character.is_whitespace() && !in_quotes => {
+                if !current.is_empty() {
+                    tokens.push(std::mem::take(&mut current));
+                }
+            }
+            character => current.push(character),
+        }
+    }
+
+    if !current.is_empty() {
+        tokens.push(current);
+    }
+
+    tokens
+}
+
 fn valid_attached_control_fallback(comment_line: &str, ty: &str) -> Option<String> {
     let rest = comment_line.trim().strip_prefix("// control ")?;
-    let mut tokens = rest.split_whitespace();
-    let control_type = tokens.next()?;
+    let tokens = tokenize_attached_control_directive(rest);
+    let control_type = tokens.first()?.as_str();
+    let key_values = parse_control_key_values(tokens[1..].iter().map(String::as_str));
 
     match control_type {
         "slider" if ty == "float" => {
-            let key_values = parse_control_key_values(tokens);
             let min = key_values.get("min")?.parse::<f32>().ok()?;
             let max = key_values.get("max")?.parse::<f32>().ok()?;
             let step = key_values.get("step")?.parse::<f32>().ok()?;
@@ -184,17 +243,98 @@ fn valid_attached_control_fallback(comment_line: &str, ty: &str) -> Option<Strin
                 None
             }
         }
+        "angle" if ty == "float" => Some("0.0".to_string()),
         "checkbox" if ty == "bool" => Some("false".to_string()),
         "color" if ty == "vec3" => Some("vec3(1.0)".to_string()),
         "color" if ty == "vec4" => Some("vec4(1.0)".to_string()),
+        "int" if ty == "int" => {
+            let min = key_values.get("min")?.parse::<i32>().ok()?;
+            let max = key_values.get("max")?.parse::<i32>().ok()?;
+            let step = key_values
+                .get("step")
+                .and_then(|value| value.parse::<i32>().ok())
+                .unwrap_or(1);
+            if max >= min && step > 0 {
+                Some(min.to_string())
+            } else {
+                None
+            }
+        }
+        "select" if ty == "int" => {
+            valid_quoted_csv(key_values.get("options")?).then(|| "0".to_string())
+        }
+        "channel" if ty == "int" => match key_values.get("options") {
+            Some(options) => first_valid_channel_option(options).map(|channel| channel.to_string()),
+            None => Some("0".to_string()),
+        },
+        "vec2" if ty == "vec2" => {
+            let min = key_values.get("min")?.parse::<f32>().ok()?;
+            let max = key_values.get("max")?.parse::<f32>().ok()?;
+            let step = key_values.get("step")?.parse::<f32>().ok()?;
+            if min.is_finite() && max.is_finite() && step.is_finite() && max >= min && step > 0.0 {
+                Some(format!("vec2({})", format_glsl_float_literal(min)))
+            } else {
+                None
+            }
+        }
+        "point" if ty == "vec2" => Some("vec2(0.5)".to_string()),
+        "range" if ty == "vec2" => {
+            let min = key_values.get("min")?.parse::<f32>().ok()?;
+            let max = key_values.get("max")?.parse::<f32>().ok()?;
+            let step = key_values.get("step")?.parse::<f32>().ok()?;
+            if min.is_finite() && max.is_finite() && step.is_finite() && max >= min && step > 0.0 {
+                Some(format!(
+                    "vec2({}, {})",
+                    format_glsl_float_literal(min),
+                    format_glsl_float_literal(max)
+                ))
+            } else {
+                None
+            }
+        }
         _ => None,
     }
+}
+
+fn valid_quoted_csv(value: &str) -> bool {
+    let Some(quoted) = value
+        .strip_prefix('"')
+        .and_then(|value| value.strip_suffix('"'))
+    else {
+        return false;
+    };
+
+    let mut saw_option = false;
+    for option in quoted.split(',').map(str::trim) {
+        if option.is_empty() {
+            return false;
+        }
+        saw_option = true;
+    }
+    saw_option
+}
+
+fn first_valid_channel_option(value: &str) -> Option<i32> {
+    let quoted = value
+        .strip_prefix('"')
+        .and_then(|value| value.strip_suffix('"'))?;
+    let mut first = None;
+    for option in quoted.split(',').map(str::trim) {
+        let channel = option.parse::<i32>().ok()?;
+        if !(0..=4).contains(&channel) {
+            return None;
+        }
+        first.get_or_insert(channel);
+    }
+    first
 }
 
 fn safe_fallback_define(comment_line: &str, ty: &str, name: &str) -> String {
     let fallback = valid_attached_control_fallback(comment_line, ty).unwrap_or_else(|| match ty {
         "float" => "0.0".to_string(),
         "bool" => "false".to_string(),
+        "int" => "0".to_string(),
+        "vec2" => "vec2(0.0)".to_string(),
         "vec3" => "vec3(1.0)".to_string(),
         "vec4" => "vec4(1.0)".to_string(),
         _ => unreachable!("fallback requested only for supported custom control uniforms"),
@@ -233,6 +373,8 @@ fn preprocess_custom_control_uniforms(source: &str) -> String {
         let control_type = attached_control_type(line);
         let should_strip = ty == "float"
             || ty == "bool"
+            || ty == "int"
+            || ty == "vec2"
             || (control_type == Some("color") && (ty == "vec3" || ty == "vec4"));
         if !should_strip {
             continue;
@@ -352,6 +494,8 @@ layout(set = 0, binding = 13) uniform CustomShaderControls {{
     vec4 iCustomFloatUniforms[4];
     ivec4 iCustomBoolUniforms[4];
     vec4 iCustomColorUniforms[16];
+    ivec4 iCustomIntUniforms[4];
+    vec4 iCustomVec2Uniforms[16];
 }};
 
 // Combined samplers for texture() calls
@@ -758,6 +902,46 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     }
 
     #[test]
+    fn controlled_uniform_new_declarations_are_replaced_with_custom_macros() {
+        let source = r#"
+// control angle unit=radians
+uniform float iAngle;
+// control int min=1 max=9 step=2
+uniform int iCount;
+// control select options="Low,Medium,High"
+uniform int iChoice;
+// control channel options="1,3"
+uniform int iChannel;
+// control vec2 min=-1 max=1 step=0.1
+uniform vec2 iOffset;
+// control point
+uniform vec2 iPoint;
+// control range min=0 max=10 step=0.5
+uniform vec2 iRange;
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {
+    fragColor = vec4(iOffset + iPoint + iRange, float(iCount + iChoice + iChannel) + iAngle, 1.0);
+}
+"#;
+
+        let preprocessed = preprocess_custom_control_uniforms(source);
+
+        assert!(!preprocessed.contains("uniform float iAngle;"));
+        assert!(!preprocessed.contains("uniform int iCount;"));
+        assert!(!preprocessed.contains("uniform int iChoice;"));
+        assert!(!preprocessed.contains("uniform int iChannel;"));
+        assert!(!preprocessed.contains("uniform vec2 iOffset;"));
+        assert!(!preprocessed.contains("uniform vec2 iPoint;"));
+        assert!(!preprocessed.contains("uniform vec2 iRange;"));
+        assert!(preprocessed.contains("#define iAngle iCustomFloatUniforms[0].x"));
+        assert!(preprocessed.contains("#define iCount iCustomIntUniforms[0].x"));
+        assert!(preprocessed.contains("#define iChoice iCustomIntUniforms[0].y"));
+        assert!(preprocessed.contains("#define iChannel iCustomIntUniforms[0].z"));
+        assert!(preprocessed.contains("#define iOffset iCustomVec2Uniforms[0].xy"));
+        assert!(preprocessed.contains("#define iPoint iCustomVec2Uniforms[1].xy"));
+        assert!(preprocessed.contains("#define iRange iCustomVec2Uniforms[2].xy"));
+    }
+
+    #[test]
     fn controlled_uniform_declarations_with_whitespace_are_stripped() {
         let source = r#"
 // control slider min=0 max=1 step=0.01
@@ -833,6 +1017,50 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         assert!(preprocessed.contains("#define iEnabled false"));
         assert!(!preprocessed.contains("uniform float iGlow;"));
         assert!(!preprocessed.contains("uniform bool iEnabled;"));
+    }
+
+    #[test]
+    fn attached_control_fallbacks_parse_quoted_options_with_spaces() {
+        assert_eq!(
+            valid_attached_control_fallback("// control select options=\"Low, Medium\"", "int"),
+            Some("0".to_string())
+        );
+        assert_eq!(
+            valid_attached_control_fallback("// control channel options=\"1, 3\"", "int"),
+            Some("1".to_string())
+        );
+    }
+
+    #[test]
+    fn malformed_and_over_limit_new_controls_use_safe_fallbacks() {
+        let source = r#"
+// control int min=5
+uniform int iMalformedInt;
+// control radio
+uniform vec2 iUnsupportedVec2;
+"#;
+        let preprocessed = preprocess_custom_control_uniforms(source);
+
+        assert!(preprocessed.contains("#define iMalformedInt 0"));
+        assert!(preprocessed.contains("#define iUnsupportedVec2 vec2(0.0)"));
+        assert!(!preprocessed.contains("uniform int iMalformedInt;"));
+        assert!(!preprocessed.contains("uniform vec2 iUnsupportedVec2;"));
+
+        let mut over_limit = String::new();
+        for index in 0..16 {
+            over_limit.push_str("// control vec2 min=-1 max=1 step=0.1\n");
+            over_limit.push_str(&format!("uniform vec2 iVec{index};\n"));
+        }
+        over_limit.push_str("// control range min=2 max=8 step=1\n");
+        over_limit.push_str("uniform vec2 iRange16;\n");
+        over_limit.push_str("// control point\n");
+        over_limit.push_str("uniform vec2 iPoint17;\n");
+        let preprocessed = preprocess_custom_control_uniforms(&over_limit);
+        assert!(preprocessed.contains("#define iVec15 iCustomVec2Uniforms[15].xy"));
+        assert!(preprocessed.contains("#define iRange16 vec2(2.0, 8.0)"));
+        assert!(preprocessed.contains("#define iPoint17 vec2(0.5)"));
+        assert!(!preprocessed.contains("uniform vec2 iRange16;"));
+        assert!(!preprocessed.contains("uniform vec2 iPoint17;"));
     }
 
     #[test]
