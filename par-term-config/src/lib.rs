@@ -118,5 +118,5 @@ pub use par_term_emu_core_rust::{AmbiguousWidth, NormalizationForm, UnicodeVersi
 #[allow(unused_imports)]
 pub use types::KeyModifier;
 #[allow(unused_imports)]
-pub use types::shader::ShaderUniformValue;
+pub use types::shader::{ShaderColorValue, ShaderUniformValue};
 pub use types::{ResolvedCursorShaderConfig, ResolvedShaderConfig};

@@ -36,7 +36,19 @@ fn test_shader_context_template_is_valid_glsl() {
     assert!(ctx.contains("transparent 1x1 placeholders"));
     assert!(ctx.contains("iChannelResolution[0].x > 1.0"));
     assert!(ctx.contains("// control slider min=0 max=1 step=0.01"));
+    assert!(ctx.contains("// control color label=\"Tint\""));
+    assert!(ctx.contains("// control color label=\"Overlay\""));
+    assert!(ctx.contains("uniform vec3 iTint;"));
+    assert!(ctx.contains("uniform vec4 iOverlay;"));
     assert!(ctx.contains("defaults.uniforms"));
+    assert!(ctx.contains("iTint: \"#66ccff\""));
+    assert!(ctx.contains("iOverlay: \"#ff8800cc\""));
+    assert!(ctx.contains("Prefer hex color defaults"));
+    assert!(ctx.contains("`vec3` defaults to RGB / `alpha=false`"));
+    assert!(ctx.contains("`alpha=true` is invalid for `vec3`"));
+    assert!(ctx.contains("`vec4` defaults to RGBA / `alpha=true`"));
+    assert!(ctx.contains("use `alpha=false` on `vec4` only to force an RGB picker"));
+    assert!(ctx.contains("16 color controls"));
     assert!(ctx.contains("Do not put default= in the control comment"));
 }
 

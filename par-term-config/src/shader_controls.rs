@@ -5,6 +5,7 @@ use std::collections::{BTreeMap, HashSet};
 pub enum ShaderControlKind {
     Slider { min: f32, max: f32, step: f32 },
     Checkbox,
+    Color { alpha: bool, label: Option<String> },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -27,6 +28,7 @@ pub struct ShaderControlParseResult {
 
 const MAX_SHADER_FLOAT_CONTROLS: usize = 16;
 const MAX_SHADER_BOOL_CONTROLS: usize = 16;
+const MAX_SHADER_COLOR_CONTROLS: usize = 16;
 
 fn parse_uniform_declaration(line: &str) -> Option<(&str, &str)> {
     let trimmed = line.trim();
@@ -47,7 +49,38 @@ fn parse_uniform_declaration(line: &str) -> Option<(&str, &str)> {
     Some((ty, name))
 }
 
-fn parse_key_values(tokens: &[&str]) -> (BTreeMap<String, String>, Vec<String>) {
+fn tokenize_control_directive(rest: &str) -> (Vec<String>, Vec<String>) {
+    let mut tokens = Vec::new();
+    let mut malformed_tokens = Vec::new();
+    let mut current = String::new();
+    let mut in_quotes = false;
+
+    for character in rest.chars() {
+        match character {
+            '"' => {
+                in_quotes = !in_quotes;
+                current.push(character);
+            }
+            character if character.is_whitespace() && !in_quotes => {
+                if !current.is_empty() {
+                    tokens.push(std::mem::take(&mut current));
+                }
+            }
+            character => current.push(character),
+        }
+    }
+
+    if !current.is_empty() {
+        if in_quotes {
+            malformed_tokens.push(current.clone());
+        }
+        tokens.push(current);
+    }
+
+    (tokens, malformed_tokens)
+}
+
+fn parse_key_values(tokens: &[String]) -> (BTreeMap<String, String>, Vec<String>) {
     let mut key_values = BTreeMap::new();
     let mut malformed_tokens = Vec::new();
 
@@ -56,11 +89,33 @@ fn parse_key_values(tokens: &[&str]) -> (BTreeMap<String, String>, Vec<String>) 
             Some((key, value)) if !key.is_empty() && !value.is_empty() => {
                 key_values.insert(key.to_string(), value.to_string());
             }
-            _ => malformed_tokens.push((*token).to_string()),
+            _ => malformed_tokens.push(token.to_string()),
         }
     }
 
     (key_values, malformed_tokens)
+}
+
+fn parse_quoted_label(
+    warnings: &mut Vec<ShaderControlWarning>,
+    line: usize,
+    uniform_name: &str,
+    value: Option<&String>,
+) -> Option<String> {
+    let value = value?;
+    match value
+        .strip_prefix('"')
+        .and_then(|value| value.strip_suffix('"'))
+    {
+        Some(label) => Some(label.to_string()),
+        None => {
+            warnings.push(ShaderControlWarning {
+                line,
+                message: format!("Color `{}` label must be quoted", uniform_name),
+            });
+            None
+        }
+    }
 }
 
 fn warn_for_unrecognized_fields(
@@ -95,6 +150,7 @@ pub fn parse_shader_controls(source: &str) -> ShaderControlParseResult {
     let mut seen = HashSet::new();
     let mut float_count = 0usize;
     let mut bool_count = 0usize;
+    let mut color_count = 0usize;
 
     for (index, line) in lines.iter().enumerate() {
         let trimmed = line.trim();
@@ -103,8 +159,8 @@ pub fn parse_shader_controls(source: &str) -> ShaderControlParseResult {
         };
 
         let line_number = index + 1;
-        let tokens: Vec<&str> = rest.split_whitespace().collect();
-        let Some(control_type) = tokens.first().copied() else {
+        let (tokens, tokenization_warnings) = tokenize_control_directive(rest);
+        let Some(control_type) = tokens.first().map(String::as_str) else {
             warnings.push(ShaderControlWarning {
                 line: line_number,
                 message: "Control comment is missing a control type".to_string(),
@@ -130,7 +186,8 @@ pub fn parse_shader_controls(source: &str) -> ShaderControlParseResult {
             continue;
         };
 
-        let (key_values, malformed_tokens) = parse_key_values(&tokens[1..]);
+        let (key_values, mut malformed_tokens) = parse_key_values(&tokens[1..]);
+        malformed_tokens.extend(tokenization_warnings);
         let kind = match control_type {
             "slider" => {
                 warn_for_unrecognized_fields(
@@ -233,6 +290,64 @@ pub fn parse_shader_controls(source: &str) -> ShaderControlParseResult {
                 }
                 ShaderControlKind::Checkbox
             }
+            "color" => {
+                warn_for_unrecognized_fields(
+                    &mut warnings,
+                    line_number,
+                    control_type,
+                    &key_values,
+                    &malformed_tokens,
+                    &["alpha", "label"],
+                );
+
+                if uniform_type != "vec3" && uniform_type != "vec4" {
+                    warnings.push(ShaderControlWarning {
+                        line: line_number,
+                        message: format!(
+                            "Color control for `{}` must attach to `uniform vec3` or `uniform vec4`",
+                            uniform_name
+                        ),
+                    });
+                    continue;
+                }
+
+                let default_alpha = uniform_type == "vec4";
+                let alpha = match key_values.get("alpha").map(String::as_str) {
+                    Some("true") => true,
+                    Some("false") => false,
+                    Some(_) => {
+                        warnings.push(ShaderControlWarning {
+                            line: line_number,
+                            message: format!(
+                                "Color `{}` alpha must be `true` or `false`; using default",
+                                uniform_name
+                            ),
+                        });
+                        default_alpha
+                    }
+                    None => default_alpha,
+                };
+
+                if uniform_type == "vec3" && alpha {
+                    warnings.push(ShaderControlWarning {
+                        line: line_number,
+                        message: format!(
+                            "Color control `{}` cannot use alpha=true with `uniform vec3`",
+                            uniform_name
+                        ),
+                    });
+                    continue;
+                }
+
+                let label = parse_quoted_label(
+                    &mut warnings,
+                    line_number,
+                    uniform_name,
+                    key_values.get("label"),
+                );
+
+                ShaderControlKind::Color { alpha, label }
+            }
             other => {
                 warnings.push(ShaderControlWarning {
                     line: line_number,
@@ -277,6 +392,19 @@ pub fn parse_shader_controls(source: &str) -> ShaderControlParseResult {
                 }
                 bool_count += 1;
             }
+            ShaderControlKind::Color { .. } => {
+                if color_count >= MAX_SHADER_COLOR_CONTROLS {
+                    warnings.push(ShaderControlWarning {
+                        line: line_number,
+                        message: format!(
+                            "Only the first {} color controls are active; ignoring over-limit control `{}`",
+                            MAX_SHADER_COLOR_CONTROLS, uniform_name
+                        ),
+                    });
+                    continue;
+                }
+                color_count += 1;
+            }
         }
 
         controls.push(ShaderControl {
@@ -292,6 +420,9 @@ pub fn fallback_value_for_control(control: &ShaderControl) -> ShaderUniformValue
     match control.kind {
         ShaderControlKind::Slider { min, .. } => ShaderUniformValue::Float(min),
         ShaderControlKind::Checkbox => ShaderUniformValue::Bool(false),
+        ShaderControlKind::Color { .. } => {
+            ShaderUniformValue::Color(crate::types::shader::ShaderColorValue([1.0, 1.0, 1.0, 1.0]))
+        }
     }
 }
 
@@ -345,7 +476,7 @@ uniform bool iEnabled;
     #[test]
     fn warns_and_skips_unsupported_control_type() {
         let source = r#"
-// control color min=0 max=1 step=0.1
+// control knob min=0 max=1 step=0.1
 uniform float iGlow;
 "#;
 
@@ -358,7 +489,150 @@ uniform float iGlow;
                 .message
                 .contains("Unsupported control type")
         );
-        assert!(result.warnings[0].message.contains("color"));
+        assert!(result.warnings[0].message.contains("knob"));
+    }
+
+    #[test]
+    fn parses_color_vec3_with_label_and_default_alpha_false() {
+        let source = r#"
+// control color label="Tint"
+uniform vec3 iTint;
+"#;
+
+        let result = parse_shader_controls(source);
+
+        assert!(result.warnings.is_empty());
+        assert_eq!(
+            result.controls,
+            vec![ShaderControl {
+                name: "iTint".to_string(),
+                kind: ShaderControlKind::Color {
+                    alpha: false,
+                    label: Some("Tint".to_string()),
+                },
+            }]
+        );
+    }
+
+    #[test]
+    fn parses_color_vec4_with_alpha_true_and_label() {
+        let source = r#"
+// control color alpha=true label="Overlay"
+uniform vec4 iOverlay;
+"#;
+
+        let result = parse_shader_controls(source);
+
+        assert!(result.warnings.is_empty());
+        assert_eq!(
+            result.controls,
+            vec![ShaderControl {
+                name: "iOverlay".to_string(),
+                kind: ShaderControlKind::Color {
+                    alpha: true,
+                    label: Some("Overlay".to_string()),
+                },
+            }]
+        );
+    }
+
+    #[test]
+    fn parses_color_vec4_alpha_false_for_rgb_picker() {
+        let source = r#"
+// control color alpha=false
+uniform vec4 iOverlay;
+"#;
+
+        let result = parse_shader_controls(source);
+
+        assert!(result.warnings.is_empty());
+        assert_eq!(
+            result.controls,
+            vec![ShaderControl {
+                name: "iOverlay".to_string(),
+                kind: ShaderControlKind::Color {
+                    alpha: false,
+                    label: None,
+                },
+            }]
+        );
+    }
+
+    #[test]
+    fn warns_and_skips_color_alpha_true_on_vec3() {
+        let source = r#"
+// control color alpha=true label="Tint"
+uniform vec3 iTint;
+"#;
+
+        let result = parse_shader_controls(source);
+
+        assert!(result.controls.is_empty());
+        assert_eq!(result.warnings.len(), 1);
+        assert!(result.warnings[0].message.contains("alpha=true"));
+        assert!(result.warnings[0].message.contains("vec3"));
+    }
+
+    #[test]
+    fn warns_for_unknown_and_malformed_color_fields_but_keeps_valid_control() {
+        let source = r#"
+// control color label="Tint" junk=1 unexpected-token
+uniform vec3 iTint;
+"#;
+
+        let result = parse_shader_controls(source);
+
+        assert_eq!(result.controls.len(), 1);
+        assert_eq!(result.warnings.len(), 2);
+        assert!(
+            result
+                .warnings
+                .iter()
+                .any(|w| w.message.contains("Unknown") && w.message.contains("junk"))
+        );
+        assert!(
+            result
+                .warnings
+                .iter()
+                .any(|w| w.message.contains("Malformed") && w.message.contains("unexpected-token"))
+        );
+    }
+
+    #[test]
+    fn limits_color_controls_to_16() {
+        let mut source = String::new();
+        for index in 0..17 {
+            source.push_str(&format!(
+                "// control color label=\"Color {index}\"\nuniform vec3 iColor{index};\n"
+            ));
+        }
+
+        let result = parse_shader_controls(&source);
+
+        assert_eq!(result.controls.len(), 16);
+        assert_eq!(result.warnings.len(), 1);
+        assert!(
+            result.warnings[0]
+                .message
+                .contains("Only the first 16 color controls")
+        );
+        assert!(result.warnings[0].message.contains("iColor16"));
+    }
+
+    #[test]
+    fn fallback_for_color_control_is_opaque_white() {
+        let control = ShaderControl {
+            name: "iTint".to_string(),
+            kind: ShaderControlKind::Color {
+                alpha: false,
+                label: None,
+            },
+        };
+
+        assert_eq!(
+            fallback_value_for_control(&control),
+            ShaderUniformValue::Color(crate::types::shader::ShaderColorValue([1.0, 1.0, 1.0, 1.0]))
+        );
     }
 
     #[test]

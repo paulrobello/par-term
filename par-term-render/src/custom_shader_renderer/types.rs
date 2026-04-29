@@ -95,6 +95,7 @@ pub(crate) struct CustomShaderUniforms {
 
 pub(crate) const MAX_CUSTOM_FLOAT_UNIFORMS: usize = 16;
 pub(crate) const MAX_CUSTOM_BOOL_UNIFORMS: usize = 16;
+pub(crate) const MAX_CUSTOM_COLOR_UNIFORMS: usize = 16;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -103,6 +104,8 @@ pub(crate) struct CustomShaderControlUniforms {
     pub float_values: [[f32; 4]; 4],
     /// 16 bool slots stored as 4 uvec4s/ivec4s for std140 array alignment.
     pub bool_values: [[u32; 4]; 4],
+    /// 16 color slots stored as vec4 RGBA values.
+    pub color_values: [[f32; 4]; 16],
 }
 
 impl CustomShaderControlUniforms {
@@ -113,21 +116,23 @@ impl CustomShaderControlUniforms {
         let mut uniforms = Self {
             float_values: [[0.0; 4]; 4],
             bool_values: [[0; 4]; 4],
+            color_values: [[0.0; 4]; 16],
         };
         let mut float_index = 0usize;
         let mut bool_index = 0usize;
+        let mut color_index = 0usize;
 
         for control in controls {
-            match control.kind {
+            match &control.kind {
                 par_term_config::ShaderControlKind::Slider { min, max, .. } => {
                     if float_index >= MAX_CUSTOM_FLOAT_UNIFORMS {
                         continue;
                     }
                     let value = match values.get(&control.name) {
                         Some(par_term_config::ShaderUniformValue::Float(value)) => *value,
-                        _ => min,
+                        _ => *min,
                     }
-                    .clamp(min, max);
+                    .clamp(*min, *max);
                     uniforms.float_values[float_index / 4][float_index % 4] = value;
                     float_index += 1;
                 }
@@ -142,6 +147,20 @@ impl CustomShaderControlUniforms {
                     uniforms.bool_values[bool_index / 4][bool_index % 4] = u32::from(value);
                     bool_index += 1;
                 }
+                par_term_config::ShaderControlKind::Color { alpha, .. } => {
+                    if color_index >= MAX_CUSTOM_COLOR_UNIFORMS {
+                        continue;
+                    }
+                    let mut value = match values.get(&control.name) {
+                        Some(par_term_config::ShaderUniformValue::Color(value)) => value.0,
+                        _ => [1.0, 1.0, 1.0, 1.0],
+                    };
+                    if !alpha {
+                        value[3] = 1.0;
+                    }
+                    uniforms.color_values[color_index] = value;
+                    color_index += 1;
+                }
             }
         }
 
@@ -150,8 +169,8 @@ impl CustomShaderControlUniforms {
 }
 
 const _: () = assert!(
-    std::mem::size_of::<CustomShaderControlUniforms>() == 128,
-    "CustomShaderControlUniforms must be exactly 128 bytes"
+    std::mem::size_of::<CustomShaderControlUniforms>() == 384,
+    "CustomShaderControlUniforms must be exactly 384 bytes"
 );
 
 // Compile-time assertion to ensure uniform struct size matches expectations
@@ -166,7 +185,55 @@ mod custom_uniform_tests {
 
     #[test]
     fn custom_shader_control_uniforms_are_vec4_aligned() {
-        assert_eq!(std::mem::size_of::<CustomShaderControlUniforms>(), 128);
+        assert_eq!(std::mem::size_of::<CustomShaderControlUniforms>(), 384);
+    }
+
+    #[test]
+    fn uploads_color_controls_to_vec4_slots_and_forces_opaque_alpha_for_rgb_controls() {
+        use par_term_config::{
+            ShaderColorValue, ShaderControl, ShaderControlKind, ShaderUniformValue,
+        };
+        use std::collections::BTreeMap;
+
+        let controls = vec![
+            ShaderControl {
+                name: "iTint".to_string(),
+                kind: ShaderControlKind::Color {
+                    alpha: false,
+                    label: None,
+                },
+            },
+            ShaderControl {
+                name: "iOverlay".to_string(),
+                kind: ShaderControlKind::Color {
+                    alpha: true,
+                    label: None,
+                },
+            },
+            ShaderControl {
+                name: "iMissing".to_string(),
+                kind: ShaderControlKind::Color {
+                    alpha: true,
+                    label: None,
+                },
+            },
+        ];
+        let values = BTreeMap::from([
+            (
+                "iTint".to_string(),
+                ShaderUniformValue::Color(ShaderColorValue([0.1, 0.2, 0.3, 0.4])),
+            ),
+            (
+                "iOverlay".to_string(),
+                ShaderUniformValue::Color(ShaderColorValue([0.5, 0.6, 0.7, 0.8])),
+            ),
+        ]);
+
+        let uniforms = CustomShaderControlUniforms::from_controls(&controls, &values);
+
+        assert_eq!(uniforms.color_values[0], [0.1, 0.2, 0.3, 1.0]);
+        assert_eq!(uniforms.color_values[1], [0.5, 0.6, 0.7, 0.8]);
+        assert_eq!(uniforms.color_values[2], [1.0, 1.0, 1.0, 1.0]);
     }
 
     #[test]

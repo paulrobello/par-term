@@ -1,6 +1,7 @@
 //! Shader configuration types: per-shader settings, metadata, and resolved configs.
 
-use serde::{Deserialize, Serialize};
+use serde::de::Error as DeError;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
@@ -26,11 +27,161 @@ pub struct ShaderMetadata {
     pub defaults: ShaderConfig,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub struct ShaderColorValue(pub [f32; 4]);
+
+impl ShaderColorValue {
+    fn from_hex(value: &str) -> Result<Self, String> {
+        let hex = value
+            .strip_prefix('#')
+            .ok_or_else(|| "color hex value must start with `#`".to_string())?;
+
+        if hex.len() != 6 && hex.len() != 8 {
+            return Err("color hex value must be `#rrggbb` or `#rrggbbaa`".to_string());
+        }
+
+        let parse_channel = |range: std::ops::Range<usize>| -> Result<f32, String> {
+            u8::from_str_radix(&hex[range], 16)
+                .map(|value| f32::from(value) / 255.0)
+                .map_err(|_| "color hex value contains non-hex digits".to_string())
+        };
+
+        Ok(Self([
+            parse_channel(0..2)?,
+            parse_channel(2..4)?,
+            parse_channel(4..6)?,
+            if hex.len() == 8 {
+                parse_channel(6..8)?
+            } else {
+                1.0
+            },
+        ]))
+    }
+
+    fn from_components(components: &[serde_yaml_ng::Value]) -> Result<Self, String> {
+        if components.len() != 3 && components.len() != 4 {
+            return Err("color array must have 3 or 4 normalized float components".to_string());
+        }
+
+        let mut color = [1.0_f32; 4];
+        for (index, component) in components.iter().enumerate() {
+            let value = match component {
+                serde_yaml_ng::Value::Number(number) => number
+                    .as_f64()
+                    .ok_or_else(|| "color array component must be numeric".to_string())?,
+                _ => return Err("color array components must be numeric".to_string()),
+            };
+
+            if !value.is_finite() || !(0.0..=1.0).contains(&value) {
+                return Err(
+                    "color array components must be finite normalized values in 0.0..=1.0"
+                        .to_string(),
+                );
+            }
+
+            color[index] = value as f32;
+        }
+
+        Ok(Self(color))
+    }
+
+    fn to_hex_string(self) -> String {
+        let channels = self
+            .0
+            .map(|value| ((value.clamp(0.0, 1.0) * 255.0).round()) as u8);
+        if channels[3] == 255 {
+            format!("#{:02x}{:02x}{:02x}", channels[0], channels[1], channels[2])
+        } else {
+            format!(
+                "#{:02x}{:02x}{:02x}{:02x}",
+                channels[0], channels[1], channels[2], channels[3]
+            )
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum ShaderUniformValue {
     Float(f32),
     Bool(bool),
+    Color(ShaderColorValue),
+}
+
+impl ShaderUniformValue {
+    fn from_yaml_value(value: &serde_yaml_ng::Value) -> Result<Self, String> {
+        match value {
+            serde_yaml_ng::Value::Bool(value) => Ok(Self::Bool(*value)),
+            serde_yaml_ng::Value::Number(number) => {
+                let value = number
+                    .as_f64()
+                    .ok_or_else(|| "float uniform value must be numeric".to_string())?;
+                if !value.is_finite() {
+                    return Err("float uniform value must be finite".to_string());
+                }
+                Ok(Self::Float(value as f32))
+            }
+            serde_yaml_ng::Value::String(value) if value.starts_with('#') => {
+                ShaderColorValue::from_hex(value).map(Self::Color)
+            }
+            serde_yaml_ng::Value::String(_) => {
+                Err("string uniform values are only supported for color hex strings".to_string())
+            }
+            serde_yaml_ng::Value::Sequence(components) => {
+                ShaderColorValue::from_components(components).map(Self::Color)
+            }
+            _ => Err("unsupported shader uniform value type".to_string()),
+        }
+    }
+}
+
+impl Serialize for ShaderUniformValue {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            Self::Float(value) => serializer.serialize_f32(*value),
+            Self::Bool(value) => serializer.serialize_bool(*value),
+            Self::Color(value) => serializer.serialize_str(&value.to_hex_string()),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for ShaderUniformValue {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = serde_yaml_ng::Value::deserialize(deserializer)?;
+        Self::from_yaml_value(&value).map_err(D::Error::custom)
+    }
+}
+
+fn deserialize_uniforms<'de, D>(
+    deserializer: D,
+) -> Result<BTreeMap<String, ShaderUniformValue>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let raw = BTreeMap::<String, serde_yaml_ng::Value>::deserialize(deserializer)?;
+    let mut uniforms = BTreeMap::new();
+
+    for (name, value) in raw {
+        match ShaderUniformValue::from_yaml_value(&value) {
+            Ok(value) => {
+                uniforms.insert(name, value);
+            }
+            Err(error) => {
+                log::warn!(
+                    "Skipping invalid shader uniform default `{}`: {}",
+                    name,
+                    error
+                );
+            }
+        }
+    }
+
+    Ok(uniforms)
 }
 
 /// Per-shader configuration settings.
@@ -62,7 +213,11 @@ pub struct ShaderConfig {
     /// Use the app's background image as iChannel0 instead of a separate texture
     pub use_background_as_channel0: Option<bool>,
     /// Custom shader uniform values for `// control ...` declarations.
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_uniforms",
+        skip_serializing_if = "BTreeMap::is_empty"
+    )]
     pub uniforms: BTreeMap<String, ShaderUniformValue>,
 }
 

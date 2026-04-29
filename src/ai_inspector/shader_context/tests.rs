@@ -474,8 +474,22 @@ fn test_context_shader_controls_guidance() {
     assert!(ctx.contains("uniform float iGlow;"));
     assert!(ctx.contains("// control checkbox"));
     assert!(ctx.contains("uniform bool iEnabled;"));
+    assert!(ctx.contains("// control color label=\"Tint\""));
+    assert!(ctx.contains("uniform vec3 iTint;"));
+    assert!(ctx.contains("// control color label=\"Overlay\""));
+    assert!(ctx.contains("uniform vec4 iOverlay;"));
     assert!(ctx.contains("defaults.uniforms"));
+    assert!(ctx.contains("iTint: \"#66ccff\""));
+    assert!(ctx.contains("iOverlay: \"#ff8800cc\""));
+    assert!(ctx.contains("Prefer hex color defaults"));
+    assert!(ctx.contains("[r, g, b]"));
+    assert!(ctx.contains("`vec3` defaults to RGB / `alpha=false`"));
+    assert!(ctx.contains("`alpha=true` is invalid for `vec3`"));
+    assert!(ctx.contains("`vec4` defaults to RGBA / `alpha=true`"));
+    assert!(ctx.contains("use `alpha=false` on `vec4` only to force an RGB picker"));
+    assert!(ctx.contains("`label=\"Name\"`"));
     assert!(ctx.contains("16 float slider controls"));
+    assert!(ctx.contains("16 color controls"));
     assert!(ctx.contains("Do not put default= in the control comment"));
 }
 

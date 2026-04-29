@@ -532,11 +532,13 @@ Background shaders can declare Settings UI controls for custom uniforms by placi
 ```glsl
 /*! par-term shader metadata
 name: "Controlled Glow"
-description: "Minimal shader with one slider and one checkbox"
+description: "Minimal shader with sliders, checkboxes, and color pickers"
 defaults:
   uniforms:
     iGlow: 0.5
     iEnabled: true
+    iTint: "#66ccff"       # preferred RGB color default
+    iOverlay: "#ff8800cc"  # preferred RGBA color default
 */
 
 // control slider min=0 max=1 step=0.01
@@ -545,25 +547,41 @@ uniform float iGlow;
 // control checkbox
 uniform bool iEnabled;
 
+// control color label="Tint"
+uniform vec3 iTint;
+
+// control color label="Overlay"
+uniform vec4 iOverlay;
+
 void mainImage(out vec4 fragColor, in vec2 fragCoord)
 {
     vec2 uv = fragCoord / iResolution.xy;
-    vec3 color = vec3(iGlow * uv.x);
+    vec3 color = iTint * (iGlow * uv.x);
 
     if (iEnabled) {
         color += vec3(0.1, 0.2, 0.4);
     }
 
-    fragColor = vec4(color, 1.0);
+    fragColor = vec4(color, 1.0) * iOverlay;
 }
 ```
 
-Supported v1 controls:
+Supported controls:
 
 | Comment | Attached uniform | Settings UI |
 |---------|------------------|-------------|
 | `// control slider min=0 max=1 step=0.01` | `uniform float name;` | Slider |
 | `// control checkbox` | `uniform bool name;` | Checkbox |
+| `// control color label="Tint"` | `uniform vec3 name;` | RGB color picker |
+| `// control color label="Overlay"` | `uniform vec4 name;` | RGBA color picker (`alpha=true` by default) |
+| `// control color alpha=false label="Opaque Overlay"` | `uniform vec4 name;` | RGB color picker with opaque alpha |
+
+Color controls support these fields:
+
+- `uniform vec3` color controls default to RGB (`alpha=false`). `alpha=true` is invalid for `vec3` and the control is skipped with a warning.
+- `uniform vec4` color controls default to RGBA (`alpha=true`). Omit `alpha` or set `alpha=true` for a color picker with an alpha channel.
+- Use `alpha=false` on `vec4` only to force an RGB picker; the saved/effective alpha is normalized to `1.0`.
+- `label="Display Name"` is optional and changes the Settings UI label. Labels must be quoted.
 
 Defaults for controlled uniforms live in the shader metadata block under `defaults.uniforms`. User edits are saved as per-shader overrides in `config.yaml` and take precedence over metadata defaults:
 
@@ -573,11 +591,27 @@ shader_configs:
     uniforms:
       iGlow: 0.75
       iEnabled: false
+      iTint: "#99ddff"
+      iOverlay: "#ff880080"
 ```
 
-If neither a per-shader override nor a metadata default exists, sliders fall back to their declared `min` value and checkboxes fall back to `false`.
+Hex strings are the preferred representation for color defaults and overrides:
 
-Limits: each shader can expose up to 16 float slider controls and 16 bool checkbox controls. Extra valid controls are ignored with warnings. Malformed control comments also produce warnings in the Settings UI and logs; they are non-fatal unless the shader itself fails GLSL compilation.
+- `"#rrggbb"` for RGB / opaque colors
+- `"#rrggbbaa"` for RGBA colors
+
+Normalized float arrays are also accepted on input and are serialized back to hex when saved:
+
+```yaml
+defaults:
+  uniforms:
+    iTint: [0.4, 0.8, 1.0]
+    iOverlay: [1.0, 0.5, 0.0, 0.8]
+```
+
+If neither a per-shader override nor a metadata default exists, sliders fall back to their declared `min` value, checkboxes fall back to `false`, and colors fall back to opaque white (`#ffffff`). Invalid defaults are ignored and the fallback is used.
+
+Limits: each shader can expose up to 16 float slider controls, 16 bool checkbox controls, and 16 color controls. Extra valid controls are ignored with warnings. Malformed control comments also produce warnings in the Settings UI and logs; they are non-fatal unless the shader itself fails GLSL compilation.
 
 ### Porting Shadertoy Shaders
 
