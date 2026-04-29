@@ -131,6 +131,9 @@ pub fn build_shader_context(config: &Config) -> String {
         ));
     }
     ctx.push_str("- Wrapped GLSL (last shader): `/tmp/par_term_debug_wrapped.glsl`\n");
+    ctx.push_str(
+        "- Live diagnostics: call `shader_diagnostics` for active shader state, last compile/reload errors, and debug paths.\n",
+    );
 
     ctx.push('\n');
 
@@ -301,16 +304,21 @@ When to use controls:
     ctx.push_str("   ```\n");
     ctx.push_str("   For cursor shaders use `cursor_shader` and `cursor_shader_enabled` keys.\n");
     ctx.push_str("3. Changes apply immediately — no restart or manual config edit needed.\n");
-    ctx.push_str("4. For visual debugging/verification, use the `terminal_screenshot` MCP tool\n");
+    ctx.push_str("4. Call `shader_diagnostics` after activation to inspect active shader state,\n");
+    ctx.push_str(
+        "   last compile/reload errors, and generated debug paths before declaring success.\n",
+    );
+    ctx.push_str("   If the shader appears unchanged, black, white, or broken, call `shader_diagnostics` first.\n");
+    ctx.push_str("5. For visual debugging/verification, use the `terminal_screenshot` MCP tool\n");
     ctx.push_str("   to capture the current terminal output (including shader rendering).\n");
     ctx.push_str("   This may require user permission before the screenshot is returned.\n");
     ctx.push_str(
-        "5. Do not stop after writing the file if the user also asked to activate/set it.\n",
+        "6. Do not stop after writing the file if the user also asked to activate/set it.\n",
     );
     ctx.push_str(
         "   Completion requires a `config_update` call that sets the shader key and enable flag.\n",
     );
-    ctx.push_str("6. If reading/listing the shader directory fails, do NOT loop on `Read` for the directory.\n");
+    ctx.push_str("7. If reading/listing the shader directory fails, do NOT loop on `Read` for the directory.\n");
     ctx.push_str(
         "   You can write a new file directly to the shader directory path (for example `vortex_checker.glsl`) and then activate it.\n",
     );

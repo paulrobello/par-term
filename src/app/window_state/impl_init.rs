@@ -304,6 +304,9 @@ impl WindowState {
         // Initialize screenshot-request watcher (MCP server screenshot tool writes here)
         self.init_screenshot_request_watcher();
 
+        // Initialize shader-diagnostics-request watcher (MCP server diagnostics tool writes here)
+        self.init_shader_diagnostics_request_watcher();
+
         // Sync status bar monitor state based on config
         self.status_bar_ui.sync_monitor_state(&self.config);
 

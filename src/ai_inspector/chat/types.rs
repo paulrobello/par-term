@@ -82,9 +82,12 @@ To modify par-term settings (shaders, font_size, window_opacity, etc.), use the 
 `config_update` MCP tool (available via par-term-config MCP server). \
 Example: call config_update with updates: {\"custom_shader\": \"crt.glsl\", \
 \"custom_shader_enabled\": true}. Changes apply immediately — no restart needed. \
+For shader debugging, call the `shader_diagnostics` MCP tool (from the same \
+par-term MCP server) after activation or when output looks wrong; it returns \
+active shader names, enabled state, last compile/reload errors, and debug paths. \
 For visual/shader debugging, you can request a terminal screenshot using the \
-`terminal_screenshot` MCP tool (from the same par-term MCP server). This may \
-require user permission and returns an image of the current terminal output. \
+`terminal_screenshot` MCP tool. This may require user permission and returns an \
+image of the current terminal output. \
 IMPORTANT: Do NOT edit ~/.config/par-term/config.yaml directly — always use the \
 config_update tool instead. Direct config.yaml edits race with par-term's own \
 config saves and will be silently overwritten.\n\n";

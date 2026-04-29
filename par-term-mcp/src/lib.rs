@@ -7,6 +7,8 @@
 //! - `terminal_screenshot`: requests a live terminal screenshot from the app
 //!   via a file-based IPC handshake (with an optional fallback image path for
 //!   non-GUI test harnesses)
+//! - `shader_diagnostics`: requests live shader state and last compile/reload
+//!   errors from the running app via file-based IPC
 //!
 //! # Module layout
 //!
@@ -15,6 +17,7 @@
 //! - [`tools`] — tool registration, descriptors, and dispatch
 //! - [`tools::config_update`] — `config_update` tool handler
 //! - [`tools::screenshot`] — `terminal_screenshot` tool handler
+//! - [`tools::diagnostics`] — `shader_diagnostics` tool handler
 
 pub mod ipc;
 pub mod jsonrpc;
@@ -75,6 +78,10 @@ pub const CONFIG_UPDATE_PATH_ENV: &str = "PAR_TERM_CONFIG_UPDATE_PATH";
 pub const SCREENSHOT_REQUEST_PATH_ENV: &str = "PAR_TERM_SCREENSHOT_REQUEST_PATH";
 /// Environment variable for screenshot response IPC file path.
 pub const SCREENSHOT_RESPONSE_PATH_ENV: &str = "PAR_TERM_SCREENSHOT_RESPONSE_PATH";
+/// Environment variable for shader diagnostics request IPC file path.
+pub const SHADER_DIAGNOSTICS_REQUEST_PATH_ENV: &str = "PAR_TERM_SHADER_DIAGNOSTICS_REQUEST_PATH";
+/// Environment variable for shader diagnostics response IPC file path.
+pub const SHADER_DIAGNOSTICS_RESPONSE_PATH_ENV: &str = "PAR_TERM_SHADER_DIAGNOSTICS_RESPONSE_PATH";
 /// Optional environment variable for a static fallback screenshot file path.
 /// Used by the ACP harness to test the screenshot tool flow without a GUI.
 pub const SCREENSHOT_FALLBACK_PATH_ENV: &str = "PAR_TERM_SCREENSHOT_FALLBACK_PATH";
@@ -85,6 +92,10 @@ pub const CONFIG_UPDATE_FILENAME: &str = ".config-update.json";
 pub const SCREENSHOT_REQUEST_FILENAME: &str = ".screenshot-request.json";
 /// Default screenshot response filename (relative to config dir).
 pub const SCREENSHOT_RESPONSE_FILENAME: &str = ".screenshot-response.json";
+/// Default shader diagnostics request filename (relative to config dir).
+pub const SHADER_DIAGNOSTICS_REQUEST_FILENAME: &str = ".shader-diagnostics-request.json";
+/// Default shader diagnostics response filename (relative to config dir).
+pub const SHADER_DIAGNOSTICS_RESPONSE_FILENAME: &str = ".shader-diagnostics-response.json";
 
 /// Screenshot request written by the MCP server for the GUI app to fulfill.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -109,8 +120,46 @@ pub struct TerminalScreenshotResponse {
     pub height: Option<u32>,
 }
 
+/// Shader diagnostics request written by the MCP server for the GUI app to fulfill.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ShaderDiagnosticsRequest {
+    pub request_id: String,
+}
+
+/// Per-shader diagnostics included in [`ShaderDiagnosticsResponse`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ShaderDiagnosticsEntry {
+    pub shader: Option<String>,
+    pub enabled: bool,
+    pub last_error: Option<String>,
+    pub wgsl_path: Option<String>,
+}
+
+/// Live shader diagnostics returned by the GUI app.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ShaderDiagnostics {
+    pub background: ShaderDiagnosticsEntry,
+    pub cursor: ShaderDiagnosticsEntry,
+    pub shaders_dir: String,
+    pub wrapped_glsl_path: String,
+}
+
+/// Shader diagnostics response written by the GUI app for the MCP server to read.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ShaderDiagnosticsResponse {
+    pub request_id: String,
+    pub ok: bool,
+    #[serde(default)]
+    pub error: Option<String>,
+    #[serde(default)]
+    pub diagnostics: Option<ShaderDiagnostics>,
+}
+
 // Re-export IPC path helpers so callers don't need to name the submodule.
-pub use ipc::{screenshot_request_path, screenshot_response_path};
+pub use ipc::{
+    screenshot_request_path, screenshot_response_path, shader_diagnostics_request_path,
+    shader_diagnostics_response_path,
+};
 
 /// Run the MCP server loop. Reads JSON-RPC messages from stdin until the
 /// stream is closed or an I/O error occurs, then returns normally so that
@@ -197,6 +246,7 @@ mod tests {
     use jsonrpc::{IncomingMessage, method_not_found, parse_error, success_response};
     use std::path::PathBuf;
     use tools::config_update::write_config_updates;
+    use tools::diagnostics::diagnostics_tool_result;
     use tools::screenshot::image_tool_result_from_file;
 
     #[test]
@@ -211,10 +261,11 @@ mod tests {
     fn test_handle_tools_list() {
         let result = handle_tools_list();
         let tools = result["tools"].as_array().unwrap();
-        assert_eq!(tools.len(), 2);
+        assert_eq!(tools.len(), 3);
         let names: Vec<_> = tools.iter().filter_map(|t| t["name"].as_str()).collect();
         assert!(names.contains(&"config_update"));
         assert!(names.contains(&"terminal_screenshot"));
+        assert!(names.contains(&"shader_diagnostics"));
         for tool in tools {
             assert!(tool["inputSchema"].is_object());
         }
@@ -372,6 +423,81 @@ mod tests {
             path_str.ends_with(CONFIG_UPDATE_FILENAME),
             "Expected path to end with '{CONFIG_UPDATE_FILENAME}', got: {path_str}"
         );
+    }
+
+    #[test]
+    fn test_shader_diagnostics_paths_env_override_and_default() {
+        // SAFETY: `std::env::set_var` / `remove_var` are `unsafe` in Rust 2024 because
+        // they are not thread-safe. The diagnostics env vars are unique to this test
+        // and are removed before the test returns.
+        unsafe {
+            std::env::set_var(
+                SHADER_DIAGNOSTICS_REQUEST_PATH_ENV,
+                "/tmp/test-par-term-shader-diag-req.json",
+            );
+            std::env::set_var(
+                SHADER_DIAGNOSTICS_RESPONSE_PATH_ENV,
+                "/tmp/test-par-term-shader-diag-resp.json",
+            );
+        }
+        assert_eq!(
+            shader_diagnostics_request_path(),
+            PathBuf::from("/tmp/test-par-term-shader-diag-req.json")
+        );
+        assert_eq!(
+            shader_diagnostics_response_path(),
+            PathBuf::from("/tmp/test-par-term-shader-diag-resp.json")
+        );
+
+        // SAFETY: see set_var comment above.
+        unsafe {
+            std::env::remove_var(SHADER_DIAGNOSTICS_REQUEST_PATH_ENV);
+            std::env::remove_var(SHADER_DIAGNOSTICS_RESPONSE_PATH_ENV);
+        }
+        assert!(
+            shader_diagnostics_request_path()
+                .to_string_lossy()
+                .ends_with(SHADER_DIAGNOSTICS_REQUEST_FILENAME)
+        );
+        assert!(
+            shader_diagnostics_response_path()
+                .to_string_lossy()
+                .ends_with(SHADER_DIAGNOSTICS_RESPONSE_FILENAME)
+        );
+    }
+
+    #[test]
+    fn test_diagnostics_tool_result_includes_shader_errors_and_paths() {
+        let response = ShaderDiagnosticsResponse {
+            request_id: "req-1".to_string(),
+            ok: true,
+            error: None,
+            diagnostics: Some(ShaderDiagnostics {
+                background: ShaderDiagnosticsEntry {
+                    shader: Some("bad.glsl".to_string()),
+                    enabled: true,
+                    last_error: Some("naga validation failed".to_string()),
+                    wgsl_path: Some("/tmp/par_term_bad_shader.wgsl".to_string()),
+                },
+                cursor: ShaderDiagnosticsEntry {
+                    shader: None,
+                    enabled: false,
+                    last_error: None,
+                    wgsl_path: None,
+                },
+                shaders_dir: "/Users/example/.config/par-term/shaders".to_string(),
+                wrapped_glsl_path: "/tmp/par_term_debug_wrapped.glsl".to_string(),
+            }),
+        };
+
+        let result = diagnostics_tool_result(response);
+
+        assert!(result.get("isError").is_none());
+        let text = result["content"][0]["text"].as_str().unwrap();
+        assert!(text.contains("bad.glsl"));
+        assert!(text.contains("naga validation failed"));
+        assert!(text.contains("/tmp/par_term_bad_shader.wgsl"));
+        assert!(text.contains("shader_diagnostics"));
     }
 
     #[test]

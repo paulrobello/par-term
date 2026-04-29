@@ -355,5 +355,12 @@ pub(super) fn apply_renderer_config(
         None // No change attempted
     };
 
+    if let Some(result) = &shader_result {
+        window_state.shader_state.background_shader_last_error = result.clone();
+    }
+    if let Some(result) = &cursor_result {
+        window_state.shader_state.cursor_shader_last_error = result.clone();
+    }
+
     (shader_result, cursor_result)
 }

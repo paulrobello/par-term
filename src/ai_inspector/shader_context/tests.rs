@@ -543,6 +543,9 @@ fn test_context_how_to_apply_section() {
     let config = default_config();
     let ctx = build_shader_context(&config);
     assert!(ctx.contains("config_update"));
+    assert!(ctx.contains("shader_diagnostics"));
+    assert!(ctx.contains("last compile/reload errors"));
+    assert!(ctx.contains("Call `shader_diagnostics` after activation"));
     assert!(ctx.contains("custom_shader_enabled"));
     assert!(ctx.contains("cursor_shader_enabled"));
     assert!(ctx.contains("Do NOT edit config.yaml directly"));

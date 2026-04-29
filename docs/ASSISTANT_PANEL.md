@@ -242,6 +242,8 @@ When an agent TOML in the user config directory overrides a built-in embedded ag
 
 For visual debugging workflows, agents can use the `terminal_screenshot` MCP tool to request a screenshot of the terminal renderer output (for example shader output). Screenshot requests are permission-gated and are treated separately from normal file/config permissions. The `terminal_screenshot` tool is registered in par-term's built-in MCP server and requires the **Allow Agent Screenshots** setting to be enabled before requests are even presented for approval.
 
+For shader debugging workflows, agents can use the `shader_diagnostics` MCP tool to request live shader state from the running app. It returns the active background/cursor shader names, enabled state, last compile/reload errors, shader directory, and debug WGSL/wrapped GLSL paths. Agents should call this after shader activation or when a shader appears unchanged, black, white, or broken.
+
 ### Reset Permission Approvals
 
 The **Reset approvals** button in the controls row disconnects and immediately reconnects the agent, creating a new ACP session. This revokes all session-scoped permission approvals (such as "Allow for session" grants) without losing the chat history. Prior conversation messages are re-injected into the new session via [Context Restore Across Reconnects](#context-restore-across-reconnects).
@@ -560,13 +562,13 @@ When triggered, the following context block is prepended to the agent prompt:
 
 - **Current shader state**: Active background and cursor shader names, enabled/disabled status, animation speed, brightness, text opacity, glow parameters
 - **Available shaders**: List of `.glsl`, `.frag`, and `.shader` files in the shaders directory, classified into background and cursor categories (cursor shaders have filenames starting with `cursor_`)
-- **Debug file paths**: Location of transpiled WGSL output (`/tmp/par_term_<name>_shader.wgsl`) and wrapped GLSL (`/tmp/par_term_debug_wrapped.glsl`)
+- **Debug file paths and diagnostics**: Location of transpiled WGSL output (`/tmp/par_term_<name>_shader.wgsl`) and wrapped GLSL (`/tmp/par_term_debug_wrapped.glsl`), plus guidance to call the `shader_diagnostics` MCP tool for live active shader state and last compile/reload errors
 - **Available uniforms**: All Shadertoy-compatible uniforms (`iTime`, `iResolution`, `iMouse`, `iChannel0-4`) plus cursor-specific extras (`iCurrentCursor`, `iPreviousCursor`, `iTimeCursorChange`)
 - **Shader uniform controls**: Guidance for adding expanded settings-page controls, including linear/log `slider`, `checkbox`, `color`, `int`, `select`, `vec2`, `point`, `range`, `angle`, and `channel` controls. The assistant knows the supported syntax, value type rules, metadata defaults under `defaults.uniforms`, quoted labels, per-slot-class limits, angle conversion to radians, channel selectors for existing `iChannel0`..`iChannel4` sources, and when each control type is appropriate.
 - **GLSL compatibility and coordinate rules**: Guidance on sampler argument limitations, UV normalization/clamping, pixel-space vs UV-space handling, and Y-flip pitfalls
 - **Channel placeholder behavior**: Guidance that unset `iChannel0-3` are transparent 1x1 placeholders and how to detect real textures via `iChannelResolution`
 - **Minimal shader template**: A ready-to-use GLSL template with `mainImage` entry point
-- **How to apply changes**: Instructions for using the `config_update` MCP tool to activate shaders without editing `config.yaml` directly
+- **How to apply and verify changes**: Instructions for using the `config_update` MCP tool to activate shaders without editing `config.yaml` directly, then using `shader_diagnostics` for compile/reload errors and `terminal_screenshot` for visual verification
 - **Available config keys**: All background and cursor shader configuration keys with their types
 
 ### Config File Watcher

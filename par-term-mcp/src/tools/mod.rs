@@ -4,12 +4,14 @@
 //! dispatches `tools/call` requests to the appropriate per-tool handler.
 
 pub mod config_update;
+pub mod diagnostics;
 pub mod screenshot;
 
 use serde_json::Value;
 
 // Re-export per-tool handlers for use in lib.rs dispatch
 pub use config_update::handle_config_update;
+pub use diagnostics::handle_shader_diagnostics;
 pub use screenshot::handle_terminal_screenshot;
 
 // ---------------------------------------------------------------------------
@@ -56,6 +58,23 @@ fn terminal_screenshot_tool() -> Value {
     })
 }
 
+/// Build the input schema for the `shader_diagnostics` tool.
+fn shader_diagnostics_input_schema() -> Value {
+    serde_json::json!({
+        "type": "object",
+        "properties": {}
+    })
+}
+
+/// Build the tool descriptor for `shader_diagnostics`.
+fn shader_diagnostics_tool() -> Value {
+    serde_json::json!({
+        "name": "shader_diagnostics",
+        "description": "Return live shader diagnostics from the running par-term app: active background/cursor shader names, enabled state, last compile/reload errors, shaders directory, and debug WGSL/wrapped GLSL paths. Use after creating, editing, or activating shaders, especially if rendering fails or a shader appears unchanged.",
+        "inputSchema": shader_diagnostics_input_schema()
+    })
+}
+
 // ---------------------------------------------------------------------------
 // Dispatch
 // ---------------------------------------------------------------------------
@@ -63,7 +82,11 @@ fn terminal_screenshot_tool() -> Value {
 /// Handle the `tools/list` request.
 pub fn handle_tools_list() -> Value {
     serde_json::json!({
-        "tools": [config_update_tool(), terminal_screenshot_tool()]
+        "tools": [
+            config_update_tool(),
+            terminal_screenshot_tool(),
+            shader_diagnostics_tool(),
+        ]
     })
 }
 
@@ -81,6 +104,7 @@ pub fn handle_tools_call(params: Option<Value>) -> Value {
     match name {
         "config_update" => handle_config_update(&params),
         "terminal_screenshot" => handle_terminal_screenshot(&params),
+        "shader_diagnostics" => handle_shader_diagnostics(&params),
         _ => tool_error(&format!("Unknown tool: {name}")),
     }
 }

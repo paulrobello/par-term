@@ -75,7 +75,7 @@ impl WindowState {
                             metadata.as_ref(),
                             &self.config,
                         );
-                        if let Err(e) = renderer.set_custom_shader_enabled(
+                        match renderer.set_custom_shader_enabled(
                             par_term_render::renderer::shaders::CustomShaderEnableParams {
                                 enabled: self.config.shader.custom_shader_enabled,
                                 shader_path: self.config.shader.custom_shader.as_deref(),
@@ -89,19 +89,30 @@ impl WindowState {
                                 custom_uniforms: &resolved.custom_uniforms,
                             },
                         ) {
-                            log::error!("Config reload: shader load failed: {e}");
+                            Ok(()) => self.shader_state.background_shader_last_error = None,
+                            Err(e) => {
+                                let error = e.to_string();
+                                self.shader_state.background_shader_last_error =
+                                    Some(error.clone());
+                                log::error!("Config reload: shader load failed: {error}");
+                            }
                         }
                     }
                     if changes.any_cursor_shader_toggle() {
                         log::info!("CONFIG: applying cursor shader change to renderer");
-                        if let Err(e) = renderer.set_cursor_shader_enabled(
+                        match renderer.set_cursor_shader_enabled(
                             self.config.shader.cursor_shader_enabled,
                             self.config.shader.cursor_shader.as_deref(),
                             self.config.window.window_opacity,
                             self.config.shader.cursor_shader_animation,
                             self.config.shader.cursor_shader_animation_speed,
                         ) {
-                            log::error!("Config reload: cursor shader load failed: {e}");
+                            Ok(()) => self.shader_state.cursor_shader_last_error = None,
+                            Err(e) => {
+                                let error = e.to_string();
+                                self.shader_state.cursor_shader_last_error = Some(error.clone());
+                                log::error!("Config reload: cursor shader load failed: {error}");
+                            }
                         }
                     }
                 }
@@ -171,7 +182,7 @@ impl WindowState {
                     metadata.as_ref(),
                     &self.config,
                 );
-                if let Err(e) = renderer.set_custom_shader_enabled(
+                match renderer.set_custom_shader_enabled(
                     par_term_render::renderer::shaders::CustomShaderEnableParams {
                         enabled: self.config.shader.custom_shader_enabled,
                         shader_path: self.config.shader.custom_shader.as_deref(),
@@ -185,19 +196,29 @@ impl WindowState {
                         custom_uniforms: &resolved.custom_uniforms,
                     },
                 ) {
-                    log::error!("ACP config/update: shader load failed: {e}");
+                    Ok(()) => self.shader_state.background_shader_last_error = None,
+                    Err(e) => {
+                        let error = e.to_string();
+                        self.shader_state.background_shader_last_error = Some(error.clone());
+                        log::error!("ACP config/update: shader load failed: {error}");
+                    }
                 }
             }
             if changes.any_cursor_shader_toggle() {
                 log::info!("ACP config/update: applying cursor shader change to renderer");
-                if let Err(e) = renderer.set_cursor_shader_enabled(
+                match renderer.set_cursor_shader_enabled(
                     self.config.shader.cursor_shader_enabled,
                     self.config.shader.cursor_shader.as_deref(),
                     self.config.window.window_opacity,
                     self.config.shader.cursor_shader_animation,
                     self.config.shader.cursor_shader_animation_speed,
                 ) {
-                    log::error!("ACP config/update: cursor shader load failed: {e}");
+                    Ok(()) => self.shader_state.cursor_shader_last_error = None,
+                    Err(e) => {
+                        let error = e.to_string();
+                        self.shader_state.cursor_shader_last_error = Some(error.clone());
+                        log::error!("ACP config/update: cursor shader load failed: {error}");
+                    }
                 }
             }
         }

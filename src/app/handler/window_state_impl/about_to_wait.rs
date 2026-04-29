@@ -66,6 +66,9 @@ impl WindowState {
         // Check for MCP screenshot requests (.screenshot-request.json)
         self.check_screenshot_request_file();
 
+        // Check for MCP shader diagnostics requests (.shader-diagnostics-request.json)
+        self.check_shader_diagnostics_request_file();
+
         // Check for tmux control mode notifications
         if self.check_tmux_notifications() {
             self.focus_state.needs_redraw = true;

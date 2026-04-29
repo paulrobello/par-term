@@ -6,7 +6,9 @@
 use crate::app::window_state::WindowState;
 use crate::config::Config;
 use par_term_mcp::{
-    SCREENSHOT_REQUEST_FILENAME, SCREENSHOT_RESPONSE_FILENAME, TerminalScreenshotRequest,
+    SCREENSHOT_REQUEST_FILENAME, SCREENSHOT_RESPONSE_FILENAME, SHADER_DIAGNOSTICS_REQUEST_FILENAME,
+    SHADER_DIAGNOSTICS_RESPONSE_FILENAME, ShaderDiagnostics, ShaderDiagnosticsEntry,
+    ShaderDiagnosticsRequest, ShaderDiagnosticsResponse, TerminalScreenshotRequest,
     TerminalScreenshotResponse,
 };
 
@@ -94,6 +96,44 @@ impl WindowState {
                 debug_info!(
                     "CONFIG",
                     "Failed to initialize screenshot-request watcher: {}",
+                    e
+                );
+            }
+        }
+    }
+
+    /// Initialize the watcher for `.shader-diagnostics-request.json` (MCP shader diagnostics tool).
+    ///
+    /// The MCP server writes diagnostics requests to this file. We watch it,
+    /// collect live shader state, write a response to
+    /// `.shader-diagnostics-response.json`, and clear the request file.
+    pub(crate) fn init_shader_diagnostics_request_watcher(&mut self) {
+        let request_path = Config::config_dir().join(SHADER_DIAGNOSTICS_REQUEST_FILENAME);
+
+        if !request_path.exists() {
+            if let Some(parent) = request_path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            let _ = std::fs::write(&request_path, "");
+        }
+
+        let response_path = Config::config_dir().join(SHADER_DIAGNOSTICS_RESPONSE_FILENAME);
+        if !response_path.exists() {
+            if let Some(parent) = response_path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            let _ = std::fs::write(&response_path, "");
+        }
+
+        match crate::config::watcher::ConfigWatcher::new(&request_path, 100) {
+            Ok(watcher) => {
+                debug_info!("CONFIG", "Shader-diagnostics-request watcher initialized");
+                self.watcher_state.shader_diagnostics_request_watcher = Some(watcher);
+            }
+            Err(e) => {
+                debug_info!(
+                    "CONFIG",
+                    "Failed to initialize shader-diagnostics-request watcher: {}",
                     e
                 );
             }
@@ -215,4 +255,107 @@ impl WindowState {
         // Clear request file so it is processed only once.
         let _ = std::fs::write(&request_path, "");
     }
+
+    /// Check for pending shader diagnostics request file changes (from MCP server).
+    ///
+    /// When the MCP server writes `.shader-diagnostics-request.json`, this captures
+    /// active shader state and writes a response to `.shader-diagnostics-response.json`.
+    pub(crate) fn check_shader_diagnostics_request_file(&mut self) {
+        let Some(watcher) = &self.watcher_state.shader_diagnostics_request_watcher else {
+            return;
+        };
+        if watcher.try_recv().is_none() {
+            return;
+        }
+
+        let request_path = Config::config_dir().join(SHADER_DIAGNOSTICS_REQUEST_FILENAME);
+        let response_path = Config::config_dir().join(SHADER_DIAGNOSTICS_RESPONSE_FILENAME);
+
+        let content = match std::fs::read_to_string(&request_path) {
+            Ok(c) if c.trim().is_empty() => return,
+            Ok(c) => c,
+            Err(e) => {
+                log::warn!("ACP shader diagnostics: failed to read request file: {e}");
+                return;
+            }
+        };
+
+        let request = match serde_json::from_str::<ShaderDiagnosticsRequest>(&content) {
+            Ok(req) => req,
+            Err(e) => {
+                log::error!("ACP shader diagnostics: invalid JSON in request file: {e}");
+                let _ = std::fs::write(&request_path, "");
+                return;
+            }
+        };
+
+        let response = self.capture_shader_diagnostics_mcp_response(&request.request_id);
+
+        match serde_json::to_vec_pretty(&response) {
+            Ok(bytes) => {
+                let tmp = response_path.with_extension("json.tmp");
+                if let Err(e) =
+                    std::fs::write(&tmp, &bytes).and_then(|_| std::fs::rename(&tmp, &response_path))
+                {
+                    let _ = std::fs::remove_file(&tmp);
+                    log::error!(
+                        "ACP shader diagnostics: failed to write response {}: {}",
+                        response_path.display(),
+                        e
+                    );
+                }
+            }
+            Err(e) => {
+                log::error!("ACP shader diagnostics: failed to serialize response: {e}");
+            }
+        }
+
+        // Clear request file so it is processed only once.
+        let _ = std::fs::write(&request_path, "");
+    }
+
+    fn capture_shader_diagnostics_mcp_response(
+        &self,
+        request_id: &str,
+    ) -> ShaderDiagnosticsResponse {
+        ShaderDiagnosticsResponse {
+            request_id: request_id.to_string(),
+            ok: true,
+            error: None,
+            diagnostics: Some(ShaderDiagnostics {
+                background: ShaderDiagnosticsEntry {
+                    shader: self.config.shader.custom_shader.clone(),
+                    enabled: self.config.shader.custom_shader_enabled,
+                    last_error: self.shader_state.background_shader_last_error.clone(),
+                    wgsl_path: self
+                        .config
+                        .shader
+                        .custom_shader
+                        .as_ref()
+                        .map(|name| shader_debug_wgsl_path(name)),
+                },
+                cursor: ShaderDiagnosticsEntry {
+                    shader: self.config.shader.cursor_shader.clone(),
+                    enabled: self.config.shader.cursor_shader_enabled,
+                    last_error: self.shader_state.cursor_shader_last_error.clone(),
+                    wgsl_path: self
+                        .config
+                        .shader
+                        .cursor_shader
+                        .as_ref()
+                        .map(|name| shader_debug_wgsl_path(name)),
+                },
+                shaders_dir: Config::shaders_dir().display().to_string(),
+                wrapped_glsl_path: "/tmp/par_term_debug_wrapped.glsl".to_string(),
+            }),
+        }
+    }
+}
+
+fn shader_debug_wgsl_path(shader_name: &str) -> String {
+    let stem = std::path::Path::new(shader_name)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or(shader_name);
+    format!("/tmp/par_term_{stem}_shader.wgsl")
 }

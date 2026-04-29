@@ -17,6 +17,10 @@ pub(crate) struct ShaderState {
     pub(crate) cursor_shader_metadata_cache: CursorShaderMetadataCache,
     /// Last shader reload error message (for display in UI)
     pub(crate) shader_reload_error: Option<String>,
+    /// Last background shader compile/reload error for assistant diagnostics.
+    pub(crate) background_shader_last_error: Option<String>,
+    /// Last cursor shader compile/reload error for assistant diagnostics.
+    pub(crate) cursor_shader_last_error: Option<String>,
     /// Background shader reload result: None = no change, Some(None) = success, Some(Some(err)) = error
     /// Used to propagate hot reload results to standalone settings window
     pub(crate) background_shader_reload_result: Option<Option<String>>,
@@ -33,6 +37,8 @@ impl ShaderState {
             shader_metadata_cache: ShaderMetadataCache::with_shaders_dir(shaders_dir.clone()),
             cursor_shader_metadata_cache: CursorShaderMetadataCache::with_shaders_dir(shaders_dir),
             shader_reload_error: None,
+            background_shader_last_error: None,
+            cursor_shader_last_error: None,
             background_shader_reload_result: None,
             cursor_shader_reload_result: None,
         }

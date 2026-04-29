@@ -7,6 +7,8 @@
 use crate::{
     CONFIG_UPDATE_FILENAME, CONFIG_UPDATE_PATH_ENV, SCREENSHOT_REQUEST_FILENAME,
     SCREENSHOT_REQUEST_PATH_ENV, SCREENSHOT_RESPONSE_FILENAME, SCREENSHOT_RESPONSE_PATH_ENV,
+    SHADER_DIAGNOSTICS_REQUEST_FILENAME, SHADER_DIAGNOSTICS_REQUEST_PATH_ENV,
+    SHADER_DIAGNOSTICS_RESPONSE_FILENAME, SHADER_DIAGNOSTICS_RESPONSE_PATH_ENV,
 };
 use serde::Serialize;
 use std::io::Write;
@@ -77,6 +79,22 @@ pub fn screenshot_request_path() -> PathBuf {
 /// Resolve the path where screenshot responses should be written.
 pub fn screenshot_response_path() -> PathBuf {
     resolve_ipc_path(SCREENSHOT_RESPONSE_PATH_ENV, SCREENSHOT_RESPONSE_FILENAME)
+}
+
+/// Resolve the path where shader diagnostics requests should be written.
+pub fn shader_diagnostics_request_path() -> PathBuf {
+    resolve_ipc_path(
+        SHADER_DIAGNOSTICS_REQUEST_PATH_ENV,
+        SHADER_DIAGNOSTICS_REQUEST_FILENAME,
+    )
+}
+
+/// Resolve the path where shader diagnostics responses should be written.
+pub fn shader_diagnostics_response_path() -> PathBuf {
+    resolve_ipc_path(
+        SHADER_DIAGNOSTICS_RESPONSE_PATH_ENV,
+        SHADER_DIAGNOSTICS_RESPONSE_FILENAME,
+    )
 }
 
 /// Resolve a path from env var or default filename under the par-term config dir.
@@ -153,6 +171,20 @@ pub fn write_json_atomic<T: Serialize>(payload: &T, path: &Path) -> Result<(), S
 pub fn try_read_screenshot_response(
     path: &Path,
 ) -> Result<Option<crate::TerminalScreenshotResponse>, String> {
+    try_read_json_response(path)
+}
+
+/// Read and parse a shader diagnostics response file, returning `None` for empty files.
+pub fn try_read_shader_diagnostics_response(
+    path: &Path,
+) -> Result<Option<crate::ShaderDiagnosticsResponse>, String> {
+    try_read_json_response(path)
+}
+
+fn try_read_json_response<T>(path: &Path) -> Result<Option<T>, String>
+where
+    T: serde::de::DeserializeOwned,
+{
     let content = match std::fs::read_to_string(path) {
         Ok(c) => c,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
@@ -161,7 +193,6 @@ pub fn try_read_screenshot_response(
     if content.trim().is_empty() {
         return Ok(None);
     }
-    let resp = serde_json::from_str::<crate::TerminalScreenshotResponse>(&content)
-        .map_err(|e| e.to_string())?;
+    let resp = serde_json::from_str::<T>(&content).map_err(|e| e.to_string())?;
     Ok(Some(resp))
 }

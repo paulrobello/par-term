@@ -76,6 +76,8 @@ impl WindowState {
         // Drop existing watcher
         self.shader_state.shader_watcher = None;
         self.shader_state.shader_reload_error = None;
+        self.shader_state.background_shader_last_error = None;
+        self.shader_state.cursor_shader_last_error = None;
 
         // Reinitialize if hot reload is still enabled
         self.init_shader_watcher();
@@ -145,13 +147,15 @@ impl WindowState {
                 let error_msg = format!("Cannot read '{}': {}", file_name, e);
                 log::error!("Shader hot reload failed: {}", error_msg);
                 self.shader_state.shader_reload_error = Some(error_msg.clone());
-                // Track error for standalone settings window propagation
+                // Track error for standalone settings window propagation and assistant diagnostics
                 match event.shader_type {
                     ShaderType::Background => {
+                        self.shader_state.background_shader_last_error = Some(error_msg.clone());
                         self.shader_state.background_shader_reload_result =
                             Some(Some(error_msg.clone()));
                     }
                     ShaderType::Cursor => {
+                        self.shader_state.cursor_shader_last_error = Some(error_msg.clone());
                         self.shader_state.cursor_shader_reload_result =
                             Some(Some(error_msg.clone()));
                     }
@@ -192,12 +196,14 @@ impl WindowState {
                     self.refresh_background_shader_uniforms_after_reload(&source);
                 }
                 self.shader_state.shader_reload_error = None;
-                // Track success for standalone settings window propagation
+                // Track success for standalone settings window propagation and assistant diagnostics
                 match event.shader_type {
                     ShaderType::Background => {
+                        self.shader_state.background_shader_last_error = None;
                         self.shader_state.background_shader_reload_result = Some(None);
                     }
                     ShaderType::Cursor => {
+                        self.shader_state.cursor_shader_last_error = None;
                         self.shader_state.cursor_shader_reload_result = Some(None);
                     }
                 }
@@ -223,13 +229,15 @@ impl WindowState {
                 log::debug!("Full error chain: {:#}", e);
 
                 self.shader_state.shader_reload_error = Some(error_msg.clone());
-                // Track error for standalone settings window propagation
+                // Track error for standalone settings window propagation and assistant diagnostics
                 match event.shader_type {
                     ShaderType::Background => {
+                        self.shader_state.background_shader_last_error = Some(error_msg.clone());
                         self.shader_state.background_shader_reload_result =
                             Some(Some(error_msg.clone()));
                     }
                     ShaderType::Cursor => {
+                        self.shader_state.cursor_shader_last_error = Some(error_msg.clone());
                         self.shader_state.cursor_shader_reload_result =
                             Some(Some(error_msg.clone()));
                     }

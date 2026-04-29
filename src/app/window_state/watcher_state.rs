@@ -13,4 +13,6 @@ pub(crate) struct WatcherState {
     pub(crate) config_update_watcher: Option<ConfigWatcher>,
     /// Watcher for `.screenshot-request.json` written by the MCP server
     pub(crate) screenshot_request_watcher: Option<ConfigWatcher>,
+    /// Watcher for `.shader-diagnostics-request.json` written by the MCP server
+    pub(crate) shader_diagnostics_request_watcher: Option<ConfigWatcher>,
 }
