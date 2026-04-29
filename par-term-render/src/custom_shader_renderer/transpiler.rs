@@ -55,6 +55,165 @@ fn preprocess_glsl_for_shadertoy(glsl_source: &str) -> String {
     source
 }
 
+fn format_glsl_float_literal(value: f32) -> String {
+    if value == 0.0 {
+        return "0.0".to_string();
+    }
+
+    let mut literal = value.to_string();
+    if !literal.contains('.') && !literal.contains('e') && !literal.contains('E') {
+        literal.push_str(".0");
+    }
+    literal
+}
+
+fn active_custom_control_defines(
+    controls: &[par_term_config::ShaderControl],
+) -> std::collections::HashMap<String, String> {
+    let mut float_index = 0usize;
+    let mut bool_index = 0usize;
+    let mut defines = std::collections::HashMap::new();
+
+    for control in controls {
+        match control.kind {
+            par_term_config::ShaderControlKind::Slider { .. } => {
+                defines.insert(
+                    control.name.clone(),
+                    format!(
+                        "#define {} iCustomFloatUniforms[{}].{}\n",
+                        control.name,
+                        float_index / 4,
+                        ["x", "y", "z", "w"][float_index % 4]
+                    ),
+                );
+                float_index += 1;
+            }
+            par_term_config::ShaderControlKind::Checkbox => {
+                defines.insert(
+                    control.name.clone(),
+                    format!(
+                        "#define {} (iCustomBoolUniforms[{}].{} != 0)\n",
+                        control.name,
+                        bool_index / 4,
+                        ["x", "y", "z", "w"][bool_index % 4]
+                    ),
+                );
+                bool_index += 1;
+            }
+        }
+    }
+
+    defines
+}
+
+fn parse_control_uniform_declaration(line: &str) -> Option<(&str, &str)> {
+    let trimmed = line.trim();
+    if !trimmed.starts_with("uniform ") || !trimmed.ends_with(';') {
+        return None;
+    }
+
+    let without_semicolon = trimmed.trim_end_matches(';').trim();
+    let mut parts = without_semicolon.split_whitespace();
+    let uniform = parts.next()?;
+    let ty = parts.next()?;
+    let name = parts.next()?;
+
+    if uniform != "uniform" || parts.next().is_some() {
+        return None;
+    }
+
+    Some((ty, name))
+}
+
+fn parse_control_key_values<'a>(
+    tokens: impl Iterator<Item = &'a str>,
+) -> std::collections::HashMap<&'a str, &'a str> {
+    tokens
+        .filter_map(|token| token.split_once('='))
+        .filter(|(key, value)| !key.is_empty() && !value.is_empty())
+        .collect()
+}
+
+fn valid_attached_control_fallback(comment_line: &str, ty: &str) -> Option<String> {
+    let rest = comment_line.trim().strip_prefix("// control ")?;
+    let mut tokens = rest.split_whitespace();
+    let control_type = tokens.next()?;
+
+    match control_type {
+        "slider" if ty == "float" => {
+            let key_values = parse_control_key_values(tokens);
+            let min = key_values.get("min")?.parse::<f32>().ok()?;
+            let max = key_values.get("max")?.parse::<f32>().ok()?;
+            let step = key_values.get("step")?.parse::<f32>().ok()?;
+            if min.is_finite() && max.is_finite() && step.is_finite() && max >= min && step > 0.0 {
+                Some(format_glsl_float_literal(min))
+            } else {
+                None
+            }
+        }
+        "checkbox" if ty == "bool" => Some("false".to_string()),
+        _ => None,
+    }
+}
+
+fn safe_fallback_define(comment_line: &str, ty: &str, name: &str) -> String {
+    let fallback = valid_attached_control_fallback(comment_line, ty).unwrap_or_else(|| match ty {
+        "float" => "0.0".to_string(),
+        "bool" => "false".to_string(),
+        _ => unreachable!("fallback requested only for float/bool controls"),
+    });
+
+    format!("#define {name} {fallback}\n")
+}
+
+fn preprocess_custom_control_uniforms(source: &str) -> String {
+    let parse_result = par_term_config::parse_shader_controls(source);
+    let mut active_defines = active_custom_control_defines(&parse_result.controls);
+    let lines: Vec<&str> = source.lines().collect();
+    let mut strip_line_indices = std::collections::HashSet::new();
+    let mut control_defines = String::new();
+    let mut defined_names = std::collections::HashSet::new();
+
+    for (index, line) in lines.iter().enumerate() {
+        if !line.trim().starts_with("// control ") {
+            continue;
+        }
+
+        let Some(next_line) = lines.get(index + 1) else {
+            continue;
+        };
+        let Some((ty, name)) = parse_control_uniform_declaration(next_line) else {
+            continue;
+        };
+        if ty != "float" && ty != "bool" {
+            continue;
+        }
+
+        strip_line_indices.insert(index + 1);
+        if !defined_names.insert(name.to_string()) {
+            continue;
+        }
+
+        if let Some(define) = active_defines.remove(name) {
+            control_defines.push_str(&define);
+        } else {
+            control_defines.push_str(&safe_fallback_define(line, ty, name));
+        }
+    }
+
+    let mut output = String::new();
+    output.push_str(&control_defines);
+
+    for (index, line) in lines.iter().enumerate() {
+        if !strip_line_indices.contains(&index) {
+            output.push_str(line);
+            output.push('\n');
+        }
+    }
+
+    output
+}
+
 /// The shared GLSL wrapper template injected around the user shader code.
 ///
 /// The `{glsl_source}` placeholder is replaced with the user-provided (preprocessed) GLSL.
@@ -135,6 +294,12 @@ layout(set = 0, binding = 10) uniform sampler _iChannel4Sampler;
 // Cubemap texture (iCubemap)
 layout(set = 0, binding = 11) uniform textureCube _iCubemapTex;
 layout(set = 0, binding = 12) uniform sampler _iCubemapSampler;
+
+// Custom shader controls generated from `// control ...` comments.
+layout(set = 0, binding = 13) uniform CustomShaderControls {{
+    vec4 iCustomFloatUniforms[4];
+    ivec4 iCustomBoolUniforms[4];
+}};
 
 // Combined samplers for texture() calls
 #define iChannel0 sampler2D(_iChannel0Tex, _iChannel0Sampler)
@@ -305,7 +470,8 @@ fn transpile_impl(
     debug_glsl_filename: &str,
     builtin_order: BuiltinPositionOrder,
 ) -> Result<String> {
-    let glsl_source = preprocess_glsl_for_shadertoy(glsl_source);
+    let glsl_source = preprocess_custom_control_uniforms(glsl_source);
+    let glsl_source = preprocess_glsl_for_shadertoy(&glsl_source);
     let wrapped_glsl = glsl_wrapper_template(&glsl_source);
 
     // DEBUG: Write wrapped GLSL to file for inspection (debug builds only)
@@ -512,4 +678,159 @@ pub(crate) fn transpile_glsl_to_wgsl_source(glsl_source: &str, name: &str) -> Re
         "par_term_debug_wrapped_source.glsl",
         BuiltinPositionOrder::Before,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn controlled_uniform_declarations_are_replaced_with_custom_block_macros() {
+        let source = r#"
+// control slider min=0 max=1 step=0.01
+uniform float iGlow;
+// control checkbox
+uniform bool iEnabled;
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {
+    fragColor = vec4(vec3(iGlow), iEnabled ? 1.0 : 0.0);
+}
+"#;
+
+        let preprocessed = preprocess_custom_control_uniforms(source);
+
+        assert!(!preprocessed.contains("uniform float iGlow;"));
+        assert!(!preprocessed.contains("uniform bool iEnabled;"));
+        assert!(preprocessed.contains("#define iGlow iCustomFloatUniforms[0].x"));
+        assert!(preprocessed.contains("#define iEnabled (iCustomBoolUniforms[0].x != 0)"));
+    }
+
+    #[test]
+    fn controlled_uniform_declarations_with_whitespace_are_stripped() {
+        let source = r#"
+// control slider min=0 max=1 step=0.01
+uniform float iGlow ;
+// control checkbox
+uniform   bool   iEnabled   ;
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {
+    fragColor = vec4(vec3(iGlow), iEnabled ? 1.0 : 0.0);
+}
+"#;
+
+        let preprocessed = preprocess_custom_control_uniforms(source);
+
+        assert!(!preprocessed.contains("uniform float iGlow ;"));
+        assert!(!preprocessed.contains("uniform   bool   iEnabled   ;"));
+        assert!(preprocessed.contains("#define iGlow iCustomFloatUniforms[0].x"));
+        assert!(preprocessed.contains("#define iEnabled (iCustomBoolUniforms[0].x != 0)"));
+    }
+
+    #[test]
+    fn controlled_uniforms_over_float_limit_are_replaced_with_safe_fallback() {
+        let mut source = String::new();
+        for index in 0..17 {
+            source.push_str("// control slider min=0.25 max=1 step=0.01\n");
+            source.push_str(&format!("uniform float iFloat{index};\n"));
+        }
+        source.push_str(
+            "void mainImage(out vec4 fragColor, in vec2 fragCoord) { fragColor = vec4(iFloat16); }\n",
+        );
+
+        let preprocessed = preprocess_custom_control_uniforms(&source);
+
+        assert!(preprocessed.contains("#define iFloat15 iCustomFloatUniforms[3].w"));
+        assert!(preprocessed.contains("#define iFloat16 0.25"));
+        assert!(!preprocessed.contains("uniform float iFloat16;"));
+    }
+
+    #[test]
+    fn malformed_attached_controlled_uniform_is_replaced_with_safe_fallback() {
+        let source = r#"
+// control slider min=0 max=1
+uniform float iGlow;
+// control radio
+uniform bool iEnabled;
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {
+    fragColor = vec4(vec3(iGlow), iEnabled ? 1.0 : 0.0);
+}
+"#;
+
+        let preprocessed = preprocess_custom_control_uniforms(source);
+
+        assert!(preprocessed.contains("#define iGlow 0.0"));
+        assert!(preprocessed.contains("#define iEnabled false"));
+        assert!(!preprocessed.contains("uniform float iGlow;"));
+        assert!(!preprocessed.contains("uniform bool iEnabled;"));
+    }
+
+    #[test]
+    fn controlled_uniform_parser_warns_and_ignores_over_limit_controls() {
+        let mut source = String::new();
+        for index in 0..17 {
+            source.push_str("// control checkbox\n");
+            source.push_str(&format!("uniform bool iBool{index};\n"));
+        }
+
+        let result = par_term_config::parse_shader_controls(&source);
+
+        assert_eq!(result.controls.len(), 16);
+        assert!(
+            result
+                .controls
+                .iter()
+                .all(|control| control.name != "iBool16")
+        );
+        assert!(result.warnings.iter().any(|warning| {
+            warning
+                .message
+                .contains("Only the first 16 checkbox controls")
+        }));
+    }
+
+    #[test]
+    fn transpiled_controlled_uniform_shader_mentions_custom_uniform_block() {
+        let source = r#"
+// control slider min=0 max=1 step=0.01
+uniform float iGlow;
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {
+    fragColor = vec4(vec3(iGlow), 1.0);
+}
+"#;
+
+        let wgsl = transpile_glsl_to_wgsl_source(source, "controlled_test").unwrap();
+
+        assert!(wgsl.contains("iCustomFloatUniforms") || wgsl.contains("custom"));
+    }
+
+    #[test]
+    fn transpiled_malformed_attached_controlled_uniform_uses_safe_fallback() {
+        let source = r#"
+// control slider min=0 max=1
+uniform float iGlow;
+// control radio
+uniform bool iEnabled;
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {
+    fragColor = vec4(vec3(iGlow), iEnabled ? 1.0 : 0.0);
+}
+"#;
+
+        let wgsl = transpile_glsl_to_wgsl_source(source, "malformed_controlled_test").unwrap();
+
+        assert!(wgsl.contains("0.0") || wgsl.contains("false"));
+    }
+
+    #[test]
+    fn transpiled_over_limit_controlled_uniform_uses_safe_fallback() {
+        let mut source = String::new();
+        for index in 0..17 {
+            source.push_str("// control slider min=0.25 max=1 step=0.01\n");
+            source.push_str(&format!("uniform float iFloat{index};\n"));
+        }
+        source.push_str(
+            "void mainImage(out vec4 fragColor, in vec2 fragCoord) { fragColor = vec4(vec3(iFloat16), 1.0); }\n",
+        );
+
+        let wgsl = transpile_glsl_to_wgsl_source(&source, "over_limit_controlled_test").unwrap();
+
+        assert!(wgsl.contains("0.25"));
+    }
 }

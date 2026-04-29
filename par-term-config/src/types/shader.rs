@@ -1,6 +1,7 @@
 //! Shader configuration types: per-shader settings, metadata, and resolved configs.
 
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 // ============================================================================
@@ -23,6 +24,13 @@ pub struct ShaderMetadata {
     /// Default configuration values for this shader
     #[serde(default)]
     pub defaults: ShaderConfig,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ShaderUniformValue {
+    Float(f32),
+    Bool(bool),
 }
 
 /// Per-shader configuration settings.
@@ -53,6 +61,9 @@ pub struct ShaderConfig {
     pub cubemap_enabled: Option<bool>,
     /// Use the app's background image as iChannel0 instead of a separate texture
     pub use_background_as_channel0: Option<bool>,
+    /// Custom shader uniform values for `// control ...` declarations.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub uniforms: BTreeMap<String, ShaderUniformValue>,
 }
 
 /// Cursor shader specific configuration.
@@ -123,6 +134,8 @@ pub struct ResolvedShaderConfig {
     pub cubemap_enabled: bool,
     /// Use the app's background image as iChannel0
     pub use_background_as_channel0: bool,
+    /// Custom shader uniform values resolved from metadata defaults and user overrides.
+    pub custom_uniforms: BTreeMap<String, ShaderUniformValue>,
 }
 
 impl Default for ResolvedShaderConfig {
@@ -139,6 +152,7 @@ impl Default for ResolvedShaderConfig {
             cubemap: None,
             cubemap_enabled: true,
             use_background_as_channel0: false,
+            custom_uniforms: BTreeMap::new(),
         }
     }
 }

@@ -86,6 +86,7 @@ impl WindowState {
                                 brightness: resolved.brightness,
                                 channel_paths: &resolved.channel_paths(),
                                 cubemap_path: resolved.cubemap_path().map(|p| p.as_path()),
+                                custom_uniforms: &resolved.custom_uniforms,
                             },
                         ) {
                             log::error!("Config reload: shader load failed: {e}");
@@ -181,6 +182,7 @@ impl WindowState {
                         brightness: resolved.brightness,
                         channel_paths: &resolved.channel_paths(),
                         cubemap_path: resolved.cubemap_path().map(|p| p.as_path()),
+                        custom_uniforms: &resolved.custom_uniforms,
                     },
                 ) {
                     log::error!("ACP config/update: shader load failed: {e}");

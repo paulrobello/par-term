@@ -27,6 +27,7 @@ use winit::window::WindowId;
 
 use par_term_settings_ui::{ShaderInstallResult, ShaderUninstallResult};
 
+use crate::config::resolve_shader_config;
 use crate::settings_window::{SettingsWindow, SettingsWindowAction};
 
 use super::WindowManager;
@@ -201,6 +202,26 @@ impl WindowManager {
             if let Some(renderer) = &mut window_state.renderer {
                 match renderer.reload_shader_from_source(source) {
                     Ok(()) => {
+                        if let Some(shader_name) = window_state.config.shader.custom_shader.clone()
+                        {
+                            window_state
+                                .shader_state
+                                .shader_metadata_cache
+                                .invalidate(&shader_name);
+                            let metadata =
+                                par_term_config::parse_shader_metadata(source).or_else(|| {
+                                    window_state
+                                        .shader_state
+                                        .shader_metadata_cache
+                                        .get_fresh(&shader_name)
+                                });
+                            let resolved = resolve_shader_config(
+                                window_state.config.get_shader_override(&shader_name),
+                                metadata.as_ref(),
+                                &window_state.config,
+                            );
+                            renderer.set_custom_shader_uniform_values(resolved.custom_uniforms);
+                        }
                         window_state.focus_state.needs_redraw = true;
                         if let Some(window) = &window_state.window {
                             window.request_redraw();

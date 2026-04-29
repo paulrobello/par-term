@@ -29,6 +29,7 @@ pub(super) fn init_custom_shader(
         brightness: custom_shader_brightness,
         channel_paths: custom_shader_channel_paths,
         cubemap_path: custom_shader_cubemap_path,
+        custom_uniforms,
         use_background_as_channel0,
     } = params;
     log::info!(
@@ -61,6 +62,7 @@ pub(super) fn init_custom_shader(
             full_content_mode: custom_shader_full_content,
             channel_paths: custom_shader_channel_paths,
             cubemap_path: custom_shader_cubemap_path,
+            custom_uniforms,
         },
     ) {
         Ok(mut renderer) => {
@@ -114,6 +116,17 @@ impl Renderer {
         }
     }
 
+    /// Update custom shader uniform values keyed by control name.
+    pub fn set_custom_shader_uniform_values(
+        &mut self,
+        values: std::collections::BTreeMap<String, par_term_config::ShaderUniformValue>,
+    ) {
+        if let Some(ref mut custom_shader) = self.custom_shader_renderer {
+            custom_shader.set_custom_uniform_values(values);
+            self.dirty = true;
+        }
+    }
+
     /// Reload the custom shader from source code.
     ///
     /// Compiles the new shader source and replaces the current pipeline.
@@ -153,6 +166,7 @@ impl Renderer {
             brightness,
             channel_paths,
             cubemap_path,
+            custom_uniforms,
         } = params;
         match (enabled, shader_path) {
             (true, Some(path)) => {
@@ -168,6 +182,7 @@ impl Renderer {
                     renderer.set_opacity(window_opacity);
                     renderer.set_full_content_mode(full_content);
                     renderer.set_brightness(brightness);
+                    renderer.set_custom_uniform_values(custom_uniforms.clone());
 
                     // Update channel textures (they may have changed even if shader path didn't)
                     for (i, path) in channel_paths.iter().enumerate() {
@@ -210,6 +225,7 @@ impl Renderer {
                         full_content_mode: full_content,
                         channel_paths,
                         cubemap_path,
+                        custom_uniforms,
                     },
                 ) {
                     Ok(mut renderer) => {

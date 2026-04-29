@@ -119,6 +119,30 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     }
 
     #[test]
+    fn test_parse_metadata_with_custom_uniform_defaults() {
+        let source = r#"/*! par-term shader metadata
+name: "Controlled Shader"
+defaults:
+  uniforms:
+    iGlow: 0.5
+    iEnabled: true
+*/
+
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {}
+"#;
+
+        let metadata = parse_shader_metadata(source).expect("Should parse metadata");
+        assert_eq!(
+            metadata.defaults.uniforms.get("iGlow"),
+            Some(&crate::types::shader::ShaderUniformValue::Float(0.5))
+        );
+        assert_eq!(
+            metadata.defaults.uniforms.get("iEnabled"),
+            Some(&crate::types::shader::ShaderUniformValue::Bool(true))
+        );
+    }
+
+    #[test]
     fn test_parse_metadata_not_found() {
         let source = r#"// Regular shader without metadata
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {

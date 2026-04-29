@@ -55,6 +55,7 @@ use crate::types::{
     CursorShaderConfig, CursorShaderMetadata, ResolvedCursorShaderConfig, ResolvedShaderConfig,
     ShaderConfig, ShaderMetadata,
 };
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 /// Resolve a shader configuration by merging sources in priority order.
@@ -111,6 +112,13 @@ pub fn resolve_shader_config(
         }};
     }
 
+    let mut custom_uniforms = metadata
+        .map(|m| m.defaults.uniforms.clone())
+        .unwrap_or_default();
+    if let Some(user_override) = user_override {
+        custom_uniforms.extend(user_override.uniforms.clone());
+    }
+
     ResolvedShaderConfig {
         animation_speed: resolve!(animation_speed, config.shader.custom_shader_animation_speed),
         brightness: resolve!(brightness, config.shader.custom_shader_brightness),
@@ -126,6 +134,7 @@ pub fn resolve_shader_config(
             use_background_as_channel0,
             config.shader.custom_shader_use_background_as_channel0
         ),
+        custom_uniforms,
     }
 }
 
@@ -181,6 +190,7 @@ pub fn resolve_cursor_shader_config(
         cubemap: None,
         cubemap_enabled: false,
         use_background_as_channel0: false,
+        custom_uniforms: BTreeMap::new(),
     };
 
     // Resolve cursor-specific values
@@ -286,7 +296,8 @@ pub mod global_defaults {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ShaderConfig;
+    use crate::{ShaderConfig, ShaderUniformValue};
+    use std::collections::BTreeMap;
 
     fn make_test_config() -> Config {
         Config::default()
@@ -366,6 +377,79 @@ mod tests {
         assert_eq!(resolved.brightness, 0.9);
         // Metadata default used when no user override
         assert_eq!(resolved.text_opacity, 0.8);
+    }
+
+    #[test]
+    fn resolve_custom_uniforms_user_override_beats_metadata_default() {
+        let config = make_test_config();
+        let user_override = ShaderConfig {
+            uniforms: BTreeMap::from([
+                ("iGlow".to_string(), ShaderUniformValue::Float(0.9)),
+                ("iUserOnly".to_string(), ShaderUniformValue::Bool(true)),
+            ]),
+            ..Default::default()
+        };
+        let metadata = ShaderMetadata {
+            defaults: ShaderConfig {
+                uniforms: BTreeMap::from([
+                    ("iGlow".to_string(), ShaderUniformValue::Float(0.4)),
+                    ("iMetaOnly".to_string(), ShaderUniformValue::Bool(false)),
+                ]),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        let resolved = resolve_shader_config(Some(&user_override), Some(&metadata), &config);
+
+        assert_eq!(
+            resolved.custom_uniforms.get("iGlow"),
+            Some(&ShaderUniformValue::Float(0.9))
+        );
+        assert_eq!(
+            resolved.custom_uniforms.get("iMetaOnly"),
+            Some(&ShaderUniformValue::Bool(false))
+        );
+        assert_eq!(
+            resolved.custom_uniforms.get("iUserOnly"),
+            Some(&ShaderUniformValue::Bool(true))
+        );
+    }
+
+    #[test]
+    fn resolve_custom_uniforms_metadata_default_used_when_no_override() {
+        let config = make_test_config();
+        let metadata = ShaderMetadata {
+            defaults: ShaderConfig {
+                uniforms: BTreeMap::from([("iGlow".to_string(), ShaderUniformValue::Float(0.4))]),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        let resolved = resolve_shader_config(None, Some(&metadata), &config);
+
+        assert_eq!(
+            resolved.custom_uniforms.get("iGlow"),
+            Some(&ShaderUniformValue::Float(0.4))
+        );
+    }
+
+    #[test]
+    fn test_shader_config_uniforms_yaml_roundtrip() {
+        let config = ShaderConfig {
+            uniforms: BTreeMap::from([
+                ("iGlow".to_string(), ShaderUniformValue::Float(0.75)),
+                ("iEnabled".to_string(), ShaderUniformValue::Bool(true)),
+            ]),
+            ..Default::default()
+        };
+
+        let yaml = serde_yaml_ng::to_string(&config).expect("serialize shader config");
+        let roundtrip: ShaderConfig =
+            serde_yaml_ng::from_str(&yaml).expect("deserialize shader config");
+
+        assert_eq!(roundtrip, config);
     }
 
     #[test]

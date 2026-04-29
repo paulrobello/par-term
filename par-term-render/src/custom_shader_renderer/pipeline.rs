@@ -8,7 +8,7 @@ use wgpu::*;
 use super::cubemap::CubemapTexture;
 use super::textures::ChannelTexture;
 
-/// Create the bind group layout for custom shaders with all 13 entries.
+/// Create the bind group layout for custom shaders with all 14 entries.
 ///
 /// Layout:
 /// - 0: Uniform buffer
@@ -24,6 +24,7 @@ use super::textures::ChannelTexture;
 /// - 10: iChannel4 sampler
 /// - 11: iCubemap texture (cubemap for environment mapping)
 /// - 12: iCubemap sampler
+/// - 13: Custom shader controls uniform buffer
 pub fn create_bind_group_layout(device: &Device) -> BindGroupLayout {
     device.create_bind_group_layout(&BindGroupLayoutDescriptor {
         label: Some("Custom Shader Bind Group Layout"),
@@ -147,29 +148,51 @@ pub fn create_bind_group_layout(device: &Device) -> BindGroupLayout {
                 ty: BindingType::Sampler(SamplerBindingType::Filtering),
                 count: None,
             },
+            // Custom shader controls uniform buffer (binding 13)
+            BindGroupLayoutEntry {
+                binding: 13,
+                visibility: ShaderStages::FRAGMENT,
+                ty: BindingType::Buffer {
+                    ty: BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
         ],
     })
 }
 
+/// Inputs used to create a custom shader bind group.
+pub struct BindGroupInputs<'a> {
+    /// The bind group layout.
+    pub layout: &'a BindGroupLayout,
+    /// Uniform buffer for shader parameters.
+    pub uniform_buffer: &'a Buffer,
+    /// Terminal content texture view (iChannel4).
+    pub intermediate_texture_view: &'a TextureView,
+    /// Uniform buffer for custom shader controls.
+    pub custom_uniform_buffer: &'a Buffer,
+    /// Sampler for the intermediate texture.
+    pub sampler: &'a Sampler,
+    /// Array of 4 channel textures (iChannel0-3, Shadertoy compatible).
+    pub channel_textures: &'a [ChannelTexture; 4],
+    /// Cubemap texture for environment mapping (iCubemap).
+    pub cubemap: &'a CubemapTexture,
+}
+
 /// Create a bind group for the custom shader with all textures and uniforms.
-///
-/// # Arguments
-/// * `device` - The wgpu device
-/// * `layout` - The bind group layout
-/// * `uniform_buffer` - Uniform buffer for shader parameters
-/// * `intermediate_texture_view` - Terminal content texture view (iChannel4)
-/// * `sampler` - Sampler for the intermediate texture
-/// * `channel_textures` - Array of 4 channel textures (iChannel0-3, Shadertoy compatible)
-/// * `cubemap` - Cubemap texture for environment mapping (iCubemap)
-pub fn create_bind_group(
-    device: &Device,
-    layout: &BindGroupLayout,
-    uniform_buffer: &Buffer,
-    intermediate_texture_view: &TextureView,
-    sampler: &Sampler,
-    channel_textures: &[ChannelTexture; 4],
-    cubemap: &CubemapTexture,
-) -> BindGroup {
+pub fn create_bind_group(device: &Device, inputs: BindGroupInputs<'_>) -> BindGroup {
+    let BindGroupInputs {
+        layout,
+        uniform_buffer,
+        intermediate_texture_view,
+        custom_uniform_buffer,
+        sampler,
+        channel_textures,
+        cubemap,
+    } = inputs;
+
     device.create_bind_group(&BindGroupDescriptor {
         label: Some("Custom Shader Bind Group"),
         layout,
@@ -231,6 +254,11 @@ pub fn create_bind_group(
             BindGroupEntry {
                 binding: 12,
                 resource: BindingResource::Sampler(&cubemap.sampler),
+            },
+            // Custom shader controls
+            BindGroupEntry {
+                binding: 13,
+                resource: custom_uniform_buffer.as_entire_binding(),
             },
         ],
     })

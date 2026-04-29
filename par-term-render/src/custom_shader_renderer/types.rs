@@ -93,8 +93,109 @@ pub(crate) struct CustomShaderUniforms {
 }
 // Total size: 304 bytes
 
+pub(crate) const MAX_CUSTOM_FLOAT_UNIFORMS: usize = 16;
+pub(crate) const MAX_CUSTOM_BOOL_UNIFORMS: usize = 16;
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+pub(crate) struct CustomShaderControlUniforms {
+    /// 16 float slots stored as 4 vec4s for std140 array alignment.
+    pub float_values: [[f32; 4]; 4],
+    /// 16 bool slots stored as 4 uvec4s/ivec4s for std140 array alignment.
+    pub bool_values: [[u32; 4]; 4],
+}
+
+impl CustomShaderControlUniforms {
+    pub(crate) fn from_controls(
+        controls: &[par_term_config::ShaderControl],
+        values: &std::collections::BTreeMap<String, par_term_config::ShaderUniformValue>,
+    ) -> Self {
+        let mut uniforms = Self {
+            float_values: [[0.0; 4]; 4],
+            bool_values: [[0; 4]; 4],
+        };
+        let mut float_index = 0usize;
+        let mut bool_index = 0usize;
+
+        for control in controls {
+            match control.kind {
+                par_term_config::ShaderControlKind::Slider { min, max, .. } => {
+                    if float_index >= MAX_CUSTOM_FLOAT_UNIFORMS {
+                        continue;
+                    }
+                    let value = match values.get(&control.name) {
+                        Some(par_term_config::ShaderUniformValue::Float(value)) => *value,
+                        _ => min,
+                    }
+                    .clamp(min, max);
+                    uniforms.float_values[float_index / 4][float_index % 4] = value;
+                    float_index += 1;
+                }
+                par_term_config::ShaderControlKind::Checkbox => {
+                    if bool_index >= MAX_CUSTOM_BOOL_UNIFORMS {
+                        continue;
+                    }
+                    let value = matches!(
+                        values.get(&control.name),
+                        Some(par_term_config::ShaderUniformValue::Bool(true))
+                    );
+                    uniforms.bool_values[bool_index / 4][bool_index % 4] = u32::from(value);
+                    bool_index += 1;
+                }
+            }
+        }
+
+        uniforms
+    }
+}
+
+const _: () = assert!(
+    std::mem::size_of::<CustomShaderControlUniforms>() == 128,
+    "CustomShaderControlUniforms must be exactly 128 bytes"
+);
+
 // Compile-time assertion to ensure uniform struct size matches expectations
 const _: () = assert!(
     std::mem::size_of::<CustomShaderUniforms>() == 304,
     "CustomShaderUniforms must be exactly 304 bytes for GPU compatibility"
 );
+
+#[cfg(test)]
+mod custom_uniform_tests {
+    use super::*;
+
+    #[test]
+    fn custom_shader_control_uniforms_are_vec4_aligned() {
+        assert_eq!(std::mem::size_of::<CustomShaderControlUniforms>(), 128);
+    }
+
+    #[test]
+    fn builds_control_uniforms_with_clamped_slider_and_bool_slots() {
+        use par_term_config::{ShaderControl, ShaderControlKind, ShaderUniformValue};
+        use std::collections::BTreeMap;
+
+        let controls = vec![
+            ShaderControl {
+                name: "iGlow".to_string(),
+                kind: ShaderControlKind::Slider {
+                    min: 0.0,
+                    max: 1.0,
+                    step: 0.1,
+                },
+            },
+            ShaderControl {
+                name: "iEnabled".to_string(),
+                kind: ShaderControlKind::Checkbox,
+            },
+        ];
+        let values = BTreeMap::from([
+            ("iGlow".to_string(), ShaderUniformValue::Float(2.0)),
+            ("iEnabled".to_string(), ShaderUniformValue::Bool(true)),
+        ]);
+
+        let uniforms = CustomShaderControlUniforms::from_controls(&controls, &values);
+
+        assert_eq!(uniforms.float_values[0][0], 1.0);
+        assert_eq!(uniforms.bool_values[0][0], 1);
+    }
+}

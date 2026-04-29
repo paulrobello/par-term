@@ -21,6 +21,7 @@ fn expand_path(path: &str) -> String {
 }
 use crate::renderer::{Renderer, RendererParams};
 use crate::themes::Theme;
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use winit::window::Window;
@@ -69,6 +70,7 @@ pub(crate) struct RendererInitParams {
     pub custom_shader_brightness: f32,
     pub custom_shader_channel_paths: [Option<PathBuf>; 4],
     pub custom_shader_cubemap_path: Option<PathBuf>,
+    pub custom_shader_custom_uniforms: BTreeMap<String, par_term_config::ShaderUniformValue>,
     pub use_background_as_channel0: bool,
     pub image_scaling_mode: crate::config::ImageScalingMode,
     pub image_preserve_aspect_ratio: bool,
@@ -204,6 +206,7 @@ impl RendererInitParams {
             custom_shader_brightness: resolved.brightness,
             custom_shader_channel_paths: resolved.channel_paths(),
             custom_shader_cubemap_path: resolved.cubemap_path().cloned(),
+            custom_shader_custom_uniforms: resolved.custom_uniforms.clone(),
             use_background_as_channel0: resolved.use_background_as_channel0,
             image_scaling_mode: config.image_scaling_mode,
             image_preserve_aspect_ratio: config.image_preserve_aspect_ratio,
@@ -278,6 +281,7 @@ impl RendererInitParams {
             custom_shader_brightness: self.custom_shader_brightness,
             custom_shader_channel_paths: &self.custom_shader_channel_paths,
             custom_shader_cubemap_path: self.custom_shader_cubemap_path.as_deref(),
+            custom_shader_custom_uniforms: &self.custom_shader_custom_uniforms,
             use_background_as_channel0: self.use_background_as_channel0,
             image_scaling_mode: self.image_scaling_mode,
             image_preserve_aspect_ratio: self.image_preserve_aspect_ratio,

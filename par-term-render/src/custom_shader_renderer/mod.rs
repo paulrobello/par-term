@@ -29,8 +29,10 @@
 
 use anyhow::{Context, Result};
 use par_term_emu_core_rust::cursor::CursorStyle;
+use std::collections::BTreeMap;
 use std::path::Path;
 use std::time::Instant;
+use wgpu::util::DeviceExt;
 use wgpu::*;
 
 mod cubemap;
@@ -43,7 +45,9 @@ pub mod types;
 mod uniforms;
 
 use cubemap::CubemapTexture;
-use pipeline::{create_bind_group, create_bind_group_layout, create_render_pipeline};
+use pipeline::{
+    BindGroupInputs, create_bind_group, create_bind_group_layout, create_render_pipeline,
+};
 use textures::{ChannelTexture, load_channel_textures};
 use transpiler::transpile_glsl_to_wgsl;
 
@@ -55,6 +59,8 @@ pub struct CustomShaderRenderer {
     pub(crate) bind_group: BindGroup,
     /// Uniform buffer for shader parameters
     pub(crate) uniform_buffer: Buffer,
+    /// Uniform buffer for custom shader control values
+    pub(crate) custom_uniform_buffer: Buffer,
     /// Intermediate texture to render terminal content into
     pub(crate) intermediate_texture: Texture,
     /// View of the intermediate texture
@@ -174,6 +180,12 @@ pub struct CustomShaderRenderer {
     /// Right content inset in pixels (e.g., AI Inspector panel).
     /// The shader renders to a viewport offset by this amount from the left.
     pub(crate) content_inset_right: f32,
+
+    // ============ Custom shader controls ============
+    /// Custom controls parsed from `// control ...` shader comments.
+    pub(crate) custom_controls: Vec<par_term_config::ShaderControl>,
+    /// Current custom uniform values keyed by control name.
+    pub(crate) custom_uniform_values: BTreeMap<String, par_term_config::ShaderUniformValue>,
 }
 
 /// Parameters for creating a new [`CustomShaderRenderer`].
@@ -188,6 +200,7 @@ pub struct CustomShaderRendererConfig<'a> {
     pub full_content_mode: bool,
     pub channel_paths: &'a [Option<std::path::PathBuf>; 4],
     pub cubemap_path: Option<&'a Path>,
+    pub custom_uniforms: &'a BTreeMap<String, par_term_config::ShaderUniformValue>,
 }
 
 impl CustomShaderRenderer {
@@ -208,10 +221,22 @@ impl CustomShaderRenderer {
             full_content_mode,
             channel_paths,
             cubemap_path,
+            custom_uniforms,
         } = config;
         // Load the GLSL shader
         let glsl_source = std::fs::read_to_string(shader_path)
             .with_context(|| format!("Failed to read shader file: {}", shader_path.display()))?;
+
+        let control_parse = par_term_config::parse_shader_controls(&glsl_source);
+        for warning in &control_parse.warnings {
+            log::warn!(
+                "Shader control warning line {}: {}",
+                warning.line,
+                warning.message
+            );
+        }
+        let custom_controls = control_parse.controls;
+        let custom_uniform_values = custom_uniforms.clone();
 
         // Transpile GLSL to WGSL
         let wgsl_source = transpile_glsl_to_wgsl(&glsl_source, shader_path)?;
@@ -283,19 +308,32 @@ impl CustomShaderRenderer {
             None => CubemapTexture::placeholder(device, queue),
         };
 
-        // Create uniform buffer
+        // Create uniform buffers
         let uniform_buffer = Self::create_uniform_buffer(device);
+        let custom_uniform_data =
+            crate::custom_shader_renderer::types::CustomShaderControlUniforms::from_controls(
+                &custom_controls,
+                &custom_uniform_values,
+            );
+        let custom_uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Custom Shader Control Uniform Buffer"),
+            contents: bytemuck::cast_slice(&[custom_uniform_data]),
+            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+        });
 
         // Create bind group layout and bind group
         let bind_group_layout = create_bind_group_layout(device);
         let bind_group = create_bind_group(
             device,
-            &bind_group_layout,
-            &uniform_buffer,
-            &intermediate_texture_view,
-            &sampler,
-            &channel_textures,
-            &cubemap,
+            BindGroupInputs {
+                layout: &bind_group_layout,
+                uniform_buffer: &uniform_buffer,
+                intermediate_texture_view: &intermediate_texture_view,
+                custom_uniform_buffer: &custom_uniform_buffer,
+                sampler: &sampler,
+                channel_textures: &channel_textures,
+                cubemap: &cubemap,
+            },
         );
 
         // Create render pipeline
@@ -312,6 +350,7 @@ impl CustomShaderRenderer {
             pipeline,
             bind_group,
             uniform_buffer,
+            custom_uniform_buffer,
             intermediate_texture,
             intermediate_texture_view,
             start_time: now,
@@ -361,6 +400,8 @@ impl CustomShaderRenderer {
             background_color: [0.0, 0.0, 0.0, 0.0], // No solid background by default
             progress_data: [0.0, 0.0, 0.0, 0.0],
             content_inset_right: 0.0,
+            custom_controls,
+            custom_uniform_values,
         })
     }
 
@@ -431,6 +472,16 @@ impl CustomShaderRenderer {
         // Calculate uniforms
         let uniforms = self.build_uniforms(time, time_delta, apply_opacity);
         queue.write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[uniforms]));
+        let custom_uniforms =
+            crate::custom_shader_renderer::types::CustomShaderControlUniforms::from_controls(
+                &self.custom_controls,
+                &self.custom_uniform_values,
+            );
+        queue.write_buffer(
+            &self.custom_uniform_buffer,
+            0,
+            bytemuck::cast_slice(&[custom_uniforms]),
+        );
 
         // Create command encoder and render
         let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
@@ -499,6 +550,14 @@ impl CustomShaderRenderer {
     /// Update full content mode
     pub fn set_full_content_mode(&mut self, enabled: bool) {
         self.full_content_mode = enabled;
+    }
+
+    /// Update custom shader uniform values keyed by control name.
+    pub fn set_custom_uniform_values(
+        &mut self,
+        values: BTreeMap<String, par_term_config::ShaderUniformValue>,
+    ) {
+        self.custom_uniform_values = values;
     }
 
     /// Check if full content mode is enabled

@@ -111,6 +111,7 @@ impl SettingsUI {
             shader_metadata_cache: ShaderMetadataCache::with_shaders_dir(
                 par_term_config::Config::shaders_dir(),
             ),
+            shader_controls_cache: std::collections::HashMap::new(),
             cursor_shader_metadata_cache: CursorShaderMetadataCache::with_shaders_dir(
                 par_term_config::Config::shaders_dir(),
             ),

@@ -316,6 +316,7 @@ pub(super) fn apply_renderer_config(
                     brightness: resolved.brightness,
                     channel_paths: &resolved.channel_paths(),
                     cubemap_path: resolved.cubemap_path().map(|p| p.as_path()),
+                    custom_uniforms: &resolved.custom_uniforms,
                 },
             )
             .err()

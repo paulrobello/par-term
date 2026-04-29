@@ -114,9 +114,9 @@ mod tests {
             do_underline: true,
         });
 
-        for idx in 2..6 {
-            assert!(cells[idx].underline, "cell {idx} should be underlined");
-            assert_eq!(cells[idx].fg_color, [1, 2, 3, 255]);
+        for (idx, cell) in cells.iter().enumerate().take(6).skip(2) {
+            assert!(cell.underline, "cell {idx} should be underlined");
+            assert_eq!(cell.fg_color, [1, 2, 3, 255]);
         }
         assert_eq!(cells[0].grapheme, "r");
     }

@@ -23,6 +23,15 @@ impl CustomShaderRenderer {
     /// * `source` - GLSL shader source code
     /// * `name`   - Shader name used for diagnostic messages and WGSL debug output
     pub fn reload_from_source(&mut self, device: &Device, source: &str, name: &str) -> Result<()> {
+        let control_parse = par_term_config::parse_shader_controls(source);
+        for warning in &control_parse.warnings {
+            log::warn!(
+                "Shader control warning line {}: {}",
+                warning.line,
+                warning.message
+            );
+        }
+        let custom_controls = control_parse.controls;
         let wgsl_source = transpile_glsl_to_wgsl_source(source, name)?;
 
         log::info!(
@@ -54,6 +63,7 @@ impl CustomShaderRenderer {
             self.surface_format,
             Some("Custom Shader Pipeline (reloaded)"),
         );
+        self.custom_controls = custom_controls;
 
         self.start_time = std::time::Instant::now();
 
