@@ -334,6 +334,14 @@ impl TabBarUI {
         }
     }
 
+    /// Calculate the x origin for horizontally scrolled tab content.
+    ///
+    /// A larger scroll offset reveals tabs further to the right, so the content
+    /// itself must move left inside the clipped tab area.
+    pub fn horizontal_tab_content_origin_x(tab_area_left: f32, scroll_offset: f32) -> f32 {
+        tab_area_left - scroll_offset.max(0.0)
+    }
+
     /// Set drag state directly; used by integration tests to exercise state transitions
     /// without requiring a live egui render loop.
     pub fn test_set_drag_state(&mut self, tab_id: Option<TabId>, in_progress: bool) {
@@ -385,6 +393,17 @@ impl TabBarUI {
     /// `tab_at_logical_pos` without requiring a live egui render pass.
     pub fn test_set_tab_rects(&mut self, rects: Vec<(TabId, egui::Rect)>) {
         self.tab_rects = rects;
+    }
+
+    /// Set horizontal scroll state directly for integration tests.
+    pub fn test_set_horizontal_scroll_state(&mut self, needs_scroll: bool, scroll_offset: f32) {
+        self.needs_horizontal_scroll = needs_scroll;
+        self.scroll_offset = scroll_offset;
+    }
+
+    /// Get the current horizontal scroll offset for integration tests.
+    pub fn test_scroll_offset(&self) -> f32 {
+        self.scroll_offset
     }
 
     /// Update the move-tab context shown in the right-click context menu.

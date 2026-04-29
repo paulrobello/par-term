@@ -122,7 +122,7 @@ impl TabBarUI {
         }
 
         // Convert vertical wheel delta to horizontal scroll.
-        // Positive y = scroll up = scroll left (decrease offset).
+        // Positive y = scroll up = reveal tabs to the left (decrease offset).
         let scroll_amount = match delta {
             MouseScrollDelta::LineDelta(_x, y) => *y * (tab_min_width + TAB_SPACING),
             MouseScrollDelta::PixelDelta(pos) => pos.y as f32,
@@ -132,7 +132,7 @@ impl TabBarUI {
             return false;
         }
 
-        // Invert: scroll-up (positive y) moves tabs left (decrease offset)
+        // Invert: scroll-up (positive y) reveals tabs to the left (decrease offset).
         self.scroll_offset = (self.scroll_offset - scroll_amount).max(0.0);
         true
     }

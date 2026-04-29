@@ -22,6 +22,7 @@
 use egui::{Pos2, Rect, Vec2};
 use par_term::tab::TabId;
 use par_term::tab_bar_ui::{TabBarAction, TabBarUI};
+use winit::event::MouseScrollDelta;
 
 // ============================================================================
 // Action enum tests
@@ -465,4 +466,37 @@ fn test_drop_target_followed_by_reorder_action() {
         }
         _ => panic!("Expected Reorder action"),
     }
+}
+
+#[test]
+fn horizontal_scroll_offset_moves_tab_content_left() {
+    let tab_area_left = 100.0;
+
+    assert_eq!(
+        TabBarUI::horizontal_tab_content_origin_x(tab_area_left, 0.0),
+        100.0
+    );
+    assert_eq!(
+        TabBarUI::horizontal_tab_content_origin_x(tab_area_left, 25.0),
+        75.0,
+        "Increasing the offset should move tab content left to reveal tabs on the right"
+    );
+}
+
+#[test]
+fn mouse_wheel_down_reveals_tabs_to_the_right() {
+    let mut tab_bar = TabBarUI::new();
+    let tab_min_width = 120.0;
+    tab_bar.test_set_horizontal_scroll_state(true, tab_min_width);
+
+    let before = TabBarUI::horizontal_tab_content_origin_x(0.0, tab_bar.test_scroll_offset());
+    let consumed =
+        tab_bar.handle_mouse_wheel(&MouseScrollDelta::LineDelta(0.0, -1.0), tab_min_width, 6);
+    let after = TabBarUI::horizontal_tab_content_origin_x(0.0, tab_bar.test_scroll_offset());
+
+    assert!(consumed, "overflowing tab bars should consume wheel events");
+    assert!(
+        after < before,
+        "Wheel down should move tab content left, revealing tabs to the right"
+    );
 }

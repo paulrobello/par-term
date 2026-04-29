@@ -144,14 +144,21 @@ impl TabBarUI {
                             egui::vec2(tabs_area_width, btn_h),
                             egui::Sense::hover(),
                         );
+                        let content_origin_x = Self::horizontal_tab_content_origin_x(
+                            tab_area_rect.min.x,
+                            self.scroll_offset,
+                        );
+                        let content_rect = egui::Rect::from_min_size(
+                            egui::pos2(content_origin_x, tab_area_rect.min.y),
+                            egui::vec2(min_total_tabs_width, btn_h),
+                        );
                         let mut tab_ui = ui.new_child(
                             egui::UiBuilder::new()
-                                .max_rect(tab_area_rect)
+                                .max_rect(content_rect)
                                 .layout(egui::Layout::left_to_right(egui::Align::Center)),
                         );
                         // Clip the child UI to the tab area so tabs don't bleed into buttons
                         tab_ui.set_clip_rect(tab_area_rect.intersect(tab_ui.clip_rect()));
-                        tab_ui.allocate_space(egui::vec2(self.scroll_offset, 0.0));
                         tab_ui.spacing_mut().item_spacing = egui::vec2(tab_spacing, 0.0);
 
                         for (index, tab) in visible_tabs.iter().enumerate() {
