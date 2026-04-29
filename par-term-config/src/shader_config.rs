@@ -119,9 +119,22 @@ pub fn resolve_shader_config(
         custom_uniforms.extend(user_override.uniforms.clone());
     }
 
+    let global_brightness = config.shader.custom_shader_brightness;
+    let default_brightness = crate::defaults::custom_shader_brightness();
+    let brightness = user_override
+        .and_then(|override_config| override_config.brightness)
+        .or_else(|| {
+            if (global_brightness - default_brightness).abs() > f32::EPSILON {
+                Some(global_brightness)
+            } else {
+                meta_defaults.and_then(|defaults| defaults.brightness)
+            }
+        })
+        .unwrap_or(global_brightness);
+
     ResolvedShaderConfig {
         animation_speed: resolve!(animation_speed, config.shader.custom_shader_animation_speed),
-        brightness: resolve!(brightness, config.shader.custom_shader_brightness),
+        brightness,
         text_opacity: resolve!(text_opacity, config.shader.custom_shader_text_opacity),
         full_content: resolve!(full_content, config.shader.custom_shader_full_content),
         channel0: resolve_path!(channel0, config.shader.custom_shader_channel0.clone()),
@@ -377,6 +390,24 @@ mod tests {
         assert_eq!(resolved.brightness, 0.9);
         // Metadata default used when no user override
         assert_eq!(resolved.text_opacity, 0.8);
+    }
+
+    #[test]
+    fn global_brightness_override_beats_metadata_default() {
+        let mut config = make_test_config();
+        config.shader.custom_shader_brightness = 0.42;
+        let metadata = ShaderMetadata {
+            name: Some("Test".to_string()),
+            defaults: ShaderConfig {
+                brightness: Some(0.7),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        let resolved = resolve_shader_config(None, Some(&metadata), &config);
+
+        assert_eq!(resolved.brightness, 0.42);
     }
 
     #[test]

@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Features
+- **Assistant agent selector prioritizes Codex** — Codex now appears as the first option in the Assistant panel agent selector while preserving the relative order of the other agents.
 - **Expanded custom shader controls** — background shader `// control` uniforms now support int sliders, select dropdowns, vec2 controls, normalized point controls, range controls, logarithmic sliders, angle controls, and channel selectors for choosing existing `iChannel0`..`iChannel4` sources. Documentation and assistant shader guidance now explain the syntax, defaults, limits, and when to use each control type.
 - **Custom shader uniform controls** — background shaders can now declare ad-hoc settings controls with `// control` comments attached to explicit GLSL uniforms. Supports float sliders with `min`/`max`/`step`, bool checkboxes, and color pickers for `vec3`/`vec4` uniforms via `// control color` (including `alpha=true` and `label="..."`), persists values as per-shader overrides, supports metadata defaults under `defaults.uniforms` with preferred hex color serialization, uploads values through a dedicated custom uniform buffer, and surfaces non-fatal control parse warnings in the shader settings/editor UI.
 
@@ -17,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Content Prettifier** — removed the `par-term-prettifier` workspace crate and all content-prettifier runtime wiring, settings UI, config/profile fields, trigger action, keybinding action, render substitutions, and documentation page.
 
 ### Bug Fixes
+- **Global shader brightness slider had no effect on shaders with metadata defaults** — changing `custom_shader_brightness` now overrides a shader's embedded brightness default once the global value differs from the app default, while explicit per-shader overrides still take highest priority.
 - **Horizontal tab scrolling moved in the wrong direction** — overflowing tab bars now position the clipped tab content at `tab_area_left - scroll_offset`, so mouse-wheel scrolling reveals tabs to the right instead of shifting the visible content the wrong way.
 - **Tab pills pushed down when scroll buttons appear** — `egui::ScrollArea` and `egui::Button` widgets added internal vertical padding/margins that expanded the horizontal layout row height, shifting tab pills downward. Fixed by replacing `ui.horizontal()` with `allocate_ui_with_layout` at a fixed height, replacing all `egui::Button` widgets with manual `allocate_exact_size` + painter rendering, and replacing the `ScrollArea` with a clipped child UI using `set_clip_rect` for horizontal clipping without any vertical padding.
 - **Tab pill shapes clipped at bottom in horizontal tab bar** — tab widgets were allocated at the full `tab_bar_height`, but at non-integer DPI scale factors the panel's clip rect rounds slightly smaller, cutting off the bottom of pill-shaped tabs. Fixed by allocating tabs at `tab_bar_height - 2px` (matching scroll buttons and the + button) so the pill stays within the clip rect at all scale factors.
