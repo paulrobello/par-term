@@ -453,6 +453,11 @@ impl CustomShaderRenderer {
                     binding: 12,
                     resource: wgpu::BindingResource::Sampler(&self.cubemap.sampler),
                 },
+                // Custom shader controls
+                wgpu::BindGroupEntry {
+                    binding: 13,
+                    resource: self.custom_uniform_buffer.as_entire_binding(),
+                },
             ],
         });
     }

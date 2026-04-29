@@ -47,6 +47,7 @@ pub(super) fn init_custom_shader(
     };
 
     let path = par_term_config::Config::shader_path(shader_path);
+    let empty_custom_uniforms = std::collections::BTreeMap::new();
     match CustomShaderRenderer::new(
         cell_renderer.device(),
         cell_renderer.queue(),
@@ -61,6 +62,7 @@ pub(super) fn init_custom_shader(
             full_content_mode: custom_shader_full_content,
             channel_paths: custom_shader_channel_paths,
             cubemap_path: custom_shader_cubemap_path,
+            custom_uniforms: &empty_custom_uniforms,
         },
     ) {
         Ok(mut renderer) => {
@@ -196,6 +198,7 @@ impl Renderer {
                 }
 
                 let shader_path_full = par_term_config::Config::shader_path(path);
+                let empty_custom_uniforms = std::collections::BTreeMap::new();
                 match CustomShaderRenderer::new(
                     self.cell_renderer.device(),
                     self.cell_renderer.queue(),
@@ -210,6 +213,7 @@ impl Renderer {
                         full_content_mode: full_content,
                         channel_paths,
                         cubemap_path,
+                        custom_uniforms: &empty_custom_uniforms,
                     },
                 ) {
                     Ok(mut renderer) => {

@@ -55,6 +55,68 @@ fn preprocess_glsl_for_shadertoy(glsl_source: &str) -> String {
     source
 }
 
+fn custom_control_defines(source: &str) -> String {
+    let result = par_term_config::parse_shader_controls(source);
+    let mut float_index = 0usize;
+    let mut bool_index = 0usize;
+    let mut defines = String::new();
+
+    for control in result.controls {
+        match control.kind {
+            par_term_config::ShaderControlKind::Slider { .. } => {
+                if float_index < crate::custom_shader_renderer::types::MAX_CUSTOM_FLOAT_UNIFORMS {
+                    defines.push_str(&format!(
+                        "#define {} iCustomFloatUniforms[{}].{}\n",
+                        control.name,
+                        float_index / 4,
+                        ["x", "y", "z", "w"][float_index % 4]
+                    ));
+                    float_index += 1;
+                }
+            }
+            par_term_config::ShaderControlKind::Checkbox => {
+                if bool_index < crate::custom_shader_renderer::types::MAX_CUSTOM_BOOL_UNIFORMS {
+                    defines.push_str(&format!(
+                        "#define {} (iCustomBoolUniforms[{}].{} != 0)\n",
+                        control.name,
+                        bool_index / 4,
+                        ["x", "y", "z", "w"][bool_index % 4]
+                    ));
+                    bool_index += 1;
+                }
+            }
+        }
+    }
+
+    defines
+}
+
+fn preprocess_custom_control_uniforms(source: &str) -> String {
+    let parse_result = par_term_config::parse_shader_controls(source);
+    let controlled_names: std::collections::HashSet<String> = parse_result
+        .controls
+        .iter()
+        .map(|control| control.name.clone())
+        .collect();
+
+    let mut output = String::new();
+    output.push_str(&custom_control_defines(source));
+
+    for line in source.lines() {
+        let trimmed = line.trim();
+        let should_strip = controlled_names.iter().any(|name| {
+            trimmed == format!("uniform float {};", name)
+                || trimmed == format!("uniform bool {};", name)
+        });
+        if !should_strip {
+            output.push_str(line);
+            output.push('\n');
+        }
+    }
+
+    output
+}
+
 /// The shared GLSL wrapper template injected around the user shader code.
 ///
 /// The `{glsl_source}` placeholder is replaced with the user-provided (preprocessed) GLSL.
@@ -135,6 +197,12 @@ layout(set = 0, binding = 10) uniform sampler _iChannel4Sampler;
 // Cubemap texture (iCubemap)
 layout(set = 0, binding = 11) uniform textureCube _iCubemapTex;
 layout(set = 0, binding = 12) uniform sampler _iCubemapSampler;
+
+// Custom shader controls generated from `// control ...` comments.
+layout(set = 0, binding = 13) uniform CustomShaderControls {{
+    vec4 iCustomFloatUniforms[4];
+    ivec4 iCustomBoolUniforms[4];
+}};
 
 // Combined samplers for texture() calls
 #define iChannel0 sampler2D(_iChannel0Tex, _iChannel0Sampler)
@@ -305,7 +373,8 @@ fn transpile_impl(
     debug_glsl_filename: &str,
     builtin_order: BuiltinPositionOrder,
 ) -> Result<String> {
-    let glsl_source = preprocess_glsl_for_shadertoy(glsl_source);
+    let glsl_source = preprocess_custom_control_uniforms(glsl_source);
+    let glsl_source = preprocess_glsl_for_shadertoy(&glsl_source);
     let wrapped_glsl = glsl_wrapper_template(&glsl_source);
 
     // DEBUG: Write wrapped GLSL to file for inspection (debug builds only)
@@ -512,4 +581,44 @@ pub(crate) fn transpile_glsl_to_wgsl_source(glsl_source: &str, name: &str) -> Re
         "par_term_debug_wrapped_source.glsl",
         BuiltinPositionOrder::Before,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn controlled_uniform_declarations_are_replaced_with_custom_block_macros() {
+        let source = r#"
+// control slider min=0 max=1 step=0.01
+uniform float iGlow;
+// control checkbox
+uniform bool iEnabled;
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {
+    fragColor = vec4(vec3(iGlow), iEnabled ? 1.0 : 0.0);
+}
+"#;
+
+        let preprocessed = preprocess_custom_control_uniforms(source);
+
+        assert!(!preprocessed.contains("uniform float iGlow;"));
+        assert!(!preprocessed.contains("uniform bool iEnabled;"));
+        assert!(preprocessed.contains("#define iGlow iCustomFloatUniforms[0].x"));
+        assert!(preprocessed.contains("#define iEnabled (iCustomBoolUniforms[0].x != 0)"));
+    }
+
+    #[test]
+    fn transpiled_controlled_uniform_shader_mentions_custom_uniform_block() {
+        let source = r#"
+// control slider min=0 max=1 step=0.01
+uniform float iGlow;
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {
+    fragColor = vec4(vec3(iGlow), 1.0);
+}
+"#;
+
+        let wgsl = transpile_glsl_to_wgsl_source(source, "controlled_test").unwrap();
+
+        assert!(wgsl.contains("iCustomFloatUniforms") || wgsl.contains("custom"));
+    }
 }
