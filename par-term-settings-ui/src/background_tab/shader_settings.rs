@@ -516,30 +516,38 @@ fn show_shader_uniform_controls(
                 ui.label(color_label);
 
                 let response = if *alpha {
-                    let mut rgba = color.0;
-                    let response = ui.color_edit_button_rgba_unmultiplied(&mut rgba);
+                    let mut srgba = shader_color_value_to_color32(color, true);
+                    let response = egui::color_picker::color_edit_button_srgba(
+                        ui,
+                        &mut srgba,
+                        egui::color_picker::Alpha::OnlyBlend,
+                    );
                     if response.changed() {
                         set_shader_uniform_override(
                             settings,
                             shader_name,
                             &control.name,
                             par_term_config::ShaderUniformValue::Color(
-                                normalized_shader_color_value(rgba, true),
+                                color32_to_shader_color_value(srgba, true),
                             ),
                         );
                         *changes_this_frame = true;
                     }
                     response
                 } else {
-                    let mut rgb = [color.0[0], color.0[1], color.0[2]];
-                    let response = ui.color_edit_button_rgb(&mut rgb);
+                    let mut srgb = shader_color_value_to_color32(color, false);
+                    let response = egui::color_picker::color_edit_button_srgba(
+                        ui,
+                        &mut srgb,
+                        egui::color_picker::Alpha::Opaque,
+                    );
                     if response.changed() {
                         set_shader_uniform_override(
                             settings,
                             shader_name,
                             &control.name,
                             par_term_config::ShaderUniformValue::Color(
-                                normalized_shader_color_value([rgb[0], rgb[1], rgb[2], 1.0], false),
+                                color32_to_shader_color_value(srgb, false),
                             ),
                         );
                         *changes_this_frame = true;
@@ -572,9 +580,18 @@ fn set_shader_uniform_override(
 }
 
 fn clear_shader_uniform_override(settings: &mut SettingsUI, shader_name: &str, uniform_name: &str) {
-    if let Some(override_entry) = settings.config.shader_configs.get_mut(shader_name) {
-        override_entry.uniforms.remove(uniform_name);
+    let should_prune =
+        if let Some(override_entry) = settings.config.shader_configs.get_mut(shader_name) {
+            override_entry.uniforms.remove(uniform_name);
+            *override_entry == par_term_config::ShaderConfig::default()
+        } else {
+            false
+        };
+
+    if should_prune {
+        settings.config.shader_configs.remove(shader_name);
     }
+
     settings.has_changes = true;
 }
 
@@ -670,6 +687,44 @@ fn normalized_shader_color_value(
     par_term_config::ShaderColorValue(rgba)
 }
 
+fn normalized_color_component_to_u8(component: f32) -> u8 {
+    let component = if component.is_finite() {
+        component.clamp(0.0, 1.0)
+    } else {
+        1.0
+    };
+    (component * 255.0).round() as u8
+}
+
+fn shader_color_value_to_color32(
+    color: par_term_config::ShaderColorValue,
+    preserve_alpha: bool,
+) -> egui::Color32 {
+    let color = normalized_shader_color_value(color.0, preserve_alpha);
+    egui::Color32::from_rgba_unmultiplied(
+        normalized_color_component_to_u8(color.0[0]),
+        normalized_color_component_to_u8(color.0[1]),
+        normalized_color_component_to_u8(color.0[2]),
+        normalized_color_component_to_u8(color.0[3]),
+    )
+}
+
+fn color32_to_shader_color_value(
+    color: egui::Color32,
+    preserve_alpha: bool,
+) -> par_term_config::ShaderColorValue {
+    let [r, g, b, a] = color.to_srgba_unmultiplied();
+    normalized_shader_color_value(
+        [
+            f32::from(r) / 255.0,
+            f32::from(g) / 255.0,
+            f32::from(b) / 255.0,
+            f32::from(a) / 255.0,
+        ],
+        preserve_alpha,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -697,7 +752,34 @@ mod tests {
     }
 
     #[test]
-    fn shader_uniform_override_clear_shader_uniform_override_removes_one_value() {
+    fn shader_uniform_override_clear_shader_uniform_override_removes_only_uniform_value() {
+        let mut settings = SettingsUI::new(par_term_config::Config::default());
+        settings
+            .config
+            .get_or_create_shader_override("controlled.glsl")
+            .brightness = Some(0.5);
+        set_shader_uniform_override(
+            &mut settings,
+            "controlled.glsl",
+            "iGlow",
+            par_term_config::ShaderUniformValue::Float(0.75),
+        );
+
+        settings.has_changes = false;
+        clear_shader_uniform_override(&mut settings, "controlled.glsl", "iGlow");
+
+        let override_config = settings
+            .config
+            .shader_configs
+            .get("controlled.glsl")
+            .expect("non-uniform override should keep shader override entry");
+        assert_eq!(override_config.brightness, Some(0.5));
+        assert!(!override_config.uniforms.contains_key("iGlow"));
+        assert!(settings.has_changes);
+    }
+
+    #[test]
+    fn shader_uniform_override_clear_shader_uniform_override_removes_empty_shader_entry() {
         let mut settings = SettingsUI::new(par_term_config::Config::default());
         set_shader_uniform_override(
             &mut settings,
@@ -710,13 +792,26 @@ mod tests {
         clear_shader_uniform_override(&mut settings, "controlled.glsl", "iGlow");
 
         assert!(
-            settings
+            !settings
                 .config
                 .shader_configs
-                .get("controlled.glsl")
-                .is_none_or(|config| !config.uniforms.contains_key("iGlow"))
+                .contains_key("controlled.glsl")
         );
         assert!(settings.has_changes);
+    }
+
+    #[test]
+    fn shader_uniform_override_color32_helpers_roundtrip_srgb_u8_color() {
+        let shader_color =
+            par_term_config::ShaderColorValue([1.0, 136.0 / 255.0, 0.0, 204.0 / 255.0]);
+
+        let color32 = shader_color_value_to_color32(shader_color, true);
+        assert_eq!(
+            color32,
+            egui::Color32::from_rgba_unmultiplied(0xff, 0x88, 0x00, 0xcc)
+        );
+
+        assert_eq!(color32_to_shader_color_value(color32, true), shader_color);
     }
 
     #[test]
