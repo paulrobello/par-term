@@ -134,6 +134,8 @@ pub struct ResolvedShaderConfig {
     pub cubemap_enabled: bool,
     /// Use the app's background image as iChannel0
     pub use_background_as_channel0: bool,
+    /// Custom shader uniform values resolved from metadata defaults and user overrides.
+    pub custom_uniforms: BTreeMap<String, ShaderUniformValue>,
 }
 
 impl Default for ResolvedShaderConfig {
@@ -150,6 +152,7 @@ impl Default for ResolvedShaderConfig {
             cubemap: None,
             cubemap_enabled: true,
             use_background_as_channel0: false,
+            custom_uniforms: BTreeMap::new(),
         }
     }
 }
