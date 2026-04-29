@@ -28,6 +28,7 @@ For a list of all included shaders, see [SHADERS.md](SHADERS.md).
   - [Basic Structure](#basic-structure)
   - [Shader Modes](#shader-modes)
   - [Shader Metadata Format](#shader-metadata-format)
+  - [Shader Uniform Controls](#shader-uniform-controls)
   - [Porting Shadertoy Shaders](#porting-shadertoy-shaders)
 - [Examples](#examples)
 - [Troubleshooting](#troubleshooting)
@@ -326,6 +327,7 @@ cursor_shader_configs:
 - `cubemap`: Override cubemap path
 - `cubemap_enabled`: Override cubemap enable
 - `use_background_as_channel0`: Use app's background image as iChannel0
+- `uniforms`: Per-shader values for custom `// control ...` shader uniforms
 
 **Per-cursor-shader additional fields:**
 - `glow_radius`: Override glow radius
@@ -522,6 +524,60 @@ defaults:
 ```
 
 All metadata fields are optional. Values that are `null` fall through to global defaults.
+
+### Shader Uniform Controls
+
+Background shaders can declare Settings UI controls for custom uniforms by placing a `// control ...` comment immediately before a supported uniform declaration.
+
+```glsl
+/*! par-term shader metadata
+name: "Controlled Glow"
+description: "Minimal shader with one slider and one checkbox"
+defaults:
+  uniforms:
+    iGlow: 0.5
+    iEnabled: true
+*/
+
+// control slider min=0 max=1 step=0.01
+uniform float iGlow;
+
+// control checkbox
+uniform bool iEnabled;
+
+void mainImage(out vec4 fragColor, in vec2 fragCoord)
+{
+    vec2 uv = fragCoord / iResolution.xy;
+    vec3 color = vec3(iGlow * uv.x);
+
+    if (iEnabled) {
+        color += vec3(0.1, 0.2, 0.4);
+    }
+
+    fragColor = vec4(color, 1.0);
+}
+```
+
+Supported v1 controls:
+
+| Comment | Attached uniform | Settings UI |
+|---------|------------------|-------------|
+| `// control slider min=0 max=1 step=0.01` | `uniform float name;` | Slider |
+| `// control checkbox` | `uniform bool name;` | Checkbox |
+
+Defaults for controlled uniforms live in the shader metadata block under `defaults.uniforms`. User edits are saved as per-shader overrides in `config.yaml` and take precedence over metadata defaults:
+
+```yaml
+shader_configs:
+  "controlled_glow.glsl":
+    uniforms:
+      iGlow: 0.75
+      iEnabled: false
+```
+
+If neither a per-shader override nor a metadata default exists, sliders fall back to their declared `min` value and checkboxes fall back to `false`.
+
+Limits: each shader can expose up to 16 float slider controls and 16 bool checkbox controls. Extra valid controls are ignored with warnings. Malformed control comments also produce warnings in the Settings UI and logs; they are non-fatal unless the shader itself fails GLSL compilation.
 
 ### Porting Shadertoy Shaders
 
