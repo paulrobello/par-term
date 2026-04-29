@@ -143,9 +143,13 @@ impl SettingsUI {
         self.shader_editor_error = error;
     }
 
-    /// Clear shader error.
+    /// Clear shader error and invalidate active shader caches after a successful reload.
     pub fn clear_shader_error(&mut self) {
         self.shader_editor_error = None;
+        if let Some(shader_name) = self.config.shader.custom_shader.as_deref() {
+            self.shader_metadata_cache.invalidate(shader_name);
+            self.shader_controls_cache.remove(shader_name);
+        }
     }
 
     /// Set cursor shader compilation error.
@@ -246,5 +250,32 @@ impl SettingsUI {
     /// Check if shader editor is visible.
     pub fn is_shader_editor_visible(&self) -> bool {
         self.shader_editor_visible
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::SettingsUI;
+
+    #[test]
+    fn clear_shader_error_invalidates_active_shader_control_caches() {
+        let shader_name = "reload.glsl";
+        let mut config = par_term_config::Config::default();
+        config.shader.custom_shader = Some(shader_name.to_string());
+        let mut settings = SettingsUI::new(config);
+        settings.shader_editor_error = Some("old error".to_string());
+        settings.shader_controls_cache.insert(
+            shader_name.to_string(),
+            par_term_config::parse_shader_controls(
+                "// control slider min=0.0 max=1.0 step=0.1\nuniform float iOld;",
+            ),
+        );
+        let _ = settings.shader_metadata_cache.get(shader_name);
+
+        settings.clear_shader_error();
+
+        assert!(settings.shader_editor_error.is_none());
+        assert!(!settings.shader_controls_cache.contains_key(shader_name));
+        assert!(!settings.shader_metadata_cache.is_cached(shader_name));
     }
 }
