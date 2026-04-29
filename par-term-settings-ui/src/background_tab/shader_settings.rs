@@ -888,14 +888,11 @@ pub(super) fn normalized_effective_uniform_value(
     current_override: Option<&par_term_config::ShaderConfig>,
     metadata: Option<&par_term_config::ShaderMetadata>,
 ) -> par_term_config::ShaderUniformValue {
-    current_override
+    let raw = current_override
         .and_then(|config| config.uniforms.get(&control.name))
-        .and_then(|value| normalize_uniform_value_for_control(control, value))
-        .or_else(|| {
-            metadata
-                .and_then(|meta| meta.defaults.uniforms.get(&control.name))
-                .and_then(|value| normalize_uniform_value_for_control(control, value))
-        })
+        .or_else(|| metadata.and_then(|meta| meta.defaults.uniforms.get(&control.name)));
+
+    raw.and_then(|value| normalize_uniform_value_for_control(control, value))
         .unwrap_or_else(|| par_term_config::fallback_value_for_control(control))
 }
 
@@ -1225,7 +1222,7 @@ mod tests {
 
         assert_eq!(
             normalized_effective_uniform_value(&control, Some(&override_config), Some(&metadata)),
-            par_term_config::ShaderUniformValue::Float(1.0)
+            par_term_config::ShaderUniformValue::Float(0.1)
         );
 
         metadata.defaults.uniforms.insert(
@@ -1303,6 +1300,25 @@ mod tests {
                 &par_term_config::ShaderUniformValue::Float(9.0),
             ),
             Some(par_term_config::ShaderUniformValue::Int(8))
+        );
+
+        let mut override_config = par_term_config::ShaderConfig::default();
+        override_config.uniforms.insert(
+            "iCount".to_string(),
+            par_term_config::ShaderUniformValue::Bool(true),
+        );
+        let mut metadata = par_term_config::ShaderMetadata::default();
+        metadata.defaults.uniforms.insert(
+            "iCount".to_string(),
+            par_term_config::ShaderUniformValue::Int(8),
+        );
+        assert_eq!(
+            normalized_effective_uniform_value(
+                &int_control,
+                Some(&override_config),
+                Some(&metadata)
+            ),
+            par_term_config::ShaderUniformValue::Int(-10)
         );
 
         let select_control = par_term_config::ShaderControl {
