@@ -143,6 +143,83 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {}
     }
 
     #[test]
+    fn test_parse_metadata_with_custom_uniform_color_hex_defaults() {
+        let source = r##"/*! par-term shader metadata
+name: "Controlled Color Shader"
+defaults:
+  uniforms:
+    iTint: "#ff8800"
+    iOverlay: "#ff8800cc"
+*/
+
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {}
+"##;
+
+        let metadata = parse_shader_metadata(source).expect("Should parse metadata");
+        assert_eq!(
+            metadata.defaults.uniforms.get("iTint"),
+            Some(&crate::types::shader::ShaderUniformValue::Color(
+                crate::types::shader::ShaderColorValue([1.0, 136.0 / 255.0, 0.0, 1.0])
+            ))
+        );
+        assert_eq!(
+            metadata.defaults.uniforms.get("iOverlay"),
+            Some(&crate::types::shader::ShaderUniformValue::Color(
+                crate::types::shader::ShaderColorValue([1.0, 136.0 / 255.0, 0.0, 204.0 / 255.0])
+            ))
+        );
+    }
+
+    #[test]
+    fn test_parse_metadata_with_custom_uniform_color_array_defaults() {
+        let source = r#"/*! par-term shader metadata
+name: "Controlled Color Shader"
+defaults:
+  uniforms:
+    iTint: [1.0, 0.5, 0.0]
+    iOverlay: [1.0, 0.5, 0.0, 0.8]
+*/
+
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {}
+"#;
+
+        let metadata = parse_shader_metadata(source).expect("Should parse metadata");
+        assert_eq!(
+            metadata.defaults.uniforms.get("iTint"),
+            Some(&crate::types::shader::ShaderUniformValue::Color(
+                crate::types::shader::ShaderColorValue([1.0, 0.5, 0.0, 1.0])
+            ))
+        );
+        assert_eq!(
+            metadata.defaults.uniforms.get("iOverlay"),
+            Some(&crate::types::shader::ShaderUniformValue::Color(
+                crate::types::shader::ShaderColorValue([1.0, 0.5, 0.0, 0.8])
+            ))
+        );
+    }
+
+    #[test]
+    fn test_parse_metadata_skips_invalid_custom_uniform_default() {
+        let source = r#"/*! par-term shader metadata
+name: "Controlled Color Shader"
+defaults:
+  uniforms:
+    iTint: [1.0, 0.5]
+    iGlow: 0.5
+*/
+
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {}
+"#;
+
+        let metadata = parse_shader_metadata(source).expect("Should parse metadata");
+        assert!(!metadata.defaults.uniforms.contains_key("iTint"));
+        assert_eq!(
+            metadata.defaults.uniforms.get("iGlow"),
+            Some(&crate::types::shader::ShaderUniformValue::Float(0.5))
+        );
+    }
+
+    #[test]
     fn test_parse_metadata_not_found() {
         let source = r#"// Regular shader without metadata
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {

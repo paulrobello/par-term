@@ -453,6 +453,46 @@ mod tests {
     }
 
     #[test]
+    fn test_shader_config_color_uniforms_serialize_as_hex() {
+        let config = ShaderConfig {
+            uniforms: BTreeMap::from([
+                (
+                    "iTint".to_string(),
+                    ShaderUniformValue::Color(crate::types::shader::ShaderColorValue([
+                        1.0, 0.5, 0.0, 1.0,
+                    ])),
+                ),
+                (
+                    "iOverlay".to_string(),
+                    ShaderUniformValue::Color(crate::types::shader::ShaderColorValue([
+                        1.0, 0.5, 0.0, 0.8,
+                    ])),
+                ),
+            ]),
+            ..Default::default()
+        };
+
+        let yaml = serde_yaml_ng::to_string(&config).expect("serialize shader config");
+
+        assert!(yaml.contains("iTint: '#ff8000'"));
+        assert!(yaml.contains("iOverlay: '#ff8000cc'"));
+        let roundtrip: ShaderConfig =
+            serde_yaml_ng::from_str(&yaml).expect("deserialize shader config");
+        assert_eq!(
+            roundtrip.uniforms.get("iTint"),
+            Some(&ShaderUniformValue::Color(
+                crate::types::shader::ShaderColorValue([1.0, 128.0 / 255.0, 0.0, 1.0])
+            ))
+        );
+        assert_eq!(
+            roundtrip.uniforms.get("iOverlay"),
+            Some(&ShaderUniformValue::Color(
+                crate::types::shader::ShaderColorValue([1.0, 128.0 / 255.0, 0.0, 204.0 / 255.0])
+            ))
+        );
+    }
+
+    #[test]
     fn test_channel_paths() {
         let resolved = ResolvedShaderConfig {
             channel0: Some(PathBuf::from("/path/to/tex0.png")),
