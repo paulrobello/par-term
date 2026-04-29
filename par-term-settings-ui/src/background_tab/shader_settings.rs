@@ -1,6 +1,6 @@
 use crate::SettingsUI;
 use crate::section::{collapsing_section, collapsing_section_with_state};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use super::shader_channel_settings::{
@@ -435,12 +435,9 @@ fn show_shader_uniform_controls(
     metadata: &Option<par_term_config::ShaderMetadata>,
     changes_this_frame: &mut bool,
 ) {
-    let shader_path = par_term_config::Config::shader_path(shader_name);
-    let source = match std::fs::read_to_string(&shader_path) {
-        Ok(source) => source,
-        Err(_) => return,
+    let Some(parsed) = cached_shader_controls_for_settings(settings, shader_name) else {
+        return;
     };
-    let parsed = par_term_config::parse_shader_controls(&source);
 
     if parsed.controls.is_empty() && parsed.warnings.is_empty() {
         return;
@@ -464,7 +461,11 @@ fn show_shader_uniform_controls(
         let has_uniform_override = current_override
             .as_ref()
             .is_some_and(|config| config.uniforms.contains_key(&control.name));
-        let value = effective_uniform_value(&control, current_override.as_ref(), metadata.as_ref());
+        let value = normalized_effective_uniform_value(
+            &control,
+            current_override.as_ref(),
+            metadata.as_ref(),
+        );
 
         ui.horizontal(|ui| match control.kind {
             par_term_config::ShaderControlKind::Slider { min, max, step } => {
@@ -531,15 +532,71 @@ fn clear_shader_uniform_override(settings: &mut SettingsUI, shader_name: &str, u
     settings.has_changes = true;
 }
 
-fn effective_uniform_value(
+pub(super) fn cached_shader_controls(
+    cache: &mut HashMap<String, par_term_config::ShaderControlParseResult>,
+    shader_name: &str,
+    load_source: impl FnOnce() -> std::io::Result<String>,
+) -> Option<par_term_config::ShaderControlParseResult> {
+    if let Some(cached) = cache.get(shader_name) {
+        return Some(cached.clone());
+    }
+
+    let source = load_source().ok()?;
+    let parsed = par_term_config::parse_shader_controls(&source);
+    cache.insert(shader_name.to_string(), parsed.clone());
+    Some(parsed)
+}
+
+pub(super) fn invalidate_cached_shader_controls(
+    cache: &mut HashMap<String, par_term_config::ShaderControlParseResult>,
+    shader_name: &str,
+) {
+    cache.remove(shader_name);
+}
+
+pub(super) fn cached_shader_controls_for_settings(
+    settings: &mut SettingsUI,
+    shader_name: &str,
+) -> Option<par_term_config::ShaderControlParseResult> {
+    let shader_path = par_term_config::Config::shader_path(shader_name);
+    cached_shader_controls(&mut settings.shader_controls_cache, shader_name, || {
+        std::fs::read_to_string(&shader_path)
+    })
+}
+
+pub(super) fn normalized_effective_uniform_value(
     control: &par_term_config::ShaderControl,
     current_override: Option<&par_term_config::ShaderConfig>,
     metadata: Option<&par_term_config::ShaderMetadata>,
 ) -> par_term_config::ShaderUniformValue {
     current_override
-        .and_then(|config| config.uniforms.get(&control.name).cloned())
-        .or_else(|| metadata.and_then(|meta| meta.defaults.uniforms.get(&control.name).cloned()))
+        .and_then(|config| config.uniforms.get(&control.name))
+        .and_then(|value| normalize_uniform_value_for_control(control, value))
+        .or_else(|| {
+            metadata
+                .and_then(|meta| meta.defaults.uniforms.get(&control.name))
+                .and_then(|value| normalize_uniform_value_for_control(control, value))
+        })
         .unwrap_or_else(|| par_term_config::fallback_value_for_control(control))
+}
+
+fn normalize_uniform_value_for_control(
+    control: &par_term_config::ShaderControl,
+    value: &par_term_config::ShaderUniformValue,
+) -> Option<par_term_config::ShaderUniformValue> {
+    match (&control.kind, value) {
+        (
+            par_term_config::ShaderControlKind::Slider { min, max, .. },
+            par_term_config::ShaderUniformValue::Float(value),
+        ) => Some(par_term_config::ShaderUniformValue::Float(
+            value.clamp(*min, *max),
+        )),
+        (
+            par_term_config::ShaderControlKind::Checkbox,
+            par_term_config::ShaderUniformValue::Bool(value),
+        ) => Some(par_term_config::ShaderUniformValue::Bool(*value)),
+        _ => None,
+    }
 }
 
 #[cfg(test)]
@@ -614,16 +671,83 @@ mod tests {
         );
 
         assert_eq!(
-            effective_uniform_value(&control, Some(&override_config), Some(&metadata)),
+            normalized_effective_uniform_value(&control, Some(&override_config), Some(&metadata)),
             par_term_config::ShaderUniformValue::Float(0.75)
         );
         assert_eq!(
-            effective_uniform_value(&control, None, Some(&metadata)),
+            normalized_effective_uniform_value(&control, None, Some(&metadata)),
             par_term_config::ShaderUniformValue::Float(0.4)
         );
         assert_eq!(
-            effective_uniform_value(&control, None, None),
+            normalized_effective_uniform_value(&control, None, None),
             par_term_config::ShaderUniformValue::Float(0.1)
         );
+    }
+
+    #[test]
+    fn shader_uniform_override_normalized_value_clamps_slider_and_falls_back_on_wrong_type() {
+        let control = par_term_config::ShaderControl {
+            name: "iGlow".to_string(),
+            kind: par_term_config::ShaderControlKind::Slider {
+                min: 0.1,
+                max: 1.0,
+                step: 0.05,
+            },
+        };
+        let mut override_config = par_term_config::ShaderConfig::default();
+        override_config.uniforms.insert(
+            "iGlow".to_string(),
+            par_term_config::ShaderUniformValue::Bool(true),
+        );
+        let mut metadata = par_term_config::ShaderMetadata::default();
+        metadata.defaults.uniforms.insert(
+            "iGlow".to_string(),
+            par_term_config::ShaderUniformValue::Float(1.5),
+        );
+
+        assert_eq!(
+            normalized_effective_uniform_value(&control, Some(&override_config), Some(&metadata)),
+            par_term_config::ShaderUniformValue::Float(1.0)
+        );
+
+        metadata.defaults.uniforms.insert(
+            "iGlow".to_string(),
+            par_term_config::ShaderUniformValue::Bool(false),
+        );
+        assert_eq!(
+            normalized_effective_uniform_value(&control, Some(&override_config), Some(&metadata)),
+            par_term_config::ShaderUniformValue::Float(0.1)
+        );
+    }
+
+    #[test]
+    fn shader_uniform_override_cached_shader_controls_reuses_cached_parse_until_invalidated() {
+        let mut cache = std::collections::HashMap::new();
+        let load_calls = std::cell::Cell::new(0);
+        let source = "// par-term-control slider min=0.0 max=1.0 step=0.1\nuniform float iGlow;";
+
+        let first = cached_shader_controls(&mut cache, "controlled.glsl", || {
+            load_calls.set(load_calls.get() + 1);
+            Ok(source.to_string())
+        })
+        .expect("first parse should load source");
+        let second = cached_shader_controls(&mut cache, "controlled.glsl", || {
+            load_calls.set(load_calls.get() + 1);
+            Ok(String::new())
+        })
+        .expect("second parse should use cache");
+
+        assert_eq!(first, second);
+        assert_eq!(load_calls.get(), 1);
+
+        invalidate_cached_shader_controls(&mut cache, "controlled.glsl");
+        let after_invalidate = cached_shader_controls(&mut cache, "controlled.glsl", || {
+            load_calls.set(load_calls.get() + 1);
+            Ok("".to_string())
+        })
+        .expect("invalidated cache should reload source");
+
+        assert!(after_invalidate.controls.is_empty());
+        assert_eq!(load_calls.get(), 2);
     }
 }

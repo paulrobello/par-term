@@ -244,6 +244,7 @@ impl SettingsUI {
 
         // Handle shader editor actions
         let shader_apply_result = if apply_clicked {
+            self.shader_controls_cache.remove(&self.temp_custom_shader);
             Some(ShaderEditorResult {
                 source: self.shader_editor_source.clone(),
             })
@@ -396,6 +397,7 @@ impl SettingsUI {
         match std::fs::write(&shader_path, &self.shader_editor_source) {
             Ok(()) => {
                 self.shader_editor_original = self.shader_editor_source.clone();
+                self.shader_controls_cache.remove(&self.temp_custom_shader);
                 log::info!("Shader saved to {}", shader_path.display());
             }
             Err(e) => {

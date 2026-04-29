@@ -6,6 +6,10 @@
 use crate::SettingsUI;
 use par_term_config::{ShaderConfig, ShaderMetadata};
 
+use super::shader_settings::{
+    invalidate_cached_shader_controls, normalized_effective_uniform_value,
+};
+
 /// Save current effective settings to the shader file's metadata block.
 pub(super) fn save_settings_to_shader_metadata(
     settings: &mut SettingsUI,
@@ -34,8 +38,9 @@ pub(super) fn save_settings_to_shader_metadata(
     match par_term_config::update_shader_metadata_file(&shader_path, &new_metadata) {
         Ok(()) => {
             log::info!("Saved metadata to shader: {}", shader_path.display());
-            // Invalidate the cache so the new metadata is picked up
+            // Invalidate the caches so the new metadata/source is picked up
             settings.shader_metadata_cache.invalidate(shader_name);
+            invalidate_cached_shader_controls(&mut settings.shader_controls_cache, shader_name);
             // Clear any previous error
             settings.shader_editor_error = None;
         }
@@ -177,10 +182,11 @@ fn build_metadata_from_settings(
     if let Ok(source) = std::fs::read_to_string(&shader_path) {
         let parsed = par_term_config::parse_shader_controls(&source);
         for control in parsed.controls {
-            let value = current_override
-                .and_then(|o| o.uniforms.get(&control.name).cloned())
-                .or_else(|| meta_defaults.and_then(|m| m.uniforms.get(&control.name).cloned()))
-                .unwrap_or_else(|| par_term_config::fallback_value_for_control(&control));
+            let value = normalized_effective_uniform_value(
+                &control,
+                current_override,
+                existing_metadata.as_ref(),
+            );
             new_defaults.uniforms.insert(control.name, value);
         }
     }

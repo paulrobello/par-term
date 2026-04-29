@@ -4,9 +4,10 @@
 //! methods for displaying and managing the settings window.
 
 use par_term_config::{
-    BackgroundImageMode, Config, CursorShaderMetadataCache, ProfileId, ShaderMetadataCache,
+    BackgroundImageMode, Config, CursorShaderMetadataCache, ProfileId, ShaderControlParseResult,
+    ShaderMetadataCache,
 };
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use crate::profile_modal_ui::ProfileModalUI;
 use crate::sidebar::SettingsTab;
@@ -129,6 +130,8 @@ pub struct SettingsUI {
     // Per-shader configuration state
     /// Cache for parsed shader metadata
     pub shader_metadata_cache: ShaderMetadataCache,
+    /// Cache for parsed shader controls and warnings
+    pub shader_controls_cache: HashMap<String, ShaderControlParseResult>,
     /// Cache for parsed cursor shader metadata
     pub cursor_shader_metadata_cache: CursorShaderMetadataCache,
     /// Whether the per-shader settings section is expanded
