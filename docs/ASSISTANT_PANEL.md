@@ -562,6 +562,7 @@ When triggered, the following context block is prepended to the agent prompt:
 - **Available shaders**: List of `.glsl`, `.frag`, and `.shader` files in the shaders directory, classified into background and cursor categories (cursor shaders have filenames starting with `cursor_`)
 - **Debug file paths**: Location of transpiled WGSL output (`/tmp/par_term_<name>_shader.wgsl`) and wrapped GLSL (`/tmp/par_term_debug_wrapped.glsl`)
 - **Available uniforms**: All Shadertoy-compatible uniforms (`iTime`, `iResolution`, `iMouse`, `iChannel0-4`) plus cursor-specific extras (`iCurrentCursor`, `iPreviousCursor`, `iTimeCursorChange`)
+- **Shader uniform controls**: Guidance for adding settings-page controls with `// control slider min=... max=... step=...` on `uniform float` values and `// control checkbox` on `uniform bool` values, with defaults stored under `defaults.uniforms`
 - **GLSL compatibility and coordinate rules**: Guidance on sampler argument limitations, UV normalization/clamping, pixel-space vs UV-space handling, and Y-flip pitfalls
 - **Channel placeholder behavior**: Guidance that unset `iChannel0-3` are transparent 1x1 placeholders and how to detect real textures via `iChannelResolution`
 - **Minimal shader template**: A ready-to-use GLSL template with `mainImage` entry point

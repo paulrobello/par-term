@@ -162,6 +162,29 @@ pub fn build_shader_context(config: &Config) -> String {
 
     ctx.push('\n');
 
+    // ---- Shader Uniform Controls ----
+    ctx.push_str("## [Instruction] Shader Uniform Controls\n");
+    ctx.push_str("Background shaders can expose editable controls in Settings with `// control` comments attached to explicit uniforms.\n");
+    ctx.push_str("Supported controls:\n");
+    ctx.push_str("```glsl\n");
+    ctx.push_str("/*! par-term shader metadata\n");
+    ctx.push_str("defaults:\n");
+    ctx.push_str("  uniforms:\n");
+    ctx.push_str("    iGlow: 0.5\n");
+    ctx.push_str("    iEnabled: true\n");
+    ctx.push_str("*/\n");
+    ctx.push_str("// control slider min=0 max=1 step=0.01\n");
+    ctx.push_str("uniform float iGlow;\n");
+    ctx.push_str("// control checkbox\n");
+    ctx.push_str("uniform bool iEnabled;\n");
+    ctx.push_str("```\n");
+    ctx.push_str("- Do not put default= in the control comment. Defaults live in shader metadata under `defaults.uniforms`; user edits persist as per-shader overrides and take precedence.\n");
+    ctx.push_str("- Sliders require `min`, `max`, and `step`; fallback is the slider `min` when no override/default exists.\n");
+    ctx.push_str("- Checkboxes fall back to `false` when no override/default exists.\n");
+    ctx.push_str("- Limits: 16 float slider controls and 16 bool checkbox controls per shader. Extra or malformed controls produce non-fatal warnings; unsupported non-scalar uniforms are not controls.\n");
+
+    ctx.push('\n');
+
     // ---- GLSL Compatibility Rules ----
     ctx.push_str("## [Constraint] GLSL Compatibility Rules\n");
     ctx.push_str("- Avoid passing sampler uniforms (e.g. `sampler2D`) as function parameters.\n");

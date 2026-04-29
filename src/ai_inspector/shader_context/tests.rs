@@ -374,6 +374,7 @@ fn test_context_contains_all_sections() {
     assert!(ctx.contains("## [Observation] Available Shaders"));
     assert!(ctx.contains("## [Observation] Debug Files"));
     assert!(ctx.contains("## [Observation] Available Uniforms"));
+    assert!(ctx.contains("## [Instruction] Shader Uniform Controls"));
     assert!(ctx.contains("## [Constraint] GLSL Compatibility Rules"));
     assert!(ctx.contains("## [Instruction] Minimal Shader Template"));
     assert!(ctx.contains("## [Instruction] How to Apply Changes"));
@@ -463,6 +464,19 @@ fn test_context_uniforms_section() {
     assert!(ctx.contains("iCursorTrailDuration"));
     assert!(ctx.contains("iCursorGlowRadius"));
     assert!(ctx.contains("iCursorGlowIntensity"));
+}
+
+#[test]
+fn test_context_shader_controls_guidance() {
+    let config = default_config();
+    let ctx = build_shader_context(&config);
+    assert!(ctx.contains("// control slider min=0 max=1 step=0.01"));
+    assert!(ctx.contains("uniform float iGlow;"));
+    assert!(ctx.contains("// control checkbox"));
+    assert!(ctx.contains("uniform bool iEnabled;"));
+    assert!(ctx.contains("defaults.uniforms"));
+    assert!(ctx.contains("16 float slider controls"));
+    assert!(ctx.contains("Do not put default= in the control comment"));
 }
 
 #[test]
