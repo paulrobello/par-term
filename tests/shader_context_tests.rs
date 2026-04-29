@@ -50,6 +50,20 @@ fn test_shader_context_template_is_valid_glsl() {
     assert!(ctx.contains("use `alpha=false` on `vec4` only to force an RGB picker"));
     assert!(ctx.contains("16 color controls"));
     assert!(ctx.contains("Do not put default= in the control comment"));
+    assert!(ctx.contains("// control int min=1 max=12 step=1"));
+    assert!(ctx.contains("// control select options=\"soft,hard,screen,add\""));
+    assert!(ctx.contains("// control vec2 min=-1 max=1 step=0.01"));
+    assert!(ctx.contains("// control point label=\"Origin\""));
+    assert!(ctx.contains("// control range min=0 max=1 step=0.01"));
+    assert!(ctx.contains("scale=log"));
+    assert!(ctx.contains("// control angle unit=degrees"));
+    assert!(ctx.contains("// control channel options=\"0,1,2,3,4\""));
+    assert!(ctx.contains("Use `select` for discrete shader modes"));
+    assert!(
+        ctx.contains(
+            "Use `channel` only to choose among existing `iChannel0`..`iChannel4` sources"
+        )
+    );
 }
 
 #[test]

@@ -527,22 +527,42 @@ All metadata fields are optional. Values that are `null` fall through to global 
 
 ### Shader Uniform Controls
 
-Background shaders can declare Settings UI controls for custom uniforms by placing a `// control ...` comment immediately before a supported uniform declaration.
+Background shaders can declare Settings UI controls for custom uniforms by placing a `// control ...` comment immediately before a supported uniform declaration. Defaults belong in shader metadata (`defaults.uniforms`), not in the control comment, and user edits are saved as per-shader overrides in `config.yaml`.
 
 ```glsl
 /*! par-term shader metadata
-name: "Controlled Glow"
-description: "Minimal shader with sliders, checkboxes, and color pickers"
+name: "Controlled Shader"
+description: "Shader with expanded Settings controls"
 defaults:
   uniforms:
+    # Float defaults
     iGlow: 0.5
+    iFrequency: 1.0
+    iRotation: 45.0      # authored in the declared angle unit
+
+    # Int defaults
+    iOctaves: 4
+    iBlendMode: 0        # select receives/stores the zero-based option index
+    iSourceChannel: 4    # choose among existing iChannel0..iChannel4 bindings
+
+    # Vec2 defaults
+    iFlow: [0.1, -0.2]
+    iOrigin: [0.5, 0.5]
+    iBand: [0.25, 0.75]
+
+    # Bool default
     iEnabled: true
+
+    # Color defaults
     iTint: "#66ccff"       # preferred RGB color default
     iOverlay: "#ff8800cc"  # preferred RGBA color default
 */
 
 // control slider min=0 max=1 step=0.01
 uniform float iGlow;
+
+// control slider min=0.01 max=100 step=0.01 scale=log label="Frequency"
+uniform float iFrequency;
 
 // control checkbox
 uniform bool iEnabled;
@@ -553,43 +573,81 @@ uniform vec3 iTint;
 // control color label="Overlay"
 uniform vec4 iOverlay;
 
-void mainImage(out vec4 fragColor, in vec2 fragCoord)
-{
-    vec2 uv = fragCoord / iResolution.xy;
-    vec3 color = iTint * (iGlow * uv.x);
+// control int min=1 max=12 step=1
+uniform int iOctaves;
 
-    if (iEnabled) {
-        color += vec3(0.1, 0.2, 0.4);
-    }
+// control select options="soft,hard,screen,add"
+uniform int iBlendMode;
 
-    fragColor = vec4(color, 1.0) * iOverlay;
-}
+// control vec2 min=-1 max=1 step=0.01
+uniform vec2 iFlow;
+
+// control point label="Origin"
+uniform vec2 iOrigin;
+
+// control range min=0 max=1 step=0.01
+uniform vec2 iBand;
+
+// control angle unit=degrees
+uniform float iRotation;
+
+// control channel options="0,1,2,3,4"
+uniform int iSourceChannel;
 ```
 
 Supported controls:
 
-| Comment | Attached uniform | Settings UI |
-|---------|------------------|-------------|
-| `// control slider min=0 max=1 step=0.01` | `uniform float name;` | Slider |
-| `// control checkbox` | `uniform bool name;` | Checkbox |
-| `// control color label="Tint"` | `uniform vec3 name;` | RGB color picker |
-| `// control color label="Overlay"` | `uniform vec4 name;` | RGBA color picker (`alpha=true` by default) |
+| Comment | Attached uniform | Settings UI / shader value |
+|---------|------------------|----------------------------|
+| `// control slider min=0 max=1 step=0.01` | `uniform float name;` | Linear slider; shader receives `float` |
+| `// control slider min=0.01 max=100 step=0.01 scale=log` | `uniform float name;` | Logarithmic slider; requires `0 < min < max`; shader receives `float` |
+| `// control checkbox` | `uniform bool name;` | Checkbox; shader receives `bool` |
+| `// control color label="Tint"` | `uniform vec3 name;` | RGB color picker; shader receives `vec3` |
+| `// control color label="Overlay"` | `uniform vec4 name;` | RGBA color picker (`alpha=true` by default); shader receives `vec4` |
 | `// control color alpha=false label="Opaque Overlay"` | `uniform vec4 name;` | RGB color picker with opaque alpha |
+| `// control int min=1 max=12 step=1` | `uniform int name;` | Integer slider; shader receives `int` |
+| `// control select options="soft,hard,screen,add"` | `uniform int name;` | Dropdown; shader receives zero-based option index |
+| `// control vec2 min=-1 max=1 step=0.01` | `uniform vec2 name;` | Two numeric sliders; shader receives `vec2(x, y)` |
+| `// control point label="Origin"` | `uniform vec2 name;` | 0..1 normalized point picker; shader receives `vec2(x, y)` |
+| `// control range min=0 max=1 step=0.01` | `uniform vec2 name;` | Low/high range editor; shader receives `vec2(low, high)` |
+| `// control angle unit=degrees` | `uniform float name;` | Angle editor; default UI unit is degrees; shader receives radians |
+| `// control angle unit=radians` | `uniform float name;` | Angle editor authored in radians; shader receives radians |
+| `// control channel options="0,1,2,3,4"` | `uniform int name;` | Channel selector; shader receives selected channel number |
+
+Control rules and value types:
+
+- Do **not** put `default=` in a control comment. Defaults live in shader metadata under `defaults.uniforms`; per-shader overrides take precedence.
+- `label="Display Name"` is optional and changes the Settings UI label. Labels must be quoted.
+- `slider` and `angle` attach to `uniform float`; `checkbox` to `uniform bool`; `color` to `uniform vec3`/`vec4`; `int`, `select`, and `channel` to `uniform int`; `vec2`, `point`, and `range` to `uniform vec2`.
+- `slider`, `vec2`, and `range` require `min`, `max`, and `step`. `slider scale=log` additionally requires `0 < min < max`.
+- `int` requires `min` and `max`; `step` defaults to `1` when omitted.
+- `select options="..."` is a comma-separated list of display labels. The shader receives/stores the zero-based selected option index.
+- `channel options="..."` is a comma-separated list of channel numbers from `0` through `4`. It only selects among existing `iChannel0`..`iChannel4` sources; it does **not** create texture bindings or configure texture files.
+- `point` is normalized UV space (`0..1` on each axis) and falls back to `[0.5, 0.5]`.
+- `range` writes the lower and upper values as `vec2(low, high)`.
+- `angle` values and defaults are authored in the declared UI unit (`unit=degrees` by default, or `unit=radians`), but the shader always receives radians.
 
 Color controls support these fields:
 
 - `uniform vec3` color controls default to RGB (`alpha=false`). `alpha=true` is invalid for `vec3` and the control is skipped with a warning.
 - `uniform vec4` color controls default to RGBA (`alpha=true`). Omit `alpha` or set `alpha=true` for a color picker with an alpha channel.
 - Use `alpha=false` on `vec4` only to force an RGB picker; the saved/effective alpha is normalized to `1.0`.
-- `label="Display Name"` is optional and changes the Settings UI label. Labels must be quoted.
 
-Defaults for controlled uniforms live in the shader metadata block under `defaults.uniforms`. User edits are saved as per-shader overrides in `config.yaml` and take precedence over metadata defaults:
+Defaults and overrides use normal YAML values:
 
 ```yaml
 shader_configs:
-  "controlled_glow.glsl":
+  "controlled_shader.glsl":
     uniforms:
       iGlow: 0.75
+      iFrequency: 2.5
+      iOctaves: 6
+      iBlendMode: 2
+      iFlow: [0.0, -0.25]
+      iOrigin: [0.5, 0.4]
+      iBand: [0.2, 0.8]
+      iRotation: 90.0
+      iSourceChannel: 4
       iEnabled: false
       iTint: "#99ddff"
       iOverlay: "#ff880080"
@@ -609,9 +667,42 @@ defaults:
     iOverlay: [1.0, 0.5, 0.0, 0.8]
 ```
 
-If neither a per-shader override nor a metadata default exists, sliders fall back to their declared `min` value, checkboxes fall back to `false`, and colors fall back to opaque white (`#ffffff`). Invalid defaults are ignored and the fallback is used.
+If neither a per-shader override nor a metadata default exists, fallbacks are:
 
-Limits: each shader can expose up to 16 float slider controls, 16 bool checkbox controls, and 16 color controls. Extra valid controls are ignored with warnings. Malformed control comments also produce warnings in the Settings UI and logs; they are non-fatal unless the shader itself fails GLSL compilation.
+| Control | Fallback |
+|---------|----------|
+| `slider` | Declared `min` |
+| `checkbox` | `false` |
+| `color` | Opaque white (`#ffffff`) |
+| `int` | Declared `min` |
+| `select` | `0` (first option index) |
+| `vec2` | `[min, min]` |
+| `point` | `[0.5, 0.5]` |
+| `range` | `[min, max]` |
+| `angle` | `0` in the declared UI unit |
+| `channel` | First declared channel option |
+
+Limits are per slot class:
+
+- 16 float controls total (`slider` + `angle`)
+- 16 bool controls (`checkbox`)
+- 16 color controls
+- 16 int controls total (`int` + `select` + `channel`)
+- 16 vec2 controls total (`vec2` + `point` + `range`)
+
+Extra valid controls are ignored with warnings. Malformed control comments also produce warnings in the Settings UI and logs; they are non-fatal unless the shader itself fails GLSL compilation.
+
+When choosing a control type:
+
+- Use `slider` for continuous linear amounts.
+- Use `slider scale=log` for frequency/exposure/gain/radius values spanning orders of magnitude.
+- Use `int` for counts, iterations, samples, octaves, and quantization levels.
+- Use `select` for discrete shader modes; shader receives zero-based option index.
+- Use `vec2` for directions, offsets, scales, and velocities.
+- Use `point` for normalized origins/focal points in 0..1 UV space.
+- Use `range` for min/max thresholds and bands; shader receives `vec2(low, high)`.
+- Use `angle` for rotation/direction; defaults are authored in the declared unit and shaders receive radians.
+- Use `channel` only to choose among existing `iChannel0`..`iChannel4` sources; it does not create texture bindings.
 
 ### Porting Shadertoy Shaders
 

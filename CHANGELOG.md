@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Features
+- Added expanded background shader uniform controls: int sliders, select dropdowns, vec2/point/range controls, log sliders, angle controls, and channel selectors.
 - **Custom shader uniform controls** — background shaders can now declare ad-hoc settings controls with `// control` comments attached to explicit GLSL uniforms. Supports float sliders with `min`/`max`/`step`, bool checkboxes, and color pickers for `vec3`/`vec4` uniforms via `// control color` (including `alpha=true` and `label="..."`), persists values as per-shader overrides, supports metadata defaults under `defaults.uniforms` with preferred hex color serialization, uploads values through a dedicated custom uniform buffer, and surfaces non-fatal control parse warnings in the shader settings/editor UI.
 
 ### Removed

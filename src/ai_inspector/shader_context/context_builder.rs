@@ -164,33 +164,72 @@ pub fn build_shader_context(config: &Config) -> String {
 
     // ---- Shader Uniform Controls ----
     ctx.push_str("## [Instruction] Shader Uniform Controls\n");
-    ctx.push_str("Background shaders can expose editable controls in Settings with `// control` comments attached to explicit uniforms.\n");
-    ctx.push_str("Supported controls:\n");
-    ctx.push_str("```glsl\n");
-    ctx.push_str("/*! par-term shader metadata\n");
-    ctx.push_str("defaults:\n");
-    ctx.push_str("  uniforms:\n");
-    ctx.push_str("    iGlow: 0.5\n");
-    ctx.push_str("    iEnabled: true\n");
-    ctx.push_str("    iTint: \"#66ccff\"\n");
-    ctx.push_str("    iOverlay: \"#ff8800cc\"\n");
-    ctx.push_str("*/\n");
-    ctx.push_str("// control slider min=0 max=1 step=0.01\n");
-    ctx.push_str("uniform float iGlow;\n");
-    ctx.push_str("// control checkbox\n");
-    ctx.push_str("uniform bool iEnabled;\n");
-    ctx.push_str("// control color label=\"Tint\"\n");
-    ctx.push_str("uniform vec3 iTint;\n");
-    ctx.push_str("// control color label=\"Overlay\"\n");
-    ctx.push_str("uniform vec4 iOverlay;\n");
-    ctx.push_str("```\n");
-    ctx.push_str("- Do not put default= in the control comment. Defaults live in shader metadata under `defaults.uniforms`; user edits persist as per-shader overrides and take precedence.\n");
-    ctx.push_str("- Prefer hex color defaults (`#rrggbb` for RGB, `#rrggbbaa` for RGBA). Normalized arrays are also accepted: `[r, g, b]` or `[r, g, b, a]`.\n");
-    ctx.push_str("- Color controls attach to `uniform vec3` (RGB picker) or `uniform vec4` (RGBA picker). `vec3` defaults to RGB / `alpha=false`; `alpha=true` is invalid for `vec3`. `vec4` defaults to RGBA / `alpha=true`; use `alpha=false` on `vec4` only to force an RGB picker with opaque alpha. `label=\"Name\"` customizes the Settings label.\n");
-    ctx.push_str("- Sliders require `min`, `max`, and `step`; fallback is the slider `min` when no override/default exists.\n");
-    ctx.push_str("- Checkboxes fall back to `false` when no override/default exists; colors fall back to opaque white.\n");
-    ctx.push_str("- Limits: 16 float slider controls, 16 bool checkbox controls, and 16 color controls per shader. Extra or malformed controls produce non-fatal warnings; unsupported uniform types are not controls.\n");
-
+    ctx.push_str(r##"Background shaders can expose editable controls in Settings with `// control` comments immediately attached to explicit uniforms.
+Full metadata defaults example (Float, Int, Vec2, Bool, Color):
+```glsl
+/*! par-term shader metadata
+name: "Controlled Shader"
+defaults:
+  uniforms:
+    iGlow: 0.5
+    iFrequency: 1.0
+    iOctaves: 4
+    iBlendMode: 0
+    iFlow: [0.1, -0.2]
+    iOrigin: [0.5, 0.5]
+    iBand: [0.25, 0.75]
+    iRotation: 45.0
+    iSourceChannel: 4
+    iEnabled: true
+    iTint: "#66ccff"
+    iOverlay: "#ff8800cc"
+*/
+// control slider min=0 max=1 step=0.01
+uniform float iGlow;
+// control slider min=0.01 max=100 step=0.01 scale=log label="Frequency"
+uniform float iFrequency;
+// control checkbox
+uniform bool iEnabled;
+// control color label="Tint"
+uniform vec3 iTint;
+// control color label="Overlay"
+uniform vec4 iOverlay;
+// control int min=1 max=12 step=1
+uniform int iOctaves;
+// control select options="soft,hard,screen,add"
+uniform int iBlendMode;
+// control vec2 min=-1 max=1 step=0.01
+uniform vec2 iFlow;
+// control point label="Origin"
+uniform vec2 iOrigin;
+// control range min=0 max=1 step=0.01
+uniform vec2 iBand;
+// control angle unit=degrees
+uniform float iRotation;
+// control channel options="0,1,2,3,4"
+uniform int iSourceChannel;
+```
+- Do not put default= in the control comment. Defaults live in shader metadata under `defaults.uniforms`; user edits persist as per-shader overrides and take precedence.
+- Labels must be quoted (`label="Name"`).
+- Prefer hex color defaults (`#rrggbb` for RGB, `#rrggbbaa` for RGBA). Normalized arrays are also accepted: `[r, g, b]` or `[r, g, b, a]`.
+- Value types: `slider` and `angle` attach to `uniform float`; `checkbox` to `uniform bool`; `color` to `uniform vec3` or `uniform vec4`; `int`, `select`, and `channel` to `uniform int`; `vec2`, `point`, and `range` to `uniform vec2`.
+- Color controls attach to `uniform vec3` (RGB picker) or `uniform vec4` (RGBA picker). `vec3` defaults to RGB / `alpha=false`; `alpha=true` is invalid for `vec3`. `vec4` defaults to RGBA / `alpha=true`; use `alpha=false` on `vec4` only to force an RGB picker with opaque alpha. `label="Name"` customizes the Settings label.
+- Sliders require `min`, `max`, and `step`; add `scale=log` only when `0 < min < max`; fallback is the slider `min` when no override/default exists.
+- Checkboxes fall back to `false`; colors fall back to opaque white; ints fall back to `min`; selects fall back to option index `0`; vec2 falls back to `[min, min]`; point falls back to `[0.5, 0.5]`; range falls back to `[min, max]`; angle falls back to `0`; channel falls back to its first option.
+- Limits: 16 float slider controls/angle controls, 16 bool checkbox controls, 16 color controls, 16 int controls/select controls/channel controls, and 16 vec2 controls/point controls/range controls per shader. Extra or malformed controls produce non-fatal warnings; unsupported uniform types are not controls.
+- Angle defaults and edits are authored in the declared UI unit (`unit=degrees` by default, or `unit=radians`); shaders always receive radians.
+- Channel selector values choose among existing `iChannel0`..`iChannel4` sources only; a channel control does not create texture bindings or configure textures.
+When to use controls:
+- Use `slider` for continuous linear amounts.
+- Use `slider scale=log` for frequency/exposure/gain/radius values spanning orders of magnitude.
+- Use `int` for counts, iterations, samples, octaves, and quantization levels.
+- Use `select` for discrete shader modes; shader receives zero-based option index.
+- Use `vec2` for directions, offsets, scales, and velocities.
+- Use `point` for normalized origins/focal points in 0..1 UV space.
+- Use `range` for min/max thresholds and bands; shader receives vec2(low, high).
+- Use `angle` for rotation/direction; defaults authored in declared unit and shaders receive radians.
+- Use `channel` only to choose among existing `iChannel0`..`iChannel4` sources; it does not create texture bindings.
+"##);
     ctx.push('\n');
 
     // ---- GLSL Compatibility Rules ----
