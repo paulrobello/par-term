@@ -468,15 +468,21 @@ fn show_shader_uniform_controls(
         );
 
         ui.horizontal(|ui| match &control.kind {
-            par_term_config::ShaderControlKind::Slider { min, max, step } => {
-                let mut slider_value = match value {
-                    par_term_config::ShaderUniformValue::Float(value) => value.clamp(*min, *max),
-                    _ => *min,
-                };
+            par_term_config::ShaderControlKind::Slider {
+                min,
+                max,
+                step,
+                scale,
+                label,
+            } => {
+                let mut slider_value = float_uniform_value(&value)
+                    .unwrap_or(*min)
+                    .clamp(*min, *max);
                 let response = ui.add(
                     egui::Slider::new(&mut slider_value, *min..=*max)
-                        .step_by(*step as f64)
-                        .text(&control.name),
+                        .step_by((*step).max(f32::EPSILON) as f64)
+                        .logarithmic(matches!(scale, par_term_config::SliderScale::Log))
+                        .text(label.as_deref().unwrap_or(&control.name)),
                 );
                 if response.changed() {
                     set_shader_uniform_override(
@@ -492,9 +498,12 @@ fn show_shader_uniform_controls(
                     *changes_this_frame = true;
                 }
             }
-            par_term_config::ShaderControlKind::Checkbox => {
+            par_term_config::ShaderControlKind::Checkbox { label } => {
                 let mut checked = matches!(value, par_term_config::ShaderUniformValue::Bool(true));
-                if ui.checkbox(&mut checked, &control.name).changed() {
+                if ui
+                    .checkbox(&mut checked, label.as_deref().unwrap_or(&control.name))
+                    .changed()
+                {
                     set_shader_uniform_override(
                         settings,
                         shader_name,
@@ -561,6 +570,253 @@ fn show_shader_uniform_controls(
                 }
 
                 response.on_hover_text("Pick shader uniform color");
+            }
+            par_term_config::ShaderControlKind::Int {
+                min,
+                max,
+                step,
+                label,
+            } => {
+                let mut int_value = integral_uniform_value(&value).unwrap_or(*min);
+                int_value = snap_i32_to_step(int_value, *min, *max, *step);
+                let response = ui.add(
+                    egui::Slider::new(&mut int_value, *min..=*max)
+                        .step_by(i64::from((*step).max(1)) as f64)
+                        .text(label.as_deref().unwrap_or(&control.name)),
+                );
+                if response.changed() {
+                    set_shader_uniform_override(
+                        settings,
+                        shader_name,
+                        &control.name,
+                        par_term_config::ShaderUniformValue::Int(snap_i32_to_step(
+                            int_value, *min, *max, *step,
+                        )),
+                    );
+                    *changes_this_frame = true;
+                }
+                if show_reset_button(ui, has_uniform_override) {
+                    clear_shader_uniform_override(settings, shader_name, &control.name);
+                    *changes_this_frame = true;
+                }
+            }
+            par_term_config::ShaderControlKind::Select { options, label } => {
+                ui.label(label.as_deref().unwrap_or(&control.name));
+                let max_index = options.len().saturating_sub(1) as i32;
+                let mut selected = integral_uniform_value(&value)
+                    .unwrap_or(0)
+                    .clamp(0, max_index);
+                let before = selected;
+                let selected_text = options
+                    .get(selected as usize)
+                    .map(String::as_str)
+                    .unwrap_or("No options");
+                egui::ComboBox::from_id_salt(format!("shader_uniform_select_{}", control.name))
+                    .selected_text(selected_text)
+                    .show_ui(ui, |ui| {
+                        for (index, option) in options.iter().enumerate() {
+                            ui.selectable_value(&mut selected, index as i32, option);
+                        }
+                    });
+                if selected != before {
+                    set_shader_uniform_override(
+                        settings,
+                        shader_name,
+                        &control.name,
+                        par_term_config::ShaderUniformValue::Int(selected),
+                    );
+                    *changes_this_frame = true;
+                }
+                if show_reset_button(ui, has_uniform_override) {
+                    clear_shader_uniform_override(settings, shader_name, &control.name);
+                    *changes_this_frame = true;
+                }
+            }
+            par_term_config::ShaderControlKind::Vec2 {
+                min,
+                max,
+                step,
+                label,
+            } => {
+                ui.label(label.as_deref().unwrap_or(&control.name));
+                let mut components = match value {
+                    par_term_config::ShaderUniformValue::Vec2(value) => {
+                        normalize_vec2_components(value, *min, *max)
+                    }
+                    _ => [*min, *min],
+                };
+                let x_response = ui.label("X:");
+                x_response.on_hover_text("X component");
+                let x_changed = ui
+                    .add(
+                        egui::DragValue::new(&mut components[0])
+                            .range(*min..=*max)
+                            .speed((*step).max(f32::EPSILON) as f64),
+                    )
+                    .changed();
+                ui.label("Y:");
+                let y_changed = ui
+                    .add(
+                        egui::DragValue::new(&mut components[1])
+                            .range(*min..=*max)
+                            .speed((*step).max(f32::EPSILON) as f64),
+                    )
+                    .changed();
+                if x_changed || y_changed {
+                    set_shader_uniform_override(
+                        settings,
+                        shader_name,
+                        &control.name,
+                        par_term_config::ShaderUniformValue::Vec2(normalize_vec2_components(
+                            components, *min, *max,
+                        )),
+                    );
+                    *changes_this_frame = true;
+                }
+                if show_reset_button(ui, has_uniform_override) {
+                    clear_shader_uniform_override(settings, shader_name, &control.name);
+                    *changes_this_frame = true;
+                }
+            }
+            par_term_config::ShaderControlKind::Point { label } => {
+                ui.label(label.as_deref().unwrap_or(&control.name));
+                let mut point = match value {
+                    par_term_config::ShaderUniformValue::Vec2(value) => {
+                        normalize_vec2_components(value, 0.0, 1.0)
+                    }
+                    _ => [0.5, 0.5],
+                };
+                ui.label("X:");
+                let x_changed = ui
+                    .add(egui::Slider::new(&mut point[0], 0.0..=1.0))
+                    .changed();
+                ui.label("Y:");
+                let y_changed = ui
+                    .add(egui::Slider::new(&mut point[1], 0.0..=1.0))
+                    .changed();
+                let center_clicked = ui.button("Center").clicked();
+                if center_clicked {
+                    point = [0.5, 0.5];
+                }
+                if x_changed || y_changed || center_clicked {
+                    set_shader_uniform_override(
+                        settings,
+                        shader_name,
+                        &control.name,
+                        par_term_config::ShaderUniformValue::Vec2(normalize_vec2_components(
+                            point, 0.0, 1.0,
+                        )),
+                    );
+                    *changes_this_frame = true;
+                }
+                if show_reset_button(ui, has_uniform_override) {
+                    clear_shader_uniform_override(settings, shader_name, &control.name);
+                    *changes_this_frame = true;
+                }
+            }
+            par_term_config::ShaderControlKind::Range {
+                min,
+                max,
+                step,
+                label,
+            } => {
+                ui.label(label.as_deref().unwrap_or(&control.name));
+                let mut range = match value {
+                    par_term_config::ShaderUniformValue::Vec2(value) => {
+                        normalize_vec2_components(value, *min, *max)
+                    }
+                    _ => [*min, *max],
+                };
+                range = [range[0].min(range[1]), range[0].max(range[1])];
+                ui.label("Low:");
+                let low_changed = ui
+                    .add(
+                        egui::Slider::new(&mut range[0], *min..=*max)
+                            .step_by((*step).max(f32::EPSILON) as f64),
+                    )
+                    .changed();
+                ui.label("High:");
+                let high_changed = ui
+                    .add(
+                        egui::Slider::new(&mut range[1], *min..=*max)
+                            .step_by((*step).max(f32::EPSILON) as f64),
+                    )
+                    .changed();
+                if low_changed || high_changed {
+                    let normalized = normalize_vec2_components(range, *min, *max);
+                    let sorted = [
+                        normalized[0].min(normalized[1]),
+                        normalized[0].max(normalized[1]),
+                    ];
+                    set_shader_uniform_override(
+                        settings,
+                        shader_name,
+                        &control.name,
+                        par_term_config::ShaderUniformValue::Vec2(sorted),
+                    );
+                    *changes_this_frame = true;
+                }
+                if show_reset_button(ui, has_uniform_override) {
+                    clear_shader_uniform_override(settings, shader_name, &control.name);
+                    *changes_this_frame = true;
+                }
+            }
+            par_term_config::ShaderControlKind::Angle { unit, label } => {
+                ui.label(label.as_deref().unwrap_or(&control.name));
+                let mut angle = float_uniform_value(&value).unwrap_or(0.0);
+                let suffix = match unit {
+                    par_term_config::AngleUnit::Degrees => "°",
+                    par_term_config::AngleUnit::Radians => " rad",
+                };
+                if ui
+                    .add(egui::DragValue::new(&mut angle).speed(1.0).suffix(suffix))
+                    .changed()
+                {
+                    set_shader_uniform_override(
+                        settings,
+                        shader_name,
+                        &control.name,
+                        par_term_config::ShaderUniformValue::Float(angle),
+                    );
+                    *changes_this_frame = true;
+                }
+                if show_reset_button(ui, has_uniform_override) {
+                    clear_shader_uniform_override(settings, shader_name, &control.name);
+                    *changes_this_frame = true;
+                }
+            }
+            par_term_config::ShaderControlKind::Channel { options, label } => {
+                ui.label(label.as_deref().unwrap_or(&control.name));
+                let fallback = options.first().copied().unwrap_or(0);
+                let mut selected = integral_uniform_value(&value).unwrap_or(fallback);
+                if !options.contains(&selected) {
+                    selected = fallback;
+                }
+                let before = selected;
+                egui::ComboBox::from_id_salt(format!("shader_uniform_channel_{}", control.name))
+                    .selected_text(format!("iChannel{}", selected))
+                    .show_ui(ui, |ui| {
+                        for option in options {
+                            ui.selectable_value(
+                                &mut selected,
+                                *option,
+                                format!("iChannel{}", option),
+                            );
+                        }
+                    });
+                if selected != before {
+                    set_shader_uniform_override(
+                        settings,
+                        shader_name,
+                        &control.name,
+                        par_term_config::ShaderUniformValue::Int(selected),
+                    );
+                    *changes_this_frame = true;
+                }
+                if show_reset_button(ui, has_uniform_override) {
+                    clear_shader_uniform_override(settings, shader_name, &control.name);
+                    *changes_this_frame = true;
+                }
             }
         });
     }
@@ -647,25 +903,117 @@ fn normalize_uniform_value_for_control(
     control: &par_term_config::ShaderControl,
     value: &par_term_config::ShaderUniformValue,
 ) -> Option<par_term_config::ShaderUniformValue> {
-    match (&control.kind, value) {
-        (
-            par_term_config::ShaderControlKind::Slider { min, max, .. },
-            par_term_config::ShaderUniformValue::Float(value),
-        ) => Some(par_term_config::ShaderUniformValue::Float(
-            value.clamp(*min, *max),
-        )),
-        (
-            par_term_config::ShaderControlKind::Checkbox,
-            par_term_config::ShaderUniformValue::Bool(value),
-        ) => Some(par_term_config::ShaderUniformValue::Bool(*value)),
-        (
-            par_term_config::ShaderControlKind::Color { alpha, .. },
-            par_term_config::ShaderUniformValue::Color(value),
-        ) => Some(par_term_config::ShaderUniformValue::Color(
-            normalized_shader_color_value(value.0, *alpha),
-        )),
+    match &control.kind {
+        par_term_config::ShaderControlKind::Slider { min, max, .. } => float_uniform_value(value)
+            .map(|value| par_term_config::ShaderUniformValue::Float(value.clamp(*min, *max))),
+        par_term_config::ShaderControlKind::Checkbox { .. } => match value {
+            par_term_config::ShaderUniformValue::Bool(value) => {
+                Some(par_term_config::ShaderUniformValue::Bool(*value))
+            }
+            _ => None,
+        },
+        par_term_config::ShaderControlKind::Color { alpha, .. } => match value {
+            par_term_config::ShaderUniformValue::Color(value) => {
+                Some(par_term_config::ShaderUniformValue::Color(
+                    normalized_shader_color_value(value.0, *alpha),
+                ))
+            }
+            _ => None,
+        },
+        par_term_config::ShaderControlKind::Int { min, max, step, .. } => {
+            integral_uniform_value(value).map(|value| {
+                par_term_config::ShaderUniformValue::Int(snap_i32_to_step(value, *min, *max, *step))
+            })
+        }
+        par_term_config::ShaderControlKind::Select { options, .. } => {
+            let max = options.len().saturating_sub(1) as i32;
+            integral_uniform_value(value)
+                .map(|value| par_term_config::ShaderUniformValue::Int(value.clamp(0, max)))
+        }
+        par_term_config::ShaderControlKind::Channel { options, .. } => {
+            let fallback = options.first().copied().unwrap_or(0);
+            integral_uniform_value(value).map(|value| {
+                par_term_config::ShaderUniformValue::Int(if options.contains(&value) {
+                    value
+                } else {
+                    fallback
+                })
+            })
+        }
+        par_term_config::ShaderControlKind::Vec2 { min, max, .. } => match value {
+            par_term_config::ShaderUniformValue::Vec2(value) => {
+                Some(par_term_config::ShaderUniformValue::Vec2(
+                    normalize_vec2_components(*value, *min, *max),
+                ))
+            }
+            _ => None,
+        },
+        par_term_config::ShaderControlKind::Point { .. } => match value {
+            par_term_config::ShaderUniformValue::Vec2(value) => {
+                Some(par_term_config::ShaderUniformValue::Vec2(
+                    normalize_vec2_components(*value, 0.0, 1.0),
+                ))
+            }
+            _ => None,
+        },
+        par_term_config::ShaderControlKind::Range { min, max, .. } => match value {
+            par_term_config::ShaderUniformValue::Vec2(value) => {
+                let normalized = normalize_vec2_components(*value, *min, *max);
+                Some(par_term_config::ShaderUniformValue::Vec2([
+                    normalized[0].min(normalized[1]),
+                    normalized[0].max(normalized[1]),
+                ]))
+            }
+            _ => None,
+        },
+        par_term_config::ShaderControlKind::Angle { .. } => float_uniform_value(value)
+            .map(|value| par_term_config::ShaderUniformValue::Float(value)),
+    }
+}
+
+fn integral_uniform_value(value: &par_term_config::ShaderUniformValue) -> Option<i32> {
+    match value {
+        par_term_config::ShaderUniformValue::Int(value) => Some(*value),
+        par_term_config::ShaderUniformValue::Float(value)
+            if value.is_finite()
+                && value.fract() == 0.0
+                && f64::from(*value) >= f64::from(i32::MIN)
+                && f64::from(*value) <= f64::from(i32::MAX) =>
+        {
+            Some(*value as i32)
+        }
         _ => None,
     }
+}
+
+fn float_uniform_value(value: &par_term_config::ShaderUniformValue) -> Option<f32> {
+    match value {
+        par_term_config::ShaderUniformValue::Float(value) if value.is_finite() => Some(*value),
+        par_term_config::ShaderUniformValue::Int(value) => Some(*value as f32),
+        _ => None,
+    }
+}
+
+fn snap_i32_to_step(value: i32, min: i32, max: i32, step: i32) -> i32 {
+    let clamped = value.clamp(min, max);
+    let min_i64 = i64::from(min);
+    let max_i64 = i64::from(max);
+    let step_i64 = i64::from(step.max(1));
+    let offset = i64::from(clamped) - min_i64;
+    let steps_from_min = (offset + step_i64 / 2) / step_i64;
+    let candidate = min_i64 + steps_from_min * step_i64;
+
+    candidate.clamp(min_i64, max_i64) as i32
+}
+
+fn normalize_vec2_components(value: [f32; 2], min: f32, max: f32) -> [f32; 2] {
+    value.map(|component| {
+        if component.is_finite() {
+            component.clamp(min, max)
+        } else {
+            min
+        }
+    })
 }
 
 fn normalized_shader_color_value(
@@ -823,6 +1171,8 @@ mod tests {
                 min: 0.1,
                 max: 1.0,
                 step: 0.05,
+                scale: par_term_config::SliderScale::Linear,
+                label: None,
             },
         };
         let mut override_config = par_term_config::ShaderConfig::default();
@@ -858,6 +1208,8 @@ mod tests {
                 min: 0.1,
                 max: 1.0,
                 step: 0.05,
+                scale: par_term_config::SliderScale::Linear,
+                label: None,
             },
         };
         let mut override_config = par_term_config::ShaderConfig::default();
@@ -884,6 +1236,193 @@ mod tests {
             normalized_effective_uniform_value(&control, Some(&override_config), Some(&metadata)),
             par_term_config::ShaderUniformValue::Float(0.1)
         );
+    }
+
+    fn int_control(name: &str, min: i32, max: i32, step: i32) -> par_term_config::ShaderControl {
+        par_term_config::ShaderControl {
+            name: name.to_string(),
+            kind: par_term_config::ShaderControlKind::Int {
+                min,
+                max,
+                step,
+                label: None,
+            },
+        }
+    }
+
+    fn checkbox_control(name: &str) -> par_term_config::ShaderControl {
+        par_term_config::ShaderControl {
+            name: name.to_string(),
+            kind: par_term_config::ShaderControlKind::Checkbox { label: None },
+        }
+    }
+
+    fn vec2_components(value: par_term_config::ShaderUniformValue) -> [f32; 2] {
+        let par_term_config::ShaderUniformValue::Vec2(actual) = value else {
+            panic!("expected vec2 uniform value, got {value:?}");
+        };
+        actual
+    }
+
+    #[test]
+    fn shader_uniform_override_normalizes_slider_int_and_checkbox_values() {
+        let slider_control = par_term_config::ShaderControl {
+            name: "iGlow".to_string(),
+            kind: par_term_config::ShaderControlKind::Slider {
+                min: 0.25,
+                max: 2.0,
+                step: 0.25,
+                scale: par_term_config::SliderScale::Log,
+                label: Some("Glow".to_string()),
+            },
+        };
+        assert_eq!(
+            normalize_uniform_value_for_control(
+                &slider_control,
+                &par_term_config::ShaderUniformValue::Int(3),
+            ),
+            Some(par_term_config::ShaderUniformValue::Float(2.0))
+        );
+
+        let checkbox_control = checkbox_control("iEnabled");
+        assert_eq!(
+            normalize_uniform_value_for_control(
+                &checkbox_control,
+                &par_term_config::ShaderUniformValue::Bool(true),
+            ),
+            Some(par_term_config::ShaderUniformValue::Bool(true))
+        );
+    }
+
+    #[test]
+    fn shader_uniform_override_normalizes_int_select_channel_and_angle_values() {
+        let int_control = int_control("iCount", -10, 10, 3);
+        assert_eq!(
+            normalize_uniform_value_for_control(
+                &int_control,
+                &par_term_config::ShaderUniformValue::Float(9.0),
+            ),
+            Some(par_term_config::ShaderUniformValue::Int(8))
+        );
+
+        let select_control = par_term_config::ShaderControl {
+            name: "iMode".to_string(),
+            kind: par_term_config::ShaderControlKind::Select {
+                options: vec!["Off".to_string(), "Low".to_string(), "High".to_string()],
+                label: None,
+            },
+        };
+        assert_eq!(
+            normalize_uniform_value_for_control(
+                &select_control,
+                &par_term_config::ShaderUniformValue::Float(9.0),
+            ),
+            Some(par_term_config::ShaderUniformValue::Int(2))
+        );
+
+        let channel_control = par_term_config::ShaderControl {
+            name: "iSource".to_string(),
+            kind: par_term_config::ShaderControlKind::Channel {
+                options: vec![1, 3, 5],
+                label: None,
+            },
+        };
+        assert_eq!(
+            normalize_uniform_value_for_control(
+                &channel_control,
+                &par_term_config::ShaderUniformValue::Int(3),
+            ),
+            Some(par_term_config::ShaderUniformValue::Int(3))
+        );
+        assert_eq!(
+            normalize_uniform_value_for_control(
+                &channel_control,
+                &par_term_config::ShaderUniformValue::Float(7.0),
+            ),
+            Some(par_term_config::ShaderUniformValue::Int(1))
+        );
+
+        let angle_control = par_term_config::ShaderControl {
+            name: "iRotation".to_string(),
+            kind: par_term_config::ShaderControlKind::Angle {
+                unit: par_term_config::AngleUnit::Degrees,
+                label: None,
+            },
+        };
+        assert_eq!(
+            normalize_uniform_value_for_control(
+                &angle_control,
+                &par_term_config::ShaderUniformValue::Int(45),
+            ),
+            Some(par_term_config::ShaderUniformValue::Float(45.0))
+        );
+    }
+
+    #[test]
+    fn shader_uniform_override_normalizes_vec2_point_and_range_values() {
+        let vec2_control = par_term_config::ShaderControl {
+            name: "iOffset".to_string(),
+            kind: par_term_config::ShaderControlKind::Vec2 {
+                min: -1.0,
+                max: 1.0,
+                step: 0.1,
+                label: None,
+            },
+        };
+        assert_eq!(
+            vec2_components(
+                normalize_uniform_value_for_control(
+                    &vec2_control,
+                    &par_term_config::ShaderUniformValue::Vec2([-2.0, 2.0]),
+                )
+                .expect("vec2 should normalize"),
+            ),
+            [-1.0, 1.0]
+        );
+
+        let point_control = par_term_config::ShaderControl {
+            name: "iCenter".to_string(),
+            kind: par_term_config::ShaderControlKind::Point { label: None },
+        };
+        assert_eq!(
+            vec2_components(
+                normalize_uniform_value_for_control(
+                    &point_control,
+                    &par_term_config::ShaderUniformValue::Vec2([-0.25, 1.25]),
+                )
+                .expect("point should normalize"),
+            ),
+            [0.0, 1.0]
+        );
+
+        let range_control = par_term_config::ShaderControl {
+            name: "iBand".to_string(),
+            kind: par_term_config::ShaderControlKind::Range {
+                min: 0.0,
+                max: 5.0,
+                step: 0.25,
+                label: None,
+            },
+        };
+        assert_eq!(
+            vec2_components(
+                normalize_uniform_value_for_control(
+                    &range_control,
+                    &par_term_config::ShaderUniformValue::Vec2([6.0, -1.0]),
+                )
+                .expect("range should normalize"),
+            ),
+            [0.0, 5.0]
+        );
+    }
+
+    #[test]
+    fn shader_uniform_override_snap_i32_to_step_uses_wide_arithmetic_for_extremes() {
+        assert_eq!(
+            snap_i32_to_step(i32::MAX, i32::MIN, i32::MAX, i32::MAX),
+            i32::MAX - 1
+        );
+        assert_eq!(snap_i32_to_step(i32::MIN, i32::MIN, i32::MAX, 2), i32::MIN);
     }
 
     fn color_control(name: &str, alpha: bool) -> par_term_config::ShaderControl {
