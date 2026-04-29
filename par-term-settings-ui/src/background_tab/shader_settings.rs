@@ -724,7 +724,7 @@ mod tests {
     fn shader_uniform_override_cached_shader_controls_reuses_cached_parse_until_invalidated() {
         let mut cache = std::collections::HashMap::new();
         let load_calls = std::cell::Cell::new(0);
-        let source = "// par-term-control slider min=0.0 max=1.0 step=0.1\nuniform float iGlow;";
+        let source = "// control slider min=0.0 max=1.0 step=0.1\nuniform float iGlow;";
 
         let first = cached_shader_controls(&mut cache, "controlled.glsl", || {
             load_calls.set(load_calls.get() + 1);

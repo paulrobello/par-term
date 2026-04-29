@@ -1,7 +1,7 @@
 //! Shader watcher lifecycle and hot-reload handling for WindowState.
 
 use crate::app::window_state::WindowState;
-use crate::config::Config;
+use crate::config::{Config, resolve_shader_config};
 use crate::shader_watcher::{ShaderReloadEvent, ShaderType, ShaderWatcher};
 
 impl WindowState {
@@ -97,6 +97,30 @@ impl WindowState {
         self.handle_shader_reload_event(event)
     }
 
+    fn refresh_background_shader_uniforms_after_reload(&mut self, source: &str) {
+        let Some(shader_name) = self.config.shader.custom_shader.clone() else {
+            return;
+        };
+
+        self.shader_state
+            .shader_metadata_cache
+            .invalidate(&shader_name);
+        let metadata = par_term_config::parse_shader_metadata(source).or_else(|| {
+            self.shader_state
+                .shader_metadata_cache
+                .get_fresh(&shader_name)
+        });
+        let resolved = resolve_shader_config(
+            self.config.get_shader_override(&shader_name),
+            metadata.as_ref(),
+            &self.config,
+        );
+
+        if let Some(renderer) = &mut self.renderer {
+            renderer.set_custom_shader_uniform_values(resolved.custom_uniforms);
+        }
+    }
+
     /// Handle a shader reload event
     ///
     /// On success: clears errors, triggers redraw, optionally shows notification
@@ -147,21 +171,26 @@ impl WindowState {
             }
         };
 
-        let Some(renderer) = &mut self.renderer else {
-            log::error!("Cannot reload shader: no renderer available");
-            return false;
-        };
-
         // Attempt to reload the shader
         // Note: On compilation failure, the old shader pipeline is preserved
-        let result = match event.shader_type {
-            ShaderType::Background => renderer.reload_shader_from_source(&source),
-            ShaderType::Cursor => renderer.reload_cursor_shader_from_source(&source),
+        let result = {
+            let Some(renderer) = &mut self.renderer else {
+                log::error!("Cannot reload shader: no renderer available");
+                return false;
+            };
+
+            match event.shader_type {
+                ShaderType::Background => renderer.reload_shader_from_source(&source),
+                ShaderType::Cursor => renderer.reload_cursor_shader_from_source(&source),
+            }
         };
 
         match result {
             Ok(()) => {
                 log::info!("{} reloaded successfully from {}", shader_name, file_name);
+                if event.shader_type == ShaderType::Background {
+                    self.refresh_background_shader_uniforms_after_reload(&source);
+                }
                 self.shader_state.shader_reload_error = None;
                 // Track success for standalone settings window propagation
                 match event.shader_type {

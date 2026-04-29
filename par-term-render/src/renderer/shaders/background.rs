@@ -116,6 +116,17 @@ impl Renderer {
         }
     }
 
+    /// Update custom shader uniform values keyed by control name.
+    pub fn set_custom_shader_uniform_values(
+        &mut self,
+        values: std::collections::BTreeMap<String, par_term_config::ShaderUniformValue>,
+    ) {
+        if let Some(ref mut custom_shader) = self.custom_shader_renderer {
+            custom_shader.set_custom_uniform_values(values);
+            self.dirty = true;
+        }
+    }
+
     /// Reload the custom shader from source code.
     ///
     /// Compiles the new shader source and replaces the current pipeline.

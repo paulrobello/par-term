@@ -62,6 +62,7 @@ impl SettingsUI {
 
                 // Show error dialog if there's an error
                 self.show_shader_error(ui);
+                self.show_shader_control_warnings(ui);
 
                 // Shader source editor
                 let available_height = ui.available_height() - 60.0; // Reserve space for buttons
@@ -389,6 +390,31 @@ impl SettingsUI {
         if dismiss_error {
             self.shader_editor_error = None;
         }
+    }
+
+    /// Show non-fatal warnings from `// control ...` comments in the editor source.
+    fn show_shader_control_warnings(&self, ui: &mut egui::Ui) {
+        let parse_result = par_term_config::parse_shader_controls(&self.shader_editor_source);
+        if parse_result.warnings.is_empty() {
+            return;
+        }
+
+        ui.group(|ui| {
+            ui.colored_label(
+                Color32::from_rgb(255, 200, 80),
+                "Shader Control Warnings (non-fatal)",
+            );
+            for warning in parse_result.warnings.iter().take(8) {
+                ui.label(format!("Line {}: {}", warning.line, warning.message));
+            }
+            if parse_result.warnings.len() > 8 {
+                ui.label(format!(
+                    "… and {} more warning(s)",
+                    parse_result.warnings.len() - 8
+                ));
+            }
+        });
+        ui.separator();
     }
 
     /// Save shader source to file
