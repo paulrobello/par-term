@@ -96,6 +96,8 @@ pub(crate) struct CustomShaderUniforms {
 pub(crate) const MAX_CUSTOM_FLOAT_UNIFORMS: usize = 16;
 pub(crate) const MAX_CUSTOM_BOOL_UNIFORMS: usize = 16;
 pub(crate) const MAX_CUSTOM_COLOR_UNIFORMS: usize = 16;
+pub(crate) const MAX_CUSTOM_INT_UNIFORMS: usize = 16;
+pub(crate) const MAX_CUSTOM_VEC2_UNIFORMS: usize = 16;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -106,6 +108,10 @@ pub(crate) struct CustomShaderControlUniforms {
     pub bool_values: [[u32; 4]; 4],
     /// 16 color slots stored as vec4 RGBA values.
     pub color_values: [[f32; 4]; 16],
+    /// 16 int slots stored as 4 ivec4s for std140 array alignment.
+    pub int_values: [[i32; 4]; 4],
+    /// 16 vec2 slots stored as vec4 values for std140 array alignment.
+    pub vec2_values: [[f32; 4]; 16],
 }
 
 impl CustomShaderControlUniforms {
@@ -117,10 +123,14 @@ impl CustomShaderControlUniforms {
             float_values: [[0.0; 4]; 4],
             bool_values: [[0; 4]; 4],
             color_values: [[0.0; 4]; 16],
+            int_values: [[0; 4]; 4],
+            vec2_values: [[0.0; 4]; 16],
         };
         let mut float_index = 0usize;
         let mut bool_index = 0usize;
         let mut color_index = 0usize;
+        let mut int_index = 0usize;
+        let mut vec2_index = 0usize;
 
         for control in controls {
             match &control.kind {
@@ -128,15 +138,24 @@ impl CustomShaderControlUniforms {
                     if float_index >= MAX_CUSTOM_FLOAT_UNIFORMS {
                         continue;
                     }
-                    let value = match values.get(&control.name) {
-                        Some(par_term_config::ShaderUniformValue::Float(value)) => *value,
-                        _ => *min,
-                    }
-                    .clamp(*min, *max);
+                    let value = float_value_for_control(control, values)
+                        .unwrap_or(*min)
+                        .clamp(*min, *max);
                     uniforms.float_values[float_index / 4][float_index % 4] = value;
                     float_index += 1;
                 }
-                par_term_config::ShaderControlKind::Checkbox => {
+                par_term_config::ShaderControlKind::Angle { unit, .. } => {
+                    if float_index >= MAX_CUSTOM_FLOAT_UNIFORMS {
+                        continue;
+                    }
+                    let mut value = float_value_for_control(control, values).unwrap_or(0.0);
+                    if *unit == par_term_config::AngleUnit::Degrees {
+                        value *= std::f32::consts::PI / 180.0;
+                    }
+                    uniforms.float_values[float_index / 4][float_index % 4] = value;
+                    float_index += 1;
+                }
+                par_term_config::ShaderControlKind::Checkbox { .. } => {
                     if bool_index >= MAX_CUSTOM_BOOL_UNIFORMS {
                         continue;
                     }
@@ -153,13 +172,82 @@ impl CustomShaderControlUniforms {
                     }
                     let mut value = match values.get(&control.name) {
                         Some(par_term_config::ShaderUniformValue::Color(value)) => value.0,
-                        _ => [1.0, 1.0, 1.0, 1.0],
+                        _ => match par_term_config::fallback_value_for_control(control) {
+                            par_term_config::ShaderUniformValue::Color(value) => value.0,
+                            _ => [1.0, 1.0, 1.0, 1.0],
+                        },
                     };
                     if !alpha {
                         value[3] = 1.0;
                     }
                     uniforms.color_values[color_index] = value;
                     color_index += 1;
+                }
+                par_term_config::ShaderControlKind::Int { min, max, step, .. } => {
+                    if int_index >= MAX_CUSTOM_INT_UNIFORMS {
+                        continue;
+                    }
+                    let value = int_value_for_control(control, values).unwrap_or(*min);
+                    uniforms.int_values[int_index / 4][int_index % 4] =
+                        snap_int_to_step(value, *min, *max, *step);
+                    int_index += 1;
+                }
+                par_term_config::ShaderControlKind::Select { options, .. } => {
+                    if int_index >= MAX_CUSTOM_INT_UNIFORMS {
+                        continue;
+                    }
+                    let max = options.len().saturating_sub(1) as i32;
+                    let value = int_value_for_control(control, values)
+                        .unwrap_or(0)
+                        .clamp(0, max);
+                    uniforms.int_values[int_index / 4][int_index % 4] = value;
+                    int_index += 1;
+                }
+                par_term_config::ShaderControlKind::Channel { options, .. } => {
+                    if int_index >= MAX_CUSTOM_INT_UNIFORMS {
+                        continue;
+                    }
+                    let fallback = options.first().copied().unwrap_or(0);
+                    let value = int_value_for_control(control, values).unwrap_or(fallback);
+                    uniforms.int_values[int_index / 4][int_index % 4] = if options.contains(&value)
+                    {
+                        value
+                    } else {
+                        fallback
+                    };
+                    int_index += 1;
+                }
+                par_term_config::ShaderControlKind::Vec2 { min, max, .. } => {
+                    if vec2_index >= MAX_CUSTOM_VEC2_UNIFORMS {
+                        continue;
+                    }
+                    let value = vec2_value_for_control(control, values).unwrap_or([*min, *min]);
+                    uniforms.vec2_values[vec2_index] = [
+                        value[0].clamp(*min, *max),
+                        value[1].clamp(*min, *max),
+                        0.0,
+                        0.0,
+                    ];
+                    vec2_index += 1;
+                }
+                par_term_config::ShaderControlKind::Point { .. } => {
+                    if vec2_index >= MAX_CUSTOM_VEC2_UNIFORMS {
+                        continue;
+                    }
+                    let value = vec2_value_for_control(control, values).unwrap_or([0.5, 0.5]);
+                    uniforms.vec2_values[vec2_index] =
+                        [value[0].clamp(0.0, 1.0), value[1].clamp(0.0, 1.0), 0.0, 0.0];
+                    vec2_index += 1;
+                }
+                par_term_config::ShaderControlKind::Range { min, max, .. } => {
+                    if vec2_index >= MAX_CUSTOM_VEC2_UNIFORMS {
+                        continue;
+                    }
+                    let value = vec2_value_for_control(control, values).unwrap_or([*min, *max]);
+                    let low = value[0].clamp(*min, *max);
+                    let high = value[1].clamp(*min, *max);
+                    uniforms.vec2_values[vec2_index] = [low.min(high), low.max(high), 0.0, 0.0];
+                    vec2_index += 1;
                 }
             }
         }
@@ -168,9 +256,64 @@ impl CustomShaderControlUniforms {
     }
 }
 
+fn float_value_for_control(
+    control: &par_term_config::ShaderControl,
+    values: &std::collections::BTreeMap<String, par_term_config::ShaderUniformValue>,
+) -> Option<f32> {
+    match values
+        .get(&control.name)
+        .unwrap_or(&par_term_config::fallback_value_for_control(control))
+    {
+        par_term_config::ShaderUniformValue::Float(value) => Some(*value),
+        par_term_config::ShaderUniformValue::Int(value) => Some(*value as f32),
+        _ => None,
+    }
+}
+
+fn int_value_for_control(
+    control: &par_term_config::ShaderControl,
+    values: &std::collections::BTreeMap<String, par_term_config::ShaderUniformValue>,
+) -> Option<i32> {
+    match values
+        .get(&control.name)
+        .unwrap_or(&par_term_config::fallback_value_for_control(control))
+    {
+        par_term_config::ShaderUniformValue::Int(value) => Some(*value),
+        par_term_config::ShaderUniformValue::Float(value)
+            if value.is_finite()
+                && value.fract() == 0.0
+                && *value >= i32::MIN as f32
+                && *value <= i32::MAX as f32 =>
+        {
+            Some(*value as i32)
+        }
+        _ => None,
+    }
+}
+
+fn vec2_value_for_control(
+    control: &par_term_config::ShaderControl,
+    values: &std::collections::BTreeMap<String, par_term_config::ShaderUniformValue>,
+) -> Option<[f32; 2]> {
+    match values
+        .get(&control.name)
+        .unwrap_or(&par_term_config::fallback_value_for_control(control))
+    {
+        par_term_config::ShaderUniformValue::Vec2(value) => Some(*value),
+        _ => None,
+    }
+}
+
+fn snap_int_to_step(value: i32, min: i32, max: i32, step: i32) -> i32 {
+    let clamped = value.clamp(min, max);
+    let step = step.max(1);
+    let steps_from_min = ((clamped - min) as f32 / step as f32).round() as i32;
+    (min + steps_from_min * step).clamp(min, max)
+}
+
 const _: () = assert!(
-    std::mem::size_of::<CustomShaderControlUniforms>() == 384,
-    "CustomShaderControlUniforms must be exactly 384 bytes"
+    std::mem::size_of::<CustomShaderControlUniforms>() == 704,
+    "CustomShaderControlUniforms must be exactly 704 bytes"
 );
 
 // Compile-time assertion to ensure uniform struct size matches expectations
@@ -185,7 +328,7 @@ mod custom_uniform_tests {
 
     #[test]
     fn custom_shader_control_uniforms_are_vec4_aligned() {
-        assert_eq!(std::mem::size_of::<CustomShaderControlUniforms>(), 384);
+        assert_eq!(std::mem::size_of::<CustomShaderControlUniforms>(), 704);
     }
 
     #[test]
@@ -238,7 +381,7 @@ mod custom_uniform_tests {
 
     #[test]
     fn builds_control_uniforms_with_clamped_slider_and_bool_slots() {
-        use par_term_config::{ShaderControl, ShaderControlKind, ShaderUniformValue};
+        use par_term_config::{ShaderControl, ShaderControlKind, ShaderUniformValue, SliderScale};
         use std::collections::BTreeMap;
 
         let controls = vec![
@@ -248,11 +391,13 @@ mod custom_uniform_tests {
                     min: 0.0,
                     max: 1.0,
                     step: 0.1,
+                    scale: SliderScale::Linear,
+                    label: None,
                 },
             },
             ShaderControl {
                 name: "iEnabled".to_string(),
-                kind: ShaderControlKind::Checkbox,
+                kind: ShaderControlKind::Checkbox { label: None },
             },
         ];
         let values = BTreeMap::from([
@@ -264,5 +409,99 @@ mod custom_uniform_tests {
 
         assert_eq!(uniforms.float_values[0][0], 1.0);
         assert_eq!(uniforms.bool_values[0][0], 1);
+    }
+
+    #[test]
+    fn uploads_int_vec2_angle_and_channel_control_slots() {
+        use par_term_config::{
+            AngleUnit, ShaderControl, ShaderControlKind, ShaderUniformValue, SliderScale,
+        };
+        use std::collections::BTreeMap;
+
+        let controls = vec![
+            ShaderControl {
+                name: "iGlow".to_string(),
+                kind: ShaderControlKind::Slider {
+                    min: 0.0,
+                    max: 1.0,
+                    step: 0.1,
+                    scale: SliderScale::Linear,
+                    label: None,
+                },
+            },
+            ShaderControl {
+                name: "iAngle".to_string(),
+                kind: ShaderControlKind::Angle {
+                    unit: AngleUnit::Degrees,
+                    label: None,
+                },
+            },
+            ShaderControl {
+                name: "iCount".to_string(),
+                kind: ShaderControlKind::Int {
+                    min: 10,
+                    max: 20,
+                    step: 3,
+                    label: None,
+                },
+            },
+            ShaderControl {
+                name: "iChoice".to_string(),
+                kind: ShaderControlKind::Select {
+                    options: vec!["A".to_string(), "B".to_string(), "C".to_string()],
+                    label: None,
+                },
+            },
+            ShaderControl {
+                name: "iChannel".to_string(),
+                kind: ShaderControlKind::Channel {
+                    options: vec![1, 3],
+                    label: None,
+                },
+            },
+            ShaderControl {
+                name: "iOffset".to_string(),
+                kind: ShaderControlKind::Vec2 {
+                    min: -1.0,
+                    max: 1.0,
+                    step: 0.1,
+                    label: None,
+                },
+            },
+            ShaderControl {
+                name: "iPoint".to_string(),
+                kind: ShaderControlKind::Point { label: None },
+            },
+            ShaderControl {
+                name: "iRange".to_string(),
+                kind: ShaderControlKind::Range {
+                    min: 0.0,
+                    max: 10.0,
+                    step: 0.5,
+                    label: None,
+                },
+            },
+        ];
+        let values = BTreeMap::from([
+            ("iGlow".to_string(), ShaderUniformValue::Float(2.0)),
+            ("iAngle".to_string(), ShaderUniformValue::Float(180.0)),
+            ("iCount".to_string(), ShaderUniformValue::Float(18.0)),
+            ("iChoice".to_string(), ShaderUniformValue::Int(10)),
+            ("iChannel".to_string(), ShaderUniformValue::Int(2)),
+            ("iOffset".to_string(), ShaderUniformValue::Vec2([2.0, -2.0])),
+            ("iPoint".to_string(), ShaderUniformValue::Vec2([1.2, -0.2])),
+            ("iRange".to_string(), ShaderUniformValue::Vec2([8.0, 3.0])),
+        ]);
+
+        let uniforms = CustomShaderControlUniforms::from_controls(&controls, &values);
+
+        assert_eq!(uniforms.float_values[0][0], 1.0);
+        assert!((uniforms.float_values[0][1] - std::f32::consts::PI).abs() < 0.0001);
+        assert_eq!(uniforms.int_values[0][0], 19);
+        assert_eq!(uniforms.int_values[0][1], 2);
+        assert_eq!(uniforms.int_values[0][2], 1);
+        assert_eq!(uniforms.vec2_values[0], [1.0, -1.0, 0.0, 0.0]);
+        assert_eq!(uniforms.vec2_values[1], [1.0, 0.0, 0.0, 0.0]);
+        assert_eq!(uniforms.vec2_values[2], [3.0, 8.0, 0.0, 0.0]);
     }
 }
