@@ -508,7 +508,52 @@ fn show_shader_uniform_controls(
                     *changes_this_frame = true;
                 }
             }
-            par_term_config::ShaderControlKind::Color { .. } => {}
+            par_term_config::ShaderControlKind::Color { alpha, label } => {
+                let color_label = label.as_deref().unwrap_or(&control.name);
+                let par_term_config::ShaderUniformValue::Color(color) = value else {
+                    unreachable!("color controls normalize to color uniform values");
+                };
+                ui.label(color_label);
+
+                let response = if *alpha {
+                    let mut rgba = color.0;
+                    let response = ui.color_edit_button_rgba_unmultiplied(&mut rgba);
+                    if response.changed() {
+                        set_shader_uniform_override(
+                            settings,
+                            shader_name,
+                            &control.name,
+                            par_term_config::ShaderUniformValue::Color(
+                                normalized_shader_color_value(rgba, true),
+                            ),
+                        );
+                        *changes_this_frame = true;
+                    }
+                    response
+                } else {
+                    let mut rgb = [color.0[0], color.0[1], color.0[2]];
+                    let response = ui.color_edit_button_rgb(&mut rgb);
+                    if response.changed() {
+                        set_shader_uniform_override(
+                            settings,
+                            shader_name,
+                            &control.name,
+                            par_term_config::ShaderUniformValue::Color(
+                                normalized_shader_color_value([rgb[0], rgb[1], rgb[2], 1.0], false),
+                            ),
+                        );
+                        *changes_this_frame = true;
+                    }
+                    response
+                };
+
+                if show_reset_button(ui, has_uniform_override) {
+                    clear_shader_uniform_override(settings, shader_name, &control.name);
+                    *changes_this_frame = true;
+                }
+
+                response.on_hover_text("Pick shader uniform color");
+            }
         });
     }
 }
@@ -596,8 +641,33 @@ fn normalize_uniform_value_for_control(
             par_term_config::ShaderControlKind::Checkbox,
             par_term_config::ShaderUniformValue::Bool(value),
         ) => Some(par_term_config::ShaderUniformValue::Bool(*value)),
+        (
+            par_term_config::ShaderControlKind::Color { alpha, .. },
+            par_term_config::ShaderUniformValue::Color(value),
+        ) => Some(par_term_config::ShaderUniformValue::Color(
+            normalized_shader_color_value(value.0, *alpha),
+        )),
         _ => None,
     }
+}
+
+fn normalized_shader_color_value(
+    mut rgba: [f32; 4],
+    preserve_alpha: bool,
+) -> par_term_config::ShaderColorValue {
+    for component in &mut rgba {
+        *component = if component.is_finite() {
+            component.clamp(0.0, 1.0)
+        } else {
+            1.0
+        };
+    }
+
+    if !preserve_alpha {
+        rgba[3] = 1.0;
+    }
+
+    par_term_config::ShaderColorValue(rgba)
 }
 
 #[cfg(test)]
@@ -718,6 +788,135 @@ mod tests {
         assert_eq!(
             normalized_effective_uniform_value(&control, Some(&override_config), Some(&metadata)),
             par_term_config::ShaderUniformValue::Float(0.1)
+        );
+    }
+
+    fn color_control(name: &str, alpha: bool) -> par_term_config::ShaderControl {
+        par_term_config::ShaderControl {
+            name: name.to_string(),
+            kind: par_term_config::ShaderControlKind::Color { alpha, label: None },
+        }
+    }
+
+    fn assert_color_value(value: par_term_config::ShaderUniformValue, expected: [f32; 4]) {
+        let par_term_config::ShaderUniformValue::Color(actual) = value else {
+            panic!("expected color uniform value, got {value:?}");
+        };
+
+        for (actual, expected) in actual.0.iter().zip(expected) {
+            assert!(
+                (actual - expected).abs() <= f32::EPSILON,
+                "expected {expected:?}, got {actual:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn shader_uniform_override_color_metadata_hex_default_resolves_to_normalized_value() {
+        let control = color_control("iTint", true);
+        let metadata: par_term_config::ShaderMetadata = serde_yaml_ng::from_str(
+            r##"
+defaults:
+  uniforms:
+    iTint: "#33669980"
+"##,
+        )
+        .expect("metadata should parse");
+
+        assert_color_value(
+            normalized_effective_uniform_value(&control, None, Some(&metadata)),
+            [0.2, 0.4, 0.6, 128.0 / 255.0],
+        );
+    }
+
+    #[test]
+    fn shader_uniform_override_color_metadata_array_default_resolves_to_normalized_value() {
+        let control = color_control("iTint", true);
+        let metadata: par_term_config::ShaderMetadata = serde_yaml_ng::from_str(
+            r#"
+defaults:
+  uniforms:
+    iTint: [1.0, 0.5, 0.0, 0.25]
+"#,
+        )
+        .expect("metadata should parse");
+
+        assert_color_value(
+            normalized_effective_uniform_value(&control, None, Some(&metadata)),
+            [1.0, 0.5, 0.0, 0.25],
+        );
+    }
+
+    #[test]
+    fn shader_uniform_override_color_explicit_default_resolves_to_normalized_value() {
+        let control = color_control("iTint", true);
+        let mut metadata = par_term_config::ShaderMetadata::default();
+        metadata.defaults.uniforms.insert(
+            "iTint".to_string(),
+            par_term_config::ShaderUniformValue::Color(par_term_config::ShaderColorValue([
+                0.1, 0.2, 0.3, 0.4,
+            ])),
+        );
+
+        assert_color_value(
+            normalized_effective_uniform_value(&control, None, Some(&metadata)),
+            [0.1, 0.2, 0.3, 0.4],
+        );
+    }
+
+    #[test]
+    fn shader_uniform_override_color_wrong_type_falls_back_to_opaque_white() {
+        let control = color_control("iTint", true);
+        let mut metadata = par_term_config::ShaderMetadata::default();
+        metadata.defaults.uniforms.insert(
+            "iTint".to_string(),
+            par_term_config::ShaderUniformValue::Bool(true),
+        );
+
+        assert_color_value(
+            normalized_effective_uniform_value(&control, None, Some(&metadata)),
+            [1.0, 1.0, 1.0, 1.0],
+        );
+    }
+
+    #[test]
+    fn shader_uniform_override_color_alpha_false_forces_alpha_to_opaque() {
+        let control = color_control("iTint", false);
+        let mut override_config = par_term_config::ShaderConfig::default();
+        override_config.uniforms.insert(
+            "iTint".to_string(),
+            par_term_config::ShaderUniformValue::Color(par_term_config::ShaderColorValue([
+                0.1, 0.2, 0.3, 0.4,
+            ])),
+        );
+
+        assert_color_value(
+            normalized_effective_uniform_value(&control, Some(&override_config), None),
+            [0.1, 0.2, 0.3, 1.0],
+        );
+    }
+
+    #[test]
+    fn shader_uniform_override_color_override_beats_metadata_default() {
+        let control = color_control("iTint", true);
+        let mut override_config = par_term_config::ShaderConfig::default();
+        override_config.uniforms.insert(
+            "iTint".to_string(),
+            par_term_config::ShaderUniformValue::Color(par_term_config::ShaderColorValue([
+                0.9, 0.8, 0.7, 0.6,
+            ])),
+        );
+        let mut metadata = par_term_config::ShaderMetadata::default();
+        metadata.defaults.uniforms.insert(
+            "iTint".to_string(),
+            par_term_config::ShaderUniformValue::Color(par_term_config::ShaderColorValue([
+                0.1, 0.2, 0.3, 0.4,
+            ])),
+        );
+
+        assert_color_value(
+            normalized_effective_uniform_value(&control, Some(&override_config), Some(&metadata)),
+            [0.9, 0.8, 0.7, 0.6],
         );
     }
 
