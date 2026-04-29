@@ -181,12 +181,12 @@ pub fn build_shader_context(config: &Config) -> String {
     ctx.push_str("uniform bool iEnabled;\n");
     ctx.push_str("// control color label=\"Tint\"\n");
     ctx.push_str("uniform vec3 iTint;\n");
-    ctx.push_str("// control color alpha=true label=\"Overlay\"\n");
+    ctx.push_str("// control color label=\"Overlay\"\n");
     ctx.push_str("uniform vec4 iOverlay;\n");
     ctx.push_str("```\n");
     ctx.push_str("- Do not put default= in the control comment. Defaults live in shader metadata under `defaults.uniforms`; user edits persist as per-shader overrides and take precedence.\n");
     ctx.push_str("- Prefer hex color defaults (`#rrggbb` for RGB, `#rrggbbaa` for RGBA). Normalized arrays are also accepted: `[r, g, b]` or `[r, g, b, a]`.\n");
-    ctx.push_str("- Color controls attach to `uniform vec3` (RGB picker) or `uniform vec4`. Use `alpha=true` only with `vec4` for an RGBA picker; omit it or set `alpha=false` for RGB. `label=\"Name\"` customizes the Settings label.\n");
+    ctx.push_str("- Color controls attach to `uniform vec3` (RGB picker) or `uniform vec4` (RGBA picker). `vec3` defaults to RGB / `alpha=false`; `alpha=true` is invalid for `vec3`. `vec4` defaults to RGBA / `alpha=true`; use `alpha=false` on `vec4` only to force an RGB picker with opaque alpha. `label=\"Name\"` customizes the Settings label.\n");
     ctx.push_str("- Sliders require `min`, `max`, and `step`; fallback is the slider `min` when no override/default exists.\n");
     ctx.push_str("- Checkboxes fall back to `false` when no override/default exists; colors fall back to opaque white.\n");
     ctx.push_str("- Limits: 16 float slider controls, 16 bool checkbox controls, and 16 color controls per shader. Extra or malformed controls produce non-fatal warnings; unsupported uniform types are not controls.\n");

@@ -550,7 +550,7 @@ uniform bool iEnabled;
 // control color label="Tint"
 uniform vec3 iTint;
 
-// control color alpha=true label="Overlay"
+// control color label="Overlay"
 uniform vec4 iOverlay;
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord)
@@ -573,12 +573,14 @@ Supported controls:
 | `// control slider min=0 max=1 step=0.01` | `uniform float name;` | Slider |
 | `// control checkbox` | `uniform bool name;` | Checkbox |
 | `// control color label="Tint"` | `uniform vec3 name;` | RGB color picker |
-| `// control color alpha=true label="Overlay"` | `uniform vec4 name;` | RGBA color picker |
+| `// control color label="Overlay"` | `uniform vec4 name;` | RGBA color picker (`alpha=true` by default) |
+| `// control color alpha=false label="Opaque Overlay"` | `uniform vec4 name;` | RGB color picker with opaque alpha |
 
 Color controls support these fields:
 
-- `alpha=true` enables an alpha channel and is valid only for `uniform vec4` controls.
-- `alpha=false` (the default) creates an RGB picker. It works with `vec3`; with `vec4`, the saved/effective alpha is normalized to `1.0`.
+- `uniform vec3` color controls default to RGB (`alpha=false`). `alpha=true` is invalid for `vec3` and the control is skipped with a warning.
+- `uniform vec4` color controls default to RGBA (`alpha=true`). Omit `alpha` or set `alpha=true` for a color picker with an alpha channel.
+- Use `alpha=false` on `vec4` only to force an RGB picker; the saved/effective alpha is normalized to `1.0`.
 - `label="Display Name"` is optional and changes the Settings UI label. Labels must be quoted.
 
 Defaults for controlled uniforms live in the shader metadata block under `defaults.uniforms`. User edits are saved as per-shader overrides in `config.yaml` and take precedence over metadata defaults:
