@@ -1,11 +1,67 @@
 use crate::types::shader::ShaderUniformValue;
 use std::collections::{BTreeMap, HashSet};
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum SliderScale {
+    Linear,
+    Log,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum AngleUnit {
+    Degrees,
+    Radians,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum ShaderControlKind {
-    Slider { min: f32, max: f32, step: f32 },
-    Checkbox,
-    Color { alpha: bool, label: Option<String> },
+    Slider {
+        min: f32,
+        max: f32,
+        step: f32,
+        scale: SliderScale,
+        label: Option<String>,
+    },
+    Checkbox {
+        label: Option<String>,
+    },
+    Color {
+        alpha: bool,
+        label: Option<String>,
+    },
+    Int {
+        min: i32,
+        max: i32,
+        step: i32,
+        label: Option<String>,
+    },
+    Select {
+        options: Vec<String>,
+        label: Option<String>,
+    },
+    Vec2 {
+        min: f32,
+        max: f32,
+        step: f32,
+        label: Option<String>,
+    },
+    Point {
+        label: Option<String>,
+    },
+    Range {
+        min: f32,
+        max: f32,
+        step: f32,
+        label: Option<String>,
+    },
+    Angle {
+        unit: AngleUnit,
+        label: Option<String>,
+    },
+    Channel {
+        options: Vec<i32>,
+        label: Option<String>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -29,6 +85,8 @@ pub struct ShaderControlParseResult {
 const MAX_SHADER_FLOAT_CONTROLS: usize = 16;
 const MAX_SHADER_BOOL_CONTROLS: usize = 16;
 const MAX_SHADER_COLOR_CONTROLS: usize = 16;
+const MAX_SHADER_INT_CONTROLS: usize = 16;
+const MAX_SHADER_VEC2_CONTROLS: usize = 16;
 
 fn parse_uniform_declaration(line: &str) -> Option<(&str, &str)> {
     let trimmed = line.trim();
@@ -96,23 +154,32 @@ fn parse_key_values(tokens: &[String]) -> (BTreeMap<String, String>, Vec<String>
     (key_values, malformed_tokens)
 }
 
+fn push_warning(warnings: &mut Vec<ShaderControlWarning>, line: usize, message: String) {
+    warnings.push(ShaderControlWarning { line, message });
+}
+
+fn unquote(value: &str) -> Option<&str> {
+    value
+        .strip_prefix('"')
+        .and_then(|value| value.strip_suffix('"'))
+}
+
 fn parse_quoted_label(
     warnings: &mut Vec<ShaderControlWarning>,
     line: usize,
+    control_type: &str,
     uniform_name: &str,
     value: Option<&String>,
 ) -> Option<String> {
     let value = value?;
-    match value
-        .strip_prefix('"')
-        .and_then(|value| value.strip_suffix('"'))
-    {
+    match unquote(value) {
         Some(label) => Some(label.to_string()),
         None => {
-            warnings.push(ShaderControlWarning {
+            push_warning(
+                warnings,
                 line,
-                message: format!("Color `{}` label must be quoted", uniform_name),
-            });
+                format!("{} `{}` label must be quoted", control_type, uniform_name),
+            );
             None
         }
     }
@@ -127,19 +194,108 @@ fn warn_for_unrecognized_fields(
     allowed_fields: &[&str],
 ) {
     for token in malformed_tokens {
-        warnings.push(ShaderControlWarning {
+        push_warning(
+            warnings,
             line,
-            message: format!("Malformed control token `{}`", token),
-        });
+            format!("Malformed control token `{}`", token),
+        );
     }
 
     for key in key_values.keys() {
         if !allowed_fields.contains(&key.as_str()) {
-            warnings.push(ShaderControlWarning {
+            push_warning(
+                warnings,
                 line,
-                message: format!("Unknown {} control field `{}`", control_type, key),
-            });
+                format!("Unknown {} control field `{}`", control_type, key),
+            );
         }
+    }
+}
+
+fn parse_required_f32(key_values: &BTreeMap<String, String>, key: &str) -> Result<f32, String> {
+    let value = key_values
+        .get(key)
+        .ok_or_else(|| format!("missing `{}`", key))?
+        .parse::<f32>()
+        .map_err(|_| format!("invalid `{}`", key))?;
+
+    if value.is_finite() {
+        Ok(value)
+    } else {
+        Err(format!("`{}` must be finite", key))
+    }
+}
+
+fn parse_required_i32(key_values: &BTreeMap<String, String>, key: &str) -> Result<i32, String> {
+    key_values
+        .get(key)
+        .ok_or_else(|| format!("missing `{}`", key))?
+        .parse::<i32>()
+        .map_err(|_| format!("invalid `{}`", key))
+}
+
+fn parse_float_range_control(
+    control_label: &str,
+    uniform_name: &str,
+    key_values: &BTreeMap<String, String>,
+) -> Result<(f32, f32, f32), String> {
+    let min = parse_required_f32(key_values, "min")
+        .map_err(|error| format!("{} `{}` {}", control_label, uniform_name, error))?;
+    let max = parse_required_f32(key_values, "max")
+        .map_err(|error| format!("{} `{}` {}", control_label, uniform_name, error))?;
+    let step = parse_required_f32(key_values, "step")
+        .map_err(|error| format!("{} `{}` {}", control_label, uniform_name, error))?;
+
+    if max < min || step <= 0.0 {
+        return Err(format!(
+            "{} `{}` must have max >= min and step > 0",
+            control_label, uniform_name
+        ));
+    }
+
+    Ok((min, max, step))
+}
+
+fn parse_select_options(value: Option<&String>) -> Result<Vec<String>, String> {
+    let value = value.ok_or_else(|| "missing `options`".to_string())?;
+    let quoted = unquote(value).ok_or_else(|| "`options` must be quoted".to_string())?;
+    let options: Vec<String> = quoted
+        .split(',')
+        .map(str::trim)
+        .filter(|option| !option.is_empty())
+        .map(ToOwned::to_owned)
+        .collect();
+
+    if options.is_empty() {
+        Err("`options` must include at least one non-empty label".to_string())
+    } else {
+        Ok(options)
+    }
+}
+
+fn parse_channel_options(value: Option<&String>) -> Result<Vec<i32>, String> {
+    let Some(value) = value else {
+        return Ok(vec![0, 1, 2, 3, 4]);
+    };
+    let quoted = unquote(value).ok_or_else(|| "`options` must be quoted".to_string())?;
+    let mut options = Vec::new();
+    for option in quoted.split(',').map(str::trim) {
+        if option.is_empty() {
+            return Err("`options` must contain channel numbers in 0..=4".to_string());
+        }
+        let channel = option
+            .parse::<i32>()
+            .map_err(|_| "`options` must contain channel numbers in 0..=4".to_string())?;
+        if !(0..=4).contains(&channel) {
+            return Err("`options` must contain channel numbers in 0..=4".to_string());
+        }
+        options.push(channel);
+    }
+
+    if options.is_empty() {
+        Err("`options` must contain at least one channel in 0..=4".to_string())
+    } else {
+        Ok(options)
     }
 }
 
@@ -151,6 +307,8 @@ pub fn parse_shader_controls(source: &str) -> ShaderControlParseResult {
     let mut float_count = 0usize;
     let mut bool_count = 0usize;
     let mut color_count = 0usize;
+    let mut int_count = 0usize;
+    let mut vec2_count = 0usize;
 
     for (index, line) in lines.iter().enumerate() {
         let trimmed = line.trim();
@@ -161,28 +319,29 @@ pub fn parse_shader_controls(source: &str) -> ShaderControlParseResult {
         let line_number = index + 1;
         let (tokens, tokenization_warnings) = tokenize_control_directive(rest);
         let Some(control_type) = tokens.first().map(String::as_str) else {
-            warnings.push(ShaderControlWarning {
-                line: line_number,
-                message: "Control comment is missing a control type".to_string(),
-            });
+            push_warning(
+                &mut warnings,
+                line_number,
+                "Control comment is missing a control type".to_string(),
+            );
             continue;
         };
 
         let Some(next_line) = lines.get(index + 1) else {
-            warnings.push(ShaderControlWarning {
-                line: line_number,
-                message: "Control comment must be immediately followed by a uniform declaration"
-                    .to_string(),
-            });
+            push_warning(
+                &mut warnings,
+                line_number,
+                "Control comment must be immediately followed by a uniform declaration".to_string(),
+            );
             continue;
         };
 
         let Some((uniform_type, uniform_name)) = parse_uniform_declaration(next_line) else {
-            warnings.push(ShaderControlWarning {
-                line: line_number,
-                message: "Control comment must be immediately followed by a uniform declaration"
-                    .to_string(),
-            });
+            push_warning(
+                &mut warnings,
+                line_number,
+                "Control comment must be immediately followed by a uniform declaration".to_string(),
+            );
             continue;
         };
 
@@ -196,77 +355,67 @@ pub fn parse_shader_controls(source: &str) -> ShaderControlParseResult {
                     control_type,
                     &key_values,
                     &malformed_tokens,
-                    &["min", "max", "step"],
+                    &["min", "max", "step", "scale", "label"],
                 );
 
                 if uniform_type != "float" {
-                    warnings.push(ShaderControlWarning {
-                        line: line_number,
-                        message: format!(
+                    push_warning(
+                        &mut warnings,
+                        line_number,
+                        format!(
                             "Slider control for `{}` must attach to `uniform float`",
                             uniform_name
                         ),
-                    });
+                    );
                     continue;
                 }
 
-                let parse_required = |key: &str| -> Result<f32, String> {
-                    let value = key_values
-                        .get(key)
-                        .ok_or_else(|| format!("missing `{}`", key))?
-                        .parse::<f32>()
-                        .map_err(|_| format!("invalid `{}`", key))?;
+                let (min, max, step) =
+                    match parse_float_range_control("Slider", uniform_name, &key_values) {
+                        Ok(values) => values,
+                        Err(error) => {
+                            push_warning(&mut warnings, line_number, error);
+                            continue;
+                        }
+                    };
 
-                    if value.is_finite() {
-                        Ok(value)
-                    } else {
-                        Err(format!("`{}` must be finite", key))
-                    }
-                };
-
-                let min = match parse_required("min") {
-                    Ok(value) => value,
-                    Err(error) => {
-                        warnings.push(ShaderControlWarning {
-                            line: line_number,
-                            message: format!("Slider `{}` {}", uniform_name, error),
-                        });
-                        continue;
-                    }
-                };
-                let max = match parse_required("max") {
-                    Ok(value) => value,
-                    Err(error) => {
-                        warnings.push(ShaderControlWarning {
-                            line: line_number,
-                            message: format!("Slider `{}` {}", uniform_name, error),
-                        });
-                        continue;
-                    }
-                };
-                let step = match parse_required("step") {
-                    Ok(value) => value,
-                    Err(error) => {
-                        warnings.push(ShaderControlWarning {
-                            line: line_number,
-                            message: format!("Slider `{}` {}", uniform_name, error),
-                        });
+                let scale = match key_values.get("scale").map(String::as_str) {
+                    Some("linear") | None => SliderScale::Linear,
+                    Some("log") => SliderScale::Log,
+                    Some(_) => {
+                        push_warning(
+                            &mut warnings,
+                            line_number,
+                            format!("Slider `{}` scale must be `linear` or `log`", uniform_name),
+                        );
                         continue;
                     }
                 };
 
-                if max < min || step <= 0.0 {
-                    warnings.push(ShaderControlWarning {
-                        line: line_number,
-                        message: format!(
-                            "Slider `{}` must have max >= min and step > 0",
-                            uniform_name
-                        ),
-                    });
+                if scale == SliderScale::Log && !(0.0 < min && min < max) {
+                    push_warning(
+                        &mut warnings,
+                        line_number,
+                        format!("Slider `{}` scale=log requires 0 < min < max", uniform_name),
+                    );
                     continue;
                 }
 
-                ShaderControlKind::Slider { min, max, step }
+                let label = parse_quoted_label(
+                    &mut warnings,
+                    line_number,
+                    "Slider",
+                    uniform_name,
+                    key_values.get("label"),
+                );
+
+                ShaderControlKind::Slider {
+                    min,
+                    max,
+                    step,
+                    scale,
+                    label,
+                }
             }
             "checkbox" => {
                 warn_for_unrecognized_fields(
@@ -275,20 +424,28 @@ pub fn parse_shader_controls(source: &str) -> ShaderControlParseResult {
                     control_type,
                     &key_values,
                     &malformed_tokens,
-                    &[],
+                    &["label"],
                 );
 
                 if uniform_type != "bool" {
-                    warnings.push(ShaderControlWarning {
-                        line: line_number,
-                        message: format!(
+                    push_warning(
+                        &mut warnings,
+                        line_number,
+                        format!(
                             "Checkbox control for `{}` must attach to `uniform bool`",
                             uniform_name
                         ),
-                    });
+                    );
                     continue;
                 }
-                ShaderControlKind::Checkbox
+                let label = parse_quoted_label(
+                    &mut warnings,
+                    line_number,
+                    "Checkbox",
+                    uniform_name,
+                    key_values.get("label"),
+                );
+                ShaderControlKind::Checkbox { label }
             }
             "color" => {
                 warn_for_unrecognized_fields(
@@ -301,13 +458,14 @@ pub fn parse_shader_controls(source: &str) -> ShaderControlParseResult {
                 );
 
                 if uniform_type != "vec3" && uniform_type != "vec4" {
-                    warnings.push(ShaderControlWarning {
-                        line: line_number,
-                        message: format!(
+                    push_warning(
+                        &mut warnings,
+                        line_number,
+                        format!(
                             "Color control for `{}` must attach to `uniform vec3` or `uniform vec4`",
                             uniform_name
                         ),
-                    });
+                    );
                     continue;
                 }
 
@@ -316,94 +474,464 @@ pub fn parse_shader_controls(source: &str) -> ShaderControlParseResult {
                     Some("true") => true,
                     Some("false") => false,
                     Some(_) => {
-                        warnings.push(ShaderControlWarning {
-                            line: line_number,
-                            message: format!(
+                        push_warning(
+                            &mut warnings,
+                            line_number,
+                            format!(
                                 "Color `{}` alpha must be `true` or `false`; using default",
                                 uniform_name
                             ),
-                        });
+                        );
                         default_alpha
                     }
                     None => default_alpha,
                 };
 
                 if uniform_type == "vec3" && alpha {
-                    warnings.push(ShaderControlWarning {
-                        line: line_number,
-                        message: format!(
+                    push_warning(
+                        &mut warnings,
+                        line_number,
+                        format!(
                             "Color control `{}` cannot use alpha=true with `uniform vec3`",
                             uniform_name
                         ),
-                    });
+                    );
                     continue;
                 }
 
                 let label = parse_quoted_label(
                     &mut warnings,
                     line_number,
+                    "Color",
                     uniform_name,
                     key_values.get("label"),
                 );
 
                 ShaderControlKind::Color { alpha, label }
             }
+            "int" => {
+                warn_for_unrecognized_fields(
+                    &mut warnings,
+                    line_number,
+                    control_type,
+                    &key_values,
+                    &malformed_tokens,
+                    &["min", "max", "step", "label"],
+                );
+
+                if uniform_type != "int" {
+                    push_warning(
+                        &mut warnings,
+                        line_number,
+                        format!(
+                            "Int control for `{}` must attach to `uniform int`",
+                            uniform_name
+                        ),
+                    );
+                    continue;
+                }
+
+                let min = match parse_required_i32(&key_values, "min") {
+                    Ok(value) => value,
+                    Err(error) => {
+                        push_warning(
+                            &mut warnings,
+                            line_number,
+                            format!("Int `{}` {}", uniform_name, error),
+                        );
+                        continue;
+                    }
+                };
+                let max = match parse_required_i32(&key_values, "max") {
+                    Ok(value) => value,
+                    Err(error) => {
+                        push_warning(
+                            &mut warnings,
+                            line_number,
+                            format!("Int `{}` {}", uniform_name, error),
+                        );
+                        continue;
+                    }
+                };
+                let step = match key_values.get("step") {
+                    Some(_) => match parse_required_i32(&key_values, "step") {
+                        Ok(value) => value,
+                        Err(error) => {
+                            push_warning(
+                                &mut warnings,
+                                line_number,
+                                format!("Int `{}` {}", uniform_name, error),
+                            );
+                            continue;
+                        }
+                    },
+                    None => 1,
+                };
+
+                if max < min || step <= 0 {
+                    push_warning(
+                        &mut warnings,
+                        line_number,
+                        format!("Int `{}` must have max >= min and step > 0", uniform_name),
+                    );
+                    continue;
+                }
+
+                let label = parse_quoted_label(
+                    &mut warnings,
+                    line_number,
+                    "Int",
+                    uniform_name,
+                    key_values.get("label"),
+                );
+                ShaderControlKind::Int {
+                    min,
+                    max,
+                    step,
+                    label,
+                }
+            }
+            "select" => {
+                warn_for_unrecognized_fields(
+                    &mut warnings,
+                    line_number,
+                    control_type,
+                    &key_values,
+                    &malformed_tokens,
+                    &["options", "label"],
+                );
+
+                if uniform_type != "int" {
+                    push_warning(
+                        &mut warnings,
+                        line_number,
+                        format!(
+                            "Select control for `{}` must attach to `uniform int`",
+                            uniform_name
+                        ),
+                    );
+                    continue;
+                }
+
+                let options = match parse_select_options(key_values.get("options")) {
+                    Ok(options) => options,
+                    Err(error) => {
+                        push_warning(
+                            &mut warnings,
+                            line_number,
+                            format!("Select `{}` {}", uniform_name, error),
+                        );
+                        continue;
+                    }
+                };
+                let label = parse_quoted_label(
+                    &mut warnings,
+                    line_number,
+                    "Select",
+                    uniform_name,
+                    key_values.get("label"),
+                );
+                ShaderControlKind::Select { options, label }
+            }
+            "vec2" => {
+                warn_for_unrecognized_fields(
+                    &mut warnings,
+                    line_number,
+                    control_type,
+                    &key_values,
+                    &malformed_tokens,
+                    &["min", "max", "step", "label"],
+                );
+
+                if uniform_type != "vec2" {
+                    push_warning(
+                        &mut warnings,
+                        line_number,
+                        format!(
+                            "Vec2 control for `{}` must attach to `uniform vec2`",
+                            uniform_name
+                        ),
+                    );
+                    continue;
+                }
+
+                let (min, max, step) =
+                    match parse_float_range_control("Vec2", uniform_name, &key_values) {
+                        Ok(values) => values,
+                        Err(error) => {
+                            push_warning(&mut warnings, line_number, error);
+                            continue;
+                        }
+                    };
+                let label = parse_quoted_label(
+                    &mut warnings,
+                    line_number,
+                    "Vec2",
+                    uniform_name,
+                    key_values.get("label"),
+                );
+                ShaderControlKind::Vec2 {
+                    min,
+                    max,
+                    step,
+                    label,
+                }
+            }
+            "point" => {
+                warn_for_unrecognized_fields(
+                    &mut warnings,
+                    line_number,
+                    control_type,
+                    &key_values,
+                    &malformed_tokens,
+                    &["label"],
+                );
+
+                if uniform_type != "vec2" {
+                    push_warning(
+                        &mut warnings,
+                        line_number,
+                        format!(
+                            "Point control for `{}` must attach to `uniform vec2`",
+                            uniform_name
+                        ),
+                    );
+                    continue;
+                }
+                let label = parse_quoted_label(
+                    &mut warnings,
+                    line_number,
+                    "Point",
+                    uniform_name,
+                    key_values.get("label"),
+                );
+                ShaderControlKind::Point { label }
+            }
+            "range" => {
+                warn_for_unrecognized_fields(
+                    &mut warnings,
+                    line_number,
+                    control_type,
+                    &key_values,
+                    &malformed_tokens,
+                    &["min", "max", "step", "label"],
+                );
+
+                if uniform_type != "vec2" {
+                    push_warning(
+                        &mut warnings,
+                        line_number,
+                        format!(
+                            "Range control for `{}` must attach to `uniform vec2`",
+                            uniform_name
+                        ),
+                    );
+                    continue;
+                }
+
+                let (min, max, step) =
+                    match parse_float_range_control("Range", uniform_name, &key_values) {
+                        Ok(values) => values,
+                        Err(error) => {
+                            push_warning(&mut warnings, line_number, error);
+                            continue;
+                        }
+                    };
+                let label = parse_quoted_label(
+                    &mut warnings,
+                    line_number,
+                    "Range",
+                    uniform_name,
+                    key_values.get("label"),
+                );
+                ShaderControlKind::Range {
+                    min,
+                    max,
+                    step,
+                    label,
+                }
+            }
+            "angle" => {
+                warn_for_unrecognized_fields(
+                    &mut warnings,
+                    line_number,
+                    control_type,
+                    &key_values,
+                    &malformed_tokens,
+                    &["unit", "label"],
+                );
+
+                if uniform_type != "float" {
+                    push_warning(
+                        &mut warnings,
+                        line_number,
+                        format!(
+                            "Angle control for `{}` must attach to `uniform float`",
+                            uniform_name
+                        ),
+                    );
+                    continue;
+                }
+
+                let unit = match key_values.get("unit").map(String::as_str) {
+                    Some("degrees") | None => AngleUnit::Degrees,
+                    Some("radians") => AngleUnit::Radians,
+                    Some(_) => {
+                        push_warning(
+                            &mut warnings,
+                            line_number,
+                            format!(
+                                "Angle `{}` unit must be `degrees` or `radians`",
+                                uniform_name
+                            ),
+                        );
+                        continue;
+                    }
+                };
+                let label = parse_quoted_label(
+                    &mut warnings,
+                    line_number,
+                    "Angle",
+                    uniform_name,
+                    key_values.get("label"),
+                );
+                ShaderControlKind::Angle { unit, label }
+            }
+            "channel" => {
+                warn_for_unrecognized_fields(
+                    &mut warnings,
+                    line_number,
+                    control_type,
+                    &key_values,
+                    &malformed_tokens,
+                    &["options", "label"],
+                );
+
+                if uniform_type != "int" {
+                    push_warning(
+                        &mut warnings,
+                        line_number,
+                        format!(
+                            "Channel control for `{}` must attach to `uniform int`",
+                            uniform_name
+                        ),
+                    );
+                    continue;
+                }
+
+                let options = match parse_channel_options(key_values.get("options")) {
+                    Ok(options) => options,
+                    Err(error) => {
+                        push_warning(
+                            &mut warnings,
+                            line_number,
+                            format!("Channel `{}` {}", uniform_name, error),
+                        );
+                        continue;
+                    }
+                };
+                let label = parse_quoted_label(
+                    &mut warnings,
+                    line_number,
+                    "Channel",
+                    uniform_name,
+                    key_values.get("label"),
+                );
+                ShaderControlKind::Channel { options, label }
+            }
             other => {
-                warnings.push(ShaderControlWarning {
-                    line: line_number,
-                    message: format!("Unsupported control type `{}`", other),
-                });
+                push_warning(
+                    &mut warnings,
+                    line_number,
+                    format!("Unsupported control type `{}`", other),
+                );
                 continue;
             }
         };
 
         if !seen.insert(uniform_name.to_string()) {
-            warnings.push(ShaderControlWarning {
-                line: line_number,
-                message: format!("Duplicate control for uniform `{}` ignored", uniform_name),
-            });
+            push_warning(
+                &mut warnings,
+                line_number,
+                format!("Duplicate control for uniform `{}` ignored", uniform_name),
+            );
             continue;
         }
 
         match &kind {
-            ShaderControlKind::Slider { .. } => {
+            ShaderControlKind::Slider { .. } | ShaderControlKind::Angle { .. } => {
                 if float_count >= MAX_SHADER_FLOAT_CONTROLS {
-                    warnings.push(ShaderControlWarning {
-                        line: line_number,
-                        message: format!(
-                            "Only the first {} slider controls are active; ignoring over-limit control `{}`",
+                    push_warning(
+                        &mut warnings,
+                        line_number,
+                        format!(
+                            "Only the first {} float controls are active; ignoring over-limit control `{}`",
                             MAX_SHADER_FLOAT_CONTROLS, uniform_name
                         ),
-                    });
+                    );
                     continue;
                 }
                 float_count += 1;
             }
-            ShaderControlKind::Checkbox => {
+            ShaderControlKind::Checkbox { .. } => {
                 if bool_count >= MAX_SHADER_BOOL_CONTROLS {
-                    warnings.push(ShaderControlWarning {
-                        line: line_number,
-                        message: format!(
+                    push_warning(
+                        &mut warnings,
+                        line_number,
+                        format!(
                             "Only the first {} checkbox controls are active; ignoring over-limit control `{}`",
                             MAX_SHADER_BOOL_CONTROLS, uniform_name
                         ),
-                    });
+                    );
                     continue;
                 }
                 bool_count += 1;
             }
             ShaderControlKind::Color { .. } => {
                 if color_count >= MAX_SHADER_COLOR_CONTROLS {
-                    warnings.push(ShaderControlWarning {
-                        line: line_number,
-                        message: format!(
+                    push_warning(
+                        &mut warnings,
+                        line_number,
+                        format!(
                             "Only the first {} color controls are active; ignoring over-limit control `{}`",
                             MAX_SHADER_COLOR_CONTROLS, uniform_name
                         ),
-                    });
+                    );
                     continue;
                 }
                 color_count += 1;
+            }
+            ShaderControlKind::Int { .. }
+            | ShaderControlKind::Select { .. }
+            | ShaderControlKind::Channel { .. } => {
+                if int_count >= MAX_SHADER_INT_CONTROLS {
+                    push_warning(
+                        &mut warnings,
+                        line_number,
+                        format!(
+                            "Only the first {} int controls are active; ignoring over-limit control `{}`",
+                            MAX_SHADER_INT_CONTROLS, uniform_name
+                        ),
+                    );
+                    continue;
+                }
+                int_count += 1;
+            }
+            ShaderControlKind::Vec2 { .. }
+            | ShaderControlKind::Point { .. }
+            | ShaderControlKind::Range { .. } => {
+                if vec2_count >= MAX_SHADER_VEC2_CONTROLS {
+                    push_warning(
+                        &mut warnings,
+                        line_number,
+                        format!(
+                            "Only the first {} vec2 controls are active; ignoring over-limit control `{}`",
+                            MAX_SHADER_VEC2_CONTROLS, uniform_name
+                        ),
+                    );
+                    continue;
+                }
+                vec2_count += 1;
             }
         }
 
@@ -417,11 +945,20 @@ pub fn parse_shader_controls(source: &str) -> ShaderControlParseResult {
 }
 
 pub fn fallback_value_for_control(control: &ShaderControl) -> ShaderUniformValue {
-    match control.kind {
-        ShaderControlKind::Slider { min, .. } => ShaderUniformValue::Float(min),
-        ShaderControlKind::Checkbox => ShaderUniformValue::Bool(false),
+    match &control.kind {
+        ShaderControlKind::Slider { min, .. } => ShaderUniformValue::Float(*min),
+        ShaderControlKind::Checkbox { .. } => ShaderUniformValue::Bool(false),
         ShaderControlKind::Color { .. } => {
             ShaderUniformValue::Color(crate::types::shader::ShaderColorValue([1.0, 1.0, 1.0, 1.0]))
+        }
+        ShaderControlKind::Int { min, .. } => ShaderUniformValue::Int(*min),
+        ShaderControlKind::Select { .. } => ShaderUniformValue::Int(0),
+        ShaderControlKind::Vec2 { min, .. } => ShaderUniformValue::Vec2([*min, *min]),
+        ShaderControlKind::Point { .. } => ShaderUniformValue::Vec2([0.5, 0.5]),
+        ShaderControlKind::Range { min, max, .. } => ShaderUniformValue::Vec2([*min, *max]),
+        ShaderControlKind::Angle { .. } => ShaderUniformValue::Float(0.0),
+        ShaderControlKind::Channel { options, .. } => {
+            ShaderUniformValue::Int(options.first().copied().unwrap_or(0))
         }
     }
 }
@@ -449,6 +986,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {}
                     min: 0.0,
                     max: 1.0,
                     step: 0.01,
+                    scale: SliderScale::Linear,
+                    label: None,
                 },
             }]
         );
@@ -468,9 +1007,241 @@ uniform bool iEnabled;
             result.controls,
             vec![ShaderControl {
                 name: "iEnabled".to_string(),
-                kind: ShaderControlKind::Checkbox,
+                kind: ShaderControlKind::Checkbox { label: None },
             }]
         );
+    }
+
+    #[test]
+    fn parses_new_numeric_control_types() {
+        let source = r#"
+// control slider min=0.01 max=100 step=0.01 scale=log label="Frequency"
+uniform float iFrequency;
+// control int min=1 max=12 step=2 label="Octaves"
+uniform int iOctaves;
+// control select options="soft,hard,screen" label="Blend Mode"
+uniform int iBlendMode;
+// control vec2 min=-1 max=1 step=0.05 label="Flow"
+uniform vec2 iFlow;
+// control point label="Origin"
+uniform vec2 iOrigin;
+// control range min=0 max=1 step=0.01 label="Band"
+uniform vec2 iBand;
+// control angle unit=radians label="Rotation"
+uniform float iRotation;
+// control channel options="0,2,4" label="Source"
+uniform int iSourceChannel;
+"#;
+
+        let result = parse_shader_controls(source);
+
+        assert_eq!(result.warnings, Vec::<ShaderControlWarning>::new());
+        assert_eq!(
+            result.controls,
+            vec![
+                ShaderControl {
+                    name: "iFrequency".to_string(),
+                    kind: ShaderControlKind::Slider {
+                        min: 0.01,
+                        max: 100.0,
+                        step: 0.01,
+                        scale: SliderScale::Log,
+                        label: Some("Frequency".to_string()),
+                    },
+                },
+                ShaderControl {
+                    name: "iOctaves".to_string(),
+                    kind: ShaderControlKind::Int {
+                        min: 1,
+                        max: 12,
+                        step: 2,
+                        label: Some("Octaves".to_string()),
+                    },
+                },
+                ShaderControl {
+                    name: "iBlendMode".to_string(),
+                    kind: ShaderControlKind::Select {
+                        options: vec!["soft".to_string(), "hard".to_string(), "screen".to_string()],
+                        label: Some("Blend Mode".to_string()),
+                    },
+                },
+                ShaderControl {
+                    name: "iFlow".to_string(),
+                    kind: ShaderControlKind::Vec2 {
+                        min: -1.0,
+                        max: 1.0,
+                        step: 0.05,
+                        label: Some("Flow".to_string()),
+                    },
+                },
+                ShaderControl {
+                    name: "iOrigin".to_string(),
+                    kind: ShaderControlKind::Point {
+                        label: Some("Origin".to_string()),
+                    },
+                },
+                ShaderControl {
+                    name: "iBand".to_string(),
+                    kind: ShaderControlKind::Range {
+                        min: 0.0,
+                        max: 1.0,
+                        step: 0.01,
+                        label: Some("Band".to_string()),
+                    },
+                },
+                ShaderControl {
+                    name: "iRotation".to_string(),
+                    kind: ShaderControlKind::Angle {
+                        unit: AngleUnit::Radians,
+                        label: Some("Rotation".to_string()),
+                    },
+                },
+                ShaderControl {
+                    name: "iSourceChannel".to_string(),
+                    kind: ShaderControlKind::Channel {
+                        options: vec![0, 2, 4],
+                        label: Some("Source".to_string()),
+                    },
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn warns_and_skips_invalid_new_control_types() {
+        let source = r#"
+// control slider min=0 max=10 step=1 scale=log
+uniform float iBadLog;
+// control int min=10 max=1
+uniform int iBadInt;
+// control select options=",,"
+uniform int iBadSelect;
+// control vec2 min=0 max=1 step=0
+uniform vec2 iBadVec2;
+// control angle unit=turns
+uniform float iBadAngle;
+// control channel options="0,5"
+uniform int iBadChannel;
+// control point x=1 label="Origin"
+uniform vec2 iOrigin;
+"#;
+
+        let result = parse_shader_controls(source);
+
+        assert_eq!(result.controls.len(), 1);
+        assert_eq!(
+            result.controls[0],
+            ShaderControl {
+                name: "iOrigin".to_string(),
+                kind: ShaderControlKind::Point {
+                    label: Some("Origin".to_string()),
+                },
+            }
+        );
+        assert_eq!(result.warnings.len(), 7);
+        assert!(result.warnings.iter().any(|w| w.message.contains("log")));
+        assert!(
+            result
+                .warnings
+                .iter()
+                .any(|w| w.message.contains("max >= min"))
+        );
+        assert!(
+            result
+                .warnings
+                .iter()
+                .any(|w| w.message.contains("options"))
+        );
+        assert!(
+            result
+                .warnings
+                .iter()
+                .any(|w| w.message.contains("step > 0"))
+        );
+        assert!(result.warnings.iter().any(|w| w.message.contains("unit")));
+        assert!(result.warnings.iter().any(|w| w.message.contains("0..=4")));
+        assert!(
+            result
+                .warnings
+                .iter()
+                .any(|w| w.message.contains("Unknown") && w.message.contains("x"))
+        );
+    }
+
+    #[test]
+    fn fallback_values_for_new_control_types() {
+        let cases = vec![
+            (
+                ShaderControlKind::Slider {
+                    min: 0.01,
+                    max: 100.0,
+                    step: 0.01,
+                    scale: SliderScale::Log,
+                    label: None,
+                },
+                ShaderUniformValue::Float(0.01),
+            ),
+            (
+                ShaderControlKind::Int {
+                    min: 2,
+                    max: 8,
+                    step: 2,
+                    label: None,
+                },
+                ShaderUniformValue::Int(2),
+            ),
+            (
+                ShaderControlKind::Select {
+                    options: vec!["a".to_string()],
+                    label: None,
+                },
+                ShaderUniformValue::Int(0),
+            ),
+            (
+                ShaderControlKind::Vec2 {
+                    min: -1.0,
+                    max: 1.0,
+                    step: 0.1,
+                    label: None,
+                },
+                ShaderUniformValue::Vec2([-1.0, -1.0]),
+            ),
+            (
+                ShaderControlKind::Point { label: None },
+                ShaderUniformValue::Vec2([0.5, 0.5]),
+            ),
+            (
+                ShaderControlKind::Range {
+                    min: 0.2,
+                    max: 0.8,
+                    step: 0.01,
+                    label: None,
+                },
+                ShaderUniformValue::Vec2([0.2, 0.8]),
+            ),
+            (
+                ShaderControlKind::Angle {
+                    unit: AngleUnit::Degrees,
+                    label: None,
+                },
+                ShaderUniformValue::Float(0.0),
+            ),
+            (
+                ShaderControlKind::Channel {
+                    options: vec![2, 4],
+                    label: None,
+                },
+                ShaderUniformValue::Int(2),
+            ),
+        ];
+
+        for (kind, expected) in cases {
+            let control = ShaderControl {
+                name: "iValue".to_string(),
+                kind,
+            };
+            assert_eq!(fallback_value_for_control(&control), expected);
+        }
     }
 
     #[test]
