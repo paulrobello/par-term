@@ -10,7 +10,6 @@ This document provides an overview of the public types and functions exported by
 - [par-term-keybindings](#par-term-keybindings)
 - [par-term-terminal](#par-term-terminal)
 - [par-term-render](#par-term-render)
-- [par-term-prettifier](#par-term-prettifier)
 - [par-term-settings-ui](#par-term-settings-ui)
 - [par-term-scripting](#par-term-scripting)
 - [par-term-tmux](#par-term-tmux)
@@ -173,15 +172,6 @@ Configuration loading, saving, and type definitions for the terminal emulator. T
 | `AlertEvent` | Events that can trigger an alert sound. |
 | `AlertSoundConfig` | Sound file and volume for an alert event. |
 
-### Prettifier
-
-| Type | Description |
-|------|-------------|
-| `PrettifierYamlConfig` | YAML-level prettifier settings parsed from `config.yaml`. |
-| `PrettifierConfigOverride` | Per-profile prettifier overrides. |
-| `ResolvedPrettifierConfig` | Fully merged prettifier configuration for a session. |
-| `resolve_prettifier_config(global, profile)` | Merge global and profile prettifier configs. |
-
 ---
 
 ## par-term-fonts
@@ -247,7 +237,7 @@ Runtime-configurable keybinding registry.
 
 ## par-term-terminal
 
-Terminal session management, scrollback, and styled content extraction.
+Terminal session management, scrollback, and terminal state access.
 
 | Type | Description |
 |------|-------------|
@@ -258,9 +248,6 @@ Terminal session management, scrollback, and styled content extraction.
 | `CommandSnapshot` | Immutable record of a completed command (text, start time, exit code, duration). |
 | `LineMetadata` | Timing and command metadata for a specific scrollback line, used by separator rendering. |
 | `ScrollbackMark` | Re-export of `par_term_config::ScrollbackMark`. |
-| `StyledSegment` | A contiguous run of terminal text sharing identical visual attributes. |
-| `extract_styled_segments(grid)` | Scan a terminal grid and return styled segments for the prettifier. |
-| `segments_to_plain_text(segments)` | Discard styling and return the plain text of a segment slice. |
 | `coprocess_env()` | Returns the environment variables set in coprocess subprocesses. |
 | `ClipboardEntry` | Re-export: a clipboard slot entry from the core library. |
 | `ClipboardSlot` | Re-export: identifies which clipboard slot (primary or clipboard). |
@@ -291,59 +278,6 @@ GPU-accelerated rendering engine: cell renderer, inline graphics, and custom sha
 | `compute_visible_separator_marks(...)` | Map absolute scrollback marks to screen rows for the current viewport. |
 | `SeparatorMark` | Re-export of `par_term_config::SeparatorMark`. |
 | `ScrollbackMark` | Re-export of `par_term_config::ScrollbackMark`. |
-
----
-
-## par-term-prettifier
-
-Content prettification framework for detecting and rendering structured content (Markdown, JSON, YAML, diffs, etc.) in terminal output.
-
-### Detection Layer
-
-| Type | Description |
-|------|-------------|
-| `ContentDetector` | Trait for content type detectors. Implementations identify structured content in terminal output. |
-| `ConfigurableDetector` | Extension trait for detectors that support user-config rule overrides. |
-| `DetectionResult` | Result from a detector: format ID string, confidence score, and matched rules. |
-| `ContentBlock` | A block of raw terminal output to be analyzed for content detection. |
-| `DetectionRule` | A single regex rule contributing to format detection. |
-| `RuleScope` | Where in a content block a detection rule should be applied. |
-| `RuleStrength` | Whether a rule alone can trigger detection or needs corroboration. |
-| `DetectionSource` | How a detection was triggered (`AutoDetected` or `TriggerInvoked`). |
-| `RegexDetector` | Generic regex-based detector for user-configured patterns. |
-| `BoundaryTracker` | Line boundary tracking for multi-line content detection. |
-
-### Rendering Layer
-
-| Type | Description |
-|------|-------------|
-| `ContentRenderer` | Trait for format-specific renderers. Converts raw content to styled terminal output. |
-| `RenderedContent` | Rendered output with styled lines and inline graphics. |
-| `StyledLine` | A single rendered line with styled segments. |
-| `RenderError` | Errors that can occur during content rendering. |
-| `RendererConfig` | Configuration passed to renderers (terminal width, theme colors). |
-| `RendererCapability` | Capabilities a renderer requires (text styling, inline graphics). |
-| `GutterIndicator` | Left-margin mark that flags prettified content blocks in the terminal view. |
-| `GutterManager` | Manages gutter indicators for the viewport. |
-
-### Pipeline and Registry
-
-| Type | Description |
-|------|-------------|
-| `PrettifierPipeline` | Top-level coordinator holding all detectors and renderers, driving per-line processing. |
-| `RendererRegistry` | Maps format ID strings to renderer implementations at runtime. |
-| `RenderCache` | Cache for rendered output to avoid re-rendering unchanged content. |
-| `PrettifierConfig` | Pipeline configuration (enabled, confidence threshold, debounce, scan limits). |
-| `config_bridge` | Module for translating config settings into live `PrettifierPipeline` instances. |
-
-### Built-in Detectors and Renderers
-
-| Module | Description |
-|--------|-------------|
-| `detectors` | Content type detectors: `JsonDetector`, `MarkdownDetector`, `DiffDetector`, etc. |
-| `renderers` | Format-specific renderers for Markdown, JSON, YAML, diffs, stack traces, diagrams. |
-| `claude_code` | Specialized detector/renderer for Claude Code XML tool-call output format. |
-| `custom_renderers` | User-configured external command renderers. |
 
 ---
 
@@ -534,6 +468,5 @@ Minimal MCP (Model Context Protocol) server over stdio. Exposes tools for ACP ag
 
 - [Architecture Overview](ARCHITECTURE.md) — How the crates fit together
 - [Configuration Reference](CONFIG_REFERENCE.md) — All `Config` fields documented
-- [Prettifier](PRETTIFIER.md) — Content prettification system
 - [Contributing](../CONTRIBUTING.md) — Development setup and workflow
 - [Environment Variables](ENVIRONMENT_VARIABLES.md) — Runtime environment variable reference

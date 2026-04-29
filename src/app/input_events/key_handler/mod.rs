@@ -335,11 +335,7 @@ impl WindowState {
             };
 
             if is_copy {
-                // Try prettifier-aware copy first, then fall back to normal selection copy.
-                let text = self
-                    .get_prettifier_copy_text()
-                    .or_else(|| self.get_selected_text_for_copy());
-                if let Some(selected_text) = text {
+                if let Some(selected_text) = self.get_selected_text_for_copy() {
                     if let Err(e) = self.input_handler.copy_to_clipboard(&selected_text) {
                         log::error!("Failed to copy to clipboard: {}", e);
                     } else {

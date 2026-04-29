@@ -6,7 +6,6 @@
 //!
 //! Extracted from `gpu_submit.rs` to keep each file under the 800-line limit.
 
-use super::prettifier_cells;
 use super::types::RendererSizing;
 use crate::config::color_u8_to_f32_a;
 use crate::progress_bar::ProgressBarSnapshot;
@@ -24,7 +23,6 @@ pub(super) struct GpuStateUpdateParams<'a> {
     pub(super) current_cursor_pos: Option<(usize, usize)>,
     pub(super) cursor_style: Option<par_term_emu_core_rust::cursor::CursorStyle>,
     pub(super) progress_snapshot: &'a Option<ProgressBarSnapshot>,
-    pub(super) prettifier_graphics: &'a [prettifier_cells::PrettifierGraphic],
     pub(super) scroll_offset: usize,
     pub(super) visible_lines: usize,
     pub(super) scrollback_len: usize,
@@ -52,7 +50,7 @@ pub(super) struct GpuUploadResult {
 /// - Scrollbar position and marks
 /// - Gutter indicators for prettified blocks
 /// - Animation frame updates
-/// - Terminal graphics (Sixel/iTerm2/Kitty and prettifier diagrams)
+/// - Terminal graphics (Sixel/iTerm2/Kitty)
 /// - Visual bell flash intensity
 ///
 /// Returns timing measurements and the computed renderer sizing for use in phase 4.
@@ -70,7 +68,6 @@ pub(super) fn update_gpu_renderer_state(
         current_cursor_pos,
         cursor_style,
         progress_snapshot,
-        prettifier_graphics,
         scroll_offset,
         visible_lines,
         scrollback_len,
@@ -148,35 +145,6 @@ pub(super) fn update_gpu_renderer_state(
         renderer.set_separator_marks(Vec::new());
     }
 
-    // Compute and set gutter indicators for prettified blocks
-    {
-        let gutter_data = if let Some(tab) = tab_manager.active_tab() {
-            if let Some(ref pipeline) = tab.prettifier {
-                if pipeline.is_enabled() {
-                    let indicators = tab.gutter_manager.indicators_for_viewport(
-                        pipeline,
-                        scroll_offset,
-                        visible_lines,
-                    );
-                    let gutter_color = [0.3, 0.5, 0.8, 0.15];
-                    indicators
-                        .iter()
-                        .flat_map(|ind| {
-                            (ind.row..ind.row + ind.height).map(move |r| (r, gutter_color))
-                        })
-                        .collect::<Vec<_>>()
-                } else {
-                    Vec::new()
-                }
-            } else {
-                Vec::new()
-            }
-        } else {
-            Vec::new()
-        };
-        renderer.set_gutter_indicators(gutter_data);
-    }
-
     // Update animations and request redraw if frames changed.
     // Use try_write() to avoid blocking the event loop when PTY reader holds the lock.
     let anim_start = std::time::Instant::now();
@@ -234,18 +202,6 @@ pub(super) fn update_gpu_renderer_state(
         }
     }
     debug_graphics_time = graphics_start.elapsed();
-
-    // Upload prettifier diagram graphics (rendered Mermaid, etc.) to the GPU.
-    if !prettifier_graphics.is_empty() {
-        let refs: Vec<par_term_render::renderer::graphics::PrettifierGraphicRef<'_>> =
-            prettifier_graphics
-                .iter()
-                .map(|(id, data, w, h, row, col)| (*id, data.as_slice(), *w, *h, *row, *col))
-                .collect();
-        if let Err(e) = renderer.update_prettifier_graphics(&refs) {
-            crate::debug_error!("PRETTIFIER", "Failed to upload prettifier graphics: {}", e);
-        }
-    }
 
     // Calculate visual bell flash intensity (0.0 = no flash, 1.0 = full flash)
     let visual_bell_flash = tab_manager

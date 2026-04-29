@@ -61,11 +61,6 @@ pub fn keywords() -> &'static [&'static str] {
         "variable",
         "foreground",
         "foreground color",
-        // Prettify action
-        "prettify",
-        "prettifier",
-        "scope",
-        "command output",
         // Trigger security
         "prompt before run",
         "prompt",

@@ -39,7 +39,6 @@ pub mod effects_tab;
 pub mod input_tab;
 pub mod integrations_tab;
 pub mod notifications_tab;
-pub mod prettifier_tab;
 pub mod profiles_tab;
 pub mod quick_settings;
 pub mod scripts_tab;

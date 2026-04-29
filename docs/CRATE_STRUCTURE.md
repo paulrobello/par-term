@@ -47,7 +47,6 @@ graph TD
         Fonts[par-term-fonts<br>Font Management & Text Shaping]
         Input[par-term-input<br>Input Sequence Generation]
         Keybind[par-term-keybindings<br>Keybinding Registry]
-        Prettifier[par-term-prettifier<br>Content Prettifier]
         Scripting[par-term-scripting<br>Observer & Scripting]
         Settings[par-term-settings-ui<br>Settings Tabs & Sidebar]
         Terminal[par-term-terminal<br>Terminal Manager]
@@ -62,7 +61,6 @@ graph TD
     Config --> Fonts
     Config --> Input
     Config --> Keybind
-    Config --> Prettifier
     Config --> Scripting
     Config --> Settings
     Config --> Terminal
@@ -78,7 +76,6 @@ graph TD
     Main --> Input
     Main --> Keybind
     Main --> MCP
-    Main --> Prettifier
     Main --> Render
     Main --> Scripting
     Main --> Settings
@@ -99,7 +96,6 @@ graph TD
     style Settings fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
     style Terminal fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
     style Tmux fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
-    style Prettifier fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
     style Update fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
     style Render fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
 ```
@@ -128,17 +124,16 @@ One crate forms the root of the internal dependency graph. All Layer 2 crates de
 
 ### Layer 2 — Feature Crates
 
-These nine crates each depend on `par-term-config` and implement a distinct feature area. They can be built in parallel after Layer 1 is ready.
+These eight crates each depend on `par-term-config` and implement a distinct feature area. They can be built in parallel after Layer 1 is ready.
 
 | Crate | Responsibility |
 |-------|---------------|
 | `par-term-fonts` | Font discovery, loading, and fallback chain using `fontdb`. Text shaping via `rustybuzz` (HarfBuzz port). Glyph rasterization via `swash`. Provides `FontManager` and `TextShaper` to the render and terminal layers. |
 | `par-term-input` | Translates `winit` keyboard and mouse events into VT escape byte sequences. Handles modifier keys, function keys, mouse reporting modes, and clipboard paste sequences. |
 | `par-term-keybindings` | Parses keybinding definitions from config, matches key combos against incoming events, and maintains a named action registry. Supports platform-aware `CmdOrCtrl` modifier shorthand. |
-| `par-term-prettifier` | Content prettifier framework — detects structured content in terminal output (Markdown, JSON, YAML, diffs, stack traces, diagrams, CSV, SQL results, logs, TOML, XML, tables) and renders it with rich syntax highlighting and inline graphics. Pluggable detector/renderer architecture; ships 12 built-in format renderers including native Mermaid diagram support. |
 | `par-term-scripting` | Observer pattern implementation for event-driven automation. Integrates with `par-term-emu-core-rust`'s terminal event observer trait to trigger shell callbacks and automation scripts on terminal output events. |
-| `par-term-settings-ui` | 14 settings tabs: Appearance (includes Badge + Progress Bar), Window (includes Arrangements), Input, Terminal, Effects, Status Bar, Profiles, Notifications, Integrations (includes SSH), Automation (includes Scripts), Snippets & Actions, Prettifier, Assistant, Advanced. Sidebar navigation component and section search. Built on egui; depends only on `par-term-config`. |
-| `par-term-terminal` | `TerminalManager` — the thread-safe wrapper around `PtySession` from `par-term-emu-core-rust`. Manages the PTY process, scrollback extraction, styled content, clipboard OSC 52, hyperlink tracking, and inline graphics metadata. |
+| `par-term-settings-ui` | 13 settings tabs: Appearance (includes Badge + Progress Bar), Window (includes Arrangements), Input, Terminal, Effects, Status Bar, Profiles, Notifications, Integrations (includes SSH), Automation (includes Scripts), Snippets & Actions, Assistant, Advanced. Sidebar navigation component and section search. Built on egui; depends only on `par-term-config`. |
+| `par-term-terminal` | `TerminalManager` — the thread-safe wrapper around `PtySession` from `par-term-emu-core-rust`. Manages the PTY process, scrollback extraction, clipboard OSC 52, hyperlink tracking, and inline graphics metadata. |
 | `par-term-tmux` | tmux control mode integration: session lifecycle, bidirectional state sync between par-term panes and tmux windows/panes, and control protocol command builders. Bridges the core library's control mode parser to par-term's pane system. |
 | `par-term-update` | Self-update system: fetches release manifests, compares semantic versions, downloads and verifies binary archives (SHA-256), and extracts updates in place. Tracks last-check timestamps against the configured `UpdateCheckFrequency`. |
 
@@ -168,7 +163,6 @@ Quick lookup table with each crate's primary public types and where they are con
 | `par-term-input` | `InputHandler`, `encode_key`, `encode_mouse` | `par-term` |
 | `par-term-keybindings` | `KeybindingRegistry`, `KeyCombo`, `KeyAction` | `par-term` |
 | `par-term-mcp` | `McpServer`, `McpRequest`, `McpResponse` | `par-term` |
-| `par-term-prettifier` | `PrettifierPipeline`, `ContentBlock`, `GutterManager`, `RendererRegistry` | `par-term` |
 | `par-term-render` | `Renderer`, `CellRenderer`, `GraphicsRenderer`, `CustomShaderRenderer` | `par-term` |
 | `par-term-scripting` | `ScriptingHost`, `TerminalObserver` | `par-term` |
 | `par-term-settings-ui` | `SettingsUi`, `SettingsState`, all tab structs | `par-term` (settings window) |
@@ -187,7 +181,7 @@ When cutting a release for crates.io, bump crate versions in dependency order. B
 Step 1 — Bump par-term-config
   Update version in: par-term-config/Cargo.toml
   Update references in: par-term-fonts, par-term-input, par-term-keybindings,
-                        par-term-prettifier, par-term-scripting, par-term-settings-ui,
+                        par-term-scripting, par-term-settings-ui,
                         par-term-terminal, par-term-tmux, par-term-update, par-term-render,
                         Cargo.toml (root)
 
@@ -201,7 +195,6 @@ Step 3 — Bump Layer 2 crates (any order within the step)
   par-term-fonts
   par-term-input
   par-term-keybindings
-  par-term-prettifier
   par-term-scripting
   par-term-settings-ui
   par-term-terminal

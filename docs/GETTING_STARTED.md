@@ -284,7 +284,6 @@ graph TD
     Shaders[Custom Shaders]
     Automation[Triggers & Automation]
     StatusBar[Status Bar]
-    Prettifier[Content Prettifier]
 
     Basics --> CopyMode
     Basics --> Snippets
@@ -294,7 +293,6 @@ graph TD
     Basics --> Shaders
     Basics --> Automation
     Basics --> StatusBar
-    Basics --> Prettifier
 
     style Basics fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
     style CopyMode fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
@@ -305,7 +303,6 @@ graph TD
     style Shaders fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
     style Automation fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
     style StatusBar fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
-    style Prettifier fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
 ```
 
 - **[Copy Mode](COPY_MODE.md)** -- Vi-style keyboard-driven text selection with search, marks, and visual modes
@@ -314,9 +311,8 @@ graph TD
 - **[tmux Integration](TABS.md)** -- Native tmux status bar rendering, bidirectional pane resize, and session picker
 - **[Assistant Panel](ASSISTANT_PANEL.md)** -- Chat with AI agents (Claude Code, GitHub Copilot, and others) directly in your terminal
 - **[Custom Shaders](CUSTOM_SHADERS.md)** -- Create your own GLSL shaders or port effects from Shadertoy
-- **[Triggers & Automation](AUTOMATION.md)** -- Regex triggers on terminal output with 7 action types and coprocess support
+- **[Triggers & Automation](AUTOMATION.md)** -- Regex triggers on terminal output with 8 action types and coprocess support
 - **[Status Bar](STATUS_BAR.md)** -- Configurable widget bar with clock, git branch, CPU/memory, and more
-- **[Content Prettifier](PRETTIFIER.md)** -- Auto-detect and render Markdown, JSON, diffs, diagrams, and other structured content
 
 ## Related Documentation
 

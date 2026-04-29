@@ -12,7 +12,6 @@
 //! - [`persistence`] — `impl Config` methods for load/save/path-resolution and session state
 //! - [`theme_methods`] — `impl Config` methods for theme and tab-style application
 //! - [`env_vars`] — Environment-variable allowlist and `${VAR}` substitution
-//! - [`prettifier`] — Content prettifier YAML config types
 
 pub mod acp;
 pub mod config_struct;
@@ -20,7 +19,6 @@ pub mod env_vars;
 pub mod keybindings_methods;
 pub mod path_validation;
 pub mod persistence;
-pub mod prettifier;
 pub mod theme_methods;
 
 // Re-export the public API so downstream crates keep working with

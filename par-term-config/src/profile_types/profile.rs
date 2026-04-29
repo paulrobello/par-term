@@ -162,17 +162,6 @@ pub struct Profile {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ssh_extra_args: Option<String>,
 
-    // ========================================================================
-    // Content Prettifier overrides (step 6)
-    // ========================================================================
-    /// Per-profile prettifier enable override (None = inherit global).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub enable_prettifier: Option<bool>,
-
-    /// Per-profile prettifier config overrides (None = inherit global).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub content_prettifier: Option<crate::config::prettifier::PrettifierConfigOverride>,
-
     /// Where this profile was loaded from (runtime-only, not persisted to YAML)
     #[serde(skip)]
     pub source: ProfileSource,
@@ -214,8 +203,6 @@ impl Profile {
             ssh_port: None,
             ssh_identity_file: None,
             ssh_extra_args: None,
-            enable_prettifier: None,
-            content_prettifier: None,
             source: ProfileSource::default(),
         }
     }
@@ -255,8 +242,6 @@ impl Profile {
             ssh_port: None,
             ssh_identity_file: None,
             ssh_extra_args: None,
-            enable_prettifier: None,
-            content_prettifier: None,
             source: ProfileSource::default(),
         }
     }
@@ -426,21 +411,6 @@ impl Profile {
     /// Builder method to set SSH port
     pub fn ssh_port(mut self, port: u16) -> Self {
         self.ssh_port = Some(port);
-        self
-    }
-
-    /// Builder method to set prettifier enabled override
-    pub fn enable_prettifier(mut self, enabled: bool) -> Self {
-        self.enable_prettifier = Some(enabled);
-        self
-    }
-
-    /// Builder method to set prettifier config override
-    pub fn content_prettifier(
-        mut self,
-        config: crate::config::prettifier::PrettifierConfigOverride,
-    ) -> Self {
-        self.content_prettifier = Some(config);
         self
     }
 

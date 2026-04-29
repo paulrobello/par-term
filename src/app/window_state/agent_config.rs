@@ -110,18 +110,6 @@ impl WindowState {
                     self.reinit_shader_watcher();
                 }
 
-                // Rebuild prettifier pipelines if prettifier config changed.
-                if changes.prettifier_changed {
-                    for tab in self.tab_manager.tabs_mut() {
-                        tab.prettifier =
-                            crate::prettifier::config_bridge::create_pipeline_from_config(
-                                &self.config,
-                                self.config.cols,
-                                None,
-                            );
-                    }
-                }
-
                 self.focus_state.needs_redraw = true;
                 debug_info!("CONFIG", "Config reloaded successfully");
             }
@@ -214,17 +202,6 @@ impl WindowState {
 
         if changes.needs_watcher_reinit() {
             self.reinit_shader_watcher();
-        }
-
-        // Rebuild prettifier pipelines if prettifier config changed.
-        if changes.prettifier_changed {
-            for tab in self.tab_manager.tabs_mut() {
-                tab.prettifier = crate::prettifier::config_bridge::create_pipeline_from_config(
-                    &self.config,
-                    self.config.cols,
-                    None,
-                );
-            }
         }
 
         // Save to disk

@@ -154,7 +154,6 @@ graph TD
     MCP[par-term-mcp<br>MCP Stdio Server]
     SSH[par-term-ssh<br>SSH Host Discovery]
     Tmux[par-term-tmux<br>tmux Control Mode]
-    Prettifier[par-term-prettifier<br>Content Prettifier]
 
     Main --> ACP
     Main --> Config
@@ -169,7 +168,6 @@ graph TD
     Main --> MCP
     Main --> SSH
     Main --> Tmux
-    Main --> Prettifier
 
     Terminal --> Config
     Render --> Config
@@ -179,7 +177,6 @@ graph TD
     Keybind --> Config
     Scripting --> Config
     Tmux --> Config
-    Prettifier --> Config
 
     style Main fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
     style ACP fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
@@ -195,7 +192,6 @@ graph TD
     style MCP fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
     style SSH fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
     style Tmux fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
-    style Prettifier fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
 ```
 
 ### Crate Responsibilities
@@ -206,9 +202,9 @@ graph TD
 | **par-term-acp** | ACP (Agent Communication Protocol) implementation and agent lifecycle management. |
 | **par-term-config** | Configuration loading and serialization (`Config` struct), shared types (`Cell`, `ScrollbackMark`, `PaneId`, `TabId`), and configuration file watching. |
 | **par-term-fonts** | Font discovery, loading, and fallback chain (`FontManager`, `FontData`). Text shaping via `TextShaper` (HarfBuzz/rustybuzz). |
-| **par-term-terminal** | Terminal session management (`TerminalManager`), scrollback buffer, styled content extraction, and PTY interaction wrappers. |
+| **par-term-terminal** | Terminal session management (`TerminalManager`), scrollback buffer extraction, and PTY interaction wrappers. |
 | **par-term-render** | GPU rendering engine: cell renderer, graphics renderer (Sixel/iTerm2/Kitty), custom shader renderer, WGSL shaders, and glyph atlas management. |
-| **par-term-settings-ui** | 14 settings tabs (Appearance, Window, Input, Terminal, Effects, Status Bar, Profiles, Notifications, Integrations, Automation, Snippets & Actions, Prettifier, Assistant, Advanced), sidebar navigation, and section helper utilities. |
+| **par-term-settings-ui** | 13 settings tabs (Appearance, Window, Input, Terminal, Effects, Status Bar, Profiles, Notifications, Integrations, Automation, Snippets & Actions, Assistant, Advanced), sidebar navigation, and section helper utilities. |
 | **par-term-input** | Input sequence generation — translates keyboard/mouse events into VT escape sequences for terminal input. |
 | **par-term-keybindings** | Keybinding parsing, matching, and registry with platform-aware modifier handling (`CmdOrCtrl`). |
 | **par-term-scripting** | Observer pattern and scripting system for event-driven automation. |
@@ -216,7 +212,6 @@ graph TD
 | **par-term-mcp** | MCP (Model Context Protocol) stdio server for AI agent integration. Independently publishable with zero internal crate dependencies. |
 | **par-term-ssh** | SSH host discovery via config parsing, known hosts scanning, history scanning, and mDNS/Bonjour discovery. |
 | **par-term-tmux** | tmux control mode integration — session lifecycle, bidirectional state sync, and control protocol command builders. |
-| **par-term-prettifier** | Content prettifier for Markdown, JSON, YAML, diffs, and diagrams (Mermaid). Converts structured content into styled terminal output with syntax highlighting. |
 
 ### Backward Compatibility
 
@@ -234,7 +229,7 @@ All public types from workspace crates are re-exported from the main `par-term` 
 *   **Menu (`src/menu/`)**: Native cross-platform menu bar using `muda` (macOS global menu, Windows/Linux per-window menus).
 *   **Configuration (`par-term-config`)**: Manages settings loaded from YAML files, handling platform-specific paths (`%APPDATA%` vs `~/.config`). Includes shader metadata caching and file watching.
 *   **Settings Window (`src/settings_window/`)**: Standalone egui window for configuration, separate from the main terminal window for better usability.
-*   **Settings UI (`par-term-settings-ui`)**: egui-based settings interface with 14 consolidated tabs: Appearance (includes Badge and Progress Bar), Window (includes Arrangements), Input, Terminal, Effects, Status Bar, Profiles, Notifications, Integrations (includes SSH), Automation (includes Scripts), Snippets & Actions, Prettifier, Assistant, and Advanced.
+*   **Settings UI (`par-term-settings-ui`)**: egui-based settings interface with 14 consolidated tabs: Appearance (includes Badge and Progress Bar), Window (includes Arrangements), Input, Terminal, Effects, Status Bar, Profiles, Notifications, Integrations (includes SSH), Automation (includes Scripts), Snippets & Actions, Assistant, and Advanced.
 *   **Profile Manager (`src/profile/`)**: iTerm2-style profile system for saving terminal session configurations (working directory, custom commands, tab names). Profiles stored in `~/.config/par-term/profiles.yaml`.
 *   **Scripting (`par-term-scripting`)**: Observer pattern implementation for event-driven automation and shell integration callbacks.
 *   **Update System (`par-term-update`)**: Self-update mechanism with manifest parsing, version comparison, and download/extraction logic.
@@ -294,7 +289,6 @@ All public types from workspace crates are re-exported from the main `par-term` 
 *   **Paste Transform (`src/paste_transform/`)**: Transforms pasted content (bracketed paste, newline handling).
 *   **Shell Integration Installer (`src/shell_integration_installer.rs`)**: Installs shell integration scripts for enhanced features.
 *   **Shader Installer (`src/shader_installer.rs`)**: Manages installation of custom shaders from the shader gallery.
-*   **Content Prettifier (`par-term-prettifier`)**: Converts structured content (Markdown, JSON, YAML, diffs) into styled terminal output. Includes native Mermaid diagram rendering via `mermaid-rs-renderer` with SVG rasterization.
 
 ### SSH System (`par-term-ssh`)
 
@@ -453,9 +447,7 @@ overflow is handled by evicting the least-recently-used glyphs.
 
 Sixel, iTerm2, and Kitty graphics are decoded to RGBA on the CPU and uploaded to GPU
 textures during the Graphics Pass. Textures are cached by their content hash. When a
-graphic scrolls off screen, its texture is evicted from the cache. Prettifier-rendered
-graphics (Mermaid diagrams, etc.) are treated identically — they produce RGBA byte
-buffers that enter the same texture cache.
+graphic scrolls off screen, its texture is evicted from the cache.
 
 ### Custom Shader Resources
 

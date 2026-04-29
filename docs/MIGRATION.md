@@ -4,6 +4,7 @@ Upgrade notes for par-term covering breaking configuration changes, renamed fiel
 
 ## Table of Contents
 
+- [Unreleased — Content Prettifier Removed](#unreleased--content-prettifier-removed)
 - [v0.20.0 — Default Changes](#v0200--default-changes)
 - [v0.25.0 — Security Hardening and Behavior Shifts](#v0250--security-hardening-and-behavior-shifts)
 - [v0.25.0 — Minimum Contrast Scale Change](#v0250--minimum-contrast-scale-change)
@@ -12,6 +13,12 @@ Upgrade notes for par-term covering breaking configuration changes, renamed fiel
 - [v0.27.0 — Security-Gated Trigger Execution](#v0270--security-gated-trigger-execution)
 - [v0.27.0 — Prettifier External Commands Default-Deny](#v0270--prettifier-external-commands-default-deny)
 - [Related Documentation](#related-documentation)
+
+---
+
+## Unreleased — Content Prettifier Removed
+
+The content prettifier feature has been removed. The `enable_prettifier`, `content_prettifier`, per-profile prettifier overrides, `toggle_prettifier` keybinding action, and trigger `type: prettify` action are no longer supported. Remove those entries from `config.yaml` before upgrading.
 
 ---
 
@@ -144,5 +151,4 @@ Attempts to run unlisted commands are blocked with a warning in the debug log.
 - [Config Reference](CONFIG_REFERENCE.md) — complete field reference with types and defaults
 - [Automation](AUTOMATION.md) — trigger configuration and `prompt_before_run` / `i_accept_the_risk` usage
 - [Assistant Panel](ASSISTANT_PANEL.md) — ACP agent configuration and `auto_approve` permissions
-- [Content Prettifier](PRETTIFIER.md) — prettifier setup and `allowed_commands`
 - [Changelog](../CHANGELOG.md) — full release history

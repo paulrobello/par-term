@@ -26,8 +26,6 @@ pub(crate) use scripting_state::TabScriptingState;
 pub(crate) use tmux_state::TabTmuxState;
 
 use crate::pane::PaneManager;
-use crate::prettifier::gutter::GutterManager;
-use crate::prettifier::pipeline::PrettifierPipeline;
 use crate::session_logger::SharedSessionLogger;
 use crate::terminal::TerminalManager;
 pub use manager::TabManager;
@@ -119,10 +117,6 @@ pub struct Tab {
     pub(crate) profile: TabProfileState,
     /// Scripting, coprocess, and trigger state
     pub(crate) scripting: TabScriptingState,
-    /// Prettifier pipeline for content detection and rendering (None if disabled)
-    pub(crate) prettifier: Option<PrettifierPipeline>,
-    /// Gutter manager for prettifier indicators
-    pub(crate) gutter_manager: GutterManager,
     /// Whether the terminal was on the alt screen last frame (for detecting transitions)
     pub(crate) was_alt_screen: bool,
     /// Whether this tab is the currently active (visible) tab.
@@ -150,8 +144,6 @@ pub(super) struct TabInitParams {
     pub(super) user_named: bool,
     /// Working directory to expose via `Tab::get_cwd`
     pub(super) working_directory: Option<String>,
-    /// Terminal grid dimensions (cols, rows) used for prettifier pipeline init
-    pub(super) cols: usize,
     /// Used to schedule the initial-text send (if any) in `Tab::new()`
     pub(super) runtime: Option<Arc<Runtime>>,
 }

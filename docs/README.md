@@ -61,7 +61,6 @@ Navigation index for all par-term documentation. Start with the [Getting Started
 | Document | Description |
 |----------|-------------|
 | [Automation](AUTOMATION.md) | Triggers, actions, coprocesses, and observer scripts for terminal automation |
-| [Content Prettifier](PRETTIFIER.md) | Rich rendering of Markdown, JSON, YAML, diffs, and diagrams in terminal output |
 | [Assistant Panel](ASSISTANT_PANEL.md) | DevTools-style panel for terminal inspection and ACP agent chat (Claude, Ollama) |
 
 ## Architecture & Development

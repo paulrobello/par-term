@@ -1,7 +1,6 @@
 //! Tests for automation security — command denylist, prompt_before_run field,
 //! and the is_dangerous classification for trigger actions.
 
-use par_term::config::automation::PrettifyScope;
 use par_term::config::{TriggerActionConfig, TriggerConfig, check_command_denylist};
 
 // ============================================================================
@@ -149,18 +148,6 @@ fn test_is_not_dangerous_play_sound() {
         volume: 50,
     };
     assert!(!action.is_dangerous(), "PlaySound should not be dangerous");
-}
-
-#[test]
-fn test_is_not_dangerous_prettify() {
-    let action = TriggerActionConfig::Prettify {
-        format: "json".into(),
-        scope: PrettifyScope::CommandOutput,
-        block_end: None,
-        sub_format: None,
-        command_filter: None,
-    };
-    assert!(!action.is_dangerous(), "Prettify should not be dangerous");
 }
 
 // ============================================================================

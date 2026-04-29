@@ -283,6 +283,43 @@ impl TerminalManager {
         result
     }
 
+    /// Get all lines in a range as text plus whether each visual row soft-wraps
+    /// into the following row.
+    pub fn lines_text_range_with_wraps(
+        &self,
+        start: usize,
+        end: usize,
+    ) -> Vec<(String, usize, bool)> {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let term = terminal.lock();
+        let grid = term.active_grid();
+        let scrollback_len = grid.scrollback_len();
+        let max_line = scrollback_len + grid.rows();
+
+        let start = start.min(max_line);
+        let end = end.min(max_line);
+
+        let mut result = Vec::with_capacity(end.saturating_sub(start));
+        for abs_line in start..end {
+            let (text, wrapped) = if abs_line < scrollback_len {
+                (
+                    Self::scrollback_line_text(grid, abs_line),
+                    grid.is_scrollback_wrapped(abs_line),
+                )
+            } else {
+                let screen_row = abs_line - scrollback_len;
+                if screen_row < grid.rows() {
+                    (grid.row_text(screen_row), grid.is_line_wrapped(screen_row))
+                } else {
+                    break;
+                }
+            };
+            result.push((text, abs_line, wrapped));
+        }
+        result
+    }
+
     /// Get all scrollback lines as Cell arrays.
     pub fn scrollback_as_cells(&self) -> Vec<Vec<par_term_config::Cell>> {
         let pty = self.pty_session.lock();
@@ -332,7 +369,7 @@ impl TerminalManager {
         self.marker_tracker.reset();
     }
 
-    /// Drain queued shell lifecycle events for the prettifier pipeline.
+    /// Drain queued shell lifecycle events.
     pub fn drain_shell_lifecycle_events(&mut self) -> Vec<super::ShellLifecycleEvent> {
         self.marker_tracker.drain_events()
     }

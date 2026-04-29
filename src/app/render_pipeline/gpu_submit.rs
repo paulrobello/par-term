@@ -1,7 +1,6 @@
 //! GPU frame submission for the render pipeline.
 //!
 //! `submit_gpu_frame` drives the full egui + wgpu render pass for one frame:
-//! - Prettifier cell substitution
 //! - egui overlay rendering (FPS, toast, tab bar, all dialogs)
 //! - Cell / cursor / progress / scrollbar / graphics upload to the GPU
 //! - Split-pane or single-pane wgpu render call
@@ -15,7 +14,6 @@
 
 use super::egui_submit::{RenderEguiParams, scroll_offset_from_tab};
 use super::pane_render;
-use super::prettifier_cells;
 use super::renderer_ops::{GpuStateUpdateParams, update_gpu_renderer_state};
 use super::types::{FrameRenderData, PostRenderActions};
 use crate::app::window_state::WindowState;
@@ -24,18 +22,17 @@ use crate::ui_constants::VISUAL_BELL_FLASH_DURATION_MS;
 use wgpu::SurfaceError;
 
 impl WindowState {
-    /// Run prettifier cell substitution, egui overlays, and GPU render pass.
+    /// Run egui overlays and GPU render pass.
     /// Returns collected post-render actions to handle after the renderer borrow is released.
     pub(super) fn submit_gpu_frame(&mut self, frame_data: FrameRenderData) -> PostRenderActions {
         let FrameRenderData {
-            mut cells,
+            cells,
             cursor_pos: current_cursor_pos,
             cursor_style,
             is_alt_screen,
             scrollback_len,
             show_scrollbar,
             visible_lines,
-            grid_cols,
             scrollback_marks,
             total_lines,
             debug_url_detect_time,
@@ -102,35 +99,6 @@ impl WindowState {
         // position uses the current panel width on this frame (not the previous one).
         self.sync_ai_inspector_width();
 
-        // Prettifier cell substitution — collect inline graphics for GPU compositing.
-        // The cell substitution on FrameRenderData.cells is wasted (invisible to pane
-        // renderer), but the graphics list is needed for update_gpu_renderer_state().
-        // Pane-visible cell substitution happens later in the pane loop below.
-        //
-        // DEFERRED: Split `apply_prettifier_cell_substitution` into two passes:
-        //   (a) a graphics-only collection pass (called here, no cell mutation), and
-        //   (b) a cell substitution pass (called per-pane in the pane loop below).
-        // Blocked on: `prettifier_cells.rs` refactor to expose a separate
-        // `collect_prettifier_graphics()` function that skips cell writes.
-        // Effort: ~1 day. Create a GitHub issue with the "performance" label to track.
-        let prettifier_graphics = if let Some(tab) = self.tab_manager.active_tab() {
-            // Take the scratch buffer to avoid a borrow conflict between `tab` and `self`.
-            let mut scratch = std::mem::take(&mut self.scratch_prettifier_block_ids);
-            let result = prettifier_cells::apply_prettifier_cell_substitution(
-                tab,
-                &mut cells,
-                is_alt_screen,
-                visible_lines,
-                scrollback_len,
-                grid_cols,
-                &mut scratch,
-            );
-            self.scratch_prettifier_block_ids = scratch;
-            result
-        } else {
-            Vec::new()
-        };
-
         // Cache modal visibility before entering the renderer borrow scope.
         // Method calls borrow all of `self`, which conflicts with `&mut self.renderer`.
         let any_modal_visible = self.any_modal_ui_visible();
@@ -160,7 +128,6 @@ impl WindowState {
                     current_cursor_pos,
                     cursor_style,
                     progress_snapshot: &progress_snapshot,
-                    prettifier_graphics: &prettifier_graphics,
                     scroll_offset,
                     visible_lines,
                     scrollback_len,
@@ -316,112 +283,78 @@ impl WindowState {
                         tab.active_cache_mut().scrollback_len = focused_pane_scrollback_len;
                     }
 
-                    // Apply search highlights to the focused pane's cells.
-                    // Pane cells are gathered independently from each pane's terminal, so
-                    // highlights must be applied here rather than in gather_render_data.
+                    // Apply transient text overlays.
+                    // Search highlights and URL underlines must be final-layer cell
+                    // mutations.
                     {
                         let search_matches = self.overlay_ui.search_ui.matches();
-                        if !search_matches.is_empty() {
-                            let current_match_idx = self.overlay_ui.search_ui.current_match_index();
-                            let highlight_color = self.config.search.search_highlight_color;
-                            let current_highlight_color =
-                                self.config.search.search_current_highlight_color;
-                            for pane in &mut pane_data {
-                                if pane.viewport.focused {
-                                    let cells = std::sync::Arc::make_mut(&mut pane.cells);
-                                    crate::app::window_state::search_highlight::apply_search_highlights_to_cells(
-                                        crate::app::window_state::search_highlight::SearchHighlightParams {
-                                            cells,
-                                            cols: pane.grid_size.0,
-                                            scroll_offset: pane.scroll_offset,
-                                            scrollback_len: pane.scrollback_len,
-                                            visible_lines: pane.grid_size.1,
-                                            matches: search_matches,
-                                            current_match_idx,
-                                            highlight_color,
-                                            current_highlight_color,
-                                        },
-                                    );
-                                }
-                            }
-                        }
-                    }
+                        let has_search_matches = !search_matches.is_empty();
+                        let current_match_idx = self.overlay_ui.search_ui.current_match_index();
+                        let highlight_color = self.config.search.search_highlight_color;
+                        let current_highlight_color =
+                            self.config.search.search_current_highlight_color;
 
-                    // Apply URL underlines to the focused pane's cells.
-                    // URL detection runs in gather_render_data and stores results in the
-                    // focused pane's mouse state. Pane cells are gathered independently,
-                    // so underlines must be applied here — same reason as search highlights.
-                    // (FrameRenderData.cells is invisible to the pane renderer; see MEMORY.md)
-                    {
-                        if let Some(tab) = self.tab_manager.active_tab() {
+                        let url_overlay = self.tab_manager.active_tab().and_then(|tab| {
                             let detected_urls = &tab.active_mouse().detected_urls;
-                            if !detected_urls.is_empty() {
-                                let c = self.config.link_highlight_color;
-                                let url_color = [c[0], c[1], c[2], 255];
-                                let do_color = self.config.link_highlight_color_enabled;
-                                let do_underline = self.config.link_highlight_underline;
-                                let hovered_bounds = tab.active_mouse().hovered_url_bounds;
-                                // Use the scroll offset that was active when URLs
-                                // were detected, not the pane's current scroll
-                                // offset.  On cache-hit frames (lock contention
-                                // during scroll), old URLs are retained but
-                                // pane.scroll_offset may have advanced, causing
-                                // viewport_row to drift and underlines to shift.
-                                let url_scroll_offset = tab.active_mouse().url_detect_scroll_offset;
-                                for pane in &mut pane_data {
-                                    if pane.viewport.focused {
-                                        let cells = std::sync::Arc::make_mut(&mut pane.cells);
-                                        let cols = pane.grid_size.0;
-                                        for url in detected_urls.iter() {
-                                            if url.row < url_scroll_offset {
-                                                continue;
-                                            }
-                                            let viewport_row = url.row - url_scroll_offset;
-                                            let is_hovered = hovered_bounds
-                                                == Some((url.row, url.start_col, url.end_col));
-                                            for col in url.start_col..url.end_col {
-                                                let cell_idx = viewport_row * cols + col;
-                                                if cell_idx < cells.len() {
-                                                    if do_color && is_hovered {
-                                                        cells[cell_idx].fg_color = url_color;
-                                                    }
-                                                    if do_underline {
-                                                        cells[cell_idx].underline = true;
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        break; // Only one focused pane
-                                    }
-                                }
+                            if detected_urls.is_empty() {
+                                return None;
                             }
-                        }
-                    }
+                            let c = self.config.link_highlight_color;
+                            Some((
+                                detected_urls,
+                                tab.active_mouse().url_detect_scroll_offset,
+                                tab.active_mouse().hovered_url_bounds,
+                                [c[0], c[1], c[2], 255],
+                                self.config.link_highlight_color_enabled,
+                                self.config.link_highlight_underline,
+                            ))
+                        });
 
-                    // Apply prettifier cell substitution to the focused pane's cells.
-                    // The tab-level substitution (earlier in this function) modifies
-                    // FrameRenderData.cells which are invisible to the pane renderer —
-                    // pane cells are gathered independently by gather_pane_render_data.
-                    {
-                        if let Some(tab) = self.tab_manager.active_tab() {
-                            let mut scratch =
-                                std::mem::take(&mut self.scratch_prettifier_block_ids);
+                        if has_search_matches || url_overlay.is_some() {
                             for pane in &mut pane_data {
                                 if pane.viewport.focused {
                                     let cells = std::sync::Arc::make_mut(&mut pane.cells);
-                                    let _ = prettifier_cells::apply_prettifier_cell_substitution(
-                                        tab,
-                                        cells,
-                                        is_alt_screen,
-                                        pane.grid_size.1,
-                                        pane.scrollback_len,
-                                        pane.grid_size.0,
-                                        &mut scratch,
-                                    );
-                                    break;
+                                    if has_search_matches {
+                                        crate::app::window_state::search_highlight::apply_search_highlights_to_cells(
+                                            crate::app::window_state::search_highlight::SearchHighlightParams {
+                                                cells,
+                                                cols: pane.grid_size.0,
+                                                scroll_offset: pane.scroll_offset,
+                                                scrollback_len: pane.scrollback_len,
+                                                visible_lines: pane.grid_size.1,
+                                                matches: search_matches,
+                                                current_match_idx,
+                                                highlight_color,
+                                                current_highlight_color,
+                                            },
+                                        );
+                                    }
+
+                                    if let Some((
+                                        detected_urls,
+                                        url_scroll_offset,
+                                        hovered_bounds,
+                                        url_color,
+                                        do_color,
+                                        do_underline,
+                                    )) = url_overlay
+                                    {
+                                        super::overlay_cells::apply_url_overlays_to_cells(
+                                            super::overlay_cells::UrlOverlayParams {
+                                                cells,
+                                                cols: pane.grid_size.0,
+                                                detected_urls,
+                                                url_scroll_offset,
+                                                hovered_bounds,
+                                                url_color,
+                                                do_color,
+                                                do_underline,
+                                            },
+                                        );
+                                    }
+                                    break; // Only one focused pane
                                 }
                             }
-                            self.scratch_prettifier_block_ids = scratch;
                         }
                     }
 

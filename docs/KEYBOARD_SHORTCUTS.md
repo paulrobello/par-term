@@ -240,7 +240,7 @@ remains visible; press `Esc` to cancel it. All action types — including the wo
 **Features:**
 - `paste_special`, `toggle_clipboard_history`
 - `toggle_copy_mode`, `toggle_session_logging`, `toggle_throughput_mode`
-- `toggle_background_shader`, `toggle_cursor_shader`, `toggle_prettifier`
+- `toggle_background_shader`, `toggle_cursor_shader`
 - `toggle_broadcast_input`, `toggle_profile_drawer`
 - `toggle_tmux_session_picker`, `ssh_quick_connect`
 - `toggle_ai_inspector`, `toggle_command_history`

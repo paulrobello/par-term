@@ -86,14 +86,5 @@ pub use par_term_config::{
 };
 pub use par_term_config::{resolve_cursor_shader_config, resolve_shader_config};
 
-// --- Prettifier config ---
-pub use par_term_config::{
-    PrettifierConfigOverride, PrettifierYamlConfig, ResolvedPrettifierConfig,
-    resolve_prettifier_config,
-};
-
 // --- Core re-exports ---
 pub use par_term_config::{AmbiguousWidth, NormalizationForm, UnicodeVersion};
-
-// Re-export the prettifier submodule so `crate::config::prettifier::*` works
-pub use par_term_config::config::prettifier;

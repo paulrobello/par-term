@@ -231,11 +231,13 @@ pub(super) fn gather_pane_render_data(
         // cache between frames, so cache_dims_match would return true forever
         // with stale content.  They always go through try_write() which compares
         // the terminal's current generation against the cached generation.
+        let grid_size = (cols, rows);
         let expected_cell_count = cols * rows;
         let scroll_offset = if is_focused { tab_scroll_offset } else { 0 };
         let cache_dims_match = is_focused
             && pane.cache.pane_cells_generation > 0
             && pane.cache.pane_cells_scroll_offset == scroll_offset
+            && pane.cache.pane_cells_grid_dims == grid_size
             && pane
                 .cache
                 .pane_cells
@@ -264,6 +266,7 @@ pub(super) fn gather_pane_render_data(
             // to the pane_cells cache on contention.
             if current_gen == pane.cache.pane_cells_generation
                 && pane.cache.pane_cells_scroll_offset == scroll_offset
+                && pane.cache.pane_cells_grid_dims == grid_size
                 && let Some(ref cached) = pane.cache.pane_cells
                 && cached.len() == expected_cell_count
             {
@@ -275,13 +278,18 @@ pub(super) fn gather_pane_render_data(
                 pane.cache.pane_cells = Some(Arc::clone(&fresh));
                 pane.cache.pane_cells_generation = current_gen;
                 pane.cache.pane_cells_scroll_offset = scroll_offset;
+                pane.cache.pane_cells_grid_dims = grid_size;
                 fresh
-            } else if let Some(ref cached) = pane.cache.pane_cells {
+            } else if pane.cache.pane_cells_grid_dims == grid_size
+                && let Some(ref cached) = pane.cache.pane_cells
+            {
                 Arc::clone(cached)
             } else {
                 Arc::new(Vec::new())
             }
-        } else if let Some(ref cached) = pane.cache.pane_cells {
+        } else if pane.cache.pane_cells_grid_dims == grid_size
+            && let Some(ref cached) = pane.cache.pane_cells
+        {
             // try_lock miss — use last successfully gathered cells to avoid
             // rendering an empty pane for this frame.
             Arc::clone(cached)

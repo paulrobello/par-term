@@ -23,7 +23,6 @@ pub fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
         SettingsTab::Integrations => crate::integrations_tab::keywords(),
         SettingsTab::Automation => crate::automation_tab::keywords(),
         SettingsTab::Snippets => crate::snippets_tab::keywords(),
-        SettingsTab::ContentPrettifier => crate::prettifier_tab::keywords(),
         SettingsTab::AiInspector => crate::ai_inspector_tab::keywords(),
         SettingsTab::Advanced => crate::advanced_tab::keywords(),
     }

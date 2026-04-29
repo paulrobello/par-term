@@ -263,53 +263,5 @@ pub(super) fn show_action_fields(ui: &mut egui::Ui, action: &mut TriggerActionCo
                 }
             });
         }
-        TriggerActionConfig::Prettify {
-            format,
-            scope,
-            block_end,
-            sub_format,
-            command_filter,
-        } => {
-            ui.label("format:");
-            ui.add(egui::TextEdit::singleline(format).desired_width(60.0));
-            ui.label("scope:");
-            egui::ComboBox::from_id_salt("prettify_scope")
-                .selected_text(match scope {
-                    crate::config::automation::PrettifyScope::Line => "Line",
-                    crate::config::automation::PrettifyScope::Block => "Block",
-                    crate::config::automation::PrettifyScope::CommandOutput => "Command Output",
-                })
-                .show_ui(ui, |ui| {
-                    ui.selectable_value(
-                        scope,
-                        crate::config::automation::PrettifyScope::Line,
-                        "Line",
-                    );
-                    ui.selectable_value(
-                        scope,
-                        crate::config::automation::PrettifyScope::Block,
-                        "Block",
-                    );
-                    ui.selectable_value(
-                        scope,
-                        crate::config::automation::PrettifyScope::CommandOutput,
-                        "Command Output",
-                    );
-                });
-
-            // Optional fields shown inline.
-            if let Some(be) = block_end {
-                ui.label("end:");
-                ui.add(egui::TextEdit::singleline(be).desired_width(60.0));
-            }
-            if let Some(sf) = sub_format {
-                ui.label("sub:");
-                ui.add(egui::TextEdit::singleline(sf).desired_width(60.0));
-            }
-            if let Some(cf) = command_filter {
-                ui.label("cmd filter:");
-                ui.add(egui::TextEdit::singleline(cf).desired_width(60.0));
-            }
-        }
     }
 }

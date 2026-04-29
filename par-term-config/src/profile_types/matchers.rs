@@ -418,13 +418,6 @@ impl ProfileManager {
                 .ssh_extra_args
                 .clone()
                 .or(resolved_parent.ssh_extra_args),
-            enable_prettifier: profile
-                .enable_prettifier
-                .or(resolved_parent.enable_prettifier),
-            content_prettifier: profile
-                .content_prettifier
-                .clone()
-                .or(resolved_parent.content_prettifier),
             source: profile.source.clone(),
         })
     }

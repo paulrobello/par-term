@@ -166,9 +166,9 @@ triggers:
 
 ## Trigger Actions
 
-Each trigger can have multiple actions that all fire when the pattern matches. Actions are defined in the trigger's `actions` array. There are nine action types.
+Each trigger can have multiple actions that all fire when the pattern matches. Actions are defined in the trigger's `actions` array. There are eight action types.
 
-> **📝 Note:** Dangerous actions (`RunCommand`, `SendText`, `SplitPane`) show an interactive confirmation dialog before executing when `prompt_before_run: true` (the default). The dialog offers three choices: **Allow** (run once), **Always Allow** (run automatically for the rest of the session, cleared on config reload), and **Deny** (discard the pending action). Setting `prompt_before_run: false` allows automatic execution — only the rate-limiter and denylist apply. Safe actions (`Highlight`, `Notify`, `MarkLine`, `SetVariable`, `PlaySound`, `Prettify`) always fire without prompting.
+> **📝 Note:** Dangerous actions (`RunCommand`, `SendText`, `SplitPane`) show an interactive confirmation dialog before executing when `prompt_before_run: true` (the default). The dialog offers three choices: **Allow** (run once), **Always Allow** (run automatically for the rest of the session, cleared on config reload), and **Deny** (discard the pending action). Setting `prompt_before_run: false` allows automatic execution — only the rate-limiter and denylist apply. Safe actions (`Highlight`, `Notify`, `MarkLine`, `SetVariable`, `PlaySound`) always fire without prompting.
 >
 > **Security guard:** When `prompt_before_run: false`, you must also set `i_accept_the_risk: true` on the trigger. Without this explicit opt-in, execution is blocked and an audit warning is logged. This prevents accidental auto-execution after config copy/paste.
 >
@@ -286,29 +286,6 @@ Writes text to the terminal's PTY input, as if the user had typed it. An optiona
 | `delay_ms` | integer | No | `0` | Milliseconds to wait before sending |
 
 > **⚠️ Warning:** Use `send_text` with care. Sending text to the terminal is equivalent to typing it, and recursive matches (where the sent text triggers the same trigger again) can cause infinite loops. Make sure your pattern does not match the text you are sending.
-
-### Prettify
-
-Invokes a prettifier renderer on matched content. This allows triggers to explicitly render structured content (JSON, Markdown, diffs, etc.) instead of relying on auto-detection.
-
-```yaml
-- type: prettify
-  format: "json"                # Renderer to use (e.g., "json", "markdown", "diff")
-  scope: "command_output"       # Optional: "line", "block", or "command_output" (default)
-  block_end: "^```$"            # Optional: Regex for block end (when scope: "block")
-  sub_format: "plantuml"        # Optional: Sub-format (e.g., for diagram languages)
-  command_filter: "^cat\\s"     # Optional: Only trigger if preceding command matches
-```
-
-| Field | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
-| `format` | string | Yes | -- | Renderer to invoke (e.g., `"json"`, `"markdown"`, `"diff"`, `"none"`) |
-| `scope` | enum | No | `command_output` | What to render: `line`, `block`, or `command_output` |
-| `block_end` | string | No | `null` | Regex pattern for block end (required when `scope: block`) |
-| `sub_format` | string | No | `null` | Sub-format specifier (e.g., `"plantuml"` for diagrams) |
-| `command_filter` | string | No | `null` | Regex to filter by preceding command |
-
-See [Content Prettifier](PRETTIFIER.md) for details on available renderers and detection rules.
 
 ### Split Pane
 
@@ -1094,7 +1071,6 @@ scripts:
 ## Related Documentation
 
 - [Architecture](ARCHITECTURE.md) - System design and data flow overview
-- [Content Prettifier](PRETTIFIER.md) - Auto-detection and rendering of structured content
 - [Scrollback](SCROLLBACK.md) - Scrollbar marks, command markers, and navigation
 - [Tabs](TABS.md) - Tab management and per-tab state
 - [Badges](BADGES.md) - Dynamic badge display using trigger variables

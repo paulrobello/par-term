@@ -1,13 +1,11 @@
 //! Trigger action dispatch for WindowState.
 //!
 //! This module handles polling trigger action results from the core library
-//! and executing frontend-handled actions: RunCommand, PlaySound, SendText,
-//! and Prettify (relayed through Notify with magic prefix).
+//! and executing frontend-handled actions: RunCommand, PlaySound, and SendText.
 //!
 //! ## Sub-modules
 //!
 //! - `mark_line` — MarkLine result deduplication and application
-//! - `prettify` — Prettify relay event processing with scope computation
 //! - `sound` — Audio playback for PlaySound trigger actions
 //!
 //! ## Security
@@ -33,7 +31,6 @@
 //!    resource exhaustion. Output is redirected to null to prevent terminal corruption.
 
 mod mark_line;
-mod prettify;
 mod sound;
 
 use std::collections::HashMap;
@@ -52,7 +49,7 @@ const PROCESS_CLEANUP_AGE_SECS: u64 = 300; // 5 minutes
 
 use par_term_emu_core_rust::terminal::ActionResult;
 
-use crate::config::automation::{PRETTIFY_RELAY_PREFIX, PrettifyRelayPayload, TriggerActionConfig};
+use crate::config::automation::TriggerActionConfig;
 
 use super::window_state::WindowState;
 
@@ -211,10 +208,6 @@ impl WindowState {
         // at poll time. Batch dedup clusters these into one mark per physical line.
         let mut pending_marks: HashMap<u64, Vec<MarkLineEntry>> = HashMap::new();
 
-        // Collect prettify relay events (MarkLine with __prettify__ label prefix).
-        // Tuple: (trigger_id, matched_grid_row, payload).
-        let mut pending_prettify: Vec<(u64, usize, PrettifyRelayPayload)> = Vec::new();
-
         let ctx = DispatchContext {
             trigger_prompt_before_run: &trigger_prompt_before_run,
             approved_this_frame: &approved_this_frame,
@@ -223,7 +216,7 @@ impl WindowState {
         };
 
         for action in action_results {
-            self.dispatch_trigger_action(action, &ctx, &mut pending_marks, &mut pending_prettify);
+            self.dispatch_trigger_action(action, &ctx, &mut pending_marks);
         }
 
         // Periodically clean up stale rate limiter entries (every ~60 seconds of entries)
@@ -235,11 +228,6 @@ impl WindowState {
         if !pending_marks.is_empty() {
             self.apply_mark_line_results(pending_marks, current_scrollback_len);
         }
-
-        // Process collected prettify relay events.
-        if !pending_prettify.is_empty() {
-            self.apply_prettify_triggers(pending_prettify, current_scrollback_len);
-        }
     }
 
     /// Dispatch a single trigger action result to the appropriate handler.
@@ -248,7 +236,6 @@ impl WindowState {
         action: ActionResult,
         ctx: &DispatchContext<'_>,
         pending_marks: &mut HashMap<u64, Vec<MarkLineEntry>>,
-        pending_prettify: &mut Vec<(u64, usize, PrettifyRelayPayload)>,
     ) {
         match action {
             ActionResult::RunCommand {
@@ -328,14 +315,7 @@ impl WindowState {
                 label,
                 color,
             } => {
-                self.handle_mark_line_action(
-                    trigger_id,
-                    row,
-                    label,
-                    color,
-                    pending_marks,
-                    pending_prettify,
-                );
+                self.handle_mark_line_action(trigger_id, row, label, color, pending_marks);
             }
         }
     }
@@ -775,11 +755,9 @@ impl WindowState {
         }
     }
 
-    /// Handle a MarkLine trigger action, including prettify relay detection.
+    /// Handle a MarkLine trigger action.
     ///
-    /// Prettify relay events (MarkLine with `__prettify__` label prefix) are
-    /// separated out into `pending_prettify` for post-loop processing.
-    /// Regular MarkLine events are batched in `pending_marks` for deduplication.
+    /// MarkLine events are batched in `pending_marks` for deduplication.
     fn handle_mark_line_action(
         &mut self,
         trigger_id: u64,
@@ -787,23 +765,7 @@ impl WindowState {
         label: Option<String>,
         color: Option<(u8, u8, u8)>,
         pending_marks: &mut HashMap<u64, Vec<MarkLineEntry>>,
-        pending_prettify: &mut Vec<(u64, usize, PrettifyRelayPayload)>,
     ) {
-        // Check if this is a prettify relay (packed into MarkLine by to_core_action).
-        if let Some(ref lbl) = label
-            && let Some(json) = lbl.strip_prefix(PRETTIFY_RELAY_PREFIX)
-        {
-            if let Ok(payload) = serde_json::from_str::<PrettifyRelayPayload>(json) {
-                pending_prettify.push((trigger_id, row, payload));
-            } else {
-                log::error!(
-                    "Trigger {} prettify relay: invalid payload: {}",
-                    trigger_id,
-                    json
-                );
-            }
-            return;
-        }
         pending_marks
             .entry(trigger_id)
             .or_default()

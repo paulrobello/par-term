@@ -91,11 +91,6 @@ pub use shader_metadata::{
 // Shared snapshot types for session and arrangement persistence
 pub use snapshot_types::TabSnapshot;
 
-// Prettifier config types
-pub use config::prettifier::{
-    PrettifierConfigOverride, PrettifierYamlConfig, ResolvedPrettifierConfig,
-    resolve_prettifier_config,
-};
 // ARC-011 TODO: Layer violation — par-term-config (Layer 1 foundation) re-exports
 // par-term-emu-core-rust types, coupling the config layer to the emulation core.
 //

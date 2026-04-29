@@ -63,7 +63,6 @@
 //! | Progress Bar Settings        | `ProgressBarConfig`    |
 //! | Triggers & Automation        | `AutomationConfig`     |
 //! | Snippets & Actions           | `SnippetsConfig`       |
-//! | Content Prettifier           | `PrettifierConfig`     |
 //! | UI State                     | `UiStateConfig`        |
 //! | Dynamic Profile Sources      | `ProfileSourcesConfig` |
 //! | Security                     | `SecurityConfig`       |
@@ -1509,18 +1508,6 @@ pub struct Config {
     /// Custom actions (shell commands, text insertion, key sequences)
     #[serde(default)]
     pub actions: Vec<CustomActionConfig>,
-
-    // ========================================================================
-    // Content Prettifier
-    // ========================================================================
-    /// Master switch for the content prettifier system.
-    /// When false, no detection or rendering occurs.
-    #[serde(default)]
-    pub enable_prettifier: bool,
-
-    /// Detailed prettifier configuration.
-    #[serde(default)]
-    pub content_prettifier: super::prettifier::PrettifierYamlConfig,
 
     // ========================================================================
     // UI State (persisted across sessions)

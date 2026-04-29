@@ -164,7 +164,6 @@ Layer 2 — Depend on par-term-config only (bump after Layer 1):
   par-term-fonts        → par-term-config
   par-term-input        → par-term-config
   par-term-keybindings  → par-term-config
-  par-term-prettifier   → par-term-config
   par-term-scripting    → par-term-config
   par-term-settings-ui  → par-term-config
   par-term-terminal     → par-term-config
@@ -237,7 +236,7 @@ See `docs/CUSTOM_SHADERS.md` for full shader documentation including uniforms, c
 - Use `try_lock()` from sync contexts when accessing `tab.terminal` (tokio::sync::Mutex). For user-initiated operations (start/stop coprocess), use `blocking_lock()`. See MEMORY.md for details.
 - `log::info!()` etc. go to stdout, NOT the debug log — use `crate::debug_info!()` macros instead
 - The core library (`par-term-emu-core-rust`) has a `CoprocessManager` wired into the PTY reader thread; don't create separate managers in the frontend
-- **Single rendering path (pane)**: There is ONE rendering path — all rendering goes through `render_split_panes_with_data()` → `CellRenderer::build_pane_instance_buffers()` in `pane_render/mod.rs`. The `build_instance_buffers()` method in `instance_buffers.rs` is only used by the shader intermediate texture path (`render_to_texture` / `render_to_view`). Per-cell overlays (search highlights, URL detection, prettifier substitution) are applied to `pane_data[].cells` AFTER `gather_pane_render_data()` in `gpu_submit.rs`.
+- **Single rendering path (pane)**: There is ONE rendering path — all rendering goes through `render_split_panes_with_data()` → `CellRenderer::build_pane_instance_buffers()` in `pane_render/mod.rs`. The `build_instance_buffers()` method in `instance_buffers.rs` is only used by the shader intermediate texture path (`render_to_texture` / `render_to_view`). Per-cell overlays (search highlights, URL detection) are applied to `pane_data[].cells` AFTER `gather_pane_render_data()` in `gpu_submit.rs`.
 - **Render 3-phase ordering**: Cursor overlays MUST render in phase 3 (after text), otherwise beam/underline cursors are hidden under text glyphs. All three callers use `emit_three_phase_draw_calls()` in `render.rs` — the single source of truth for draw call sequencing.
 
 ## Docs Reference (docs/)
@@ -267,7 +266,6 @@ See `docs/CUSTOM_SHADERS.md` for full shader documentation including uniforms, c
 | Environment variables | `docs/ENVIRONMENT_VARIABLES.md` |
 | Enterprise deployment | `docs/ENTERPRISE_DEPLOYMENT.md` |
 | Automation (triggers, coprocesses) | `docs/AUTOMATION.md` |
-| Content prettifier | `docs/PRETTIFIER.md` |
 | Assistant panel / ACP agents | `docs/ASSISTANT_PANEL.md` |
 | Split tabs | `docs/TABS.md` |
 | Window management | `docs/WINDOW_MANAGEMENT.md` |

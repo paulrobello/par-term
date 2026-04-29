@@ -103,7 +103,7 @@ New to par-term? The [Getting Started Guide](docs/GETTING_STARTED.md) walks you 
 
 ### ✨ Features
 
-- **Move Tab to New Window**: Tab context menu now has "Move Tab to New Window" and "Move Tab to Window ▸" (submenu listing every other par-term window). Moving a tab transfers its live PTY, scrollback, split panes, session logger, prettifier state, profile history, and custom title/color/icon — without killing the shell. A new `MoveTabToNewWindow` keybinding action pops the active tab out to a new window.
+- **Move Tab to New Window**: Tab context menu now has "Move Tab to New Window" and "Move Tab to Window ▸" (submenu listing every other par-term window). Moving a tab transfers its live PTY, scrollback, split panes, session logger, profile history, and custom title/color/icon — without killing the shell. A new `MoveTabToNewWindow` keybinding action pops the active tab out to a new window.
 
 ### 🐛 Bug Fixes
 
@@ -250,7 +250,6 @@ New to par-term? The [Getting Started Guide](docs/GETTING_STARTED.md) walks you 
 
 - **`i_accept_the_risk` Guard**: Triggers with `prompt_before_run: false` now require an explicit `i_accept_the_risk: true` field; execution blocked with an audit warning if absent
 - **Shader Installer Requires Checksum**: Installing shaders without a `.sha256` asset is now a hard error instead of a warning
-- **Prettifier External Commands Default-Deny**: `ExternalCommandRenderer` refuses execution when `allowed_commands` is empty (the default)
 - **Clipboard Paste Control-Char Warning**: New `warn_paste_control_chars` config option (default `true`) warns when clipboard content contains VT escape sequences
 - **`O_NOFOLLOW` for Debug Log**: Debug log open path on Unix uses `O_NOFOLLOW` to close a TOCTOU symlink-race window
 - **`allow_all_env_vars` Startup Warning**: Prominent warning emitted at startup when `allow_all_env_vars: true` is detected
@@ -340,10 +339,6 @@ New to par-term? The [Getting Started Guide](docs/GETTING_STARTED.md) walks you 
 ### 🐛 Bug Fixes
 
 - **Box-Drawing Line Thickness (tmux Borders)**: Fixed tmux pane borders rendering inconsistently — pixel rectangles snapped to integer boundaries for consistent line thickness
-- **Prettifier Line Mapping**: Fixed index drift in cell substitution when rendered output differs from source line count
-- **Prettifier Cell Dimensions**: GPU cell metrics now synced into prettifier pipeline — inline graphics (Mermaid, etc.) sized correctly
-- **Prettifier Small Block Detection**: Removed block-size guard that prevented small blocks from rendering
-- **Prettifier Claude Code Integration**: Viewport hash used to clear stale Claude Code blocks; CC segmentation and throttle restored in split module
 - **Split-Pane Unsafe Cell Pointer**: Eliminated unsafe cell pointer leak in split-pane render path
 
 </details>
@@ -353,7 +348,6 @@ New to par-term? The [Getting Started Guide](docs/GETTING_STARTED.md) walks you 
 
 ### ✨ New Features
 
-- **Content Prettifier**: Detects structured content in terminal output (Markdown, JSON, YAML, TOML, XML, CSV, diffs, logs, diagrams, SQL results, stack traces) and renders with syntax highlighting, table formatting, and color-coded diffs — pluggable architecture with custom renderer support, per-profile overrides, and Settings UI tab
 - **Font Hinting Enabled by Default**: Improved text sharpness at common display sizes (toggle in Settings → Appearance)
 
 ### 🐛 Bug Fixes
@@ -1064,14 +1058,6 @@ Essential feature for emacs/vim users.
 - **Per-Agent Environment Variables**: Configure local/provider-specific env vars (for example Ollama/OpenRouter endpoints) for each agent.
 - **Local Claude via Ollama**: Supports `claude-agent-acp` with Ollama Claude-compatible launch mode (see `docs/ASSISTANT_PANEL.md`).
 
-### Content Prettifier
-- **Auto-Detection**: Automatically detects and renders structured content in terminal output — Markdown, JSON, YAML, TOML, XML, CSV, diffs, log files, SQL results, stack traces, and diagrams.
-- **11 Built-in Renderers**: Each with syntax highlighting, source line mapping, and per-block source/rendered toggling (`Ctrl+Shift+P` global toggle).
-- **Diagram Rendering**: Mermaid, PlantUML, GraphViz, D2, and 7 more diagram languages with local CLI, Kroki API, and text fallback backends.
-- **Custom Renderers**: Define your own renderers that pipe content through external commands (e.g., `bat`, `pygmentize`) with full ANSI color preservation.
-- **Claude Code Integration**: Auto-detects Claude Code sessions, renders markdown and diffs in output, shows format badges on collapsed blocks.
-- **Configurable**: Per-renderer enable/disable, priority ordering, detection rules, clipboard behavior, and profile-level overrides.
-
 ## Documentation
 
 ### Getting Started
@@ -1103,7 +1089,6 @@ Essential feature for emacs/vim users.
 - **[Assistant Panel](docs/ASSISTANT_PANEL.md)** - ACP agent chat, custom agents (UI/TOML/YAML), shader assistant, and Claude+Ollama setup/troubleshooting.
 - **[File Transfers](docs/FILE_TRANSFERS.md)** - OSC 1337 file transfers with shell utilities.
 - **[Self-Update](docs/SELF_UPDATE.md)** - In-place update capability via CLI and Settings UI.
-- **[Content Prettifier](docs/PRETTIFIER.md)** - Auto-detect and render markdown, JSON, YAML, diffs, diagrams, and more with custom renderers.
 - **[Debug Logging](docs/LOGGING.md)** - Configurable log levels and troubleshooting.
 
 ### Shaders

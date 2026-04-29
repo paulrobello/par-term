@@ -135,7 +135,6 @@ fn action_type_label(action: &TriggerActionConfig) -> &'static str {
         TriggerActionConfig::RunCommand { .. } => "Run Command",
         TriggerActionConfig::PlaySound { .. } => "Play Sound",
         TriggerActionConfig::SendText { .. } => "Send Text",
-        TriggerActionConfig::Prettify { .. } => "Prettify",
         TriggerActionConfig::SplitPane { .. } => "Split Pane",
     }
 }

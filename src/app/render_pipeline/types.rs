@@ -54,8 +54,6 @@ pub(super) struct FrameRenderData {
     pub(super) show_scrollbar: bool,
     /// Visible grid rows count
     pub(super) visible_lines: usize,
-    /// Visible grid columns count
-    pub(super) grid_cols: usize,
     /// Scrollback marks (command marks, trigger marks) for scrollbar and separators
     pub(super) scrollback_marks: Vec<crate::scrollback_metadata::ScrollbackMark>,
     /// Total renderable lines (visible + scrollback)

@@ -121,9 +121,8 @@ During `Tab::new`:
 4. Configured triggers are synced into the core `TriggerRegistry`.
 5. Auto-start coprocesses are started via the PTY session's built-in `CoprocessManager`.
 6. A `SharedSessionLogger` is created; session logging starts immediately if `auto_log_sessions` is enabled.
-7. The `PrettifierPipeline` is initialized if prettification is enabled.
-8. The `TerminalManager` is wrapped in `Arc<tokio::sync::RwLock<...>>`.
-9. If `initial_text` is configured, it is sent to the PTY after an optional delay via an async task.
+7. The `TerminalManager` is wrapped in `Arc<tokio::sync::RwLock<...>>`.
+8. If `initial_text` is configured, it is sent to the PTY after an optional delay via an async task.
 
 ### Activation
 
@@ -261,7 +260,6 @@ sequenceDiagram
     Core->>Core: Update cell grid + graphics
     Tab->>Gather: try_lock() TerminalManager
     Gather->>Gather: Extract cells, graphics, metadata
-    Gather->>Gather: Run PrettifierPipeline
     Gather->>Gather: Detect URLs, apply search highlights
     Gather-->>GPU: FrameRenderData snapshot
     GPU->>GPU: Three-pass render
@@ -276,8 +274,7 @@ The GPU renderer executes three passes per frame:
 
 1. **Cell Pass** — renders text cells using the glyph atlas with instanced draw calls.
    Cell backgrounds and foregrounds are separate sub-passes.
-2. **Graphics Pass** — composites inline images (Sixel, iTerm2, Kitty) and prettifier
-   graphics (Mermaid diagrams) as RGBA textures.
+2. **Graphics Pass** — composites inline images (Sixel, iTerm2, Kitty) as RGBA textures.
 3. **Overlay Pass** — renders the egui UI: tab bar, status bar, search bar, settings
    window, and any modal dialogs.
 

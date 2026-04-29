@@ -272,8 +272,6 @@ impl Default for Config {
             scripts: Vec::new(),
             snippets: Vec::new(),
             actions: Vec::new(),
-            enable_prettifier: false,
-            content_prettifier: crate::config::prettifier::PrettifierYamlConfig::default(),
             collapsed_settings_sections: Vec::new(),
             dynamic_profile_sources: Vec::new(),
             allow_all_env_vars: crate::defaults::bool_false(),

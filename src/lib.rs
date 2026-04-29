@@ -33,14 +33,6 @@ pub mod debug;
 
 pub mod acp_harness;
 pub mod ai_inspector;
-pub mod ansi_colors {
-    //! ANSI color constants and 256-color palette utilities.
-    //!
-    //! Re-exported from `par-term-prettifier` for convenient access via
-    //! `par_term::ansi_colors`. The same symbols are also accessible through
-    //! `par_term::prettifier::ansi_colors`.
-    pub use par_term_prettifier::ansi_colors::*;
-}
 pub mod app;
 pub mod arrangements;
 pub mod audio_bell;
@@ -75,8 +67,6 @@ pub mod pane;
 pub mod paste_special_ui;
 pub mod paste_transform;
 pub mod platform;
-/// Content prettifier — whole-crate re-export of `par-term-prettifier`.
-pub use par_term_prettifier as prettifier;
 pub mod profile;
 pub mod profile_drawer_ui;
 pub mod profile_modal_ui {

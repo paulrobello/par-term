@@ -28,23 +28,6 @@ impl WindowState {
                 self.toggle_cursor_shader();
                 true
             }
-            "toggle_prettifier" => {
-                if let Some(tab) = self.tab_manager.active_tab_mut()
-                    && let Some(ref mut pipeline) = tab.prettifier
-                {
-                    pipeline.toggle_global();
-                    log::info!(
-                        "Prettifier toggled: {}",
-                        if pipeline.is_enabled() {
-                            "enabled"
-                        } else {
-                            "disabled"
-                        }
-                    );
-                }
-                self.focus_state.needs_redraw = true;
-                true
-            }
             "reload_config" => {
                 self.reload_config();
                 true

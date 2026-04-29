@@ -41,7 +41,6 @@ field uses its documented default value.
 - [AI Inspector](#ai-inspector)
 - [Update Checking](#update-checking)
 - [Security](#security)
-- [Content Prettifier](#content-prettifier)
 - [Settings UI](#settings-ui)
 - [Sessions & Arrangements](#sessions--arrangements)
 - [Profiles](#profiles)
@@ -585,15 +584,6 @@ field uses its documented default value.
 |-------|------|---------|-------------|
 | `allow_all_env_vars` | `bool` | `false` | Allow all environment variables in `${VAR}` substitution (not just the safe allowlist) |
 | `allow_http_profiles` | `bool` | `false` | Allow loading profiles from HTTP/HTTPS URLs in `dynamic_profile_sources` |
-
----
-
-## Content Prettifier
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `enable_prettifier` | `bool` | `false` | Master switch for the content prettifier system |
-| `content_prettifier` | `object` | `{}` | Detailed prettifier configuration (see [PRETTIFIER.md](PRETTIFIER.md)) |
 
 ---
 

@@ -73,6 +73,29 @@ screenshot_format: "svg"
 }
 
 #[test]
+fn test_config_ignores_removed_prettifier_fields() {
+    let yaml = r#"
+cols: 100
+enable_prettifier: true
+content_prettifier:
+  global_toggle_key: "Ctrl+Shift+P"
+  detection:
+    scope: "viewport"
+  renderers:
+    markdown:
+      enabled: true
+keybindings:
+  - key: "Ctrl+Shift+P"
+    action: "toggle_prettifier"
+"#;
+
+    let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
+    assert_eq!(config.cols, 100);
+    assert_eq!(config.keybindings.len(), 1);
+    assert_eq!(config.keybindings[0].action, "toggle_prettifier");
+}
+
+#[test]
 fn test_config_partial_yaml() {
     // Test that default values are used for missing fields
     let yaml = r#"

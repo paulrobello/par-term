@@ -3,8 +3,7 @@
 //! Each function here is a thin `impl WindowState` method that accepts the
 //! shared local values that `gather_render_data` has already computed, reducing
 //! the size of that function without requiring a `GatherDataContext` struct
-//! (which the borrow checker fights when `tab.prettifier` and `tab.pane_manager`
-//! are simultaneously borrowed).
+//! while keeping the borrow checker surface small.
 
 use std::sync::Arc;
 use std::time::Instant;
@@ -228,38 +227,6 @@ impl WindowState {
         }
 
         debug_url_detect_time
-    }
-
-    /// Sync the prettifier pipeline state for the active tab.
-    ///
-    /// Handles alt-screen transitions, keeps cell dimensions up-to-date, and
-    /// triggers the debounce check.  Called once per frame before the main
-    /// prettifier feed.
-    pub(super) fn sync_prettifier_state(&mut self, is_alt_screen: bool) {
-        let prettifier_cell_dims = self
-            .renderer
-            .as_ref()
-            .map(|r| (r.cell_width(), r.cell_height()));
-        let renderer_cols = self.renderer.as_ref().map(|r| r.grid_size().0);
-
-        if let Some(tab) = self.tab_manager.active_tab_mut() {
-            if is_alt_screen != tab.was_alt_screen {
-                if let Some(ref mut pipeline) = tab.prettifier {
-                    pipeline.on_alt_screen_change(is_alt_screen);
-                }
-                tab.was_alt_screen = is_alt_screen;
-            }
-
-            if let Some(ref mut pipeline) = tab.prettifier {
-                if let Some((cw, ch)) = prettifier_cell_dims {
-                    pipeline.update_cell_dims(cw, ch);
-                }
-                if let Some(cols) = renderer_cols {
-                    pipeline.set_terminal_width(cols);
-                }
-                pipeline.check_debounce();
-            }
-        }
     }
 
     /// Flush the regenerated cell snapshot into the active tab's render cache.

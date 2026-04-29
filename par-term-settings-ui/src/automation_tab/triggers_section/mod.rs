@@ -25,7 +25,6 @@ const ACTION_TYPE_NAMES: &[&str] = &[
     "Run Command",
     "Play Sound",
     "Send Text",
-    "Prettify",
     "Split Pane",
 ];
 
@@ -61,14 +60,7 @@ fn default_action_for_type(type_index: usize) -> TriggerActionConfig {
             text: String::new(),
             delay_ms: 0,
         },
-        7 => TriggerActionConfig::Prettify {
-            format: "json".to_string(),
-            scope: crate::config::automation::PrettifyScope::default(),
-            block_end: None,
-            sub_format: None,
-            command_filter: None,
-        },
-        8 => TriggerActionConfig::SplitPane {
+        7 => TriggerActionConfig::SplitPane {
             direction: TriggerSplitDirection::Horizontal,
             command: None,
             focus_new_pane: true,

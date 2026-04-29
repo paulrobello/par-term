@@ -182,7 +182,7 @@ To assign a keyboard shortcut, bind the `duplicate_tab` action in Settings > Key
 ## Moving tabs between windows
 
 A tab (including its PTY, scrollback, running processes, split panes, session
-logger, and prettifier state) can be moved to a different window without being
+logger) can be moved to a different window without being
 restarted.
 
 **Context menu:**

@@ -6,8 +6,7 @@ use par_term_emu_core_rust::terminal::Terminal;
 use parking_lot::Mutex;
 use std::sync::Arc;
 
-/// Events produced by shell-integration markers that the prettifier pipeline
-/// needs in order to delineate command output blocks.
+/// Events produced by shell-integration markers for command lifecycle consumers.
 #[derive(Debug, Clone)]
 pub enum ShellLifecycleEvent {
     /// A command has started executing (OSC 133 C marker).
@@ -650,15 +649,6 @@ impl TerminalManager {
         let mouse_event =
             par_term_emu_core_rust::mouse::MouseEvent::new(button, col, row, pressed, modifiers);
         term.report_mouse(mouse_event)
-    }
-
-    /// Get styled segments from the terminal for rendering
-    pub fn get_styled_segments(&self) -> Vec<crate::styled_content::StyledSegment> {
-        let pty = self.pty_session.lock();
-        let terminal = pty.terminal();
-        let term = terminal.lock();
-        let grid = term.active_grid();
-        crate::styled_content::extract_styled_segments(grid)
     }
 
     /// Get the current generation number for dirty tracking

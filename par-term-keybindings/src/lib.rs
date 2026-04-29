@@ -24,6 +24,10 @@ pub use parser::{key_combo_to_bytes, parse_key_sequence};
 use par_term_config::{KeyBinding, ModifierRemapping};
 use std::collections::HashMap;
 
+fn is_removed_action(action: &str) -> bool {
+    matches!(action, "toggle_prettifier")
+}
+
 /// Registry of keybindings mapping key combinations to action names.
 #[derive(Debug, Default)]
 pub struct KeybindingRegistry {
@@ -48,6 +52,15 @@ impl KeybindingRegistry {
             keybindings.len()
         );
         for binding in keybindings {
+            if is_removed_action(&binding.action) {
+                log::info!(
+                    "Ignoring removed keybinding action '{}': {}",
+                    binding.action,
+                    binding.key
+                );
+                continue;
+            }
+
             match parser::parse_key_combo(&binding.key) {
                 Ok(combo) => {
                     log::info!(
@@ -152,6 +165,23 @@ mod tests {
 
         let registry = KeybindingRegistry::from_config(&bindings);
         assert_eq!(registry.len(), 2);
+    }
+
+    #[test]
+    fn test_removed_prettifier_action_skipped() {
+        let bindings = vec![
+            KeyBinding {
+                key: "Ctrl+Shift+P".to_string(),
+                action: "toggle_prettifier".to_string(),
+            },
+            KeyBinding {
+                key: "Ctrl+Shift+B".to_string(),
+                action: "toggle_background_shader".to_string(),
+            },
+        ];
+
+        let registry = KeybindingRegistry::from_config(&bindings);
+        assert_eq!(registry.len(), 1);
     }
 
     #[test]

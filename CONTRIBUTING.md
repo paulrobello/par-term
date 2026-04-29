@@ -367,7 +367,7 @@ par-term is organized as a Cargo workspace with 14 sub-crates plus the root appl
 |-------|--------|-------|
 | **Layer 0** | `par-term-acp`, `par-term-ssh`, `par-term-mcp` | No internal deps; bump in any order |
 | **Layer 1** | `par-term-config` | Foundation; depends only on external `par-term-emu-core-rust` |
-| **Layer 2** | `par-term-fonts`, `par-term-input`, `par-term-keybindings`, `par-term-prettifier`, `par-term-scripting`, `par-term-settings-ui`, `par-term-terminal`, `par-term-tmux`, `par-term-update` | All depend on `par-term-config` |
+| **Layer 2** | `par-term-fonts`, `par-term-input`, `par-term-keybindings`, `par-term-scripting`, `par-term-settings-ui`, `par-term-terminal`, `par-term-tmux`, `par-term-update` | All depend on `par-term-config` |
 | **Layer 3** | `par-term-render` | Depends on `par-term-config` and `par-term-fonts` |
 | **Layer 4** | `par-term` (root) | Depends on all of the above |
 

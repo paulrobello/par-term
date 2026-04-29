@@ -835,5 +835,4 @@ If the solutions in this guide do not resolve your issue:
 - [Arrangements](ARRANGEMENTS.md) - Window layout save and restore
 - [Self-Update](SELF_UPDATE.md) - Update checking, installation types, and CLI usage
 - [Keyboard Shortcuts](KEYBOARD_SHORTCUTS.md) - Complete keybinding reference
-- [Content Prettifier](PRETTIFIER.md) - Content detection and rendering configuration
 - [Architecture Overview](ARCHITECTURE.md) - System design and component overview

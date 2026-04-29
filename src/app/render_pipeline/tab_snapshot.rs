@@ -45,6 +45,18 @@ pub(super) struct TabCellsSnapshot {
     pub(super) current_generation: u64,
 }
 
+fn snapshot_generation_for_cells(
+    terminal_generation: u64,
+    cache_generation: u64,
+    used_stale_cache: bool,
+) -> u64 {
+    if used_stale_cache {
+        cache_generation
+    } else {
+        terminal_generation
+    }
+}
+
 impl WindowState {
     /// Lock the active terminal and extract the cell grid for this frame.
     ///
@@ -154,6 +166,7 @@ impl WindowState {
                 || mouse_selection != cache_selection;
 
             let cell_gen_start = std::time::Instant::now();
+            let mut used_stale_cache = false;
             let (cells, is_cache_hit) = if needs_regeneration {
                 // Use try_get_cells_with_scrollback to avoid blocking on the internal
                 // pty_session / terminal mutexes when the PTY reader is processing
@@ -163,7 +176,10 @@ impl WindowState {
                 {
                     (fresh_cells, false)
                 } else if let Some(ref cached) = cache_cells {
-                    // Internal lock contention — use cached cells.
+                    // Internal lock contention — use cached cells, but do not advance
+                    // the snapshot generation. Downstream consumers must not treat the
+                    // terminal's new generation as processed using stale cell content.
+                    used_stale_cache = true;
                     (cached.as_ref().clone(), true)
                 } else {
                     // No cache available — fall back to blocking lock for first frame.
@@ -183,6 +199,20 @@ impl WindowState {
                     true,
                 )
             };
+            let snapshot_generation = snapshot_generation_for_cells(
+                current_generation,
+                cache_generation,
+                used_stale_cache,
+            );
+            if used_stale_cache {
+                crate::debug_trace!(
+                    "RENDER",
+                    "cell snapshot used stale cache for terminal generation {}; keeping snapshot generation at {}",
+                    current_generation,
+                    snapshot_generation
+                );
+            }
+
             self.debug.cache_hit = is_cache_hit;
             self.debug.cell_gen_time = cell_gen_start.elapsed();
 
@@ -195,7 +225,7 @@ impl WindowState {
                 cursor_pos: current_cursor_pos,
                 cursor_style,
                 is_alt_screen,
-                current_generation,
+                current_generation: snapshot_generation,
             })
         } else if let Some(cached) = cache_cells {
             // Terminal locked (e.g., upload in progress) — use cached cells so the
@@ -215,5 +245,20 @@ impl WindowState {
             // Terminal locked and no cache available — skip this frame.
             None
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::snapshot_generation_for_cells;
+
+    #[test]
+    fn stale_cached_cells_do_not_advance_snapshot_generation() {
+        assert_eq!(snapshot_generation_for_cells(42, 41, true), 41);
+    }
+
+    #[test]
+    fn fresh_cells_use_terminal_generation() {
+        assert_eq!(snapshot_generation_for_cells(42, 41, false), 42);
     }
 }

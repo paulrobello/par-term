@@ -6,7 +6,6 @@
 use super::{Tab, TabInitParams};
 use crate::config::Config;
 use crate::pane::PaneManager;
-use crate::prettifier::gutter::GutterManager;
 use crate::profile::Profile;
 use crate::session_logger::{SessionLogger, create_shared_logger};
 use crate::tab::activity_state::TabActivityMonitor;
@@ -39,7 +38,7 @@ impl Tab {
     /// # Arguments
     /// * `params` — Constructor-specific values (title, working_directory, etc.)
     /// * `terminal` — Fully configured `TerminalManager` with PTY already spawned
-    /// * `config` — Global config (used for coprocesses, session logging, prettifier)
+    /// * `config` — Global config (used for coprocesses and session logging)
     /// * `session_title` — Human-readable title written to the session log file header
     pub(super) fn new_internal(
         params: TabInitParams,
@@ -47,8 +46,6 @@ impl Tab {
         config: &Config,
         session_title: String,
     ) -> anyhow::Result<Self> {
-        let cols = params.cols;
-
         // Sync triggers from config into the core TriggerRegistry
         let trigger_security = terminal.sync_triggers(&config.triggers);
 
@@ -197,10 +194,6 @@ impl Tab {
                 trigger_prompt_before_run: trigger_security,
                 ..TabScriptingState::default()
             },
-            prettifier: crate::prettifier::config_bridge::create_pipeline_from_config(
-                config, cols, None,
-            ),
-            gutter_manager: GutterManager::new(),
             was_alt_screen: false,
             is_active,
             shutdown_fast: false,
@@ -229,7 +222,7 @@ impl Tab {
         grid_size: Option<(usize, usize)>,
     ) -> anyhow::Result<Self> {
         // Create and configure terminal
-        let (mut terminal, cols, _) = create_base_terminal(config, grid_size)?;
+        let (mut terminal, _, _) = create_base_terminal(config, grid_size)?;
 
         // Determine working directory:
         // 1. If explicitly provided (e.g., from tab_inherit_cwd), use that
@@ -262,7 +255,6 @@ impl Tab {
                 has_default_title: true,
                 user_named: false,
                 working_directory: working_directory.or_else(|| config.working_directory.clone()),
-                cols,
                 runtime: Some(runtime),
             },
             terminal,
@@ -303,7 +295,7 @@ impl Tab {
         grid_size: Option<(usize, usize)>,
     ) -> anyhow::Result<Self> {
         // Create and configure terminal
-        let (mut terminal, cols, _) = create_base_terminal(config, grid_size)?;
+        let (mut terminal, _, _) = create_base_terminal(config, grid_size)?;
 
         // Determine working directory: profile overrides config startup directory
         let effective_startup_dir = config.get_effective_startup_directory();
@@ -381,7 +373,6 @@ impl Tab {
                 has_default_title: false, // Profile-created tabs have explicit names
                 user_named: profile.tab_name.is_some(),
                 working_directory,
-                cols,
                 runtime: None, // Profile tabs don't send initial_text
             },
             terminal,
@@ -425,8 +416,6 @@ impl Tab {
             custom_icon: None,
             profile: TabProfileState::default(),
             scripting: TabScriptingState::default(),
-            prettifier: None,
-            gutter_manager: GutterManager::new(),
             was_alt_screen: false,
             is_active,
             shutdown_fast: false,

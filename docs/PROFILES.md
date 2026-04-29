@@ -94,7 +94,6 @@ Each profile can customize the following:
 | **Tmux Mode** | Connection mode: Control Mode (full integration) or Normal (plain tmux in PTY) | No |
 | **Badge Text** | Custom badge format for this profile | No |
 | **Badge Appearance** | Override badge color, font, position, size | No |
-| **Content Prettifier** | Override prettifier settings per-profile | No |
 
 ## Managing Profiles
 

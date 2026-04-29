@@ -105,9 +105,6 @@ impl SettingsUI {
             SettingsTab::Snippets => {
                 crate::snippets_tab::show(ui, self, changes_this_frame, &mut collapsed);
             }
-            SettingsTab::ContentPrettifier => {
-                crate::prettifier_tab::show(ui, self, changes_this_frame, &mut collapsed);
-            }
             SettingsTab::AiInspector => {
                 crate::ai_inspector_tab::show(ui, self, changes_this_frame, &mut collapsed);
             }

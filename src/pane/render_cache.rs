@@ -1,7 +1,6 @@
 use crate::cell_renderer::Cell;
 use crate::selection::Selection;
 use std::sync::Arc;
-use std::time::Instant;
 
 /// State related to render caching and dirty tracking
 pub struct RenderCache {
@@ -16,13 +15,8 @@ pub struct RenderCache {
     pub(crate) pane_cells: Option<Arc<Vec<Cell>>>, // Cached cells for pane rendering (reuse across frames)
     pub(crate) pane_cells_generation: u64, // Generation of cached pane_cells (0 = stale/unset)
     pub(crate) pane_cells_scroll_offset: usize, // Scroll offset used when pane_cells was generated
-    pub(crate) pane_scrollback_len: usize, // Cached scrollback_len for pane rendering
-    pub(crate) prettifier_feed_generation: u64, // Last terminal generation fed to prettifier
-    pub(crate) prettifier_feed_scroll_offset: usize, // Last scroll offset fed to prettifier
-    pub(crate) prettifier_command_start_line: Option<usize>, // Absolute line from CommandStarted
-    pub(crate) prettifier_command_text: Option<String>, // Command text for ContentBlock
-    pub(crate) prettifier_feed_last_time: Instant, // Throttle: last time we fed the non-CC pipeline
-    pub(crate) prettifier_feed_last_hash: u64, // Throttle: content hash of last feed (skip if unchanged)
+    pub(crate) pane_cells_grid_dims: (usize, usize), // Grid dimensions used when pane_cells was generated
+    pub(crate) pane_scrollback_len: usize,           // Cached scrollback_len for pane rendering
 }
 
 impl RenderCache {
@@ -39,13 +33,8 @@ impl RenderCache {
             pane_cells: None,
             pane_cells_generation: 0,
             pane_cells_scroll_offset: 0,
+            pane_cells_grid_dims: (0, 0),
             pane_scrollback_len: 0,
-            prettifier_feed_generation: 0,
-            prettifier_feed_scroll_offset: usize::MAX, // Force first feed
-            prettifier_command_start_line: None,
-            prettifier_command_text: None,
-            prettifier_feed_last_time: Instant::now(),
-            prettifier_feed_last_hash: 0,
         }
     }
 }

@@ -50,7 +50,6 @@ pub enum SettingsTab {
     Integrations,
     Automation,
     Snippets,
-    ContentPrettifier,
     AiInspector,
     Advanced,
 }
@@ -70,7 +69,6 @@ impl SettingsTab {
             Self::Integrations => "Integrations",
             Self::Automation => "Automation",
             Self::Snippets => "Snippets & Actions",
-            Self::ContentPrettifier => "Prettifier",
             Self::AiInspector => "Assistant",
             Self::Advanced => "Advanced",
         }
@@ -90,7 +88,6 @@ impl SettingsTab {
             Self::Integrations => "🔌",
             Self::Automation => "⚡",
             Self::Snippets => "📝",
-            Self::ContentPrettifier => "🔮",
             Self::AiInspector => "💬",
             Self::Advanced => "⚙",
         }
@@ -110,7 +107,6 @@ impl SettingsTab {
             Self::Integrations,
             Self::Automation,
             Self::Snippets,
-            Self::ContentPrettifier,
             Self::AiInspector,
             Self::Advanced,
         ]
@@ -214,9 +210,6 @@ fn tab_contents_summary(tab: SettingsTab) -> &'static str {
             "Regex triggers, trigger actions, coprocesses, external observer scripts"
         }
         SettingsTab::Snippets => "Text snippets with variable substitution, custom actions",
-        SettingsTab::ContentPrettifier => {
-            "Content detection, renderers, custom renderers, Claude Code integration"
-        }
         SettingsTab::AiInspector => "Assistant agent integration, panel settings, permissions",
         SettingsTab::Advanced => {
             "tmux integration, gateway tab, logging, file transfers, updates, debug logging"

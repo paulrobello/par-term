@@ -65,7 +65,6 @@ pub(crate) mod keyboard_handlers;
 mod notifications;
 mod overlay_state;
 pub(crate) mod overlay_ui_state;
-mod prettify_helpers;
 mod render_loop_state;
 pub(crate) mod renderer_init;
 mod renderer_ops;
@@ -88,12 +87,6 @@ pub(crate) use render_loop_state::{ConfigSaveState, RenderLoopState};
 pub(crate) use trigger_state::{PendingTriggerAction, TriggerState};
 pub(crate) use update_state::UpdateState;
 pub(crate) use watcher_state::WatcherState;
-
-// Re-export the prettify helpers so sub-modules in render_pipeline/ can reach them
-// via `super::super::` (i.e. `window_state::reconstruct_markdown_from_cells`).
-pub(crate) use prettify_helpers::{
-    preprocess_claude_code_segment, reconstruct_markdown_from_cells,
-};
 
 use crate::app::window_state::debug_state::DebugState;
 use crate::badge::BadgeState;
@@ -249,11 +242,4 @@ pub struct WindowState {
     /// Tracks the last size we requested via `request_inner_size` for snap-to-grid.
     /// Cleared once we receive a Resized event matching this size, preventing infinite re-snap.
     pub(crate) pending_snap_size: Option<winit::dpi::PhysicalSize<u32>>,
-
-    // =========================================================================
-    // Render-frame scratch buffers (avoid per-frame heap allocations)
-    // =========================================================================
-    /// Reused per-frame by `apply_prettifier_cell_substitution` to track which
-    /// prettifier block IDs have had graphics collected this frame.
-    pub(crate) scratch_prettifier_block_ids: std::collections::HashSet<u64>,
 }

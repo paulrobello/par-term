@@ -1,8 +1,7 @@
 //! Shell lifecycle marker state machine for `TerminalManager`.
 //!
 //! Tracks OSC 133 shell integration markers (PromptStart, CommandStart,
-//! CommandExecuted, CommandFinished) and accumulates shell lifecycle events
-//! for the prettifier pipeline.
+//! CommandExecuted, CommandFinished) and accumulates shell lifecycle events.
 
 use super::ShellLifecycleEvent;
 use par_term_emu_core_rust::shell_integration::ShellIntegrationMarker;
@@ -26,7 +25,7 @@ pub(crate) struct MarkerTracker {
     /// mark. Stored as `(absolute_line, text)` so we can target the correct
     /// mark.
     pub captured_command_text: Option<(usize, String)>,
-    /// Shell lifecycle events queued for the prettifier pipeline.
+    /// Queued shell lifecycle events.
     pub shell_lifecycle_events: Vec<ShellLifecycleEvent>,
 }
 
@@ -48,7 +47,7 @@ impl MarkerTracker {
         self.captured_command_text = None;
     }
 
-    /// Drain queued shell lifecycle events for the prettifier pipeline.
+    /// Drain queued shell lifecycle events.
     pub fn drain_events(&mut self) -> Vec<ShellLifecycleEvent> {
         std::mem::take(&mut self.shell_lifecycle_events)
     }
