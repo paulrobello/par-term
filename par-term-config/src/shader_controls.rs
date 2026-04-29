@@ -254,6 +254,53 @@ uniform bool iEnabled;
     }
 
     #[test]
+    fn warns_and_skips_unsupported_control_type() {
+        let source = r#"
+// control color min=0 max=1 step=0.1
+uniform float iGlow;
+"#;
+
+        let result = parse_shader_controls(source);
+
+        assert!(result.controls.is_empty());
+        assert_eq!(result.warnings.len(), 1);
+        assert!(
+            result.warnings[0]
+                .message
+                .contains("Unsupported control type")
+        );
+        assert!(result.warnings[0].message.contains("color"));
+    }
+
+    #[test]
+    fn warns_and_skips_slider_missing_min() {
+        let source = r#"
+// control slider max=1 step=0.01
+uniform float iGlow;
+"#;
+
+        let result = parse_shader_controls(source);
+
+        assert!(result.controls.is_empty());
+        assert_eq!(result.warnings.len(), 1);
+        assert!(result.warnings[0].message.contains("min"));
+    }
+
+    #[test]
+    fn warns_and_skips_slider_missing_max() {
+        let source = r#"
+// control slider min=0 step=0.01
+uniform float iGlow;
+"#;
+
+        let result = parse_shader_controls(source);
+
+        assert!(result.controls.is_empty());
+        assert_eq!(result.warnings.len(), 1);
+        assert!(result.warnings[0].message.contains("max"));
+    }
+
+    #[test]
     fn warns_and_skips_slider_missing_step() {
         let source = r#"
 // control slider min=0 max=1
@@ -265,6 +312,34 @@ uniform float iGlow;
         assert!(result.controls.is_empty());
         assert_eq!(result.warnings.len(), 1);
         assert!(result.warnings[0].message.contains("step"));
+    }
+
+    #[test]
+    fn warns_and_skips_slider_with_max_less_than_min() {
+        let source = r#"
+// control slider min=2 max=1 step=0.1
+uniform float iGlow;
+"#;
+
+        let result = parse_shader_controls(source);
+
+        assert!(result.controls.is_empty());
+        assert_eq!(result.warnings.len(), 1);
+        assert!(result.warnings[0].message.contains("max >= min"));
+    }
+
+    #[test]
+    fn warns_and_skips_slider_with_non_positive_step() {
+        let source = r#"
+// control slider min=0 max=1 step=0
+uniform float iGlow;
+"#;
+
+        let result = parse_shader_controls(source);
+
+        assert!(result.controls.is_empty());
+        assert_eq!(result.warnings.len(), 1);
+        assert!(result.warnings[0].message.contains("step > 0"));
     }
 
     #[test]
