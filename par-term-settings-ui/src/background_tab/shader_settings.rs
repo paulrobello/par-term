@@ -963,8 +963,9 @@ fn normalize_uniform_value_for_control(
             }
             _ => None,
         },
-        par_term_config::ShaderControlKind::Angle { .. } => float_uniform_value(value)
-            .map(|value| par_term_config::ShaderUniformValue::Float(value)),
+        par_term_config::ShaderControlKind::Angle { .. } => {
+            float_uniform_value(value).map(par_term_config::ShaderUniformValue::Float)
+        }
     }
 }
 
