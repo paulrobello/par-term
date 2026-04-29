@@ -266,6 +266,7 @@ impl Renderer {
         let custom_shader_brightness = params.custom_shader_brightness;
         let custom_shader_channel_paths = params.custom_shader_channel_paths;
         let custom_shader_cubemap_path = params.custom_shader_cubemap_path;
+        let custom_shader_custom_uniforms = params.custom_shader_custom_uniforms;
         let use_background_as_channel0 = params.use_background_as_channel0;
         let image_scaling_mode = params.image_scaling_mode;
         let image_preserve_aspect_ratio = params.image_preserve_aspect_ratio;
@@ -422,6 +423,7 @@ impl Renderer {
                 brightness: custom_shader_brightness,
                 channel_paths: custom_shader_channel_paths,
                 cubemap_path: custom_shader_cubemap_path,
+                custom_uniforms: custom_shader_custom_uniforms,
                 use_background_as_channel0,
             },
         );

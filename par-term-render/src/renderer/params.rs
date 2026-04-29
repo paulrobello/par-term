@@ -1,5 +1,7 @@
 //! Parameter struct for `Renderer::new()` to replace 46 individual arguments.
 
+use par_term_config::ShaderUniformValue;
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use winit::window::Window;
@@ -94,6 +96,8 @@ pub struct RendererParams<'a> {
     pub custom_shader_channel_paths: &'a [Option<PathBuf>; 4],
     /// Cubemap texture path prefix (iCubemap).
     pub custom_shader_cubemap_path: Option<&'a Path>,
+    /// Resolved custom uniform values for `// control ...` background shader controls.
+    pub custom_shader_custom_uniforms: &'a BTreeMap<String, ShaderUniformValue>,
     /// Use the background image as iChannel0.
     pub use_background_as_channel0: bool,
 

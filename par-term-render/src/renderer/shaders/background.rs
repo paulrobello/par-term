@@ -29,6 +29,7 @@ pub(super) fn init_custom_shader(
         brightness: custom_shader_brightness,
         channel_paths: custom_shader_channel_paths,
         cubemap_path: custom_shader_cubemap_path,
+        custom_uniforms,
         use_background_as_channel0,
     } = params;
     log::info!(
@@ -47,7 +48,6 @@ pub(super) fn init_custom_shader(
     };
 
     let path = par_term_config::Config::shader_path(shader_path);
-    let empty_custom_uniforms = std::collections::BTreeMap::new();
     match CustomShaderRenderer::new(
         cell_renderer.device(),
         cell_renderer.queue(),
@@ -62,7 +62,7 @@ pub(super) fn init_custom_shader(
             full_content_mode: custom_shader_full_content,
             channel_paths: custom_shader_channel_paths,
             cubemap_path: custom_shader_cubemap_path,
-            custom_uniforms: &empty_custom_uniforms,
+            custom_uniforms,
         },
     ) {
         Ok(mut renderer) => {
@@ -155,6 +155,7 @@ impl Renderer {
             brightness,
             channel_paths,
             cubemap_path,
+            custom_uniforms,
         } = params;
         match (enabled, shader_path) {
             (true, Some(path)) => {
@@ -170,6 +171,7 @@ impl Renderer {
                     renderer.set_opacity(window_opacity);
                     renderer.set_full_content_mode(full_content);
                     renderer.set_brightness(brightness);
+                    renderer.set_custom_uniform_values(custom_uniforms.clone());
 
                     // Update channel textures (they may have changed even if shader path didn't)
                     for (i, path) in channel_paths.iter().enumerate() {
@@ -198,7 +200,6 @@ impl Renderer {
                 }
 
                 let shader_path_full = par_term_config::Config::shader_path(path);
-                let empty_custom_uniforms = std::collections::BTreeMap::new();
                 match CustomShaderRenderer::new(
                     self.cell_renderer.device(),
                     self.cell_renderer.queue(),
@@ -213,7 +214,7 @@ impl Renderer {
                         full_content_mode: full_content,
                         channel_paths,
                         cubemap_path,
-                        custom_uniforms: &empty_custom_uniforms,
+                        custom_uniforms,
                     },
                 ) {
                     Ok(mut renderer) => {
