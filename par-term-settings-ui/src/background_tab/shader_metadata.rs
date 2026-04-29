@@ -172,6 +172,19 @@ fn build_metadata_from_settings(
         new_defaults.use_background_as_channel0 = Some(true);
     }
 
+    // Custom shader controls - save the current effective value for every parsed control.
+    let shader_path = par_term_config::Config::shader_path(shader_name);
+    if let Ok(source) = std::fs::read_to_string(&shader_path) {
+        let parsed = par_term_config::parse_shader_controls(&source);
+        for control in parsed.controls {
+            let value = current_override
+                .and_then(|o| o.uniforms.get(&control.name).cloned())
+                .or_else(|| meta_defaults.and_then(|m| m.uniforms.get(&control.name).cloned()))
+                .unwrap_or_else(|| par_term_config::fallback_value_for_control(&control));
+            new_defaults.uniforms.insert(control.name, value);
+        }
+    }
+
     metadata.defaults = new_defaults;
     metadata
 }

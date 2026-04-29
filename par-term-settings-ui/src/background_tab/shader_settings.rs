@@ -393,6 +393,8 @@ fn show_per_shader_settings(
         },
     );
 
+    show_shader_uniform_controls(ui, settings, shader_name, metadata, changes_this_frame);
+
     // Reset all overrides button
     if has_override {
         ui.add_space(8.0);
@@ -424,4 +426,204 @@ fn show_per_shader_settings(
             save_settings_to_shader_metadata(settings, shader_name, metadata);
         }
     });
+}
+
+fn show_shader_uniform_controls(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    shader_name: &str,
+    metadata: &Option<par_term_config::ShaderMetadata>,
+    changes_this_frame: &mut bool,
+) {
+    let shader_path = par_term_config::Config::shader_path(shader_name);
+    let source = match std::fs::read_to_string(&shader_path) {
+        Ok(source) => source,
+        Err(_) => return,
+    };
+    let parsed = par_term_config::parse_shader_controls(&source);
+
+    if parsed.controls.is_empty() && parsed.warnings.is_empty() {
+        return;
+    }
+
+    ui.add_space(4.0);
+    ui.separator();
+    ui.add_space(4.0);
+    ui.label("Shader Controls");
+
+    for warning in parsed.warnings {
+        ui.colored_label(
+            egui::Color32::from_rgb(255, 180, 80),
+            format!("Line {}: {}", warning.line, warning.message),
+        );
+    }
+
+    let current_override = settings.config.shader_configs.get(shader_name).cloned();
+
+    for control in parsed.controls {
+        let has_uniform_override = current_override
+            .as_ref()
+            .is_some_and(|config| config.uniforms.contains_key(&control.name));
+        let value = effective_uniform_value(&control, current_override.as_ref(), metadata.as_ref());
+
+        ui.horizontal(|ui| match control.kind {
+            par_term_config::ShaderControlKind::Slider { min, max, step } => {
+                let mut slider_value = match value {
+                    par_term_config::ShaderUniformValue::Float(value) => value.clamp(min, max),
+                    _ => min,
+                };
+                let response = ui.add(
+                    egui::Slider::new(&mut slider_value, min..=max)
+                        .step_by(step as f64)
+                        .text(&control.name),
+                );
+                if response.changed() {
+                    set_shader_uniform_override(
+                        settings,
+                        shader_name,
+                        &control.name,
+                        par_term_config::ShaderUniformValue::Float(slider_value),
+                    );
+                    *changes_this_frame = true;
+                }
+                if show_reset_button(ui, has_uniform_override) {
+                    clear_shader_uniform_override(settings, shader_name, &control.name);
+                    *changes_this_frame = true;
+                }
+            }
+            par_term_config::ShaderControlKind::Checkbox => {
+                let mut checked = matches!(value, par_term_config::ShaderUniformValue::Bool(true));
+                if ui.checkbox(&mut checked, &control.name).changed() {
+                    set_shader_uniform_override(
+                        settings,
+                        shader_name,
+                        &control.name,
+                        par_term_config::ShaderUniformValue::Bool(checked),
+                    );
+                    *changes_this_frame = true;
+                }
+                if show_reset_button(ui, has_uniform_override) {
+                    clear_shader_uniform_override(settings, shader_name, &control.name);
+                    *changes_this_frame = true;
+                }
+            }
+        });
+    }
+}
+
+fn set_shader_uniform_override(
+    settings: &mut SettingsUI,
+    shader_name: &str,
+    uniform_name: &str,
+    value: par_term_config::ShaderUniformValue,
+) {
+    let override_entry = settings.config.get_or_create_shader_override(shader_name);
+    override_entry
+        .uniforms
+        .insert(uniform_name.to_string(), value);
+    settings.has_changes = true;
+}
+
+fn clear_shader_uniform_override(settings: &mut SettingsUI, shader_name: &str, uniform_name: &str) {
+    if let Some(override_entry) = settings.config.shader_configs.get_mut(shader_name) {
+        override_entry.uniforms.remove(uniform_name);
+    }
+    settings.has_changes = true;
+}
+
+fn effective_uniform_value(
+    control: &par_term_config::ShaderControl,
+    current_override: Option<&par_term_config::ShaderConfig>,
+    metadata: Option<&par_term_config::ShaderMetadata>,
+) -> par_term_config::ShaderUniformValue {
+    current_override
+        .and_then(|config| config.uniforms.get(&control.name).cloned())
+        .or_else(|| metadata.and_then(|meta| meta.defaults.uniforms.get(&control.name).cloned()))
+        .unwrap_or_else(|| par_term_config::fallback_value_for_control(control))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn shader_uniform_override_set_shader_uniform_override_creates_per_shader_entry() {
+        let mut settings = SettingsUI::new(par_term_config::Config::default());
+
+        set_shader_uniform_override(
+            &mut settings,
+            "controlled.glsl",
+            "iGlow",
+            par_term_config::ShaderUniformValue::Float(0.75),
+        );
+
+        assert_eq!(
+            settings
+                .config
+                .shader_configs
+                .get("controlled.glsl")
+                .and_then(|config| config.uniforms.get("iGlow")),
+            Some(&par_term_config::ShaderUniformValue::Float(0.75))
+        );
+        assert!(settings.has_changes);
+    }
+
+    #[test]
+    fn shader_uniform_override_clear_shader_uniform_override_removes_one_value() {
+        let mut settings = SettingsUI::new(par_term_config::Config::default());
+        set_shader_uniform_override(
+            &mut settings,
+            "controlled.glsl",
+            "iGlow",
+            par_term_config::ShaderUniformValue::Float(0.75),
+        );
+
+        settings.has_changes = false;
+        clear_shader_uniform_override(&mut settings, "controlled.glsl", "iGlow");
+
+        assert!(
+            settings
+                .config
+                .shader_configs
+                .get("controlled.glsl")
+                .is_none_or(|config| !config.uniforms.contains_key("iGlow"))
+        );
+        assert!(settings.has_changes);
+    }
+
+    #[test]
+    fn shader_uniform_override_effective_uniform_value_prefers_override_then_metadata_then_fallback()
+     {
+        let control = par_term_config::ShaderControl {
+            name: "iGlow".to_string(),
+            kind: par_term_config::ShaderControlKind::Slider {
+                min: 0.1,
+                max: 1.0,
+                step: 0.05,
+            },
+        };
+        let mut override_config = par_term_config::ShaderConfig::default();
+        override_config.uniforms.insert(
+            "iGlow".to_string(),
+            par_term_config::ShaderUniformValue::Float(0.75),
+        );
+        let mut metadata = par_term_config::ShaderMetadata::default();
+        metadata.defaults.uniforms.insert(
+            "iGlow".to_string(),
+            par_term_config::ShaderUniformValue::Float(0.4),
+        );
+
+        assert_eq!(
+            effective_uniform_value(&control, Some(&override_config), Some(&metadata)),
+            par_term_config::ShaderUniformValue::Float(0.75)
+        );
+        assert_eq!(
+            effective_uniform_value(&control, None, Some(&metadata)),
+            par_term_config::ShaderUniformValue::Float(0.4)
+        );
+        assert_eq!(
+            effective_uniform_value(&control, None, None),
+            par_term_config::ShaderUniformValue::Float(0.1)
+        );
+    }
 }
