@@ -22,6 +22,7 @@ pub mod profile_types;
 pub mod scripting;
 pub mod scrollback_mark;
 pub mod shader_config;
+pub mod shader_controls;
 pub mod shader_metadata;
 pub mod shell_detection;
 pub mod snapshot_types;
@@ -82,6 +83,11 @@ pub use profile::{ConflictResolution, DynamicProfileSource};
 pub use profile_types::{Profile, ProfileId, ProfileManager, ProfileSource, TmuxConnectionMode};
 // Shader config resolution
 pub use shader_config::{resolve_cursor_shader_config, resolve_shader_config};
+// Shader controls
+pub use shader_controls::{
+    ShaderControl, ShaderControlKind, ShaderControlParseResult, ShaderControlWarning,
+    fallback_value_for_control, parse_shader_controls,
+};
 // Shader metadata
 pub use shader_metadata::{CursorShaderMetadataCache, ShaderMetadataCache};
 pub use shader_metadata::{
@@ -112,4 +118,5 @@ pub use par_term_emu_core_rust::{AmbiguousWidth, NormalizationForm, UnicodeVersi
 #[allow(unused_imports)]
 pub use types::KeyModifier;
 #[allow(unused_imports)]
+pub use types::shader::ShaderUniformValue;
 pub use types::{ResolvedCursorShaderConfig, ResolvedShaderConfig};
