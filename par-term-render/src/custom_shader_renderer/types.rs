@@ -306,9 +306,14 @@ fn vec2_value_for_control(
 
 fn snap_int_to_step(value: i32, min: i32, max: i32, step: i32) -> i32 {
     let clamped = value.clamp(min, max);
-    let step = step.max(1);
-    let steps_from_min = ((clamped - min) as f32 / step as f32).round() as i32;
-    (min + steps_from_min * step).clamp(min, max)
+    let min_i64 = i64::from(min);
+    let max_i64 = i64::from(max);
+    let step_i64 = i64::from(step.max(1));
+    let offset = i64::from(clamped) - min_i64;
+    let steps_from_min = (offset + step_i64 / 2) / step_i64;
+    let candidate = min_i64 + steps_from_min * step_i64;
+
+    candidate.clamp(min_i64, max_i64) as i32
 }
 
 const _: () = assert!(
@@ -409,6 +414,14 @@ mod custom_uniform_tests {
 
         assert_eq!(uniforms.float_values[0][0], 1.0);
         assert_eq!(uniforms.bool_values[0][0], 1);
+    }
+
+    #[test]
+    fn snaps_int_steps_with_widened_arithmetic_for_extreme_ranges() {
+        assert_eq!(
+            snap_int_to_step(i32::MAX, i32::MIN, i32::MAX, i32::MAX),
+            i32::MAX - 1
+        );
     }
 
     #[test]

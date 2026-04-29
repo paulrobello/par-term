@@ -199,14 +199,41 @@ fn parse_control_key_values<'a>(
         .collect()
 }
 
+fn tokenize_attached_control_directive(rest: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
+    let mut current = String::new();
+    let mut in_quotes = false;
+
+    for character in rest.chars() {
+        match character {
+            '"' => {
+                in_quotes = !in_quotes;
+                current.push(character);
+            }
+            character if character.is_whitespace() && !in_quotes => {
+                if !current.is_empty() {
+                    tokens.push(std::mem::take(&mut current));
+                }
+            }
+            character => current.push(character),
+        }
+    }
+
+    if !current.is_empty() {
+        tokens.push(current);
+    }
+
+    tokens
+}
+
 fn valid_attached_control_fallback(comment_line: &str, ty: &str) -> Option<String> {
     let rest = comment_line.trim().strip_prefix("// control ")?;
-    let mut tokens = rest.split_whitespace();
-    let control_type = tokens.next()?;
+    let tokens = tokenize_attached_control_directive(rest);
+    let control_type = tokens.first()?.as_str();
+    let key_values = parse_control_key_values(tokens[1..].iter().map(String::as_str));
 
     match control_type {
         "slider" if ty == "float" => {
-            let key_values = parse_control_key_values(tokens);
             let min = key_values.get("min")?.parse::<f32>().ok()?;
             let max = key_values.get("max")?.parse::<f32>().ok()?;
             let step = key_values.get("step")?.parse::<f32>().ok()?;
@@ -221,7 +248,6 @@ fn valid_attached_control_fallback(comment_line: &str, ty: &str) -> Option<Strin
         "color" if ty == "vec3" => Some("vec3(1.0)".to_string()),
         "color" if ty == "vec4" => Some("vec4(1.0)".to_string()),
         "int" if ty == "int" => {
-            let key_values = parse_control_key_values(tokens);
             let min = key_values.get("min")?.parse::<i32>().ok()?;
             let max = key_values.get("max")?.parse::<i32>().ok()?;
             let step = key_values
@@ -235,20 +261,13 @@ fn valid_attached_control_fallback(comment_line: &str, ty: &str) -> Option<Strin
             }
         }
         "select" if ty == "int" => {
-            let key_values = parse_control_key_values(tokens);
             valid_quoted_csv(key_values.get("options")?).then(|| "0".to_string())
         }
-        "channel" if ty == "int" => {
-            let key_values = parse_control_key_values(tokens);
-            match key_values.get("options") {
-                Some(options) => {
-                    first_valid_channel_option(options).map(|channel| channel.to_string())
-                }
-                None => Some("0".to_string()),
-            }
-        }
+        "channel" if ty == "int" => match key_values.get("options") {
+            Some(options) => first_valid_channel_option(options).map(|channel| channel.to_string()),
+            None => Some("0".to_string()),
+        },
         "vec2" if ty == "vec2" => {
-            let key_values = parse_control_key_values(tokens);
             let min = key_values.get("min")?.parse::<f32>().ok()?;
             let max = key_values.get("max")?.parse::<f32>().ok()?;
             let step = key_values.get("step")?.parse::<f32>().ok()?;
@@ -260,7 +279,6 @@ fn valid_attached_control_fallback(comment_line: &str, ty: &str) -> Option<Strin
         }
         "point" if ty == "vec2" => Some("vec2(0.5)".to_string()),
         "range" if ty == "vec2" => {
-            let key_values = parse_control_key_values(tokens);
             let min = key_values.get("min")?.parse::<f32>().ok()?;
             let max = key_values.get("max")?.parse::<f32>().ok()?;
             let step = key_values.get("step")?.parse::<f32>().ok()?;
@@ -999,6 +1017,18 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         assert!(preprocessed.contains("#define iEnabled false"));
         assert!(!preprocessed.contains("uniform float iGlow;"));
         assert!(!preprocessed.contains("uniform bool iEnabled;"));
+    }
+
+    #[test]
+    fn attached_control_fallbacks_parse_quoted_options_with_spaces() {
+        assert_eq!(
+            valid_attached_control_fallback("// control select options=\"Low, Medium\"", "int"),
+            Some("0".to_string())
+        );
+        assert_eq!(
+            valid_attached_control_fallback("// control channel options=\"1, 3\"", "int"),
+            Some("1".to_string())
+        );
     }
 
     #[test]
