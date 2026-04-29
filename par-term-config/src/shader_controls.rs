@@ -259,15 +259,16 @@ fn parse_float_range_control(
 fn parse_select_options(value: Option<&String>) -> Result<Vec<String>, String> {
     let value = value.ok_or_else(|| "missing `options`".to_string())?;
     let quoted = unquote(value).ok_or_else(|| "`options` must be quoted".to_string())?;
-    let options: Vec<String> = quoted
-        .split(',')
-        .map(str::trim)
-        .filter(|option| !option.is_empty())
-        .map(ToOwned::to_owned)
-        .collect();
+    let mut options = Vec::new();
+    for option in quoted.split(',').map(str::trim) {
+        if option.is_empty() {
+            return Err("`options` must not contain empty labels".to_string());
+        }
+        options.push(option.to_string());
+    }
 
     if options.is_empty() {
-        Err("`options` must include at least one non-empty label".to_string())
+        Err("`options` must include at least one label".to_string())
     } else {
         Ok(options)
     }
@@ -1166,6 +1167,21 @@ uniform vec2 iOrigin;
                 .iter()
                 .any(|w| w.message.contains("Unknown") && w.message.contains("x"))
         );
+    }
+
+    #[test]
+    fn warns_and_skips_select_with_empty_option_segment() {
+        let source = r#"
+// control select options="soft,,hard"
+uniform int iBlendMode;
+"#;
+
+        let result = parse_shader_controls(source);
+
+        assert!(result.controls.is_empty());
+        assert_eq!(result.warnings.len(), 1);
+        assert!(result.warnings[0].message.contains("options"));
+        assert!(result.warnings[0].message.contains("empty"));
     }
 
     #[test]
