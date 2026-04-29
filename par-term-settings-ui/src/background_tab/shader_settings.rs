@@ -467,15 +467,15 @@ fn show_shader_uniform_controls(
             metadata.as_ref(),
         );
 
-        ui.horizontal(|ui| match control.kind {
+        ui.horizontal(|ui| match &control.kind {
             par_term_config::ShaderControlKind::Slider { min, max, step } => {
                 let mut slider_value = match value {
-                    par_term_config::ShaderUniformValue::Float(value) => value.clamp(min, max),
-                    _ => min,
+                    par_term_config::ShaderUniformValue::Float(value) => value.clamp(*min, *max),
+                    _ => *min,
                 };
                 let response = ui.add(
-                    egui::Slider::new(&mut slider_value, min..=max)
-                        .step_by(step as f64)
+                    egui::Slider::new(&mut slider_value, *min..=*max)
+                        .step_by(*step as f64)
                         .text(&control.name),
                 );
                 if response.changed() {
@@ -508,6 +508,7 @@ fn show_shader_uniform_controls(
                     *changes_this_frame = true;
                 }
             }
+            par_term_config::ShaderControlKind::Color { .. } => {}
         });
     }
 }

@@ -67,43 +67,76 @@ fn format_glsl_float_literal(value: f32) -> String {
     literal
 }
 
-fn active_custom_control_defines(
+#[derive(Debug, Clone, Copy)]
+enum ActiveCustomControl {
+    Float { index: usize },
+    Bool { index: usize },
+    Color { index: usize },
+}
+
+fn active_custom_controls(
     controls: &[par_term_config::ShaderControl],
-) -> std::collections::HashMap<String, String> {
+) -> std::collections::HashMap<String, ActiveCustomControl> {
     let mut float_index = 0usize;
     let mut bool_index = 0usize;
-    let mut defines = std::collections::HashMap::new();
+    let mut color_index = 0usize;
+    let mut active_controls = std::collections::HashMap::new();
 
     for control in controls {
-        match control.kind {
+        match &control.kind {
             par_term_config::ShaderControlKind::Slider { .. } => {
-                defines.insert(
+                active_controls.insert(
                     control.name.clone(),
-                    format!(
-                        "#define {} iCustomFloatUniforms[{}].{}\n",
-                        control.name,
-                        float_index / 4,
-                        ["x", "y", "z", "w"][float_index % 4]
-                    ),
+                    ActiveCustomControl::Float { index: float_index },
                 );
                 float_index += 1;
             }
             par_term_config::ShaderControlKind::Checkbox => {
-                defines.insert(
+                active_controls.insert(
                     control.name.clone(),
-                    format!(
-                        "#define {} (iCustomBoolUniforms[{}].{} != 0)\n",
-                        control.name,
-                        bool_index / 4,
-                        ["x", "y", "z", "w"][bool_index % 4]
-                    ),
+                    ActiveCustomControl::Bool { index: bool_index },
                 );
                 bool_index += 1;
+            }
+            par_term_config::ShaderControlKind::Color { .. } => {
+                active_controls.insert(
+                    control.name.clone(),
+                    ActiveCustomControl::Color { index: color_index },
+                );
+                color_index += 1;
             }
         }
     }
 
-    defines
+    active_controls
+}
+
+fn active_custom_control_define(
+    name: &str,
+    ty: &str,
+    control: ActiveCustomControl,
+) -> Option<String> {
+    match (control, ty) {
+        (ActiveCustomControl::Float { index }, "float") => Some(format!(
+            "#define {} iCustomFloatUniforms[{}].{}\n",
+            name,
+            index / 4,
+            ["x", "y", "z", "w"][index % 4]
+        )),
+        (ActiveCustomControl::Bool { index }, "bool") => Some(format!(
+            "#define {} (iCustomBoolUniforms[{}].{} != 0)\n",
+            name,
+            index / 4,
+            ["x", "y", "z", "w"][index % 4]
+        )),
+        (ActiveCustomControl::Color { index }, "vec3") => Some(format!(
+            "#define {name} iCustomColorUniforms[{index}].rgb\n"
+        )),
+        (ActiveCustomControl::Color { index }, "vec4") => {
+            Some(format!("#define {name} iCustomColorUniforms[{index}]\n"))
+        }
+        _ => None,
+    }
 }
 
 fn parse_control_uniform_declaration(line: &str) -> Option<(&str, &str)> {
@@ -152,6 +185,8 @@ fn valid_attached_control_fallback(comment_line: &str, ty: &str) -> Option<Strin
             }
         }
         "checkbox" if ty == "bool" => Some("false".to_string()),
+        "color" if ty == "vec3" => Some("vec3(1.0)".to_string()),
+        "color" if ty == "vec4" => Some("vec4(1.0)".to_string()),
         _ => None,
     }
 }
@@ -160,15 +195,25 @@ fn safe_fallback_define(comment_line: &str, ty: &str, name: &str) -> String {
     let fallback = valid_attached_control_fallback(comment_line, ty).unwrap_or_else(|| match ty {
         "float" => "0.0".to_string(),
         "bool" => "false".to_string(),
-        _ => unreachable!("fallback requested only for float/bool controls"),
+        "vec3" => "vec3(1.0)".to_string(),
+        "vec4" => "vec4(1.0)".to_string(),
+        _ => unreachable!("fallback requested only for supported custom control uniforms"),
     });
 
     format!("#define {name} {fallback}\n")
 }
 
+fn attached_control_type(comment_line: &str) -> Option<&str> {
+    comment_line
+        .trim()
+        .strip_prefix("// control ")?
+        .split_whitespace()
+        .next()
+}
+
 fn preprocess_custom_control_uniforms(source: &str) -> String {
     let parse_result = par_term_config::parse_shader_controls(source);
-    let mut active_defines = active_custom_control_defines(&parse_result.controls);
+    let mut active_controls = active_custom_controls(&parse_result.controls);
     let lines: Vec<&str> = source.lines().collect();
     let mut strip_line_indices = std::collections::HashSet::new();
     let mut control_defines = String::new();
@@ -185,7 +230,11 @@ fn preprocess_custom_control_uniforms(source: &str) -> String {
         let Some((ty, name)) = parse_control_uniform_declaration(next_line) else {
             continue;
         };
-        if ty != "float" && ty != "bool" {
+        let control_type = attached_control_type(line);
+        let should_strip = ty == "float"
+            || ty == "bool"
+            || (control_type == Some("color") && (ty == "vec3" || ty == "vec4"));
+        if !should_strip {
             continue;
         }
 
@@ -194,7 +243,10 @@ fn preprocess_custom_control_uniforms(source: &str) -> String {
             continue;
         }
 
-        if let Some(define) = active_defines.remove(name) {
+        if let Some(define) = active_controls
+            .remove(name)
+            .and_then(|control| active_custom_control_define(name, ty, control))
+        {
             control_defines.push_str(&define);
         } else {
             control_defines.push_str(&safe_fallback_define(line, ty, name));
@@ -299,6 +351,7 @@ layout(set = 0, binding = 12) uniform sampler _iCubemapSampler;
 layout(set = 0, binding = 13) uniform CustomShaderControls {{
     vec4 iCustomFloatUniforms[4];
     ivec4 iCustomBoolUniforms[4];
+    vec4 iCustomColorUniforms[16];
 }};
 
 // Combined samplers for texture() calls
@@ -725,6 +778,26 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     }
 
     #[test]
+    fn controlled_uniform_color_declarations_are_replaced_with_color_macros() {
+        let source = r#"
+// control color label="Tint"
+uniform vec3 iTint;
+// control color alpha=true label="Overlay"
+uniform vec4 iOverlay;
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {
+    fragColor = vec4(iTint, 1.0) * iOverlay;
+}
+"#;
+
+        let preprocessed = preprocess_custom_control_uniforms(source);
+
+        assert!(!preprocessed.contains("uniform vec3 iTint;"));
+        assert!(!preprocessed.contains("uniform vec4 iOverlay;"));
+        assert!(preprocessed.contains("#define iTint iCustomColorUniforms[0].rgb"));
+        assert!(preprocessed.contains("#define iOverlay iCustomColorUniforms[1]"));
+    }
+
+    #[test]
     fn controlled_uniforms_over_float_limit_are_replaced_with_safe_fallback() {
         let mut source = String::new();
         for index in 0..17 {
@@ -832,5 +905,46 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         let wgsl = transpile_glsl_to_wgsl_source(&source, "over_limit_controlled_test").unwrap();
 
         assert!(wgsl.contains("0.25"));
+    }
+
+    #[test]
+    fn transpiled_over_limit_controlled_uniform_color_controls_use_safe_fallback() {
+        let mut source = String::new();
+        for index in 0..16 {
+            source.push_str("// control color\n");
+            source.push_str(&format!("uniform vec3 iColor{index};\n"));
+        }
+        source.push_str("// control color\n");
+        source.push_str("uniform vec4 iColor16;\n");
+        source.push_str(
+            "void mainImage(out vec4 fragColor, in vec2 fragCoord) { fragColor = iColor16; }\n",
+        );
+
+        let preprocessed = preprocess_custom_control_uniforms(&source);
+        assert!(preprocessed.contains("#define iColor16 vec4(1.0)"));
+        assert!(!preprocessed.contains("uniform vec4 iColor16;"));
+
+        let wgsl = transpile_glsl_to_wgsl_source(&source, "over_limit_color_test").unwrap();
+
+        assert!(wgsl.contains("vec3") || wgsl.contains("1.0"));
+    }
+
+    #[test]
+    fn transpiled_malformed_controlled_uniform_color_controls_use_safe_fallbacks() {
+        let source = r#"
+// control color alpha=true
+uniform vec3 iBadRgb;
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {
+    fragColor = vec4(iBadRgb, 1.0);
+}
+"#;
+
+        let preprocessed = preprocess_custom_control_uniforms(source);
+        assert!(preprocessed.contains("#define iBadRgb vec3(1.0)"));
+        assert!(!preprocessed.contains("uniform vec3 iBadRgb;"));
+
+        let wgsl = transpile_glsl_to_wgsl_source(source, "malformed_color_test").unwrap();
+
+        assert!(wgsl.contains("vec3") || wgsl.contains("1.0"));
     }
 }
