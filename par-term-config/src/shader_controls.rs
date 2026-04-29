@@ -25,6 +25,9 @@ pub struct ShaderControlParseResult {
     pub warnings: Vec<ShaderControlWarning>,
 }
 
+const MAX_SHADER_FLOAT_CONTROLS: usize = 16;
+const MAX_SHADER_BOOL_CONTROLS: usize = 16;
+
 fn parse_uniform_declaration(line: &str) -> Option<(&str, &str)> {
     let trimmed = line.trim();
     if !trimmed.starts_with("uniform ") || !trimmed.ends_with(';') {
@@ -90,6 +93,8 @@ pub fn parse_shader_controls(source: &str) -> ShaderControlParseResult {
     let mut controls = Vec::new();
     let mut warnings = Vec::new();
     let mut seen = HashSet::new();
+    let mut float_count = 0usize;
+    let mut bool_count = 0usize;
 
     for (index, line) in lines.iter().enumerate() {
         let trimmed = line.trim();
@@ -243,6 +248,35 @@ pub fn parse_shader_controls(source: &str) -> ShaderControlParseResult {
                 message: format!("Duplicate control for uniform `{}` ignored", uniform_name),
             });
             continue;
+        }
+
+        match &kind {
+            ShaderControlKind::Slider { .. } => {
+                if float_count >= MAX_SHADER_FLOAT_CONTROLS {
+                    warnings.push(ShaderControlWarning {
+                        line: line_number,
+                        message: format!(
+                            "Only the first {} slider controls are active; ignoring over-limit control `{}`",
+                            MAX_SHADER_FLOAT_CONTROLS, uniform_name
+                        ),
+                    });
+                    continue;
+                }
+                float_count += 1;
+            }
+            ShaderControlKind::Checkbox => {
+                if bool_count >= MAX_SHADER_BOOL_CONTROLS {
+                    warnings.push(ShaderControlWarning {
+                        line: line_number,
+                        message: format!(
+                            "Only the first {} checkbox controls are active; ignoring over-limit control `{}`",
+                            MAX_SHADER_BOOL_CONTROLS, uniform_name
+                        ),
+                    });
+                    continue;
+                }
+                bool_count += 1;
+            }
         }
 
         controls.push(ShaderControl {

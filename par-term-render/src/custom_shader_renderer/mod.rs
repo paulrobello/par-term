@@ -45,7 +45,9 @@ pub mod types;
 mod uniforms;
 
 use cubemap::CubemapTexture;
-use pipeline::{create_bind_group, create_bind_group_layout, create_render_pipeline};
+use pipeline::{
+    BindGroupInputs, create_bind_group, create_bind_group_layout, create_render_pipeline,
+};
 use textures::{ChannelTexture, load_channel_textures};
 use transpiler::transpile_glsl_to_wgsl;
 
@@ -323,13 +325,15 @@ impl CustomShaderRenderer {
         let bind_group_layout = create_bind_group_layout(device);
         let bind_group = create_bind_group(
             device,
-            &bind_group_layout,
-            &uniform_buffer,
-            &intermediate_texture_view,
-            &custom_uniform_buffer,
-            &sampler,
-            &channel_textures,
-            &cubemap,
+            BindGroupInputs {
+                layout: &bind_group_layout,
+                uniform_buffer: &uniform_buffer,
+                intermediate_texture_view: &intermediate_texture_view,
+                custom_uniform_buffer: &custom_uniform_buffer,
+                sampler: &sampler,
+                channel_textures: &channel_textures,
+                cubemap: &cubemap,
+            },
         );
 
         // Create render pipeline

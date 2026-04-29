@@ -91,24 +91,68 @@ fn custom_control_defines(source: &str) -> String {
     defines
 }
 
+fn parse_control_uniform_declaration(line: &str) -> Option<(&str, &str)> {
+    let trimmed = line.trim();
+    if !trimmed.starts_with("uniform ") || !trimmed.ends_with(';') {
+        return None;
+    }
+
+    let without_semicolon = trimmed.trim_end_matches(';').trim();
+    let mut parts = without_semicolon.split_whitespace();
+    let uniform = parts.next()?;
+    let ty = parts.next()?;
+    let name = parts.next()?;
+
+    if uniform != "uniform" || parts.next().is_some() {
+        return None;
+    }
+
+    Some((ty, name))
+}
+
+fn control_matches_uniform(control: &par_term_config::ShaderControl, ty: &str, name: &str) -> bool {
+    if control.name != name {
+        return false;
+    }
+
+    matches!(
+        (&control.kind, ty),
+        (par_term_config::ShaderControlKind::Slider { .. }, "float")
+            | (par_term_config::ShaderControlKind::Checkbox, "bool")
+    )
+}
+
 fn preprocess_custom_control_uniforms(source: &str) -> String {
     let parse_result = par_term_config::parse_shader_controls(source);
-    let controlled_names: std::collections::HashSet<String> = parse_result
-        .controls
-        .iter()
-        .map(|control| control.name.clone())
-        .collect();
+    let lines: Vec<&str> = source.lines().collect();
+    let mut strip_line_indices = std::collections::HashSet::new();
+
+    for (index, line) in lines.iter().enumerate() {
+        if !line.trim().starts_with("// control ") {
+            continue;
+        }
+
+        let Some(next_line) = lines.get(index + 1) else {
+            continue;
+        };
+        let Some((ty, name)) = parse_control_uniform_declaration(next_line) else {
+            continue;
+        };
+
+        if parse_result
+            .controls
+            .iter()
+            .any(|control| control_matches_uniform(control, ty, name))
+        {
+            strip_line_indices.insert(index + 1);
+        }
+    }
 
     let mut output = String::new();
     output.push_str(&custom_control_defines(source));
 
-    for line in source.lines() {
-        let trimmed = line.trim();
-        let should_strip = controlled_names.iter().any(|name| {
-            trimmed == format!("uniform float {};", name)
-                || trimmed == format!("uniform bool {};", name)
-        });
-        if !should_strip {
+    for (index, line) in lines.iter().enumerate() {
+        if !strip_line_indices.contains(&index) {
             output.push_str(line);
             output.push('\n');
         }
@@ -605,6 +649,68 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         assert!(!preprocessed.contains("uniform bool iEnabled;"));
         assert!(preprocessed.contains("#define iGlow iCustomFloatUniforms[0].x"));
         assert!(preprocessed.contains("#define iEnabled (iCustomBoolUniforms[0].x != 0)"));
+    }
+
+    #[test]
+    fn controlled_uniform_declarations_with_whitespace_are_stripped() {
+        let source = r#"
+// control slider min=0 max=1 step=0.01
+uniform float iGlow ;
+// control checkbox
+uniform   bool   iEnabled   ;
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {
+    fragColor = vec4(vec3(iGlow), iEnabled ? 1.0 : 0.0);
+}
+"#;
+
+        let preprocessed = preprocess_custom_control_uniforms(source);
+
+        assert!(!preprocessed.contains("uniform float iGlow ;"));
+        assert!(!preprocessed.contains("uniform   bool   iEnabled   ;"));
+        assert!(preprocessed.contains("#define iGlow iCustomFloatUniforms[0].x"));
+        assert!(preprocessed.contains("#define iEnabled (iCustomBoolUniforms[0].x != 0)"));
+    }
+
+    #[test]
+    fn controlled_uniforms_over_float_limit_remain_declared_without_macro() {
+        let mut source = String::new();
+        for index in 0..17 {
+            source.push_str("// control slider min=0 max=1 step=0.01\n");
+            source.push_str(&format!("uniform float iFloat{index};\n"));
+        }
+        source.push_str(
+            "void mainImage(out vec4 fragColor, in vec2 fragCoord) { fragColor = vec4(iFloat16); }\n",
+        );
+
+        let preprocessed = preprocess_custom_control_uniforms(&source);
+
+        assert!(preprocessed.contains("#define iFloat15 iCustomFloatUniforms[3].w"));
+        assert!(!preprocessed.contains("#define iFloat16"));
+        assert!(preprocessed.contains("uniform float iFloat16;"));
+    }
+
+    #[test]
+    fn controlled_uniform_parser_warns_and_ignores_over_limit_controls() {
+        let mut source = String::new();
+        for index in 0..17 {
+            source.push_str("// control checkbox\n");
+            source.push_str(&format!("uniform bool iBool{index};\n"));
+        }
+
+        let result = par_term_config::parse_shader_controls(&source);
+
+        assert_eq!(result.controls.len(), 16);
+        assert!(
+            result
+                .controls
+                .iter()
+                .all(|control| control.name != "iBool16")
+        );
+        assert!(result.warnings.iter().any(|warning| {
+            warning
+                .message
+                .contains("Only the first 16 checkbox controls")
+        }));
     }
 
     #[test]
