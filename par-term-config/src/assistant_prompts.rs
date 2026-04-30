@@ -51,8 +51,27 @@ pub fn list_prompts_in_dir(dir: &Path) -> Result<Vec<AssistantPrompt>, String> {
         if path.extension().and_then(|ext| ext.to_str()) != Some("md") {
             continue;
         }
-        let content = fs::read_to_string(&path)
-            .map_err(|e| format!("read prompt file {}: {e}", path.display()))?;
+        let Ok(file_type) = entry.file_type() else {
+            log::warn!(
+                "Skipping assistant prompt with unreadable file type {}",
+                path.display()
+            );
+            continue;
+        };
+        if !file_type.is_file() {
+            log::warn!("Skipping non-regular assistant prompt {}", path.display());
+            continue;
+        }
+        let content = match fs::read_to_string(&path) {
+            Ok(content) => content,
+            Err(e) => {
+                log::warn!(
+                    "Skipping unreadable assistant prompt {}: {e}",
+                    path.display()
+                );
+                continue;
+            }
+        };
         match parse_prompt_markdown(&content) {
             Ok(draft) => prompts.push(AssistantPrompt {
                 path,
@@ -99,7 +118,7 @@ pub fn parse_prompt_markdown(input: &str) -> Result<AssistantPromptDraft, String
     let Some(rest) = input.strip_prefix("---\n") else {
         return Err("missing YAML frontmatter".to_string());
     };
-    let Some((frontmatter, body)) = rest.split_once("\n---") else {
+    let Some((frontmatter, body)) = rest.split_once("\n---\n") else {
         return Err("missing closing YAML frontmatter delimiter".to_string());
     };
     let body = body.trim_start_matches('\n');
@@ -193,6 +212,13 @@ mod tests {
     }
 
     #[test]
+    fn rejects_malformed_closing_frontmatter_delimiter() {
+        let input = "---\ntitle: Debug build\nauto_submit: false\n----\n\nFix the build.";
+        let err = parse_prompt_markdown(input).expect_err("malformed closing delimiter fails");
+        assert!(err.contains("closing YAML frontmatter delimiter"));
+    }
+
+    #[test]
     fn serializes_prompt_with_frontmatter() {
         let draft = AssistantPromptDraft {
             title: "Debug build".to_string(),
@@ -235,5 +261,21 @@ mod tests {
         assert_eq!(prompts.len(), 2);
         assert_eq!(prompts[0].title, "Alpha");
         assert_eq!(prompts[1].title, "Zed");
+    }
+
+    #[test]
+    fn skips_non_regular_invalid_markdown_entries_while_listing() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        fs::write(
+            temp.path().join("valid.md"),
+            "---\ntitle: Valid\nauto_submit: false\n---\n\nValid prompt",
+        )
+        .expect("write valid");
+        fs::create_dir(temp.path().join("invalid.md")).expect("create invalid md directory");
+
+        let prompts = list_prompts_in_dir(temp.path()).expect("list prompts");
+
+        assert_eq!(prompts.len(), 1);
+        assert_eq!(prompts[0].title, "Valid");
     }
 }
