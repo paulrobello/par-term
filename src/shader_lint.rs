@@ -65,6 +65,12 @@ pub struct ReadabilityScore {
     pub notes: Vec<String>,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct ReadabilityCurrentSettings {
+    pub brightness: Option<f32>,
+    pub text_opacity: Option<f32>,
+}
+
 pub fn lint_shader_source(source: &str) -> ShaderLintReport {
     let mut report = ShaderLintReport::default();
 
@@ -194,6 +200,20 @@ pub fn format_lint_report(
     report: &ShaderLintReport,
     readability: Option<&ReadabilityScore>,
 ) -> String {
+    format_lint_report_with_current_settings(
+        path,
+        report,
+        readability,
+        ReadabilityCurrentSettings::default(),
+    )
+}
+
+pub fn format_lint_report_with_current_settings(
+    path: &Path,
+    report: &ShaderLintReport,
+    readability: Option<&ReadabilityScore>,
+    current: ReadabilityCurrentSettings,
+) -> String {
     let mut output = String::new();
     output.push_str(&format!("Shader lint: {}\n", path.display()));
 
@@ -226,12 +246,8 @@ pub fn format_lint_report(
     output.push_str(&format!("Controls: {}\n", report.control_count));
 
     if let Some(readability) = readability {
-        output.push_str(&format!(
-            "Readability: {}/100\nSuggested defaults:\n  custom_shader_brightness = {:.2}\n  custom_shader_text_opacity = {:.2}\n",
-            readability.score,
-            readability.suggested_brightness,
-            readability.suggested_text_opacity
-        ));
+        output.push_str(&format!("Readability: {}/100\n", readability.score));
+        append_readability_recommendations(&mut output, readability, current);
         if !readability.notes.is_empty() {
             output.push_str("Notes:\n");
             for note in &readability.notes {
@@ -252,12 +268,26 @@ pub fn apply_readability_defaults(path: &Path, score: &ReadabilityScore) -> Resu
     par_term_config::update_shader_metadata_file(path, &metadata)
 }
 
-pub fn shader_lint_settings_report(path: &Path) -> Result<String, String> {
+pub fn shader_lint_settings_report(
+    path: &Path,
+    current_brightness: Option<f32>,
+    current_text_opacity: Option<f32>,
+) -> Result<String, String> {
     let source = std::fs::read_to_string(path)
         .map_err(|error| format!("Failed to read shader '{}': {error}", path.display()))?;
     let report = lint_shader_source(&source);
     let readability = score_shader_readability(&source);
-    Ok(format_lint_report(path, &report, Some(&readability)))
+    let metadata_current = current_settings_from_metadata(&source);
+    let current = ReadabilityCurrentSettings {
+        brightness: current_brightness.or(metadata_current.brightness),
+        text_opacity: current_text_opacity.or(metadata_current.text_opacity),
+    };
+    Ok(format_lint_report_with_current_settings(
+        path,
+        &report,
+        Some(&readability),
+        current,
+    ))
 }
 
 pub fn shader_lint_cli(
@@ -269,16 +299,19 @@ pub fn shader_lint_cli(
     let source = std::fs::read_to_string(path)?;
     let report = lint_shader_source(&source);
     let readability = (include_readability || apply).then(|| score_shader_readability(&source));
+    let current = current_settings_from_metadata(&source);
     print!(
         "{}",
-        format_lint_report(path, &report, readability.as_ref())
+        format_lint_report_with_current_settings(path, &report, readability.as_ref(), current)
     );
 
     if report.has_errors() {
         return Err(anyhow::anyhow!("shader lint failed"));
     }
 
-    if let Some(score) = readability.as_ref() {
+    if let Some(score) = readability.as_ref()
+        && has_readability_recommendations(score, current)
+    {
         let should_apply = apply || (prompt_to_apply && prompt_user_to_apply()?);
         if should_apply {
             apply_readability_defaults(path, score).map_err(|error| anyhow::anyhow!(error))?;
@@ -290,6 +323,60 @@ pub fn shader_lint_cli(
     }
 
     Ok(())
+}
+
+fn current_settings_from_metadata(source: &str) -> ReadabilityCurrentSettings {
+    let Some(metadata) = par_term_config::parse_shader_metadata(source) else {
+        return ReadabilityCurrentSettings::default();
+    };
+
+    ReadabilityCurrentSettings {
+        brightness: metadata.defaults.brightness,
+        text_opacity: metadata.defaults.text_opacity,
+    }
+}
+
+fn append_readability_recommendations(
+    output: &mut String,
+    readability: &ReadabilityScore,
+    current: ReadabilityCurrentSettings,
+) {
+    let recommend_brightness =
+        recommendation_needed(current.brightness, readability.suggested_brightness);
+    let recommend_text_opacity =
+        recommendation_needed(current.text_opacity, readability.suggested_text_opacity);
+
+    if !recommend_brightness && !recommend_text_opacity {
+        output.push_str("Suggested defaults: already match current settings\n");
+        return;
+    }
+
+    output.push_str("Suggested defaults:\n");
+    if recommend_brightness {
+        output.push_str(&format!(
+            "  custom_shader_brightness = {:.2}\n",
+            readability.suggested_brightness
+        ));
+    }
+    if recommend_text_opacity {
+        output.push_str(&format!(
+            "  custom_shader_text_opacity = {:.2}\n",
+            readability.suggested_text_opacity
+        ));
+    }
+}
+
+fn has_readability_recommendations(
+    readability: &ReadabilityScore,
+    current: ReadabilityCurrentSettings,
+) -> bool {
+    recommendation_needed(current.brightness, readability.suggested_brightness)
+        || recommendation_needed(current.text_opacity, readability.suggested_text_opacity)
+}
+
+fn recommendation_needed(current: Option<f32>, suggested: f32) -> bool {
+    const EPSILON: f32 = 0.005;
+    current.is_none_or(|value| (value - suggested).abs() > EPSILON)
 }
 
 fn prompt_user_to_apply() -> anyhow::Result<bool> {

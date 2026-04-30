@@ -37,10 +37,29 @@ impl SettingsUI {
         };
 
         let shader_path = par_term_config::Config::shader_path(&self.temp_custom_shader);
-        match lint_fn(&shader_path) {
+        let (brightness, text_opacity) = self.current_shader_readability_values();
+        match lint_fn(&shader_path, brightness, text_opacity) {
             Ok(result) => self.shader_lint_result = Some(result),
             Err(error) => self.shader_lint_error = Some(error),
         }
+    }
+
+    fn current_shader_readability_values(&mut self) -> (Option<f32>, Option<f32>) {
+        let shader_name = self.temp_custom_shader.clone();
+        let current_override = self.config.shader_configs.get(&shader_name);
+        let metadata = self.shader_metadata_cache.get(&shader_name).cloned();
+        let meta_defaults = metadata.as_ref().map(|metadata| &metadata.defaults);
+
+        let brightness = current_override
+            .and_then(|override_config| override_config.brightness)
+            .or_else(|| meta_defaults.and_then(|defaults| defaults.brightness))
+            .or(Some(self.config.shader.custom_shader_brightness));
+        let text_opacity = current_override
+            .and_then(|override_config| override_config.text_opacity)
+            .or_else(|| meta_defaults.and_then(|defaults| defaults.text_opacity))
+            .or(Some(self.config.shader.custom_shader_text_opacity));
+
+        (brightness, text_opacity)
     }
 
     /// Create a new settings UI.
@@ -576,8 +595,17 @@ mod assistant_prompt_tests {
         assert!(!settings.temp_assistant_prompt_auto_submit);
     }
 
-    fn test_shader_lint_callback(path: &std::path::Path) -> Result<String, String> {
-        Ok(format!("linted {}", path.display()))
+    fn test_shader_lint_callback(
+        path: &std::path::Path,
+        brightness: Option<f32>,
+        text_opacity: Option<f32>,
+    ) -> Result<String, String> {
+        Ok(format!(
+            "linted {} brightness={:?} text_opacity={:?}",
+            path.display(),
+            brightness,
+            text_opacity
+        ))
     }
 
     #[test]
@@ -596,9 +624,40 @@ mod assistant_prompt_tests {
 
         assert_eq!(
             settings.shader_lint_result,
-            Some(format!("linted {}", shader_path.display()))
+            Some(format!(
+                "linted {} brightness=Some(0.15) text_opacity=Some(1.0)",
+                shader_path.display()
+            ))
         );
         assert!(settings.shader_lint_error.is_none());
+    }
+
+    #[test]
+    fn run_shader_lint_for_selected_shader_passes_per_shader_overrides() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let shader_path = temp_dir.path().join("readable.glsl");
+        let shader_name = shader_path.display().to_string();
+        let mut config = Config::default();
+        config.shader.custom_shader = Some(shader_name.clone());
+        config
+            .get_or_create_shader_override(&shader_name)
+            .brightness = Some(0.3);
+        config
+            .get_or_create_shader_override(&shader_name)
+            .text_opacity = Some(0.96);
+        let mut settings = SettingsUI::new_for_tests(config);
+        settings.temp_custom_shader = shader_name;
+        settings.shader_lint_fn = Some(test_shader_lint_callback);
+
+        settings.run_shader_lint_for_selected_shader();
+
+        assert_eq!(
+            settings.shader_lint_result,
+            Some(format!(
+                "linted {} brightness=Some(0.3) text_opacity=Some(0.96)",
+                shader_path.display()
+            ))
+        );
     }
 
     #[test]

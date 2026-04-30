@@ -123,12 +123,60 @@ fn settings_report_always_includes_readability_scoring() {
     );
     std::io::Write::write_all(&mut file, source.as_bytes()).expect("write shader");
 
-    let report = shader_lint_settings_report(file.path()).expect("settings report");
+    let report = shader_lint_settings_report(file.path(), None, None).expect("settings report");
 
     assert!(report.contains("Shader lint:"));
     assert!(report.contains("Readability:"));
     assert!(report.contains("custom_shader_brightness"));
     assert!(report.contains("custom_shader_text_opacity"));
+}
+
+#[test]
+fn settings_report_omits_recommendations_that_match_current_values() {
+    let mut file = tempfile::NamedTempFile::new().expect("temp shader");
+    let source = sample_shader(
+        "    fragColor = vec4(vec3(0.04, 0.05, 0.07), 1.0);",
+        "  brightness: 0.8\n  text_opacity: 0.95\n  full_content: false",
+    );
+    std::io::Write::write_all(&mut file, source.as_bytes()).expect("write shader");
+    let score = score_shader_readability(&source);
+
+    let report = shader_lint_settings_report(
+        file.path(),
+        Some(score.suggested_brightness),
+        Some(score.suggested_text_opacity),
+    )
+    .expect("settings report");
+
+    assert!(report.contains("Readability:"));
+    assert!(report.contains("already match current settings"));
+    assert!(!report.contains("custom_shader_brightness ="));
+    assert!(!report.contains("custom_shader_text_opacity ="));
+}
+
+#[test]
+fn settings_report_uses_metadata_defaults_as_current_values() {
+    let mut file = tempfile::NamedTempFile::new().expect("temp shader");
+    let body = "    fragColor = vec4(vec3(0.04, 0.05, 0.07), 1.0);";
+    let initial_source = sample_shader(
+        body,
+        "  brightness: 0.8\n  text_opacity: 0.95\n  full_content: false",
+    );
+    let score = score_shader_readability(&initial_source);
+    let source = sample_shader(
+        body,
+        &format!(
+            "  brightness: {:.2}\n  text_opacity: {:.2}\n  full_content: false",
+            score.suggested_brightness, score.suggested_text_opacity
+        ),
+    );
+    std::io::Write::write_all(&mut file, source.as_bytes()).expect("write shader");
+
+    let report = shader_lint_settings_report(file.path(), None, None).expect("settings report");
+
+    assert!(report.contains("already match current settings"));
+    assert!(!report.contains("custom_shader_brightness ="));
+    assert!(!report.contains("custom_shader_text_opacity ="));
 }
 
 #[test]
