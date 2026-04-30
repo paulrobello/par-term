@@ -120,6 +120,8 @@ pub struct SettingsUI {
     pub temp_assistant_prompt_body: String,
     /// Temporary assistant prompt auto-submit flag for the inline editor
     pub temp_assistant_prompt_auto_submit: bool,
+    /// Whether prompt-library files changed and Assistant panels should reload their menu list
+    pub assistant_prompts_changed: bool,
 
     // Shader management state
     /// List of available shader files in the shaders folder

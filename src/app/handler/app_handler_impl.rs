@@ -188,6 +188,18 @@ impl ApplicationHandler for WindowManager {
                             }
                         }
                     }
+                    SettingsWindowAction::AssistantPromptsChanged => {
+                        for window_state in self.windows.values_mut() {
+                            window_state
+                                .overlay_ui
+                                .ai_inspector
+                                .refresh_assistant_prompts();
+                            window_state.focus_state.needs_redraw = true;
+                            if let Some(window) = &window_state.window {
+                                window.request_redraw();
+                            }
+                        }
+                    }
                     SettingsWindowAction::None => {}
                 }
             }

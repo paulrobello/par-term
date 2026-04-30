@@ -1,13 +1,13 @@
 /*! par-term shader metadata
 name: Pane Focus Regions
 author: par-term
-description: Uses iFocusedPane to subtly frame the active split pane while dimming inactive regions.
-version: 1.0.0
+description: Uses iFocusedPane to frame the active split pane while dimming inactive terminal content.
+version: 1.0.1
 defaults:
   animation_speed: 0.35
-  brightness: 0.30
+  brightness: 1.0
   text_opacity: 1.0
-  full_content: false
+  full_content: true
   uniforms:
     iBaseColor: "#101623"
     iFocusColor: "#4aa3ff"
@@ -42,8 +42,13 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     float outerGlow = (1.0 - smoothstep(0.0, 50.0, dist)) * (1.0 - inside);
     float sweep = 0.5 + 0.5 * sin(iTime * 1.2 + uv.x * 5.0 + uv.y * 3.0);
 
-    vec3 color = iBaseColor * (0.32 + 0.08 * uv.y);
-    color *= mix(1.0 - iInactiveDim, 1.0, inside);
-    color += iFocusColor * (border * (0.35 + 0.20 * sweep) + outerGlow * 0.16) * iBorderStrength;
+    float dimFactor = mix(1.0 - iInactiveDim, 1.0, inside);
+    vec3 background = iBaseColor * (0.32 + 0.08 * uv.y);
+    background *= dimFactor;
+    background += iFocusColor * (border * (0.35 + 0.20 * sweep) + outerGlow * 0.16) * iBorderStrength;
+
+    vec4 terminal = texture(iChannel4, uv);
+    vec3 terminalPremul = terminal.rgb * dimFactor;
+    vec3 color = terminalPremul + background * (1.0 - terminal.a);
     fragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
 }

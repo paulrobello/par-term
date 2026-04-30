@@ -242,22 +242,61 @@ impl AIInspectorPanel {
         });
 
         ui.horizontal(|ui| {
+            let chat_input_id = egui::Id::new("assistant_chat_input");
+            let cursor_index_before_edit =
+                text_edit_cursor_index(ui.ctx(), chat_input_id, &self.chat.input);
             let response = ui.add_sized(
                 [input_width, input_height],
                 egui::TextEdit::multiline(&mut self.chat.input)
+                    .id(chat_input_id)
                     .hint_text("Message... (Shift+Enter for newline)")
                     .desired_width(input_width)
                     .desired_rows(line_count),
             );
 
             // Store the chat input Id for focus detection in Escape key handling
-            self.chat_input_id = Some(response.id);
+            self.chat_input_id = Some(chat_input_id);
 
             let is_focused = response.has_focus();
+            if is_focused {
+                let cursor_index = cursor_index_before_edit;
+                let (up_pressed, down_pressed, modifiers) = ui.input(|i| {
+                    (
+                        i.key_pressed(Key::ArrowUp),
+                        i.key_pressed(Key::ArrowDown),
+                        i.modifiers,
+                    )
+                });
+                let allow_history_navigation = modifiers_allow_input_history(modifiers);
+                let navigated_history = if allow_history_navigation
+                    && up_pressed
+                    && input_cursor_is_on_first_line(&self.chat.input, cursor_index)
+                    && self.chat.navigate_input_history_older()
+                {
+                    ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::ArrowUp));
+                    true
+                } else if allow_history_navigation
+                    && down_pressed
+                    && input_cursor_is_on_last_line(&self.chat.input, cursor_index)
+                    && self.chat.navigate_input_history_newer()
+                {
+                    ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::ArrowDown));
+                    true
+                } else {
+                    false
+                };
+
+                if navigated_history {
+                    set_text_edit_cursor_to_end(ui.ctx(), response.id, &self.chat.input);
+                    response.request_focus();
+                }
+            }
             let should_send = is_focused && enter_pressed;
 
             ui.vertical(|ui| {
                 ui.menu_button(RichText::new("Prompts").small(), |ui| {
+                    ui.set_min_width((input_width + button_width).clamp(220.0, 360.0));
+
                     if let Some(error) = &self.assistant_prompts_error {
                         ui.label(
                             RichText::new(format!("Load error: {error}"))
@@ -324,5 +363,84 @@ impl AIInspectorPanel {
         });
 
         action
+    }
+}
+
+fn text_edit_cursor_index(ctx: &egui::Context, id: egui::Id, text: &str) -> usize {
+    egui::TextEdit::load_state(ctx, id)
+        .and_then(|state| state.cursor.char_range())
+        .map(|range| range.primary.index)
+        .unwrap_or_else(|| text.chars().count())
+}
+
+fn set_text_edit_cursor_to_end(ctx: &egui::Context, id: egui::Id, text: &str) {
+    let mut state = egui::TextEdit::load_state(ctx, id).unwrap_or_default();
+    let end = egui::text::CCursor::new(text.chars().count());
+    state
+        .cursor
+        .set_char_range(Some(egui::text::CCursorRange::one(end)));
+    state.store(ctx, id);
+}
+
+fn modifiers_allow_input_history(modifiers: egui::Modifiers) -> bool {
+    modifiers == egui::Modifiers::NONE
+}
+
+fn input_cursor_is_on_first_line(text: &str, cursor_index: usize) -> bool {
+    !text.chars().take(cursor_index).any(|ch| ch == '\n')
+}
+
+fn input_cursor_is_on_last_line(text: &str, cursor_index: usize) -> bool {
+    !text.chars().skip(cursor_index).any(|ch| ch == '\n')
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        input_cursor_is_on_first_line, input_cursor_is_on_last_line, modifiers_allow_input_history,
+    };
+
+    #[test]
+    fn input_history_cursor_allows_top_and_bottom_boundaries() {
+        assert!(input_cursor_is_on_first_line("single line", 5));
+        assert!(input_cursor_is_on_last_line("single line", 5));
+        assert!(input_cursor_is_on_first_line("first\nsecond", 0));
+        assert!(input_cursor_is_on_last_line(
+            "first\nsecond",
+            "first\nsecond".chars().count(),
+        ));
+    }
+
+    #[test]
+    fn input_history_cursor_blocks_middle_lines() {
+        let text = "first\nsecond\nthird";
+        let second_line_start = "first\n".chars().count();
+        let second_line_middle = "first\nsec".chars().count();
+
+        assert!(!input_cursor_is_on_first_line(text, second_line_start));
+        assert!(!input_cursor_is_on_first_line(text, second_line_middle));
+        assert!(!input_cursor_is_on_last_line(text, second_line_start));
+        assert!(!input_cursor_is_on_last_line(text, second_line_middle));
+    }
+
+    #[test]
+    fn input_history_navigation_requires_unmodified_arrow_keys() {
+        assert!(modifiers_allow_input_history(egui::Modifiers::NONE));
+        assert!(!modifiers_allow_input_history(egui::Modifiers {
+            shift: true,
+            ..Default::default()
+        }));
+        assert!(!modifiers_allow_input_history(egui::Modifiers {
+            alt: true,
+            ..Default::default()
+        }));
+        assert!(!modifiers_allow_input_history(egui::Modifiers {
+            command: true,
+            ..Default::default()
+        }));
+        assert!(!modifiers_allow_input_history(egui::Modifiers {
+            ctrl: true,
+            ..Default::default()
+        }));
     }
 }

@@ -194,6 +194,7 @@ fn refresh_assistant_prompts(settings: &mut SettingsUI) {
         Ok(prompts) => {
             settings.assistant_prompts = prompts;
             settings.assistant_prompt_error = None;
+            settings.assistant_prompts_changed = true;
         }
         Err(error) => settings.assistant_prompt_error = Some(error),
     }

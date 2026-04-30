@@ -12,6 +12,12 @@ pub struct ChatState {
     pub messages: Vec<ChatMessage>,
     /// The current text input from the user (not yet sent).
     pub input: String,
+    /// Previously submitted user prompts, newest first.
+    input_history: Vec<String>,
+    /// Current position while navigating input history.
+    input_history_cursor: Option<usize>,
+    /// Draft text to restore when navigating back past the newest history entry.
+    input_history_draft: Option<String>,
     /// Whether the agent is currently streaming a response.
     pub streaming: bool,
     /// Buffer for assembling agent message chunks before flushing.
@@ -24,6 +30,9 @@ impl ChatState {
         Self {
             messages: Vec::new(),
             input: String::new(),
+            input_history: Vec::new(),
+            input_history_cursor: None,
+            input_history_draft: None,
             streaming: false,
             agent_text_buffer: String::new(),
         }
@@ -125,6 +134,70 @@ impl ChatState {
             text,
             pending: true,
         });
+    }
+
+    pub fn set_input_history(&mut self, entries: Vec<String>) {
+        self.input_history = par_term_config::normalize_assistant_input_history(entries);
+        self.reset_input_history_navigation();
+    }
+
+    pub fn input_history_entries(&self) -> &[String] {
+        &self.input_history
+    }
+
+    pub fn record_user_input_history(&mut self, text: &str) {
+        let trimmed = text.trim();
+        if trimmed.is_empty() {
+            self.reset_input_history_navigation();
+            return;
+        }
+
+        let mut entries = Vec::with_capacity(self.input_history.len() + 1);
+        entries.push(trimmed.to_string());
+        entries.extend(self.input_history.iter().cloned());
+        self.input_history = par_term_config::normalize_assistant_input_history(entries);
+        self.reset_input_history_navigation();
+    }
+
+    pub fn navigate_input_history_older(&mut self) -> bool {
+        if self.input_history.is_empty() {
+            return false;
+        }
+
+        let next_cursor = match self.input_history_cursor {
+            Some(cursor) if cursor + 1 < self.input_history.len() => cursor + 1,
+            Some(_) => return false,
+            None => {
+                self.input_history_draft = Some(self.input.clone());
+                0
+            }
+        };
+
+        self.input_history_cursor = Some(next_cursor);
+        self.input = self.input_history[next_cursor].clone();
+        true
+    }
+
+    pub fn navigate_input_history_newer(&mut self) -> bool {
+        let Some(cursor) = self.input_history_cursor else {
+            return false;
+        };
+
+        if cursor == 0 {
+            self.input_history_cursor = None;
+            self.input = self.input_history_draft.take().unwrap_or_default();
+            return true;
+        }
+
+        let next_cursor = cursor - 1;
+        self.input_history_cursor = Some(next_cursor);
+        self.input = self.input_history[next_cursor].clone();
+        true
+    }
+
+    pub fn reset_input_history_navigation(&mut self) {
+        self.input_history_cursor = None;
+        self.input_history_draft = None;
     }
 
     /// Mark the oldest pending user message as sent (no longer cancellable).
@@ -294,5 +367,75 @@ user request. Do not restate the transcript unless asked.\n\n",
 impl Default for ChatState {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ChatState;
+
+    #[test]
+    fn assistant_input_history_records_trimmed_newest_unique_entries() {
+        let mut state = ChatState::new();
+
+        state.record_user_input_history("  newest  ");
+        state.record_user_input_history("");
+        state.record_user_input_history("older");
+        state.record_user_input_history("newest");
+
+        assert_eq!(
+            state.input_history_entries(),
+            ["newest".to_string(), "older".to_string()]
+        );
+    }
+
+    #[test]
+    fn assistant_input_history_navigate_older_snapshots_draft() {
+        let mut state = ChatState::new();
+        state.set_input_history(vec!["newest".to_string(), "older".to_string()]);
+        state.input = "draft".to_string();
+
+        assert!(state.navigate_input_history_older());
+        assert_eq!(state.input, "newest");
+
+        assert!(state.navigate_input_history_older());
+        assert_eq!(state.input, "older");
+
+        assert!(!state.navigate_input_history_older());
+        assert_eq!(state.input, "older");
+    }
+
+    #[test]
+    fn assistant_input_history_navigate_newer_restores_saved_draft() {
+        let mut state = ChatState::new();
+        state.set_input_history(vec!["newest".to_string(), "older".to_string()]);
+        state.input = "draft".to_string();
+        assert!(state.navigate_input_history_older());
+        assert!(state.navigate_input_history_older());
+
+        assert!(state.navigate_input_history_newer());
+        assert_eq!(state.input, "newest");
+
+        assert!(state.navigate_input_history_newer());
+        assert_eq!(state.input, "draft");
+
+        assert!(!state.navigate_input_history_newer());
+        assert_eq!(state.input, "draft");
+    }
+
+    #[test]
+    fn assistant_input_history_recording_new_prompt_resets_navigation_state() {
+        let mut state = ChatState::new();
+        state.set_input_history(vec!["newest".to_string(), "older".to_string()]);
+        state.input = "draft".to_string();
+        assert!(state.navigate_input_history_older());
+
+        state.record_user_input_history("fresh");
+        state.input = "current draft".to_string();
+
+        assert!(state.navigate_input_history_older());
+        assert_eq!(state.input, "fresh");
+        assert!(state.navigate_input_history_newer());
+        assert_eq!(state.input, "current draft");
     }
 }

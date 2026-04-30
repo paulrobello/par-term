@@ -2,7 +2,7 @@
 name: Matrix Rain 2.0
 author: par-term
 description: Less distracting matrix rain that samples terminal content and avoids dense text while reacting to typing bursts.
-version: 1.0.0
+version: 1.0.1
 defaults:
   animation_speed: 0.55
   brightness: 0.30
@@ -32,7 +32,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec2 cell = floor(fragCoord / vec2(12.0, 18.0));
     float colHash = hash(vec2(cell.x, 3.7));
     float speed = mix(0.45, 1.4, colHash);
-    float y = cell.y + iTime * speed * 5.0;
+    float y = cell.y - iTime * speed * 5.0;
     float glyph = hash(vec2(cell.x, floor(y)));
     float trail = smoothstep(0.98 - iRainDensity * 0.18, 1.0, glyph);
     float head = smoothstep(0.985, 1.0, hash(vec2(cell.x, floor(y * 0.43))));

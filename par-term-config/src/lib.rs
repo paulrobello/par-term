@@ -11,6 +11,7 @@
 //! - Status bar widget configuration
 //! - Profile configuration types and manager
 
+pub mod assistant_input_history;
 pub mod assistant_prompts;
 pub mod automation;
 pub mod cell;
@@ -35,6 +36,11 @@ mod types;
 pub mod watcher;
 
 // Re-export assistant prompt-library storage types and helpers
+pub use assistant_input_history::{
+    MAX_ASSISTANT_INPUT_HISTORY_ENTRIES, assistant_input_history_path,
+    load_assistant_input_history, merge_assistant_input_history, normalize_assistant_input_history,
+    save_assistant_input_history,
+};
 pub use assistant_prompts::{
     AssistantPrompt, AssistantPromptDraft, assistant_prompts_dir, delete_prompt, list_prompts,
     list_prompts_in_dir, parse_prompt_markdown, safe_prompt_filename, save_prompt,
@@ -47,9 +53,10 @@ pub use error::ConfigError;
 // Re-export main types for convenience
 pub use cell::Cell;
 pub use config::{
-    ALLOWED_ENV_VARS, AiInspectorConfig, Config, CustomAcpAgentActionConfig, CustomAcpAgentConfig,
-    FontRenderingConfig, GlobalShaderConfig, StatusBarConfig, WindowConfig, is_env_var_allowed,
-    substitute_variables, substitute_variables_with_allowlist,
+    ALLOWED_ENV_VARS, AiInspectorConfig, AssistantInputHistoryMode, Config,
+    CustomAcpAgentActionConfig, CustomAcpAgentConfig, FontRenderingConfig, GlobalShaderConfig,
+    StatusBarConfig, WindowConfig, is_env_var_allowed, substitute_variables,
+    substitute_variables_with_allowlist,
 };
 pub use scrollback_mark::ScrollbackMark;
 pub use themes::{Color, Theme};

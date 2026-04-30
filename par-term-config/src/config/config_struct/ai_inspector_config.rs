@@ -3,6 +3,26 @@
 use crate::config::acp::CustomAcpAgentConfig;
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AssistantInputHistoryMode {
+    Session,
+    Persist,
+}
+
+impl AssistantInputHistoryMode {
+    pub const fn all() -> [Self; 2] {
+        [Self::Session, Self::Persist]
+    }
+
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Session => "Session only",
+            Self::Persist => "Persist across restarts",
+        }
+    }
+}
+
 /// Configuration for the AI Inspector side panel.
 ///
 /// Extracted from the monolithic `Config` struct via `#[serde(flatten)]`.
@@ -70,6 +90,11 @@ pub struct AiInspectorConfig {
     /// Font size for chat messages in the Assistant panel (points)
     #[serde(default = "default_ai_inspector_chat_font_size")]
     pub ai_inspector_chat_font_size: f32,
+
+    /// Whether Assistant prompt input history only lasts for the current session
+    /// or is persisted in the config directory.
+    #[serde(default = "default_ai_inspector_input_history_mode")]
+    pub ai_inspector_input_history_mode: AssistantInputHistoryMode,
 
     /// Additional filesystem roots made available to ACP agents that support them.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -145,6 +170,10 @@ fn default_ai_inspector_chat_font_size() -> f32 {
     14.0
 }
 
+pub const fn default_ai_inspector_input_history_mode() -> AssistantInputHistoryMode {
+    AssistantInputHistoryMode::Session
+}
+
 impl Default for AiInspectorConfig {
     fn default() -> Self {
         Self {
@@ -163,6 +192,7 @@ impl Default for AiInspectorConfig {
             ai_inspector_agent_terminal_access: default_ai_inspector_agent_terminal_access(),
             ai_inspector_agent_screenshot_access: default_ai_inspector_agent_screenshot_access(),
             ai_inspector_chat_font_size: default_ai_inspector_chat_font_size(),
+            ai_inspector_input_history_mode: default_ai_inspector_input_history_mode(),
             ai_inspector_extra_agent_roots: Vec::new(),
             ai_inspector_custom_agents: Vec::new(),
         }
@@ -171,7 +201,7 @@ impl Default for AiInspectorConfig {
 
 #[cfg(test)]
 mod tests {
-    use super::AiInspectorConfig;
+    use super::{AiInspectorConfig, AssistantInputHistoryMode};
 
     #[test]
     fn default_extra_agent_roots_is_empty() {
@@ -193,6 +223,28 @@ ai_inspector_extra_agent_roots:
         assert_eq!(
             config.ai_inspector_extra_agent_roots,
             vec!["~/Repos/shared".to_string(), "/opt/project".to_string()]
+        );
+    }
+
+    #[test]
+    fn ai_inspector_input_history_default_mode_is_session() {
+        let config = AiInspectorConfig::default();
+
+        assert_eq!(
+            config.ai_inspector_input_history_mode,
+            AssistantInputHistoryMode::Session
+        );
+    }
+
+    #[test]
+    fn ai_inspector_input_history_deserializes_persist_mode() {
+        let yaml = "ai_inspector_input_history_mode: persist\n";
+
+        let config: AiInspectorConfig = serde_yaml_ng::from_str(yaml).expect("deserialize");
+
+        assert_eq!(
+            config.ai_inspector_input_history_mode,
+            AssistantInputHistoryMode::Persist
         );
     }
 }

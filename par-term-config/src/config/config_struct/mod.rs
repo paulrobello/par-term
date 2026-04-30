@@ -82,7 +82,7 @@ mod unicode_config;
 mod update;
 mod window_config;
 
-pub use ai_inspector_config::AiInspectorConfig;
+pub use ai_inspector_config::{AiInspectorConfig, AssistantInputHistoryMode};
 pub use copy_mode_config::CopyModeConfig;
 pub use font_config::FontRenderingConfig;
 pub use global_shader_config::GlobalShaderConfig;

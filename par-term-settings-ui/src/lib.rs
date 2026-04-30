@@ -153,6 +153,8 @@ pub enum SettingsWindowAction {
     InstallShellIntegration,
     /// Uninstall shell integration from all shells
     UninstallShellIntegration,
+    /// Assistant prompt library changed; terminal windows should reload prompt menus
+    AssistantPromptsChanged,
 }
 
 /// Lightweight information about a saved arrangement (used by trait interface).

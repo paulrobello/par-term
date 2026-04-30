@@ -7,6 +7,7 @@ use crate::ai_inspector::chat::ChatMessage;
 use crate::ai_inspector::panel::InspectorAction;
 use crate::app::window_state::WindowState;
 use par_term_acp::{AgentMessage, AgentStatus};
+use par_term_config::AssistantInputHistoryMode;
 
 impl WindowState {
     /// Handle AI Inspector panel actions collected during egui rendering.
@@ -155,12 +156,46 @@ impl WindowState {
             }
             InspectorAction::LoadPrompt(text) => {
                 self.overlay_ui.ai_inspector.chat.input = text;
+                self.overlay_ui
+                    .ai_inspector
+                    .chat
+                    .reset_input_history_navigation();
                 self.focus_state.needs_redraw = true;
             }
             InspectorAction::SendPrompt(text) => {
                 // Reset one-shot local backend recovery for each user prompt.
                 self.agent_state.agent_skill_failure_detected = false;
                 self.agent_state.agent_skill_recovery_attempts = 0;
+                self.overlay_ui
+                    .ai_inspector
+                    .chat
+                    .record_user_input_history(&text);
+                if self.config.ai_inspector.ai_inspector_input_history_mode
+                    == AssistantInputHistoryMode::Persist
+                {
+                    match par_term_config::load_assistant_input_history() {
+                        Ok(persisted_entries) => {
+                            let merged_entries = par_term_config::merge_assistant_input_history(
+                                self.overlay_ui.ai_inspector.chat.input_history_entries(),
+                                &persisted_entries,
+                            );
+                            self.overlay_ui
+                                .ai_inspector
+                                .chat
+                                .set_input_history(merged_entries);
+                        }
+                        Err(error) => {
+                            log::warn!(
+                                "Assistant input history: failed to load before save: {error}"
+                            );
+                        }
+                    }
+                    if let Err(error) = par_term_config::save_assistant_input_history(
+                        self.overlay_ui.ai_inspector.chat.input_history_entries(),
+                    ) {
+                        log::warn!("Assistant input history: failed to save: {error}");
+                    }
+                }
                 self.overlay_ui
                     .ai_inspector
                     .chat

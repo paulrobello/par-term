@@ -180,6 +180,7 @@ impl SettingsUI {
             temp_assistant_prompt_title: String::new(),
             temp_assistant_prompt_body: String::new(),
             temp_assistant_prompt_auto_submit: false,
+            assistant_prompts_changed: false,
             available_shaders: Self::scan_shaders_folder(),
             available_cubemaps: Self::scan_cubemaps_folder(),
             new_shader_name: String::new(),
@@ -558,6 +559,13 @@ impl SettingsUI {
     pub fn take_profile_open_request(&mut self) -> Option<ProfileId> {
         self.profile_open_requested.take()
     }
+
+    /// Check whether the Assistant prompt library changed and clear the flag.
+    pub fn take_assistant_prompts_changed(&mut self) -> bool {
+        let changed = self.assistant_prompts_changed;
+        self.assistant_prompts_changed = false;
+        changed
+    }
 }
 
 #[cfg(test)]
@@ -599,6 +607,16 @@ mod assistant_prompt_tests {
         assert_eq!(settings.temp_assistant_prompt_title, "");
         assert_eq!(settings.temp_assistant_prompt_body, "");
         assert!(!settings.temp_assistant_prompt_auto_submit);
+        assert!(!settings.assistant_prompts_changed);
+    }
+
+    #[test]
+    fn take_assistant_prompts_changed_returns_and_clears_flag() {
+        let mut settings = SettingsUI::new_for_tests(Config::default());
+        settings.assistant_prompts_changed = true;
+
+        assert!(settings.take_assistant_prompts_changed());
+        assert!(!settings.take_assistant_prompts_changed());
     }
 
     fn test_shader_lint_callback(

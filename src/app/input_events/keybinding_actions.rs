@@ -125,6 +125,11 @@ impl WindowState {
                     let just_opened = self.overlay_ui.ai_inspector.toggle();
                     self.sync_ai_inspector_width();
                     if just_opened {
+                        if self.config.ai_inspector.ai_inspector_input_history_mode
+                            == par_term_config::AssistantInputHistoryMode::Persist
+                        {
+                            self.overlay_ui.ai_inspector.merge_persisted_input_history();
+                        }
                         self.try_auto_connect_agent();
                     }
                     self.request_redraw();

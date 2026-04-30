@@ -26,9 +26,9 @@ pub mod theme_methods;
 
 pub use acp::{CustomAcpAgentActionConfig, CustomAcpAgentConfig};
 pub use config_struct::{
-    AiInspectorConfig, Config, CopyModeConfig, FontRenderingConfig, GlobalShaderConfig,
-    NotificationConfig, ScrollbackConfig, SearchConfig, SshConfig, StatusBarConfig, UnicodeConfig,
-    UpdateConfig, WindowConfig,
+    AiInspectorConfig, AssistantInputHistoryMode, Config, CopyModeConfig, FontRenderingConfig,
+    GlobalShaderConfig, NotificationConfig, ScrollbackConfig, SearchConfig, SshConfig,
+    StatusBarConfig, UnicodeConfig, UpdateConfig, WindowConfig,
 };
 pub use env_vars::{
     ALLOWED_ENV_VARS, is_env_var_allowed, substitute_variables, substitute_variables_with_allowlist,

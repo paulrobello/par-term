@@ -31,7 +31,7 @@ Background shaders are full-screen post-processing effects applied to the termin
 |--------|-------------|
 | `progress_reactive_theme.glsl` | Calm ambient background that reacts to `iProgress` with normal glow, amber warning pulse, red error edge bloom, and indeterminate stripes. |
 | `command_state_backdrop.glsl` | Uses `iCommand` to briefly tint after command start, success, or failure. |
-| `pane_focus_regions.glsl` | Uses `iFocusedPane` to subtly frame the active split pane and dim inactive regions. |
+| `pane_focus_regions.glsl` | Uses `iFocusedPane` in full-content mode to frame the active split pane and dim inactive terminal content. |
 | `scrollback_parallax.glsl` | Uses `iScroll` to add depth fog and timeline bands as you move through scrollback. |
 | `blueprint_grid.glsl` | CAD-style grid that brightens around the cursor and active progress bars. |
 | `build_reactor.glsl` | Progress-aware reactor/core glow that charges with `iProgress.y` and vents on warnings/errors. |

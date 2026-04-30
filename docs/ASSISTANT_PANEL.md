@@ -189,11 +189,13 @@ The chat input field supports multi-line editing:
 
 The input field grows automatically as you type, expanding up to 6 rows before showing a scrollbar. This is useful for pasting multi-line prompts or composing longer instructions without sending prematurely.
 
+Submitted prompts are kept in Assistant input history. Press `Up` / `Down` to recall earlier or newer prompts; for multi-line drafts, history recall only activates when the caret is on the first line (`Up`) or last line (`Down`) so normal in-editor navigation still works. The unsent draft is restored when you navigate back past the newest history entry. By default this history lasts only for the current Assistant panel/window session, but **Settings > Assistant > Panel > Input history** can switch it to persistent storage in `assistant_input_history.yaml` under the par-term config directory.
+
 ### Prompt Library
 
 Saved assistant prompts live in `~/.config/par-term/assistant-prompts/` (or the platform-equivalent par-term config directory). Each prompt is a Markdown file with YAML frontmatter for metadata followed by the Markdown prompt body.
 
-Use `auto_submit: false` to load the prompt into the chat input for review or editing before sending. Use `auto_submit: true` to send the prompt immediately when selected from the panel. Prompts can be created, edited, and deleted in **Settings > Assistant > Prompt Library**.
+Use `auto_submit: false` to load the prompt into the chat input for review or editing before sending. Use `auto_submit: true` to send the prompt immediately when selected from the panel. Prompts can be created, edited, and deleted in **Settings > Assistant > Prompt Library**; the chat **Prompts** menu refreshes after those changes and uses a wider menu to keep typical prompt titles on one line.
 
 ### Clear Conversation
 
@@ -645,6 +647,7 @@ The following configuration options are supported in `config.yaml`:
 | `ai_inspector_agent_terminal_access` | bool | `false` | Allow the agent to write directly to the terminal |
 | `ai_inspector_agent_screenshot_access` | bool | `true` | Allow the agent to request terminal screenshots (still permission-gated per request) |
 | `ai_inspector_chat_font_size` | float | `14.0` | Font size for chat messages in points |
+| `ai_inspector_input_history_mode` | string | `"session"` | Assistant chat input history mode: `session` keeps prompts for the current panel/window session only; `persist` stores them in `assistant_input_history.yaml` under the par-term config directory |
 | `ai_inspector_extra_agent_roots` | list | `[]` | Extra filesystem roots made available to supported ACP agents; `~/.config/par-term/shaders` is always included automatically |
 | `ai_inspector_custom_agents` | list | `[]` | Extra ACP agent definitions merged into discovery (override by `identity`) |
 
@@ -662,6 +665,7 @@ ai_inspector_auto_context: false
 ai_inspector_auto_approve: false
 ai_inspector_agent_terminal_access: false
 ai_inspector_agent_screenshot_access: true
+ai_inspector_input_history_mode: "session"
 ai_inspector_extra_agent_roots:
   - ~/Repos/shared-lib
 ai_inspector_custom_agents:

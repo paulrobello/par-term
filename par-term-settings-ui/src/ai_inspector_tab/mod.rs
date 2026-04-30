@@ -72,6 +72,10 @@ pub fn keywords() -> &'static [&'static str] {
         "library",
         "saved prompt",
         "auto submit",
+        "input history",
+        "prompt history",
+        "assistant history",
+        "persist history",
         "markdown",
         "frontmatter",
         // Panel

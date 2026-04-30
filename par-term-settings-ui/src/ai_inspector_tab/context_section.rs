@@ -5,6 +5,7 @@
 
 use crate::SettingsUI;
 use crate::section::{collapsing_section, section_matches};
+use par_term_config::AssistantInputHistoryMode;
 use std::collections::HashSet;
 
 /// Build the combined agent list (built-in + active custom agents).
@@ -51,6 +52,10 @@ pub(super) fn show_panel_section(
             "font",
             "font size",
             "chat font",
+            "input history",
+            "prompt history",
+            "assistant history",
+            "persist history",
         ],
     ) {
         collapsing_section(ui, "Panel", "ai_inspector_panel", true, collapsed, |ui| {
@@ -116,6 +121,38 @@ pub(super) fn show_panel_section(
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
+            });
+
+            ui.add_space(4.0);
+
+            ui.horizontal(|ui| {
+                ui.label("Input history:");
+                egui::ComboBox::from_id_salt("ai_input_history_mode")
+                    .selected_text(
+                        settings
+                            .config
+                            .ai_inspector
+                            .ai_inspector_input_history_mode
+                            .label(),
+                    )
+                    .show_ui(ui, |ui| {
+                        for mode in AssistantInputHistoryMode::all() {
+                            if ui
+                                .selectable_value(
+                                    &mut settings
+                                        .config
+                                        .ai_inspector
+                                        .ai_inspector_input_history_mode,
+                                    mode,
+                                    mode.label(),
+                                )
+                                .changed()
+                            {
+                                settings.has_changes = true;
+                                *changes_this_frame = true;
+                            }
+                        }
+                    });
             });
 
             ui.add_space(4.0);

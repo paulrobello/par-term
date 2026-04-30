@@ -24,6 +24,7 @@ use crate::ai_inspector::snapshot::{SnapshotData, SnapshotScope};
 use crate::config::Config;
 use crate::ui_constants::{AI_PANEL_MAX_WIDTH_RATIO, AI_PANEL_MIN_WIDTH};
 use par_term_acp::{AgentConfig, AgentStatus};
+use par_term_config::AssistantInputHistoryMode;
 use std::path::Path;
 
 use types::RESIZE_HANDLE_WIDTH;
@@ -146,7 +147,9 @@ impl AIInspectorPanel {
         assistant_prompts_error: Option<String>,
         prompt_library_loader: AssistantPromptLoader,
     ) -> Self {
-        Self {
+        let chat = ChatState::new();
+
+        let mut panel = Self {
             open: config.ai_inspector.ai_inspector_open_on_startup,
             width: config.ai_inspector.ai_inspector_width,
             min_width: AI_PANEL_MIN_WIDTH,
@@ -160,7 +163,7 @@ impl AIInspectorPanel {
             needs_refresh: true,
             last_command_count: 0,
             agent_status: AgentStatus::Disconnected,
-            chat: ChatState::new(),
+            chat,
             assistant_prompts,
             assistant_prompts_error,
             prompt_library_loader,
@@ -176,6 +179,26 @@ impl AIInspectorPanel {
             connected_agent_cwd: None,
             chat_font_size: config.ai_inspector.ai_inspector_chat_font_size,
             chat_input_id: None,
+        };
+
+        if config.ai_inspector.ai_inspector_input_history_mode == AssistantInputHistoryMode::Persist
+        {
+            panel.merge_persisted_input_history();
+        }
+
+        panel
+    }
+
+    pub(crate) fn merge_persisted_input_history(&mut self) {
+        match par_term_config::load_assistant_input_history() {
+            Ok(persisted_entries) => {
+                let merged_entries = par_term_config::merge_assistant_input_history(
+                    self.chat.input_history_entries(),
+                    &persisted_entries,
+                );
+                self.chat.set_input_history(merged_entries);
+            }
+            Err(error) => log::warn!("Assistant input history: failed to load: {error}"),
         }
     }
 
@@ -191,7 +214,7 @@ impl AIInspectorPanel {
         (Vec::new(), None)
     }
 
-    fn refresh_assistant_prompts(&mut self) {
+    pub(crate) fn refresh_assistant_prompts(&mut self) {
         let (assistant_prompts, assistant_prompts_error) = (self.prompt_library_loader)();
         self.assistant_prompts = assistant_prompts;
         self.assistant_prompts_error = assistant_prompts_error;

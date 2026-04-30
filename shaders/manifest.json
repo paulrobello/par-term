@@ -1,6 +1,6 @@
 {
   "version": "0.30.12",
-  "generated": "2026-04-30T03:19:44.475373+00:00",
+  "generated": "2026-04-30T05:23:17.731777+00:00",
   "files": [
     {
       "path": "animated-gradient-shader.glsl",
@@ -286,13 +286,13 @@
     },
     {
       "path": "matrix_rain_2.glsl",
-      "sha256": "870d77e621e014cf3b75672c5c650385f309594c228265192f2887aa8654f8bd",
+      "sha256": "af46b3f95b2c3b3eac86eadeba18cbc9ef001e60ff36bf2b44e1eaee889c6e01",
       "type": "shader",
       "category": "nature"
     },
     {
       "path": "pane_focus_regions.glsl",
-      "sha256": "e2854294fa803090e35abb67067b234d148657d55dd1b48dcb10678e6d5bcf19",
+      "sha256": "1419908d42825e7015bde6cec0f5aa83d40ca6fd1b43806845d35ba928797a84",
       "type": "shader",
       "category": "effects"
     },

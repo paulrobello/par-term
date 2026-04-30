@@ -167,6 +167,12 @@ impl SettingsWindow {
             return SettingsWindowAction::SaveProfiles(profiles);
         }
 
+        // Check for Assistant prompt-library changes
+        if self.settings_ui.take_assistant_prompts_changed() {
+            self.window.request_redraw();
+            return SettingsWindowAction::AssistantPromptsChanged;
+        }
+
         // Check for profile open request
         if let Some(id) = self.settings_ui.take_profile_open_request() {
             self.window.request_redraw();
