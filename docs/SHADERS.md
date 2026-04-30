@@ -1,6 +1,6 @@
 # Included Shaders
 
-Par-term includes 64 ready-to-use GLSL shaders (52 background + 12 cursor). This document lists all available shaders organized by category.
+Par-term includes 67 ready-to-use GLSL shaders (55 background + 12 cursor). This document lists all available shaders organized by category.
 
 **[View Shader Gallery with Screenshots](https://paulrobello.github.io/par-term/)**
 
@@ -18,6 +18,7 @@ For information on how to use and configure shaders, see [CUSTOM_SHADERS.md](CUS
   - [Cubemap-Based](#cubemap-based)
 - [Cursor Shaders](#cursor-shaders)
 - [Included Textures](#included-textures)
+  - [Included Texture Packs](#included-texture-packs)
 
 ---
 
@@ -105,7 +106,7 @@ These shaders typically use [`full_content: true`](CUSTOM_SHADERS.md#shader-mode
 | Shader | Description |
 |--------|-------------|
 | `spotlight.glsl` | Moving spotlight/vignette effect. Uses `iChannel0` for optional background. |
-| `keypress_pulse.glsl` | Visual pulse effect on each keystroke. **Example of:** [`iTimeKeyPress`](CUSTOM_SHADERS.md#window--content-uniforms) uniform. |
+| `keypress_ring_fullcontent.glsl` | Full-content cursor-centered ring and flash on each keystroke. **Example of:** [`iTimeKeyPress`](CUSTOM_SHADERS.md#window--content-uniforms) uniform. |
 
 ### Cubemap-Based
 
@@ -113,6 +114,9 @@ These shaders use cubemap textures for environment mapping effects. **Example of
 
 | Shader | Description |
 |--------|-------------|
+| `cubemap-atmospheric-sky.glsl` | Low-distraction atmospheric cubemap gradient using `textures/cubemaps/env-outside`. |
+| `cubemap-metallic-ambience.glsl` | Slow metallic reflections with low contrast using `textures/cubemaps/env-outside`. |
+| `cubemap-neon-room.glsl` | Subdued neon room ambience using `textures/cubemaps/env-test`. |
 | `cubemap-skybox.glsl` | Rotating cubemap skybox environment. **Example of:** `iCubemap` usage. |
 | `cubemap-test.glsl` | Simple cubemap test/demo with mouse-controlled pitch |
 
@@ -161,6 +165,18 @@ Located in `shaders/textures/cubemaps/`:
 | Texture | Description |
 |---------|-------------|
 | `metalic1.jpg` | Metallic surface texture for bump mapping |
+
+### Included Texture Packs
+
+Texture packs are installed under `shaders/textures/packs/` and tracked by `shaders/manifest.json`.
+
+| Pack | Path | Included texture |
+|------|------|------------------|
+| Noise | `textures/packs/noise/` | `soft-value-128.png` |
+| Gradients | `textures/packs/gradients/` | `deep-violet-128.png` |
+| Paper | `textures/packs/paper/` | `warm-paper-128.png` |
+| Metal | `textures/packs/metal/` | `brushed-metal-128.png` |
+| Starfields | `textures/packs/starfields/` | `dim-stars-128.png` |
 
 ### Wallpapers
 

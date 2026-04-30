@@ -156,6 +156,7 @@ field uses its documented default value.
 | `custom_shader_cubemap` | `string?` | `null` | Cubemap path prefix for `iCubemap` (expects `-px/-nx/-py/-ny/-pz/-nz` suffixes) |
 | `custom_shader_cubemap_enabled` | `bool` | `true` | Enable cubemap sampling |
 | `custom_shader_use_background_as_channel0` | `bool` | `false` | Bind background image as `iChannel0` |
+| `custom_shader_background_channel0_blend_mode` | `enum` | `replace` | Blend-mode hint exposed as `iBackgroundBlendMode` when using background as `iChannel0`; values: `replace`, `multiply`, `screen`, `overlay`, `luminance_mask` |
 | `shader_hot_reload` | `bool` | `false` | Reload shader automatically when file is modified |
 | `shader_hot_reload_delay` | `u64` | `100` | Debounce delay in ms before hot-reload triggers |
 

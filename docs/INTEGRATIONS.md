@@ -167,7 +167,7 @@ curl -sSL https://paulrobello.github.io/par-term/install-shell-integration.sh | 
 
 ## Shader Installation
 
-par-term includes a collection of 64 ready-to-use GLSL shaders (52 background + 12 cursor).
+par-term includes a collection of 67 ready-to-use GLSL shaders (55 background + 12 cursor), cubemap assets, and texture packs.
 
 ### Included Shaders
 
@@ -178,6 +178,11 @@ par-term includes a collection of 64 ready-to-use GLSL shaders (52 background + 
 - Plasma, fire, underwater
 - Abstract visualizations
 - Nature effects (clouds, rain, snow)
+- Cubemap-based ambience shaders backed by bundled cubemap textures
+
+**Texture Assets:**
+- Cubemap environments under `shaders/textures/cubemaps/`
+- Texture packs under `shaders/textures/packs/` for noise, gradients, paper, metal, and starfields
 
 **Cursor Effects:**
 - Glow, trail, ripple
@@ -229,7 +234,7 @@ par-term install-integrations -y  # Non-interactive
 
 ### Manifest System
 
-par-term tracks installed shaders using a manifest file for safe updates and uninstallation.
+par-term tracks installed bundled shaders, cubemaps, and texture packs using a manifest file for safe updates and uninstallation. The `install-shaders` command installs files tracked by `shaders/manifest.json`, including GLSL shaders and bundled texture assets.
 
 **Location:** `~/.config/par-term/shaders/manifest.json`
 
@@ -244,6 +249,12 @@ par-term tracks installed shaders using a manifest file for safe updates and uni
       "sha256": "ca7bb2d0faeb09740206d3c2ede153f4...",
       "type": "shader",
       "category": "retro"
+    },
+    {
+      "path": "textures/packs/noise/soft-value-128.png",
+      "sha256": "8ed431a79fa7244de7f8c70b7c43583c...",
+      "type": "texture",
+      "category": "texture-pack-noise"
     }
   ]
 }
@@ -266,7 +277,7 @@ par-term uninstall-shaders --force
 ```
 
 **What gets removed:**
-- Bundled shader files with matching checksums
+- Bundled shader, cubemap, and texture-pack files with matching checksums
 - Empty directories
 
 **What gets preserved:**

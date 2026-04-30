@@ -13,6 +13,8 @@ For a list of all included shaders, see [SHADERS.md](SHADERS.md).
   - [Background Shader Settings](#background-shader-settings)
   - [Cursor Shader Settings](#cursor-shader-settings)
   - [Channel Textures](#channel-textures)
+  - [Built-in Noise Textures](#built-in-noise-textures)
+  - [Included Texture Packs](#included-texture-packs)
   - [Cubemap Textures](#cubemap-textures)
   - [Power Saving](#power-saving)
   - [Shader Hot Reload](#shader-hot-reload)
@@ -28,6 +30,7 @@ For a list of all included shaders, see [SHADERS.md](SHADERS.md).
   - [Basic Structure](#basic-structure)
   - [Shader Modes](#shader-modes)
   - [Shader Metadata Format](#shader-metadata-format)
+  - [Per-Shader Asset Bundle Manifests](#per-shader-asset-bundle-manifests)
   - [Shader Uniform Controls](#shader-uniform-controls)
   - [Porting Shadertoy Shaders](#porting-shadertoy-shaders)
 - [Examples](#examples)
@@ -144,6 +147,13 @@ custom_shader_brightness: 0.15
 # false = text composited on top of shader output (recommended)
 # true = shader receives and can modify terminal content via iChannel4
 custom_shader_full_content: false
+
+# Bind the app background image as iChannel0
+custom_shader_use_background_as_channel0: false
+
+# Blend-mode hint exposed to shaders as iBackgroundBlendMode
+# Values: replace, multiply, screen, overlay, luminance_mask
+custom_shader_background_channel0_blend_mode: replace
 ```
 
 | Option | Type | Default | Description |
@@ -156,6 +166,7 @@ custom_shader_full_content: false
 | `custom_shader_brightness` | `f32` | `0.15` | Brightness multiplier (0.05-1.0) |
 | `custom_shader_full_content` | `bool` | `false` | When true, shader can manipulate terminal content |
 | `custom_shader_use_background_as_channel0` | `bool` | `false` | Use app's background image as iChannel0 texture |
+| `custom_shader_background_channel0_blend_mode` | `enum` | `replace` | Blend-mode hint exposed as `iBackgroundBlendMode`; values: `replace`, `multiply`, `screen`, `overlay`, `luminance_mask` |
 
 ### Shader Linting and Readability Scoring
 
@@ -261,6 +272,47 @@ custom_shader_channel3: null  # Not used
 - Textures can also be configured via Settings UI under "Shader Channel Textures"
 - Sample textures are included in `shaders/textures/` directory
 
+### Built-in Noise Textures
+
+Shader channels can use deterministic built-in noise textures without external image files:
+
+```yaml
+custom_shader_channel0: "builtin://noise/value-256"
+custom_shader_channel1: "builtin://noise/fbm-512"
+custom_shader_channel2: "builtin://noise/cellular-256"
+```
+
+Supported values:
+
+| Value | Description | Size |
+|-------|-------------|------|
+| `builtin://noise/value-128` | Deterministic value noise | 128×128 |
+| `builtin://noise/value-256` | Deterministic value noise | 256×256 |
+| `builtin://noise/fbm-256` | Fractal Brownian motion noise | 256×256 |
+| `builtin://noise/fbm-512` | Fractal Brownian motion noise | 512×512 |
+| `builtin://noise/cellular-256` | Cellular/Worley-style noise | 256×256 |
+
+Built-in noise paths are resolved before filesystem paths, so they do not require files in your shader directory.
+
+### Included Texture Packs
+
+Bundled texture packs are installed under `shaders/textures/packs/` and can be referenced from channel settings or shader metadata defaults. The current packs are:
+
+| Pack | Installed path | Included texture |
+|------|----------------|------------------|
+| Noise | `textures/packs/noise/` | `soft-value-128.png` |
+| Gradients | `textures/packs/gradients/` | `deep-violet-128.png` |
+| Paper | `textures/packs/paper/` | `warm-paper-128.png` |
+| Metal | `textures/packs/metal/` | `brushed-metal-128.png` |
+| Starfields | `textures/packs/starfields/` | `dim-stars-128.png` |
+
+Example:
+
+```yaml
+custom_shader_channel0: "textures/packs/noise/soft-value-128.png"
+custom_shader_channel1: "textures/packs/metal/brushed-metal-128.png"
+```
+
 ### Cubemap Textures
 
 Par-term supports cubemap textures for environment mapping and skybox effects via the `iCubemap` uniform:
@@ -365,6 +417,7 @@ cursor_shader_configs:
 - `cubemap`: Override cubemap path
 - `cubemap_enabled`: Override cubemap enable
 - `use_background_as_channel0`: Use app's background image as iChannel0
+- `background_channel0_blend_mode`: Override the background-as-`iChannel0` blend-mode hint (`replace`, `multiply`, `screen`, `overlay`, `luminance_mask`)
 - `uniforms`: Per-shader values for custom `// control ...` shader uniforms
 
 **Per-cursor-shader additional fields:**
@@ -411,10 +464,23 @@ Par-term specific uniforms for terminal integration:
 | `iBrightness` | `float` | Shader brightness multiplier (0.05-1.0) |
 | `iFullContent` | `float` | 1.0 = shader receives full terminal content; 0.0 = background only |
 | `iBackgroundColor` | `vec4` | Solid background color `[R, G, B, A]` (0.0-1.0 normalized). When A > 0, indicates solid color mode is active |
-| `iTimeKeyPress` | `float` | Time when last key was pressed (same timebase as iTime). See [`keypress_pulse.glsl`](../shaders/keypress_pulse.glsl) for example. |
+| `iBackgroundBlendMode` | `int` | Resolved `custom_shader_background_channel0_blend_mode` value for shaders that sample the app background through `iChannel0` |
+| `iTimeKeyPress` | `float` | Time when last key was pressed (same timebase as iTime). See [`keypress_ring_fullcontent.glsl`](../shaders/keypress_ring_fullcontent.glsl) for example. |
 | `iCommand` | `vec4` | Shell command state from OSC 133 shell integration: `x` = state (`0` unknown, `1` running, `2` success, `3` failure), `y` = last exit code, `z` = shader time when state last changed, `w` = running flag. See [`command_state_backdrop.glsl`](../shaders/command_state_backdrop.glsl). |
 | `iFocusedPane` | `vec4` | Focused pane bounds in pixels using GLSL/Shadertoy bottom-left origin: `xy` = bottom-left, `zw` = size. Defaults to the full viewport when no focused pane is available. See [`pane_focus_regions.glsl`](../shaders/pane_focus_regions.glsl). |
 | `iScroll` | `vec4` | Scrollback context for the focused viewport: `x` = scroll offset in lines, `y` = visible line count, `z` = scrollback line count, `w` = normalized depth (`x / max(z, 1)`). See [`scrollback_parallax.glsl`](../shaders/scrollback_parallax.glsl). |
+
+Background blend constants exposed in GLSL:
+
+| Constant | Value | Meaning |
+|----------|-------|---------|
+| `BACKGROUND_BLEND_REPLACE` | `0` | Treat `iChannel0` as the replacement/background source |
+| `BACKGROUND_BLEND_MULTIPLY` | `1` | Multiply shader color with the sampled background |
+| `BACKGROUND_BLEND_SCREEN` | `2` | Screen shader color with the sampled background |
+| `BACKGROUND_BLEND_OVERLAY` | `3` | Overlay-style contrast blend |
+| `BACKGROUND_BLEND_LUMINANCE_MASK` | `4` | Use sampled background luminance as a mask |
+
+The renderer binds the app background image as `iChannel0` when `custom_shader_use_background_as_channel0` is enabled. Shaders read `iBackgroundBlendMode` and apply the desired blend manually.
 
 ### Texture Channel Uniforms
 
@@ -561,10 +627,34 @@ defaults:
   cubemap: null
   cubemap_enabled: true
   use_background_as_channel0: false
+  background_channel0_blend_mode: replace
 */
 ```
 
 All metadata fields are optional. Values that are `null` fall through to global defaults.
+
+### Per-Shader Asset Bundle Manifests
+
+A shader bundle can include one GLSL file plus local textures, cubemap prefixes, a screenshot, and license metadata. Put a JSON manifest in the bundle directory and keep all paths relative to that directory. Required fields are `shader`, `name`, `author`, `description`, and `license`; `author` and `description` are mandatory so installed bundles remain attributable and searchable.
+
+```json
+{
+  "shader": "my-bundle.glsl",
+  "name": "My Bundle",
+  "author": "Your Name",
+  "description": "A readable terminal background with bundled noise and cubemap assets.",
+  "license": "MIT",
+  "textures": [
+    "textures/noise.png"
+  ],
+  "cubemaps": [
+    "cubemaps/studio"
+  ],
+  "screenshot": "screenshots/preview.png"
+}
+```
+
+Manifest validation requires relative paths without `..`. The `shader` path must point to a `.glsl` file. `textures` and `screenshot` entries must point to files. Each `cubemaps` entry is a prefix whose faces must exist as `{prefix}-px`, `{prefix}-nx`, `{prefix}-py`, `{prefix}-ny`, `{prefix}-pz`, and `{prefix}-nz` using `png`, `jpg`, `jpeg`, or `hdr` extensions.
 
 ### Shader Uniform Controls
 
