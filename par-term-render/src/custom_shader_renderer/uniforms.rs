@@ -141,6 +141,12 @@ impl CustomShaderRenderer {
                 0.0,
                 0.0,
             ],
+            background_channel: [
+                self.background_channel0_blend_mode.as_uniform_int() as f32,
+                0.0,
+                0.0,
+                0.0,
+            ],
         }
     }
 

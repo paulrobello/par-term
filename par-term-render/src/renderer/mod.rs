@@ -268,6 +268,7 @@ impl Renderer {
         let custom_shader_cubemap_path = params.custom_shader_cubemap_path;
         let custom_shader_custom_uniforms = params.custom_shader_custom_uniforms;
         let use_background_as_channel0 = params.use_background_as_channel0;
+        let background_channel0_blend_mode = params.background_channel0_blend_mode;
         let custom_shader_auto_dim_under_text = params.custom_shader_auto_dim_under_text;
         let custom_shader_auto_dim_strength = params.custom_shader_auto_dim_strength;
         let image_scaling_mode = params.image_scaling_mode;
@@ -427,6 +428,7 @@ impl Renderer {
                 cubemap_path: custom_shader_cubemap_path,
                 custom_uniforms: custom_shader_custom_uniforms,
                 use_background_as_channel0,
+                background_channel0_blend_mode,
                 auto_dim_under_text: custom_shader_auto_dim_under_text,
                 auto_dim_strength: custom_shader_auto_dim_strength,
             },

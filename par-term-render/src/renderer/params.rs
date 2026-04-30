@@ -100,6 +100,8 @@ pub struct RendererParams<'a> {
     pub custom_shader_custom_uniforms: &'a BTreeMap<String, ShaderUniformValue>,
     /// Use the background image as iChannel0.
     pub use_background_as_channel0: bool,
+    /// Blend mode hint for background-as-iChannel0 composition.
+    pub background_channel0_blend_mode: par_term_config::ShaderBackgroundBlendMode,
     /// Auto-dim shader output beneath terminal content.
     pub custom_shader_auto_dim_under_text: bool,
     /// Auto-dim strength beneath terminal content.

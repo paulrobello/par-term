@@ -465,7 +465,15 @@ layout(set = 0, binding = 0) uniform Uniforms {{
     vec4 iFocusedPane;         // offset 320, size 16 - xy=bottom-left pixel origin, zw=size of focused pane
     vec4 iScroll;              // offset 336, size 16 - x=scrollOffset, y=visibleLines, z=scrollbackLines, w=normalizedDepth
     vec4 iReadability;         // offset 352, size 16 - x=autoDimUnderText, y=autoDimStrength
-}};                            // total: 368 bytes
+    vec4 iBackgroundChannel;   // offset 368, size 16 - x=background-as-channel0 blend mode
+}};                            // total: 384 bytes
+
+#define iBackgroundBlendMode int(iBackgroundChannel.x + 0.5)
+const int BACKGROUND_BLEND_REPLACE = 0;
+const int BACKGROUND_BLEND_MULTIPLY = 1;
+const int BACKGROUND_BLEND_SCREEN = 2;
+const int BACKGROUND_BLEND_OVERLAY = 3;
+const int BACKGROUND_BLEND_LUMINANCE_MASK = 4;
 
 // Shadertoy-compatible iChannelResolution array accessor
 // Usage: iChannelResolution[0].xyz, iChannelResolution[1].xy, etc.
@@ -896,6 +904,19 @@ pub(crate) fn transpile_glsl_to_wgsl_source(glsl_source: &str, name: &str) -> Re
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn wrapper_exposes_background_blend_mode_uniform_and_constants() {
+        let source = r#"
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {
+    fragColor = vec4(float(iBackgroundBlendMode + BACKGROUND_BLEND_REPLACE + BACKGROUND_BLEND_MULTIPLY + BACKGROUND_BLEND_SCREEN + BACKGROUND_BLEND_OVERLAY + BACKGROUND_BLEND_LUMINANCE_MASK));
+}
+"#;
+        let wgsl = transpile_glsl_to_wgsl_source(source, "background_blend_mode_test")
+            .expect("transpile should succeed");
+
+        assert!(wgsl.contains("iBackgroundBlendMode") || wgsl.contains("iBackgroundChannel"));
+    }
 
     #[test]
     fn builtin_terminal_context_uniforms_are_declared_in_wrapper() {

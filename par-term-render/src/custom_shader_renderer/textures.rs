@@ -12,6 +12,7 @@ use std::path::Path;
 use wgpu::*;
 
 use super::CustomShaderRenderer;
+use super::builtin_textures::BuiltinTextureSpec;
 
 /// A texture channel that can be bound to a custom shader
 pub struct ChannelTexture {
@@ -151,6 +152,13 @@ impl ChannelTexture {
     /// # Returns
     /// The loaded texture, or an error if loading fails
     pub fn from_file(device: &Device, queue: &Queue, path: &Path) -> Result<Self, RenderError> {
+        let path_label = path.display().to_string();
+        if path_label.starts_with("builtin://noise/") {
+            let spec =
+                BuiltinTextureSpec::parse(&path_label).map_err(RenderError::NoActiveShader)?;
+            return Ok(Self::from_builtin(device, queue, spec, &path_label));
+        }
+
         // Load image and convert to RGBA8
         let img = image::open(path)
             .map_err(|e| RenderError::ImageLoad {
@@ -160,10 +168,55 @@ impl ChannelTexture {
             .to_rgba8();
 
         let (width, height) = img.dimensions();
+        Self::from_rgba8(
+            device,
+            queue,
+            &format!("Channel Texture: {}", path.display()),
+            width,
+            height,
+            img.as_raw(),
+        )
+    }
+
+    fn from_builtin(device: &Device, queue: &Queue, spec: BuiltinTextureSpec, label: &str) -> Self {
+        let generated = spec.generate_rgba8();
+        let texture = Self::from_rgba8(
+            device,
+            queue,
+            &format!("Channel Texture: {label}"),
+            generated.width,
+            generated.height,
+            &generated.pixels,
+        )
+        .expect("generated built-in texture byte length must match its dimensions");
+        log::info!(
+            "Loaded built-in channel texture: {} ({}x{})",
+            label,
+            generated.width,
+            generated.height
+        );
+        texture
+    }
+
+    fn from_rgba8(
+        device: &Device,
+        queue: &Queue,
+        label: &str,
+        width: u32,
+        height: u32,
+        pixels: &[u8],
+    ) -> Result<Self, RenderError> {
+        let expected = (width as usize) * (height as usize) * 4;
+        if pixels.len() != expected {
+            return Err(RenderError::InvalidTextureData {
+                expected,
+                actual: pixels.len(),
+            });
+        }
 
         // Create GPU texture
         let texture = device.create_texture(&TextureDescriptor {
-            label: Some(&format!("Channel Texture: {}", path.display())),
+            label: Some(label),
             size: Extent3d {
                 width,
                 height,
@@ -185,7 +238,7 @@ impl ChannelTexture {
                 origin: Origin3d::ZERO,
                 aspect: TextureAspect::All,
             },
-            &img,
+            pixels,
             TexelCopyBufferLayout {
                 offset: 0,
                 bytes_per_row: Some(4 * width),
@@ -202,7 +255,7 @@ impl ChannelTexture {
 
         // Create sampler with wrapping for tiled textures
         let sampler = device.create_sampler(&SamplerDescriptor {
-            label: Some(&format!("Channel Sampler: {}", path.display())),
+            label: Some(&format!("{label} Sampler")),
             address_mode_u: AddressMode::Repeat,
             address_mode_v: AddressMode::Repeat,
             address_mode_w: AddressMode::Repeat,
@@ -212,12 +265,7 @@ impl ChannelTexture {
             ..Default::default()
         });
 
-        log::info!(
-            "Loaded channel texture: {} ({}x{})",
-            path.display(),
-            width,
-            height
-        );
+        log::info!("Loaded channel texture: {} ({}x{})", label, width, height);
 
         Ok(Self {
             texture: Some(texture),

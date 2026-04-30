@@ -63,6 +63,7 @@ pub(super) fn init_cursor_shader(
             channel_paths: &empty_channels,
             cubemap_path: None, // Cursor shaders don't use cubemaps
             custom_uniforms: &empty_custom_uniforms,
+            background_channel0_blend_mode: par_term_config::ShaderBackgroundBlendMode::Replace,
         },
     ) {
         Ok(mut renderer) => {
@@ -173,6 +174,8 @@ impl Renderer {
                         channel_paths: &empty_channels,
                         cubemap_path: None, // Cursor shaders don't use cubemaps
                         custom_uniforms: &empty_custom_uniforms,
+                        background_channel0_blend_mode:
+                            par_term_config::ShaderBackgroundBlendMode::Replace,
                     },
                 ) {
                     Ok(mut renderer) => {

@@ -35,6 +35,7 @@ use std::time::Instant;
 use wgpu::util::DeviceExt;
 use wgpu::*;
 
+mod builtin_textures;
 mod cubemap;
 mod cursor;
 mod hot_reload;
@@ -195,6 +196,8 @@ pub struct CustomShaderRenderer {
     /// Background texture to use as iChannel0 when use_background_as_channel0 is true
     /// This is a reference texture (view + sampler + dimensions) from the cell renderer
     pub(crate) background_channel_texture: Option<ChannelTexture>,
+    /// Blend mode hint exposed to shaders for background-as-iChannel0 composition.
+    pub(crate) background_channel0_blend_mode: par_term_config::ShaderBackgroundBlendMode,
 
     // ============ Solid background color ============
     /// Solid background color [R, G, B, A] for shader compositing.
@@ -243,6 +246,7 @@ pub struct CustomShaderRendererConfig<'a> {
     pub channel_paths: &'a [Option<std::path::PathBuf>; 4],
     pub cubemap_path: Option<&'a Path>,
     pub custom_uniforms: &'a BTreeMap<String, par_term_config::ShaderUniformValue>,
+    pub background_channel0_blend_mode: par_term_config::ShaderBackgroundBlendMode,
 }
 
 impl CustomShaderRenderer {
@@ -264,6 +268,7 @@ impl CustomShaderRenderer {
             channel_paths,
             cubemap_path,
             custom_uniforms,
+            background_channel0_blend_mode,
         } = config;
         // Load the GLSL shader
         let glsl_source = std::fs::read_to_string(shader_path)
@@ -436,6 +441,7 @@ impl CustomShaderRenderer {
             cubemap,
             use_background_as_channel0: false,
             background_channel_texture: None,
+            background_channel0_blend_mode,
             background_color: [0.0, 0.0, 0.0, 0.0], // No solid background by default
             progress_data: [0.0, 0.0, 0.0, 0.0],
             command_data: [0.0, 0.0, 0.0, 0.0],
@@ -825,6 +831,14 @@ impl CustomShaderRenderer {
             self.recreate_bind_group(device);
             log::info!("use_background_as_channel0 toggled to {}", use_background);
         }
+    }
+
+    /// Update the background channel blend-mode hint exposed to shaders.
+    pub fn set_background_channel0_blend_mode(
+        &mut self,
+        mode: par_term_config::ShaderBackgroundBlendMode,
+    ) {
+        self.background_channel0_blend_mode = mode;
     }
 
     /// Set the right content inset (e.g., AI Inspector panel).

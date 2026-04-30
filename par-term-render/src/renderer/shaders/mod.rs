@@ -19,7 +19,7 @@ pub(super) mod shared;
 
 use crate::cell_renderer::CellRenderer;
 use crate::custom_shader_renderer::CustomShaderRenderer;
-use par_term_config::ShaderUniformValue;
+use par_term_config::{ShaderBackgroundBlendMode, ShaderUniformValue};
 use std::collections::BTreeMap;
 
 /// Parameters for initialising the background custom shader renderer.
@@ -38,6 +38,7 @@ pub struct CustomShaderInitParams<'a> {
     pub cubemap_path: Option<&'a std::path::Path>,
     pub custom_uniforms: &'a BTreeMap<String, ShaderUniformValue>,
     pub use_background_as_channel0: bool,
+    pub background_channel0_blend_mode: ShaderBackgroundBlendMode,
     pub auto_dim_under_text: bool,
     pub auto_dim_strength: f32,
 }
@@ -66,6 +67,7 @@ pub struct CustomShaderEnableParams<'a> {
     pub channel_paths: &'a [Option<std::path::PathBuf>; 4],
     pub cubemap_path: Option<&'a std::path::Path>,
     pub custom_uniforms: &'a BTreeMap<String, ShaderUniformValue>,
+    pub background_channel0_blend_mode: ShaderBackgroundBlendMode,
     pub auto_dim_under_text: bool,
     pub auto_dim_strength: f32,
 }

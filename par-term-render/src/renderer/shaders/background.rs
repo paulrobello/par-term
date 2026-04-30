@@ -31,6 +31,7 @@ pub(super) fn init_custom_shader(
         cubemap_path: custom_shader_cubemap_path,
         custom_uniforms,
         use_background_as_channel0,
+        background_channel0_blend_mode,
         auto_dim_under_text,
         auto_dim_strength,
     } = params;
@@ -65,6 +66,7 @@ pub(super) fn init_custom_shader(
             channel_paths: custom_shader_channel_paths,
             cubemap_path: custom_shader_cubemap_path,
             custom_uniforms,
+            background_channel0_blend_mode,
         },
     ) {
         Ok(mut renderer) => {
@@ -170,6 +172,7 @@ impl Renderer {
             channel_paths,
             cubemap_path,
             custom_uniforms,
+            background_channel0_blend_mode,
             auto_dim_under_text,
             auto_dim_strength,
         } = params;
@@ -188,6 +191,7 @@ impl Renderer {
                     renderer.set_full_content_mode(full_content);
                     renderer.set_brightness(brightness);
                     renderer.set_auto_dim_under_text(auto_dim_under_text, auto_dim_strength);
+                    renderer.set_background_channel0_blend_mode(background_channel0_blend_mode);
                     renderer.set_custom_uniform_values(custom_uniforms.clone());
 
                     // Update channel textures (they may have changed even if shader path didn't)
@@ -232,6 +236,7 @@ impl Renderer {
                         channel_paths,
                         cubemap_path,
                         custom_uniforms,
+                        background_channel0_blend_mode,
                     },
                 ) {
                     Ok(mut renderer) => {

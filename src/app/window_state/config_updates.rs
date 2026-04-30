@@ -24,6 +24,7 @@ pub(crate) struct ConfigChanges {
     pub shader_cubemap: bool,
     pub shader_per_shader_config: bool,
     pub shader_use_background_as_channel0: bool,
+    pub shader_background_blend_mode: bool,
     pub shader_readability: bool,
 
     // Cursor shader
@@ -141,6 +142,8 @@ impl ConfigChanges {
                     != old.shader.custom_shader_cubemap_enabled,
             shader_use_background_as_channel0: new.shader.custom_shader_use_background_as_channel0
                 != old.shader.custom_shader_use_background_as_channel0,
+            shader_background_blend_mode: new.shader.custom_shader_background_channel0_blend_mode
+                != old.shader.custom_shader_background_channel0_blend_mode,
             shader_readability: new.shader.custom_shader_auto_dim_under_text
                 != old.shader.custom_shader_auto_dim_under_text
                 || (new.shader.custom_shader_auto_dim_strength
@@ -297,6 +300,7 @@ impl ConfigChanges {
             || self.shader_cubemap
             || self.shader_per_shader_config
             || self.shader_use_background_as_channel0
+            || self.shader_background_blend_mode
             || self.shader_readability
     }
 
