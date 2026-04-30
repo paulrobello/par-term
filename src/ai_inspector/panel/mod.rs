@@ -28,6 +28,9 @@ use std::path::Path;
 
 use types::RESIZE_HANDLE_WIDTH;
 
+type AssistantPromptState = (Vec<par_term_config::AssistantPrompt>, Option<String>);
+type AssistantPromptLoader = fn() -> AssistantPromptState;
+
 /// AI Inspector side panel.
 pub struct AIInspectorPanel {
     /// Whether the panel is open.
@@ -62,6 +65,8 @@ pub struct AIInspectorPanel {
     pub assistant_prompts: Vec<par_term_config::AssistantPrompt>,
     /// Last prompt-library load error, if loading failed.
     pub assistant_prompts_error: Option<String>,
+    /// Loader used to refresh the Assistant prompt library when the panel opens.
+    prompt_library_loader: AssistantPromptLoader,
     /// Whether the agent is allowed to write to the terminal.
     pub agent_terminal_access: bool,
     /// Whether to auto-approve all agent permission requests (YOLO mode).
@@ -93,22 +98,53 @@ impl AIInspectorPanel {
     /// Create a new inspector panel initialized from config.
     pub fn new(config: &Config) -> Self {
         let (assistant_prompts, assistant_prompts_error) = Self::load_assistant_prompts();
-        Self::new_with_prompt_library_state(config, assistant_prompts, assistant_prompts_error)
+        Self::new_with_prompt_library_state(
+            config,
+            assistant_prompts,
+            assistant_prompts_error,
+            Self::load_assistant_prompts,
+        )
     }
 
     #[cfg(test)]
-    pub(super) fn new_with_prompt_library(
+    pub(super) fn new_for_tests(config: &Config) -> Self {
+        Self::new_for_tests_with_prompt_library(config, Vec::new(), None)
+    }
+
+    #[cfg(test)]
+    pub(super) fn new_for_tests_with_prompt_library(
         config: &Config,
         assistant_prompts: Vec<par_term_config::AssistantPrompt>,
         assistant_prompts_error: Option<String>,
     ) -> Self {
-        Self::new_with_prompt_library_state(config, assistant_prompts, assistant_prompts_error)
+        Self::new_for_tests_with_prompt_refresh(
+            config,
+            assistant_prompts,
+            assistant_prompts_error,
+            Self::empty_assistant_prompts,
+        )
+    }
+
+    #[cfg(test)]
+    pub(super) fn new_for_tests_with_prompt_refresh(
+        config: &Config,
+        assistant_prompts: Vec<par_term_config::AssistantPrompt>,
+        assistant_prompts_error: Option<String>,
+        prompt_library_loader: AssistantPromptLoader,
+    ) -> Self {
+        Self::new_with_prompt_library_state(
+            config,
+            assistant_prompts,
+            assistant_prompts_error,
+            prompt_library_loader,
+        )
     }
 
     fn new_with_prompt_library_state(
         config: &Config,
         assistant_prompts: Vec<par_term_config::AssistantPrompt>,
         assistant_prompts_error: Option<String>,
+        prompt_library_loader: AssistantPromptLoader,
     ) -> Self {
         Self {
             open: config.ai_inspector.ai_inspector_open_on_startup,
@@ -127,6 +163,7 @@ impl AIInspectorPanel {
             chat: ChatState::new(),
             assistant_prompts,
             assistant_prompts_error,
+            prompt_library_loader,
             agent_terminal_access: config.ai_inspector.ai_inspector_agent_terminal_access,
             auto_approve: config.ai_inspector.ai_inspector_auto_approve,
             rendered_width: 0.0,
@@ -142,15 +179,20 @@ impl AIInspectorPanel {
         }
     }
 
-    fn load_assistant_prompts() -> (Vec<par_term_config::AssistantPrompt>, Option<String>) {
+    fn load_assistant_prompts() -> AssistantPromptState {
         match par_term_config::list_prompts() {
             Ok(prompts) => (prompts, None),
             Err(error) => (Vec::new(), Some(error)),
         }
     }
 
+    #[cfg(test)]
+    fn empty_assistant_prompts() -> AssistantPromptState {
+        (Vec::new(), None)
+    }
+
     fn refresh_assistant_prompts(&mut self) {
-        let (assistant_prompts, assistant_prompts_error) = Self::load_assistant_prompts();
+        let (assistant_prompts, assistant_prompts_error) = (self.prompt_library_loader)();
         self.assistant_prompts = assistant_prompts;
         self.assistant_prompts_error = assistant_prompts_error;
     }
@@ -423,7 +465,7 @@ mod tests {
     #[test]
     fn test_inspector_panel_toggle() {
         let config = Config::default();
-        let mut panel = AIInspectorPanel::new(&config);
+        let mut panel = AIInspectorPanel::new_for_tests(&config);
         assert!(!panel.open);
         assert_eq!(panel.consumed_width(), 0.0);
 
@@ -442,7 +484,7 @@ mod tests {
     #[test]
     fn test_inspector_panel_new_from_config() {
         let config = Config::default();
-        let panel = AIInspectorPanel::new(&config);
+        let panel = AIInspectorPanel::new_for_tests(&config);
         assert!(!panel.open);
         assert_eq!(panel.width, 300.0);
         assert_eq!(panel.scope, SnapshotScope::Visible);
@@ -463,7 +505,7 @@ mod tests {
             prompt: "Fix the build.".to_string(),
         };
 
-        let panel = AIInspectorPanel::new_with_prompt_library(
+        let panel = AIInspectorPanel::new_for_tests_with_prompt_library(
             &config,
             vec![prompt.clone()],
             Some("load failed".to_string()),
@@ -474,6 +516,35 @@ mod tests {
             panel.assistant_prompts_error.as_deref(),
             Some("load failed")
         );
+    }
+
+    #[test]
+    fn inspector_panel_toggle_uses_injected_prompt_refresh_for_tests() {
+        fn refreshed_prompts() -> AssistantPromptState {
+            (
+                vec![par_term_config::AssistantPrompt {
+                    path: std::path::PathBuf::from("refreshed.md"),
+                    title: "Refreshed".to_string(),
+                    auto_submit: false,
+                    prompt: "Use refreshed prompt.".to_string(),
+                }],
+                None,
+            )
+        }
+
+        let config = Config::default();
+        let mut panel = AIInspectorPanel::new_for_tests_with_prompt_refresh(
+            &config,
+            Vec::new(),
+            Some("initial error".to_string()),
+            refreshed_prompts,
+        );
+
+        let opened = panel.toggle();
+
+        assert!(opened);
+        assert_eq!(panel.assistant_prompts, refreshed_prompts().0);
+        assert_eq!(panel.assistant_prompts_error, None);
     }
 
     #[test]
@@ -515,7 +586,7 @@ mod tests {
     #[test]
     fn test_agent_project_label_uses_project_directory_name() {
         let config = Config::default();
-        let mut panel = AIInspectorPanel::new(&config);
+        let mut panel = AIInspectorPanel::new_for_tests(&config);
         panel.connected_agent_project_root = Some("/Users/example/Repos/par-term".to_string());
 
         assert_eq!(
@@ -527,7 +598,7 @@ mod tests {
     #[test]
     fn test_agent_project_label_falls_back_to_full_path_for_root() {
         let config = Config::default();
-        let mut panel = AIInspectorPanel::new(&config);
+        let mut panel = AIInspectorPanel::new_for_tests(&config);
         panel.connected_agent_project_root = Some("/".to_string());
 
         assert_eq!(panel.agent_project_label(), Some("Project: /".to_string()));
