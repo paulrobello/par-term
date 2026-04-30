@@ -105,6 +105,22 @@ pub struct SettingsUI {
     /// Available agent identities for the AI Inspector dropdown (identity, name)
     pub available_agent_ids: Vec<(String, String)>,
 
+    // Assistant prompt library state
+    /// Assistant prompts loaded from the Markdown-backed prompt library
+    pub assistant_prompts: Vec<par_term_config::AssistantPrompt>,
+    /// Error from loading or mutating the assistant prompt library
+    pub assistant_prompt_error: Option<String>,
+    /// Index of the assistant prompt currently being edited
+    pub editing_assistant_prompt_index: Option<usize>,
+    /// Whether the add-new assistant prompt form is active
+    pub adding_new_assistant_prompt: bool,
+    /// Temporary assistant prompt title for the inline editor
+    pub temp_assistant_prompt_title: String,
+    /// Temporary assistant prompt body for the inline editor
+    pub temp_assistant_prompt_body: String,
+    /// Temporary assistant prompt auto-submit flag for the inline editor
+    pub temp_assistant_prompt_auto_submit: bool,
+
     // Shader management state
     /// List of available shader files in the shaders folder
     pub available_shaders: Vec<String>,

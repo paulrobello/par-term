@@ -20,6 +20,10 @@ impl SettingsUI {
         let initial_rows = config.rows;
         let initial_collapsed: HashSet<String> =
             config.collapsed_settings_sections.iter().cloned().collect();
+        let (assistant_prompts, assistant_prompt_error) = match par_term_config::list_prompts() {
+            Ok(prompts) => (prompts, None),
+            Err(error) => (Vec::new(), Some(error)),
+        };
 
         Self {
             visible: false,
@@ -99,6 +103,13 @@ impl SettingsUI {
             cursor_shader_editor_error: None,
             cursor_shader_editor_original: String::new(),
             available_agent_ids: Vec::new(),
+            assistant_prompts,
+            assistant_prompt_error,
+            editing_assistant_prompt_index: None,
+            adding_new_assistant_prompt: false,
+            temp_assistant_prompt_title: String::new(),
+            temp_assistant_prompt_body: String::new(),
+            temp_assistant_prompt_auto_submit: false,
             available_shaders: Self::scan_shaders_folder(),
             available_cubemaps: Self::scan_cubemaps_folder(),
             new_shader_name: String::new(),
@@ -473,5 +484,44 @@ impl SettingsUI {
     /// Take profile open request: returns and clears the profile ID to open.
     pub fn take_profile_open_request(&mut self) -> Option<ProfileId> {
         self.profile_open_requested.take()
+    }
+}
+
+#[cfg(test)]
+mod assistant_prompt_tests {
+    use super::*;
+    use par_term_config::Config;
+    use std::env;
+    use std::sync::{Mutex, OnceLock};
+
+    fn env_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    #[test]
+    fn settings_ui_initializes_empty_prompt_library_state_from_config_home() {
+        let _guard = env_lock().lock().expect("env lock");
+        let temp_home = tempfile::tempdir().expect("temp home");
+        let original_home = env::var_os("HOME");
+
+        // SAFETY: this test serializes HOME changes with a process-local mutex and
+        // restores the original value before returning. The focused test filter for
+        // assistant prompt state runs only this module, keeping Config::config_dir()
+        // pointed at a temp directory instead of the user's real config directory.
+        unsafe { env::set_var("HOME", temp_home.path()) };
+        let settings = SettingsUI::new(Config::default());
+        match original_home {
+            Some(home) => unsafe { env::set_var("HOME", home) },
+            None => unsafe { env::remove_var("HOME") },
+        }
+
+        assert!(settings.assistant_prompts.is_empty());
+        assert!(settings.assistant_prompt_error.is_none());
+        assert_eq!(settings.editing_assistant_prompt_index, None);
+        assert!(!settings.adding_new_assistant_prompt);
+        assert_eq!(settings.temp_assistant_prompt_title, "");
+        assert_eq!(settings.temp_assistant_prompt_body, "");
+        assert!(!settings.temp_assistant_prompt_auto_submit);
     }
 }

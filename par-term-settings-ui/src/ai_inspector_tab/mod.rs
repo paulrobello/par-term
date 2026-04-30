@@ -19,6 +19,7 @@ use std::collections::HashSet;
 
 mod agent_config_section;
 mod context_section;
+mod prompt_library;
 
 /// Show the AI Inspector tab content.
 pub fn show(
@@ -29,6 +30,7 @@ pub fn show(
 ) {
     context_section::show_panel_section(ui, settings, changes_this_frame, collapsed);
     context_section::show_agent_section(ui, settings, changes_this_frame, collapsed);
+    prompt_library::show_prompt_library_section(ui, settings, collapsed);
     agent_config_section::show_custom_agents_section(ui, settings, changes_this_frame, collapsed);
     agent_config_section::show_permissions_section(ui, settings, changes_this_frame, collapsed);
 }
@@ -66,6 +68,12 @@ pub fn keywords() -> &'static [&'static str] {
         "startup",
         "open",
         "width",
+        "prompt",
+        "library",
+        "saved prompt",
+        "auto submit",
+        "markdown",
+        "frontmatter",
         // Panel
         "panel",
         // Permissions
