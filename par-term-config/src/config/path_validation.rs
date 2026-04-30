@@ -143,8 +143,12 @@ impl Config {
 
     /// Resolve a texture path, expanding ~ to home directory
     /// and resolving relative paths relative to the shaders directory.
+    /// Built-in texture IDs are preserved for renderer-side resolution.
     /// Returns the expanded path or the original if expansion fails
     pub fn resolve_texture_path(path: &str) -> PathBuf {
+        if path.starts_with("builtin://") {
+            return PathBuf::from(path);
+        }
         if path.starts_with("~/")
             && let Some(home) = dirs::home_dir()
         {

@@ -416,7 +416,7 @@ fn glsl_wrapper_template(glsl_source: &str) -> String {
         r#"#version 450
 
 // Uniforms - must match Rust struct layout (std140)
-// Total size: 368 bytes
+// Total size: 384 bytes
 layout(set = 0, binding = 0) uniform Uniforms {{
     vec2 iResolution;      // offset 0, size 8 - Viewport resolution
     float iTime;           // offset 8, size 4 - Time in seconds

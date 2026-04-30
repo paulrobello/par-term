@@ -368,6 +368,58 @@ mod tests {
     }
 
     #[test]
+    fn preserves_builtin_texture_ids_from_shader_config_sources() {
+        const BUILTIN: &str = "builtin://noise/value-256";
+
+        let mut global_config = Config::default();
+        global_config.shader.custom_shader_channel0 = Some(BUILTIN.to_string());
+        let resolved = resolve_shader_config(None, None, &global_config);
+        assert_eq!(
+            resolved
+                .channel0
+                .expect("global channel0")
+                .display()
+                .to_string(),
+            BUILTIN
+        );
+
+        let metadata = ShaderMetadata {
+            defaults: ShaderConfig {
+                channel0: Some(BUILTIN.to_string()),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let resolved = resolve_shader_config(None, Some(&metadata), &Config::default());
+        assert_eq!(
+            resolved
+                .channel0
+                .expect("metadata channel0")
+                .display()
+                .to_string(),
+            BUILTIN
+        );
+
+        let mut override_config = Config::default();
+        override_config.shader_configs.insert(
+            "test.glsl".to_string(),
+            ShaderConfig {
+                channel0: Some(BUILTIN.to_string()),
+                ..Default::default()
+            },
+        );
+        let resolved = ResolvedShaderConfig::for_shader("test.glsl", None, &override_config);
+        assert_eq!(
+            resolved
+                .channel0
+                .expect("override channel0")
+                .display()
+                .to_string(),
+            BUILTIN
+        );
+    }
+
+    #[test]
     fn test_resolve_with_no_overrides() {
         let config = make_test_config();
         let resolved = resolve_shader_config(None, None, &config);
