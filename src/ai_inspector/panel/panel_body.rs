@@ -12,6 +12,7 @@ use crate::ui_constants::{
 };
 
 use super::AIInspectorPanel;
+use super::chat_view::{chat_input_height_for_rows, chat_input_visible_rows};
 use super::types::{InspectorAction, PANEL_BG};
 
 impl AIInspectorPanel {
@@ -166,17 +167,13 @@ impl AIInspectorPanel {
             ui.add_space(4.0);
 
             // Reserve space for pinned bottom elements
-            let input_lines = if self.agent_status == AgentStatus::Connected {
-                self.chat.input.lines().count().clamp(1, 6) as f32
-            } else {
-                0.0
-            };
             let bottom_reserve = if self.agent_status == AgentStatus::Connected {
-                116.0 + (input_lines - 1.0).max(0.0) * 14.0
+                let input_rows = chat_input_visible_rows(&self.chat.input);
+                96.0 + chat_input_height_for_rows(input_rows)
             } else {
                 36.0
             };
-            let available_height = (ui.available_height() - bottom_reserve).max(50.0);
+            let available_height = (ui.available_height() - bottom_reserve).max(0.0);
 
             // === Scrollable content: chat messages ===
             egui::ScrollArea::vertical()

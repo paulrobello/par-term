@@ -3,13 +3,15 @@
 //! Contains the agent bar, action bar, and the chat input widget.
 //! Chat message list and rich-text renderer live in `message_render.rs`.
 
-use egui::{Color32, Key, RichText};
+use egui::{Color32, Key, RichText, scroll_area::ScrollAreaOutput};
+use par_term_acp::{AgentConfig, AgentStatus};
 
 use crate::ui_constants::{AI_PANEL_CHAT_INPUT_BASE_HEIGHT, AI_PANEL_CHAT_INPUT_LINE_HEIGHT};
-use par_term_acp::{AgentConfig, AgentStatus};
 
 use super::types::{AGENT_CONNECTED, AGENT_DISCONNECTED, EXIT_FAILURE};
 use super::{AIInspectorPanel, InspectorAction};
+
+const CHAT_INPUT_MAX_VISIBLE_ROWS: usize = 10;
 
 impl AIInspectorPanel {
     /// Render the action bar at the bottom of the panel.
@@ -222,10 +224,11 @@ impl AIInspectorPanel {
     pub(super) fn render_chat_input(&mut self, ui: &mut egui::Ui) -> InspectorAction {
         let mut action = InspectorAction::None;
 
-        // Determine input height based on line count (min 1 row, max 6 rows)
-        let line_count = self.chat.input.lines().count().clamp(1, 6);
-        let input_height = AI_PANEL_CHAT_INPUT_BASE_HEIGHT
-            + (line_count as f32 - 1.0) * AI_PANEL_CHAT_INPUT_LINE_HEIGHT;
+        // Determine input viewport height based on line count (min 1 row, max 10 rows).
+        // egui multiline TextEdit treats desired_rows as a minimum, so the bounded
+        // ScrollArea below is what enforces the cap and scrolls excess rows.
+        let line_count = chat_input_visible_rows(&self.chat.input);
+        let input_height = chat_input_height_for_rows(line_count);
         let input_width = ui.available_width().max(60.0);
 
         // Check for Enter (without Shift) before rendering the TextEdit,
@@ -240,14 +243,15 @@ impl AIInspectorPanel {
         let chat_input_id = egui::Id::new("assistant_chat_input");
         let cursor_index_before_edit =
             text_edit_cursor_index(ui.ctx(), chat_input_id, &self.chat.input);
-        let response = ui.add_sized(
-            [input_width, input_height],
-            egui::TextEdit::multiline(&mut self.chat.input)
-                .id(chat_input_id)
-                .hint_text("Message... (Shift+Enter for newline)")
-                .desired_width(input_width)
-                .desired_rows(line_count),
+        let input_output = render_bounded_chat_text_edit(
+            ui,
+            &mut self.chat.input,
+            chat_input_id,
+            input_width,
+            input_height,
+            line_count,
         );
+        let response = input_output.inner;
 
         // Store the chat input Id for focus detection in Escape key handling
         self.chat_input_id = Some(chat_input_id);
@@ -367,6 +371,42 @@ impl AIInspectorPanel {
     }
 }
 
+pub(super) fn render_bounded_chat_text_edit(
+    ui: &mut egui::Ui,
+    input: &mut String,
+    id: egui::Id,
+    input_width: f32,
+    max_height: f32,
+    visible_rows: usize,
+) -> ScrollAreaOutput<egui::Response> {
+    egui::ScrollArea::vertical()
+        .id_salt(id.with("scroll"))
+        .max_height(max_height)
+        .auto_shrink([false, false])
+        .stick_to_bottom(true)
+        .show(ui, |ui| {
+            ui.set_width(input_width);
+            ui.add(
+                egui::TextEdit::multiline(input)
+                    .id(id)
+                    .hint_text("Message... (Shift+Enter for newline)")
+                    .desired_width(input_width)
+                    .desired_rows(visible_rows),
+            )
+        })
+}
+
+pub(super) fn chat_input_visible_rows(text: &str) -> usize {
+    text.split('\n')
+        .count()
+        .clamp(1, CHAT_INPUT_MAX_VISIBLE_ROWS)
+}
+
+pub(super) fn chat_input_height_for_rows(rows: usize) -> f32 {
+    let rows = rows.clamp(1, CHAT_INPUT_MAX_VISIBLE_ROWS);
+    AI_PANEL_CHAT_INPUT_BASE_HEIGHT + (rows as f32 - 1.0) * AI_PANEL_CHAT_INPUT_LINE_HEIGHT
+}
+
 fn text_edit_cursor_index(ctx: &egui::Context, id: egui::Id, text: &str) -> usize {
     egui::TextEdit::load_state(ctx, id)
         .and_then(|state| state.cursor.char_range())
@@ -398,7 +438,8 @@ fn input_cursor_is_on_last_line(text: &str, cursor_index: usize) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        input_cursor_is_on_first_line, input_cursor_is_on_last_line, modifiers_allow_input_history,
+        chat_input_height_for_rows, chat_input_visible_rows, input_cursor_is_on_first_line,
+        input_cursor_is_on_last_line, modifiers_allow_input_history, render_bounded_chat_text_edit,
     };
 
     #[test]
@@ -443,5 +484,58 @@ mod tests {
             ctrl: true,
             ..Default::default()
         }));
+    }
+
+    #[test]
+    fn chat_input_visible_rows_caps_at_ten() {
+        assert_eq!(chat_input_visible_rows(""), 1);
+        assert_eq!(chat_input_visible_rows("one"), 1);
+        assert_eq!(chat_input_visible_rows("one\ntwo\nthree"), 3);
+        assert_eq!(chat_input_visible_rows("one\n"), 2);
+        assert_eq!(chat_input_visible_rows(&vec!["line"; 10].join("\n")), 10);
+        assert_eq!(chat_input_visible_rows(&vec!["line"; 12].join("\n")), 10);
+    }
+
+    #[test]
+    fn chat_input_height_tracks_visible_rows_only() {
+        let ten_row_height = chat_input_height_for_rows(10);
+
+        assert!(ten_row_height > chat_input_height_for_rows(6));
+        assert_eq!(chat_input_height_for_rows(12), ten_row_height);
+    }
+
+    #[test]
+    fn bounded_chat_input_scroll_area_caps_rendered_height() {
+        let mut text = vec!["line"; 12].join("\n");
+        let visible_rows = chat_input_visible_rows(&text);
+        let max_height = chat_input_height_for_rows(visible_rows);
+        let mut viewport_height = 0.0;
+        let mut content_height = 0.0;
+
+        let ctx = egui::Context::default();
+        let _ = ctx.run(Default::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                ui.set_width(320.0);
+                let output = render_bounded_chat_text_edit(
+                    ui,
+                    &mut text,
+                    egui::Id::new("bounded_chat_input_test"),
+                    320.0,
+                    max_height,
+                    visible_rows,
+                );
+                viewport_height = output.inner_rect.height();
+                content_height = output.content_size.y;
+            });
+        });
+
+        assert!(
+            viewport_height <= max_height + 1.0,
+            "viewport height {viewport_height} exceeded max height {max_height}"
+        );
+        assert!(
+            content_height > viewport_height,
+            "content should be taller than viewport so excess rows scroll"
+        );
     }
 }

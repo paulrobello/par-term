@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Content Prettifier** — removed the `par-term-prettifier` workspace crate and all content-prettifier runtime wiring, settings UI, config/profile fields, trigger action, keybinding action, render substitutions, and documentation page.
 
 ### Bug Fixes
+- **Assistant chat input no longer hides controls** — the multiline Assistant input now grows up to 10 visible rows, then scrolls internally while the chat history area gives up space so the Terminal access, YOLO, prompt, send, clear, and action-bar controls remain visible.
 - **Custom shader cursor uniforms in alt-screen apps** — `iCurrentCursor` now continues tracking the terminal cursor in alternate-screen apps even when the TUI hides the geometric cursor or a stale scrollback offset is present. Shader cursor state is updated separately from visible cursor rendering, preserving normal-mode positioning while fixing cursor-reactive background shaders in apps like vim/less/htop.
 - **Assistant bottom controls placement** — the chat input now spans the panel width, while **Prompts**, send, and clear controls sit after the Terminal access and **YOLO** checkboxes in the connected Assistant controls row.
 - **Bundled shader polish** — `matrix_rain_2.glsl` now animates rain downward, and `pane_focus_regions.glsl` now uses full-content mode so inactive split panes dim terminal content as well as the background.
