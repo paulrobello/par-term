@@ -63,6 +63,25 @@ impl CustomShaderRenderer {
         self.current_cursor_color = cursor_color;
     }
 
+    /// Hide cursor-driven shader effects until a visible cursor update arrives.
+    pub fn clear_cursor(&mut self) {
+        if self.current_cursor_opacity == 0.0 && self.current_cursor_color == [0.0, 0.0, 0.0, 0.0] {
+            return;
+        }
+
+        self.previous_cursor_pos = self.current_cursor_pos;
+        self.previous_cursor_opacity = self.current_cursor_opacity;
+        self.previous_cursor_color = self.current_cursor_color;
+        self.previous_cursor_style = self.current_cursor_style;
+        self.current_cursor_opacity = 0.0;
+        self.current_cursor_color = [0.0, 0.0, 0.0, 0.0];
+        self.cursor_change_time = if self.animation_enabled {
+            self.start_time.elapsed().as_secs_f32() * self.animation_speed.max(0.0)
+        } else {
+            0.0
+        };
+    }
+
     /// Update cell dimensions for cursor pixel position calculation
     ///
     /// # Arguments

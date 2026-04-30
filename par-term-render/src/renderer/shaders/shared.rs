@@ -51,6 +51,16 @@ impl Renderer {
         }
     }
 
+    /// Clear cursor uniforms for shaders when the terminal cursor is hidden or unavailable.
+    pub fn clear_shader_cursor(&mut self) {
+        if let Some(ref mut custom_shader) = self.custom_shader_renderer {
+            custom_shader.clear_cursor();
+        }
+        if let Some(ref mut cursor_shader) = self.cursor_shader_renderer {
+            cursor_shader.clear_cursor();
+        }
+    }
+
     /// Update progress bar state for both shader renderers (iProgress uniform).
     ///
     /// # Arguments

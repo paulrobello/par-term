@@ -105,6 +105,7 @@ pub(super) fn update_gpu_renderer_state(
         renderer.update_shader_cursor(pos.0, pos.1, opacity, cursor_color, style);
     } else {
         renderer.clear_cursor();
+        renderer.clear_shader_cursor();
     }
 
     // Update progress bar state for shader uniforms
