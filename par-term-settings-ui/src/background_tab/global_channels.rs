@@ -4,6 +4,112 @@ use crate::SettingsUI;
 
 use super::shader_settings::{find_cubemap_prefix, make_path_relative_to_shaders};
 
+pub(super) fn builtin_noise_choices() -> [&'static str; 5] {
+    [
+        "builtin://noise/value-128",
+        "builtin://noise/value-256",
+        "builtin://noise/fbm-256",
+        "builtin://noise/fbm-512",
+        "builtin://noise/cellular-256",
+    ]
+}
+
+fn set_channel_path(settings: &mut SettingsUI, channel: usize, value: String) {
+    match channel {
+        0 => {
+            settings.temp_shader_channel0 = value.clone();
+            settings.config.shader.custom_shader_channel0 = Some(value);
+        }
+        1 => {
+            settings.temp_shader_channel1 = value.clone();
+            settings.config.shader.custom_shader_channel1 = Some(value);
+        }
+        2 => {
+            settings.temp_shader_channel2 = value.clone();
+            settings.config.shader.custom_shader_channel2 = Some(value);
+        }
+        3 => {
+            settings.temp_shader_channel3 = value.clone();
+            settings.config.shader.custom_shader_channel3 = Some(value);
+        }
+        _ => unreachable!("only iChannel0-3 are supported"),
+    }
+}
+
+fn show_builtin_noise_combo(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    channel: usize,
+    changes_this_frame: &mut bool,
+) {
+    egui::ComboBox::from_id_salt(format!("shader_channel{channel}_builtin_noise"))
+        .selected_text("Built-in noise…")
+        .show_ui(ui, |ui| {
+            for choice in builtin_noise_choices() {
+                if ui.selectable_label(false, choice).clicked() {
+                    set_channel_path(settings, channel, choice.to_string());
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            }
+        })
+        .response
+        .on_hover_text("Use deterministic built-in noise texture for this iChannel");
+}
+
+/// Render the global background-as-channel0 controls.
+pub(super) fn show_background_channel0_controls(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    changes_this_frame: &mut bool,
+) {
+    if ui
+        .checkbox(
+            &mut settings.config.shader.custom_shader_use_background_as_channel0,
+            "Use background as iChannel0",
+        )
+        .on_hover_text(
+            "When enabled, the app's background (image or solid color) is bound as iChannel0 instead of a separate texture file.\n\
+            This allows shaders to incorporate the background without requiring a separate texture.",
+        )
+        .changed()
+    {
+        settings.has_changes = true;
+        *changes_this_frame = true;
+    }
+
+    ui.horizontal(|ui| {
+        ui.label("Background blend mode:");
+        egui::ComboBox::from_id_salt("background_channel0_blend_mode")
+            .selected_text(
+                settings
+                    .config
+                    .shader
+                    .custom_shader_background_channel0_blend_mode
+                    .display_name(),
+            )
+            .show_ui(ui, |ui| {
+                for mode in par_term_config::ShaderBackgroundBlendMode::ALL {
+                    if ui
+                        .selectable_value(
+                            &mut settings
+                                .config
+                                .shader
+                                .custom_shader_background_channel0_blend_mode,
+                            mode,
+                            mode.display_name(),
+                        )
+                        .changed()
+                    {
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
+                }
+            });
+    });
+    ui.label("Shaders can read this hint via iBackgroundBlendMode.");
+}
+
 /// Render the global (top-level) cubemap selection and controls.
 pub(super) fn show_cubemap_controls(
     ui: &mut egui::Ui,
@@ -145,6 +251,8 @@ pub(super) fn show_global_channel_textures(
                 *changes_this_frame = true;
             }
 
+            show_builtin_noise_combo(ui, settings, 0, changes_this_frame);
+
             if !settings.temp_shader_channel0.is_empty() && ui.button("×").clicked() {
                 settings.temp_shader_channel0.clear();
                 settings.config.shader.custom_shader_channel0 = None;
@@ -179,6 +287,8 @@ pub(super) fn show_global_channel_textures(
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
+
+            show_builtin_noise_combo(ui, settings, 1, changes_this_frame);
 
             if !settings.temp_shader_channel1.is_empty() && ui.button("×").clicked() {
                 settings.temp_shader_channel1.clear();
@@ -215,6 +325,8 @@ pub(super) fn show_global_channel_textures(
                 *changes_this_frame = true;
             }
 
+            show_builtin_noise_combo(ui, settings, 2, changes_this_frame);
+
             if !settings.temp_shader_channel2.is_empty() && ui.button("×").clicked() {
                 settings.temp_shader_channel2.clear();
                 settings.config.shader.custom_shader_channel2 = None;
@@ -250,6 +362,8 @@ pub(super) fn show_global_channel_textures(
                 *changes_this_frame = true;
             }
 
+            show_builtin_noise_combo(ui, settings, 3, changes_this_frame);
+
             if !settings.temp_shader_channel3.is_empty() && ui.button("×").clicked() {
                 settings.temp_shader_channel3.clear();
                 settings.config.shader.custom_shader_channel3 = None;
@@ -263,4 +377,31 @@ pub(super) fn show_global_channel_textures(
         ui.label("Terminal content is available as iChannel4");
         ui.label("Use iChannelResolution[n].xy for texture dimensions");
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn builtin_noise_choices_are_stable() {
+        assert_eq!(
+            builtin_noise_choices(),
+            [
+                "builtin://noise/value-128",
+                "builtin://noise/value-256",
+                "builtin://noise/fbm-256",
+                "builtin://noise/fbm-512",
+                "builtin://noise/cellular-256",
+            ]
+        );
+    }
+
+    #[test]
+    fn blend_mode_labels_are_user_readable() {
+        assert_eq!(
+            par_term_config::ShaderBackgroundBlendMode::Overlay.display_name(),
+            "Overlay"
+        );
+    }
 }

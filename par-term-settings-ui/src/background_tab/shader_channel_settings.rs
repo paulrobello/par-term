@@ -13,7 +13,9 @@ use super::shader_settings::{make_path_relative_to_shaders, show_reset_button};
 pub(super) use super::shader_metadata::save_settings_to_shader_metadata;
 
 // Re-export global channel controls so background_tab/mod.rs import is unchanged.
-pub(super) use super::global_channels::{show_cubemap_controls, show_global_channel_textures};
+pub(super) use super::global_channels::{
+    show_background_channel0_controls, show_cubemap_controls, show_global_channel_textures,
+};
 
 /// Show per-shader channel texture settings
 pub(super) fn show_per_shader_channel_settings(

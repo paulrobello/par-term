@@ -17,7 +17,9 @@ pub use cursor_shader::show_cursor_shader;
 pub use pane_backgrounds::show_pane_backgrounds;
 pub use shader_settings::show_shader_metadata_and_settings;
 
-use shader_channel_settings::{show_cubemap_controls, show_global_channel_textures};
+use shader_channel_settings::{
+    show_background_channel0_controls, show_cubemap_controls, show_global_channel_textures,
+};
 
 pub fn show_background(
     ui: &mut egui::Ui,
@@ -570,18 +572,5 @@ fn show_background_shader_controls(
 
     // Use background as iChannel0
     ui.add_space(8.0);
-    if ui
-    .checkbox(
-        &mut settings.config.shader.custom_shader_use_background_as_channel0,
-        "Use background as iChannel0",
-    )
-    .on_hover_text(
-        "When enabled, the app's background (image or solid color) is bound as iChannel0 instead of a separate texture file.\n\
-        This allows shaders to incorporate the background without requiring a separate texture."
-    )
-    .changed()
-    {
-        settings.has_changes = true;
-        *changes_this_frame = true;
-    }
+    show_background_channel0_controls(ui, settings, changes_this_frame);
 }
