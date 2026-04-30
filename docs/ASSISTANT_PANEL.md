@@ -13,6 +13,7 @@ The Assistant Panel is a DevTools-style right-side panel for terminal state insp
   - [Chat Interface](#chat-interface)
   - [Code Block Rendering](#code-block-rendering)
   - [Multi-line Chat Input](#multi-line-chat-input)
+  - [Prompt Library](#prompt-library)
   - [Clear Conversation](#clear-conversation)
   - [Cancel Queued Messages](#cancel-queued-messages)
   - [Cancel Streaming Responses](#cancel-streaming-responses)
@@ -187,6 +188,12 @@ The chat input field supports multi-line editing:
 | `Shift+Enter` | Insert a newline |
 
 The input field grows automatically as you type, expanding up to 6 rows before showing a scrollbar. This is useful for pasting multi-line prompts or composing longer instructions without sending prematurely.
+
+### Prompt Library
+
+Saved assistant prompts live in `~/.config/par-term/assistant-prompts/` (or the platform-equivalent par-term config directory). Each prompt is a Markdown file with YAML frontmatter for metadata followed by the Markdown prompt body.
+
+Use `auto_submit: false` to load the prompt into the chat input for review or editing before sending. Use `auto_submit: true` to send the prompt immediately when selected from the panel. Prompts can be created, edited, and deleted in **Settings > Assistant > Prompt Library**.
 
 ### Clear Conversation
 

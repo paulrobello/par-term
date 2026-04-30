@@ -68,19 +68,19 @@ pub(super) fn show_prompt_library_section(
                 }
             }
 
-            if let Some(index) = edit_index {
-                if let Some(prompt) = settings.assistant_prompts.get(index).cloned() {
-                    settings.editing_assistant_prompt_index = Some(index);
-                    settings.adding_new_assistant_prompt = false;
-                    settings.assistant_prompt_error = None;
-                    populate_assistant_prompt_editor(settings, &prompt);
-                }
+            if let Some(index) = edit_index
+                && let Some(prompt) = settings.assistant_prompts.get(index).cloned()
+            {
+                settings.editing_assistant_prompt_index = Some(index);
+                settings.adding_new_assistant_prompt = false;
+                settings.assistant_prompt_error = None;
+                populate_assistant_prompt_editor(settings, &prompt);
             }
 
-            if let Some(index) = delete_index {
-                if let Some(prompt) = settings.assistant_prompts.get(index).cloned() {
-                    delete_assistant_prompt(settings, &prompt);
-                }
+            if let Some(index) = delete_index
+                && let Some(prompt) = settings.assistant_prompts.get(index).cloned()
+            {
+                delete_assistant_prompt(settings, &prompt);
             }
 
             ui.add_space(8.0);
