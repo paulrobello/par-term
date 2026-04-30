@@ -12,6 +12,21 @@ use crate::{ArrangementManager, InstallationType};
 
 use super::SettingsUI;
 
+#[cfg(not(test))]
+fn load_assistant_prompts_for_settings() -> (Vec<par_term_config::AssistantPrompt>, Option<String>)
+{
+    match par_term_config::list_prompts() {
+        Ok(prompts) => (prompts, None),
+        Err(error) => (Vec::new(), Some(error)),
+    }
+}
+
+#[cfg(test)]
+fn load_assistant_prompts_for_settings() -> (Vec<par_term_config::AssistantPrompt>, Option<String>)
+{
+    (Vec::new(), None)
+}
+
 impl SettingsUI {
     /// Create a new settings UI
     pub fn new(config: Config) -> Self {
@@ -20,10 +35,7 @@ impl SettingsUI {
         let initial_rows = config.rows;
         let initial_collapsed: HashSet<String> =
             config.collapsed_settings_sections.iter().cloned().collect();
-        let (assistant_prompts, assistant_prompt_error) = match par_term_config::list_prompts() {
-            Ok(prompts) => (prompts, None),
-            Err(error) => (Vec::new(), Some(error)),
-        };
+        let (assistant_prompts, assistant_prompt_error) = load_assistant_prompts_for_settings();
 
         Self {
             visible: false,
@@ -491,30 +503,18 @@ impl SettingsUI {
 mod assistant_prompt_tests {
     use super::*;
     use par_term_config::Config;
-    use std::env;
-    use std::sync::{Mutex, OnceLock};
 
-    fn env_lock() -> &'static Mutex<()> {
-        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-        LOCK.get_or_init(|| Mutex::new(()))
+    #[test]
+    fn test_mode_prompt_loader_returns_clean_state_without_filesystem_access() {
+        let (prompts, error) = load_assistant_prompts_for_settings();
+
+        assert!(prompts.is_empty());
+        assert!(error.is_none());
     }
 
     #[test]
-    fn settings_ui_initializes_empty_prompt_library_state_from_config_home() {
-        let _guard = env_lock().lock().expect("env lock");
-        let temp_home = tempfile::tempdir().expect("temp home");
-        let original_home = env::var_os("HOME");
-
-        // SAFETY: this test serializes HOME changes with a process-local mutex and
-        // restores the original value before returning. The focused test filter for
-        // assistant prompt state runs only this module, keeping Config::config_dir()
-        // pointed at a temp directory instead of the user's real config directory.
-        unsafe { env::set_var("HOME", temp_home.path()) };
+    fn settings_ui_initializes_empty_prompt_library_state_without_home_mutation() {
         let settings = SettingsUI::new(Config::default());
-        match original_home {
-            Some(home) => unsafe { env::set_var("HOME", home) },
-            None => unsafe { env::remove_var("HOME") },
-        }
 
         assert!(settings.assistant_prompts.is_empty());
         assert!(settings.assistant_prompt_error.is_none());

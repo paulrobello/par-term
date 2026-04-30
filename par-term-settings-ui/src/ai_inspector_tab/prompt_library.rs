@@ -276,4 +276,35 @@ mod tests {
         assert_eq!(body, "Fix it");
         assert!(auto_submit);
     }
+
+    #[test]
+    fn populate_assistant_prompt_editor_copies_prompt_into_settings_state() {
+        let mut settings = SettingsUI::new(par_term_config::Config::default());
+        let prompt = AssistantPrompt {
+            path: PathBuf::from("prompt.md"),
+            title: "Debug build".to_string(),
+            auto_submit: true,
+            prompt: "Fix it".to_string(),
+        };
+
+        populate_assistant_prompt_editor(&mut settings, &prompt);
+
+        assert_eq!(settings.temp_assistant_prompt_title, "Debug build");
+        assert_eq!(settings.temp_assistant_prompt_body, "Fix it");
+        assert!(settings.temp_assistant_prompt_auto_submit);
+    }
+
+    #[test]
+    fn reset_assistant_prompt_editor_clears_settings_state() {
+        let mut settings = SettingsUI::new(par_term_config::Config::default());
+        settings.temp_assistant_prompt_title = "Debug build".to_string();
+        settings.temp_assistant_prompt_body = "Fix it".to_string();
+        settings.temp_assistant_prompt_auto_submit = true;
+
+        reset_assistant_prompt_editor(&mut settings);
+
+        assert_eq!(settings.temp_assistant_prompt_title, "");
+        assert_eq!(settings.temp_assistant_prompt_body, "");
+        assert!(!settings.temp_assistant_prompt_auto_submit);
+    }
 }
