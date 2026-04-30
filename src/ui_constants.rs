@@ -215,8 +215,6 @@ pub const AI_PANEL_CHAT_MIN_HEIGHT: f32 = 50.0;
 pub const AI_PANEL_CHAT_INPUT_BASE_HEIGHT: f32 = 20.0;
 /// Per-additional-line height increment in the chat input.
 pub const AI_PANEL_CHAT_INPUT_LINE_HEIGHT: f32 = 14.0;
-/// Width reserved for the Send + Clear buttons next to the chat input.
-pub const AI_PANEL_CHAT_BUTTON_WIDTH: f32 = 60.0;
 /// Corner rounding for message / card frames in the AI Inspector.
 pub const AI_PANEL_CARD_ROUNDING: f32 = 4.0;
 

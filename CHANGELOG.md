@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Content Prettifier** — removed the `par-term-prettifier` workspace crate and all content-prettifier runtime wiring, settings UI, config/profile fields, trigger action, keybinding action, render substitutions, and documentation page.
 
 ### Bug Fixes
+- **Assistant bottom controls placement** — the chat input now spans the panel width, while **Prompts**, send, and clear controls sit after the Terminal access and **YOLO** checkboxes in the connected Assistant controls row.
 - **Bundled shader polish** — `matrix_rain_2.glsl` now animates rain downward, and `pane_focus_regions.glsl` now uses full-content mode so inactive split panes dim terminal content as well as the background.
 - **Shader parameter edits reset animation time** — changing shader controls or other runtime shader parameters no longer restarts `iTime` when animation was already enabled. Shader source reload also preserves the timer and refreshes the generated debug WGSL file, so toggling shaders off/on is no longer needed just to force regeneration.
 - **Shader hot reload left custom controls stale in Settings** — successful background shader hot reload now invalidates the active shader's metadata and parsed-control caches so added, removed, or changed `// control` uniforms appear immediately in the settings UI.

@@ -5,9 +5,7 @@
 
 use egui::{Color32, Key, RichText};
 
-use crate::ui_constants::{
-    AI_PANEL_CHAT_BUTTON_WIDTH, AI_PANEL_CHAT_INPUT_BASE_HEIGHT, AI_PANEL_CHAT_INPUT_LINE_HEIGHT,
-};
+use crate::ui_constants::{AI_PANEL_CHAT_INPUT_BASE_HEIGHT, AI_PANEL_CHAT_INPUT_LINE_HEIGHT};
 use par_term_acp::{AgentConfig, AgentStatus};
 
 use super::types::{AGENT_CONNECTED, AGENT_DISCONNECTED, EXIT_FAILURE};
@@ -218,7 +216,7 @@ impl AIInspectorPanel {
         }
     }
 
-    /// Render the chat text input and send/clear buttons.
+    /// Render the chat text input.
     ///
     /// Multiline: Enter sends, Shift+Enter inserts a newline.
     pub(super) fn render_chat_input(&mut self, ui: &mut egui::Ui) -> InspectorAction {
@@ -228,9 +226,7 @@ impl AIInspectorPanel {
         let line_count = self.chat.input.lines().count().clamp(1, 6);
         let input_height = AI_PANEL_CHAT_INPUT_BASE_HEIGHT
             + (line_count as f32 - 1.0) * AI_PANEL_CHAT_INPUT_LINE_HEIGHT;
-
-        let button_width = AI_PANEL_CHAT_BUTTON_WIDTH.max(76.0);
-        let input_width = (ui.available_width() - button_width).max(60.0);
+        let input_width = ui.available_width().max(60.0);
 
         // Check for Enter (without Shift) before rendering the TextEdit,
         // since egui may consume the key event.
@@ -241,126 +237,131 @@ impl AIInspectorPanel {
                 && !i.modifiers.command
         });
 
-        ui.horizontal(|ui| {
-            let chat_input_id = egui::Id::new("assistant_chat_input");
-            let cursor_index_before_edit =
-                text_edit_cursor_index(ui.ctx(), chat_input_id, &self.chat.input);
-            let response = ui.add_sized(
-                [input_width, input_height],
-                egui::TextEdit::multiline(&mut self.chat.input)
-                    .id(chat_input_id)
-                    .hint_text("Message... (Shift+Enter for newline)")
-                    .desired_width(input_width)
-                    .desired_rows(line_count),
-            );
+        let chat_input_id = egui::Id::new("assistant_chat_input");
+        let cursor_index_before_edit =
+            text_edit_cursor_index(ui.ctx(), chat_input_id, &self.chat.input);
+        let response = ui.add_sized(
+            [input_width, input_height],
+            egui::TextEdit::multiline(&mut self.chat.input)
+                .id(chat_input_id)
+                .hint_text("Message... (Shift+Enter for newline)")
+                .desired_width(input_width)
+                .desired_rows(line_count),
+        );
 
-            // Store the chat input Id for focus detection in Escape key handling
-            self.chat_input_id = Some(chat_input_id);
+        // Store the chat input Id for focus detection in Escape key handling
+        self.chat_input_id = Some(chat_input_id);
 
-            let is_focused = response.has_focus();
-            if is_focused {
-                let cursor_index = cursor_index_before_edit;
-                let (up_pressed, down_pressed, modifiers) = ui.input(|i| {
-                    (
-                        i.key_pressed(Key::ArrowUp),
-                        i.key_pressed(Key::ArrowDown),
-                        i.modifiers,
-                    )
-                });
-                let allow_history_navigation = modifiers_allow_input_history(modifiers);
-                let navigated_history = if allow_history_navigation
-                    && up_pressed
-                    && input_cursor_is_on_first_line(&self.chat.input, cursor_index)
-                    && self.chat.navigate_input_history_older()
-                {
-                    ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::ArrowUp));
-                    true
-                } else if allow_history_navigation
-                    && down_pressed
-                    && input_cursor_is_on_last_line(&self.chat.input, cursor_index)
-                    && self.chat.navigate_input_history_newer()
-                {
-                    ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::ArrowDown));
-                    true
-                } else {
-                    false
-                };
-
-                if navigated_history {
-                    set_text_edit_cursor_to_end(ui.ctx(), response.id, &self.chat.input);
-                    response.request_focus();
-                }
-            }
-            let should_send = is_focused && enter_pressed;
-
-            ui.vertical(|ui| {
-                ui.menu_button(RichText::new("Prompts").small(), |ui| {
-                    ui.set_min_width((input_width + button_width).clamp(220.0, 360.0));
-
-                    if let Some(error) = &self.assistant_prompts_error {
-                        ui.label(
-                            RichText::new(format!("Load error: {error}"))
-                                .small()
-                                .color(EXIT_FAILURE),
-                        );
-                        ui.separator();
-                    }
-
-                    if self.assistant_prompts.is_empty() {
-                        ui.label(
-                            RichText::new("No prompts saved")
-                                .small()
-                                .color(Color32::from_gray(100))
-                                .italics(),
-                        );
-                    } else {
-                        for prompt in &self.assistant_prompts {
-                            let label = if prompt.auto_submit {
-                                format!("{}  (send)", prompt.title)
-                            } else {
-                                prompt.title.clone()
-                            };
-                            if ui.button(label).clicked() {
-                                action = Self::action_for_assistant_prompt(prompt);
-                                ui.close();
-                            }
-                        }
-                    }
-                });
-
-                let send_clicked = ui
-                    .button(RichText::new(">").size(14.0))
-                    .on_hover_text("Send message (Enter)")
-                    .clicked();
-
-                if ui
-                    .button(RichText::new("C").size(12.0))
-                    .on_hover_text("Clear conversation")
-                    .clicked()
-                {
-                    action = InspectorAction::ClearChat;
-                }
-
-                if (should_send || send_clicked) && !self.chat.input.trim().is_empty() {
-                    let text = self.chat.input.trim().to_string();
-                    self.chat.input.clear();
-                    action = InspectorAction::SendPrompt(text);
-                }
-
-                // Remove the trailing newline that Enter adds before we send
-                if should_send {
-                    // egui inserts the newline from Enter; strip it
-                    while self.chat.input.ends_with('\n') {
-                        self.chat.input.pop();
-                    }
-                }
+        let is_focused = response.has_focus();
+        if is_focused {
+            let cursor_index = cursor_index_before_edit;
+            let (up_pressed, down_pressed, modifiers) = ui.input(|i| {
+                (
+                    i.key_pressed(Key::ArrowUp),
+                    i.key_pressed(Key::ArrowDown),
+                    i.modifiers,
+                )
             });
+            let allow_history_navigation = modifiers_allow_input_history(modifiers);
+            let navigated_history = if allow_history_navigation
+                && up_pressed
+                && input_cursor_is_on_first_line(&self.chat.input, cursor_index)
+                && self.chat.navigate_input_history_older()
+            {
+                ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::ArrowUp));
+                true
+            } else if allow_history_navigation
+                && down_pressed
+                && input_cursor_is_on_last_line(&self.chat.input, cursor_index)
+                && self.chat.navigate_input_history_newer()
+            {
+                ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::ArrowDown));
+                true
+            } else {
+                false
+            };
 
-            // Re-focus input after sending
-            if should_send {
+            if navigated_history {
+                set_text_edit_cursor_to_end(ui.ctx(), response.id, &self.chat.input);
                 response.request_focus();
             }
+        }
+
+        let should_send = is_focused && enter_pressed;
+        if should_send && !self.chat.input.trim().is_empty() {
+            let text = self.chat.input.trim().to_string();
+            self.chat.input.clear();
+            action = InspectorAction::SendPrompt(text);
+        }
+
+        // Remove the trailing newline that Enter adds before we send.
+        if should_send {
+            while self.chat.input.ends_with('\n') {
+                self.chat.input.pop();
+            }
+            response.request_focus();
+        }
+
+        action
+    }
+
+    /// Render prompt, send, and clear controls for the chat input.
+    pub(super) fn render_chat_controls(&mut self, ui: &mut egui::Ui) -> InspectorAction {
+        let mut action = InspectorAction::None;
+        let menu_width = ui.available_width().clamp(220.0, 360.0);
+
+        ui.menu_button(RichText::new("Prompts").small(), |ui| {
+            ui.set_min_width(menu_width);
+
+            if let Some(error) = &self.assistant_prompts_error {
+                ui.label(
+                    RichText::new(format!("Load error: {error}"))
+                        .small()
+                        .color(EXIT_FAILURE),
+                );
+                ui.separator();
+            }
+
+            if self.assistant_prompts.is_empty() {
+                ui.label(
+                    RichText::new("No prompts saved")
+                        .small()
+                        .color(Color32::from_gray(100))
+                        .italics(),
+                );
+            } else {
+                for prompt in &self.assistant_prompts {
+                    let label = if prompt.auto_submit {
+                        format!("{}  (send)", prompt.title)
+                    } else {
+                        prompt.title.clone()
+                    };
+                    if ui.button(label).clicked() {
+                        action = Self::action_for_assistant_prompt(prompt);
+                        ui.close();
+                    }
+                }
+            }
         });
+
+        let send_clicked = ui
+            .button(RichText::new(">").size(14.0))
+            .on_hover_text("Send message (Enter)")
+            .clicked();
+
+        if ui
+            .button(RichText::new("C").size(12.0))
+            .on_hover_text("Clear conversation")
+            .clicked()
+        {
+            action = InspectorAction::ClearChat;
+        }
+
+        if send_clicked && !self.chat.input.trim().is_empty() {
+            let text = self.chat.input.trim().to_string();
+            self.chat.input.clear();
+            action = InspectorAction::SendPrompt(text);
+        }
 
         action
     }

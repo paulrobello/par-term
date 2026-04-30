@@ -89,8 +89,8 @@ The panel is organized from top to bottom as follows:
 2. **Agent connection bar** with status indicator, connect/disconnect controls, and agent selector
 3. **Terminal Capture** (collapsible, collapsed by default) with scope, view mode, and command history
 4. **Chat messages** (scrollable area, sticks to bottom) with code block rendering and streaming support
-5. **Chat input** with send button and clear conversation button (visible when connected; supports multi-line editing)
-6. **Controls row** with Terminal access and YOLO checkboxes (visible when connected)
+5. **Chat input** (visible when connected; supports multi-line editing)
+6. **Controls row** with Terminal access and YOLO checkboxes followed by **Prompts**, send, and clear conversation controls (visible when connected)
 7. **Action bar** with Copy JSON and Save buttons
 
 ## ACP Agent Chat
@@ -199,7 +199,7 @@ Use `auto_submit: false` to load the prompt into the chat input for review or ed
 
 ### Clear Conversation
 
-The **C** button next to the send button clears the entire chat history without disconnecting the agent. The agent session remains active, so you can continue sending new messages immediately. This is useful for starting a fresh conversation thread while keeping the same connection.
+The **C** button in the connected Assistant controls row clears the entire chat history without disconnecting the agent. The agent session remains active, so you can continue sending new messages immediately. This is useful for starting a fresh conversation thread while keeping the same connection.
 
 ### Cancel Queued Messages
 

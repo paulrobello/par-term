@@ -207,7 +207,7 @@ impl AIInspectorPanel {
                     }
                 });
 
-            // === Pinned bottom: Chat input + checkbox + action bar ===
+            // === Pinned bottom: Chat input + checkbox/control row + action bar ===
             if self.agent_status == AgentStatus::Connected {
                 ui.add_space(4.0);
                 ui.separator();
@@ -217,7 +217,7 @@ impl AIInspectorPanel {
                     action = input_action;
                 }
                 ui.add_space(2.0);
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
                     if ui
                         .checkbox(
                             &mut self.agent_terminal_access,
@@ -254,6 +254,11 @@ impl AIInspectorPanel {
                             "default"
                         };
                         action = InspectorAction::SetAgentMode(mode.to_string());
+                    }
+
+                    let controls_action = self.render_chat_controls(ui);
+                    if !matches!(controls_action, InspectorAction::None) {
+                        action = controls_action;
                     }
                 });
             }
