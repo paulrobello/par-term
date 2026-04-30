@@ -45,7 +45,10 @@ pub fn adapt_run_command_for_extra_roots(
         let writable_roots = shell_quote_arg(&format!(
             "sandbox_workspace_write.writable_roots=[{roots_array}]"
         ));
-        return format!("{run_command} -c {sandbox_mode} -c {writable_roots}");
+        let disable_apply_patch = shell_quote_arg("include_apply_patch_tool=false");
+        return format!(
+            "{run_command} -c {sandbox_mode} -c {writable_roots} -c {disable_apply_patch}"
+        );
     }
 
     if is_gemini_agent(agent_config, run_command) {
@@ -242,7 +245,7 @@ mod tests {
     }
 
     #[test]
-    fn codex_run_command_gets_writable_roots_config() {
+    fn codex_run_command_gets_writable_roots_config_and_disables_apply_patch() {
         let command = adapt_run_command_for_extra_roots(
             &agent("openai.com"),
             "npx @zed-industries/codex-acp",
@@ -253,6 +256,7 @@ mod tests {
         assert!(command.contains(
             "-c 'sandbox_workspace_write.writable_roots=[\"/workspace/shared\",\"/tmp/shaders\"]'"
         ));
+        assert!(command.contains("-c 'include_apply_patch_tool=false'"));
     }
 
     #[test]

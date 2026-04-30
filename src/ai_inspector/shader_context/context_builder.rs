@@ -328,6 +328,9 @@ When to use controls:
     ctx.push_str(
         "8. Custom shader-only changes do not require `make checkall`; use `shader_diagnostics` and `terminal_screenshot` instead.\n",
     );
+    ctx.push_str(
+        "9. Do not use Codex `apply_patch` for shader files under extra roots; if needed, use a direct Write/Edit tool or a small shell/python exact-replacement script, then read the file back.\n",
+    );
 
     ctx.push('\n');
 

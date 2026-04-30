@@ -73,6 +73,9 @@ When using the `Write` tool, use the exact parameter names expected by the host 
 (for example `file_path` and `content`, not `filepath`). If a write fails, \
 correct the tool parameters and retry the same task instead of switching to an \
 unrelated example or different project/file. \
+If you are running through Codex, do not use `apply_patch` for shader files or \
+other files under extra writable roots outside the project; use direct Write/Edit \
+tools or a small shell/python exact-replacement script and read the file back. \
 Never emit XML-style tool markup such as <function=...> or <tool_call> tags \
 in regular chat responses. \
 If asked which model/provider you are, do not assume Anthropic defaults; \
