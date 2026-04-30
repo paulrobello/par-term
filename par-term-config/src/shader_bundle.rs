@@ -158,11 +158,11 @@ fn validate_relative_path(field: &str, value: &str) -> Result<(), String> {
 }
 
 fn ensure_exists(bundle_dir: &Path, field: &str, value: &str) -> Result<(), String> {
-    if bundle_dir.join(value).exists() {
+    if bundle_dir.join(value).is_file() {
         Ok(())
     } else {
         Err(format!(
-            "shader bundle manifest field `{field}` path does not exist: {value}"
+            "shader bundle manifest field `{field}` path is not a file: {value}"
         ))
     }
 }
@@ -172,9 +172,11 @@ fn ensure_cubemap_faces_exist(bundle_dir: &Path, prefix: &str) -> Result<(), Str
     const EXTENSIONS: [&str; 4] = ["png", "jpg", "jpeg", "hdr"];
 
     for suffix in SUFFIXES {
-        let found = EXTENSIONS
-            .iter()
-            .any(|ext| bundle_dir.join(format!("{prefix}-{suffix}.{ext}")).exists());
+        let found = EXTENSIONS.iter().any(|ext| {
+            bundle_dir
+                .join(format!("{prefix}-{suffix}.{ext}"))
+                .is_file()
+        });
         if !found {
             return Err(format!(
                 "missing cubemap face for prefix `{prefix}` and suffix `{suffix}`"
@@ -250,6 +252,74 @@ mod tests {
     }
 
     #[test]
+    fn rejects_shader_path_that_is_a_directory() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::create_dir(temp.path().join("shader.glsl")).unwrap();
+        let manifest = ShaderBundleManifest {
+            shader: "shader.glsl".to_string(),
+            name: "Invalid Bundle".to_string(),
+            author: "par-term".to_string(),
+            description: "Shader path is a directory.".to_string(),
+            license: "MIT".to_string(),
+            textures: Vec::new(),
+            cubemaps: Vec::new(),
+            screenshot: None,
+        };
+
+        let err = manifest
+            .validate_paths(temp.path())
+            .expect_err("shader directory should fail validation");
+
+        assert!(err.contains("shader"));
+    }
+
+    #[test]
+    fn rejects_texture_path_that_is_a_directory() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::write(temp.path().join("shader.glsl"), "void mainImage(){}").unwrap();
+        std::fs::create_dir_all(temp.path().join("textures/noise.png")).unwrap();
+        let manifest = ShaderBundleManifest {
+            shader: "shader.glsl".to_string(),
+            name: "Invalid Bundle".to_string(),
+            author: "par-term".to_string(),
+            description: "Texture path is a directory.".to_string(),
+            license: "MIT".to_string(),
+            textures: vec!["textures/noise.png".to_string()],
+            cubemaps: Vec::new(),
+            screenshot: None,
+        };
+
+        let err = manifest
+            .validate_paths(temp.path())
+            .expect_err("texture directory should fail validation");
+
+        assert!(err.contains("textures"));
+    }
+
+    #[test]
+    fn rejects_screenshot_path_that_is_a_directory() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::write(temp.path().join("shader.glsl"), "void mainImage(){}").unwrap();
+        std::fs::create_dir(temp.path().join("screenshot.png")).unwrap();
+        let manifest = ShaderBundleManifest {
+            shader: "shader.glsl".to_string(),
+            name: "Invalid Bundle".to_string(),
+            author: "par-term".to_string(),
+            description: "Screenshot path is a directory.".to_string(),
+            license: "MIT".to_string(),
+            textures: Vec::new(),
+            cubemaps: Vec::new(),
+            screenshot: Some("screenshot.png".to_string()),
+        };
+
+        let err = manifest
+            .validate_paths(temp.path())
+            .expect_err("screenshot directory should fail validation");
+
+        assert!(err.contains("screenshot"));
+    }
+
+    #[test]
     fn shader_bundle_shader_path_must_be_glsl() {
         let temp = tempfile::tempdir().unwrap();
         std::fs::write(temp.path().join("shader.wgsl"), "// wrong extension").unwrap();
@@ -294,5 +364,30 @@ mod tests {
             .expect_err("missing nz cubemap face should fail");
 
         assert!(err.contains("nz"));
+    }
+
+    #[test]
+    fn rejects_cubemap_face_path_that_is_a_directory() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::write(temp.path().join("shader.glsl"), "void mainImage(){}").unwrap();
+        for suffix in ["px", "nx", "py", "ny", "pz", "nz"] {
+            std::fs::create_dir(temp.path().join(format!("env-{suffix}.png"))).unwrap();
+        }
+        let manifest = ShaderBundleManifest {
+            shader: "shader.glsl".to_string(),
+            name: "Cubemap Bundle".to_string(),
+            author: "par-term".to_string(),
+            description: "Cubemap validation test.".to_string(),
+            license: "MIT".to_string(),
+            textures: Vec::new(),
+            cubemaps: vec!["env".to_string()],
+            screenshot: None,
+        };
+
+        let err = manifest
+            .validate_paths(temp.path())
+            .expect_err("cubemap face directories should fail validation");
+
+        assert!(err.contains("px"));
     }
 }
