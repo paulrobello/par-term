@@ -110,7 +110,7 @@ The directory is created automatically when par-term first starts.
 
 ## Configuration
 
-All shader settings can be configured via the YAML config file or through the **Settings UI** (press `F2` or use the menu). The Settings UI provides in the **Effects** tab:
+All shader settings can be configured via the YAML config file or through the **Settings UI** (press `F12` or use the menu). The Settings UI provides in the **Effects** tab:
 - **Background** section: Background shader selection, animation controls, brightness, texture channels, and cubemap settings
 - **Cursor Shader** section: Cursor shader selection and effect parameters
 
