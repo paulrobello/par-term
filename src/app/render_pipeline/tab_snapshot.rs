@@ -39,6 +39,10 @@ pub(super) struct TabCellsSnapshot {
     pub(super) cursor_pos: Option<(usize, usize)>,
     /// Cursor glyph style (after config overrides)
     pub(super) cursor_style: Option<TermCursorStyle>,
+    /// Terminal cursor position for shader uniforms, even when the visible cursor is hidden.
+    pub(super) shader_cursor_pos: Option<(usize, usize)>,
+    /// Terminal cursor style for shader uniforms.
+    pub(super) shader_cursor_style: Option<TermCursorStyle>,
     /// Whether the alternate screen is currently active
     pub(super) is_alt_screen: bool,
     /// Terminal generation counter at the time cells were generated
@@ -55,6 +59,10 @@ fn snapshot_generation_for_cells(
     } else {
         terminal_generation
     }
+}
+
+fn cursor_is_on_live_view(scroll_offset: usize, is_alt_screen: bool) -> bool {
+    is_alt_screen || scroll_offset == 0
 }
 
 impl WindowState {
@@ -96,17 +104,29 @@ impl WindowState {
                 (None, false)
             };
 
-            // Get cursor position and opacity (only show if we're at the bottom with no scroll
-            // offset and the cursor is visible — TUI apps hide cursor via DECTCEM escape sequence).
+            let is_alt_screen = term.is_alt_screen_active();
+
+            // Get cursor position and opacity (only show the geometric cursor if we're at the
+            // bottom with no scroll offset and the cursor is visible — TUI apps may hide cursor
+            // via DECTCEM). Alternate-screen buffers are always the live view, so stale
+            // scrollback offsets must not suppress cursor state there.
             // If lock_cursor_visibility is enabled, ignore the terminal's visibility state.
             // In copy mode, use the copy mode cursor position instead.
             let cursor_visible = self.config.lock_cursor_visibility || term.is_cursor_visible();
+            let live_view = cursor_is_on_live_view(scroll_offset, is_alt_screen);
+            let terminal_cursor_pos =
+                (!self.copy_mode.active && live_view).then(|| term.cursor_position());
             let current_cursor_pos = if self.copy_mode.active {
                 self.copy_mode.screen_cursor_pos(scroll_offset)
-            } else if scroll_offset == 0 && cursor_visible {
-                Some(term.cursor_position())
+            } else if cursor_visible {
+                terminal_cursor_pos
             } else {
                 None
+            };
+            let shader_cursor_pos = if self.copy_mode.active {
+                current_cursor_pos
+            } else {
+                terminal_cursor_pos
             };
 
             // Get cursor style for geometric rendering.
@@ -148,12 +168,16 @@ impl WindowState {
                 None
             };
 
+            let shader_cursor_style = shader_cursor_pos.map(|_| term.cursor_style());
+
             log::trace!(
-                "Cursor: pos={:?}, opacity={:.2}, style={:?}, scroll={}, visible={}",
+                "Cursor: pos={:?}, shader_pos={:?}, opacity={:.2}, style={:?}, scroll={}, alt_screen={}, visible={}",
                 current_cursor_pos,
+                shader_cursor_pos,
                 self.cursor_anim.cursor_opacity,
                 cursor_style,
                 scroll_offset,
+                is_alt_screen,
                 term.is_cursor_visible()
             );
 
@@ -216,7 +240,6 @@ impl WindowState {
             self.debug.cache_hit = is_cache_hit;
             self.debug.cell_gen_time = cell_gen_start.elapsed();
 
-            let is_alt_screen = term.is_alt_screen_active();
             let grid_dims = term.dimensions();
 
             Some(TabCellsSnapshot {
@@ -224,6 +247,8 @@ impl WindowState {
                 grid_dims,
                 cursor_pos: current_cursor_pos,
                 cursor_style,
+                shader_cursor_pos,
+                shader_cursor_style,
                 is_alt_screen,
                 current_generation: snapshot_generation,
             })
@@ -238,6 +263,8 @@ impl WindowState {
                 grid_dims: cache_grid_dims,
                 cursor_pos: cache_cursor_pos,
                 cursor_style: None,
+                shader_cursor_pos: cache_cursor_pos,
+                shader_cursor_style: None,
                 is_alt_screen: was_alt_screen,
                 current_generation: cache_generation,
             })
@@ -250,7 +277,7 @@ impl WindowState {
 
 #[cfg(test)]
 mod tests {
-    use super::snapshot_generation_for_cells;
+    use super::{cursor_is_on_live_view, snapshot_generation_for_cells};
 
     #[test]
     fn stale_cached_cells_do_not_advance_snapshot_generation() {
@@ -260,5 +287,15 @@ mod tests {
     #[test]
     fn fresh_cells_use_terminal_generation() {
         assert_eq!(snapshot_generation_for_cells(42, 41, false), 42);
+    }
+
+    #[test]
+    fn primary_screen_cursor_is_not_live_when_scrolled_back() {
+        assert!(!cursor_is_on_live_view(1, false));
+    }
+
+    #[test]
+    fn alt_screen_cursor_is_live_even_with_stale_scroll_offset() {
+        assert!(cursor_is_on_live_view(1, true));
     }
 }

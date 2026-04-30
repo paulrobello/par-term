@@ -46,6 +46,10 @@ pub(super) struct FrameRenderData {
     pub(super) cursor_pos: Option<(usize, usize)>,
     /// Cursor glyph style (from terminal or config overrides)
     pub(super) cursor_style: Option<par_term_emu_core_rust::cursor::CursorStyle>,
+    /// Terminal cursor position for shader uniforms, even when the visible cursor is hidden.
+    pub(super) shader_cursor_pos: Option<(usize, usize)>,
+    /// Terminal cursor style for shader uniforms.
+    pub(super) shader_cursor_style: Option<par_term_emu_core_rust::cursor::CursorStyle>,
     /// Whether alternate screen is active (vim, htop, etc.)
     pub(super) is_alt_screen: bool,
     /// Total scrollback lines available

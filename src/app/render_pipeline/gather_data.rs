@@ -89,6 +89,8 @@ impl WindowState {
         let mut cells = snap.cells;
         let current_cursor_pos = snap.cursor_pos;
         let cursor_style = snap.cursor_style;
+        let shader_cursor_pos = snap.shader_cursor_pos;
+        let shader_cursor_style = snap.shader_cursor_style;
         let is_alt_screen = snap.is_alt_screen;
         let current_generation = snap.current_generation;
         let cell_grid_dims = snap.grid_dims;
@@ -214,6 +216,8 @@ impl WindowState {
             cells,
             cursor_pos: current_cursor_pos,
             cursor_style,
+            shader_cursor_pos,
+            shader_cursor_style,
             is_alt_screen,
             scrollback_len,
             show_scrollbar,

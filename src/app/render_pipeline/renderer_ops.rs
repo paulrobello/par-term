@@ -22,6 +22,8 @@ pub(super) struct GpuStateUpdateParams<'a> {
     pub(super) cells: &'a [crate::cell_renderer::Cell],
     pub(super) current_cursor_pos: Option<(usize, usize)>,
     pub(super) cursor_style: Option<par_term_emu_core_rust::cursor::CursorStyle>,
+    pub(super) shader_cursor_pos: Option<(usize, usize)>,
+    pub(super) shader_cursor_style: Option<par_term_emu_core_rust::cursor::CursorStyle>,
     pub(super) progress_snapshot: &'a Option<ProgressBarSnapshot>,
     pub(super) command_status: (f32, f32, f32),
     pub(super) scroll_offset: usize,
@@ -68,6 +70,8 @@ pub(super) fn update_gpu_renderer_state(
         cells,
         current_cursor_pos,
         cursor_style,
+        shader_cursor_pos,
+        shader_cursor_style,
         progress_snapshot,
         command_status,
         scroll_offset,
@@ -95,18 +99,29 @@ pub(super) fn update_gpu_renderer_state(
         debug_update_cells_time = t.elapsed();
     }
 
-    // Update cursor position and style for geometric rendering
+    // Update cursor position and style for geometric rendering.
     if let (Some(pos), Some(opacity), Some(style)) = (
         current_cursor_pos,
         Some(cursor_anim.cursor_opacity),
         cursor_style,
     ) {
         renderer.update_cursor(pos, opacity, style);
-        // Forward cursor state to custom shader for Ghostty-compatible cursor animations
-        let cursor_color = color_u8_to_f32_a(config.cursor_color, 1.0);
-        renderer.update_shader_cursor(pos.0, pos.1, opacity, cursor_color, style);
     } else {
         renderer.clear_cursor();
+    }
+
+    // Forward terminal cursor state to custom shaders separately from geometric cursor
+    // visibility. Alt-screen apps may hide the terminal cursor while still moving it;
+    // shader uniforms should continue tracking iCurrentCursor in that case.
+    if let (Some(pos), Some(style)) = (shader_cursor_pos, shader_cursor_style) {
+        let cursor_color = color_u8_to_f32_a(config.cursor_color, 1.0);
+        let shader_opacity = if current_cursor_pos.is_some() {
+            cursor_anim.cursor_opacity
+        } else {
+            0.0
+        };
+        renderer.update_shader_cursor(pos.0, pos.1, shader_opacity, cursor_color, style);
+    } else {
         renderer.clear_shader_cursor();
     }
 
