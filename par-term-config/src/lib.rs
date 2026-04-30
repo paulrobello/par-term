@@ -11,6 +11,7 @@
 //! - Status bar widget configuration
 //! - Profile configuration types and manager
 
+pub mod assistant_prompts;
 pub mod automation;
 pub mod cell;
 pub mod config;
@@ -32,6 +33,13 @@ pub mod themes;
 mod types;
 #[cfg(feature = "watcher")]
 pub mod watcher;
+
+// Re-export assistant prompt-library storage types and helpers
+pub use assistant_prompts::{
+    AssistantPrompt, AssistantPromptDraft, assistant_prompts_dir, delete_prompt, list_prompts,
+    list_prompts_in_dir, parse_prompt_markdown, safe_prompt_filename, save_prompt,
+    serialize_prompt_markdown,
+};
 
 // Re-export error types
 pub use error::ConfigError;
