@@ -2,19 +2,31 @@
 // Full-content keypress effect for opaque alternate-screen apps.
 
 /*! par-term shader metadata
-name: "Key Press Ring Full Content"
+name: Key Press Ring Full Content
+author: null
+description: null
+version: null
 defaults:
+  animation_speed: 0.8
+  brightness: null
   full_content: true
+  channel0: null
+  channel1: null
+  channel2: null
+  channel3: null
+  cubemap: null
+  cubemap_enabled: null
+  use_background_as_channel0: null
   uniforms:
+    iFlashAmount: 0.02
+    iKeyCursorGlowRadius: 15.0
+    iKeyCursorGlowStrength: 0.45000002
     iPulseDecay: 6.0
     iPulseDuration: 1.0
-    iFlashAmount: 0.02
     iRingSpeed: 0.8
-    iRingWidth: 0.035
     iRingStrength: 1.6
-    iRingTint: "#33ccff"
-    iKeyCursorGlowRadius: 72.0
-    iKeyCursorGlowStrength: 0.85
+    iRingTint: '#33ccff'
+    iRingWidth: 0.035
 */
 // control slider min=1 max=16 step=0.1 label="Pulse Decay"
 uniform float iPulseDecay;

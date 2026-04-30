@@ -5,15 +5,35 @@ description: null
 version: 1.0.0
 defaults:
   animation_speed: 0.5
-  brightness: 0.55
-  text_opacity: null
-  full_content: null
+  brightness: 0.4
   channel0: ''
   channel1: null
   channel2: null
   channel3: null
   cubemap: textures/cubemaps/env-outside
   cubemap_enabled: false
+  use_background_as_channel0: null
+  uniforms:
+    iBloomBrightness: 0.8
+    iBloomColor: '#ff660d'
+    iEmberGlow: 0.02
+    iFireSpeed: 1.0
+    iFlameScale: 2.5
+    iLayerCount: 8
+    iLayerScale: 1.05
+    iMovementDirection:
+    - 0.7
+    - 1.0
+    iMovementSpeed: 0.32999998
+    iParticleFade: 0.9
+    iParticleSize: 0.0025
+    iSmokeBrightness: 0.8
+    iSmokeColor: '#ff6e1a'
+    iSmokeIntensity: 0.90000004
+    iSmokeOpacity: 0.5
+    iSparkBrightness: 1.5
+    iSparkColor: '#ff660d'
+    iVignette: 1.0
 */
 
 // adapted by Alex Sherwin for Ghstty from https://www.shadertoy.com/view/wl2Gzc
@@ -21,33 +41,62 @@ defaults:
 //Shader License: CC BY 3.0
 //Author: Jan Mróz (jaszunio15)
 
-#define SMOKE_INTENSITY_MULTIPLIER 0.9
-#define PARTICLES_ALPHA_MOD 0.9
-#define SMOKE_ALPHA_MOD 0.5
-#define LAYERS_COUNT 8
+#define MAX_LAYERS_COUNT 12
 
-#define ANIMATION_SPEED 1.0
-#define MOVEMENT_SPEED .33
-#define MOVEMENT_DIRECTION vec2(0.7, 1.0)
-#define MOVEMENT_VEC (MOVEMENT_DIRECTION * MOVEMENT_SPEED)
+// control slider min=0 max=2 step=0.05 label="Smoke Intensity"
+uniform float iSmokeIntensity;
+// control slider min=0.2 max=0.98 step=0.01 label="Particle Fade"
+uniform float iParticleFade;
+// control slider min=0 max=1 step=0.01 label="Smoke Opacity"
+uniform float iSmokeOpacity;
+// control int min=1 max=12 step=1 label="Particle Layers"
+uniform int iLayerCount;
+// control slider min=0.05 max=4 step=0.05 scale=log label="Fire Speed"
+uniform float iFireSpeed;
+// control slider min=0 max=1 step=0.01 label="Movement Speed"
+uniform float iMovementSpeed;
+// control vec2 min=-2 max=2 step=0.05 label="Movement Direction"
+uniform vec2 iMovementDirection;
+// control slider min=0.0005 max=0.01 step=0.0001 scale=log label="Particle Size"
+uniform float iParticleSize;
+// control slider min=0.8 max=1.5 step=0.01 label="Layer Scale"
+uniform float iLayerScale;
+// control slider min=0.75 max=5 step=0.05 scale=log label="Flame Scale"
+uniform float iFlameScale;
+// control slider min=0 max=2 step=0.05 label="Vignette"
+uniform float iVignette;
+// control slider min=0 max=0.2 step=0.005 label="Ember Glow"
+uniform float iEmberGlow;
+// control slider min=0 max=4 step=0.05 label="Spark Brightness"
+uniform float iSparkBrightness;
+// control slider min=0 max=3 step=0.05 label="Bloom Brightness"
+uniform float iBloomBrightness;
+// control slider min=0 max=3 step=0.05 label="Smoke Brightness"
+uniform float iSmokeBrightness;
+// control color label="Spark Color"
+uniform vec3 iSparkColor;
+// control color label="Bloom Color"
+uniform vec3 iBloomColor;
+// control color label="Smoke Color"
+uniform vec3 iSmokeColor;
+
+vec2 movementVec(void) {
+    return iMovementDirection * iMovementSpeed;
+}
+
+float activeLayerMask(int index, int layers) {
+    return step(float(index) + 0.5, float(layers));
+}
 
 // Precomputed sin/cos for rotation angle 0.7
 #define SIN_07 0.644218
 #define COS_07 0.764842
-
-#define PARTICLE_SIZE 0.0025
 
 #define PARTICLE_SCALE (vec2(0.5, 1.6))
 #define PARTICLE_SCALE_VAR (vec2(0.25, 0.2))
 
 #define PARTICLE_BLOOM_SCALE (vec2(0.5, 0.8))
 #define PARTICLE_BLOOM_SCALE_VAR (vec2(0.3, 0.1))
-
-#define SPARK_COLOR vec3(1.0, 0.4, 0.05) * 1.5
-#define BLOOM_COLOR vec3(1.0, 0.4, 0.05) * 0.8
-#define SMOKE_COLOR vec3(1.0, 0.43, 0.1) * 0.8
-
-#define SIZE_MOD 1.05
 
 
 float hash1_2(in vec2 x)
@@ -111,18 +160,20 @@ float layeredNoise1_2(in vec2 uv, in float sizeMod, in float alphaMod, in int la
  	  float noise = 0.0;
     float alpha = 1.0;
     float size = 1.0;
-    vec2 offset;
-    for (int i = 0; i < layers; i++)
+    vec2 offset = vec2(0.0);
+    for (int i = 0; i < MAX_LAYERS_COUNT; i++)
     {
-        offset += hash2_2(vec2(alpha, size)) * 10.0;
+        float mask = activeLayerMask(i, layers);
+        offset += hash2_2(vec2(alpha, size)) * 10.0 * mask;
         
         //Adding noise with movement
-     	  noise += noise1_2(uv * size + iTime * animation * 8.0 * MOVEMENT_VEC + offset) * alpha;
-        alpha *= alphaMod;
-        size *= sizeMod;
+     	  noise += noise1_2(uv * size + iTime * animation * 8.0 * movementVec() + offset) * alpha * mask;
+        alpha *= mix(1.0, alphaMod, mask);
+        size *= mix(1.0, sizeMod, mask);
     }
     
-    noise *= (1.0 - alphaMod)/(1.0 - pow(alphaMod, float(layers)));
+    float safeAlphaMod = clamp(alphaMod, 0.001, 0.999);
+    noise *= (1.0 - safeAlphaMod)/(1.0 - pow(safeAlphaMod, float(max(layers, 1))));
     return noise;
 }
 
@@ -140,7 +191,7 @@ vec2 voronoiPointFromRoot(in vec2 root, in float deg)
 //Voronoi cell point rotation degrees
 float degFromRootUV(in vec2 uv)
 {
- 	return iTime * ANIMATION_SPEED * (hash1_2(uv) - 0.5) * 2.0;   
+ 	return iTime * iFireSpeed * (hash1_2(uv) - 0.5) * 2.0;   
 }
 
 vec2 randomAround2_2(in vec2 point, in vec2 range, in vec2 uv)
@@ -160,7 +211,7 @@ vec3 fireParticles(in vec2 uv, in vec2 originalUV)
    
    	//UV manipulation for the faster particle movement
     vec2 tempUV = uv + (noise2_2(uv * 2.0) - 0.5) * 0.1;
-    tempUV += -(noise2_2(uv * 3.0 + iTime) - 0.5) * 0.07;
+    tempUV += -(noise2_2(uv * 3.0 + iTime * iFireSpeed) - 0.5) * 0.07;
 
     //Rotated offset (precomputed sin/cos for 0.7)
     vec2 rotated = mat2(SIN_07, COS_07, -COS_07, SIN_07) * (tempUV - pointUV);
@@ -172,11 +223,11 @@ vec3 fireParticles(in vec2 uv, in vec2 originalUV)
     distBloom = length(rotated * randomAround2_2(PARTICLE_BLOOM_SCALE, PARTICLE_BLOOM_SCALE_VAR, rootUV));
 
     //Add sparks
-    particles += (1.0 - smoothstep(PARTICLE_SIZE * 0.6, PARTICLE_SIZE * 3.0, dist)) * SPARK_COLOR;
+    particles += (1.0 - smoothstep(iParticleSize * 0.6, iParticleSize * 3.0, dist)) * iSparkColor * iSparkBrightness;
     
     //Add bloom
-    float bloom = 1.0 - smoothstep(0.0, PARTICLE_SIZE * 6.0, distBloom);
-    particles += bloom * bloom * bloom * BLOOM_COLOR;
+    float bloom = 1.0 - smoothstep(0.0, iParticleSize * 6.0, distBloom);
+    particles += bloom * bloom * bloom * iBloomColor * iBloomBrightness;
 
     //Upper disappear curve randomization
     float border = (hash1_2(rootUV) - 0.5) * 2.0;
@@ -201,22 +252,23 @@ vec3 layeredParticles(in vec2 uv, in float sizeMod, in float alphaMod, in int la
     vec2 noiseOffset;
     vec2 bokehUV;
     
-    for (int i = 0; i < layers; i++)
+    for (int i = 0; i < MAX_LAYERS_COUNT; i++)
     {
+        float mask = activeLayerMask(i, layers);
         //Particle noise movement
         noiseOffset = (noise2_2(uv * size * 2.0 + 0.5) - 0.5) * 0.15;
         
         //UV with applied movement
-        bokehUV = (uv * size + iTime * MOVEMENT_VEC) + offset + noiseOffset; 
+        bokehUV = (uv * size + iTime * movementVec()) + offset + noiseOffset; 
         
         //Adding particles								if there is more smoke, remove smaller particles
-		    particles += fireParticles(bokehUV, uv) * alpha * (1.0 - smoothstep(0.0, 1.0, smoke) * (float(i) / float(layers)));
+		    particles += fireParticles(bokehUV, uv) * alpha * (1.0 - smoothstep(0.0, 1.0, smoke) * (float(i) / float(max(layers, 1)))) * mask;
         
         //Moving uv origin to avoid generating the same particles
-        offset += hash2_2(vec2(alpha, alpha)) * 10.0;
+        offset += hash2_2(vec2(alpha, alpha)) * 10.0 * mask;
         
-        alpha *= alphaMod;
-        size *= sizeMod;
+        alpha *= mix(1.0, alphaMod, mask);
+        size *= mix(1.0, sizeMod, mask);
     }
     
     return particles;
@@ -226,22 +278,24 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec2 uv = (2.0 * fragCoord - iResolution.xy) / iResolution.x;
     
     // float vignette = 1.1 - smoothstep(0.4, 1.4, length(uv + vec2(0.0, 0.3)));
-    float vignette = 1.3 - smoothstep(0.4, 1.4, length(uv + vec2(0.0, 0.3)));
+    float vignette = mix(1.0, 1.3 - smoothstep(0.4, 1.4, length(uv + vec2(0.0, 0.3))), iVignette);
     
-    uv *= 2.5;
+    uv *= iFlameScale;
     
-    float smokeIntensity = layeredNoise1_2(uv * 10.0 + iTime * 4.0 * MOVEMENT_VEC, 1.7, 0.7, 6, 0.2);
+    int layers = clamp(iLayerCount, 1, MAX_LAYERS_COUNT);
+    vec2 movement = movementVec();
+    float smokeIntensity = layeredNoise1_2(uv * 10.0 + iTime * iFireSpeed * 4.0 * movement, 1.7, 0.7, 6, 0.2);
     float smokeY = smoothstep(-1.0, 1.6, uv.y);
     smokeIntensity *= smokeY * smokeY;
-    vec3 smoke = smokeIntensity * SMOKE_COLOR * vignette * SMOKE_INTENSITY_MULTIPLIER * SMOKE_ALPHA_MOD;
+    vec3 smoke = smokeIntensity * iSmokeColor * iSmokeBrightness * vignette * iSmokeIntensity * iSmokeOpacity;
 
     //Cutting holes in smoke
-    float holes = layeredNoise1_2(uv * 4.0 + iTime * 0.5 * MOVEMENT_VEC, 1.8, 0.5, 3, 0.2);
+    float holes = layeredNoise1_2(uv * 4.0 + iTime * iFireSpeed * 0.5 * movement, 1.8, 0.5, 3, 0.2);
     smoke *= holes * holes * 1.5;
     
-    vec3 particles = layeredParticles(uv, SIZE_MOD, PARTICLES_ALPHA_MOD, LAYERS_COUNT, smokeIntensity);
+    vec3 particles = layeredParticles(uv, iLayerScale, iParticleFade, layers, smokeIntensity);
     
-    vec3 col = particles + smoke + SMOKE_COLOR * 0.02;
+    vec3 col = particles + smoke + iSmokeColor * iSmokeBrightness * iEmberGlow;
 	  col *= vignette;
     
     fragColor = vec4(smoothstep(-0.08, 1.0, col), 1.0);

@@ -5,15 +5,18 @@ description: null
 version: 1.0.0
 defaults:
   animation_speed: 0.5
-  brightness: 0.2
-  text_opacity: null
-  full_content: null
   channel0: ''
   channel1: null
   channel2: null
   channel3: null
   cubemap: ''
   cubemap_enabled: false
+  use_background_as_channel0: null
+  uniforms:
+    iBlocksBeforeTurn: 3.0
+    iIterations: 40
+    iSpeed: 0.5
+    iWalkSpeed: 0.5
 */
 
 /*
@@ -25,8 +28,16 @@ defaults:
   @pkazmier modified this shader to work in Ghostty.
 */
 
-const int ITERATIONS = 40;   //use less value if you need more performance
-const float SPEED = .5;
+// control int min=1 max=80 step=1 label="Iterations"
+uniform int iIterations;
+// control slider min=0 max=2 step=0.01 label="Speed"
+uniform float iSpeed;
+// control slider min=0 max=2 step=0.01 label="Walk Speed"
+uniform float iWalkSpeed;
+// control slider min=1 max=8 step=0.1 label="Blocks Before Turn"
+uniform float iBlocksBeforeTurn;
+
+const int MAX_ITERATIONS = 80;   //use less value if you need more performance
 
 const float STRIP_CHARS_MIN =  7.;
 const float STRIP_CHARS_MAX = 40.;
@@ -37,10 +48,6 @@ const float XYCELL_SIZE = 12. * STRIP_CHAR_WIDTH;  //the multiplier can't be les
 
 const int BLOCK_SIZE = 10;  //in cells
 const int BLOCK_GAP = 2;    //in cells
-
-const float WALK_SPEED = 0.5 * XYCELL_SIZE;
-const float BLOCKS_BEFORE_TURN = 3.;
-
 
 const float PI = 3.14159265359;
 
@@ -142,7 +149,9 @@ vec3 rain(vec3 ro3, vec3 rd3, float time) {
     //  move through xy-cells in the ray direction
     float t2 = 0.;  // the ray formula is: ro2 + rd2 * t2, where t2 is positive as the ray has a direction.
     ivec2 next_cell = ivec2(floor(ro2/XYCELL_SIZE));  //first cell index where ray origin is located
-    for (int i=0; i<ITERATIONS; i++) {
+    int iterations = clamp(iIterations, 1, MAX_ITERATIONS);
+    for (int i=0; i<MAX_ITERATIONS; i++) {
+        if (i >= iterations) break;
         ivec2 cell = next_cell;  //save cell value before changing
         float t2s = t2;          //and t
 
@@ -268,20 +277,22 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
 
     vec2 uv = fragCoord.xy / iResolution.xy;
 
-    float time = iTime * SPEED;
+    float time = iTime * iSpeed;
+    float walkSpeed = iWalkSpeed * XYCELL_SIZE;
+    float blocksBeforeTurn = max(iBlocksBeforeTurn, 0.5);
 
-    const float turn_rad = 0.25 / BLOCKS_BEFORE_TURN;   //0 .. 0.5
-    const float turn_abs_time = (PI/2.*turn_rad) * 1.5;  //multiplier different than 1 means a slow down on turns
-    const float turn_time = turn_abs_time / (1. - 2.*turn_rad + turn_abs_time);  //0..1, but should be <= 0.5
+    float turn_rad = 0.25 / blocksBeforeTurn;   //0 .. 0.5
+    float turn_abs_time = (PI/2.*turn_rad) * 1.5;  //multiplier different than 1 means a slow down on turns
+    float turn_time = turn_abs_time / (1. - 2.*turn_rad + turn_abs_time);  //0..1, but should be <= 0.5
 
-    float level1_size = float(BLOCK_SIZE) * BLOCKS_BEFORE_TURN * XYCELL_SIZE;
+    float level1_size = float(BLOCK_SIZE) * blocksBeforeTurn * XYCELL_SIZE;
     float level2_size = 4. * level1_size;
     float gap_size = float(BLOCK_GAP) * XYCELL_SIZE;
 
     vec3 ro = vec3(gap_size/2., gap_size/2., 0.);
     vec3 rd = vec3(uv.x, 2.0, uv.y);
 
-    float tq = fract(time / (level2_size*4.) * WALK_SPEED);  //the whole cycle time counter
+    float tq = fract(time / (level2_size*4.) * walkSpeed);  //the whole cycle time counter
     float t8 = fract(tq*4.);  //time counter while walking on one of the four big sides
     float t1 = fract(t8*8.);  //time counter while walking on one of the eight sides of the big side
 

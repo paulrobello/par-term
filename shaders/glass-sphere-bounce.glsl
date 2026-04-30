@@ -9,27 +9,41 @@ description: Glass sphere bouncing and refracting background image
 version: 1.0.0
 defaults:
   animation_speed: 0.5
-  brightness: 1.0
-  text_opacity: 1.0
-  full_content: false
-  channel0: ''
+  channel0: textures/wallpaper/Bulbs.png
   channel1: null
   channel2: null
   channel3: null
   cubemap: null
   cubemap_enabled: false
+  use_background_as_channel0: null
+  uniforms:
+    uBounceSpeed: 0.39999998
+    uChromaticAberration: 0.0
+    uIOR: 1.75
+    uSphereSize: 0.12
+    uThinFilm: 0.0
 */
 
 // Customizable parameters
-float uSphereSize = 0.12;   // Sphere radius as fraction of screen
-float uBounceSpeed = 0.4;   // Speed of bouncing motion
-float uIOR = 1.75;           // Index of refraction (1.0 = none, 1.5 = glass, 2.4 = diamond)
-float uChromaticAberration = 0.0;  // Chromatic aberration strength (0.0 = none, 1.0 = glass, 2.0 = soap bubble)
-float uThinFilm = 0.0;      // Thin film interference (0.0 = none, 1.0 = soap bubble effect)
+// Sphere radius as fraction of screen.
+// control slider min=0.02 max=0.4 step=0.005 label="Sphere Size"
+uniform float uSphereSize;
+// Speed of bouncing motion.
+// control slider min=0 max=2 step=0.01 label="Bounce Speed"
+uniform float uBounceSpeed;
+// Index of refraction (1.0 = none, 1.5 = glass, 2.4 = diamond).
+// control slider min=1 max=2.5 step=0.01 label="Index of Refraction"
+uniform float uIOR;
+// Chromatic aberration strength (0.0 = none, 1.0 = glass, 2.0 = soap bubble).
+// control slider min=0 max=2 step=0.01 label="Chromatic Aberration"
+uniform float uChromaticAberration;
+// Thin film interference (0.0 = none, 1.0 = soap bubble effect).
+// control slider min=0 max=1 step=0.01 label="Thin Film"
+uniform float uThinFilm;
 
 // Calculate sphere position with bouncing motion (in 0-1 UV space)
 vec2 getSpherePosition(float time, float aspect) {
-    float speed = uBounceSpeed;
+    float speed = max(uBounceSpeed, 0.0001);
 
     // Horizontal oscillation (accounting for aspect ratio and sphere size)
     float xRange = max(0.1, 0.5 - uSphereSize / aspect);
@@ -111,11 +125,8 @@ vec3 applyGlassSphere(vec2 uv, vec2 spherePos, float radius, float aspect, bool 
 
         vec3 refracted;
         if (hasTexture) {
-            // Base chromatic aberration from IOR
-            float baseAberration = edgeFactor * (uIOR - 1.0) * 0.02;
-
-            // Enhanced chromatic aberration from user setting
-            float enhancedAberration = baseAberration * (1.0 + uChromaticAberration * 2.0);
+            // Chromatic aberration from user setting. Zero means no channel split.
+            float enhancedAberration = edgeFactor * (uIOR - 1.0) * 0.06 * uChromaticAberration;
 
             // Sample with different offsets for R, G, B channels
             vec3 r = texture(iChannel0, refractUV + vec2(enhancedAberration, enhancedAberration * 0.5)).rgb;

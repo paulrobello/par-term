@@ -5,8 +5,7 @@ description: Ordered dithering effect using 4x4 Bayer matrix
 version: 1.0.0
 defaults:
   animation_speed: 0.5
-  brightness: 1.0
-  text_opacity: null
+  brightness: null
   full_content: true
   channel0: ''
   channel1: null
@@ -14,6 +13,13 @@ defaults:
   channel3: null
   cubemap: ''
   cubemap_enabled: false
+  use_background_as_channel0: null
+  uniforms:
+    iColorMode: 0
+    iDitherLevels: 4
+    iDitherStrength: 1.0
+    iPatternScale: 1
+    iThresholdWeight: 1.0
 */
 
 // Ordered dithering effect
@@ -29,19 +35,47 @@ const mat4 bayerMatrix = mat4(
     15.0/16.0,  7.0/16.0, 13.0/16.0,  5.0/16.0
 );
 
-#define LEVELS 4.0  // Color levels per channel (2=harsh, 4=moderate, 8=subtle)
+// control int min=2 max=16 step=1 label="Color Levels"
+uniform int iDitherLevels;
+// control slider min=0 max=1 step=0.01 label="Dither Strength"
+uniform float iDitherStrength;
+// control int min=1 max=8 step=1 label="Pattern Scale"
+uniform int iPatternScale;
+// control slider min=0 max=2 step=0.01 label="Threshold Weight"
+uniform float iThresholdWeight;
+// control select options="color,mono,amber,green" label="Color Mode"
+uniform int iColorMode;
+
+vec3 applyColorMode(vec3 color) {
+    if (iColorMode == 1) {
+        float luma = dot(color, vec3(0.2126, 0.7152, 0.0722));
+        return vec3(luma);
+    }
+    if (iColorMode == 2) {
+        float luma = dot(color, vec3(0.2126, 0.7152, 0.0722));
+        return luma * vec3(1.0, 0.62, 0.22);
+    }
+    if (iColorMode == 3) {
+        float luma = dot(color, vec3(0.2126, 0.7152, 0.0722));
+        return luma * vec3(0.34, 1.0, 0.42);
+    }
+    return color;
+}
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec2 uv = fragCoord / iResolution.xy;
-    vec3 color = texture(iChannel4, uv).rgb;
+    vec3 color = applyColorMode(texture(iChannel4, uv).rgb);
 
     // Get threshold from Bayer matrix
-    int x = int(fragCoord.x) & 3;
-    int y = int(fragCoord.y) & 3;
-    float threshold = bayerMatrix[y][x];
+    float patternScale = float(max(iPatternScale, 1));
+    int x = int(floor(fragCoord.x / patternScale)) & 3;
+    int y = int(floor(fragCoord.y / patternScale)) & 3;
+    float threshold = (bayerMatrix[y][x] - 0.5) * iThresholdWeight + 0.5;
 
     // Apply ordered dithering
-    vec3 dithered = floor(color * LEVELS + threshold) / LEVELS;
+    float levels = float(max(iDitherLevels, 2));
+    vec3 dithered = floor(color * levels + threshold) / levels;
+    vec3 mixedColor = mix(color, dithered, clamp(iDitherStrength, 0.0, 1.0));
 
-    fragColor = vec4(dithered, 1.0);
+    fragColor = vec4(mixedColor, 1.0);
 }

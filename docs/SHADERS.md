@@ -1,6 +1,6 @@
 # Included Shaders
 
-Par-term includes 67 ready-to-use GLSL shaders (55 background + 12 cursor). This document lists all available shaders organized by category.
+Par-term includes 73 ready-to-use GLSL shaders (61 background + 12 cursor). This document lists all available shaders organized by category.
 
 **[View Shader Gallery with Screenshots](https://paulrobello.github.io/par-term/)**
 
@@ -37,7 +37,6 @@ Background shaders are full-screen post-processing effects applied to the termin
 | `blueprint_grid.glsl` | CAD-style grid that brightens around the cursor and active progress bars. |
 | `build_reactor.glsl` | Progress-aware reactor/core glow that charges with `iProgress.y` and vents on warnings/errors. |
 | `matrix_rain_2.glsl` | Less distracting full-content Matrix rain that avoids dense terminal text and reacts to typing bursts. |
-| `diff_heatmap_glow.glsl` | Full-content edge/highlight glow for changed-looking or bright text regions without blurring glyphs. |
 | `low_power_ambience.glsl` | Static-to-ultra-slow ambience intended for reduced frame cadence and battery-friendly sessions. |
 
 ### Animated Backgrounds
@@ -80,6 +79,11 @@ Background shaders are full-screen post-processing effects applied to the termin
 | `cineShader-Lava.glsl` | Flowing lava/plasma effect (Shadertoy port) |
 | `arcane-portal.glsl` | Mystical portal animation with raymarching (chronos port) |
 | `bumped_sinusoidal_warp.glsl` | Metallic sinusoidal warp with bump-mapped lighting (Shane port). **Example of:** `iChannel0` texture. |
+| `circuit-3d.glsl` | Raymarched circuit-board structure with configurable march/detail controls. |
+| `infinite-zoom-1.glsl` | Burning Ship fractal infinite zoom with full-content terminal blending controls. |
+| `infinite-zoom-2.glsl` | Multibrot z^3 infinite zoom with warm amber/magenta palette and terminal blend controls. |
+| `infinite-zoom-3.glsl` | Julia set infinite zoom with configurable center, constant, and glow controls. |
+| `magic-ball.glsl` | Raymarched glowing magic sphere with rotation, glow, and mouse-control settings. |
 
 ### CRT & Retro Effects
 
@@ -106,7 +110,9 @@ These shaders typically use [`full_content: true`](CUSTOM_SHADERS.md#shader-mode
 | Shader | Description |
 |--------|-------------|
 | `spotlight.glsl` | Moving spotlight/vignette effect. Uses `iChannel0` for optional background. |
+| `industrial1.glsl` | Optimized industrial raymarched structure with configurable glow, relief, and accent colors. |
 | `keypress_ring_fullcontent.glsl` | Full-content cursor-centered ring and flash on each keystroke. **Example of:** [`iTimeKeyPress`](CUSTOM_SHADERS.md#window--content-uniforms) uniform. |
+| `debug-coords.glsl` | Minimal coordinate-gradient shader useful for verifying Shadertoy `fragCoord` orientation. |
 
 ### Cubemap-Based
 

@@ -5,22 +5,53 @@ description: null
 version: 1.0.0
 defaults:
   animation_speed: 0.5
-  brightness: 0.32
-  text_opacity: null
-  full_content: null
   channel0: ''
   channel1: null
   channel2: null
   channel3: null
   cubemap: ''
   cubemap_enabled: false
+  use_background_as_channel0: null
+  uniforms:
+    iHighlightTightness: 2.0
+    iLavaCore: '#e10000'
+    iLavaHighlight: '#ffffff'
+    iLavaShadow: '#24040a'
+    iLightAzimuth: 45.0
+    iLightElevation: -33.0
+    iMarchSteps: 25.0
+    iNumSpheres: 12.0
 */
 
 // INFO: This shader is a port of https://www.shadertoy.com/view/3sySRK
 // Optimized for par-term
 
-#define NUM_SPHERES 12
-#define MARCH_STEPS 48
+#define MAX_NUM_SPHERES 32
+#define MAX_MARCH_STEPS 128
+
+// control slider min=1 max=32 step=1 label="Num Spheres"
+uniform float iNumSpheres;
+
+// control slider min=8 max=128 step=1 label="March Steps"
+uniform float iMarchSteps;
+
+// control color label="Shadow Color"
+uniform vec3 iLavaShadow;
+
+// control color label="Core Color"
+uniform vec3 iLavaCore;
+
+// control color label="Highlight Color"
+uniform vec3 iLavaHighlight;
+
+// control slider min=0 max=2 step=0.01 label="Highlight Tightness"
+uniform float iHighlightTightness;
+
+// control angle unit=degrees label="Light Azimuth"
+uniform float iLightAzimuth;
+
+// control angle unit=degrees label="Light Elevation"
+uniform float iLightElevation;
 
 float opSmoothUnion(float d1, float d2, float k) {
     float h = clamp(0.5 + 0.5 * (d2 - d1) / k, 0.0, 1.0);
@@ -29,7 +60,11 @@ float opSmoothUnion(float d1, float d2, float k) {
 
 float map(vec3 p) {
     float d = 2.0;
-    for (int i = 0; i < NUM_SPHERES; i++) {
+    int sphereCount = int(clamp(floor(iNumSpheres + 0.5), 1.0, float(MAX_NUM_SPHERES)));
+    for (int i = 0; i < MAX_NUM_SPHERES; i++) {
+        if (i >= sphereCount) {
+            break;
+        }
         float fi = float(i);
         float time = iTime * (fract(fi * 412.531 + 0.513) - 0.5) * 2.0;
         vec3 offset = sin(time + fi * vec3(52.5126, 64.62744, 632.25)) * vec3(2.0, 2.0, 0.8);
@@ -60,7 +95,11 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     float depth = 0.0;
     vec3 p;
 
-    for (int i = 0; i < MARCH_STEPS; i++) {
+    int marchStepCount = int(clamp(floor(iMarchSteps + 0.5), 8.0, float(MAX_MARCH_STEPS)));
+    for (int i = 0; i < MAX_MARCH_STEPS; i++) {
+        if (i >= marchStepCount) {
+            break;
+        }
         p = rayOri + rayDir * depth;
         float dist = map(p);
         depth += dist;
@@ -69,10 +108,18 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 
     depth = min(6.0, depth);
     vec3 n = calcNormal(p);
-    float b = max(0.0, dot(n, vec3(0.577)));
+    vec3 lightDir = normalize(vec3(
+        cos(iLightElevation) * cos(iLightAzimuth),
+        sin(iLightElevation),
+        cos(iLightElevation) * sin(iLightAzimuth)
+    ));
+    float b = max(0.0, dot(n, lightDir));
 
-    // Original brightness
-    vec3 col = (0.5 + 0.5 * cos((b + iTime * 3.0) + uv.xyx * 2.0 + vec3(0, 2, 4))) * (0.85 + b * 0.35);
+    float light = clamp(b, 0.0, 1.0);
+    vec3 col = mix(iLavaShadow, iLavaCore, smoothstep(0.00, 0.65, light));
+    float highlightStart = mix(0.45, 0.98, clamp(iHighlightTightness, 0.0, 2.0) * 0.5);
+    col = mix(col, iLavaHighlight, smoothstep(highlightStart, 1.0, light));
+    col *= 0.75 + light * 0.45;
     col *= exp(-depth * 0.15);
 
     // Fade out background where rays miss blobs (fixes banding)

@@ -5,31 +5,76 @@ description: Rain on glass with procedural dark nebula background - no texture n
 version: 1.0.0
 defaults:
   animation_speed: 0.5
-  brightness: 0.5
-  text_opacity: null
-  full_content: null
+  brightness: 0.3
   channel0: null
   channel1: null
   channel2: null
   channel3: null
   cubemap: ''
   cubemap_enabled: false
+  use_background_as_channel0: null
+  uniforms:
+    iColorShift: 1.0
+    iDriftSpeed: 0.0
+    iDropScale: 1.0
+    iFineDetailAmount: 0.14
+    iFineDetailScale: 4.0
+    iFogAmount: 0.0
+    iFogClearAmount: 0.79999995
+    iFogColor: '#b3bfcc'
+    iNebulaBrightness: 0.25
+    iNebulaScale: 3.0
+    iNebulaVignette: 0.0
+    iRainAmount: 0.7
+    iRainPulse: 0.29999998
+    iRainSpeed: 1.0
+    iRefractionStrength: 1.0
+    iScreenVignette: 1.0
+    iWarpScale: 10.0
 */
 
 // Rain on Glass with Procedural Nebula Background
 // Rain functions from Heartfelt by Martijn Steinrucken aka BigWings - 2017
 // Nebula background using domain-warped FBM noise (clouds.glsl noise functions)
 
-// ============== NEBULA SETTINGS ==============
-#define NEBULA_SCALE 3.0
+// ============== CONTROLS ==============
+// control slider min=0 max=1 step=0.01 label="Rain Amount"
+uniform float iRainAmount;
+// control slider min=0 max=1 step=0.01 label="Rain Pulse"
+uniform float iRainPulse;
+// control slider min=0 max=3 step=0.01 label="Rain Speed"
+uniform float iRainSpeed;
+// control slider min=0.5 max=2 step=0.01 label="Drop Scale"
+uniform float iDropScale;
+// control slider min=0 max=2 step=0.01 label="Refraction"
+uniform float iRefractionStrength;
+// control slider min=0.5 max=8 step=0.01 label="Nebula Scale"
+uniform float iNebulaScale;
+// control slider min=0 max=20 step=0.1 label="Nebula Warp"
+uniform float iWarpScale;
+// control slider min=0 max=1 step=0.01 label="Nebula Drift"
+uniform float iDriftSpeed;
+// control slider min=0.5 max=12 step=0.01 label="Fine Detail Scale"
+uniform float iFineDetailScale;
+// control slider min=0 max=0.5 step=0.01 label="Fine Detail"
+uniform float iFineDetailAmount;
+// control slider min=0 max=2 step=0.01 label="Nebula Vignette"
+uniform float iNebulaVignette;
+// control slider min=0.02 max=1 step=0.01 label="Nebula Brightness"
+uniform float iNebulaBrightness;
+// control slider min=0 max=1 step=0.01 label="Fog Amount"
+uniform float iFogAmount;
+// control slider min=0 max=1 step=0.01 label="Fog Clearing"
+uniform float iFogClearAmount;
+// control color label="Fog Color"
+uniform vec3 iFogColor;
+// control slider min=0 max=1 step=0.01 label="Color Shift"
+uniform float iColorShift;
+// control slider min=0 max=1 step=0.01 label="Screen Vignette"
+uniform float iScreenVignette;
+
 #define NEBULA_OCTAVES 1
-#define WARP_SCALE 10
-#define DRIFT_SPEED 0.0
-#define FINE_DETAIL_SCALE 4.0
-#define FINE_DETAIL_AMOUNT 0.14
-#define VIGNETTE_STRENGTH 0
-#define MAX_BRIGHTNESS 0.25
-// =============================================
+// ======================================
 
 // ============== COLOR PALETTE ================
 // Four nebula colors blended by noise value (RGB, keep values dark for readability)
@@ -41,12 +86,8 @@ defaults:
 #define COLOR_HIGHLIGHT  vec3(0.03, 0.05, 0.08)
 // ==============================================
 
-// ============== FOG SETTINGS ==============
-//#define FOG_ENABLED
-#define FOG_AMOUNT 0.4
-#define FOG_CLEAR_AMOUNT 0.8
-#define FOG_COLOR vec3(0.7, 0.75, 0.8)
-// ==========================================
+// Fog is runtime-controlled with iFogAmount. A default of 0.0 preserves
+// the original compiled-off fog behavior.
 
 #define S(a, b, t) smoothstep(a, b, t)
 //#define CHEAP_NORMALS
@@ -88,24 +129,27 @@ float fbm(vec2 n) {
 // --- Domain warping for organic nebula swirls ---
 
 float warpedFbm(vec2 p, float t) {
+    float driftSpeed = clamp(iDriftSpeed, 0.0, 1.0);
+    float warpScale = clamp(iWarpScale, 0.0, 20.0);
+
     // First warp pass
     vec2 q = vec2(
-        fbm(p + vec2(0.0, 0.0) + t * DRIFT_SPEED),
-        fbm(p + vec2(5.2, 1.3) + t * DRIFT_SPEED * 0.7)
+        fbm(p + vec2(0.0, 0.0) + t * driftSpeed),
+        fbm(p + vec2(5.2, 1.3) + t * driftSpeed * 0.7)
     );
     // Second warp pass for extra organic shape
     vec2 r = vec2(
-        fbm(p + WARP_SCALE * q + vec2(1.7, 9.2) + t * DRIFT_SPEED * 0.4),
-        fbm(p + WARP_SCALE * q + vec2(8.3, 2.8) + t * DRIFT_SPEED * 0.5)
+        fbm(p + warpScale * q + vec2(1.7, 9.2) + t * driftSpeed * 0.4),
+        fbm(p + warpScale * q + vec2(8.3, 2.8) + t * driftSpeed * 0.5)
     );
-    return fbm(p + WARP_SCALE * r);
+    return fbm(p + warpScale * r);
 }
 
 // --- Dark nebula color mapping ---
 
 vec3 nebulaColor(float val, float t) {
     // Slow hue drift
-    float hueShift = t * DRIFT_SPEED * 0.5;
+    float hueShift = t * clamp(iDriftSpeed, 0.0, 1.0) * 0.5;
 
     vec3 c0 = COLOR_DEEP_SPACE;
     vec3 c1 = COLOR_DARK_TEAL;
@@ -126,8 +170,10 @@ vec3 nebulaColor(float val, float t) {
 // --- Procedural background ---
 
 vec3 proceduralBackground(vec2 uv, float t) {
+    vec2 safeUv = clamp(uv, vec2(0.0), vec2(1.0));
+
     // Aspect-corrected UV for nebula
-    vec2 nuv = uv * NEBULA_SCALE;
+    vec2 nuv = safeUv * clamp(iNebulaScale, 0.5, 8.0);
 
     // Domain-warped FBM for organic nebula shapes
     float warp = warpedFbm(nuv, t);
@@ -142,16 +188,16 @@ vec3 proceduralBackground(vec2 uv, float t) {
     col += brightness * COLOR_HIGHLIGHT;
 
     // Fine detail layer for visible raindrop refraction at small UV offsets
-    float detail = noise(uv * FINE_DETAIL_SCALE + t * DRIFT_SPEED * 2.0);
-    col += detail * FINE_DETAIL_AMOUNT;
+    float detail = noise(safeUv * clamp(iFineDetailScale, 0.5, 12.0) + t * clamp(iDriftSpeed, 0.0, 1.0) * 2.0);
+    col += detail * clamp(iFineDetailAmount, 0.0, 0.5);
 
     // Vignette
-    vec2 center = uv - 0.5;
-    float vig = 1.0 - dot(center, center) * VIGNETTE_STRENGTH;
+    vec2 center = safeUv - 0.5;
+    float vig = 1.0 - dot(center, center) * clamp(iNebulaVignette, 0.0, 2.0);
     col *= clamp(vig, 0.0, 1.0);
 
     // Keep values in dark range
-    col = clamp(col, 0.0, MAX_BRIGHTNESS);
+    col = clamp(col, 0.0, clamp(iNebulaBrightness, 0.02, 1.0));
 
     return col;
 }
@@ -254,14 +300,15 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
 {
     vec2 uv = (fragCoord.xy-.5*iResolution.xy) / iResolution.y;
     vec2 UV = fragCoord.xy/iResolution.xy;
-    float T = iTime;
+    float T = iTime * max(iRainSpeed, 0.0);
 
     float t = T*.2;
 
-    // Fixed rain amount (no mouse control)
-    float rainAmount = sin(T*.05)*.3+.7;
+    float rainBase = clamp(iRainAmount, 0.0, 1.0);
+    float rainPulse = clamp(iRainPulse, 0.0, 1.0);
+    float rainAmount = clamp(sin(T*.05) * rainPulse + rainBase, 0.0, 1.0);
 
-    uv *= .7;
+    uv *= .7 * clamp(iDropScale, 0.5, 2.0);
     UV = (UV-.5)*.9+.5;
 
     float staticDrops = S(-.5, 1., rainAmount)*2.;
@@ -280,20 +327,21 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     #endif
 
     // Sample procedural background instead of texture
-    vec3 col = proceduralBackground(UV+n, T);
+    vec2 backgroundUV = UV + n * clamp(iRefractionStrength, 0.0, 2.0);
+    vec3 col = proceduralBackground(backgroundUV, T);
 
     // Apply fog effect - drops and trails clear the fog
-    #ifdef FOG_ENABLED
-    float fogClear = c.y * FOG_CLEAR_AMOUNT;
-    fogClear = max(fogClear, S(.1, .3, c.x) * FOG_CLEAR_AMOUNT);
-    float fogLevel = FOG_AMOUNT * (1.0 - fogClear);
-    col = mix(col, FOG_COLOR, fogLevel);
-    #endif
+    float fogClearAmount = clamp(iFogClearAmount, 0.0, 1.0);
+    float fogClear = c.y * fogClearAmount;
+    fogClear = max(fogClear, S(.1, .3, c.x) * fogClearAmount);
+    float fogLevel = clamp(iFogAmount, 0.0, 1.0) * (1.0 - fogClear);
+    col = mix(col, iFogColor, fogLevel);
 
     #ifdef USE_POST_PROCESSING
-    float colFade = sin(t*.2)*.5+.5;
+    float colFade = (sin(t*.2)*.5+.5) * clamp(iColorShift, 0.0, 1.0);
     col *= mix(vec3(1.), vec3(.8, .9, 1.3), colFade);    // subtle color shift
-    col *= 1.-dot(UV-=.5, UV);                            // vignette
+    vec2 vignetteUV = UV - .5;
+    col *= mix(1.0, 1.0 - dot(vignetteUV, vignetteUV), clamp(iScreenVignette, 0.0, 1.0));
     #endif
 
     fragColor = vec4(col, 1.);

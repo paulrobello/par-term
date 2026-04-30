@@ -5,16 +5,21 @@ description: Calm ambient terminal background that changes to amber warning puls
 version: 1.0.0
 defaults:
   animation_speed: 0.55
-  brightness: 0.30
-  text_opacity: 1.0
-  full_content: false
+  brightness: 0.2
+  channel0: null
+  channel1: null
+  channel2: null
+  channel3: null
+  cubemap: null
+  cubemap_enabled: null
+  use_background_as_channel0: null
   uniforms:
-    iAmbientColor: "#15345a"
-    iNormalColor: "#42d392"
-    iWarningColor: "#ffb347"
-    iErrorColor: "#ff4d5e"
+    iAmbientColor: '#15345a'
+    iErrorColor: '#ff4d5e'
     iIntensity: 0.55
+    iNormalColor: '#42d392'
     iStripeScale: 34.0
+    iWarningColor: '#ffb347'
 */
 
 // control color label="Ambient"

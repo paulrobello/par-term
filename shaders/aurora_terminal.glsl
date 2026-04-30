@@ -5,15 +5,19 @@ description: Soft northern-light ribbons with slow motion and readability-first 
 version: 1.0.0
 defaults:
   animation_speed: 0.35
-  brightness: 0.30
-  text_opacity: 1.0
-  full_content: false
+  channel0: null
+  channel1: null
+  channel2: null
+  channel3: null
+  cubemap: null
+  cubemap_enabled: null
+  use_background_as_channel0: null
   uniforms:
-    iColorA: "#4fffd2"
-    iColorB: "#8a6cff"
-    iColorC: "#2f7cff"
-    iRibbonStrength: 0.55
-    iRibbonScale: 3.0
+    iColorA: '#4fffd2'
+    iColorB: '#8a6cff'
+    iColorC: '#2f7cff'
+    iRibbonScale: 2.0
+    iRibbonStrength: 0.5
 */
 
 // control color label="Ribbon A"

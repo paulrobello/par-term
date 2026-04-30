@@ -6,36 +6,51 @@ version: 1.0.0
 defaults:
   animation_speed: 0.5
   brightness: 0.1
-  text_opacity: null
-  full_content: null
   channel0: ''
   channel1: null
   channel2: null
   channel3: null
   cubemap: ''
   cubemap_enabled: false
+  use_background_as_channel0: null
+  uniforms:
+    iBorder: false
+    iDetail: 0.00029999999
+    iGamma: 2.5
+    iHappyFace: true
+    iRaySteps: 80
+    iSaturation: 0.65
+    iShowOnlyEdges: false
+    iWaves: true
 */
 
 // "Happy Fractal" - based on "Fractal Cartoon" by Kali
 // Modified: Nyan Cat replaced with happy face, music replaced with wave pattern
 // Optimized for performance
 
-//#define SHOWONLYEDGES
-#define HAPPYFACE
-#define WAVES
-//#define BORDER
-
-#define RAY_STEPS 100
-
-#define BRIGHTNESS 1.2
-#define GAMMA 1.4
-#define SATURATION .65
-
-#define detail .001
 #define t iTime*.5
+
+// control checkbox label="Show Only Edges"
+uniform bool iShowOnlyEdges;
+// control checkbox label="Happy Face"
+uniform bool iHappyFace;
+// control checkbox label="Waves"
+uniform bool iWaves;
+// control checkbox label="Border"
+uniform bool iBorder;
+// control int min=1 max=160 step=1 label="Ray Steps"
+uniform int iRaySteps;
+// control slider min=0.2 max=3 step=0.01 label="Gamma"
+uniform float iGamma;
+// control slider min=0 max=1 step=0.01 label="Saturation"
+uniform float iSaturation;
+// control slider min=0.0001 max=0.01 step=0.0001 scale=log label="Detail"
+uniform float iDetail;
 
 const vec3 origin=vec3(-1.,.7,0.);
 const mat2 ROT35 = mat2(0.81915, 0.57358, -0.57358, 0.81915); // precomputed rot(radians(35))
+const int MAX_RAY_STEPS = 160;
+const float BRIGHTNESS = 1.2;
 float det=0.0;
 
 // Procedural wave pattern (simplified from 6 to 3 sine calls)
@@ -63,9 +78,9 @@ vec4 formula(vec4 p) {
 
 // Distance function
 float de(vec3 pos) {
-#ifdef WAVES
-    pos.y+=sin(pos.z-t*6.)*.15; //waves!
-#endif
+    if (iWaves) {
+        pos.y+=sin(pos.z-t*6.)*.15; //waves!
+    }
     float hid=0.;
     vec3 tpos=pos;
     tpos.z=abs(3.-mod(tpos.z,6.));
@@ -201,22 +216,23 @@ vec3 raymarch(in vec3 from, in vec3 dir)
     vec3 p, norm;
     float d=100.;
     float totdist=0.;
-    for (int i=0; i<RAY_STEPS; i++) {
+    for (int i=0; i<MAX_RAY_STEPS; i++) {
+        if (i >= iRaySteps) break;
         if (d>det && totdist<25.0) {
             p=from+totdist*dir;
             d=de(p);
-            det=detail*exp(.13*totdist);
+            det=iDetail*exp(.13*totdist);
             totdist+=d;
         }
     }
     vec3 col=vec3(0.);
     p-=(det-d)*dir;
     norm=normal(p);
-#ifdef SHOWONLYEDGES
-    col=1.-vec3(edge); // show wireframe version
-#else
-    col=(1.-abs(norm))*max(0.,1.-edge*.8); // set normal as color with dark edges
-#endif
+    if (iShowOnlyEdges) {
+        col=1.-vec3(edge); // show wireframe version
+    } else {
+        col=(1.-abs(norm))*max(0.,1.-edge*.8); // set normal as color with dark edges
+    }
     totdist=clamp(totdist,0.,26.);
     dir.y-=.02;
 
@@ -237,21 +253,21 @@ vec3 raymarch(in vec3 from, in vec3 dir)
 
     col=mix(vec3(1.,.9,.3),col,exp(-.004*totdist*totdist));// distant fading to sun color
     if (totdist>25.) col=backg; // hit background
-    col=pow(col,vec3(GAMMA))*BRIGHTNESS;
-    col=mix(vec3(length(col)),col,SATURATION);
-#ifdef SHOWONLYEDGES
-    col=1.-vec3(length(col));
-#else
-    col*=vec3(1.,.9,.85);
-#ifdef HAPPYFACE
-    dir.yx*=rot(dir.x);
-    vec2 facePos=(dir.xy+vec2(-3.+mod(-t,6.),-.27));
-    vec4 face=happyFace(facePos*3. + vec2(0., -0.05));  // 50% bigger, shifted up relative to rainbow
-    vec4 rain=rainbow(facePos*10.+vec2(.3,.25));  // moved closer to face
-    if (totdist>8.) col=mix(col,max(vec3(.2),rain.xyz),rain.a*.9);
-    if (totdist>8.) col=mix(col,max(vec3(.2),face.xyz),face.a*.9);
-#endif
-#endif
+    col=pow(col,vec3(iGamma))*BRIGHTNESS;
+    col=mix(vec3(length(col)),col,iSaturation);
+    if (iShowOnlyEdges) {
+        col=1.-vec3(length(col));
+    } else {
+        col*=vec3(1.,.9,.85);
+        if (iHappyFace) {
+            dir.yx*=rot(dir.x);
+            vec2 facePos=(dir.xy+vec2(-3.+mod(-t,6.),-.27));
+            vec4 face=happyFace(facePos*3. + vec2(0., -0.05));  // 50% bigger, shifted up relative to rainbow
+            vec4 rain=rainbow(facePos*10.+vec2(.3,.25));  // moved closer to face
+            if (totdist>8.) col=mix(col,max(vec3(.2),rain.xyz),rain.a*.9);
+            if (totdist>8.) col=mix(col,max(vec3(.2),face.xyz),face.a*.9);
+        }
+    }
     return col;
 }
 
@@ -281,8 +297,8 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     dir.yz*=rot(-0.05);
     vec3 from=origin+move(dir);
     vec3 color=raymarch(from,dir);
-    #ifdef BORDER
-    color=mix(vec3(0.),color,pow(max(0.,.95-length(oriuv*oriuv*oriuv*vec2(1.05,1.1))),.3));
-    #endif
+    if (iBorder) {
+        color=mix(vec3(0.),color,pow(max(0.,.95-length(oriuv*oriuv*oriuv*vec2(1.05,1.1))),.3));
+    }
     fragColor = vec4(color*0.5,1.);
 }

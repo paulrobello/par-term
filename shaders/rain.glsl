@@ -5,31 +5,50 @@ description: null
 version: 1.0.0
 defaults:
   animation_speed: 0.5
-  brightness: null
-  text_opacity: null
-  full_content: null
   channel0: textures/wallpaper/MagicMushrooms.png
   channel1: null
   channel2: null
   channel3: null
   cubemap: ''
   cubemap_enabled: false
+  use_background_as_channel0: null
+  uniforms:
+    iDropScale: 1.0
+    iFogAmount: 0.0
+    iFogClearAmount: 0.79999995
+    iFogColor: '#b3bfcc'
+    iPostAmount: 1.0
+    iRainAmount: 0.7
+    iRainPulse: 0.29999998
+    iRainSpeed: 1.0
+    iRefractionStrength: 1.0
+    iVignetteAmount: 1.0
 */
 
 // Rain on Glass - based on Heartfelt by Martijn Steinrucken aka BigWings - 2017
 // Modified to remove heart, lightning, and mouse effects
 // Original: https://www.shadertoy.com/view/ltffzl
 
-// ============== ADJUSTABLE FOG SETTINGS ==============
-// FOG_ENABLED: Uncomment to enable fog (costs GPU cycles)
-//#define FOG_ENABLED
-// FOG_AMOUNT: Controls overall glass fogginess (0.0 = clear, 1.0 = fully fogged)
-#define FOG_AMOUNT 0.4
-// FOG_CLEAR_AMOUNT: How much drops clear the fog (0.0 = no clearing, 1.0 = full clearing)
-#define FOG_CLEAR_AMOUNT 0.8
-// FOG_COLOR: The color of the fog (grayish-blue works well for window condensation)
-#define FOG_COLOR vec3(0.7, 0.75, 0.8)
-// =====================================================
+// control slider min=0 max=1 step=0.01 label="Rain Amount"
+uniform float iRainAmount;
+// control slider min=0 max=1 step=0.01 label="Rain Pulse"
+uniform float iRainPulse;
+// control slider min=0 max=3 step=0.01 label="Rain Speed"
+uniform float iRainSpeed;
+// control slider min=0.5 max=2 step=0.01 label="Drop Scale"
+uniform float iDropScale;
+// control slider min=0 max=2 step=0.01 label="Refraction"
+uniform float iRefractionStrength;
+// control slider min=0 max=1 step=0.01 label="Fog Amount"
+uniform float iFogAmount;
+// control slider min=0 max=1 step=0.01 label="Fog Clearing"
+uniform float iFogClearAmount;
+// control color label="Fog Color"
+uniform vec3 iFogColor;
+// control slider min=0 max=1 step=0.01 label="Color Shift"
+uniform float iPostAmount;
+// control slider min=0 max=1 step=0.01 label="Vignette"
+uniform float iVignetteAmount;
 
 #define S(a, b, t) smoothstep(a, b, t)
 //#define CHEAP_NORMALS
@@ -129,14 +148,15 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
 {
     vec2 uv = (fragCoord.xy-.5*iResolution.xy) / iResolution.y;
     vec2 UV = fragCoord.xy/iResolution.xy;
-    float T = iTime;
+    float T = iTime * max(iRainSpeed, 0.0);
 
     float t = T*.2;
 
-    // Fixed rain amount (no mouse control)
-    float rainAmount = sin(T*.05)*.3+.7;
+    float rainBase = clamp(iRainAmount, 0.0, 1.0);
+    float rainPulse = clamp(iRainPulse, 0.0, 1.0);
+    float rainAmount = clamp(sin(T*.05) * rainPulse + rainBase, 0.0, 1.0);
 
-    uv *= .7;
+    uv *= .7 * clamp(iDropScale, 0.5, 2.0);
     UV = (UV-.5)*.9+.5;
 
     float staticDrops = S(-.5, 1., rainAmount)*2.;
@@ -155,20 +175,22 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     #endif
 
     // Sample background
-    vec3 col = texture(iChannel0, UV+n).rgb;
+    vec2 refractedUV = clamp(UV + n * clamp(iRefractionStrength, 0.0, 2.0), vec2(0.0), vec2(1.0));
+    vec3 col = texture(iChannel0, refractedUV).rgb;
 
     // Apply fog effect - drops and trails clear the fog
-    #ifdef FOG_ENABLED
-    float fogClear = c.y * FOG_CLEAR_AMOUNT;  // trails clear fog
-    fogClear = max(fogClear, S(.1, .3, c.x) * FOG_CLEAR_AMOUNT);  // drops clear fog more
-    float fogLevel = FOG_AMOUNT * (1.0 - fogClear);
-    col = mix(col, FOG_COLOR, fogLevel);
-    #endif
+    float fogClearAmount = clamp(iFogClearAmount, 0.0, 1.0);
+    float fogClear = c.y * fogClearAmount;
+    fogClear = max(fogClear, S(.1, .3, c.x) * fogClearAmount);
+    float fogLevel = clamp(iFogAmount, 0.0, 1.0) * (1.0 - fogClear);
+    col = mix(col, iFogColor, fogLevel);
 
     #ifdef USE_POST_PROCESSING
-    float colFade = sin(t*.2)*.5+.5;
+    float postAmount = clamp(iPostAmount, 0.0, 1.0);
+    float colFade = (sin(t*.2)*.5+.5) * postAmount;
     col *= mix(vec3(1.), vec3(.8, .9, 1.3), colFade);    // subtle color shift
-    col *= 1.-dot(UV-=.5, UV);                            // vignette
+    vec2 vignetteUV = UV - .5;
+    col *= mix(1.0, 1.0 - dot(vignetteUV, vignetteUV), clamp(iVignetteAmount, 0.0, 1.0));
     #endif
 
     fragColor = vec4(col, 1.);

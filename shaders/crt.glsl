@@ -6,8 +6,15 @@ version: 1.0.0
 defaults:
   animation_speed: 0.5
   brightness: 1.0
-  text_opacity: null
   full_content: true
+  uniforms:
+    iScanlineScale: 1.0
+    iWarpAmount: 1.0
+    iCornerLight: 0.7
+    iScanlineThinness: 0.6
+    iHorizontalBlur: -2.0
+    iShadowMask: 0.85
+    iMaskMode: 0
   channel0: ''
   channel1: null
   channel2: null
@@ -15,6 +22,21 @@ defaults:
   cubemap: ''
   cubemap_enabled: false
 */
+
+// control slider min=0.25 max=2.0 step=0.05 label="Scanline Scale"
+uniform float iScanlineScale;
+// control slider min=0.0 max=2.0 step=0.05 label="Tube Warp"
+uniform float iWarpAmount;
+// control slider min=0.0 max=1.0 step=0.01 label="Corner Light"
+uniform float iCornerLight;
+// control slider min=0.3 max=1.2 step=0.01 label="Scanline Thinness"
+uniform float iScanlineThinness;
+// control slider min=-3.0 max=-0.5 step=0.05 label="Horizontal Blur"
+uniform float iHorizontalBlur;
+// control slider min=0.25 max=1.0 step=0.01 label="Shadow Mask"
+uniform float iShadowMask;
+// control select options="shadow,grille,grille-lite,none" label="Mask Mode"
+uniform int iMaskMode;
 
 // source: https://gist.github.com/qwerasd205/c3da6c610c8ffe17d6d2d3cc7068f17f
 // credits: https://github.com/qwerasd205
@@ -72,48 +94,8 @@ defaults:
 // the file, and can be read above. I (Qwerasd) choose to
 // release the modified version under the same license.
 
-// The appearance of this shader can be altered
-// by adjusting the parameters defined below.
-
-// "Scanlines" per real screen pixel.
-// e.g. SCALE 0.5 means each scanline is 2 pixels.
-// Recommended values:
-//  o High DPI displays: 0.5
-//  - Low DPI displays:  1.0
-#define SCALE 1.0
-
 // "Tube" warp
 #define CRTS_WARP 1
-
-// Darkness of vignette in corners after warping
-//  0.0 = completely black
-//  1.0 = no vignetting
-#define MIN_VIN 0.7
-
-// Try different masks
-// #define CRTS_MASK_GRILLE 1
-// #define CRTS_MASK_GRILLE_LITE 1
-// #define CRTS_MASK_NONE 1
-#define CRTS_MASK_SHADOW 1
-
-// Scanline thinness
-//  0.50 = fused scanlines
-//  0.70 = recommended default
-//  1.00 = thinner scanlines (too thin)
-#define INPUT_THIN 0.60
-
-// Horizonal scan blur
-//  -3.0 = pixely
-//  -2.5 = default
-//  -2.0 = smooth
-//  -1.0 = too blurry
-#define INPUT_BLUR -2.0
-
-// Shadow mask effect, ranges from,
-//  0.25 = large amount of mask (not recommended, too dark)
-//  0.50 = recommended default
-//  1.00 = no shadow mask
-#define INPUT_MASK 0.85
 
 float FromSrgb1(float c) {
   return (c <= 0.04045) ? c * (1.0 / 12.92) :
@@ -137,16 +119,16 @@ float CrtsMax3F1(float a, float b, float c) {
 
 vec2 CrtsTone(
   float thin,
-  float mask) {
-  #ifdef CRTS_MASK_NONE
-  mask = 1.0;
-  #endif
+  float mask,
+  int mode) {
+  if (mode == 3) {
+    mask = 1.0;
+  }
 
-  #ifdef CRTS_MASK_GRILLE_LITE
-  // Normal R mask is {1.0,mask,mask}
-  // LITE   R mask is {mask,1.0,1.0}
-  mask = 0.5 + mask * 0.5;
-  #endif
+  if (mode == 2) {
+    // Normal R mask is {1.0,mask,mask}; lite is {mask,1.0,1.0}.
+    mask = 0.5 + mask * 0.5;
+  }
 
   vec2 ret;
   float midOut = 0.18 / ((1.5 - thin) * (0.5 * mask + 0.5));
@@ -157,30 +139,29 @@ vec2 CrtsTone(
   return ret;
 }
 
-vec3 CrtsMask(vec2 pos, float dark) {
-  #ifdef CRTS_MASK_GRILLE
-  vec3 m = vec3(dark, dark, dark);
-  float x = fract(pos.x * (1.0 / 3.0));
-  if (x < (1.0 / 3.0)) m.r = 1.0;
-  else if (x < (2.0 / 3.0)) m.g = 1.0;
-  else m.b = 1.0;
-  return m;
-  #endif
+vec3 CrtsMask(vec2 pos, float dark, int mode) {
+  if (mode == 1) {
+    vec3 m = vec3(dark, dark, dark);
+    float x = fract(pos.x * (1.0 / 3.0));
+    if (x < (1.0 / 3.0)) m.r = 1.0;
+    else if (x < (2.0 / 3.0)) m.g = 1.0;
+    else m.b = 1.0;
+    return m;
+  }
 
-  #ifdef CRTS_MASK_GRILLE_LITE
-  vec3 m = vec3(1.0, 1.0, 1.0);
-  float x = fract(pos.x * (1.0 / 3.0));
-  if (x < (1.0 / 3.0)) m.r = dark;
-  else if (x < (2.0 / 3.0)) m.g = dark;
-  else m.b = dark;
-  return m;
-  #endif
+  if (mode == 2) {
+    vec3 m = vec3(1.0, 1.0, 1.0);
+    float x = fract(pos.x * (1.0 / 3.0));
+    if (x < (1.0 / 3.0)) m.r = dark;
+    else if (x < (2.0 / 3.0)) m.g = dark;
+    else m.b = dark;
+    return m;
+  }
 
-  #ifdef CRTS_MASK_NONE
-  return vec3(1.0, 1.0, 1.0);
-  #endif
+  if (mode == 3) {
+    return vec3(1.0, 1.0, 1.0);
+  }
 
-  #ifdef CRTS_MASK_SHADOW
   pos.x += pos.y * 3.0;
   vec3 m = vec3(dark, dark, dark);
   float x = fract(pos.x * (1.0 / 6.0));
@@ -188,7 +169,6 @@ vec3 CrtsMask(vec2 pos, float dark) {
   else if (x < (2.0 / 3.0)) m.g = 1.0;
   else m.b = 1.0;
   return m;
-  #endif
 }
 
 vec3 CrtsFilter(
@@ -273,7 +253,7 @@ vec3 CrtsFilter(
 
   #ifdef CRTS_WARP
   // Get rid of wrong pixels on edge
-  pixT *= max(MIN_VIN, vin);
+  pixT *= max(iCornerLight, vin);
   #endif
 
   scanA *= pixT;
@@ -285,7 +265,7 @@ vec3 CrtsFilter(
       (colB0 * pix0 + colB1 * pix1 + colB2 * pix2 + colB3 * pix3) * scanB;
 
   // Apply phosphor mask
-  color *= CrtsMask(ipos, mask);
+  color *= CrtsMask(ipos, mask, iMaskMode);
 
   // Tonal control, start by protecting from /0
   float peak = max(1.0 / (256.0 * 65536.0),
@@ -311,16 +291,16 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
   fragColor.rgb = CrtsFilter(
       fragCoord.xy,
       vec2(1.0),
-      iResolution.xy * SCALE * 0.5,
-      1.0 / (iResolution.xy * SCALE),
+      iResolution.xy * iScanlineScale * 0.5,
+      1.0 / (iResolution.xy * iScanlineScale),
       1.0 / iResolution.xy,
       2.0 / iResolution.xy,
       iResolution.y,
-      vec2(1.0 / (50.0 * aspect), 1.0 / 50.0),
-      INPUT_THIN,
-      INPUT_BLUR,
-      INPUT_MASK,
-      CrtsTone(INPUT_THIN, INPUT_MASK)
+      vec2(iWarpAmount / (50.0 * aspect), iWarpAmount / 50.0),
+      iScanlineThinness,
+      iHorizontalBlur,
+      iShadowMask,
+      CrtsTone(iScanlineThinness, iShadowMask, iMaskMode)
     );
 
   // Linear to SRGB for output.

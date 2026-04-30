@@ -5,15 +5,13 @@ description: Smooth animated color gradient background
 version: 1.0.0
 defaults:
   animation_speed: 0.5
-  brightness: 0.36
-  text_opacity: null
-  full_content: null
   channel0: null
   channel1: null
   channel2: null
   channel3: null
   cubemap: null
   cubemap_enabled: null
+  use_background_as_channel0: null
 */
 
 // Source: https://github.com/unkn0wncode

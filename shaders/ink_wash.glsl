@@ -5,14 +5,18 @@ description: Low-contrast paper and ink diffusion using procedural noise for cal
 version: 1.0.0
 defaults:
   animation_speed: 0.08
-  brightness: 0.30
-  text_opacity: 1.0
-  full_content: false
+  channel0: null
+  channel1: null
+  channel2: null
+  channel3: null
+  cubemap: null
+  cubemap_enabled: null
+  use_background_as_channel0: null
   uniforms:
-    iPaperColor: "#d8d0bd"
-    iInkColor: "#293242"
+    iGrain: 0.39999998
+    iInkColor: '#293242'
+    iPaperColor: '#d8d0bd'
     iWashStrength: 0.32
-    iGrain: 0.22
 */
 
 // control color label="Paper"

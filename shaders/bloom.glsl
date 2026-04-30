@@ -5,8 +5,7 @@ description: null
 version: 1.0.0
 defaults:
   animation_speed: 0.5
-  brightness: 1.0
-  text_opacity: null
+  brightness: null
   full_content: true
   channel0: ''
   channel1: null
@@ -14,10 +13,35 @@ defaults:
   channel3: null
   cubemap: ''
   cubemap_enabled: false
+  use_background_as_channel0: null
+  uniforms:
+    iBaseOpacity: 1.0
+    iBloomIntensity: 1.0
+    iBloomKnee: 0.08
+    iBloomRadius: 1.0
+    iBloomSaturation: 1.0
+    iBloomThreshold: 0.19999999
+    iBloomTint: '#ffffff'
 */
 
 // source: https://gist.github.com/qwerasd205/c3da6c610c8ffe17d6d2d3cc7068f17f
 // credits: https://github.com/qwerasd205
+
+// control slider min=0.25 max=8.0 step=0.01 scale=log label="Bloom Radius"
+uniform float iBloomRadius;
+// control slider min=0.0 max=1.0 step=0.01 label="Bloom Threshold"
+uniform float iBloomThreshold;
+// control slider min=0.0 max=0.5 step=0.01 label="Soft Knee"
+uniform float iBloomKnee;
+// control slider min=0.0 max=4.0 step=0.01 label="Bloom Intensity"
+uniform float iBloomIntensity;
+// control slider min=0.0 max=1.0 step=0.01 label="Base Opacity"
+uniform float iBaseOpacity;
+// control slider min=0.0 max=2.0 step=0.01 label="Bloom Saturation"
+uniform float iBloomSaturation;
+// control color label="Bloom Tint"
+uniform vec3 iBloomTint;
+
 // Golden spiral samples, [x, y, weight] weight is inverse of distance.
 const vec3[24] samples = {
   vec3(0.1693761725038636, 0.9855514761735895, 1),
@@ -50,16 +74,21 @@ const vec3 LUM_WEIGHTS = vec3(0.299, 0.587, 0.114);
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
   vec2 uv = fragCoord.xy / iResolution.xy;
-  vec4 color = texture(iChannel4, uv);
-  vec2 sampleStep = vec2(1.414) / iResolution.xy;
+  vec4 base = texture(iChannel4, uv);
+  vec4 bloom = vec4(0.0);
+  vec2 sampleStep = vec2(1.414 * iBloomRadius) / iResolution.xy;
 
   for (int i = 0; i < 24; i++) {
     vec3 s = samples[i];
-    vec4 c = texture(iChannel4, uv + s.xy * sampleStep);
+    vec2 sampleUv = clamp(uv + s.xy * sampleStep, vec2(0.0), vec2(1.0));
+    vec4 c = texture(iChannel4, sampleUv);
     float l = dot(c.rgb, LUM_WEIGHTS);
-    // Branchless: step returns 1.0 when l > 0.2, else 0.0
-    color += l * step(0.2, l) * s.z * c * 0.25;
+    float knee = max(iBloomKnee, 0.0001);
+    float mask = smoothstep(iBloomThreshold, iBloomThreshold + knee, l);
+    vec3 gray = vec3(l);
+    vec3 saturated = mix(gray, c.rgb, iBloomSaturation);
+    bloom += vec4(saturated * iBloomTint, c.a) * (l * mask * s.z * 0.25);
   }
 
-  fragColor = color;
+  fragColor = base * iBaseOpacity + bloom * iBloomIntensity;
 }

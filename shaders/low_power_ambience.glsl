@@ -5,15 +5,20 @@ description: Static-to-ultra-slow polished ambience intended for reduced frame c
 version: 1.0.0
 defaults:
   animation_speed: 0.08
-  brightness: 0.30
-  text_opacity: 1.0
-  full_content: false
+  brightness: 0.2
+  channel0: null
+  channel1: null
+  channel2: null
+  channel3: null
+  cubemap: null
+  cubemap_enabled: null
+  use_background_as_channel0: null
   uniforms:
-    iColorA: "#101827"
-    iColorB: "#26314f"
-    iAccent: "#7c5cff"
-    iMotion: 0.15
-    iGrain: 0.10
+    iAccent: '#7c5cff'
+    iColorA: '#101827'
+    iColorB: '#26314f'
+    iGrain: 0.099999994
+    iMotion: 0.14999999
 */
 
 // control color label="Base A"

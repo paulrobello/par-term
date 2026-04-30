@@ -5,13 +5,17 @@ description: Palette-aware nebula inspired by Solarized tones and active termina
 version: 1.0.0
 defaults:
   animation_speed: 0.25
-  brightness: 0.30
-  text_opacity: 1.0
-  full_content: false
+  channel0: null
+  channel1: null
+  channel2: null
+  channel3: null
+  cubemap: null
+  cubemap_enabled: null
+  use_background_as_channel0: null
   uniforms:
-    iAccentA: "#268bd2"
-    iAccentB: "#2aa198"
-    iAccentC: "#b58900"
+    iAccentA: '#268bd2'
+    iAccentB: '#2aa198'
+    iAccentC: '#b58900'
     iNebulaStrength: 0.45
 */
 

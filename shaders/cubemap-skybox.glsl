@@ -1,3 +1,19 @@
+/*! par-term shader metadata
+name: cubemap-skybox
+author: null
+description: null
+version: 1.0.0
+defaults:
+  animation_speed: 0.2
+  channel0: null
+  channel1: null
+  channel2: null
+  channel3: null
+  cubemap: textures/cubemaps/env-outside
+  cubemap_enabled: null
+  use_background_as_channel0: null
+*/
+
 // Cubemap Skybox Shader
 // Demonstrates environment mapping with animated rotation
 // Uses iCubemap for sampling a 6-face cubemap texture

@@ -5,14 +5,20 @@ description: Uses iFocusedPane to frame the active split pane while dimming inac
 version: 1.0.1
 defaults:
   animation_speed: 0.35
-  brightness: 1.0
-  text_opacity: 1.0
+  brightness: null
   full_content: true
+  channel0: null
+  channel1: null
+  channel2: null
+  channel3: null
+  cubemap: null
+  cubemap_enabled: null
+  use_background_as_channel0: null
   uniforms:
-    iBaseColor: "#101623"
-    iFocusColor: "#4aa3ff"
-    iInactiveDim: 0.28
-    iBorderStrength: 0.55
+    iBaseColor: '#101623'
+    iBorderStrength: 0.96
+    iFocusColor: '#4aa3ff'
+    iInactiveDim: 0.44
 */
 
 // control color label="Base"

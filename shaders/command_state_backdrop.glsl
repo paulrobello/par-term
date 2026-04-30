@@ -4,17 +4,21 @@ author: par-term
 description: Briefly tints the terminal after shell-integration command start, success, or failure using iCommand.
 version: 1.0.0
 defaults:
-  animation_speed: 1.0
-  brightness: 0.30
-  text_opacity: 1.0
-  full_content: false
+  animation_speed: 0.8
+  channel0: null
+  channel1: null
+  channel2: null
+  channel3: null
+  cubemap: null
+  cubemap_enabled: null
+  use_background_as_channel0: null
   uniforms:
-    iIdleColor: "#101827"
-    iRunningColor: "#3aa7ff"
-    iSuccessColor: "#42d392"
-    iFailureColor: "#ff4d5e"
-    iFlashSeconds: 1.4
-    iBackdropStrength: 0.55
+    iBackdropStrength: 0.5
+    iFailureColor: '#ff4d5e'
+    iFlashSeconds: 1.0
+    iIdleColor: '#101827'
+    iRunningColor: '#3aa7ff'
+    iSuccessColor: '#42d392'
 */
 
 // control color label="Idle"

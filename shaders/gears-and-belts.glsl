@@ -5,15 +5,24 @@ description: null
 version: 1.0.0
 defaults:
   animation_speed: 0.5
-  brightness: null
-  text_opacity: null
-  full_content: null
   channel0: ''
   channel1: null
   channel2: null
   channel3: null
   cubemap: ''
   cubemap_enabled: false
+  use_background_as_channel0: null
+  uniforms:
+    background_color: '#000000'
+    belt_color: '#ffffff'
+    belt_cutout_color: '#000000'
+    final_tint: '#8099bf'
+    gear_color: '#ffffff'
+    item_highlight_color: '#ffffff'
+    item_metal_color: '#999999'
+    item_shadow_color: '#4d4d4d'
+    upward_animation: true
+    upward_animation_speed: 0.020000001
 */
 
 // sligltly modified version of https://www.shadertoy.com/view/DsVSDV
@@ -34,6 +43,27 @@ defaults:
 const float RAD45 = 0.7854;
 const float RAD60 = 1.0472;
 const float DEG2RAD = 0.01745;
+
+// control color label="Background Color"
+uniform vec3 background_color;
+// control color label="Belt Color"
+uniform vec3 belt_color;
+// control color label="Belt Cutout Color"
+uniform vec3 belt_cutout_color;
+// control color label="Gear Color"
+uniform vec3 gear_color;
+// control color label="Item Shadow Color"
+uniform vec3 item_shadow_color;
+// control color label="Item Highlight Color"
+uniform vec3 item_highlight_color;
+// control color label="Item Metal Color"
+uniform vec3 item_metal_color;
+// control color label="Final Tint"
+uniform vec3 final_tint;
+// control checkbox label="Upward Animation"
+uniform bool upward_animation;
+// control slider min=0 max=0.2 step=0.001 label="Upward Animation Speed"
+uniform float upward_animation_speed;
 
 float random (vec2 p) {
     return fract(sin(dot(p.xy, vec2(12.9898,78.233)))* 43758.5453123);
@@ -73,13 +103,13 @@ vec3 pattern1(vec2 p, vec3 col, float dir){
     p+=vec2(size);
     float d = abs(length(p)-size)-thick;
     d = max(d,innerGear(p,dir));
-    col = mix(col,vec3(1.),S(d,0.0));
+    col = mix(col,belt_color,S(d,0.0));
     
     p = prevP;
     p-=vec2(size);
     d = abs(length(p)-size)-thick;
     d = max(d,innerGear(p,dir));
-    col = mix(col,vec3(1.),S(d,0.0));  
+    col = mix(col,belt_color,S(d,0.0));  
     
     return col;
 }
@@ -158,14 +188,14 @@ vec3 pattern2(vec2 p, vec3 col, float dir){
     d2 = abs(B(p,vec2(size*0.3)))-0.05;
     d = min(d,d2); 
     
-    col = mix(col,vec3(1.),S(d,0.0));
+    col = mix(col,belt_color,S(d,0.0));
     
     d = B(p,vec2(0.08));
-    col = mix(col,vec3(0.),S(d,0.0));
+    col = mix(col,belt_cutout_color,S(d,0.0));
     
     p*=Rot(RAD60*iTime*dir);
     d = B(p,vec2(0.03));
-    col = mix(col,vec3(1.),S(d,0.0));     
+    col = mix(col,belt_color,S(d,0.0));     
      
     return col;
 }
@@ -205,7 +235,7 @@ vec3 gear(vec2 p, vec3 col, float dir){
     p = prevP;
     float d2 = abs(length(p)-0.29)-0.02;
     d = min(d,d2);
-    col = mix(col,vec3(1.),S(d,0.0));
+    col = mix(col,gear_color,S(d,0.0));
     
     p*=Rot(DEG2RAD*(iTime*30.-30.)*dir);
     p = DF(p,6.);
@@ -217,7 +247,7 @@ vec3 gear(vec2 p, vec3 col, float dir){
     p*=Rot(DEG2RAD*(iTime*25.+30.)*-dir);
     d2 = max(-(abs(p.x)-0.05),d2);
     d = min(d,d2);
-    col = mix(col,vec3(1.),S(d,0.0));
+    col = mix(col,gear_color,S(d,0.0));
     
     return col;
 }
@@ -227,13 +257,13 @@ vec3 item0(vec2 p, vec3 col, float dir){
     p.x*=dir;
     p*=Rot(DEG2RAD*(iTime*30.+30.));
     float d = abs(length(p)-0.2)-0.05;
-    col = mix(col,vec3(0.3),S(d,0.0));
+    col = mix(col,item_shadow_color,S(d,0.0));
     
     d = abs(length(p)-0.2)-0.05;
     d = max(-p.x,d);
     float a = clamp(atan(p.x,p.y)*0.5,0.3,1.);
     
-    col = mix(col,vec3(a),S(d,0.0));
+    col = mix(col,item_highlight_color * a,S(d,0.0));
     
     return col;
 }
@@ -270,7 +300,7 @@ vec3 item1(vec2 p, vec3 col, float dir){
     d2 = max(-(abs(p.y)-0.03),d2);
     d = min(d,d2);
     
-    col = mix(col,vec3(0.6),S(d,0.0));
+    col = mix(col,item_metal_color,S(d,0.0));
     
     return col;
 }
@@ -297,7 +327,7 @@ vec3 item2(vec2 p, vec3 col, float dir){
     d2 = B(p,vec2(0.005,0.02));
     d = min(d,d2);   
     
-    col = mix(col,vec3(0.6),S(d,0.0));
+    col = mix(col,item_metal_color,S(d,0.0));
     
     return col;
 }
@@ -340,7 +370,7 @@ vec3 item3(vec2 p, vec3 col, float dir){
     d2 = max(-(abs(p.x)-0.03),d2);
     d = min(d,d2);   
     
-    col = mix(col,vec3(0.6),S(d,0.0));
+    col = mix(col,item_metal_color,S(d,0.0));
     
     return col;
 }
@@ -373,17 +403,17 @@ vec3 drawGearsAndItems(vec2 p, vec3 col, float size){
 void mainImage( out vec4 fragColor, in vec2 fragCoord )
 {
     vec2 p = (fragCoord-0.5*iResolution.xy)/iResolution.y;
-    // set speed of downwards motion
-    p.y+=iTime*0.02;
+    // set speed of upward visual motion
+    if(upward_animation) p.y += iTime * upward_animation_speed;
     
     float size = 4.;
-    vec3 col = vec3(0.);
+    vec3 col = background_color;
     
     col = drawBelt(p, col, size);
     col = drawGearsAndItems(p, col, size);
 
     // Cool metallic tint
-    vec3 tint = vec3(0.5, 0.6, 0.75);
+    vec3 tint = final_tint;
 
     fragColor = vec4(col * tint, 1.0);
 }

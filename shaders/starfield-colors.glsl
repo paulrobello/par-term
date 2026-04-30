@@ -5,22 +5,41 @@ description: null
 version: 1.0.0
 defaults:
   animation_speed: 0.5
-  brightness: 0.22
-  text_opacity: null
-  full_content: null
   channel0: ''
   channel1: null
   channel2: null
   channel3: null
   cubemap: textures/cubemaps/env-outside
   cubemap_enabled: false
+  use_background_as_channel0: null
+  uniforms:
+    iCenter:
+    - 0.5
+    - 0.5
+    iIntensity: 1.0
+    iLayerCount: 21
+    iSaturation: 1.0
+    iStarDensity: 30.0
+    iStarScale: 1.0
+    iWarpSpeed: 1.0
 */
 
-// divisions of grid
-const float repeats = 30.;
+const float maxLayers = 32.0;
 
-// number of layers
-const float layers = 21.;
+// control slider min=8 max=80 step=1 label="Star Density"
+uniform float iStarDensity;
+// control int min=1 max=32 step=1 label="Depth Layers"
+uniform int iLayerCount;
+// control slider min=0.05 max=4 step=0.05 scale=log label="Warp Speed"
+uniform float iWarpSpeed;
+// control slider min=0.35 max=3 step=0.05 scale=log label="Star Scale"
+uniform float iStarScale;
+// control slider min=0 max=3 step=0.05 label="Intensity"
+uniform float iIntensity;
+// control slider min=0 max=1.5 step=0.05 label="Color Saturation"
+uniform float iSaturation;
+// control point label="Center"
+uniform vec2 iCenter;
 
 // star colours
 const vec3 blue = vec3(0.2, 0.251, 0.765);
@@ -45,6 +64,11 @@ vec3 spectrum(vec2 pos) {
     return 1.0 - pos.y * (1.0 - outCol);
 }
 
+vec3 saturateColor(vec3 color, float amount) {
+    float luma = dot(color, vec3(0.2126, 0.7152, 0.0722));
+    return mix(vec3(luma), color, amount);
+}
+
 float N21(vec2 p) {
     p = fract(p * vec2(233.34, 851.73));
     p += dot(p, p + 23.45);
@@ -57,19 +81,20 @@ vec2 N22(vec2 p) {
 }
 
 vec3 stars(vec2 uv, float offset) {
-    float timeScale = -(iTime + offset) / layers;
+    float layerCount = max(1.0, float(iLayerCount));
+    float timeScale = -(iTime * iWarpSpeed + offset) / layerCount;
     float trans = fract(timeScale);
     float newRnd = floor(timeScale);
     vec3 col = vec3(0.);
 
     // Translate uv then scale for center
-    uv = (uv - 0.5) * trans + 0.5;
+    uv = (uv - iCenter) * trans + iCenter;
 
     // Create square aspect ratio
     uv.x *= iResolution.x / iResolution.y;
 
     // Create boxes
-    uv *= repeats;
+    uv *= iStarDensity;
 
     // Get position
     vec2 ipos = floor(uv);
@@ -79,7 +104,7 @@ vec3 stars(vec2 uv, float offset) {
 
     // Calculate random xy and size
     vec2 rndXY = N22(newRnd + ipos * (offset + 1.)) * 0.9 + 0.05;
-    float rndSize = N21(ipos) * 100. + 200.;
+    float rndSize = (N21(ipos) * 100. + 200.) * iStarScale;
 
     vec2 j = (rndXY - uv) * rndSize;
     float sparkle = 1. / dot(j, j);
@@ -96,9 +121,13 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     vec2 uv = fragCoord / iResolution.xy;
 
     vec3 col = vec3(0.0);
-    for (float i = 0.0; i < layers; i++) {
-        col += stars(uv, i);
+    float layerCount = max(1.0, float(iLayerCount));
+    for (float i = 0.0; i < maxLayers; i++) {
+        float layerMask = step(i + 0.5, layerCount);
+        col += stars(uv, i) * layerMask;
     }
+
+    col = saturateColor(col, iSaturation) * iIntensity;
 
     fragColor = vec4(col, 1.0);
 }

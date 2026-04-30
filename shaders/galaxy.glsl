@@ -5,16 +5,43 @@ description: null
 version: 1.0.0
 defaults:
   animation_speed: 0.5
-  brightness: null
-  text_opacity: null
-  full_content: null
   channel0: ''
   channel1: null
   channel2: null
   channel3: null
   cubemap: ''
   cubemap_enabled: false
+  use_background_as_channel0: null
+  uniforms:
+    iDriftAmount: 0.19999999
+    iNebulaOpacity: 0.48
+    iNebulaTint: '#ffffff'
+    iSaturation: 0.9
+    iSpinSpeed: 0.07999999
+    iStarBrightness: 0.0008
+    iStarTint: '#ffffff'
+    iTravelSpeed: 0.00019999992
+    iZoom: 0.099999994
 */
+
+// control slider min=0.0001 max=0.006 step=0.0001 scale=log label="Star Brightness"
+uniform float iStarBrightness;
+// control slider min=0 max=1 step=0.01 label="Nebula Opacity"
+uniform float iNebulaOpacity;
+// control slider min=0 max=1.5 step=0.01 label="Color Saturation"
+uniform float iSaturation;
+// control slider min=0.04 max=0.3 step=0.005 label="Zoom"
+uniform float iZoom;
+// control slider min=-0.001 max=0.001 step=0.00005 label="Travel Speed"
+uniform float iTravelSpeed;
+// control slider min=-0.25 max=0.25 step=0.005 label="Spin Speed"
+uniform float iSpinSpeed;
+// control slider min=0 max=0.8 step=0.01 label="Camera Drift"
+uniform float iDriftAmount;
+// control color label="Star Tint"
+uniform vec3 iStarTint;
+// control color label="Nebula Tint"
+uniform vec3 iNebulaTint;
 
 float field(in vec3 position) {
   float strength = 7.0 + 0.03 * log(1.0e-6 + fract(sin(iTime) * 373.11));
@@ -40,15 +67,9 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
   const float formulaParameter = 0.79;
   const float volumeSteps = 6.0;
   const float stepSize = 0.24;
-  const float zoomFactor = 0.1;
   const float tilingFactor = 0.85;
-  const float baseBrightness = 0.0008;
   const float darkMatter = 0.2;
   const float distanceFading = 0.56;
-  const float colorSaturation = 0.9;
-  const float transverseMotion = 0.2;
-  const float cloudOpacity = 0.48;
-  const float zoomSpeed = 0.0002;
 
   vec2 normalizedCoordinates = 2.0 * fragCoord.xy / iResolution.xy - 1.0;
   vec2 scaledCoordinates = normalizedCoordinates;
@@ -57,27 +78,27 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
   float speedAdjustment = -baseSpeed;
   float formulaAdjustment = formulaParameter;
 
-  speedAdjustment = zoomSpeed * cos(iTime * 0.02 + 3.1415926 / 4.0);          
+  speedAdjustment = iTravelSpeed * cos(iTime * 0.02 + 3.1415926 / 4.0);          
 
   vec2 uvCoordinates = scaledCoordinates;		       
 
   float rotationXZ = 0.9;
   float rotationYZ = -0.6;
-  float rotationXY = 0.9 + iTime * 0.08;	
+  float rotationXY = 0.9 + iTime * iSpinSpeed;	
 
   mat2 rotationMatrixXZ = mat2(vec2(cos(rotationXZ), sin(rotationXZ)), vec2(-sin(rotationXZ), cos(rotationXZ)));	
   mat2 rotationMatrixYZ = mat2(vec2(cos(rotationYZ), sin(rotationYZ)), vec2(-sin(rotationYZ), cos(rotationYZ)));		
   mat2 rotationMatrixXY = mat2(vec2(cos(rotationXY), sin(rotationXY)), vec2(-sin(rotationXY), cos(rotationXY)));
 
   vec2 canvasCenter = vec2(0.5, 0.5);
-  vec3 rayDirection = vec3(uvCoordinates * zoomFactor, 1.0); 
+  vec3 rayDirection = vec3(uvCoordinates * iZoom, 1.0); 
   vec3 cameraPosition = vec3(0.0, 0.0, 0.0);                               
   cameraPosition.x -= 2.0 * (canvasCenter.x - 0.5);
   cameraPosition.y -= 2.0 * (canvasCenter.y - 0.5);
 
   vec3 forwardVector = vec3(0.0, 0.0, 1.0);   
-  cameraPosition.x += transverseMotion * cos(0.01 * iTime) + 0.001 * iTime;
-  cameraPosition.y += transverseMotion * sin(0.01 * iTime) + 0.001 * iTime;
+  cameraPosition.x += iDriftAmount * cos(0.01 * iTime) + 0.001 * iTime;
+  cameraPosition.y += iDriftAmount * sin(0.01 * iTime) + 0.001 * iTime;
   cameraPosition.z += 0.003 * iTime;	
 
   rayDirection.xz *= rotationMatrixXZ;
@@ -120,17 +141,17 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 
     float fadeFactor = pow(distanceFading, max(0.0, float(stepIndex) - normalizedSampleOffset));
     accumulatedColor += vec3(stepDistance, stepDistance * stepDistance, stepDistance * stepDistance * stepDistance * stepDistance) 
-                        * particleAccumulator * baseBrightness * fadeFactor;
-    backgroundColor += mix(0.4, 1.0, cloudOpacity) * vec3(1.8 * fieldContribution * fieldContribution * fieldContribution, 
+                        * particleAccumulator * iStarBrightness * fadeFactor;
+    backgroundColor += mix(0.4, 1.0, iNebulaOpacity) * vec3(1.8 * fieldContribution * fieldContribution * fieldContribution, 
                                                           1.4 * fieldContribution * fieldContribution, fieldContribution) * fadeFactor;
     stepDistance += stepSize;
     secondaryStepDistance += stepSize;		
   }
   
-  accumulatedColor = mix(vec3(length(accumulatedColor)), accumulatedColor, colorSaturation);
+  accumulatedColor = mix(vec3(length(accumulatedColor)), accumulatedColor, iSaturation);
 
-  vec4 foregroundColor = vec4(accumulatedColor * 0.01, 1.0);	
-  backgroundColor *= cloudOpacity;	
+  vec4 foregroundColor = vec4(accumulatedColor * iStarTint * 0.01, 1.0);	
+  backgroundColor *= iNebulaOpacity;	
   backgroundColor.b *= 1.8;
   backgroundColor.r *= 0.05;
 
@@ -138,6 +159,6 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
   backgroundColor.g = 0.0;
   backgroundColor.bg = mix(backgroundColor.gb, backgroundColor.bg, 0.5 * (cos(iTime * 0.01) + 1.0));
 
-  fragColor = vec4(foregroundColor.rgb + backgroundColor, 1.0);
+  fragColor = vec4(foregroundColor.rgb + backgroundColor * iNebulaTint, 1.0);
 }
 

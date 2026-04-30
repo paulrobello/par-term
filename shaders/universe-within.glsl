@@ -6,14 +6,25 @@ version: 1.0.0
 defaults:
   animation_speed: 0.5
   brightness: 0.1
-  text_opacity: null
-  full_content: null
   channel0: ''
   channel1: null
   channel2: null
   channel3: null
   cubemap: textures/cubemaps/env-outside
   cubemap_enabled: false
+  use_background_as_channel0: null
+  uniforms:
+    iColorCycle: 0.0
+    iDriftSpeed: 0.099999994
+    iGlowStrength: 1.0
+    iLayerScale: 1.0
+    iLineCore: 0.010000001
+    iLineWidth: 0.040000003
+    iNetworkSpeed: 1.0
+    iPulseSharpness: 20.0
+    iSparkleStrength: 1.0
+    iTint: '#ffffff'
+    iVignetteStrength: 1.0
 */
 
 // The Universe Within - by Martijn Steinrucken aka BigWings 2018
@@ -42,6 +53,29 @@ defaults:
 // https://youtu.be/3CycKKJiwis
 // copied from https://www.shadertoy.com/view/lscczl
 
+// control color label="Tint"
+uniform vec3 iTint;
+// control slider min=0 max=0.5 step=0.01 label="Drift Speed"
+uniform float iDriftSpeed;
+// control slider min=0 max=4 step=0.01 label="Network Speed"
+uniform float iNetworkSpeed;
+// control slider min=0.25 max=3 step=0.01 label="Layer Scale"
+uniform float iLayerScale;
+// control slider min=0.005 max=0.1 step=0.001 label="Line Width"
+uniform float iLineWidth;
+// control slider min=0.002 max=0.04 step=0.001 label="Line Core"
+uniform float iLineCore;
+// control slider min=0 max=4 step=0.01 label="Sparkle Strength"
+uniform float iSparkleStrength;
+// control slider min=2 max=60 step=0.5 label="Pulse Sharpness"
+uniform float iPulseSharpness;
+// control slider min=0 max=3 step=0.01 label="Color Cycle"
+uniform float iColorCycle;
+// control slider min=0 max=3 step=0.01 label="Glow Strength"
+uniform float iGlowStrength;
+// control slider min=0 max=2 step=0.01 label="Vignette Strength"
+uniform float iVignetteStrength;
+
 #define S(a, b, t) smoothstep(a, b, t)
 #define NUM_LAYERS 4.0
 
@@ -67,8 +101,8 @@ float df_line(in vec2 a, in vec2 b, in vec2 p)
 }
 
 float line(vec2 a, vec2 b, vec2 uv) {
-    float r1 = .04;
-    float r2 = .01;
+    float r1 = max(iLineWidth, iLineCore + 0.001);
+    float r2 = iLineCore;
 
     float d = df_line(a, b, uv);
     float d2 = length(a-b);
@@ -102,9 +136,9 @@ float NetLayer(vec2 st, float n, float t) {
         float s = (.005/(d*d));
         s *= S(1., .7, d);
         float pulse = sin((fract(p[i].x)+fract(p[i].y)+t)*5.)*.4+.6;
-        pulse = pow(pulse, 20.);
+        pulse = pow(pulse, iPulseSharpness);
 
-        s *= pulse;
+        s *= pulse * iSparkleStrength;
         sparkle += s;
     }
 
@@ -124,7 +158,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
 {
     vec2 uv = (fragCoord - iResolution.xy * 0.5) / iResolution.y;
 
-    float t = iTime * 0.1;
+    float t = iTime * iDriftSpeed;
     float s = sin(t);
     float c = cos(t);
     mat2 rot = mat2(c, -s, s, c);
@@ -133,16 +167,21 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     float m = 0.0;
     for (float i = 0.0; i < 1.0; i += 1.0 / NUM_LAYERS) {
         float z = fract(t + i);
-        float size = mix(15.0, 1.0, z);
+        float size = mix(15.0, 1.0, z) * iLayerScale;
         float fade = S(0.0, 0.6, z) * S(1.0, 0.8, z);
-        m += fade * NetLayer(st * size, i, iTime);
+        m += fade * NetLayer(st * size, i, iTime * iNetworkSpeed);
     }
 
-    vec3 baseCol = vec3(s, cos(t * 0.4), -sin(t * 0.24)) * 0.4 + 0.6;
-    vec3 col = baseCol * m;
+    vec3 animatedCol = vec3(
+        sin(t),
+        cos(t * 0.4),
+        -sin(t * 0.24)
+    ) * 0.4 + 0.6;
+    vec3 baseCol = mix(iTint, iTint * animatedCol, iColorCycle);
+    vec3 col = baseCol * m * iGlowStrength;
 
     // Vignette and fade
-    col *= 1.0 - dot(uv, uv);
+    col *= mix(1.0, 1.0 - dot(uv, uv), iVignetteStrength);
     float tMod = mod(iTime, 230.0);
     col *= S(0.0, 20.0, tMod) * S(224.0, 200.0, tMod);
 

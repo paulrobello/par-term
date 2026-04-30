@@ -5,8 +5,7 @@ description: null
 version: 1.0.0
 defaults:
   animation_speed: 0.5
-  brightness: 1.0
-  text_opacity: null
+  brightness: null
   full_content: true
   channel0: ''
   channel1: null
@@ -14,15 +13,59 @@ defaults:
   channel3: null
   cubemap: textures/cubemaps/env-outside
   cubemap_enabled: false
+  use_background_as_channel0: null
+  uniforms:
+    iAmbientLight: 0.5
+    iBackgroundDim: 0.19999999
+    iEdgeSoftness: 0.049999997
+    iMotionAmount: 0.39999998
+    iMotionSpeed: 1.0
+    iSpotlightCenter:
+    - 0.5
+    - 0.5
+    iSpotlightRadius: 0.25
+    iSpotlightTint: '#ffffff'
+    iUseMouse: false
 */
 
 // Created by Paul Robello
 
 #define PI 3.14159265
-#define SPOTLIGHT_RADIUS 0.25
-#define SPOTLIGHT_SOFTNESS 0.05  // 1.0 / 20.0
-#define AMBIENT_LIGHT 0.5
-#define BACKGROUND_DIM 0.2  // Extra dimming for background outside spotlight
+
+// control slider min=0.05 max=0.85 step=0.01 label="Spotlight Radius"
+uniform float iSpotlightRadius;
+// control slider min=0.005 max=0.35 step=0.005 scale=log label="Edge Softness"
+uniform float iEdgeSoftness;
+// control slider min=0 max=1 step=0.01 label="Ambient Light"
+uniform float iAmbientLight;
+// control slider min=0 max=1 step=0.01 label="Background Dim"
+uniform float iBackgroundDim;
+// control slider min=0 max=0.5 step=0.01 label="Motion Amount"
+uniform float iMotionAmount;
+// control slider min=0.05 max=4 step=0.05 scale=log label="Motion Speed"
+uniform float iMotionSpeed;
+// control point label="Resting Center"
+uniform vec2 iSpotlightCenter;
+// control checkbox label="Follow Mouse"
+uniform bool iUseMouse;
+// control color label="Spotlight Tint"
+uniform vec3 iSpotlightTint;
+
+vec2 animatedCenter(void) {
+    float t = iTime * iMotionSpeed;
+    return iSpotlightCenter + iMotionAmount * vec2(
+        sin(t),
+        sin(t * 1.3 + PI)
+    );
+}
+
+vec2 mouseCenter(vec2 fallbackCenter) {
+    bool hasMouse = iMouse.x > 0.0 || iMouse.y > 0.0;
+    if (iUseMouse && hasMouse) {
+        return clamp(iMouse.xy / iResolution.xy, vec2(0.0), vec2(1.0));
+    }
+    return fallbackCenter;
+}
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec2 uv = fragCoord.xy / iResolution.xy;
@@ -31,29 +74,28 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     // Aspect ratio correction
     float aspect = iResolution.x / iResolution.y;
 
-    // Spotlight center moving with smooth oscillation
-    vec2 spotlightCenter = vec2(
-        0.5 + 0.4 * sin(iTime),           // X motion
-        0.5 + 0.4 * sin(iTime * 1.3 + PI) // Y motion with different frequency and phase
-    );
+    vec2 spotlightCenter = mouseCenter(animatedCenter());
 
     // Distance from spotlight center (aspect-corrected)
     float dist = distance(vec2(uv.x * aspect, uv.y), vec2(spotlightCenter.x * aspect, spotlightCenter.y));
 
     // Spotlight intensity with soft edge
-    float intensity = smoothstep(SPOTLIGHT_RADIUS, SPOTLIGHT_RADIUS - SPOTLIGHT_SOFTNESS, dist);
+    float radius = max(iSpotlightRadius, 0.001);
+    float softness = min(iEdgeSoftness, radius);
+    float intensity = smoothstep(radius, radius - softness, dist);
 
     // Check if iChannel0 background is set
     vec3 background = vec3(0.0);
-    if (iChannelResolution[0].x > 0.0) {
+    bool hasBackground = iChannelResolution[0].x > 1.0 && iChannelResolution[0].y > 1.0;
+    if (hasBackground) {
         background = texture(iChannel0, uv).rgb;
     }
 
     // Apply spotlight to terminal content
-    vec3 litTerminal = texColor.rgb * mix(AMBIENT_LIGHT, 1.0, intensity);
+    vec3 litTerminal = texColor.rgb * mix(iAmbientLight, 1.0, intensity) * mix(vec3(1.0), iSpotlightTint, intensity);
 
     // Apply spotlight to background (with extra dimming outside spotlight)
-    vec3 litBackground = background * mix(BACKGROUND_DIM, 1.0, intensity);
+    vec3 litBackground = background * mix(iBackgroundDim, 1.0, intensity) * mix(vec3(1.0), iSpotlightTint, intensity);
 
     // Composite: terminal over background (where terminal has content)
     vec3 result = mix(litBackground, litTerminal, texColor.a);

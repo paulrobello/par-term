@@ -5,12 +5,16 @@ description: Less distracting matrix rain that samples terminal content and avoi
 version: 1.0.1
 defaults:
   animation_speed: 0.55
-  brightness: 0.30
-  text_opacity: 1.0
-  full_content: true
+  channel0: null
+  channel1: null
+  channel2: null
+  channel3: null
+  cubemap: null
+  cubemap_enabled: null
+  use_background_as_channel0: null
   uniforms:
-    iRainColor: "#44ff88"
-    iBackgroundTint: "#021006"
+    iBackgroundTint: '#021006'
+    iRainColor: '#44ff88'
     iRainDensity: 0.55
     iTypingBoost: 0.45
 */

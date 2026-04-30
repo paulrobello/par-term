@@ -4,10 +4,7 @@ author: null
 description: null
 version: 1.0.0
 defaults:
-  animation_speed: null
-  brightness: 0.15
-  text_opacity: null
-  full_content: null
+  animation_speed: 0.8
   channel0: textures/wallpaper/MagicMushrooms.png
   channel1: null
   channel2: null
@@ -15,10 +12,39 @@ defaults:
   cubemap: null
   cubemap_enabled: false
   use_background_as_channel0: null
+  uniforms:
+    iBackgroundDim: 0.55
+    iCausticStrength: 1.0
+    iGlowStrength: 1.0
+    iJellyBrightness: 1.0
+    iJellyScale: 1.0
+    iJellyTint: '#ffffff'
+    iParticleCount: 20
+    iSwimSpeed: 1.0
+    iVignetteStrength: 1.0
 */
 
 // Animated procedural jellyfish — dark water, neon blue/purple
 // Depth layers, variable tentacle count/length, wide size variation
+
+// control slider min=0 max=3 step=0.01 label="Swim Speed"
+uniform float iSwimSpeed;
+// control slider min=0.5 max=2 step=0.01 label="Jelly Scale"
+uniform float iJellyScale;
+// control slider min=0 max=2.5 step=0.01 label="Jelly Brightness"
+uniform float iJellyBrightness;
+// control slider min=0 max=3 step=0.01 label="Glow Strength"
+uniform float iGlowStrength;
+// control slider min=0 max=1 step=0.01 label="Background Dim"
+uniform float iBackgroundDim;
+// control slider min=0 max=3 step=0.01 label="Caustic Strength"
+uniform float iCausticStrength;
+// control int min=0 max=40 step=1 label="Particle Count"
+uniform int iParticleCount;
+// control slider min=0 max=2 step=0.01 label="Vignette Strength"
+uniform float iVignetteStrength;
+// control color label="Jelly Tint"
+uniform vec3 iJellyTint;
 
 float hash(float n) { return fract(sin(n) * 43758.5453); }
 
@@ -58,9 +84,10 @@ vec2 tentacleInfo(vec2 p, float bx, float s1, float s2, float maxLen) {
     float tLen = maxLen * (0.70 + hash(s1 * 0.7) * 0.55);
     if (y > tLen) return vec2(1e6, 0.0);
     float t = y / tLen;
-    float wave = sin(y * 22.0 + iTime * 2.8 + s1) * 0.010 * t
-               + sin(y * 14.0 - iTime * 1.9 + s2)  * 0.007 * t
-               + cos(y *  8.0 + iTime * 1.2 + s1 * 0.5) * 0.005 * t;
+    float time = iTime * iSwimSpeed;
+    float wave = sin(y * 22.0 + time * 2.8 + s1) * 0.010 * t
+               + sin(y * 14.0 - time * 1.9 + s2)  * 0.007 * t
+               + cos(y *  8.0 + time * 1.2 + s1 * 0.5) * 0.005 * t;
     float thick = mix(0.006, 0.0007, t * t);
     float dx = p.x - bx - wave;
     return vec2(abs(dx) - thick, dx);
@@ -70,6 +97,7 @@ vec2 tentacleInfo(vec2 p, float bx, float s1, float s2, float maxLen) {
 // depth: 0.0 = foreground (full size/brightness), 1.0 = background (small/dark)
 vec3 drawJelly(vec2 p, float seed, float depth) {
     float depthScale = mix(1.0, 0.38, depth);
+    float time = iTime * iSwimSpeed;
 
     // Wider size variation before depth scaling
     float r  = (0.040 + hash(seed * 3.1) * 0.090) * depthScale;
@@ -77,7 +105,7 @@ vec3 drawJelly(vec2 p, float seed, float depth) {
 
     // Breathing pulse — nonlinear: quick snap contraction, slow relaxation
     float pulseFreq = 1.8 + hash(seed * 5.7) * 1.2;
-    float rawPulse = 0.5 + 0.5 * sin(iTime * pulseFreq + seed * 6.28);
+    float rawPulse = 0.5 + 0.5 * sin(time * pulseFreq + seed * 6.28);
     float pulse = pow(rawPulse, 0.35); // spends most time relaxed, contracts sharply
     float br = r * 0.9 * (1.0 - 0.28 * (1.0 - pulse)); // narrows on contraction
     float bh = h * (1.0 + 0.30 * (1.0 - pulse));        // elongates on contraction
@@ -95,7 +123,7 @@ vec3 drawJelly(vec2 p, float seed, float depth) {
         colA = vec3(0.00, 0.70, 1.00); // cyan-blue
         colB = vec3(0.15, 0.15, 0.90); // deep blue
     }
-    vec3 col      = mix(colA, colB, hash(seed * 2.9));
+    vec3 col      = mix(colA, colB, hash(seed * 2.9)) * iJellyTint;
     vec3 colBright = col + vec3(0.28, 0.22, 0.12);
 
     // Bell SDF
@@ -133,17 +161,18 @@ vec3 drawJelly(vec2 p, float seed, float depth) {
 
     // --- Accumulate additive contributions ---
     vec3 result = vec3(0.0);
+    float glowControl = max(iGlowStrength, 0.0);
 
     // Outer glow halo
     float glow = exp(-max(0.0, bd) / (r * 0.65));
-    result += col * glow * 0.22;
+    result += col * glow * 0.22 * glowControl;
 
     // Bell translucent fill
     float bellFill = smoothstep(0.005, -0.001, bd);
     result += col * bellFill * 0.42;
 
     // Bright bioluminescent core
-    result += colBright * bellFill * core;
+    result += colBright * bellFill * core * glowControl;
 
     // Rim highlight — masked off at the bell opening so no hard edge there
     float rimMask = smoothstep(-bh * 0.05, bh * 0.30, p.y);
@@ -162,7 +191,7 @@ vec3 drawJelly(vec2 p, float seed, float depth) {
 
     // Tentacle glow + fill
     float tentGlow = exp(-max(0.0, tentD) / 0.009);
-    result += tentCol * tentGlow * 0.14;
+    result += tentCol * tentGlow * 0.14 * glowControl;
 
     // 3D horizontal lighting gradient: cylindrical cross-section lit from upper-left
     // normalX: -1 = left edge, 0 = center axis, +1 = right edge
@@ -183,7 +212,7 @@ vec3 drawJelly(vec2 p, float seed, float depth) {
     result += tentColRound * tentFill * 0.88;
 
     // Depth darkening: background jellyfish are much dimmer
-    return result * mix(0.80, 0.18, depth);
+    return result * mix(0.80, 0.18, depth) * iJellyBrightness;
 }
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
@@ -192,7 +221,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     // Flip Y: uv.y=0 is top in par-term
     vec2 p   = vec2((uv.x - 0.5) * asp, 0.5 - uv.y);
 
-    float t = iTime;
+    float t = iTime * iSwimSpeed;
+    float jellyScale = max(iJellyScale, 0.01);
 
     // ── Background ─────────────────────────────────────────────────────────
     // Use iChannel0 image if configured, otherwise procedural dark water.
@@ -202,7 +232,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     if (hasBgTex) {
         bg = texture(iChannel0, uv).rgb;
         // Darken it so jellyfish remain the visual focus
-        bg *= 0.55;
+        bg *= iBackgroundDim;
     } else {
         // Procedural deep water
         vec3 deep    = vec3(0.003, 0.007, 0.045);
@@ -219,11 +249,12 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
             caust += abs(noise(cn) - 0.5);
         }
         // Caustic strongest near surface (top = uv.y near 0)
-        bg += vec3(0.003, 0.007, 0.026) * (caust / 3.0) * (1.0 - uv.y) * 1.6;
+        bg += vec3(0.003, 0.007, 0.026) * (caust / 3.0) * (1.0 - uv.y) * 1.6 * iCausticStrength;
     }
 
     // Bioluminescent floating particles rising slowly
-    for (int i = 0; i < 20; i++) {
+    for (int i = 0; i < 40; i++) {
+        if (i >= iParticleCount) break;
         float fi  = float(i);
         float px  = (hash(fi * 3.71) - 0.5) * asp;
         float spd = 0.012 + hash(fi * 9.37) * 0.022;
@@ -253,7 +284,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         float xPos   = (fract(xPhase + t * xSpeed) - 0.5) * asp * 1.84;
         float xWobble = sin(t * 0.17 + fi * 2.71) * 0.025 * asp;
 
-        jellies += drawJelly(p - vec2(xPos + xWobble, py), seed, depth);
+        jellies += drawJelly((p - vec2(xPos + xWobble, py)) / jellyScale, seed, depth);
     }
 
     // Foreground: 7 jellyfish, full brightness
@@ -271,7 +302,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         float xPos   = (fract(xPhase + t * xSpeed) - 0.5) * asp * 1.60;
         float xWobble = sin(t * 0.22 + fi * 1.91) * 0.05 * asp;
 
-        jellies += drawJelly(p - vec2(xPos + xWobble, py), seed, depth);
+        jellies += drawJelly((p - vec2(xPos + xWobble, py)) / jellyScale, seed, depth);
     }
 
     // ── Composite ──────────────────────────────────────────────────────────
@@ -279,7 +310,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 
     // Radial vignette
     float vd = dot(p / vec2(asp, 1.0), p / vec2(asp, 1.0));
-    scene *= 1.0 - clamp(vd * 0.75, 0.0, 0.65);
+    scene *= 1.0 - clamp(vd * 0.75 * iVignetteStrength, 0.0, 0.65);
 
     // Terminal text overlay
     vec4 term = texture(iChannel4, uv);

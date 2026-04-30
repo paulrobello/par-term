@@ -5,15 +5,13 @@ description: null
 version: 1.0.0
 defaults:
   animation_speed: 0.5
-  brightness: 0.33
-  text_opacity: null
-  full_content: null
   channel0: ''
   channel1: null
   channel2: null
   channel3: null
   cubemap: ''
   cubemap_enabled: false
+  use_background_as_channel0: null
 */
 
 // This Ghostty shader is a lightly modified port of https://www.shadertoy.com/view/4dBGRw

@@ -7,7 +7,6 @@ These ideas focus on enhancing par-term's existing custom background shader syst
 ## Shader authoring and discovery
 
 - **Shader preset browser**: Expand the Effects tab into a gallery with thumbnails, categories, favorites, and “safe for readability” labels for bundled and user-installed background shaders.
-- **One-click Shadertoy import**: Provide an import flow that accepts pasted Shadertoy GLSL, maps common uniforms/channels to par-term equivalents, warns about unsupported constructs, and creates a metadata block scaffold.
 
 ## Developer and ecosystem features
 

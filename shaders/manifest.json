@@ -1,76 +1,82 @@
 {
   "version": "0.30.12",
-  "generated": "2026-04-30T20:53:23.372068+00:00",
+  "generated": "2026-04-30T23:05:46.147886+00:00",
   "files": [
     {
       "path": "animated-gradient-shader.glsl",
-      "sha256": "463bd17a21ff9a7a1759fb75e3b00bbddb77dd18f129ccbc4a7cdfa23b5e865a",
+      "sha256": "96c29eb98803dd88e0211dacc987eb71c69ec4e728bddb12e112b873e594e6ac",
       "type": "shader",
       "category": "effects"
     },
     {
       "path": "arcane-portal.glsl",
-      "sha256": "3ef3b8f9b10a58f7d3fb785c4b9315dcf993b77ca309a738683d341f058e9018",
+      "sha256": "6f1fd26c2082a836355df4f860c12f7006e0e12bc769282d22b9ad87eb66e63e",
       "type": "shader",
       "category": "effects"
     },
     {
       "path": "aurora_terminal.glsl",
-      "sha256": "60e31e411cabf179661404ef6d466498f4d06fd6aaba4ef4ab3ed81f833b167a",
+      "sha256": "7227b674a14271c430b3ee2c9aba20ce29f03c71c5a58ae037cbc8dc17ff4dd2",
       "type": "shader",
       "category": "effects"
     },
     {
       "path": "bloom.glsl",
-      "sha256": "c124d6de0b94313e5e9e6cc84f979e0321e87f1d959481c45460ee5498862895",
+      "sha256": "c9aa171dd510cbba3a283b02334b26e74e126c65cd20347918b19cd5fc5c5a25",
       "type": "shader",
       "category": "effects"
     },
     {
       "path": "blueprint_grid.glsl",
-      "sha256": "0bb16949f4e9527a3e856beea293702ce7ac9ec98aae55838d2d918dde5c9f3a",
+      "sha256": "a26d8429a828d5c246e8297cf7330d4ed577c00e290efeab00efb74d462c6f6e",
       "type": "shader",
       "category": "effects"
     },
     {
       "path": "build_reactor.glsl",
-      "sha256": "a9e4f625403d79b949d1d5298d54ad1b2813c4f98fd6ba5dc07f53083275de9b",
+      "sha256": "7b7c5088bbaa57917951bd7557783f36aaa66fa1899afadddfcb5fa2102a26eb",
       "type": "shader",
       "category": "effects"
     },
     {
       "path": "bumped_sinusoidal_warp.glsl",
-      "sha256": "7006a9af8c9421d68e5a9f59126970247416018f11ee259f941ca9bf8d3f0d85",
+      "sha256": "fc2479121f91d7cedc6628aeb1464c125a8e4486e9199c0300b6595ba2aa240a",
       "type": "shader",
       "category": "abstract"
     },
     {
       "path": "cineShader-Lava.glsl",
-      "sha256": "6f247a731202fb84a83f68b8ad8be059b326a1310ec6effb9f9950bd70b078b1",
+      "sha256": "6fdb5fdd98e659ac06db5d763252684d8fc9c9263ece138d42e7fd0b2be9c3a4",
+      "type": "shader",
+      "category": "effects"
+    },
+    {
+      "path": "circuit-3d.glsl",
+      "sha256": "a029a9e168eec74d13e3cbbdf7bfcfda23e28e082bd6f142199d9a3099c75e3b",
       "type": "shader",
       "category": "effects"
     },
     {
       "path": "clouds.glsl",
-      "sha256": "18ff1f1398b1efbb694f29482f789e70512008bedd3b3668ea6f94f4e4eb7240",
+      "sha256": "4567de8cc1f415cfd8f9072ee050c929cce75619a9a2be9d1ec9f6cb4cd6f19d",
       "type": "shader",
       "category": "nature"
     },
     {
       "path": "command_state_backdrop.glsl",
-      "sha256": "f844d7680c5aab2ffdd892410d74ada0d774258f5043a93d2466b7876ea4b82e",
+      "sha256": "f1ceaa69b92a45b5e06d432df72acfbcf9084b74ac22fbc60bbf2a656b8e9bf7",
       "type": "shader",
       "category": "effects"
     },
     {
       "path": "convergence.glsl",
-      "sha256": "b133529d10fa3f3b579a78b7a023b89e23ca690a1ca9dbb79ac154ec61e0e06d",
+      "sha256": "e465b94f2ccefcd105a354045a2361cf1af6f3684bec7d690fce11a762a5038f",
       "type": "shader",
       "category": "effects"
     },
     {
       "path": "crt.glsl",
-      "sha256": "ca7bb2d0faeb09740206d3c2ede153f41fbaec3decff4d44f130a3a21bc48a62",
+      "sha256": "c70d2c9e6e023affc28eca536bc8c416279a761f93e5a24c2bf33ccb20ac275d",
       "type": "shader",
       "category": "retro"
     },
@@ -94,19 +100,19 @@
     },
     {
       "path": "cubemap-skybox.glsl",
-      "sha256": "71be846545a028cb38ee304225fe50d722a8b2dfb7bc36333ba4dca7ca3ede03",
+      "sha256": "9d422b2367a129010fc9a87a5cbca541bb1bceeeeb009a4477c3eee046fb452e",
       "type": "shader",
       "category": "cubemap"
     },
     {
       "path": "cubemap-test.glsl",
-      "sha256": "a8b3a1fdb2c60a146e46b5226ea38175b28f9dc26e8979471ec2c0d9682504d2",
+      "sha256": "c63188b0526a070e7aa73d5e44c618c7c34576d92b8815ab7006a6b197743d67",
       "type": "shader",
       "category": "cubemap"
     },
     {
       "path": "cubes.glsl",
-      "sha256": "2177c1d084a24cd7bd18ef0eefb4ff1187581bf556ff71e73f755d7390d0ab33",
+      "sha256": "292ef9ba9fefc4e034f1a4f199b9d99bcc60b0b65dbbcfa476898376381f7c50",
       "type": "shader",
       "category": "effects"
     },
@@ -124,13 +130,13 @@
     },
     {
       "path": "cursor_orbit.glsl",
-      "sha256": "47ea209063a5fa2369c5a198d05cf3299af13f9aca57f2c19a717083312ea9bd",
+      "sha256": "d7118fda30e8ef753e79c24234a542cce7d82ede56c93d253fec13acd51a2013",
       "type": "cursor_shader",
       "category": "cursor"
     },
     {
       "path": "cursor_pacman.glsl",
-      "sha256": "da7b35d56c3ac0aac69bf5a2d9a7cc7a589c41fe7215a04aba5a4ec7cbcbf4f5",
+      "sha256": "d4f3fdf1d1713daf89cd49cf3f123e75799d85fdccd74d3bfc91daa96e6aa198",
       "type": "cursor_shader",
       "category": "cursor"
     },
@@ -178,211 +184,241 @@
     },
     {
       "path": "cursor_water_tank.glsl",
-      "sha256": "650e36fb42a79d26ae7cfcd2c1764bc2757ebbd5818e91ae5af57133f3c22276",
+      "sha256": "6e8531b45520130eb008b0287887427c752523b5d27937c8c34c521db98d605f",
       "type": "cursor_shader",
       "category": "cursor"
     },
     {
-      "path": "diff_heatmap_glow.glsl",
-      "sha256": "764cf3bd802ad1b25b6307f199b16729f4ac4cc52bd3d3ce01b855fd853aee62",
+      "path": "debug-coords.glsl",
+      "sha256": "c61a67c7b9fcede5a5ca3acad6b2b7bdd66dc2327f0bc3ac341f825282c55fab",
       "type": "shader",
       "category": "effects"
     },
     {
       "path": "dither.glsl",
-      "sha256": "3f3f7094f23687d387320f0c8ee72f4825f405f52d9f00d0b695432e510977aa",
+      "sha256": "e2a0fbd658f69178eca3f69098a31c543e4369c938f66ecd9790d0c426c58e60",
       "type": "shader",
       "category": "effects"
     },
     {
       "path": "dodecagon-pattern.glsl",
-      "sha256": "f903551114ac9a81501d2939770c994b891cd9e5dd5c57fa0ec10dfa2f9c251f",
+      "sha256": "7c6d5c08ea8deb6e3322fd8fd4b6bdcdc3911715ccb32dff074699e3f81bdbaa",
       "type": "shader",
       "category": "abstract"
     },
     {
       "path": "drunkard.glsl",
-      "sha256": "9433e284fc200a438c266235f869e4e1ede86eb365f36ccdcc93e935f4809d46",
+      "sha256": "0f227e0f3b758235983cf7df173254601ea2a4ede56fe5b2fdeb27e4606e3203",
       "type": "shader",
       "category": "effects"
     },
     {
       "path": "fireworks-rockets.glsl",
-      "sha256": "b93cec015ccd5433fbd42780e1d7af965c64f006399a451533fbb3237ba182c3",
+      "sha256": "ec7c00c02fc8d42e45bafd974ccc01434d247ba49d4075ab96aeaa807e985024",
       "type": "shader",
       "category": "nature"
     },
     {
       "path": "fireworks.glsl",
-      "sha256": "4fc33da8d6ed1dccd8808afed635583ac6116452c7e395abce49066455ffbfa5",
+      "sha256": "1b3ddb986571e4c8c8f91b1bf931b3cc3d6e04a81683d2265be42d40a9c88fd8",
       "type": "shader",
       "category": "nature"
     },
     {
       "path": "galaxy.glsl",
-      "sha256": "def1d65ca4cc294db407b0c96936060c084d6d614f0a36197eb15d2f160ed4df",
+      "sha256": "7f3c76dc97ad98cb53d1af674e6d821cf90f0e36adb769e87bf51e85e3d73e3e",
       "type": "shader",
       "category": "space"
     },
     {
       "path": "gears-and-belts.glsl",
-      "sha256": "57763ee134e3241701a9e5beea7999790ce01d5838ab4fcb3f979c42afc193ef",
+      "sha256": "8c9606dd69a9ccba06004f774dd468d0ffdd964192ad392c792f28dab9a8a4ae",
       "type": "shader",
       "category": "effects"
     },
     {
       "path": "glass-sphere-bounce.glsl",
-      "sha256": "a3f7114f94fa6ae17198c8dee50334434530439a30f271b37d91cc5b76eb3ba3",
+      "sha256": "2b0675dbb8609d0245879c835b2e9516f045b4d4417fb62d4e1d73ec0dbfd1fd",
       "type": "shader",
       "category": "effects"
     },
     {
       "path": "glitchy.glsl",
-      "sha256": "01dd82f4264990cafc69ca44e51b973441d6cbf0e39e3edfe53c75efaf561a1e",
+      "sha256": "02cc246dffb33fe2726651006e1cc1a2a25507084af11246e01323185c4ea55f",
       "type": "shader",
       "category": "effects"
     },
     {
       "path": "glow-rgbsplit-twitchy.glsl",
-      "sha256": "a40cc66746c39884c707cb70a1d8c7cdeeddbd98886e13286b30072fde7293c4",
+      "sha256": "07bf4a9dca2004465ce510ee7cb2431c63efc8d88d307ee43036ea4a67db0328",
       "type": "shader",
       "category": "effects"
     },
     {
       "path": "gradient-background.glsl",
-      "sha256": "9c283764657d957159b7428eca4721e98b361bb9ac9c07882eb713af2f0a66d3",
+      "sha256": "25328b6c6e0e5dbf710e863f3b1d6fd2784a9b2ae2829617fc5dce476c41b466",
       "type": "shader",
       "category": "effects"
     },
     {
       "path": "gyroid.glsl",
-      "sha256": "dadfb841a4a28dd7193374dc6ed9f84fc057a675b5ffdfa69cf4736f79bbc347",
+      "sha256": "11c81f67d549ee46387f1043a899fad6a224bac0e1931a7a1e821da51326ab33",
       "type": "shader",
       "category": "effects"
     },
     {
       "path": "happy_fractal.glsl",
-      "sha256": "ce5c3fc379bce89ff97bf7a9c2021f4ae9d68811ec9ec55fdc5af23af4cc1856",
+      "sha256": "ee8ebb2a47b580c7295a2951740dba40c70b132e2b3970bc35edf4d90ce8c9ae",
       "type": "shader",
       "category": "abstract"
     },
     {
+      "path": "industrial1.glsl",
+      "sha256": "129f749afa84e01019265b088db215c9067704127b6fc1a36448498e4780673d",
+      "type": "shader",
+      "category": "effects"
+    },
+    {
+      "path": "infinite-zoom-1.glsl",
+      "sha256": "b762d78b627c9f73b61e435c3c61e24ee108f04f8ad9f27fd62af6cd54835442",
+      "type": "shader",
+      "category": "effects"
+    },
+    {
+      "path": "infinite-zoom-2.glsl",
+      "sha256": "bded073060c891a3c74634895a838aca129fe29e816e962d1b4816c327c5a499",
+      "type": "shader",
+      "category": "effects"
+    },
+    {
+      "path": "infinite-zoom-3.glsl",
+      "sha256": "6a079f24f6c41e8379d64fab9a5716f842c6aaca43005d93019f0342b9a77d4d",
+      "type": "shader",
+      "category": "effects"
+    },
+    {
       "path": "ink_wash.glsl",
-      "sha256": "239d22b8aa26dc66c15065dc6fdab5ad758c6c3d02ccc238e2a0c82ce43beb31",
+      "sha256": "077463661c3015d8197b450bc97d199d455970ae59ebf7d963d6f107e9f72446",
       "type": "shader",
       "category": "effects"
     },
     {
       "path": "inside-the-matrix.glsl",
-      "sha256": "af6a633a04cdbbd4d53e22c8323b9669950584f09cf8bdca398c133bef5a9998",
+      "sha256": "b7ff5d107ff8f44f7aefbf2a68f2d4192bd7ea981d7a32d82ec7b19ec184465a",
       "type": "shader",
       "category": "matrix"
     },
     {
       "path": "jellyfish.glsl",
-      "sha256": "0464a89a8fabae5cc2c6662b36ef7d040e85ae793056f5dd7489f8c116c96aa6",
+      "sha256": "79f5907ba1a7e9303ef0439427fd8377c877317ae2a70d8e02c750a3bd945813",
       "type": "shader",
       "category": "nature"
     },
     {
       "path": "just-snow.glsl",
-      "sha256": "ca089221ecc023ad060cb439a52c85436ab5a6bfa539731a2340067b7636bdf2",
+      "sha256": "8cbb919d3c509ef7f29aa7d86d551470087881a9dad237d68e1ac92c22091127",
       "type": "shader",
       "category": "nature"
     },
     {
       "path": "keypress_ring_fullcontent.glsl",
-      "sha256": "6bcd7dc497f28fba5daa9a1c6b11e2fb97cb05388b8a7df8b256b11d6aff68eb",
+      "sha256": "76df4d0c69b5ec66144e1afbff3c15bd6b7538f61e9a1ad25e32df24aefbca17",
       "type": "shader",
       "category": "effects"
     },
     {
       "path": "low_power_ambience.glsl",
-      "sha256": "d42476fec5778543bb61127465892a9037f4c3de7d99675cd4e7d9feba23c386",
+      "sha256": "a6a8473667932655e9a11ffbc1e687fd017d18dd502d4b38a386cf9a1880d6c2",
+      "type": "shader",
+      "category": "effects"
+    },
+    {
+      "path": "magic-ball.glsl",
+      "sha256": "69eebad88d03f2a45119750e3a3971b0ba0559eafc23c0371f2db20d748e9867",
       "type": "shader",
       "category": "effects"
     },
     {
       "path": "matrix_rain_2.glsl",
-      "sha256": "af46b3f95b2c3b3eac86eadeba18cbc9ef001e60ff36bf2b44e1eaee889c6e01",
+      "sha256": "4f7a9ba642680ea9fedfadfa7b0cba0f8e2e19c93d2b919c91c7891e165a2c06",
       "type": "shader",
       "category": "nature"
     },
     {
       "path": "pane_focus_regions.glsl",
-      "sha256": "1419908d42825e7015bde6cec0f5aa83d40ca6fd1b43806845d35ba928797a84",
+      "sha256": "a022b31a70f0d112da7cceb3ed0a9ebcdfee207f773dfeafa0e1af02d9534ccf",
       "type": "shader",
       "category": "effects"
     },
     {
       "path": "progress_reactive_theme.glsl",
-      "sha256": "9047b0f89f260f53cb9c9a0f34bac5adb18ee4d1d42b37ab736658c2984a06e7",
+      "sha256": "8a308517d65c471cf191c8dae3318362f5e31a101f5982147d2a5d065c5165f9",
       "type": "shader",
       "category": "effects"
     },
     {
       "path": "rain-glass.glsl",
-      "sha256": "a557968e957b63a7415fea9ad94be90d4550b1c5aa01d1ac46176a05e2e1812e",
+      "sha256": "8bd8a83a5c580c9ff3ea1291d26c5cdb065130b53941d22a5d516e9366a446cd",
       "type": "shader",
       "category": "nature"
     },
     {
       "path": "rain.glsl",
-      "sha256": "0c061813ee31264cc7e24b4e2ac924ecffd3973976387f2b49f2bd95c5f0ba3d",
+      "sha256": "0097d32af95ce0e851a88e311693b383b00679420eeeb02ca080ae5a08cacafe",
       "type": "shader",
       "category": "nature"
     },
     {
       "path": "retro-terminal.glsl",
-      "sha256": "1944508a9c0bbe3a554e2e354698d70d3c9f70cbfc8046d76b71565add177f71",
+      "sha256": "95bcc49dff4f52bd0200f6e5515e2dafe196b314b7c8d4fd3dfb765765ab1118",
       "type": "shader",
       "category": "retro"
     },
     {
       "path": "scrollback_parallax.glsl",
-      "sha256": "9ef6b4b56d5e487c058eae8589d54cec0454142138c1ee5a191ef1bdb155929b",
+      "sha256": "79e95386143c62ee106625a860de5dbd8d4dd907ae261fc2e98794eeff01fbd1",
       "type": "shader",
       "category": "effects"
     },
     {
       "path": "sin-interference.glsl",
-      "sha256": "abdccfb301c0e0a716de0f32a7b3544f09df22966e33eec54e65fb819f9ce701",
+      "sha256": "264ab47576df572c56e261167f1931e2a623699d6ae49defc7f6403ba388eff9",
       "type": "shader",
       "category": "effects"
     },
     {
       "path": "singularity.glsl",
-      "sha256": "ca93ce39b4e674d9f1f748facebc9cad7f58e02d0b2f84dd88781da17a2d2be4",
+      "sha256": "d6cd9f7a248dfe9d31f11d58335643792d0470c89e1907ed7cb50eeb73fdf636",
       "type": "shader",
       "category": "effects"
     },
     {
       "path": "solarized_nebula.glsl",
-      "sha256": "08b026f6d72020a649f4e2812b23f932a2fdf25ed3b8ba7457b6c399bd26885d",
+      "sha256": "98e6d0fa0f977fa4e68f15f4a73a43efc5a9233e1c339e9a20b34eccd459f754",
       "type": "shader",
       "category": "space"
     },
     {
       "path": "sparks-from-fire.glsl",
-      "sha256": "3af789b5cd1d2a355c49bdd9d65812293fe1384d26dfe183959cec72bddb90fd",
+      "sha256": "ac7524b5f86d22ff3f3995b1d1af0cb17adc91409ba29dd475477f841e9fcf4e",
       "type": "shader",
       "category": "nature"
     },
     {
       "path": "spotlight.glsl",
-      "sha256": "50f067440729bf81b2a107de4572d44b9b3b350f83c69a745628dd95ccc0393d",
+      "sha256": "ec0967e84bacde73d321c38f7a180f1f841684ba59f23128e02d9b1b3f34aeb7",
       "type": "shader",
       "category": "effects"
     },
     {
       "path": "starfield-colors.glsl",
-      "sha256": "8ae58c87cea126da20e4a5fa526ef3332f9aa048b29d770789d7b927a9e4024f",
+      "sha256": "a9d40dbafded5f70d00edd0b2c4c3ad72d669481bc74a2f1c71049195c02bba0",
       "type": "shader",
       "category": "space"
     },
     {
       "path": "starfield.glsl",
-      "sha256": "7be8f613d4fd5d28fa5fdeef3809534dcaac3d9e039ccff089b632550f914967",
+      "sha256": "a01e5bf3ec89340ba4dc13b25799f721016a2bba3b07e131df346a1afa3df7d6",
       "type": "shader",
       "category": "space"
     },
@@ -556,19 +592,19 @@
     },
     {
       "path": "underwater.glsl",
-      "sha256": "6be64d304c163ef3f8df737146721f637fb6d005dfad2e37a01bb1184d6b7018",
+      "sha256": "2ca2b20b2d41039e3ae679eadc0a52e82effeba6ce990f221ce6c9efff96ddbf",
       "type": "shader",
       "category": "nature"
     },
     {
       "path": "universe-within.glsl",
-      "sha256": "05be474da921ff472edf47a70e34a4e61e57634f75f54fa66378c5dedc388b10",
+      "sha256": "e995410c998a438d339e193ee71ffc2dd6be43fa05f3e202d28f107ce69eadf9",
       "type": "shader",
       "category": "effects"
     },
     {
       "path": "water.glsl",
-      "sha256": "e3781a298b4852845689382b43872aca5e043b827a9c1b3f84e6f596f4d830dd",
+      "sha256": "329c8dce17d028ce6fdc4b59ac340dbe10ce2f86a0bb7f23c90f310148dad4db",
       "type": "shader",
       "category": "nature"
     }

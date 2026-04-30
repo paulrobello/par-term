@@ -5,22 +5,25 @@ description: null
 version: 1.0.0
 defaults:
   animation_speed: 0.5
-  brightness: null
-  text_opacity: null
-  full_content: null
   channel0: textures/metalic1.jpg
   channel1: null
   channel2: null
   channel3: null
   cubemap: ''
   cubemap_enabled: false
+  use_background_as_channel0: null
+  uniforms:
+    glitch_loop_duration: 10.0
+    glitch_trigger_amount: 0.099999994
 */
 
 // modified version of https://www.shadertoy.com/view/wld3WN
-// amount of seconds for which the glitch loop occurs
-#define DURATION 10.
-// percentage of the duration for which the glitch is triggered
-#define AMT .1
+// Amount of seconds for which the glitch loop occurs.
+// control slider min=0.1 max=60 step=0.1 label="Loop Duration"
+uniform float glitch_loop_duration;
+// Percentage of the duration for which the glitch is triggered.
+// control slider min=0 max=1 step=0.01 label="Trigger Amount"
+uniform float glitch_trigger_amount;
 
 #define SS(a, b, x) (smoothstep(a, b, x) * smoothstep(b, a, x))
 
@@ -86,7 +89,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     float t = iTime;
     
     // smoothed interval for which the glitch gets triggered
-    float glitchAmount = SS(DURATION * .001, DURATION * AMT, mod(t, DURATION));  
+    float glitchAmount = SS(glitch_loop_duration * .001, glitch_loop_duration * glitch_trigger_amount, mod(t, glitch_loop_duration));  
 	float displayNoise = 0.;
     vec3 col = vec3(0.);
     vec2 eps = vec2(5. / iResolution.x, 0.);

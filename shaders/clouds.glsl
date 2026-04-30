@@ -5,30 +5,50 @@ description: null
 version: 1.0.0
 defaults:
   animation_speed: 0.5
-  brightness: 0.17
-  text_opacity: null
-  full_content: null
   channel0: ''
   channel1: null
   channel2: null
   channel3: null
   cubemap: ''
   cubemap_enabled: false
+  use_background_as_channel0: null
+  uniforms:
+    iCloudColor: '#ffffd9'
+    iCloudCover: 0.19999999
+    iCloudDensity: 8.0
+    iCloudHighlight: 0.29999998
+    iCloudScale: 1.1
+    iCloudShadow: 0.5
+    iCloudSpeed: 0.030000001
+    iSkyHighColor: '#66b3ff'
+    iSkyLowColor: '#336699'
+    iSkyTint: 0.5
 */
 
 // Animated clouds background shader
 // Based on Shadertoy cloud shader
 // Usage: Set custom_shader: "clouds.glsl" in config
 
-const float cloudscale = 1.1;
-const float speed = 0.03;
-const float clouddark = 0.5;
-const float cloudlight = 0.3;
-const float cloudcover = 0.2;
-const float cloudalpha = 8.0;
-const float skytint = 0.5;
-const vec3 skycolour1 = vec3(0.2, 0.4, 0.6);
-const vec3 skycolour2 = vec3(0.4, 0.7, 1.0);
+// control slider min=0.3 max=3.0 step=0.01 label="Cloud Scale"
+uniform float iCloudScale;
+// control slider min=0.0 max=0.15 step=0.001 label="Drift Speed"
+uniform float iCloudSpeed;
+// control slider min=0.0 max=1.0 step=0.01 label="Cloud Shadow"
+uniform float iCloudShadow;
+// control slider min=0.0 max=1.0 step=0.01 label="Cloud Highlight"
+uniform float iCloudHighlight;
+// control slider min=0.0 max=0.8 step=0.01 label="Cloud Cover"
+uniform float iCloudCover;
+// control slider min=1.0 max=14.0 step=0.1 label="Cloud Density"
+uniform float iCloudDensity;
+// control slider min=0.0 max=1.5 step=0.01 label="Sky Tint"
+uniform float iSkyTint;
+// control color label="Lower Sky"
+uniform vec3 iSkyLowColor;
+// control color label="Upper Sky"
+uniform vec3 iSkyHighColor;
+// control color label="Cloud Tint"
+uniform vec3 iCloudColor;
 
 const mat2 m = mat2( 1.6,  1.2, -1.2,  1.6 );
 
@@ -64,12 +84,12 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec2 p = fragCoord.xy / iResolution.xy;
     vec2 aspect = vec2(iResolution.x / iResolution.y, 1.0);
     vec2 uv = p * aspect;
-    float time = iTime * speed;
-    float q = fbm(uv * cloudscale * 0.5);
+    float time = iTime * iCloudSpeed;
+    float q = fbm(uv * iCloudScale * 0.5);
 
     // ridged noise shape
     float r = 0.0;
-    uv *= cloudscale;
+    uv *= iCloudScale;
     uv -= q - time;
     float weight = 0.8;
     for (int i = 0; i < 6; i++) {
@@ -80,7 +100,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 
     // noise shape
     float f = 0.0;
-    uv = p * aspect * cloudscale;
+    uv = p * aspect * iCloudScale;
     uv -= q - time;
     weight = 0.7;
     for (int i = 0; i < 6; i++) {
@@ -93,8 +113,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 
     // noise colour
     float c = 0.0;
-    time = iTime * speed * 2.0;
-    uv = p * aspect * cloudscale * 2.0;
+    time = iTime * iCloudSpeed * 2.0;
+    uv = p * aspect * iCloudScale * 2.0;
     uv -= q - time;
     weight = 0.4;
     for (int i = 0; i < 5; i++) {
@@ -105,8 +125,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 
     // noise ridge colour
     float c1 = 0.0;
-    time = iTime * speed * 3.0;
-    uv = p * aspect * cloudscale * 3.0;
+    time = iTime * iCloudSpeed * 3.0;
+    uv = p * aspect * iCloudScale * 3.0;
     uv -= q - time;
     weight = 0.4;
     for (int i = 0; i < 5; i++) {
@@ -117,12 +137,12 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 
     c += c1;
 
-    vec3 skycolour = mix(skycolour2, skycolour1, p.y);
-    vec3 cloudcolour = vec3(1.1, 1.1, 0.9) * clamp(clouddark + cloudlight * c, 0.0, 1.0);
+    vec3 skycolour = mix(iSkyHighColor, iSkyLowColor, p.y);
+    vec3 cloudcolour = iCloudColor * clamp(iCloudShadow + iCloudHighlight * c, 0.0, 1.0);
 
-    f = cloudcover + cloudalpha * f * r;
+    f = iCloudCover + iCloudDensity * f * r;
 
-    vec3 result = mix(skycolour, clamp(skytint * skycolour + cloudcolour, 0.0, 1.0), clamp(f + c, 0.0, 1.0));
+    vec3 result = mix(skycolour, clamp(iSkyTint * skycolour + cloudcolour, 0.0, 1.0), clamp(f + c, 0.0, 1.0));
 
     fragColor = vec4(result, 1.0);
 }

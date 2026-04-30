@@ -50,3 +50,4 @@ settings.local.json
 *.local
 *.local.*
 .pi/extensions/discord-relay/state.json
+ideas.md

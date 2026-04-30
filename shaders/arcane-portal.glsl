@@ -5,18 +5,45 @@ description: null
 version: 1.0.0
 defaults:
   animation_speed: 0.5
-  brightness: 0.25
-  text_opacity: null
-  full_content: null
   channel0: ''
   channel1: null
   channel2: null
   channel3: null
   cubemap: ''
   cubemap_enabled: false
+  use_background_as_channel0: null
+  uniforms:
+    iCameraOrbit: 1.0
+    iGlowTint: '#ffb65c'
+    iPortalExposure: 1.0
+    iPortalGlow: 1.0
+    iPortalSize: 1.0
+    iPortalTint: '#ffffff'
+    iRippleStrength: 1.0
+    iVignette: 1.0
+    iWarpStrength: 1.0
 */
 
 // Original by chronos: https://www.shadertoy.com/view/wf3BWM
+
+// control slider min=0.35 max=1.75 step=0.01 label="Portal Size"
+uniform float iPortalSize;
+// control slider min=0.1 max=3.0 step=0.01 scale=log label="Portal Exposure"
+uniform float iPortalExposure;
+// control slider min=0.0 max=2.5 step=0.01 label="Portal Glow"
+uniform float iPortalGlow;
+// control slider min=0.0 max=2.0 step=0.01 label="Ripple Strength"
+uniform float iRippleStrength;
+// control slider min=0.0 max=2.0 step=0.01 label="Warp Strength"
+uniform float iWarpStrength;
+// control slider min=0.0 max=2.0 step=0.01 label="Camera Orbit"
+uniform float iCameraOrbit;
+// control slider min=0.0 max=2.5 step=0.01 label="Vignette"
+uniform float iVignette;
+// control color label="Portal Tint"
+uniform vec3 iPortalTint;
+// control color label="Glow Tint"
+uniform vec3 iGlowTint;
 
 const float H = 1.8;
 const vec4 COS_OFFSETS = cos(vec4(1,2,2.5,0)) + 1.0; // Precomputed constant
@@ -118,8 +145,8 @@ void mainImage( out vec4 o, in vec2 fragCoord )
 
     {
         float time = iTime*.25;
-        cam_pos += vec3(1.5*cos(time), 0, 2.*sin(time));
-        float angle = cos(time)*.25;
+        cam_pos += iCameraOrbit * vec3(1.5*cos(time), 0, 2.*sin(time));
+        float angle = iCameraOrbit * cos(time)*.25;
         float c = cos(angle), s = sin(angle);
         rd.xz *= mat2(c,s,-s,c);
     }
@@ -143,7 +170,7 @@ void mainImage( out vec4 o, in vec2 fragCoord )
 
     vec4 portal_target_color;
     vec3 P2 = vec3(0, -2.*h-2.3, 2.5); // Portal pos
-    float radius = smoothstep(0.,2., iTime)*3.;
+    float radius = smoothstep(0.,2., iTime)*3.*iPortalSize;
     if(min(
         length(dot(P - cam_pos, rd) * rd + cam_pos - P),
         length(dot(P2 - cam_pos, rd) * rd + cam_pos - P2)
@@ -153,7 +180,8 @@ void mainImage( out vec4 o, in vec2 fragCoord )
         portal_target_color = portal_target(iTime, portal_cam_pos, portal_rd);
     }
 
-    portal_target_color *= portal_target_color * 300.;
+    portal_target_color.rgb *= iPortalTint;
+    portal_target_color *= portal_target_color * (300.*iPortalExposure);
     float D; // sdf for waves around portal
     float D2; // sdf for orange glow below portal
     vec3 p;   // current ray march pos
@@ -165,8 +193,8 @@ void mainImage( out vec4 o, in vec2 fragCoord )
                 portal_target_color,
                 smoothstep(0.0, -0.2, max(length(p-P) -radius, (p.z-P.z)))
             )
-            + 2.*(cos(-4.5*iTime+D*10.+vec4(1,2,2.5,0))+1.)*exp2(-D*D)*z
-            + 10.*COS_OFFSETS*exp2(-abs(D2))*z
+            + iPortalGlow*vec4(iGlowTint, 1.0)*2.*(cos(-4.5*iTime+D*10.+vec4(1,2,2.5,0))+1.)*exp2(-D*D)*z
+            + iPortalGlow*vec4(iGlowTint, 1.0)*10.*COS_OFFSETS*exp2(-abs(D2))*z
     )
 
     {
@@ -190,20 +218,20 @@ void mainImage( out vec4 o, in vec2 fragCoord )
         transmission = 1.;
       }
 
-      p.y += .24*sin(p.z*2. + iTime*2. - d*12.);
+      p.y += .24*iRippleStrength*sin(p.z*2. + iTime*2. - d*12.);
 
       float T = 2.5*t-d*14.;
       float c = cos(T), s = sin(T);
       q = p-P;
       q.xy *= mat2(c,s,-s,c);
 
-      for(d=1.;d++<9.;) q += triwave((q*d+t*2.)).yzx/d;
+      for(d=1.;d++<9.;) q += iWarpStrength*triwave((q*d+t*2.)).yzx/d;
 
       d = .1*abs(length(p-P)-radius) + abs(q.z)*.1;
       z += min(abs(p.y+h)*.4+.03, d);
     }
 
     o = o/1e4;
-    o *= 1.-length(uv)*.2;
+    o *= 1.-length(uv)*.2*iVignette;
     o = sqrt(1.-exp(-1.5*o*o));
 }

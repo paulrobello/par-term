@@ -5,15 +5,17 @@ description: null
 version: 1.0.0
 defaults:
   animation_speed: 0.5
-  brightness: 0.16
-  text_opacity: null
-  full_content: null
   channel0: textures/wallpaper/MagicMushrooms.png
   channel1: null
   channel2: null
   channel3: null
   cubemap: ''
   cubemap_enabled: false
+  use_background_as_channel0: null
+  uniforms:
+    aberration_factor: 0.05
+    bright_cutoff: 0.65
+    dim_cutoff: 0.35
 */
 
 // First it does a "chromatic aberration" by splitting the rgb signals by a product of sin functions
@@ -105,9 +107,12 @@ float offsetFunction(float t) {
 	return amount * 27.0;
 }
 
-const float DIM_CUTOFF = 0.35;
-const float BRIGHT_CUTOFF = 0.65;
-const float ABBERATION_FACTOR = 0.05;
+// control slider min=0 max=1 step=0.01 label="Dim Cutoff"
+uniform float dim_cutoff;
+// control slider min=0 max=1 step=0.01 label="Bright Cutoff"
+uniform float bright_cutoff;
+// control slider min=0 max=0.25 step=0.001 label="Aberration Factor"
+uniform float aberration_factor;
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec2 uv = fragCoord.xy / iResolution.xy;
@@ -115,15 +120,15 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     float amount = offsetFunction(iTime);
 
     vec3 col;
-    col.r = texture( iChannel0, vec2(uv.x-ABBERATION_FACTOR*amount / iResolution.x, uv.y) ).r;
+    col.r = texture( iChannel0, vec2(uv.x-aberration_factor*amount / iResolution.x, uv.y) ).r;
     col.g = texture( iChannel0, uv ).g;
-    col.b = texture( iChannel0, vec2(uv.x+ABBERATION_FACTOR*amount / iResolution.x, uv.y) ).b;
+    col.b = texture( iChannel0, vec2(uv.x+aberration_factor*amount / iResolution.x, uv.y) ).b;
 
 	vec4 splittedColor = vec4(col, 1.0);
     vec4 source = toOklab(splittedColor);
     vec4 dest = source;
 
-    if (source.x > DIM_CUTOFF) {
+    if (source.x > dim_cutoff) {
         dest.x *= 1.2;
     } else {
         vec2 step = vec2(1.414) / iResolution.xy;
@@ -132,9 +137,9 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
             vec3 s = samples[i];
             float weight = s.z;
             vec4 c = toOklab(texture(iChannel4, uv + s.xy * step));
-            if (c.x > DIM_CUTOFF) {
+            if (c.x > dim_cutoff) {
                 glow.yz += c.yz * weight * 0.3;
-                if (c.x <= BRIGHT_CUTOFF) {
+                if (c.x <= bright_cutoff) {
                     glow.x += c.x * weight * 0.05;
                 } else {
                     glow.x += c.x * weight * 0.10;

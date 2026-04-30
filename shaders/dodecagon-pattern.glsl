@@ -5,15 +5,21 @@ description: null
 version: 1.0.0
 defaults:
   animation_speed: 0.2
-  brightness: 0.17
-  text_opacity: null
-  full_content: null
   channel0: textures/metalic1.jpg
   channel1: null
   channel2: null
   channel3: null
   cubemap: textures/cubemaps/env-outside
   cubemap_enabled: null
+  use_background_as_channel0: null
+  uniforms:
+    beveled_frames: true
+    dodecagon_subdivision: 2
+    frame_color: 2
+    frame_style: 0
+    octagon_subdivision: 1
+    rounded_edges: true
+    show_rivots: true
 */
 
 /*
@@ -124,6 +130,40 @@ float opExtrusion(in float sdf, in float pz, in float h, in float sf){
     return min(max(w.x, w.y), 0.) + length(max(w, 0.)) - sf;
 }
 
+////// Variable Defines ///////
+
+// Frame color -- Silver: 0, Copper: 1, Gold: 2.
+// control select options="Silver,Copper,Gold" label="Frame Color"
+uniform int frame_color;
+
+// Frame style -- Single: 0, Double: 1.
+// control select options="Single,Double" label="Frame Style"
+uniform int frame_style;
+
+// Display the metal rivots.
+// control checkbox label="Show Rivots"
+uniform bool show_rivots;
+
+// Beveling the tops of the frames.
+// control checkbox label="Beveled Frames"
+uniform bool beveled_frames;
+
+// Rounded polygon edges.
+// control checkbox label="Rounded Edges"
+uniform bool rounded_edges;
+
+// Dodecagon subdivision.
+// control int min=0 max=2 step=1 label="Dodecagon Subdivision"
+uniform int dodecagon_subdivision;
+
+// Concave octagon subdivision.
+// control int min=0 max=1 step=1 label="Octagon Subdivision"
+uniform int octagon_subdivision;
+
+// Far plane.
+const float FAR = 20.0;
+
+
 // Polygon distance
 #define NV 12
 float sdPoly(in vec2 p, in vec2[NV] v, int num){
@@ -132,40 +172,11 @@ float sdPoly(in vec2 p, in vec2[NV] v, int num){
         vec2 e = v[j] - v[i];
         vec2 w = p - v[i];
         vec2 b = w - e*clamp(dot(w, e)/dot(e, e), 0., 1.);
-        #ifdef ROUNDED
-        d = smin(d, length(b), .06);
-        #else
-        d = min(d, length(b));
-        #endif
+        if(rounded_edges) d = smin(d, length(b), .06);
+        else d = min(d, length(b));
     }
     return -d;
 }
-
-////// Variable Defines ///////
-
-// Frame color -- Silver: 0, Copper: 1, Gold: 2.
-#define FRAME_COL 2
-
-// Frame style -- Single: 0, Double: 1.
-#define FRAME_STYLE 0
-
-// Display the metal rivots.
-#define RIVOTS
-
-// Beveling the tops of the frames.
-#define BEVELED
-
-// Rounded polygon edges.
-#define ROUNDED
-
-// Dodecagon subdivision.
-#define DOD_SUB 2
-
-// Concave octagon subdivision.
-#define OCT_SUB 1
-
-// Far plane.
-#define FAR 20.
 
 // Note: ZERO macro removed for naga compatibility
 
@@ -212,7 +223,7 @@ vec4 getGrid(vec2 p, inout vec2 sc){
         pID = 12;
         polyID = 4;
 
-        #if DOD_SUB>0
+        if(dodecagon_subdivision>0){
         float ang = atan(p.y, -p.x)/TAU + 1.5/12.;
         int i = int(mod(ang*6., 6.));
         float ln0 = distLineS(p, vec2(0), vP[(i*2 + 11)%12]);
@@ -226,9 +237,9 @@ vec4 getGrid(vec2 p, inout vec2 sc){
 
         vec2[12] svVP = vP;
         ip += mix(vP[0], vP[2], 2./3.)/sc;
-        #endif
+        }
 
-        #if DOD_SUB>1
+        if(dodecagon_subdivision>1){
         pID = 4;
         vec2 cntr = mix(vP[0], vP[2], 2./3.);
         vec2 m0 = mix(vP[0], vP[1], .5);
@@ -263,7 +274,7 @@ vec4 getGrid(vec2 p, inout vec2 sc){
            vP[3] = m1;
            polyID = 2;
         }
-        #endif
+        }
     }
     else {
         pID = 8;
@@ -284,7 +295,7 @@ vec4 getGrid(vec2 p, inout vec2 sc){
         vP[6] = vDod[(i3 + 9)%12] + eID[(i + 0)%4]*sc*2.;
         vP[7] = vDod[(i3 + 8)%12] + eID[(i + 0)%4]*sc*2.;
 
-        #if OCT_SUB>0
+        if(octagon_subdivision>0){
         pID = 4;
         vec2[12] svVP = vP;
 
@@ -306,7 +317,7 @@ vec4 getGrid(vec2 p, inout vec2 sc){
         float ln1 = distLineS(p, cntr, vP[3]);
 
         polyID = 3;
-        #endif
+        }
     }
 
     float d = sdPoly(p, vP, pID);
@@ -322,11 +333,8 @@ float map(vec3 p3){
     vec4 p4 = getGrid(p3.xz, sc);
     float d2 = gD2;
 
-    #if FRAME_STYLE == 1
-    d2 = abs(d2 + .025) - .02;
-    #else
-    d2 = abs(d2 - .005) - .04;
-    #endif
+    if(frame_style==1) d2 = abs(d2 + .025) - .02;
+    else d2 = abs(d2 - .005) - .04;
 
     float h = .1;
     float th = h/2.;
@@ -335,29 +343,25 @@ float map(vec3 p3){
     float pY = p3.y - pth.y + 2.;
 
     float fl = pY + (gD2 + .025)*.25;
-    #if DOD_SUB>0
-    fl += gD2/sc.x*.5;
-    #endif
+    if(dodecagon_subdivision>0) fl += gD2/sc.x*.5;
 
     float d = opExtrusion(d2, pY - h, th, .01);
     float dE = opExtrusion(abs(gD2) - .05, pY - h, th - .002, .01);
 
-    #ifdef BEVELED
-    d += d2*.2;
-    #endif
+    if(beveled_frames) d += d2*.2;
 
-    #ifdef RIVOTS
-    // Optimize: check max 4 vertices (pID is typically 4 after subdivision)
-    float dV2 = length(p4.xy - vP[0]) - .035;
-    dV2 = min(dV2, length(p4.xy - vP[1]) - .035);
-    dV2 = min(dV2, length(p4.xy - vP[2]) - .035);
-    dV2 = min(dV2, length(p4.xy - vP[3]) - .035);
-    float dV = opExtrusion(dV2, pY - h, th + .025, .01);
+    if(show_rivots){
+        // Optimize: check max 4 vertices (pID is typically 4 after subdivision)
+        float dV2 = length(p4.xy - vP[0]) - .035;
+        dV2 = min(dV2, length(p4.xy - vP[1]) - .035);
+        dV2 = min(dV2, length(p4.xy - vP[2]) - .035);
+        dV2 = min(dV2, length(p4.xy - vP[3]) - .035);
+        float dV = opExtrusion(dV2, pY - h, th + .025, .01);
 
-    dE = min(dE, dV - .015);
-    dE = max(dE, -dV2);
-    d = min(d, dV + dV2*.15);
-    #endif
+        dE = min(dE, dV - .015);
+        dE = max(dE, -dV2);
+        d = min(d, dV + dV2*.15);
+    }
 
     gVal = p4;
     gID = d<fl && d<dE ? 0 : fl<dE? 1 : 2;
@@ -474,16 +478,18 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord){
         vec3 texCol = .5 + .45*cos(TAU*rnd/6. + vec3(0, PI/2., PI)*saturation);
 
         if(svGID==0){
-            #if FRAME_COL == 0
-            texCol = mix(vec3(.33, .3, .27)*1.25, texCol.zyx, .25);
-            if(sp.y>-1.84) texCol = texCol*.5;
-            #elif FRAME_COL == 1
-            texCol = mix(vec3(.6, .25, .3), texCol, .25);
-            if(sp.y>-1.84) texCol = texCol*vec3(.5, .7, 1);
-            #else
-            texCol = mix(vec3(1, .7, .4)*.5, texCol*1., .35);
-            if(sp.y>-1.84) texCol = texCol*.5;
-            #endif
+                if(frame_color==0){
+                texCol = mix(vec3(.33, .3, .27)*1.25, texCol.zyx, .25);
+                if(sp.y>-1.84) texCol = texCol*.5;
+            }
+            else if(frame_color==1){
+                texCol = mix(vec3(.6, .25, .3), texCol, .25);
+                if(sp.y>-1.84) texCol = texCol*vec3(.5, .7, 1);
+            }
+            else{
+                texCol = mix(vec3(1, .7, .4)*.5, texCol*1., .35);
+                if(sp.y>-1.84) texCol = texCol*.5;
+            }
             texCol *= tx*1.;
         }
         else if(svGID==2){

@@ -5,21 +5,28 @@ description: null
 version: 1.0.0
 defaults:
   animation_speed: 0.5
-  brightness: 0.07
-  text_opacity: null
-  full_content: null
+  brightness: 0.06
   channel0: ''
   channel1: null
   channel2: null
   channel3: null
   cubemap: ''
   cubemap_enabled: false
+  use_background_as_channel0: null
+  uniforms:
+    iMaterialA: '#331ae6'
+    iMaterialB: '#994d1a'
 */
 
 // https://www.shadertoy.com/view/tXtyW8
 // Optimized version - reduced iterations and removed reflection bounce
 #define FAR 30.
 #define PI 3.1415
+
+// control color label="Material A"
+uniform vec3 iMaterialA;
+// control color label="Material B"
+uniform vec3 iMaterialB;
 
 int m = 0;
 
@@ -94,8 +101,8 @@ vec3 trace(vec3 ro, vec3 rd) {
     // material colors
     float freck = dot(cos(p * 23.), vec3(1));
     vec3 alb = m == 1
-        ? vec3(.2, .1, .9) * max(.6, step(2.5, freck))
-        : vec3(.6, .3, .1) * max(.8, step(-2.5, freck));
+        ? iMaterialA * max(.6, step(2.5, freck))
+        : iMaterialB * max(.8, step(-2.5, freck));
     col *= alb;
 
     col *= getAO(p, sn);

@@ -5,15 +5,18 @@ description: null
 version: 1.0.0
 defaults:
   animation_speed: 0.5
-  brightness: 0.17
-  text_opacity: null
-  full_content: null
   channel0: ''
   channel1: null
   channel2: null
   channel3: null
   cubemap: ''
   cubemap_enabled: false
+  use_background_as_channel0: null
+  uniforms:
+    color_shift_speed: 1.0
+    num_explosions: 3
+    num_particles: 42
+    rainbow_shift: false
 */
 
 // This Ghostty shader is a port of https://www.shadertoy.com/view/lscGRl
@@ -28,8 +31,14 @@ defaults:
 #define B(x,y,z,w) S(x-z, x+z, w)*S(y+z, y-z, w)
 #define saturate(x) clamp(x,0.,1.)
 
-#define NUM_EXPLOSIONS 3.
-#define NUM_PARTICLES 42.
+// control int min=1 max=8 step=1 label="Explosions"
+uniform int num_explosions;
+// control int min=1 max=128 step=1 label="Particles"
+uniform int num_particles;
+// control checkbox label="Rainbow Shift"
+uniform bool rainbow_shift;
+// control slider min=0 max=4 step=0.01 label="Color Shift Speed"
+uniform float color_shift_speed;
 
 // Noise functions by Dave Hoskins
 #define MOD3 vec3(.1031,.11369,.13787)
@@ -63,11 +72,11 @@ vec3 explosion(vec2 uv, vec2 p, float seed, float t) {
 
     vec3 en = hash31(seed);
     vec3 baseCol = en;
-    for (float i = 0.; i < NUM_PARTICLES; i++) {
-        vec3 n = hash31(i) - .5;
+    for (int i = 0; i < num_particles; i++) {
+        vec3 n = hash31(float(i)) - .5;
 
-        vec2 startP = p - vec2(0., t * t * .1);
-        vec2 endP = startP + normalize(n.xy) * n.z - vec2(0., t * .2);
+        vec2 startP = p + vec2(0., t * t * .1);
+        vec2 endP = startP + normalize(n.xy) * n.z + vec2(0., t * .2);
 
         float pt = 1. - pow(t - 1., 2.);
         vec2 pos = mix(p, endP, pt);
@@ -87,7 +96,7 @@ vec3 explosion(vec2 uv, vec2 p, float seed, float t) {
 }
 
 vec3 Rainbow(vec3 c) {
-    float t = iTime;
+    float t = iTime * color_shift_speed;
 
     float avg = (c.r + c.g + c.b) / 3.;
     c = avg + (c - avg) * sin(vec3(0., .333, .666) + t);
@@ -108,8 +117,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
 
     vec3 c = vec3(0.);
 
-    for (float i = 0.; i < NUM_EXPLOSIONS; i++) {
-        float et = t + i * 1234.45235;
+    for (int i = 0; i < num_explosions; i++) {
+        float et = t + float(i) * 1234.45235;
         float id = floor(et);
         et -= id;
 
@@ -118,5 +127,5 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
         p.x *= 1.6;
         c += explosion(uv, p, id, et);
     }
-    fragColor = vec4(Rainbow(c), 1.0);
+    fragColor = vec4(rainbow_shift ? Rainbow(c) : c, 1.0);
 }

@@ -5,8 +5,6 @@ description: null
 version: 1.0.0
 defaults:
   animation_speed: 0.5
-  brightness: 1.0
-  text_opacity: null
   full_content: true
   channel0: ''
   channel1: null
@@ -14,6 +12,7 @@ defaults:
   channel3: null
   cubemap: textures/cubemaps/env-outside
   cubemap_enabled: null
+  use_background_as_channel0: null
 */
 
 // Cubemap Test Shader

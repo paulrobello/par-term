@@ -5,24 +5,32 @@ description: null
 version: 1.0.0
 defaults:
   animation_speed: 0.5
-  brightness: 0.3
-  text_opacity: null
-  full_content: null
+  brightness: 0.2
   channel0: ''
   channel1: null
   channel2: null
   channel3: null
   cubemap: ''
   cubemap_enabled: false
+  use_background_as_channel0: null
+  uniforms:
+    camera_rotation_speed: 0.09999995
+    cube_rotation_speed: 2.8000002
+    cube_size: 1.0
+    speed: 0.19999999
 */
 
 // credits: https://github.com/rymdlego
 // Optimized version
 
-const float speed = 0.2;
-const float cube_size = 1.0;
-const float cube_rotation_speed = 2.8;
-const float camera_rotation_speed = 0.1;
+// control slider min=0 max=2 step=0.01 label="Speed"
+uniform float speed;
+// control slider min=0.1 max=4 step=0.01 label="Cube Size"
+uniform float cube_size;
+// control slider min=-10 max=10 step=0.1 label="Cube Rotation Speed"
+uniform float cube_rotation_speed;
+// control slider min=-2 max=2 step=0.01 label="Camera Rotation Speed"
+uniform float camera_rotation_speed;
 
 mat3 rotationMatrix(vec3 m, float a) {
     m = normalize(m);
