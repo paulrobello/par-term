@@ -73,6 +73,8 @@ pub enum InspectorAction {
     RevokeAlwaysAllowSelections,
     /// Send a user prompt to the connected agent.
     SendPrompt(String),
+    /// Load a saved prompt into the chat input without sending it.
+    LoadPrompt(String),
     /// Toggle agent terminal access.
     SetTerminalAccess(bool),
     /// Respond to an agent permission request.

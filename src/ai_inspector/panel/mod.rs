@@ -58,6 +58,10 @@ pub struct AIInspectorPanel {
     pub agent_status: AgentStatus,
     /// Chat state for the agent conversation.
     pub chat: ChatState,
+    /// Saved Assistant prompt-library entries loaded from config.
+    pub assistant_prompts: Vec<par_term_config::AssistantPrompt>,
+    /// Last prompt-library load error, if loading failed.
+    pub assistant_prompts_error: Option<String>,
     /// Whether the agent is allowed to write to the terminal.
     pub agent_terminal_access: bool,
     /// Whether to auto-approve all agent permission requests (YOLO mode).
@@ -88,6 +92,24 @@ pub struct AIInspectorPanel {
 impl AIInspectorPanel {
     /// Create a new inspector panel initialized from config.
     pub fn new(config: &Config) -> Self {
+        let (assistant_prompts, assistant_prompts_error) = Self::load_assistant_prompts();
+        Self::new_with_prompt_library_state(config, assistant_prompts, assistant_prompts_error)
+    }
+
+    #[cfg(test)]
+    pub(super) fn new_with_prompt_library(
+        config: &Config,
+        assistant_prompts: Vec<par_term_config::AssistantPrompt>,
+        assistant_prompts_error: Option<String>,
+    ) -> Self {
+        Self::new_with_prompt_library_state(config, assistant_prompts, assistant_prompts_error)
+    }
+
+    fn new_with_prompt_library_state(
+        config: &Config,
+        assistant_prompts: Vec<par_term_config::AssistantPrompt>,
+        assistant_prompts_error: Option<String>,
+    ) -> Self {
         Self {
             open: config.ai_inspector.ai_inspector_open_on_startup,
             width: config.ai_inspector.ai_inspector_width,
@@ -103,6 +125,8 @@ impl AIInspectorPanel {
             last_command_count: 0,
             agent_status: AgentStatus::Disconnected,
             chat: ChatState::new(),
+            assistant_prompts,
+            assistant_prompts_error,
             agent_terminal_access: config.ai_inspector.ai_inspector_agent_terminal_access,
             auto_approve: config.ai_inspector.ai_inspector_auto_approve,
             rendered_width: 0.0,
@@ -118,6 +142,19 @@ impl AIInspectorPanel {
         }
     }
 
+    fn load_assistant_prompts() -> (Vec<par_term_config::AssistantPrompt>, Option<String>) {
+        match par_term_config::list_prompts() {
+            Ok(prompts) => (prompts, None),
+            Err(error) => (Vec::new(), Some(error)),
+        }
+    }
+
+    fn refresh_assistant_prompts(&mut self) {
+        let (assistant_prompts, assistant_prompts_error) = Self::load_assistant_prompts();
+        self.assistant_prompts = assistant_prompts;
+        self.assistant_prompts_error = assistant_prompts_error;
+    }
+
     /// Toggle the panel open/closed.
     ///
     /// Returns `true` if the panel was just opened (useful for auto-launch).
@@ -125,6 +162,7 @@ impl AIInspectorPanel {
         self.open = !self.open;
         if self.open {
             self.needs_refresh = true;
+            self.refresh_assistant_prompts();
         }
         self.open
     }
@@ -413,6 +451,65 @@ mod tests {
         assert!(panel.show_zones);
         assert_eq!(panel.connected_agent_project_root, None);
         assert_eq!(panel.connected_agent_cwd, None);
+    }
+
+    #[test]
+    fn inspector_panel_prompt_library_state_can_be_injected() {
+        let config = Config::default();
+        let prompt = par_term_config::AssistantPrompt {
+            path: std::path::PathBuf::from("debug.md"),
+            title: "Debug build".to_string(),
+            auto_submit: false,
+            prompt: "Fix the build.".to_string(),
+        };
+
+        let panel = AIInspectorPanel::new_with_prompt_library(
+            &config,
+            vec![prompt.clone()],
+            Some("load failed".to_string()),
+        );
+
+        assert_eq!(panel.assistant_prompts, vec![prompt]);
+        assert_eq!(
+            panel.assistant_prompts_error.as_deref(),
+            Some("load failed")
+        );
+    }
+
+    #[test]
+    fn load_prompt_action_carries_prompt_body() {
+        let action = InspectorAction::LoadPrompt("hello".to_string());
+        assert!(matches!(action, InspectorAction::LoadPrompt(text) if text == "hello"));
+    }
+
+    #[test]
+    fn prompt_selection_loads_non_auto_submit_prompt() {
+        let prompt = par_term_config::AssistantPrompt {
+            path: std::path::PathBuf::from("load.md"),
+            title: "Load only".to_string(),
+            auto_submit: false,
+            prompt: "Review this first.".to_string(),
+        };
+
+        let action = AIInspectorPanel::action_for_assistant_prompt(&prompt);
+
+        assert!(
+            matches!(action, InspectorAction::LoadPrompt(text) if text == "Review this first.")
+        );
+    }
+
+    #[test]
+    fn prompt_selection_sends_auto_submit_prompt() {
+        let prompt = par_term_config::AssistantPrompt {
+            path: std::path::PathBuf::from("send.md"),
+            title: "Send now".to_string(),
+            auto_submit: true,
+            prompt: "Run diagnostics.".to_string(),
+        };
+
+        let action = AIInspectorPanel::action_for_assistant_prompt(&prompt);
+
+        assert!(matches!(action, InspectorAction::SendPrompt(text) if text == "Run diagnostics."));
     }
 
     #[test]

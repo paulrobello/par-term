@@ -208,6 +208,16 @@ impl AIInspectorPanel {
         action
     }
 
+    pub(super) fn action_for_assistant_prompt(
+        prompt: &par_term_config::AssistantPrompt,
+    ) -> InspectorAction {
+        if prompt.auto_submit {
+            InspectorAction::SendPrompt(prompt.prompt.clone())
+        } else {
+            InspectorAction::LoadPrompt(prompt.prompt.clone())
+        }
+    }
+
     /// Render the chat text input and send/clear buttons.
     ///
     /// Multiline: Enter sends, Shift+Enter inserts a newline.
@@ -219,8 +229,8 @@ impl AIInspectorPanel {
         let input_height = AI_PANEL_CHAT_INPUT_BASE_HEIGHT
             + (line_count as f32 - 1.0) * AI_PANEL_CHAT_INPUT_LINE_HEIGHT;
 
-        let button_width = AI_PANEL_CHAT_BUTTON_WIDTH;
-        let input_width = ui.available_width() - button_width;
+        let button_width = AI_PANEL_CHAT_BUTTON_WIDTH.max(76.0);
+        let input_width = (ui.available_width() - button_width).max(60.0);
 
         // Check for Enter (without Shift) before rendering the TextEdit,
         // since egui may consume the key event.
@@ -247,6 +257,38 @@ impl AIInspectorPanel {
             let should_send = is_focused && enter_pressed;
 
             ui.vertical(|ui| {
+                ui.menu_button(RichText::new("Prompts").small(), |ui| {
+                    if let Some(error) = &self.assistant_prompts_error {
+                        ui.label(
+                            RichText::new(format!("Load error: {error}"))
+                                .small()
+                                .color(EXIT_FAILURE),
+                        );
+                        ui.separator();
+                    }
+
+                    if self.assistant_prompts.is_empty() {
+                        ui.label(
+                            RichText::new("No prompts saved")
+                                .small()
+                                .color(Color32::from_gray(100))
+                                .italics(),
+                        );
+                    } else {
+                        for prompt in &self.assistant_prompts {
+                            let label = if prompt.auto_submit {
+                                format!("{}  (send)", prompt.title)
+                            } else {
+                                prompt.title.clone()
+                            };
+                            if ui.button(label).clicked() {
+                                action = Self::action_for_assistant_prompt(prompt);
+                                ui.close();
+                            }
+                        }
+                    }
+                });
+
                 let send_clicked = ui
                     .button(RichText::new(">").size(14.0))
                     .on_hover_text("Send message (Enter)")

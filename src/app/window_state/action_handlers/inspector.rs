@@ -1,7 +1,7 @@
 //! AI Inspector panel action handlers.
 //!
 //! Contains [`WindowState::handle_inspector_action_after_render`], dispatching
-//! all 17 [`InspectorAction`] variants produced during egui rendering.
+//! all [`InspectorAction`] variants produced during egui rendering.
 
 use crate::ai_inspector::chat::ChatMessage;
 use crate::ai_inspector::panel::InspectorAction;
@@ -151,6 +151,10 @@ impl WindowState {
                         "Cannot reset permissions: no connected agent identity.".to_string(),
                     );
                 }
+                self.focus_state.needs_redraw = true;
+            }
+            InspectorAction::LoadPrompt(text) => {
+                self.overlay_ui.ai_inspector.chat.input = text;
                 self.focus_state.needs_redraw = true;
             }
             InspectorAction::SendPrompt(text) => {

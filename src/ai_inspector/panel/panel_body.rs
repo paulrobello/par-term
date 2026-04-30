@@ -172,7 +172,7 @@ impl AIInspectorPanel {
                 0.0
             };
             let bottom_reserve = if self.agent_status == AgentStatus::Connected {
-                90.0 + (input_lines - 1.0).max(0.0) * 14.0
+                116.0 + (input_lines - 1.0).max(0.0) * 14.0
             } else {
                 36.0
             };
