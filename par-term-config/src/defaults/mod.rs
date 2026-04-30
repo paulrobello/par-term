@@ -41,7 +41,7 @@ pub use terminal::{
 
 // ── Shader & render pipeline ───────────────────────────────────────────────
 pub use shader::{
-    cursor_glow_intensity, cursor_glow_radius, cursor_shader_color,
+    background_channel0_blend_mode, cursor_glow_intensity, cursor_glow_radius, cursor_shader_color,
     cursor_shader_disable_in_alt_screen, cursor_trail_duration, custom_shader_brightness,
     custom_shader_speed, maximize_throughput, reduce_flicker, reduce_flicker_delay_ms,
     shader_hot_reload_delay, throughput_render_interval_ms,

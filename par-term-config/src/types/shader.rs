@@ -56,6 +56,53 @@ impl ShaderSafetyBadge {
     }
 }
 
+/// Blend mode hint for shaders using the app background as iChannel0.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ShaderBackgroundBlendMode {
+    Replace,
+    Multiply,
+    Screen,
+    Overlay,
+    LuminanceMask,
+}
+
+impl Default for ShaderBackgroundBlendMode {
+    fn default() -> Self {
+        Self::Replace
+    }
+}
+
+impl ShaderBackgroundBlendMode {
+    pub const ALL: [Self; 5] = [
+        Self::Replace,
+        Self::Multiply,
+        Self::Screen,
+        Self::Overlay,
+        Self::LuminanceMask,
+    ];
+
+    pub fn as_uniform_int(self) -> i32 {
+        match self {
+            Self::Replace => 0,
+            Self::Multiply => 1,
+            Self::Screen => 2,
+            Self::Overlay => 3,
+            Self::LuminanceMask => 4,
+        }
+    }
+
+    pub fn display_name(self) -> &'static str {
+        match self {
+            Self::Replace => "Replace",
+            Self::Multiply => "Multiply",
+            Self::Screen => "Screen",
+            Self::Overlay => "Overlay",
+            Self::LuminanceMask => "Luminance mask",
+        }
+    }
+}
+
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct ShaderColorValue(pub [f32; 4]);
 
@@ -293,6 +340,8 @@ pub struct ShaderConfig {
     pub cubemap_enabled: Option<bool>,
     /// Use the app's background image as iChannel0 instead of a separate texture
     pub use_background_as_channel0: Option<bool>,
+    /// Blend mode hint for shaders using the app background as iChannel0.
+    pub background_channel0_blend_mode: Option<ShaderBackgroundBlendMode>,
     /// Auto-dim shader output beneath terminal text/content for readability.
     pub auto_dim_under_text: Option<bool>,
     /// Strength of auto-dimming under text (0.0 = no extra dimming, 1.0 = black).
@@ -374,6 +423,8 @@ pub struct ResolvedShaderConfig {
     pub cubemap_enabled: bool,
     /// Use the app's background image as iChannel0
     pub use_background_as_channel0: bool,
+    /// Blend mode hint for shaders using the app background as iChannel0.
+    pub background_channel0_blend_mode: ShaderBackgroundBlendMode,
     /// Auto-dim shader output beneath terminal text/content for readability.
     pub auto_dim_under_text: bool,
     /// Strength of auto-dimming under text.
@@ -396,6 +447,7 @@ impl Default for ResolvedShaderConfig {
             cubemap: None,
             cubemap_enabled: true,
             use_background_as_channel0: false,
+            background_channel0_blend_mode: ShaderBackgroundBlendMode::Replace,
             auto_dim_under_text: false,
             auto_dim_strength: 0.35,
             custom_uniforms: BTreeMap::new(),

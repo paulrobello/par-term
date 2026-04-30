@@ -23,6 +23,7 @@ pub mod profile;
 pub mod profile_types;
 pub mod scripting;
 pub mod scrollback_mark;
+pub mod shader_bundle;
 pub mod shader_config;
 pub mod shader_controls;
 pub mod shader_metadata;
@@ -80,11 +81,12 @@ pub use types::{
     KeyBinding, LinkUnderlineStyle, LogLevel, ModifierRemapping, ModifierTarget, NewTabPosition,
     OptionKeyMode, PaneBackground, PaneBackgroundConfig, PaneId, PaneTitlePosition,
     PowerPreference, ProgressBarPosition, ProgressBarStyle, RemoteTabTitleFormat,
-    SemanticHistoryEditorMode, SeparatorMark, SessionLogFormat, ShaderConfig, ShaderInstallPrompt,
-    ShaderMetadata, ShaderSafetyBadge, ShellExitAction, ShellType, SmartSelectionPrecision,
-    SmartSelectionRule, StartupDirectoryMode, StatusBarPosition, TabBarMode, TabBarPosition, TabId,
-    TabStyle, TabTitleMode, ThinStrokesMode, UnfocusedCursorStyle, UpdateCheckFrequency, VsyncMode,
-    WindowType, default_smart_selection_rules,
+    SemanticHistoryEditorMode, SeparatorMark, SessionLogFormat, ShaderBackgroundBlendMode,
+    ShaderConfig, ShaderInstallPrompt, ShaderMetadata, ShaderSafetyBadge, ShellExitAction,
+    ShellType, SmartSelectionPrecision, SmartSelectionRule, StartupDirectoryMode,
+    StatusBarPosition, TabBarMode, TabBarPosition, TabId, TabStyle, TabTitleMode, ThinStrokesMode,
+    UnfocusedCursorStyle, UpdateCheckFrequency, VsyncMode, WindowType,
+    default_smart_selection_rules,
 };
 // Scripting / observer scripts
 pub use scripting::ScriptConfig;
@@ -96,6 +98,8 @@ pub use status_bar::{StatusBarSection, StatusBarWidgetConfig, WidgetId, default_
 pub use profile::{ConflictResolution, DynamicProfileSource};
 // Profile types and manager
 pub use profile_types::{Profile, ProfileId, ProfileManager, ProfileSource, TmuxConnectionMode};
+// Shader bundle manifests
+pub use shader_bundle::ShaderBundleManifest;
 // Shader config resolution
 pub use shader_config::{resolve_cursor_shader_config, resolve_shader_config};
 // Shader controls

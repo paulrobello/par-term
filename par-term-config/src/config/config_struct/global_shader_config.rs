@@ -71,6 +71,10 @@ pub struct GlobalShaderConfig {
     /// background image without requiring a separate texture file.
     pub custom_shader_use_background_as_channel0: bool,
 
+    /// Blend mode hint exposed to shaders using the app background as iChannel0.
+    #[serde(default = "crate::defaults::background_channel0_blend_mode")]
+    pub custom_shader_background_channel0_blend_mode: crate::types::ShaderBackgroundBlendMode,
+
     /// Reduce shader intensity only under terminal text/content for readability.
     pub custom_shader_auto_dim_under_text: bool,
 
@@ -142,6 +146,8 @@ impl Default for GlobalShaderConfig {
             custom_shader_cubemap: None,
             custom_shader_cubemap_enabled: crate::defaults::cubemap_enabled(),
             custom_shader_use_background_as_channel0: crate::defaults::use_background_as_channel0(),
+            custom_shader_background_channel0_blend_mode:
+                crate::defaults::background_channel0_blend_mode(),
             custom_shader_auto_dim_under_text: crate::defaults::bool_false(),
             custom_shader_auto_dim_strength: 0.35,
             custom_shader_readability_mode: crate::defaults::bool_false(),

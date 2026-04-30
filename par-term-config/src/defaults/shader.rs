@@ -1,5 +1,10 @@
 //! Default values for shader and render-pipeline settings.
 
+/// Default blend mode for background image bound as shader iChannel0.
+pub fn background_channel0_blend_mode() -> crate::types::ShaderBackgroundBlendMode {
+    crate::types::ShaderBackgroundBlendMode::Replace
+}
+
 /// Default background shader animation speed multiplier.
 pub fn custom_shader_speed() -> f32 {
     1.0 // Normal animation speed

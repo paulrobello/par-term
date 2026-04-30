@@ -53,7 +53,7 @@
 use crate::config::Config;
 use crate::types::{
     CursorShaderConfig, CursorShaderMetadata, ResolvedCursorShaderConfig, ResolvedShaderConfig,
-    ShaderConfig, ShaderMetadata,
+    ShaderBackgroundBlendMode, ShaderConfig, ShaderMetadata,
 };
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -147,6 +147,10 @@ pub fn resolve_shader_config(
             use_background_as_channel0,
             config.shader.custom_shader_use_background_as_channel0
         ),
+        background_channel0_blend_mode: resolve!(
+            background_channel0_blend_mode,
+            config.shader.custom_shader_background_channel0_blend_mode
+        ),
         auto_dim_under_text: resolve!(
             auto_dim_under_text,
             config.shader.custom_shader_auto_dim_under_text
@@ -212,6 +216,7 @@ pub fn resolve_cursor_shader_config(
         cubemap: None,
         cubemap_enabled: false,
         use_background_as_channel0: false,
+        background_channel0_blend_mode: ShaderBackgroundBlendMode::Replace,
         auto_dim_under_text: false,
         auto_dim_strength: 0.35,
         custom_uniforms: BTreeMap::new(),
@@ -320,11 +325,46 @@ pub mod global_defaults {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ShaderConfig, ShaderUniformValue};
+    use crate::{ShaderBackgroundBlendMode, ShaderConfig, ShaderUniformValue};
     use std::collections::BTreeMap;
 
     fn make_test_config() -> Config {
         Config::default()
+    }
+
+    #[test]
+    fn resolves_background_channel0_blend_mode_from_global_default() {
+        let config = Config::default();
+        let resolved = resolve_shader_config(None, None, &config);
+
+        assert_eq!(
+            resolved.background_channel0_blend_mode,
+            ShaderBackgroundBlendMode::Replace
+        );
+    }
+
+    #[test]
+    fn resolves_background_channel0_blend_mode_override_over_metadata() {
+        let config = Config::default();
+        let metadata = ShaderMetadata {
+            name: Some("Blend Metadata".to_string()),
+            defaults: ShaderConfig {
+                background_channel0_blend_mode: Some(ShaderBackgroundBlendMode::Multiply),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let override_config = ShaderConfig {
+            background_channel0_blend_mode: Some(ShaderBackgroundBlendMode::Screen),
+            ..Default::default()
+        };
+
+        let resolved = resolve_shader_config(Some(&override_config), Some(&metadata), &config);
+
+        assert_eq!(
+            resolved.background_channel0_blend_mode,
+            ShaderBackgroundBlendMode::Screen
+        );
     }
 
     #[test]
