@@ -36,6 +36,20 @@ fn set_channel_path(settings: &mut SettingsUI, channel: usize, value: String) {
     }
 }
 
+fn channel_path(settings: &SettingsUI, channel: usize) -> &str {
+    match channel {
+        0 => &settings.temp_shader_channel0,
+        1 => &settings.temp_shader_channel1,
+        2 => &settings.temp_shader_channel2,
+        3 => &settings.temp_shader_channel3,
+        _ => unreachable!("only iChannel0-3 are supported"),
+    }
+}
+
+fn builtin_noise_selection_change(current_path: &str, choice: &str) -> Option<String> {
+    (current_path != choice).then(|| choice.to_string())
+}
+
 fn show_builtin_noise_combo(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
@@ -46,8 +60,12 @@ fn show_builtin_noise_combo(
         .selected_text("Built-in noise…")
         .show_ui(ui, |ui| {
             for choice in builtin_noise_choices() {
-                if ui.selectable_label(false, choice).clicked() {
-                    set_channel_path(settings, channel, choice.to_string());
+                let current_path = channel_path(settings, channel).to_owned();
+                let is_selected = current_path == choice;
+                if ui.selectable_label(is_selected, choice).clicked()
+                    && let Some(next_path) = builtin_noise_selection_change(&current_path, choice)
+                {
+                    set_channel_path(settings, channel, next_path);
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
@@ -394,6 +412,24 @@ mod tests {
                 "builtin://noise/fbm-512",
                 "builtin://noise/cellular-256",
             ]
+        );
+    }
+
+    #[test]
+    fn selecting_current_builtin_noise_is_not_a_change() {
+        let current = "builtin://noise/fbm-256";
+
+        assert_eq!(builtin_noise_selection_change(current, current), None);
+    }
+
+    #[test]
+    fn selecting_different_builtin_noise_returns_new_path() {
+        assert_eq!(
+            builtin_noise_selection_change(
+                "builtin://noise/fbm-256",
+                "builtin://noise/cellular-256"
+            ),
+            Some("builtin://noise/cellular-256".to_string())
         );
     }
 

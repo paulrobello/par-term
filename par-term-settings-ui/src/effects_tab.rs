@@ -16,6 +16,31 @@ use std::collections::HashSet;
 use super::SettingsUI;
 use super::section::{collapsing_section, section_matches};
 
+const BACKGROUND_SECTION_KEYWORDS: &[&str] = &[
+    "background",
+    "image",
+    "color",
+    "mode",
+    "wallpaper",
+    "shader",
+    "glsl",
+    "fit",
+    "fill",
+    "stretch",
+    "tile",
+    "center",
+    "noise",
+    "built-in noise",
+    "blend",
+    "blend mode",
+    "background blend",
+    "iBackgroundBlendMode",
+];
+
+fn background_section_keywords() -> &'static [&'static str] {
+    BACKGROUND_SECTION_KEYWORDS
+}
+
 /// Show the effects tab content.
 pub fn show(
     ui: &mut egui::Ui,
@@ -26,24 +51,7 @@ pub fn show(
     let query = settings.search_query.trim().to_lowercase();
 
     // Background section
-    if section_matches(
-        &query,
-        "Background",
-        &[
-            "background",
-            "image",
-            "color",
-            "mode",
-            "wallpaper",
-            "shader",
-            "glsl",
-            "fit",
-            "fill",
-            "stretch",
-            "tile",
-            "center",
-        ],
-    ) {
+    if section_matches(&query, "Background", background_section_keywords()) {
         // Delegate to the existing background_tab implementation
         super::background_tab::show_background(ui, settings, changes_this_frame, collapsed);
     }
@@ -166,6 +174,8 @@ pub fn keywords() -> &'static [&'static str] {
         "background color",
         "image",
         "image mode",
+        "noise",
+        "built-in noise",
         "fit",
         "fill",
         "stretch",
@@ -174,6 +184,10 @@ pub fn keywords() -> &'static [&'static str] {
         // Background shader
         "shader",
         "custom shader",
+        "blend",
+        "blend mode",
+        "background blend",
+        "iBackgroundBlendMode",
         "animation",
         "animation speed",
         "hot reload",
@@ -232,4 +246,44 @@ pub fn keywords() -> &'static [&'static str] {
         "background as ichannel",
         "background as texture",
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SHADER_TEXTURE_KEYWORDS: &[&str] = &[
+        "noise",
+        "built-in noise",
+        "blend",
+        "blend mode",
+        "background blend",
+        "iBackgroundBlendMode",
+    ];
+
+    #[test]
+    fn background_section_matches_shader_texture_keywords() {
+        for keyword in SHADER_TEXTURE_KEYWORDS {
+            assert!(
+                crate::section::section_matches(
+                    &keyword.to_lowercase(),
+                    "Background",
+                    background_section_keywords()
+                ),
+                "background section should match keyword: {keyword}"
+            );
+        }
+    }
+
+    #[test]
+    fn effects_global_keywords_include_shader_texture_controls() {
+        let global_keywords = keywords();
+
+        for keyword in SHADER_TEXTURE_KEYWORDS {
+            assert!(
+                global_keywords.contains(keyword),
+                "global effects keywords should include: {keyword}"
+            );
+        }
+    }
 }
