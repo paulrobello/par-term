@@ -322,7 +322,7 @@ fn test_max_fps_default_reasonable() {
 #[test]
 fn test_has_changes_initially_false() {
     let config = Config::default();
-    let settings = SettingsUI::new(config);
+    let settings = SettingsUI::new_for_tests(config);
     assert!(
         !settings.has_changes,
         "has_changes should be false on initial creation"
@@ -332,7 +332,7 @@ fn test_has_changes_initially_false() {
 #[test]
 fn test_has_changes_set_to_true() {
     let config = Config::default();
-    let mut settings = SettingsUI::new(config);
+    let mut settings = SettingsUI::new_for_tests(config);
     assert!(!settings.has_changes);
 
     // Simulate a setting change (as the UI code does)
@@ -346,7 +346,7 @@ fn test_has_changes_set_to_true() {
 #[test]
 fn test_has_changes_reset_to_false() {
     let config = Config::default();
-    let mut settings = SettingsUI::new(config);
+    let mut settings = SettingsUI::new_for_tests(config);
 
     // Mark as changed
     settings.has_changes = true;
@@ -363,7 +363,7 @@ fn test_has_changes_reset_to_false() {
 #[test]
 fn test_has_changes_after_config_field_modification() {
     let config = Config::default();
-    let mut settings = SettingsUI::new(config);
+    let mut settings = SettingsUI::new_for_tests(config);
 
     assert!(!settings.has_changes, "Should start clean");
 
@@ -384,7 +384,7 @@ fn test_has_changes_after_config_field_modification() {
 #[test]
 fn test_has_changes_multiple_modifications() {
     let config = Config::default();
-    let mut settings = SettingsUI::new(config);
+    let mut settings = SettingsUI::new_for_tests(config);
 
     // Apply multiple changes
     settings.config.font_size = 16.0;
@@ -408,7 +408,7 @@ fn test_settings_ui_config_is_cloned_on_creation() {
         ..Config::default()
     };
 
-    let settings = SettingsUI::new(config.clone());
+    let settings = SettingsUI::new_for_tests(config.clone());
     assert_eq!(
         settings.config.font_size, 20.0,
         "SettingsUI should use the provided config"

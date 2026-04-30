@@ -1077,7 +1077,7 @@ mod tests {
 
     #[test]
     fn shader_uniform_override_set_shader_uniform_override_creates_per_shader_entry() {
-        let mut settings = SettingsUI::new(par_term_config::Config::default());
+        let mut settings = SettingsUI::new_for_tests(par_term_config::Config::default());
 
         set_shader_uniform_override(
             &mut settings,
@@ -1099,7 +1099,7 @@ mod tests {
 
     #[test]
     fn shader_uniform_override_clear_shader_uniform_override_removes_only_uniform_value() {
-        let mut settings = SettingsUI::new(par_term_config::Config::default());
+        let mut settings = SettingsUI::new_for_tests(par_term_config::Config::default());
         settings
             .config
             .get_or_create_shader_override("controlled.glsl")
@@ -1126,7 +1126,7 @@ mod tests {
 
     #[test]
     fn shader_uniform_override_clear_shader_uniform_override_removes_empty_shader_entry() {
-        let mut settings = SettingsUI::new(par_term_config::Config::default());
+        let mut settings = SettingsUI::new_for_tests(par_term_config::Config::default());
         set_shader_uniform_override(
             &mut settings,
             "controlled.glsl",

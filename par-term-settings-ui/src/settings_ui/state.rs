@@ -12,7 +12,6 @@ use crate::{ArrangementManager, InstallationType};
 
 use super::SettingsUI;
 
-#[cfg(not(test))]
 fn load_assistant_prompts_for_settings() -> (Vec<par_term_config::AssistantPrompt>, Option<String>)
 {
     match par_term_config::list_prompts() {
@@ -21,21 +20,33 @@ fn load_assistant_prompts_for_settings() -> (Vec<par_term_config::AssistantPromp
     }
 }
 
-#[cfg(test)]
-fn load_assistant_prompts_for_settings() -> (Vec<par_term_config::AssistantPrompt>, Option<String>)
-{
-    (Vec::new(), None)
-}
-
 impl SettingsUI {
-    /// Create a new settings UI
+    /// Create a new settings UI.
+    ///
+    /// This loads assistant prompt files from the configured prompt library.
     pub fn new(config: Config) -> Self {
+        let (assistant_prompts, assistant_prompt_error) = load_assistant_prompts_for_settings();
+        Self::new_with_assistant_prompts(config, assistant_prompts, assistant_prompt_error)
+    }
+
+    /// Create a settings UI with no assistant prompt filesystem access.
+    pub fn new_for_tests(config: Config) -> Self {
+        Self::new_with_assistant_prompts(config, Vec::new(), None)
+    }
+
+    /// Create a settings UI with caller-supplied assistant prompt state.
+    ///
+    /// Unlike [`SettingsUI::new`], this does not read prompt files from disk.
+    pub fn new_with_assistant_prompts(
+        config: Config,
+        assistant_prompts: Vec<par_term_config::AssistantPrompt>,
+        assistant_prompt_error: Option<String>,
+    ) -> Self {
         // Extract values before moving config
         let initial_cols = config.cols;
         let initial_rows = config.rows;
         let initial_collapsed: HashSet<String> =
             config.collapsed_settings_sections.iter().cloned().collect();
-        let (assistant_prompts, assistant_prompt_error) = load_assistant_prompts_for_settings();
 
         Self {
             visible: false,
@@ -502,19 +513,34 @@ impl SettingsUI {
 #[cfg(test)]
 mod assistant_prompt_tests {
     use super::*;
-    use par_term_config::Config;
+    use par_term_config::{AssistantPrompt, Config};
+    use std::path::PathBuf;
 
     #[test]
-    fn test_mode_prompt_loader_returns_clean_state_without_filesystem_access() {
-        let (prompts, error) = load_assistant_prompts_for_settings();
+    fn settings_ui_new_with_assistant_prompts_uses_injected_prompt_state() {
+        let prompt = AssistantPrompt {
+            path: PathBuf::from("injected.md"),
+            title: "Injected".to_string(),
+            auto_submit: true,
+            prompt: "Use this prompt".to_string(),
+        };
 
-        assert!(prompts.is_empty());
-        assert!(error.is_none());
+        let settings = SettingsUI::new_with_assistant_prompts(
+            Config::default(),
+            vec![prompt.clone()],
+            Some("injected error".to_string()),
+        );
+
+        assert_eq!(settings.assistant_prompts, vec![prompt]);
+        assert_eq!(
+            settings.assistant_prompt_error.as_deref(),
+            Some("injected error")
+        );
     }
 
     #[test]
-    fn settings_ui_initializes_empty_prompt_library_state_without_home_mutation() {
-        let settings = SettingsUI::new(Config::default());
+    fn settings_ui_new_for_tests_initializes_empty_prompt_state_without_prompt_file_access() {
+        let settings = SettingsUI::new_for_tests(Config::default());
 
         assert!(settings.assistant_prompts.is_empty());
         assert!(settings.assistant_prompt_error.is_none());

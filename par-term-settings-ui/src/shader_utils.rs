@@ -262,7 +262,7 @@ mod tests {
         let shader_name = "reload.glsl";
         let mut config = par_term_config::Config::default();
         config.shader.custom_shader = Some(shader_name.to_string());
-        let mut settings = SettingsUI::new(config);
+        let mut settings = SettingsUI::new_for_tests(config);
         settings.shader_editor_error = Some("old error".to_string());
         settings.shader_controls_cache.insert(
             shader_name.to_string(),

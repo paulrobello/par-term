@@ -279,7 +279,7 @@ mod tests {
 
     #[test]
     fn populate_assistant_prompt_editor_copies_prompt_into_settings_state() {
-        let mut settings = SettingsUI::new(par_term_config::Config::default());
+        let mut settings = SettingsUI::new_for_tests(par_term_config::Config::default());
         let prompt = AssistantPrompt {
             path: PathBuf::from("prompt.md"),
             title: "Debug build".to_string(),
@@ -296,7 +296,7 @@ mod tests {
 
     #[test]
     fn reset_assistant_prompt_editor_clears_settings_state() {
-        let mut settings = SettingsUI::new(par_term_config::Config::default());
+        let mut settings = SettingsUI::new_for_tests(par_term_config::Config::default());
         settings.temp_assistant_prompt_title = "Debug build".to_string();
         settings.temp_assistant_prompt_body = "Fix it".to_string();
         settings.temp_assistant_prompt_auto_submit = true;
