@@ -57,20 +57,15 @@ impl ShaderSafetyBadge {
 }
 
 /// Blend mode hint for shaders using the app background as iChannel0.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ShaderBackgroundBlendMode {
+    #[default]
     Replace,
     Multiply,
     Screen,
     Overlay,
     LuminanceMask,
-}
-
-impl Default for ShaderBackgroundBlendMode {
-    fn default() -> Self {
-        Self::Replace
-    }
 }
 
 impl ShaderBackgroundBlendMode {
