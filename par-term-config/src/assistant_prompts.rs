@@ -91,13 +91,20 @@ pub fn save_prompt(
     existing_path: Option<&Path>,
     draft: &AssistantPromptDraft,
 ) -> Result<AssistantPrompt, String> {
+    save_prompt_in_dir(&assistant_prompts_dir(), existing_path, draft)
+}
+
+pub fn save_prompt_in_dir(
+    dir: &Path,
+    existing_path: Option<&Path>,
+    draft: &AssistantPromptDraft,
+) -> Result<AssistantPrompt, String> {
     validate_draft(draft)?;
-    let dir = assistant_prompts_dir();
-    fs::create_dir_all(&dir).map_err(|e| format!("create prompt directory: {e}"))?;
+    fs::create_dir_all(dir).map_err(|e| format!("create prompt directory: {e}"))?;
 
     let target_path = existing_path
         .map(Path::to_path_buf)
-        .unwrap_or_else(|| unique_prompt_path(&dir, &draft.title));
+        .unwrap_or_else(|| unique_prompt_path(dir, &draft.title));
     let markdown = serialize_prompt_markdown(draft)?;
     fs::write(&target_path, markdown)
         .map_err(|e| format!("write prompt file {}: {e}", target_path.display()))?;
@@ -115,19 +122,24 @@ pub fn delete_prompt(path: &Path) -> Result<(), String> {
 }
 
 pub fn parse_prompt_markdown(input: &str) -> Result<AssistantPromptDraft, String> {
-    let Some(rest) = input.strip_prefix("---\n") else {
-        return Err("missing YAML frontmatter".to_string());
-    };
-    let Some((frontmatter, body)) = rest.split_once("\n---\n") else {
+    let input = input.strip_prefix('\u{feff}').unwrap_or(input);
+    let rest = input
+        .strip_prefix("---\r\n")
+        .or_else(|| input.strip_prefix("---\n"))
+        .ok_or_else(|| "missing YAML frontmatter".to_string())?;
+    let Some((frontmatter, body)) = rest
+        .split_once("\r\n---\r\n")
+        .or_else(|| rest.split_once("\n---\n"))
+    else {
         return Err("missing closing YAML frontmatter delimiter".to_string());
     };
-    let body = body.trim_start_matches('\n');
+    let body = body.trim_start_matches(['\r', '\n']);
     let metadata: AssistantPromptMetadata = serde_yaml_ng::from_str(frontmatter)
         .map_err(|e| format!("parse prompt frontmatter: {e}"))?;
     let draft = AssistantPromptDraft {
         title: metadata.title,
         auto_submit: metadata.auto_submit,
-        prompt: body.trim_end_matches('\n').to_string(),
+        prompt: body.trim_end_matches(['\r', '\n']).to_string(),
     };
     validate_draft(&draft)?;
     Ok(draft)
@@ -206,6 +218,26 @@ mod tests {
     }
 
     #[test]
+    fn parses_prompt_with_crlf_line_endings() {
+        let input = "---\r\ntitle: Debug build\r\nauto_submit: true\r\n---\r\n\r\nFix the build.\r\nSecond line.";
+        let parsed = parse_prompt_markdown(input).expect("parse CRLF prompt");
+
+        assert_eq!(parsed.title, "Debug build");
+        assert!(parsed.auto_submit);
+        assert_eq!(parsed.prompt, "Fix the build.\r\nSecond line.");
+    }
+
+    #[test]
+    fn parses_prompt_with_utf8_bom_before_frontmatter() {
+        let input = "\u{feff}---\ntitle: Debug build\nauto_submit: false\n---\n\nFix the build.";
+        let parsed = parse_prompt_markdown(input).expect("parse BOM prompt");
+
+        assert_eq!(parsed.title, "Debug build");
+        assert!(!parsed.auto_submit);
+        assert_eq!(parsed.prompt, "Fix the build.");
+    }
+
+    #[test]
     fn rejects_missing_frontmatter() {
         let err = parse_prompt_markdown("Fix the build.").expect_err("missing frontmatter fails");
         assert!(err.contains("frontmatter"));
@@ -277,5 +309,76 @@ mod tests {
 
         assert_eq!(prompts.len(), 1);
         assert_eq!(prompts[0].title, "Valid");
+    }
+
+    #[test]
+    fn saves_new_prompt_in_dir() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let draft = AssistantPromptDraft {
+            title: "Debug build".to_string(),
+            auto_submit: true,
+            prompt: "Fix the build.".to_string(),
+        };
+
+        let saved = save_prompt_in_dir(temp.path(), None, &draft).expect("save prompt");
+
+        assert_eq!(saved.path, temp.path().join("debug-build.md"));
+        assert_eq!(saved.title, draft.title);
+        assert!(saved.auto_submit);
+        assert_eq!(saved.prompt, draft.prompt);
+        let content = fs::read_to_string(&saved.path).expect("read saved prompt");
+        assert_eq!(
+            parse_prompt_markdown(&content).expect("parse saved prompt"),
+            draft
+        );
+    }
+
+    #[test]
+    fn saves_new_prompt_with_unique_filename_when_slug_collides() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        fs::write(temp.path().join("debug-build.md"), "existing").expect("write collision");
+        fs::write(temp.path().join("debug-build-2.md"), "existing")
+            .expect("write second collision");
+        let draft = AssistantPromptDraft {
+            title: "Debug build".to_string(),
+            auto_submit: false,
+            prompt: "Try the next filename.".to_string(),
+        };
+
+        let saved = save_prompt_in_dir(temp.path(), None, &draft).expect("save prompt");
+
+        assert_eq!(saved.path, temp.path().join("debug-build-3.md"));
+        assert!(saved.path.exists());
+    }
+
+    #[test]
+    fn updates_existing_prompt_path_in_dir() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let existing_path = temp.path().join("custom-name.md");
+        fs::write(&existing_path, "old content").expect("write existing");
+        let draft = AssistantPromptDraft {
+            title: "Renamed prompt".to_string(),
+            auto_submit: true,
+            prompt: "Updated content.".to_string(),
+        };
+
+        let saved =
+            save_prompt_in_dir(temp.path(), Some(&existing_path), &draft).expect("update prompt");
+
+        assert_eq!(saved.path, existing_path);
+        let content = fs::read_to_string(&saved.path).expect("read updated prompt");
+        let parsed = parse_prompt_markdown(&content).expect("parse updated prompt");
+        assert_eq!(parsed, draft);
+    }
+
+    #[test]
+    fn deletes_prompt_file_in_temp_dir() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let path = temp.path().join("debug-build.md");
+        fs::write(&path, "prompt").expect("write prompt");
+
+        delete_prompt(&path).expect("delete prompt");
+
+        assert!(!path.exists());
     }
 }
