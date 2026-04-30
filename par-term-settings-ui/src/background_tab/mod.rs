@@ -429,6 +429,98 @@ fn show_background_shader_controls(
     });
 
     if ui
+        .checkbox(
+            &mut settings.config.shader.custom_shader_auto_dim_under_text,
+            "Auto-dim under text",
+        )
+        .on_hover_text(
+            "Sample terminal content and reduce shader intensity only beneath text/content pixels.",
+        )
+        .changed()
+    {
+        settings.has_changes = true;
+        *changes_this_frame = true;
+    }
+
+    if settings.config.shader.custom_shader_auto_dim_under_text {
+        ui.horizontal(|ui| {
+            ui.label("Auto-dim strength:");
+            if ui
+                .add(egui::Slider::new(
+                    &mut settings.config.shader.custom_shader_auto_dim_strength,
+                    0.0..=1.0,
+                ))
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+        });
+    }
+
+    ui.horizontal(|ui| {
+        if ui
+            .button("Cycle shader")
+            .on_hover_text("Action: cycle_background_shader")
+            .clicked()
+        {
+            let shaders = settings.background_shaders();
+            if !shaders.is_empty() {
+                let next = shaders
+                    .iter()
+                    .position(|shader| shader == &settings.temp_custom_shader)
+                    .map(|index| (index + 1) % shaders.len())
+                    .unwrap_or(0);
+                settings.temp_custom_shader = shaders[next].clone();
+                settings.config.shader.custom_shader = Some(shaders[next].clone());
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+        }
+        if ui
+            .button(if settings.config.shader.custom_shader_animation {
+                "Pause animation"
+            } else {
+                "Resume animation"
+            })
+            .on_hover_text("Action: toggle_shader_animation")
+            .clicked()
+        {
+            settings.config.shader.custom_shader_animation =
+                !settings.config.shader.custom_shader_animation;
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+        if ui
+            .checkbox(
+                &mut settings.config.shader.custom_shader_readability_mode,
+                "Readability/low-power mode",
+            )
+            .on_hover_text("Action: toggle_shader_readability_mode")
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+    });
+
+    if settings.config.shader.custom_shader_readability_mode {
+        ui.horizontal(|ui| {
+            ui.label("Readability brightness cap:");
+            if ui
+                .add(egui::Slider::new(
+                    &mut settings.config.shader.custom_shader_readability_brightness,
+                    0.05..=1.0,
+                ))
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+        });
+    }
+
+    if ui
     .checkbox(
         &mut settings.config.shader.custom_shader_full_content,
         "Full content mode",

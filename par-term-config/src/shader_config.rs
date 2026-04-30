@@ -147,6 +147,15 @@ pub fn resolve_shader_config(
             use_background_as_channel0,
             config.shader.custom_shader_use_background_as_channel0
         ),
+        auto_dim_under_text: resolve!(
+            auto_dim_under_text,
+            config.shader.custom_shader_auto_dim_under_text
+        ),
+        auto_dim_strength: resolve!(
+            auto_dim_strength,
+            config.shader.custom_shader_auto_dim_strength
+        )
+        .clamp(0.0, 1.0),
         custom_uniforms,
     }
 }
@@ -203,6 +212,8 @@ pub fn resolve_cursor_shader_config(
         cubemap: None,
         cubemap_enabled: false,
         use_background_as_channel0: false,
+        auto_dim_under_text: false,
+        auto_dim_strength: 0.35,
         custom_uniforms: BTreeMap::new(),
     };
 

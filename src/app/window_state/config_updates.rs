@@ -24,6 +24,7 @@ pub(crate) struct ConfigChanges {
     pub shader_cubemap: bool,
     pub shader_per_shader_config: bool,
     pub shader_use_background_as_channel0: bool,
+    pub shader_readability: bool,
 
     // Cursor shader
     pub cursor_shader_path: bool,
@@ -140,6 +141,18 @@ impl ConfigChanges {
                     != old.shader.custom_shader_cubemap_enabled,
             shader_use_background_as_channel0: new.shader.custom_shader_use_background_as_channel0
                 != old.shader.custom_shader_use_background_as_channel0,
+            shader_readability: new.shader.custom_shader_auto_dim_under_text
+                != old.shader.custom_shader_auto_dim_under_text
+                || (new.shader.custom_shader_auto_dim_strength
+                    - old.shader.custom_shader_auto_dim_strength)
+                    .abs()
+                    > f32::EPSILON
+                || new.shader.custom_shader_readability_mode
+                    != old.shader.custom_shader_readability_mode
+                || (new.shader.custom_shader_readability_brightness
+                    - old.shader.custom_shader_readability_brightness)
+                    .abs()
+                    > f32::EPSILON,
             shader_per_shader_config: {
                 // Check if the per-shader config for the current shader changed
                 let old_override = old
@@ -284,6 +297,7 @@ impl ConfigChanges {
             || self.shader_cubemap
             || self.shader_per_shader_config
             || self.shader_use_background_as_channel0
+            || self.shader_readability
     }
 
     /// Returns true if any cursor shader path/enabled/animation changed

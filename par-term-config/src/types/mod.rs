@@ -46,7 +46,7 @@ pub use rendering::{
 pub use selection::{SmartSelectionPrecision, SmartSelectionRule, default_smart_selection_rules};
 pub use shader::{
     CursorShaderConfig, CursorShaderMetadata, ResolvedCursorShaderConfig, ResolvedShaderConfig,
-    ShaderConfig, ShaderMetadata,
+    ShaderConfig, ShaderMetadata, ShaderSafetyBadge,
 };
 pub use shell::{ShellExitAction, ShellType, StartupDirectoryMode};
 pub use tab_bar::{

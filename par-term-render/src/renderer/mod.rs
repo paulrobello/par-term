@@ -268,6 +268,8 @@ impl Renderer {
         let custom_shader_cubemap_path = params.custom_shader_cubemap_path;
         let custom_shader_custom_uniforms = params.custom_shader_custom_uniforms;
         let use_background_as_channel0 = params.use_background_as_channel0;
+        let custom_shader_auto_dim_under_text = params.custom_shader_auto_dim_under_text;
+        let custom_shader_auto_dim_strength = params.custom_shader_auto_dim_strength;
         let image_scaling_mode = params.image_scaling_mode;
         let image_preserve_aspect_ratio = params.image_preserve_aspect_ratio;
         let cursor_shader_path = params.cursor_shader_path;
@@ -425,6 +427,8 @@ impl Renderer {
                 cubemap_path: custom_shader_cubemap_path,
                 custom_uniforms: custom_shader_custom_uniforms,
                 use_background_as_channel0,
+                auto_dim_under_text: custom_shader_auto_dim_under_text,
+                auto_dim_strength: custom_shader_auto_dim_strength,
             },
         );
 

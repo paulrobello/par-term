@@ -31,6 +31,8 @@ pub(super) fn init_custom_shader(
         cubemap_path: custom_shader_cubemap_path,
         custom_uniforms,
         use_background_as_channel0,
+        auto_dim_under_text,
+        auto_dim_strength,
     } = params;
     log::info!(
         "[shader-init] init_custom_shader: enabled={}, path={:?}",
@@ -73,6 +75,7 @@ pub(super) fn init_custom_shader(
             );
             renderer.set_scale_factor(cell_renderer.scale_factor);
             renderer.set_brightness(custom_shader_brightness);
+            renderer.set_auto_dim_under_text(auto_dim_under_text, auto_dim_strength);
 
             // Apply use_background_as_channel0 setting
             if use_background_as_channel0 {
@@ -167,6 +170,8 @@ impl Renderer {
             channel_paths,
             cubemap_path,
             custom_uniforms,
+            auto_dim_under_text,
+            auto_dim_strength,
         } = params;
         match (enabled, shader_path) {
             (true, Some(path)) => {
@@ -182,6 +187,7 @@ impl Renderer {
                     renderer.set_opacity(window_opacity);
                     renderer.set_full_content_mode(full_content);
                     renderer.set_brightness(brightness);
+                    renderer.set_auto_dim_under_text(auto_dim_under_text, auto_dim_strength);
                     renderer.set_custom_uniform_values(custom_uniforms.clone());
 
                     // Update channel textures (they may have changed even if shader path didn't)
@@ -239,6 +245,7 @@ impl Renderer {
                         renderer.set_scale_factor(self.cell_renderer.scale_factor);
                         // Apply brightness setting
                         renderer.set_brightness(brightness);
+                        renderer.set_auto_dim_under_text(auto_dim_under_text, auto_dim_strength);
                         // Sync keep_text_opaque from cell renderer
                         renderer.set_keep_text_opaque(self.cell_renderer.keep_text_opaque());
                         // Pass background color but don't activate solid color mode

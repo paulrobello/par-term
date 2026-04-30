@@ -17,14 +17,6 @@ These ideas focus on enhancing par-term's existing custom background shader syst
 - **Background image blending modes**: Expand `custom_shader_use_background_as_channel0` with blend modes like overlay, screen, multiply, blur-behind, and luminance-mask.
 - **Cubemap showcase shaders**: Add more low-distraction cubemap-based backgrounds, such as slow metallic reflections, neon room ambience, or atmospheric sky gradients.
 
-## Settings UI improvements
-
-- **Uniform control groups**: Let shader metadata group controls into sections like Palette, Motion, Distortion, Readability, and Performance in the Settings UI.
-- **Per-profile shader overrides**: Allow each terminal profile/theme to select a different background shader, brightness, text opacity, texture set, and animation speed.
-- **Temporary shader toggle palette**: Add a quick command or keybinding palette to cycle background shaders, pause animation, or switch to a low-power/readability mode.
-- **Adaptive brightness slider**: Add an “auto-dim under text” option that samples text density and reduces shader intensity only where terminal content exists.
-- **Shader safety badges**: Show badges for “full-content”, “distorts text”, “uses textures”, “uses cubemap”, “high GPU cost”, and “works well on battery”.
-
 ## Developer and ecosystem features
 
 - **Gallery metadata generation**: Generate `docs/SHADERS.md`, website gallery entries, thumbnails, and `shaders/manifest.json` from a single shader metadata source.

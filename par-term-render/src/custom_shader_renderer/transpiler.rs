@@ -416,7 +416,7 @@ fn glsl_wrapper_template(glsl_source: &str) -> String {
         r#"#version 450
 
 // Uniforms - must match Rust struct layout (std140)
-// Total size: 256 bytes
+// Total size: 368 bytes
 layout(set = 0, binding = 0) uniform Uniforms {{
     vec2 iResolution;      // offset 0, size 8 - Viewport resolution
     float iTime;           // offset 8, size 4 - Time in seconds
@@ -464,7 +464,8 @@ layout(set = 0, binding = 0) uniform Uniforms {{
     vec4 iCommand;             // offset 304, size 16 - x=state(0 unknown,1 running,2 success,3 failure), y=exitCode, z=eventTime, w=running
     vec4 iFocusedPane;         // offset 320, size 16 - xy=bottom-left pixel origin, zw=size of focused pane
     vec4 iScroll;              // offset 336, size 16 - x=scrollOffset, y=visibleLines, z=scrollbackLines, w=normalizedDepth
-}};                            // total: 352 bytes
+    vec4 iReadability;         // offset 352, size 16 - x=autoDimUnderText, y=autoDimStrength
+}};                            // total: 368 bytes
 
 // Shadertoy-compatible iChannelResolution array accessor
 // Usage: iChannelResolution[0].xyz, iChannelResolution[1].xy, etc.
@@ -569,8 +570,10 @@ void main() {{
         // Composite shader output over background color where there's no content
         // For areas with content (terminal text), use shader output directly
         // For empty areas, blend shader output over background
-        vec3 shaderOverBg = dimmedShaderRgb + bgColor * (1.0 - terminalColor.a);
-        vec3 finalRgb = mix(dimmedShaderRgb, shaderOverBg, useSolidBg);
+        float readabilityDim = mix(1.0, max(0.0, 1.0 - iReadability.y), iReadability.x * hasContent);
+        vec3 readableShaderRgb = dimmedShaderRgb * readabilityDim;
+        vec3 shaderOverBg = readableShaderRgb + bgColor * (1.0 - terminalColor.a);
+        vec3 finalRgb = mix(readableShaderRgb, shaderOverBg, useSolidBg);
 
         // Detect chain mode (iOpacity ≈ 0 signals rendering to intermediate for another shader)
         float isChainMode = step(iOpacity, 0.001);
@@ -600,7 +603,10 @@ void main() {{
         // - If iBackgroundColor.a > 0, use it as solid background (with brightness applied)
         // - Otherwise, use shader output (dimmedShaderRgb) as background
         float useSolidBg = step(0.01, iBackgroundColor.a);
-        vec3 bgColor = mix(dimmedShaderRgb, iBackgroundColor.rgb * iBrightness, useSolidBg);
+        float hasContent = step(0.01, terminalColor.a);
+        float readabilityDim = mix(1.0, max(0.0, 1.0 - iReadability.y), iReadability.x * hasContent);
+        vec3 readableShaderRgb = dimmedShaderRgb * readabilityDim;
+        vec3 bgColor = mix(readableShaderRgb, iBackgroundColor.rgb * iBrightness, useSolidBg);
 
         // Detect chain mode (iOpacity ≈ 0 signals rendering to intermediate for another shader)
         float isChainMode = step(iOpacity, 0.001);

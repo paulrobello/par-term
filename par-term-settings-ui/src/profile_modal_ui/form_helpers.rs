@@ -37,6 +37,11 @@ impl ProfileModalUI {
         self.temp_badge_right_margin = None;
         self.temp_badge_max_width = None;
         self.temp_badge_max_height = None;
+        self.temp_shader.clear();
+        self.temp_shader_brightness = None;
+        self.temp_shader_text_opacity = None;
+        self.temp_shader_animation_speed = None;
+        self.temp_shader_channels = Default::default();
         self.temp_ssh_host.clear();
         self.temp_ssh_user.clear();
         self.temp_ssh_port.clear();
@@ -78,6 +83,15 @@ impl ProfileModalUI {
         self.temp_badge_right_margin = profile.badge_right_margin;
         self.temp_badge_max_width = profile.badge_max_width;
         self.temp_badge_max_height = profile.badge_max_height;
+        self.temp_shader = profile.shader.clone().unwrap_or_default();
+        self.temp_shader_brightness = profile.shader_brightness;
+        self.temp_shader_text_opacity = profile.shader_text_opacity;
+        self.temp_shader_animation_speed = profile.shader_animation_speed;
+        self.temp_shader_channels = profile
+            .shader_texture_set
+            .clone()
+            .unwrap_or_default()
+            .map(|channel| channel.unwrap_or_default());
         // SSH fields
         self.temp_ssh_host = profile.ssh_host.clone().unwrap_or_default();
         self.temp_ssh_user = profile.ssh_user.clone().unwrap_or_default();
@@ -168,6 +182,22 @@ impl ProfileModalUI {
         profile.badge_right_margin = self.temp_badge_right_margin;
         profile.badge_max_width = self.temp_badge_max_width;
         profile.badge_max_height = self.temp_badge_max_height;
+        if !self.temp_shader.is_empty() {
+            profile.shader = Some(self.temp_shader.clone());
+        }
+        profile.shader_brightness = self.temp_shader_brightness;
+        profile.shader_text_opacity = self.temp_shader_text_opacity;
+        profile.shader_animation_speed = self.temp_shader_animation_speed;
+        let texture_set = self.temp_shader_channels.clone().map(|channel| {
+            if channel.trim().is_empty() {
+                None
+            } else {
+                Some(channel)
+            }
+        });
+        if texture_set.iter().any(Option::is_some) {
+            profile.shader_texture_set = Some(texture_set);
+        }
         // SSH fields
         if !self.temp_ssh_host.is_empty() {
             profile.ssh_host = Some(self.temp_ssh_host.clone());

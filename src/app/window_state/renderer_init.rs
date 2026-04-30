@@ -72,6 +72,8 @@ pub(crate) struct RendererInitParams {
     pub custom_shader_cubemap_path: Option<PathBuf>,
     pub custom_shader_custom_uniforms: BTreeMap<String, par_term_config::ShaderUniformValue>,
     pub use_background_as_channel0: bool,
+    pub custom_shader_auto_dim_under_text: bool,
+    pub custom_shader_auto_dim_strength: f32,
     pub image_scaling_mode: crate::config::ImageScalingMode,
     pub image_preserve_aspect_ratio: bool,
     pub cursor_shader_path: Option<String>,
@@ -135,7 +137,12 @@ impl RendererInitParams {
             .custom_shader
             .as_ref()
             .and_then(|name| config.shader_configs.get(name));
-        let resolved = resolve_shader_config(shader_override, metadata, config);
+        let mut resolved = resolve_shader_config(shader_override, metadata, config);
+        if config.shader.custom_shader_readability_mode {
+            resolved.brightness = resolved
+                .brightness
+                .min(config.shader.custom_shader_readability_brightness);
+        }
 
         // Resolve per-cursor-shader settings
         let cursor_shader_override = config
@@ -208,6 +215,8 @@ impl RendererInitParams {
             custom_shader_cubemap_path: resolved.cubemap_path().cloned(),
             custom_shader_custom_uniforms: resolved.custom_uniforms.clone(),
             use_background_as_channel0: resolved.use_background_as_channel0,
+            custom_shader_auto_dim_under_text: resolved.auto_dim_under_text,
+            custom_shader_auto_dim_strength: resolved.auto_dim_strength,
             image_scaling_mode: config.image_scaling_mode,
             image_preserve_aspect_ratio: config.image_preserve_aspect_ratio,
             cursor_shader_path: config.shader.cursor_shader.clone(),
@@ -283,6 +292,8 @@ impl RendererInitParams {
             custom_shader_cubemap_path: self.custom_shader_cubemap_path.as_deref(),
             custom_shader_custom_uniforms: &self.custom_shader_custom_uniforms,
             use_background_as_channel0: self.use_background_as_channel0,
+            custom_shader_auto_dim_under_text: self.custom_shader_auto_dim_under_text,
+            custom_shader_auto_dim_strength: self.custom_shader_auto_dim_strength,
             image_scaling_mode: self.image_scaling_mode,
             image_preserve_aspect_ratio: self.image_preserve_aspect_ratio,
             cursor_shader_path: self.cursor_shader_path.as_deref(),

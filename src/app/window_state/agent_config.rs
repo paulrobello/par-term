@@ -87,6 +87,8 @@ impl WindowState {
                                 channel_paths: &resolved.channel_paths(),
                                 cubemap_path: resolved.cubemap_path().map(|p| p.as_path()),
                                 custom_uniforms: &resolved.custom_uniforms,
+                                auto_dim_under_text: resolved.auto_dim_under_text,
+                                auto_dim_strength: resolved.auto_dim_strength,
                             },
                         ) {
                             Ok(()) => self.shader_state.background_shader_last_error = None,
@@ -194,6 +196,8 @@ impl WindowState {
                         channel_paths: &resolved.channel_paths(),
                         cubemap_path: resolved.cubemap_path().map(|p| p.as_path()),
                         custom_uniforms: &resolved.custom_uniforms,
+                        auto_dim_under_text: resolved.auto_dim_under_text,
+                        auto_dim_strength: resolved.auto_dim_strength,
                     },
                 ) {
                     Ok(()) => self.shader_state.background_shader_last_error = None,

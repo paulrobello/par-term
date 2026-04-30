@@ -64,6 +64,7 @@ fn build_metadata_from_settings(
         description: None,
         version: Some("1.0.0".to_string()),
         defaults: ShaderConfig::default(),
+        safety_badges: Vec::new(),
     });
 
     // Get the current override and metadata defaults

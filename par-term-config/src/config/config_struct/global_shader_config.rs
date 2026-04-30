@@ -71,6 +71,18 @@ pub struct GlobalShaderConfig {
     /// background image without requiring a separate texture file.
     pub custom_shader_use_background_as_channel0: bool,
 
+    /// Reduce shader intensity only under terminal text/content for readability.
+    pub custom_shader_auto_dim_under_text: bool,
+
+    /// Auto-dim strength under terminal text/content (0.0 = no extra dim, 1.0 = black).
+    pub custom_shader_auto_dim_strength: f32,
+
+    /// Temporary low-power/readability mode for quick toggles.
+    pub custom_shader_readability_mode: bool,
+
+    /// Brightness cap used while readability mode is enabled.
+    pub custom_shader_readability_brightness: f32,
+
     // ========================================================================
     // Cursor Shader Settings (separate from background shader)
     // ========================================================================
@@ -130,6 +142,10 @@ impl Default for GlobalShaderConfig {
             custom_shader_cubemap: None,
             custom_shader_cubemap_enabled: crate::defaults::cubemap_enabled(),
             custom_shader_use_background_as_channel0: crate::defaults::use_background_as_channel0(),
+            custom_shader_auto_dim_under_text: crate::defaults::bool_false(),
+            custom_shader_auto_dim_strength: 0.35,
+            custom_shader_readability_mode: crate::defaults::bool_false(),
+            custom_shader_readability_brightness: 0.35,
             cursor_shader: None,
             cursor_shader_enabled: crate::defaults::bool_false(),
             cursor_shader_animation: crate::defaults::bool_true(),

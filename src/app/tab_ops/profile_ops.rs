@@ -107,8 +107,9 @@ impl WindowState {
                     }
                 }
 
-                // Update badge with profile information
+                // Update badge and shader settings with profile information
                 self.apply_profile_badge(&profile);
+                self.apply_profile_shader_settings(&profile);
 
                 self.focus_state.needs_redraw = true;
                 self.request_redraw();
@@ -209,6 +210,44 @@ impl WindowState {
 
         // Mark badge as dirty to trigger re-render
         self.badge_state.mark_dirty();
+    }
+
+    /// Apply profile shader settings to the global renderer state.
+    pub(crate) fn apply_profile_shader_settings(&mut self, profile: &crate::profile::Profile) {
+        let mut changed = false;
+        if let Some(shader) = &profile.shader {
+            self.config.shader.custom_shader = Some(shader.clone());
+            self.config.shader.custom_shader_enabled = true;
+            changed = true;
+        }
+        if let Some(brightness) = profile.shader_brightness {
+            self.config.shader.custom_shader_brightness = brightness.clamp(0.05, 1.0);
+            changed = true;
+        }
+        if let Some(text_opacity) = profile.shader_text_opacity {
+            self.config.shader.custom_shader_text_opacity = text_opacity.clamp(0.0, 1.0);
+            changed = true;
+        }
+        if let Some(animation_speed) = profile.shader_animation_speed {
+            self.config.shader.custom_shader_animation_speed = animation_speed.clamp(0.0, 5.0);
+            changed = true;
+        }
+        if let Some(texture_set) = &profile.shader_texture_set {
+            self.config.shader.custom_shader_channel0 = texture_set[0].clone();
+            self.config.shader.custom_shader_channel1 = texture_set[1].clone();
+            self.config.shader.custom_shader_channel2 = texture_set[2].clone();
+            self.config.shader.custom_shader_channel3 = texture_set[3].clone();
+            changed = true;
+        }
+
+        if changed {
+            self.refresh_background_shader_renderer();
+            crate::debug_info!(
+                "PROFILE",
+                "Applied shader overrides for profile '{}'",
+                profile.name
+            );
+        }
     }
 
     /// Toggle the profile drawer visibility

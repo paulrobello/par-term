@@ -407,6 +407,20 @@ impl ProfileManager {
             badge_max_height: profile
                 .badge_max_height
                 .or(resolved_parent.badge_max_height),
+            shader: profile.shader.clone().or(resolved_parent.shader),
+            shader_brightness: profile
+                .shader_brightness
+                .or(resolved_parent.shader_brightness),
+            shader_text_opacity: profile
+                .shader_text_opacity
+                .or(resolved_parent.shader_text_opacity),
+            shader_animation_speed: profile
+                .shader_animation_speed
+                .or(resolved_parent.shader_animation_speed),
+            shader_texture_set: profile
+                .shader_texture_set
+                .clone()
+                .or(resolved_parent.shader_texture_set),
             ssh_host: profile.ssh_host.clone().or(resolved_parent.ssh_host),
             ssh_user: profile.ssh_user.clone().or(resolved_parent.ssh_user),
             ssh_port: profile.ssh_port.or(resolved_parent.ssh_port),

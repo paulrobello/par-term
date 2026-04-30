@@ -295,7 +295,12 @@ pub(super) fn apply_renderer_config(
             .get(name)
             .cloned()
     });
-    let resolved = resolve_shader_config(shader_override, metadata.as_ref(), config);
+    let mut resolved = resolve_shader_config(shader_override, metadata.as_ref(), config);
+    if config.shader.custom_shader_readability_mode {
+        resolved.brightness = resolved
+            .brightness
+            .min(config.shader.custom_shader_readability_brightness);
+    }
 
     // Apply shader changes - track if change was attempted and result
     let shader_result = if changes.any_shader_change() || changes.shader_per_shader_config {
@@ -310,13 +315,16 @@ pub(super) fn apply_renderer_config(
                     enabled: config.shader.custom_shader_enabled,
                     shader_path: config.shader.custom_shader.as_deref(),
                     window_opacity: config.window.window_opacity,
-                    animation_enabled: config.shader.custom_shader_animation,
+                    animation_enabled: config.shader.custom_shader_animation
+                        && !config.shader.custom_shader_readability_mode,
                     animation_speed: resolved.animation_speed,
                     full_content: resolved.full_content,
                     brightness: resolved.brightness,
                     channel_paths: &resolved.channel_paths(),
                     cubemap_path: resolved.cubemap_path().map(|p| p.as_path()),
                     custom_uniforms: &resolved.custom_uniforms,
+                    auto_dim_under_text: resolved.auto_dim_under_text,
+                    auto_dim_strength: resolved.auto_dim_strength,
                 },
             )
             .err()

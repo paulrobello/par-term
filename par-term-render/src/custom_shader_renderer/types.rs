@@ -108,8 +108,10 @@ pub(crate) struct CustomShaderUniforms {
     /// Scrollback context [offset, visibleLines, scrollbackLines, normalizedDepth] - offset 336, size 16
     /// normalizedDepth is offset / max(scrollbackLines, 1).
     pub scroll: [f32; 4],
+    /// Readability options [autoDimEnabled, autoDimStrength, reserved, reserved] - offset 352
+    pub readability: [f32; 4],
 }
-// Total size: 352 bytes
+// Total size: 368 bytes
 
 pub(crate) const MAX_CUSTOM_FLOAT_UNIFORMS: usize = 16;
 pub(crate) const MAX_CUSTOM_BOOL_UNIFORMS: usize = 16;
@@ -341,8 +343,8 @@ const _: () = assert!(
 
 // Compile-time assertion to ensure uniform struct size matches expectations
 const _: () = assert!(
-    std::mem::size_of::<CustomShaderUniforms>() == 352,
-    "CustomShaderUniforms must be exactly 352 bytes for GPU compatibility"
+    std::mem::size_of::<CustomShaderUniforms>() == 368,
+    "CustomShaderUniforms must be exactly 368 bytes for GPU compatibility"
 );
 
 #[cfg(test)]
@@ -356,7 +358,7 @@ mod custom_uniform_tests {
 
     #[test]
     fn custom_shader_uniforms_include_terminal_context_vec4s() {
-        assert_eq!(std::mem::size_of::<CustomShaderUniforms>(), 352);
+        assert_eq!(std::mem::size_of::<CustomShaderUniforms>(), 368);
     }
 
     #[test]

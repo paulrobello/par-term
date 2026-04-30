@@ -234,6 +234,74 @@ impl ProfileModalUI {
         );
     }
 
+    /// Render per-profile shader override settings.
+    pub(super) fn render_shader_section(
+        &mut self,
+        ui: &mut egui::Ui,
+        collapsed: &mut HashSet<String>,
+    ) {
+        collapsing_section(
+            ui,
+            "Shader Overrides",
+            "profile_shader_overrides",
+            false,
+            collapsed,
+            |ui| {
+                ui.label(
+                    egui::RichText::new(
+                        "Optional background shader settings applied when this profile opens.",
+                    )
+                    .small()
+                    .color(egui::Color32::GRAY),
+                );
+                ui.add_space(6.0);
+
+                egui::Grid::new("profile_shader_form")
+                    .num_columns(2)
+                    .spacing([10.0, 8.0])
+                    .show(ui, |ui| {
+                        ui.label("Shader:");
+                        ui.horizontal(|ui| {
+                            ui.text_edit_singleline(&mut self.temp_shader);
+                            ui.label(egui::RichText::new("(blank = global)").small().weak());
+                        });
+                        ui.end_row();
+
+                        optional_slider_row(
+                            ui,
+                            "Brightness:",
+                            &mut self.temp_shader_brightness,
+                            0.05..=1.0,
+                            0.35,
+                        );
+                        optional_slider_row(
+                            ui,
+                            "Text opacity:",
+                            &mut self.temp_shader_text_opacity,
+                            0.0..=1.0,
+                            1.0,
+                        );
+                        optional_slider_row(
+                            ui,
+                            "Animation speed:",
+                            &mut self.temp_shader_animation_speed,
+                            0.0..=5.0,
+                            1.0,
+                        );
+
+                        for index in 0..4 {
+                            ui.label(format!("iChannel{}:", index));
+                            ui.horizontal(|ui| {
+                                ui.text_edit_singleline(&mut self.temp_shader_channels[index]);
+                                ui.label(egui::RichText::new("(blank = inherit)").small().weak());
+                            });
+                            ui.end_row();
+                        }
+                    });
+            },
+        );
+    }
+
     /// Render the tmux auto-connect collapsing section.
     pub(super) fn render_tmux_section(
         &mut self,
@@ -341,4 +409,30 @@ impl ProfileModalUI {
             },
         );
     }
+}
+
+fn optional_slider_row(
+    ui: &mut egui::Ui,
+    label: &str,
+    value: &mut Option<f32>,
+    range: std::ops::RangeInclusive<f32>,
+    default_value: f32,
+) {
+    ui.label(label);
+    ui.horizontal(|ui| {
+        let mut use_custom = value.is_some();
+        if ui.checkbox(&mut use_custom, "").changed() {
+            *value = if use_custom {
+                Some(default_value)
+            } else {
+                None
+            };
+        }
+        if let Some(current) = value {
+            ui.add(egui::Slider::new(current, range));
+        } else {
+            ui.label(egui::RichText::new("(use global)").small().weak());
+        }
+    });
+    ui.end_row();
 }

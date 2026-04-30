@@ -80,6 +80,7 @@ pub struct ShaderControlWarning {
 pub struct ShaderControlParseResult {
     pub controls: Vec<ShaderControl>,
     pub warnings: Vec<ShaderControlWarning>,
+    pub groups: BTreeMap<String, String>,
 }
 
 const MAX_SHADER_FLOAT_CONTROLS: usize = 16;
@@ -304,6 +305,7 @@ pub fn parse_shader_controls(source: &str) -> ShaderControlParseResult {
     let lines: Vec<&str> = source.lines().collect();
     let mut controls = Vec::new();
     let mut warnings = Vec::new();
+    let mut groups = BTreeMap::new();
     let mut seen = HashSet::new();
     let mut float_count = 0usize;
     let mut bool_count = 0usize;
@@ -356,7 +358,7 @@ pub fn parse_shader_controls(source: &str) -> ShaderControlParseResult {
                     control_type,
                     &key_values,
                     &malformed_tokens,
-                    &["min", "max", "step", "scale", "label"],
+                    &["min", "max", "step", "scale", "label", "group"],
                 );
 
                 if uniform_type != "float" {
@@ -425,7 +427,7 @@ pub fn parse_shader_controls(source: &str) -> ShaderControlParseResult {
                     control_type,
                     &key_values,
                     &malformed_tokens,
-                    &["label"],
+                    &["label", "group"],
                 );
 
                 if uniform_type != "bool" {
@@ -455,7 +457,7 @@ pub fn parse_shader_controls(source: &str) -> ShaderControlParseResult {
                     control_type,
                     &key_values,
                     &malformed_tokens,
-                    &["alpha", "label"],
+                    &["alpha", "label", "group"],
                 );
 
                 if uniform_type != "vec3" && uniform_type != "vec4" {
@@ -517,7 +519,7 @@ pub fn parse_shader_controls(source: &str) -> ShaderControlParseResult {
                     control_type,
                     &key_values,
                     &malformed_tokens,
-                    &["min", "max", "step", "label"],
+                    &["min", "max", "step", "label", "group"],
                 );
 
                 if uniform_type != "int" {
@@ -599,7 +601,7 @@ pub fn parse_shader_controls(source: &str) -> ShaderControlParseResult {
                     control_type,
                     &key_values,
                     &malformed_tokens,
-                    &["options", "label"],
+                    &["options", "label", "group"],
                 );
 
                 if uniform_type != "int" {
@@ -641,7 +643,7 @@ pub fn parse_shader_controls(source: &str) -> ShaderControlParseResult {
                     control_type,
                     &key_values,
                     &malformed_tokens,
-                    &["min", "max", "step", "label"],
+                    &["min", "max", "step", "label", "group"],
                 );
 
                 if uniform_type != "vec2" {
@@ -685,7 +687,7 @@ pub fn parse_shader_controls(source: &str) -> ShaderControlParseResult {
                     control_type,
                     &key_values,
                     &malformed_tokens,
-                    &["label"],
+                    &["label", "group"],
                 );
 
                 if uniform_type != "vec2" {
@@ -715,7 +717,7 @@ pub fn parse_shader_controls(source: &str) -> ShaderControlParseResult {
                     control_type,
                     &key_values,
                     &malformed_tokens,
-                    &["min", "max", "step", "label"],
+                    &["min", "max", "step", "label", "group"],
                 );
 
                 if uniform_type != "vec2" {
@@ -759,7 +761,7 @@ pub fn parse_shader_controls(source: &str) -> ShaderControlParseResult {
                     control_type,
                     &key_values,
                     &malformed_tokens,
-                    &["unit", "label"],
+                    &["unit", "label", "group"],
                 );
 
                 if uniform_type != "float" {
@@ -805,7 +807,7 @@ pub fn parse_shader_controls(source: &str) -> ShaderControlParseResult {
                     control_type,
                     &key_values,
                     &malformed_tokens,
-                    &["options", "label"],
+                    &["options", "label", "group"],
                 );
 
                 if uniform_type != "int" {
@@ -936,13 +938,27 @@ pub fn parse_shader_controls(source: &str) -> ShaderControlParseResult {
             }
         }
 
+        if let Some(group) = parse_quoted_label(
+            &mut warnings,
+            line_number,
+            "Control group",
+            uniform_name,
+            key_values.get("group"),
+        ) {
+            groups.insert(uniform_name.to_string(), group);
+        }
+
         controls.push(ShaderControl {
             name: uniform_name.to_string(),
             kind,
         });
     }
 
-    ShaderControlParseResult { controls, warnings }
+    ShaderControlParseResult {
+        controls,
+        warnings,
+        groups,
+    }
 }
 
 pub fn fallback_value_for_control(control: &ShaderControl) -> ShaderUniformValue {
@@ -991,6 +1007,28 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {}
                     label: None,
                 },
             }]
+        );
+    }
+
+    #[test]
+    fn parses_control_group_field() {
+        let source = r#"
+// control slider min=0 max=1 step=0.01 group="Palette"
+uniform float iGlow;
+// control checkbox group="Performance"
+uniform bool iFast;
+"#;
+
+        let result = parse_shader_controls(source);
+
+        assert_eq!(result.warnings, Vec::<ShaderControlWarning>::new());
+        assert_eq!(
+            result.groups.get("iGlow").map(String::as_str),
+            Some("Palette")
+        );
+        assert_eq!(
+            result.groups.get("iFast").map(String::as_str),
+            Some("Performance")
         );
     }
 

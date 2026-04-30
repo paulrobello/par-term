@@ -1,6 +1,6 @@
 use crate::SettingsUI;
 use crate::section::{collapsing_section, collapsing_section_with_state};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::path::Path;
 
 use super::shader_channel_settings::{
@@ -139,6 +139,21 @@ pub fn show_shader_metadata_and_settings(
 
 /// Show shader metadata info (name, author, description, version)
 fn show_shader_metadata_info(ui: &mut egui::Ui, metadata: &par_term_config::ShaderMetadata) {
+    let badges = shader_safety_badges(metadata);
+    if !badges.is_empty() {
+        ui.horizontal_wrapped(|ui| {
+            ui.label("Safety:");
+            for badge in badges {
+                ui.label(
+                    egui::RichText::new(badge.label())
+                        .small()
+                        .background_color(egui::Color32::from_rgb(45, 55, 70)),
+                );
+            }
+        });
+        ui.add_space(4.0);
+    }
+
     egui::Grid::new("shader_metadata_grid")
         .num_columns(2)
         .spacing([10.0, 4.0])
@@ -167,6 +182,39 @@ fn show_shader_metadata_info(ui: &mut egui::Ui, metadata: &par_term_config::Shad
                 ui.end_row();
             }
         });
+}
+
+fn shader_safety_badges(
+    metadata: &par_term_config::ShaderMetadata,
+) -> Vec<par_term_config::ShaderSafetyBadge> {
+    use par_term_config::ShaderSafetyBadge;
+    let mut badges: BTreeSet<&'static str> = BTreeSet::new();
+    let mut result = Vec::new();
+
+    let mut push_badge = |badge: ShaderSafetyBadge| {
+        if badges.insert(badge.label()) {
+            result.push(badge);
+        }
+    };
+
+    for badge in &metadata.safety_badges {
+        push_badge(*badge);
+    }
+    if metadata.defaults.full_content == Some(true) {
+        push_badge(ShaderSafetyBadge::FullContent);
+    }
+    if metadata.defaults.channel0.is_some()
+        || metadata.defaults.channel1.is_some()
+        || metadata.defaults.channel2.is_some()
+        || metadata.defaults.channel3.is_some()
+    {
+        push_badge(ShaderSafetyBadge::UsesTextures);
+    }
+    if metadata.defaults.cubemap.is_some() || metadata.defaults.cubemap_enabled == Some(true) {
+        push_badge(ShaderSafetyBadge::UsesCubemap);
+    }
+
+    result
 }
 
 /// Show per-shader settings controls with reset buttons
@@ -512,8 +560,19 @@ fn show_shader_uniform_controls(
     }
 
     let current_override = settings.config.shader_configs.get(shader_name).cloned();
+    let groups = parsed.groups.clone();
+    let mut current_group: Option<String> = None;
 
     for control in parsed.controls {
+        let group = groups
+            .get(&control.name)
+            .cloned()
+            .unwrap_or_else(|| "General".to_string());
+        if current_group.as_deref() != Some(group.as_str()) {
+            ui.add_space(4.0);
+            ui.label(egui::RichText::new(&group).strong());
+            current_group = Some(group);
+        }
         let has_uniform_override = current_override
             .as_ref()
             .is_some_and(|config| config.uniforms.contains_key(&control.name));

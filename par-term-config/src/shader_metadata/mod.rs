@@ -326,6 +326,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
             description: Some("A test shader".to_string()),
             version: Some("1.0.0".to_string()),
             defaults: Default::default(),
+            safety_badges: Vec::new(),
         };
 
         let block = format_metadata_block(&metadata).unwrap();

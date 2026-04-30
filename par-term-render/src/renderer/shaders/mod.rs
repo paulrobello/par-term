@@ -38,6 +38,8 @@ pub struct CustomShaderInitParams<'a> {
     pub cubemap_path: Option<&'a std::path::Path>,
     pub custom_uniforms: &'a BTreeMap<String, ShaderUniformValue>,
     pub use_background_as_channel0: bool,
+    pub auto_dim_under_text: bool,
+    pub auto_dim_strength: f32,
 }
 
 /// Parameters for initialising the cursor shader renderer.
@@ -64,6 +66,8 @@ pub struct CustomShaderEnableParams<'a> {
     pub channel_paths: &'a [Option<std::path::PathBuf>; 4],
     pub cubemap_path: Option<&'a std::path::Path>,
     pub custom_uniforms: &'a BTreeMap<String, ShaderUniformValue>,
+    pub auto_dim_under_text: bool,
+    pub auto_dim_strength: f32,
 }
 
 /// Initialize the custom (background) shader renderer if configured.

@@ -81,9 +81,9 @@ pub use types::{
     OptionKeyMode, PaneBackground, PaneBackgroundConfig, PaneId, PaneTitlePosition,
     PowerPreference, ProgressBarPosition, ProgressBarStyle, RemoteTabTitleFormat,
     SemanticHistoryEditorMode, SeparatorMark, SessionLogFormat, ShaderConfig, ShaderInstallPrompt,
-    ShaderMetadata, ShellExitAction, ShellType, SmartSelectionPrecision, SmartSelectionRule,
-    StartupDirectoryMode, StatusBarPosition, TabBarMode, TabBarPosition, TabId, TabStyle,
-    TabTitleMode, ThinStrokesMode, UnfocusedCursorStyle, UpdateCheckFrequency, VsyncMode,
+    ShaderMetadata, ShaderSafetyBadge, ShellExitAction, ShellType, SmartSelectionPrecision,
+    SmartSelectionRule, StartupDirectoryMode, StatusBarPosition, TabBarMode, TabBarPosition, TabId,
+    TabStyle, TabTitleMode, ThinStrokesMode, UnfocusedCursorStyle, UpdateCheckFrequency, VsyncMode,
     WindowType, default_smart_selection_rules,
 };
 // Scripting / observer scripts

@@ -142,6 +142,26 @@ pub struct Profile {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub badge_max_height: Option<f32>,
 
+    /// Per-profile background shader path/name (overrides global while profile is active)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shader: Option<String>,
+
+    /// Per-profile shader brightness override
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shader_brightness: Option<f32>,
+
+    /// Per-profile shader text opacity override
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shader_text_opacity: Option<f32>,
+
+    /// Per-profile shader animation speed override
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shader_animation_speed: Option<f32>,
+
+    /// Per-profile shader texture set for iChannel0-3
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shader_texture_set: Option<[Option<String>; 4]>,
+
     /// SSH hostname for direct connection (profile acts as SSH bookmark)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ssh_host: Option<String>,
@@ -198,6 +218,11 @@ impl Profile {
             badge_right_margin: None,
             badge_max_width: None,
             badge_max_height: None,
+            shader: None,
+            shader_brightness: None,
+            shader_text_opacity: None,
+            shader_animation_speed: None,
+            shader_texture_set: None,
             ssh_host: None,
             ssh_user: None,
             ssh_port: None,
@@ -237,6 +262,11 @@ impl Profile {
             badge_right_margin: None,
             badge_max_width: None,
             badge_max_height: None,
+            shader: None,
+            shader_brightness: None,
+            shader_text_opacity: None,
+            shader_animation_speed: None,
+            shader_texture_set: None,
             ssh_host: None,
             ssh_user: None,
             ssh_port: None,

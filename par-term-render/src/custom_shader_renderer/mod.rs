@@ -116,6 +116,10 @@ pub struct CustomShaderRenderer {
     pub(crate) full_content_mode: bool,
     /// Brightness multiplier for shader output (0.05-1.0)
     pub(crate) brightness: f32,
+    /// Whether to dim shader output under terminal content.
+    pub(crate) auto_dim_under_text: bool,
+    /// Strength of dimming under terminal content.
+    pub(crate) auto_dim_strength: f32,
     /// Frame counter for iFrame uniform
     pub(crate) frame_count: u32,
     /// Last frame time for calculating time delta
@@ -399,6 +403,8 @@ impl CustomShaderRenderer {
             scale_factor: 1.0,
             full_content_mode,
             brightness: 1.0,
+            auto_dim_under_text: false,
+            auto_dim_strength: 0.35,
             frame_count: 0,
             last_frame_time: now,
             mouse_position: [0.0, 0.0],
@@ -585,6 +591,12 @@ impl CustomShaderRenderer {
     /// Update shader brightness multiplier
     pub fn set_brightness(&mut self, brightness: f32) {
         self.brightness = brightness.clamp(0.05, 1.0);
+    }
+
+    /// Update automatic dimming beneath terminal text/content.
+    pub fn set_auto_dim_under_text(&mut self, enabled: bool, strength: f32) {
+        self.auto_dim_under_text = enabled;
+        self.auto_dim_strength = strength.clamp(0.0, 1.0);
     }
 
     /// Update full content mode

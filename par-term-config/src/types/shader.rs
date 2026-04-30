@@ -26,6 +26,34 @@ pub struct ShaderMetadata {
     /// Default configuration values for this shader
     #[serde(default)]
     pub defaults: ShaderConfig,
+    /// Optional safety/readability badges shown in settings.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub safety_badges: Vec<ShaderSafetyBadge>,
+}
+
+/// Readability/performance badges displayed for background shaders.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ShaderSafetyBadge {
+    FullContent,
+    DistortsText,
+    UsesTextures,
+    UsesCubemap,
+    HighGpuCost,
+    BatteryFriendly,
+}
+
+impl ShaderSafetyBadge {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::FullContent => "full-content",
+            Self::DistortsText => "distorts text",
+            Self::UsesTextures => "uses textures",
+            Self::UsesCubemap => "uses cubemap",
+            Self::HighGpuCost => "high GPU cost",
+            Self::BatteryFriendly => "works well on battery",
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -265,6 +293,10 @@ pub struct ShaderConfig {
     pub cubemap_enabled: Option<bool>,
     /// Use the app's background image as iChannel0 instead of a separate texture
     pub use_background_as_channel0: Option<bool>,
+    /// Auto-dim shader output beneath terminal text/content for readability.
+    pub auto_dim_under_text: Option<bool>,
+    /// Strength of auto-dimming under text (0.0 = no extra dimming, 1.0 = black).
+    pub auto_dim_strength: Option<f32>,
     /// Custom shader uniform values for `// control ...` declarations.
     #[serde(
         default,
@@ -342,6 +374,10 @@ pub struct ResolvedShaderConfig {
     pub cubemap_enabled: bool,
     /// Use the app's background image as iChannel0
     pub use_background_as_channel0: bool,
+    /// Auto-dim shader output beneath terminal text/content for readability.
+    pub auto_dim_under_text: bool,
+    /// Strength of auto-dimming under text.
+    pub auto_dim_strength: f32,
     /// Custom shader uniform values resolved from metadata defaults and user overrides.
     pub custom_uniforms: BTreeMap<String, ShaderUniformValue>,
 }
@@ -360,6 +396,8 @@ impl Default for ResolvedShaderConfig {
             cubemap: None,
             cubemap_enabled: true,
             use_background_as_channel0: false,
+            auto_dim_under_text: false,
+            auto_dim_strength: 0.35,
             custom_uniforms: BTreeMap::new(),
         }
     }

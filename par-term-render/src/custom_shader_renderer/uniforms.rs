@@ -135,6 +135,12 @@ impl CustomShaderRenderer {
             command: self.command_data,
             focused_pane: self.focused_pane,
             scroll: self.scroll_data,
+            readability: [
+                if self.auto_dim_under_text { 1.0 } else { 0.0 },
+                self.auto_dim_strength,
+                0.0,
+                0.0,
+            ],
         }
     }
 

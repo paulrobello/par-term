@@ -28,6 +28,18 @@ impl WindowState {
                 self.toggle_cursor_shader();
                 true
             }
+            "cycle_background_shader" => {
+                self.cycle_background_shader();
+                true
+            }
+            "toggle_shader_animation" => {
+                self.toggle_shader_animation();
+                true
+            }
+            "toggle_shader_readability_mode" => {
+                self.toggle_shader_readability_mode();
+                true
+            }
             "reload_config" => {
                 self.reload_config();
                 true
