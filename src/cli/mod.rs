@@ -115,6 +115,24 @@ pub enum Commands {
         force: bool,
     },
 
+    /// Lint a custom background shader file
+    ShaderLint {
+        /// Path to the .glsl shader file to lint
+        path: PathBuf,
+
+        /// Include source-level readability scoring and suggested readability defaults
+        #[arg(long)]
+        readability: bool,
+
+        /// Apply suggested readability defaults to the shader metadata without prompting
+        #[arg(long)]
+        apply: bool,
+
+        /// Do not prompt to apply suggested readability defaults
+        #[arg(long)]
+        no_prompt: bool,
+    },
+
     /// Install both shaders and shell integration
     InstallIntegrations {
         /// Skip confirmation prompts
@@ -182,6 +200,15 @@ pub fn process_cli() -> CliResult {
         }
         Some(Commands::UninstallShaders { force }) => {
             let result = uninstall_shaders_cli(force);
+            CliResult::Exit(if result.is_ok() { 0 } else { 1 })
+        }
+        Some(Commands::ShaderLint {
+            path,
+            readability,
+            apply,
+            no_prompt,
+        }) => {
+            let result = crate::shader_lint::shader_lint_cli(&path, readability, apply, !no_prompt);
             CliResult::Exit(if result.is_ok() { 0 } else { 1 })
         }
         Some(Commands::InstallIntegrations { yes }) => {

@@ -1267,6 +1267,22 @@ cursor_shader_enabled: true
 
 See the [Shader Gallery](docs/SHADERS.md) for previews of all included shaders.
 
+### Linting Shaders
+
+Validate shader metadata, channel references, and control comments with:
+
+```bash
+par-term shader-lint ~/.config/par-term/shaders/my-shader.glsl
+```
+
+Add `--readability` to print a readability score plus suggested `custom_shader_brightness` and `custom_shader_text_opacity` defaults. By default, readability mode prompts before writing those suggestions into shader metadata:
+
+```bash
+par-term shader-lint my-shader.glsl --readability
+par-term shader-lint my-shader.glsl --apply       # apply suggestions without prompting
+par-term shader-lint my-shader.glsl --readability --no-prompt
+```
+
 ## Keyboard Shortcuts
 
 Essential shortcuts to get started. On macOS, keybindings use `Cmd`; on Linux/Windows, they use `Ctrl+Shift` to avoid conflicts with terminal control codes.

@@ -157,6 +157,44 @@ custom_shader_full_content: false
 | `custom_shader_full_content` | `bool` | `false` | When true, shader can manipulate terminal content |
 | `custom_shader_use_background_as_channel0` | `bool` | `false` | Use app's background image as iChannel0 texture |
 
+### Shader Linting and Readability Scoring
+
+Use `shader-lint` to validate a custom shader file before installing or sharing it:
+
+```bash
+par-term shader-lint ~/.config/par-term/shaders/my-shader.glsl
+```
+
+The lint pass checks metadata, control comments, channel references, cubemap references, and common par-term configuration mismatches. Add `--readability` to print a source-level readability score and suggested defaults for terminal text contrast:
+
+```bash
+par-term shader-lint ~/.config/par-term/shaders/my-shader.glsl --readability
+```
+
+Example readability output:
+
+```text
+Readability: 82/100
+Suggested defaults:
+  custom_shader_brightness = 0.60
+  custom_shader_text_opacity = 0.93
+```
+
+When readability scoring runs, par-term prompts before writing the suggested `defaults.brightness` and `defaults.text_opacity` values into the shader metadata. Use `--apply` to apply without prompting, or `--no-prompt` to print the score without any interactive prompt:
+
+```bash
+# Score and prompt before applying suggested metadata defaults
+par-term shader-lint my-shader.glsl --readability
+
+# Score and apply suggested metadata defaults without prompting
+par-term shader-lint my-shader.glsl --apply
+
+# Score only; never prompt or write metadata
+par-term shader-lint my-shader.glsl --readability --no-prompt
+```
+
+`--apply` implies readability scoring. The readability score is currently a lightweight source-level heuristic, not an offscreen GPU render comparison.
+
 ### Cursor Shader Settings
 
 Cursor shaders are configured separately and have additional controls:
