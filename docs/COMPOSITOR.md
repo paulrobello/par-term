@@ -648,8 +648,8 @@ custom_shader_brightness: 0.15
 custom_shader_full_content: false
 
 # Texture channels (iChannel0-3, Shadertoy compatible)
-# Paths can be relative to config dir or absolute
-custom_shader_channel0: "textures/noise.png"
+# Paths can be relative to the shaders/ directory or absolute
+custom_shader_channel0: "textures/packs/noise/soft-value-128.png"
 custom_shader_channel1: null
 custom_shader_channel2: null
 custom_shader_channel3: null
