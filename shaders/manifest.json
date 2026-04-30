@@ -75,6 +75,24 @@
       "category": "retro"
     },
     {
+      "path": "cubemap-atmospheric-sky.glsl",
+      "sha256": "b1ca254b14c27d9b38ebbee1e1c26ee49caa07df34c633fef8c47695ba1883c0",
+      "type": "shader",
+      "category": "cubemap"
+    },
+    {
+      "path": "cubemap-metallic-ambience.glsl",
+      "sha256": "b3aef81490cc188fc1ae5a86334deb39f2b2fa849877b69c6332ad35d3c8b60e",
+      "type": "shader",
+      "category": "cubemap"
+    },
+    {
+      "path": "cubemap-neon-room.glsl",
+      "sha256": "883655d8f212a6ffb1cdbe267e59f1c61c7d95dc5ad99dc6ed7dff9f50022618",
+      "type": "shader",
+      "category": "cubemap"
+    },
+    {
       "path": "cubemap-skybox.glsl",
       "sha256": "71be846545a028cb38ee304225fe50d722a8b2dfb7bc36333ba4dca7ca3ede03",
       "type": "shader",
@@ -273,8 +291,8 @@
       "category": "nature"
     },
     {
-      "path": "keypress_pulse.glsl",
-      "sha256": "5ca6c584bdb73a9102e41fc3ed9341e802aa2a8e6d4bd84e99db98294817a6e2",
+      "path": "keypress_ring_fullcontent.glsl",
+      "sha256": "6bcd7dc497f28fba5daa9a1c6b11e2fb97cb05388b8a7df8b256b11d6aff68eb",
       "type": "shader",
       "category": "effects"
     },
@@ -451,6 +469,36 @@
       "sha256": "ef063b8f751db77d2ca4ef8a7f28ba60096e58cc8250b30f32923f99b067c9aa",
       "type": "texture",
       "category": "texture"
+    },
+    {
+      "path": "textures/packs/gradients/deep-violet-128.png",
+      "sha256": "5eb78382bee6f0423d4a9f615c50cdb67bed23d5a1f546a4dc8e86d4c02c5569",
+      "type": "texture",
+      "category": "texture-pack-gradients"
+    },
+    {
+      "path": "textures/packs/metal/brushed-metal-128.png",
+      "sha256": "1cd93d69176e344f9c38ded70ec2f045a89cc5e9e65c8ad83b0546e267e4b645",
+      "type": "texture",
+      "category": "texture-pack-metal"
+    },
+    {
+      "path": "textures/packs/noise/soft-value-128.png",
+      "sha256": "8ed431a79fa7244de7f8c70b7c43583cc6fdd6ddf4662b4136d9267025fdbfd2",
+      "type": "texture",
+      "category": "texture-pack-noise"
+    },
+    {
+      "path": "textures/packs/paper/warm-paper-128.png",
+      "sha256": "77c5072d3b6f9b3b77ee8afc4ac17adeb04daa0f062774edf46ccc7e19c82616",
+      "type": "texture",
+      "category": "texture-pack-paper"
+    },
+    {
+      "path": "textures/packs/starfields/dim-stars-128.png",
+      "sha256": "ff29b7b4542c690c2962eebdd573c35af51616e366258b6603dbdd9ac368b403",
+      "type": "texture",
+      "category": "texture-pack-starfields"
     },
     {
       "path": "textures/wallpaper/Abstract1.png",
