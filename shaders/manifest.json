@@ -1,6 +1,6 @@
 {
   "version": "0.30.12",
-  "generated": "2026-04-30T05:23:17.731777+00:00",
+  "generated": "2026-04-30T20:53:23.372068+00:00",
   "files": [
     {
       "path": "animated-gradient-shader.glsl",
@@ -96,13 +96,13 @@
       "path": "cubemap-skybox.glsl",
       "sha256": "71be846545a028cb38ee304225fe50d722a8b2dfb7bc36333ba4dca7ca3ede03",
       "type": "shader",
-      "category": "effects"
+      "category": "cubemap"
     },
     {
       "path": "cubemap-test.glsl",
       "sha256": "a8b3a1fdb2c60a146e46b5226ea38175b28f9dc26e8979471ec2c0d9682504d2",
       "type": "shader",
-      "category": "effects"
+      "category": "cubemap"
     },
     {
       "path": "cubes.glsl",

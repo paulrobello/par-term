@@ -39,7 +39,14 @@ def get_category(path: Path, file_type: str) -> str | None:
     if file_type == "cursor_shader":
         return "cursor"
     elif file_type == "texture":
+        parts = [part.lower() for part in path.parts]
+        for idx in range(len(parts) - 2):
+            if parts[idx] == "textures" and parts[idx + 1] == "packs":
+                return f"texture-pack-{parts[idx + 2]}"
         return "texture"
+
+    if file_type == "shader" and name.startswith("cubemap-"):
+        return "cubemap"
 
     # Categorize background shaders by name patterns
     retro_keywords = ["crt", "scanline", "vhs", "retro", "8bit", "pixel"]
@@ -123,6 +130,18 @@ def main() -> None:
     }
 
     output_path = shaders_dir / "manifest.json"
+    if output_path.exists():
+        try:
+            existing_manifest = json.loads(output_path.read_text(encoding="utf-8"))
+            existing_without_generated = dict(existing_manifest)
+            new_without_generated = dict(manifest)
+            existing_without_generated.pop("generated", None)
+            new_without_generated.pop("generated", None)
+            if existing_without_generated == new_without_generated and "generated" in existing_manifest:
+                manifest["generated"] = existing_manifest["generated"]
+        except (OSError, json.JSONDecodeError, TypeError):
+            pass
+
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(manifest, f, indent=2)
         f.write("\n")
