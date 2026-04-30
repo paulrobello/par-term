@@ -1269,7 +1269,7 @@ See the [Shader Gallery](docs/SHADERS.md) for previews of all included shaders.
 
 ### Linting Shaders
 
-Validate shader metadata, channel references, and control comments with:
+Validate shader metadata, channel references, and control comments from Settings > Effects > Custom Shaders with **Run Lint**, or from the CLI with:
 
 ```bash
 par-term shader-lint ~/.config/par-term/shaders/my-shader.glsl

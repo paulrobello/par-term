@@ -2,6 +2,7 @@ use clap::Parser;
 use par_term::cli::{Cli, Commands};
 use par_term::shader_lint::{
     LintSeverity, apply_readability_defaults, lint_shader_source, score_shader_readability,
+    shader_lint_settings_report,
 };
 
 fn sample_shader(body: &str, defaults: &str) -> String {
@@ -111,6 +112,23 @@ fn readability_allows_brighter_defaults_for_dark_static_shader() {
         "text opacity was {}",
         score.suggested_text_opacity
     );
+}
+
+#[test]
+fn settings_report_always_includes_readability_scoring() {
+    let mut file = tempfile::NamedTempFile::new().expect("temp shader");
+    let source = sample_shader(
+        "    fragColor = vec4(vec3(0.04, 0.05, 0.07), 1.0);",
+        "  brightness: 0.8\n  text_opacity: 0.95\n  full_content: false",
+    );
+    std::io::Write::write_all(&mut file, source.as_bytes()).expect("write shader");
+
+    let report = shader_lint_settings_report(file.path()).expect("settings report");
+
+    assert!(report.contains("Shader lint:"));
+    assert!(report.contains("Readability:"));
+    assert!(report.contains("custom_shader_brightness"));
+    assert!(report.contains("custom_shader_text_opacity"));
 }
 
 #[test]

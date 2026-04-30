@@ -21,6 +21,28 @@ fn load_assistant_prompts_for_settings() -> (Vec<par_term_config::AssistantPromp
 }
 
 impl SettingsUI {
+    /// Run shader lint/readability analysis for the selected background shader.
+    pub fn run_shader_lint_for_selected_shader(&mut self) {
+        self.shader_lint_result = None;
+        self.shader_lint_error = None;
+
+        if self.temp_custom_shader.is_empty() {
+            self.shader_lint_error = Some("No background shader selected".to_string());
+            return;
+        }
+
+        let Some(lint_fn) = self.shader_lint_fn else {
+            self.shader_lint_error = Some("Shader lint is not available".to_string());
+            return;
+        };
+
+        let shader_path = par_term_config::Config::shader_path(&self.temp_custom_shader);
+        match lint_fn(&shader_path) {
+            Ok(result) => self.shader_lint_result = Some(result),
+            Err(error) => self.shader_lint_error = Some(error),
+        }
+    }
+
     /// Create a new settings UI.
     ///
     /// This loads assistant prompt files from the configured prompt library.
@@ -149,6 +171,8 @@ impl SettingsUI {
             cursor_shader_metadata_cache: CursorShaderMetadataCache::with_shaders_dir(
                 par_term_config::Config::shaders_dir(),
             ),
+            shader_lint_result: None,
+            shader_lint_error: None,
             shader_settings_expanded: true,
             cursor_shader_settings_expanded: true,
             keybinding_recording_index: None,
@@ -291,6 +315,7 @@ impl SettingsUI {
             shader_install_fn: None,
             shader_detect_modified_fn: None,
             shader_uninstall_fn: None,
+            shader_lint_fn: None,
             shader_has_files_fn: None,
             shader_count_files_fn: None,
             shell_integration_is_installed_fn: None,
@@ -549,5 +574,44 @@ mod assistant_prompt_tests {
         assert_eq!(settings.temp_assistant_prompt_title, "");
         assert_eq!(settings.temp_assistant_prompt_body, "");
         assert!(!settings.temp_assistant_prompt_auto_submit);
+    }
+
+    fn test_shader_lint_callback(path: &std::path::Path) -> Result<String, String> {
+        Ok(format!("linted {}", path.display()))
+    }
+
+    #[test]
+    fn run_shader_lint_for_selected_shader_stores_callback_result() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let shader_path = temp_dir.path().join("readable.glsl");
+        std::fs::write(&shader_path, "void mainImage(out vec4 c, in vec2 p) {}").unwrap();
+
+        let mut config = Config::default();
+        config.shader.custom_shader = Some(shader_path.display().to_string());
+        let mut settings = SettingsUI::new_for_tests(config);
+        settings.temp_custom_shader = shader_path.display().to_string();
+        settings.shader_lint_fn = Some(test_shader_lint_callback);
+
+        settings.run_shader_lint_for_selected_shader();
+
+        assert_eq!(
+            settings.shader_lint_result,
+            Some(format!("linted {}", shader_path.display()))
+        );
+        assert!(settings.shader_lint_error.is_none());
+    }
+
+    #[test]
+    fn run_shader_lint_for_selected_shader_reports_missing_callback() {
+        let mut settings = SettingsUI::new_for_tests(Config::default());
+        settings.temp_custom_shader = "missing.glsl".to_string();
+
+        settings.run_shader_lint_for_selected_shader();
+
+        assert_eq!(
+            settings.shader_lint_error.as_deref(),
+            Some("Shader lint is not available")
+        );
+        assert!(settings.shader_lint_result.is_none());
     }
 }

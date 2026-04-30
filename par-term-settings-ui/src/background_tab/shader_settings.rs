@@ -425,7 +425,54 @@ fn show_per_shader_settings(
         {
             save_settings_to_shader_metadata(settings, shader_name, metadata);
         }
+
+        if ui
+            .button("🔎 Run Lint")
+            .on_hover_text("Validate this shader and show readability suggestions")
+            .clicked()
+        {
+            settings.run_shader_lint_for_selected_shader();
+        }
     });
+
+    show_shader_lint_result(ui, settings);
+}
+
+fn show_shader_lint_result(ui: &mut egui::Ui, settings: &SettingsUI) {
+    if let Some(error) = &settings.shader_lint_error {
+        ui.add_space(4.0);
+        ui.colored_label(
+            egui::Color32::from_rgb(255, 120, 120),
+            format!("Shader lint failed: {error}"),
+        );
+    }
+
+    if let Some(result) = &settings.shader_lint_result {
+        let mut display = result.as_str();
+        ui.add_space(4.0);
+        egui::Frame::default()
+            .fill(egui::Color32::from_rgb(28, 34, 42))
+            .inner_margin(8.0)
+            .corner_radius(4.0)
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Shader lint result");
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui.small_button("Copy").clicked() {
+                            ui.ctx().copy_text(result.clone());
+                        }
+                    });
+                });
+                ui.separator();
+                ui.add(
+                    egui::TextEdit::multiline(&mut display)
+                        .font(egui::TextStyle::Monospace)
+                        .desired_width(f32::INFINITY)
+                        .desired_rows(10)
+                        .interactive(false),
+                );
+            });
+    }
 }
 
 fn show_shader_uniform_controls(

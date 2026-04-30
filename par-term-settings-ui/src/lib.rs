@@ -9,6 +9,9 @@ use par_term_config::{Config, Profile, ProfileId};
 /// Callback type for detecting modified bundled shaders.
 pub type ShaderDetectModifiedFn = fn() -> Result<Vec<String>, String>;
 
+/// Callback type for running shader lint/readability analysis from Settings.
+pub type ShaderLintFn = fn(&std::path::Path) -> Result<String, String>;
+
 // Trait interfaces for decoupling from main crate
 mod traits;
 pub use traits::*;

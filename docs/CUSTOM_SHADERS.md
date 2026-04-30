@@ -159,7 +159,7 @@ custom_shader_full_content: false
 
 ### Shader Linting and Readability Scoring
 
-Use `shader-lint` to validate a custom shader file before installing or sharing it:
+Use `shader-lint` to validate a custom shader file before installing or sharing it. The same lint/readability report is also available from Settings > Effects > Custom Shaders by selecting a background shader and clicking **Run Lint**.
 
 ```bash
 par-term shader-lint ~/.config/par-term/shaders/my-shader.glsl

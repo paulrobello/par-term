@@ -252,6 +252,14 @@ pub fn apply_readability_defaults(path: &Path, score: &ReadabilityScore) -> Resu
     par_term_config::update_shader_metadata_file(path, &metadata)
 }
 
+pub fn shader_lint_settings_report(path: &Path) -> Result<String, String> {
+    let source = std::fs::read_to_string(path)
+        .map_err(|error| format!("Failed to read shader '{}': {error}", path.display()))?;
+    let report = lint_shader_source(&source);
+    let readability = score_shader_readability(&source);
+    Ok(format_lint_report(path, &report, Some(&readability)))
+}
+
 pub fn shader_lint_cli(
     path: &Path,
     include_readability: bool,

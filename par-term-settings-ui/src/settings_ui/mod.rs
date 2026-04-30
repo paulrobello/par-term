@@ -13,7 +13,7 @@ use crate::profile_modal_ui::ProfileModalUI;
 use crate::sidebar::SettingsTab;
 use crate::{
     ArrangementId, ArrangementManager, InstallationType, SettingsWindowAction,
-    ShaderDetectModifiedFn, ShaderInstallResult, ShaderUninstallResult,
+    ShaderDetectModifiedFn, ShaderInstallResult, ShaderLintFn, ShaderUninstallResult,
     ShellIntegrationInstallResult, ShellIntegrationUninstallResult, UpdateCheckResult,
     UpdateResult,
 };
@@ -150,6 +150,10 @@ pub struct SettingsUI {
     pub shader_controls_cache: HashMap<String, ShaderControlParseResult>,
     /// Cache for parsed cursor shader metadata
     pub cursor_shader_metadata_cache: CursorShaderMetadataCache,
+    /// Latest shader lint/readability output for the selected background shader
+    pub shader_lint_result: Option<String>,
+    /// Latest shader lint/readability error for the selected background shader
+    pub shader_lint_error: Option<String>,
     /// Whether the per-shader settings section is expanded
     pub shader_settings_expanded: bool,
     /// Whether the per-cursor-shader settings section is expanded
@@ -489,6 +493,9 @@ pub struct SettingsUI {
 
     /// Callback: uninstall shaders
     pub shader_uninstall_fn: Option<fn(bool) -> Result<ShaderUninstallResult, String>>,
+
+    /// Callback: run shader lint/readability analysis
+    pub shader_lint_fn: Option<ShaderLintFn>,
 
     /// Callback: check if shader files exist
     pub shader_has_files_fn: Option<fn(&std::path::Path) -> bool>,
