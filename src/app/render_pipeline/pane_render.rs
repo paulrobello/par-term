@@ -508,6 +508,8 @@ impl crate::app::window_state::WindowState {
             divider_style: config.pane_divider_style,
         };
 
+        renderer.update_shader_focused_pane(focused_viewport.as_ref());
+
         // Call the split pane renderer.
         // owned_cells is dropped automatically at scope exit, even on panic.
         renderer.render_split_panes(crate::renderer::SplitPanesRenderParams {

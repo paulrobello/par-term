@@ -1,6 +1,6 @@
 {
-  "version": "0.29.1",
-  "generated": "2026-03-25T23:39:48.724513+00:00",
+  "version": "0.30.12",
+  "generated": "2026-04-30T03:19:44.475373+00:00",
   "files": [
     {
       "path": "animated-gradient-shader.glsl",
@@ -15,8 +15,26 @@
       "category": "effects"
     },
     {
+      "path": "aurora_terminal.glsl",
+      "sha256": "60e31e411cabf179661404ef6d466498f4d06fd6aaba4ef4ab3ed81f833b167a",
+      "type": "shader",
+      "category": "effects"
+    },
+    {
       "path": "bloom.glsl",
       "sha256": "c124d6de0b94313e5e9e6cc84f979e0321e87f1d959481c45460ee5498862895",
+      "type": "shader",
+      "category": "effects"
+    },
+    {
+      "path": "blueprint_grid.glsl",
+      "sha256": "0bb16949f4e9527a3e856beea293702ce7ac9ec98aae55838d2d918dde5c9f3a",
+      "type": "shader",
+      "category": "effects"
+    },
+    {
+      "path": "build_reactor.glsl",
+      "sha256": "a9e4f625403d79b949d1d5298d54ad1b2813c4f98fd6ba5dc07f53083275de9b",
       "type": "shader",
       "category": "effects"
     },
@@ -37,6 +55,12 @@
       "sha256": "18ff1f1398b1efbb694f29482f789e70512008bedd3b3668ea6f94f4e4eb7240",
       "type": "shader",
       "category": "nature"
+    },
+    {
+      "path": "command_state_backdrop.glsl",
+      "sha256": "f844d7680c5aab2ffdd892410d74ada0d774258f5043a93d2466b7876ea4b82e",
+      "type": "shader",
+      "category": "effects"
     },
     {
       "path": "convergence.glsl",
@@ -141,6 +165,12 @@
       "category": "cursor"
     },
     {
+      "path": "diff_heatmap_glow.glsl",
+      "sha256": "764cf3bd802ad1b25b6307f199b16729f4ac4cc52bd3d3ce01b855fd853aee62",
+      "type": "shader",
+      "category": "effects"
+    },
+    {
       "path": "dither.glsl",
       "sha256": "3f3f7094f23687d387320f0c8ee72f4825f405f52d9f00d0b695432e510977aa",
       "type": "shader",
@@ -219,6 +249,12 @@
       "category": "abstract"
     },
     {
+      "path": "ink_wash.glsl",
+      "sha256": "239d22b8aa26dc66c15065dc6fdab5ad758c6c3d02ccc238e2a0c82ce43beb31",
+      "type": "shader",
+      "category": "effects"
+    },
+    {
       "path": "inside-the-matrix.glsl",
       "sha256": "af6a633a04cdbbd4d53e22c8323b9669950584f09cf8bdca398c133bef5a9998",
       "type": "shader",
@@ -243,6 +279,30 @@
       "category": "effects"
     },
     {
+      "path": "low_power_ambience.glsl",
+      "sha256": "d42476fec5778543bb61127465892a9037f4c3de7d99675cd4e7d9feba23c386",
+      "type": "shader",
+      "category": "effects"
+    },
+    {
+      "path": "matrix_rain_2.glsl",
+      "sha256": "870d77e621e014cf3b75672c5c650385f309594c228265192f2887aa8654f8bd",
+      "type": "shader",
+      "category": "nature"
+    },
+    {
+      "path": "pane_focus_regions.glsl",
+      "sha256": "e2854294fa803090e35abb67067b234d148657d55dd1b48dcb10678e6d5bcf19",
+      "type": "shader",
+      "category": "effects"
+    },
+    {
+      "path": "progress_reactive_theme.glsl",
+      "sha256": "9047b0f89f260f53cb9c9a0f34bac5adb18ee4d1d42b37ab736658c2984a06e7",
+      "type": "shader",
+      "category": "effects"
+    },
+    {
       "path": "rain-glass.glsl",
       "sha256": "a557968e957b63a7415fea9ad94be90d4550b1c5aa01d1ac46176a05e2e1812e",
       "type": "shader",
@@ -261,6 +321,12 @@
       "category": "retro"
     },
     {
+      "path": "scrollback_parallax.glsl",
+      "sha256": "9ef6b4b56d5e487c058eae8589d54cec0454142138c1ee5a191ef1bdb155929b",
+      "type": "shader",
+      "category": "effects"
+    },
+    {
       "path": "sin-interference.glsl",
       "sha256": "abdccfb301c0e0a716de0f32a7b3544f09df22966e33eec54e65fb819f9ce701",
       "type": "shader",
@@ -271,6 +337,12 @@
       "sha256": "ca93ce39b4e674d9f1f748facebc9cad7f58e02d0b2f84dd88781da17a2d2be4",
       "type": "shader",
       "category": "effects"
+    },
+    {
+      "path": "solarized_nebula.glsl",
+      "sha256": "08b026f6d72020a649f4e2812b23f932a2fdf25ed3b8ba7457b6c399bd26885d",
+      "type": "shader",
+      "category": "space"
     },
     {
       "path": "sparks-from-fire.glsl",

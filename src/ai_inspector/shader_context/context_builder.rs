@@ -153,6 +153,9 @@ pub fn build_shader_context(config: &Config) -> String {
     ctx.push_str(
         "  - `iProgress` (vec4) - progress state [state, percent, isActive, activeCount]\n",
     );
+    ctx.push_str("  - `iCommand` (vec4) - command state [state, exitCode, eventTime, running]\n");
+    ctx.push_str("  - `iFocusedPane` (vec4) - focused pane bounds [bottomLeftX, bottomLeftY, width, height]\n");
+    ctx.push_str("  - `iScroll` (vec4) - scrollback [offset, visibleLines, scrollbackLines, normalizedDepth]\n");
     ctx.push_str("Cursor shader extras:\n");
     ctx.push_str("  - `iCurrentCursor` (vec4) - current cursor (xy=top-left px, zw=size px)\n");
     ctx.push_str("  - `iPreviousCursor` (vec4) - previous cursor (xy=top-left px, zw=size px)\n");

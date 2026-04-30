@@ -21,6 +21,12 @@ fn load_assistant_prompts_for_settings() -> (Vec<par_term_config::AssistantPromp
 }
 
 impl SettingsUI {
+    /// Clear the latest shader lint/readability output.
+    pub fn clear_shader_lint_result(&mut self) {
+        self.shader_lint_result = None;
+        self.shader_lint_error = None;
+    }
+
     /// Run shader lint/readability analysis for the selected background shader.
     pub fn run_shader_lint_for_selected_shader(&mut self) {
         self.shader_lint_result = None;
@@ -658,6 +664,18 @@ mod assistant_prompt_tests {
                 shader_path.display()
             ))
         );
+    }
+
+    #[test]
+    fn clear_shader_lint_result_removes_result_and_error() {
+        let mut settings = SettingsUI::new_for_tests(Config::default());
+        settings.shader_lint_result = Some("Readability: 82/100".to_string());
+        settings.shader_lint_error = Some("old error".to_string());
+
+        settings.clear_shader_lint_result();
+
+        assert!(settings.shader_lint_result.is_none());
+        assert!(settings.shader_lint_error.is_none());
     }
 
     #[test]

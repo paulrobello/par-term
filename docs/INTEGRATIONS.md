@@ -167,11 +167,12 @@ curl -sSL https://paulrobello.github.io/par-term/install-shell-integration.sh | 
 
 ## Shader Installation
 
-par-term includes a collection of 52 ready-to-use GLSL shaders (40 background + 12 cursor).
+par-term includes a collection of 64 ready-to-use GLSL shaders (52 background + 12 cursor).
 
 ### Included Shaders
 
 **Background Effects:**
+- Terminal-aware effects for progress, command state, pane focus, and scrollback depth
 - CRT/Retro effects (scanlines, phosphor glow)
 - Matrix rain, starfield, galaxy
 - Plasma, fire, underwater

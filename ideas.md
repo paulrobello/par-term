@@ -9,13 +9,6 @@ These ideas focus on enhancing par-term's existing custom background shader syst
 - **Shader preset browser**: Expand the Effects tab into a gallery with thumbnails, categories, favorites, and “safe for readability” labels for bundled and user-installed background shaders.
 - **One-click Shadertoy import**: Provide an import flow that accepts pasted Shadertoy GLSL, maps common uniforms/channels to par-term equivalents, warns about unsupported constructs, and creates a metadata block scaffold.
 
-## More terminal-aware background effects
-
-- **Progress-reactive themes**: Add bundled background shaders that react to `iProgress`: calm ambient glow during normal progress, amber pulse for warnings, red edge bloom for errors, and indeterminate animated stripes.
-- **Command-state backdrops**: Introduce hooks/uniforms for last command status so background shaders can briefly tint or animate after command success/failure.
-- **Pane-aware shader regions**: Expose split-pane bounds to shaders so backgrounds can subtly differentiate active/inactive panes without requiring the renderer to draw separate effects manually.
-- **Scrollback depth parallax**: Feed scroll offset or viewport position into custom shaders so long scrollback can create subtle depth, fog, or timeline effects.
-
 ## Texture and asset workflows
 
 - **Texture pack installer**: Extend `install-shaders` with optional texture packs for noise, gradients, paper, metal, starfields, and cubemap environments tuned for terminal readability.
@@ -31,17 +24,6 @@ These ideas focus on enhancing par-term's existing custom background shader syst
 - **Temporary shader toggle palette**: Add a quick command or keybinding palette to cycle background shaders, pause animation, or switch to a low-power/readability mode.
 - **Adaptive brightness slider**: Add an “auto-dim under text” option that samples text density and reduces shader intensity only where terminal content exists.
 - **Shader safety badges**: Show badges for “full-content”, “distorts text”, “uses textures”, “uses cubemap”, “high GPU cost”, and “works well on battery”.
-
-## New bundled background shader concepts
-
-- **Aurora terminal**: Soft northern-light ribbons with color controls, slow motion, and strong readability defaults.
-- **Blueprint grid**: Subtle animated CAD/grid background that brightens around the cursor and active progress bars.
-- **Ink wash**: Low-contrast paper/ink diffusion shader using generated noise channels for a calm writing environment.
-- **Solarized nebula**: A palette-aware nebula that derives colors from the active terminal theme.
-- **Matrix rain 2.0**: A less distracting matrix shader that avoids drawing behind dense terminal text and reacts to typing bursts.
-- **Build reactor**: A progress-aware reactor/core glow that charges as `iProgress.y` advances and vents on error states.
-- **Diff heatmap glow**: Full-content mode shader that adds subtle edge highlights to changed/bright text regions without blurring glyphs.
-- **Low-power ambience pack**: Static or ultra-slow shaders designed to look polished while rendering at reduced frame cadence.
 
 ## Developer and ecosystem features
 

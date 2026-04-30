@@ -459,7 +459,12 @@ layout(set = 0, binding = 0) uniform Uniforms {{
 
     // Progress bar state
     vec4 iProgress;            // offset 288, size 16 - x=state(0-4), y=percent(0-1), z=isActive(0/1), w=activeCount
-}};                            // total: 304 bytes
+
+    // Terminal-aware context
+    vec4 iCommand;             // offset 304, size 16 - x=state(0 unknown,1 running,2 success,3 failure), y=exitCode, z=eventTime, w=running
+    vec4 iFocusedPane;         // offset 320, size 16 - xy=bottom-left pixel origin, zw=size of focused pane
+    vec4 iScroll;              // offset 336, size 16 - x=scrollOffset, y=visibleLines, z=scrollbackLines, w=normalizedDepth
+}};                            // total: 352 bytes
 
 // Shadertoy-compatible iChannelResolution array accessor
 // Usage: iChannelResolution[0].xyz, iChannelResolution[1].xy, etc.
@@ -856,6 +861,11 @@ fn vs_main(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {{
 /// - `iCursorTrailDuration`: Trail effect duration in seconds
 /// - `iCursorGlowRadius`: Glow effect radius in pixels
 /// - `iCursorGlowIntensity`: Glow effect intensity (0.0-1.0)
+///
+/// Terminal-aware context uniforms (par-term specific):
+/// - `iCommand`: x=state(0 unknown, 1 running, 2 success, 3 failure), y=exit code, z=event time, w=running flag
+/// - `iFocusedPane`: xy=focused pane bottom-left pixel origin, zw=focused pane size
+/// - `iScroll`: x=scroll offset, y=visible lines, z=scrollback lines, w=normalized depth
 pub(crate) fn transpile_glsl_to_wgsl(glsl_source: &str, shader_path: &Path) -> Result<String> {
     transpile_impl(
         glsl_source,
@@ -880,6 +890,23 @@ pub(crate) fn transpile_glsl_to_wgsl_source(glsl_source: &str, name: &str) -> Re
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn builtin_terminal_context_uniforms_are_declared_in_wrapper() {
+        let wgsl = transpile_glsl_to_wgsl_source(
+            r#"
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {
+    fragColor = vec4(iCommand.x + iFocusedPane.z + iScroll.w);
+}
+"#,
+            "terminal_context_uniforms_test",
+        )
+        .expect("shader should transpile with built-in terminal context uniforms");
+
+        assert!(wgsl.contains("iCommand"));
+        assert!(wgsl.contains("iFocusedPane"));
+        assert!(wgsl.contains("iScroll"));
+    }
 
     #[test]
     fn controlled_uniform_declarations_are_replaced_with_custom_block_macros() {

@@ -83,6 +83,55 @@ impl Renderer {
         }
     }
 
+    /// Update command lifecycle state for shader effects (iCommand uniform).
+    pub fn update_shader_command_status(&mut self, state: f32, exit_code: f32, running: f32) {
+        if let Some(ref mut custom_shader) = self.custom_shader_renderer {
+            custom_shader.update_command_status(state, exit_code, running);
+        }
+        if let Some(ref mut cursor_shader) = self.cursor_shader_renderer {
+            cursor_shader.update_command_status(state, exit_code, running);
+        }
+    }
+
+    /// Update focused pane bounds for shader effects (iFocusedPane uniform).
+    pub fn update_shader_focused_pane(
+        &mut self,
+        focused_viewport: Option<&crate::cell_renderer::PaneViewport>,
+    ) {
+        let pane = focused_viewport
+            .map(|viewport| {
+                [
+                    viewport.x,
+                    self.size.height as f32 - (viewport.y + viewport.height),
+                    viewport.width,
+                    viewport.height,
+                ]
+            })
+            .unwrap_or([0.0, 0.0, self.size.width as f32, self.size.height as f32]);
+
+        if let Some(ref mut custom_shader) = self.custom_shader_renderer {
+            custom_shader.update_focused_pane(pane[0], pane[1], pane[2], pane[3]);
+        }
+        if let Some(ref mut cursor_shader) = self.cursor_shader_renderer {
+            cursor_shader.update_focused_pane(pane[0], pane[1], pane[2], pane[3]);
+        }
+    }
+
+    /// Update scrollback context for shader effects (iScroll uniform).
+    pub fn update_shader_scrollback(
+        &mut self,
+        offset: f32,
+        visible_lines: f32,
+        scrollback_lines: f32,
+    ) {
+        if let Some(ref mut custom_shader) = self.custom_shader_renderer {
+            custom_shader.update_scrollback(offset, visible_lines, scrollback_lines);
+        }
+        if let Some(ref mut cursor_shader) = self.cursor_shader_renderer {
+            cursor_shader.update_scrollback(offset, visible_lines, scrollback_lines);
+        }
+    }
+
     /// Update cursor shader configuration on both renderer instances.
     ///
     /// Glow radius is in logical pixels and will be scaled to physical pixels internally.

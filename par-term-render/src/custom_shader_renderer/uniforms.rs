@@ -132,6 +132,9 @@ impl CustomShaderRenderer {
             cubemap_resolution: self.cubemap.resolution(),
             background_color: self.background_color,
             progress: self.progress_data,
+            command: self.command_data,
+            focused_pane: self.focused_pane,
+            scroll: self.scroll_data,
         }
     }
 

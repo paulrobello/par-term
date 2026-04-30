@@ -202,6 +202,18 @@ pub struct CustomShaderRenderer {
     /// Progress bar data [state, percent, isActive, activeCount]
     pub(crate) progress_data: [f32; 4],
 
+    // ============ Command state ============
+    /// Command state data [state, exitCode, eventTime, running]
+    pub(crate) command_data: [f32; 4],
+
+    // ============ Focused pane bounds ============
+    /// Focused pane bounds [x, y, width, height] in bottom-left-origin pixels.
+    pub(crate) focused_pane: [f32; 4],
+
+    // ============ Scrollback context ============
+    /// Scrollback context [offset, visibleLines, scrollbackLines, normalizedDepth]
+    pub(crate) scroll_data: [f32; 4],
+
     // ============ Content inset for panels ============
     /// Right content inset in pixels (e.g., AI Inspector panel).
     /// The shader renders to a viewport offset by this amount from the left.
@@ -420,6 +432,9 @@ impl CustomShaderRenderer {
             background_channel_texture: None,
             background_color: [0.0, 0.0, 0.0, 0.0], // No solid background by default
             progress_data: [0.0, 0.0, 0.0, 0.0],
+            command_data: [0.0, 0.0, 0.0, 0.0],
+            focused_pane: [0.0, 0.0, width as f32, height as f32],
+            scroll_data: [0.0, 0.0, 0.0, 0.0],
             content_inset_right: 0.0,
             custom_controls,
             custom_uniform_values,
@@ -743,6 +758,50 @@ impl CustomShaderRenderer {
     /// * `active_count` - Total count of active bars (simple + named)
     pub fn update_progress(&mut self, state: f32, percent: f32, is_active: f32, active_count: f32) {
         self.progress_data = [state, percent, is_active, active_count];
+    }
+
+    /// Update command lifecycle state for shader effects.
+    ///
+    /// `state`: 0=unknown, 1=running, 2=success, 3=failure.
+    /// `exit_code`: last exit code, or 0 when unknown/running.
+    /// `running`: 1 when a command is currently running, otherwise 0.
+    pub fn update_command_status(&mut self, state: f32, exit_code: f32, running: f32) {
+        let state = state.clamp(0.0, 3.0);
+        let exit_code = if exit_code.is_finite() {
+            exit_code
+        } else {
+            0.0
+        };
+        let running = if running > 0.5 { 1.0 } else { 0.0 };
+        let changed = (self.command_data[0] - state).abs() > f32::EPSILON
+            || (self.command_data[1] - exit_code).abs() > f32::EPSILON
+            || (self.command_data[3] - running).abs() > f32::EPSILON;
+
+        if changed {
+            let event_time = if self.animation_enabled {
+                self.start_time.elapsed().as_secs_f32() * self.animation_speed.max(0.0)
+            } else {
+                0.0
+            };
+            self.command_data = [state, exit_code, event_time, running];
+        }
+    }
+
+    /// Update focused pane bounds in bottom-left-origin pixels.
+    pub fn update_focused_pane(&mut self, x: f32, y: f32, width: f32, height: f32) {
+        self.focused_pane = [x.max(0.0), y.max(0.0), width.max(0.0), height.max(0.0)];
+    }
+
+    /// Update scrollback context for shader effects.
+    pub fn update_scrollback(&mut self, offset: f32, visible_lines: f32, scrollback_lines: f32) {
+        let offset = offset.max(0.0);
+        let scrollback_lines = scrollback_lines.max(0.0);
+        let normalized = if scrollback_lines > 0.0 {
+            (offset / scrollback_lines).clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        self.scroll_data = [offset, visible_lines.max(0.0), scrollback_lines, normalized];
     }
 
     /// Update the use_background_as_channel0 setting and recreate bind group if needed.

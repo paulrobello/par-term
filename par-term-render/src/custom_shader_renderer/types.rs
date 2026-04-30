@@ -90,8 +90,26 @@ pub(crate) struct CustomShaderUniforms {
     /// z = 1.0 if any progress bar is active, 0.0 otherwise
     /// w = total count of active bars (simple + named)
     pub progress: [f32; 4],
+
+    // ============ Command state uniform ============
+    /// Command state [state, exitCode, eventTime, running] - offset 304, size 16
+    /// x = state (0=unknown, 1=running, 2=success, 3=failure)
+    /// y = last exit code, or 0 when unknown/running
+    /// z = shader time when state last changed
+    /// w = 1.0 when a command is currently running, 0.0 otherwise
+    pub command: [f32; 4],
+
+    // ============ Focused pane bounds uniform ============
+    /// Focused pane bounds [x, y, width, height] - offset 320, size 16
+    /// Coordinates are in pixels with GLSL/Shadertoy bottom-left origin.
+    pub focused_pane: [f32; 4],
+
+    // ============ Scrollback context uniform ============
+    /// Scrollback context [offset, visibleLines, scrollbackLines, normalizedDepth] - offset 336, size 16
+    /// normalizedDepth is offset / max(scrollbackLines, 1).
+    pub scroll: [f32; 4],
 }
-// Total size: 304 bytes
+// Total size: 352 bytes
 
 pub(crate) const MAX_CUSTOM_FLOAT_UNIFORMS: usize = 16;
 pub(crate) const MAX_CUSTOM_BOOL_UNIFORMS: usize = 16;
@@ -323,8 +341,8 @@ const _: () = assert!(
 
 // Compile-time assertion to ensure uniform struct size matches expectations
 const _: () = assert!(
-    std::mem::size_of::<CustomShaderUniforms>() == 304,
-    "CustomShaderUniforms must be exactly 304 bytes for GPU compatibility"
+    std::mem::size_of::<CustomShaderUniforms>() == 352,
+    "CustomShaderUniforms must be exactly 352 bytes for GPU compatibility"
 );
 
 #[cfg(test)]
@@ -334,6 +352,11 @@ mod custom_uniform_tests {
     #[test]
     fn custom_shader_control_uniforms_are_vec4_aligned() {
         assert_eq!(std::mem::size_of::<CustomShaderControlUniforms>(), 704);
+    }
+
+    #[test]
+    fn custom_shader_uniforms_include_terminal_context_vec4s() {
+        assert_eq!(std::mem::size_of::<CustomShaderUniforms>(), 352);
     }
 
     #[test]

@@ -433,6 +433,15 @@ fn show_per_shader_settings(
         {
             settings.run_shader_lint_for_selected_shader();
         }
+
+        let has_lint_output = settings.shader_lint_result.is_some() || settings.shader_lint_error.is_some();
+        if ui
+            .add_enabled(has_lint_output, egui::Button::new("Clear Lint"))
+            .on_hover_text("Clear the current shader lint/readability output")
+            .clicked()
+        {
+            settings.clear_shader_lint_result();
+        }
     });
 
     show_shader_lint_result(ui, settings);

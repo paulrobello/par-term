@@ -23,6 +23,7 @@ pub(super) struct GpuStateUpdateParams<'a> {
     pub(super) current_cursor_pos: Option<(usize, usize)>,
     pub(super) cursor_style: Option<par_term_emu_core_rust::cursor::CursorStyle>,
     pub(super) progress_snapshot: &'a Option<ProgressBarSnapshot>,
+    pub(super) command_status: (f32, f32, f32),
     pub(super) scroll_offset: usize,
     pub(super) visible_lines: usize,
     pub(super) scrollback_len: usize,
@@ -68,6 +69,7 @@ pub(super) fn update_gpu_renderer_state(
         current_cursor_pos,
         cursor_style,
         progress_snapshot,
+        command_status,
         scroll_offset,
         visible_lines,
         scrollback_len,
@@ -129,6 +131,14 @@ pub(super) fn update_gpu_renderer_state(
     } else {
         renderer.update_shader_progress(0.0, 0.0, 0.0, 0.0);
     }
+
+    let (command_state, command_exit_code, command_running) = command_status;
+    renderer.update_shader_command_status(command_state, command_exit_code, command_running);
+    renderer.update_shader_scrollback(
+        scroll_offset as f32,
+        visible_lines as f32,
+        scrollback_len as f32,
+    );
 
     // Update scrollbar
     renderer.update_scrollbar(scroll_offset, visible_lines, total_lines, scrollback_marks);

@@ -65,7 +65,7 @@ Shaders are written in GLSL (OpenGL Shading Language) and automatically transpil
 
 ### Install All Shaders (Recommended)
 
-Use the built-in CLI command to download and install all 52+ shaders from the latest release:
+Use the built-in CLI command to download and install all 64+ shaders from the latest release:
 
 ```bash
 # Install shaders (with confirmation prompt)
@@ -159,7 +159,7 @@ custom_shader_full_content: false
 
 ### Shader Linting and Readability Scoring
 
-Use `shader-lint` to validate a custom shader file before installing or sharing it. The same lint/readability report is also available from Settings > Effects > Custom Shaders by selecting a background shader and clicking **Run Lint**.
+Use `shader-lint` to validate a custom shader file before installing or sharing it. The same lint/readability report is also available from Settings > Effects > Custom Shaders by selecting a background shader and clicking **Run Lint**; use **Clear Lint** to clear the current result or error.
 
 ```bash
 par-term shader-lint ~/.config/par-term/shaders/my-shader.glsl
@@ -412,6 +412,9 @@ Par-term specific uniforms for terminal integration:
 | `iFullContent` | `float` | 1.0 = shader receives full terminal content; 0.0 = background only |
 | `iBackgroundColor` | `vec4` | Solid background color `[R, G, B, A]` (0.0-1.0 normalized). When A > 0, indicates solid color mode is active |
 | `iTimeKeyPress` | `float` | Time when last key was pressed (same timebase as iTime). See [`keypress_pulse.glsl`](../shaders/keypress_pulse.glsl) for example. |
+| `iCommand` | `vec4` | Shell command state from OSC 133 shell integration: `x` = state (`0` unknown, `1` running, `2` success, `3` failure), `y` = last exit code, `z` = shader time when state last changed, `w` = running flag. See [`command_state_backdrop.glsl`](../shaders/command_state_backdrop.glsl). |
+| `iFocusedPane` | `vec4` | Focused pane bounds in pixels using GLSL/Shadertoy bottom-left origin: `xy` = bottom-left, `zw` = size. Defaults to the full viewport when no focused pane is available. See [`pane_focus_regions.glsl`](../shaders/pane_focus_regions.glsl). |
+| `iScroll` | `vec4` | Scrollback context for the focused viewport: `x` = scroll offset in lines, `y` = visible line count, `z` = scrollback line count, `w` = normalized depth (`x / max(z, 1)`). See [`scrollback_parallax.glsl`](../shaders/scrollback_parallax.glsl). |
 
 ### Texture Channel Uniforms
 

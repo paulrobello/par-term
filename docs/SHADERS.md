@@ -1,6 +1,6 @@
 # Included Shaders
 
-Par-term includes 52 ready-to-use GLSL shaders (40 background + 12 cursor). This document lists all available shaders organized by category.
+Par-term includes 64 ready-to-use GLSL shaders (52 background + 12 cursor). This document lists all available shaders organized by category.
 
 **[View Shader Gallery with Screenshots](https://paulrobello.github.io/par-term/)**
 
@@ -9,6 +9,7 @@ For information on how to use and configure shaders, see [CUSTOM_SHADERS.md](CUS
 ## Table of Contents
 
 - [Background Shaders](#background-shaders)
+  - [Terminal-Aware & Productivity](#terminal-aware--productivity)
   - [Animated Backgrounds](#animated-backgrounds)
   - [Abstract & Procedural](#abstract--procedural)
   - [CRT & Retro Effects](#crt--retro-effects)
@@ -23,6 +24,20 @@ For information on how to use and configure shaders, see [CUSTOM_SHADERS.md](CUS
 ## Background Shaders
 
 Background shaders are full-screen post-processing effects applied to the terminal. Configure them with `custom_shader` in your config.
+
+### Terminal-Aware & Productivity
+
+| Shader | Description |
+|--------|-------------|
+| `progress_reactive_theme.glsl` | Calm ambient background that reacts to `iProgress` with normal glow, amber warning pulse, red error edge bloom, and indeterminate stripes. |
+| `command_state_backdrop.glsl` | Uses `iCommand` to briefly tint after command start, success, or failure. |
+| `pane_focus_regions.glsl` | Uses `iFocusedPane` to subtly frame the active split pane and dim inactive regions. |
+| `scrollback_parallax.glsl` | Uses `iScroll` to add depth fog and timeline bands as you move through scrollback. |
+| `blueprint_grid.glsl` | CAD-style grid that brightens around the cursor and active progress bars. |
+| `build_reactor.glsl` | Progress-aware reactor/core glow that charges with `iProgress.y` and vents on warnings/errors. |
+| `matrix_rain_2.glsl` | Less distracting full-content Matrix rain that avoids dense terminal text and reacts to typing bursts. |
+| `diff_heatmap_glow.glsl` | Full-content edge/highlight glow for changed-looking or bright text regions without blurring glyphs. |
+| `low_power_ambience.glsl` | Static-to-ultra-slow ambience intended for reduced frame cadence and battery-friendly sessions. |
 
 ### Animated Backgrounds
 
@@ -41,6 +56,7 @@ Background shaders are full-screen post-processing effects applied to the termin
 | `sparks-from-fire.glsl` | Rising fire sparks effect |
 | `water.glsl` | Water ripple/wave effect with caustics |
 | `underwater.glsl` | Underwater caustics effect with subtle distortion |
+| `aurora_terminal.glsl` | Soft northern-light ribbons with color controls, slow motion, and readability-first defaults |
 
 ### Abstract & Procedural
 
@@ -48,6 +64,8 @@ Background shaders are full-screen post-processing effects applied to the termin
 |--------|-------------|
 | `animated-gradient-shader.glsl` | Smooth animated color gradient background |
 | `gradient-background.glsl` | Static diagonal gradient background |
+| `ink_wash.glsl` | Low-contrast paper and ink diffusion using procedural noise for a calm writing environment |
+| `solarized_nebula.glsl` | Solarized-inspired nebula that blends active terminal background color with configurable accents |
 | `universe-within.glsl` | Mystical neural network with pulsing nodes and connecting lines |
 | `singularity.glsl` | Whirling blackhole with red/blue accretion disk and spiraling waves |
 | `convergence.glsl` | Two swirling voronoi patterns (teal/red) split by animated lightning bolt |

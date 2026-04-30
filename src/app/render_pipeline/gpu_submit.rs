@@ -95,6 +95,38 @@ impl WindowState {
             None
         };
 
+        // Capture focused terminal command state before mutable renderer borrow.
+        // iCommand: state (0 unknown, 1 running, 2 success, 3 failure), exit code, running flag.
+        let command_status = self
+            .tab_manager
+            .active_tab()
+            .and_then(|tab| {
+                let terminal = tab
+                    .pane_manager
+                    .as_ref()
+                    .and_then(|pm| pm.focused_pane())
+                    .map(|pane| pane.terminal.clone())
+                    .unwrap_or_else(|| tab.terminal.clone());
+
+                terminal.try_write().ok().map(|term| {
+                    let running = term.is_command_running();
+                    let exit_code = term.shell_integration_exit_code();
+                    let state = if running {
+                        1.0
+                    } else if let Some(code) = exit_code {
+                        if code == 0 { 2.0 } else { 3.0 }
+                    } else {
+                        0.0
+                    };
+                    (
+                        state,
+                        exit_code.unwrap_or_default() as f32,
+                        if running { 1.0 } else { 0.0 },
+                    )
+                })
+            })
+            .unwrap_or((0.0, 0.0, 0.0));
+
         // Sync AI Inspector panel width before scrollbar update so the scrollbar
         // position uses the current panel width on this frame (not the previous one).
         self.sync_ai_inspector_width();
@@ -128,6 +160,7 @@ impl WindowState {
                     current_cursor_pos,
                     cursor_style,
                     progress_snapshot: &progress_snapshot,
+                    command_status,
                     scroll_offset,
                     visible_lines,
                     scrollback_len,
