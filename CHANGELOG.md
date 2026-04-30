@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Features
+- **Assistant prompt library** — Assistant settings now include a Markdown-backed prompt library stored under the par-term config directory. Each prompt uses YAML frontmatter for title and auto-submit behavior, can be managed in Settings > Assistant, and is selectable from the Assistant chat input to either load into the editor or send immediately.
 - **Assistant extra agent roots** — Assistant settings now include `ai_inspector_extra_agent_roots`, always add the par-term shaders directory so agents can edit shaders directly, and pass extra roots through supported adapters (`_meta.additionalRoots`, Codex writable roots, and Gemini include directories).
 - **Assistant shader diagnostics tool** — added a `shader_diagnostics` MCP tool that lets ACP agents query the running app for active background/cursor shader names, enabled state, last compile/reload errors, shader directory, and generated debug WGSL/wrapped GLSL paths. Shader assistant guidance and docs now tell agents to use it after activation or when shader output appears broken.
 - **Assistant agent selector prioritizes Codex** — Codex now appears as the first option in the Assistant panel agent selector while preserving the relative order of the other agents.
