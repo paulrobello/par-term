@@ -68,7 +68,7 @@ Shaders are written in GLSL (OpenGL Shading Language) and automatically transpil
 
 ### Install All Shaders (Recommended)
 
-Use the built-in CLI command to download and install all 64+ shaders from the latest release:
+Use the built-in CLI command to download and install all 67 shaders from the latest release:
 
 ```bash
 # Install shaders (with confirmation prompt)
@@ -320,7 +320,7 @@ Par-term supports cubemap textures for environment mapping and skybox effects vi
 ```yaml
 # Path prefix for cubemap faces
 # Expects 6 files: {prefix}-px.{ext}, -nx.{ext}, -py.{ext}, -ny.{ext}, -pz.{ext}, -nz.{ext}
-custom_shader_cubemap: "shaders/textures/cubemaps/env-outside"
+custom_shader_cubemap: "textures/cubemaps/env-outside"
 
 # Enable cubemap sampling
 custom_shader_cubemap_enabled: true

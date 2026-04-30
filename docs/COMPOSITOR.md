@@ -655,7 +655,7 @@ custom_shader_channel2: null
 custom_shader_channel3: null
 
 # Cubemap texture for environment mapping (6-face cubemap prefix)
-custom_shader_cubemap: "shaders/textures/cubemaps/env-outside"
+custom_shader_cubemap: "textures/cubemaps/env-outside"
 custom_shader_cubemap_enabled: true
 
 # Use background image as iChannel0 instead of custom_shader_channel0
