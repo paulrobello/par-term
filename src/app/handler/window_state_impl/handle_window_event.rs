@@ -502,7 +502,7 @@ impl WindowState {
 
             WindowEvent::CursorEntered { .. } => {
                 // Focus follows mouse: auto-focus window when cursor enters
-                if self.config.focus_follows_mouse
+                if self.config.mouse.focus_follows_mouse
                     && let Some(window) = &self.window
                 {
                     window.focus_window();

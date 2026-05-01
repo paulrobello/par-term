@@ -302,7 +302,7 @@ impl WindowState {
         // Windows/Linux: Alt+Click
         // Note: Option+Cmd is reserved for rectangular selection (matching iTerm2)
         if state == ElementState::Pressed
-            && self.config.option_click_moves_cursor
+            && self.config.mouse.option_click_moves_cursor
             && self.input_handler.modifiers.state().alt_key()
             && !self.input_handler.modifiers.state().super_key() // Not Cmd/Super (that's for rectangular selection)
             && let Some((target_col, _target_row)) =

@@ -6,18 +6,18 @@
 use std::collections::HashMap;
 
 use crate::types::{
-    BackgroundImageMode, BackgroundMode, CursorStyle, DividerStyle, DroppedFileQuoteStyle,
+    BackgroundImageMode, BackgroundMode, DividerStyle, DroppedFileQuoteStyle,
     ImageScalingMode, InstallPromptState, IntegrationVersions, LogLevel, ModifierRemapping,
     NewTabPosition, OptionKeyMode, PaneTitlePosition, PowerPreference, ProgressBarPosition,
     ProgressBarStyle, RemoteTabTitleFormat, SemanticHistoryEditorMode, SessionLogFormat,
     ShaderInstallPrompt, ShellExitAction, TabBarMode, TabBarPosition, TabStyle, TabTitleMode,
-    UnfocusedCursorStyle, VsyncMode, WindowType, default_smart_selection_rules,
+    VsyncMode, WindowType, default_smart_selection_rules,
 };
 
 use super::{
-    AiInspectorConfig, Config, CopyModeConfig, FontRenderingConfig, GlobalShaderConfig,
-    NotificationConfig, ScrollbackConfig, SearchConfig, SshConfig, StatusBarConfig, UnicodeConfig,
-    WindowConfig,
+    AiInspectorConfig, Config, CopyModeConfig, CursorConfig, FontRenderingConfig,
+    GlobalShaderConfig, MouseConfig, NotificationConfig, ScrollbackConfig, SearchConfig,
+    SshConfig, StatusBarConfig, UnicodeConfig, WindowConfig,
 };
 
 impl Default for Config {
@@ -40,23 +40,7 @@ impl Default for Config {
             copy_mode: CopyModeConfig::default(),
             scrollback: ScrollbackConfig::default(),
             unicode: UnicodeConfig::default(),
-            cursor_blink: crate::defaults::bool_false(),
-            cursor_blink_interval: crate::defaults::cursor_blink_interval(),
-            cursor_style: CursorStyle::default(),
-            cursor_color: crate::defaults::cursor_color(),
-            cursor_text_color: None,
-            lock_cursor_visibility: crate::defaults::bool_false(),
-            lock_cursor_style: crate::defaults::bool_false(),
-            lock_cursor_blink: crate::defaults::bool_false(),
-            cursor_guide_enabled: crate::defaults::bool_false(),
-            cursor_guide_color: crate::defaults::cursor_guide_color(),
-            cursor_shadow_enabled: crate::defaults::bool_false(),
-            cursor_shadow_color: crate::defaults::cursor_shadow_color(),
-            cursor_shadow_offset: crate::defaults::cursor_shadow_offset(),
-            cursor_shadow_blur: crate::defaults::cursor_shadow_blur(),
-            cursor_boost: crate::defaults::cursor_boost(),
-            cursor_boost_color: crate::defaults::cursor_boost_color(),
-            unfocused_cursor_style: UnfocusedCursorStyle::default(),
+            cursor: CursorConfig::default(),
             scrollbar_autohide_delay: crate::defaults::scrollbar_autohide_delay(),
             window_title: crate::defaults::window_title(),
             allow_title_change: crate::defaults::bool_true(),
@@ -74,12 +58,7 @@ impl Default for Config {
             paste_delay_ms: crate::defaults::paste_delay_ms(),
             warn_paste_control_chars: crate::defaults::bool_true(),
             dropped_file_quote_style: DroppedFileQuoteStyle::default(),
-            mouse_scroll_speed: crate::defaults::scroll_speed(),
-            mouse_double_click_threshold: crate::defaults::double_click_threshold(),
-            mouse_triple_click_threshold: crate::defaults::triple_click_threshold(),
-            option_click_moves_cursor: crate::defaults::bool_true(),
-            focus_follows_mouse: crate::defaults::bool_false(),
-            report_horizontal_scroll: crate::defaults::bool_true(),
+            mouse: MouseConfig::default(),
             word_characters: crate::defaults::word_characters(),
             smart_selection_enabled: crate::defaults::smart_selection_enabled(),
             smart_selection_rules: default_smart_selection_rules(),

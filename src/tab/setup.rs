@@ -33,14 +33,14 @@ pub(crate) fn configure_terminal_from_config(terminal: &mut TerminalManager, con
     // Initialize cursor style from config
     use crate::config::CursorStyle as ConfigCursorStyle;
     use par_term_emu_core_rust::cursor::CursorStyle as TermCursorStyle;
-    let term_style = if config.cursor_blink {
-        match config.cursor_style {
+    let term_style = if config.cursor.cursor_blink {
+        match config.cursor.cursor_style {
             ConfigCursorStyle::Block => TermCursorStyle::BlinkingBlock,
             ConfigCursorStyle::Underline => TermCursorStyle::BlinkingUnderline,
             ConfigCursorStyle::Beam => TermCursorStyle::BlinkingBar,
         }
     } else {
-        match config.cursor_style {
+        match config.cursor.cursor_style {
             ConfigCursorStyle::Block => TermCursorStyle::SteadyBlock,
             ConfigCursorStyle::Underline => TermCursorStyle::SteadyUnderline,
             ConfigCursorStyle::Beam => TermCursorStyle::SteadyBar,

@@ -74,12 +74,12 @@ pub(super) fn apply_renderer_config(
 
     // Update cursor color
     if changes.cursor_color {
-        renderer.update_cursor_color(config.cursor_color);
+        renderer.update_cursor_color(config.cursor.cursor_color);
     }
 
     // Update cursor text color
     if changes.cursor_text_color {
-        renderer.update_cursor_text_color(config.cursor_text_color);
+        renderer.update_cursor_text_color(config.cursor.cursor_text_color);
     }
 
     // Update cursor style and blink for all tabs
@@ -87,14 +87,14 @@ pub(super) fn apply_renderer_config(
         use crate::config::CursorStyle as ConfigCursorStyle;
         use par_term_emu_core_rust::cursor::CursorStyle as TermCursorStyle;
 
-        let term_style = if config.cursor_blink {
-            match config.cursor_style {
+        let term_style = if config.cursor.cursor_blink {
+            match config.cursor.cursor_style {
                 ConfigCursorStyle::Block => TermCursorStyle::BlinkingBlock,
                 ConfigCursorStyle::Beam => TermCursorStyle::BlinkingBar,
                 ConfigCursorStyle::Underline => TermCursorStyle::BlinkingUnderline,
             }
         } else {
-            match config.cursor_style {
+            match config.cursor.cursor_style {
                 ConfigCursorStyle::Block => TermCursorStyle::SteadyBlock,
                 ConfigCursorStyle::Beam => TermCursorStyle::SteadyBar,
                 ConfigCursorStyle::Underline => TermCursorStyle::SteadyUnderline,
@@ -114,15 +114,15 @@ pub(super) fn apply_renderer_config(
     if changes.cursor_enhancements {
         // Re-borrow renderer (can't hold it across the tabs_mut loop above)
         if let Some(renderer) = &mut window_state.renderer {
-            renderer.update_cursor_guide(config.cursor_guide_enabled, config.cursor_guide_color);
+            renderer.update_cursor_guide(config.cursor.cursor_guide_enabled, config.cursor.cursor_guide_color);
             renderer.update_cursor_shadow(
-                config.cursor_shadow_enabled,
-                config.cursor_shadow_color,
-                config.cursor_shadow_offset,
-                config.cursor_shadow_blur,
+                config.cursor.cursor_shadow_enabled,
+                config.cursor.cursor_shadow_color,
+                config.cursor.cursor_shadow_offset,
+                config.cursor.cursor_shadow_blur,
             );
-            renderer.update_cursor_boost(config.cursor_boost, config.cursor_boost_color);
-            renderer.update_unfocused_cursor_style(config.unfocused_cursor_style);
+            renderer.update_cursor_boost(config.cursor.cursor_boost, config.cursor.cursor_boost_color);
+            renderer.update_unfocused_cursor_style(config.cursor.unfocused_cursor_style);
         }
         window_state.focus_state.needs_redraw = true;
     }

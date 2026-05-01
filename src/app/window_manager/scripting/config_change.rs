@@ -156,7 +156,7 @@ impl WindowManager {
             }
             "cursor_blink" => {
                 if let Some(v) = value.as_bool() {
-                    ws.config.cursor_blink = v;
+                    ws.config.cursor.cursor_blink = v;
                     ws.focus_state.needs_redraw = true;
                     ws.request_redraw();
                     log::info!(

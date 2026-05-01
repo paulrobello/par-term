@@ -131,9 +131,9 @@ impl WindowState {
 
             // Thresholds for sequential clicks (double/triple)
             let threshold_ms = if click_count == 1 {
-                self.config.mouse_double_click_threshold
+                self.config.mouse.mouse_double_click_threshold
             } else {
-                self.config.mouse_triple_click_threshold
+                self.config.mouse.mouse_triple_click_threshold
             };
             let click_threshold = std::time::Duration::from_millis(threshold_ms);
 

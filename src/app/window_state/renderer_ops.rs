@@ -304,7 +304,7 @@ impl WindowState {
     /// Update cursor blink state based on configured interval and DECSCUSR style
     ///
     /// The cursor blink state is determined by:
-    /// 1. If lock_cursor_style is enabled: use config.cursor_blink
+    /// 1. If lock_cursor_style is enabled: use config.cursor.cursor_blink
     /// 2. If lock_cursor_blink is enabled and cursor_blink is false: force no blink
     /// 3. Otherwise: terminal's cursor style (set via DECSCUSR escape sequence)
     /// 4. Fallback: user's config setting (cursor_blink)
@@ -318,21 +318,21 @@ impl WindowState {
     /// - 6: Steady bar
     pub(crate) fn update_cursor_blink(&mut self) {
         // If cursor style is locked, use the config's blink setting directly
-        if self.config.lock_cursor_style {
-            if !self.config.cursor_blink {
+        if self.config.cursor.lock_cursor_style {
+            if !self.config.cursor.cursor_blink {
                 self.cursor_anim.cursor_opacity = (self.cursor_anim.cursor_opacity + 0.1).min(1.0);
                 return;
             }
-        } else if self.config.lock_cursor_blink && !self.config.cursor_blink {
+        } else if self.config.cursor.lock_cursor_blink && !self.config.cursor.cursor_blink {
             // If blink is locked off, don't blink regardless of terminal style
             self.cursor_anim.cursor_opacity = (self.cursor_anim.cursor_opacity + 0.1).min(1.0);
             return;
         }
 
         // Get cursor style from terminal to check if DECSCUSR specified blinking
-        let cursor_should_blink = if self.config.lock_cursor_style {
+        let cursor_should_blink = if self.config.cursor.lock_cursor_style {
             // Style is locked, use config's blink setting
-            self.config.cursor_blink
+            self.config.cursor.cursor_blink
         } else if let Some(tab) = self.tab_manager.active_tab()
             && let Ok(term) = tab.terminal.try_write()
         {
@@ -347,7 +347,7 @@ impl WindowState {
             )
         } else {
             // Fallback to config setting if terminal lock unavailable
-            self.config.cursor_blink
+            self.config.cursor.cursor_blink
         };
 
         if !cursor_should_blink {
@@ -368,7 +368,7 @@ impl WindowState {
         }
 
         // Smooth cursor blink animation using sine wave for natural fade
-        let blink_interval = std::time::Duration::from_millis(self.config.cursor_blink_interval);
+        let blink_interval = std::time::Duration::from_millis(self.config.cursor.cursor_blink_interval);
 
         if let Some(last_blink) = self.cursor_anim.last_cursor_blink {
             let elapsed = now.duration_since(last_blink);

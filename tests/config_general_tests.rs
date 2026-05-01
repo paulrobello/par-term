@@ -335,24 +335,24 @@ inactive_tab_opacity: 0.3
 fn test_config_cursor_enhancement_defaults() {
     let config = Config::default();
     // Unfocused cursor style defaults to Hollow
-    assert_eq!(config.unfocused_cursor_style, UnfocusedCursorStyle::Hollow);
+    assert_eq!(config.cursor.unfocused_cursor_style, UnfocusedCursorStyle::Hollow);
     // Cursor guide disabled by default
-    assert!(!config.cursor_guide_enabled);
+    assert!(!config.cursor.cursor_guide_enabled);
     // Default guide color: white with low alpha
-    assert_eq!(config.cursor_guide_color, [255, 255, 255, 20]);
+    assert_eq!(config.cursor.cursor_guide_color, [255, 255, 255, 20]);
     // Cursor shadow disabled by default
-    assert!(!config.cursor_shadow_enabled);
+    assert!(!config.cursor.cursor_shadow_enabled);
     // Default shadow color: black with 50% alpha
-    assert_eq!(config.cursor_shadow_color, [0, 0, 0, 128]);
+    assert_eq!(config.cursor.cursor_shadow_color, [0, 0, 0, 128]);
     // Default shadow offset
-    assert!((config.cursor_shadow_offset[0] - 2.0).abs() < f32::EPSILON);
-    assert!((config.cursor_shadow_offset[1] - 2.0).abs() < f32::EPSILON);
+    assert!((config.cursor.cursor_shadow_offset[0] - 2.0).abs() < f32::EPSILON);
+    assert!((config.cursor.cursor_shadow_offset[1] - 2.0).abs() < f32::EPSILON);
     // Default shadow blur
-    assert!((config.cursor_shadow_blur - 3.0).abs() < f32::EPSILON);
+    assert!((config.cursor.cursor_shadow_blur - 3.0).abs() < f32::EPSILON);
     // Cursor boost (glow) disabled by default (0.0)
-    assert!((config.cursor_boost).abs() < f32::EPSILON);
+    assert!((config.cursor.cursor_boost).abs() < f32::EPSILON);
     // Default boost color: white
-    assert_eq!(config.cursor_boost_color, [255, 255, 255]);
+    assert_eq!(config.cursor.cursor_boost_color, [255, 255, 255]);
 }
 
 #[test]
@@ -369,16 +369,16 @@ cursor_boost: 0.5
 cursor_boost_color: [255, 200, 100]
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert_eq!(config.unfocused_cursor_style, UnfocusedCursorStyle::Hidden);
-    assert!(config.cursor_guide_enabled);
-    assert_eq!(config.cursor_guide_color, [200, 200, 255, 40]);
-    assert!(config.cursor_shadow_enabled);
-    assert_eq!(config.cursor_shadow_color, [0, 0, 0, 200]);
-    assert!((config.cursor_shadow_offset[0] - 3.0).abs() < f32::EPSILON);
-    assert!((config.cursor_shadow_offset[1] - 3.0).abs() < f32::EPSILON);
-    assert!((config.cursor_shadow_blur - 5.0).abs() < f32::EPSILON);
-    assert!((config.cursor_boost - 0.5).abs() < f32::EPSILON);
-    assert_eq!(config.cursor_boost_color, [255, 200, 100]);
+    assert_eq!(config.cursor.unfocused_cursor_style, UnfocusedCursorStyle::Hidden);
+    assert!(config.cursor.cursor_guide_enabled);
+    assert_eq!(config.cursor.cursor_guide_color, [200, 200, 255, 40]);
+    assert!(config.cursor.cursor_shadow_enabled);
+    assert_eq!(config.cursor.cursor_shadow_color, [0, 0, 0, 200]);
+    assert!((config.cursor.cursor_shadow_offset[0] - 3.0).abs() < f32::EPSILON);
+    assert!((config.cursor.cursor_shadow_offset[1] - 3.0).abs() < f32::EPSILON);
+    assert!((config.cursor.cursor_shadow_blur - 5.0).abs() < f32::EPSILON);
+    assert!((config.cursor.cursor_boost - 0.5).abs() < f32::EPSILON);
+    assert_eq!(config.cursor.cursor_boost_color, [255, 200, 100]);
 }
 
 #[test]
@@ -386,27 +386,27 @@ fn test_config_unfocused_cursor_style_variants() {
     // Test hollow variant
     let yaml = r#"unfocused_cursor_style: hollow"#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert_eq!(config.unfocused_cursor_style, UnfocusedCursorStyle::Hollow);
+    assert_eq!(config.cursor.unfocused_cursor_style, UnfocusedCursorStyle::Hollow);
 
     // Test same variant
     let yaml = r#"unfocused_cursor_style: same"#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert_eq!(config.unfocused_cursor_style, UnfocusedCursorStyle::Same);
+    assert_eq!(config.cursor.unfocused_cursor_style, UnfocusedCursorStyle::Same);
 
     // Test hidden variant
     let yaml = r#"unfocused_cursor_style: hidden"#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert_eq!(config.unfocused_cursor_style, UnfocusedCursorStyle::Hidden);
+    assert_eq!(config.cursor.unfocused_cursor_style, UnfocusedCursorStyle::Hidden);
 }
 
 #[test]
 fn test_config_cursor_enhancement_yaml_serialization() {
     let mut config = Config::default();
-    config.unfocused_cursor_style = UnfocusedCursorStyle::Same;
-    config.cursor_guide_enabled = true;
-    config.cursor_guide_color = [100, 150, 200, 50];
-    config.cursor_shadow_enabled = true;
-    config.cursor_boost = 0.7;
+    config.cursor.unfocused_cursor_style = UnfocusedCursorStyle::Same;
+    config.cursor.cursor_guide_enabled = true;
+    config.cursor.cursor_guide_color = [100, 150, 200, 50];
+    config.cursor.cursor_shadow_enabled = true;
+    config.cursor.cursor_boost = 0.7;
 
     let yaml = serde_yaml_ng::to_string(&config).unwrap();
     assert!(yaml.contains("unfocused_cursor_style: same"));
@@ -423,12 +423,12 @@ cursor_guide_enabled: true
 cursor_boost: 0.3
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert!(config.cursor_guide_enabled);
-    assert!((config.cursor_boost - 0.3).abs() < f32::EPSILON);
+    assert!(config.cursor.cursor_guide_enabled);
+    assert!((config.cursor.cursor_boost - 0.3).abs() < f32::EPSILON);
     // Other fields should have defaults
-    assert_eq!(config.unfocused_cursor_style, UnfocusedCursorStyle::Hollow);
-    assert!(!config.cursor_shadow_enabled);
-    assert_eq!(config.cursor_guide_color, [255, 255, 255, 20]);
+    assert_eq!(config.cursor.unfocused_cursor_style, UnfocusedCursorStyle::Hollow);
+    assert!(!config.cursor.cursor_shadow_enabled);
+    assert_eq!(config.cursor.cursor_guide_color, [255, 255, 255, 20]);
 }
 
 // ============================================================================
@@ -490,11 +490,11 @@ cols: 120
 fn test_config_advanced_mouse_defaults() {
     let config = Config::default();
     // Option+Click moves cursor should be enabled by default
-    assert!(config.option_click_moves_cursor);
+    assert!(config.mouse.option_click_moves_cursor);
     // Focus follows mouse should be disabled by default (opt-in)
-    assert!(!config.focus_follows_mouse);
+    assert!(!config.mouse.focus_follows_mouse);
     // Horizontal scroll reporting should be enabled by default
-    assert!(config.report_horizontal_scroll);
+    assert!(config.mouse.report_horizontal_scroll);
 }
 
 #[test]
@@ -505,17 +505,17 @@ focus_follows_mouse: true
 report_horizontal_scroll: false
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert!(!config.option_click_moves_cursor);
-    assert!(config.focus_follows_mouse);
-    assert!(!config.report_horizontal_scroll);
+    assert!(!config.mouse.option_click_moves_cursor);
+    assert!(config.mouse.focus_follows_mouse);
+    assert!(!config.mouse.report_horizontal_scroll);
 }
 
 #[test]
 fn test_config_advanced_mouse_yaml_serialization() {
     let mut config = Config::default();
-    config.option_click_moves_cursor = false;
-    config.focus_follows_mouse = true;
-    config.report_horizontal_scroll = false;
+    config.mouse.option_click_moves_cursor = false;
+    config.mouse.focus_follows_mouse = true;
+    config.mouse.report_horizontal_scroll = false;
 
     let yaml = serde_yaml_ng::to_string(&config).unwrap();
     assert!(yaml.contains("option_click_moves_cursor: false"));
@@ -530,8 +530,8 @@ fn test_config_advanced_mouse_partial_yaml() {
 focus_follows_mouse: true
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert!(config.focus_follows_mouse);
+    assert!(config.mouse.focus_follows_mouse);
     // Other fields should have defaults
-    assert!(config.option_click_moves_cursor);
-    assert!(config.report_horizontal_scroll);
+    assert!(config.mouse.option_click_moves_cursor);
+    assert!(config.mouse.report_horizontal_scroll);
 }

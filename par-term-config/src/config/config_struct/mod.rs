@@ -7,7 +7,9 @@
 //!
 //! - [`default_impl`] — `impl Default for Config`
 //! - [`copy_mode_config`] — [`CopyModeConfig`]: vi-style copy mode settings
+//! - [`cursor_config`] — [`CursorConfig`]: cursor style, blink, color, locks, guide, shadow, boost, unfocused
 //! - [`global_shader_config`] — [`GlobalShaderConfig`]: all `custom_shader_*` and `cursor_shader_*` fields
+//! - [`mouse_config`] — [`MouseConfig`]: scroll speed, click thresholds, option-click, focus-follows-mouse
 //! - [`search_config`] — [`SearchConfig`]: search highlight and options
 //! - [`ssh_config`] — [`SshConfig`]: SSH discovery and profile switching
 //! - [`unicode_config`] — [`UnicodeConfig`]: Unicode width and normalization
@@ -32,10 +34,10 @@
 //! | Background + Cursor Shaders  | `GlobalShaderConfig` (done) |
 //! | Keyboard Input               | `InputConfig`          |
 //! | Selection & Clipboard        | `SelectionConfig`      |
-//! | Mouse Behavior               | `MouseConfig`          |
+//! | Mouse Behavior               | `MouseConfig` (done)   |
 //! | Word Selection               | `WordSelectionConfig`  |
 //! | Scrollback & Cursor          | `ScrollbackConfig`     |
-//! | Cursor Enhancements          | `CursorConfig`         |
+//! | Cursor Enhancements          | `CursorConfig` (done)  |
 //! | Scrollbar                    | `ScrollbarConfig`      |
 //! | Theme & Colors               | `ThemeConfig`          |
 //! | Screenshot                   | `ScreenshotConfig`     |
@@ -70,9 +72,11 @@
 
 mod ai_inspector_config;
 mod copy_mode_config;
+mod cursor_config;
 mod default_impl;
 mod font_config;
 mod global_shader_config;
+mod mouse_config;
 mod notification_config;
 mod scrollback_config;
 mod search_config;
@@ -84,8 +88,10 @@ mod window_config;
 
 pub use ai_inspector_config::{AiInspectorConfig, AssistantInputHistoryMode};
 pub use copy_mode_config::CopyModeConfig;
+pub use cursor_config::CursorConfig;
 pub use font_config::FontRenderingConfig;
 pub use global_shader_config::GlobalShaderConfig;
+pub use mouse_config::MouseConfig;
 pub use notification_config::NotificationConfig;
 pub use scrollback_config::ScrollbackConfig;
 pub use search_config::SearchConfig;
@@ -97,13 +103,13 @@ pub use window_config::WindowConfig;
 
 use crate::snippets::{CustomActionConfig, SnippetConfig};
 use crate::types::{
-    BackgroundImageMode, BackgroundMode, CursorShaderConfig, CursorStyle, DividerStyle,
+    BackgroundImageMode, BackgroundMode, CursorShaderConfig, DividerStyle,
     DownloadSaveLocation, DroppedFileQuoteStyle, FontRange, ImageScalingMode, InstallPromptState,
     IntegrationVersions, KeyBinding, LogLevel, ModifierRemapping, NewTabPosition, OptionKeyMode,
     PaneTitlePosition, PowerPreference, ProgressBarPosition, ProgressBarStyle,
     RemoteTabTitleFormat, SemanticHistoryEditorMode, SessionLogFormat, ShaderConfig,
     ShaderInstallPrompt, ShellExitAction, SmartSelectionRule, StartupDirectoryMode, TabBarMode,
-    TabBarPosition, TabStyle, TabTitleMode, UnfocusedCursorStyle, VsyncMode, WindowType,
+    TabBarPosition, TabStyle, TabTitleMode, VsyncMode, WindowType,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -452,35 +458,13 @@ pub struct Config {
     pub dropped_file_quote_style: DroppedFileQuoteStyle,
 
     // ========================================================================
-    // Mouse Behavior
+    // Mouse — extracted to MouseConfig
     // ========================================================================
-    /// Mouse wheel scroll speed multiplier
-    #[serde(default = "crate::defaults::scroll_speed")]
-    pub mouse_scroll_speed: f32,
-
-    /// Double-click timing threshold in milliseconds
-    #[serde(default = "crate::defaults::double_click_threshold")]
-    pub mouse_double_click_threshold: u64,
-
-    /// Triple-click timing threshold in milliseconds (typically same as double-click)
-    #[serde(default = "crate::defaults::triple_click_threshold")]
-    pub mouse_triple_click_threshold: u64,
-
-    /// Option+Click (macOS) / Alt+Click (Linux/Windows) moves cursor to clicked position
-    /// Sends cursor movement escape sequences to position text cursor at click location
-    /// Useful for quick cursor positioning in shells and editors
-    #[serde(default = "crate::defaults::bool_true")]
-    pub option_click_moves_cursor: bool,
-
-    /// Focus window automatically when mouse enters (without requiring a click)
-    /// This is an accessibility feature that some users prefer
-    #[serde(default = "crate::defaults::bool_false")]
-    pub focus_follows_mouse: bool,
-
-    /// Report horizontal scroll events to terminal applications when mouse reporting is enabled
-    /// Horizontal scroll uses button codes 6 (left) and 7 (right) in the mouse protocol
-    #[serde(default = "crate::defaults::bool_true")]
-    pub report_horizontal_scroll: bool,
+    /// Mouse behavior settings (see [`MouseConfig`]).
+    ///
+    /// Flattened into the top-level YAML so existing config files remain compatible.
+    #[serde(flatten)]
+    pub mouse: MouseConfig,
 
     // ========================================================================
     // Word Selection
@@ -526,85 +510,14 @@ pub struct Config {
     #[serde(flatten)]
     pub unicode: UnicodeConfig,
 
-    /// Enable cursor blinking
-    #[serde(default = "crate::defaults::bool_false")]
-    pub cursor_blink: bool,
-
-    /// Cursor blink interval in milliseconds
-    #[serde(default = "crate::defaults::cursor_blink_interval")]
-    pub cursor_blink_interval: u64,
-
-    /// Cursor style (block, beam, underline)
-    #[serde(default)]
-    pub cursor_style: CursorStyle,
-
-    /// Cursor color [R, G, B] (0-255)
-    #[serde(default = "crate::defaults::cursor_color")]
-    pub cursor_color: [u8; 3],
-
-    /// Color of text under block cursor [R, G, B] (0-255)
-    /// If not set (None), uses automatic contrast color
-    /// Only affects block cursor style (beam and underline don't obscure text)
-    #[serde(default)]
-    pub cursor_text_color: Option<[u8; 3]>,
-
-    /// Lock cursor visibility - prevent applications from hiding the cursor
-    /// When true, the cursor remains visible regardless of DECTCEM escape sequences
-    #[serde(default = "crate::defaults::bool_false")]
-    pub lock_cursor_visibility: bool,
-
-    /// Lock cursor style - prevent applications from changing the cursor style
-    /// When true, the cursor style from config is always used, ignoring DECSCUSR escape sequences
-    #[serde(default = "crate::defaults::bool_false")]
-    pub lock_cursor_style: bool,
-
-    /// Lock cursor blink - prevent applications from enabling cursor blink
-    /// When true and cursor_blink is false, applications cannot enable blinking cursor
-    #[serde(default = "crate::defaults::bool_false")]
-    pub lock_cursor_blink: bool,
-
     // ========================================================================
-    // Cursor Enhancements (iTerm2-style features)
+    // Cursor — extracted to CursorConfig
     // ========================================================================
-    /// Enable horizontal guide line at cursor row for better tracking in wide terminals
-    #[serde(default = "crate::defaults::bool_false")]
-    pub cursor_guide_enabled: bool,
-
-    /// Cursor guide color [R, G, B, A] (0-255), subtle highlight spanning full terminal width
-    #[serde(default = "crate::defaults::cursor_guide_color")]
-    pub cursor_guide_color: [u8; 4],
-
-    /// Enable drop shadow behind cursor for better visibility against varying backgrounds
-    #[serde(default = "crate::defaults::bool_false")]
-    pub cursor_shadow_enabled: bool,
-
-    /// Cursor shadow color [R, G, B, A] (0-255)
-    #[serde(default = "crate::defaults::cursor_shadow_color")]
-    pub cursor_shadow_color: [u8; 4],
-
-    /// Cursor shadow offset in pixels [x, y]
-    #[serde(default = "crate::defaults::cursor_shadow_offset")]
-    pub cursor_shadow_offset: [f32; 2],
-
-    /// Cursor shadow blur radius in pixels
-    #[serde(default = "crate::defaults::cursor_shadow_blur")]
-    pub cursor_shadow_blur: f32,
-
-    /// Cursor boost (glow) intensity (0.0 = off, 1.0 = maximum boost)
-    /// Adds a glow/highlight effect around the cursor for visibility
-    #[serde(default = "crate::defaults::cursor_boost")]
-    pub cursor_boost: f32,
-
-    /// Cursor boost glow color [R, G, B] (0-255)
-    #[serde(default = "crate::defaults::cursor_boost_color")]
-    pub cursor_boost_color: [u8; 3],
-
-    /// Cursor appearance when window is unfocused
-    /// - hollow: Show outline-only block cursor (default, standard terminal behavior)
-    /// - same: Keep same cursor style as when focused
-    /// - hidden: Hide cursor completely when unfocused
-    #[serde(default)]
-    pub unfocused_cursor_style: UnfocusedCursorStyle,
+    /// Cursor appearance and behavior settings (see [`CursorConfig`]).
+    ///
+    /// Flattened into the top-level YAML so existing config files remain compatible.
+    #[serde(flatten)]
+    pub cursor: CursorConfig,
 
     // ========================================================================
     // Scrollbar

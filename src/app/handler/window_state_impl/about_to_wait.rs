@@ -125,7 +125,7 @@ impl WindowState {
                 .active_tab()
                 .and_then(|tab| {
                     tab.try_with_terminal_mut(|term| {
-                        !term.is_cursor_visible() && !self.config.lock_cursor_visibility
+                        !term.is_cursor_visible() && !self.config.cursor.lock_cursor_visibility
                     })
                 })
                 .unwrap_or(false);
@@ -235,12 +235,12 @@ impl WindowState {
         // 1. Cursor Blinking
         // Wake up exactly when the cursor needs to toggle visibility or fade.
         // Skip cursor blinking when unfocused with pause_refresh_on_blur to save power.
-        if self.config.cursor_blink
+        if self.config.cursor.cursor_blink
             && (self.focus_state.is_focused || !self.config.pause_refresh_on_blur)
         {
             if self.cursor_anim.cursor_blink_timer.is_none() {
                 let blink_interval =
-                    std::time::Duration::from_millis(self.config.cursor_blink_interval);
+                    std::time::Duration::from_millis(self.config.cursor.cursor_blink_interval);
                 self.cursor_anim.cursor_blink_timer = Some(now + blink_interval);
             }
 
@@ -251,7 +251,7 @@ impl WindowState {
                         self.focus_state.needs_redraw = true;
                     }
                     let blink_interval =
-                        std::time::Duration::from_millis(self.config.cursor_blink_interval);
+                        std::time::Duration::from_millis(self.config.cursor.cursor_blink_interval);
                     self.cursor_anim.cursor_blink_timer = Some(now + blink_interval);
                 } else if next_blink < next_wake {
                     // Schedule wake-up for the next toggle

@@ -146,7 +146,7 @@ impl WindowState {
             use par_term_emu_core_rust::cursor::CursorStyle as TermCursorStyle;
 
             // Cycle to next cursor style
-            self.config.cursor_style = match self.config.cursor_style {
+            self.config.cursor.cursor_style = match self.config.cursor.cursor_style {
                 CursorStyle::Block => CursorStyle::Beam,
                 CursorStyle::Beam => CursorStyle::Underline,
                 CursorStyle::Underline => CursorStyle::Block,
@@ -156,18 +156,18 @@ impl WindowState {
             self.invalidate_tab_cache();
             self.focus_state.needs_redraw = true;
 
-            log::info!("Cycled cursor style to {:?}", self.config.cursor_style);
+            log::info!("Cycled cursor style to {:?}", self.config.cursor.cursor_style);
 
             // Map our config cursor style to terminal cursor style
             // Respect the cursor_blink setting when cycling styles
-            let term_style = if self.config.cursor_blink {
-                match self.config.cursor_style {
+            let term_style = if self.config.cursor.cursor_blink {
+                match self.config.cursor.cursor_style {
                     CursorStyle::Block => TermCursorStyle::BlinkingBlock,
                     CursorStyle::Beam => TermCursorStyle::BlinkingBar,
                     CursorStyle::Underline => TermCursorStyle::BlinkingUnderline,
                 }
             } else {
-                match self.config.cursor_style {
+                match self.config.cursor.cursor_style {
                     CursorStyle::Block => TermCursorStyle::SteadyBlock,
                     CursorStyle::Beam => TermCursorStyle::SteadyBar,
                     CursorStyle::Underline => TermCursorStyle::SteadyUnderline,

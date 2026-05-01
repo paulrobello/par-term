@@ -32,7 +32,7 @@ pub(super) fn show_cursor_section(
         collapsing_section(ui, "Cursor", "appearance_cursor", true, collapsed, |ui| {
             ui.horizontal(|ui| {
                 ui.label("Style:");
-                let current = match settings.config.cursor_style {
+                let current = match settings.config.cursor.cursor_style {
                     CursorStyle::Block => 0,
                     CursorStyle::Beam => 1,
                     CursorStyle::Underline => 2,
@@ -51,7 +51,7 @@ pub(super) fn show_cursor_section(
                         ui.selectable_value(&mut selected, 2, "Underline");
                     });
                 if selected != current {
-                    settings.config.cursor_style = match selected {
+                    settings.config.cursor.cursor_style = match selected {
                         0 => CursorStyle::Block,
                         1 => CursorStyle::Beam,
                         2 => CursorStyle::Underline,
@@ -62,7 +62,7 @@ pub(super) fn show_cursor_section(
             });
 
             if ui
-                .checkbox(&mut settings.config.cursor_blink, "Cursor blink")
+                .checkbox(&mut settings.config.cursor.cursor_blink, "Cursor blink")
                 .changed()
             {
                 settings.has_changes = true;
@@ -73,7 +73,7 @@ pub(super) fn show_cursor_section(
                 ui.label("Blink interval (ms):");
                 if ui
                     .add(egui::Slider::new(
-                        &mut settings.config.cursor_blink_interval,
+                        &mut settings.config.cursor.cursor_blink_interval,
                         100..=2000,
                     ))
                     .changed()
@@ -85,9 +85,9 @@ pub(super) fn show_cursor_section(
 
             ui.horizontal(|ui| {
                 ui.label("Color:");
-                let mut color = settings.config.cursor_color;
+                let mut color = settings.config.cursor.cursor_color;
                 if ui.color_edit_button_srgb(&mut color).changed() {
-                    settings.config.cursor_color = color;
+                    settings.config.cursor.cursor_color = color;
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
@@ -95,22 +95,22 @@ pub(super) fn show_cursor_section(
 
             ui.horizontal(|ui| {
                 ui.label("Text color (block cursor):");
-                let mut use_custom_color = settings.config.cursor_text_color.is_some();
+                let mut use_custom_color = settings.config.cursor.cursor_text_color.is_some();
                 if ui
                     .checkbox(&mut use_custom_color, "")
                     .on_hover_text("Enable custom text color under block cursor")
                     .changed()
                 {
                     if use_custom_color {
-                        settings.config.cursor_text_color = Some([255, 0, 0]);
+                        settings.config.cursor.cursor_text_color = Some([255, 0, 0]);
                     } else {
-                        settings.config.cursor_text_color = None;
+                        settings.config.cursor.cursor_text_color = None;
                     }
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
 
-                if let Some(ref mut text_color) = settings.config.cursor_text_color {
+                if let Some(ref mut text_color) = settings.config.cursor.cursor_text_color {
                     let mut color = *text_color;
                     if ui.color_edit_button_srgb(&mut color).changed() {
                         *text_color = color;
@@ -126,7 +126,7 @@ pub(super) fn show_cursor_section(
 
             ui.horizontal(|ui| {
                 ui.label("Style:");
-                let current = match settings.config.unfocused_cursor_style {
+                let current = match settings.config.cursor.unfocused_cursor_style {
                     UnfocusedCursorStyle::Hollow => 0,
                     UnfocusedCursorStyle::Same => 1,
                     UnfocusedCursorStyle::Hidden => 2,
@@ -145,7 +145,7 @@ pub(super) fn show_cursor_section(
                         ui.selectable_value(&mut selected, 2, "Hidden");
                     });
                 if selected != current {
-                    settings.config.unfocused_cursor_style = match selected {
+                    settings.config.cursor.unfocused_cursor_style = match selected {
                         0 => UnfocusedCursorStyle::Hollow,
                         1 => UnfocusedCursorStyle::Same,
                         2 => UnfocusedCursorStyle::Hidden,
@@ -188,7 +188,7 @@ pub(super) fn show_cursor_locks_section(
 
                 if ui
                     .checkbox(
-                        &mut settings.config.lock_cursor_visibility,
+                        &mut settings.config.cursor.lock_cursor_visibility,
                         "Lock cursor visibility",
                     )
                     .on_hover_text("Prevent applications from hiding the cursor")
@@ -199,7 +199,7 @@ pub(super) fn show_cursor_locks_section(
                 }
 
                 if ui
-                    .checkbox(&mut settings.config.lock_cursor_style, "Lock cursor style")
+                    .checkbox(&mut settings.config.cursor.lock_cursor_style, "Lock cursor style")
                     .on_hover_text("Prevent applications from changing cursor style")
                     .changed()
                 {
@@ -207,10 +207,10 @@ pub(super) fn show_cursor_locks_section(
                     *changes_this_frame = true;
                 }
 
-                ui.add_enabled_ui(!settings.config.lock_cursor_style, |ui| {
+                ui.add_enabled_ui(!settings.config.cursor.lock_cursor_style, |ui| {
                     if ui
-                        .checkbox(&mut settings.config.lock_cursor_blink, "Lock cursor blink")
-                        .on_hover_text(if settings.config.lock_cursor_style {
+                        .checkbox(&mut settings.config.cursor.lock_cursor_blink, "Lock cursor blink")
+                        .on_hover_text(if settings.config.cursor.lock_cursor_style {
                             "Disabled: Lock cursor style already controls blink"
                         } else {
                             "Prevent applications from enabling cursor blink"
@@ -256,7 +256,7 @@ pub(super) fn show_cursor_effects_section(
                 // Cursor Guide
                 if ui
                     .checkbox(
-                        &mut settings.config.cursor_guide_enabled,
+                        &mut settings.config.cursor.cursor_guide_enabled,
                         "Cursor guide (horizontal line)",
                     )
                     .on_hover_text("Show a subtle horizontal line at the cursor row")
@@ -266,15 +266,15 @@ pub(super) fn show_cursor_effects_section(
                     *changes_this_frame = true;
                 }
 
-                if settings.config.cursor_guide_enabled {
+                if settings.config.cursor.cursor_guide_enabled {
                     ui.horizontal(|ui| {
                         ui.label("Guide color:");
-                        let mut color = settings.config.cursor_guide_color;
+                        let mut color = settings.config.cursor.cursor_guide_color;
                         if ui
                             .color_edit_button_srgba_unmultiplied(&mut color)
                             .changed()
                         {
-                            settings.config.cursor_guide_color = color;
+                            settings.config.cursor.cursor_guide_color = color;
                             settings.has_changes = true;
                             *changes_this_frame = true;
                         }
@@ -285,7 +285,7 @@ pub(super) fn show_cursor_effects_section(
 
                 // Cursor Shadow
                 if ui
-                    .checkbox(&mut settings.config.cursor_shadow_enabled, "Cursor shadow")
+                    .checkbox(&mut settings.config.cursor.cursor_shadow_enabled, "Cursor shadow")
                     .on_hover_text("Add a drop shadow behind the cursor")
                     .changed()
                 {
@@ -293,15 +293,15 @@ pub(super) fn show_cursor_effects_section(
                     *changes_this_frame = true;
                 }
 
-                if settings.config.cursor_shadow_enabled {
+                if settings.config.cursor.cursor_shadow_enabled {
                     ui.horizontal(|ui| {
                         ui.label("Shadow color:");
-                        let mut color = settings.config.cursor_shadow_color;
+                        let mut color = settings.config.cursor.cursor_shadow_color;
                         if ui
                             .color_edit_button_srgba_unmultiplied(&mut color)
                             .changed()
                         {
-                            settings.config.cursor_shadow_color = color;
+                            settings.config.cursor.cursor_shadow_color = color;
                             settings.has_changes = true;
                             *changes_this_frame = true;
                         }
@@ -311,7 +311,7 @@ pub(super) fn show_cursor_effects_section(
                         ui.label("Shadow offset X:");
                         if ui
                             .add(egui::Slider::new(
-                                &mut settings.config.cursor_shadow_offset[0],
+                                &mut settings.config.cursor.cursor_shadow_offset[0],
                                 0.0..=10.0,
                             ))
                             .changed()
@@ -325,7 +325,7 @@ pub(super) fn show_cursor_effects_section(
                         ui.label("Shadow offset Y:");
                         if ui
                             .add(egui::Slider::new(
-                                &mut settings.config.cursor_shadow_offset[1],
+                                &mut settings.config.cursor.cursor_shadow_offset[1],
                                 0.0..=10.0,
                             ))
                             .changed()
@@ -340,7 +340,7 @@ pub(super) fn show_cursor_effects_section(
                         if ui
                             .add(
                                 egui::Slider::new(
-                                    &mut settings.config.cursor_shadow_blur,
+                                    &mut settings.config.cursor.cursor_shadow_blur,
                                     0.0..=20.0,
                                 )
                                 .suffix(" px"),
@@ -360,7 +360,7 @@ pub(super) fn show_cursor_effects_section(
                     ui.label("Cursor boost (glow):");
                     if ui
                         .add(egui::Slider::new(
-                            &mut settings.config.cursor_boost,
+                            &mut settings.config.cursor.cursor_boost,
                             0.0..=1.0,
                         ))
                         .on_hover_text("Add a glow effect around the cursor for visibility")
@@ -371,12 +371,12 @@ pub(super) fn show_cursor_effects_section(
                     }
                 });
 
-                if settings.config.cursor_boost > 0.0 {
+                if settings.config.cursor.cursor_boost > 0.0 {
                     ui.horizontal(|ui| {
                         ui.label("Boost color:");
-                        let mut color = settings.config.cursor_boost_color;
+                        let mut color = settings.config.cursor.cursor_boost_color;
                         if ui.color_edit_button_srgb(&mut color).changed() {
-                            settings.config.cursor_boost_color = color;
+                            settings.config.cursor.cursor_boost_color = color;
                             settings.has_changes = true;
                             *changes_this_frame = true;
                         }

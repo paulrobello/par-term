@@ -87,6 +87,7 @@ pub(crate) use render_loop_state::{ConfigSaveState, RenderLoopState};
 pub(crate) use trigger_state::{PendingTriggerAction, TriggerState};
 pub(crate) use update_state::UpdateState;
 pub(crate) use watcher_state::WatcherState;
+pub(crate) use crate::app::tmux_handler::tmux_state::TmuxState;
 
 use crate::app::window_state::debug_state::DebugState;
 use crate::badge::BadgeState;
@@ -234,7 +235,7 @@ pub struct WindowState {
     // =========================================================================
     // tmux integration
     // =========================================================================
-    pub(crate) tmux_state: crate::app::tmux_handler::tmux_state::TmuxState,
+    pub(crate) tmux_state: TmuxState,
 
     // =========================================================================
     // Window snap-to-grid

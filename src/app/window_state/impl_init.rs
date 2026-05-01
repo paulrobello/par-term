@@ -103,7 +103,7 @@ impl WindowState {
 
             smart_selection_cache: SmartSelectionCache::new(),
 
-            tmux_state: crate::app::tmux_handler::tmux_state::TmuxState::new(tmux_prefix_key),
+            tmux_state: super::TmuxState::new(tmux_prefix_key),
 
             broadcast_input: false,
 

@@ -112,7 +112,7 @@ impl WindowState {
             // scrollback offsets must not suppress cursor state there.
             // If lock_cursor_visibility is enabled, ignore the terminal's visibility state.
             // In copy mode, use the copy mode cursor position instead.
-            let cursor_visible = self.config.lock_cursor_visibility || term.is_cursor_visible();
+            let cursor_visible = self.config.cursor.lock_cursor_visibility || term.is_cursor_visible();
             let live_view = cursor_is_on_live_view(scroll_offset, is_alt_screen);
             let terminal_cursor_pos =
                 (!self.copy_mode.active && live_view).then(|| term.cursor_position());
@@ -136,15 +136,15 @@ impl WindowState {
             let cursor_style = if self.copy_mode.active && current_cursor_pos.is_some() {
                 Some(TermCursorStyle::SteadyBlock)
             } else if current_cursor_pos.is_some() {
-                if self.config.lock_cursor_style {
-                    let style = if self.config.cursor_blink {
-                        match self.config.cursor_style {
+                if self.config.cursor.lock_cursor_style {
+                    let style = if self.config.cursor.cursor_blink {
+                        match self.config.cursor.cursor_style {
                             CursorStyle::Block => TermCursorStyle::BlinkingBlock,
                             CursorStyle::Beam => TermCursorStyle::BlinkingBar,
                             CursorStyle::Underline => TermCursorStyle::BlinkingUnderline,
                         }
                     } else {
-                        match self.config.cursor_style {
+                        match self.config.cursor.cursor_style {
                             CursorStyle::Block => TermCursorStyle::SteadyBlock,
                             CursorStyle::Beam => TermCursorStyle::SteadyBar,
                             CursorStyle::Underline => TermCursorStyle::SteadyUnderline,
@@ -154,7 +154,7 @@ impl WindowState {
                 } else {
                     let mut style = term.cursor_style();
                     // If blink is locked off, convert blinking styles to steady
-                    if self.config.lock_cursor_blink && !self.config.cursor_blink {
+                    if self.config.cursor.lock_cursor_blink && !self.config.cursor.cursor_blink {
                         style = match style {
                             TermCursorStyle::BlinkingBlock => TermCursorStyle::SteadyBlock,
                             TermCursorStyle::BlinkingBar => TermCursorStyle::SteadyBar,
