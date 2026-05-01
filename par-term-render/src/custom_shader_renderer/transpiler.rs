@@ -598,43 +598,29 @@ void main() {{
             mix(finalModeAlpha, chainAlpha, isChainMode)
         );
     }} else {{
-        // Background-only mode: text is composited cleanly on top of shader background
+        // Background-only mode: terminal content is rendered by the pane pass after
+        // this shader pass. iChannel4 is only a mask for readability effects here;
+        // compositing terminalColor into this output would draw content twice.
         vec4 terminalColor = texture(iChannel4, vec2(v_uv.x, 1.0 - v_uv.y));
-
-        // Terminal texture is premultiplied alpha (rgb already multiplied by alpha)
-        // from GPU blending onto transparent background.
-        // Scale by iTextOpacity to allow fading terminal content.
-        vec3 srcPremul = terminalColor.rgb * iTextOpacity;
-        float srcA = terminalColor.a * iTextOpacity;
 
         // Determine background color:
         // - If iBackgroundColor.a > 0, use it as solid background (with brightness applied)
         // - Otherwise, use shader output (dimmedShaderRgb) as background
         float useSolidBg = step(0.01, iBackgroundColor.a);
-        float hasContent = step(0.01, terminalColor.a);
-        float readabilityDim = mix(1.0, max(0.0, 1.0 - iReadability.y), iReadability.x * hasContent);
+        float contentMask = clamp(terminalColor.a, 0.0, 1.0);
+        float readabilityDim = mix(1.0, max(0.0, 1.0 - iReadability.y), iReadability.x * contentMask);
         vec3 readableShaderRgb = dimmedShaderRgb * readabilityDim;
         vec3 bgColor = mix(readableShaderRgb, iBackgroundColor.rgb * iBrightness, useSolidBg);
 
         // Detect chain mode (iOpacity ≈ 0 signals rendering to intermediate for another shader)
         float isChainMode = step(iOpacity, 0.001);
 
-        // In chain mode: use full background color for RGB, terminal-only alpha
-        // In final mode: use premultiplied background with full alpha compositing
+        // In chain mode: keep full RGB for the next shader, but leave alpha transparent
+        // so terminal alpha comes from the pane render that follows this pass.
+        // In final mode: output premultiplied background at window opacity.
         vec3 bgPremul = bgColor * iOpacity;
-        float bgA = iOpacity;
-
-        // RGB: in chain mode use full bgColor, in final mode use premultiplied
-        vec3 effectiveBgRgb = mix(bgPremul, bgColor, isChainMode);
-
-        // Standard "over" compositing with the effective background
-        vec3 finalRgb = srcPremul + effectiveBgRgb * (1.0 - srcA);
-
-        // Alpha: in chain mode preserve terminal alpha only (for transparency detection)
-        // In final mode, composite with background opacity
-        float finalA_chain = srcA;
-        float finalA_final = srcA + bgA * (1.0 - srcA);
-        float finalA = mix(finalA_final, finalA_chain, isChainMode);
+        vec3 finalRgb = mix(bgPremul, bgColor, isChainMode);
+        float finalA = mix(iOpacity, 0.0, isChainMode);
 
         outColor = vec4(finalRgb, finalA);
     }}
@@ -916,6 +902,30 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
             .expect("transpile should succeed");
 
         assert!(wgsl.contains("iBackgroundBlendMode") || wgsl.contains("iBackgroundChannel"));
+    }
+
+    #[test]
+    fn background_only_wrapper_uses_ichannel4_as_mask_not_terminal_composite() {
+        let wrapper = glsl_wrapper_template(
+            r#"
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {
+    fragColor = vec4(0.2, 0.4, 0.8, 1.0);
+}
+"#,
+        );
+        let background_only_branch = wrapper
+            .split("    } else {")
+            .nth(1)
+            .expect("wrapper should contain background-only branch");
+
+        assert!(background_only_branch.contains("contentMask"));
+        assert!(
+            background_only_branch
+                .contains("float contentMask = clamp(terminalColor.a, 0.0, 1.0);")
+        );
+        assert!(!background_only_branch.contains("step(0.01, terminalColor.a)"));
+        assert!(!background_only_branch.contains("srcPremul"));
+        assert!(!background_only_branch.contains("srcA"));
     }
 
     #[test]

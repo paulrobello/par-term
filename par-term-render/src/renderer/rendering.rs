@@ -17,6 +17,14 @@ use super::{
 
 // This file contains the multi-pane frame-level helper `render_split_panes` and `take_screenshot`.
 
+fn should_populate_terminal_intermediate_texture(
+    full_content_mode: bool,
+    auto_dim_under_text: bool,
+    auto_dim_strength: f32,
+) -> bool {
+    full_content_mode || (auto_dim_under_text && auto_dim_strength > 0.0)
+}
+
 /// Parameters for [`Renderer::render_split_panes`].
 pub struct SplitPanesRenderParams<'a> {
     pub panes: &'a [PaneRenderInfo<'a>],
@@ -125,21 +133,34 @@ impl Renderer {
             }
         };
 
-        // Determine if custom shader uses full content mode (shader processes terminal content)
-        let full_content_mode = self
+        // Determine if the shader needs terminal pixels in iChannel4.
+        // Full-content mode processes terminal content directly; auto-dim uses the same
+        // texture as a content mask so it can dim only beneath text/content pixels.
+        let (full_content_mode, populate_terminal_intermediate_texture) = self
             .custom_shader_renderer
             .as_ref()
-            .is_some_and(|s| s.full_content_mode());
+            .map(|s| {
+                let full_content_mode = s.full_content_mode();
+                (
+                    full_content_mode,
+                    should_populate_terminal_intermediate_texture(
+                        full_content_mode,
+                        s.auto_dim_under_text,
+                        s.auto_dim_strength,
+                    ),
+                )
+            })
+            .unwrap_or((false, false));
 
-        // Full content mode: render pane content to the shader's intermediate texture
-        // BEFORE running the shader, so it can process terminal content via iChannel4.
+        // Render pane content to the shader's intermediate texture BEFORE running the
+        // shader when it needs terminal pixels via iChannel4.
         // This must happen outside the `custom_shader_renderer` mutable borrow scope
         // because rendering panes requires `&mut self`.
-        if full_content_mode {
+        if populate_terminal_intermediate_texture {
             let custom_shader = self
                 .custom_shader_renderer
                 .as_mut()
-                .expect("custom_shader_renderer must be Some when full_content_mode is true");
+                .expect("custom_shader_renderer must be Some when iChannel4 content is needed");
             custom_shader.clear_intermediate_texture(
                 self.cell_renderer.device(),
                 self.cell_renderer.queue(),
@@ -207,9 +228,9 @@ impl Renderer {
         // If custom shader is enabled, render it to the content target
         // (the shader's render pass will handle clearing the target)
         if let Some(ref mut custom_shader) = self.custom_shader_renderer {
-            if !full_content_mode {
-                // Background-only mode: clear intermediate texture (shader doesn't
-                // need terminal content, panes will be rendered on top)
+            if !populate_terminal_intermediate_texture {
+                // Background-only mode without auto-dim: clear intermediate texture
+                // (shader doesn't need terminal content, panes will be rendered on top)
                 custom_shader.clear_intermediate_texture(
                     self.cell_renderer.device(),
                     self.cell_renderer.queue(),
@@ -684,5 +705,34 @@ impl Renderer {
         // Create image
         image::RgbaImage::from_raw(width, height, pixels)
             .ok_or(crate::error::RenderError::ScreenshotImageAssembly)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn background_shader_auto_dim_requires_terminal_intermediate_texture() {
+        assert!(should_populate_terminal_intermediate_texture(
+            false, true, 0.35
+        ));
+    }
+
+    #[test]
+    fn full_content_mode_requires_terminal_intermediate_texture() {
+        assert!(should_populate_terminal_intermediate_texture(
+            true, false, 0.0
+        ));
+    }
+
+    #[test]
+    fn background_only_shader_without_auto_dim_skips_terminal_intermediate_texture() {
+        assert!(!should_populate_terminal_intermediate_texture(
+            false, false, 0.35
+        ));
+        assert!(!should_populate_terminal_intermediate_texture(
+            false, true, 0.0
+        ));
     }
 }
