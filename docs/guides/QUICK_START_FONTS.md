@@ -168,19 +168,29 @@ echo "∑ᵢ₌₁^n i = n(n+1)/2"
 For the ultimate configuration, use all features:
 
 ```yaml
-# Primary font
+# Primary font (default size: 13.0)
 font_family: "JetBrains Mono"
-font_size: 14.0
+font_size: 13.0
 
 # Styled fonts
 font_family_bold: "JetBrains Mono Bold"
 font_family_italic: "JetBrains Mono Italic"
 font_family_bold_italic: "JetBrains Mono Bold Italic"
 
+# Spacing
+line_spacing: 1.0    # Line height multiplier (1.0 = default, 1.5 = spacious)
+char_spacing: 1.0    # Character width multiplier (1.0 = default)
+
 # Text shaping (enabled by default)
 enable_text_shaping: true
 enable_ligatures: true
 enable_kerning: true
+
+# Font rendering quality (defaults shown)
+font_antialias: true           # Anti-aliased rendering
+font_hinting: true             # Pixel-aligned rendering
+font_thin_strokes: retina_only # Stroke weight mode: never, retina_only, dark_backgrounds_only, retina_dark_backgrounds_only, always
+minimum_contrast: 0.0          # Contrast enforcement (0.0 = disabled, 0.0-1.0)
 
 # Unicode ranges
 font_ranges:
@@ -373,6 +383,7 @@ make tail-log
 3. **Check Logs:** Use `make run-debug` to see what fonts load
 4. **Font Names:** Use exact names from `fc-list` output
 5. **Mix Fonts:** You can use different fonts for italic (e.g., Victor Mono Italic with Fira Code regular)
+6. **Rendering Quality:** Adjust `font_antialias`, `font_hinting`, `font_thin_strokes`, and `minimum_contrast` to fine-tune appearance
 
 ---
 

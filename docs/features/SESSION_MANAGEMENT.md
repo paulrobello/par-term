@@ -34,15 +34,15 @@ graph TD
     Restore --> RestoreLaunch[Restore on Launch]
     Restore --> Validate[Validate Directories]
 
-    style Session fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
-    style Undo fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
-    style Restore fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
-    style CloseCapture fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style ReopenTab fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style Timeout fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style SaveExit fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style RestoreLaunch fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style Validate fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+    class Session primary
+    class Undo active
+    class Restore data
+    class CloseCapture,ReopenTab,Timeout,SaveExit,RestoreLaunch,Validate neutral
+
+    classDef primary fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+    classDef active fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    classDef data fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    classDef neutral fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
 ```
 
 ## Session Undo — Reopen Closed Tabs
@@ -55,7 +55,7 @@ Recover accidentally closed tabs by reopening them with their original metadata.
 |--------|-------|---------------|
 | Reopen closed tab | `Cmd + Z` | `Ctrl + Shift + Z` |
 
-When a tab closes, par-term captures its metadata (working directory, title, position, pane layout, custom color) and adds it to an undo queue. A toast notification appears showing the undo keybinding hint and a countdown timer.
+When a tab closes, par-term captures its metadata (working directory, title, position, pane layout, custom color) and adds it to an undo queue. A toast notification appears showing the undo keybinding hint and the expiry timeout in seconds.
 
 **Restored tab state:**
 - Original tab position in the tab bar
@@ -135,7 +135,7 @@ Requires `tmux_enabled: true`. Failures to reconnect are logged as warnings; the
 restore_session: false
 ```
 
-**Settings UI:** Settings > Terminal > Startup > "Restore session on startup"
+**Settings UI:** Settings > Terminal > Startup > "Restore previous session on startup"
 
 ## Session Restore vs Window Arrangements
 

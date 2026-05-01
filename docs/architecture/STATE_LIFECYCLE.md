@@ -21,8 +21,9 @@ input through PTY processing to GPU rendering.
 
 par-term organizes mutable state in a strict ownership hierarchy. Each layer is created
 by its parent, lives as long as its parent, and is destroyed when its parent is dropped.
-Only the `TerminalManager` at the leaf crosses thread boundaries and carries its own
-`tokio::sync::RwLock`.
+Only the `TerminalManager` at the leaf crosses thread boundaries and is wrapped in
+`Arc<tokio::sync::RwLock<...>>`. `App` creates `WindowManager` as a local variable in
+`App::run()` and passes it to `event_loop.run_app()`; it is not a stored field.
 
 ```mermaid
 graph TD
@@ -35,7 +36,7 @@ graph TD
     Pane[Pane]
     Term[TerminalManager]
 
-    App --> WM
+    App -- "run() local" --> WM
     WM --> WS
     WS --> TM
     TM --> Tab
@@ -44,27 +45,32 @@ graph TD
     Pane --> Term
     Tab --> Term2[TerminalManager]
 
-    style App fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
-    style WM fill:#ff6f00,stroke:#ffa726,stroke-width:2px,color:#ffffff
-    style WS fill:#ff6f00,stroke:#ffa726,stroke-width:2px,color:#ffffff
-    style TM fill:#ff6f00,stroke:#ffa726,stroke-width:2px,color:#ffffff
-    style Tab fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
-    style PM fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
-    style Pane fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
-    style Term fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
-    style Term2 fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    class App primary
+    class WM warning
+    class WS warning
+    class TM warning
+    class Tab active
+    class PM active
+    class Pane active
+    class Term data
+    class Term2 data
+
+    classDef primary fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+    classDef active fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    classDef warning fill:#ff6f00,stroke:#ffa726,stroke-width:2px,color:#ffffff
+    classDef data fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
 ```
 
 ## State Hierarchy
 
 | Type | Location | Owned by | Lock |
 |---|---|---|---|
-| `WindowManager` | `src/app/window_manager/mod.rs` | `App` | None — main thread only |
-| `WindowState` | `src/app/window_state/mod.rs` | `WindowManager` | None — main thread only |
-| `TabManager` | `src/tab/manager.rs` | `WindowState` | None — main thread only |
-| `Tab` | `src/tab/mod.rs` | `TabManager` | None — main thread only |
-| `PaneManager` | `src/pane/manager/mod.rs` | `Tab` | None — main thread only |
-| `Pane` | `src/pane/types/pane.rs` | `PaneManager` | None — main thread only |
+| `WindowManager` | `src/app/window_manager/mod.rs` | `App::run()` local, passed to `event_loop.run_app()` | None -- main thread only |
+| `WindowState` | `src/app/window_state/mod.rs` | `WindowManager` (in `HashMap<WindowId, WindowState>`) | None -- main thread only |
+| `TabManager` | `src/tab/manager.rs` | `WindowState` | None -- main thread only |
+| `Tab` | `src/tab/mod.rs` | `TabManager` | None -- main thread only |
+| `PaneManager` | `src/pane/manager/mod.rs` | `Tab` (`Option<PaneManager>`, always `Some`) | None -- main thread only |
+| `Pane` | `src/pane/types/pane.rs` | `PaneManager` | None -- main thread only |
 | `TerminalManager` | `par-term-terminal/src/terminal/mod.rs` | `Tab` / `Pane` | `Arc<tokio::sync::RwLock<...>>` |
 
 ## Window Lifecycle
@@ -72,36 +78,38 @@ graph TD
 ### Creation
 
 A `WindowState` is created when the application starts or when a new window is opened
-via the menu. Construction happens in `WindowState::new` (`src/app/window_state/impl_init.rs`):
+via the menu. Configuration is loaded in `App::new` (`src/app/mod.rs`) and passed to
+`WindowManager::new`, which calls `WindowState::new` (`src/app/window_state/impl_init.rs`):
 
-1. Configuration is loaded from `~/.config/par-term/config.yaml`.
-2. The renderer is initialized against the wgpu surface for the OS window.
-3. A `TabManager` is created and the first tab is opened.
-4. Input handler, keybinding registry, status bar, and tab bar UI are initialized.
-5. Config file watcher and shader watcher are started.
-6. ACP agents are discovered and the AI inspector is initialized.
+1. The renderer is initialized against the wgpu surface for the OS window.
+2. A `TabManager` is created and the first tab is opened.
+3. Input handler, keybinding registry, status bar, and tab bar UI are initialized.
+4. Config file watcher and shader watcher are started.
+5. ACP agents are discovered and the AI inspector is initialized.
 
 ### Updates
 
 `WindowState` is updated every frame during the winit event loop:
 
-- `render()` — gathers terminal data, submits GPU frame, dispatches post-render actions.
-- `handle_window_event()` — processes OS keyboard, mouse, and resize events.
-- `poll_config_updates()` — applies live config reloads.
+- `about_to_wait()` — per-frame polling: notifications, config reloads (`check_config_reload()`), cursor blink, smooth scrolling, shader animation, file transfers, anti-idle keep-alive, and more (`src/app/handler/window_state_impl/about_to_wait.rs`).
+- `handle_window_event()` — processes OS keyboard, mouse, and resize events (`src/app/handler/window_state_impl/handle_window_event.rs`).
 - `process_agent_messages_tick()` — drains incoming ACP agent messages.
+- Rendering is performed by `RenderPipeline::render()` (`src/app/render_pipeline/mod.rs`), called from the `about_to_wait` path.
 
 ### Destruction
 
 When the last tab in a window is closed (or the window is closed directly),
 `WindowState::perform_shutdown` is called:
 
-1. All tabs are closed via `TabManager::close_all`.
-2. Session loggers are stopped.
-3. The renderer is released, dropping GPU resources.
-4. The OS window is destroyed.
+1. The last working directory is saved (if `startup_directory_mode` is `Previous`).
+2. The shutdown flag is set and all tab refresh tasks are aborted.
+3. The OS window is hidden for instant visual feedback.
 
-`WindowState` implements `Drop` for fast-path cleanup when `shutdown_fast` is true,
-bypassing the normal tab teardown to avoid blocking the event loop during application exit.
+`WindowState` implements `Drop` for fast-path cleanup. The `Drop` implementation
+drains all tabs via `TabManager::drain_tabs()`, collects terminal `Arc`s and session
+loggers, pre-kills PTY processes, and spawns a background thread for the remaining
+cleanup (session log finalization, renderer teardown). This avoids blocking the event
+loop on slow shell teardowns during quit.
 
 ## Tab Lifecycle
 
@@ -118,11 +126,12 @@ During `Tab::new`:
 1. A `TerminalManager` is created with the configured column/row count and scrollback size.
 2. Theme, cursor style, Unicode settings, and clipboard limits are applied from config.
 3. The shell process is spawned via `terminal.spawn_custom_shell_with_dir`.
-4. Configured triggers are synced into the core `TriggerRegistry`.
+4. Configured triggers are synced into the core `TriggerRegistry` (in `new_internal`).
 5. Auto-start coprocesses are started via the PTY session's built-in `CoprocessManager`.
 6. A `SharedSessionLogger` is created; session logging starts immediately if `auto_log_sessions` is enabled.
 7. The `TerminalManager` is wrapped in `Arc<tokio::sync::RwLock<...>>`.
-8. If `initial_text` is configured, it is sent to the PTY after an optional delay via an async task.
+8. A `PaneManager` is always created with one primary pane that shares the tab's `Arc<RwLock<TerminalManager>>`.
+9. If `initial_text` is configured, it is sent to the PTY after an optional delay via an async task.
 
 ### Activation
 
@@ -155,11 +164,10 @@ Tab titles update automatically from:
 
 When a tab is closed via `TabManager::close_tab`:
 
-1. The refresh task is aborted via `Tab::stop_refresh_task`.
-2. A brief sleep allows the task to exit cleanly.
-3. Session logging is stopped and the log file is finalized.
-4. The `TerminalManager` is killed via `terminal.kill()`.
-5. The `Tab` is removed from `TabManager`'s list and dropped.
+1. The refresh task is aborted via `Tab::stop_refresh_task` (non-blocking `abort()` call).
+2. Session logging is stopped and the log file is finalized.
+3. The `TerminalManager` is killed via `terminal.try_write().kill()`.
+4. The `Tab` is removed from `TabManager`'s list and dropped.
 
 The `Tab` `Drop` implementation handles cleanup when `shutdown_fast` is false. When
 `shutdown_fast` is true (application-exit path), the Drop impl returns immediately and
@@ -169,8 +177,9 @@ cleanup is handled externally.
 
 ### Creation
 
-A `PaneManager` is created lazily on the first split operation for a tab
-(`pane_manager: None` initially). The root pane wraps the tab's existing terminal.
+A `PaneManager` is always created at tab construction time (`pane_manager: Some(...)`
+from the start). The primary pane shares the tab's existing `Arc<RwLock<TerminalManager>>`,
+so no extra shell process is spawned.
 
 When a split is requested:
 
@@ -237,8 +246,8 @@ sequenceDiagram
 5. The shell processes the input and writes response bytes to PTY stdout.
 6. The **async PTY reader task** reads those bytes and calls the core VT parser, which
    updates the in-memory cell grid, scrollback, and graphics state.
-7. On the next frame, the **render pipeline** calls `gather_render_data()` which locks
-   the `TerminalManager` via `try_write()` and snapshots the current cell grid.
+7. On the next frame, the **render pipeline** calls `gather_render_data()` which calls
+   `try_write()` on the `TerminalManager`'s `RwLock` and snapshots the current cell grid.
 8. The snapshot is passed to the GPU renderer, which uploads changed cells to the glyph
    atlas and submits a wgpu command buffer.
 9. The frame is presented to the display.
@@ -258,7 +267,7 @@ sequenceDiagram
     Reader->>Core: feed(bytes)
     Core->>Core: Parse escape sequences
     Core->>Core: Update cell grid + graphics
-    Tab->>Gather: try_lock() TerminalManager
+    Tab->>Gather: try_write() TerminalManager
     Gather->>Gather: Extract cells, graphics, metadata
     Gather->>Gather: Detect URLs, apply search highlights
     Gather-->>GPU: FrameRenderData snapshot
@@ -301,20 +310,23 @@ SSH hostname matches. If a match is found:
 
 ### Config Live Reload
 
-When `~/.config/par-term/config.yaml` changes on disk, the config watcher detects the
-change and publishes a `Config` update to all `WindowState` instances via an MPSC
-channel. Each window applies the update without requiring a restart.
+When `~/.config/par-term/config.yaml` changes on disk, the `ConfigWatcher` (file system
+watcher initialized in `WindowState::init_config_watcher`) detects the change. The
+`check_config_reload()` method in `about_to_wait()` reads the updated config, and the
+`WindowManager` propagates it to all windows via `apply_config_to_windows()`. Each window
+applies the update without requiring a restart.
 
 ## Shutdown Sequence
 
 When the user quits par-term (Cmd+Q / Alt+F4):
 
-1. `WindowManager` receives the `CloseRequested` event.
-2. All open windows call `perform_shutdown`.
-3. Each `WindowState` closes all tabs (stopping PTY processes and session loggers).
-4. The renderer releases GPU resources.
-5. The Tokio runtime is shut down.
-6. The process exits.
+1. `WindowState::handle_window_event()` receives the `CloseRequested` event (routed through `WindowManager` from the winit event loop).
+2. If `prompt_on_quit` is enabled, a confirmation dialog is shown first.
+3. `WindowState::perform_shutdown()` is called: refresh tasks are aborted, the shutdown flag is set.
+4. The `WindowState` `Drop` implementation drains all tabs, pre-kills PTY processes, and spawns a background thread for cleanup.
+5. The renderer releases GPU resources.
+6. The Tokio runtime is shut down.
+7. The process exits.
 
 During application exit, `shutdown_fast = true` is set on all tabs and panes before
 dropping them. This causes the `Drop` implementations to return immediately, deferring

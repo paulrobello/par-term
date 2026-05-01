@@ -59,6 +59,11 @@ stateDiagram-v2
     note right of Search
         Shows /query or ?query
     end note
+
+    note left of Visual
+        y exits copy mode only when
+        copy_mode_auto_exit_on_yank is enabled
+    end note
 ```
 
 ## Entering and Exiting

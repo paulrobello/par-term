@@ -31,12 +31,19 @@ graph TD
     Validate -->|Valid| Apply
     Apply -->|Replace or Merge| Config
 
-    style Config fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
-    style Export fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
-    style ImportFile fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
-    style ImportURL fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
-    style Validate fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style Apply fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
+    class Config primary
+    class Export active
+    class ImportFile data
+    class ImportURL external
+    class Validate neutral
+    class Apply warning
+
+    classDef primary fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+    classDef active fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    classDef data fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    classDef external fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
+    classDef neutral fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+    classDef warning fill:#ff6f00,stroke:#ffa726,stroke-width:2px,color:#ffffff
 ```
 
 ## Exporting Preferences

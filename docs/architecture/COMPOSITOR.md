@@ -98,35 +98,38 @@ sequenceDiagram
     Renderer->>Renderer: Check shader configuration
 
     alt Full Content Mode (Background Shader)
-        Note over Renderer: Terminal content rendered to shader's intermediate texture
-        Renderer->>CR: render_pane_to_view(bg_intermediate)
+        Note over Renderer: Terminal content rendered to shader's intermediate texture first
+        Renderer->>CR: render_pane_to_view(shader_intermediate)
         CR->>CR: 3-phase: bgs -> text -> cursor overlays
-        Renderer->>GR: render_pane_sixel_graphics(bg_intermediate)
+        Renderer->>GR: render_pane_sixel_graphics(shader_intermediate)
         GR->>CR: Overlay graphics (LoadOp::Load)
-        Renderer->>BSR: render(content_view)
+        Renderer->>BSR: render_with_clear_color(content_view)
         BSR->>BSR: Process terminal content via iChannel4
     else Background Shader Only (Background Mode)
         Note over Renderer: Shader generates background, content composited on top
-        Renderer->>BSR: render(content_view)
-        BSR->>BSR: Generate background effect
+        Renderer->>BSR: render_with_clear_color(content_view)
+        BSR->>BSR: Generate background effect to content_view
         Renderer->>CR: render_pane_to_view(content_view)
-        CR->>CR: 3-phase: bgs -> text -> cursor overlays
+        CR->>CR: 3-phase: bgs -> text -> cursor overlays (LoadOp::Load)
         Renderer->>GR: render_pane_sixel_graphics(content_view)
         GR->>CR: Overlay graphics (LoadOp::Load)
     else Cursor Shader Only
-        Note over Renderer: Content to cursor intermediate, then shader to surface
+        Note over Renderer: Content to cursor intermediate, then cursor shader to surface
+        Renderer->>Renderer: Clear cursor intermediate with full-opacity background
         Renderer->>CR: render_pane_to_view(cursor_intermediate)
         CR->>CR: 3-phase: bgs -> text -> cursor overlays
         Renderer->>GR: render_pane_sixel_graphics(cursor_intermediate)
         GR->>CR: Overlay graphics (LoadOp::Load)
-        Renderer->>CSR: render(surface_view)
-        CSR->>Surface: Apply cursor shader effect
+        Note over Renderer: Dividers, pane titles, visual bell, focus indicator to cursor intermediate
+        Renderer->>CSR: render(surface_view, apply_opacity=true)
+        CSR->>Surface: Apply cursor shader effect with final opacity
     else Both Shaders Enabled
         Note over Renderer: Background shader to cursor intermediate, cursor shader to surface
-        Renderer->>BSR: render(cursor_intermediate)
-        BSR->>BSR: Apply background shader
-        Renderer->>CSR: render(surface_view)
-        CSR->>Surface: Apply cursor shader effect
+        Renderer->>BSR: render_with_clear_color(cursor_intermediate, apply_opacity=false)
+        BSR->>BSR: Apply background shader (chain mode, no opacity)
+        Note over Renderer: Dividers, pane titles, visual bell, focus indicator to cursor intermediate
+        Renderer->>CSR: render(surface_view, apply_opacity=true)
+        CSR->>Surface: Apply cursor shader effect with final opacity
     else No Shaders
         Note over Renderer: Direct rendering to surface
         Renderer->>CR: render_pane_to_view(surface)
@@ -260,7 +263,7 @@ Par-term provides a comprehensive set of Shadertoy-compatible uniforms:
 | `iChannel2` | `sampler2D` | User texture channel 2 |
 | `iChannel3` | `sampler2D` | User texture channel 3 |
 | `iChannel4` | `sampler2D` | Terminal content texture (par-term specific) |
-| `iChannelResolution[0-4]` | `vec3` | Channel resolutions `[width, height, 1.0]` (Shadertoy-compatible array) |
+| `iChannelResolution[0-4]` | `vec4` | Channel resolutions `[width, height, 1.0, 0.0]` (std140-aligned vec4) |
 | `iCubemap` | `samplerCube` | Cubemap texture for environment mapping |
 | `iCubemapResolution` | `vec4` | Cubemap face size `[size, size, 1.0, 0.0]` |
 
@@ -302,6 +305,9 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 | `iBackgroundColor` | `vec4` | Solid background color `[R, G, B, A]` (0.0-1.0). When A > 0, solid color mode is active |
 | `iTimeKeyPress` | `float` | Time when last key was pressed (same timebase as iTime) |
 | `iProgress` | `vec4` | Progress bar state: `x` = state (0-4), `y` = percent (0-1), `z` = isActive (0/1), `w` = activeCount |
+| `iCommand` | `vec4` | Command state: `x` = state (0=unknown, 1=running, 2=success, 3=failure), `y` = exit code, `z` = event time, `w` = running (0/1) |
+| `iFocusedPane` | `vec4` | Focused pane bounds: `xy` = position (pixels, GLSL bottom-left origin), `zw` = size |
+| `iScroll` | `vec4` | Scrollback context: `x` = offset, `y` = visible lines, `z` = scrollback lines, `w` = normalized depth |
 
 #### Cursor Uniforms (Ghostty-Compatible)
 
@@ -660,6 +666,22 @@ custom_shader_cubemap_enabled: true
 
 # Use background image as iChannel0 instead of custom_shader_channel0
 custom_shader_use_background_as_channel0: false
+
+# Blend mode when using background image as iChannel0
+# Options: normal, multiply, screen, overlay, soft_light, hard_light
+custom_shader_background_channel0_blend_mode: normal
+
+# Auto-dim shader under text for readability (default: false)
+custom_shader_auto_dim_under_text: false
+
+# Auto-dim strength (0.0 = no extra dim, 1.0 = black, default: 0.35)
+custom_shader_auto_dim_strength: 0.35
+
+# Readability mode: temporary low-power/readability toggle (default: false)
+custom_shader_readability_mode: false
+
+# Brightness cap while readability mode is enabled (default: 0.35)
+custom_shader_readability_brightness: 0.35
 
 # ========== Cursor Shader Settings ==========
 # Path to cursor shader file (relative to shaders/ directory or absolute)

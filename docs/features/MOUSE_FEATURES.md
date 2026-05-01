@@ -43,20 +43,19 @@ graph TD
     Right --> AppMouse[App Mouse Tracking]
     Wheel --> Scroll[Scrolling]
 
-    style Mouse fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
-    style Left fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
-    style Middle fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
-    style Right fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
-    style Wheel fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
-    style Selection fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style URLs fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style Files fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style Cursor fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style Scrollbar fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style Divider fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style Paste fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style AppMouse fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style Scroll fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+    class Mouse primary
+    class Left active
+    class Middle info
+    class Right external
+    class Wheel warning
+    class Selection,URLs,Files,Cursor,Scrollbar,Divider,Paste,AppMouse,Scroll neutral
+
+    classDef primary fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+    classDef active fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    classDef info fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    classDef external fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
+    classDef warning fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
+    classDef neutral fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
 ```
 
 ## Text Selection
@@ -281,10 +280,11 @@ The Input tab in Settings provides:
 | Option | Description |
 |--------|-------------|
 | **Auto-copy selection** | Copy to clipboard on selection |
-| **Copy trailing newline** | Include newlines when copying |
+| **Include trailing newline when copying** | Include newlines when copying |
 | **Middle-click paste** | Enable middle-click paste |
-| **Option-click moves cursor** | Alt/Option+click cursor positioning |
+| **Option+Click moves cursor** | Alt/Option+click cursor positioning |
 | **Focus follows mouse** | Auto-focus window on cursor enter |
+| **Report horizontal scroll events** | Forward horizontal scroll to applications |
 
 ## Platform Differences
 

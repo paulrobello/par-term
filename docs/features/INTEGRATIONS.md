@@ -44,16 +44,19 @@ graph TD
     Shaders --> Background[Background Effects]
     Shaders --> Cursor[Cursor Effects]
 
-    style Integrations fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
-    style Shell fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
-    style Shaders fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
-    style UI fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
-    style CLI fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
-    style Bash fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style Zsh fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style Fish fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style Background fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style Cursor fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+    class Integrations primary
+    class Shell active
+    class Shaders data
+    class UI external
+    class CLI accent
+    class Bash,Zsh,Fish,Background,Cursor neutral
+
+    classDef primary fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+    classDef active fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    classDef data fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    classDef external fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
+    classDef accent fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
+    classDef neutral fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
 ```
 
 ## Shell Integration
@@ -108,11 +111,17 @@ The installation process:
 1. Detects your current shell from the `$SHELL` environment variable
 2. Downloads the appropriate shell integration script
 3. Saves it to `~/.config/par-term/`
-4. Adds a source line to your shell's RC file wrapped in markers:
+4. Installs file transfer utilities (`pt-dl`, `pt-ul`, `pt-imgcat`) to `~/.config/par-term/bin/`
+5. Adds a source block to your shell's RC file wrapped in markers:
 
 ```bash
 # >>> par-term shell integration >>>
-[ -f "$HOME/.config/par-term/shell_integration.bash" ] && source "$HOME/.config/par-term/shell_integration.bash"
+if [ -d "$HOME/.config/par-term/bin" ]; then
+    export PATH="$HOME/.config/par-term/bin:$PATH"
+fi
+if [ -f "$HOME/.config/par-term/shell_integration.bash" ]; then
+    source "$HOME/.config/par-term/shell_integration.bash"
+fi
 # <<< par-term shell integration <<<
 ```
 
@@ -167,7 +176,7 @@ curl -sSL https://paulrobello.github.io/par-term/install-shell-integration.sh | 
 
 ## Shader Installation
 
-par-term includes a collection of 73 ready-to-use GLSL shaders (61 background + 12 cursor), cubemap assets, and texture packs.
+par-term includes a collection of 73 ready-to-use GLSL shaders (61 background + 12 cursor), cubemap environments, and texture packs.
 
 ### Included Shaders
 
@@ -241,7 +250,7 @@ par-term tracks installed bundled shaders, cubemaps, and texture packs using a m
 **Manifest Contents:**
 ```json
 {
-  "version": "0.25.0",
+  "version": "0.30.12",
   "generated": "2026-03-07T18:17:58.976671+00:00",
   "files": [
     {

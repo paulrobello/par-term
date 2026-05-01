@@ -24,7 +24,7 @@ Snippets are saved text blocks that can be quickly inserted into the terminal. T
 ### Creating Snippets
 
 1. Open Settings (`F12` or `⌘+,` on macOS)
-2. Navigate to the **Snippets** tab
+2. Navigate to the **Snippets & Actions** tab
 3. Click **+ Add Snippet**
 4. Fill in the snippet details:
    - **Title**: A human-readable name (e.g., "Git Commit Message")
@@ -48,7 +48,7 @@ Snippets are saved text blocks that can be quickly inserted into the terminal. T
 If you've assigned a keybinding to your snippet, simply press the key combination and the snippet will be inserted at the cursor position.
 
 **Via Settings:**
-1. Open Settings → Snippets tab
+1. Open Settings → Snippets & Actions tab
 2. Find your snippet in the list
 3. Click **Edit** to view/copy the content
 
@@ -397,7 +397,7 @@ snippets:
 actions:
   - id: "action_001"
     title: "Run Tests"
-    type: shell_command         # shell_command | insert_text | key_sequence | split_pane
+    type: shell_command         # shell_command | new_tab | insert_text | key_sequence | split_pane | sequence | condition | repeat
     command: "npm"
     args: ["test"]
     notify_on_success: true
@@ -601,13 +601,13 @@ Snippets can be exported to and imported from YAML files for backup or sharing.
 
 ### Exporting
 
-1. Open Settings > Snippets tab
+1. Open Settings > Snippets & Actions tab
 2. Click **Export** to save all snippets to a YAML file
 3. Choose a save location
 
 ### Importing
 
-1. Open Settings > Snippets tab
+1. Open Settings > Snippets & Actions tab
 2. Click **Import** and select a YAML file
 3. par-term automatically handles conflicts:
    - Snippets with duplicate IDs are skipped (not imported)
@@ -620,7 +620,7 @@ Each snippet can define custom variables that override built-in and session vari
 
 ### Using the Variables Editor
 
-1. Edit a snippet in Settings > Snippets tab
+1. Edit a snippet in Settings > Snippets & Actions tab
 2. Expand the **Custom Variables** section (collapsible)
 3. Add variable name/value pairs in the grid
 4. Use the `+` button to add rows and the delete button to remove them

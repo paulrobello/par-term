@@ -43,7 +43,9 @@ graph TD
 
 | Action | macOS | Linux/Windows |
 |--------|-------|---------------|
-| Open command history | `Cmd + R` | `Ctrl + R` |
+| Open command history | `Cmd + R` | `Ctrl + Alt + R` |
+
+> **Note:** On Linux/Windows, `Ctrl+R` is reserved for the shell's own reverse search. par-term uses `Ctrl+Alt+R` by default; you can reassign this in keybindings.
 
 The overlay appears over the terminal with a search input field and a scrollable list of previous commands.
 
@@ -71,6 +73,7 @@ The search uses the Skim fuzzy matching algorithm for ranked results:
 | `Arrow Up` | Move selection up |
 | `Arrow Down` | Move selection down |
 | `Enter` | Insert selected command into terminal |
+| Double-click | Insert clicked command into terminal |
 | `Escape` | Close overlay without inserting |
 
 ## Entry Details
@@ -95,7 +98,7 @@ Commands are captured from two sources:
 ## Configuration
 
 ```yaml
-# Maximum number of history entries to keep (default: 1000)
+# Maximum number of history entries to keep (default: 1000, range: 100-10000)
 command_history_max_entries: 1000
 ```
 

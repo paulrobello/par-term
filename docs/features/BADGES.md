@@ -12,6 +12,7 @@ par-term provides an iTerm2-style badge system for displaying dynamic session in
 - [Position](#position)
 - [OSC 1337 Support](#osc-1337-support)
 - [Configuration](#configuration)
+- [Per-Profile Badge Overrides](#per-profile-badge-overrides)
 - [Related Documentation](#related-documentation)
 
 ## Overview
@@ -37,15 +38,21 @@ graph TD
     Variables --> Command[Command Info]
     Variables --> Terminal[Terminal Info]
 
-    style Badge fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
-    style Format fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
-    style Variables fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
-    style Appearance fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
-    style Position fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
-    style OSC fill:#ff6f00,stroke:#ffa726,stroke-width:2px,color:#ffffff
-    style Session fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style Command fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style Terminal fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+    class Badge primary
+    class Format active
+    class Variables data
+    class Appearance external
+    class Position error
+    class OSC warning
+    class Session,Command,Terminal neutral
+
+    classDef primary fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+    classDef active fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    classDef data fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    classDef external fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
+    classDef error fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
+    classDef warning fill:#ff6f00,stroke:#ffa726,stroke-width:2px,color:#ffffff
+    classDef neutral fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
 ```
 
 ## Enabling Badges
@@ -55,7 +62,7 @@ graph TD
 1. Press `F12` to open Settings
 2. Navigate to the **Appearance** tab
 3. Scroll to the **Badge** sections at the bottom
-4. Enable "Show badge"
+4. Enable "Enable badge"
 5. Configure format, appearance, and position
 
 **Method 2: Configuration File**
@@ -156,10 +163,13 @@ graph TD
         Content[Terminal Content]
     end
 
-    style Badge fill:#e65100,stroke:#ff9800,stroke-width:2px,color:#ffffff
-    style TopMargin fill:#37474f,stroke:#78909c,stroke-width:1px,color:#ffffff
-    style RightMargin fill:#37474f,stroke:#78909c,stroke-width:1px,color:#ffffff
-    style Content fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    class Badge primary
+    class TopMargin,RightMargin neutral
+    class Content active
+
+    classDef primary fill:#e65100,stroke:#ff9800,stroke-width:2px,color:#ffffff
+    classDef neutral fill:#37474f,stroke:#78909c,stroke-width:1px,color:#ffffff
+    classDef active fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
 ```
 
 **Example:**

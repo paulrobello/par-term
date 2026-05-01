@@ -9,7 +9,7 @@ Complete reference for all par-term keyboard shortcuts.
 - [Navigation & Scrolling](#navigation--scrolling)
 - [Copy, Paste & Selection](#copy-paste--selection)
 - [Copy Mode](#copy-mode)
-- [Search](#search)
+- [Search & History](#search--history)
 - [Terminal Operations](#terminal-operations)
 - [Font & Text Sizing](#font--text-sizing)
 - [UI Toggles & Display](#ui-toggles--display)
@@ -22,11 +22,11 @@ Complete reference for all par-term keyboard shortcuts.
 
 | Action | macOS | Linux/Windows |
 |--------|-------|---------------|
-| New window | `Cmd + N` | `Ctrl + Shift + N` |
+| New window | `Cmd + N` *(menu)* | `Ctrl + Shift + N` *(menu)* |
 | New tab | `Cmd + T` | `Ctrl + Shift + T` |
 | Duplicate tab | *(unbound)* | *(unbound)* |
 | Close tab/window | `Cmd + W` | `Ctrl + Shift + W` |
-| Quit application | `Cmd + Q` | `Ctrl + Shift + Q` |
+| Quit application | `Cmd + Q` *(menu)* | `Ctrl + Shift + Q` *(menu)* |
 | Next tab | `Cmd + Shift + ]` | `Ctrl + Shift + ]` |
 | Previous tab | `Cmd + Shift + [` | `Ctrl + Shift + [` |
 | Next tab (alt) | `Ctrl + Tab` | `Ctrl + Tab` |
@@ -65,7 +65,7 @@ Modifier keys (`Shift`, `Ctrl`, `Alt`, and combinations) work with special keys 
 | Paste (X11 fallback) | `Shift + Insert` | `Shift + Insert` |
 | Paste Special | `Cmd + Shift + V` | `Ctrl + Alt + V` |
 | Clipboard history | `Ctrl + Shift + H` | `Ctrl + Shift + H` |
-| Select all | `Cmd + A` | `Ctrl + Shift + A` |
+| Select all | `Cmd + A` *(menu)* | `Ctrl + Shift + A` *(menu)* |
 
 **Mouse Selection:**
 
@@ -112,8 +112,6 @@ Vi-style keyboard-driven text selection. See [Copy Mode](../features/COPY_MODE.m
 | Find next match | `Enter` | `Enter` |
 | Find previous match | `Shift + Enter` | `Shift + Enter` |
 | Close search | `Escape` | `Escape` |
-| Find next (global) | `Cmd + G` | `Ctrl + G` |
-| Find previous (global) | `Cmd + Shift + G` | `Ctrl + Shift + G` |
 | Open command history | `Cmd + R` | `Ctrl + Alt + R` |
 
 > **📝 Note:** Command history uses `toggle_command_history` action (fuzzy search). This is separate from shell's built-in reverse search (Ctrl+R).
@@ -124,12 +122,10 @@ Vi-style keyboard-driven text selection. See [Copy Mode](../features/COPY_MODE.m
 |----------|--------|
 | `Ctrl + L` | Clear visible screen |
 | `Ctrl + Shift + K` | Clear scrollback buffer |
-| `Ctrl + Shift + S` | Take screenshot (via MCP) |
 | `Cmd/Ctrl + Shift + R` | Toggle session recording |
 | `Cmd + Shift + T` (macOS) / `Ctrl + Shift + M` (Linux/Win) | Toggle maximize throughput mode |
-| `Ctrl + Shift + F5` | Fix rendering (after monitor change) |
 
-> **📝 Note:** Throughput mode uses `toggle_throughput_mode` action. Screenshot is captured via MCP server tool.
+> **📝 Note:** Throughput mode uses `toggle_throughput_mode` action. Screenshots are taken via the `--screenshot` CLI option or MCP server tool, not a keyboard shortcut.
 
 ## Font & Text Sizing
 
@@ -177,7 +173,9 @@ Vi-style keyboard-driven text selection. See [Copy Mode](../features/COPY_MODE.m
 | `Cmd + Shift + S` (macOS) / `Ctrl + Shift + S` (Linux/Win) | SSH Quick Connect |
 | `Cmd/Ctrl + Alt + I` | Toggle broadcast input |
 | `Cmd/Ctrl + Alt + T` | Toggle tmux session picker |
-| *(unbound by default)* | Cycle cursor style (`cycle_cursor_style`) |
+| `Cmd + ,` (macOS) / `Ctrl + ,` (Linux/Win) | Cycle cursor style (Block/Beam/Underline) |
+
+> **📝 Note:** On macOS, `Cmd + ,` also opens Settings; the Settings handler takes priority. Use the `cycle_cursor_style` action with a custom keybinding to avoid the conflict.
 
 > **📝 Note:** The Assistant panel is toggled with `Cmd + I` (macOS) or `Ctrl + Shift + I` (Linux/Windows) when `ai_inspector_enabled` is `true`. It can also be bound via custom keybindings. See [Assistant Panel](../ASSISTANT_PANEL.md) for details.
 
@@ -239,8 +237,9 @@ remains visible; press `Esc` to cancel it. All action types — including the wo
 
 **Features:**
 - `paste_special`, `toggle_clipboard_history`
-- `toggle_copy_mode`, `toggle_session_logging`, `toggle_throughput_mode`
+- `toggle_copy_mode`, `enter_copy_mode`, `toggle_session_logging`, `toggle_throughput_mode`
 - `toggle_background_shader`, `toggle_cursor_shader`
+- `cycle_background_shader`, `toggle_shader_animation`, `toggle_shader_readability_mode`
 - `toggle_broadcast_input`, `toggle_profile_drawer`
 - `toggle_tmux_session_picker`, `ssh_quick_connect`
 - `toggle_ai_inspector`, `toggle_command_history`

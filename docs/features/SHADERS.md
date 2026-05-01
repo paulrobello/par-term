@@ -9,12 +9,12 @@ For information on how to use and configure shaders, see [CUSTOM_SHADERS.md](CUS
 ## Table of Contents
 
 - [Background Shaders](#background-shaders)
-  - [Terminal-Aware & Productivity](#terminal-aware--productivity)
+  - [Terminal-Aware & Productivity](#terminal-aware-productivity)
   - [Animated Backgrounds](#animated-backgrounds)
-  - [Abstract & Procedural](#abstract--procedural)
-  - [CRT & Retro Effects](#crt--retro-effects)
+  - [Abstract & Procedural](#abstract-procedural)
+  - [CRT & Retro Effects](#crt-retro-effects)
   - [Distortion Effects](#distortion-effects)
-  - [Lighting & Glow](#lighting--glow)
+  - [Lighting & Glow](#lighting-glow)
   - [Cubemap-Based](#cubemap-based)
 - [Cursor Shaders](#cursor-shaders)
 - [Included Textures](#included-textures)

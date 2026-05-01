@@ -111,7 +111,7 @@ Parses your SSH configuration file for host entries.
 - `IdentityFile` — Path to private key (tilde `~` expanded)
 - `ProxyJump` — Bastion/jump host for tunneling
 
-> **📝 Note:** Wildcard-only entries (e.g., `Host *` or `Host *.example.com`) are skipped since they represent defaults, not connectable targets.
+> **Note:** Wildcard-only entries (e.g., `Host *` or `Host *.example.com`) are skipped since they represent defaults, not connectable targets.
 
 ### Known Hosts
 
@@ -124,7 +124,7 @@ Extracts hostnames from previously-connected hosts.
 - Bracketed ports: `[myserver.example.com]:2222 ssh-rsa AAAA...`
 - Comma-separated: `host1.example.com,192.168.1.1 ssh-rsa AAAA...`
 
-> **📝 Note:** Hashed entries (lines starting with `|1|`) are skipped because the hostname cannot be extracted.
+> **Note:** Hashed entries (lines starting with `|1|`) are skipped because the hostname cannot be extracted.
 
 ### Shell History
 
@@ -170,13 +170,13 @@ Profiles can act as SSH bookmarks by setting SSH-specific fields.
 
 6. Click **Save Profile**
 
-> **📝 Note:** When `SSH Host` is set, opening the profile connects via SSH instead of launching a local shell.
+> **Note:** When `SSH Host` is set, opening the profile connects via SSH instead of launching a local shell.
 
 ### Launching SSH from Profiles
 
 Profiles with `ssh_host` set can be launched in several ways:
 
-- **Profile Drawer**: Open with `Cmd/Ctrl+Shift+P`, select the profile, click **Open**
+- **Profile Drawer**: Toggle via the **Profiles** menu or the on-screen drawer button (when `show_profile_drawer_button: true`), then select the profile
 - **New Tab Button**: Click the `▾` chevron on the tab bar and select the SSH profile
 
 The profile builds the SSH command from its fields:
@@ -233,7 +233,7 @@ remote_tab_title_osc_priority: true
 
 **Settings UI:** Settings > Window > Tab Bar > "Remote Tab Title Format"
 
-> **📝 Note:** `remote_tab_title_format` requires shell integration to be installed on the remote host so that OSC 7 or OSC 1337 RemoteHost sequences are emitted. See [Integrations](INTEGRATIONS.md) for installation instructions.
+> **Note:** `remote_tab_title_format` requires shell integration to be installed on the remote host so that OSC 7 or OSC 1337 RemoteHost sequences are emitted. See [Integrations](INTEGRATIONS.md) for installation instructions.
 
 ## Configuration
 

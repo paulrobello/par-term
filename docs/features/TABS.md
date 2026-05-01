@@ -87,7 +87,7 @@ The dropdown appears anchored to the top-right corner of the window and shows:
 
 Click a profile to open a new tab with that profile's settings (working directory, shell, command, tab name, etc.). Press `Escape` or click outside the dropdown to dismiss it.
 
-> **📝 Note:** The chevron only appears when one or more profiles exist. Works in both horizontal and vertical tab bar layouts.
+> **Note:** The chevron appears when one or more profiles exist or when the AI inspector is enabled. Works in both horizontal and vertical tab bar layouts.
 
 **Configuration:**
 
@@ -97,7 +97,7 @@ To make the new tab shortcut (`Cmd+T` / `Ctrl+Shift+T`) show the profile picker 
 new_tab_shortcut_shows_profiles: true  # default: false
 ```
 
-**Settings UI:** Settings > Window > Tab Behavior > "New Tab Shortcut Shows Profiles"
+**Settings UI:** Settings > Window > Tab Bar > "New tab shortcut shows profile picker"
 
 ### New Tab Position
 
@@ -110,7 +110,7 @@ new_tab_position: after_active # insert immediately to the right of the active t
 
 `after_active` applies to all user-initiated new-tab actions: `Cmd+T` / `+` button / profile picker / custom `NewTab` actions. Session undo and arrangement restore always restore tabs to their original positions regardless of this setting.
 
-**Settings UI:** Settings > Window > Tab Behavior > "New Tab Position"
+**Settings UI:** Settings > Window > Tab Bar > "New tab position"
 
 ## Reopening Closed Tabs
 
@@ -400,7 +400,7 @@ Control how tab titles are automatically updated:
 tab_title_mode: auto
 ```
 
-**Settings UI:** Settings > Window > Tab Bar > "Tab title mode"
+**Settings UI:** Settings > Window > Tab Bar > "Tab title mode:"
 
 ### Per-Pane Title Tracking
 
@@ -430,7 +430,7 @@ remote_tab_title_format: user_at_host  # user_at_host | host | host_and_cwd
 remote_tab_title_osc_priority: true
 ```
 
-**Settings UI:** Settings > Window > Tab Bar > "Remote Tab Title Format"
+**Settings UI:** Settings > Window > Tab Bar > "Remote tab title format:"
 
 > **📝 Note:** Requires shell integration on the remote host to emit OSC 7 or OSC 1337 RemoteHost sequences. See [Integrations](INTEGRATIONS.md).
 
@@ -570,13 +570,13 @@ tab_bar_width: 160.0  # Sidebar width for left position
 tab_active_background: [60, 60, 60]
 tab_inactive_background: [40, 40, 40]
 tab_hover_background: [50, 50, 50]
-tab_active_text: [220, 220, 220]
-tab_inactive_text: [160, 160, 160]
-tab_active_indicator: [66, 165, 245]
-tab_activity_indicator: [255, 193, 7]
-tab_bell_indicator: [244, 67, 54]
+tab_active_text: [255, 255, 255]
+tab_inactive_text: [180, 180, 180]
+tab_active_indicator: [100, 150, 255]
+tab_activity_indicator: [100, 180, 255]
+tab_bell_indicator: [255, 200, 100]
 tab_close_button: [150, 150, 150]
-tab_close_button_hover: [255, 255, 255]
+tab_close_button_hover: [255, 100, 100]
 tab_border_color: [80, 80, 80]
 tab_border_width: 1.0
 

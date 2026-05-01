@@ -11,7 +11,6 @@ Upgrade notes for par-term covering breaking configuration changes, renamed fiel
 - [v0.25.0 — Pane Padding Defaults](#v0250--pane-padding-defaults)
 - [v0.27.0 — Trigger Field Renamed](#v0270--trigger-field-renamed)
 - [v0.27.0 — Security-Gated Trigger Execution](#v0270--security-gated-trigger-execution)
-- [v0.27.0 — Prettifier External Commands Default-Deny](#v0270--prettifier-external-commands-default-deny)
 - [Related Documentation](#related-documentation)
 
 ---
@@ -62,10 +61,6 @@ Profiles fetched from remote URLs must use HTTPS. HTTP URLs are rejected at fetc
 **ACP `auto_approve` now enforces `is_safe_write_path`.**
 
 The ACP agent's automatic approval mode for file-write tools now validates that the target path falls within the user's home directory or an explicitly declared safe root. Writes to system paths are blocked even in `auto_approve` mode.
-
-**Prettifier is disabled by default.**
-
-The content prettifier was previously enabled for all content types. From v0.25.0 it defaults to disabled; enable it per-type in Settings → Prettifier or via `prettifier_enabled: true` in config.
 
 ---
 
@@ -135,23 +130,6 @@ triggers:
 ```
 
 A warning banner appears in Settings → Automation when any trigger has this configuration.
-
----
-
-## v0.27.0 — Prettifier External Commands Default-Deny
-
-`ExternalCommandRenderer` (used by the content prettifier to run external formatters) now refuses execution when `allowed_commands` is empty, which is the default. This was previously a no-op.
-
-To allow a specific external command, add it to the allowlist in your config:
-
-```yaml
-prettifier:
-  allowed_commands:
-    - "/usr/bin/jq"
-    - "/usr/local/bin/bat"
-```
-
-Attempts to run unlisted commands are blocked with a warning in the debug log.
 
 ---
 

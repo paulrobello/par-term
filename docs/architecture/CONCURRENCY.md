@@ -66,20 +66,17 @@ graph TD
     SystemMonitor -- "parking_lot::Mutex" --> SystemMonitorData
     EventLoop -- "parking_lot::Mutex" --> SystemMonitorData
 
-    style EventLoop fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
-    style PTYReader fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
-    style InputSender fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
-    style ResizeHandler fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
-    style Timers fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
-    style ClipboardSync fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
-    style AgentTask fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
-    style SystemMonitor fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style GitCheck fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style ShaderWatcher fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style AudioBell fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style Render fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
-    style Input fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
-    style EguiUI fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    classDef primary fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+    classDef active fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    classDef external fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
+    classDef neutral fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+    classDef info fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+
+    class EventLoop primary
+    class PTYReader,InputSender,ResizeHandler,Timers,ClipboardSync active
+    class AgentTask external
+    class SystemMonitor,GitCheck,ShaderWatcher,AudioBell neutral
+    class Render,Input,EguiUI info
 ```
 
 ## State Hierarchy

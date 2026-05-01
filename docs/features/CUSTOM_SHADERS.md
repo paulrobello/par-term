@@ -68,7 +68,7 @@ Shaders are written in GLSL (OpenGL Shading Language) and automatically transpil
 
 ### Install All Shaders (Recommended)
 
-Use the built-in CLI command to download and install all 67 shaders from the latest release:
+Use the built-in CLI command to download and install all included shaders from the latest release:
 
 ```bash
 # Install shaders (with confirmation prompt)
@@ -154,6 +154,18 @@ custom_shader_use_background_as_channel0: false
 # Blend-mode hint exposed to shaders as iBackgroundBlendMode
 # Values: replace, multiply, screen, overlay, luminance_mask
 custom_shader_background_channel0_blend_mode: replace
+
+# Reduce shader intensity only under terminal text/content for readability
+custom_shader_auto_dim_under_text: false
+
+# Auto-dim strength under text (0.0 = no extra dimming, 1.0 = black)
+custom_shader_auto_dim_strength: 0.35
+
+# Temporary readability mode: caps brightness for quick toggling
+custom_shader_readability_mode: false
+
+# Brightness cap used while readability mode is enabled
+custom_shader_readability_brightness: 0.35
 ```
 
 | Option | Type | Default | Description |
@@ -167,6 +179,10 @@ custom_shader_background_channel0_blend_mode: replace
 | `custom_shader_full_content` | `bool` | `false` | When true, shader can manipulate terminal content |
 | `custom_shader_use_background_as_channel0` | `bool` | `false` | Use app's background image as iChannel0 texture |
 | `custom_shader_background_channel0_blend_mode` | `enum` | `replace` | Blend-mode hint exposed as `iBackgroundBlendMode`; values: `replace`, `multiply`, `screen`, `overlay`, `luminance_mask` |
+| `custom_shader_auto_dim_under_text` | `bool` | `false` | Reduce shader intensity under terminal text for readability (see `iReadability`) |
+| `custom_shader_auto_dim_strength` | `f32` | `0.35` | Auto-dim strength under text (0.0 = no extra dim, 1.0 = black) |
+| `custom_shader_readability_mode` | `bool` | `false` | Temporary low-brightness readability mode for quick toggling |
+| `custom_shader_readability_brightness` | `f32` | `0.35` | Brightness cap used while readability mode is enabled |
 
 ### Shader Linting and Readability Scoring
 
@@ -418,6 +434,8 @@ cursor_shader_configs:
 - `cubemap_enabled`: Override cubemap enable
 - `use_background_as_channel0`: Use app's background image as iChannel0
 - `background_channel0_blend_mode`: Override the background-as-`iChannel0` blend-mode hint (`replace`, `multiply`, `screen`, `overlay`, `luminance_mask`)
+- `auto_dim_under_text`: Override auto-dim under terminal text
+- `auto_dim_strength`: Override auto-dim strength (0.0-1.0)
 - `uniforms`: Per-shader values for custom `// control ...` shader uniforms
 
 **Per-cursor-shader additional fields:**
@@ -469,6 +487,7 @@ Par-term specific uniforms for terminal integration:
 | `iCommand` | `vec4` | Shell command state from OSC 133 shell integration: `x` = state (`0` unknown, `1` running, `2` success, `3` failure), `y` = last exit code, `z` = shader time when state last changed, `w` = running flag. See [`command_state_backdrop.glsl`](../shaders/command_state_backdrop.glsl). |
 | `iFocusedPane` | `vec4` | Focused pane bounds in pixels using GLSL/Shadertoy bottom-left origin: `xy` = bottom-left, `zw` = size. Defaults to the full viewport when no focused pane is available. See [`pane_focus_regions.glsl`](../shaders/pane_focus_regions.glsl). |
 | `iScroll` | `vec4` | Scrollback context for the focused viewport: `x` = scroll offset in lines, `y` = visible line count, `z` = scrollback line count, `w` = normalized depth (`x / max(z, 1)`). See [`scrollback_parallax.glsl`](../shaders/scrollback_parallax.glsl). |
+| `iReadability` | `vec4` | Auto-dim options: `x` = auto-dim enabled (1.0 or 0.0), `y` = auto-dim strength (0.0-1.0). When enabled, the renderer dims shader output beneath terminal content. Controlled by `custom_shader_auto_dim_under_text` and `custom_shader_auto_dim_strength`. |
 
 Background blend constants exposed in GLSL:
 
@@ -628,6 +647,8 @@ defaults:
   cubemap_enabled: true
   use_background_as_channel0: false
   background_channel0_blend_mode: replace
+  auto_dim_under_text: false
+  auto_dim_strength: 0.35
 */
 ```
 

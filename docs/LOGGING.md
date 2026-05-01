@@ -15,36 +15,43 @@ par-term provides configurable debug logging to help diagnose issues. Log output
 - [Settings UI](#settings-ui)
 - [Usage Examples](#usage-examples)
 - [Module Filtering](#module-filtering)
+- [Debug Categories](#debug-categories)
 - [Troubleshooting](#troubleshooting)
 - [Related Documentation](#related-documentation)
 
 ## Overview
 
-par-term has **two parallel logging systems** that both write to the same file:
+par-term has **two parallel logging systems** (with combined macros for bridging both) that write to the same file:
 
 | System | Macros | Control | Best for |
 |--------|--------|---------|----------|
 | Custom debug | `crate::debug_info!("CAT", ...)`, `debug_error!()`, `debug_log!()`, `debug_trace!()` | `DEBUG_LEVEL=0-4` env var | High-frequency render/input events with category tags |
+| Combined | `debug_and_log_warn!("CAT", ...)`, `debug_and_log_error!("CAT", ...)` | Both systems | Emit to both custom debug log and `log` crate simultaneously |
 | Standard `log` crate | `log::info!()`, `log::warn!()`, `log::error!()`, etc. | `RUST_LOG` env var or `--log-level` CLI | Application lifecycle, startup/shutdown, config, I/O errors |
 
 ```mermaid
 graph TD
     App[Application Code]
     CustomDebug[Custom Debug Macros]
+    Combined[Combined Macros]
     LogCrate[Standard log Crate]
     Bridge[Log Bridge]
     File[Debug Log File]
     Stderr[Stderr Output]
 
     App -->|"debug_info!(), debug_error!(), etc."| CustomDebug
+    App -->|"debug_and_log_warn!(), debug_and_log_error!()"| Combined
     App -->|"log::info!(), log::error!(), etc."| LogCrate
     CustomDebug -->|"DEBUG_LEVEL env var"| File
+    Combined --> CustomDebug
+    Combined --> LogCrate
     LogCrate --> Bridge
     Bridge --> File
     Bridge -->|"When RUST_LOG is set"| Stderr
 
     style App fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
     style CustomDebug fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
+    style Combined fill:#880e4f,stroke:#e91e63,stroke-width:2px,color:#ffffff
     style LogCrate fill:#1a237e,stroke:#3f51b5,stroke-width:2px,color:#ffffff
     style Bridge fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
     style File fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
@@ -203,6 +210,41 @@ Certain noisy third-party crates are automatically filtered to reduce log volume
 | `cpal` | Error | Audio device enumeration |
 
 These filters ensure that par-term's own messages remain visible even at high verbosity levels.
+
+## Debug Categories
+
+Custom debug macros use category tags for selective filtering. The following categories are used throughout the codebase:
+
+| Category | Description |
+|----------|-------------|
+| `APP` | Application-level render pipeline operations |
+| `ARRANGEMENT` | Window arrangement save/restore |
+| `CAT` | General-purpose catch-all |
+| `CONFIG` | Configuration loading and propagation |
+| `CONCURRENCY` | `try_lock()` failure telemetry and lock contention reporting |
+| `COPY_MODE` | Copy/selection mode operations |
+| `DYNAMIC_PROFILE` | Dynamic profile fetching, caching, and merging |
+| `FILE_TRANSFER` | File transfer upload/download operations |
+| `MOUSE` | Mouse event handling |
+| `PANE_CLOSE` | Pane closure lifecycle |
+| `PREFIX_ACTION` | Prefix key action processing |
+| `PROFILE` | Profile management and switching |
+| `REDRAW` | Screen redraw scheduling |
+| `RENDER` | GPU rendering pipeline (cells, graphics, overlays) |
+| `SCRIPT` | Scripting engine lifecycle |
+| `SEMANTIC` | Semantic history and URL detection |
+| `SESSION_LOGGER` | Session logging operations |
+| `SHADER` | Custom shader loading, compilation, and hot-reload |
+| `SHIFTENTER` | Shift+Enter key handling |
+| `TAB` | Tab management and lifecycle |
+| `TAB_ACTION` | Tab action execution from snippets/keybindings |
+| `TERMINAL` | PTY and terminal emulator operations |
+| `TMUX` | Tmux integration (gateway, layout, session management) |
+
+Filter by category using grep:
+```bash
+tail -f /tmp/par_term_debug.log | grep --line-buffered "CONCURRENCY"
+```
 
 ## Troubleshooting
 

@@ -23,7 +23,7 @@ Paste Special provides a searchable list of transformations with live preview:
 graph TD
     Clipboard[Clipboard Content]
     UI[Paste Special UI]
-    Search[Fuzzy Search]
+    Search[Search Filter]
     Transform[Transformation]
     Preview[Live Preview]
     Terminal[Terminal]
@@ -55,7 +55,7 @@ graph TD
 | Transform | Description | Example |
 |-----------|-------------|---------|
 | **Shell: Single Quotes** | Wrap in single quotes, escape internal quotes | `hello world` → `'hello world'` |
-| **Shell: Double Quotes** | Wrap in double quotes, escape special chars | `$PATH` → `"$PATH"` |
+| **Shell: Double Quotes** | Wrap in double quotes, escape special chars | `$PATH` → `"\$PATH"` |
 | **Shell: Backslash Escape** | Escape shell special characters | `hello world` → `hello\ world` |
 
 **Shell escaping handles:**
@@ -185,7 +185,7 @@ graph TB
 ### Search/Filter
 
 Type in the search box to filter transformations:
-- `b64` → Shows Base64 transforms
+- `base64` → Shows Base64 transforms
 - `shell` → Shows shell escaping
 - `upper` → Shows uppercase transform
 - `case` → Shows all case transforms

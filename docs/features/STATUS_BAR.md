@@ -56,10 +56,10 @@ par-term includes 10 built-in widgets plus custom widgets:
 | **User@Hostname** | `username_hostname` | Current user and machine name | Left | Enabled |
 | **Current Directory** | `current_directory` | Working directory of active tab | Left | Enabled |
 | **Git Branch** | `git_branch` | Branch name with ahead/behind/dirty indicators | Left | Enabled |
-| **CPU Usage** | `cpu_usage` | Global CPU usage percentage | Right | Disabled |
-| **Memory Usage** | `memory_usage` | Used/total memory (e.g., "4.0 GB / 16.0 GB") | Right | Disabled |
-| **Network Status** | `network_status` | Receive/transmit rates (KB/s, MB/s, GB/s) | Right | Disabled |
-| **Bell Indicator** | `bell_indicator` | Terminal bell count (shown when > 0) | Right | Enabled |
+| **CPU Usage** | `cpu_usage` | CPU usage percentage with fixed-width formatting (e.g., "CPU 42.5%") | Right | Disabled |
+| **Memory Usage** | `memory_usage` | Used/total memory with MEM prefix (e.g., "MEM 4.0 GB / 16.0 GB") | Right | Disabled |
+| **Network Status** | `network_status` | Receive/transmit rates with arrows (e.g., "↓ 1.0 KB/s ↑ 2.0 KB/s") | Right | Disabled |
+| **Bell Indicator** | `bell_indicator` | Bell emoji with count, shown when count > 0 (e.g., "🔔 3") | Right | Enabled |
 | **Update Available** | `update_available` | Yellow up-arrow with available version (e.g., "⬆ v0.20.0") | Right | Enabled |
 | **Current Command** | `current_command` | Currently executing shell command | Center | Enabled |
 | **Custom Text** | `custom:"Name"` | User-defined text with variable interpolation | Configurable | User-created |
@@ -157,19 +157,28 @@ Custom widgets support these variables:
 | `\(session.username)` | Current username | `deploy` |
 | `\(session.path)` | Working directory | `/home/user/project` |
 | `\(session.bell_count)` | Bell event count | `3` |
-| `\(session.current_command)` | Running command | `make build` |
+| `\(session.current_command)` | Currently running command | `make build` |
+| `\(session.job)` | Current foreground job name | `vim` |
+| `\(session.last_command)` | Last executed command | `cargo test` |
+| `\(session.profile_name)` | Active profile name | `Default` |
+| `\(session.tty)` | TTY device name | `/dev/ttys001` |
+| `\(session.columns)` | Terminal columns | `120` |
+| `\(session.rows)` | Terminal rows | `40` |
+| `\(session.exit_code)` | Last command exit code | `0` |
+| `\(session.tmux_pane_title)` | tmux pane title (when in tmux) | `my-session` |
 | `\(git.branch)` | Git branch name | `main` |
-| `\(git.ahead)` | Commits ahead | `2` |
-| `\(git.behind)` | Commits behind | `0` |
-| `\(git.dirty)` | Dirty state | `true` |
-| `\(system.cpu)` | CPU usage | `42.5` |
-| `\(system.memory)` | Memory usage | `4.0 GB` |
+| `\(git.ahead)` | Commits ahead of upstream | `2` |
+| `\(git.behind)` | Commits behind upstream | `0` |
+| `\(git.dirty)` | Dirty state (bullet if dirty, empty if clean) | `●` |
+| `\(system.cpu)` | CPU usage percentage | `42.5%` |
+| `\(system.memory)` | Memory usage (used / total) | `4.0 GB / 16.0 GB` |
 
 **Example format strings:**
 
 ```
-Host: \(session.hostname) CPU: \(system.cpu)%
+Host: \(session.hostname) CPU: \(system.cpu)
 \(git.branch) [\(session.current_command)]
+Profile: \(session.profile_name) TTY: \(session.tty)
 ```
 
 ## Auto-Hide Behavior
@@ -307,6 +316,18 @@ status_bar_widgets:
     enabled: true
     section: center
     order: 0
+  - id: cpu_usage
+    enabled: false
+    section: right
+    order: 0
+  - id: memory_usage
+    enabled: false
+    section: right
+    order: 1
+  - id: network_status
+    enabled: false
+    section: right
+    order: 2
   - id: bell_indicator
     enabled: true
     section: right

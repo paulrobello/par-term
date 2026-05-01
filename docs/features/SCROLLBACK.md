@@ -129,7 +129,7 @@ Hover over scrollbar marks to see command details:
 **Enabling Tooltips:**
 
 1. Press `F12` to open Settings
-2. Navigate to **Terminal** → **Scrollbar**
+2. Navigate to **Window** → Scrollbar section
 3. Enable "Show command markers" (if not already enabled)
 4. Enable "Show tooltips on hover"
 

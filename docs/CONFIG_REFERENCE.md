@@ -16,6 +16,8 @@ field uses its documented default value.
 - [Rendering](#rendering)
 - [Background & Images](#background--images)
 - [Custom Shaders (Background)](#custom-shaders-background)
+- [Per-Shader Configuration Overrides](#per-shader-configuration-overrides)
+- [File Transfers](#file-transfers)
 - [Custom Shaders (Cursor)](#custom-shaders-cursor)
 - [Keyboard Input](#keyboard-input)
 - [Selection & Clipboard](#selection--clipboard)
@@ -127,7 +129,7 @@ field uses its documented default value.
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `background_mode` | `enum` | `default` | `default` (theme color), `color` (solid), `image` |
-| `background_color` | `[u8;3]` | `[0,0,0]` | Custom solid background color `[R, G, B]` (0-255) |
+| `background_color` | `[u8;3]` | `[30,30,30]` | Custom solid background color `[R, G, B]` (0-255) |
 | `background_image` | `string?` | `null` | Path to background image (supports `~`) |
 | `background_image_enabled` | `bool` | `true` | Enable/disable background image rendering |
 | `background_image_mode` | `enum` | `stretch` | `fit`, `fill`, `stretch`, `tile`, `center` |
@@ -157,8 +159,31 @@ field uses its documented default value.
 | `custom_shader_cubemap_enabled` | `bool` | `true` | Enable cubemap sampling |
 | `custom_shader_use_background_as_channel0` | `bool` | `false` | Bind background image as `iChannel0` |
 | `custom_shader_background_channel0_blend_mode` | `enum` | `replace` | Blend-mode hint exposed as `iBackgroundBlendMode` when using background as `iChannel0`; values: `replace`, `multiply`, `screen`, `overlay`, `luminance_mask` |
+| `custom_shader_auto_dim_under_text` | `bool` | `false` | Reduce shader intensity under terminal text for readability |
+| `custom_shader_auto_dim_strength` | `f32` | `0.35` | Auto-dim strength under text (0.0 = no extra dim, 1.0 = black) |
+| `custom_shader_readability_mode` | `bool` | `false` | Temporary low-power/readability mode for quick toggles |
+| `custom_shader_readability_brightness` | `f32` | `0.35` | Brightness cap while readability mode is enabled |
 | `shader_hot_reload` | `bool` | `false` | Reload shader automatically when file is modified |
 | `shader_hot_reload_delay` | `u64` | `100` | Debounce delay in ms before hot-reload triggers |
+
+---
+
+## Per-Shader Configuration Overrides
+
+Override shader settings per-file. Keys are shader filenames (without path).
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `shader_configs` | `map` | `{}` | Per-background-shader overrides. Each value: `{animation_speed?, brightness?, text_opacity?, full_content?, channel0–3?, cubemap?, cubemap_enabled?, use_background_as_channel0?, background_channel0_blend_mode?, auto_dim_under_text?, auto_dim_strength?, uniforms?}` |
+| `cursor_shader_configs` | `map` | `{}` | Per-cursor-shader overrides. Same fields as `shader_configs` plus `hides_cursor?` |
+
+---
+
+## File Transfers
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `download_save_location` | `enum` | `downloads` | Default save location for downloaded files: `downloads`, `last_used`, `cwd`, or `custom` with a path |
 
 ---
 
@@ -526,7 +551,7 @@ field uses its documented default value.
 | `badge_format` | `string` | `"\\(session.username)@\\(session.hostname)"` | Badge text with `\(variable)` substitution |
 | `badge_color` | `[u8;3]` | `[255,0,0]` | Badge text color |
 | `badge_color_alpha` | `f32` | `0.5` | Badge opacity (0.0–1.0) |
-| `badge_font` | `string` | `""` | Badge font family |
+| `badge_font` | `string` | `"Helvetica"` | Badge font family |
 | `badge_font_bold` | `bool` | `true` | Use bold badge font |
 | `badge_top_margin` | `f32` | `0.0` | Top margin in pixels from terminal edge |
 | `badge_right_margin` | `f32` | `16.0` | Right margin in pixels from terminal edge |

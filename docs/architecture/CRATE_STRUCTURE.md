@@ -25,7 +25,7 @@ par-term uses a Cargo workspace to decompose the application into focused, indep
 - **Explicit dependency boundaries** — a crate can only use what it declares; layering is enforced by the compiler.
 - **Independent publishing** — utility crates such as `par-term-mcp` and `par-term-ssh` can be published to crates.io and consumed by other projects without pulling in the full terminal stack.
 
-The workspace contains 14 sub-crates plus the root binary. They form a directed acyclic graph with four distinct layers.
+The workspace contains 13 sub-crates plus the root binary. They form a directed acyclic graph with four distinct layers.
 
 ## Dependency Diagram
 
@@ -157,19 +157,19 @@ Quick lookup table with each crate's primary public types and where they are con
 
 | Crate | Key Public Types / APIs | Primary Consumers |
 |-------|------------------------|-------------------|
-| `par-term-acp` | `AcpAgent`, `AcpSession`, `ToolCall` | `par-term` (AI inspector panel) |
+| `par-term-acp` | `Agent`, `AgentMessage`, `AgentConfig`, `JsonRpcClient` | `par-term` (AI inspector panel) |
 | `par-term-config` | `Config`, `Cell`, `PaneId`, `TabId`, `KeyBinding`, `FontRange`, `ScrollbackMark` | All workspace crates |
 | `par-term-fonts` | `FontManager`, `FontData`, `TextShaper`, `ShapedGlyph` | `par-term-render`, `par-term` |
-| `par-term-input` | `InputHandler`, `encode_key`, `encode_mouse` | `par-term` |
-| `par-term-keybindings` | `KeybindingRegistry`, `KeyCombo`, `KeyAction` | `par-term` |
-| `par-term-mcp` | `McpServer`, `McpRequest`, `McpResponse` | `par-term` |
+| `par-term-input` | `InputHandler` | `par-term` |
+| `par-term-keybindings` | `KeybindingRegistry`, `KeyCombo` | `par-term` |
+| `par-term-mcp` | `tools`, `jsonrpc`, `ipc`, `TerminalScreenshotRequest` | `par-term` |
 | `par-term-render` | `Renderer`, `CellRenderer`, `GraphicsRenderer`, `CustomShaderRenderer` | `par-term` |
-| `par-term-scripting` | `ScriptingHost`, `TerminalObserver` | `par-term` |
-| `par-term-settings-ui` | `SettingsUi`, `SettingsState`, all tab structs | `par-term` (settings window) |
-| `par-term-ssh` | `SshHostDiscovery`, `SshHost` | `par-term` (quick connect UI) |
-| `par-term-terminal` | `TerminalManager`, `ScrollbackContent` | `par-term`, `par-term-tmux` |
+| `par-term-scripting` | `ScriptManager`, `ScriptEventForwarder` | `par-term` |
+| `par-term-settings-ui` | `SettingsUI`, `SettingsTab`, all tab structs | `par-term` (settings window) |
+| `par-term-ssh` | `SshHost`, `SshHostSource`, `discover_local_hosts` | `par-term` (quick connect UI) |
+| `par-term-terminal` | `TerminalManager`, `ScrollbackMetadata` | `par-term` |
 | `par-term-tmux` | `TmuxSession`, `TmuxSync`, `TmuxCommand` | `par-term` |
-| `par-term-update` | `UpdateChecker`, `UpdateManifest` | `par-term` |
+| `par-term-update` | `UpdateChecker`, `Manifest`, `UpdateInfo` | `par-term` |
 
 ## Version Bump Order
 

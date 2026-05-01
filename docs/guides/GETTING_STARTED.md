@@ -196,7 +196,7 @@ par-term install-shaders
 2. Navigate to the **Integrations** tab
 3. Click **Install** in the Custom Shaders section
 
-Once installed, enable a background shader in Settings under **Background & Effects**, or toggle the active shader with `Cmd/Ctrl + Shift + B`.
+Once installed, enable a background shader in Settings under **Effects**, or toggle the active shader with `Cmd/Ctrl + Shift + B`.
 
 > **✅ Tip:** Lower the `custom_shader_brightness` setting (for example, 0.3-0.5) to keep shader backgrounds from overpowering your terminal text. You can also install both shell integration and shaders at once with `par-term install-integrations`.
 
@@ -218,11 +218,11 @@ Profiles also support **auto-switching** -- par-term can automatically apply a p
 
 ### Themes and Colors
 
-par-term supports iTerm2-style color schemes. Change themes in **Settings > Appearance > Colors**. Built-in options include Dracula, Monokai, Solarized, and many more.
+par-term supports iTerm2-style color schemes. Change themes in **Settings > Appearance > Theme**. Built-in options include Dracula, Monokai, Solarized, and many more.
 
 ### Fonts
 
-Configure fonts in **Settings > Appearance > Font**. par-term supports:
+Configure fonts in **Settings > Appearance > Fonts**. par-term supports:
 
 - Separate font families for regular, bold, italic, and bold-italic text
 - Unicode range mapping for CJK, emoji, or symbol fonts

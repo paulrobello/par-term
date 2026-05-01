@@ -94,7 +94,7 @@ Five frequency options are available:
 | **Weekly** | 7 days | Check once per week |
 | **Monthly** | 30 days | Check once per month |
 
-The checker also enforces a minimum interval of one hour between API requests to avoid rate limiting, even when checks are triggered manually.
+The checker enforces a minimum interval of one hour between scheduled API requests to avoid rate limiting. Manual checks triggered via the Settings UI bypass this rate limit.
 
 ### Skip Version
 
@@ -259,14 +259,16 @@ The macOS release asset is a zip archive containing a complete `.app` bundle. Th
 3. Opens the downloaded zip archive and locates the top-level `.app` directory within it
 4. Extracts all files from the archive into the existing `.app` bundle, overwriting existing files
 5. Preserves Unix file permissions from the archive entries
-6. Runs `xattr -cr` on the extracted `.app` bundle to remove macOS quarantine attributes, preventing Gatekeeper from blocking the updated app on first launch
-7. Reports the install path and advises restarting
+6. Verifies the code signature using `codesign --verify --deep --strict` -- if the signature is invalid or missing, the update is aborted as a potential security risk
+7. Runs `spctl --assess --type execute` to check Gatekeeper assessment (notarization). A warning is logged if this fails (expected for unsigned dev builds), but the update is not aborted
+8. Runs `xattr -cr` on the extracted `.app` bundle to remove macOS quarantine attributes, preventing Gatekeeper from blocking the updated app on first launch
+9. Reports the install path and advises restarting
 
 ### Linux and Windows Standalone Updates
 
 Standalone binary updates use an atomic replacement strategy:
 
-1. Downloads the platform-appropriate binary (e.g., `par-term-linux-x86_64` or `par-term-windows-x86_64.exe`)
+1. Downloads the platform-appropriate binary (e.g., `par-term-linux-x86_64`, `par-term-linux-aarch64`, or `par-term-windows-x86_64.exe`)
 2. Writes the downloaded binary to a temporary file alongside the current executable (with `.new` extension)
 3. Sets executable permissions on Unix systems (`chmod 755`)
 4. Performs the replacement:
@@ -290,6 +292,9 @@ last_update_check: "2026-02-10T15:30:00+00:00"
 
 # Version to skip in update notifications (e.g., "0.24.0")
 skipped_version: null
+
+# Last version we notified the user about (managed automatically)
+last_notified_version: null
 ```
 
 All update settings are accessible through Settings (`F12`) under **Advanced > Updates**.
@@ -297,11 +302,13 @@ All update settings are accessible through Settings (`F12`) under **Advanced > U
 ## Security Considerations
 
 - **HTTPS only**: All communication with the GitHub API and asset downloads use HTTPS with TLS
+- **Host allowlist**: Only four GitHub hostnames are accepted for update-related network requests: `github.com`, `api.github.com`, `objects.githubusercontent.com`, and `github-releases.githubusercontent.com`. URLs pointing to any other host are rejected regardless of scheme or path
 - **GitHub API**: Release information is fetched from the official GitHub Releases API (`api.github.com`), and binaries are downloaded from GitHub's release asset URLs
 - **SHA256 checksum verification**: After downloading, the binary is verified against a `.sha256` checksum file published alongside each release asset. If the checksum is present and the hashes do not match, the update is aborted. If no checksum file is available (older releases), a warning is logged and the update proceeds
-- **Content validation**: The downloaded archive is inspected before checksum verification to catch obvious bad responses (e.g., HTML error pages) and provide a clear error rather than a checksum mismatch message
+- **Content validation**: The downloaded archive is inspected before checksum verification to catch obviously bad responses (e.g., HTML error pages). Platform-specific magic bytes are checked: ZIP header (`PK`) for macOS, ELF header (`\x7fELF`) for Linux, and PE header (`MZ`) for Windows
 - **No code execution during download**: Downloaded binaries are written to disk first and are not executed as part of the update process. The user must restart par-term to use the new version
 - **Permission preservation**: On Unix systems, the new binary receives standard executable permissions (`0o755`). On macOS app bundles, Unix permissions from the zip archive entries are preserved
+- **macOS code signature verification**: Before removing quarantine attributes, the updater runs `codesign --verify --deep --strict` on the updated `.app` bundle. If the code signature is invalid, the update is aborted
 - **Atomic replacement on Unix**: The `rename()` system call provides atomic replacement, ensuring the binary is never in a partially-written state
 - **Safe Windows replacement**: On Windows, the rename-based strategy ensures the original binary is preserved as `.old` until the new version starts successfully
 - **No privilege escalation**: The update runs with the same permissions as the running process. If par-term does not have write access to its own binary, the update fails with a clear error message

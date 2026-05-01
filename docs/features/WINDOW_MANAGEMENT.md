@@ -200,6 +200,7 @@ Split panes can display GPU-rendered title bars showing the pane's OSC title, cu
 ```yaml
 show_pane_titles: true                    # Enable pane title bars
 pane_title_position: top                  # top or bottom
+pane_title_height: 20.0                   # Height in pixels (14-30)
 pane_title_color: [200, 200, 200]         # Title text color (RGB)
 pane_title_bg_color: [40, 40, 40]         # Title background color (RGB)
 pane_title_font: "JetBrains Mono"         # Title font family

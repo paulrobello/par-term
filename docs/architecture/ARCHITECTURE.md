@@ -204,7 +204,7 @@ graph TD
 | **par-term-fonts** | Font discovery, loading, and fallback chain (`FontManager`, `FontData`). Text shaping via `TextShaper` (HarfBuzz/rustybuzz). |
 | **par-term-terminal** | Terminal session management (`TerminalManager`), scrollback buffer extraction, and PTY interaction wrappers. |
 | **par-term-render** | GPU rendering engine: cell renderer, graphics renderer (Sixel/iTerm2/Kitty), custom shader renderer, WGSL shaders, and glyph atlas management. |
-| **par-term-settings-ui** | 13 settings tabs (Appearance, Window, Input, Terminal, Effects, Status Bar, Profiles, Notifications, Integrations, Automation, Snippets & Actions, Assistant, Advanced), sidebar navigation, and section helper utilities. |
+| **par-term-settings-ui** | 13 consolidated settings tabs (Appearance (includes Badge and Progress Bar), Window (includes Arrangements), Input, Terminal, Effects (includes Background), Status Bar, Profiles, Notifications, Integrations (includes SSH), Automation (includes Scripts), Snippets & Actions, Assistant, Advanced), sidebar navigation, and section helper utilities. |
 | **par-term-input** | Input sequence generation — translates keyboard/mouse events into VT escape sequences for terminal input. |
 | **par-term-keybindings** | Keybinding parsing, matching, and registry with platform-aware modifier handling (`CmdOrCtrl`). |
 | **par-term-scripting** | Observer pattern and scripting system for event-driven automation. |
@@ -223,13 +223,14 @@ All public types from workspace crates are re-exported from the main `par-term` 
 
 *   **App (`src/app/mod.rs`)**: The entry point that initializes configuration and runs the event loop via `winit`.
 *   **WindowManager (`src/app/window_manager/`)**: Coordinates multiple terminal windows, handles native menu events, manages the standalone settings window, and applies configuration changes across all windows.
-*   **WindowState (`src/app/window_state/`)**: Per-window state module containing tab manager, renderer, input handler, keybinding registry, and shader metadata caches — decomposed into focused sub-modules including `render_pipeline/`, `agent_messages.rs`, and state components (AgentState, TmuxState, OverlayUiState).
+*   **WindowState (`src/app/window_state/`)**: Per-window state module containing tab manager, renderer, input handler, keybinding registry, and shader metadata caches — decomposed into focused sub-modules including `agent_messages.rs`, and state components (AgentState, TmuxState, OverlayUiState). The render pipeline lives in `src/app/render_pipeline/`.
+
 *   **Input Handler (`par-term-input`)**: Translates OS window events (keyboard, mouse) into terminal input sequences or application commands (e.g., shortcuts for copy/paste).
 *   **Keybindings (`par-term-keybindings`)**: Configurable keyboard shortcut system with key combo parsing, platform-aware modifier handling (`CmdOrCtrl`), and action registry.
 *   **Menu (`src/menu/`)**: Native cross-platform menu bar using `muda` (macOS global menu, Windows/Linux per-window menus).
 *   **Configuration (`par-term-config`)**: Manages settings loaded from YAML files, handling platform-specific paths (`%APPDATA%` vs `~/.config`). Includes shader metadata caching and file watching.
 *   **Settings Window (`src/settings_window/`)**: Standalone egui window for configuration, separate from the main terminal window for better usability.
-*   **Settings UI (`par-term-settings-ui`)**: egui-based settings interface with 14 consolidated tabs: Appearance (includes Badge and Progress Bar), Window (includes Arrangements), Input, Terminal, Effects, Status Bar, Profiles, Notifications, Integrations (includes SSH), Automation (includes Scripts), Snippets & Actions, Assistant, and Advanced.
+*   **Settings UI (`par-term-settings-ui`)**: egui-based settings interface with 13 consolidated tabs: Appearance (includes Badge and Progress Bar), Window (includes Arrangements), Input, Terminal, Effects (includes Background), Status Bar, Profiles, Notifications, Integrations (includes SSH), Automation (includes Scripts), Snippets & Actions, Assistant, and Advanced.
 *   **Profile Manager (`src/profile/`)**: iTerm2-style profile system for saving terminal session configurations (working directory, custom commands, tab names). Profiles stored in `~/.config/par-term/profiles.yaml`.
 *   **Scripting (`par-term-scripting`)**: Observer pattern implementation for event-driven automation and shell integration callbacks.
 *   **Update System (`par-term-update`)**: Self-update mechanism with manifest parsing, version comparison, and download/extraction logic.
@@ -351,7 +352,7 @@ sequenceDiagram
     *   Handling timers (e.g., cursor blink, visual bell).
     *   Managing clipboard synchronization.
 
-Access to shared resources (like the Terminal state) is managed via `parking_lot::Mutex` to prevent contention and ensure safety.
+Access to shared resources uses a layered locking strategy: the terminal state is guarded by `tokio::sync::RwLock` (async-safe, shared across Tokio tasks), while sync-only state uses `parking_lot::Mutex` for fast non-async locks. See the [Concurrency Guide](CONCURRENCY.md) for full details.
 
 ### Render Pipeline Sequence
 

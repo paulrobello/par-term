@@ -26,11 +26,15 @@ Centralized guide for diagnosing and resolving common issues with par-term. Each
 - [Terminal Behavior Issues](#terminal-behavior-issues)
   - [Shell Integration Not Working](#shell-integration-not-working)
   - [Keyboard Shortcuts Not Recognized](#keyboard-shortcuts-not-recognized)
+  - [Shift+Letter or Shift+Digit/Symbol Produces Wrong Character in crossterm Apps (macOS/Linux)](#shiftletter-or-shiftdigitsymbol-produces-wrong-character-in-crossterm-apps-macoslinux)
+  - [Windows Modifier Keys Break After Notification](#windows-modifier-keys-break-after-notification)
   - [Modifier Keys Ignored for Special Keys Outside tmux](#modifier-keys-ignored-for-special-keys-outside-tmux)
   - [Ctrl+Alt+Letter Shortcuts Behave Identically to Plain Ctrl+Letter](#ctrlaltletter-shortcuts-behave-identically-to-plain-ctrlletter)
   - [Shift+Enter Ignored Inside Tmux by pi / Other Kitty-Keyboard TUIs](#shiftenter-ignored-inside-tmux-by-pi--other-kitty-keyboard-tuis)
   - [Copy and Paste Issues](#copy-and-paste-issues)
+  - [Text Selection Highlight Stays Fixed While Scrolling](#text-selection-highlight-stays-fixed-while-scrolling)
   - [Mouse Behavior Issues](#mouse-behavior-issues)
+  - [Keyboard Input Stalls](#keyboard-input-stalls)
   - [URL Underline Misaligned in Split Panes or During Scroll](#url-underline-misaligned-in-split-panes-or-during-scroll)
 - [SSH and Remote Issues](#ssh-and-remote-issues)
   - [Hosts Not Appearing in Quick Connect](#hosts-not-appearing-in-quick-connect)
@@ -174,7 +178,7 @@ sudo pacman -S gtk3 libxkbcommon wayland libxcb alsa-lib
 
 **Solution:**
 
-1. Ensure you have Rust 1.85+ installed (2024 edition required):
+1. Ensure you have Rust 1.94+ installed (2024 edition required):
 
    ```bash
    rustup update stable

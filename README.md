@@ -160,7 +160,7 @@ This builds and installs the binary to `~/.cargo/bin/par-term`.
 
 ### From Source
 
-Requires Rust 1.91+ (stable, 2024 edition) and modern graphics drivers:
+Requires Rust 1.94+ (stable, 2024 edition) and modern graphics drivers:
 
 ```bash
 # Clone the repository

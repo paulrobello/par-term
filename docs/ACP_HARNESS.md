@@ -14,6 +14,7 @@
   - [Save a Transcript](#save-a-transcript)
   - [Test Screenshot Tool Flows (Vision Models)](#test-screenshot-tool-flows-vision-models)
   - [Debug Prompt Construction](#debug-prompt-construction)
+  - [Additional CLI Options](#additional-cli-options)
 - [Makefile Targets](#makefile-targets)
 - [Examples](#examples)
 - [Troubleshooting](#troubleshooting)
@@ -196,6 +197,17 @@ cargo run --bin par-term-acp-harness -- \
   --prompt "list the current directory"
 ```
 
+### Additional CLI Options
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--cwd <PATH>` | Current directory | Working directory for the agent session |
+| `--par-term-bin <PATH>` | Auto-detected | Path to the `par-term` binary used to host the MCP server |
+| `--auto-approve` | `true` | Automatically approve permission requests |
+| `--auto-recover` | `true` | Emit follow-up recovery prompts on tool failures or incomplete shader activation |
+| `--timeout-seconds <N>` | `120` | Overall timeout after sending the prompt |
+| `--idle-timeout-seconds <N>` | `8` | Stop after this many seconds with no incoming agent events |
+
 ## Makefile Targets
 
 Two convenience targets are available in the project `Makefile`:
@@ -218,9 +230,10 @@ Override the smoke test defaults:
 ```bash
 make acp-smoke \
   ACP_AGENT=claude-ollama.local \
-  ACP_TIMEOUT=90 \
-  ACP_IDLE_TIMEOUT=15 \
-  ACP_TRANSCRIPT=/tmp/acp-smoke.log
+  ACP_TIMEOUT=45 \
+  ACP_IDLE_TIMEOUT=6 \
+  ACP_TRANSCRIPT=/tmp/acp-smoke.log \
+  ACP_SMOKE_PROMPT="set shader to rain"
 ```
 
 ## Examples

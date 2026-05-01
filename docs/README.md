@@ -70,7 +70,6 @@ Navigation index for all par-term documentation. Start with the [Getting Started
 | Document | Description |
 |----------|-------------|
 | [Contributing](../CONTRIBUTING.md) | Development setup, build commands, code style, sub-crate architecture, and PR guidelines |
-| [Getting Started](guides/GETTING_STARTED.md) | Install, launch, and configure par-term in under 10 minutes |
 | [Architecture](architecture/ARCHITECTURE.md) | High-level system architecture, core components, data flow, and rendering pipeline |
 | [Crate Structure](architecture/CRATE_STRUCTURE.md) | Workspace crate dependency layers, version bump order, and adding new sub-crates |
 | [Concurrency](architecture/CONCURRENCY.md) | Lock hierarchy, mutex taxonomy, and deadlock prevention patterns |

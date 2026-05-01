@@ -134,6 +134,8 @@ These variables are set by par-term itself when launching the MCP server subproc
 | `PAR_TERM_SCREENSHOT_REQUEST_PATH` | `<config_dir>/.screenshot-request.json` | Path where the MCP server writes a screenshot request. |
 | `PAR_TERM_SCREENSHOT_RESPONSE_PATH` | `<config_dir>/.screenshot-response.json` | Path where the GUI app writes the screenshot response. |
 | `PAR_TERM_SCREENSHOT_FALLBACK_PATH` | unset | Optional static fallback image path. Used by the ACP harness for testing the screenshot tool without a running GUI. |
+| `PAR_TERM_SHADER_DIAGNOSTICS_REQUEST_PATH` | `<config_dir>/.shader-diagnostics-request.json` | Path where the MCP server writes a shader diagnostics request. |
+| `PAR_TERM_SHADER_DIAGNOSTICS_RESPONSE_PATH` | `<config_dir>/.shader-diagnostics-response.json` | Path where the GUI app writes the shader diagnostics response. |
 
 ---
 

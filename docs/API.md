@@ -46,7 +46,9 @@ Configuration loading, saving, and type definitions for the terminal emulator. T
 | `BackgroundMode` | Terminal background rendering mode (solid color, image, shader). |
 | `BackgroundImageMode` | How a background image is fitted: `Fit`, `Fill`, `Stretch`, `Tile`, `Center`. |
 | `PaneBackground` | Per-pane background override (image path, mode, opacity). |
+| `PaneBackgroundConfig` | Full pane background configuration with all options. |
 | `PaneId` | Unique identifier for a split pane within a tab. |
+| `PaneTitlePosition` | Where pane titles appear: `Top` or `Bottom`. |
 | `ImageScalingMode` | Inline image scaling mode. |
 | `DividerStyle` | Visual style for split-pane dividers: `Solid`, `Double`, `Dashed`, `Shadow`. |
 | `DividerRect` | Pixel bounds for a rendered split-pane divider. |
@@ -59,6 +61,8 @@ Configuration loading, saving, and type definitions for the terminal emulator. T
 |------|-------------|
 | `FontRange` | Maps a Unicode code-point range to a specific font family. |
 | `ThinStrokesMode` | Sub-pixel thin-stroke rendering mode. |
+| `DownloadSaveLocation` | Where downloaded files are saved. |
+| `DroppedFileQuoteStyle` | How dropped file paths are quoted when pasted. |
 
 ### Input and Keybindings
 
@@ -85,8 +89,10 @@ Configuration loading, saving, and type definitions for the terminal emulator. T
 |------|-------------|
 | `CursorStyle` | Cursor shape: `Block`, `Beam`, or `Underline`. |
 | `UnfocusedCursorStyle` | Cursor style when the window does not have focus. |
-| `CursorShaderConfig` | Configuration for cursor post-processing shaders. |
 | `Cell` | A single terminal grid cell with character, colors, and attribute flags. |
+| `LinkUnderlineStyle` | How hyperlinks are underlined: `None`, `Always`, or `Hover`. |
+| `LogLevel` | Application log level. |
+| `SemanticHistoryEditorMode` | How semantic history opens files. |
 
 ### Tab Bar and Window
 
@@ -96,6 +102,8 @@ Configuration loading, saving, and type definitions for the terminal emulator. T
 | `TabBarMode` | When the tab bar is shown: `Always`, `Auto`, `Never`. |
 | `TabBarPosition` | `Top` or `Bottom`. |
 | `TabTitleMode` | How tab titles are set: `Auto` or `OscOnly`. |
+| `NewTabPosition` | Where new tabs appear: `AfterActive` or `AtEnd`. |
+| `RemoteTabTitleFormat` | Format string for remote (SSH/tmux) tab titles. |
 | `WindowType` | Window decoration style. |
 | `StatusBarPosition` | `Top` or `Bottom`. |
 | `TabId` | Unique identifier for a tab. |
@@ -124,9 +132,22 @@ Configuration loading, saving, and type definitions for the terminal emulator. T
 | `ResolvedShaderConfig` | Fully resolved shader config after metadata lookup. |
 | `ShaderMetadata` | TOML-parsed metadata for a background shader. |
 | `ShaderMetadataCache` | In-memory cache of background shader metadata. |
+| `CursorShaderConfig` | Configuration for cursor post-processing shaders. |
+| `CursorShaderMetadata` | TOML-parsed metadata for a cursor shader. |
+| `ResolvedCursorShaderConfig` | Fully resolved cursor shader config after metadata lookup. |
 | `CursorShaderMetadataCache` | In-memory cache of cursor shader metadata. |
+| `ShaderBundleManifest` | Manifest for a bundled shader package. |
+| `ShaderBackgroundBlendMode` | How the shader blends with the background. |
+| `ShaderSafetyBadge` | Safety classification badge for a shader. |
+| `ShaderControl` | A single UI control exposed by a shader (slider, color picker, etc.). |
+| `ShaderControlKind` | Enum of control types: `Slider`, `Color`, `Toggle`, `Angle`, `Select`. |
+| `AngleUnit` | Unit for angle controls: `Radians` or `Degrees`. |
+| `SliderScale` | Slider value scale: `Linear` or `Logarithmic`. |
 | `resolve_shader_config(config, cache)` | Resolve a `ShaderConfig` against the metadata cache. |
 | `resolve_cursor_shader_config(config, cache)` | Resolve a cursor shader config. |
+| `parse_shader_controls(source)` | Parse `//@control` annotations from GLSL source. |
+| `parse_shader_metadata(path)` | Parse TOML metadata for a background shader. |
+| `parse_cursor_shader_metadata(path)` | Parse TOML metadata for a cursor shader. |
 
 ### Profiles
 
@@ -136,6 +157,7 @@ Configuration loading, saving, and type definitions for the terminal emulator. T
 | `ProfileId` | UUID identifier for a profile. |
 | `ProfileManager` | Loads and saves the profile list from `profiles.yaml`. |
 | `ProfileSource` | Whether a profile is `Local` or `Dynamic` (fetched from a URL). |
+| `TmuxConnectionMode` | How a profile connects to tmux: `Disable`, `AutoAttach`, or `ForceAttach`. |
 | `DynamicProfileSource` | URL and refresh configuration for a remote profile source. |
 | `ConflictResolution` | How to handle conflicts between local and remote profiles: `LocalWins` or `RemoteWins`. |
 
@@ -146,9 +168,14 @@ Configuration loading, saving, and type definitions for the terminal emulator. T
 | `TriggerConfig` | A regex trigger that fires actions when matched in terminal output. |
 | `TriggerActionConfig` | The action to execute when a trigger fires. |
 | `TriggerRateLimiter` | Rate limiting state for a trigger to prevent action storms. |
+| `TriggerSplitDirection` | Direction for trigger-initiated split panes (`Horizontal` or `Vertical`). |
+| `TriggerSplitTarget` | Which pane to use when a trigger splits (`Current` or `New`). |
+| `SplitPaneCommand` | Shell command to run in a trigger-initiated split pane. |
 | `CoprocessDefConfig` | Configuration for a coprocess (a subprocess wired to the PTY). |
 | `RestartPolicy` | When to restart a coprocess: `Never`, `OnFailure`, `Always`. |
 | `check_command_denylist(cmd)` | Returns an error if the command matches the security denylist. |
+| `check_command_allowlist(cmd)` | Returns `true` if the command is on the security allowlist. |
+| `warn_prompt_before_run_false` | Flag indicating a trigger skips the confirmation prompt. |
 
 ### Snippets and Actions
 
@@ -165,6 +192,33 @@ Configuration loading, saving, and type definitions for the terminal emulator. T
 |------|-------------|
 | `ScriptConfig` | Configuration for an external observer script. |
 
+### Assistant / AI
+
+| Type | Description |
+|------|-------------|
+| `AssistantPrompt` | A named prompt template for the AI assistant panel. |
+| `AssistantPromptDraft` | A prompt being edited (not yet saved). |
+| `AiInspectorConfig` | AI inspector panel configuration. |
+| `AssistantInputHistoryMode` | How assistant input history is persisted. |
+| `CustomAcpAgentConfig` | Configuration for a custom ACP agent binary. |
+| `CustomAcpAgentActionConfig` | Configuration for an action that launches an ACP agent. |
+
+### Selection and Smart Selection
+
+| Type | Description |
+|------|-------------|
+| `SmartSelectionRule` | A regex rule for smart selection word boundaries. |
+| `SmartSelectionPrecision` | Precision level for smart selection matching. |
+| `default_smart_selection_rules()` | Returns the built-in smart selection rules. |
+
+### Unicode
+
+| Type | Description |
+|------|-------------|
+| `AmbiguousWidth` | Width for ambiguous-width Unicode codepoints: `Single` or `Double`. |
+| `NormalizationForm` | Unicode normalization form: `Nfc`, `Nfd`, `Nfkc`, or `Nfkd`. |
+| `UnicodeVersion` | Unicode version for width tables. |
+
 ### Progress and Alerts
 
 | Type | Description |
@@ -173,6 +227,15 @@ Configuration loading, saving, and type definitions for the terminal emulator. T
 | `ProgressBarPosition` | Where the progress bar overlay appears. |
 | `AlertEvent` | Events that can trigger an alert sound. |
 | `AlertSoundConfig` | Sound file and volume for an alert event. |
+
+### Integration
+
+| Type | Description |
+|------|-------------|
+| `InstallPromptState` | Whether an install prompt has been dismissed. |
+| `IntegrationVersions` | Version tracking for shell integration scripts. |
+| `UpdateCheckFrequency` | How often to check for updates: `Daily`, `Weekly`, `Monthly`, or `Never`. |
+| `ShaderInstallPrompt` | Whether the bundled shader install prompt was shown. |
 
 ---
 
@@ -299,6 +362,12 @@ egui-based settings interface decoupled from the main terminal crate via traits.
 | `ShaderOps` | Shader installation and management (install bundled, list available, cubemaps). |
 | `ShellIntegrationOps` | Shell integration install/uninstall for Bash, Zsh, Fish, etc. |
 
+### Trait Helper Types
+
+| Type | Description |
+|------|-------------|
+| `InstallResult` | Counts from a shader install operation (installed, skipped, removed). |
+
 ### Key Types
 
 | Type | Description |
@@ -315,7 +384,9 @@ egui-based settings interface decoupled from the main terminal crate via traits.
 | `TabSnapshot` | Snapshot of a single tab's state within a window snapshot. |
 | `MonitorInfo` | Display monitor dimensions and position for arrangement DPI handling. |
 | `ShaderDetectModifiedFn` | Function pointer type for detecting modified bundled shaders. |
+| `ShaderLintFn` | Function pointer type for running shader lint/readability analysis. |
 | `ShaderInstallResult` | Result of shader installation (installed, skipped, removed counts). |
+| `ShaderUninstallResult` | Result of shader uninstallation (removed, kept, needs confirmation). |
 | `SettingsWindowAction` | Actions returned by settings UI for the main app to process. |
 | `UpdateCheckResult` | Result of an update check (UpToDate, UpdateAvailable, Error, etc.). |
 | `UpdateCheckInfo` | Information about an available update. |
@@ -334,7 +405,14 @@ Observer-pattern scripting: launch Python or shell scripts that react to termina
 | `ScriptId` | `u64` identifier for a managed script subprocess. |
 | `ScriptProcess` | A single script subprocess with JSON-line stdin/stdout communication. |
 
-See `par-term-scripting/src/protocol.rs` for the full list of `ScriptEvent` and `ScriptCommand` types used by the JSON protocol.
+### Public Modules
+
+| Module | Description |
+|--------|-------------|
+| `manager` | `ScriptManager` and `ScriptId` — per-tab script orchestrator. |
+| `process` | `ScriptProcess` — single subprocess lifecycle and JSON-line I/O. |
+| `observer` | Observer event forwarding from terminal core to script subprocesses. |
+| `protocol` | `ScriptEvent` and `ScriptCommand` types used by the JSON protocol. |
 
 ---
 
@@ -358,6 +436,7 @@ tmux control mode integration.
 | `FormatContext` | Variables available when expanding a tmux status format string. |
 | `expand_format(format, ctx)` | Expand a tmux `#[…]` status format string. |
 | `sanitize_tmux_output(s)` | Strip control sequences from tmux output for safe display. |
+| `escape_keys_for_tmux(s)` | Escape key sequences that would be interpreted by tmux. |
 | `TmuxWindow` | A tmux window (maps to a par-term tab). |
 | `TmuxPane` | A tmux pane with its dimensions, title, and output buffer. |
 | `TmuxLayout` | The layout tree for a tmux window. |
@@ -419,7 +498,45 @@ Agent Communication Protocol (ACP) implementation for AI coding agent integratio
 | `RpcError` | JSON-RPC error wrapper. |
 | `IncomingMessage` | An incoming JSON-RPC message (request or notification). |
 
-See `par-term-acp/src/protocol/` module for the full set of ACP protocol message types (`InitializeParams`, `SessionNewParams`, `SessionUpdate`, permission types, etc.).
+### Re-exported Protocol Types
+
+| Type | Description |
+|------|-------------|
+| `InitializeParams` | Parameters for the ACP `initialize` handshake. |
+| `InitializeResult` | Result returned after successful initialization. |
+| `ClientCapabilities` | Capabilities advertised by the par-term client. |
+| `ClientInfo` | Client name and version. |
+| `SessionNewParams` | Parameters for creating a new ACP session. |
+| `SessionPromptParams` | Parameters for sending a prompt to an agent session. |
+| `SessionUpdate` | Incremental update from an agent session (text, tool calls, results). |
+| `SessionUpdateParams` | Wrapper for session update notifications. |
+| `SessionResult` | Final result of an agent session. |
+| `RequestPermissionParams` | Parameters for a permission request from the agent. |
+| `RequestPermissionResponse` | User's response to a permission request. |
+| `PermissionOption` | Options presented in a permission request (allow, deny, etc.). |
+| `PermissionOutcome` | The chosen outcome for a permission request. |
+| `ContentBlock` | A content block in a session update (text, image, tool use, etc.). |
+| `ToolCallInfo` | Information about a tool call being made by the agent. |
+| `ToolCallUpdateInfo` | Incremental update to an in-progress tool call. |
+| `FsReadParams` | Parameters for an `fs/read` tool call. |
+| `FsWriteParams` | Parameters for an `fs/write` tool call. |
+| `FsListDirectoryParams` | Parameters for an `fs/list_directory` tool call. |
+| `FsFindParams` | Parameters for an `fs/find` tool call. |
+| `FsCapabilities` | Filesystem capabilities advertised during initialization. |
+
+### Public Modules
+
+| Module | Description |
+|--------|-------------|
+| `protocol` | ACP message types (initialize, session, permission, content blocks, tool calls). |
+| `jsonrpc` | JSON-RPC 2.0 client, request/response types, and error handling. |
+| `permissions` | Permission dispatch, auto-approval logic, and `SafePaths`. |
+| `message_handler` | Background async task routing incoming messages to the UI. |
+| `agents` | Agent discovery and configuration loading from TOML/YAML files. |
+| `fs_ops` | Low-level filesystem operations (read, write, list, find). |
+| `fs_tools` | RPC handler functions for `fs/*` tool calls from the agent. |
+| `session` | Session-new parameter builders (MCP server descriptor, Claude wrapper metadata). |
+| `harness` | Test harness for ACP agent smoke tests and transcript capture. |
 
 ---
 
@@ -454,15 +571,25 @@ Minimal MCP (Model Context Protocol) server over stdio. Exposes tools for ACP ag
 | `set_app_version(version)` | Set the application version reported during MCP initialization. |
 | `TerminalScreenshotRequest` | IPC request written by the MCP server for the GUI to fulfill. |
 | `TerminalScreenshotResponse` | IPC response written by the GUI with the screenshot data or error. |
+| `ShaderDiagnosticsRequest` | IPC request for live shader state and compile errors. |
+| `ShaderDiagnosticsResponse` | IPC response with shader diagnostics data or error. |
+| `ShaderDiagnostics` | Per-shader diagnostics (background and cursor) with last errors and WGSL paths. |
+| `ShaderDiagnosticsEntry` | Single shader diagnostic entry (shader name, enabled, last error, WGSL path). |
 | `screenshot_request_path()` | Get the path to the screenshot request IPC file. |
 | `screenshot_response_path()` | Get the path to the screenshot response IPC file. |
+| `shader_diagnostics_request_path()` | Get the path to the shader diagnostics request IPC file. |
+| `shader_diagnostics_response_path()` | Get the path to the shader diagnostics response IPC file. |
 | `CONFIG_UPDATE_PATH_ENV` | Env var name for overriding the config update file path. |
 | `SCREENSHOT_REQUEST_PATH_ENV` | Env var name for the screenshot request IPC path. |
 | `SCREENSHOT_RESPONSE_PATH_ENV` | Env var name for the screenshot response IPC path. |
+| `SHADER_DIAGNOSTICS_REQUEST_PATH_ENV` | Env var name for the shader diagnostics request IPC path. |
+| `SHADER_DIAGNOSTICS_RESPONSE_PATH_ENV` | Env var name for the shader diagnostics response IPC path. |
 | `SCREENSHOT_FALLBACK_PATH_ENV` | Env var name for a static fallback screenshot path (harness use). |
 | `CONFIG_UPDATE_FILENAME` | Default filename for the config update IPC file. |
 | `SCREENSHOT_REQUEST_FILENAME` | Default filename for the screenshot request IPC file. |
 | `SCREENSHOT_RESPONSE_FILENAME` | Default filename for the screenshot response IPC file. |
+| `SHADER_DIAGNOSTICS_REQUEST_FILENAME` | Default filename for the shader diagnostics request IPC file. |
+| `SHADER_DIAGNOSTICS_RESPONSE_FILENAME` | Default filename for the shader diagnostics response IPC file. |
 
 ---
 

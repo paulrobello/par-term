@@ -64,11 +64,13 @@ graph TD
     TriggerReg[Trigger Registry]
     ActionQueue[Action Result Queue]
     Dispatch[Action Dispatch]
-    Highlight[Highlight Overlay]
+    Highlight[Highlight + SetVariable]
     Notify[Desktop Notification]
+    MarkLn[Scrollbar Mark]
     RunCmd[Spawn Process]
     PlaySnd[Play Sound]
     SendTxt[Write to PTY]
+    SplitPn[Split Pane]
     Coproc[Coprocess Manager]
     Script[Script Manager]
     ScriptCmd[Script Commands]
@@ -76,13 +78,15 @@ graph TD
 
     PTY -->|raw bytes| Core
     Core -->|scan lines| TriggerReg
-    TriggerReg -->|matched actions| ActionQueue
+    TriggerReg -->|Highlight + SetVariable| Highlight
+    TriggerReg -->|ActionResult events| ActionQueue
     ActionQueue -->|poll each frame| Dispatch
+    Dispatch --> Notify
+    Dispatch --> MarkLn
     Dispatch --> RunCmd
     Dispatch --> PlaySnd
     Dispatch --> SendTxt
-    TriggerReg --> Highlight
-    TriggerReg --> Notify
+    Dispatch --> SplitPn
     Core -->|copy output| Coproc
     Core -->|observer events| Script
     Script -->|JSON commands| ScriptCmd
@@ -99,6 +103,8 @@ graph TD
     style RunCmd fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
     style PlaySnd fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
     style SendTxt fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+    style MarkLn fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+    style SplitPn fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
     style Coproc fill:#1a237e,stroke:#3f51b5,stroke-width:2px,color:#ffffff
     style Script fill:#006064,stroke:#00bcd4,stroke-width:2px,color:#ffffff
     style ScriptCmd fill:#006064,stroke:#00bcd4,stroke-width:2px,color:#ffffff
@@ -133,6 +139,7 @@ Each trigger requires:
 | `enabled` | boolean | No | `true` | Whether the trigger is active |
 | `prompt_before_run` | boolean | No | `true` | Whether dangerous actions (`RunCommand`, `SendText`, `SplitPane`) show a confirmation dialog before firing |
 | `i_accept_the_risk` | boolean | No | `false` | Required when `prompt_before_run: false`. Without this explicit opt-in, execution is blocked with an audit warning. |
+| `allowed_commands` | array of strings | No | `[]` | Optional allowlist of commands for `RunCommand` actions. When non-empty, only listed commands are permitted. Matches binary name or path. |
 | `actions` | array | No | `[]` | List of actions to fire on match |
 
 ### Regex Pattern Syntax
@@ -388,12 +395,15 @@ Highlights are identified by row and column range. If the terminal scrolls, the 
 The event loop dispatches trigger actions each frame, immediately after checking the bell state. The dispatch flow works as follows:
 
 1. The core terminal engine scans each new line of output against all enabled triggers in the trigger registry
-2. When a pattern matches, the core engine executes internal actions (Highlight, Notify, MarkLine, SetVariable) directly
-3. Actions that require frontend capabilities (RunCommand, PlaySound, SendText) are queued as `ActionResult` events
+2. When a pattern matches, the core engine executes purely internal actions (Highlight, SetVariable) directly within the core library
+3. All other actions (Notify, MarkLine, RunCommand, PlaySound, SendText, SplitPane) are queued as `ActionResult` events for the frontend to handle
 4. Each frame, `check_trigger_actions()` polls the action result queue and dispatches:
+   - **Notify**: Delivers a desktop notification via the system notification service
+   - **MarkLine**: Creates a colored scrollbar mark at the matched line (batched and deduplicated per frame)
    - **RunCommand**: Spawns the command as a detached child process using `std::process::Command`
    - **PlaySound**: If `sound_id` is `"bell"` or empty, plays the built-in bell tone through the existing audio bell system. Otherwise, opens the sound file from the sounds directory, decodes it, and plays it on a background thread
    - **SendText**: If `delay_ms` is 0, writes the text to the PTY immediately. If a delay is specified, spawns a background thread that sleeps for the delay duration before writing
+   - **SplitPane**: Opens a new terminal pane (horizontal or vertical split) and optionally sends a command to it
 
 ```mermaid
 sequenceDiagram
@@ -405,12 +415,17 @@ sequenceDiagram
 
     Core->>Core: Scan new output line
     Core->>Core: Pattern match found
-    Core->>Queue: Enqueue ActionResult
+    Core->>Core: Execute Highlight + SetVariable (internal)
+    Core->>Queue: Enqueue ActionResult (Notify, MarkLine, RunCommand, PlaySound, SendText, SplitPane)
 
     Loop->>Queue: poll_action_results()
     Queue-->>Loop: Vec<ActionResult>
 
-    alt RunCommand
+    alt Notify
+        Loop->>OS: deliver desktop notification
+    else MarkLine
+        Loop->>Loop: create scrollbar mark (deduplicated)
+    else RunCommand
         Loop->>OS: spawn detached process
     else PlaySound (bell)
         Loop->>OS: play built-in bell tone
@@ -421,6 +436,9 @@ sequenceDiagram
     else SendText (with delay)
         Loop->>Loop: spawn background thread
         Loop-->>PTY: write after delay_ms
+    else SplitPane
+        Loop->>Loop: create new pane
+        Loop-->>PTY: send command to new pane
     end
 ```
 

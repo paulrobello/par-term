@@ -4,6 +4,7 @@ Save and restore complete window layouts, including window positions, sizes, tab
 
 ## Table of Contents
 - [Overview](#overview)
+- [tmux Session Capture and Restore](#tmux-session-capture-and-restore)
 - [Saving Arrangements](#saving-arrangements)
   - [Via Settings UI](#via-settings-ui)
   - [Via View Menu](#via-view-menu)
@@ -274,28 +275,23 @@ Example structure:
       index: 0
       position: [0, 0]
       size: [2560, 1440]
-      scale_factor: 1.0
   windows:
     - monitor:
         name: "DELL U2720Q"
         index: 0
         position: [0, 0]
         size: [2560, 1440]
-        scale_factor: 1.0
       position_relative: [100, 200]
       size: [800, 600]
       tmux_session_name: "work-session"
       tabs:
         - cwd: "/home/user/projects"
           title: "zsh"
-          user_title: "Editor"
           custom_color: [255, 165, 0]
+          user_title: "Editor"
           custom_icon: "rocket"
         - cwd: "/home/user/logs"
           title: "zsh"
-          user_title: null
-          custom_color: null
-          custom_icon: null
       active_tab_index: 0
   created_at: "2026-01-15T10:30:00Z"
   order: 0

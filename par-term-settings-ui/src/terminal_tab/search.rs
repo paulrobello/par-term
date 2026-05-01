@@ -126,7 +126,7 @@ pub(super) fn show_command_history_section(
         true,
         collapsed,
         |ui| {
-            ui.label("Fuzzy search through previously executed commands (Cmd+R / Ctrl+R).");
+            ui.label("Fuzzy search through previously executed commands (Cmd+R / Ctrl+Alt+R).");
             ui.add_space(4.0);
 
             ui.horizontal(|ui| {

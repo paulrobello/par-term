@@ -133,7 +133,7 @@ flowchart TD
 | `SystemMonitor` | `data: Arc<parking_lot::Mutex<SystemMonitorData>>` | Background std thread writer, sync render-thread reader |
 | `GitBranchPoller` | `status: Arc<parking_lot::Mutex<GitStatus>>` | Sync git-check thread + sync render thread |
 | `DebugLogger` (static) | `OnceLock<parking_lot::Mutex<DebugLogger>>` | Non-async log writes from any thread |
-| `ShaderWatcher` | `Arc<parking_lot::Mutex<HashMap<...>>>` | std thread writer, sync event loop reader |
+| `ShaderWatcher` | `debounce_state: Arc<parking_lot::Mutex<HashMap<ShaderType, Instant>>>` (captured by `PollWatcher` closure) | Debounce timer for file-change events, std thread writer |
 | `AudioBell` | `sink: Option<Arc<parking_lot::Mutex<Player>>>` | Rodio plays on a std thread |
 | `BadgeState` | `variables: Arc<parking_lot::RwLock<SessionVariables>>` | RwLock for frequent reads, infrequent writes, all sync |
 | `ActiveUpload` | `error: Arc<parking_lot::Mutex<Option<String>>>` | Error state written from std thread, read from event loop |

@@ -71,7 +71,6 @@ Press `Cmd+Shift+R` (macOS) or `Ctrl+Shift+R` (Windows/Linux) to toggle recordin
 
 **Visual Feedback:**
 - Toast notification: "Recording Started" or "Recording Stopped"
-- Recording indicator in status area (if enabled)
 
 ### Method 2: CLI Flag
 

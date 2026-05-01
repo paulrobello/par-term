@@ -17,8 +17,10 @@ par-term provides a profile system for saving and quickly launching terminal ses
   - [Hostname-Based Switching](#hostname-based-switching)
   - [Auto-Switch Priority](#auto-switch-priority)
   - [Auto-Switch Visual Application](#auto-switch-visual-application)
+- [Tmux Auto-Connect](#tmux-auto-connect)
 - [Default Startup Directory](#default-startup-directory)
 - [Per-Profile Badge Configuration](#per-profile-badge-configuration)
+- [Per-Profile Shader Settings](#per-profile-shader-settings)
 - [Per-Pane Background Settings](#per-pane-background-settings)
   - [Available Controls](#available-controls)
   - [Darken Control](#darken-control)
@@ -94,6 +96,11 @@ Each profile can customize the following:
 | **Tmux Mode** | Connection mode: Control Mode (full integration) or Normal (plain tmux in PTY) | No |
 | **Badge Text** | Custom badge format for this profile | No |
 | **Badge Appearance** | Override badge color, font, position, size | No |
+| **Background Shader** | Custom shader path/name override | No |
+| **Shader Brightness** | Shader brightness override | No |
+| **Shader Text Opacity** | Shader text opacity override | No |
+| **Shader Animation Speed** | Shader animation speed override | No |
+| **Shader Textures** | Custom iChannel0-3 texture set override | No |
 
 ## Managing Profiles
 
@@ -340,10 +347,12 @@ Profiles automatically apply when connecting to remote hosts with matching hostn
 When multiple auto-switch mechanisms could apply, the following priority order determines which profile wins:
 
 1. **Explicit user selection** — manual profile selection always takes precedence
-2. **Hostname match** — remote host detection via OSC 1337 (highest auto priority)
+2. **Hostname match** — remote host detection via OSC 1337 / OSC 7 (highest auto priority)
 3. **SSH command detection** — running `ssh` process triggers profile matching
-4. **Directory match** — CWD-based matching
-5. **Default profile** — fallback when no pattern matches
+4. **Directory match** — CWD-based matching via OSC 7
+5. **Tmux session match** — tmux session name pattern matching (applied via the tmux gateway separately)
+
+Tmux session matching runs independently through the gateway tab and does not compete with hostname/directory/SSH switching.
 
 ### Auto-Switch Visual Application
 
@@ -439,6 +448,31 @@ Profiles can override global badge settings for visual differentiation per envir
 2. Expand "Badge Appearance" section
 3. Check boxes to enable individual overrides
 4. Configure color, font, margins, and size as needed
+
+## Per-Profile Shader Settings
+
+Profiles can override the global background shader, allowing different visual effects per environment.
+
+### Available Overrides
+
+| Setting | Description |
+|---------|-------------|
+| `shader` | Shader path or name override |
+| `shader_brightness` | Brightness adjustment override |
+| `shader_text_opacity` | Text opacity override |
+| `shader_animation_speed` | Animation speed override |
+| `shader_texture_set` | Custom iChannel0-3 texture set (array of 4 optional paths) |
+
+### Example
+
+```yaml
+- name: Presentation
+  shader: "aurora"
+  shader_brightness: 0.8
+  shader_text_opacity: 0.9
+```
+
+See [Custom Shaders](CUSTOM_SHADERS.md) for the full shader system documentation.
 
 ## Per-Pane Background Settings
 

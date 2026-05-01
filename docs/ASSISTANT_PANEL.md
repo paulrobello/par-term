@@ -187,7 +187,7 @@ The chat input field supports multi-line editing:
 | `Enter` | Send the current message |
 | `Shift+Enter` | Insert a newline |
 
-The input field grows automatically as you type, expanding up to 6 rows before showing a scrollbar. This is useful for pasting multi-line prompts or composing longer instructions without sending prematurely.
+The input field grows automatically as you type, expanding up to 10 rows before showing a scrollbar. This is useful for pasting multi-line prompts or composing longer instructions without sending prematurely.
 
 Submitted prompts are kept in Assistant input history. Press `Up` / `Down` to recall earlier or newer prompts; for multi-line drafts, history recall only activates when the caret is on the first line (`Up`) or last line (`Down`) so normal in-editor navigation still works. The unsent draft is restored when you navigate back past the newest history entry. By default this history lasts only for the current Assistant panel/window session, but **Settings > Assistant > Panel > Input history** can switch it to persistent storage in `assistant_input_history.yaml` under the par-term config directory.
 
@@ -314,7 +314,7 @@ Four view modes are available for browsing command history:
 - **Cards**: Each command displayed in a framed card with exit code badge, duration, working directory, and collapsible output
 - **Timeline**: Flat chronological list with status icons and right-aligned duration
 - **Tree**: Collapsible headers per command with expandable detail sections (exit code, duration, CWD, output)
-- **List+Detail**: Compact list with status icon and command text
+- **List Detail**: Compact list with status icon and command text
 
 ### Live and Paused Modes
 

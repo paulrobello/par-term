@@ -117,7 +117,7 @@ cargo build --profile dev-release --locked
 #!/usr/bin/env bash
 set -euo pipefail
 
-PAR_TERM_VERSION="0.29.1"
+PAR_TERM_VERSION="0.30.12"
 INSTALL_DIR="/usr/local/bin"
 PLATFORM="macos-aarch64"   # adjust: macos-x86_64, linux-x86_64, linux-aarch64
 BINARY="par-term-${PLATFORM}.zip"
@@ -161,7 +161,7 @@ echo "par-term ${PAR_TERM_VERSION} installed successfully."
 
 ```powershell
 # deploy-par-term.ps1
-$Version  = "0.29.1"
+$Version  = "0.30.12"
 $Platform = "windows-x86_64"
 $InstDir  = "C:\Program Files\par-term"
 $Url      = "https://github.com/paulrobello/par-term/releases/download/v$Version/par-term-$Platform.exe"
@@ -187,12 +187,11 @@ Write-Host "par-term $Version installed to $InstDir."
 
 ### Config File Location
 
-par-term follows the [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html):
+par-term uses the [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html) convention for config file paths:
 
 | Platform | Default Path |
 |----------|-------------|
 | macOS / Linux | `~/.config/par-term/config.yaml` |
-| macOS (XDG override) | `$XDG_CONFIG_HOME/par-term/config.yaml` |
 | Windows | `%APPDATA%\par-term\config.yaml` |
 
 The config directory is also created automatically on first launch if it does not exist.
@@ -201,11 +200,16 @@ The config directory is also created automatically on first launch if it does no
 
 **Strategy 1 — Seed on first install** (most common): Copy a baseline `config.yaml` to each user's config directory during provisioning. Users can freely modify it afterward.
 
-**Strategy 2 — System-wide read-only baseline**: Place a corporate baseline at a shared path and use `XDG_CONFIG_HOME` to point all users to it:
+**Strategy 2 — System-wide read-only baseline**: Place a corporate baseline at a shared path and use a symlink or mount to redirect each user's `~/.config/par-term` to it:
 
 ```bash
-# /etc/profile.d/par-term.sh
-export XDG_CONFIG_HOME="/etc/par-term/config"
+# Example: symlink each user's config dir to a shared baseline
+sudo mkdir -p /etc/par-term/config
+sudo cp corporate-config.yaml /etc/par-term/config/config.yaml
+sudo chmod 444 /etc/par-term/config/config.yaml
+
+# Per-user: replace their config dir with a symlink
+ln -sfn /etc/par-term/config ~/.config/par-term
 ```
 
 > **Note:** With a read-only shared config, users cannot save settings changes through the UI. Use this only when strict configuration control is required.
@@ -227,7 +231,6 @@ Set these in `/etc/profile.d/par-term.sh` (macOS/Linux) or system environment va
 
 | Variable | Purpose |
 |----------|---------|
-| `XDG_CONFIG_HOME` | Override the config directory location |
 | `PAR_TERM_FONT` | Default font (when used in config with `${PAR_TERM_FONT:-...}`) |
 | `DEBUG_LEVEL` | Enable debug logging (`0`–`4`); set to `0` in production |
 | `RUST_LOG` | Standard log filter; leave unset in production |
@@ -270,7 +273,7 @@ Valid values: `hourly`, `daily`, `weekly`, `monthly`, `never`.
 |----------------|-------------|
 | Homebrew | `brew pin par-term` |
 | Standalone binary | Replace binary file only during planned maintenance windows |
-| Cargo | `cargo install --locked --version 0.29.1 par-term` |
+| Cargo | `cargo install --locked --version 0.30.12 par-term` |
 
 ### Managed Update Workflow
 
@@ -301,9 +304,9 @@ chmod 755 /tmp/par-term-pkg/usr/local/bin/par-term
 pkgbuild \
   --root /tmp/par-term-pkg \
   --identifier com.paulrobello.par-term \
-  --version 0.29.1 \
+  --version 0.30.12 \
   --install-location / \
-  par-term-0.29.1.pkg
+  par-term-0.30.12.pkg
 ```
 
 Upload the `.pkg` to Jamf Pro and deploy via a policy scoped to the target computer group.
@@ -343,14 +346,13 @@ To enforce a corporate baseline that users cannot modify:
 
 ```bash
 # Place config in a system directory
-sudo mkdir -p /etc/par-term
-sudo cp corporate-config.yaml /etc/par-term/config.yaml
-sudo chmod 444 /etc/par-term/config.yaml
+sudo mkdir -p /etc/par-term/config
+sudo cp corporate-config.yaml /etc/par-term/config/config.yaml
+sudo chmod 444 /etc/par-term/config/config.yaml
 
-# Point all users to it via /etc/profile.d
-cat > /etc/profile.d/par-term.sh <<'EOF'
-export XDG_CONFIG_HOME="/etc/par-term"
-EOF
+# For each user, symlink their config dir to the shared baseline
+# (add to a login script or Jamf policy)
+ln -sfn /etc/par-term/config ~/.config/par-term
 ```
 
 > **Caveat:** The par-term Settings UI will display an error when attempting to save changes if the config file is read-only. Communicate this to users or disable the Settings UI shortcut in the managed config.
@@ -398,7 +400,7 @@ The [AI panel](ASSISTANT_PANEL.md) launches AI coding agents (Claude Code, Codex
 | Settings changes lost on restart | Config file is read-only | Check file permissions; inform users or provide a writable path |
 | Black screen on launch | GPU driver issue or missing Vulkan/Metal support | See [Troubleshooting](TROUBLESHOOTING.md#black-screen-or-no-output) |
 | Missing Linux libraries on startup | `libxcb-*` not installed | Run `sudo apt-get install libxcb-render0 libxcb-shape0 libxcb-xfixes0` |
-| Users cannot save settings | `XDG_CONFIG_HOME` points to read-only dir | Provide a writable per-user config path or remove the override |
+| Users cannot save settings | Config dir is a symlink to a read-only shared path | Provide a writable per-user config path or remove the symlink |
 
 ---
 
