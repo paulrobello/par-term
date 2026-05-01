@@ -16,23 +16,30 @@ impl WindowState {
         };
 
         // Create renderer using DRY init params
-        let theme = self.config.load_theme();
+        let theme = self.config.load().load_theme();
         // Get shader metadata from cache for full 3-tier resolution
         let metadata = self
             .config
+            .load()
             .shader
             .custom_shader
             .as_ref()
             .and_then(|name| self.shader_state.shader_metadata_cache.get(name).cloned());
         // Get cursor shader metadata from cache for full 3-tier resolution
-        let cursor_metadata = self.config.shader.cursor_shader.as_ref().and_then(|name| {
-            self.shader_state
-                .cursor_shader_metadata_cache
-                .get(name)
-                .cloned()
-        });
+        let cursor_metadata = self
+            .config
+            .load()
+            .shader
+            .cursor_shader
+            .as_ref()
+            .and_then(|name| {
+                self.shader_state
+                    .cursor_shader_metadata_cache
+                    .get(name)
+                    .cloned()
+            });
         let params = RendererInitParams::from_config(
-            &self.config,
+            &self.config.load(),
             &theme,
             metadata.as_ref(),
             cursor_metadata.as_ref(),
@@ -54,7 +61,7 @@ impl WindowState {
         let height_px = (rows as f32 * cell_height) as usize;
 
         // Resize all tabs' terminals
-        let theme = self.config.load_theme();
+        let theme = self.config.load().load_theme();
         for tab in self.tab_manager.tabs_mut() {
             if let Ok(mut term) = tab.terminal.try_write() {
                 if let Err(e) = term.resize_with_pixels(cols, rows, width_px, height_px) {
@@ -151,7 +158,7 @@ impl WindowState {
         tab_bar_width: f32,
     ) -> Option<(usize, usize)> {
         Self::apply_tab_bar_offsets_for_position(
-            self.config.tab_bar_position,
+            self.config.load().tab_bar_position,
             renderer,
             tab_bar_height,
             tab_bar_width,
@@ -247,7 +254,11 @@ impl WindowState {
             && current_width > 0.0
             && self.overlay_ui.ai_inspector.open
         {
-            self.config.ai_inspector.ai_inspector_width = self.overlay_ui.ai_inspector.width;
+            self.config.rcu(|old| {
+                let mut new = (**old).clone();
+                new.ai_inspector.ai_inspector_width = self.overlay_ui.ai_inspector.width;
+                std::sync::Arc::new(new)
+            });
             // Save to disk so the width is remembered across sessions.
             if let Err(e) = self.save_config_debounced() {
                 log::error!("Failed to save AI inspector width: {}", e);
@@ -269,8 +280,11 @@ impl WindowState {
     /// (e.g., status bar toggled on/off or height changed in settings).
     pub(crate) fn sync_status_bar_inset(&mut self) {
         let is_tmux = self.is_tmux_connected();
-        let tmux_bar = crate::tmux_status_bar_ui::TmuxStatusBarUI::height(&self.config, is_tmux);
-        let custom_bar = self.status_bar_ui.height(&self.config, self.is_fullscreen);
+        let tmux_bar =
+            crate::tmux_status_bar_ui::TmuxStatusBarUI::height(&self.config.load(), is_tmux);
+        let custom_bar = self
+            .status_bar_ui
+            .height(&self.config.load(), self.is_fullscreen);
         let total = tmux_bar + custom_bar;
 
         if let Some(renderer) = &mut self.renderer
@@ -318,21 +332,23 @@ impl WindowState {
     /// - 6: Steady bar
     pub(crate) fn update_cursor_blink(&mut self) {
         // If cursor style is locked, use the config's blink setting directly
-        if self.config.cursor.lock_cursor_style {
-            if !self.config.cursor.cursor_blink {
+        if self.config.load().cursor.lock_cursor_style {
+            if !self.config.load().cursor.cursor_blink {
                 self.cursor_anim.cursor_opacity = (self.cursor_anim.cursor_opacity + 0.1).min(1.0);
                 return;
             }
-        } else if self.config.cursor.lock_cursor_blink && !self.config.cursor.cursor_blink {
+        } else if self.config.load().cursor.lock_cursor_blink
+            && !self.config.load().cursor.cursor_blink
+        {
             // If blink is locked off, don't blink regardless of terminal style
             self.cursor_anim.cursor_opacity = (self.cursor_anim.cursor_opacity + 0.1).min(1.0);
             return;
         }
 
         // Get cursor style from terminal to check if DECSCUSR specified blinking
-        let cursor_should_blink = if self.config.cursor.lock_cursor_style {
+        let cursor_should_blink = if self.config.load().cursor.lock_cursor_style {
             // Style is locked, use config's blink setting
-            self.config.cursor.cursor_blink
+            self.config.load().cursor.cursor_blink
         } else if let Some(tab) = self.tab_manager.active_tab()
             && let Ok(term) = tab.terminal.try_write()
         {
@@ -347,7 +363,7 @@ impl WindowState {
             )
         } else {
             // Fallback to config setting if terminal lock unavailable
-            self.config.cursor.cursor_blink
+            self.config.load().cursor.cursor_blink
         };
 
         if !cursor_should_blink {
@@ -369,7 +385,7 @@ impl WindowState {
 
         // Smooth cursor blink animation using sine wave for natural fade
         let blink_interval =
-            std::time::Duration::from_millis(self.config.cursor.cursor_blink_interval);
+            std::time::Duration::from_millis(self.config.load().cursor.cursor_blink_interval);
 
         if let Some(last_blink) = self.cursor_anim.last_cursor_blink {
             let elapsed = now.duration_since(last_blink);

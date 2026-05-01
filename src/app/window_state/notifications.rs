@@ -40,9 +40,9 @@ impl WindowState {
     /// Check for bell events and trigger appropriate feedback.
     pub(crate) fn check_bell(&mut self) {
         // Skip if all bell notifications are disabled
-        if self.config.notifications.notification_bell_sound == 0
-            && !self.config.notifications.notification_bell_visual
-            && !self.config.notifications.notification_bell_desktop
+        if self.config.load().notifications.notification_bell_sound == 0
+            && !self.config.load().notifications.notification_bell_visual
+            && !self.config.load().notifications.notification_bell_desktop
         {
             return;
         }
@@ -80,15 +80,16 @@ impl WindowState {
             log::info!("Bell event detected ({} bell(s))", bell_events);
             log::info!(
                 "  Config: sound={}, visual={}, desktop={}",
-                self.config.notifications.notification_bell_sound,
-                self.config.notifications.notification_bell_visual,
-                self.config.notifications.notification_bell_desktop
+                self.config.load().notifications.notification_bell_sound,
+                self.config.load().notifications.notification_bell_visual,
+                self.config.load().notifications.notification_bell_desktop
             );
 
             // Play audio bell if enabled (volume > 0)
             // Check alert_sounds config first, fall back to legacy bell_sound setting
             if let Some(alert_cfg) = self
                 .config
+                .load()
                 .notifications
                 .alert_sounds
                 .get(&crate::config::AlertEvent::Bell)
@@ -104,15 +105,15 @@ impl WindowState {
                     );
                     audio_bell.play_alert(alert_cfg);
                 }
-            } else if self.config.notifications.notification_bell_sound > 0 {
+            } else if self.config.load().notifications.notification_bell_sound > 0 {
                 if let Some(tab) = self.tab_manager.active_tab()
                     && let Some(ref audio_bell) = tab.active_bell().audio
                 {
                     log::info!(
                         "  Playing audio bell at {}% volume",
-                        self.config.notifications.notification_bell_sound
+                        self.config.load().notifications.notification_bell_sound
                     );
-                    audio_bell.play(self.config.notifications.notification_bell_sound);
+                    audio_bell.play(self.config.load().notifications.notification_bell_sound);
                 } else {
                     log::warn!("  Audio bell requested but not initialized");
                 }
@@ -121,7 +122,7 @@ impl WindowState {
             }
 
             // Trigger visual bell flash if enabled
-            if self.config.notifications.notification_bell_visual {
+            if self.config.load().notifications.notification_bell_visual {
                 log::info!("  Triggering visual bell flash");
                 if let Some(tab) = self.tab_manager.active_tab_mut() {
                     tab.active_bell_mut().visual_flash = Some(std::time::Instant::now());
@@ -133,7 +134,7 @@ impl WindowState {
             }
 
             // Send desktop notification if enabled
-            if self.config.notifications.notification_bell_desktop {
+            if self.config.load().notifications.notification_bell_desktop {
                 log::info!("  Sending desktop notification");
                 let message = if bell_events == 1 {
                     "Terminal bell".to_string()
@@ -154,7 +155,7 @@ impl WindowState {
 
     /// Play an alert sound for the given event, if configured.
     pub(crate) fn play_alert_sound(&self, event: crate::config::AlertEvent) {
-        if let Some(alert_cfg) = self.config.notifications.alert_sounds.get(&event)
+        if let Some(alert_cfg) = self.config.load().notifications.alert_sounds.get(&event)
             && alert_cfg.enabled
             && alert_cfg.volume > 0
             && let Some(tab) = self.tab_manager.active_tab()
@@ -174,7 +175,7 @@ impl WindowState {
     /// Notifies the user when a shell/process exits, useful for long-running commands
     /// where the user may have switched to other applications.
     pub(crate) fn check_session_exit_notifications(&mut self) {
-        if !self.config.notifications.notification_session_ended {
+        if !self.config.load().notifications.notification_session_ended {
             return;
         }
 
@@ -219,18 +220,32 @@ impl WindowState {
     ///   configured threshold (useful for detecting stalled processes).
     pub(crate) fn check_activity_idle_notifications(&mut self) {
         // Skip if both notification types are disabled
-        if !self.config.notifications.notification_activity_enabled
-            && !self.config.notifications.notification_silence_enabled
+        if !self
+            .config
+            .load()
+            .notifications
+            .notification_activity_enabled
+            && !self
+                .config
+                .load()
+                .notifications
+                .notification_silence_enabled
         {
             return;
         }
 
         let now = std::time::Instant::now();
         let activity_threshold = std::time::Duration::from_secs(
-            self.config.notifications.notification_activity_threshold,
+            self.config
+                .load()
+                .notifications
+                .notification_activity_threshold,
         );
         let silence_threshold = std::time::Duration::from_secs(
-            self.config.notifications.notification_silence_threshold,
+            self.config
+                .load()
+                .notifications
+                .notification_silence_threshold,
         );
 
         // Collect notification data for all tabs to avoid borrow conflicts
@@ -259,7 +274,13 @@ impl WindowState {
                 tab.activity.silence_notified = false; // Reset silence notification flag
 
                 // Activity notification: notify if we were idle long enough
-                if self.config.notifications.notification_activity_enabled && was_idle {
+                if self
+                    .config
+                    .load()
+                    .notifications
+                    .notification_activity_enabled
+                    && was_idle
+                {
                     let title = format!("Activity in {}", tab.title);
                     let message = format!(
                         "Terminal output resumed after {} seconds of inactivity",
@@ -274,7 +295,11 @@ impl WindowState {
                 }
             } else {
                 // No new output - check for silence notification
-                if self.config.notifications.notification_silence_enabled
+                if self
+                    .config
+                    .load()
+                    .notifications
+                    .notification_silence_enabled
                     && !tab.activity.silence_notified
                     && time_since_activity >= silence_threshold
                 {
@@ -336,6 +361,7 @@ impl WindowState {
         if !force
             && self
                 .config
+                .load()
                 .notifications
                 .suppress_notifications_when_focused
             && self.focus_state.is_focused

@@ -8,6 +8,7 @@
 
 use crate::app::window_state::WindowState;
 use crate::config::Config;
+use std::sync::Arc;
 
 // ---------------------------------------------------------------------------
 // Module-private helpers
@@ -44,43 +45,53 @@ impl WindowState {
             Ok(new_config) => {
                 use crate::app::window_state::config_updates::ConfigChanges;
 
-                let changes = ConfigChanges::detect(&self.config, &new_config);
+                let changes = ConfigChanges::detect(&self.config.load(), &new_config);
 
                 // Replace the entire in-memory config so that any subsequent
                 // config.save() writes the agent's changes, not stale values.
-                self.config = new_config;
+                self.config.store(Arc::new(new_config));
 
                 log::info!(
                     "CONFIG: shader_changed={} cursor_changed={} shader={:?}",
                     changes.any_shader_change(),
                     changes.any_cursor_shader_toggle(),
-                    self.config.shader.custom_shader
+                    self.config.load().shader.custom_shader
                 );
 
                 // Apply shader changes to the renderer
                 if let Some(renderer) = &mut self.renderer {
                     if changes.any_shader_change() || changes.shader_per_shader_config {
                         log::info!("CONFIG: applying background shader change to renderer");
-                        let shader_override = self
-                            .config
+                        let cfg = self.config.load();
+                        let shader_override = cfg
                             .shader
                             .custom_shader
                             .as_ref()
-                            .and_then(|name| self.config.shader_configs.get(name));
-                        let metadata = self.config.shader.custom_shader.as_ref().and_then(|name| {
-                            self.shader_state.shader_metadata_cache.get(name).cloned()
-                        });
+                            .and_then(|name| cfg.shader_configs.get(name));
+                        let metadata =
+                            self.config
+                                .load()
+                                .shader
+                                .custom_shader
+                                .as_ref()
+                                .and_then(|name| {
+                                    self.shader_state.shader_metadata_cache.get(name).cloned()
+                                });
                         let resolved = crate::config::shader_config::resolve_shader_config(
                             shader_override,
                             metadata.as_ref(),
-                            &self.config,
+                            &self.config.load(),
                         );
                         match renderer.set_custom_shader_enabled(
                             par_term_render::renderer::shaders::CustomShaderEnableParams {
-                                enabled: self.config.shader.custom_shader_enabled,
-                                shader_path: self.config.shader.custom_shader.as_deref(),
-                                window_opacity: self.config.window.window_opacity,
-                                animation_enabled: self.config.shader.custom_shader_animation,
+                                enabled: self.config.load().shader.custom_shader_enabled,
+                                shader_path: self.config.load().shader.custom_shader.as_deref(),
+                                window_opacity: self.config.load().window.window_opacity,
+                                animation_enabled: self
+                                    .config
+                                    .load()
+                                    .shader
+                                    .custom_shader_animation,
                                 animation_speed: resolved.animation_speed,
                                 full_content: resolved.full_content,
                                 brightness: resolved.brightness,
@@ -105,11 +116,11 @@ impl WindowState {
                     if changes.any_cursor_shader_toggle() {
                         log::info!("CONFIG: applying cursor shader change to renderer");
                         match renderer.set_cursor_shader_enabled(
-                            self.config.shader.cursor_shader_enabled,
-                            self.config.shader.cursor_shader.as_deref(),
-                            self.config.window.window_opacity,
-                            self.config.shader.cursor_shader_animation,
-                            self.config.shader.cursor_shader_animation_speed,
+                            self.config.load().shader.cursor_shader_enabled,
+                            self.config.load().shader.cursor_shader.as_deref(),
+                            self.config.load().window.window_opacity,
+                            self.config.load().shader.cursor_shader_animation,
+                            self.config.load().shader.cursor_shader_animation_speed,
                         ) {
                             Ok(()) => self.shader_state.cursor_shader_last_error = None,
                             Err(e) => {
@@ -144,7 +155,7 @@ impl WindowState {
         updates: &std::collections::HashMap<String, serde_json::Value>,
     ) -> Result<(), String> {
         let mut errors = Vec::new();
-        let old_config = self.config.clone();
+        let old_config = (**self.config.load()).clone();
 
         for (key, value) in updates {
             if let Err(e) = self.apply_single_config_update(key, value) {
@@ -158,40 +169,40 @@ impl WindowState {
 
         // Detect changes and apply to renderer
         use crate::app::window_state::config_updates::ConfigChanges;
-        let changes = ConfigChanges::detect(&old_config, &self.config);
+        let changes = ConfigChanges::detect(&old_config, &self.config.load());
 
         log::info!(
             "ACP config/update: shader_change={} cursor_change={} old_shader={:?} new_shader={:?}",
             changes.any_shader_change(),
             changes.any_cursor_shader_toggle(),
             old_config.shader.custom_shader,
-            self.config.shader.custom_shader
+            self.config.load().shader.custom_shader
         );
 
         if let Some(renderer) = &mut self.renderer {
             if changes.any_shader_change() || changes.shader_per_shader_config {
                 log::info!("ACP config/update: applying background shader change to renderer");
-                let shader_override = self
-                    .config
+                let cfg = self.config.load();
+                let shader_override = cfg
                     .shader
                     .custom_shader
                     .as_ref()
-                    .and_then(|name| self.config.shader_configs.get(name));
+                    .and_then(|name| cfg.shader_configs.get(name));
                 let metadata =
-                    self.config.shader.custom_shader.as_ref().and_then(|name| {
+                    cfg.shader.custom_shader.as_ref().and_then(|name| {
                         self.shader_state.shader_metadata_cache.get(name).cloned()
                     });
                 let resolved = crate::config::shader_config::resolve_shader_config(
                     shader_override,
                     metadata.as_ref(),
-                    &self.config,
+                    &self.config.load(),
                 );
                 match renderer.set_custom_shader_enabled(
                     par_term_render::renderer::shaders::CustomShaderEnableParams {
-                        enabled: self.config.shader.custom_shader_enabled,
-                        shader_path: self.config.shader.custom_shader.as_deref(),
-                        window_opacity: self.config.window.window_opacity,
-                        animation_enabled: self.config.shader.custom_shader_animation,
+                        enabled: self.config.load().shader.custom_shader_enabled,
+                        shader_path: self.config.load().shader.custom_shader.as_deref(),
+                        window_opacity: self.config.load().window.window_opacity,
+                        animation_enabled: self.config.load().shader.custom_shader_animation,
                         animation_speed: resolved.animation_speed,
                         full_content: resolved.full_content,
                         brightness: resolved.brightness,
@@ -214,11 +225,11 @@ impl WindowState {
             if changes.any_cursor_shader_toggle() {
                 log::info!("ACP config/update: applying cursor shader change to renderer");
                 match renderer.set_cursor_shader_enabled(
-                    self.config.shader.cursor_shader_enabled,
-                    self.config.shader.cursor_shader.as_deref(),
-                    self.config.window.window_opacity,
-                    self.config.shader.cursor_shader_animation,
-                    self.config.shader.cursor_shader_animation_speed,
+                    self.config.load().shader.cursor_shader_enabled,
+                    self.config.load().shader.cursor_shader.as_deref(),
+                    self.config.load().window.window_opacity,
+                    self.config.load().shader.cursor_shader_animation,
+                    self.config.load().shader.cursor_shader_animation_speed,
                 ) {
                     Ok(()) => self.shader_state.cursor_shader_last_error = None,
                     Err(e) => {
@@ -251,89 +262,168 @@ impl WindowState {
         match key {
             // -- Background shader --
             "custom_shader" => {
-                self.config.shader.custom_shader = if value.is_null() {
+                let v = if value.is_null() {
                     None
                 } else {
                     Some(value.as_str().ok_or("expected string or null")?.to_string())
                 };
+                self.config.rcu(|old| {
+                    let mut new = (**old).clone();
+                    new.shader.custom_shader = v.clone();
+                    Arc::new(new)
+                });
                 Ok(())
             }
             "custom_shader_enabled" => {
-                self.config.shader.custom_shader_enabled =
-                    value.as_bool().ok_or("expected boolean")?;
+                let v = value.as_bool().ok_or("expected boolean")?;
+                self.config.rcu(|old| {
+                    let mut new = (**old).clone();
+                    new.shader.custom_shader_enabled = v;
+                    Arc::new(new)
+                });
                 Ok(())
             }
             "custom_shader_animation" => {
-                self.config.shader.custom_shader_animation =
-                    value.as_bool().ok_or("expected boolean")?;
+                let v = value.as_bool().ok_or("expected boolean")?;
+                self.config.rcu(|old| {
+                    let mut new = (**old).clone();
+                    new.shader.custom_shader_animation = v;
+                    Arc::new(new)
+                });
                 Ok(())
             }
             "custom_shader_animation_speed" => {
-                self.config.shader.custom_shader_animation_speed = json_as_f32(value)?;
+                let v = json_as_f32(value)?;
+                self.config.rcu(|old| {
+                    let mut new = (**old).clone();
+                    new.shader.custom_shader_animation_speed = v;
+                    Arc::new(new)
+                });
                 Ok(())
             }
             "custom_shader_brightness" => {
-                self.config.shader.custom_shader_brightness = json_as_f32(value)?;
+                let v = json_as_f32(value)?;
+                self.config.rcu(|old| {
+                    let mut new = (**old).clone();
+                    new.shader.custom_shader_brightness = v;
+                    Arc::new(new)
+                });
                 Ok(())
             }
             "custom_shader_text_opacity" => {
-                self.config.shader.custom_shader_text_opacity = json_as_f32(value)?;
+                let v = json_as_f32(value)?;
+                self.config.rcu(|old| {
+                    let mut new = (**old).clone();
+                    new.shader.custom_shader_text_opacity = v;
+                    Arc::new(new)
+                });
                 Ok(())
             }
             "custom_shader_full_content" => {
-                self.config.shader.custom_shader_full_content =
-                    value.as_bool().ok_or("expected boolean")?;
+                let v = value.as_bool().ok_or("expected boolean")?;
+                self.config.rcu(|old| {
+                    let mut new = (**old).clone();
+                    new.shader.custom_shader_full_content = v;
+                    Arc::new(new)
+                });
                 Ok(())
             }
 
             // -- Cursor shader --
             "cursor_shader" => {
-                self.config.shader.cursor_shader = if value.is_null() {
+                let v = if value.is_null() {
                     None
                 } else {
                     Some(value.as_str().ok_or("expected string or null")?.to_string())
                 };
+                self.config.rcu(|old| {
+                    let mut new = (**old).clone();
+                    new.shader.cursor_shader = v.clone();
+                    Arc::new(new)
+                });
                 Ok(())
             }
             "cursor_shader_enabled" => {
-                self.config.shader.cursor_shader_enabled =
-                    value.as_bool().ok_or("expected boolean")?;
+                let v = value.as_bool().ok_or("expected boolean")?;
+                self.config.rcu(|old| {
+                    let mut new = (**old).clone();
+                    new.shader.cursor_shader_enabled = v;
+                    Arc::new(new)
+                });
                 Ok(())
             }
             "cursor_shader_animation" => {
-                self.config.shader.cursor_shader_animation =
-                    value.as_bool().ok_or("expected boolean")?;
+                let v = value.as_bool().ok_or("expected boolean")?;
+                self.config.rcu(|old| {
+                    let mut new = (**old).clone();
+                    new.shader.cursor_shader_animation = v;
+                    Arc::new(new)
+                });
                 Ok(())
             }
             "cursor_shader_animation_speed" => {
-                self.config.shader.cursor_shader_animation_speed = json_as_f32(value)?;
+                let v = json_as_f32(value)?;
+                self.config.rcu(|old| {
+                    let mut new = (**old).clone();
+                    new.shader.cursor_shader_animation_speed = v;
+                    Arc::new(new)
+                });
                 Ok(())
             }
             "cursor_shader_glow_radius" => {
-                self.config.shader.cursor_shader_glow_radius = json_as_f32(value)?;
+                let v = json_as_f32(value)?;
+                self.config.rcu(|old| {
+                    let mut new = (**old).clone();
+                    new.shader.cursor_shader_glow_radius = v;
+                    Arc::new(new)
+                });
                 Ok(())
             }
             "cursor_shader_glow_intensity" => {
-                self.config.shader.cursor_shader_glow_intensity = json_as_f32(value)?;
+                let v = json_as_f32(value)?;
+                self.config.rcu(|old| {
+                    let mut new = (**old).clone();
+                    new.shader.cursor_shader_glow_intensity = v;
+                    Arc::new(new)
+                });
                 Ok(())
             }
             "cursor_shader_trail_duration" => {
-                self.config.shader.cursor_shader_trail_duration = json_as_f32(value)?;
+                let v = json_as_f32(value)?;
+                self.config.rcu(|old| {
+                    let mut new = (**old).clone();
+                    new.shader.cursor_shader_trail_duration = v;
+                    Arc::new(new)
+                });
                 Ok(())
             }
             "cursor_shader_hides_cursor" => {
-                self.config.shader.cursor_shader_hides_cursor =
-                    value.as_bool().ok_or("expected boolean")?;
+                let v = value.as_bool().ok_or("expected boolean")?;
+                self.config.rcu(|old| {
+                    let mut new = (**old).clone();
+                    new.shader.cursor_shader_hides_cursor = v;
+                    Arc::new(new)
+                });
                 Ok(())
             }
 
             // -- Window --
             "window_opacity" => {
-                self.config.window.window_opacity = json_as_f32(value)?;
+                let v = json_as_f32(value)?;
+                self.config.rcu(|old| {
+                    let mut new = (**old).clone();
+                    new.window.window_opacity = v;
+                    Arc::new(new)
+                });
                 Ok(())
             }
             "font_size" => {
-                self.config.font_size = json_as_f32(value)?;
+                let v = json_as_f32(value)?;
+                self.config.rcu(|old| {
+                    let mut new = (**old).clone();
+                    new.font_size = v;
+                    Arc::new(new)
+                });
                 Ok(())
             }
 

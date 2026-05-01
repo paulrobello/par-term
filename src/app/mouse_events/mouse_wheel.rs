@@ -106,7 +106,7 @@ impl WindowState {
 
             // --- 1b. Horizontal scroll events (if enabled) ---
             // XTerm mouse protocol buttons: 66 = scroll left, 67 = scroll right
-            if self.config.mouse.report_horizontal_scroll && scroll_x != 0 {
+            if self.config.load().mouse.report_horizontal_scroll && scroll_x != 0 {
                 let button = if scroll_x > 0 { 67 } else { 66 };
                 // Limit burst to 10 events to avoid flooding the PTY
                 let count = scroll_x.unsigned_abs().min(10);
@@ -137,7 +137,9 @@ impl WindowState {
         // --- 2. Local Scrolling ---
         // Normal behavior: scroll through the local scrollback buffer.
         let scroll_lines = match delta {
-            MouseScrollDelta::LineDelta(_x, y) => (y * self.config.mouse.mouse_scroll_speed) as i32,
+            MouseScrollDelta::LineDelta(_x, y) => {
+                (y * self.config.load().mouse.mouse_scroll_speed) as i32
+            }
             MouseScrollDelta::PixelDelta(pos) => (pos.y / 20.0) as i32,
         };
 

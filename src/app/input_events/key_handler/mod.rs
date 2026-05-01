@@ -154,8 +154,8 @@ impl WindowState {
             && let Some(action) = self.keybinding_registry.lookup_with_options(
                 &event,
                 &self.input_handler.modifiers,
-                &self.config.modifier_remapping,
-                self.config.use_physical_keys,
+                &self.config.load().modifier_remapping,
+                self.config.load().use_physical_keys,
             )
         {
             crate::debug_info!(
@@ -532,7 +532,7 @@ impl WindowState {
                             "Enter pressed, restarting shell in pane {}",
                             focused_pane.id
                         );
-                        if let Err(e) = focused_pane.respawn_shell(&self.config) {
+                        if let Err(e) = focused_pane.respawn_shell(&self.config.load()) {
                             log::error!(
                                 "Failed to respawn shell in pane {}: {}",
                                 focused_pane.id,

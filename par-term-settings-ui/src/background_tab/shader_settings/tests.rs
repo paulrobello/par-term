@@ -2,8 +2,8 @@
 //!
 //! Kept in a separate file so `mod.rs` stays focused on UI rendering.
 
-use super::*;
 use super::uniform_helpers::*;
+use super::*;
 
 #[test]
 fn shader_uniform_override_set_shader_uniform_override_creates_per_shader_entry() {
@@ -78,8 +78,7 @@ fn shader_uniform_override_clear_shader_uniform_override_removes_empty_shader_en
 
 #[test]
 fn shader_uniform_override_color32_helpers_roundtrip_srgb_u8_color() {
-    let shader_color =
-        par_term_config::ShaderColorValue([1.0, 136.0 / 255.0, 0.0, 204.0 / 255.0]);
+    let shader_color = par_term_config::ShaderColorValue([1.0, 136.0 / 255.0, 0.0, 204.0 / 255.0]);
 
     let color32 = shader_color_value_to_color32(shader_color, true);
     assert_eq!(
@@ -91,8 +90,7 @@ fn shader_uniform_override_color32_helpers_roundtrip_srgb_u8_color() {
 }
 
 #[test]
-fn shader_uniform_override_effective_uniform_value_prefers_override_then_metadata_then_fallback()
-{
+fn shader_uniform_override_effective_uniform_value_prefers_override_then_metadata_then_fallback() {
     let control = par_term_config::ShaderControl {
         name: "iGlow".to_string(),
         kind: par_term_config::ShaderControlKind::Slider {
@@ -244,11 +242,7 @@ fn shader_uniform_override_normalizes_int_select_channel_and_angle_values() {
         par_term_config::ShaderUniformValue::Int(8),
     );
     assert_eq!(
-        normalized_effective_uniform_value(
-            &int_control,
-            Some(&override_config),
-            Some(&metadata)
-        ),
+        normalized_effective_uniform_value(&int_control, Some(&override_config), Some(&metadata)),
         par_term_config::ShaderUniformValue::Int(-10)
     );
 

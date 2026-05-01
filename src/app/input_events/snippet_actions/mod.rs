@@ -89,7 +89,8 @@ impl WindowState {
                 return true;
             };
 
-            if let Some(action_id) = prefix_action_for_char(&self.config.actions, input_char) {
+            if let Some(action_id) = prefix_action_for_char(&self.config.load().actions, input_char)
+            {
                 if !self.execute_custom_action(&action_id) {
                     self.show_toast("Actions: failed");
                 }
@@ -110,6 +111,7 @@ impl WindowState {
 
         if !self
             .config
+            .load()
             .actions
             .iter()
             .any(|action| action.prefix_char().is_some())
@@ -124,10 +126,12 @@ impl WindowState {
         let matcher = crate::keybindings::KeybindingMatcher::from_event_with_remapping(
             event,
             &self.input_handler.modifiers,
-            &self.config.modifier_remapping,
+            &self.config.load().modifier_remapping,
         );
 
-        if matcher.matches_with_physical_preference(prefix_combo, self.config.use_physical_keys) {
+        if matcher
+            .matches_with_physical_preference(prefix_combo, self.config.load().use_physical_keys)
+        {
             crate::debug_info!(
                 "PREFIX_ACTION",
                 "Prefix combo matched, entering prefix mode"
@@ -145,7 +149,8 @@ impl WindowState {
     /// Returns true if the snippet was found and executed, false otherwise.
     pub(crate) fn execute_snippet(&mut self, snippet_id: &str) -> bool {
         // Find the snippet by ID
-        let snippet = match self.config.snippets.iter().find(|s| s.id == snippet_id) {
+        let cfg = self.config.load();
+        let snippet = match cfg.snippets.iter().find(|s| s.id == snippet_id) {
             Some(s) => s,
             None => {
                 log::warn!("Snippet not found: {}", snippet_id);
@@ -221,7 +226,13 @@ impl WindowState {
     pub(crate) fn execute_custom_action(&mut self, action_id: &str) -> bool {
         // Find and clone the action up front to release the immutable borrow on
         // `self.config.actions` before calling `&mut self` methods on the sub-modules.
-        let action = match self.config.actions.iter().find(|a| a.id() == action_id) {
+        let action = match self
+            .config
+            .load()
+            .actions
+            .iter()
+            .find(|a| a.id() == action_id)
+        {
             Some(a) => a.clone(),
             None => {
                 log::warn!("Custom action not found: {}", action_id);

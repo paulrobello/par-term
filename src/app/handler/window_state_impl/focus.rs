@@ -45,14 +45,14 @@ impl WindowState {
         }
 
         // Handle shader animation pause/resume
-        if self.config.pause_shaders_on_blur
+        if self.config.load().pause_shaders_on_blur
             && let Some(renderer) = &mut self.renderer
         {
             if focused {
                 // Only resume if user has animation enabled in config
                 renderer.resume_shader_animations(
-                    self.config.shader.custom_shader_animation,
-                    self.config.shader.cursor_shader_animation,
+                    self.config.load().shader.custom_shader_animation,
+                    self.config.load().shader.cursor_shader_animation,
                 );
             } else {
                 renderer.pause_shader_animations();
@@ -91,13 +91,13 @@ impl WindowState {
         }
 
         // Handle refresh rate adjustment for all tabs
-        if self.config.pause_refresh_on_blur
+        if self.config.load().pause_refresh_on_blur
             && let Some(window) = &self.window
         {
             let fps = if focused {
-                self.config.max_fps
+                self.config.load().max_fps
             } else {
-                self.config.unfocused_fps
+                self.config.load().unfocused_fps
             };
             for tab in self.tab_manager.tabs_mut() {
                 tab.stop_refresh_task();
@@ -105,7 +105,7 @@ impl WindowState {
                     Arc::clone(&self.runtime),
                     Arc::clone(window),
                     fps,
-                    self.config.inactive_tab_fps,
+                    self.config.load().inactive_tab_fps,
                 );
             }
             log::info!(

@@ -25,7 +25,7 @@ impl WindowState {
     /// # Arguments
     /// * `session_name` - Optional session name. If None, tmux will auto-generate one.
     pub fn initiate_tmux_gateway(&mut self, session_name: Option<&str>) -> anyhow::Result<()> {
-        if !self.config.tmux_enabled {
+        if !self.config.load().tmux_enabled {
             anyhow::bail!("tmux integration is disabled");
         }
 
@@ -105,7 +105,7 @@ impl WindowState {
     ///
     /// This writes `tmux -CC attach -t session` to the active tab's PTY.
     pub fn attach_tmux_gateway(&mut self, session_name: &str) -> anyhow::Result<()> {
-        if !self.config.tmux_enabled {
+        if !self.config.load().tmux_enabled {
             anyhow::bail!("tmux integration is disabled");
         }
 
@@ -306,7 +306,7 @@ impl WindowState {
     ///
     /// Returns true if the command was sent successfully.
     pub fn split_pane_via_tmux(&self, vertical: bool) -> bool {
-        if !self.config.tmux_enabled || !self.is_tmux_connected() {
+        if !self.config.load().tmux_enabled || !self.is_tmux_connected() {
             return false;
         }
 
@@ -350,7 +350,7 @@ impl WindowState {
     ///
     /// Returns true if the command was sent successfully.
     pub fn close_pane_via_tmux(&self) -> bool {
-        if !self.config.tmux_enabled || !self.is_tmux_connected() {
+        if !self.config.load().tmux_enabled || !self.is_tmux_connected() {
             return false;
         }
 
@@ -386,11 +386,11 @@ impl WindowState {
     /// Returns true if the command was sent successfully.
     pub fn sync_clipboard_to_tmux(&self, content: &str) -> bool {
         // Check if clipboard sync is enabled
-        if !self.config.tmux_clipboard_sync {
+        if !self.config.load().tmux_clipboard_sync {
             return false;
         }
 
-        if !self.config.tmux_enabled || !self.is_tmux_connected() {
+        if !self.config.load().tmux_enabled || !self.is_tmux_connected() {
             return false;
         }
 
@@ -498,7 +498,7 @@ impl WindowState {
     ///
     /// No-op when `config.tmux_hide_gateway_tab` is false.
     pub(crate) fn hide_gateway_tab(&mut self) {
-        if !self.config.tmux_hide_gateway_tab {
+        if !self.config.load().tmux_hide_gateway_tab {
             return;
         }
         if let Some(gateway_tab_id) = self.tmux_state.tmux_gateway_tab_id

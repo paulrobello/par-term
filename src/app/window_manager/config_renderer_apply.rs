@@ -58,7 +58,11 @@ pub(super) fn apply_renderer_config(
         let (actual_mode, _changed) = renderer.update_vsync_mode(config.vsync_mode);
         // If the actual mode differs, update config
         if actual_mode != config.vsync_mode {
-            window_state.config.vsync_mode = actual_mode;
+            window_state.config.rcu(|old| {
+                let mut new = (**old).clone();
+                new.vsync_mode = actual_mode;
+                std::sync::Arc::new(new)
+            });
             log::warn!(
                 "Vsync mode {:?} is not supported. Using {:?} instead.",
                 config.vsync_mode,
@@ -315,7 +319,7 @@ pub(super) fn apply_renderer_config(
     let shader_result = if changes.any_shader_change() || changes.shader_per_shader_config {
         log::info!(
             "SETTINGS: applying shader change: {:?} -> {:?}",
-            window_state.config.shader.custom_shader,
+            window_state.config.load().shader.custom_shader,
             config.shader.custom_shader
         );
         window_state.renderer.as_mut().map(|r| {

@@ -222,7 +222,7 @@ impl WindowState {
     pub(crate) fn yank_copy_mode_selection(&mut self) {
         if let Some(text) = self.get_selected_text_for_copy() {
             let text_len = text.len();
-            let auto_exit = self.config.copy_mode.copy_mode_auto_exit_on_yank;
+            let auto_exit = self.config.load().copy_mode.copy_mode_auto_exit_on_yank;
             match self.input_handler.copy_to_clipboard(&text) {
                 Ok(()) => {
                     let line_count = text.lines().count();
@@ -251,7 +251,7 @@ impl WindowState {
                     self.show_toast("Failed to copy to clipboard");
                 }
             }
-        } else if self.config.copy_mode.copy_mode_auto_exit_on_yank {
+        } else if self.config.load().copy_mode.copy_mode_auto_exit_on_yank {
             self.exit_copy_mode();
         }
     }

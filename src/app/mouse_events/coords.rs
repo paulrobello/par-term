@@ -148,13 +148,14 @@ impl WindowState {
         let pane_padding = if self.is_gateway_active() || pane_count <= 1 {
             0.0
         } else {
-            (self.config.pane_divider_width.unwrap_or(2.0) / 2.0 + self.config.pane_padding) as f64
+            (self.config.load().pane_divider_width.unwrap_or(2.0) / 2.0
+                + self.config.load().pane_padding) as f64
                 * scale
         };
 
         // Account for pane title bar if enabled
-        let title_offset = if self.config.show_pane_titles {
-            self.config.pane_title_height as f64 * scale
+        let title_offset = if self.config.load().show_pane_titles {
+            self.config.load().pane_title_height as f64 * scale
         } else {
             0.0
         };
@@ -211,13 +212,13 @@ impl WindowState {
         use crate::shell_quote::quote_path;
 
         // Quote the path according to the configured style
-        let quoted_path = quote_path(&path, self.config.dropped_file_quote_style);
+        let quoted_path = quote_path(&path, self.config.load().dropped_file_quote_style);
 
         log::debug!(
             "File dropped: {:?} -> {} (style: {:?})",
             path,
             quoted_path,
-            self.config.dropped_file_quote_style
+            self.config.load().dropped_file_quote_style
         );
 
         // Use the last known cursor position to focus the pane under the drop.

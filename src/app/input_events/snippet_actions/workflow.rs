@@ -48,7 +48,13 @@ impl WindowState {
             return StepOutcome::Abort;
         }
 
-        let action = match self.config.actions.iter().find(|a| a.id() == action_id) {
+        let action = match self
+            .config
+            .load()
+            .actions
+            .iter()
+            .find(|a| a.id() == action_id)
+        {
             Some(a) => a.clone(),
             None => {
                 self.show_toast(format!("Workflow: action '{}' not found", action_id));

@@ -122,7 +122,7 @@ impl WindowState {
         }
 
         // Perform the actual save
-        self.config.save()?;
+        self.config.load().save()?;
         self.render_loop.config_save.last_save = Some(now);
         self.render_loop.config_save.pending_save = false;
         log::debug!("Config saved immediately");
@@ -153,7 +153,7 @@ impl WindowState {
         }
 
         // Perform the pending save
-        if let Err(e) = self.config.save() {
+        if let Err(e) = self.config.load().save() {
             log::error!("Failed to save pending config: {}", e);
         } else {
             log::debug!("Pending config save flushed");
@@ -175,13 +175,14 @@ impl WindowState {
         &mut self,
         now: std::time::Instant,
     ) -> Option<std::time::Instant> {
-        if !self.config.notifications.anti_idle_enabled {
+        if !self.config.load().notifications.anti_idle_enabled {
             return None;
         }
 
-        let idle_threshold =
-            std::time::Duration::from_secs(self.config.notifications.anti_idle_seconds.max(1));
-        let keep_alive_code = [self.config.notifications.anti_idle_code];
+        let idle_threshold = std::time::Duration::from_secs(
+            self.config.load().notifications.anti_idle_seconds.max(1),
+        );
+        let keep_alive_code = [self.config.load().notifications.anti_idle_code];
         let mut next_due: Option<std::time::Instant> = None;
 
         for tab in self.tab_manager.tabs_mut() {
@@ -229,15 +230,20 @@ impl WindowState {
     /// Perform the shutdown sequence (save state and set shutdown flag)
     pub(crate) fn perform_shutdown(&mut self) {
         // Save last working directory for "previous session" mode
-        if self.config.startup_directory_mode == crate::config::StartupDirectoryMode::Previous
+        if self.config.load().startup_directory_mode
+            == crate::config::StartupDirectoryMode::Previous
             && let Some(tab) = self.tab_manager.active_tab()
             && let Ok(term) = tab.terminal.try_write()
             && let Some(cwd) = term.shell_integration_cwd()
         {
             log::info!("Saving last working directory: {}", cwd);
-            if let Err(e) = self.config.save_last_working_directory(&cwd) {
-                log::warn!("Failed to save last working directory: {}", e);
-            }
+            self.config.rcu(|old| {
+                let mut new = (**old).clone();
+                if let Err(e) = new.save_last_working_directory(&cwd) {
+                    log::warn!("Failed to save last working directory: {}", e);
+                }
+                Arc::new(new)
+            });
         }
 
         // Set shutdown flag to stop redraw loop

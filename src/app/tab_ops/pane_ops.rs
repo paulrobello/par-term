@@ -22,9 +22,13 @@ impl WindowState {
     ) -> Option<crate::pane::PaneId> {
         // Calculate status bar height for proper content area
         let is_tmux_connected = self.is_tmux_connected();
-        let status_bar_height =
-            crate::tmux_status_bar_ui::TmuxStatusBarUI::height(&self.config, is_tmux_connected);
-        let custom_status_bar_height = self.status_bar_ui.height(&self.config, self.is_fullscreen);
+        let status_bar_height = crate::tmux_status_bar_ui::TmuxStatusBarUI::height(
+            &self.config.load(),
+            is_tmux_connected,
+        );
+        let custom_status_bar_height = self
+            .status_bar_ui
+            .height(&self.config.load(), self.is_fullscreen);
 
         // Get bounds info from renderer for proper pane sizing
         let bounds_info = self.renderer.as_ref().map(|r| {
@@ -52,7 +56,7 @@ impl WindowState {
         if let Some((size, padding, content_offset_y, cell_width, cell_height, scale)) = bounds_info
         {
             // After split there will be multiple panes, so use 0 padding if configured
-            let effective_padding = if self.config.window.hide_window_padding_on_split {
+            let effective_padding = if self.config.load().window.hide_window_padding_on_split {
                 0.0
             } else {
                 padding
@@ -76,7 +80,7 @@ impl WindowState {
         let result = match direction {
             crate::pane::SplitDirection::Horizontal => tab.split_horizontal(
                 focus_new,
-                &self.config,
+                &self.config.load(),
                 Arc::clone(&self.runtime),
                 dpi_scale,
                 initial_command,
@@ -84,7 +88,7 @@ impl WindowState {
             ),
             crate::pane::SplitDirection::Vertical => tab.split_vertical(
                 focus_new,
-                &self.config,
+                &self.config.load(),
                 Arc::clone(&self.runtime),
                 dpi_scale,
                 initial_command,
@@ -110,8 +114,8 @@ impl WindowState {
                     tab.start_pane_refresh_tasks(
                         Arc::clone(&self.runtime),
                         Arc::clone(window),
-                        self.config.max_fps,
-                        self.config.inactive_tab_fps,
+                        self.config.load().max_fps,
+                        self.config.load().inactive_tab_fps,
                     );
                 }
                 self.focus_state.needs_redraw = true;
@@ -190,7 +194,7 @@ impl WindowState {
         // Fall through to local close if tmux command failed or not connected
 
         // Check if we need to show confirmation for running jobs
-        if self.config.confirm_close_running_jobs
+        if self.config.load().confirm_close_running_jobs
             && let Some(command_name) = self.check_current_pane_running_job()
             && let Some(tab) = self.tab_manager.active_tab()
             && let Some(pane_id) = tab.focused_pane_id()
@@ -253,7 +257,7 @@ impl WindowState {
                 term.shell_integration_marker(),
                 term.shell_integration_command()
             );
-            return term.should_confirm_close(&self.config.jobs_to_ignore);
+            return term.should_confirm_close(&self.config.load().jobs_to_ignore);
         }
 
         // Single pane - use the tab's terminal.
@@ -265,7 +269,7 @@ impl WindowState {
             term.shell_integration_command(),
             term.is_command_running()
         );
-        term.should_confirm_close(&self.config.jobs_to_ignore)
+        term.should_confirm_close(&self.config.load().jobs_to_ignore)
     }
 
     /// Check if the current tab has multiple panes

@@ -10,7 +10,7 @@ impl WindowState {
             return false;
         }
 
-        if !self.config.ai_inspector.ai_inspector_enabled {
+        if !self.config.load().ai_inspector.ai_inspector_enabled {
             return false;
         }
 
@@ -28,7 +28,11 @@ impl WindowState {
             let just_opened = self.overlay_ui.ai_inspector.toggle();
             self.sync_ai_inspector_width();
             if just_opened {
-                if self.config.ai_inspector.ai_inspector_input_history_mode
+                if self
+                    .config
+                    .load()
+                    .ai_inspector
+                    .ai_inspector_input_history_mode
                     == par_term_config::AssistantInputHistoryMode::Persist
                 {
                     self.overlay_ui.ai_inspector.merge_persisted_input_history();

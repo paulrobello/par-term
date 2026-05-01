@@ -33,25 +33,15 @@ impl WindowManager {
 
         for window_state in self.windows.values_mut() {
             // Detect what changed
-            let changes = ConfigChanges::detect(&window_state.config, config);
+            let changes = ConfigChanges::detect(&window_state.config.load(), config);
 
             // Update the config
-            // PROPAGATION TAX (QA-001): Every call to apply_config_to_windows clones the full
-            // Config struct (268+ fields) into every open WindowState. With N windows open this
-            // is N allocations per settings change. For a single-window app this is negligible,
-            // but scales linearly with window count.
-            //
-            // BLOCKER: Cannot use Arc<Config> because WindowState mutates config fields directly
-            // in several locations:
-            //   - window_lifecycle.rs:35 (self.config.shader.custom_shader = ...)
-            //   - window_lifecycle.rs:277 (self.config = fresh_config)
-            //   - window_session.rs:178 (self.config = fresh_config)
-            //   - agent_config.rs:51 (self.config = new_config)
-            //   - config_renderer_apply.rs:58 (window_state.config.vsync_mode = ...)
-            //   - config_renderer_apply.rs:309 (window_state.config.shader.custom_shader)
-            // Migrating to Arc<RwLock<Config>> or Arc<swap::ArcSwap<Config>> requires
-            // converting all these sites to write-through patterns. Track in issue QA-001.
-            window_state.config = config.clone();
+            // QA-001 resolved: Using ArcSwap<Config> for atomic config swaps.
+            // Reads via self.config.load() are zero-cost (guard deref, no clone).
+            // Partial mutations use self.config.rcu() (clone-on-write only).
+            // This propagation path still clones per-window (each ArcSwap needs
+            // its own Arc), but that is inherent to the per-window config model.
+            window_state.config.store(Arc::new(config.clone()));
 
             if changes.ai_inspector_custom_agents {
                 window_state.refresh_available_agents();
@@ -138,7 +128,7 @@ impl WindowManager {
             if let Some(window) = &window_state.window {
                 // Update window title (handles both title change and show_window_number toggle)
                 if changes.window_title || changes.show_window_number {
-                    let title = window_state.format_title(&window_state.config.window_title);
+                    let title = window_state.format_title(&window_state.config.load().window_title);
                     window.set_title(&title);
                 }
                 if changes.window_decorations {
@@ -282,10 +272,10 @@ impl WindowManager {
 
         // Restart dynamic profile manager if sources changed
         let dynamic_sources_changed =
-            self.config.dynamic_profile_sources != config.dynamic_profile_sources;
+            self.config.load().dynamic_profile_sources != config.dynamic_profile_sources;
 
         // Also update the shared config
-        self.config = config.clone();
+        self.config.store(Arc::new(config.clone()));
 
         // Restart dynamic profile manager with new sources if they changed
         if dynamic_sources_changed {

@@ -35,6 +35,7 @@ use crate::config::Config;
 use crate::menu::MenuManager;
 use crate::settings_window::SettingsWindow;
 use crate::update_checker::{UpdateCheckResult, UpdateChecker};
+use arc_swap::ArcSwap;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
@@ -65,8 +66,8 @@ pub(crate) struct WindowManager {
     pub(crate) windows: HashMap<WindowId, WindowState>,
     /// Native menu manager
     pub(crate) menu: Option<MenuManager>,
-    /// Shared configuration (read at startup, each window gets a clone)
-    pub(crate) config: Config,
+    /// Shared configuration (QA-001: ArcSwap for atomic config swaps across windows)
+    pub(crate) config: ArcSwap<Config>,
     /// Shared async runtime
     pub(crate) runtime: Arc<Runtime>,
     /// Flag to indicate if app should exit
@@ -123,7 +124,7 @@ impl WindowManager {
         Self {
             windows: HashMap::new(),
             menu: None,
-            config,
+            config: ArcSwap::from(Arc::new(config)),
             runtime,
             should_exit: false,
             pending_window_count: 0,

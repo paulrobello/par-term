@@ -21,20 +21,20 @@ impl WindowManager {
         {
             crate::debug_info!(
                 "SCRIPT",
-                "start_script: ws.config.scripts.len()={}, tab.scripting.script_ids.len()={}",
-                ws.config.scripts.len(),
+                "start_script: ws.config.load().scripts.len()={}, tab.scripting.script_ids.len()={}",
+                ws.config.load().scripts.len(),
                 tab.scripting.script_ids.len()
             );
-            if config_index >= ws.config.scripts.len() {
+            if config_index >= ws.config.load().scripts.len() {
                 crate::debug_error!(
                     "SCRIPT",
                     "Script config index {} out of range (scripts.len={})",
                     config_index,
-                    ws.config.scripts.len()
+                    ws.config.load().scripts.len()
                 );
                 return;
             }
-            let script_config = &ws.config.scripts[config_index];
+            let script_config = &ws.config.load().scripts[config_index];
             crate::debug_info!(
                 "SCRIPT",
                 "start_script: found config name='{}' path='{}' enabled={} args={:?}",

@@ -15,11 +15,11 @@ impl WindowManager {
             && let Some(ws) = self.windows.get_mut(&window_id)
             && let Some(tab) = ws.tab_manager.active_tab_mut()
         {
-            if config_index >= ws.config.coprocesses.len() {
+            if config_index >= ws.config.load().coprocesses.len() {
                 log::warn!("Coprocess config index {} out of range", config_index);
                 return;
             }
-            let coproc_config = &ws.config.coprocesses[config_index];
+            let coproc_config = &ws.config.load().coprocesses[config_index];
             let core_config = par_term_emu_core_rust::coprocess::CoprocessConfig {
                 command: coproc_config.command.clone(),
                 args: coproc_config.args.clone(),
@@ -104,7 +104,7 @@ impl WindowManager {
                     let mut running = Vec::new();
                     let mut errors = Vec::new();
                     let mut output = Vec::new();
-                    for (i, _) in ws.config.coprocesses.iter().enumerate() {
+                    for (i, _) in ws.config.load().coprocesses.iter().enumerate() {
                         let has_id = tab
                             .scripting
                             .coprocess_ids

@@ -37,8 +37,8 @@ impl WindowState {
                 self.overlay_ui.search_ui.open();
                 // Initialize from config
                 self.overlay_ui.search_ui.init_from_config(
-                    self.config.search.search_case_sensitive,
-                    self.config.search.search_regex,
+                    self.config.load().search.search_case_sensitive,
+                    self.config.load().search.search_regex,
                 );
                 self.focus_state.needs_redraw = true;
                 log::debug!("Search UI opened");

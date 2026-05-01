@@ -189,6 +189,7 @@ impl WindowState {
             .iter()
             .filter_map(|(&id, name)| {
                 self.config
+                    .load()
                     .triggers
                     .iter()
                     .find(|t| &t.name == name)
@@ -211,6 +212,7 @@ impl WindowState {
             .iter()
             .filter_map(|(&id, name)| {
                 self.config
+                    .load()
                     .triggers
                     .iter()
                     .find(|t| &t.name == name)
@@ -368,6 +370,7 @@ impl WindowState {
                 .unwrap_or_else(|| format!("trigger #{}", trigger_id));
             if self
                 .config
+                .load()
                 .unaccepted_risk_trigger_names
                 .contains(&trigger_name)
             {

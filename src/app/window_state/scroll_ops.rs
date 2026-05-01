@@ -27,7 +27,7 @@ impl WindowState {
         };
 
         if let Some(renderer) = &self.renderer {
-            let char_height = self.config.font_size * 1.2;
+            let char_height = self.config.load().font_size * 1.2;
             let page_size = (renderer.size().height as f32 / char_height) as usize;
 
             let new_target = target_offset.saturating_add(page_size);
@@ -44,7 +44,7 @@ impl WindowState {
         };
 
         if let Some(renderer) = &self.renderer {
-            let char_height = self.config.font_size * 1.2;
+            let char_height = self.config.load().font_size * 1.2;
             let page_size = (renderer.size().height as f32 / char_height) as usize;
 
             let new_target = target_offset.saturating_sub(page_size);

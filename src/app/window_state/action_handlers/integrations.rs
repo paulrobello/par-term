@@ -138,10 +138,18 @@ impl WindowState {
                             format!("{} shaders", result.installed)
                         };
                         success_parts.push(detail);
-                        self.config.integration_versions.shaders_installed_version =
-                            Some(current_version.clone());
-                        self.config.integration_versions.shaders_prompted_version =
-                            Some(current_version.clone());
+                        self.config.rcu(|old| {
+                            let mut new = (**old).clone();
+                            new.integration_versions.shaders_installed_version =
+                                Some(current_version.clone());
+                            std::sync::Arc::new(new)
+                        });
+                        self.config.rcu(|old| {
+                            let mut new = (**old).clone();
+                            new.integration_versions.shaders_prompted_version =
+                                Some(current_version.clone());
+                            std::sync::Arc::new(new)
+                        });
                     }
                     Err(e) => {
                         log::error!("Failed to install shaders: {}", e);
@@ -168,12 +176,15 @@ impl WindowState {
                             "shell integration ({})",
                             result.shell.display_name()
                         ));
-                        self.config
-                            .integration_versions
-                            .shell_integration_installed_version = Some(current_version.clone());
-                        self.config
-                            .integration_versions
-                            .shell_integration_prompted_version = Some(current_version.clone());
+                        let v = current_version.clone();
+                        self.config.rcu(|old| {
+                            let mut new = (**old).clone();
+                            new.integration_versions.shell_integration_installed_version =
+                                Some(v.clone());
+                            new.integration_versions.shell_integration_prompted_version =
+                                Some(v.clone());
+                            std::sync::Arc::new(new)
+                        });
                     }
                     Err(e) => {
                         log::error!("Failed to install shell integration: {}", e);
@@ -219,11 +230,13 @@ impl WindowState {
             log::info!("User skipped integrations dialog for this session");
             self.overlay_ui.integrations_ui.hide();
             // Update prompted versions so we don't ask again this version
-            self.config.integration_versions.shaders_prompted_version =
-                Some(current_version.clone());
-            self.config
-                .integration_versions
-                .shell_integration_prompted_version = Some(current_version.clone());
+            let v = current_version.clone();
+            self.config.rcu(|old| {
+                let mut new = (**old).clone();
+                new.integration_versions.shaders_prompted_version = Some(v.clone());
+                new.integration_versions.shell_integration_prompted_version = Some(v.clone());
+                std::sync::Arc::new(new)
+            });
             if let Err(e) = self.save_config_debounced() {
                 log::error!("Failed to save config after skipping integrations: {}", e);
             }
@@ -234,8 +247,16 @@ impl WindowState {
             log::info!("User declined integrations (never ask again)");
             self.overlay_ui.integrations_ui.hide();
             // Set install prompts to Never
-            self.config.shader_install_prompt = ShaderInstallPrompt::Never;
-            self.config.shell_integration_state = crate::config::InstallPromptState::Never;
+            self.config.rcu(|old| {
+                let mut new = (**old).clone();
+                new.shader_install_prompt = ShaderInstallPrompt::Never;
+                std::sync::Arc::new(new)
+            });
+            self.config.rcu(|old| {
+                let mut new = (**old).clone();
+                new.shell_integration_state = crate::config::InstallPromptState::Never;
+                std::sync::Arc::new(new)
+            });
             if let Err(e) = self.save_config_debounced() {
                 log::error!("Failed to save config after declining integrations: {}", e);
             }

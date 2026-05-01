@@ -32,40 +32,45 @@ impl WindowManager {
 
         // Reload config from disk to pick up any changes made by other windows
         if let Ok(fresh_config) = Config::load() {
-            self.config = fresh_config;
+            self.config.store(Arc::new(fresh_config));
         }
 
         // Re-apply CLI shader override (fresh config load above would wipe it)
         if let Some(ref shader) = self.runtime_options.shader {
-            self.config.shader.custom_shader = Some(shader.clone());
-            self.config.shader.custom_shader_enabled = true;
-            self.config.background_image_enabled = false;
+            self.config.rcu(|old| {
+                let mut new = (**old).clone();
+                new.shader.custom_shader = Some(shader.clone());
+                new.shader.custom_shader_enabled = true;
+                new.background_image_enabled = false;
+                Arc::new(new)
+            });
         }
 
         // Calculate window size from cols/rows BEFORE window creation.
-        let (width, height) = window_size_from_config(&self.config, 1.0).unwrap_or((800, 600));
+        let (width, height) =
+            window_size_from_config(&self.config.load(), 1.0).unwrap_or((800, 600));
 
         // Build window title, optionally including window number
         let window_number = self.windows.len() + 1;
-        let title = if self.config.show_window_number {
-            format!("{} [{}]", self.config.window_title, window_number)
+        let title = if self.config.load().show_window_number {
+            format!("{} [{}]", self.config.load().window_title, window_number)
         } else {
-            self.config.window_title.clone()
+            self.config.load().window_title.clone()
         };
 
         let mut window_attrs = Window::default_attributes()
             .with_title(&title)
             .with_inner_size(winit::dpi::LogicalSize::new(width, height))
-            .with_decorations(self.config.window.window_decorations);
+            .with_decorations(self.config.load().window.window_decorations);
 
         // Lock window size if requested (prevent resize)
-        if self.config.lock_window_size {
+        if self.config.load().lock_window_size {
             window_attrs = window_attrs.with_resizable(false);
             log::info!("Window size locked (resizing disabled)");
         }
 
         // Start in fullscreen if window_type is Fullscreen
-        if self.config.window_type == WindowType::Fullscreen {
+        if self.config.load().window_type == WindowType::Fullscreen {
             window_attrs =
                 window_attrs.with_fullscreen(Some(winit::window::Fullscreen::Borderless(None)));
             log::info!("Window starting in fullscreen mode");
@@ -87,7 +92,7 @@ impl WindowManager {
         }
 
         // Set window always-on-top if requested
-        if self.config.window.window_always_on_top {
+        if self.config.load().window.window_always_on_top {
             window_attrs = window_attrs.with_window_level(winit::window::WindowLevel::AlwaysOnTop);
             log::info!("Window always-on-top enabled");
         }
@@ -96,7 +101,7 @@ impl WindowManager {
         window_attrs = window_attrs.with_transparent(true);
         log::info!(
             "Window transparency enabled (opacity: {})",
-            self.config.window.window_opacity
+            self.config.load().window.window_opacity
         );
 
         // macOS: accept the first mouse click so that clicking the tab bar or
@@ -137,7 +142,7 @@ impl WindowManager {
                 }
 
                 let mut window_state =
-                    WindowState::new(self.config.clone(), Arc::clone(&self.runtime));
+                    WindowState::new((**self.config.load()).clone(), Arc::clone(&self.runtime));
                 // Set window index for title formatting (window_number calculated earlier)
                 window_state.window_index = window_number;
 
@@ -165,10 +170,10 @@ impl WindowManager {
 
                 // Handle tmux auto-attach on first window only
                 if self.windows.is_empty()
-                    && window_state.config.tmux_enabled
-                    && window_state.config.tmux_auto_attach
+                    && window_state.config.load().tmux_enabled
+                    && window_state.config.load().tmux_auto_attach
                 {
-                    let session_name = window_state.config.tmux_auto_attach_session.clone();
+                    let session_name = window_state.config.load().tmux_auto_attach_session.clone();
 
                     // Use gateway mode: writes tmux commands to existing PTY
                     if let Some(ref name) = session_name {
@@ -273,30 +278,34 @@ impl WindowManager {
 
         // Reload config from disk so the new window picks up latest settings.
         if let Ok(fresh_config) = Config::load() {
-            self.config = fresh_config;
+            self.config.store(Arc::new(fresh_config));
         }
 
         // Re-apply CLI shader override (fresh config load would wipe it).
         if let Some(ref shader) = self.runtime_options.shader {
-            self.config.shader.custom_shader = Some(shader.clone());
-            self.config.shader.custom_shader_enabled = true;
-            self.config.background_image_enabled = false;
+            self.config.rcu(|old| {
+                let mut new = (**old).clone();
+                new.shader.custom_shader = Some(shader.clone());
+                new.shader.custom_shader_enabled = true;
+                new.background_image_enabled = false;
+                Arc::new(new)
+            });
         }
 
         let window_number = self.windows.len() + 1;
-        let title = if self.config.show_window_number {
-            format!("{} [{}]", self.config.window_title, window_number)
+        let title = if self.config.load().show_window_number {
+            format!("{} [{}]", self.config.load().window_title, window_number)
         } else {
-            self.config.window_title.clone()
+            self.config.load().window_title.clone()
         };
 
         let mut window_attrs = Window::default_attributes()
             .with_title(&title)
             .with_inner_size(size)
-            .with_decorations(self.config.window.window_decorations)
+            .with_decorations(self.config.load().window.window_decorations)
             .with_transparent(true);
 
-        if self.config.lock_window_size {
+        if self.config.load().lock_window_size {
             window_attrs = window_attrs.with_resizable(false);
         }
 
@@ -310,7 +319,7 @@ impl WindowManager {
             }
         }
 
-        if self.config.window.window_always_on_top {
+        if self.config.load().window.window_always_on_top {
             window_attrs = window_attrs.with_window_level(winit::window::WindowLevel::AlwaysOnTop);
         }
 
@@ -346,7 +355,8 @@ impl WindowManager {
             }
         }
 
-        let mut window_state = WindowState::new(self.config.clone(), Arc::clone(&self.runtime));
+        let mut window_state =
+            WindowState::new((**self.config.load()).clone(), Arc::clone(&self.runtime));
         window_state.window_index = window_number;
 
         let runtime = Arc::clone(&self.runtime);
@@ -453,7 +463,7 @@ impl WindowManager {
         }
 
         // Select target monitor (default to primary/first)
-        let monitor = if let Some(index) = self.config.target_monitor {
+        let monitor = if let Some(index) = self.config.load().target_monitor {
             monitors
                 .get(index)
                 .cloned()
@@ -474,7 +484,7 @@ impl WindowManager {
         let window_size = window.outer_size();
 
         // Apply edge positioning if configured
-        match self.config.window_type {
+        match self.config.load().window_type {
             WindowType::EdgeTop => {
                 // Position at top of screen, spanning full width
                 window.set_outer_position(winit::dpi::PhysicalPosition::new(
@@ -521,7 +531,7 @@ impl WindowManager {
             }
             WindowType::Normal | WindowType::Fullscreen => {
                 // For normal/fullscreen, just position on target monitor if specified
-                if self.config.target_monitor.is_some() {
+                if self.config.load().target_monitor.is_some() {
                     // Center window on target monitor
                     let x =
                         monitor_pos.x + (monitor_size.width as i32 - window_size.width as i32) / 2;
@@ -530,7 +540,7 @@ impl WindowManager {
                     window.set_outer_position(winit::dpi::PhysicalPosition::new(x, y));
                     log::info!(
                         "Window centered on monitor {} at ({}, {})",
-                        self.config.target_monitor.unwrap_or(0),
+                        self.config.load().target_monitor.unwrap_or(0),
                         x,
                         y
                     );
@@ -539,7 +549,7 @@ impl WindowManager {
         }
 
         // Move window to target macOS Space if configured (macOS only, no-op on other platforms)
-        if let Some(space) = self.config.target_space
+        if let Some(space) = self.config.load().target_space
             && let Err(e) = crate::macos_space::move_window_to_space(window, space)
         {
             log::warn!("Failed to move window to Space {}: {}", space, e);
@@ -549,7 +559,7 @@ impl WindowManager {
     /// Close a specific window
     pub fn close_window(&mut self, window_id: WindowId) {
         // Save session state before removing the last window (while data is still available).
-        if self.config.restore_session
+        if self.config.load().restore_session
             && self.windows.len() == 1
             && self.windows.contains_key(&window_id)
         {
@@ -748,8 +758,8 @@ impl WindowManager {
 
         // --- Rebind refresh task to the destination window ---
         if let Some(dest_win_arc) = dest_state.window.clone() {
-            let active_fps = dest_state.config.max_fps;
-            let inactive_fps = dest_state.config.inactive_tab_fps;
+            let active_fps = dest_state.config.load().max_fps;
+            let inactive_fps = dest_state.config.load().inactive_tab_fps;
             if let Some(tab) = dest_state.tab_manager.get_tab_mut(tab_id) {
                 tab.start_refresh_task(
                     Arc::clone(&self.runtime),

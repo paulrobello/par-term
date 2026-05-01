@@ -99,11 +99,15 @@ impl WindowState {
         if ctrl
             && (matches!(event.logical_key, Key::Character(ref c) if c.as_str() == "+" || c.as_str() == "="))
         {
-            self.config.font_size = (self.config.font_size + 1.0).min(72.0);
+            self.config.rcu(|old| {
+                let mut new = (**old).clone();
+                new.font_size = (old.font_size + 1.0).min(72.0);
+                std::sync::Arc::new(new)
+            });
             self.render_loop.pending_font_rebuild = true;
             log::info!(
                 "Font size increased to {} (applying live)",
-                self.config.font_size
+                self.config.load().font_size
             );
             self.request_redraw();
             return true;
@@ -114,11 +118,15 @@ impl WindowState {
         if ctrl
             && matches!(event.logical_key, Key::Character(ref c) if c.as_str() == "-" || c.as_str() == "_")
         {
-            self.config.font_size = (self.config.font_size - 1.0).max(6.0);
+            self.config.rcu(|old| {
+                let mut new = (**old).clone();
+                new.font_size = (old.font_size - 1.0).max(6.0);
+                std::sync::Arc::new(new)
+            });
             self.render_loop.pending_font_rebuild = true;
             log::info!(
                 "Font size decreased to {} (applying live)",
-                self.config.font_size
+                self.config.load().font_size
             );
             self.request_redraw();
             return true;
@@ -127,7 +135,11 @@ impl WindowState {
         // Ctrl+0: Reset font size to default (applies live)
         if ctrl && !shift && matches!(event.logical_key, Key::Character(ref c) if c.as_str() == "0")
         {
-            self.config.font_size = 14.0; // Default font size
+            self.config.rcu(|old| {
+                let mut new = (**old).clone();
+                new.font_size = 14.0;
+                std::sync::Arc::new(new)
+            });
             self.render_loop.pending_font_rebuild = true;
             log::info!("Font size reset to default (14.0, applying live)");
             self.request_redraw();
@@ -146,11 +158,15 @@ impl WindowState {
             use par_term_emu_core_rust::cursor::CursorStyle as TermCursorStyle;
 
             // Cycle to next cursor style
-            self.config.cursor.cursor_style = match self.config.cursor.cursor_style {
-                CursorStyle::Block => CursorStyle::Beam,
-                CursorStyle::Beam => CursorStyle::Underline,
-                CursorStyle::Underline => CursorStyle::Block,
-            };
+            self.config.rcu(|old| {
+                let mut new = (**old).clone();
+                new.cursor.cursor_style = match old.cursor.cursor_style {
+                    CursorStyle::Block => CursorStyle::Beam,
+                    CursorStyle::Beam => CursorStyle::Underline,
+                    CursorStyle::Underline => CursorStyle::Block,
+                };
+                std::sync::Arc::new(new)
+            });
 
             // Force cell regen to reflect cursor style change
             self.invalidate_tab_cache();
@@ -158,19 +174,19 @@ impl WindowState {
 
             log::info!(
                 "Cycled cursor style to {:?}",
-                self.config.cursor.cursor_style
+                self.config.load().cursor.cursor_style
             );
 
             // Map our config cursor style to terminal cursor style
             // Respect the cursor_blink setting when cycling styles
-            let term_style = if self.config.cursor.cursor_blink {
-                match self.config.cursor.cursor_style {
+            let term_style = if self.config.load().cursor.cursor_blink {
+                match self.config.load().cursor.cursor_style {
                     CursorStyle::Block => TermCursorStyle::BlinkingBlock,
                     CursorStyle::Beam => TermCursorStyle::BlinkingBar,
                     CursorStyle::Underline => TermCursorStyle::BlinkingUnderline,
                 }
             } else {
-                match self.config.cursor.cursor_style {
+                match self.config.load().cursor.cursor_style {
                     CursorStyle::Block => TermCursorStyle::SteadyBlock,
                     CursorStyle::Beam => TermCursorStyle::SteadyBar,
                     CursorStyle::Underline => TermCursorStyle::SteadyUnderline,

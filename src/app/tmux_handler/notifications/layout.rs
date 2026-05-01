@@ -131,9 +131,13 @@ impl WindowState {
         // Get bounds info from renderer for proper pane sizing (needed for both paths)
         // Calculate status bar height for proper content area
         let is_tmux_connected = self.is_tmux_connected();
-        let status_bar_height =
-            crate::tmux_status_bar_ui::TmuxStatusBarUI::height(&self.config, is_tmux_connected);
-        let custom_status_bar_height = self.status_bar_ui.height(&self.config, self.is_fullscreen);
+        let status_bar_height = crate::tmux_status_bar_ui::TmuxStatusBarUI::height(
+            &self.config.load(),
+            is_tmux_connected,
+        );
+        let custom_status_bar_height = self
+            .status_bar_ui
+            .height(&self.config.load(), self.is_fullscreen);
 
         let bounds_info = self.renderer.as_ref().map(|r| {
             let size = r.size();
@@ -214,7 +218,7 @@ impl WindowState {
             && let Some(pm) = tab.pane_manager_mut()
         {
             // Tmux layouts always have multiple panes; hide window padding if configured
-            let effective_padding = if self.config.window.hide_window_padding_on_split {
+            let effective_padding = if self.config.load().window.hide_window_padding_on_split {
                 0.0
             } else {
                 padding

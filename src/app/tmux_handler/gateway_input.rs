@@ -11,11 +11,11 @@ impl WindowState {
     /// Returns true if input was handled via tmux, false if it should go to PTY directly.
     pub fn send_input_via_tmux(&self, data: &[u8]) -> bool {
         // Check if tmux is enabled and connected
-        if !self.config.tmux_enabled || !self.is_tmux_connected() {
+        if !self.config.load().tmux_enabled || !self.is_tmux_connected() {
             crate::debug_trace!(
                 "TMUX",
                 "send_input_via_tmux: not sending - enabled={}, connected={}",
-                self.config.tmux_enabled,
+                self.config.load().tmux_enabled,
                 self.is_tmux_connected()
             );
             return false;
@@ -71,11 +71,11 @@ impl WindowState {
     /// modifyOtherKeys-mode-2 encoder then delivers `\x1b[27;5;106~` instead of
     /// the literal newline the application expects.
     pub fn send_literal_bytes_via_tmux(&self, bytes: &[u8]) -> bool {
-        if !self.config.tmux_enabled || !self.is_tmux_connected() {
+        if !self.config.load().tmux_enabled || !self.is_tmux_connected() {
             crate::debug_info!(
                 "SHIFTENTER",
                 "send_literal_bytes_via_tmux: refused - enabled={}, connected={}",
-                self.config.tmux_enabled,
+                self.config.load().tmux_enabled,
                 self.is_tmux_connected(),
             );
             return false;
@@ -189,7 +189,7 @@ impl WindowState {
     ///
     /// Uses send-keys -l for literal text to handle special characters properly.
     pub fn paste_via_tmux(&self, text: &str) -> bool {
-        if !self.config.tmux_enabled || !self.is_tmux_connected() {
+        if !self.config.load().tmux_enabled || !self.is_tmux_connected() {
             return false;
         }
 
@@ -226,7 +226,7 @@ impl WindowState {
         }
 
         // Only handle if tmux is connected
-        if !self.config.tmux_enabled || !self.is_tmux_connected() {
+        if !self.config.load().tmux_enabled || !self.is_tmux_connected() {
             return false;
         }
 

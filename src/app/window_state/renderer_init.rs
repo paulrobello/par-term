@@ -391,10 +391,10 @@ impl WindowState {
         );
 
         // Initialize cursor color from config
-        renderer.update_cursor_color(self.config.cursor.cursor_color);
+        renderer.update_cursor_color(self.config.load().cursor.cursor_color);
 
         // Initialize cursor text color from config
-        renderer.update_cursor_text_color(self.config.cursor.cursor_text_color);
+        renderer.update_cursor_text_color(self.config.load().cursor.cursor_text_color);
 
         // Hide cursor if cursor shader is enabled and configured to hide
         renderer.set_cursor_hidden_for_shader(

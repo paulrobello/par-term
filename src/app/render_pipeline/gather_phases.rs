@@ -114,8 +114,8 @@ impl WindowState {
         &self,
         terminal: &Arc<tokio::sync::RwLock<TerminalManager>>,
     ) -> (Vec<ScrollbackMark>, bool) {
-        let need_marks =
-            self.config.scrollbar_command_marks || self.config.command_separator_enabled;
+        let need_marks = self.config.load().scrollbar_command_marks
+            || self.config.load().command_separator_enabled;
         let mut scrollback_marks: Vec<ScrollbackMark> = if need_marks {
             if let Ok(term) = terminal.try_write() {
                 term.scrollback_marks()
@@ -145,7 +145,7 @@ impl WindowState {
         cached_terminal_title: &str,
         hovered_url: &Option<String>,
     ) {
-        if self.config.allow_title_change
+        if self.config.load().allow_title_change
             && hovered_url.is_none()
             && terminal_title != cached_terminal_title
         {
@@ -153,7 +153,7 @@ impl WindowState {
             self.with_active_tab_mut(|tab| tab.active_cache_mut().terminal_title = owned.clone());
             if let Some(window) = &self.window {
                 if terminal_title.is_empty() {
-                    window.set_title(&self.format_title(&self.config.window_title));
+                    window.set_title(&self.format_title(&self.config.load().window_title));
                 } else {
                     window.set_title(&self.format_title(terminal_title));
                 }

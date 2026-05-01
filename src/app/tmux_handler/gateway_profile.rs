@@ -17,7 +17,7 @@ impl WindowState {
     /// "*-production").
     pub(crate) fn apply_tmux_session_profile(&mut self, session_name: &str) {
         // First, check if there's a fixed tmux_profile configured
-        if let Some(ref profile_name) = self.config.tmux_profile {
+        if let Some(ref profile_name) = self.config.load().tmux_profile {
             if let Some(profile) = self.overlay_ui.profile_manager.find_by_name(profile_name) {
                 let profile_id = profile.id;
                 let profile_display = profile.name.clone();

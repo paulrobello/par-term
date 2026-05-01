@@ -116,8 +116,8 @@ impl WindowState {
                 self.overlay_ui.search_ui.toggle();
                 if self.overlay_ui.search_ui.visible {
                     self.overlay_ui.search_ui.init_from_config(
-                        self.config.search.search_case_sensitive,
-                        self.config.search.search_regex,
+                        self.config.load().search.search_case_sensitive,
+                        self.config.load().search.search_regex,
                     );
                 }
                 self.focus_state.needs_redraw = true;
@@ -133,11 +133,15 @@ impl WindowState {
                 true
             }
             "toggle_ai_inspector" => {
-                if self.config.ai_inspector.ai_inspector_enabled {
+                if self.config.load().ai_inspector.ai_inspector_enabled {
                     let just_opened = self.overlay_ui.ai_inspector.toggle();
                     self.sync_ai_inspector_width();
                     if just_opened {
-                        if self.config.ai_inspector.ai_inspector_input_history_mode
+                        if self
+                            .config
+                            .load()
+                            .ai_inspector
+                            .ai_inspector_input_history_mode
                             == par_term_config::AssistantInputHistoryMode::Persist
                         {
                             self.overlay_ui.ai_inspector.merge_persisted_input_history();
@@ -202,7 +206,7 @@ impl WindowState {
             }
             "toggle_session_logging" => {
                 if let Some(tab) = self.tab_manager.active_tab_mut() {
-                    match tab.toggle_session_logging(&self.config) {
+                    match tab.toggle_session_logging(&self.config.load()) {
                         Ok(is_active) => {
                             let message = if is_active {
                                 "⏺ Recording Started"

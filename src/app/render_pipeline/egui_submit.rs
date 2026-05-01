@@ -69,10 +69,10 @@ impl WindowState {
         };
 
         // Capture session variables for status bar rendering (skip if bar is hidden)
-        let status_bar_session_vars = if self.config.status_bar.status_bar_enabled
+        let status_bar_session_vars = if self.config.load().status_bar.status_bar_enabled
             && !self
                 .status_bar_ui
-                .should_hide(&self.config, self.is_fullscreen)
+                .should_hide(&self.config.load(), self.is_fullscreen)
         {
             Some(self.badge_state.variables.read().clone())
         } else {
@@ -82,8 +82,10 @@ impl WindowState {
         // Capture values for badge insets (before egui borrow to avoid method-call borrows)
         let badge_is_tmux = self.is_tmux_connected();
         let badge_tmux_sb_height =
-            crate::tmux_status_bar_ui::TmuxStatusBarUI::height(&self.config, badge_is_tmux);
-        let badge_custom_sb_height = self.status_bar_ui.height(&self.config, self.is_fullscreen);
+            crate::tmux_status_bar_ui::TmuxStatusBarUI::height(&self.config.load(), badge_is_tmux);
+        let badge_custom_sb_height = self
+            .status_bar_ui
+            .height(&self.config.load(), self.is_fullscreen);
 
         // Capture move-tab context values BEFORE the egui closure so the
         // `self.is_gateway_active()` method call (which borrows `&self`) does
@@ -158,7 +160,7 @@ impl WindowState {
                         egui_overlays::render_copy_mode_status_bar(
                             ctx,
                             self.copy_mode.active,
-                            self.config.copy_mode.copy_mode_show_status,
+                            self.config.load().copy_mode.copy_mode_show_status,
                             self.copy_mode.is_searching,
                             self.copy_mode.visual_mode,
                             mode_text,
@@ -193,7 +195,7 @@ impl WindowState {
                     actions.tab_action = self.tab_bar_ui.render(
                         ctx,
                         &self.tab_manager,
-                        &self.config,
+                        &self.config.load(),
                         &self.overlay_ui.profile_manager,
                         tab_bar_right_reserved,
                     );
@@ -201,7 +203,7 @@ impl WindowState {
                     // Render tmux status bar if connected
                     self.overlay_ui.tmux_status_bar_ui.render(
                         ctx,
-                        &self.config,
+                        &self.config.load(),
                         self.tmux_state.tmux_session.as_ref(),
                         self.tmux_state.tmux_session_name.as_deref(),
                     );
@@ -210,7 +212,7 @@ impl WindowState {
                     if let Some(ref session_vars) = status_bar_session_vars {
                         let (_bar_height, status_bar_action) = self.status_bar_ui.render(
                             ctx,
-                            &self.config,
+                            &self.config.load(),
                             session_vars,
                             self.is_fullscreen,
                         );
@@ -246,7 +248,7 @@ impl WindowState {
                         .show(ctx, &self.agent_state.available_agents);
 
                     // Show tmux session picker UI and collect action
-                    let tmux_path = self.config.resolve_tmux_path();
+                    let tmux_path = self.config.load().resolve_tmux_path();
                     actions.session_picker =
                         self.overlay_ui.tmux_session_picker_ui.show(ctx, &tmux_path);
 
@@ -309,7 +311,11 @@ impl WindowState {
                                     }
                                 }
                                 crate::update_dialog::UpdateDialogAction::SkipVersion(v) => {
-                                    self.config.updates.skipped_version = Some(v);
+                                    self.config.rcu(|old| {
+                                        let mut new = (**old).clone();
+                                        new.updates.skipped_version = Some(v.clone());
+                                        std::sync::Arc::new(new)
+                                    });
                                     self.update_state.show_dialog = false;
                                     self.status_bar_ui.update_available_version = None;
                                     self.update_state.install_status = None;
@@ -344,17 +350,18 @@ impl WindowState {
                     // Render profile drawer (right side panel).
                     // Pass the custom status bar height as a bottom margin so the
                     // panel does not extend behind the floating Area-based status bar.
-                    let profile_drawer_bottom_margin = if self.config.status_bar.status_bar_position
-                        == par_term_config::StatusBarPosition::Bottom
-                    {
-                        badge_custom_sb_height
-                    } else {
-                        0.0
-                    };
+                    let profile_drawer_bottom_margin =
+                        if self.config.load().status_bar.status_bar_position
+                            == par_term_config::StatusBarPosition::Bottom
+                        {
+                            badge_custom_sb_height
+                        } else {
+                            0.0
+                        };
                     actions.profile_drawer = self.overlay_ui.profile_drawer_ui.render(
                         ctx,
                         &self.overlay_ui.profile_manager,
-                        &self.config,
+                        &self.config.load(),
                         false, // profile modal is no longer in the terminal window
                         profile_drawer_bottom_margin,
                     );
@@ -362,8 +369,8 @@ impl WindowState {
                     // Render progress bar overlay
                     if let (Some(snap), Some(size)) = (progress_snapshot, window_size_for_badge) {
                         let tab_count = self.tab_manager.visible_tab_count();
-                        let tb_height = self.tab_bar_ui.get_height(tab_count, &self.config);
-                        let (top_inset, bottom_inset) = match self.config.tab_bar_position {
+                        let tb_height = self.tab_bar_ui.get_height(tab_count, &self.config.load());
+                        let (top_inset, bottom_inset) = match self.config.load().tab_bar_position {
                             par_term_config::TabBarPosition::Top => (tb_height, 0.0),
                             par_term_config::TabBarPosition::Bottom => (0.0, tb_height),
                             par_term_config::TabBarPosition::Left => (0.0, 0.0),
@@ -371,7 +378,7 @@ impl WindowState {
                         render_progress_bars(
                             ctx,
                             snap,
-                            &self.config,
+                            &self.config.load(),
                             size.width as f32,
                             size.height as f32,
                             top_inset,
@@ -394,19 +401,19 @@ impl WindowState {
                     // Render badge overlay (top-right corner, offset by UI insets)
                     if let (Some(badge), Some(size)) = (&badge_state, window_size_for_badge) {
                         let tab_count = self.tab_manager.visible_tab_count();
-                        let tb_height = self.tab_bar_ui.get_height(tab_count, &self.config);
+                        let tb_height = self.tab_bar_ui.get_height(tab_count, &self.config.load());
 
-                        let top_inset = match self.config.tab_bar_position {
+                        let top_inset = match self.config.load().tab_bar_position {
                             par_term_config::TabBarPosition::Top => tb_height,
                             _ => 0.0,
                         };
-                        let bottom_inset = match self.config.tab_bar_position {
+                        let bottom_inset = match self.config.load().tab_bar_position {
                             par_term_config::TabBarPosition::Bottom => tb_height,
                             _ => 0.0,
                         } + badge_tmux_sb_height
                             + badge_custom_sb_height;
                         let scrollbar_inset = if show_scrollbar {
-                            self.config.scrollbar_width + 2.0
+                            self.config.load().scrollbar_width + 2.0
                         } else {
                             0.0
                         };

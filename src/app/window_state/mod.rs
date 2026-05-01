@@ -99,6 +99,7 @@ use crate::smart_selection::SmartSelectionCache;
 use crate::status_bar::StatusBarUI;
 use crate::tab::TabManager;
 use crate::tab_bar_ui::TabBarUI;
+use arc_swap::ArcSwap;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 use winit::window::Window;
@@ -134,8 +135,8 @@ pub struct WindowState {
     // =========================================================================
     // Core infrastructure
     // =========================================================================
-    /// Global configuration
-    pub(crate) config: Config,
+    /// Global configuration (QA-001: ArcSwap for zero-cost reads, atomic whole-config swaps)
+    pub(crate) config: ArcSwap<Config>,
     /// The winit window handle
     pub(crate) window: Option<Arc<Window>>,
     /// GPU renderer
