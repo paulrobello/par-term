@@ -6,18 +6,18 @@
 use std::collections::HashMap;
 
 use crate::types::{
-    BackgroundImageMode, BackgroundMode, DividerStyle, DroppedFileQuoteStyle,
-    ImageScalingMode, InstallPromptState, IntegrationVersions, LogLevel, ModifierRemapping,
-    NewTabPosition, OptionKeyMode, PaneTitlePosition, PowerPreference, ProgressBarPosition,
-    ProgressBarStyle, RemoteTabTitleFormat, SemanticHistoryEditorMode, SessionLogFormat,
-    ShaderInstallPrompt, ShellExitAction, TabBarMode, TabBarPosition, TabStyle, TabTitleMode,
-    VsyncMode, WindowType, default_smart_selection_rules,
+    BackgroundImageMode, BackgroundMode, DividerStyle, DroppedFileQuoteStyle, ImageScalingMode,
+    InstallPromptState, IntegrationVersions, LogLevel, ModifierRemapping, NewTabPosition,
+    OptionKeyMode, PaneTitlePosition, PowerPreference, ProgressBarPosition, ProgressBarStyle,
+    RemoteTabTitleFormat, SemanticHistoryEditorMode, SessionLogFormat, ShaderInstallPrompt,
+    ShellExitAction, TabBarMode, TabBarPosition, TabStyle, TabTitleMode, VsyncMode, WindowType,
+    default_smart_selection_rules,
 };
 
 use super::{
     AiInspectorConfig, Config, CopyModeConfig, CursorConfig, FontRenderingConfig,
-    GlobalShaderConfig, MouseConfig, NotificationConfig, ScrollbackConfig, SearchConfig,
-    SshConfig, StatusBarConfig, UnicodeConfig, WindowConfig,
+    GlobalShaderConfig, MouseConfig, NotificationConfig, ScrollbackConfig, SearchConfig, SshConfig,
+    StatusBarConfig, UnicodeConfig, WindowConfig,
 };
 
 impl Default for Config {

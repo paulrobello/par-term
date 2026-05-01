@@ -201,7 +201,8 @@ impl ConfigChanges {
                 || new.cursor.cursor_shadow_enabled != old.cursor.cursor_shadow_enabled
                 || new.cursor.cursor_shadow_color != old.cursor.cursor_shadow_color
                 || new.cursor.cursor_shadow_offset != old.cursor.cursor_shadow_offset
-                || (new.cursor.cursor_shadow_blur - old.cursor.cursor_shadow_blur).abs() > f32::EPSILON
+                || (new.cursor.cursor_shadow_blur - old.cursor.cursor_shadow_blur).abs()
+                    > f32::EPSILON
                 || (new.cursor.cursor_boost - old.cursor.cursor_boost).abs() > f32::EPSILON
                 || new.cursor.cursor_boost_color != old.cursor.cursor_boost_color
                 || new.cursor.unfocused_cursor_style != old.cursor.unfocused_cursor_style,

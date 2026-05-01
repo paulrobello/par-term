@@ -444,15 +444,15 @@ impl WindowState {
         // If the trigger has an allowed_commands list, the command must be on it.
         // When no allowlist is set, this check passes and falls through to the
         // denylist below.
-        if let Some(allowed) = ctx.trigger_allowed_commands.get(&trigger_id) {
-            if let Err(reason) = check_command_allowlist(&command, allowed) {
-                log::error!(
-                    "Trigger {} RunCommand DENIED by allowlist: {}",
-                    trigger_id,
-                    reason,
-                );
-                return;
-            }
+        if let Some(allowed) = ctx.trigger_allowed_commands.get(&trigger_id)
+            && let Err(reason) = check_command_allowlist(&command, allowed)
+        {
+            log::error!(
+                "Trigger {} RunCommand DENIED by allowlist: {}",
+                trigger_id,
+                reason,
+            );
+            return;
         }
 
         // Security check: command denylist (always applied, even for approved actions)

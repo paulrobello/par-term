@@ -112,7 +112,8 @@ impl WindowState {
             // scrollback offsets must not suppress cursor state there.
             // If lock_cursor_visibility is enabled, ignore the terminal's visibility state.
             // In copy mode, use the copy mode cursor position instead.
-            let cursor_visible = self.config.cursor.lock_cursor_visibility || term.is_cursor_visible();
+            let cursor_visible =
+                self.config.cursor.lock_cursor_visibility || term.is_cursor_visible();
             let live_view = cursor_is_on_live_view(scroll_offset, is_alt_screen);
             let terminal_cursor_pos =
                 (!self.copy_mode.active && live_view).then(|| term.cursor_position());

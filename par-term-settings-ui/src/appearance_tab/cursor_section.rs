@@ -199,7 +199,10 @@ pub(super) fn show_cursor_locks_section(
                 }
 
                 if ui
-                    .checkbox(&mut settings.config.cursor.lock_cursor_style, "Lock cursor style")
+                    .checkbox(
+                        &mut settings.config.cursor.lock_cursor_style,
+                        "Lock cursor style",
+                    )
                     .on_hover_text("Prevent applications from changing cursor style")
                     .changed()
                 {
@@ -209,7 +212,10 @@ pub(super) fn show_cursor_locks_section(
 
                 ui.add_enabled_ui(!settings.config.cursor.lock_cursor_style, |ui| {
                     if ui
-                        .checkbox(&mut settings.config.cursor.lock_cursor_blink, "Lock cursor blink")
+                        .checkbox(
+                            &mut settings.config.cursor.lock_cursor_blink,
+                            "Lock cursor blink",
+                        )
                         .on_hover_text(if settings.config.cursor.lock_cursor_style {
                             "Disabled: Lock cursor style already controls blink"
                         } else {
@@ -285,7 +291,10 @@ pub(super) fn show_cursor_effects_section(
 
                 // Cursor Shadow
                 if ui
-                    .checkbox(&mut settings.config.cursor.cursor_shadow_enabled, "Cursor shadow")
+                    .checkbox(
+                        &mut settings.config.cursor.cursor_shadow_enabled,
+                        "Cursor shadow",
+                    )
                     .on_hover_text("Add a drop shadow behind the cursor")
                     .changed()
                 {

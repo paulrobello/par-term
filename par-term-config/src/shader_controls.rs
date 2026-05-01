@@ -38,14 +38,9 @@ pub enum ShaderControlKind {
         label: Option<String>,
     },
     /// Boolean checkbox attached to `uniform bool`.
-    Checkbox {
-        label: Option<String>,
-    },
+    Checkbox { label: Option<String> },
     /// Color picker attached to `uniform vec3` or `uniform vec4`.
-    Color {
-        alpha: bool,
-        label: Option<String>,
-    },
+    Color { alpha: bool, label: Option<String> },
     /// Integer slider attached to `uniform int`.
     Int {
         min: i32,
@@ -66,9 +61,7 @@ pub enum ShaderControlKind {
         label: Option<String>,
     },
     /// Normalized 2D point picker attached to `uniform vec2` (range 0-1).
-    Point {
-        label: Option<String>,
-    },
+    Point { label: Option<String> },
     /// Two-handle range slider attached to `uniform vec2`.
     Range {
         min: f32,

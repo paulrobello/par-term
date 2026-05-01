@@ -97,8 +97,8 @@ pub(super) const PASSWORD_PROMPT_PATTERNS: &[&str] = &[
     "nova senha:",
     "confirme a senha",
     // Spanish
-    "contrase\u{00f1}a:",      // contraseña:
-    "contrasena:",              // contrasena: (ASCII fallback)
+    "contrase\u{00f1}a:", // contraseña:
+    "contrasena:",        // contrasena: (ASCII fallback)
     "introduzca la contrase\u{00f1}a",
     "contrase\u{00f1}a actual:",
     "nueva contrase\u{00f1}a:",
@@ -110,9 +110,9 @@ pub(super) const PASSWORD_PROMPT_PATTERNS: &[&str] = &[
     "nouveau mot de passe:",
     "confirmez le mot de passe",
     // Russian
-    "\u{043f}\u{0430}\u{0440}\u{043e}\u{043b}\u{044c}:",                 // пароль:
+    "\u{043f}\u{0430}\u{0440}\u{043e}\u{043b}\u{044c}:", // пароль:
     "\u{0432}\u{0432}\u{0435}\u{0434}\u{0438}\u{0442}\u{0435} \u{043f}\u{0430}\u{0440}\u{043e}\u{043b}\u{044c}", // введите пароль
-    "\u{043d}\u{043e}\u{0432}\u{044b}\u{0439} \u{043f}\u{0430}\u{0440}\u{043e}\u{043b}\u{044c}:",               // новый пароль:
+    "\u{043d}\u{043e}\u{0432}\u{044b}\u{0439} \u{043f}\u{0430}\u{0440}\u{043e}\u{043b}\u{044c}:", // новый пароль:
     // German
     "passwort:",
     "geben sie das passwort",
@@ -120,16 +120,16 @@ pub(super) const PASSWORD_PROMPT_PATTERNS: &[&str] = &[
     "neues passwort:",
     "passwort best\u{00e4}tigen", // passwort bestätigen
     // Japanese
-    "\u{30d1}\u{30b9}\u{30ef}\u{30fc}\u{30c9}:",     // パスワード:
+    "\u{30d1}\u{30b9}\u{30ef}\u{30fc}\u{30c9}:", // パスワード:
     "\u{30d1}\u{30b9}\u{30ef}\u{30fc}\u{30c9}\u{5165}\u{529b}", // パスワード入力
     // Korean
-    "암호:",       // 암호:
+    "암호:",     // 암호:
     "비밀번호:", // 비밀번호:
     // Chinese (Simplified)
-    "密码:",       // 密码:
+    "密码:",      // 密码:
     "请输入密码", // 请输入密码
     // Italian
-    "password:",           // (already covered by English "password:" — case-insensitive)
+    "password:", // (already covered by English "password:" — case-insensitive)
     "inserire la password",
     "nuova password:",
     // Dutch
@@ -137,11 +137,11 @@ pub(super) const PASSWORD_PROMPT_PATTERNS: &[&str] = &[
     "voer het wachtwoord",
     "nieuw wachtwoord:",
     // Polish
-    "has\u{0142}o:",       // hasło:
+    "has\u{0142}o:",         // hasło:
     "wprowadź has\u{0142}o", // wprowadź hasło
-    "nowe has\u{0142}o:",  // nowe hasło:
+    "nowe has\u{0142}o:",    // nowe hasło:
     // Turkish
-    "ş}ifre:",        // şifre: (note: also covered by lowercase match of "Şifre:")
+    "ş}ifre:", // şifre: (note: also covered by lowercase match of "Şifre:")
     "parola:",
     // Hindi
     "प}ासवर्द}:", // पासवर्ड: (Hindi often uses English loanword)

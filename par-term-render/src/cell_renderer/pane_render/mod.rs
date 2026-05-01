@@ -402,7 +402,9 @@ impl CellRenderer {
                         opacity_multiplier,
                         bg_index,
                     });
-                    if emitted { bg_index += 1; }
+                    if emitted {
+                        bg_index += 1;
+                    }
                     col += 1;
                     continue;
                 }

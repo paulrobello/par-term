@@ -108,10 +108,7 @@ pub enum TriggerActionConfig {
         duration_ms: u64,
     },
     /// Show a desktop notification with a title and message.
-    Notify {
-        title: String,
-        message: String,
-    },
+    Notify { title: String, message: String },
     /// Mark the line containing the match with a colored indicator in the scrollback.
     MarkLine {
         #[serde(default)]
@@ -120,10 +117,7 @@ pub enum TriggerActionConfig {
         color: Option<[u8; 3]>,
     },
     /// Set an internal variable that can be referenced by other triggers or snippets.
-    SetVariable {
-        name: String,
-        value: String,
-    },
+    SetVariable { name: String, value: String },
     /// Run an external command (dangerous when `prompt_before_run: false`).
     RunCommand {
         command: String,
@@ -590,10 +584,7 @@ pub fn check_command_denylist(command: &str, args: &[String]) -> Option<&'static
 ///
 /// This means an allowlist entry of `"git"` will match both `git` and
 /// `/usr/bin/git`.
-pub fn check_command_allowlist(
-    command: &str,
-    allowed_commands: &[String],
-) -> Result<(), String> {
+pub fn check_command_allowlist(command: &str, allowed_commands: &[String]) -> Result<(), String> {
     if allowed_commands.is_empty() {
         return Ok(());
     }

@@ -335,7 +335,10 @@ inactive_tab_opacity: 0.3
 fn test_config_cursor_enhancement_defaults() {
     let config = Config::default();
     // Unfocused cursor style defaults to Hollow
-    assert_eq!(config.cursor.unfocused_cursor_style, UnfocusedCursorStyle::Hollow);
+    assert_eq!(
+        config.cursor.unfocused_cursor_style,
+        UnfocusedCursorStyle::Hollow
+    );
     // Cursor guide disabled by default
     assert!(!config.cursor.cursor_guide_enabled);
     // Default guide color: white with low alpha
@@ -369,7 +372,10 @@ cursor_boost: 0.5
 cursor_boost_color: [255, 200, 100]
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert_eq!(config.cursor.unfocused_cursor_style, UnfocusedCursorStyle::Hidden);
+    assert_eq!(
+        config.cursor.unfocused_cursor_style,
+        UnfocusedCursorStyle::Hidden
+    );
     assert!(config.cursor.cursor_guide_enabled);
     assert_eq!(config.cursor.cursor_guide_color, [200, 200, 255, 40]);
     assert!(config.cursor.cursor_shadow_enabled);
@@ -386,17 +392,26 @@ fn test_config_unfocused_cursor_style_variants() {
     // Test hollow variant
     let yaml = r#"unfocused_cursor_style: hollow"#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert_eq!(config.cursor.unfocused_cursor_style, UnfocusedCursorStyle::Hollow);
+    assert_eq!(
+        config.cursor.unfocused_cursor_style,
+        UnfocusedCursorStyle::Hollow
+    );
 
     // Test same variant
     let yaml = r#"unfocused_cursor_style: same"#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert_eq!(config.cursor.unfocused_cursor_style, UnfocusedCursorStyle::Same);
+    assert_eq!(
+        config.cursor.unfocused_cursor_style,
+        UnfocusedCursorStyle::Same
+    );
 
     // Test hidden variant
     let yaml = r#"unfocused_cursor_style: hidden"#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert_eq!(config.cursor.unfocused_cursor_style, UnfocusedCursorStyle::Hidden);
+    assert_eq!(
+        config.cursor.unfocused_cursor_style,
+        UnfocusedCursorStyle::Hidden
+    );
 }
 
 #[test]
@@ -426,7 +441,10 @@ cursor_boost: 0.3
     assert!(config.cursor.cursor_guide_enabled);
     assert!((config.cursor.cursor_boost - 0.3).abs() < f32::EPSILON);
     // Other fields should have defaults
-    assert_eq!(config.cursor.unfocused_cursor_style, UnfocusedCursorStyle::Hollow);
+    assert_eq!(
+        config.cursor.unfocused_cursor_style,
+        UnfocusedCursorStyle::Hollow
+    );
     assert!(!config.cursor.cursor_shadow_enabled);
     assert_eq!(config.cursor.cursor_guide_color, [255, 255, 255, 20]);
 }

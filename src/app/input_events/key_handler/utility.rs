@@ -156,7 +156,10 @@ impl WindowState {
             self.invalidate_tab_cache();
             self.focus_state.needs_redraw = true;
 
-            log::info!("Cycled cursor style to {:?}", self.config.cursor.cursor_style);
+            log::info!(
+                "Cycled cursor style to {:?}",
+                self.config.cursor.cursor_style
+            );
 
             // Map our config cursor style to terminal cursor style
             // Respect the cursor_blink setting when cycling styles

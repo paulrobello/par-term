@@ -114,14 +114,18 @@ pub(super) fn apply_renderer_config(
     if changes.cursor_enhancements {
         // Re-borrow renderer (can't hold it across the tabs_mut loop above)
         if let Some(renderer) = &mut window_state.renderer {
-            renderer.update_cursor_guide(config.cursor.cursor_guide_enabled, config.cursor.cursor_guide_color);
+            renderer.update_cursor_guide(
+                config.cursor.cursor_guide_enabled,
+                config.cursor.cursor_guide_color,
+            );
             renderer.update_cursor_shadow(
                 config.cursor.cursor_shadow_enabled,
                 config.cursor.cursor_shadow_color,
                 config.cursor.cursor_shadow_offset,
                 config.cursor.cursor_shadow_blur,
             );
-            renderer.update_cursor_boost(config.cursor.cursor_boost, config.cursor.cursor_boost_color);
+            renderer
+                .update_cursor_boost(config.cursor.cursor_boost, config.cursor.cursor_boost_color);
             renderer.update_unfocused_cursor_style(config.cursor.unfocused_cursor_style);
         }
         window_state.focus_state.needs_redraw = true;

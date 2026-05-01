@@ -148,7 +148,12 @@ pub(crate) fn install_macos_bundle(
     {
         // Step 1: Verify the code signature is intact.
         let codesign_status = std::process::Command::new("/usr/bin/codesign")
-            .args(["--verify", "--deep", "--strict", &app_root.to_string_lossy()])
+            .args([
+                "--verify",
+                "--deep",
+                "--strict",
+                &app_root.to_string_lossy(),
+            ])
             .output();
 
         match codesign_status {

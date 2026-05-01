@@ -368,7 +368,8 @@ impl WindowState {
         }
 
         // Smooth cursor blink animation using sine wave for natural fade
-        let blink_interval = std::time::Duration::from_millis(self.config.cursor.cursor_blink_interval);
+        let blink_interval =
+            std::time::Duration::from_millis(self.config.cursor.cursor_blink_interval);
 
         if let Some(last_blink) = self.cursor_anim.last_cursor_blink {
             let elapsed = now.duration_since(last_blink);

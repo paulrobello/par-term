@@ -1180,7 +1180,10 @@ mod tests {
             std::ptr::write(std::ptr::addr_of_mut!((*ptr).physical_key), physical_key);
             std::ptr::write(std::ptr::addr_of_mut!((*ptr).logical_key), logical_key);
             std::ptr::write(std::ptr::addr_of_mut!((*ptr).text), text.map(Into::into));
-            std::ptr::write(std::ptr::addr_of_mut!((*ptr).location), KeyLocation::Standard);
+            std::ptr::write(
+                std::ptr::addr_of_mut!((*ptr).location),
+                KeyLocation::Standard,
+            );
             std::ptr::write(std::ptr::addr_of_mut!((*ptr).state), ElementState::Pressed);
             std::ptr::write(std::ptr::addr_of_mut!((*ptr).repeat), false);
             event.assume_init()

@@ -128,9 +128,7 @@ mod inner {
                 libc::RTLD_LAZY,
             );
             if handle.is_null() {
-                log::warn!(
-                    "Failed to open ApplicationServices framework for blur (connection fn)"
-                );
+                log::warn!("Failed to open ApplicationServices framework for blur (connection fn)");
                 return None;
             }
 

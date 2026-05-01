@@ -103,13 +103,13 @@ pub use window_config::WindowConfig;
 
 use crate::snippets::{CustomActionConfig, SnippetConfig};
 use crate::types::{
-    BackgroundImageMode, BackgroundMode, CursorShaderConfig, DividerStyle,
-    DownloadSaveLocation, DroppedFileQuoteStyle, FontRange, ImageScalingMode, InstallPromptState,
-    IntegrationVersions, KeyBinding, LogLevel, ModifierRemapping, NewTabPosition, OptionKeyMode,
-    PaneTitlePosition, PowerPreference, ProgressBarPosition, ProgressBarStyle,
-    RemoteTabTitleFormat, SemanticHistoryEditorMode, SessionLogFormat, ShaderConfig,
-    ShaderInstallPrompt, ShellExitAction, SmartSelectionRule, StartupDirectoryMode, TabBarMode,
-    TabBarPosition, TabStyle, TabTitleMode, VsyncMode, WindowType,
+    BackgroundImageMode, BackgroundMode, CursorShaderConfig, DividerStyle, DownloadSaveLocation,
+    DroppedFileQuoteStyle, FontRange, ImageScalingMode, InstallPromptState, IntegrationVersions,
+    KeyBinding, LogLevel, ModifierRemapping, NewTabPosition, OptionKeyMode, PaneTitlePosition,
+    PowerPreference, ProgressBarPosition, ProgressBarStyle, RemoteTabTitleFormat,
+    SemanticHistoryEditorMode, SessionLogFormat, ShaderConfig, ShaderInstallPrompt,
+    ShellExitAction, SmartSelectionRule, StartupDirectoryMode, TabBarMode, TabBarPosition,
+    TabStyle, TabTitleMode, VsyncMode, WindowType,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
