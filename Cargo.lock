@@ -3863,6 +3863,7 @@ dependencies = [
  "toml 1.1.2+spec-1.1.0",
  "unicode-segmentation",
  "ureq",
+ "url",
  "uuid",
  "wgpu",
  "winit",

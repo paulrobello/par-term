@@ -209,6 +209,7 @@ arboard.workspace = true
 regex.workspace = true
 open.workspace = true          # Cross-platform URL opener
 shell-words.workspace = true   # Safe shell command parsing (prevents argument injection)
+url = "2"                      # URL parsing for shader download validation
 
 # Audio playback for bell sound
 rodio = { version = "0.22.2", features = ["mp3"] }
