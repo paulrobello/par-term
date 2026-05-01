@@ -111,7 +111,7 @@ field uses its documented default value.
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `max_fps` | `u32` | `60` | Maximum frames per second target |
-| `vsync_mode` | `enum` | `immediate` | VSync: `immediate`, `mailbox`, `fifo` |
+| `vsync_mode` | `enum` | `fifo` | VSync: `immediate`, `mailbox`, `fifo` |
 | `power_preference` | `enum` | `none` | GPU preference: `none`, `low_power`, `high_performance` |
 | `reduce_flicker` | `bool` | `true` | Delay redraws while cursor is hidden to reduce visual noise |
 | `reduce_flicker_delay_ms` | `u32` | `16` | Max delay in ms before forced redraw during flicker reduction |
@@ -675,3 +675,16 @@ dynamic_profile_sources:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `log_level` | `enum` | `off` | Debug log verbosity: `off`, `error`, `warn`, `info`, `debug`, `trace` |
+
+---
+
+## Related Documentation
+
+- [Custom Shaders](features/CUSTOM_SHADERS.md) — Background and cursor shader creation, uniforms, and debugging
+- [Snippets & Actions](features/SNIPPETS.md) — Full field reference for snippets, actions, and keybindings
+- [Profiles](features/PROFILES.md) — Per-profile configuration and dynamic profile sources
+- [SSH Support](features/SSH.md) — SSH host discovery and profile switching
+- [Session Management](features/SESSION_MANAGEMENT.md) — Session save/restore and undo
+- [Automation](features/AUTOMATION.md) — Triggers, coprocesses, and observer scripts
+- [Assistant Panel](ASSISTANT_PANEL.md) — AI Inspector and ACP agent configuration
+- [Logging](LOGGING.md) — Debug logging categories and DEBUG_LEVEL values

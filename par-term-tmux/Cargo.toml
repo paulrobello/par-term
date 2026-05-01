@@ -1,6 +1,6 @@
 [package]
 name = "par-term-tmux"
-version = "0.1.9"
+version = "0.1.10"
 edition = "2024"
 rust-version = "1.94"
 authors = ["Paul Robello <probello@gmail.com>"]
@@ -13,7 +13,7 @@ categories = ["command-line-utilities"]
 
 [dependencies]
 # Configuration (PaneId, TabId)
-par-term-config = { path = "../par-term-config", version = "0.10.1" }
+par-term-config = { path = "../par-term-config", version = "0.11.0" }
 
 # Terminal emulator core (tmux control mode parser)
 par-term-emu-core-rust.workspace = true

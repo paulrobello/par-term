@@ -1,6 +1,6 @@
 [package]
 name = "par-term-terminal"
-version = "0.2.6"
+version = "0.2.7"
 edition = "2024"
 rust-version = "1.94"
 authors = ["Paul Robello <probello@gmail.com>"]
@@ -16,7 +16,7 @@ categories = ["command-line-utilities"]
 par-term-emu-core-rust.workspace = true
 
 # Configuration (for Theme, Color, Cell types)
-par-term-config = { path = "../par-term-config", version = "0.10.1" }
+par-term-config = { path = "../par-term-config", version = "0.11.0" }
 
 # Synchronization
 parking_lot.workspace = true

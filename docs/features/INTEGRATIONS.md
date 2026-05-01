@@ -250,7 +250,7 @@ par-term tracks installed bundled shaders, cubemaps, and texture packs using a m
 **Manifest Contents:**
 ```json
 {
-  "version": "0.30.12",
+  "version": "0.31.0",
   "generated": "2026-03-07T18:17:58.976671+00:00",
   "files": [
     {

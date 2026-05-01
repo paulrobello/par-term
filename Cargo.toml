@@ -96,7 +96,7 @@ tempfile = "3.25"
 
 [package]
 name = "par-term"
-version = "0.30.12"
+version = "0.31.0"
 edition = "2024"
 rust-version = "1.94"
 authors = ["Paul Robello <probello@gmail.com>"]
@@ -130,43 +130,43 @@ exclude = [
 
 [dependencies]
 # ACP (Agent Communication Protocol) implementation
-par-term-acp = { path = "par-term-acp", version = "0.2.5" }
+par-term-acp = { path = "par-term-acp", version = "0.2.6" }
 
 # Configuration system
-par-term-config = { path = "par-term-config", version = "0.10.1", features = ["watcher", "wgpu-types"] }
+par-term-config = { path = "par-term-config", version = "0.11.0", features = ["watcher", "wgpu-types"] }
 
 # Font management and text shaping
-par-term-fonts = { path = "par-term-fonts", version = "0.1.7" }
+par-term-fonts = { path = "par-term-fonts", version = "0.1.8" }
 
 # Terminal manager (PTY, shell integration, scrollback)
-par-term-terminal = { path = "par-term-terminal", version = "0.2.6" }
+par-term-terminal = { path = "par-term-terminal", version = "0.2.7" }
 
 # GPU-accelerated rendering engine
-par-term-render = { path = "par-term-render", version = "0.6.7" }
+par-term-render = { path = "par-term-render", version = "0.7.0" }
 
 # Settings UI (egui-based settings interface)
-par-term-settings-ui = { path = "par-term-settings-ui", version = "0.11.2" }
+par-term-settings-ui = { path = "par-term-settings-ui", version = "0.12.0" }
 
 # Input sequence generation (keyboard/mouse → VT escape sequences)
-par-term-input = { path = "par-term-input", version = "0.1.12" }
+par-term-input = { path = "par-term-input", version = "0.1.13" }
 
 # Keybinding system (key parsing, matching, registry)
-par-term-keybindings = { path = "par-term-keybindings", version = "0.1.8" }
+par-term-keybindings = { path = "par-term-keybindings", version = "0.1.9" }
 
 # Scripting and observer system
-par-term-scripting = { path = "par-term-scripting", version = "0.1.8" }
+par-term-scripting = { path = "par-term-scripting", version = "0.1.9" }
 
 # SSH host management and discovery
-par-term-ssh = { path = "par-term-ssh", version = "0.1.4", default-features = false }
+par-term-ssh = { path = "par-term-ssh", version = "0.1.5", default-features = false }
 
 # Self-update and update-check system
-par-term-update = { path = "par-term-update", version = "0.2.5" }
+par-term-update = { path = "par-term-update", version = "0.2.6" }
 
 # MCP (Model Context Protocol) stdio server
-par-term-mcp = { path = "par-term-mcp", version = "0.2.3" }
+par-term-mcp = { path = "par-term-mcp", version = "0.2.4" }
 
 # tmux control mode integration
-par-term-tmux = { path = "par-term-tmux", version = "0.1.9" }
+par-term-tmux = { path = "par-term-tmux", version = "0.1.10" }
 
 # Terminal emulator core (with OSC 7/1337 hostname/cwd events, RemoteHost, and OSC 934 named progress bars)
 par-term-emu-core-rust.workspace = true

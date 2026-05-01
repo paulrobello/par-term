@@ -52,15 +52,17 @@ graph TD
     TabBar --> Icons[Tab Icons]
     TabBar --> HTML[HTML Titles]
 
-    style TabManager fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
-    style TabBar fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
-    style Tabs fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
-    style Sessions fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
-    style Visibility fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style Stretch fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style Colors fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style Icons fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style HTML fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+    class TabManager primary
+    class TabBar active
+    class Tabs data
+    class Sessions external
+    class Visibility,Stretch,Colors,Icons,HTML neutral
+
+    classDef primary fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+    classDef active fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    classDef data fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    classDef external fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
+    classDef neutral fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
 ```
 
 ## Creating and Closing Tabs
@@ -237,9 +239,13 @@ graph LR
     Custom -->|if cleared| Profile
     Profile -->|if none set| None
 
-    style Custom fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
-    style Profile fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
-    style None fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+    class Custom primary
+    class Profile data
+    class None neutral
+
+    classDef primary fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+    classDef data fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    classDef neutral fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
 ```
 
 A custom icon set via the context menu takes precedence over any profile-assigned icon. When the custom icon is cleared, the tab falls back to the profile icon or displays no icon.
@@ -379,10 +385,13 @@ graph LR
     Inactive2["Inactive Tab<br/>(outline only)"]
     Hovered["Hovered Tab<br/>(bright outline)"]
 
-    style Active fill:#0d47a1,stroke:#2196f3,stroke-width:3px,color:#ffffff
-    style Inactive1 fill:#1E1E1E,stroke:#78909c,stroke-width:2px,color:#B0B0B0
-    style Inactive2 fill:#1E1E1E,stroke:#78909c,stroke-width:2px,color:#B0B0B0
-    style Hovered fill:#1E1E1E,stroke:#E0E0E0,stroke-width:3px,color:#ffffff
+    class Active active
+    class Inactive1,Inactive2 neutral
+    class Hovered warning
+
+    classDef active fill:#0d47a1,stroke:#2196f3,stroke-width:3px,color:#ffffff
+    classDef neutral fill:#1E1E1E,stroke:#78909c,stroke-width:2px,color:#B0B0B0
+    classDef warning fill:#1E1E1E,stroke:#E0E0E0,stroke-width:3px,color:#ffffff
 ```
 
 When enabled (the default), inactive tabs show only the border stroke, and hovered inactive tabs increase the outline brightness instead of adding a fill. When disabled, inactive tabs render with a dimmed background fill matching their assigned tab color.

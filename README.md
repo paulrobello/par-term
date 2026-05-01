@@ -41,7 +41,7 @@ New to par-term? The [Getting Started Guide](docs/guides/GETTING_STARTED.md) wal
 - **[Configuration Reference](docs/CONFIG_REFERENCE.md)** — All 200+ configuration options
 - **[Keyboard Shortcuts](docs/guides/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
 
-## What's New in 0.30.12
+## What's New in 0.31.0
 
 - **Unfocused Split Panes Showed Stale Content** -- fixed per-pane refresh tasks and cache fast-path gating for secondary panes.
 - **Shader Controls in Settings** -- grouped `// control` uniforms, safety badges, auto-dim readability controls, and quick controls for cycling/pausing background shaders.

@@ -54,7 +54,7 @@ Typical local Claude+Ollama setup:
 
 ```bash
 npm install -g @zed-industries/claude-agent-acp
-ollama launch claude --model qwen3-coder:latest
+ollama run qwen3-coder:latest
 ```
 
 The harness reads your normal par-term configuration, so it can use the same custom agent entry you use in the Assistant Panel (for example `claude-ollama.local`).
@@ -78,11 +78,17 @@ graph TD
     MCP --> Agent
     Agent --> Harness
 
-    style User fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
-    style Harness fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
-    style Agent fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
-    style Backend fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
-    style MCP fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+    class User external
+    class Harness primary
+    class Agent active
+    class Backend data
+    class MCP neutral
+
+    classDef primary fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+    classDef active fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    classDef data fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    classDef external fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
+    classDef neutral fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
 ```
 
 The harness prints:
@@ -285,7 +291,7 @@ make install-acp
 Check that your local backend is running and the configured model is available:
 
 ```bash
-ollama launch claude --model qwen3-coder:latest
+ollama run qwen3-coder:latest
 ```
 
 Also confirm your custom agent environment variables (for example `ANTHROPIC_BASE_URL`, `ANTHROPIC_MODEL`) are correct in `config.yaml`.

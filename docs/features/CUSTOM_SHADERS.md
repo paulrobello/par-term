@@ -634,6 +634,9 @@ name: My Custom Shader
 author: Your Name
 description: Brief description of what this shader does
 version: 1.0.0
+safety_badges:
+  - full_content
+  - uses_textures
 defaults:
   animation_speed: 0.5
   brightness: 0.8
@@ -653,6 +656,17 @@ defaults:
 ```
 
 All metadata fields are optional. Values that are `null` fall through to global defaults.
+
+**Safety badges** are optional indicators shown in the Settings UI to describe shader characteristics:
+
+| Badge | Description |
+|-------|-------------|
+| `full_content` | Shader processes full terminal content (higher GPU cost, may distort text) |
+| `distorts_text` | Shader may distort or obscure text content |
+| `uses_textures` | Shader loads external texture files via iChannel0-3 |
+| `uses_cubemap` | Shader loads a cubemap texture for environment mapping |
+| `high_gpu_cost` | Shader has high GPU compute cost (may impact battery life) |
+| `battery_friendly` | Shader is lightweight and works well on battery power |
 
 ### Per-Shader Asset Bundle Manifests
 
@@ -770,6 +784,7 @@ Control rules and value types:
 
 - Do **not** put `default=` in a control comment. Defaults live in shader metadata under `defaults.uniforms`; per-shader overrides take precedence.
 - `label="Display Name"` is optional and changes the Settings UI label. Labels must be quoted.
+- `group="Group Name"` is optional and groups related controls together in the Settings UI. Group names must be quoted.
 - `slider` and `angle` attach to `uniform float`; `checkbox` to `uniform bool`; `color` to `uniform vec3`/`vec4`; `int`, `select`, and `channel` to `uniform int`; `vec2`, `point`, and `range` to `uniform vec2`.
 - `slider`, `vec2`, and `range` require `min`, `max`, and `step`. `slider scale=log` additionally requires `0 < min < max`.
 - `int` requires `min` and `max`; `step` defaults to `1` when omitted.

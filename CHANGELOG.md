@@ -11,64 +11,67 @@ Each version entry may include a `### Security` subsection for vulnerability fix
 
 ## [Unreleased]
 
+---
+
+## [0.31.0] - 2026-05-01
+
 ### Security
-- **Self-update Gatekeeper verification** — the self-updater now verifies code signatures (`codesign --verify --deep --strict`) and notarization (`spctl --assess`) before removing macOS quarantine attributes on downloaded app bundles, preventing supply-chain bypass of Gatekeeper.
-- **Shader installer URL validation** — shader downloads now enforce HTTPS-only with a GitHub host allowlist, matching the update system's validation pattern.
-- **Zip slip containment** — both the shader installer and self-updater now verify extracted paths remain within the target directory, preventing path traversal attacks via crafted archives.
-- **Command allowlist for triggers** — triggers support an optional `allowed_commands` allowlist mode. When set, only allowlisted commands execute; when absent, existing denylist behavior continues unchanged.
-- **ACP agent shell fallback warning** — the ACP agent spawner now logs a warning when falling back to shell execution mode, documenting the trust boundary.
-- **macOS FFI null-pointer safety** — `dlsym()` results in `macos_blur.rs` now have explicit null checks with descriptive warnings before invocation.
-- **MCP trust boundary documentation** — the MCP stdin/stdout IPC channel is now documented as a trust boundary requiring trusted server connections only.
-- **Session logger internationalization** — password redaction now covers 27 non-English prompt patterns (Portuguese, Spanish, French, Russian, German, Japanese, Korean, Chinese, Italian, Dutch, Polish, Turkish, Hindi, Arabic, Hebrew).
-- **Test fixture cleanup** — replaced `secret123` placeholder in test fixtures with `test_key_placeholder_for_parsing` to eliminate false positives from secret scanners.
+- Self-update Gatekeeper verification — verifies code signatures and notarization before removing quarantine attributes on macOS app bundles
+- Shader installer URL validation — enforces HTTPS-only with GitHub host allowlist
+- Zip slip containment — verifies extracted paths remain within target directory
+- Command allowlist for triggers — optional `allowed_commands` allowlist mode for trigger execution
+- ACP agent shell fallback warning — logs warning when falling back to shell execution mode
+- macOS FFI null-pointer safety — explicit null checks on `dlsym()` results in `macos_blur.rs`
+- MCP trust boundary documentation — MCP stdin/stdout IPC documented as trust boundary
+- Session logger i18n password redaction — covers 27 non-English prompt patterns
+- Test fixture cleanup — replaced secret placeholders to eliminate secret scanner false positives
 
 ### Architecture
-- **ArcSwap\<Config\> migration** — `WindowState.config` and `WindowManager.config` converted from owned `Config` to `ArcSwap<Config>`, eliminating per-window config cloning on settings changes (N allocations per settings change → zero).
-- **Config sub-struct extraction** — extracted `CursorConfig` (18 fields) and `MouseConfig` (6 fields) from the Config monolith via `#[serde(flatten)]` for backward-compatible YAML serialization.
-- **Layer violation resolved** — `par-term-config` no longer depends on `par-term-emu-core-rust`. Conversion functions moved to `par-term-terminal/src/conversion.rs`.
-- **Config prelude modules** — `par-term-config` re-exports now organized into 10 domain prelude sub-modules (`core`, `types`, `automation`, `shader`, `assistant`, `snippets`, `status_bar`, `profile`, `unicode`, `color`) while preserving all backward-compatible top-level imports.
-- **Feature flags** — added `audio`, `mermaid`, `system-monitor`, and `mdns` feature flags with `#[cfg]`-gated call sites and no-op stubs for disabled features. All default-enabled.
-- **File extractions** — split 5 oversized files: `snippet_actions.rs` (1,269 → 8 files), `shader_settings.rs` (1,735 → 6 files), `actions_tab.rs` (1,656 → 4 files), `transpiler.rs` (1,256 → 3 files), `custom_shader_renderer/mod.rs` (924 → 609 + 317).
-- **Test directory organization** — reorganized 29 test files into 7 domain subdirectories (`automation/`, `scripting/`, `config/`, `tabs/`, `shaders/`, `copy_mode/`, `profiles/`).
-- **Docs directory organization** — reorganized 39 docs into 3 subdirectories (`architecture/`, `features/`, `guides/`) with all internal links updated.
-- **GPU device loss recovery** — render path `.expect()` calls replaced with `RenderError::ShaderUnavailable` error propagation. Caller now reconfigures the wgpu surface and reinitializes on device loss instead of panicking.
-- **Event loop delay cap** — added 5-second `MAX_TOTAL_DELAY_MS` cap on snippet Repeat/Sequence delays to prevent UI freezes from excessive delays.
-- **Render pipeline dedup** — extracted `render_cells_to_target()` helper to eliminate duplicated shader-chaining logic between `render_split_panes` and `take_screenshot`.
-- **Cursor cell helper** — extracted `emit_cursor_cell_bg()` from the 550-line `build_pane_instance_buffers` to reduce per-cell branching complexity.
+- ArcSwap\<Config\> migration — eliminates per-window config cloning on settings changes
+- Config sub-struct extraction — `CursorConfig` and `MouseConfig` via `#[serde(flatten)]`
+- Layer violation resolved — `par-term-config` no longer depends on `par-term-emu-core-rust`
+- Config prelude modules — 10 domain prelude sub-modules with backward-compatible top-level imports
+- Feature flags — `audio`, `mermaid`, `system-monitor`, and `mdns` with `#[cfg]`-gated call sites
+- File extractions — split 5 oversized files into focused modules
+- Test directory organization — 29 test files into 7 domain subdirectories
+- Docs directory organization — 39 docs into `architecture/`, `features/`, `guides/` subdirectories
+- GPU device loss recovery — `.expect()` calls replaced with error propagation and surface reconfiguration
+- Event loop delay cap — 5-second `MAX_TOTAL_DELAY_MS` on snippet delays
+- Render pipeline dedup — extracted `render_cells_to_target()` helper
+- Cursor cell helper — extracted `emit_cursor_cell_bg()` from `build_pane_instance_buffers`
 
 ### Features
-- **Settings UI shader controls** — Effects settings now group shader `// control` uniforms with an optional `group="..."` field, surface shader safety badges from metadata and inferred defaults, add auto-dim-under-text readability controls, and expose quick controls/keybinding actions to cycle background shaders, pause/resume animation, and toggle low-power/readability mode. Profiles can also override the active background shader, brightness, text opacity, texture channels, and animation speed.
-- **Assistant input history** — submitted Assistant prompts are now stored in per-session history by default, with Up/Down recall in the chat input that preserves an unsent draft and only triggers from the top/bottom lines of multiline prompts. Settings > Assistant now includes an `Input history` selector to keep history session-only or persist it across restarts in the par-term config directory.
-- **Assistant prompt library** — Assistant settings now include a Markdown-backed prompt library stored under the par-term config directory. Each prompt uses YAML frontmatter for title and auto-submit behavior, can be managed in Settings > Assistant, and is selectable from the Assistant chat input to either load into the editor or send immediately. Prompt menu contents now refresh after add/edit/delete in Settings, and the chat **Prompts** menu is wider to reduce title wrapping.
-- **Assistant extra agent roots** — Assistant settings now include `ai_inspector_extra_agent_roots`, always add the par-term shaders directory so agents can edit shaders directly, and pass extra roots through supported adapters (`_meta.additionalRoots`, Codex writable roots, and Gemini include directories).
-- **Assistant shader diagnostics tool** — added a `shader_diagnostics` MCP tool that lets ACP agents query the running app for active background/cursor shader names, enabled state, last compile/reload errors, shader directory, and generated debug WGSL/wrapped GLSL paths. Shader assistant guidance and docs now tell agents to use it after activation or when shader output appears broken.
-- **Assistant agent selector prioritizes Codex** — Codex now appears as the first option in the Assistant panel agent selector while preserving the relative order of the other agents.
-- **Expanded custom shader controls** — background shader `// control` uniforms now support int sliders, select dropdowns, vec2 controls, normalized point controls, range controls, logarithmic sliders, angle controls, and channel selectors for choosing existing `iChannel0`..`iChannel4` sources. Documentation and assistant shader guidance now explain the syntax, defaults, limits, and when to use each control type.
-- **Custom shader uniform controls** — background shaders can now declare ad-hoc settings controls with `// control` comments attached to explicit GLSL uniforms. Supports float sliders with `min`/`max`/`step`, bool checkboxes, and color pickers for `vec3`/`vec4` uniforms via `// control color` (including `alpha=true` and `label="..."`), persists values as per-shader overrides, supports metadata defaults under `defaults.uniforms` with preferred hex color serialization, uploads values through a dedicated custom uniform buffer, and surfaces non-fatal control parse warnings in the shader settings/editor UI.
-- **Shader lint CLI and readability scoring** — added `par-term shader-lint <file>` and a Settings > Effects > Custom Shaders **Run Lint** button for no-GPU validation of shader metadata, channel/cubemap references, and `// control` comments. `--readability` prints a source-level readability score with suggested `custom_shader_brightness` and `custom_shader_text_opacity`; recommendations now account for current metadata defaults and Settings overrides so already-applied values are not suggested again. `--apply` writes suggestions into shader metadata without prompting, while `--no-prompt` suppresses the interactive apply prompt.
-- **Terminal-aware background shader uniforms** — background and cursor shaders now receive `iCommand` (OSC 133 command running/success/failure state and exit code), `iFocusedPane` (focused split-pane bounds in pixels), and `iScroll` (scroll offset, visible lines, scrollback length, and normalized depth). These complement the existing `iProgress`, cursor, keypress, and terminal-content uniforms for terminal-aware effects.
-- **New bundled terminal-aware shader pack** — added 11 background shaders: `progress_reactive_theme.glsl`, `command_state_backdrop.glsl`, `pane_focus_regions.glsl`, `scrollback_parallax.glsl`, `aurora_terminal.glsl`, `blueprint_grid.glsl`, `ink_wash.glsl`, `solarized_nebula.glsl`, `matrix_rain_2.glsl`, `build_reactor.glsl`, and `low_power_ambience.glsl`.
-- **Additional bundled shader imports** — added 7 background shaders: `circuit-3d.glsl`, `debug-coords.glsl`, `industrial1.glsl`, `infinite-zoom-1.glsl`, `infinite-zoom-2.glsl`, `infinite-zoom-3.glsl`, and `magic-ball.glsl`. The included shader count is now 73 total (61 background + 12 cursor).
-- **Clear shader lint results** — Settings > Effects > Custom Shaders now includes a **Clear Lint** button to remove the current lint/readability result or error without changing shader settings.
+- Settings UI shader controls — grouped `// control` uniforms, safety badges, auto-dim readability, quick controls/keybindings for cycling, pausing, and toggling shaders. Profile overrides for shader settings.
+- Assistant input history — per-session prompt history with Up/Down recall, persisted or session-only modes
+- Assistant prompt library — Markdown-backed prompt library with YAML frontmatter, manageable from Settings and selectable from chat input
+- Assistant extra agent roots — configurable extra roots including par-term shaders directory
+- Assistant shader diagnostics tool — `shader_diagnostics` MCP tool for querying running shader state
+- Assistant agent selector — Codex prioritized as first option
+- Expanded custom shader controls — int sliders, select dropdowns, vec2, normalized point, range, log, angle, and channel selector control types
+- Custom shader uniform controls — `// control` comments for float sliders, bool checkboxes, and color pickers with per-shader persistence
+- Shader lint CLI and readability scoring — `par-term shader-lint` with `--readability`, `--apply`, and `--no-prompt` flags
+- Terminal-aware shader uniforms — `iCommand`, `iFocusedPane`, `iScroll` uniforms for terminal-aware effects
+- 18 new bundled shaders — 11 terminal-aware + 7 imports, total 73 (61 background + 12 cursor)
+- Clear shader lint results button in Settings
 
 ### Removed
-- **Content Prettifier** — removed the `par-term-prettifier` workspace crate and all content-prettifier runtime wiring, settings UI, config/profile fields, trigger action, keybinding action, render substitutions, and documentation page.
+- Content Prettifier — removed `par-term-prettifier` crate and all related wiring
 
 ### Bug Fixes
-- **Auto-dim under text now affects background shaders** — background-only custom shaders now populate the terminal-content `iChannel4` mask when auto-dim-under-text is enabled, so shader output is dimmed beneath text/content pixels while still rendering panes normally on top. The background-only shader wrapper now uses that texture only as a proportional readability mask instead of compositing terminal content into the shader pass, avoiding double-rendered text and hard glyph-edge artifacts.
-- **Codex Assistant shader edits outside the repo** — Codex ACP sessions now disable the `apply_patch` tool while still passing shader and extra-root paths as workspace-write writable roots, preventing shader edits under `~/.config/par-term/shaders` from failing with project-root-only patch restrictions. Assistant shader guidance now directs Codex to use direct Write/Edit tools or exact-replacement scripts with read-back verification for shader files under extra roots.
-- **Assistant chat input no longer hides controls** — the multiline Assistant input now grows up to 10 visible rows, then scrolls internally while the chat history area gives up space so the Terminal access, YOLO, prompt, send, clear, and action-bar controls remain visible.
-- **Custom shader cursor uniforms in alt-screen apps** — `iCurrentCursor` now continues tracking the terminal cursor in alternate-screen apps even when the TUI hides the geometric cursor or a stale scrollback offset is present. Shader cursor state is updated separately from visible cursor rendering, preserving normal-mode positioning while fixing cursor-reactive background shaders in apps like vim/less/htop.
-- **Assistant bottom controls placement** — the chat input now spans the panel width, while **Prompts**, send, and clear controls sit after the Terminal access and **YOLO** checkboxes in the connected Assistant controls row.
-- **Bundled shader polish** — `matrix_rain_2.glsl` now animates rain downward, and `pane_focus_regions.glsl` now uses full-content mode so inactive split panes dim terminal content as well as the background.
-- **Shader parameter edits reset animation time** — changing shader controls or other runtime shader parameters no longer restarts `iTime` when animation was already enabled. Shader source reload also preserves the timer and refreshes the generated debug WGSL file, so toggling shaders off/on is no longer needed just to force regeneration.
-- **Shader hot reload left custom controls stale in Settings** — successful background shader hot reload now invalidates the active shader's metadata and parsed-control caches so added, removed, or changed `// control` uniforms appear immediately in the settings UI.
-- **Global shader brightness slider had no effect on shaders with metadata defaults** — changing `custom_shader_brightness` now overrides a shader's embedded brightness default once the global value differs from the app default, while explicit per-shader overrides still take highest priority.
-- **Horizontal tab scrolling moved in the wrong direction** — overflowing tab bars now position the clipped tab content at `tab_area_left - scroll_offset`, so mouse-wheel scrolling reveals tabs to the right instead of shifting the visible content the wrong way.
-- **Tab pills pushed down when scroll buttons appear** — `egui::ScrollArea` and `egui::Button` widgets added internal vertical padding/margins that expanded the horizontal layout row height, shifting tab pills downward. Fixed by replacing `ui.horizontal()` with `allocate_ui_with_layout` at a fixed height, replacing all `egui::Button` widgets with manual `allocate_exact_size` + painter rendering, and replacing the `ScrollArea` with a clipped child UI using `set_clip_rect` for horizontal clipping without any vertical padding.
-- **Tab pill shapes clipped at bottom in horizontal tab bar** — tab widgets were allocated at the full `tab_bar_height`, but at non-integer DPI scale factors the panel's clip rect rounds slightly smaller, cutting off the bottom of pill-shaped tabs. Fixed by allocating tabs at `tab_bar_height - 2px` (matching scroll buttons and the + button) so the pill stays within the clip rect at all scale factors.
-- **Mouse wheel now scrolls the tab list when hovering over the tab bar** — the horizontal tab bar's egui `ScrollArea` only responded to horizontal scroll input, but mouse wheels produce vertical delta. The wheel event was consumed by egui (which wanted the pointer) but never translated into horizontal scrolling. Fixed by intercepting `MouseWheel` events when the cursor is in the tab bar area and converting vertical delta to horizontal scroll offset adjustments.
-- **Tab clicks intermittently failed and caused accidental text selection** — two compounding bugs in the mouse event routing layer. (1) When a mouse release was consumed by `handle_window_event` (because egui claimed the pointer while the mouse was over the tab bar), `button_pressed` and `is_selecting` were never cleared — the cleanup only existed inside `handle_mouse_button()`, which was skipped. The next mouse move into the terminal area then saw `button_pressed == true` and started an unwanted drag selection. Fixed by adding the same unconditional cleanup to the release-consumed path in `handle_window_event`. (2) When `is_egui_using_pointer()` returned `false` due to stale egui state (after window focus changes or rapid pointer movement), the press bypassed egui entirely and was caught only by the `is_mouse_in_tab_bar()` hit test — but egui's `clicked_by()` never fired without seeing the press, so the tab switch was silently dropped. Fixed by storing a `pending_focus_tab_switch` in the tab bar guard so `post_render` can apply the switch as a fallback, reusing the same mechanism already used for focus-clicks.
+- Auto-dim under text now affects background shaders correctly without double-rendered text
+- Codex Assistant shader edits work outside the repo root
+- Assistant chat input grows up to 10 rows without hiding controls
+- Custom shader cursor uniforms work correctly in alt-screen apps
+- Assistant bottom controls placement corrected
+- Bundled shader polish — `matrix_rain_2` and `pane_focus_regions` fixes
+- Shader parameter edits no longer reset animation time
+- Shader hot reload refreshes custom controls in Settings
+- Global shader brightness slider now overrides metadata defaults
+- Horizontal tab scrolling direction corrected
+- Tab pills no longer shift when scroll buttons appear
+- Tab pill shapes no longer clipped at non-integer DPI scales
+- Mouse wheel scrolls tab list when hovering tab bar
+- Tab clicks no longer fail or cause accidental text selection
 
 ---
 
