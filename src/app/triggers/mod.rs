@@ -653,7 +653,7 @@ impl WindowState {
     }
 
     /// Handle a SplitPane trigger action, including security checks and pane creation.
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments)] // Each parameter maps to a distinct trigger config field; grouping would obscure the 1:1 correspondence
     fn handle_split_pane_action(
         &mut self,
         trigger_id: u64,

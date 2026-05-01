@@ -111,7 +111,8 @@ impl CellRenderer {
                     }
                 }
             };
-            #[allow(clippy::collapsible_if)] // Cannot collapse: outer block has more code after inner block's continue
+            #[allow(clippy::collapsible_if)]
+            // Cannot collapse: outer block has more code after inner block's continue
             if let Some(ch) = first_char {
                 // Classify the character for rendering optimization
                 // Only classify based on first char for block drawing detection

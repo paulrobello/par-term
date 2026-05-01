@@ -11,6 +11,9 @@ use std::sync::Arc;
 use crate::app::window_state::WindowState;
 use crate::app::window_state::config_updates::ConfigChanges;
 use crate::config::{Config, resolve_shader_config};
+use par_term_terminal::conversion::{
+    to_core_ambiguous_width, to_core_normalization_form, to_core_unicode_version,
+};
 
 /// Apply all renderer-related config changes to a single window state.
 ///
@@ -266,8 +269,8 @@ pub(super) fn apply_renderer_config(
     // Apply Unicode width settings
     if changes.unicode_width {
         let width_config = par_term_emu_core_rust::WidthConfig::new(
-            config.unicode.unicode_version.to_core(),
-            config.unicode.ambiguous_width.to_core(),
+            to_core_unicode_version(config.unicode.unicode_version),
+            to_core_ambiguous_width(config.unicode.ambiguous_width),
         );
         for tab in window_state.tab_manager.tabs_mut() {
             if let Ok(term) = tab.terminal.try_write() {
@@ -280,7 +283,9 @@ pub(super) fn apply_renderer_config(
     if changes.normalization_form {
         for tab in window_state.tab_manager.tabs_mut() {
             if let Ok(term) = tab.terminal.try_write() {
-                term.set_normalization_form(config.unicode.normalization_form.to_core());
+                term.set_normalization_form(to_core_normalization_form(
+                    config.unicode.normalization_form,
+                ));
             }
         }
     }

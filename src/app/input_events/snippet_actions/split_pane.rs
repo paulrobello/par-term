@@ -8,6 +8,7 @@ impl WindowState {
     ///
     /// Splits the current pane in the specified direction and optionally writes a command
     /// to the new pane after a delay.
+    #[allow(clippy::too_many_arguments)] // Each parameter maps to a distinct snippet action field; grouping would obscure the 1:1 correspondence
     pub(crate) fn execute_split_pane_action(
         &mut self,
         direction: ActionSplitDirection,
@@ -44,8 +45,12 @@ impl WindowState {
             None
         };
 
-        let new_pane_id =
-            self.split_pane_direction(pane_direction, focus_new_pane, initial_command, split_percent);
+        let new_pane_id = self.split_pane_direction(
+            pane_direction,
+            focus_new_pane,
+            initial_command,
+            split_percent,
+        );
 
         // For shell-mode commands, send text to the new pane after a delay.
         if !command_is_direct && let (Some(pane_id), Some(text)) = (new_pane_id, command) {

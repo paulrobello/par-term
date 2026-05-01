@@ -7,9 +7,9 @@
 use std::collections::BTreeMap;
 use std::time::Instant;
 
+use super::CustomShaderRenderer;
 use super::cubemap::CubemapTexture;
 use super::textures::ChannelTexture;
-use super::CustomShaderRenderer;
 use anyhow::Result;
 use wgpu::*;
 

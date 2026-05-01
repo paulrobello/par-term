@@ -6,6 +6,7 @@
 //! config.
 
 use super::TerminalManager;
+use crate::conversion::to_core_trigger_action;
 
 impl TerminalManager {
     /// Sync trigger configs from Config into the core TriggerRegistry.
@@ -33,7 +34,7 @@ impl TerminalManager {
             let actions: Vec<par_term_emu_core_rust::terminal::TriggerAction> = trigger_config
                 .actions
                 .iter()
-                .map(|a| a.to_core_action())
+                .map(|a| to_core_trigger_action(a.clone()))
                 .collect();
 
             match term.add_trigger(

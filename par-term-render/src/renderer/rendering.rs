@@ -101,9 +101,11 @@ impl Renderer {
             Some(
                 self.cursor_shader_renderer
                     .as_ref()
-                    .ok_or_else(|| crate::error::RenderError::ShaderUnavailable(
-                        "cursor_shader_renderer unavailable (GPU device loss?)".into(),
-                    ))?
+                    .ok_or_else(|| {
+                        crate::error::RenderError::ShaderUnavailable(
+                            "cursor_shader_renderer unavailable (GPU device loss?)".into(),
+                        )
+                    })?
                     .intermediate_texture_view()
                     .clone(),
             )
@@ -159,12 +161,12 @@ impl Renderer {
         // This must happen outside the `custom_shader_renderer` mutable borrow scope
         // because rendering panes requires `&mut self`.
         if populate_terminal_intermediate_texture {
-            let custom_shader = self
-                .custom_shader_renderer
-                .as_mut()
-                .ok_or_else(|| crate::error::RenderError::ShaderUnavailable(
-                    "custom_shader_renderer unavailable for iChannel4 content (GPU device loss?)".into(),
-                ))?;
+            let custom_shader = self.custom_shader_renderer.as_mut().ok_or_else(|| {
+                crate::error::RenderError::ShaderUnavailable(
+                    "custom_shader_renderer unavailable for iChannel4 content (GPU device loss?)"
+                        .into(),
+                )
+            })?;
             custom_shader.clear_intermediate_texture(
                 self.cell_renderer.device(),
                 self.cell_renderer.queue(),
@@ -484,9 +486,11 @@ impl Renderer {
             let intermediate_view = self
                 .custom_shader_renderer
                 .as_ref()
-                .ok_or_else(|| crate::error::RenderError::ShaderUnavailable(
-                    "custom_shader_renderer unavailable (GPU device loss?)".into(),
-                ))?
+                .ok_or_else(|| {
+                    crate::error::RenderError::ShaderUnavailable(
+                        "custom_shader_renderer unavailable (GPU device loss?)".into(),
+                    )
+                })?
                 .intermediate_texture_view()
                 .clone();
             self.cell_renderer
@@ -531,9 +535,12 @@ impl Renderer {
                 // Chain: cells -> custom shader -> target
                 self.custom_shader_renderer
                     .as_mut()
-                    .ok_or_else(|| crate::error::RenderError::ShaderUnavailable(
-                        "custom_shader_renderer unavailable during render (GPU device loss?)".into(),
-                    ))?
+                    .ok_or_else(|| {
+                        crate::error::RenderError::ShaderUnavailable(
+                            "custom_shader_renderer unavailable during render (GPU device loss?)"
+                                .into(),
+                        )
+                    })?
                     .render(
                         self.cell_renderer.device(),
                         self.cell_renderer.queue(),
@@ -547,9 +554,11 @@ impl Renderer {
             let cursor_intermediate = self
                 .cursor_shader_renderer
                 .as_ref()
-                .ok_or_else(|| crate::error::RenderError::ShaderUnavailable(
-                    "cursor_shader_renderer unavailable (GPU device loss?)".into(),
-                ))?
+                .ok_or_else(|| {
+                    crate::error::RenderError::ShaderUnavailable(
+                        "cursor_shader_renderer unavailable (GPU device loss?)".into(),
+                    )
+                })?
                 .intermediate_texture_view()
                 .clone();
             self.cell_renderer
@@ -557,9 +566,12 @@ impl Renderer {
                 .map_err(map_err)?;
             self.cursor_shader_renderer
                 .as_mut()
-                .ok_or_else(|| crate::error::RenderError::ShaderUnavailable(
-                    "cursor_shader_renderer unavailable during render (GPU device loss?)".into(),
-                ))?
+                .ok_or_else(|| {
+                    crate::error::RenderError::ShaderUnavailable(
+                        "cursor_shader_renderer unavailable during render (GPU device loss?)"
+                            .into(),
+                    )
+                })?
                 .render(
                     self.cell_renderer.device(),
                     self.cell_renderer.queue(),

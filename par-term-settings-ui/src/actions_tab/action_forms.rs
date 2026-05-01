@@ -40,7 +40,11 @@ pub fn show_shell_command_form(
 }
 
 /// Render form fields for the NewTab action type.
-pub fn show_new_tab_form(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
+pub fn show_new_tab_form(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    changes_this_frame: &mut bool,
+) {
     ui.label("Command to run in the new tab (optional):");
     if ui
         .add(
@@ -182,7 +186,11 @@ pub fn show_split_pane_form(
 }
 
 /// Render form fields for the Sequence action type.
-pub fn show_sequence_form(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
+pub fn show_sequence_form(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    changes_this_frame: &mut bool,
+) {
     ui.label(egui::RichText::new("Steps:").strong());
     let action_ids: Vec<(String, String)> = settings
         .config
@@ -506,7 +514,11 @@ pub fn show_condition_form(
 }
 
 /// Render form fields for the Repeat action type.
-pub fn show_repeat_form(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
+pub fn show_repeat_form(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    changes_this_frame: &mut bool,
+) {
     let action_ids: Vec<(String, String)> = settings
         .config
         .actions

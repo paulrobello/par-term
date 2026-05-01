@@ -2,7 +2,8 @@
 //!
 //! These types mirror the enums from `par-term-emu-core-rust` but belong to the
 //! config layer, decoupling it from the emulation core. Callers that need to pass
-//! these to emu-core APIs use the `.to_core()` conversion methods.
+//! these to emu-core APIs use the conversion functions in
+//! `par-term-terminal::conversion`.
 //!
 //! See AUDIT.md ARC-003 for rationale.
 
@@ -54,22 +55,6 @@ impl UnicodeVersion {
             UnicodeVersion::Auto => "auto",
         }
     }
-
-    /// Convert to the emu-core equivalent type for passing to terminal APIs.
-    pub fn to_core(self) -> par_term_emu_core_rust::UnicodeVersion {
-        match self {
-            Self::Unicode9 => par_term_emu_core_rust::UnicodeVersion::Unicode9,
-            Self::Unicode10 => par_term_emu_core_rust::UnicodeVersion::Unicode10,
-            Self::Unicode11 => par_term_emu_core_rust::UnicodeVersion::Unicode11,
-            Self::Unicode12 => par_term_emu_core_rust::UnicodeVersion::Unicode12,
-            Self::Unicode13 => par_term_emu_core_rust::UnicodeVersion::Unicode13,
-            Self::Unicode14 => par_term_emu_core_rust::UnicodeVersion::Unicode14,
-            Self::Unicode15 => par_term_emu_core_rust::UnicodeVersion::Unicode15,
-            Self::Unicode15_1 => par_term_emu_core_rust::UnicodeVersion::Unicode15_1,
-            Self::Unicode16 => par_term_emu_core_rust::UnicodeVersion::Unicode16,
-            Self::Auto => par_term_emu_core_rust::UnicodeVersion::Auto,
-        }
-    }
 }
 
 /// Treatment of East Asian Ambiguous width characters.
@@ -86,15 +71,7 @@ pub enum AmbiguousWidth {
     Wide,
 }
 
-impl AmbiguousWidth {
-    /// Convert to the emu-core equivalent type for passing to terminal APIs.
-    pub fn to_core(self) -> par_term_emu_core_rust::AmbiguousWidth {
-        match self {
-            Self::Narrow => par_term_emu_core_rust::AmbiguousWidth::Narrow,
-            Self::Wide => par_term_emu_core_rust::AmbiguousWidth::Wide,
-        }
-    }
-}
+impl AmbiguousWidth {}
 
 /// Unicode normalization form for terminal text.
 ///
@@ -125,18 +102,7 @@ pub enum NormalizationForm {
     NFKD,
 }
 
-impl NormalizationForm {
-    /// Convert to the emu-core equivalent type for passing to terminal APIs.
-    pub fn to_core(self) -> par_term_emu_core_rust::NormalizationForm {
-        match self {
-            Self::None => par_term_emu_core_rust::NormalizationForm::None,
-            Self::NFC => par_term_emu_core_rust::NormalizationForm::NFC,
-            Self::NFD => par_term_emu_core_rust::NormalizationForm::NFD,
-            Self::NFKC => par_term_emu_core_rust::NormalizationForm::NFKC,
-            Self::NFKD => par_term_emu_core_rust::NormalizationForm::NFKD,
-        }
-    }
-}
+impl NormalizationForm {}
 
 #[cfg(test)]
 mod tests {

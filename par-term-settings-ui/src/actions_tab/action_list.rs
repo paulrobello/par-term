@@ -316,8 +316,7 @@ fn populate_edit_fields(settings: &mut SettingsUI, index: usize) {
     let action = &settings.config.actions[index];
     settings.temp_action_id = action.id().to_string();
     settings.temp_action_title = action.title().to_string();
-    settings.temp_action_keybinding =
-        action.keybinding().unwrap_or_default().to_string();
+    settings.temp_action_keybinding = action.keybinding().unwrap_or_default().to_string();
     settings.temp_action_prefix_char = action
         .prefix_char()
         .map(|c| c.to_string())

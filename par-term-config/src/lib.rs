@@ -156,8 +156,7 @@ pub mod prelude {
         };
         pub use crate::shader_metadata::{
             CursorShaderMetadataCache, ShaderMetadataCache, parse_cursor_shader_metadata,
-            parse_shader_metadata, update_cursor_shader_metadata_file,
-            update_shader_metadata_file,
+            parse_shader_metadata, update_cursor_shader_metadata_file, update_shader_metadata_file,
         };
     }
 
@@ -177,12 +176,16 @@ pub mod prelude {
 
     /// Snippets and custom actions: user-defined commands, built-in variables, and the snippet library.
     pub mod snippets {
-        pub use crate::snippets::{BuiltInVariable, CustomActionConfig, SnippetConfig, SnippetLibrary};
+        pub use crate::snippets::{
+            BuiltInVariable, CustomActionConfig, SnippetConfig, SnippetLibrary,
+        };
     }
 
     /// Status bar widgets, sections, layout, and default widget configuration.
     pub mod status_bar {
-        pub use crate::status_bar::{StatusBarSection, StatusBarWidgetConfig, WidgetId, default_widgets};
+        pub use crate::status_bar::{
+            StatusBarSection, StatusBarWidgetConfig, WidgetId, default_widgets,
+        };
     }
 
     /// Profile management: profiles, the profile manager, dynamic sources, and conflict resolution.

@@ -22,7 +22,7 @@ mod workflow;
 pub(crate) use key_sequence::extract_prefix_action_char;
 
 use crate::app::window_state::WindowState;
-use crate::config::snippets::{normalize_action_prefix_char, CustomActionConfig};
+use crate::config::snippets::{CustomActionConfig, normalize_action_prefix_char};
 use std::sync::Arc;
 use winit::event::{ElementState, KeyEvent};
 use winit::keyboard::{Key, NamedKey};
@@ -286,11 +286,7 @@ impl WindowState {
             } => {
                 let on_true = on_true_id.as_deref().map(|s| s.to_string());
                 let on_false = on_false_id.as_deref().map(|s| s.to_string());
-                self.execute_condition_standalone(
-                    &check,
-                    on_true.as_deref(),
-                    on_false.as_deref(),
-                );
+                self.execute_condition_standalone(&check, on_true.as_deref(), on_false.as_deref());
                 true
             }
             CustomActionConfig::Repeat {

@@ -210,7 +210,8 @@ impl CellRenderer {
             // For normal (non-monochrome) rendering, try color bitmap sources.
             // Drop `scaler` so the exclusive borrow on `self.scale_context` is
             // released, allowing us to rebuild a new scaler for the retry pass.
-            #[allow(clippy::drop_non_drop)] // Intentional: ends borrow lifetime on self.scale_context
+            #[allow(clippy::drop_non_drop)]
+            // Intentional: ends borrow lifetime on self.scale_context
             drop(scaler);
             let mut retry_scaler = self
                 .scale_context

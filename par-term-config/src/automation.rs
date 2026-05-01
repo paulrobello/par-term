@@ -233,15 +233,6 @@ impl RestartPolicy {
             Self::OnFailure => "On Failure",
         }
     }
-
-    /// Convert to core library RestartPolicy
-    pub fn to_core(self) -> par_term_emu_core_rust::coprocess::RestartPolicy {
-        match self {
-            Self::Never => par_term_emu_core_rust::coprocess::RestartPolicy::Never,
-            Self::Always => par_term_emu_core_rust::coprocess::RestartPolicy::Always,
-            Self::OnFailure => par_term_emu_core_rust::coprocess::RestartPolicy::OnFailure,
-        }
-    }
 }
 
 /// Configuration for a coprocess that runs alongside a terminal session.
@@ -286,76 +277,6 @@ impl TriggerActionConfig {
             self,
             Self::RunCommand { .. } | Self::SendText { .. } | Self::SplitPane { .. }
         )
-    }
-
-    /// Convert to core library TriggerAction
-    pub fn to_core_action(&self) -> par_term_emu_core_rust::terminal::TriggerAction {
-        use par_term_emu_core_rust::terminal::TriggerAction;
-        match self.clone() {
-            Self::Highlight {
-                fg,
-                bg,
-                duration_ms,
-            } => TriggerAction::Highlight {
-                fg: fg.map(|c| (c[0], c[1], c[2])),
-                bg: bg.map(|c| (c[0], c[1], c[2])),
-                duration_ms,
-            },
-            Self::Notify { title, message } => TriggerAction::Notify { title, message },
-            Self::MarkLine { label, color } => TriggerAction::MarkLine {
-                label,
-                color: color.map(|c| (c[0], c[1], c[2])),
-            },
-            Self::SetVariable { name, value } => TriggerAction::SetVariable { name, value },
-            Self::RunCommand { command, args } => TriggerAction::RunCommand { command, args },
-            Self::PlaySound { sound_id, volume } => TriggerAction::PlaySound { sound_id, volume },
-            Self::SendText { text, delay_ms } => TriggerAction::SendText { text, delay_ms },
-            Self::SplitPane {
-                direction,
-                command,
-                focus_new_pane,
-                target,
-                split_percent: _,
-            } => {
-                // Use fully-qualified core paths to avoid shadowing the config-side types.
-                let core_direction = match direction {
-                    crate::automation::TriggerSplitDirection::Horizontal => {
-                        par_term_emu_core_rust::terminal::TriggerSplitDirection::Horizontal
-                    }
-                    crate::automation::TriggerSplitDirection::Vertical => {
-                        par_term_emu_core_rust::terminal::TriggerSplitDirection::Vertical
-                    }
-                };
-                let core_command = command.map(|c| match c {
-                    crate::automation::SplitPaneCommand::SendText { text, delay_ms } => {
-                        par_term_emu_core_rust::terminal::TriggerSplitCommand::SendText {
-                            text,
-                            delay_ms,
-                        }
-                    }
-                    crate::automation::SplitPaneCommand::InitialCommand { command, args } => {
-                        par_term_emu_core_rust::terminal::TriggerSplitCommand::InitialCommand {
-                            command,
-                            args,
-                        }
-                    }
-                });
-                let core_target = match target {
-                    crate::automation::TriggerSplitTarget::Active => {
-                        par_term_emu_core_rust::terminal::TriggerSplitTarget::Active
-                    }
-                    crate::automation::TriggerSplitTarget::Source => {
-                        par_term_emu_core_rust::terminal::TriggerSplitTarget::Source
-                    }
-                };
-                TriggerAction::SplitPane {
-                    direction: core_direction,
-                    command: core_command,
-                    focus_new_pane,
-                    target: core_target,
-                }
-            }
-        }
     }
 }
 

@@ -245,9 +245,8 @@ impl WindowState {
 
         if selection.mode == SelectionMode::Line {
             // Line selection: extract full lines
-            #[allow(clippy::needless_range_loop)]
-            for row in start_row..=end_row {
-                if row > start_row {
+            for (idx, row) in (start_row..=end_row).enumerate() {
+                if idx > 0 {
                     selected_text.push('\n');
                 }
                 let line = &visible_lines[row];
@@ -259,9 +258,8 @@ impl WindowState {
             let min_col = start_col.min(end_col);
             let max_col = start_col.max(end_col);
 
-            #[allow(clippy::needless_range_loop)]
-            for row in start_row..=end_row {
-                if row > start_row {
+            for (idx, row) in (start_row..=end_row).enumerate() {
+                if idx > 0 {
                     selected_text.push('\n');
                 }
                 let line = &visible_lines[row];

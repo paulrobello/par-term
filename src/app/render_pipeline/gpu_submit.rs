@@ -461,19 +461,11 @@ impl WindowState {
                                 log::error!("Surface error: {:?}", surface_error);
                             }
                         }
-                    } else if let Some(render_error) = e.downcast_ref::<RenderError>() {
-                        match render_error {
-                            RenderError::ShaderUnavailable(msg) => {
-                                log::warn!(
-                                    "Shader renderer unavailable, reconfiguring: {}",
-                                    msg
-                                );
-                                self.force_surface_reconfigure();
-                            }
-                            _ => {
-                                log::error!("Render error: {}", e);
-                            }
-                        }
+                    } else if let Some(RenderError::ShaderUnavailable(msg)) =
+                        e.downcast_ref::<RenderError>()
+                    {
+                        log::warn!("Shader renderer unavailable, reconfiguring: {}", msg);
+                        self.force_surface_reconfigure();
                     } else {
                         log::error!("Render error: {}", e);
                     }

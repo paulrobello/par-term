@@ -107,7 +107,10 @@ env_vars:
   DEBUG: "true"
 "#;
     let script: ScriptConfig = serde_yaml_ng::from_str(yaml).unwrap();
-    assert_eq!(script.env_vars.get("API_KEY").unwrap(), "test_key_placeholder_for_parsing");
+    assert_eq!(
+        script.env_vars.get("API_KEY").unwrap(),
+        "test_key_placeholder_for_parsing"
+    );
     assert_eq!(script.env_vars.get("DEBUG").unwrap(), "true");
     assert_eq!(script.env_vars.len(), 2);
 }

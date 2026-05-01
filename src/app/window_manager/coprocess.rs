@@ -4,6 +4,7 @@
 //! and syncing their running state and output to the settings window UI.
 
 use super::WindowManager;
+use par_term_terminal::conversion::to_core_restart_policy;
 
 impl WindowManager {
     /// Start a coprocess by config index on the focused window's active tab.
@@ -25,7 +26,7 @@ impl WindowManager {
                 cwd: None,
                 env: crate::terminal::coprocess_env(),
                 copy_terminal_output: coproc_config.copy_terminal_output,
-                restart_policy: coproc_config.restart_policy.to_core(),
+                restart_policy: to_core_restart_policy(coproc_config.restart_policy),
                 restart_delay_ms: coproc_config.restart_delay_ms,
             };
             // Acceptable risk: blocking_lock() from sync event loop for infrequent

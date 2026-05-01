@@ -4,6 +4,7 @@
 use par_term::config::{
     Config, CoprocessDefConfig, RestartPolicy, TriggerActionConfig, TriggerConfig,
 };
+use par_term_terminal::conversion::to_core_trigger_action;
 
 #[test]
 fn test_default_config_has_empty_triggers_and_coprocesses() {
@@ -144,7 +145,7 @@ fn test_trigger_action_to_core_action_highlight() {
         bg: Some([0, 255, 0]),
         duration_ms: 3000,
     };
-    let core_action = config_action.to_core_action();
+    let core_action = to_core_trigger_action(config_action);
     assert_eq!(
         core_action,
         TriggerAction::Highlight {
@@ -223,7 +224,7 @@ fn test_trigger_action_to_core_action_all_variants() {
     ];
 
     for (config_action, expected_core) in pairs {
-        let core = config_action.to_core_action();
+        let core = to_core_trigger_action(config_action);
         assert_eq!(core, expected_core);
     }
 }

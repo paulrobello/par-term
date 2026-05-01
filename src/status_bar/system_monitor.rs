@@ -150,11 +150,7 @@ mod inner {
                     // running flag so start() can be retried and degrade gracefully
                     // without crashing the terminal session.
                     self.running.store(false, Ordering::SeqCst);
-                    crate::debug_error!(
-                        "SESSION_LOGGER",
-                        "failed to spawn sysmon thread: {:?}",
-                        e
-                    );
+                    crate::debug_error!("SESSION_LOGGER", "failed to spawn sysmon thread: {:?}", e);
                 }
             }
         }

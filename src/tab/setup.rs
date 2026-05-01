@@ -5,6 +5,9 @@
 
 use crate::config::Config;
 use crate::terminal::TerminalManager;
+use par_term_terminal::conversion::{
+    to_core_ambiguous_width, to_core_normalization_form, to_core_unicode_version,
+};
 
 /// Configure a terminal with settings from config (theme, clipboard limits, cursor style, unicode)
 pub(crate) fn configure_terminal_from_config(terminal: &mut TerminalManager, config: &Config) {
@@ -22,13 +25,15 @@ pub(crate) fn configure_terminal_from_config(terminal: &mut TerminalManager, con
 
     // Apply Unicode width configuration
     let width_config = par_term_emu_core_rust::WidthConfig::new(
-        config.unicode.unicode_version.to_core(),
-        config.unicode.ambiguous_width.to_core(),
+        to_core_unicode_version(config.unicode.unicode_version),
+        to_core_ambiguous_width(config.unicode.ambiguous_width),
     );
     terminal.set_width_config(width_config);
 
     // Apply Unicode normalization form
-    terminal.set_normalization_form(config.unicode.normalization_form.to_core());
+    terminal.set_normalization_form(to_core_normalization_form(
+        config.unicode.normalization_form,
+    ));
 
     // Initialize cursor style from config
     use crate::config::CursorStyle as ConfigCursorStyle;
