@@ -11,6 +11,31 @@ Each version entry may include a `### Security` subsection for vulnerability fix
 
 ## [Unreleased]
 
+### Security
+- **Self-update Gatekeeper verification** — the self-updater now verifies code signatures (`codesign --verify --deep --strict`) and notarization (`spctl --assess`) before removing macOS quarantine attributes on downloaded app bundles, preventing supply-chain bypass of Gatekeeper.
+- **Shader installer URL validation** — shader downloads now enforce HTTPS-only with a GitHub host allowlist, matching the update system's validation pattern.
+- **Zip slip containment** — both the shader installer and self-updater now verify extracted paths remain within the target directory, preventing path traversal attacks via crafted archives.
+- **Command allowlist for triggers** — triggers support an optional `allowed_commands` allowlist mode. When set, only allowlisted commands execute; when absent, existing denylist behavior continues unchanged.
+- **ACP agent shell fallback warning** — the ACP agent spawner now logs a warning when falling back to shell execution mode, documenting the trust boundary.
+- **macOS FFI null-pointer safety** — `dlsym()` results in `macos_blur.rs` now have explicit null checks with descriptive warnings before invocation.
+- **MCP trust boundary documentation** — the MCP stdin/stdout IPC channel is now documented as a trust boundary requiring trusted server connections only.
+- **Session logger internationalization** — password redaction now covers 27 non-English prompt patterns (Portuguese, Spanish, French, Russian, German, Japanese, Korean, Chinese, Italian, Dutch, Polish, Turkish, Hindi, Arabic, Hebrew).
+- **Test fixture cleanup** — replaced `secret123` placeholder in test fixtures with `test_key_placeholder_for_parsing` to eliminate false positives from secret scanners.
+
+### Architecture
+- **ArcSwap\<Config\> migration** — `WindowState.config` and `WindowManager.config` converted from owned `Config` to `ArcSwap<Config>`, eliminating per-window config cloning on settings changes (N allocations per settings change → zero).
+- **Config sub-struct extraction** — extracted `CursorConfig` (18 fields) and `MouseConfig` (6 fields) from the Config monolith via `#[serde(flatten)]` for backward-compatible YAML serialization.
+- **Layer violation resolved** — `par-term-config` no longer depends on `par-term-emu-core-rust`. Conversion functions moved to `par-term-terminal/src/conversion.rs`.
+- **Config prelude modules** — `par-term-config` re-exports now organized into 10 domain prelude sub-modules (`core`, `types`, `automation`, `shader`, `assistant`, `snippets`, `status_bar`, `profile`, `unicode`, `color`) while preserving all backward-compatible top-level imports.
+- **Feature flags** — added `audio`, `mermaid`, `system-monitor`, and `mdns` feature flags with `#[cfg]`-gated call sites and no-op stubs for disabled features. All default-enabled.
+- **File extractions** — split 5 oversized files: `snippet_actions.rs` (1,269 → 8 files), `shader_settings.rs` (1,735 → 6 files), `actions_tab.rs` (1,656 → 4 files), `transpiler.rs` (1,256 → 3 files), `custom_shader_renderer/mod.rs` (924 → 609 + 317).
+- **Test directory organization** — reorganized 29 test files into 7 domain subdirectories (`automation/`, `scripting/`, `config/`, `tabs/`, `shaders/`, `copy_mode/`, `profiles/`).
+- **Docs directory organization** — reorganized 39 docs into 3 subdirectories (`architecture/`, `features/`, `guides/`) with all internal links updated.
+- **GPU device loss recovery** — render path `.expect()` calls replaced with `RenderError::ShaderUnavailable` error propagation. Caller now reconfigures the wgpu surface and reinitializes on device loss instead of panicking.
+- **Event loop delay cap** — added 5-second `MAX_TOTAL_DELAY_MS` cap on snippet Repeat/Sequence delays to prevent UI freezes from excessive delays.
+- **Render pipeline dedup** — extracted `render_cells_to_target()` helper to eliminate duplicated shader-chaining logic between `render_split_panes` and `take_screenshot`.
+- **Cursor cell helper** — extracted `emit_cursor_cell_bg()` from the 550-line `build_pane_instance_buffers` to reduce per-cell branching complexity.
+
 ### Features
 - **Settings UI shader controls** — Effects settings now group shader `// control` uniforms with an optional `group="..."` field, surface shader safety badges from metadata and inferred defaults, add auto-dim-under-text readability controls, and expose quick controls/keybinding actions to cycle background shaders, pause/resume animation, and toggle low-power/readability mode. Profiles can also override the active background shader, brightness, text opacity, texture channels, and animation speed.
 - **Assistant input history** — submitted Assistant prompts are now stored in per-session history by default, with Up/Down recall in the chat input that preserves an unsent draft and only triggers from the top/bottom lines of multiline prompts. Settings > Assistant now includes an `Input history` selector to keep history session-only or persist it across restarts in the par-term config directory.
