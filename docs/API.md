@@ -468,7 +468,7 @@ Minimal MCP (Model Context Protocol) server over stdio. Exposes tools for ACP ag
 
 ## Related Documentation
 
-- [Architecture Overview](ARCHITECTURE.md) — How the crates fit together
+- [Architecture Overview](architecture/ARCHITECTURE.md) — How the crates fit together
 - [Configuration Reference](CONFIG_REFERENCE.md) — All `Config` fields documented
 - [Contributing](../CONTRIBUTING.md) — Development setup and workflow
-- [Environment Variables](ENVIRONMENT_VARIABLES.md) — Runtime environment variable reference
+- [Environment Variables](guides/ENVIRONMENT_VARIABLES.md) — Runtime environment variable reference

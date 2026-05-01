@@ -543,7 +543,7 @@ field uses its documented default value.
 | `coprocesses` | `array` | `[]` | Coprocess definitions. Each entry: `{name, command, args, auto_start, copy_terminal_output, restart_policy, restart_delay_ms}` |
 | `scripts` | `array` | `[]` | External observer script definitions |
 | `snippets` | `array` | `[]` | Text snippets: `{id, title, content, keybinding, folder, enabled, auto_execute}` |
-| `actions` | `array` | `[]` | Custom actions. All types share `{id, title, keybinding, prefix_char, keybinding_enabled, description}`. **Basic types**: `shell_command` (`command`, `args`, `capture_output`, `notify_on_success`, `timeout_secs`), `insert_text` (`text`, `variables`), `key_sequence` (`keys`), `new_tab` (`command`), `split_pane` (`direction`, `command`, `command_is_direct`, `focus_new_pane`, `delay_ms`, `split_percent`). **Workflow types**: `sequence` (`steps: [{action_id, delay_ms, on_failure: abort\|stop\|continue}]`), `condition` (`check: {kind: exit_code\|output_contains\|env_var\|dir_matches\|git_branch, ...}`, `on_true_id`, `on_false_id`), `repeat` (`action_id`, `count`, `delay_ms`, `stop_on_success`, `stop_on_failure`). See [SNIPPETS.md](SNIPPETS.md) for full field reference. |
+| `actions` | `array` | `[]` | Custom actions. All types share `{id, title, keybinding, prefix_char, keybinding_enabled, description}`. **Basic types**: `shell_command` (`command`, `args`, `capture_output`, `notify_on_success`, `timeout_secs`), `insert_text` (`text`, `variables`), `key_sequence` (`keys`), `new_tab` (`command`), `split_pane` (`direction`, `command`, `command_is_direct`, `focus_new_pane`, `delay_ms`, `split_percent`). **Workflow types**: `sequence` (`steps: [{action_id, delay_ms, on_failure: abort\|stop\|continue}]`), `condition` (`check: {kind: exit_code\|output_contains\|env_var\|dir_matches\|git_branch, ...}`, `on_true_id`, `on_false_id`), `repeat` (`action_id`, `count`, `delay_ms`, `stop_on_success`, `stop_on_failure`). See [SNIPPETS.md](features/SNIPPETS.md) for full field reference. |
 | `custom_action_prefix_key` | `string` | `""` | Global prefix key for tmux-style two-stroke action triggers (e.g. `Ctrl+B`). When set, actions with a `prefix_char` can be triggered by pressing this key then the prefix char. |
 
 ---
@@ -614,7 +614,7 @@ field uses its documented default value.
 
 Profiles are stored in a separate `~/.config/par-term/profiles.yaml` file.
 Each profile can override shell, working directory, badge, SSH host, and more.
-See [PROFILES.md](PROFILES.md) for full documentation.
+See [PROFILES.md](features/PROFILES.md) for full documentation.
 
 **Per-profile tmux auto-connect fields** (in `profiles.yaml`):
 

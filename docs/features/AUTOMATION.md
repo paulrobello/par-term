@@ -1,0 +1,1079 @@
+# Automation: Triggers, Actions, Coprocesses, and Scripts
+
+Par Terminal provides an automation system that lets you react to terminal output with regex-based triggers, execute actions when patterns match, run coprocesses that exchange data with the terminal session, and run observer scripts that receive structured JSON events and send commands back to the terminal.
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Triggers](#triggers)
+  - [Defining a Trigger](#defining-a-trigger)
+  - [Regex Pattern Syntax](#regex-pattern-syntax)
+  - [Capture Groups](#capture-groups)
+- [Trigger Actions](#trigger-actions)
+  - [Highlight](#highlight)
+  - [Notify](#notify)
+  - [Mark Line](#mark-line)
+  - [Set Variable](#set-variable)
+  - [Run Command](#run-command)
+  - [Play Sound](#play-sound)
+  - [Send Text](#send-text)
+  - [Split Pane](#split-pane)
+- [Trigger Highlights](#trigger-highlights)
+- [Action Dispatch](#action-dispatch)
+- [Trigger Marks on Scrollbar](#trigger-marks-on-scrollbar)
+- [Coprocesses](#coprocesses)
+  - [Defining a Coprocess](#defining-a-coprocess)
+  - [Restart Policy](#restart-policy)
+  - [Auto-Start Behavior](#auto-start-behavior)
+  - [Per-Tab Lifecycle](#per-tab-lifecycle)
+- [Scripts](#scripts)
+  - [Scripts vs. Coprocesses](#scripts-vs-coprocesses)
+  - [Defining a Script](#defining-a-script)
+  - [JSON Protocol](#json-protocol)
+    - [Events (stdin)](#events-stdin)
+    - [Commands (stdout)](#commands-stdout)
+  - [Event Subscription Filtering](#event-subscription-filtering)
+  - [Markdown Panels](#markdown-panels)
+  - [Script Lifecycle](#script-lifecycle)
+  - [Example Script](#example-script)
+- [Sound Files](#sound-files)
+- [Settings UI](#settings-ui)
+  - [Managing Triggers](#managing-triggers)
+  - [Managing Coprocesses](#managing-coprocesses)
+  - [Coprocess Output Viewer](#coprocess-output-viewer)
+- [Complete Configuration Examples](#complete-configuration-examples)
+- [Related Documentation](#related-documentation)
+
+## Overview
+
+The automation system consists of four integrated features:
+
+- **Triggers** match regex patterns against terminal output as it arrives. Each trigger carries one or more actions that fire when the pattern matches.
+- **Actions** define what happens when a trigger fires: highlighting matched text, sending desktop notifications, running external commands, playing sounds, sending text back to the terminal, and more.
+- **Coprocesses** are long-running external processes that receive a copy of terminal output on their stdin and can write data back to the terminal through their stdout.
+- **Scripts** are observer processes that receive structured JSON events from the terminal and can send JSON commands back. Scripts provide a higher-level protocol than coprocesses, with typed events, subscription filtering, and markdown panel support.
+
+Triggers, coprocesses, and scripts are defined in `config.yaml` and managed through the Settings UI. They are registered per-tab at tab creation time and re-synced whenever settings are saved.
+
+The following diagram shows how the automation system fits into the event loop:
+
+```mermaid
+graph TD
+    PTY[PTY Output]
+    Core[Core Terminal Engine]
+    TriggerReg[Trigger Registry]
+    ActionQueue[Action Result Queue]
+    Dispatch[Action Dispatch]
+    Highlight[Highlight Overlay]
+    Notify[Desktop Notification]
+    RunCmd[Spawn Process]
+    PlaySnd[Play Sound]
+    SendTxt[Write to PTY]
+    Coproc[Coprocess Manager]
+    Script[Script Manager]
+    ScriptCmd[Script Commands]
+    Render[Cell Renderer]
+
+    PTY -->|raw bytes| Core
+    Core -->|scan lines| TriggerReg
+    TriggerReg -->|matched actions| ActionQueue
+    ActionQueue -->|poll each frame| Dispatch
+    Dispatch --> RunCmd
+    Dispatch --> PlaySnd
+    Dispatch --> SendTxt
+    TriggerReg --> Highlight
+    TriggerReg --> Notify
+    Core -->|copy output| Coproc
+    Core -->|observer events| Script
+    Script -->|JSON commands| ScriptCmd
+    ScriptCmd -->|notify / write / badge| Dispatch
+    Highlight -->|overlay colors| Render
+
+    style PTY fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
+    style Core fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+    style TriggerReg fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    style ActionQueue fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+    style Dispatch fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    style Highlight fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
+    style Notify fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+    style RunCmd fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+    style PlaySnd fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+    style SendTxt fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+    style Coproc fill:#1a237e,stroke:#3f51b5,stroke-width:2px,color:#ffffff
+    style Script fill:#006064,stroke:#00bcd4,stroke-width:2px,color:#ffffff
+    style ScriptCmd fill:#006064,stroke:#00bcd4,stroke-width:2px,color:#ffffff
+    style Render fill:#2e7d32,stroke:#66bb6a,stroke-width:2px,color:#ffffff
+```
+
+## Triggers
+
+A trigger watches terminal output for lines that match a regex pattern. When a match occurs, all actions attached to the trigger are fired. Triggers can be enabled or disabled individually without removing them from the configuration.
+
+### Defining a Trigger
+
+Add triggers to the `triggers` array in `config.yaml`:
+
+```yaml
+triggers:
+  - name: "Error highlight"
+    pattern: "ERROR: (.+)"
+    enabled: true
+    actions:
+      - type: highlight
+        fg: [255, 0, 0]
+        duration_ms: 5000
+```
+
+Each trigger requires:
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `name` | string | Yes | -- | Human-readable identifier |
+| `pattern` | string | Yes | -- | Regex pattern to match against terminal output |
+| `enabled` | boolean | No | `true` | Whether the trigger is active |
+| `prompt_before_run` | boolean | No | `true` | Whether dangerous actions (`RunCommand`, `SendText`, `SplitPane`) show a confirmation dialog before firing |
+| `i_accept_the_risk` | boolean | No | `false` | Required when `prompt_before_run: false`. Without this explicit opt-in, execution is blocked with an audit warning. |
+| `actions` | array | No | `[]` | List of actions to fire on match |
+
+### Regex Pattern Syntax
+
+Trigger patterns use Rust's `regex` crate syntax. Common patterns include:
+
+| Pattern | Matches |
+|---------|---------|
+| `ERROR` | The literal text "ERROR" anywhere in a line |
+| `^\\$\\s` | Lines that start with a shell prompt |
+| `\\b(WARN\|ERROR\|FATAL)\\b` | Any of the listed severity words |
+| `failed with exit code (\\d+)` | Failure messages, capturing the exit code |
+| `(?i)password` | Case-insensitive match for "password" |
+
+> **📝 Note:** Because patterns are written inside YAML strings, backslashes must be doubled (`\\d` for the regex `\d`). Alternatively, use YAML literal blocks to avoid escaping issues.
+
+### Capture Groups
+
+Parenthesized groups in the pattern capture matched text. Captured values are available in action fields using `$1`, `$2`, etc.:
+
+```yaml
+triggers:
+  - name: "Build failure"
+    pattern: "FAILED: (.+) exited with (\\d+)"
+    enabled: true
+    actions:
+      - type: notify
+        title: "Build Failed"
+        message: "$1 returned exit code $2"
+```
+
+## Trigger Actions
+
+Each trigger can have multiple actions that all fire when the pattern matches. Actions are defined in the trigger's `actions` array. There are eight action types.
+
+> **📝 Note:** Dangerous actions (`RunCommand`, `SendText`, `SplitPane`) show an interactive confirmation dialog before executing when `prompt_before_run: true` (the default). The dialog offers three choices: **Allow** (run once), **Always Allow** (run automatically for the rest of the session, cleared on config reload), and **Deny** (discard the pending action). Setting `prompt_before_run: false` allows automatic execution — only the rate-limiter and denylist apply. Safe actions (`Highlight`, `Notify`, `MarkLine`, `SetVariable`, `PlaySound`) always fire without prompting.
+>
+> **Security guard:** When `prompt_before_run: false`, you must also set `i_accept_the_risk: true` on the trigger. Without this explicit opt-in, execution is blocked and an audit warning is logged. This prevents accidental auto-execution after config copy/paste.
+>
+> **Backward compatibility:** The old field name `require_user_action` is accepted as a YAML alias for `prompt_before_run`. Existing configs that use `require_user_action` continue to work without modification.
+
+### Highlight
+
+Applies foreground and/or background color to the matched text in the terminal display. Highlights are temporary and expire after the specified duration.
+
+```yaml
+- type: highlight
+  fg: [255, 255, 255]    # Optional: RGB foreground color
+  bg: [200, 0, 0]        # Optional: RGB background color
+  duration_ms: 5000      # Duration in milliseconds (default: 5000)
+```
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `fg` | `[u8, u8, u8]` | No | `null` | RGB foreground color for matched text |
+| `bg` | `[u8, u8, u8]` | No | `null` | RGB background color for matched text |
+| `duration_ms` | integer | No | `5000` | How long the highlight remains visible (ms) |
+
+### Notify
+
+Sends a desktop notification using the system notification service.
+
+```yaml
+- type: notify
+  title: "Alert"
+  message: "Something happened: $1"
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `title` | string | Yes | Notification title |
+| `message` | string | Yes | Notification body (supports capture group substitution) |
+
+### Mark Line
+
+Creates a colored mark on the scrollbar at the current line for easy navigation. Marks are visible in the scrollbar and display a tooltip with the label text on hover.
+
+```yaml
+- type: mark_line
+  label: "Build started"       # Optional label text
+  color: [255, 200, 0]        # Optional RGB color (default: cyan)
+```
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `label` | string | No | `null` | Text label shown in scrollbar tooltip on hover |
+| `color` | `[u8, u8, u8]` | No | `[0, 180, 255]` | RGB color for the scrollbar mark (cyan by default) |
+
+See [Trigger Marks on Scrollbar](#trigger-marks-on-scrollbar) for details on how marks are displayed.
+
+### Set Variable
+
+Sets a named variable that can be referenced by other triggers or displayed in badges.
+
+```yaml
+- type: set_variable
+  name: "last_error"
+  value: "$1"
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Variable name |
+| `value` | string | Yes | Value to assign (supports capture group substitution) |
+
+### Run Command
+
+Spawns an external command as a detached process. The command runs independently and does not block the terminal.
+
+```yaml
+- type: run_command
+  command: "say"
+  args: ["Build failed"]
+```
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `command` | string | Yes | -- | Executable name or path |
+| `args` | array of strings | No | `[]` | Command-line arguments |
+
+> **⚠️ Warning:** The command is spawned without a shell. If you need shell features (pipes, redirection), set `command` to your shell and pass the expression as an argument: `command: "sh"`, `args: ["-c", "echo 'done' >> /tmp/log.txt"]`.
+
+### Play Sound
+
+Plays an audio file or the built-in bell tone. Sound files are loaded from the par-term sounds directory.
+
+```yaml
+- type: play_sound
+  sound_id: "alert.wav"    # Filename, "bell", or empty for built-in tone
+  volume: 75               # 0-100 (default: 50)
+```
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `sound_id` | string | No | `""` | Sound file name, `"bell"` for built-in tone, or empty for built-in tone |
+| `volume` | integer | No | `50` | Playback volume from 0 to 100 |
+
+### Send Text
+
+Writes text to the terminal's PTY input, as if the user had typed it. An optional delay allows waiting before the text is sent.
+
+```yaml
+- type: send_text
+  text: "tail -f /var/log/syslog\n"
+  delay_ms: 500
+```
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `text` | string | Yes | -- | Text to send to the terminal (use `\n` for Enter) |
+| `delay_ms` | integer | No | `0` | Milliseconds to wait before sending |
+
+> **⚠️ Warning:** Use `send_text` with care. Sending text to the terminal is equivalent to typing it, and recursive matches (where the sent text triggers the same trigger again) can cause infinite loops. Make sure your pattern does not match the text you are sending.
+
+### Split Pane
+
+Opens a new terminal pane (horizontal or vertical split) and optionally runs a command in it.
+
+```yaml
+- type: split_pane
+  direction: horizontal
+  target: active
+  focus_new_pane: true
+  split_percent: 66        # existing pane keeps 66%, new pane gets 34%
+  command:
+    type: send_text
+    text: "tail -f build.log"
+    delay_ms: 200
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `direction` | `horizontal` \| `vertical` | required | `horizontal` = new pane below, `vertical` = new pane to the right |
+| `target` | `active` \| `source` | `active` | Which pane to split. `source` degrades to `active` until per-pane polling is implemented |
+| `focus_new_pane` | bool | `true` | Whether to move focus to the new pane after splitting |
+| `split_percent` | integer (10–90) | `66` | Percentage of the current pane the **existing** pane retains. The new pane receives the remainder. |
+| `command` | object \| null | `null` | Optional command to run in the new pane (see below) |
+
+**Command types:**
+
+`send_text` — sends text to the new pane's shell after a short delay:
+
+```yaml
+command:
+  type: send_text
+  text: "tail -f build.log"
+  delay_ms: 200  # default: 200
+```
+
+`initial_command` — launches the pane with a specific command instead of the login shell:
+
+```yaml
+command:
+  type: initial_command
+  command: htop
+  args: []
+```
+
+**Example:**
+
+```yaml
+triggers:
+  - name: "Open build log on error"
+    pattern: "ERROR|FAILED"
+    prompt_before_run: true
+    actions:
+      - type: split_pane
+        direction: horizontal
+        split_percent: 66
+        command:
+          type: send_text
+          text: "tail -f build.log"
+        focus_new_pane: true
+        target: active
+```
+
+> **Note:** `split_pane` is considered a dangerous action. When `prompt_before_run: true` (the default), a confirmation dialog appears before the pane is opened. When `target: source`, the pane whose output matched the pattern is split; this currently degrades to splitting the active pane until per-pane source tracking is implemented. `split_percent` defaults to `66` — the existing pane keeps two-thirds of the space and the new pane gets one-third. Keyboard-shortcut splits are unaffected and remain 50/50.
+
+## Trigger Highlights
+
+When a trigger includes a `highlight` action, the matched text region receives a temporary color overlay. The rendering pipeline applies highlights after normal cell colors are computed but before the frame is drawn.
+
+The highlight lifecycle works as follows:
+
+```mermaid
+stateDiagram-v2
+    [*] --> Inactive: Trigger registered
+    Inactive --> Active: Pattern matches terminal line
+    Active --> Rendering: Colors applied to matched cells
+    Rendering --> Active: Next frame (still within duration)
+    Active --> Expired: duration_ms elapsed
+    Expired --> Cleared: clear_expired_highlights()
+    Cleared --> Inactive: Ready for next match
+    Inactive --> [*]: Trigger removed
+
+    note right of Active
+        fg/bg colors override
+        normal cell colors
+    end note
+
+    note right of Expired
+        Checked each frame
+        during rendering
+    end note
+```
+
+Each frame, the renderer calls `get_trigger_highlights()` to retrieve active highlight regions. For each highlight, the renderer overwrites the foreground and/or background color of every cell within the matched column range. After rendering, `clear_expired_highlights()` removes any highlights whose duration has elapsed.
+
+Highlights are identified by row and column range. If the terminal scrolls, the highlight tracks the absolute row position in the scrollback buffer so it remains attached to the correct line.
+
+## Action Dispatch
+
+The event loop dispatches trigger actions each frame, immediately after checking the bell state. The dispatch flow works as follows:
+
+1. The core terminal engine scans each new line of output against all enabled triggers in the trigger registry
+2. When a pattern matches, the core engine executes internal actions (Highlight, Notify, MarkLine, SetVariable) directly
+3. Actions that require frontend capabilities (RunCommand, PlaySound, SendText) are queued as `ActionResult` events
+4. Each frame, `check_trigger_actions()` polls the action result queue and dispatches:
+   - **RunCommand**: Spawns the command as a detached child process using `std::process::Command`
+   - **PlaySound**: If `sound_id` is `"bell"` or empty, plays the built-in bell tone through the existing audio bell system. Otherwise, opens the sound file from the sounds directory, decodes it, and plays it on a background thread
+   - **SendText**: If `delay_ms` is 0, writes the text to the PTY immediately. If a delay is specified, spawns a background thread that sleeps for the delay duration before writing
+
+```mermaid
+sequenceDiagram
+    participant Core as Core Engine
+    participant Queue as Action Queue
+    participant Loop as Event Loop
+    participant PTY as PTY
+    participant OS as OS / Audio
+
+    Core->>Core: Scan new output line
+    Core->>Core: Pattern match found
+    Core->>Queue: Enqueue ActionResult
+
+    Loop->>Queue: poll_action_results()
+    Queue-->>Loop: Vec<ActionResult>
+
+    alt RunCommand
+        Loop->>OS: spawn detached process
+    else PlaySound (bell)
+        Loop->>OS: play built-in bell tone
+    else PlaySound (file)
+        Loop->>OS: decode and play sound file
+    else SendText (no delay)
+        Loop->>PTY: write text bytes
+    else SendText (with delay)
+        Loop->>Loop: spawn background thread
+        Loop-->>PTY: write after delay_ms
+    end
+```
+
+## Trigger Marks on Scrollbar
+
+When a trigger fires a **Mark Line** action, a colored mark appears on the scrollbar at the corresponding line position. These marks provide visual landmarks for navigating long output.
+
+```mermaid
+graph LR
+    Trigger[Trigger Fires]
+    Mark[Create Mark]
+    Scrollbar[Scrollbar Display]
+    Hover[Hover Tooltip]
+
+    Trigger --> Mark
+    Mark --> Scrollbar
+    Scrollbar --> Hover
+
+    style Trigger fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+    style Mark fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    style Scrollbar fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    style Hover fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
+```
+
+**Mark behavior:**
+- Marks appear as colored horizontal bars on the scrollbar
+- Hover over a mark to see a tooltip with the label text, command context, and timing
+- Mark position tracks the absolute line in the scrollback buffer
+- Marks are automatically cleared when the scrollback buffer is cleared (e.g., via `clear` or `Cmd+K`)
+
+**Deduplication:**
+- When triggers fire multiple times per frame (due to PTY read batching), marks are deduplicated
+- Historical marks in scrollback are preserved across scans
+- Visible-grid marks are rebuilt from fresh scan results to eliminate duplicates
+- Each mark is identified by its trigger ID and line number
+
+**Color priority:**
+- If the mark has a custom `color` from the trigger config, that color is used
+- Otherwise, marks fall back to shell integration coloring (green for success, red for failure, gray for unknown)
+
+## Coprocesses
+
+A coprocess is a long-running external process that runs alongside a terminal tab. When `copy_terminal_output` is enabled, all output that appears in the terminal is also piped to the coprocess's stdin. The coprocess can process, filter, or log this output independently.
+
+### Defining a Coprocess
+
+Add coprocess definitions to the `coprocesses` array in `config.yaml`:
+
+```yaml
+coprocesses:
+  - name: "Log watcher"
+    command: "grep"
+    args: ["--line-buffered", "ERROR"]
+    auto_start: false
+    copy_terminal_output: true
+```
+
+Each coprocess definition requires:
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `name` | string | Yes | -- | Human-readable identifier |
+| `command` | string | Yes | -- | Executable name or path |
+| `args` | array of strings | No | `[]` | Command-line arguments |
+| `auto_start` | boolean | No | `false` | Start automatically when a tab is created |
+| `copy_terminal_output` | boolean | No | `true` | Send terminal output to the coprocess stdin |
+| `restart_policy` | enum | No | `never` | When to restart: `never`, `always`, or `on_failure` |
+| `restart_delay_ms` | integer | No | `0` | Delay in milliseconds before restarting |
+
+### Restart Policy
+
+Control what happens when a coprocess exits:
+
+| Policy | Behavior |
+|--------|----------|
+| `never` | Do not restart (default). The coprocess stays stopped after exit. |
+| `always` | Restart the coprocess regardless of exit code. |
+| `on_failure` | Restart only if the coprocess exited with a non-zero code. |
+
+The `restart_delay_ms` option adds a delay before restarting to prevent rapid restart loops. Set to `0` for immediate restart.
+
+```yaml
+coprocesses:
+  - name: "Resilient log watcher"
+    command: "tail"
+    args: ["-f", "/var/log/syslog"]
+    auto_start: true
+    copy_terminal_output: false
+    restart_policy: on_failure
+    restart_delay_ms: 2000    # Wait 2 seconds before restarting
+```
+
+### Auto-Start Behavior
+
+When `auto_start` is set to `true`, the coprocess is started automatically each time a new tab is created. The startup sequence is:
+
+1. Tab creates a new `CoprocessManager` instance
+2. For each coprocess definition with `auto_start: true`, the manager calls `start()` with the coprocess configuration
+3. The coprocess is spawned as a child process with its stdin connected for receiving terminal output
+4. A coprocess ID is assigned and tracked in the tab's `coprocess_ids` array
+5. If the coprocess fails to start, a warning is logged and the tab continues without it
+
+Coprocesses with `auto_start: false` appear in the configuration but are not started until manually activated through the Settings UI.
+
+### Per-Tab Lifecycle
+
+Each tab maintains its own `CoprocessManager` and set of running coprocesses. This means:
+
+- Opening a new tab starts a fresh set of auto-start coprocesses
+- Closing a tab stops all coprocesses running in that tab
+- Coprocesses in one tab do not interact with coprocesses in another tab
+- The coprocess manager drains buffered stdout from each running coprocess every frame
+
+```mermaid
+graph TD
+    Tab[Tab Created]
+    Config[Read coprocess config]
+    Check{auto_start?}
+    Start[Start coprocess]
+    Skip[Skip - manual start only]
+    Running[Running in tab]
+    Output[Terminal output piped to stdin]
+    Drain[Drain coprocess stdout each frame]
+    Close[Tab Closed]
+    Stop[All coprocesses stopped]
+
+    Tab --> Config
+    Config --> Check
+    Check -->|Yes| Start
+    Check -->|No| Skip
+    Start --> Running
+    Running --> Output
+    Running --> Drain
+    Running --> Close
+    Close --> Stop
+
+    style Tab fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+    style Config fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    style Check fill:#ff6f00,stroke:#ffa726,stroke-width:2px,color:#ffffff
+    style Start fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    style Skip fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+    style Running fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    style Output fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
+    style Drain fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    style Close fill:#b71c1c,stroke:#f44336,stroke-width:2px,color:#ffffff
+    style Stop fill:#b71c1c,stroke:#f44336,stroke-width:2px,color:#ffffff
+```
+
+## Scripts
+
+Scripts are external observer processes that communicate with the terminal using a structured JSON protocol. Unlike coprocesses (which receive raw terminal output on stdin), scripts receive typed events as JSON objects and can send typed commands back. This makes scripts ideal for building integrations, dashboards, and reactive automations without parsing raw terminal escape sequences.
+
+### Scripts vs. Coprocesses
+
+| Feature | Coprocesses | Scripts |
+|---------|-------------|---------|
+| **Input format** | Raw terminal output (bytes) | Structured JSON events |
+| **Output format** | Raw text written to PTY | Typed JSON commands |
+| **Event filtering** | None (receives all output) | Subscription-based (choose which events to receive) |
+| **Command capabilities** | Write to PTY only | Notify, set badge, set panel, log, write text, run command, change config |
+| **UI integration** | Output viewer | Markdown panels |
+| **Best for** | Filtering/logging terminal output | Reacting to terminal events, building dashboards |
+
+### Defining a Script
+
+Add script definitions to the `scripts` array in `config.yaml`:
+
+```yaml
+scripts:
+  - name: "Hello Observer"
+    script_path: "scripts/examples/hello_observer.py"
+    auto_start: true
+    subscriptions: ["bell_rang", "cwd_changed", "command_complete"]
+```
+
+Each script definition supports:
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `name` | string | Yes | -- | Human-readable identifier |
+| `enabled` | boolean | No | `true` | Whether the script is active |
+| `script_path` | string | Yes | -- | Path to the script executable |
+| `args` | array of strings | No | `[]` | Arguments to pass to the script |
+| `auto_start` | boolean | No | `false` | Start automatically when a tab is created |
+| `restart_policy` | enum | No | `never` | When to restart: `never`, `always`, or `on_failure` |
+| `restart_delay_ms` | integer | No | `0` | Delay in milliseconds before restarting |
+| `subscriptions` | array of strings | No | `[]` | Event types to receive (empty = all events) |
+| `env_vars` | object | No | `{}` | Additional environment variables for the script process |
+| `allow_write_text` | boolean | No | `false` | Allow `WriteText` command to inject text into PTY |
+| `allow_run_command` | boolean | No | `false` | Allow `RunCommand` to spawn external processes |
+| `allow_change_config` | boolean | No | `false` | Allow `ChangeConfig` to modify runtime configuration |
+| `write_text_rate_limit` | integer | No | `10` | Maximum `WriteText` writes per second (0 = default) |
+| `run_command_rate_limit` | integer | No | `1` | Maximum `RunCommand` executions per second (0 = default) |
+
+> **🔒 Security:** The `allow_*` permission flags are off by default and must be explicitly enabled. Restricted commands (`WriteText`, `RunCommand`, `ChangeConfig`) are blocked unless the corresponding flag is set. Rate limiting prevents abuse even when enabled.
+
+### JSON Protocol
+
+Scripts communicate over stdin/stdout using newline-delimited JSON (one JSON object per line).
+
+#### Events (stdin)
+
+The terminal sends events to the script's stdin. Each event has a `kind` field (string) and a `data` field (object with a `data_type` discriminant):
+
+```json
+{"kind": "bell_rang", "data": {"data_type": "Empty"}}
+```
+
+```json
+{"kind": "cwd_changed", "data": {"data_type": "CwdChanged", "cwd": "/home/user/project"}}
+```
+
+```json
+{"kind": "command_complete", "data": {"data_type": "CommandComplete", "command": "make test", "exit_code": 0}}
+```
+
+**Available event kinds:**
+
+| Kind | Data Type | Fields | Description |
+|------|-----------|--------|-------------|
+| `bell_rang` | `Empty` | -- | Terminal bell was triggered |
+| `cwd_changed` | `CwdChanged` | `cwd` | Working directory changed |
+| `command_complete` | `CommandComplete` | `command`, `exit_code` | A shell command finished (via shell integration) |
+| `title_changed` | `TitleChanged` | `title` | Terminal title changed |
+| `size_changed` | `SizeChanged` | `cols`, `rows` | Terminal was resized |
+| `user_var_changed` | `VariableChanged` | `name`, `value`, `old_value` | A user variable changed |
+| `environment_changed` | `EnvironmentChanged` | `key`, `value`, `old_value` | An environment variable changed |
+| `badge_changed` | `BadgeChanged` | `text` | Badge text changed |
+| `trigger_matched` | `TriggerMatched` | `pattern`, `matched_text`, `line` | A trigger pattern matched |
+| `zone_opened` | `ZoneEvent` | `zone_id`, `zone_type`, `event` | A semantic zone was opened |
+| `zone_closed` | `ZoneEvent` | `zone_id`, `zone_type`, `event` | A semantic zone was closed |
+| `zone_scrolled_out` | `ZoneEvent` | `zone_id`, `zone_type`, `event` | A semantic zone scrolled out of the buffer |
+
+#### Commands (stdout)
+
+Scripts write JSON commands to stdout to control the terminal. Each command has a `type` field that identifies the command:
+
+| Command | Fields | Permission Required | Description |
+|---------|--------|---------------------|-------------|
+| `Log` | `level`, `message` | No | Write a log message (`level`: `"info"`, `"warn"`, `"error"`, `"debug"`) |
+| `Notify` | `title`, `body` | No | Show a desktop notification |
+| `SetBadge` | `text` | No | Set the tab's badge text |
+| `SetVariable` | `name`, `value` | No | Set a user variable |
+| `SetPanel` | `title`, `content` | No | Display a markdown panel in the UI |
+| `ClearPanel` | -- | No | Remove the markdown panel |
+| `WriteText` | `text` | `allow_write_text` | Write text to the PTY (as if typed); VT sequences are stripped |
+| `RunCommand` | `command` | `allow_run_command` | Execute a shell command; checked against denylist |
+| `ChangeConfig` | `key`, `value` | `allow_change_config` | Change a configuration value; allowlisted keys only |
+
+**Command examples:**
+
+```json
+{"type": "Log", "level": "info", "message": "Script started"}
+{"type": "Notify", "title": "Alert", "body": "Something happened"}
+{"type": "SetBadge", "text": "3 errors"}
+{"type": "SetVariable", "name": "build_status", "value": "failed"}
+{"type": "SetPanel", "title": "Dashboard", "content": "## Status\n- All clear"}
+{"type": "WriteText", "text": "ls -la\n"}
+{"type": "ClearPanel"}
+```
+
+### Event Subscription Filtering
+
+By default, a script receives all terminal events. Use the `subscriptions` field to limit which events are delivered:
+
+```yaml
+scripts:
+  - name: "Build monitor"
+    script_path: "monitor.py"
+    subscriptions: ["command_complete", "cwd_changed"]
+```
+
+Only events whose `kind` matches an entry in the `subscriptions` array will be sent to the script. An empty array (or omitting the field) means the script receives every event.
+
+This filtering is useful for performance and simplicity: a script that only cares about command completion does not need to handle resize, bell, or title events.
+
+### Markdown Panels
+
+Scripts can display rich content in the terminal UI using the `SetPanel` command. The `content` field accepts Markdown:
+
+```json
+{"type": "SetPanel", "title": "Build Status", "content": "## Latest Build\n- **Status**: Passed\n- **Duration**: 12.3s\n- **Tests**: 47/47"}
+```
+
+Panels appear in the terminal UI and update in real time as the script sends new `SetPanel` commands. Use `ClearPanel` to remove the panel when it is no longer needed.
+
+### Script Lifecycle
+
+Scripts follow the same lifecycle patterns as coprocesses:
+
+- **Auto-start**: Scripts with `auto_start: true` are started when a new tab is created
+- **Per-tab isolation**: Each tab has its own set of running scripts
+- **Restart policies**: The `restart_policy` and `restart_delay_ms` fields control automatic restart behavior (same options as coprocesses: `never`, `always`, `on_failure`)
+- **Tab close**: All scripts in a tab are stopped when the tab is closed
+- **Settings sync**: Changes to script configuration in the Settings UI are applied when saved
+
+```mermaid
+sequenceDiagram
+    participant Tab as Tab
+    participant Mgr as Script Manager
+    participant Script as Script Process
+    participant Core as Terminal Core
+
+    Tab->>Mgr: Start script
+    Mgr->>Script: Spawn process
+    Core->>Mgr: Observer event (JSON)
+    Mgr->>Mgr: Check subscription filter
+    Mgr->>Script: Write event to stdin
+    Script->>Script: Process event
+    Script->>Mgr: Write command to stdout (JSON)
+    Mgr->>Tab: Forward command
+    Tab->>Core: Execute command (notify / write / badge / panel)
+
+    Note over Script: Script runs until<br/>tab closes or stopped
+    Tab->>Mgr: Stop script
+    Mgr->>Script: Kill process
+```
+
+### Example Script
+
+A complete working example is provided at [`scripts/examples/hello_observer.py`](../scripts/examples/hello_observer.py). This Python script demonstrates:
+
+- Reading JSON events from stdin
+- Sending `Log`, `SetPanel`, and `Notify` commands
+- Handling `bell_rang`, `cwd_changed`, and `command_complete` events
+- Maintaining an event counter displayed in a markdown panel
+
+To try it, add the following to your `config.yaml`:
+
+```yaml
+scripts:
+  - name: "Hello Observer"
+    script_path: "scripts/examples/hello_observer.py"
+    auto_start: true
+    subscriptions: ["bell_rang", "cwd_changed", "command_complete"]
+```
+
+## Sound Files
+
+The `play_sound` action loads audio files from the par-term sounds directory:
+
+```
+~/.config/par-term/sounds/
+```
+
+On macOS and Linux this resolves via XDG to `~/.config/par-term/sounds/`. On Windows it resolves to `%APPDATA%\par-term\sounds\`.
+
+**Supported formats:** The audio decoder (rodio) supports WAV, OGG Vorbis, FLAC, and MP3. Place sound files in the sounds directory and reference them by filename in the `sound_id` field.
+
+**Special values for `sound_id`:**
+
+| Value | Behavior |
+|-------|----------|
+| `""` (empty string) | Plays the built-in bell tone |
+| `"bell"` | Plays the built-in bell tone |
+| `"alert.wav"` | Loads and plays `~/.config/par-term/sounds/alert.wav` |
+| Any other filename | Loaded from the sounds directory |
+
+**Volume:** The `volume` field accepts an integer from 0 to 100. It is converted to a float ratio internally (`volume / 100.0`) and clamped to the 0.0-1.0 range. The default is 50.
+
+If the specified file does not exist, a warning is logged and no sound is played. File decoding errors are also logged without interrupting the terminal.
+
+## Settings UI
+
+Triggers, coprocesses, and scripts are all managed through the **Settings > Automation** tab (Scripts is now a section within Automation).
+
+### Managing Triggers
+
+The **Triggers** section provides:
+
+- **Trigger list**: Each trigger shows its enabled checkbox, name, pattern (in monospace), and action count
+- **Enable/disable toggle**: Click the checkbox next to a trigger to toggle it without editing
+- **Edit button**: Opens an inline edit form for the trigger
+- **Delete button**: Removes the trigger from the configuration
+- **Add Trigger button**: Opens a form to create a new trigger
+
+The trigger edit form includes:
+
+- **Name field**: A text input for the trigger's human-readable name
+- **Pattern field**: A text input with live regex validation. Invalid patterns display a red error message below the field
+- **Actions list**: Numbered list of attached actions, each showing type-specific inline editors (color pickers, sliders, text fields)
+- **Add action dropdown**: Select an action type to append to the trigger
+- **Save/Cancel buttons**: Save validates that name and pattern are non-empty and the regex compiles
+
+Changes are applied immediately when saved and synced to the core trigger registry. A re-sync flag is set so that the active tab's terminal picks up the new trigger definitions.
+
+### Managing Coprocesses
+
+The **Coprocesses** section provides:
+
+- **Coprocess list**: Each entry shows a status indicator, `[auto]` or `[manual]` badge, the name, and the full command (in monospace). If a restart policy is set, it appears as a badge (e.g., `[restart: Always, delay: 500ms]`).
+- **Start/Stop buttons**: Start a stopped coprocess or stop a running one directly from the list
+- **Status indicator**: Green dot when running, gray dot when stopped
+- **Edit button**: Opens an inline edit form
+- **Delete button**: Removes the coprocess definition
+- **Add Coprocess button**: Opens a form to create a new definition
+
+The coprocess edit form includes:
+
+- **Name field**: Human-readable identifier
+- **Command field**: The executable to run
+- **Arguments field**: Space-separated arguments
+- **Auto-start checkbox**: Whether to start the coprocess automatically with new tabs
+- **Copy terminal output checkbox**: Whether to pipe terminal output to the coprocess stdin
+- **Restart policy dropdown**: Never, Always, or On Failure
+- **Restart delay slider**: Delay in milliseconds before restarting (shown when restart policy is not Never)
+
+If a coprocess fails to start, the error message is displayed inline in red below the coprocess entry.
+
+### Coprocess Output Viewer
+
+Each coprocess has a collapsible output viewer that displays the coprocess's stdout in real time:
+
+- Click **"Output (N lines)"** to expand or collapse the viewer
+- Output is displayed in a scrollable area (max 150px) in monospace font
+- The viewer auto-scrolls to the latest output
+- Click **"Clear"** to discard buffered output
+- Output accumulates in memory until cleared or the tab is closed
+
+> **📝 Note:** The quick search bar in Settings supports the following keywords for the **Automation** tab (which now also includes Scripts): `trigger`, `regex`, `pattern`, `match`, `action`, `highlight`, `notify`, `coprocess`, `pipe`, `subprocess`, `auto start`, `restart`, `script`, `observer`, `event`, `panel`, `subscribe`.
+
+## Complete Configuration Examples
+
+### Error Monitoring Setup
+
+This example highlights errors in red, sends a desktop notification with the error message, and plays an alert sound:
+
+```yaml
+triggers:
+  - name: "Error monitor"
+    pattern: "\\b(ERROR|FATAL):\\s*(.+)"
+    enabled: true
+    actions:
+      - type: highlight
+        fg: [255, 255, 255]
+        bg: [180, 0, 0]
+        duration_ms: 10000
+      - type: notify
+        title: "Terminal Error"
+        message: "$1: $2"
+      - type: play_sound
+        sound_id: "error.wav"
+        volume: 60
+```
+
+### Build System Integration
+
+Detect build completion and send a notification with a sound:
+
+```yaml
+triggers:
+  - name: "Build succeeded"
+    pattern: "BUILD SUCCESSFUL in (\\S+)"
+    enabled: true
+    actions:
+      - type: notify
+        title: "Build Complete"
+        message: "Finished in $1"
+      - type: play_sound
+        sound_id: "bell"
+        volume: 40
+      - type: highlight
+        bg: [0, 100, 0]
+        duration_ms: 3000
+
+  - name: "Build failed"
+    pattern: "BUILD FAILED"
+    enabled: true
+    actions:
+      - type: highlight
+        fg: [255, 255, 255]
+        bg: [200, 0, 0]
+        duration_ms: 8000
+      - type: play_sound
+        sound_id: "error.wav"
+        volume: 80
+      - type: run_command
+        command: "say"
+        args: ["Build failed"]
+```
+
+### Test Runner Notifications
+
+Mark test result lines with color-coded scrollbar marks and set variables for badge display:
+
+```yaml
+triggers:
+  - name: "Tests passed"
+    pattern: "(\\d+) tests? passed"
+    enabled: true
+    actions:
+      - type: mark_line
+        label: "Tests passed"
+        color: [0, 200, 80]     # Green mark on scrollbar
+      - type: set_variable
+        name: "test_result"
+        value: "PASS ($1)"
+
+  - name: "Tests failed"
+    pattern: "(\\d+) tests? failed"
+    enabled: true
+    actions:
+      - type: mark_line
+        label: "Tests failed"
+        color: [255, 60, 60]    # Red mark on scrollbar
+      - type: set_variable
+        name: "test_result"
+        value: "FAIL ($1)"
+      - type: highlight
+        fg: [255, 100, 100]
+        duration_ms: 15000
+```
+
+### Auto-Response Trigger
+
+Automatically respond to a password prompt (use with caution):
+
+```yaml
+triggers:
+  - name: "SSH key passphrase"
+    pattern: "Enter passphrase for key"
+    enabled: false
+    actions:
+      - type: send_text
+        text: "my-passphrase\n"
+        delay_ms: 200
+```
+
+> **⚠️ Warning:** Storing passwords in configuration files is a security risk. This example is shown for illustration; prefer SSH agent or keychain integration for production use.
+
+### Coprocess for Log Filtering
+
+Run a log filter coprocess that receives all terminal output and filters for warnings. The restart policy ensures it restarts if it crashes:
+
+```yaml
+coprocesses:
+  - name: "Warning filter"
+    command: "grep"
+    args: ["--line-buffered", "WARN"]
+    auto_start: true
+    copy_terminal_output: true
+    restart_policy: on_failure
+    restart_delay_ms: 1000
+```
+
+### Observer Script for Command Monitoring
+
+Use an observer script to track command execution and display a live dashboard:
+
+```yaml
+scripts:
+  - name: "Command Monitor"
+    script_path: "~/.config/par-term/scripts/cmd_monitor.py"
+    auto_start: true
+    subscriptions: ["command_complete", "cwd_changed"]
+    env_vars:
+      LOG_LEVEL: "debug"
+    # Security: enable only the commands this script needs
+    allow_write_text: false
+    allow_run_command: false
+    allow_change_config: false
+```
+
+### Full Automation Configuration
+
+A combined configuration showing triggers, coprocesses, and scripts together:
+
+```yaml
+# Trigger definitions
+triggers:
+  - name: "Error highlight"
+    pattern: "\\bERROR\\b"
+    enabled: true
+    actions:
+      - type: highlight
+        fg: [255, 255, 255]
+        bg: [180, 0, 0]
+        duration_ms: 5000
+      - type: play_sound
+        sound_id: ""
+        volume: 50
+
+  - name: "Warning highlight"
+    pattern: "\\bWARN(ING)?\\b"
+    enabled: true
+    actions:
+      - type: highlight
+        fg: [0, 0, 0]
+        bg: [255, 200, 0]
+        duration_ms: 3000
+
+  - name: "Compile error"
+    pattern: "error\\[E(\\d+)\\]"
+    enabled: true
+    actions:
+      - type: notify
+        title: "Compile Error"
+        message: "Rust error E$1"
+      - type: highlight
+        fg: [255, 100, 100]
+        duration_ms: 8000
+
+  - name: "SSH connection"
+    pattern: "Connection to (\\S+) closed"
+    enabled: true
+    actions:
+      - type: notify
+        title: "SSH Disconnected"
+        message: "Lost connection to $1"
+
+# Coprocess definitions
+coprocesses:
+  - name: "Error logger"
+    command: "sh"
+    args: ["-c", "grep --line-buffered ERROR >> /tmp/terminal_errors.log"]
+    auto_start: true
+    copy_terminal_output: true
+    restart_policy: always
+    restart_delay_ms: 500
+
+  - name: "Activity monitor"
+    command: "wc"
+    args: ["-l"]
+    auto_start: false
+    copy_terminal_output: true
+    restart_policy: never
+
+# Script definitions
+scripts:
+  - name: "Hello Observer"
+    script_path: "scripts/examples/hello_observer.py"
+    auto_start: true
+    subscriptions: ["bell_rang", "cwd_changed", "command_complete"]
+    # This script only uses safe commands (Log, Notify, SetPanel)
+
+  - name: "Build dashboard"
+    script_path: "~/.config/par-term/scripts/build_dashboard.py"
+    auto_start: false
+    restart_policy: on_failure
+    restart_delay_ms: 2000
+    env_vars:
+      PROJECT_ROOT: "/home/user/myproject"
+    # This script runs commands on build completion
+    allow_run_command: true
+    run_command_rate_limit: 1
+```
+
+## Related Documentation
+
+- [Architecture](../architecture/ARCHITECTURE.md) - System design and data flow overview
+- [Scrollback](SCROLLBACK.md) - Scrollbar marks, command markers, and navigation
+- [Tabs](TABS.md) - Tab management and per-tab state
+- [Badges](BADGES.md) - Dynamic badge display using trigger variables
+- [Keyboard Shortcuts](../guides/KEYBOARD_SHORTCUTS.md) - Quick access to settings and features
+- [Profiles](PROFILES.md) - Per-profile trigger and coprocess configuration
+- [Debug Logging](../LOGGING.md) - Log levels for troubleshooting automation

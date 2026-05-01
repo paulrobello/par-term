@@ -1,0 +1,1075 @@
+# Custom Shaders Guide
+
+Par-term supports custom GLSL shaders for background effects and post-processing, compatible with Ghostty and Shadertoy shader formats. This guide covers configuration, available uniforms, and creating your own shaders.
+
+For a list of all included shaders, see [SHADERS.md](SHADERS.md).
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Quick Start](#quick-start)
+- [Installing Shaders](#installing-shaders)
+- [Configuration](#configuration)
+  - [Background Shader Settings](#background-shader-settings)
+  - [Cursor Shader Settings](#cursor-shader-settings)
+  - [Channel Textures](#channel-textures)
+  - [Built-in Noise Textures](#built-in-noise-textures)
+  - [Included Texture Packs](#included-texture-packs)
+  - [Cubemap Textures](#cubemap-textures)
+  - [Power Saving](#power-saving)
+  - [Shader Hot Reload](#shader-hot-reload)
+  - [Per-Shader Overrides](#per-shader-overrides)
+- [Available Uniforms](#available-uniforms)
+  - [Core Shadertoy Uniforms](#core-shadertoy-uniforms)
+  - [Window & Content Uniforms](#window--content-uniforms)
+  - [Texture Channel Uniforms](#texture-channel-uniforms)
+  - [Cursor Uniforms](#cursor-uniforms)
+  - [Cursor Shader Configuration Uniforms](#cursor-shader-configuration-uniforms)
+  - [Progress Bar Uniforms](#progress-bar-uniforms)
+- [Creating Custom Shaders](#creating-custom-shaders)
+  - [Basic Structure](#basic-structure)
+  - [Shader Modes](#shader-modes)
+  - [Shader Metadata Format](#shader-metadata-format)
+  - [Per-Shader Asset Bundle Manifests](#per-shader-asset-bundle-manifests)
+  - [Shader Uniform Controls](#shader-uniform-controls)
+  - [Porting Shadertoy Shaders](#porting-shadertoy-shaders)
+- [Examples](#examples)
+- [Troubleshooting](#troubleshooting)
+- [Related Documentation](#related-documentation)
+
+## Overview
+
+Par-term's shader system provides two types of customization:
+
+1. **Background Shaders**: Post-processing effects applied to the entire terminal (CRT effects, color grading, animated backgrounds)
+2. **Cursor Shaders**: Visual effects that follow the cursor (trails, glows, ripples)
+
+Shaders are written in GLSL (OpenGL Shading Language) and automatically transpiled to WGSL for the GPU backend.
+
+## Quick Start
+
+1. Copy a shader file to your config directory:
+   ```bash
+   # macOS/Linux
+   mkdir -p ~/.config/par-term/shaders
+   cp shaders/starfield.glsl ~/.config/par-term/shaders/
+   ```
+
+2. Enable the shader in your config:
+   ```yaml
+   # ~/.config/par-term/config.yaml
+   custom_shader: "starfield.glsl"
+   custom_shader_enabled: true
+   ```
+
+3. Restart par-term or press `F5` to reload configuration
+
+## Installing Shaders
+
+### Install All Shaders (Recommended)
+
+Use the built-in CLI command to download and install all 67 shaders from the latest release:
+
+```bash
+# Install shaders (with confirmation prompt)
+par-term install-shaders
+
+# Install without prompts
+par-term install-shaders -y
+
+# Force overwrite existing shaders
+par-term install-shaders --force
+```
+
+Alternatively, use the shell script installer:
+
+```bash
+curl -sL https://raw.githubusercontent.com/paulrobello/par-term/main/install_shaders.sh | sh
+```
+
+### From the Included Collection
+
+If building from source, the `shaders/` directory contains all ready-to-use shaders. See [SHADERS.md](SHADERS.md) for the complete list. Copy shaders to your configuration directory:
+
+```bash
+# macOS/Linux
+cp -r shaders ~/.config/par-term/
+
+# Windows (PowerShell)
+Copy-Item -Recurse shaders $env:APPDATA\par-term\
+```
+
+### Shader Directory Location
+
+| Platform | Path |
+|----------|------|
+| macOS/Linux | `~/.config/par-term/shaders/` |
+| Windows | `%APPDATA%\par-term\shaders\` |
+
+The directory is created automatically when par-term first starts.
+
+## Configuration
+
+All shader settings can be configured via the YAML config file or through the **Settings UI** (press `F12` or use the menu). The Settings UI provides in the **Effects** tab:
+- **Background** section: Background shader selection, animation controls, brightness, texture channels, and cubemap settings
+- **Cursor Shader** section: Cursor shader selection and effect parameters
+
+Power saving options (pause shaders on blur) are in the **Window** tab. The UI also supports per-shader overrides and saving settings directly to shader metadata.
+
+### Background Shader Settings
+
+Configure background/post-processing shaders in your config file:
+
+```yaml
+# ~/.config/par-term/config.yaml
+
+# Shader file name (in shaders/ directory)
+custom_shader: "starfield.glsl"
+
+# Enable/disable the shader
+custom_shader_enabled: true
+
+# Enable animation (updates iTime uniform each frame)
+# When false, iTime remains at 0.0
+custom_shader_animation: true
+
+# Animation speed multiplier (1.0 = normal, 0.5 = half speed, 2.0 = double)
+custom_shader_animation_speed: 1.0
+
+# Text opacity when shader is active (0.0 - 1.0)
+custom_shader_text_opacity: 1.0
+
+# Shader brightness (0.05 - 1.0, default 0.15)
+# Dims the shader background to improve text readability
+custom_shader_brightness: 0.15
+
+# Full content mode: shader can distort/modify text
+# false = text composited on top of shader output (recommended)
+# true = shader receives and can modify terminal content via iChannel4
+custom_shader_full_content: false
+
+# Bind the app background image as iChannel0
+custom_shader_use_background_as_channel0: false
+
+# Blend-mode hint exposed to shaders as iBackgroundBlendMode
+# Values: replace, multiply, screen, overlay, luminance_mask
+custom_shader_background_channel0_blend_mode: replace
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `custom_shader` | `String?` | `null` | Path to GLSL shader file (absolute or relative to shaders dir) |
+| `custom_shader_enabled` | `bool` | `true` | Enable/disable background shader rendering |
+| `custom_shader_animation` | `bool` | `true` | Enable animation (updates iTime each frame) |
+| `custom_shader_animation_speed` | `f32` | `1.0` | Animation speed multiplier |
+| `custom_shader_text_opacity` | `f32` | `1.0` | Text opacity when shader is active (0.0-1.0) |
+| `custom_shader_brightness` | `f32` | `0.15` | Brightness multiplier (0.05-1.0) |
+| `custom_shader_full_content` | `bool` | `false` | When true, shader can manipulate terminal content |
+| `custom_shader_use_background_as_channel0` | `bool` | `false` | Use app's background image as iChannel0 texture |
+| `custom_shader_background_channel0_blend_mode` | `enum` | `replace` | Blend-mode hint exposed as `iBackgroundBlendMode`; values: `replace`, `multiply`, `screen`, `overlay`, `luminance_mask` |
+
+### Shader Linting and Readability Scoring
+
+Use `shader-lint` to validate a custom shader file before installing or sharing it. The same lint/readability report is also available from Settings > Effects > Custom Shaders by selecting a background shader and clicking **Run Lint**; use **Clear Lint** to clear the current result or error.
+
+```bash
+par-term shader-lint ~/.config/par-term/shaders/my-shader.glsl
+```
+
+The lint pass checks metadata, control comments, channel references, cubemap references, and common par-term configuration mismatches. Add `--readability` to print a source-level readability score and suggested defaults for terminal text contrast:
+
+```bash
+par-term shader-lint ~/.config/par-term/shaders/my-shader.glsl --readability
+```
+
+Example readability output:
+
+```text
+Readability: 82/100
+Suggested defaults:
+  custom_shader_brightness = 0.60
+  custom_shader_text_opacity = 0.93
+```
+
+When readability scoring runs, par-term prompts before writing the suggested `defaults.brightness` and `defaults.text_opacity` values into the shader metadata. Use `--apply` to apply without prompting, or `--no-prompt` to print the score without any interactive prompt:
+
+```bash
+# Score and prompt before applying suggested metadata defaults
+par-term shader-lint my-shader.glsl --readability
+
+# Score and apply suggested metadata defaults without prompting
+par-term shader-lint my-shader.glsl --apply
+
+# Score only; never prompt or write metadata
+par-term shader-lint my-shader.glsl --readability --no-prompt
+```
+
+`--apply` implies readability scoring. The readability score is currently a lightweight source-level heuristic, not an offscreen GPU render comparison.
+
+### Cursor Shader Settings
+
+Cursor shaders are configured separately and have additional controls:
+
+```yaml
+# Cursor shader file name
+cursor_shader: "cursor_glow.glsl"
+
+# Enable/disable cursor shader
+cursor_shader_enabled: true
+
+# Animation controls
+cursor_shader_animation: true
+cursor_shader_animation_speed: 1.0
+
+# Visibility controls
+cursor_shader_hides_cursor: false          # Hide default cursor (set true for replacement shaders)
+cursor_shader_disable_in_alt_screen: true  # Pause cursor shader in alt-screen apps (vim/less/htop)
+
+# Cursor effect parameters
+cursor_shader_color: [255, 255, 255]       # Cursor color RGB (0-255)
+cursor_shader_trail_duration: 0.5          # Trail duration in seconds
+cursor_shader_glow_radius: 80.0            # Glow radius in pixels
+cursor_shader_glow_intensity: 0.3          # Glow intensity (0.0-1.0)
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `cursor_shader` | `String?` | `null` | Path to cursor shader GLSL file |
+| `cursor_shader_enabled` | `bool` | `false` | Enable/disable cursor shader effects |
+| `cursor_shader_animation` | `bool` | `true` | Enable animation in cursor shader |
+| `cursor_shader_animation_speed` | `f32` | `1.0` | Animation speed multiplier |
+| `cursor_shader_color` | `[u8; 3]` | `[255, 255, 255]` | Cursor color RGB (0-255) |
+| `cursor_shader_trail_duration` | `f32` | `0.5` | Trail duration in seconds |
+| `cursor_shader_glow_radius` | `f32` | `80.0` | Glow radius in pixels |
+| `cursor_shader_glow_intensity` | `f32` | `0.3` | Glow intensity (0.0-1.0) |
+| `cursor_shader_hides_cursor` | `bool` | `false` | Hide default cursor when shader is enabled |
+| `cursor_shader_disable_in_alt_screen` | `bool` | `true` | Disable cursor shader in alt screen apps |
+
+### Channel Textures
+
+Par-term supports Shadertoy-compatible texture channels (iChannel0-3) for passing custom images to shaders:
+
+```yaml
+# Texture paths for shader channels (supports ~ for home directory)
+custom_shader_channel0: "~/textures/noise.png"
+custom_shader_channel1: "~/textures/metal.jpg"
+custom_shader_channel2: null  # Not used
+custom_shader_channel3: null  # Not used
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `custom_shader_channel0` | `String?` | `null` | Path to iChannel0 texture |
+| `custom_shader_channel1` | `String?` | `null` | Path to iChannel1 texture |
+| `custom_shader_channel2` | `String?` | `null` | Path to iChannel2 texture |
+| `custom_shader_channel3` | `String?` | `null` | Path to iChannel3 texture |
+
+**Notes:**
+- `iChannel0-3` are user-defined texture inputs (Shadertoy compatible)
+- `iChannel4` is the terminal content texture (par-term specific)
+- Channels without a configured texture use a 1x1 transparent placeholder
+- Supports common image formats: PNG, JPEG, BMP, etc.
+- Textures can also be configured via Settings UI under "Shader Channel Textures"
+- Sample textures are included in `shaders/textures/` directory
+
+### Built-in Noise Textures
+
+Shader channels can use deterministic built-in noise textures without external image files:
+
+```yaml
+custom_shader_channel0: "builtin://noise/value-256"
+custom_shader_channel1: "builtin://noise/fbm-512"
+custom_shader_channel2: "builtin://noise/cellular-256"
+```
+
+Supported values:
+
+| Value | Description | Size |
+|-------|-------------|------|
+| `builtin://noise/value-128` | Deterministic value noise | 128×128 |
+| `builtin://noise/value-256` | Deterministic value noise | 256×256 |
+| `builtin://noise/fbm-256` | Fractal Brownian motion noise | 256×256 |
+| `builtin://noise/fbm-512` | Fractal Brownian motion noise | 512×512 |
+| `builtin://noise/cellular-256` | Cellular/Worley-style noise | 256×256 |
+
+Built-in noise paths are resolved before filesystem paths, so they do not require files in your shader directory.
+
+### Included Texture Packs
+
+Bundled texture packs are installed under `shaders/textures/packs/` and can be referenced from channel settings or shader metadata defaults. The current packs are:
+
+| Pack | Installed path | Included texture |
+|------|----------------|------------------|
+| Noise | `textures/packs/noise/` | `soft-value-128.png` |
+| Gradients | `textures/packs/gradients/` | `deep-violet-128.png` |
+| Paper | `textures/packs/paper/` | `warm-paper-128.png` |
+| Metal | `textures/packs/metal/` | `brushed-metal-128.png` |
+| Starfields | `textures/packs/starfields/` | `dim-stars-128.png` |
+
+Example:
+
+```yaml
+custom_shader_channel0: "textures/packs/noise/soft-value-128.png"
+custom_shader_channel1: "textures/packs/metal/brushed-metal-128.png"
+```
+
+### Cubemap Textures
+
+Par-term supports cubemap textures for environment mapping and skybox effects via the `iCubemap` uniform:
+
+```yaml
+# Path prefix for cubemap faces
+# Expects 6 files: {prefix}-px.{ext}, -nx.{ext}, -py.{ext}, -ny.{ext}, -pz.{ext}, -nz.{ext}
+custom_shader_cubemap: "textures/cubemaps/env-outside"
+
+# Enable cubemap sampling
+custom_shader_cubemap_enabled: true
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `custom_shader_cubemap` | `String?` | `null` | Path prefix for cubemap face files |
+| `custom_shader_cubemap_enabled` | `bool` | `true` | Enable cubemap sampling |
+
+**Face naming convention:**
+- `{prefix}-px.{ext}` - Positive X (+X, right)
+- `{prefix}-nx.{ext}` - Negative X (-X, left)
+- `{prefix}-py.{ext}` - Positive Y (+Y, top)
+- `{prefix}-ny.{ext}` - Negative Y (-Y, bottom)
+- `{prefix}-pz.{ext}` - Positive Z (+Z, front)
+- `{prefix}-nz.{ext}` - Negative Z (-Z, back)
+
+**Supported formats:** PNG, JPEG, HDR
+
+**Notes:**
+- HDR cubemaps (.hdr) are supported with automatic Rgba16Float conversion
+- LDR cubemaps use Rgba8UnormSrgb format
+- Sample cubemaps are included in `shaders/textures/cubemaps/`
+- Use `iCubemapResolution.xy` for cubemap face dimensions
+
+### Power Saving
+
+Control shader behavior when the window loses focus:
+
+```yaml
+# Pause shader animations when window loses focus
+pause_shaders_on_blur: true
+
+# Reduce refresh rate when unfocused
+pause_refresh_on_blur: false
+
+# Target FPS when unfocused (only if pause_refresh_on_blur=true)
+unfocused_fps: 30
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `pause_shaders_on_blur` | `bool` | `true` | Pause shader animations when window loses focus |
+| `pause_refresh_on_blur` | `bool` | `false` | Reduce refresh rate when unfocused |
+| `unfocused_fps` | `u32` | `30` | Target FPS when unfocused |
+
+### Shader Hot Reload
+
+Enable automatic shader reloading when files change:
+
+```yaml
+# Auto-reload shaders when files are modified
+shader_hot_reload: false
+
+# Debounce delay in milliseconds before reloading
+shader_hot_reload_delay: 100
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `shader_hot_reload` | `bool` | `false` | Auto-reload shaders when files are modified |
+| `shader_hot_reload_delay` | `u64` | `100` | Debounce delay in milliseconds |
+
+### Per-Shader Overrides
+
+Override settings for specific shaders without changing global defaults:
+
+```yaml
+# Per-shader configuration overrides
+shader_configs:
+  "crt.glsl":
+    animation_speed: 0.3
+    brightness: 0.8
+    full_content: true
+  "starfield.glsl":
+    brightness: 0.5
+
+# Per-cursor-shader configuration overrides
+cursor_shader_configs:
+  "cursor_glow.glsl":
+    glow_radius: 100.0
+    glow_intensity: 0.5
+  "cursor_trail.glsl":
+    trail_duration: 0.8
+```
+
+**Per-shader override fields:**
+- `animation_speed`: Override animation speed
+- `brightness`: Override brightness
+- `text_opacity`: Override text opacity
+- `full_content`: Override full content mode
+- `channel0`, `channel1`, `channel2`, `channel3`: Override texture paths
+- `cubemap`: Override cubemap path
+- `cubemap_enabled`: Override cubemap enable
+- `use_background_as_channel0`: Use app's background image as iChannel0
+- `background_channel0_blend_mode`: Override the background-as-`iChannel0` blend-mode hint (`replace`, `multiply`, `screen`, `overlay`, `luminance_mask`)
+- `uniforms`: Per-shader values for custom `// control ...` shader uniforms
+
+**Per-cursor-shader additional fields:**
+- `glow_radius`: Override glow radius
+- `glow_intensity`: Override glow intensity
+- `trail_duration`: Override trail duration
+- `cursor_color`: Override cursor color `[R, G, B]` (0-255)
+- `hides_cursor`: Override whether to hide the default cursor
+- `disable_in_alt_screen`: Override whether to disable in alt screen apps
+
+**Configuration resolution priority (highest to lowest):**
+1. User overrides from `shader_configs` / `cursor_shader_configs` map
+2. Shader metadata defaults embedded in shader file
+3. Global defaults from config
+
+---
+
+## Available Uniforms
+
+Par-term provides comprehensive Shadertoy-compatible uniforms plus Ghostty-compatible cursor uniforms.
+
+### Core Shadertoy Uniforms
+
+These are fully compatible with Shadertoy shaders:
+
+| Uniform | Type | Description |
+|---------|------|-------------|
+| `iResolution` | `vec3` | Viewport size: `xy` = pixels, `z` = pixel aspect ratio (usually 1.0) |
+| `iTime` | `float` | Time in seconds since shader started (0.0 if animation disabled) |
+| `iTimeDelta` | `float` | Time elapsed since last frame in seconds |
+| `iFrame` | `float` | Frame counter (incremented each frame) |
+| `iFrameRate` | `float` | Current frame rate in FPS |
+| `iMouse` | `vec4` | Mouse state: `xy` = current position, `zw` = click position; sign indicates button state |
+| `iDate` | `vec4` | Date/time: `x` = year, `y` = month (0-11), `z` = day (1-31), `w` = seconds since midnight |
+
+### Window & Content Uniforms
+
+Par-term specific uniforms for terminal integration:
+
+| Uniform | Type | Description |
+|---------|------|-------------|
+| `iOpacity` | `float` | Window opacity setting (0.0-1.0) |
+| `iTextOpacity` | `float` | Text opacity setting (0.0-1.0) |
+| `iBrightness` | `float` | Shader brightness multiplier (0.05-1.0) |
+| `iFullContent` | `float` | 1.0 = shader receives full terminal content; 0.0 = background only |
+| `iBackgroundColor` | `vec4` | Solid background color `[R, G, B, A]` (0.0-1.0 normalized). When A > 0, indicates solid color mode is active |
+| `iBackgroundBlendMode` | `int` | Resolved `custom_shader_background_channel0_blend_mode` value for shaders that sample the app background through `iChannel0` |
+| `iTimeKeyPress` | `float` | Time when last key was pressed (same timebase as iTime). See [`keypress_ring_fullcontent.glsl`](../shaders/keypress_ring_fullcontent.glsl) for example. |
+| `iCommand` | `vec4` | Shell command state from OSC 133 shell integration: `x` = state (`0` unknown, `1` running, `2` success, `3` failure), `y` = last exit code, `z` = shader time when state last changed, `w` = running flag. See [`command_state_backdrop.glsl`](../shaders/command_state_backdrop.glsl). |
+| `iFocusedPane` | `vec4` | Focused pane bounds in pixels using GLSL/Shadertoy bottom-left origin: `xy` = bottom-left, `zw` = size. Defaults to the full viewport when no focused pane is available. See [`pane_focus_regions.glsl`](../shaders/pane_focus_regions.glsl). |
+| `iScroll` | `vec4` | Scrollback context for the focused viewport: `x` = scroll offset in lines, `y` = visible line count, `z` = scrollback line count, `w` = normalized depth (`x / max(z, 1)`). See [`scrollback_parallax.glsl`](../shaders/scrollback_parallax.glsl). |
+
+Background blend constants exposed in GLSL:
+
+| Constant | Value | Meaning |
+|----------|-------|---------|
+| `BACKGROUND_BLEND_REPLACE` | `0` | Treat `iChannel0` as the replacement/background source |
+| `BACKGROUND_BLEND_MULTIPLY` | `1` | Multiply shader color with the sampled background |
+| `BACKGROUND_BLEND_SCREEN` | `2` | Screen shader color with the sampled background |
+| `BACKGROUND_BLEND_OVERLAY` | `3` | Overlay-style contrast blend |
+| `BACKGROUND_BLEND_LUMINANCE_MASK` | `4` | Use sampled background luminance as a mask |
+
+The renderer binds the app background image as `iChannel0` when `custom_shader_use_background_as_channel0` is enabled. Shaders read `iBackgroundBlendMode` and apply the desired blend manually.
+
+### Texture Channel Uniforms
+
+Shadertoy-compatible texture channels:
+
+| Uniform | Type | Description |
+|---------|------|-------------|
+| `iChannel0` | `sampler2D` | User texture channel 0. See [`rain.glsl`](../shaders/rain.glsl), [`bumped_sinusoidal_warp.glsl`](../shaders/bumped_sinusoidal_warp.glsl) for examples. |
+| `iChannel1` | `sampler2D` | User texture channel 1 |
+| `iChannel2` | `sampler2D` | User texture channel 2 |
+| `iChannel3` | `sampler2D` | User texture channel 3 |
+| `iChannel4` | `sampler2D` | Terminal content texture (par-term specific) |
+| `iChannelResolution[0]` | `vec3` | Channel 0 resolution `[width, height, 1.0]` (Shadertoy-compatible array) |
+| `iChannelResolution[1]` | `vec3` | Channel 1 resolution |
+| `iChannelResolution[2]` | `vec3` | Channel 2 resolution |
+| `iChannelResolution[3]` | `vec3` | Channel 3 resolution |
+| `iChannelResolution[4]` | `vec3` | Channel 4 (terminal) resolution |
+| `iCubemap` | `samplerCube` | Cubemap texture for environment mapping. See [`cubemap-skybox.glsl`](../shaders/cubemap-skybox.glsl) for example. |
+| `iCubemapResolution` | `vec4` | Cubemap face size `[size, size, 1.0, 0.0]` (not in array, accessed directly) |
+
+### Cursor Uniforms
+
+Ghostty-compatible cursor tracking uniforms (available in both background and cursor shaders). See [`cursor_trail.glsl`](../shaders/cursor_trail.glsl) and [`cursor_glow.glsl`](../shaders/cursor_glow.glsl) for simple examples.
+
+| Uniform | Type | Description |
+|---------|------|-------------|
+| `iCurrentCursor` | `vec4` | Current cursor: `xy` = position (top-left, pixels), `zw` = cell size (pixels) |
+| `iPreviousCursor` | `vec4` | Previous cursor: `xy` = position, `zw` = cell size |
+| `iCurrentCursorColor` | `vec4` | Current cursor RGBA color (with blink opacity in alpha, 0.0-1.0) |
+| `iPreviousCursorColor` | `vec4` | Previous cursor RGBA color |
+| `iTimeCursorChange` | `float` | Time when cursor last moved (same timebase as iTime) |
+
+**Cursor position details:**
+- `iCurrentCursor.xy` is the top-left corner of the cursor cell in pixels
+- `iCurrentCursor.zw` is the cell width and height in pixels
+- To get cursor center: `iCurrentCursor.xy + iCurrentCursor.zw * 0.5`
+
+### Cursor Shader Configuration Uniforms
+
+These uniforms pass cursor shader configuration values to the shader:
+
+| Uniform | Type | Description |
+|---------|------|-------------|
+| `iCursorTrailDuration` | `float` | Trail duration in seconds (from config) |
+| `iCursorGlowRadius` | `float` | Glow radius in pixels (from config) |
+| `iCursorGlowIntensity` | `float` | Glow intensity 0.0-1.0 (from config) |
+| `iCursorShaderColor` | `vec4` | User-configured cursor color `[R, G, B, 1.0]` (0.0-1.0 normalized) |
+
+### Progress Bar Uniforms
+
+Progress bar state from OSC 9;4 (simple) and OSC 934 (named/concurrent) protocols:
+
+| Uniform | Type | Description |
+|---------|------|-------------|
+| `iProgress` | `vec4` | Progress bar state: `x` = state, `y` = percent, `z` = isActive, `w` = activeCount |
+
+**Component details:**
+- `iProgress.x` — State of the simple progress bar: `0` = hidden, `1` = normal, `2` = error, `3` = indeterminate, `4` = warning
+- `iProgress.y` — Progress percentage as `0.0`–`1.0` (from the simple bar's 0–100%)
+- `iProgress.z` — `1.0` if any progress bar (simple or named) is active, `0.0` otherwise
+- `iProgress.w` — Total count of active progress bars (simple + named combined)
+
+**Example — screen edge glow during active progress:**
+```glsl
+void mainImage(out vec4 fragColor, in vec2 fragCoord)
+{
+    vec2 uv = fragCoord / iResolution.xy;
+
+    // Base background color
+    vec3 color = vec3(0.05, 0.05, 0.1);
+
+    // Glow at top edge when progress is active
+    if (iProgress.z > 0.5) {
+        float edge = smoothstep(0.0, 0.15, 1.0 - uv.y);
+        // Color based on state: green=normal, red=error, yellow=warning
+        vec3 glowColor = vec3(0.0, 0.8, 0.2);  // normal (green)
+        if (iProgress.x > 1.5 && iProgress.x < 2.5) glowColor = vec3(0.9, 0.1, 0.1); // error
+        if (iProgress.x > 3.5) glowColor = vec3(0.9, 0.8, 0.1); // warning
+
+        color += glowColor * edge * 0.3 * iProgress.y;
+    }
+
+    fragColor = vec4(color, 1.0);
+}
+```
+
+---
+
+## Creating Custom Shaders
+
+### Basic Structure
+
+Every shader must define a `mainImage` function:
+
+```glsl
+void mainImage(out vec4 fragColor, in vec2 fragCoord)
+{
+    // Normalize coordinates to 0-1 range
+    vec2 uv = fragCoord / iResolution.xy;
+
+    // Sample terminal content (iChannel4 in par-term)
+    vec4 terminal = texture(iChannel4, uv);
+
+    // Apply your effect
+    vec3 color = terminal.rgb;
+
+    // Output with alpha (1.0 = opaque)
+    fragColor = vec4(color, 1.0);
+}
+```
+
+### Shader Modes
+
+**Background-Only Mode** (default, `custom_shader_full_content: false`):
+- Shader output is used as background
+- Terminal text is composited on top, remaining sharp
+- Best for animated backgrounds and non-distorting effects
+
+**Full Content Mode** (`custom_shader_full_content: true`):
+- Shader receives full terminal content via `iChannel4`
+- Shader can distort, warp, or transform text
+- Required for CRT curvature, underwater distortion, etc.
+- See [`crt.glsl`](../shaders/crt.glsl), [`bloom.glsl`](../shaders/bloom.glsl), [`dither.glsl`](../shaders/dither.glsl) for examples
+
+### Shader Metadata Format
+
+Shaders can include embedded configuration via YAML block comment at the start:
+
+```glsl
+/*! par-term shader metadata
+name: My Custom Shader
+author: Your Name
+description: Brief description of what this shader does
+version: 1.0.0
+defaults:
+  animation_speed: 0.5
+  brightness: 0.8
+  text_opacity: 0.9
+  full_content: false
+  channel0: textures/noise.png
+  channel1: null
+  channel2: null
+  channel3: null
+  cubemap: null
+  cubemap_enabled: true
+  use_background_as_channel0: false
+  background_channel0_blend_mode: replace
+*/
+```
+
+All metadata fields are optional. Values that are `null` fall through to global defaults.
+
+### Per-Shader Asset Bundle Manifests
+
+A shader bundle can include one GLSL file plus local textures, cubemap prefixes, a screenshot, and license metadata. Put a JSON manifest in the bundle directory and keep all paths relative to that directory. Required fields are `shader`, `name`, `author`, `description`, and `license`; `author` and `description` are mandatory so installed bundles remain attributable and searchable.
+
+```json
+{
+  "shader": "my-bundle.glsl",
+  "name": "My Bundle",
+  "author": "Your Name",
+  "description": "A readable terminal background with bundled noise and cubemap assets.",
+  "license": "MIT",
+  "textures": [
+    "textures/noise.png"
+  ],
+  "cubemaps": [
+    "cubemaps/studio"
+  ],
+  "screenshot": "screenshots/preview.png"
+}
+```
+
+Manifest validation requires relative paths without `..`. The `shader` path must point to a `.glsl` file. `textures` and `screenshot` entries must point to files. Each `cubemaps` entry is a prefix whose faces must exist as `{prefix}-px`, `{prefix}-nx`, `{prefix}-py`, `{prefix}-ny`, `{prefix}-pz`, and `{prefix}-nz` using `png`, `jpg`, `jpeg`, or `hdr` extensions.
+
+### Shader Uniform Controls
+
+Background shaders can declare Settings UI controls for custom uniforms by placing a `// control ...` comment immediately before a supported uniform declaration. Defaults belong in shader metadata (`defaults.uniforms`), not in the control comment, and user edits are saved as per-shader overrides in `config.yaml`.
+
+```glsl
+/*! par-term shader metadata
+name: "Controlled Shader"
+description: "Shader with expanded Settings controls"
+defaults:
+  uniforms:
+    # Float defaults
+    iGlow: 0.5
+    iFrequency: 1.0
+    iRotation: 45.0      # authored in the declared angle unit
+
+    # Int defaults
+    iOctaves: 4
+    iBlendMode: 0        # select receives/stores the zero-based option index
+    iSourceChannel: 4    # choose among existing iChannel0..iChannel4 bindings
+
+    # Vec2 defaults
+    iFlow: [0.1, -0.2]
+    iOrigin: [0.5, 0.5]
+    iBand: [0.25, 0.75]
+
+    # Bool default
+    iEnabled: true
+
+    # Color defaults
+    iTint: "#66ccff"       # preferred RGB color default
+    iOverlay: "#ff8800cc"  # preferred RGBA color default
+*/
+
+// control slider min=0 max=1 step=0.01
+uniform float iGlow;
+
+// control slider min=0.01 max=100 step=0.01 scale=log label="Frequency"
+uniform float iFrequency;
+
+// control checkbox
+uniform bool iEnabled;
+
+// control color label="Tint"
+uniform vec3 iTint;
+
+// control color label="Overlay"
+uniform vec4 iOverlay;
+
+// control int min=1 max=12 step=1
+uniform int iOctaves;
+
+// control select options="soft,hard,screen,add"
+uniform int iBlendMode;
+
+// control vec2 min=-1 max=1 step=0.01
+uniform vec2 iFlow;
+
+// control point label="Origin"
+uniform vec2 iOrigin;
+
+// control range min=0 max=1 step=0.01
+uniform vec2 iBand;
+
+// control angle unit=degrees
+uniform float iRotation;
+
+// control channel options="0,1,2,3,4"
+uniform int iSourceChannel;
+```
+
+Supported controls:
+
+| Comment | Attached uniform | Settings UI / shader value |
+|---------|------------------|----------------------------|
+| `// control slider min=0 max=1 step=0.01` | `uniform float name;` | Linear slider; shader receives `float` |
+| `// control slider min=0.01 max=100 step=0.01 scale=log` | `uniform float name;` | Logarithmic slider; requires `0 < min < max`; shader receives `float` |
+| `// control checkbox` | `uniform bool name;` | Checkbox; shader receives `bool` |
+| `// control color label="Tint"` | `uniform vec3 name;` | RGB color picker; shader receives `vec3` |
+| `// control color label="Overlay"` | `uniform vec4 name;` | RGBA color picker (`alpha=true` by default); shader receives `vec4` |
+| `// control color alpha=false label="Opaque Overlay"` | `uniform vec4 name;` | RGB color picker with opaque alpha |
+| `// control int min=1 max=12 step=1` | `uniform int name;` | Integer slider; shader receives `int` |
+| `// control select options="soft,hard,screen,add"` | `uniform int name;` | Dropdown; shader receives zero-based option index |
+| `// control vec2 min=-1 max=1 step=0.01` | `uniform vec2 name;` | Two numeric sliders; shader receives `vec2(x, y)` |
+| `// control point label="Origin"` | `uniform vec2 name;` | 0..1 normalized point picker; shader receives `vec2(x, y)` |
+| `// control range min=0 max=1 step=0.01` | `uniform vec2 name;` | Low/high range editor; shader receives `vec2(low, high)` |
+| `// control angle unit=degrees` | `uniform float name;` | Angle editor; default UI unit is degrees; shader receives radians |
+| `// control angle unit=radians` | `uniform float name;` | Angle editor authored in radians; shader receives radians |
+| `// control channel options="0,1,2,3,4"` | `uniform int name;` | Channel selector; shader receives selected channel number |
+
+Control rules and value types:
+
+- Do **not** put `default=` in a control comment. Defaults live in shader metadata under `defaults.uniforms`; per-shader overrides take precedence.
+- `label="Display Name"` is optional and changes the Settings UI label. Labels must be quoted.
+- `slider` and `angle` attach to `uniform float`; `checkbox` to `uniform bool`; `color` to `uniform vec3`/`vec4`; `int`, `select`, and `channel` to `uniform int`; `vec2`, `point`, and `range` to `uniform vec2`.
+- `slider`, `vec2`, and `range` require `min`, `max`, and `step`. `slider scale=log` additionally requires `0 < min < max`.
+- `int` requires `min` and `max`; `step` defaults to `1` when omitted.
+- `select options="..."` is a comma-separated list of display labels. The shader receives/stores the zero-based selected option index.
+- `channel options="..."` is a comma-separated list of channel numbers from `0` through `4`. It only selects among existing `iChannel0`..`iChannel4` sources; it does **not** create texture bindings or configure texture files.
+- `point` is normalized UV space (`0..1` on each axis) and falls back to `[0.5, 0.5]`.
+- `range` writes the lower and upper values as `vec2(low, high)`.
+- `angle` values and defaults are authored in the declared UI unit (`unit=degrees` by default, or `unit=radians`), but the shader always receives radians.
+
+Color controls support these fields:
+
+- `uniform vec3` color controls default to RGB (`alpha=false`). `alpha=true` is invalid for `vec3` and the control is skipped with a warning.
+- `uniform vec4` color controls default to RGBA (`alpha=true`). Omit `alpha` or set `alpha=true` for a color picker with an alpha channel.
+- Use `alpha=false` on `vec4` only to force an RGB picker; the saved/effective alpha is normalized to `1.0`.
+
+Defaults and overrides use normal YAML values:
+
+```yaml
+shader_configs:
+  "controlled_shader.glsl":
+    uniforms:
+      iGlow: 0.75
+      iFrequency: 2.5
+      iOctaves: 6
+      iBlendMode: 2
+      iFlow: [0.0, -0.25]
+      iOrigin: [0.5, 0.4]
+      iBand: [0.2, 0.8]
+      iRotation: 90.0
+      iSourceChannel: 4
+      iEnabled: false
+      iTint: "#99ddff"
+      iOverlay: "#ff880080"
+```
+
+Hex strings are the preferred representation for color defaults and overrides:
+
+- `"#rrggbb"` for RGB / opaque colors
+- `"#rrggbbaa"` for RGBA colors
+
+Normalized float arrays are also accepted on input and are serialized back to hex when saved:
+
+```yaml
+defaults:
+  uniforms:
+    iTint: [0.4, 0.8, 1.0]
+    iOverlay: [1.0, 0.5, 0.0, 0.8]
+```
+
+If neither a per-shader override nor a metadata default exists, fallbacks are:
+
+| Control | Fallback |
+|---------|----------|
+| `slider` | Declared `min` |
+| `checkbox` | `false` |
+| `color` | Opaque white (`#ffffff`) |
+| `int` | Declared `min` |
+| `select` | `0` (first option index) |
+| `vec2` | `[min, min]` |
+| `point` | `[0.5, 0.5]` |
+| `range` | `[min, max]` |
+| `angle` | `0` in the declared UI unit |
+| `channel` | First declared channel option |
+
+Limits are per slot class:
+
+- 16 float controls total (`slider` + `angle`)
+- 16 bool controls (`checkbox`)
+- 16 color controls
+- 16 int controls total (`int` + `select` + `channel`)
+- 16 vec2 controls total (`vec2` + `point` + `range`)
+
+Extra valid controls are ignored with warnings. Malformed control comments also produce warnings in the Settings UI and logs; they are non-fatal unless the shader itself fails GLSL compilation.
+
+When choosing a control type:
+
+- Use `slider` for continuous linear amounts.
+- Use `slider scale=log` for frequency/exposure/gain/radius values spanning orders of magnitude.
+- Use `int` for counts, iterations, samples, octaves, and quantization levels.
+- Use `select` for discrete shader modes; shader receives zero-based option index.
+- Use `vec2` for directions, offsets, scales, and velocities.
+- Use `point` for normalized origins/focal points in 0..1 UV space.
+- Use `range` for min/max thresholds and bands; shader receives `vec2(low, high)`.
+- Use `angle` for rotation/direction; defaults are authored in the declared unit and shaders receive radians.
+- Use `channel` only to choose among existing `iChannel0`..`iChannel4` sources; it does not create texture bindings.
+
+### Porting Shadertoy Shaders
+
+Par-term is fully Shadertoy compatible. When adapting shaders:
+
+1. **Terminal content is on iChannel4**: Use `texture(iChannel4, uv)` to sample terminal content. iChannel0-3 are available for user textures (same as Shadertoy)
+2. **Y-axis matches Shadertoy**: No modifications needed - fragCoord.y=0 at bottom, same as Shadertoy
+3. **iMouse is vec4**: Full Shadertoy compatibility (xy=current position, zw=click position)
+4. **mat2(vec4) construction**: May need to expand to `mat2(v.x, v.y, v.z, v.w)` for GLSL 450 compatibility
+
+---
+
+## Examples
+
+### Simple Background Gradient
+
+A static diagonal gradient:
+
+```glsl
+void mainImage(out vec4 fragColor, in vec2 fragCoord)
+{
+    vec2 uv = fragCoord / iResolution.xy;
+
+    // Diagonal gradient
+    float t = (uv.x + uv.y) * 0.5;
+
+    // Dark blue to dark purple
+    vec3 color1 = vec3(0.05, 0.05, 0.15);
+    vec3 color2 = vec3(0.15, 0.05, 0.15);
+
+    vec3 bg = mix(color1, color2, t);
+
+    fragColor = vec4(bg, 1.0);
+}
+```
+
+### Animated Background
+
+Pulsing color effect:
+
+```glsl
+void mainImage(out vec4 fragColor, in vec2 fragCoord)
+{
+    vec2 uv = fragCoord / iResolution.xy;
+
+    // Animated pulse
+    float pulse = sin(iTime * 2.0) * 0.5 + 0.5;
+
+    // Dark base with subtle color variation
+    vec3 color = vec3(0.05, 0.05, 0.1);
+    color += vec3(0.02, 0.0, 0.05) * pulse;
+
+    // Add radial gradient from center
+    float dist = length(uv - 0.5);
+    color *= 1.0 - dist * 0.5;
+
+    fragColor = vec4(color, 1.0);
+}
+```
+
+### Custom Cursor Trail
+
+Simple fading trail effect:
+
+```glsl
+void mainImage(out vec4 fragColor, in vec2 fragCoord)
+{
+    vec2 uv = fragCoord / iResolution.xy;
+
+    // Sample terminal content
+    vec4 terminal = texture(iChannel4, uv);
+
+    // Get cursor center
+    vec2 cursorCenter = iCurrentCursor.xy + iCurrentCursor.zw * 0.5;
+    vec2 prevCenter = iPreviousCursor.xy + iPreviousCursor.zw * 0.5;
+
+    // Distance from cursor
+    float dist = length(fragCoord - cursorCenter);
+
+    // Glow falloff using config values
+    float glow = 1.0 - smoothstep(0.0, iCursorGlowRadius, dist);
+    glow = pow(glow, 2.0) * iCursorGlowIntensity;
+
+    // Blend glow with cursor color
+    vec3 color = terminal.rgb + iCursorShaderColor.rgb * glow;
+
+    fragColor = vec4(color, terminal.a);
+}
+```
+
+### Key Press Pulse Effect
+
+Visual feedback on keystrokes:
+
+```glsl
+void mainImage(out vec4 fragColor, in vec2 fragCoord)
+{
+    vec2 uv = fragCoord / iResolution.xy;
+    vec4 terminal = texture(iChannel4, uv);
+
+    // Calculate time since last key press
+    float timeSinceKey = iTime - iTimeKeyPress;
+
+    // Exponential decay for smooth falloff
+    float pulse = exp(-timeSinceKey * 6.0);
+    pulse *= step(timeSinceKey, 1.0);  // Only show for 1 second
+
+    // Screen-wide brightness flash
+    vec3 color = terminal.rgb * (1.0 + pulse * 0.15);
+
+    fragColor = vec4(color, terminal.a);
+}
+```
+
+### Using Cubemap Environment
+
+Skybox with animated rotation:
+
+```glsl
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {
+    vec2 uv = (fragCoord - 0.5 * iResolution.xy) / min(iResolution.x, iResolution.y);
+
+    // Create ray direction from camera
+    vec3 rayDir = normalize(vec3(uv.x, uv.y, -1.0));
+
+    // Rotate over time for animation
+    float angle = iTime * 0.2;
+    float c = cos(angle), s = sin(angle);
+    rayDir = vec3(rayDir.x * c - rayDir.z * s, rayDir.y, rayDir.x * s + rayDir.z * c);
+
+    // Sample cubemap
+    vec4 sky = texture(iCubemap, rayDir);
+
+    // Blend with terminal content
+    vec4 terminal = texture(iChannel4, fragCoord / iResolution.xy);
+    fragColor = terminal.a > 0.01 ? terminal : sky;
+}
+```
+
+### Using Channel Textures
+
+Blend a noise texture with the terminal content:
+
+```glsl
+void mainImage(out vec4 fragColor, in vec2 fragCoord)
+{
+    vec2 uv = fragCoord / iResolution.xy;
+
+    // Sample terminal content (iChannel4)
+    vec4 terminal = texture(iChannel4, uv);
+
+    // Sample noise texture (iChannel0 - Shadertoy compatible)
+    // Configure via: custom_shader_channel0: "path/to/noise.png"
+    vec4 noise = texture(iChannel0, uv * 2.0);  // Scale UV for tiling
+
+    // Get texture dimensions if needed
+    vec2 noiseSize = iChannelResolution[0].xy;
+
+    // Blend noise with terminal (subtle overlay)
+    vec3 color = terminal.rgb + noise.rgb * 0.1;
+
+    fragColor = vec4(color, terminal.a);
+}
+```
+
+---
+
+## Troubleshooting
+
+### Shader Not Loading
+
+**Symptom:** No visual effect after enabling shader
+
+**Solutions:**
+- Verify file exists in `~/.config/par-term/shaders/`
+- Check `custom_shader_enabled: true` in config
+- Press `F5` to reload configuration
+- Check terminal output for compilation errors
+
+### Black or White Screen
+
+**Symptom:** Terminal content not visible
+
+**Solutions:**
+- Ensure `fragColor.a = 1.0` for opaque output
+- Verify UV coordinates are in 0.0-1.0 range
+- Check `texture(iChannel4, uv)` sampling for terminal content
+
+### Text Hard to Read
+
+**Symptom:** Text blurry or distorted, or shader background is too bright
+
+**Solutions:**
+- Use `custom_shader_full_content: false` (background-only mode)
+- Increase `custom_shader_text_opacity`
+- Lower `custom_shader_brightness` (e.g., 0.3-0.5) to dim bright shader backgrounds
+- Reduce effect intensity in shader
+
+### Low Frame Rate
+
+**Symptom:** Stuttering or choppy animation
+
+**Solutions:**
+- Reduce shader complexity (fewer loops, simpler math)
+- Lower `custom_shader_animation_speed`
+- Disable animation: `custom_shader_animation: false`
+
+### Default Cursor Showing Through Cursor Shader
+
+**Symptom:** The default block/beam cursor is visible behind or through your cursor shader effect
+
+**Solution:**
+- Set `cursor_shader_hides_cursor: true` in config
+- This tells the renderer to skip drawing the default cursor when a cursor shader is active
+- Recommended for shaders that fully replace the cursor (e.g., `cursor_pacman`, `cursor_orbit`, `cursor_water_tank`)
+
+### Compilation Errors
+
+**Common GLSL issues:**
+- Use `texture()` not `texture2D()`
+- Declare constants with `const` keyword
+- Arrays: `vec3[N] arr = vec3[N](...)`
+- No `#version` directive needed (added automatically)
+
+### Debugging Tips
+
+- Transpiled WGSL is written to `/tmp/par_term_<shader_name>_shader.wgsl`
+- Wrapped GLSL is written to `/tmp/par_term_debug_wrapped.glsl` (last shader only)
+- Enable `shader_hot_reload: true` for faster iteration
+
+---
+
+## Related Documentation
+
+- [Included Shaders](SHADERS.md) - Complete list of all available shaders
+- [Compositor Details](../architecture/COMPOSITOR.md) - Deep dive into the rendering pipeline
+- [README.md](../README.md) - Configuration reference
+- [Shadertoy](https://www.shadertoy.com) - Shader inspiration and examples
+- [Ghostty](https://ghostty.org/) - Compatible shader format reference

@@ -289,5 +289,5 @@ make acp-smoke ACP_TRANSCRIPT=/tmp/acp-debug.log
 
 - [Assistant Panel](ASSISTANT_PANEL.md) - Assistant Panel ACP behavior, custom agents, and Claude+Ollama setup
 - [Logging](LOGGING.md) - par-term logging and debug log workflows
-- [Custom Shaders](CUSTOM_SHADERS.md) - Shader authoring and debugging guidance
+- [Custom Shaders](features/CUSTOM_SHADERS.md) - Shader authoring and debugging guidance
 - [Documentation Style Guide](DOCUMENTATION_STYLE_GUIDE.md) - Documentation standards used for this file

@@ -680,8 +680,8 @@ ai_inspector_custom_agents:
 
 ## Related Documentation
 
-- [Keyboard Shortcuts](KEYBOARD_SHORTCUTS.md) - Full keybinding reference including `Cmd+I` / `Ctrl+Shift+I`
-- [Automation](AUTOMATION.md) - Scripting and automation features including the observer API
-- [Custom Shaders](CUSTOM_SHADERS.md) - Shader creation, Shadertoy compatibility, and debug workflows
-- [Shaders](SHADERS.md) - Built-in shader reference and WGSL shader architecture
+- [Keyboard Shortcuts](guides/KEYBOARD_SHORTCUTS.md) - Full keybinding reference including `Cmd+I` / `Ctrl+Shift+I`
+- [Automation](features/AUTOMATION.md) - Scripting and automation features including the observer API
+- [Custom Shaders](features/CUSTOM_SHADERS.md) - Shader creation, Shadertoy compatibility, and debug workflows
+- [Shaders](features/SHADERS.md) - Built-in shader reference and WGSL shader architecture
 - [ACP Harness](ACP_HARNESS.md) - Reproducible ACP agent testing and transcript capture

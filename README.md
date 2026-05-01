@@ -34,12 +34,12 @@ A cross-platform, GPU-accelerated terminal emulator frontend built with Rust, po
 
 ## Getting Started
 
-New to par-term? The [Getting Started Guide](docs/GETTING_STARTED.md) walks you through installation, essential keyboard shortcuts, fonts, and split panes — everything you need to be productive in under 10 minutes.
+New to par-term? The [Getting Started Guide](docs/guides/GETTING_STARTED.md) walks you through installation, essential keyboard shortcuts, fonts, and split panes — everything you need to be productive in under 10 minutes.
 
-- **[Getting Started Guide](docs/GETTING_STARTED.md)** — Install, launch, and configure par-term
+- **[Getting Started Guide](docs/guides/GETTING_STARTED.md)** — Install, launch, and configure par-term
 - **[Installation](#installation)** — Platform-specific install instructions below
 - **[Configuration Reference](docs/CONFIG_REFERENCE.md)** — All 200+ configuration options
-- **[Keyboard Shortcuts](docs/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
+- **[Keyboard Shortcuts](docs/guides/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
 
 ## What's New in 0.30.12
 
@@ -98,46 +98,46 @@ For the full history of changes across all versions, see [CHANGELOG.md](CHANGELO
 ## Documentation
 
 ### Getting Started
-- **[Getting Started Guide](docs/GETTING_STARTED.md)** - Install, launch, and configure par-term in under 10 minutes.
-- **[Quick Start Fonts Guide](docs/QUICK_START_FONTS.md)** - Get up and running with custom fonts.
+- **[Getting Started Guide](docs/guides/GETTING_STARTED.md)** - Install, launch, and configure par-term in under 10 minutes.
+- **[Quick Start Fonts Guide](docs/guides/QUICK_START_FONTS.md)** - Get up and running with custom fonts.
 - **[Configuration Examples](examples/README.md)** - Annotated YAML configuration examples.
-- **[Environment Variables](docs/ENVIRONMENT_VARIABLES.md)** - All recognized environment variables.
+- **[Environment Variables](docs/guides/ENVIRONMENT_VARIABLES.md)** - All recognized environment variables.
 
 ### Features
-- **[Keyboard Shortcuts](docs/KEYBOARD_SHORTCUTS.md)** - Complete keyboard shortcut reference.
-- **[Mouse Features](docs/MOUSE_FEATURES.md)** - Text selection, URL handling, and pane interaction.
-- **[Semantic History](docs/SEMANTIC_HISTORY.md)** - Click file paths to open in your editor.
-- **[Automation](docs/AUTOMATION.md)** - Regex triggers, actions, and coprocesses.
-- **[Profiles](docs/PROFILES.md)** - Profile system for saving terminal configurations.
-- **[Session Logging](docs/SESSION_LOGGING.md)** - Recording sessions in Plain/HTML/Asciicast formats.
-- **[Search](docs/SEARCH.md)** - Terminal search with regex, case-sensitive, and whole-word modes.
-- **[Paste Special](docs/PASTE_SPECIAL.md)** - 28 clipboard transformations for pasting.
-- **[Copy Mode](docs/COPY_MODE.md)** - Vi-style keyboard-driven text selection and navigation.
-- **[Snippets & Actions](docs/SNIPPETS.md)** - Text snippets with variables, custom actions, and keybinding management.
-- **[Progress Bars](docs/PROGRESS_BARS.md)** - OSC 9;4 and OSC 934 progress bar rendering and shader integration.
-- **[Accessibility](docs/ACCESSIBILITY.md)** - Minimum contrast enforcement and display options.
-- **[Integrations](docs/INTEGRATIONS.md)** - Shell integration and shader installation system.
-- **[Window Management](docs/WINDOW_MANAGEMENT.md)** - Window types, multi-monitor, and transparency.
-- **[Window Arrangements](docs/ARRANGEMENTS.md)** - Save and restore window layouts with auto-restore.
-- **[Command Separators](docs/COMMAND_SEPARATORS.md)** - Horizontal lines between shell commands with exit-code coloring.
-- **[SSH Host Management](docs/SSH.md)** - SSH quick connect, host discovery, and SSH profiles.
-- **[Status Bar](docs/STATUS_BAR.md)** - Configurable status bar with widgets and system monitoring.
-- **[Tabs](docs/TABS.md)** - Tab management, duplicate tab, and tab behavior.
+- **[Keyboard Shortcuts](docs/guides/KEYBOARD_SHORTCUTS.md)** - Complete keyboard shortcut reference.
+- **[Mouse Features](docs/features/MOUSE_FEATURES.md)** - Text selection, URL handling, and pane interaction.
+- **[Semantic History](docs/features/SEMANTIC_HISTORY.md)** - Click file paths to open in your editor.
+- **[Automation](docs/features/AUTOMATION.md)** - Regex triggers, actions, and coprocesses.
+- **[Profiles](docs/features/PROFILES.md)** - Profile system for saving terminal configurations.
+- **[Session Logging](docs/features/SESSION_LOGGING.md)** - Recording sessions in Plain/HTML/Asciicast formats.
+- **[Search](docs/features/SEARCH.md)** - Terminal search with regex, case-sensitive, and whole-word modes.
+- **[Paste Special](docs/features/PASTE_SPECIAL.md)** - 28 clipboard transformations for pasting.
+- **[Copy Mode](docs/features/COPY_MODE.md)** - Vi-style keyboard-driven text selection and navigation.
+- **[Snippets & Actions](docs/features/SNIPPETS.md)** - Text snippets with variables, custom actions, and keybinding management.
+- **[Progress Bars](docs/features/PROGRESS_BARS.md)** - OSC 9;4 and OSC 934 progress bar rendering and shader integration.
+- **[Accessibility](docs/features/ACCESSIBILITY.md)** - Minimum contrast enforcement and display options.
+- **[Integrations](docs/features/INTEGRATIONS.md)** - Shell integration and shader installation system.
+- **[Window Management](docs/features/WINDOW_MANAGEMENT.md)** - Window types, multi-monitor, and transparency.
+- **[Window Arrangements](docs/features/ARRANGEMENTS.md)** - Save and restore window layouts with auto-restore.
+- **[Command Separators](docs/features/COMMAND_SEPARATORS.md)** - Horizontal lines between shell commands with exit-code coloring.
+- **[SSH Host Management](docs/features/SSH.md)** - SSH quick connect, host discovery, and SSH profiles.
+- **[Status Bar](docs/features/STATUS_BAR.md)** - Configurable status bar with widgets and system monitoring.
+- **[Tabs](docs/features/TABS.md)** - Tab management, duplicate tab, and tab behavior.
 - **[Assistant Panel](docs/ASSISTANT_PANEL.md)** - ACP agent chat, custom agents (UI/TOML/YAML), shader assistant, and Claude+Ollama setup/troubleshooting.
-- **[File Transfers](docs/FILE_TRANSFERS.md)** - OSC 1337 file transfers with shell utilities.
-- **[Self-Update](docs/SELF_UPDATE.md)** - In-place update capability via CLI and Settings UI.
+- **[File Transfers](docs/features/FILE_TRANSFERS.md)** - OSC 1337 file transfers with shell utilities.
+- **[Self-Update](docs/features/SELF_UPDATE.md)** - In-place update capability via CLI and Settings UI.
 - **[Debug Logging](docs/LOGGING.md)** - Configurable log levels and troubleshooting.
 
 ### Shaders
 - **[Shader Gallery](https://paulrobello.github.io/par-term/)** - Visual gallery of 73 included shaders with screenshots.
-- **[Shader Reference](docs/SHADERS.md)** - Complete list of bundled shaders.
-- **[Custom Shaders Guide](docs/CUSTOM_SHADERS.md)** - Create custom GLSL shaders with hot reload and per-shader config.
-- **[Compositor Details](docs/COMPOSITOR.md)** - Deep dive into the rendering architecture.
+- **[Shader Reference](docs/features/SHADERS.md)** - Complete list of bundled shaders.
+- **[Custom Shaders Guide](docs/features/CUSTOM_SHADERS.md)** - Create custom GLSL shaders with hot reload and per-shader config.
+- **[Compositor Details](docs/architecture/COMPOSITOR.md)** - Deep dive into the rendering architecture.
 
 ### Technical
-- **[Architecture Overview](docs/ARCHITECTURE.md)** - High-level system architecture and components.
+- **[Architecture Overview](docs/architecture/ARCHITECTURE.md)** - High-level system architecture and components.
 - **[API Documentation Index](docs/API.md)** - Public types across all workspace crates.
-- **[Environment Variables](docs/ENVIRONMENT_VARIABLES.md)** - Runtime environment variable reference.
+- **[Environment Variables](docs/guides/ENVIRONMENT_VARIABLES.md)** - Runtime environment variable reference.
 - **[Core Library](https://github.com/paulrobello/par-term-emu-core-rust)** - Documentation for the underlying terminal engine.
 
 ## Installation
@@ -302,7 +302,7 @@ cursor_shader: "cursor_glow.glsl"
 cursor_shader_enabled: true
 ```
 
-See the [Shader Gallery](docs/SHADERS.md) for previews of all included shaders.
+See the [Shader Gallery](docs/features/SHADERS.md) for previews of all included shaders.
 
 ### Linting Shaders
 
@@ -337,7 +337,7 @@ Essential shortcuts to get started. On macOS, keybindings use `Cmd`; on Linux/Wi
 | `F11` | Toggle fullscreen |
 | `F12` / `Cmd + ,` | Open Settings |
 
-See the [full keyboard shortcuts reference](docs/KEYBOARD_SHORTCUTS.md) for the complete list, including copy mode, pane management, shader toggles, SSH quick connect, and all customizable keybindings.
+See the [full keyboard shortcuts reference](docs/guides/KEYBOARD_SHORTCUTS.md) for the complete list, including copy mode, pane management, shader toggles, SSH quick connect, and all customizable keybindings.
 
 ## Configuration
 
