@@ -90,7 +90,7 @@ char_spacing: 0.6    # 0.5 = narrow, 0.6 = default, 0.7 = wide
 #   - Kerning: Proper spacing between characters
 #
 # Note: Requires fonts with OpenType features (Fira Code, JetBrains Mono, etc.)
-enable_text_shaping: false  # Set to true to enable (experimental)
+enable_text_shaping: false  # Set to true to enable text shaping
 
 # Enable ligatures (requires enable_text_shaping: true)
 # Combines character sequences into single glyphs (fi → ﬁ, -> → →)

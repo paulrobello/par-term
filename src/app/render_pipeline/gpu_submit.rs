@@ -19,6 +19,7 @@ use super::types::{FrameRenderData, PostRenderActions};
 use crate::app::window_state::WindowState;
 use crate::progress_bar::ProgressBarSnapshot;
 use crate::ui_constants::VISUAL_BELL_FLASH_DURATION_MS;
+use par_term_render::RenderError;
 use wgpu::SurfaceError;
 
 impl WindowState {
@@ -458,6 +459,19 @@ impl WindowState {
                             }
                             _ => {
                                 log::error!("Surface error: {:?}", surface_error);
+                            }
+                        }
+                    } else if let Some(render_error) = e.downcast_ref::<RenderError>() {
+                        match render_error {
+                            RenderError::ShaderUnavailable(msg) => {
+                                log::warn!(
+                                    "Shader renderer unavailable, reconfiguring: {}",
+                                    msg
+                                );
+                                self.force_surface_reconfigure();
+                            }
+                            _ => {
+                                log::error!("Render error: {}", e);
                             }
                         }
                     } else {

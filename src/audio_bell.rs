@@ -1,16 +1,31 @@
+// ---------------------------------------------------------------------------
+// Full rodio-backed implementation (feature = "audio" enabled)
+// ---------------------------------------------------------------------------
+
+#[cfg(feature = "audio")]
 use parking_lot::Mutex;
+#[cfg(feature = "audio")]
 use rodio::{DeviceSinkBuilder, MixerDeviceSink, Player, Source};
+#[cfg(feature = "audio")]
 use std::sync::Arc;
+#[cfg(feature = "audio")]
 use std::time::Duration;
 
-/// Audio bell manager for playing terminal bell sounds
+/// Audio bell manager for playing terminal bell sounds.
+///
+/// When the `audio` feature is enabled this uses `rodio` for real audio
+/// playback. When disabled, all methods are no-ops so callers never need
+/// conditional code.
 pub struct AudioBell {
     /// Audio output device sink handle (kept alive for the duration of the application)
+    #[cfg(feature = "audio")]
     stream: Option<MixerDeviceSink>,
     /// Audio player for playback
+    #[cfg(feature = "audio")]
     sink: Option<Arc<Mutex<Player>>>,
 }
 
+#[cfg(feature = "audio")]
 impl Drop for AudioBell {
     fn drop(&mut self) {
         // Stop and clear the sink BEFORE forgetting the stream
@@ -31,6 +46,9 @@ impl Drop for AudioBell {
     }
 }
 
+// ---- audio feature enabled -------------------------------------------------
+
+#[cfg(feature = "audio")]
 impl AudioBell {
     /// Create a new audio bell manager
     pub fn new() -> Result<Self, String> {
@@ -152,6 +170,7 @@ impl AudioBell {
     }
 }
 
+#[cfg(feature = "audio")]
 impl Default for AudioBell {
     fn default() -> Self {
         Self::new().unwrap_or_else(|e| {
@@ -161,8 +180,42 @@ impl Default for AudioBell {
     }
 }
 
-#[cfg(test)]
-mod tests {
+// ---- audio feature disabled (no-op stub) -----------------------------------
+
+#[cfg(not(feature = "audio"))]
+impl AudioBell {
+    /// Audio is disabled at compile time; always returns the no-op stub.
+    pub fn new() -> Result<Self, String> {
+        Ok(Self::disabled())
+    }
+
+    /// Create a no-op audio bell (no audio hardware is used).
+    pub fn disabled() -> Self {
+        Self {}
+    }
+
+    /// No-op — audio feature is disabled.
+    pub fn play(&self, _volume: u8) {}
+
+    /// No-op — audio feature is disabled.
+    pub fn play_tone(&self, _volume: u8, _frequency: f32, _duration_ms: u64) {}
+
+    /// No-op — audio feature is disabled.
+    pub fn play_file(&self, _volume: u8, _path: &std::path::Path) {}
+
+    /// No-op — audio feature is disabled.
+    pub fn play_alert(&self, _config: &crate::config::AlertSoundConfig) {}
+}
+
+#[cfg(not(feature = "audio"))]
+impl Default for AudioBell {
+    fn default() -> Self {
+        Self::disabled()
+    }
+}
+
+#[cfg(all(test, feature = "audio"))]
+mod tests_audio {
     use super::*;
 
     #[test]
@@ -207,5 +260,30 @@ mod tests {
         let bell = AudioBell::disabled();
         // Should simply do nothing, not panic
         bell.play(50);
+    }
+}
+
+#[cfg(all(test, not(feature = "audio")))]
+mod tests_no_audio {
+    use super::*;
+
+    #[test]
+    fn test_noop_bell_new() {
+        let bell = AudioBell::new();
+        assert!(bell.is_ok());
+    }
+
+    #[test]
+    fn test_noop_bell_default() {
+        let _bell = AudioBell::default();
+    }
+
+    #[test]
+    fn test_noop_bell_play() {
+        let bell = AudioBell::disabled();
+        bell.play(50);
+        bell.play_tone(50, 800.0, 100);
+        bell.play_file(50, std::path::Path::new("/nonexistent"));
+        bell.play_alert(&crate::config::AlertSoundConfig::default());
     }
 }

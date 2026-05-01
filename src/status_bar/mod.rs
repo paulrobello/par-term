@@ -47,7 +47,7 @@ use crate::config::{Config, StatusBarPosition};
 use config::StatusBarSection;
 use git_poller::GitBranchPoller;
 use system_monitor::SystemMonitor;
-use widgets::{WidgetContext, sorted_widgets_for_section, widget_text};
+use widgets::{sorted_widgets_for_section, widget_text, WidgetContext};
 
 pub use git_poller::GitStatus;
 

@@ -1,8 +1,6 @@
 //! Integration tests for environment variable substitution, allowlists,
 //! tab bar position, auto dark mode, and auto tab style config settings.
 
-#![allow(clippy::field_reassign_with_default)]
-
 use par_term::config::{
     Config, TabBarPosition, TabStyle, is_env_var_allowed, substitute_variables,
     substitute_variables_with_allowlist,
@@ -316,8 +314,10 @@ fn test_tab_bar_position_default() {
 fn test_tab_bar_position_serialization() {
     // Round-trip serialization for all variants
     for &position in TabBarPosition::all() {
-        let mut config = Config::default();
-        config.tab_bar_position = position;
+        let config = Config {
+            tab_bar_position: position,
+            ..Config::default()
+        };
 
         let yaml = serde_yaml_ng::to_string(&config).unwrap();
         let deserialized: Config = serde_yaml_ng::from_str(&yaml).unwrap();
@@ -368,9 +368,11 @@ tab_bar_width: 250.0
 
 #[test]
 fn test_tab_bar_width_yaml_serialization() {
-    let mut config = Config::default();
-    config.tab_bar_position = TabBarPosition::Left;
-    config.tab_bar_width = 200.0;
+    let config = Config {
+        tab_bar_position: TabBarPosition::Left,
+        tab_bar_width: 200.0,
+        ..Config::default()
+    };
 
     let yaml = serde_yaml_ng::to_string(&config).unwrap();
     assert!(yaml.contains("tab_bar_position: left"));
@@ -391,8 +393,10 @@ fn test_auto_dark_mode_defaults() {
 
 #[test]
 fn test_apply_system_theme_disabled() {
-    let mut config = Config::default();
-    config.auto_dark_mode = false;
+    let mut config = Config {
+        auto_dark_mode: false,
+        ..Config::default()
+    };
     // Should not change theme when auto_dark_mode is off
     assert!(!config.apply_system_theme(true));
     assert!(!config.apply_system_theme(false));
@@ -401,10 +405,12 @@ fn test_apply_system_theme_disabled() {
 
 #[test]
 fn test_apply_system_theme_dark() {
-    let mut config = Config::default();
-    config.auto_dark_mode = true;
-    config.theme = "light-background".to_string();
-    config.dark_theme = "dracula".to_string();
+    let mut config = Config {
+        auto_dark_mode: true,
+        theme: "light-background".to_string(),
+        dark_theme: "dracula".to_string(),
+        ..Config::default()
+    };
 
     assert!(config.apply_system_theme(true));
     assert_eq!(config.theme, "dracula");
@@ -412,10 +418,12 @@ fn test_apply_system_theme_dark() {
 
 #[test]
 fn test_apply_system_theme_light() {
-    let mut config = Config::default();
-    config.auto_dark_mode = true;
-    config.theme = "dark-background".to_string();
-    config.light_theme = "solarized-light".to_string();
+    let mut config = Config {
+        auto_dark_mode: true,
+        theme: "dark-background".to_string(),
+        light_theme: "solarized-light".to_string(),
+        ..Config::default()
+    };
 
     assert!(config.apply_system_theme(false));
     assert_eq!(config.theme, "solarized-light");
@@ -423,10 +431,12 @@ fn test_apply_system_theme_light() {
 
 #[test]
 fn test_apply_system_theme_no_change() {
-    let mut config = Config::default();
-    config.auto_dark_mode = true;
-    config.theme = "dark-background".to_string();
-    config.dark_theme = "dark-background".to_string();
+    let mut config = Config {
+        auto_dark_mode: true,
+        theme: "dark-background".to_string(),
+        dark_theme: "dark-background".to_string(),
+        ..Config::default()
+    };
 
     // Already using the dark theme, should return false (no change)
     assert!(!config.apply_system_theme(true));
@@ -469,17 +479,21 @@ fn test_auto_tab_style_defaults() {
 
 #[test]
 fn test_apply_system_tab_style_disabled_when_not_automatic() {
-    let mut config = Config::default();
-    config.tab_style = TabStyle::Dark;
+    let mut config = Config {
+        tab_style: TabStyle::Dark,
+        ..Config::default()
+    };
     assert!(!config.apply_system_tab_style(true));
     assert!(!config.apply_system_tab_style(false));
 }
 
 #[test]
 fn test_apply_system_tab_style_dark() {
-    let mut config = Config::default();
-    config.tab_style = TabStyle::Automatic;
-    config.dark_tab_style = TabStyle::HighContrast;
+    let mut config = Config {
+        tab_style: TabStyle::Automatic,
+        dark_tab_style: TabStyle::HighContrast,
+        ..Config::default()
+    };
 
     assert!(config.apply_system_tab_style(true));
     // Should have applied HighContrast colors but kept Automatic as the tab_style
@@ -490,9 +504,11 @@ fn test_apply_system_tab_style_dark() {
 
 #[test]
 fn test_apply_system_tab_style_light() {
-    let mut config = Config::default();
-    config.tab_style = TabStyle::Automatic;
-    config.light_tab_style = TabStyle::Light;
+    let mut config = Config {
+        tab_style: TabStyle::Automatic,
+        light_tab_style: TabStyle::Light,
+        ..Config::default()
+    };
 
     assert!(config.apply_system_tab_style(false));
     assert_eq!(config.tab_style, TabStyle::Automatic);
@@ -502,9 +518,11 @@ fn test_apply_system_tab_style_light() {
 
 #[test]
 fn test_apply_system_tab_style_preserves_automatic() {
-    let mut config = Config::default();
-    config.tab_style = TabStyle::Automatic;
-    config.dark_tab_style = TabStyle::Compact;
+    let mut config = Config {
+        tab_style: TabStyle::Automatic,
+        dark_tab_style: TabStyle::Compact,
+        ..Config::default()
+    };
 
     config.apply_system_tab_style(true);
     // tab_style must remain Automatic after applying

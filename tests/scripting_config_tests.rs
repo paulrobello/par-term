@@ -103,35 +103,36 @@ fn test_script_config_with_env_vars() {
 name: env-test
 script_path: /bin/env-script
 env_vars:
-  API_KEY: secret123
+  API_KEY: test_key_placeholder_for_parsing
   DEBUG: "true"
 "#;
     let script: ScriptConfig = serde_yaml_ng::from_str(yaml).unwrap();
-    assert_eq!(script.env_vars.get("API_KEY").unwrap(), "secret123");
+    assert_eq!(script.env_vars.get("API_KEY").unwrap(), "test_key_placeholder_for_parsing");
     assert_eq!(script.env_vars.get("DEBUG").unwrap(), "true");
     assert_eq!(script.env_vars.len(), 2);
 }
 
 #[test]
-#[allow(clippy::field_reassign_with_default)]
 fn test_config_with_scripts_yaml_roundtrip() {
-    let mut config = Config::default();
-    config.scripts = vec![ScriptConfig {
-        name: "logger".to_string(),
-        enabled: true,
-        script_path: "/usr/local/bin/logger.py".to_string(),
-        args: vec!["--output".to_string(), "/tmp/log.txt".to_string()],
-        auto_start: true,
-        restart_policy: RestartPolicy::Always,
-        restart_delay_ms: 1000,
-        subscriptions: vec!["output".to_string()],
-        env_vars: HashMap::new(),
-        allow_write_text: false,
-        allow_run_command: false,
-        allow_change_config: false,
-        write_text_rate_limit: 0,
-        run_command_rate_limit: 0,
-    }];
+    let config = Config {
+        scripts: vec![ScriptConfig {
+            name: "logger".to_string(),
+            enabled: true,
+            script_path: "/usr/local/bin/logger.py".to_string(),
+            args: vec!["--output".to_string(), "/tmp/log.txt".to_string()],
+            auto_start: true,
+            restart_policy: RestartPolicy::Always,
+            restart_delay_ms: 1000,
+            subscriptions: vec!["output".to_string()],
+            env_vars: HashMap::new(),
+            allow_write_text: false,
+            allow_run_command: false,
+            allow_change_config: false,
+            write_text_rate_limit: 0,
+            run_command_rate_limit: 0,
+        }],
+        ..Config::default()
+    };
 
     let yaml = serde_yaml_ng::to_string(&config).unwrap();
     let deserialized: Config = serde_yaml_ng::from_str(&yaml).unwrap();

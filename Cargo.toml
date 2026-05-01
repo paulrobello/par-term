@@ -156,7 +156,7 @@ par-term-keybindings = { path = "par-term-keybindings", version = "0.1.8" }
 par-term-scripting = { path = "par-term-scripting", version = "0.1.8" }
 
 # SSH host management and discovery
-par-term-ssh = { path = "par-term-ssh", version = "0.1.4" }
+par-term-ssh = { path = "par-term-ssh", version = "0.1.4", default-features = false }
 
 # Self-update and update-check system
 par-term-update = { path = "par-term-update", version = "0.2.5" }
@@ -316,7 +316,7 @@ default = ["audio", "mermaid", "system-monitor", "mdns"]
 audio = ["dep:rodio"]
 mermaid = ["dep:mermaid-rs-renderer", "dep:resvg"]
 system-monitor = ["dep:sysinfo"]
-mdns = ["dep:mdns-sd"]
+mdns = ["dep:mdns-sd", "par-term-ssh/mdns"]
 dev-tools = []  # Enable to build test-cr and test-grid utilities
 
 [[bin]]

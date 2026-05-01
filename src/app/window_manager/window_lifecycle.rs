@@ -263,7 +263,6 @@ impl WindowManager {
     ///   is still performed once globally via `self.menu.is_none()`)
     ///
     /// Returns the new `WindowId`, or `None` on failure.
-    #[allow(dead_code)]
     pub(crate) fn create_window_for_moved_tab(
         &mut self,
         event_loop: &winit::event_loop::ActiveEventLoop,
@@ -393,7 +392,6 @@ impl WindowManager {
     /// full rect of the new window stays inside the source's monitor. If clamping
     /// would require moving back across the source, returns the source's exact
     /// outer position (new window stacks directly on top of the source).
-    #[allow(dead_code)]
     pub(crate) fn compute_moved_tab_outer_position(
         event_loop: &winit::event_loop::ActiveEventLoop,
         source_outer_pos: winit::dpi::PhysicalPosition<i32>,
@@ -589,7 +587,6 @@ impl WindowManager {
     ///
     /// Label format: `Window N - <active tab title>`, falling back to `Window N`
     /// if the active tab has no meaningful title.
-    #[allow(dead_code)]
     pub(crate) fn other_window_labels(
         &self,
         source_window_id: WindowId,
@@ -625,7 +622,6 @@ impl WindowManager {
     /// 4. `insert_tab_at` end of destination, rebind `start_refresh_task` against
     ///    the destination's `Arc<Window>`.
     /// 5. Focus destination window. If the source is now empty, close it.
-    #[allow(dead_code)]
     pub(crate) fn move_tab(
         &mut self,
         event_loop: &ActiveEventLoop,

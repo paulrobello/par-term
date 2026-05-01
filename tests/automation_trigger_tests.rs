@@ -262,31 +262,32 @@ command: /bin/cat
 }
 
 #[test]
-#[allow(clippy::field_reassign_with_default)]
 fn test_config_with_triggers_and_coprocesses_yaml_roundtrip() {
-    let mut config = Config::default();
-    config.triggers = vec![TriggerConfig {
-        name: "error".to_string(),
-        pattern: "ERROR".to_string(),
-        enabled: true,
-        actions: vec![TriggerActionConfig::Highlight {
-            fg: Some([255, 0, 0]),
-            bg: None,
-            duration_ms: 5000,
+    let config = Config {
+        triggers: vec![TriggerConfig {
+            name: "error".to_string(),
+            pattern: "ERROR".to_string(),
+            enabled: true,
+            actions: vec![TriggerActionConfig::Highlight {
+                fg: Some([255, 0, 0]),
+                bg: None,
+                duration_ms: 5000,
+            }],
+            prompt_before_run: true,
+            i_accept_the_risk: false,
+            allowed_commands: vec![],
         }],
-        prompt_before_run: true,
-        i_accept_the_risk: false,
-        allowed_commands: vec![],
-    }];
-    config.coprocesses = vec![CoprocessDefConfig {
-        name: "logger".to_string(),
-        command: "/usr/bin/tee".to_string(),
-        args: vec!["/tmp/log.txt".to_string()],
-        auto_start: false,
-        copy_terminal_output: true,
-        restart_policy: RestartPolicy::Never,
-        restart_delay_ms: 0,
-    }];
+        coprocesses: vec![CoprocessDefConfig {
+            name: "logger".to_string(),
+            command: "/usr/bin/tee".to_string(),
+            args: vec!["/tmp/log.txt".to_string()],
+            auto_start: false,
+            copy_terminal_output: true,
+            restart_policy: RestartPolicy::Never,
+            restart_delay_ms: 0,
+        }],
+        ..Config::default()
+    };
 
     let yaml = serde_yaml_ng::to_string(&config).unwrap();
     let deserialized: Config = serde_yaml_ng::from_str(&yaml).unwrap();

@@ -58,7 +58,7 @@ pub fn config_with_shader_dir() -> (Config, TempDir) {
     .expect("Failed to write stub shader");
 
     let mut config = Config::default();
-    config.custom_shader = Some(
+    config.shader.custom_shader = Some(
         shader_path
             .to_str()
             .expect("shader path is valid UTF-8")

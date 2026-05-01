@@ -1,5 +1,7 @@
 # par-term Documentation
 
+> **Note**: The canonical project README is at the repository root ([../README.md](../README.md)). This file is the documentation index for the `docs/` directory.
+
 Navigation index for all par-term documentation. Start with the [Getting Started](GETTING_STARTED.md) guide if you are new, or use the tables below to jump directly to a topic.
 
 ## Getting Started

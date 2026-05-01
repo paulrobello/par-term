@@ -121,6 +121,15 @@ pub enum RenderError {
     CubemapFaceNotFound(String),
 
     // -----------------------------------------------------------------------
+    // Shader / renderer state
+    // -----------------------------------------------------------------------
+    /// A shader renderer that was previously active is no longer available,
+    /// typically due to GPU device loss. The frame should be skipped and
+    /// reinitialization attempted on the next frame.
+    #[error("Shader renderer unavailable (possible GPU device loss): {0}")]
+    ShaderUnavailable(String),
+
+    // -----------------------------------------------------------------------
     // Surface / presentation
     // -----------------------------------------------------------------------
     /// `Surface::get_current_texture()` failed (timeout, outdated, lost, ...).

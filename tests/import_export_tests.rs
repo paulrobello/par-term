@@ -1,7 +1,5 @@
 //! Tests for import/export preferences functionality.
 
-#![allow(clippy::field_reassign_with_default)]
-
 use par_term::config::Config;
 use par_term::settings_ui::advanced_tab::merge_config;
 
@@ -36,13 +34,17 @@ font_family: "Fira Code"
 
 #[test]
 fn test_merge_config_only_overrides_non_defaults() {
-    let mut current = Config::default();
-    current.cols = 100; // User's custom value
-    current.rows = 30; // User's custom value
+    let mut current = Config {
+        cols: 100,
+        rows: 30,
+        ..Config::default()
+    };
 
     // Imported config only changes font_size (non-default value)
-    let mut imported = Config::default();
-    imported.font_size = 18.0;
+    let imported = Config {
+        font_size: 18.0,
+        ..Config::default()
+    };
     // cols and rows are still defaults (80, 24) in imported
 
     merge_config(&mut current, &imported);
@@ -56,9 +58,11 @@ fn test_merge_config_only_overrides_non_defaults() {
 
 #[test]
 fn test_merge_config_preserves_current_when_imported_is_default() {
-    let mut current = Config::default();
-    current.font_family = "Hack".to_string();
-    current.theme = "my-custom-theme".to_string();
+    let mut current = Config {
+        font_family: "Hack".to_string(),
+        theme: "my-custom-theme".to_string(),
+        ..Config::default()
+    };
 
     let imported = Config::default(); // All defaults
 
@@ -71,13 +75,21 @@ fn test_merge_config_preserves_current_when_imported_is_default() {
 
 #[test]
 fn test_merge_config_overrides_multiple_non_default_fields() {
-    let mut current = Config::default();
-    current.cols = 100;
+    let mut current = Config {
+        cols: 100,
+        ..Config::default()
+    };
 
-    let mut imported = Config::default();
-    imported.font_size = 16.0;
-    imported.font_family = "Fira Code".to_string();
-    imported.scrollback.scrollback_lines = 50000;
+    use par_term::config::config::ScrollbackConfig;
+    let imported = Config {
+        font_size: 16.0,
+        font_family: "Fira Code".to_string(),
+        scrollback: ScrollbackConfig {
+            scrollback_lines: 50000,
+            ..ScrollbackConfig::default()
+        },
+        ..Config::default()
+    };
 
     merge_config(&mut current, &imported);
 

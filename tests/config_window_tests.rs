@@ -3,8 +3,6 @@
 //! Covers: window type, target monitor/space, session logging, startup directory modes,
 //! and effective startup directory resolution.
 
-#![allow(clippy::field_reassign_with_default)]
-
 use par_term::config::{Config, SessionLogFormat, StartupDirectoryMode, WindowType};
 
 // ============================================================================
@@ -81,11 +79,13 @@ show_window_number: true
 
 #[test]
 fn test_config_window_management_yaml_serialization() {
-    let mut config = Config::default();
-    config.window_type = WindowType::Fullscreen;
-    config.target_monitor = Some(2);
-    config.lock_window_size = true;
-    config.show_window_number = true;
+    let config = Config {
+        window_type: WindowType::Fullscreen,
+        target_monitor: Some(2),
+        lock_window_size: true,
+        show_window_number: true,
+        ..Config::default()
+    };
 
     let yaml = serde_yaml_ng::to_string(&config).unwrap();
     assert!(yaml.contains("window_type: fullscreen"));
@@ -144,8 +144,10 @@ target_space: null
 
 #[test]
 fn test_config_target_space_yaml_serialization() {
-    let mut config = Config::default();
-    config.target_space = Some(5);
+    let config = Config {
+        target_space: Some(5),
+        ..Config::default()
+    };
 
     let yaml = serde_yaml_ng::to_string(&config).unwrap();
     assert!(yaml.contains("target_space: 5"));
@@ -238,10 +240,12 @@ archive_on_close: false
 
 #[test]
 fn test_session_logging_yaml_serialization() {
-    let mut config = Config::default();
-    config.auto_log_sessions = true;
-    config.session_log_format = SessionLogFormat::Html;
-    config.session_log_directory = "/var/log/terminal".to_string();
+    let config = Config {
+        auto_log_sessions: true,
+        session_log_format: SessionLogFormat::Html,
+        session_log_directory: "/var/log/terminal".to_string(),
+        ..Config::default()
+    };
 
     let yaml = serde_yaml_ng::to_string(&config).unwrap();
     assert!(yaml.contains("auto_log_sessions: true"));
@@ -447,9 +451,11 @@ startup_directory: "~"
 
 #[test]
 fn test_startup_directory_yaml_serialization() {
-    let mut config = Config::default();
-    config.startup_directory_mode = StartupDirectoryMode::Custom;
-    config.startup_directory = Some("~/Projects".to_string());
+    let config = Config {
+        startup_directory_mode: StartupDirectoryMode::Custom,
+        startup_directory: Some("~/Projects".to_string()),
+        ..Config::default()
+    };
 
     let yaml = serde_yaml_ng::to_string(&config).unwrap();
     assert!(yaml.contains("startup_directory_mode: custom"));

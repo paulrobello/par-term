@@ -4,12 +4,11 @@
 //! Data is shared via `Arc<parking_lot::Mutex<...>>` for lock-free reads from
 //! the render thread.
 
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::thread::JoinHandle;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
-use parking_lot::Mutex;
+// ============================================================================
+// Shared types (always compiled)
+// ============================================================================
 
 /// Snapshot of system resource usage.
 #[derive(Debug, Clone, Default)]
@@ -28,154 +27,228 @@ pub struct SystemMonitorData {
     pub last_update: Option<Instant>,
 }
 
-/// Background system resource monitor.
-///
-/// Spawns a polling thread that periodically refreshes CPU, memory, and
-/// network statistics via `sysinfo`.
-pub struct SystemMonitor {
-    data: Arc<Mutex<SystemMonitorData>>,
-    running: Arc<AtomicBool>,
-    thread: Mutex<Option<JoinHandle<()>>>,
-}
+// ============================================================================
+// Full implementation (feature enabled)
+// ============================================================================
 
-impl SystemMonitor {
-    /// Create a new (stopped) system monitor.
-    pub fn new() -> Self {
-        Self {
-            data: Arc::new(Mutex::new(SystemMonitorData::default())),
-            running: Arc::new(AtomicBool::new(false)),
-            thread: Mutex::new(None),
-        }
+#[cfg(feature = "system-monitor")]
+mod inner {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::thread::JoinHandle;
+    use std::time::{Duration, Instant};
+
+    use parking_lot::Mutex;
+
+    use super::SystemMonitorData;
+
+    /// Background system resource monitor.
+    ///
+    /// Spawns a polling thread that periodically refreshes CPU, memory, and
+    /// network statistics via `sysinfo`.
+    pub struct SystemMonitor {
+        data: Arc<Mutex<SystemMonitorData>>,
+        running: Arc<AtomicBool>,
+        thread: Mutex<Option<JoinHandle<()>>>,
     }
 
-    /// Start the polling thread.
-    ///
-    /// If the monitor is already running, this is a no-op.
-    pub fn start(&self, poll_interval_secs: f32) {
-        if self
-            .running
-            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
-            .is_err()
-        {
-            return;
-        }
-
-        let data = Arc::clone(&self.data);
-        let running = Arc::clone(&self.running);
-        let interval = Duration::from_secs_f32(poll_interval_secs.max(0.5));
-
-        let handle = std::thread::Builder::new()
-            .name("status-bar-sysmon".to_string())
-            .spawn(move || {
-                use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
-
-                let mut sys = System::new_with_specifics(
-                    RefreshKind::nothing()
-                        .with_cpu(CpuRefreshKind::everything())
-                        .with_memory(MemoryRefreshKind::everything()),
-                );
-                let mut networks = sysinfo::Networks::new_with_refreshed_list();
-
-                // First CPU poll is always 0% — need two samples.
-                sys.refresh_cpu_all();
-                std::thread::sleep(Duration::from_millis(200));
-
-                let mut prev_rx: u64 = 0;
-                let mut prev_tx: u64 = 0;
-                let mut first_net = true;
-
-                while running.load(Ordering::SeqCst) {
-                    sys.refresh_cpu_all();
-                    sys.refresh_memory();
-                    networks.refresh(true);
-
-                    // Network totals
-                    let (mut total_rx, mut total_tx) = (0u64, 0u64);
-                    for (_name, net) in networks.iter() {
-                        total_rx = total_rx.saturating_add(net.total_received());
-                        total_tx = total_tx.saturating_add(net.total_transmitted());
-                    }
-
-                    let (rx_rate, tx_rate) = if first_net {
-                        first_net = false;
-                        (0, 0)
-                    } else {
-                        let secs = interval.as_secs_f64();
-                        let rx_delta = total_rx.saturating_sub(prev_rx);
-                        let tx_delta = total_tx.saturating_sub(prev_tx);
-                        (
-                            (rx_delta as f64 / secs) as u64,
-                            (tx_delta as f64 / secs) as u64,
-                        )
-                    };
-                    prev_rx = total_rx;
-                    prev_tx = total_tx;
-
-                    {
-                        let mut d = data.lock();
-                        d.cpu_usage = sys.global_cpu_usage();
-                        d.memory_used = sys.used_memory();
-                        d.memory_total = sys.total_memory();
-                        d.network_rx_rate = rx_rate;
-                        d.network_tx_rate = tx_rate;
-                        d.last_update = Some(Instant::now());
-                    }
-
-                    // Sleep in short increments so stop() returns quickly
-                    let deadline = Instant::now() + interval;
-                    while Instant::now() < deadline && running.load(Ordering::Relaxed) {
-                        std::thread::sleep(Duration::from_millis(50));
-                    }
-                }
-            });
-
-        match handle {
-            Ok(h) => *self.thread.lock() = Some(h),
-            Err(e) => {
-                // Thread spawn failed (e.g. OS out of resources); reset the
-                // running flag so start() can be retried and degrade gracefully
-                // without crashing the terminal session.
-                self.running.store(false, Ordering::SeqCst);
-                crate::debug_error!("SESSION_LOGGER", "failed to spawn sysmon thread: {:?}", e);
+    impl SystemMonitor {
+        /// Create a new (stopped) system monitor.
+        pub fn new() -> Self {
+            Self {
+                data: Arc::new(Mutex::new(SystemMonitorData::default())),
+                running: Arc::new(AtomicBool::new(false)),
+                thread: Mutex::new(None),
             }
         }
-    }
 
-    /// Signal the polling thread to stop without waiting for it to finish.
-    pub fn signal_stop(&self) {
-        self.running.store(false, Ordering::SeqCst);
-    }
+        /// Start the polling thread.
+        ///
+        /// If the monitor is already running, this is a no-op.
+        pub fn start(&self, poll_interval_secs: f32) {
+            if self
+                .running
+                .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+                .is_err()
+            {
+                return;
+            }
 
-    /// Stop the polling thread and wait for it to finish.
-    pub fn stop(&self) {
-        self.signal_stop();
-        if let Some(handle) = self.thread.lock().take() {
-            let _ = handle.join();
+            let data = Arc::clone(&self.data);
+            let running = Arc::clone(&self.running);
+            let interval = Duration::from_secs_f32(poll_interval_secs.max(0.5));
+
+            let handle = std::thread::Builder::new()
+                .name("status-bar-sysmon".to_string())
+                .spawn(move || {
+                    use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
+
+                    let mut sys = System::new_with_specifics(
+                        RefreshKind::nothing()
+                            .with_cpu(CpuRefreshKind::everything())
+                            .with_memory(MemoryRefreshKind::everything()),
+                    );
+                    let mut networks = sysinfo::Networks::new_with_refreshed_list();
+
+                    // First CPU poll is always 0% — need two samples.
+                    sys.refresh_cpu_all();
+                    std::thread::sleep(Duration::from_millis(200));
+
+                    let mut prev_rx: u64 = 0;
+                    let mut prev_tx: u64 = 0;
+                    let mut first_net = true;
+
+                    while running.load(Ordering::SeqCst) {
+                        sys.refresh_cpu_all();
+                        sys.refresh_memory();
+                        networks.refresh(true);
+
+                        // Network totals
+                        let (mut total_rx, mut total_tx) = (0u64, 0u64);
+                        for (_name, net) in networks.iter() {
+                            total_rx = total_rx.saturating_add(net.total_received());
+                            total_tx = total_tx.saturating_add(net.total_transmitted());
+                        }
+
+                        let (rx_rate, tx_rate) = if first_net {
+                            first_net = false;
+                            (0, 0)
+                        } else {
+                            let secs = interval.as_secs_f64();
+                            let rx_delta = total_rx.saturating_sub(prev_rx);
+                            let tx_delta = total_tx.saturating_sub(prev_tx);
+                            (
+                                (rx_delta as f64 / secs) as u64,
+                                (tx_delta as f64 / secs) as u64,
+                            )
+                        };
+                        prev_rx = total_rx;
+                        prev_tx = total_tx;
+
+                        {
+                            let mut d = data.lock();
+                            d.cpu_usage = sys.global_cpu_usage();
+                            d.memory_used = sys.used_memory();
+                            d.memory_total = sys.total_memory();
+                            d.network_rx_rate = rx_rate;
+                            d.network_tx_rate = tx_rate;
+                            d.last_update = Some(Instant::now());
+                        }
+
+                        // Sleep in short increments so stop() returns quickly
+                        let deadline = Instant::now() + interval;
+                        while Instant::now() < deadline && running.load(Ordering::Relaxed) {
+                            std::thread::sleep(Duration::from_millis(50));
+                        }
+                    }
+                });
+
+            match handle {
+                Ok(h) => *self.thread.lock() = Some(h),
+                Err(e) => {
+                    // Thread spawn failed (e.g. OS out of resources); reset the
+                    // running flag so start() can be retried and degrade gracefully
+                    // without crashing the terminal session.
+                    self.running.store(false, Ordering::SeqCst);
+                    crate::debug_error!(
+                        "SESSION_LOGGER",
+                        "failed to spawn sysmon thread: {:?}",
+                        e
+                    );
+                }
+            }
+        }
+
+        /// Signal the polling thread to stop without waiting for it to finish.
+        pub fn signal_stop(&self) {
+            self.running.store(false, Ordering::SeqCst);
+        }
+
+        /// Stop the polling thread and wait for it to finish.
+        pub fn stop(&self) {
+            self.signal_stop();
+            if let Some(handle) = self.thread.lock().take() {
+                let _ = handle.join();
+            }
+        }
+
+        /// Whether the polling thread is currently running.
+        pub fn is_running(&self) -> bool {
+            self.running.load(Ordering::SeqCst)
+        }
+
+        /// Get a clone of the current data snapshot.
+        pub fn data(&self) -> SystemMonitorData {
+            self.data.lock().clone()
         }
     }
 
-    /// Whether the polling thread is currently running.
-    pub fn is_running(&self) -> bool {
-        self.running.load(Ordering::SeqCst)
+    impl Default for SystemMonitor {
+        fn default() -> Self {
+            Self::new()
+        }
     }
 
-    /// Get a clone of the current data snapshot.
-    pub fn data(&self) -> SystemMonitorData {
-        self.data.lock().clone()
+    impl Drop for SystemMonitor {
+        fn drop(&mut self) {
+            self.stop();
+        }
     }
 }
 
-impl Default for SystemMonitor {
-    fn default() -> Self {
-        Self::new()
+#[cfg(feature = "system-monitor")]
+pub use inner::SystemMonitor;
+
+// ============================================================================
+// Stub implementation (feature disabled)
+// ============================================================================
+
+#[cfg(not(feature = "system-monitor"))]
+mod inner {
+    use super::SystemMonitorData;
+
+    /// Stub system resource monitor (sysinfo feature disabled).
+    ///
+    /// Provides the same public API as the full implementation but all methods
+    /// are no-ops. This allows callers in `StatusBarUI` to compile without
+    /// changes when the `system-monitor` feature is disabled.
+    pub struct SystemMonitor;
+
+    impl SystemMonitor {
+        /// Create a new (stopped) system monitor stub.
+        pub fn new() -> Self {
+            Self
+        }
+
+        /// No-op — the monitor is never started.
+        pub fn start(&self, _poll_interval_secs: f32) {}
+
+        /// No-op — nothing to signal.
+        pub fn signal_stop(&self) {}
+
+        /// No-op — nothing to stop.
+        pub fn stop(&self) {}
+
+        /// Always returns `false` (never running).
+        pub fn is_running(&self) -> bool {
+            false
+        }
+
+        /// Returns a default (all-zero) data snapshot.
+        pub fn data(&self) -> SystemMonitorData {
+            SystemMonitorData::default()
+        }
+    }
+
+    impl Default for SystemMonitor {
+        fn default() -> Self {
+            Self::new()
+        }
     }
 }
 
-impl Drop for SystemMonitor {
-    fn drop(&mut self) {
-        self.stop();
-    }
-}
+#[cfg(not(feature = "system-monitor"))]
+pub use inner::SystemMonitor;
 
 // ============================================================================
 // Formatting helpers
@@ -279,8 +352,11 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "system-monitor")]
     #[test]
     fn test_system_monitor_start_stop() {
+        use std::time::Duration;
+
         let monitor = SystemMonitor::new();
         assert!(!monitor.is_running());
 

@@ -14,7 +14,7 @@ impl CellRenderer {
     /// the user-supplied custom colour.
     ///
     /// Returns the updated `bg_index` after all separator instances have been appended.
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments)] // Each parameter maps to a distinct GPU pipeline value; grouping would reduce clarity
     pub(super) fn emit_separator_instances(
         &mut self,
         separator_marks: &[SeparatorMark],

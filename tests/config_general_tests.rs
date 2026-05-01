@@ -4,8 +4,6 @@
 //! tab bar colors, inactive tab dimming, cursor enhancements, answerback string,
 //! and advanced mouse features.
 
-#![allow(clippy::field_reassign_with_default)]
-
 use par_term::config::{Config, UnfocusedCursorStyle};
 
 #[test]
@@ -163,10 +161,12 @@ initial_text_send_newline: false
 
 #[test]
 fn test_config_initial_text_yaml_serialization() {
-    let mut config = Config::default();
-    config.initial_text = "echo ready".to_string();
-    config.initial_text_delay_ms = 10;
-    config.initial_text_send_newline = false;
+    let config = Config {
+        initial_text: "echo ready".to_string(),
+        initial_text_delay_ms: 10,
+        initial_text_send_newline: false,
+        ..Config::default()
+    };
 
     let yaml = serde_yaml_ng::to_string(&config).unwrap();
     assert!(yaml.contains("initial_text: echo ready"));
@@ -176,10 +176,12 @@ fn test_config_initial_text_yaml_serialization() {
 
 #[test]
 fn test_config_power_saving_yaml_serialization() {
-    let mut config = Config::default();
-    config.pause_shaders_on_blur = false;
-    config.pause_refresh_on_blur = true;
-    config.unfocused_fps = 15;
+    let config = Config {
+        pause_shaders_on_blur: false,
+        pause_refresh_on_blur: true,
+        unfocused_fps: 15,
+        ..Config::default()
+    };
 
     let yaml = serde_yaml_ng::to_string(&config).unwrap();
     assert!(yaml.contains("pause_shaders_on_blur: false"));
@@ -238,9 +240,11 @@ tab_close_button_hover: [255, 80, 80]
 
 #[test]
 fn test_config_tab_bar_color_yaml_serialization() {
-    let mut config = Config::default();
-    config.tab_bar_background = [50, 50, 50];
-    config.tab_active_indicator = [200, 100, 50];
+    let config = Config {
+        tab_bar_background: [50, 50, 50],
+        tab_active_indicator: [200, 100, 50],
+        ..Config::default()
+    };
 
     let yaml = serde_yaml_ng::to_string(&config).unwrap();
     assert!(yaml.contains("tab_bar_background:"));
@@ -288,9 +292,11 @@ inactive_tab_opacity: 0.8
 
 #[test]
 fn test_config_inactive_tab_dimming_yaml_serialization() {
-    let mut config = Config::default();
-    config.dim_inactive_tabs = false;
-    config.inactive_tab_opacity = 0.5;
+    let config = Config {
+        dim_inactive_tabs: false,
+        inactive_tab_opacity: 0.5,
+        ..Config::default()
+    };
 
     let yaml = serde_yaml_ng::to_string(&config).unwrap();
     assert!(yaml.contains("dim_inactive_tabs: false"));
@@ -416,12 +422,18 @@ fn test_config_unfocused_cursor_style_variants() {
 
 #[test]
 fn test_config_cursor_enhancement_yaml_serialization() {
-    let mut config = Config::default();
-    config.cursor.unfocused_cursor_style = UnfocusedCursorStyle::Same;
-    config.cursor.cursor_guide_enabled = true;
-    config.cursor.cursor_guide_color = [100, 150, 200, 50];
-    config.cursor.cursor_shadow_enabled = true;
-    config.cursor.cursor_boost = 0.7;
+    use par_term::config::config::CursorConfig;
+    let config = Config {
+        cursor: CursorConfig {
+            unfocused_cursor_style: UnfocusedCursorStyle::Same,
+            cursor_guide_enabled: true,
+            cursor_guide_color: [100, 150, 200, 50],
+            cursor_shadow_enabled: true,
+            cursor_boost: 0.7,
+            ..CursorConfig::default()
+        },
+        ..Config::default()
+    };
 
     let yaml = serde_yaml_ng::to_string(&config).unwrap();
     assert!(yaml.contains("unfocused_cursor_style: same"));
@@ -471,8 +483,10 @@ answerback_string: "par-term"
 
 #[test]
 fn test_config_answerback_string_yaml_serialization() {
-    let mut config = Config::default();
-    config.answerback_string = "vt100".to_string();
+    let config = Config {
+        answerback_string: "vt100".to_string(),
+        ..Config::default()
+    };
 
     let yaml = serde_yaml_ng::to_string(&config).unwrap();
     assert!(yaml.contains("answerback_string: vt100"));
@@ -530,10 +544,16 @@ report_horizontal_scroll: false
 
 #[test]
 fn test_config_advanced_mouse_yaml_serialization() {
-    let mut config = Config::default();
-    config.mouse.option_click_moves_cursor = false;
-    config.mouse.focus_follows_mouse = true;
-    config.mouse.report_horizontal_scroll = false;
+    use par_term::config::config::MouseConfig;
+    let config = Config {
+        mouse: MouseConfig {
+            option_click_moves_cursor: false,
+            focus_follows_mouse: true,
+            report_horizontal_scroll: false,
+            ..MouseConfig::default()
+        },
+        ..Config::default()
+    };
 
     let yaml = serde_yaml_ng::to_string(&config).unwrap();
     assert!(yaml.contains("option_click_moves_cursor: false"));

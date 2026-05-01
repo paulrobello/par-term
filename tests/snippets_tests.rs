@@ -4,20 +4,12 @@
 //! (built-in, custom, session, mixed), keybinding generation for snippets,
 //! config persistence for snippets, and snippet library export/import.
 
+mod common;
+
 use par_term::badge::SessionVariables;
 use par_term::config::{Config, SnippetConfig, SnippetLibrary};
 use std::collections::HashMap;
 use std::fs;
-use std::path::PathBuf;
-use tempfile::TempDir;
-
-/// Helper to create a temporary config directory
-fn setup_temp_config() -> (TempDir, PathBuf) {
-    let temp_dir = TempDir::new().unwrap();
-    let config_dir = temp_dir.path().join("par-term");
-    fs::create_dir_all(&config_dir).unwrap();
-    (temp_dir, config_dir)
-}
 
 // ============================================================================
 // Snippet Creation and Builder Tests
@@ -554,7 +546,7 @@ fn test_generate_snippet_keybindings_remove_when_cleared() {
 
 #[test]
 fn test_config_persistence_snippets() {
-    let (_temp_dir, config_dir) = setup_temp_config();
+    let (_temp_dir, config_dir) = common::setup_config_dir();
 
     // Create config with snippets
     let mut config = Config::default();
