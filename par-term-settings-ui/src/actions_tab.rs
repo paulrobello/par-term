@@ -4,6 +4,20 @@
 //! - Custom action management (shell commands, text insertion, key sequences)
 //! - Action editor with type selection
 //! - Keybinding assignment for actions
+//!
+//! # ARC-005 — File Size Note
+//!
+//! This file is ~1642 lines, exceeding the project's 800-line guideline.
+//! Planned extraction (deferred — multi-sprint effort):
+//!
+//!   actions_tab/
+//!     mod.rs            — Public `show()` entry point and top-level layout (~200 lines)
+//!     action_list.rs    — Action list display, drag-to-reorder, delete (~300 lines)
+//!     action_editor.rs  — Action type editor (shell, text, sequence fields) (~400 lines)
+//!     keybinding_ui.rs  — Keybinding capture widget for action shortcuts (~300 lines)
+//!     env_check.rs      — Environment variable existence check UI (~200 lines)
+//!
+//! Tracking: Issue ARC-005 in AUDIT.md.
 
 use super::SettingsUI;
 use super::section::{collapsing_section, section_matches};

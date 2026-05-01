@@ -1,3 +1,17 @@
+//! GLSL-to-WGSL transpiler for custom shaders.
+//!
+//! # ARC-006 — File Size Note
+//!
+//! This file is ~1242 lines. Planned extraction (deferred — multi-sprint effort):
+//!
+//!   transpiler/
+//!     mod.rs        — Public `transpile()` entry point and orchestration (~100 lines)
+//!     glsl_parse.rs — GLSL source parsing, Shadertoy preprocessing (~400 lines)
+//!     pragma.rs     — Pragma handling and metadata extraction (~300 lines)
+//!     wgsl_emit.rs  — WGSL output generation and uniform injection (~400 lines)
+//!
+//! Tracking: Issue ARC-006 in AUDIT.md.
+
 use anyhow::Result;
 use std::path::Path;
 

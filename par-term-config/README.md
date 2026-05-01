@@ -38,6 +38,37 @@ String config values support `${VAR}` substitution. By default, only a safe allo
 | `watcher` | Enables `notify`-based config file watching for hot reload |
 | `wgpu-types` | Re-exports wgpu color types for GPU rendering integration |
 
+## Installation
+
+Add the crate to your `Cargo.toml`:
+
+```toml
+[dependencies]
+par-term-config = { version = "0.10.1" }
+```
+
+Enable optional features as needed:
+
+```toml
+par-term-config = { version = "0.10.1", features = ["watcher", "wgpu-types"] }
+```
+
+## Usage
+
+```rust
+use par_term_config::Config;
+
+// Load configuration from the default platform-specific path
+let config = Config::load()?;
+
+// Access configuration values
+println!("Font: {} ({})", config.font_family, config.font_size);
+println!("Theme: {}", config.theme);
+
+// Save configuration
+config.save()?;
+```
+
 ## Workspace Position
 
 Layer 1 in the dependency graph. All Layer 2 and higher crates depend on this crate.

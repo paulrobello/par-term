@@ -42,6 +42,29 @@ extension.
 Layer 2 in the dependency graph. Depends on `par-term-config` for `OptionKeyMode`.
 Used directly by the root `par-term` crate for event handling.
 
+## Installation
+
+Add the crate to your `Cargo.toml`:
+
+```toml
+[dependencies]
+par-term-input = { version = "0.1.12" }
+```
+
+## Usage
+
+```rust
+use par_term_input::InputHandler;
+use par_term_config::types::OptionKeyMode;
+
+let mut handler = InputHandler::new(OptionKeyMode::Esc);
+
+// Handle a key event from winit
+if let Some(bytes) = handler.handle_key_event(&key_event) {
+    pty.write_all(&bytes)?;
+}
+```
+
 ## Related Documentation
 
 - [Keyboard Shortcuts](../docs/KEYBOARD_SHORTCUTS.md) — user-facing keyboard reference

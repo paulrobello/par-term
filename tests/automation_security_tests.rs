@@ -55,6 +55,7 @@ fn test_prompt_before_run_roundtrip() {
         }],
         prompt_before_run: false,
         i_accept_the_risk: false,
+        allowed_commands: vec![],
     };
 
     let yaml = serde_yaml_ng::to_string(&trigger).unwrap();
@@ -331,6 +332,7 @@ fn test_trigger_with_only_safe_actions_not_affected() {
         ],
         prompt_before_run: true,
         i_accept_the_risk: false,
+        allowed_commands: vec![],
     };
 
     // None of these actions are dangerous

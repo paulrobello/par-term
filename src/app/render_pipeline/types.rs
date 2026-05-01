@@ -67,6 +67,20 @@ pub(super) struct FrameRenderData {
 }
 
 /// Actions collected during the egui/GPU render pass to be handled after the renderer borrow ends.
+///
+/// # ARC-009 — Open/Closed Violation Note
+///
+/// This struct aggregates 13+ unrelated action types into a single collect-all bag.
+/// Every new UI overlay that produces actions must add a field here, update `Default`,
+/// and update the dispatch site in `gpu_submit.rs`. This violates the Open/Closed Principle.
+///
+/// Planned refactor (deferred — requires trait-object dispatch or enum-grouping):
+///   1. Define a `RenderAction` trait with a `dispatch(&mut WindowState)` method.
+///   2. Each overlay returns `Vec<Box<dyn RenderAction>>` instead of writing into
+///      named fields on this struct.
+///   3. The dispatch loop becomes a simple `for action in actions { action.dispatch(ws); }`.
+///
+/// Tracking: Issue ARC-009 in AUDIT.md.
 pub(super) struct PostRenderActions {
     pub(super) clipboard: ClipboardHistoryAction,
     pub(super) command_history: CommandHistoryAction,

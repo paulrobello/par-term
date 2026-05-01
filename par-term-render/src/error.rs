@@ -3,6 +3,11 @@
 //! This module provides structured error types so callers at the crate boundary
 //! can match on specific error variants instead of relying on opaque `anyhow`
 //! strings.
+//!
+//! TODO(QA-010): Other workspace crates (53 files) use bare `anyhow::Result`.
+//! Consider migrating each crate's error types to thiserror-based enums for
+//! better error handling. Priority: `par-term-mcp` (IPC protocol errors),
+//! `par-term-terminal` (PTY/terminal errors).
 
 use thiserror::Error;
 

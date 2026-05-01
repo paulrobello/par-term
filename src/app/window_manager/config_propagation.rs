@@ -36,17 +36,21 @@ impl WindowManager {
             let changes = ConfigChanges::detect(&window_state.config, config);
 
             // Update the config
-            // PROPAGATION TAX: Every call to apply_config_to_windows clones the full Config
-            // struct (268+ fields) into every open WindowState. With N windows open this is
-            // N allocations per settings change. For a single-window app this is negligible,
+            // PROPAGATION TAX (QA-001): Every call to apply_config_to_windows clones the full
+            // Config struct (268+ fields) into every open WindowState. With N windows open this
+            // is N allocations per settings change. For a single-window app this is negligible,
             // but scales linearly with window count.
             //
-            // TODO(ARC-007): Replace per-window config clones with Arc<RwLock<Config>> shared
-            // across all WindowState instances. WindowState would hold Arc<RwLock<Config>>
-            // and read config fields through the lock. Settings changes would write once to
-            // the shared Arc instead of cloning into every window. This requires coordinating
-            // with the renderer (which caches derived values from config) and keybinding
-            // registry (which must rebuild on keybinding changes). Track in issue ARC-007.
+            // BLOCKER: Cannot use Arc<Config> because WindowState mutates config fields directly
+            // in several locations:
+            //   - window_lifecycle.rs:35 (self.config.shader.custom_shader = ...)
+            //   - window_lifecycle.rs:277 (self.config = fresh_config)
+            //   - window_session.rs:178 (self.config = fresh_config)
+            //   - agent_config.rs:51 (self.config = new_config)
+            //   - config_renderer_apply.rs:58 (window_state.config.vsync_mode = ...)
+            //   - config_renderer_apply.rs:309 (window_state.config.shader.custom_shader)
+            // Migrating to Arc<RwLock<Config>> or Arc<swap::ArcSwap<Config>> requires
+            // converting all these sites to write-through patterns. Track in issue QA-001.
             window_state.config = config.clone();
 
             if changes.ai_inspector_custom_agents {

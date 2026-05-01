@@ -51,7 +51,10 @@ parking_lot.workspace = true
 # Hostname detection for snippet variables
 hostname.workspace = true
 
-# Terminal emulator core (required for UnicodeVersion, AmbiguousWidth, NormalizationForm types)
+# Terminal emulator core (required for RestartPolicy, TriggerAction conversion methods in automation.rs)
+# ARC-003 NOTE: UnicodeVersion/AmbiguousWidth/NormalizationForm now use native types.
+# The remaining emu-core usage is in automation.rs for trigger/coprocess conversion methods.
+# A future refactor should move those conversion methods to par-term-terminal as well.
 par-term-emu-core-rust.workspace = true
 
 [features]

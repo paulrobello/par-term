@@ -3,6 +3,20 @@
 //! This crate provides an egui-based settings interface for configuring
 //! terminal options at runtime. It is designed to be decoupled from the
 //! main terminal implementation through trait interfaces.
+//!
+//! # ARC-010 — Crate Size Note
+//!
+//! This crate is ~28,644 lines across ~100 files, making it the largest sub-crate
+//! and a compile-time bottleneck. Planned decomposition (deferred — multi-sprint effort):
+//!
+//!   1. Extract shader editor sub-crate (~5K lines): `par-term-shader-ui`
+//!      - shader_editor, shader_dialogs, shader_utils, cursor_shader_editor
+//!      - background_tab/shader_settings, background_tab/shader_channel_settings
+//!
+//!   2. Extract automation UI sub-crate (~3K lines): `par-term-automation-ui`
+//!      - automation_tab/*, scripts_tab/*
+//!
+//! Tracking: Issue ARC-010 in AUDIT.md.
 
 use par_term_config::{Config, Profile, ProfileId};
 

@@ -47,6 +47,28 @@ cursors are hidden under glyph quads.
 Layer 3 in the dependency graph. Depends on `par-term-config` (Layer 1) and
 `par-term-fonts` (Layer 2). Used directly by the root `par-term` crate.
 
+## Installation
+
+Add the crate to your `Cargo.toml`:
+
+```toml
+[dependencies]
+par-term-render = { version = "0.6.7" }
+```
+
+## Usage
+
+```rust
+use par_term_render::{Renderer, RendererParams, RenderError};
+
+// Create a renderer from a wgpu surface (requires wgpu setup)
+let renderer = Renderer::new(surface, device, queue, config)?;
+
+// Per-frame rendering
+let params = RendererParams { /* ... */ };
+renderer.render(&params)?;
+```
+
 ## Related Documentation
 
 - [Custom Shaders](../docs/CUSTOM_SHADERS.md) — background and cursor shader documentation

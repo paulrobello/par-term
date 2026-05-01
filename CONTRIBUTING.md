@@ -1,5 +1,7 @@
 # Contributing to par-term
 
+> **Note:** [CLAUDE.md](CLAUDE.md) is the canonical development reference. It is kept up-to-date by AI-assisted tooling and covers build commands, architecture, debugging workflows, and common gotchas in more detail than this file. When the two documents disagree, CLAUDE.md takes precedence.
+
 Guidelines for contributing to par-term, a cross-platform GPU-accelerated terminal emulator built in Rust.
 
 ## Table of Contents

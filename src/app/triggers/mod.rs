@@ -37,7 +37,7 @@ use std::collections::HashMap;
 use std::process::Stdio;
 use std::time::Instant;
 
-use par_term_config::check_command_denylist;
+use par_term_config::{check_command_allowlist, check_command_denylist};
 
 /// Maximum number of concurrent trigger-spawned processes allowed.
 /// This prevents resource exhaustion from rapid-fire triggers.
@@ -77,6 +77,9 @@ struct DispatchContext<'a> {
     approved_this_frame: &'a std::collections::HashSet<u64>,
     trigger_names: &'a HashMap<u64, String>,
     trigger_split_percent: &'a HashMap<u64, u8>,
+    /// SEC-002: Per-trigger command allowlists. When non-empty for a trigger_id,
+    /// only commands matching the allowlist are permitted.
+    trigger_allowed_commands: &'a HashMap<u64, Vec<String>>,
 }
 
 impl WindowState {
@@ -201,6 +204,26 @@ impl WindowState {
             })
             .collect();
 
+        // SEC-002: Build per-trigger allowed_commands map from config.
+        // When a trigger defines allowed_commands, only those binaries may be
+        // executed via RunCommand actions for that trigger.
+        let trigger_allowed_commands: std::collections::HashMap<u64, Vec<String>> = trigger_names
+            .iter()
+            .filter_map(|(&id, name)| {
+                self.config
+                    .triggers
+                    .iter()
+                    .find(|t| &t.name == name)
+                    .and_then(|t| {
+                        if t.allowed_commands.is_empty() {
+                            None
+                        } else {
+                            Some((id, t.allowed_commands.clone()))
+                        }
+                    })
+            })
+            .collect();
+
         // Collect MarkLine events for batch deduplication (processed after the loop).
         // Between frames, the core may fire the same trigger multiple times for the
         // same physical line (once per PTY read). Each scan records a different grid
@@ -213,6 +236,7 @@ impl WindowState {
             approved_this_frame: &approved_this_frame,
             trigger_names: &trigger_names,
             trigger_split_percent: &trigger_split_percent,
+            trigger_allowed_commands: &trigger_allowed_commands,
         };
 
         for action in action_results {
@@ -414,6 +438,21 @@ impl WindowState {
                 },
             );
             return;
+        }
+
+        // SEC-002: Security check: command allowlist (when configured for this trigger).
+        // If the trigger has an allowed_commands list, the command must be on it.
+        // When no allowlist is set, this check passes and falls through to the
+        // denylist below.
+        if let Some(allowed) = ctx.trigger_allowed_commands.get(&trigger_id) {
+            if let Err(reason) = check_command_allowlist(&command, allowed) {
+                log::error!(
+                    "Trigger {} RunCommand DENIED by allowlist: {}",
+                    trigger_id,
+                    reason,
+                );
+                return;
+            }
         }
 
         // Security check: command denylist (always applied, even for approved actions)

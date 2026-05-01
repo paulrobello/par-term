@@ -50,11 +50,55 @@ pub struct TriggerConfig {
     /// not execute and a warning will be logged.
     #[serde(default)]
     pub i_accept_the_risk: bool,
+    /// SEC-002: Optional allowlist of commands that this trigger is permitted to
+    /// execute via `RunCommand` actions.
+    ///
+    /// When `allowed_commands` is set (non-empty), **only** commands whose binary
+    /// name or canonical path matches an entry in this list are allowed. This is
+    /// more secure than the denylist because it defaults to deny-everything and
+    /// only allows explicitly approved commands.
+    ///
+    /// When `allowed_commands` is empty or absent (the default), the existing
+    /// denylist behavior continues — all commands are allowed unless they match
+    /// a denylist pattern.
+    ///
+    /// # Matching rules
+    ///
+    /// - Entries are matched against the command binary name (the first token)
+    ///   using case-insensitive substring matching.
+    /// - For exact matching, include the full command name (e.g., `"git"`,
+    ///   `"docker"`, `"npm"`).
+    /// - Path-based matching is also supported (e.g., `"/usr/bin/git"`).
+    ///
+    /// # Example
+    ///
+    /// ```yaml
+    /// triggers:
+    ///   - name: deploy
+    ///     pattern: "deploy:\\s*(\\S+)"
+    ///     prompt_before_run: false
+    ///     i_accept_the_risk: true
+    ///     allowed_commands:
+    ///       - git
+    ///       - docker
+    ///       - kubectl
+    ///     actions:
+    ///       - type: run_command
+    ///         command: "/usr/local/bin/deploy"
+    /// ```
+    #[serde(default)]
+    pub allowed_commands: Vec<String>,
 }
 
+/// An action fired when a trigger pattern matches terminal output.
+///
+/// Each variant represents a different type of response to matched output,
+/// from visual highlighting to command execution. Actions marked as "dangerous"
+/// require explicit user confirmation unless `prompt_before_run: false` is set.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum TriggerActionConfig {
+    /// Highlight matched text with a temporary color overlay.
     Highlight {
         #[serde(default)]
         fg: Option<[u8; 3]>,
@@ -63,31 +107,37 @@ pub enum TriggerActionConfig {
         #[serde(default = "default_highlight_duration")]
         duration_ms: u64,
     },
+    /// Show a desktop notification with a title and message.
     Notify {
         title: String,
         message: String,
     },
+    /// Mark the line containing the match with a colored indicator in the scrollback.
     MarkLine {
         #[serde(default)]
         label: Option<String>,
         #[serde(default)]
         color: Option<[u8; 3]>,
     },
+    /// Set an internal variable that can be referenced by other triggers or snippets.
     SetVariable {
         name: String,
         value: String,
     },
+    /// Run an external command (dangerous when `prompt_before_run: false`).
     RunCommand {
         command: String,
         #[serde(default)]
         args: Vec<String>,
     },
+    /// Play an alert sound.
     PlaySound {
         #[serde(default)]
         sound_id: String,
         #[serde(default = "default_volume")]
         volume: u8,
     },
+    /// Send text to the terminal as if typed by the user (dangerous when `prompt_before_run: false`).
     SendText {
         text: String,
         #[serde(default)]
@@ -110,23 +160,33 @@ pub enum TriggerActionConfig {
 }
 
 /// Split orientation for a new pane created by a trigger action.
+///
+/// - `Horizontal` creates a new pane below the existing one (stacked vertically).
+/// - `Vertical` creates a new pane to the right (side by side).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum TriggerSplitDirection {
-    Horizontal, // new pane below (panes stacked vertically)
-    Vertical,   // new pane to the right (side by side)
+    /// New pane below (panes stacked vertically).
+    Horizontal,
+    /// New pane to the right (side by side).
+    Vertical,
 }
 
-/// Which pane to split when a SplitPane trigger fires.
+/// Which pane to split when a `SplitPane` trigger fires.
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum TriggerSplitTarget {
+    /// Split the currently focused pane (default).
     #[default]
-    Active, // split the currently focused pane
-    Source, // split the pane whose PTY output matched (degrades to Active for now)
+    Active,
+    /// Split the pane whose PTY output matched the trigger pattern.
+    Source,
 }
 
-/// How to run a command in the newly created pane.
+/// How to run a command in a newly created split pane.
+///
+/// Two modes: send text to the shell (best-effort, shell must be running) or
+/// launch the pane with a specific command instead of the login shell.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum SplitPaneCommand {
@@ -190,9 +250,16 @@ impl RestartPolicy {
     }
 }
 
+/// Configuration for a coprocess that runs alongside a terminal session.
+///
+/// Coprocesses receive terminal output via stdin and can send input back
+/// to the terminal. They are managed by the `CoprocessManager` in the
+/// core library and are started/stopped with the PTY session.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct CoprocessDefConfig {
+    /// Human-readable name for this coprocess.
     pub name: String,
+    /// Command to execute (binary name or full path).
     pub command: String,
     #[serde(default)]
     pub args: Vec<String>,
@@ -500,6 +567,61 @@ pub fn check_command_denylist(command: &str, args: &[String]) -> Option<&'static
     }
 
     None
+}
+
+/// SEC-002: Check if a command is allowed by the optional allowlist.
+///
+/// When `allowed_commands` is non-empty, the command's binary name (first token)
+/// must match at least one entry in the allowlist. Matching is case-insensitive.
+///
+/// Returns `Ok(())` if the command is allowed. Returns `Err(allowlist_violation)`
+/// if the command is not on the allowlist.
+///
+/// When `allowed_commands` is empty, returns `Ok(())` (allowlist mode disabled;
+/// falls back to denylist-only checking).
+///
+/// # Matching behavior
+///
+/// Each entry in `allowed_commands` is compared against:
+/// 1. The `command` string directly (case-insensitive contains match on the
+///    command binary).
+/// 2. The basename of the command (for path-style commands like
+///    `/usr/bin/git`, the basename `git` is extracted and compared).
+///
+/// This means an allowlist entry of `"git"` will match both `git` and
+/// `/usr/bin/git`.
+pub fn check_command_allowlist(
+    command: &str,
+    allowed_commands: &[String],
+) -> Result<(), String> {
+    if allowed_commands.is_empty() {
+        return Ok(());
+    }
+
+    let command_lower = command.to_lowercase();
+    let command_basename = std::path::Path::new(&command_lower)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or(&command_lower)
+        .to_string();
+
+    for allowed in allowed_commands {
+        let allowed_lower = allowed.to_lowercase();
+        // Match if the allowed entry appears in the command basename or the full command
+        if command_basename == allowed_lower
+            || command_lower == allowed_lower
+            || command_lower.starts_with(&format!("{allowed_lower}/"))
+            || command_lower.starts_with(&format!("{allowed_lower} "))
+        {
+            return Ok(());
+        }
+    }
+
+    Err(format!(
+        "command '{}' not in allowed list: [{}]",
+        command,
+        allowed_commands.join(", ")
+    ))
 }
 
 /// Check if a string contains a pipe-to-shell pattern like `|bash` or `| sh`

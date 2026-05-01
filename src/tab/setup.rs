@@ -22,13 +22,13 @@ pub(crate) fn configure_terminal_from_config(terminal: &mut TerminalManager, con
 
     // Apply Unicode width configuration
     let width_config = par_term_emu_core_rust::WidthConfig::new(
-        config.unicode.unicode_version,
-        config.unicode.ambiguous_width,
+        config.unicode.unicode_version.to_core(),
+        config.unicode.ambiguous_width.to_core(),
     );
     terminal.set_width_config(width_config);
 
     // Apply Unicode normalization form
-    terminal.set_normalization_form(config.unicode.normalization_form);
+    terminal.set_normalization_form(config.unicode.normalization_form.to_core());
 
     // Initialize cursor style from config
     use crate::config::CursorStyle as ConfigCursorStyle;

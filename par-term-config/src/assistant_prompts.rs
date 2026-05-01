@@ -11,21 +11,37 @@ use crate::Config;
 
 const PROMPT_DIR_NAME: &str = "assistant-prompts";
 
+/// A parsed assistant prompt loaded from a Markdown file in the prompt library.
+///
+/// Each prompt is stored as a `.md` file with YAML frontmatter containing
+/// the title and auto-submit flag, followed by the prompt body text.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AssistantPrompt {
+    /// Filesystem path to the Markdown source file.
     pub path: PathBuf,
+    /// Display title parsed from YAML frontmatter.
     pub title: String,
+    /// Whether to send the prompt immediately on selection (no editing step).
     pub auto_submit: bool,
+    /// The prompt body text (Markdown content below the frontmatter).
     pub prompt: String,
 }
 
+/// An unsaved assistant prompt being created or edited.
+///
+/// Used by the settings UI prompt editor before the prompt is serialized
+/// to disk.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AssistantPromptDraft {
+    /// Display title for the prompt.
     pub title: String,
+    /// Whether to send the prompt immediately on selection.
     pub auto_submit: bool,
+    /// The prompt body text.
     pub prompt: String,
 }
 
+/// Internal YAML frontmatter structure for prompt file serialization.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct AssistantPromptMetadata {

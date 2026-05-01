@@ -166,6 +166,12 @@ fn show_save_cancel(
                     .and_then(|i| settings.config.triggers.get(i))
                     .map(|t| t.i_accept_the_risk)
                     .unwrap_or(false),
+                // SEC-002: Preserve existing allowed_commands when editing;
+                // default empty (allowlist mode disabled) for new triggers.
+                allowed_commands: edit_index
+                    .and_then(|i| settings.config.triggers.get(i))
+                    .map(|t| t.allowed_commands.clone())
+                    .unwrap_or_default(),
             };
 
             if let Some(i) = edit_index {

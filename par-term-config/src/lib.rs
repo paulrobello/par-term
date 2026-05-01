@@ -71,8 +71,8 @@ pub use types::{
 // Re-export config types
 pub use automation::{
     CoprocessDefConfig, RestartPolicy, SplitPaneCommand, TriggerActionConfig, TriggerConfig,
-    TriggerRateLimiter, TriggerSplitDirection, TriggerSplitTarget, check_command_denylist,
-    warn_prompt_before_run_false,
+    TriggerRateLimiter, TriggerSplitDirection, TriggerSplitTarget, check_command_allowlist,
+    check_command_denylist, warn_prompt_before_run_false,
 };
 pub use types::{
     AlertEvent, AlertSoundConfig, BackgroundImageMode, BackgroundMode, CursorShaderConfig,
@@ -116,20 +116,11 @@ pub use shader_metadata::{
 // Shared snapshot types for session and arrangement persistence
 pub use snapshot_types::TabSnapshot;
 
-// ARC-011 TODO: Layer violation — par-term-config (Layer 1 foundation) re-exports
-// par-term-emu-core-rust types, coupling the config layer to the emulation core.
-//
-// Preferred remediation (deferred — requires touching 6 files across 4 crates):
-//   1. Define native `AmbiguousWidth`, `NormalizationForm`, `UnicodeVersion` types
-//      in par-term-config/src/types.rs (mirroring the emu-core variants).
-//   2. Implement `From<NativeType> for EmuCoreType` and vice versa in par-term-terminal.
-//   3. Update all 6 call sites to import from their respective crate (par-term-config
-//      or par-term-emu-core-rust directly) rather than via this re-export.
-//   4. Remove this re-export block.
-//
-// Until that migration is complete, callers must use `par_term_config::UnicodeVersion`
-// etc. (not `par_term_emu_core_rust::UnicodeVersion`) to avoid fragile dual imports.
-pub use par_term_emu_core_rust::{AmbiguousWidth, NormalizationForm, UnicodeVersion};
+// ARC-003 RESOLVED: Native Unicode types defined in par-term-config/src/types/unicode.rs.
+// These mirror the par-term-emu-core-rust enums but belong to the config layer,
+// removing the upward dependency from the foundation config crate to the emulation core.
+// Higher-level crates (par-term-terminal, root crate) convert via `From` impls.
+pub use types::{AmbiguousWidth, NormalizationForm, UnicodeVersion};
 // `KeyModifier` and the Resolved*ShaderConfig types are re-exported for downstream crates
 // (e.g., root crate's src/config/mod.rs facade). Rust's unused-import lint fires here
 // because nothing inside par-term-config itself consumes these re-exports directly.

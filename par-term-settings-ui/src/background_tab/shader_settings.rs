@@ -1,3 +1,19 @@
+//! Shader settings UI for the background tab.
+//!
+//! # ARC-005 — File Size Note
+//!
+//! This file is ~1719 lines, exceeding the project's 800-line guideline.
+//! Planned extraction (deferred — multi-sprint effort):
+//!
+//!   shader_settings/
+//!     mod.rs             — Public `show()` entry point and top-level layout (~200 lines)
+//!     preset_browser.rs  — Preset grid, download/delete handlers (~300 lines)
+//!     channel_editor.rs  — Per-channel settings (speed, mouse, texture path) (~400 lines)
+//!     control_widgets.rs — egui widgets for each ShaderControlKind (~350 lines)
+//!     import_export.rs   — Export/import dialog, file path resolution (~200 lines)
+//!
+//! Tracking: Issue ARC-005 in AUDIT.md.
+
 use crate::SettingsUI;
 use crate::section::{collapsing_section, collapsing_section_with_state};
 use std::collections::{BTreeSet, HashMap, HashSet};

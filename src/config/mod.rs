@@ -62,7 +62,7 @@ pub use par_term_config::{
 // --- Automation ---
 pub use par_term_config::{
     CoprocessDefConfig, RestartPolicy, TriggerActionConfig, TriggerConfig, TriggerRateLimiter,
-    check_command_denylist,
+    check_command_allowlist, check_command_denylist,
 };
 
 // --- Scripting ---

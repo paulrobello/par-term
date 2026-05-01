@@ -449,6 +449,114 @@ impl Renderer {
         Ok(true)
     }
 
+    /// Render the cell content through the shader chain to a target texture view.
+    ///
+    /// This encapsulates the 4 shader-combination paths:
+    /// 1. No shaders: render cells directly to target
+    /// 2. Custom shader only: cells -> custom shader -> target
+    /// 3. Cursor shader only: cells -> cursor shader -> target
+    /// 4. Custom + cursor: cells -> custom shader -> cursor shader -> target
+    ///
+    /// QA-003: Extracted from `take_screenshot` to deduplicate the shader-chaining logic.
+    /// Both `render_split_panes` (live rendering) and `take_screenshot` (offscreen) use
+    /// the same 4-branch pattern; this method handles the screenshot path where cells are
+    /// rendered via `render_to_texture`/`render_to_view` (no split-pane layout).
+    fn render_cells_to_target(
+        &mut self,
+        target_view: &wgpu::TextureView,
+    ) -> Result<(), crate::error::RenderError> {
+        let has_custom_shader = self.custom_shader_renderer.is_some();
+        let use_cursor_shader =
+            self.cursor_shader_renderer.is_some() && !self.cursor_shader_disabled_for_alt_screen;
+
+        let map_err = |e: anyhow::Error| {
+            crate::error::RenderError::ScreenshotMap(format!("Render failed: {:#}", e))
+        };
+
+        if has_custom_shader {
+            // Render cells to the custom shader's intermediate texture
+            let intermediate_view = self
+                .custom_shader_renderer
+                .as_ref()
+                .expect("custom_shader_renderer invariant: Some when has_custom_shader is true")
+                .intermediate_texture_view()
+                .clone();
+            self.cell_renderer
+                .render_to_texture(&intermediate_view, true)
+                .map_err(map_err)?;
+
+            if use_cursor_shader {
+                // Chain: cells -> custom shader -> cursor shader -> target
+                let cursor_intermediate = self
+                    .cursor_shader_renderer
+                    .as_ref()
+                    .expect("cursor_shader_renderer invariant: Some when use_cursor_shader is true")
+                    .intermediate_texture_view()
+                    .clone();
+                self.custom_shader_renderer
+                    .as_mut()
+                    .expect("custom_shader_renderer invariant")
+                    .render(
+                        self.cell_renderer.device(),
+                        self.cell_renderer.queue(),
+                        &cursor_intermediate,
+                        false,
+                    )
+                    .map_err(map_err)?;
+                self.cursor_shader_renderer
+                    .as_mut()
+                    .expect("cursor_shader_renderer invariant")
+                    .render(
+                        self.cell_renderer.device(),
+                        self.cell_renderer.queue(),
+                        target_view,
+                        true,
+                    )
+                    .map_err(map_err)?;
+            } else {
+                // Chain: cells -> custom shader -> target
+                self.custom_shader_renderer
+                    .as_mut()
+                    .expect("custom_shader_renderer invariant")
+                    .render(
+                        self.cell_renderer.device(),
+                        self.cell_renderer.queue(),
+                        target_view,
+                        true,
+                    )
+                    .map_err(map_err)?;
+            }
+        } else if use_cursor_shader {
+            // Chain: cells -> cursor shader -> target
+            let cursor_intermediate = self
+                .cursor_shader_renderer
+                .as_ref()
+                .expect("cursor_shader_renderer invariant: Some when use_cursor_shader is true")
+                .intermediate_texture_view()
+                .clone();
+            self.cell_renderer
+                .render_to_texture(&cursor_intermediate, true)
+                .map_err(map_err)?;
+            self.cursor_shader_renderer
+                .as_mut()
+                .expect("cursor_shader_renderer invariant")
+                .render(
+                    self.cell_renderer.device(),
+                    self.cell_renderer.queue(),
+                    target_view,
+                    true,
+                )
+                .map_err(map_err)?;
+        } else {
+            // No shaders: render cells directly to target
+            self.cell_renderer
+                .render_to_view(target_view)
+                .map_err(map_err)?;
+        }
+
+        Ok(())
+    }
+
     /// Take a screenshot of the current terminal content
     /// Returns an RGBA image that can be saved to disk
     ///
@@ -488,110 +596,9 @@ impl Renderer {
         let screenshot_view =
             screenshot_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
-        // Render the full composited frame (cells + shaders + overlays)
+        // Render the full composited frame through the shader chain (QA-003: deduplicated).
         log::info!("take_screenshot: Rendering composited frame...");
-
-        // Check if shaders are enabled
-        let has_custom_shader = self.custom_shader_renderer.is_some();
-        let use_cursor_shader =
-            self.cursor_shader_renderer.is_some() && !self.cursor_shader_disabled_for_alt_screen;
-
-        if has_custom_shader {
-            // Render cells to the custom shader's intermediate texture
-            let intermediate_view = self
-                .custom_shader_renderer
-                .as_ref()
-                .expect("Custom shader renderer must be Some when has_custom_shader is true")
-                .intermediate_texture_view()
-                .clone();
-            self.cell_renderer
-                .render_to_texture(&intermediate_view, true)
-                .map_err(|e| {
-                    crate::error::RenderError::ScreenshotMap(format!("Render failed: {:#}", e))
-                })?;
-
-            if use_cursor_shader {
-                // Background shader renders to cursor shader's intermediate texture
-                let cursor_intermediate = self
-                    .cursor_shader_renderer
-                    .as_ref()
-                    .expect("Cursor shader renderer must be Some when use_cursor_shader is true")
-                    .intermediate_texture_view()
-                    .clone();
-                self.custom_shader_renderer
-                    .as_mut()
-                    .expect("Custom shader renderer must be Some when has_custom_shader is true")
-                    .render(
-                        self.cell_renderer.device(),
-                        self.cell_renderer.queue(),
-                        &cursor_intermediate,
-                        false,
-                    )
-                    .map_err(|e| {
-                        crate::error::RenderError::ScreenshotMap(format!("Render failed: {:#}", e))
-                    })?;
-                // Cursor shader renders to screenshot texture
-                self.cursor_shader_renderer
-                    .as_mut()
-                    .expect("Cursor shader renderer must be Some when use_cursor_shader is true")
-                    .render(
-                        self.cell_renderer.device(),
-                        self.cell_renderer.queue(),
-                        &screenshot_view,
-                        true,
-                    )
-                    .map_err(|e| {
-                        crate::error::RenderError::ScreenshotMap(format!("Render failed: {:#}", e))
-                    })?;
-            } else {
-                // Background shader renders directly to screenshot texture
-                self.custom_shader_renderer
-                    .as_mut()
-                    .expect("Custom shader renderer must be Some when has_custom_shader is true")
-                    .render(
-                        self.cell_renderer.device(),
-                        self.cell_renderer.queue(),
-                        &screenshot_view,
-                        true,
-                    )
-                    .map_err(|e| {
-                        crate::error::RenderError::ScreenshotMap(format!("Render failed: {:#}", e))
-                    })?;
-            }
-        } else if use_cursor_shader {
-            // Render cells to cursor shader's intermediate texture
-            let cursor_intermediate = self
-                .cursor_shader_renderer
-                .as_ref()
-                .expect("Cursor shader renderer must be Some when use_cursor_shader is true")
-                .intermediate_texture_view()
-                .clone();
-            self.cell_renderer
-                .render_to_texture(&cursor_intermediate, true)
-                .map_err(|e| {
-                    crate::error::RenderError::ScreenshotMap(format!("Render failed: {:#}", e))
-                })?;
-            // Cursor shader renders to screenshot texture
-            self.cursor_shader_renderer
-                .as_mut()
-                .expect("Cursor shader renderer must be Some when use_cursor_shader is true")
-                .render(
-                    self.cell_renderer.device(),
-                    self.cell_renderer.queue(),
-                    &screenshot_view,
-                    true,
-                )
-                .map_err(|e| {
-                    crate::error::RenderError::ScreenshotMap(format!("Render failed: {:#}", e))
-                })?;
-        } else {
-            // No shaders - render directly to screenshot texture
-            self.cell_renderer
-                .render_to_view(&screenshot_view)
-                .map_err(|e| {
-                    crate::error::RenderError::ScreenshotMap(format!("Render failed: {:#}", e))
-                })?;
-        }
+        self.render_cells_to_target(&screenshot_view)?;
 
         log::info!("take_screenshot: Render complete");
 

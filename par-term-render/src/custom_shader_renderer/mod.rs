@@ -1,5 +1,26 @@
 //! Custom shader renderer for post-processing effects
 //!
+//! # ARC-006 — File Size Note
+//!
+//! This file is ~903 lines. When it exceeds 800 lines, planned extraction:
+//!
+//!   compile.rs   — GLSL->WGSL transpilation (naga) and pipeline compilation
+//!   animate.rs   — Time-uniform update and animation-frame bookkeeping
+//!
+//! The directory already has `pipeline.rs`, `transpiler.rs`, `uniforms.rs`,
+//! `hot_reload.rs`, `textures.rs`, `cubemap.rs`, `cursor.rs`, `types.rs` — follow
+//! that existing pattern for any further splits.
+//!
+//! The companion file `transpiler.rs` (~1242 lines) has a planned extraction:
+//!
+//!   transpiler/
+//!     mod.rs        — Public transpile() entry point (~100 lines)
+//!     glsl_parse.rs — GLSL source parsing and preprocessing (~400 lines)
+//!     pragma.rs     — Pragma handling and metadata extraction (~300 lines)
+//!     wgsl_emit.rs  — WGSL output generation (~400 lines)
+//!
+//! Tracking: Issue ARC-006 in AUDIT.md.
+//!
 //! Supports Ghostty/Shadertoy-style GLSL shaders with the following uniforms:
 //! - `iTime`: Time in seconds (animated or fixed at 0.0)
 //! - `iResolution`: Viewport resolution (width, height, 1.0)

@@ -278,9 +278,23 @@ impl Agent {
                 }
             };
 
-            log::info!(
-                "ACP: spawning agent '{}' via {shell} -lc '{run_command}' in cwd={cwd}",
+            // SEC-005: Shell fallback mode — agent TOML files are a trust boundary.
+            //
+            // When an agent's run_command contains shell metacharacters (pipes,
+            // redirections, variable references, etc.) we fall back to spawning
+            // through `$SHELL -lc <command>`. The entire `run_command` string is
+            // passed to the shell as a single argument with full shell evaluation.
+            // This means a malicious or compromised agent TOML file could execute
+            // arbitrary commands — there is no sandboxing or escaping applied.
+            //
+            // Agent TOML files are discovered on disk and therefore constitute a
+            // **trust boundary**. Only install agents from sources you trust.
+            log::warn!(
+                "ACP: agent '{}' using shell fallback mode (SHELL -lc). \
+                 Agent TOML files are a trust boundary — only install agents from \
+                 trusted sources. command='{}'",
                 self.config.identity,
+                run_command,
             );
             cmd = Command::new(&shell);
             cmd.arg("-lc").arg(&run_command);

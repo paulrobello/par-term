@@ -25,6 +25,9 @@ pub(super) const REDACTION_MARKER: &str = "[INPUT REDACTED - echo off]";
 /// These patterns are matched against terminal output (after stripping ANSI
 /// escape sequences) to detect when the user is being asked for a password.
 /// The match is performed on the last line of each output chunk.
+///
+/// SEC-009: Includes patterns for common non-English password prompts to reduce
+/// redaction gaps for internationalized systems and multilingual users.
 pub(super) const PASSWORD_PROMPT_PATTERNS: &[&str] = &[
     "password:",
     "password for",
@@ -82,6 +85,70 @@ pub(super) const PASSWORD_PROMPT_PATTERNS: &[&str] = &[
     "vault password:",
     "aws secret",
     "azure secret",
+    // SEC-009: Non-English password prompt patterns.
+    // Covers Portuguese, Spanish, French, Russian, German, Japanese, Korean,
+    // Chinese, Italian, Dutch, Polish, Turkish, Hindi, Arabic, and Hebrew.
+    // All matched case-insensitively.
+    // Portuguese
+    "senha:",
+    "digite a senha",
+    "informe a senha",
+    "senha atual:",
+    "nova senha:",
+    "confirme a senha",
+    // Spanish
+    "contrase\u{00f1}a:",      // contraseña:
+    "contrasena:",              // contrasena: (ASCII fallback)
+    "introduzca la contrase\u{00f1}a",
+    "contrase\u{00f1}a actual:",
+    "nueva contrase\u{00f1}a:",
+    "confirme la contrase\u{00f1}a",
+    // French
+    "mot de passe:",
+    "entrez le mot de passe",
+    "mot de passe actuel:",
+    "nouveau mot de passe:",
+    "confirmez le mot de passe",
+    // Russian
+    "\u{043f}\u{0430}\u{0440}\u{043e}\u{043b}\u{044c}:",                 // пароль:
+    "\u{0432}\u{0432}\u{0435}\u{0434}\u{0438}\u{0442}\u{0435} \u{043f}\u{0430}\u{0440}\u{043e}\u{043b}\u{044c}", // введите пароль
+    "\u{043d}\u{043e}\u{0432}\u{044b}\u{0439} \u{043f}\u{0430}\u{0440}\u{043e}\u{043b}\u{044c}:",               // новый пароль:
+    // German
+    "passwort:",
+    "geben sie das passwort",
+    "passwort eingeben",
+    "neues passwort:",
+    "passwort best\u{00e4}tigen", // passwort bestätigen
+    // Japanese
+    "\u{30d1}\u{30b9}\u{30ef}\u{30fc}\u{30c9}:",     // パスワード:
+    "\u{30d1}\u{30b9}\u{30ef}\u{30fc}\u{30c9}\u{5165}\u{529b}", // パスワード入力
+    // Korean
+    "암호:",       // 암호:
+    "비밀번호:", // 비밀번호:
+    // Chinese (Simplified)
+    "密码:",       // 密码:
+    "请输入密码", // 请输入密码
+    // Italian
+    "password:",           // (already covered by English "password:" — case-insensitive)
+    "inserire la password",
+    "nuova password:",
+    // Dutch
+    "wachtwoord:",
+    "voer het wachtwoord",
+    "nieuw wachtwoord:",
+    // Polish
+    "has\u{0142}o:",       // hasło:
+    "wprowadź has\u{0142}o", // wprowadź hasło
+    "nowe has\u{0142}o:",  // nowe hasło:
+    // Turkish
+    "ş}ifre:",        // şifre: (note: also covered by lowercase match of "Şifre:")
+    "parola:",
+    // Hindi
+    "प}ासवर्द}:", // पासवर्ड: (Hindi often uses English loanword)
+    // Arabic
+    "ك}لمة ا}لمرور}:", // كلمة المرور:
+    // Hebrew
+    "ס}יסמא}:", // סיסמא:
 ];
 
 /// Sensitive output line heuristics (case-insensitive substring matching).

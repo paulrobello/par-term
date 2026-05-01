@@ -24,6 +24,7 @@ pub mod shader;
 pub mod shell;
 pub mod tab_bar;
 pub mod terminal;
+pub mod unicode;
 
 // Re-export everything so callers of `types::*` continue to work.
 
@@ -57,3 +58,4 @@ pub use terminal::{
     CursorStyle, LinkUnderlineStyle, LogLevel, ModifierRemapping, ModifierTarget, OptionKeyMode,
     SemanticHistoryEditorMode, SessionLogFormat, UnfocusedCursorStyle,
 };
+pub use unicode::{AmbiguousWidth, NormalizationForm, UnicodeVersion};

@@ -1,5 +1,24 @@
 //! Library exports for testing and potential library use.
 //!
+//! # ARC-011 — Crate Size Note
+//!
+//! The root crate `src/` is ~70,587 lines across ~310 files. This is a compile-time
+//! bottleneck — any change to a single file recompiles the entire crate.
+//!
+//! Planned decomposition (deferred — multi-sprint effort):
+//!
+//!   1. Extract `par-term-ui` crate (~15K lines): egui overlay modules
+//!      - ai_inspector/, clipboard_history_ui, close_confirmation_ui,
+//!        command_history_ui, help_ui, integrations_ui, paste_special_ui,
+//!        profile_drawer_ui, quit_confirmation_ui, remote_shell_install_ui,
+//!        shader_install_ui, ssh_connect_ui, tmux_session_picker_ui
+//!
+//!   2. Extract `par-term-badge` crate (~3K lines): badge.rs + progress_bar.rs
+//!
+//!   3. Extract `par-term-session` crate (~5K lines): session/*, session_logger/
+//!
+//! Tracking: Issue ARC-011 in AUDIT.md.
+//!
 //! # Mutex Usage Policy
 //!
 //! par-term uses three mutex types for different concurrency scenarios.

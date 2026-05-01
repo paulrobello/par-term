@@ -1,4 +1,16 @@
 //! Snippet and custom action execution helpers for WindowState keybindings.
+//!
+//! TODO(QA-004): This file is 1254 lines (limit: 800). When it exceeds the limit
+//! in a future refactor, extract the per-action-type handlers from
+//! `execute_custom_action` into separate modules:
+//!
+//!   shell_command.rs  — ShellCommand arm (fire-and-forget + capture_output paths)
+//!   new_tab.rs        — NewTab arm (tab creation + delayed command write)
+//!   split_pane.rs     — SplitPane arm (pane splitting + delayed command write)
+//!   key_sequence.rs   — KeySequence arm (parsing + terminal write)
+//!
+//! Each handler would be a method on WindowState that takes the relevant fields
+//! from CustomActionConfig and returns bool. Track in issue QA-004.
 
 use crate::app::window_state::WindowState;
 use crate::app::window_state::WorkflowContext;
@@ -12,6 +24,13 @@ use winit::keyboard::{Key, KeyCode, NamedKey, PhysicalKey};
 
 const CUSTOM_ACTION_PREFIX_TOAST: &str = "Actions: prefix... (Esc to cancel)";
 const NEW_TAB_COMMAND_DELAY_MS: u64 = 200;
+
+/// QA-002: Maximum total delay (ms) allowed for a single Repeat or Sequence before
+/// rejecting the action. This caps the event-loop freeze caused by `thread::sleep`
+/// in the sync event loop. The proper fix is dispatching to a background Tokio task,
+/// but that requires extracting all `&mut self` mutations into a command queue.
+/// See AUDIT.md QA-002 for the full plan.
+const MAX_TOTAL_DELAY_MS: u64 = 5_000;
 
 fn prefix_action_for_char(actions: &[CustomActionConfig], input_char: char) -> Option<String> {
     let normalized_input = normalize_action_prefix_char(input_char);
@@ -326,13 +345,18 @@ impl WindowState {
                 // Use the same visited set so that cross-repeat cycles are detected.
                 let rep_id = rep_id.clone();
                 // QA-004: Clamp repeat count to prevent config-based DoS.
-                // TODO(QA-004): Sequences with delays block the event-loop thread via
-                // thread::sleep. The proper fix is to dispatch to a background Tokio
-                // task and communicate completion back via mpsc channel so the GPU
-                // continues rendering. Until then, a count cap of 100 limits the freeze.
+                // QA-002: Also cap total delay to MAX_TOTAL_DELAY_MS so the event loop
+                // is never frozen for more than a few seconds. The count cap alone
+                // doesn't bound delay time (100 iterations * 1s = 100s freeze).
                 const MAX_SAFE_REPEAT_COUNT: u32 = 100;
                 let count = (*count).min(MAX_SAFE_REPEAT_COUNT);
                 let rep_delay = *rep_delay;
+                let max_iterations_for_delay = if rep_delay > 0 {
+                    (MAX_TOTAL_DELAY_MS / rep_delay).max(1) as u32
+                } else {
+                    count
+                };
+                let count = count.min(max_iterations_for_delay);
                 let stop_on_success = *stop_on_success;
                 let stop_on_failure = *stop_on_failure;
                 let mut final_outcome = StepOutcome::Success;
@@ -455,11 +479,13 @@ impl WindowState {
 
     /// Execute sequence steps synchronously (called from event loop thread or background thread).
     ///
-    /// # Blocking note
+    /// # Blocking note (QA-002)
     ///
     /// This method is called from the event loop thread. Steps with `delay_ms > 0` will
-    /// block the event loop for the delay duration. Future work: dispatch to Tokio runtime
-    /// or use a timer queue to avoid blocking the UI.
+    /// block the event loop for the delay duration. Total delay is capped at
+    /// `MAX_TOTAL_DELAY_MS` to prevent extended UI freezes. The proper fix is to
+    /// dispatch to a background Tokio task communicating via mpsc, but that requires
+    /// extracting all `&mut self` mutations into a command queue (deferred).
     fn execute_sequence_sync(
         &mut self,
         steps: Vec<par_term_config::snippets::SequenceStep>,
@@ -485,9 +511,22 @@ impl WindowState {
         ctx: &Arc<Mutex<Option<WorkflowContext>>>,
         visited: &mut HashSet<String>,
     ) -> StepOutcome {
+        // QA-002: Track cumulative delay to cap total event-loop freeze time.
+        let mut total_delay_ms: u64 = 0;
         for step in steps {
             if step.delay_ms > 0 {
-                std::thread::sleep(std::time::Duration::from_millis(step.delay_ms));
+                // QA-002: Cap per-step delay so total never exceeds MAX_TOTAL_DELAY_MS.
+                let remaining = MAX_TOTAL_DELAY_MS.saturating_sub(total_delay_ms);
+                if remaining == 0 {
+                    log::warn!(
+                        "Sequence: total delay cap ({MAX_TOTAL_DELAY_MS}ms) reached, \
+                         skipping remaining steps"
+                    );
+                    break;
+                }
+                let actual_delay = step.delay_ms.min(remaining);
+                total_delay_ms += actual_delay;
+                std::thread::sleep(std::time::Duration::from_millis(actual_delay));
             }
 
             let outcome = self.execute_action_as_step(&step.action_id, ctx, visited);
@@ -540,11 +579,13 @@ impl WindowState {
 
     /// Execute a Repeat action: run action_id up to count times with optional delay.
     ///
-    /// # Blocking note
+    /// # Blocking note (QA-002)
     ///
     /// This method is called from the event loop thread. Iterations with `delay_ms > 0` will
-    /// block the event loop for the delay duration. Future work: dispatch to Tokio runtime
-    /// or use a timer queue to avoid blocking the UI.
+    /// block the event loop for the delay duration. Total delay is capped at
+    /// `MAX_TOTAL_DELAY_MS` to prevent extended UI freezes. The proper fix is to dispatch
+    /// to a background Tokio task communicating via mpsc, but that requires extracting all
+    /// `&mut self` mutations into a command queue (deferred).
     fn execute_repeat(
         &mut self,
         action_id: &str,
@@ -554,6 +595,13 @@ impl WindowState {
         stop_on_failure: bool,
         ctx: Arc<Mutex<Option<WorkflowContext>>>,
     ) {
+        // QA-002: Cap total delay to MAX_TOTAL_DELAY_MS.
+        let count = if delay_ms > 0 {
+            count.min((MAX_TOTAL_DELAY_MS / delay_ms).max(1) as u32)
+        } else {
+            count
+        };
+
         let mut visited: HashSet<String> = HashSet::new();
 
         for i in 0..count {
@@ -1110,32 +1158,32 @@ mod tests {
     use winit::keyboard::{Key, KeyCode, KeyLocation, PhysicalKey};
 
     fn make_key_event(logical_key: Key, physical_key: PhysicalKey, text: Option<&str>) -> KeyEvent {
-        // SEC-009: `KeyEvent` in winit (tested with winit 0.30.x / workspace dependency)
-        // does not expose a public constructor. `std::mem::zeroed()` produces a valid
-        // zero-initialised backing store because all fields in `KeyEvent` are either
-        // primitive types, enums with a zero discriminant, or `Option<T>` (which is
-        // `None` when zero-initialised for non-nullable inner types).
+        // SEC-006: Construct a KeyEvent for tests by setting each field individually.
         //
-        // Each semantically important field is immediately overwritten via `std::ptr::write`
-        // before the value is used, so no field is read in a zeroed state.
+        // `KeyEvent` in winit 0.30.x does not expose a public constructor. We use
+        // `std::mem::MaybeUninit` as a safe intermediate: the backing store is
+        // allocated but not zeroed, and each field is written via `std::ptr::write`
+        // before the value is read.
         //
-        // SAFETY: `KeyEvent` has no fields that are immediately invalid when zero-initialised
-        // (no raw pointers that must point to valid memory, no `NonNull`, no `NonZero*`).
-        // All public fields are set before the event is returned. This pattern is required
-        // because winit intentionally omits a public constructor for `KeyEvent` to keep
-        // the API opaque. If winit adds a public constructor in a future release, prefer
-        // that over this workaround.
+        // SAFETY: `KeyEvent` comprises primitive types (bool), enums with a zero
+        // discriminant (ElementState), Option<SmolStr>, Key, PhysicalKey, and
+        // KeyLocation — none of which are invalid when their bytes are set via
+        // `std::ptr::write`. All six public fields are written before the value
+        // is assumed-initialized via `assume_init()`. No raw pointers, NonNull,
+        // or NonZero* fields exist in KeyEvent.
         //
-        // Winit workspace dependency: see Cargo.toml `winit.workspace = true`.
+        // If winit adds a public constructor in a future release, prefer that
+        // over this workaround. See also winit 0.30.13 `KeyEvent` definition.
         unsafe {
-            let mut event: KeyEvent = std::mem::zeroed();
-            std::ptr::write(&mut event.physical_key, physical_key);
-            std::ptr::write(&mut event.logical_key, logical_key);
-            std::ptr::write(&mut event.text, text.map(Into::into));
-            std::ptr::write(&mut event.location, KeyLocation::Standard);
-            std::ptr::write(&mut event.state, ElementState::Pressed);
-            std::ptr::write(&mut event.repeat, false);
-            event
+            let mut event: std::mem::MaybeUninit<KeyEvent> = std::mem::MaybeUninit::uninit();
+            let ptr = event.as_mut_ptr();
+            std::ptr::write(std::ptr::addr_of_mut!((*ptr).physical_key), physical_key);
+            std::ptr::write(std::ptr::addr_of_mut!((*ptr).logical_key), logical_key);
+            std::ptr::write(std::ptr::addr_of_mut!((*ptr).text), text.map(Into::into));
+            std::ptr::write(std::ptr::addr_of_mut!((*ptr).location), KeyLocation::Standard);
+            std::ptr::write(std::ptr::addr_of_mut!((*ptr).state), ElementState::Pressed);
+            std::ptr::write(std::ptr::addr_of_mut!((*ptr).repeat), false);
+            event.assume_init()
         }
     }
 

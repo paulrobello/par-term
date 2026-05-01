@@ -39,6 +39,31 @@ Layer 2 in the dependency graph. Depends on `par-term-config` and
 `par-term-emu-core-rust` (external). Used directly by the root `par-term` crate and
 re-exported as `par_term::terminal`.
 
+## Installation
+
+Add the crate to your `Cargo.toml`:
+
+```toml
+[dependencies]
+par-term-terminal = { version = "0.2.6" }
+```
+
+## Usage
+
+```rust
+use par_term_terminal::TerminalManager;
+use par_term_config::Config;
+
+let config = Config::load()?;
+let mut terminal = TerminalManager::spawn(&config, None)?;
+
+// Write to the PTY
+terminal.write(b"echo hello\n")?;
+
+// Read terminal output
+let data = terminal.read()?;
+```
+
 ## Related Documentation
 
 - [Scrollback Buffer](../docs/SCROLLBACK.md) — scrollback and semantic history

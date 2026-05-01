@@ -353,6 +353,113 @@ sequenceDiagram
 
 Access to shared resources (like the Terminal state) is managed via `parking_lot::Mutex` to prevent contention and ensure safety.
 
+### Render Pipeline Sequence
+
+Every frame follows a strict three-phase ordering enforced by `emit_three_phase_draw_calls()` in `par-term-render/src/cell_renderer/render.rs`. Cursor overlays must render after text glyphs, or beam and underline cursors are hidden under glyph quads.
+
+```mermaid
+sequenceDiagram
+    participant EL as Event Loop
+    participant GS as gpu_submit.rs
+    participant PR as pane_render/mod.rs
+    participant CR as CellRenderer
+    participant GR as GraphicsRenderer
+    participant SR as CustomShaderRenderer
+    participant GPU as wgpu GPU
+
+    EL->>GS: gather_pane_render_data()
+    GS->>GS: Per-cell overlays (search, URLs)
+    GS->>PR: build_pane_instance_buffers()
+    Note over PR: Phase 1 — Backgrounds
+    PR->>CR: bg instance buffer
+    CR->>GPU: draw cell_bg.wgsl
+
+    Note over PR: Phase 2 — Text
+    PR->>CR: text instance buffer
+    CR->>GPU: draw cell_text.wgsl
+
+    Note over PR: Phase 3 — Cursor overlays
+    PR->>CR: cursor instance buffer
+    CR->>GPU: draw cursor shapes
+
+    GS->>GR: Upload inline graphics
+    GR->>GPU: draw Sixel/iTerm2/Kitty
+
+    alt Custom shader enabled
+        GS->>SR: Composite with shader
+        SR->>GPU: Post-processing pass
+    end
+
+    GS->>GPU: egui overlay (tab bar, search)
+    GS->>GPU: queue.submit()
+```
+
+### PTY Read to Screen Update
+
+The PTY reader runs on a Tokio background task. Parsed output updates the grid, which is polled by the main event loop to trigger a re-render.
+
+```mermaid
+sequenceDiagram
+    participant Shell as Shell (bash/zsh)
+    participant PTY as PTY fd
+    participant Reader as Tokio PTY Reader
+    participant Core as VT Parser
+    participant Grid as Terminal Grid
+    participant Poll as Tab Refresh Task
+    participant Render as Renderer
+
+    Shell->>PTY: Write stdout/stderr
+    Reader->>PTY: Async read (Tokio)
+    PTY-->>Reader: Raw bytes
+    Reader->>Core: Feed bytes
+    Core->>Core: Parse ESC sequences
+    Core->>Grid: Update cells, cursor, scroll
+
+    loop Adaptive polling (16ms - 250ms)
+        Poll->>Grid: Check generation counter
+        Grid-->>Poll: Changed? (dirty flag)
+    end
+
+    Poll->>Render: Trigger re-render
+    Render->>Grid: Read visible viewport
+    Render->>Render: Three-phase draw
+```
+
+### Split-Pane State Management
+
+Split panes use a tree structure. Each tab owns a `PaneNode` tree rooted at the tab level. Navigation, resizing, and focus changes propagate through the tree.
+
+```mermaid
+stateDiagram-v2
+    [*] --> SinglePane: New tab created
+
+    SinglePane --> SplitH: Split horizontal
+    SinglePane --> SplitV: Split vertical
+
+    SplitH --> SinglePane: Close one child
+    SplitV --> SinglePane: Close one child
+
+    SplitH --> NestedSplit: Split child pane
+    SplitV --> NestedSplit: Split child pane
+
+    NestedSplit --> SplitH: Close nested child
+    NestedSplit --> SplitV: Close nested child
+
+    state SplitH {
+        [*] --> Top
+        Top --> Bottom
+        Bottom --> Top
+        note right of Top: Focused pane
+    }
+
+    state SplitV {
+        [*] --> Left
+        Left --> Right
+        Right --> Left
+        note right of Left: Focused pane
+    }
+```
+
 ## Performance Optimizations
 
 `par-term` employs several techniques to minimize CPU and GPU usage when the terminal is idle, reducing power consumption and freeing resources for other applications.

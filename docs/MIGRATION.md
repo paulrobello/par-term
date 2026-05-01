@@ -18,7 +18,16 @@ Upgrade notes for par-term covering breaking configuration changes, renamed fiel
 
 ## Unreleased — Content Prettifier Removed
 
-The content prettifier feature has been removed. The `enable_prettifier`, `content_prettifier`, per-profile prettifier overrides, `toggle_prettifier` keybinding action, and trigger `type: prettify` action are no longer supported. Remove those entries from `config.yaml` before upgrading.
+The content prettifier feature has been removed. The `par-term-prettifier` workspace crate and all related runtime wiring have been deleted, including the settings UI tab, config/profile fields, trigger action (`type: prettify`), keybinding action (`toggle_prettifier`), and render-path substitutions.
+
+The prettifier was an optional subsystem that reformatted terminal output (JSON, Markdown, tables) using built-in formatters or user-configured external commands. It was removed to reduce maintenance surface area; equivalent formatting can be achieved through shell aliases, pipe-through formatters (e.g., `jq`, `bat`), or the trigger system.
+
+**Migration steps:**
+
+1. Remove `enable_prettifier`, `content_prettifier`, and any per-profile prettifier overrides from `config.yaml`.
+2. Remove `toggle_prettifier` from keybindings.
+3. Remove any triggers with `type: prettify`.
+4. If you relied on external prettifier commands, consider adding them as trigger `RunCommand` actions instead.
 
 ---
 

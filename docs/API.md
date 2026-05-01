@@ -1,5 +1,7 @@
 # API Documentation Index
 
+> **Note:** This index is maintained manually and is not validated by CI. It may drift out of sync with the codebase after refactors or new type additions. For the authoritative, up-to-date API reference, run `make doc` and open `target/doc/par_term/index.html`.
+
 This document provides an overview of the public types and functions exported by each par-term workspace crate. For full generated API documentation, run `make doc` and open `target/doc/par_term/index.html`.
 
 ## Table of Contents

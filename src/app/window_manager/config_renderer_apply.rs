@@ -262,8 +262,8 @@ pub(super) fn apply_renderer_config(
     // Apply Unicode width settings
     if changes.unicode_width {
         let width_config = par_term_emu_core_rust::WidthConfig::new(
-            config.unicode.unicode_version,
-            config.unicode.ambiguous_width,
+            config.unicode.unicode_version.to_core(),
+            config.unicode.ambiguous_width.to_core(),
         );
         for tab in window_state.tab_manager.tabs_mut() {
             if let Ok(term) = tab.terminal.try_write() {
@@ -276,7 +276,7 @@ pub(super) fn apply_renderer_config(
     if changes.normalization_form {
         for tab in window_state.tab_manager.tabs_mut() {
             if let Ok(term) = tab.terminal.try_write() {
-                term.set_normalization_form(config.unicode.normalization_form);
+                term.set_normalization_form(config.unicode.normalization_form.to_core());
             }
         }
     }
