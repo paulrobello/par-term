@@ -18,6 +18,27 @@
 //! - [`tools::config_update`] — `config_update` tool handler
 //! - [`tools::screenshot`] — `terminal_screenshot` tool handler
 //! - [`tools::diagnostics`] — `shader_diagnostics` tool handler
+//!
+//! # SEC-008: Trust Boundary — stdin/stdout IPC Channel
+//!
+//! This MCP server communicates over stdin and stdout using JSON-RPC 2.0.
+//! There is **no authentication, encryption, or integrity verification** on
+//! this IPC channel. Any process that can write to the MCP server's stdin can
+//! invoke any tool (including `config_update`, which writes to the user's
+//! configuration file on disk).
+//!
+//! **The stdin/stdout channel is a trust boundary.** Only trusted MCP client
+//! processes (i.e., ACP agents that par-term itself has spawned) should be
+//! connected to this server. The caller is responsible for ensuring that:
+//!
+//! 1. The MCP server process is only spawned by par-term's ACP subsystem.
+//! 2. The stdin pipe is not shared with or writable by untrusted processes.
+//! 3. Agent TOML files (which define which agents are launched) are treated as
+//!    a trust boundary — only install agents from sources you trust.
+//!
+//! The file-based IPC paths used for screenshot and diagnostics requests use
+//! restrictive permissions (0o600) to prevent unauthorized reads or writes,
+//! but the stdin/stdout channel itself has no such protection.
 
 pub mod ipc;
 pub mod jsonrpc;

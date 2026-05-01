@@ -25,13 +25,15 @@ impl WindowState {
             window_id
         );
 
-        if self.config.max_tabs > 0 && self.tab_manager.tab_count() >= self.config.max_tabs {
+        if self.config.load().max_tabs > 0
+            && self.tab_manager.tab_count() >= self.config.load().max_tabs
+        {
             return;
         }
 
         let grid_size = self.renderer.as_ref().map(|r| r.grid_size());
         match self.tab_manager.new_tab(
-            &self.config,
+            &self.config.load(),
             std::sync::Arc::clone(&self.runtime),
             false,
             grid_size,
@@ -54,8 +56,8 @@ impl WindowState {
                         tab.start_refresh_task(
                             std::sync::Arc::clone(&self.runtime),
                             std::sync::Arc::clone(window),
-                            self.config.max_fps,
-                            self.config.inactive_tab_fps,
+                            self.config.load().max_fps,
+                            self.config.load().inactive_tab_fps,
                         );
                     }
 
@@ -85,7 +87,7 @@ impl WindowState {
                     if let Some(pm) = tab.pane_manager_mut() {
                         match pm.set_from_tmux_layout(
                             parsed_layout,
-                            &self.config,
+                            &self.config.load(),
                             std::sync::Arc::clone(&self.runtime),
                         ) {
                             Ok(pane_mappings) => {

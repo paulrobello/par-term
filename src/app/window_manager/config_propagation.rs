@@ -33,21 +33,15 @@ impl WindowManager {
 
         for window_state in self.windows.values_mut() {
             // Detect what changed
-            let changes = ConfigChanges::detect(&window_state.config, config);
+            let changes = ConfigChanges::detect(&window_state.config.load(), config);
 
             // Update the config
-            // PROPAGATION TAX: Every call to apply_config_to_windows clones the full Config
-            // struct (268+ fields) into every open WindowState. With N windows open this is
-            // N allocations per settings change. For a single-window app this is negligible,
-            // but scales linearly with window count.
-            //
-            // TODO(ARC-007): Replace per-window config clones with Arc<RwLock<Config>> shared
-            // across all WindowState instances. WindowState would hold Arc<RwLock<Config>>
-            // and read config fields through the lock. Settings changes would write once to
-            // the shared Arc instead of cloning into every window. This requires coordinating
-            // with the renderer (which caches derived values from config) and keybinding
-            // registry (which must rebuild on keybinding changes). Track in issue ARC-007.
-            window_state.config = config.clone();
+            // QA-001 resolved: Using ArcSwap<Config> for atomic config swaps.
+            // Reads via self.config.load() are zero-cost (guard deref, no clone).
+            // Partial mutations use self.config.rcu() (clone-on-write only).
+            // This propagation path still clones per-window (each ArcSwap needs
+            // its own Arc), but that is inherent to the per-window config model.
+            window_state.config.store(Arc::new(config.clone()));
 
             if changes.ai_inspector_custom_agents {
                 window_state.refresh_available_agents();
@@ -134,7 +128,7 @@ impl WindowManager {
             if let Some(window) = &window_state.window {
                 // Update window title (handles both title change and show_window_number toggle)
                 if changes.window_title || changes.show_window_number {
-                    let title = window_state.format_title(&window_state.config.window_title);
+                    let title = window_state.format_title(&window_state.config.load().window_title);
                     window.set_title(&title);
                 }
                 if changes.window_decorations {
@@ -278,10 +272,10 @@ impl WindowManager {
 
         // Restart dynamic profile manager if sources changed
         let dynamic_sources_changed =
-            self.config.dynamic_profile_sources != config.dynamic_profile_sources;
+            self.config.load().dynamic_profile_sources != config.dynamic_profile_sources;
 
         // Also update the shared config
-        self.config = config.clone();
+        self.config.store(Arc::new(config.clone()));
 
         // Restart dynamic profile manager with new sources if they changed
         if dynamic_sources_changed {

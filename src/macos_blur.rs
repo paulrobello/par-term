@@ -4,6 +4,12 @@
 //! This is a private API that iTerm2, Alacritty, and other terminals use.
 //!
 //! Note: This only works on macOS. On other platforms, the functions are no-ops.
+//!
+//! TODO(QA-011): The unsafe FFI blocks in this module lack automated test coverage.
+//! Testing requires a macOS display server (CI runners may not have one).
+//! Consider adding: (1) compile-time signature validation via `bindgen` for the
+//! private CGS functions, (2) a manual test script that verifies blur is applied
+//! at each supported macOS version, (3) dlsym-null-return defensive tests.
 
 #[cfg(not(target_os = "macos"))]
 use anyhow::Result;
@@ -75,15 +81,17 @@ mod inner {
             return;
         }
 
-        // SAFETY: `dlopen` is an FFI call to open a system framework; the path is a
-        // well-known, null-terminated C string literal. `dlsym` returns either a null
-        // pointer (checked below) or the address of the named symbol. The resulting
-        // pointer is transmuted into the correct function pointer type
-        // `CGSSetWindowBackgroundBlurRadiusFn`, which matches the actual C ABI of
-        // `CGSSetWindowBackgroundBlurRadius(CGSConnectionID, uint32_t, uint32_t)`.
-        // The transmutation is valid because both sides are pointer-sized function
-        // pointers and we verify the symbol exists before transmuting.
-        // Validated on macOS 13, 14, and 15.
+        // SEC-007: Load both symbols from a single dlopen call. Each dlsym result
+        // is checked for null before transmuting to a function pointer. If any
+        // symbol is missing, the corresponding OnceLock is set to None and the
+        // function returns early so that set_window_blur() returns an error
+        // instead of calling through a null pointer.
+        //
+        // SAFETY: `dlopen` opens a system framework using a well-known, null-terminated
+        // C string literal. `dlsym` returns either a null pointer (checked immediately
+        // below) or a valid symbol address. Transmutation from `*mut c_void` to a
+        // function pointer type is valid because both are pointer-sized on all Apple
+        // platforms. ABI signatures have been validated on macOS 13, 14, and 15.
         BLUR_FN.get_or_init(|| unsafe {
             let handle = libc::dlopen(
                 c"/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices"
@@ -94,43 +102,49 @@ mod inner {
                 log::warn!("Failed to open ApplicationServices framework for blur");
                 return None;
             }
-            let sym = libc::dlsym(handle, c"CGSSetWindowBackgroundBlurRadius".as_ptr());
-            if sym.is_null() {
-                log::warn!("CGSSetWindowBackgroundBlurRadius not found");
-                None
-            } else {
-                Some(std::mem::transmute::<
-                    *mut libc::c_void,
-                    CGSSetWindowBackgroundBlurRadiusFn,
-                >(sym))
+
+            let blur_sym = libc::dlsym(handle, c"CGSSetWindowBackgroundBlurRadius".as_ptr());
+            if blur_sym.is_null() {
+                log::warn!(
+                    "CGSSetWindowBackgroundBlurRadius not found in ApplicationServices — \
+                     blur API unavailable"
+                );
+                return None;
             }
+
+            Some(std::mem::transmute::<
+                *mut libc::c_void,
+                CGSSetWindowBackgroundBlurRadiusFn,
+            >(blur_sym))
         });
-        // SAFETY: Same dlopen/dlsym pattern as BLUR_FN above, and guarded by the
-        // macOS version check at the top of load_functions(). The symbol pointer is
-        // transmuted to `CGSDefaultConnectionForThreadFn` which matches the C ABI of
-        // `CGSDefaultConnectionForThread() -> CGSConnectionID` (returns a u32).
-        // The transmutation is valid: both sides are pointer-sized function pointers
-        // and the null check ensures we only transmute a valid symbol address.
-        // Validated on macOS 13, 14, and 15.
+
         CONN_FN.get_or_init(|| unsafe {
+            // Re-open the framework (dlopen returns the same handle for an already-loaded
+            // library, so this is cheap). Using a separate dlopen avoids coupling the two
+            // OnceLock initialization order.
             let handle = libc::dlopen(
                 c"/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices"
                     .as_ptr(),
                 libc::RTLD_LAZY,
             );
             if handle.is_null() {
+                log::warn!("Failed to open ApplicationServices framework for blur (connection fn)");
                 return None;
             }
-            let sym = libc::dlsym(handle, c"CGSDefaultConnectionForThread".as_ptr());
-            if sym.is_null() {
-                log::warn!("CGSDefaultConnectionForThread not found");
-                None
-            } else {
-                Some(std::mem::transmute::<
-                    *mut libc::c_void,
-                    CGSDefaultConnectionForThreadFn,
-                >(sym))
+
+            let conn_sym = libc::dlsym(handle, c"CGSDefaultConnectionForThread".as_ptr());
+            if conn_sym.is_null() {
+                log::warn!(
+                    "CGSDefaultConnectionForThread not found in ApplicationServices — \
+                     blur API unavailable"
+                );
+                return None;
             }
+
+            Some(std::mem::transmute::<
+                *mut libc::c_void,
+                CGSDefaultConnectionForThreadFn,
+            >(conn_sym))
         });
     }
 

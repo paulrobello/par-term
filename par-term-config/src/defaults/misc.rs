@@ -326,18 +326,18 @@ pub fn progress_bar_opacity() -> f32 {
 // ── Unicode ────────────────────────────────────────────────────────────────
 
 /// Default Unicode version for character width calculations.
-pub fn unicode_version() -> par_term_emu_core_rust::UnicodeVersion {
-    par_term_emu_core_rust::UnicodeVersion::Auto
+pub fn unicode_version() -> crate::types::UnicodeVersion {
+    crate::types::UnicodeVersion::Auto
 }
 
 /// Default treatment of ambiguous-width Unicode characters.
-pub fn ambiguous_width() -> par_term_emu_core_rust::AmbiguousWidth {
-    par_term_emu_core_rust::AmbiguousWidth::Narrow
+pub fn ambiguous_width() -> crate::types::AmbiguousWidth {
+    crate::types::AmbiguousWidth::Narrow
 }
 
 /// Default Unicode normalization form applied to terminal input.
-pub fn normalization_form() -> par_term_emu_core_rust::NormalizationForm {
-    par_term_emu_core_rust::NormalizationForm::NFC
+pub fn normalization_form() -> crate::types::NormalizationForm {
+    crate::types::NormalizationForm::NFC
 }
 
 // ── Pane layout ────────────────────────────────────────────────────────────

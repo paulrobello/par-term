@@ -35,6 +35,7 @@ dirs = "6.0"
 
 # Concurrency
 parking_lot = "0.12.5"
+arc-swap = "1"
 
 # Window management
 winit = "0.30"
@@ -156,7 +157,7 @@ par-term-keybindings = { path = "par-term-keybindings", version = "0.1.8" }
 par-term-scripting = { path = "par-term-scripting", version = "0.1.8" }
 
 # SSH host management and discovery
-par-term-ssh = { path = "par-term-ssh", version = "0.1.4" }
+par-term-ssh = { path = "par-term-ssh", version = "0.1.4", default-features = false }
 
 # Self-update and update-check system
 par-term-update = { path = "par-term-update", version = "0.2.5" }
@@ -179,6 +180,7 @@ fontdb.workspace = true        # Font database for system font discovery and fal
 rustybuzz.workspace = true     # HarfBuzz text shaping for ligatures and complex scripts
 unicode-segmentation.workspace = true  # Grapheme cluster detection for proper text boundaries
 parking_lot.workspace = true
+arc-swap.workspace = true
 
 # Async runtime for PTY handling
 tokio.workspace = true
@@ -209,9 +211,10 @@ arboard.workspace = true
 regex.workspace = true
 open.workspace = true          # Cross-platform URL opener
 shell-words.workspace = true   # Safe shell command parsing (prevents argument injection)
+url = "2"                      # URL parsing for shader download validation
 
-# Audio playback for bell sound
-rodio = { version = "0.22.2", features = ["mp3"] }
+# Audio playback for bell sound (feature-gated: `audio`)
+rodio = { version = "0.22.2", features = ["mp3"], optional = true }
 
 # Desktop notifications
 notify-rust = "4.16"
@@ -228,10 +231,10 @@ chrono.workspace = true
 # Image loading for background images
 image.workspace = true
 
-# Native Mermaid diagram rendering (pure Rust, zero external deps)
-mermaid-rs-renderer = { version = "0.2", default-features = false }
-# SVG rasterization for mermaid diagram PNG output
-resvg = "0.47"
+# Native Mermaid diagram rendering (feature-gated: `mermaid`)
+mermaid-rs-renderer = { version = "0.2", default-features = false, optional = true }
+# SVG rasterization for mermaid diagram PNG output (feature-gated: `mermaid`)
+resvg = { version = "0.47", optional = true }
 
 # Half-precision float for HDR cubemap textures
 half.workspace = true
@@ -256,8 +259,8 @@ flate2 = "1.1.9"               # Gzip compression for upload tar.gz archives
 tar = "0.4.45"                 # Tar archive creation for upload (iTerm2 tgz format)
 lru.workspace = true
 fuzzy-matcher = "0.3.7"        # Fuzzy string matching for command history search
-sysinfo = { workspace = true, features = ["system"] }  # Cross-platform CPU/memory/network monitoring for status bar
-mdns-sd.workspace = true       # mDNS/Bonjour service discovery for SSH host auto-detection
+sysinfo = { workspace = true, features = ["system"], optional = true }  # Cross-platform CPU/memory/network monitoring for status bar (feature-gated: `system-monitor`)
+mdns-sd = { workspace = true, optional = true }       # mDNS/Bonjour service discovery for SSH host auto-detection (feature-gated: `mdns`)
 
 # Linux-specific: GTK for native menus (muda requires gtk feature on Linux)
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))'.dependencies.muda]
@@ -311,6 +314,11 @@ name = "par-term"
 path = "src/main.rs"
 
 [features]
+default = ["audio", "mermaid", "system-monitor", "mdns"]
+audio = ["dep:rodio"]
+mermaid = ["dep:mermaid-rs-renderer", "dep:resvg"]
+system-monitor = ["dep:sysinfo"]
+mdns = ["dep:mdns-sd", "par-term-ssh/mdns"]
 dev-tools = []  # Enable to build test-cr and test-grid utilities
 
 [[bin]]

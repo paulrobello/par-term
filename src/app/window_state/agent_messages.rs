@@ -112,6 +112,7 @@ impl WindowState {
                     if is_terminal_screenshot_permission_tool(&tool_call)
                         && !self
                             .config
+                            .load()
                             .ai_inspector
                             .ai_inspector_agent_screenshot_access
                     {

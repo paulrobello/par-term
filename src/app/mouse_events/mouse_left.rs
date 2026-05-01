@@ -131,9 +131,9 @@ impl WindowState {
 
             // Thresholds for sequential clicks (double/triple)
             let threshold_ms = if click_count == 1 {
-                self.config.mouse_double_click_threshold
+                self.config.load().mouse.mouse_double_click_threshold
             } else {
-                self.config.mouse_triple_click_threshold
+                self.config.load().mouse.mouse_triple_click_threshold
             };
             let click_threshold = std::time::Duration::from_millis(threshold_ms);
 
@@ -248,7 +248,7 @@ impl WindowState {
             }
 
             // Copy to clipboard if auto_copy is enabled
-            if self.config.auto_copy_selection {
+            if self.config.load().auto_copy_selection {
                 if let Err(e) = self.input_handler.copy_to_clipboard(&selected_text) {
                     log::error!("Failed to copy to clipboard: {}", e);
                 } else {

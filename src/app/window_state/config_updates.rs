@@ -191,20 +191,21 @@ impl ConfigChanges {
             inactive_tab_fps: new.inactive_tab_fps != old.inactive_tab_fps,
             vsync_mode: new.vsync_mode != old.vsync_mode,
 
-            cursor_style: new.cursor_style != old.cursor_style,
-            cursor_blink: new.cursor_blink != old.cursor_blink,
-            cursor_color: new.cursor_color != old.cursor_color,
-            cursor_text_color: new.cursor_text_color != old.cursor_text_color,
+            cursor_style: new.cursor.cursor_style != old.cursor.cursor_style,
+            cursor_blink: new.cursor.cursor_blink != old.cursor.cursor_blink,
+            cursor_color: new.cursor.cursor_color != old.cursor.cursor_color,
+            cursor_text_color: new.cursor.cursor_text_color != old.cursor.cursor_text_color,
 
-            cursor_enhancements: new.cursor_guide_enabled != old.cursor_guide_enabled
-                || new.cursor_guide_color != old.cursor_guide_color
-                || new.cursor_shadow_enabled != old.cursor_shadow_enabled
-                || new.cursor_shadow_color != old.cursor_shadow_color
-                || new.cursor_shadow_offset != old.cursor_shadow_offset
-                || (new.cursor_shadow_blur - old.cursor_shadow_blur).abs() > f32::EPSILON
-                || (new.cursor_boost - old.cursor_boost).abs() > f32::EPSILON
-                || new.cursor_boost_color != old.cursor_boost_color
-                || new.unfocused_cursor_style != old.unfocused_cursor_style,
+            cursor_enhancements: new.cursor.cursor_guide_enabled != old.cursor.cursor_guide_enabled
+                || new.cursor.cursor_guide_color != old.cursor.cursor_guide_color
+                || new.cursor.cursor_shadow_enabled != old.cursor.cursor_shadow_enabled
+                || new.cursor.cursor_shadow_color != old.cursor.cursor_shadow_color
+                || new.cursor.cursor_shadow_offset != old.cursor.cursor_shadow_offset
+                || (new.cursor.cursor_shadow_blur - old.cursor.cursor_shadow_blur).abs()
+                    > f32::EPSILON
+                || (new.cursor.cursor_boost - old.cursor.cursor_boost).abs() > f32::EPSILON
+                || new.cursor.cursor_boost_color != old.cursor.cursor_boost_color
+                || new.cursor.unfocused_cursor_style != old.cursor.unfocused_cursor_style,
 
             answerback_string: new.answerback_string != old.answerback_string,
 

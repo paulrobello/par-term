@@ -73,7 +73,7 @@ impl WindowManager {
             && now >= next_check
         {
             // Perform the check
-            let (result, should_save) = self.update_checker.check_now(&self.config, false);
+            let (result, should_save) = self.update_checker.check_now(&self.config.load(), false);
 
             // Log the result and notify if appropriate
             let mut config_changed = should_save;
@@ -94,6 +94,7 @@ impl WindowManager {
                     // Only notify if we haven't already notified about this version
                     let already_notified = self
                         .config
+                        .load()
                         .updates
                         .last_notified_version
                         .as_ref()
@@ -101,7 +102,11 @@ impl WindowManager {
 
                     if !already_notified {
                         notify_update_available(info);
-                        self.config.updates.last_notified_version = Some(version_str);
+                        self.config.rcu(|old| {
+                            let mut new = (**old).clone();
+                            new.updates.last_notified_version = Some(version_str.clone());
+                            std::sync::Arc::new(new)
+                        });
                         config_changed = true;
                     }
                 }
@@ -131,8 +136,12 @@ impl WindowManager {
 
             // Save config with updated timestamp if check was successful
             if config_changed {
-                self.config.updates.last_update_check = Some(current_timestamp());
-                if let Err(e) = self.config.save() {
+                self.config.rcu(|old| {
+                    let mut new = (**old).clone();
+                    new.updates.last_update_check = Some(current_timestamp());
+                    std::sync::Arc::new(new)
+                });
+                if let Err(e) = self.config.load().save() {
                     log::warn!("Failed to save config after update check: {}", e);
                 }
             }
@@ -140,6 +149,7 @@ impl WindowManager {
             // Schedule next check based on frequency
             self.next_update_check = self
                 .config
+                .load()
                 .updates
                 .update_check_frequency
                 .as_seconds()
@@ -151,7 +161,7 @@ impl WindowManager {
     pub fn force_update_check(&mut self) {
         use crate::update_checker::current_timestamp;
 
-        let (result, should_save) = self.update_checker.check_now(&self.config, true);
+        let (result, should_save) = self.update_checker.check_now(&self.config.load(), true);
 
         // Log the result
         match &result {
@@ -186,8 +196,12 @@ impl WindowManager {
 
         // Save config with updated timestamp
         if should_save {
-            self.config.updates.last_update_check = Some(current_timestamp());
-            if let Err(e) = self.config.save() {
+            self.config.rcu(|old| {
+                let mut new = (**old).clone();
+                new.updates.last_update_check = Some(current_timestamp());
+                std::sync::Arc::new(new)
+            });
+            if let Err(e) = self.config.load().save() {
                 log::warn!("Failed to save config after update check: {}", e);
             }
         }

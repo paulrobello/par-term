@@ -30,40 +30,80 @@ impl WindowState {
                 // Apply settings that can be changed at runtime
 
                 // Update Option/Alt key modes
-                self.config.left_option_key_mode = new_config.left_option_key_mode;
-                self.config.right_option_key_mode = new_config.right_option_key_mode;
+                self.config.rcu(|old| {
+                    let mut new = (**old).clone();
+                    new.left_option_key_mode = new_config.left_option_key_mode;
+                    std::sync::Arc::new(new)
+                });
+                self.config.rcu(|old| {
+                    let mut new = (**old).clone();
+                    new.right_option_key_mode = new_config.right_option_key_mode;
+                    std::sync::Arc::new(new)
+                });
                 self.input_handler.update_option_key_modes(
                     new_config.left_option_key_mode,
                     new_config.right_option_key_mode,
                 );
 
                 // Update modifier remapping and physical keys preference
-                self.config.modifier_remapping = new_config.modifier_remapping;
-                self.config.use_physical_keys = new_config.use_physical_keys;
+                self.config.rcu(|old| {
+                    let mut new = (**old).clone();
+                    new.modifier_remapping = new_config.modifier_remapping;
+                    std::sync::Arc::new(new)
+                });
+                self.config.rcu(|old| {
+                    let mut new = (**old).clone();
+                    new.use_physical_keys = new_config.use_physical_keys;
+                    std::sync::Arc::new(new)
+                });
 
                 // Update auto_copy_selection
-                self.config.auto_copy_selection = new_config.auto_copy_selection;
+                self.config.rcu(|old| {
+                    let mut new = (**old).clone();
+                    new.auto_copy_selection = new_config.auto_copy_selection;
+                    std::sync::Arc::new(new)
+                });
 
                 // Update middle_click_paste
-                self.config.middle_click_paste = new_config.middle_click_paste;
+                self.config.rcu(|old| {
+                    let mut new = (**old).clone();
+                    new.middle_click_paste = new_config.middle_click_paste;
+                    std::sync::Arc::new(new)
+                });
 
                 // Update paste_delay_ms
-                self.config.paste_delay_ms = new_config.paste_delay_ms;
+                self.config.rcu(|old| {
+                    let mut new = (**old).clone();
+                    new.paste_delay_ms = new_config.paste_delay_ms;
+                    std::sync::Arc::new(new)
+                });
 
                 // Update window title (check both title and show_window_number)
-                if self.config.window_title != new_config.window_title
-                    || self.config.show_window_number != new_config.show_window_number
+                if self.config.load().window_title != new_config.window_title
+                    || self.config.load().show_window_number != new_config.show_window_number
                 {
-                    self.config.window_title = new_config.window_title.clone();
-                    self.config.show_window_number = new_config.show_window_number;
+                    self.config.rcu(|old| {
+                        let mut new = (**old).clone();
+                        new.window_title = new_config.window_title.clone();
+                        std::sync::Arc::new(new)
+                    });
+                    self.config.rcu(|old| {
+                        let mut new = (**old).clone();
+                        new.show_window_number = new_config.show_window_number;
+                        std::sync::Arc::new(new)
+                    });
                     if let Some(window) = &self.window {
                         window.set_title(&self.format_title(&new_config.window_title));
                     }
                 }
 
                 // Update theme
-                if self.config.theme != new_config.theme {
-                    self.config.theme = new_config.theme.clone();
+                if self.config.load().theme != new_config.theme {
+                    self.config.rcu(|old| {
+                        let mut new = (**old).clone();
+                        new.theme = new_config.theme.clone();
+                        std::sync::Arc::new(new)
+                    });
                     // Apply theme to all tabs and all pane terminals
                     let theme = new_config.load_theme();
                     for tab in self.tab_manager.tabs_mut() {
@@ -92,33 +132,47 @@ impl WindowState {
                 // Config reloading for these features will be enabled when APIs become available
 
                 // Note: Terminal dimensions and scrollback size still require restart
-                if new_config.font_size != self.config.font_size {
+                if new_config.font_size != self.config.load().font_size {
                     log::info!(
                         "Font size changed from {} -> {} (applied live)",
-                        self.config.font_size,
+                        self.config.load().font_size,
                         new_config.font_size
                     );
                 }
 
-                if new_config.cols != self.config.cols || new_config.rows != self.config.rows {
+                if new_config.cols != self.config.load().cols
+                    || new_config.rows != self.config.load().rows
+                {
                     log::warn!("Terminal dimensions change requires restart");
                 }
 
                 // Refresh keybinding registry if keybindings changed
-                if new_config.keybindings != self.config.keybindings {
+                if new_config.keybindings != self.config.load().keybindings {
                     self.keybinding_registry = crate::keybindings::KeybindingRegistry::from_config(
                         &new_config.keybindings,
                     );
-                    self.config.keybindings = new_config.keybindings;
+                    let kb = new_config.keybindings.clone();
+                    self.config.rcu(|old| {
+                        let mut new = (**old).clone();
+                        new.keybindings = kb.clone();
+                        std::sync::Arc::new(new)
+                    });
                     log::info!("Keybindings reloaded");
                 }
 
-                if new_config.custom_action_prefix_key != self.config.custom_action_prefix_key {
+                if new_config.custom_action_prefix_key
+                    != self.config.load().custom_action_prefix_key
+                {
                     self.custom_action_prefix_combo = Self::parse_custom_action_prefix_combo(
                         &new_config.custom_action_prefix_key,
                     );
                     self.custom_action_prefix_state.exit();
-                    self.config.custom_action_prefix_key = new_config.custom_action_prefix_key;
+                    let prefix_key = new_config.custom_action_prefix_key.clone();
+                    self.config.rcu(|old| {
+                        let mut new = (**old).clone();
+                        new.custom_action_prefix_key = prefix_key.clone();
+                        std::sync::Arc::new(new)
+                    });
                     log::info!("Custom action prefix key reloaded");
                 }
 

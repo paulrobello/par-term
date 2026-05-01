@@ -1,5 +1,7 @@
 # API Documentation Index
 
+> **Note:** This index is maintained manually and is not validated by CI. It may drift out of sync with the codebase after refactors or new type additions. For the authoritative, up-to-date API reference, run `make doc` and open `target/doc/par_term/index.html`.
+
 This document provides an overview of the public types and functions exported by each par-term workspace crate. For full generated API documentation, run `make doc` and open `target/doc/par_term/index.html`.
 
 ## Table of Contents
@@ -466,7 +468,7 @@ Minimal MCP (Model Context Protocol) server over stdio. Exposes tools for ACP ag
 
 ## Related Documentation
 
-- [Architecture Overview](ARCHITECTURE.md) — How the crates fit together
+- [Architecture Overview](architecture/ARCHITECTURE.md) — How the crates fit together
 - [Configuration Reference](CONFIG_REFERENCE.md) — All `Config` fields documented
 - [Contributing](../CONTRIBUTING.md) — Development setup and workflow
-- [Environment Variables](ENVIRONMENT_VARIABLES.md) — Runtime environment variable reference
+- [Environment Variables](guides/ENVIRONMENT_VARIABLES.md) — Runtime environment variable reference

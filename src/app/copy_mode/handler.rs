@@ -17,7 +17,7 @@ impl WindowState {
 
     /// Enter copy mode, anchoring the cursor at the current terminal cursor position
     pub(crate) fn enter_copy_mode(&mut self) {
-        if !self.config.copy_mode.copy_mode_enabled {
+        if !self.config.load().copy_mode.copy_mode_enabled {
             return;
         }
 
@@ -164,21 +164,21 @@ impl WindowState {
                 // === Word motions ===
                 "w" => {
                     if let Some(text) = self.get_copy_mode_line_text() {
-                        let word_chars = self.config.word_characters.clone();
+                        let word_chars = self.config.load().word_characters.clone();
                         self.copy_mode.move_word_forward(&text, &word_chars);
                         self.after_copy_mode_motion();
                     }
                 }
                 "b" => {
                     if let Some(text) = self.get_copy_mode_line_text() {
-                        let word_chars = self.config.word_characters.clone();
+                        let word_chars = self.config.load().word_characters.clone();
                         self.copy_mode.move_word_backward(&text, &word_chars);
                         self.after_copy_mode_motion();
                     }
                 }
                 "e" => {
                     if let Some(text) = self.get_copy_mode_line_text() {
-                        let word_chars = self.config.word_characters.clone();
+                        let word_chars = self.config.load().word_characters.clone();
                         self.copy_mode.move_word_end(&text, &word_chars);
                         self.after_copy_mode_motion();
                     }

@@ -143,7 +143,7 @@ impl WindowState {
         // Control characters in clipboard content (ESC, C0, C1) can inject terminal escape
         // sequences. The sanitizer always strips them; this warning alerts the user that
         // clipboard content was modified before pasting.
-        if self.config.warn_paste_control_chars
+        if self.config.load().warn_paste_control_chars
             && crate::paste_transform::paste_contains_control_chars(text)
         {
             log::warn!(
@@ -180,7 +180,7 @@ impl WindowState {
                 .and_then(|pm| pm.focused_pane())
                 .map(|pane| Arc::clone(&pane.terminal))
                 .unwrap_or_else(|| Arc::clone(&tab.terminal));
-            let delay_ms = self.config.paste_delay_ms;
+            let delay_ms = self.config.load().paste_delay_ms;
             self.runtime.spawn(async move {
                 let term = terminal_clone.write().await;
                 if delay_ms > 0 && text.contains('\n') {

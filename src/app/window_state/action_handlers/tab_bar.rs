@@ -82,9 +82,9 @@ impl WindowState {
                         }
                         // Trigger immediate title update
                         tab.update_title(
-                            self.config.tab_title_mode,
-                            self.config.remote_tab_title_format,
-                            self.config.remote_tab_title_osc_priority,
+                            self.config.load().tab_title_mode,
+                            self.config.load().remote_tab_title_format,
+                            self.config.load().remote_tab_title_osc_priority,
                         );
                     } else {
                         tab.set_title(&name);
@@ -102,7 +102,11 @@ impl WindowState {
                 let just_opened = self.overlay_ui.ai_inspector.toggle();
                 self.sync_ai_inspector_width();
                 if just_opened {
-                    if self.config.ai_inspector.ai_inspector_input_history_mode
+                    if self
+                        .config
+                        .load()
+                        .ai_inspector
+                        .ai_inspector_input_history_mode
                         == par_term_config::AssistantInputHistoryMode::Persist
                     {
                         self.overlay_ui.ai_inspector.merge_persisted_input_history();

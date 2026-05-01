@@ -324,22 +324,24 @@ impl WindowState {
             error: None,
             diagnostics: Some(ShaderDiagnostics {
                 background: ShaderDiagnosticsEntry {
-                    shader: self.config.shader.custom_shader.clone(),
-                    enabled: self.config.shader.custom_shader_enabled,
+                    shader: self.config.load().shader.custom_shader.clone(),
+                    enabled: self.config.load().shader.custom_shader_enabled,
                     last_error: self.shader_state.background_shader_last_error.clone(),
                     wgsl_path: self
                         .config
+                        .load()
                         .shader
                         .custom_shader
                         .as_ref()
                         .map(|name| shader_debug_wgsl_path(name)),
                 },
                 cursor: ShaderDiagnosticsEntry {
-                    shader: self.config.shader.cursor_shader.clone(),
-                    enabled: self.config.shader.cursor_shader_enabled,
+                    shader: self.config.load().shader.cursor_shader.clone(),
+                    enabled: self.config.load().shader.cursor_shader_enabled,
                     last_error: self.shader_state.cursor_shader_last_error.clone(),
                     wgsl_path: self
                         .config
+                        .load()
                         .shader
                         .cursor_shader
                         .as_ref()

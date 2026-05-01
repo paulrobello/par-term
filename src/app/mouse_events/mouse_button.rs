@@ -116,7 +116,7 @@ impl WindowState {
                 // where middle-click silently forwards a mouse event to a TUI app (vim,
                 // less, etc.) instead of pasting, causing apparent "different content"
                 // compared to Cmd+V.
-                if self.config.middle_click_paste {
+                if self.config.load().middle_click_paste {
                     if state == ElementState::Pressed {
                         // Phase 1: Focus the pane under the click, if it differs from the
                         // current focus. Must run before Phase 2's terminal lookup so that
@@ -258,15 +258,16 @@ impl WindowState {
             ) {
                 match &item.item_type {
                     url_detection::DetectedItemType::Url => {
-                        if let Err(e) =
-                            url_detection::open_url(&item.url, &self.config.link_handler_command)
-                        {
+                        if let Err(e) = url_detection::open_url(
+                            &item.url,
+                            &self.config.load().link_handler_command,
+                        ) {
                             log::error!("Failed to open URL: {}", e);
                         }
                     }
                     url_detection::DetectedItemType::FilePath { line, column } => {
-                        let editor_mode = self.config.semantic_history_editor_mode;
-                        let editor_cmd = &self.config.semantic_history_editor;
+                        let editor_mode = self.config.load().semantic_history_editor_mode;
+                        let editor_cmd = &self.config.load().semantic_history_editor;
                         let cwd = tab.get_cwd();
                         crate::debug_info!(
                             "SEMANTIC",
@@ -302,7 +303,7 @@ impl WindowState {
         // Windows/Linux: Alt+Click
         // Note: Option+Cmd is reserved for rectangular selection (matching iTerm2)
         if state == ElementState::Pressed
-            && self.config.option_click_moves_cursor
+            && self.config.load().mouse.option_click_moves_cursor
             && self.input_handler.modifiers.state().alt_key()
             && !self.input_handler.modifiers.state().super_key() // Not Cmd/Super (that's for rectangular selection)
             && let Some((target_col, _target_row)) =
@@ -449,14 +450,14 @@ impl WindowState {
     /// pixels using the window's scale factor, matching the coordinate space of winit mouse events.
     pub(crate) fn is_mouse_in_tab_bar(&self, mouse_position: (f64, f64)) -> bool {
         let tab_count = self.tab_manager.tab_count();
-        let tab_bar_height = self.tab_bar_ui.get_height(tab_count, &self.config);
-        let tab_bar_width = self.tab_bar_ui.get_width(tab_count, &self.config);
+        let tab_bar_height = self.tab_bar_ui.get_height(tab_count, &self.config.load());
+        let tab_bar_width = self.tab_bar_ui.get_width(tab_count, &self.config.load());
         let scale_factor = self
             .window
             .as_ref()
             .map(|w| w.scale_factor())
             .unwrap_or(1.0);
-        match self.config.tab_bar_position {
+        match self.config.load().tab_bar_position {
             crate::config::TabBarPosition::Top => {
                 mouse_position.1 < tab_bar_height as f64 * scale_factor
             }

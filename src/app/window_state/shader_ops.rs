@@ -10,28 +10,30 @@ impl WindowState {
         debug_info!(
             "SHADER",
             "init_shader_watcher: hot_reload={}",
-            self.config.shader_hot_reload
+            self.config.load().shader_hot_reload
         );
 
-        if !self.config.shader_hot_reload {
+        if !self.config.load().shader_hot_reload {
             log::debug!("Shader hot reload disabled");
             return;
         }
 
         let background_path = self
             .config
+            .load()
             .shader
             .custom_shader
             .as_ref()
-            .filter(|_| self.config.shader.custom_shader_enabled)
+            .filter(|_| self.config.load().shader.custom_shader_enabled)
             .map(|s| Config::shader_path(s));
 
         let cursor_path = self
             .config
+            .load()
             .shader
             .cursor_shader
             .as_ref()
-            .filter(|_| self.config.shader.cursor_shader_enabled)
+            .filter(|_| self.config.load().shader.cursor_shader_enabled)
             .map(|s| Config::shader_path(s));
 
         debug_info!(
@@ -49,13 +51,13 @@ impl WindowState {
         match ShaderWatcher::new(
             background_path.as_deref(),
             cursor_path.as_deref(),
-            self.config.shader_hot_reload_delay,
+            self.config.load().shader_hot_reload_delay,
         ) {
             Ok(watcher) => {
                 debug_info!(
                     "SHADER",
                     "Shader hot reload initialized (debounce: {}ms)",
-                    self.config.shader_hot_reload_delay
+                    self.config.load().shader_hot_reload_delay
                 );
                 self.shader_state.shader_watcher = Some(watcher);
             }
@@ -70,8 +72,8 @@ impl WindowState {
         debug_info!(
             "SHADER",
             "reinit_shader_watcher CALLED: shader={:?}, cursor={:?}",
-            self.config.shader.custom_shader,
-            self.config.shader.cursor_shader
+            self.config.load().shader.custom_shader,
+            self.config.load().shader.cursor_shader
         );
         // Drop existing watcher
         self.shader_state.shader_watcher = None;
@@ -100,7 +102,7 @@ impl WindowState {
     }
 
     fn refresh_background_shader_uniforms_after_reload(&mut self, source: &str) {
-        let Some(shader_name) = self.config.shader.custom_shader.clone() else {
+        let Some(shader_name) = self.config.load().shader.custom_shader.clone() else {
             return;
         };
 
@@ -113,9 +115,9 @@ impl WindowState {
                 .get_fresh(&shader_name)
         });
         let resolved = resolve_shader_config(
-            self.config.get_shader_override(&shader_name),
+            self.config.load().get_shader_override(&shader_name),
             metadata.as_ref(),
-            &self.config,
+            &self.config.load(),
         );
 
         if let Some(renderer) = &mut self.renderer {
@@ -166,7 +168,7 @@ impl WindowState {
                     &format!("{} - {}", shader_name, error_msg),
                 );
                 // Trigger visual bell if enabled to alert user
-                if self.config.notifications.notification_bell_visual
+                if self.config.load().notifications.notification_bell_visual
                     && let Some(tab) = self.tab_manager.active_tab_mut()
                 {
                     tab.active_bell_mut().visual_flash = Some(std::time::Instant::now());
@@ -250,7 +252,7 @@ impl WindowState {
                 );
 
                 // Trigger visual bell if enabled to alert user
-                if self.config.notifications.notification_bell_visual
+                if self.config.load().notifications.notification_bell_visual
                     && let Some(tab) = self.tab_manager.active_tab_mut()
                 {
                     tab.active_bell_mut().visual_flash = Some(std::time::Instant::now());

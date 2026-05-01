@@ -1,5 +1,6 @@
 //! `UnicodeConfig` — Unicode width and normalization settings.
 
+use crate::types::{AmbiguousWidth, NormalizationForm, UnicodeVersion};
 use serde::{Deserialize, Serialize};
 
 /// Settings controlling Unicode character width and normalization behaviour.
@@ -9,13 +10,13 @@ pub struct UnicodeConfig {
     /// Different versions have different width tables, particularly for emoji.
     /// Options: unicode_9, unicode_10, ..., unicode_16, auto (default)
     #[serde(default = "crate::defaults::unicode_version")]
-    pub unicode_version: par_term_emu_core_rust::UnicodeVersion,
+    pub unicode_version: UnicodeVersion,
 
     /// Treatment of East Asian Ambiguous width characters
     /// - narrow: 1 cell width (Western default)
     /// - wide: 2 cell width (CJK default)
     #[serde(default = "crate::defaults::ambiguous_width")]
-    pub ambiguous_width: par_term_emu_core_rust::AmbiguousWidth,
+    pub ambiguous_width: AmbiguousWidth,
 
     /// Unicode normalization form for text processing.
     /// Controls how Unicode text is normalized before being stored in terminal cells.
@@ -25,7 +26,7 @@ pub struct UnicodeConfig {
     /// - NFKD: Compatibility decomposition
     /// - none: No normalization
     #[serde(default = "crate::defaults::normalization_form")]
-    pub normalization_form: par_term_emu_core_rust::NormalizationForm,
+    pub normalization_form: NormalizationForm,
 }
 
 impl Default for UnicodeConfig {

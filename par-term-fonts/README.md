@@ -41,6 +41,29 @@ TextShaper
 Layer 2 in the dependency graph. Depends on `par-term-config` for font configuration.
 Used by `par-term-render` (Layer 3) for glyph rasterization.
 
+## Installation
+
+Add the crate to your `Cargo.toml`:
+
+```toml
+[dependencies]
+par-term-fonts = { version = "0.1.7" }
+```
+
+## Usage
+
+```rust
+use par_term_fonts::{FontManager, TextShaper, ShapingOptions};
+
+// Create a font manager with the primary font
+let mut font_manager = FontManager::new();
+font_manager.set_primary_font("JetBrains Mono");
+
+// Shape text for rendering
+let shaper = TextShaper::new(font_manager);
+let glyphs = shaper.shape("Hello, world!", &ShapingOptions::default());
+```
+
 ## Related Documentation
 
 - [Quick Start: Fonts](../docs/QUICK_START_FONTS.md) — font configuration guide

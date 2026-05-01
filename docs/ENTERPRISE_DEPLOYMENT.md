@@ -232,7 +232,7 @@ Set these in `/etc/profile.d/par-term.sh` (macOS/Linux) or system environment va
 | `DEBUG_LEVEL` | Enable debug logging (`0`–`4`); set to `0` in production |
 | `RUST_LOG` | Standard log filter; leave unset in production |
 
-Refer to [Environment Variables Reference](ENVIRONMENT_VARIABLES.md) for the complete list.
+Refer to [Environment Variables Reference](guides/ENVIRONMENT_VARIABLES.md) for the complete list.
 
 ### Config Variable Substitution
 
@@ -361,7 +361,7 @@ EOF
 
 ### Automation and Trigger Safety
 
-par-term's [Automation](AUTOMATION.md) system can execute shell commands in response to terminal output patterns. In enterprise deployments:
+par-term's [Automation](features/AUTOMATION.md) system can execute shell commands in response to terminal output patterns. In enterprise deployments:
 
 - `prompt_before_run` defaults to `true` — users must confirm before commands run.
 - Set `prompt_before_run: false` only for commands your org explicitly approves, and also set `i_accept_the_risk: true` on that trigger to acknowledge automated execution.
@@ -372,7 +372,7 @@ To disable automation entirely in managed deployments, deploy a config with no `
 
 ### Session Logging
 
-[Session logging](SESSION_LOGGING.md) records raw terminal I/O to a local file. When enabled, it may capture passwords, API keys, and other sensitive data despite the built-in redaction heuristics.
+[Session logging](features/SESSION_LOGGING.md) records raw terminal I/O to a local file. When enabled, it may capture passwords, API keys, and other sensitive data despite the built-in redaction heuristics.
 
 For environments with data-handling requirements (PCI-DSS, HIPAA, SOC 2):
 
@@ -404,10 +404,10 @@ The [AI panel](ASSISTANT_PANEL.md) launches AI coding agents (Claude Code, Codex
 
 ## Related Documentation
 
-- [Getting Started](GETTING_STARTED.md) — Installation for individual users
+- [Getting Started](guides/GETTING_STARTED.md) — Installation for individual users
 - [Config Reference](CONFIG_REFERENCE.md) — All configuration options with defaults
-- [Environment Variables](ENVIRONMENT_VARIABLES.md) — Variables recognized at startup
-- [Self-Update](SELF_UPDATE.md) — Built-in update behavior and how to disable it
-- [Session Logging](SESSION_LOGGING.md) — Log format, location, and redaction
-- [Automation](AUTOMATION.md) — Trigger safety and command execution model
-- [Troubleshooting](TROUBLESHOOTING.md) — Diagnosing common issues
+- [Environment Variables](guides/ENVIRONMENT_VARIABLES.md) — Variables recognized at startup
+- [Self-Update](features/SELF_UPDATE.md) — Built-in update behavior and how to disable it
+- [Session Logging](features/SESSION_LOGGING.md) — Log format, location, and redaction
+- [Automation](features/AUTOMATION.md) — Trigger safety and command execution model
+- [Troubleshooting](guides/TROUBLESHOOTING.md) — Diagnosing common issues

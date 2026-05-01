@@ -52,7 +52,7 @@ impl WindowManager {
             && let Some(ws) = self.windows.get_mut(&window_id)
             && let Some(tab) = ws.tab_manager.active_tab_mut()
         {
-            let script_count = ws.config.scripts.len();
+            let script_count = ws.config.load().scripts.len();
             let mut running = Vec::with_capacity(script_count);
             let mut errors = Vec::with_capacity(script_count);
             let mut output = Vec::with_capacity(script_count);
@@ -242,12 +242,14 @@ impl WindowManager {
                         // Permission check (copy value to release config borrow)
                         let allow = ws
                             .config
+                            .load()
                             .scripts
                             .get(config_index)
                             .map(|s| s.allow_write_text)
                             .unwrap_or(false);
                         let rate_limit = ws
                             .config
+                            .load()
                             .scripts
                             .get(config_index)
                             .map(|s| s.write_text_rate_limit)
@@ -312,12 +314,14 @@ impl WindowManager {
                     } => {
                         let allow = ws
                             .config
+                            .load()
                             .scripts
                             .get(config_index)
                             .map(|s| s.allow_run_command)
                             .unwrap_or(false);
                         let rate_limit = ws
                             .config
+                            .load()
                             .scripts
                             .get(config_index)
                             .map(|s| s.run_command_rate_limit)
@@ -410,6 +414,7 @@ impl WindowManager {
                     } => {
                         let allow = ws
                             .config
+                            .load()
                             .scripts
                             .get(config_index)
                             .map(|s| s.allow_change_config)

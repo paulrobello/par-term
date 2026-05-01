@@ -22,7 +22,7 @@ pub(super) fn show_mouse_section(
             if ui
                 .add_sized(
                     [SLIDER_WIDTH, SLIDER_HEIGHT],
-                    egui::Slider::new(&mut settings.config.mouse_scroll_speed, 0.1..=10.0),
+                    egui::Slider::new(&mut settings.config.mouse.mouse_scroll_speed, 0.1..=10.0),
                 )
                 .changed()
             {
@@ -37,7 +37,7 @@ pub(super) fn show_mouse_section(
                 .add_sized(
                     [SLIDER_WIDTH, SLIDER_HEIGHT],
                     egui::Slider::new(
-                        &mut settings.config.mouse_double_click_threshold,
+                        &mut settings.config.mouse.mouse_double_click_threshold,
                         100..=1000,
                     ),
                 )
@@ -54,7 +54,7 @@ pub(super) fn show_mouse_section(
                 .add_sized(
                     [SLIDER_WIDTH, SLIDER_HEIGHT],
                     egui::Slider::new(
-                        &mut settings.config.mouse_triple_click_threshold,
+                        &mut settings.config.mouse.mouse_triple_click_threshold,
                         100..=1000,
                     ),
                 )
@@ -75,7 +75,7 @@ pub(super) fn show_mouse_section(
 
         if ui
             .checkbox(
-                &mut settings.config.option_click_moves_cursor,
+                &mut settings.config.mouse.option_click_moves_cursor,
                 option_click_label,
             )
             .on_hover_text("Position the text cursor at the clicked location")
@@ -87,7 +87,7 @@ pub(super) fn show_mouse_section(
 
         if ui
             .checkbox(
-                &mut settings.config.focus_follows_mouse,
+                &mut settings.config.mouse.focus_follows_mouse,
                 "Focus follows mouse",
             )
             .on_hover_text("Automatically focus the terminal window when the mouse enters it")
@@ -99,7 +99,7 @@ pub(super) fn show_mouse_section(
 
         if ui
             .checkbox(
-                &mut settings.config.report_horizontal_scroll,
+                &mut settings.config.mouse.report_horizontal_scroll,
                 "Report horizontal scroll events",
             )
             .on_hover_text(

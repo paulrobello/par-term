@@ -65,7 +65,7 @@ impl WindowManager {
         }
 
         // Create new settings window using shared runtime
-        let config = self.config.clone();
+        let config = (**self.config.load()).clone();
         let runtime = std::sync::Arc::clone(&self.runtime);
 
         // Get supported vsync modes from the first window's renderer
@@ -152,15 +152,23 @@ impl WindowManager {
         if let Some(settings_window) = self.settings_window.take() {
             // Persist collapsed section states AND current live-preview config.
             let collapsed = settings_window.settings_ui.collapsed_sections_snapshot();
-            if !collapsed.is_empty() || !self.config.collapsed_settings_sections.is_empty() {
-                self.config.collapsed_settings_sections = collapsed.clone();
+            if !collapsed.is_empty() || !self.config.load().collapsed_settings_sections.is_empty() {
+                self.config.rcu(|old| {
+                    let mut new = (**old).clone();
+                    new.collapsed_settings_sections = collapsed.clone();
+                    std::sync::Arc::new(new)
+                });
                 for window_state in self.windows.values_mut() {
-                    window_state.config.collapsed_settings_sections = collapsed.clone();
+                    window_state.config.rcu(|old| {
+                        let mut new = (**old).clone();
+                        new.collapsed_settings_sections = collapsed.clone();
+                        std::sync::Arc::new(new)
+                    });
                 }
             }
             // Save the in-memory config which includes both collapsed sections and
             // any live-preview changes from the settings window.
-            if let Err(e) = self.config.save() {
+            if let Err(e) = self.config.load().save() {
                 log::error!("Failed to persist config on settings window close: {}", e);
             }
             log::info!("Closed settings window");
@@ -204,7 +212,8 @@ impl WindowManager {
             if let Some(renderer) = &mut window_state.renderer {
                 match renderer.reload_shader_from_source(source) {
                     Ok(()) => {
-                        if let Some(shader_name) = window_state.config.shader.custom_shader.clone()
+                        if let Some(shader_name) =
+                            window_state.config.load().shader.custom_shader.clone()
                         {
                             window_state
                                 .shader_state
@@ -218,9 +227,9 @@ impl WindowManager {
                                         .get_fresh(&shader_name)
                                 });
                             let resolved = resolve_shader_config(
-                                window_state.config.get_shader_override(&shader_name),
+                                window_state.config.load().get_shader_override(&shader_name),
                                 metadata.as_ref(),
-                                &window_state.config,
+                                &window_state.config.load(),
                             );
                             renderer.set_custom_shader_uniform_values(resolved.custom_uniforms);
                         }

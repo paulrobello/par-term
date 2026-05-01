@@ -14,6 +14,7 @@
 //! - Coprocess management
 //! - tmux control mode
 
+pub mod conversion;
 pub mod scrollback_metadata;
 pub mod terminal;
 

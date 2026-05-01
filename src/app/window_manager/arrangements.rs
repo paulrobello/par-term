@@ -143,7 +143,7 @@ impl WindowManager {
             {
                 // Auto-connect tmux session if this window had one saved
                 if let Some(ref session_name) = window_snapshot.tmux_session_name
-                    && window_state.config.tmux_enabled
+                    && window_state.config.load().tmux_enabled
                     && !session_name.is_empty()
                 {
                     if let Err(e) = window_state.initiate_tmux_gateway(Some(session_name)) {

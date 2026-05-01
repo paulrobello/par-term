@@ -38,10 +38,10 @@ impl WindowState {
         // try_lock: intentional — called every frame from the render path; blocking would
         // stall rendering. On miss: window title is not updated this frame. No data loss.
         if let Ok(term) = tab.terminal.try_write() {
-            let mut title_parts = vec![self.config.window_title.clone()];
+            let mut title_parts = vec![self.config.load().window_title.clone()];
 
             // Add window number if configured
-            if self.config.show_window_number {
+            if self.config.load().show_window_number {
                 title_parts.push(format!("[{}]", self.window_index));
             }
 

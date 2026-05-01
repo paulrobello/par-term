@@ -1,20 +1,35 @@
 use crate::types::shader::ShaderUniformValue;
 use std::collections::{BTreeMap, HashSet};
 
+/// Scale mode for slider controls.
+///
+/// `Linear` maps the slider range uniformly. `Log` applies logarithmic
+/// scaling, which is useful for frequency or exponential parameters where
+/// small values need fine-grained control.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum SliderScale {
+    /// Linear mapping from min to max.
     Linear,
+    /// Logarithmic mapping (requires 0 < min < max).
     Log,
 }
 
+/// Unit for angle controls.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum AngleUnit {
+    /// Degrees (0-360).
     Degrees,
+    /// Radians (0-2*pi).
     Radians,
 }
 
+/// Kind of UI control parsed from a `// control` comment in a shader file.
+///
+/// Each variant corresponds to a different widget type in the settings UI,
+/// paired with the GLSL uniform type it can attach to.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ShaderControlKind {
+    /// Float slider control attached to `uniform float`.
     Slider {
         min: f32,
         max: f32,
@@ -22,64 +37,83 @@ pub enum ShaderControlKind {
         scale: SliderScale,
         label: Option<String>,
     },
-    Checkbox {
-        label: Option<String>,
-    },
-    Color {
-        alpha: bool,
-        label: Option<String>,
-    },
+    /// Boolean checkbox attached to `uniform bool`.
+    Checkbox { label: Option<String> },
+    /// Color picker attached to `uniform vec3` or `uniform vec4`.
+    Color { alpha: bool, label: Option<String> },
+    /// Integer slider attached to `uniform int`.
     Int {
         min: i32,
         max: i32,
         step: i32,
         label: Option<String>,
     },
+    /// Dropdown selector attached to `uniform int` (selected by index).
     Select {
         options: Vec<String>,
         label: Option<String>,
     },
+    /// Two-component float slider attached to `uniform vec2`.
     Vec2 {
         min: f32,
         max: f32,
         step: f32,
         label: Option<String>,
     },
-    Point {
-        label: Option<String>,
-    },
+    /// Normalized 2D point picker attached to `uniform vec2` (range 0-1).
+    Point { label: Option<String> },
+    /// Two-handle range slider attached to `uniform vec2`.
     Range {
         min: f32,
         max: f32,
         step: f32,
         label: Option<String>,
     },
+    /// Angle dial attached to `uniform float`.
     Angle {
         unit: AngleUnit,
         label: Option<String>,
     },
+    /// iChannel selector dropdown attached to `uniform int`.
     Channel {
         options: Vec<i32>,
         label: Option<String>,
     },
 }
 
+/// A parsed `// control` declaration bound to a shader uniform.
+///
+/// Maps a uniform name to its control kind (slider, checkbox, color, etc.)
+/// for rendering in the settings UI.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ShaderControl {
+    /// Name of the GLSL uniform this control attaches to.
     pub name: String,
+    /// The kind of UI control (slider, checkbox, color picker, etc.).
     pub kind: ShaderControlKind,
 }
 
+/// A non-fatal warning emitted during shader control parsing.
+///
+/// Warnings are displayed in the shader settings UI but do not prevent
+/// the shader from loading. They indicate malformed or unrecognized
+/// control declarations.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ShaderControlWarning {
+    /// 1-based line number where the warning was detected.
     pub line: usize,
+    /// Human-readable description of the issue.
     pub message: String,
 }
 
+/// Result of parsing all `// control` declarations from a shader source.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ShaderControlParseResult {
+    /// Successfully parsed controls, ordered by appearance in the source.
     pub controls: Vec<ShaderControl>,
+    /// Non-fatal warnings for malformed or unrecognized declarations.
     pub warnings: Vec<ShaderControlWarning>,
+    /// Map of uniform name to group name (for grouping controls in the UI).
     pub groups: BTreeMap<String, String>,
 }
 

@@ -75,7 +75,12 @@ impl WindowState {
             ),
         }];
 
-        if self.config.ai_inspector.ai_inspector_agent_terminal_access {
+        if self
+            .config
+            .load()
+            .ai_inspector
+            .ai_inspector_agent_terminal_access
+        {
             content.push(ContentBlock::Text {
                 text: "[Terminal access enabled]\n\
                     Shell commands you write in fenced code blocks \
@@ -94,11 +99,13 @@ impl WindowState {
         if let Some(user_text) = last_user_text
             && crate::ai_inspector::shader_context::should_inject_shader_context(
                 user_text,
-                &self.config,
+                &self.config.load(),
             )
         {
             content.push(ContentBlock::Text {
-                text: crate::ai_inspector::shader_context::build_shader_context(&self.config),
+                text: crate::ai_inspector::shader_context::build_shader_context(
+                    &self.config.load(),
+                ),
             });
         }
 
@@ -154,7 +161,12 @@ impl WindowState {
     /// auto-context is enabled and a new command has completed.
     pub(crate) fn feed_auto_context(&mut self, msg_count_before: usize) {
         // Auto-execute new CommandSuggestion messages when terminal access is enabled.
-        if self.config.ai_inspector.ai_inspector_agent_terminal_access {
+        if self
+            .config
+            .load()
+            .ai_inspector
+            .ai_inspector_agent_terminal_access
+        {
             let new_messages = &self.overlay_ui.ai_inspector.chat.messages[msg_count_before..];
             let commands_to_run: Vec<String> = new_messages
                 .iter()
@@ -203,8 +215,12 @@ impl WindowState {
                 // active so the agent can see the outcome of commands it ran.
                 if had_commands
                     && current_count > 0
-                    && (self.config.ai_inspector.ai_inspector_auto_context
-                        || self.config.ai_inspector.ai_inspector_agent_terminal_access)
+                    && (self.config.load().ai_inspector.ai_inspector_auto_context
+                        || self
+                            .config
+                            .load()
+                            .ai_inspector
+                            .ai_inspector_agent_terminal_access)
                     && self.overlay_ui.ai_inspector.agent_status == AgentStatus::Connected
                     && let Some((cmd, exit_code, duration_ms)) = history.last()
                 {
@@ -263,7 +279,10 @@ impl WindowState {
             let snapshot = crate::ai_inspector::snapshot::SnapshotData::gather(
                 &term,
                 &self.overlay_ui.ai_inspector.scope,
-                self.config.ai_inspector.ai_inspector_context_max_lines,
+                self.config
+                    .load()
+                    .ai_inspector
+                    .ai_inspector_context_max_lines,
             );
             self.overlay_ui.ai_inspector.snapshot = Some(snapshot);
             self.overlay_ui.ai_inspector.needs_refresh = false;

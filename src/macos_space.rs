@@ -7,6 +7,12 @@
 //! CoreFoundation public functions are linked directly since they are always available.
 //!
 //! Note: This only works on macOS. On other platforms, the function is a no-op.
+//!
+//! TODO(QA-011): The unsafe FFI blocks in this module lack automated test coverage.
+//! Testing requires a macOS display server (CI runners may not have one).
+//! Consider adding: (1) compile-time signature validation via `bindgen` for the
+//! private SLS functions, (2) a manual test script for Space management on each
+//! supported macOS version, (3) dlsym-null-return defensive tests.
 
 #[cfg(not(target_os = "macos"))]
 use anyhow::Result;

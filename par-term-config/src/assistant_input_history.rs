@@ -11,8 +11,10 @@ use crate::Config;
 const INPUT_HISTORY_FILE_NAME: &str = "assistant_input_history.yaml";
 pub const MAX_ASSISTANT_INPUT_HISTORY_ENTRIES: usize = 200;
 
+/// Internal YAML file structure for assistant input history persistence.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 struct AssistantInputHistoryFile {
+    /// Ordered list of previously submitted prompt strings.
     #[serde(default)]
     entries: Vec<String>,
 }

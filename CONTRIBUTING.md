@@ -1,5 +1,7 @@
 # Contributing to par-term
 
+> **Note:** [CLAUDE.md](CLAUDE.md) is the canonical development reference. It is kept up-to-date by AI-assisted tooling and covers build commands, architecture, debugging workflows, and common gotchas in more detail than this file. When the two documents disagree, CLAUDE.md takes precedence.
+
 Guidelines for contributing to par-term, a cross-platform GPU-accelerated terminal emulator built in Rust.
 
 ## Table of Contents
@@ -236,7 +238,7 @@ See `docs/ACP_HARNESS.md` for full usage details and transcript capture.
 
 ## Architecture Overview
 
-For a detailed description of the codebase structure, data flow, threading model, and GPU rendering pipeline, see `docs/ARCHITECTURE.md`.
+For a detailed description of the codebase structure, data flow, threading model, and GPU rendering pipeline, see `docs/architecture/ARCHITECTURE.md`.
 
 **Key layers:**
 
@@ -351,7 +353,7 @@ make config-example    # Writes config.yaml.example to the project root
 1. Add key handling in `src/app/input_events/` (a directory with 6+ files; the main dispatch logic is in `keybinding_actions.rs`).
 2. If the shortcut generates a terminal sequence, add sequence generation in `src/input.rs` via `InputHandler`.
 
-For snippet or action keybindings, see `docs/SNIPPETS.md`. Key points:
+For snippet or action keybindings, see `docs/features/SNIPPETS.md`. Key points:
 
 - Snippets use `snippet:<id>`, actions use `action:<id>` as keybinding action names.
 - Bindings are auto-generated during config load via `generate_snippet_action_keybindings()`.
@@ -464,13 +466,13 @@ the initial terminal dimensions.
 
 ## Related Documentation
 
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — Full architecture, data flow, and threading model
+- [docs/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) — Full architecture, data flow, and threading model
 - [docs/LOGGING.md](docs/LOGGING.md) — Custom debug macro system and log levels
-- [docs/CUSTOM_SHADERS.md](docs/CUSTOM_SHADERS.md) — Background and cursor shader development
+- [docs/CUSTOM_SHADERS.md](docs/features/CUSTOM_SHADERS.md) — Background and cursor shader development
 - [docs/CONFIG_REFERENCE.md](docs/CONFIG_REFERENCE.md) — All configuration options
-- [docs/KEYBOARD_SHORTCUTS.md](docs/KEYBOARD_SHORTCUTS.md) — Default keybinding reference
-- [docs/SNIPPETS.md](docs/SNIPPETS.md) — Snippet and action keybinding system
+- [docs/KEYBOARD_SHORTCUTS.md](docs/guides/KEYBOARD_SHORTCUTS.md) — Default keybinding reference
+- [docs/SNIPPETS.md](docs/features/SNIPPETS.md) — Snippet and action keybinding system
 - [docs/ACP_HARNESS.md](docs/ACP_HARNESS.md) — ACP agent debugging harness
-- [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) — Common issues and solutions
+- [docs/TROUBLESHOOTING.md](docs/guides/TROUBLESHOOTING.md) — Common issues and solutions
 - [docs/DOCUMENTATION_STYLE_GUIDE.md](docs/DOCUMENTATION_STYLE_GUIDE.md) — Documentation conventions for this project
 - [CLAUDE.md](CLAUDE.md) — Full AI assistant development context and workflow reference

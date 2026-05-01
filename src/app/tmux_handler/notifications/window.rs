@@ -12,12 +12,14 @@ impl WindowState {
         crate::debug_info!("TMUX", "Window added: @{}", window_id);
 
         // Check max tabs limit
-        if self.config.max_tabs > 0 && self.tab_manager.tab_count() >= self.config.max_tabs {
+        if self.config.load().max_tabs > 0
+            && self.tab_manager.tab_count() >= self.config.load().max_tabs
+        {
             crate::debug_error!(
                 "TMUX",
                 "Cannot create tab for tmux window @{}: max_tabs limit ({}) reached",
                 window_id,
-                self.config.max_tabs
+                self.config.load().max_tabs
             );
             return;
         }
@@ -27,7 +29,7 @@ impl WindowState {
 
         // Create a new tab for this tmux window
         match self.tab_manager.new_tab(
-            &self.config,
+            &self.config.load(),
             std::sync::Arc::clone(&self.runtime),
             false, // Don't inherit CWD from active tab for tmux
             grid_size,
@@ -56,8 +58,8 @@ impl WindowState {
                         tab.start_refresh_task(
                             std::sync::Arc::clone(&self.runtime),
                             std::sync::Arc::clone(window),
-                            self.config.max_fps,
-                            self.config.inactive_tab_fps,
+                            self.config.load().max_fps,
+                            self.config.load().inactive_tab_fps,
                         );
                     }
 

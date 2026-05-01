@@ -104,7 +104,7 @@ impl WindowState {
         }
 
         // If autohide disabled, always show
-        if self.config.scrollbar_autohide_delay == 0 {
+        if self.config.load().scrollbar_autohide_delay == 0 {
             return true;
         }
 
@@ -117,9 +117,9 @@ impl WindowState {
         if let Some(window) = &self.window {
             let padding = 32.0; // px hover band
             let width = window.inner_size().width as f64;
-            let near_right = self.config.scrollbar_position != "left"
+            let near_right = self.config.load().scrollbar_position != "left"
                 && (width - tab.active_mouse().position.0) <= padding;
-            let near_left = self.config.scrollbar_position == "left"
+            let near_left = self.config.load().scrollbar_position == "left"
                 && tab.active_mouse().position.0 <= padding;
             if near_left || near_right {
                 return true;
@@ -131,6 +131,6 @@ impl WindowState {
             .last_activity
             .elapsed()
             .as_millis()
-            < self.config.scrollbar_autohide_delay as u128
+            < self.config.load().scrollbar_autohide_delay as u128
     }
 }

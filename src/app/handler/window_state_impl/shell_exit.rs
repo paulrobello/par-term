@@ -14,7 +14,7 @@ impl WindowState {
         use crate::config::ShellExitAction;
         use crate::pane::RestartState;
 
-        match self.config.shell_exit_action {
+        match self.config.load().shell_exit_action {
             ShellExitAction::Keep => {
                 // Do nothing - keep dead shells showing
             }
@@ -69,7 +69,7 @@ impl WindowState {
                     .collect();
 
                 // Send session-ended notifications for single-pane tabs before closing them.
-                if self.config.notifications.notification_session_ended {
+                if self.config.load().notifications.notification_session_ended {
                     for (_tab_id, tab_title, exit_notified) in &single_pane_exiting {
                         if !exit_notified {
                             log::info!("Shell in tab '{}' has exited", tab_title);
@@ -85,8 +85,8 @@ impl WindowState {
                 {
                     let cell_width = renderer.cell_width();
                     let cell_height = renderer.cell_height();
-                    let title_offset = if self.config.show_pane_titles {
-                        self.config.pane_title_height
+                    let title_offset = if self.config.load().show_pane_titles {
+                        self.config.load().pane_title_height
                     } else {
                         0.0
                     };
@@ -100,8 +100,8 @@ impl WindowState {
                             let padding = if pm.pane_count() <= 1 {
                                 0.0
                             } else {
-                                self.config.pane_divider_width.unwrap_or(2.0) / 2.0
-                                    + self.config.pane_padding
+                                self.config.load().pane_divider_width.unwrap_or(2.0) / 2.0
+                                    + self.config.load().pane_padding
                             };
                             pm.resize_all_terminals_with_padding(
                                 cell_width,
@@ -132,7 +132,7 @@ impl WindowState {
             | ShellExitAction::RestartWithPrompt
             | ShellExitAction::RestartAfterDelay => {
                 // Handle restart variants
-                let config_clone = self.config.clone();
+                let config_clone = (**self.config.load()).clone();
 
                 for tab in self.tab_manager.tabs_mut() {
                     if tab.tmux.tmux_gateway_active || tab.tmux.tmux_pane_id.is_some() {
@@ -146,7 +146,7 @@ impl WindowState {
                             // Check if pane needs restart action
                             if !is_running && pane.restart_state.is_none() {
                                 // Shell just exited, handle based on action
-                                match self.config.shell_exit_action {
+                                match self.config.load().shell_exit_action {
                                     ShellExitAction::RestartImmediately => {
                                         log::info!(
                                             "Pane {} shell exited, restarting immediately",

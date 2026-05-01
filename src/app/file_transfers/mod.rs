@@ -351,8 +351,12 @@ impl WindowState {
 
                     // Update last_download_directory for LastUsed config option
                     if let Some(parent) = path.parent() {
-                        self.config.last_download_directory =
-                            Some(parent.to_string_lossy().to_string());
+                        self.config.rcu(|old| {
+                            let mut new = (**old).clone();
+                            new.last_download_directory =
+                                Some(parent.to_string_lossy().to_string());
+                            std::sync::Arc::new(new)
+                        });
                     }
                 }
                 Err(e) => {
@@ -374,10 +378,11 @@ impl WindowState {
 
     /// Resolve the default download directory based on config settings.
     fn resolve_download_directory(&self) -> Option<PathBuf> {
-        match &self.config.download_save_location {
+        match &self.config.load().download_save_location {
             DownloadSaveLocation::Downloads => dirs::download_dir(),
             DownloadSaveLocation::LastUsed => self
                 .config
+                .load()
                 .last_download_directory
                 .as_ref()
                 .map(PathBuf::from)

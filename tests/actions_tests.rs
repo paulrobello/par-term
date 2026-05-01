@@ -4,20 +4,12 @@
 //! keybinding accessors and serialization, action keybinding generation,
 //! config persistence for actions, and key sequence parsing.
 
+mod common;
+
 use par_term::config::{Config, CustomActionConfig};
 use par_term::keybindings::parser::parse_key_sequence;
 use std::collections::HashMap;
 use std::fs;
-use std::path::PathBuf;
-use tempfile::TempDir;
-
-/// Helper to create a temporary config directory
-fn setup_temp_config() -> (TempDir, PathBuf) {
-    let temp_dir = TempDir::new().unwrap();
-    let config_dir = temp_dir.path().join("par-term");
-    fs::create_dir_all(&config_dir).unwrap();
-    (temp_dir, config_dir)
-}
 
 // ============================================================================
 // Custom Action Type Tests
@@ -442,7 +434,7 @@ fn test_generate_action_keybindings_remove_when_cleared() {
 
 #[test]
 fn test_config_persistence_actions() {
-    let (_temp_dir, config_dir) = setup_temp_config();
+    let (_temp_dir, config_dir) = common::setup_config_dir();
 
     // Create config with actions
     let mut config = Config::default();

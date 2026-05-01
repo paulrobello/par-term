@@ -30,7 +30,7 @@ impl WindowState {
         // Tab bar height is in logical pixels (egui); position is physical pixels (winit)
         let tab_bar_height = self
             .tab_bar_ui
-            .get_height(self.tab_manager.tab_count(), &self.config);
+            .get_height(self.tab_manager.tab_count(), &self.config.load());
         let scale_factor = self
             .window
             .as_ref()
@@ -93,7 +93,7 @@ impl WindowState {
                     if let Some(window) = &self.window {
                         // Visual feedback: hand pointer + URL tooltip in title
                         window.set_cursor(winit::window::CursorIcon::Pointer);
-                        let base_title = self.format_title(&self.config.window_title);
+                        let base_title = self.format_title(&self.config.load().window_title);
                         let tooltip_title = format!("{} - {}", base_title, url.url);
                         window.set_title(&tooltip_title);
                     }
@@ -107,10 +107,10 @@ impl WindowState {
                 if let Some(window) = &self.window {
                     window.set_cursor(winit::window::CursorIcon::Text);
                     // Restore terminal-controlled title or config default
-                    if self.config.allow_title_change && !terminal_title.is_empty() {
+                    if self.config.load().allow_title_change && !terminal_title.is_empty() {
                         window.set_title(&self.format_title(&terminal_title));
                     } else {
-                        window.set_title(&self.format_title(&self.config.window_title));
+                        window.set_title(&self.format_title(&self.config.load().window_title));
                     }
                 }
             }
@@ -426,10 +426,10 @@ impl WindowState {
         }
         if let Some(window) = &self.window {
             window.set_cursor(winit::window::CursorIcon::Text);
-            if self.config.allow_title_change && !terminal_title.is_empty() {
+            if self.config.load().allow_title_change && !terminal_title.is_empty() {
                 window.set_title(&self.format_title(&terminal_title));
             } else {
-                window.set_title(&self.format_title(&self.config.window_title));
+                window.set_title(&self.format_title(&self.config.load().window_title));
             }
         }
     }

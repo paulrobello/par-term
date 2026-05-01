@@ -9,6 +9,25 @@
 //! - Scrollbar rendering with mark overlays
 //! - Background image rendering
 //! - GPU utility functions
+//!
+//! # Logging Convention (ARC-004)
+//!
+//! This crate has two logging systems: `log::debug!()` / `log::trace!()` calls
+//! and the root crate's `crate::debug_info!()` / `crate::debug_log!()` macros.
+//!
+//! For **rendering hot paths** (functions called every frame during
+//! `render_split_panes`, `build_instance_buffers`, shader compilation), prefer
+//! `log::debug!()` / `log::trace!()` since these are controlled by `RUST_LOG`
+//! and have near-zero overhead when disabled. The root crate's custom debug
+//! macros (`debug_info!`) are not available in this sub-crate.
+//!
+//! For **non-hot-path diagnostics** (startup, resource loading, error paths),
+//! either system is acceptable.
+//!
+//! A future migration (deferred — see AUDIT.md ARC-004) will unify both systems
+//! under `tracing`. Until then, do NOT add new `log::debug!()` calls inside
+//! per-frame loops without guarding them behind a level check or making them
+//! conditional on `cfg!(debug_assertions)`.
 
 pub mod cell_renderer;
 pub mod custom_shader_renderer;

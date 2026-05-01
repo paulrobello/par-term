@@ -18,6 +18,7 @@ use crate::tab::setup::{
 use crate::tab::tmux_state::TabTmuxState;
 use crate::terminal::TerminalManager;
 use par_term_config::TabId;
+use par_term_terminal::conversion::to_core_restart_policy;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use tokio::runtime::Runtime;
@@ -59,7 +60,7 @@ impl Tab {
                     cwd: None,
                     env: crate::terminal::coprocess_env(),
                     copy_terminal_output: coproc_config.copy_terminal_output,
-                    restart_policy: coproc_config.restart_policy.to_core(),
+                    restart_policy: to_core_restart_policy(coproc_config.restart_policy),
                     restart_delay_ms: coproc_config.restart_delay_ms,
                 };
                 match terminal.start_coprocess(core_config) {

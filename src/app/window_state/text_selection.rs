@@ -72,9 +72,9 @@ impl WindowState {
             .collect();
 
         // Get config values
-        let smart_selection_enabled = self.config.smart_selection_enabled;
-        let word_characters = self.config.word_characters.clone();
-        let smart_selection_rules = self.config.smart_selection_rules.clone();
+        let smart_selection_enabled = self.config.load().smart_selection_enabled;
+        let word_characters = self.config.load().word_characters.clone();
+        let smart_selection_rules = self.config.load().smart_selection_rules.clone();
 
         // Try smart selection first if enabled
         let (start_col, end_col) = if smart_selection_enabled {
@@ -245,9 +245,8 @@ impl WindowState {
 
         if selection.mode == SelectionMode::Line {
             // Line selection: extract full lines
-            #[allow(clippy::needless_range_loop)]
-            for row in start_row..=end_row {
-                if row > start_row {
+            for (idx, row) in (start_row..=end_row).enumerate() {
+                if idx > 0 {
                     selected_text.push('\n');
                 }
                 let line = &visible_lines[row];
@@ -259,9 +258,8 @@ impl WindowState {
             let min_col = start_col.min(end_col);
             let max_col = start_col.max(end_col);
 
-            #[allow(clippy::needless_range_loop)]
-            for row in start_row..=end_row {
-                if row > start_row {
+            for (idx, row) in (start_row..=end_row).enumerate() {
+                if idx > 0 {
                     selected_text.push('\n');
                 }
                 let line = &visible_lines[row];
@@ -302,7 +300,7 @@ impl WindowState {
         }
 
         // Inverted config logic: false means strip trailing line endings.
-        if !self.config.copy_trailing_newline {
+        if !self.config.load().copy_trailing_newline {
             while selected_text.ends_with('\n') || selected_text.ends_with('\r') {
                 selected_text.pop();
             }

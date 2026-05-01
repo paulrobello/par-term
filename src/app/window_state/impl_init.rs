@@ -14,6 +14,7 @@ use crate::status_bar::StatusBarUI;
 use crate::tab::TabManager;
 use crate::tab_bar_ui::TabBarUI;
 use anyhow::Result;
+use arc_swap::ArcSwap;
 use par_term_acp::discover_agents;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
@@ -52,7 +53,7 @@ impl WindowState {
         input_handler
             .update_option_key_modes(config.left_option_key_mode, config.right_option_key_mode);
 
-        // Create badge state and overlay UI before moving config
+        // Create badge state and overlay UI before wrapping config in ArcSwap
         let badge_state = BadgeState::new(&config);
         let overlay_ui = crate::app::window_state::overlay_ui_state::OverlayUiState::new(&config);
 
@@ -65,7 +66,7 @@ impl WindowState {
         );
 
         Self {
-            config,
+            config: ArcSwap::from(Arc::new(config)),
             window: None,
             renderer: None,
             input_handler,
@@ -103,7 +104,7 @@ impl WindowState {
 
             smart_selection_cache: SmartSelectionCache::new(),
 
-            tmux_state: crate::app::tmux_handler::tmux_state::TmuxState::new(tmux_prefix_key),
+            tmux_state: super::TmuxState::new(tmux_prefix_key),
 
             broadcast_input: false,
 
@@ -126,7 +127,7 @@ impl WindowState {
     /// Format window title with optional window number
     /// This should be used everywhere a title is set to ensure consistency
     pub(crate) fn format_title(&self, base_title: &str) -> String {
-        if self.config.show_window_number {
+        if self.config.load().show_window_number {
             format!("{} [{}]", base_title, self.window_index)
         } else {
             base_title.to_string()
@@ -177,15 +178,26 @@ impl WindowState {
         log::debug!("IME enabled for character input");
 
         // Detect system theme at startup and apply if auto_dark_mode is enabled
-        if self.config.auto_dark_mode {
-            let is_dark = window
-                .theme()
-                .is_none_or(|t| t == winit::window::Theme::Dark);
-            if self.config.apply_system_theme(is_dark) {
+        {
+            let cfg = self.config.load();
+            if cfg.auto_dark_mode {
+                let is_dark = window
+                    .theme()
+                    .is_none_or(|t| t == winit::window::Theme::Dark);
+                drop(cfg); // release guard before mutation via rcu
+                self.config.rcu(|old| {
+                    let mut new = (**old).clone();
+                    if new.apply_system_theme(is_dark) {
+                        Arc::new(new)
+                    } else {
+                        Arc::clone(old)
+                    }
+                });
+                let cfg = self.config.load();
                 log::info!(
                     "Auto dark mode: detected {} system theme, using theme: {}",
                     if is_dark { "dark" } else { "light" },
-                    self.config.theme
+                    cfg.theme
                 );
             }
         }
@@ -195,14 +207,27 @@ impl WindowState {
             let is_dark = window
                 .theme()
                 .is_none_or(|t| t == winit::window::Theme::Dark);
-            if self.config.apply_system_tab_style(is_dark) {
+            let should_apply = {
+                let mut probe = (**self.config.load()).clone();
+                probe.apply_system_tab_style(is_dark)
+            };
+            if should_apply {
+                self.config.rcu(|old| {
+                    let mut new = (**old).clone();
+                    if new.apply_system_tab_style(is_dark) {
+                        Arc::new(new)
+                    } else {
+                        Arc::clone(old)
+                    }
+                });
+                let cfg = self.config.load();
                 log::info!(
                     "Auto tab style: detected {} system theme, applying {} tab style",
                     if is_dark { "dark" } else { "light" },
                     if is_dark {
-                        self.config.dark_tab_style.display_name()
+                        cfg.dark_tab_style.display_name()
                     } else {
-                        self.config.light_tab_style.display_name()
+                        cfg.light_tab_style.display_name()
                     }
                 );
             }
@@ -214,27 +239,29 @@ impl WindowState {
         self.init_egui(&window, false);
 
         // Create renderer using DRY init params
-        let theme = self.config.load_theme();
+        let cfg = self.config.load();
+        let theme = cfg.load_theme();
         // Get shader metadata from cache for full 3-tier resolution
-        let metadata = self
-            .config
+        let metadata = cfg
             .shader
             .custom_shader
             .as_ref()
             .and_then(|name| self.shader_state.shader_metadata_cache.get(name).cloned());
         // Get cursor shader metadata from cache for full 3-tier resolution
-        let cursor_metadata = self.config.shader.cursor_shader.as_ref().and_then(|name| {
+        let cursor_metadata = cfg.shader.cursor_shader.as_ref().and_then(|name| {
             self.shader_state
                 .cursor_shader_metadata_cache
                 .get(name)
                 .cloned()
         });
         let params = RendererInitParams::from_config(
-            &self.config,
+            &cfg,
             &theme,
             metadata.as_ref(),
             cursor_metadata.as_ref(),
         );
+        drop(cfg); // release guard before moving to macOS section
+
         let mut renderer = params.create_renderer(Arc::clone(&window)).await?;
 
         // macOS: Configure CAMetalLayer (transparency + performance)
@@ -253,12 +280,15 @@ impl WindowState {
                 log::warn!("Failed to set initial Metal layer opacity: {}", e);
             }
             // Apply initial blur settings if enabled
-            if self.config.window.blur_enabled
-                && self.config.window.window_opacity < 1.0
-                && let Err(e) =
-                    crate::macos_blur::set_window_blur(&window, self.config.window.blur_radius)
             {
-                log::warn!("Failed to set initial window blur: {}", e);
+                let cfg = self.config.load();
+                if cfg.window.blur_enabled
+                    && cfg.window.window_opacity < 1.0
+                    && let Err(e) =
+                        crate::macos_blur::set_window_blur(&window, cfg.window.blur_radius)
+                {
+                    log::warn!("Failed to set initial window blur: {}", e);
+                }
             }
         }
 
@@ -268,13 +298,20 @@ impl WindowState {
         // Set tab bar offsets BEFORE creating the first tab
         // This ensures the terminal is sized correctly from the start
         // Use 1 as tab count since we're about to create the first tab
-        let initial_tab_bar_height = self.tab_bar_ui.get_height(1, &self.config);
-        let initial_tab_bar_width = self.tab_bar_ui.get_width(1, &self.config);
+        let (initial_tab_bar_height, initial_tab_bar_width, tab_bar_mode, tab_bar_position) = {
+            let cfg = self.config.load();
+            (
+                self.tab_bar_ui.get_height(1, &cfg),
+                self.tab_bar_ui.get_width(1, &cfg),
+                cfg.tab_bar_mode,
+                cfg.tab_bar_position,
+            )
+        };
         let (initial_cols, initial_rows) = renderer.grid_size();
         log::info!(
             "Tab bar init: mode={:?}, position={:?}, height={:.1}, width={:.1}, initial_grid={}x{}, content_offset_y_before={:.1}",
-            self.config.tab_bar_mode,
-            self.config.tab_bar_position,
+            tab_bar_mode,
+            tab_bar_position,
             initial_tab_bar_height,
             initial_tab_bar_width,
             initial_cols,
@@ -308,7 +345,10 @@ impl WindowState {
         self.init_shader_diagnostics_request_watcher();
 
         // Sync status bar monitor state based on config
-        self.status_bar_ui.sync_monitor_state(&self.config);
+        {
+            let cfg = self.config.load();
+            self.status_bar_ui.sync_monitor_state(&cfg);
+        }
 
         // Create the first tab with the correct grid size from the renderer
         // This ensures the shell is spawned with dimensions that account for tab bar.
@@ -319,8 +359,12 @@ impl WindowState {
                 renderer_cols,
                 renderer_rows
             );
+            let (max_fps, inactive_tab_fps) = {
+                let cfg = self.config.load();
+                (cfg.max_fps, cfg.inactive_tab_fps)
+            };
             let tab_id = self.tab_manager.new_tab_with_cwd(
-                &self.config,
+                &self.config.load(),
                 Arc::clone(&self.runtime),
                 first_tab_cwd,
                 Some((renderer_cols, renderer_rows)), // Pass correct grid size
@@ -352,8 +396,8 @@ impl WindowState {
                 tab.start_refresh_task(
                     Arc::clone(&self.runtime),
                     Arc::clone(&window),
-                    self.config.max_fps,
-                    self.config.inactive_tab_fps,
+                    max_fps,
+                    inactive_tab_fps,
                 );
             }
         }
@@ -364,11 +408,15 @@ impl WindowState {
         }
 
         // Check if we should prompt user to install integrations (shaders and/or shell integration)
-        if self.config.should_prompt_integrations(crate::VERSION) {
-            log::info!("Integrations not installed - showing welcome dialog");
-            self.overlay_ui.integrations_ui.show_dialog();
-            self.focus_state.needs_redraw = true;
-            window.request_redraw();
+        {
+            let cfg = self.config.load();
+            if cfg.should_prompt_integrations(crate::VERSION) {
+                drop(cfg);
+                log::info!("Integrations not installed - showing welcome dialog");
+                self.overlay_ui.integrations_ui.show_dialog();
+                self.focus_state.needs_redraw = true;
+                window.request_redraw();
+            }
         }
 
         Ok(())

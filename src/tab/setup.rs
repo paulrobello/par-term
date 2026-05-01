@@ -5,6 +5,9 @@
 
 use crate::config::Config;
 use crate::terminal::TerminalManager;
+use par_term_terminal::conversion::{
+    to_core_ambiguous_width, to_core_normalization_form, to_core_unicode_version,
+};
 
 /// Configure a terminal with settings from config (theme, clipboard limits, cursor style, unicode)
 pub(crate) fn configure_terminal_from_config(terminal: &mut TerminalManager, config: &Config) {
@@ -22,25 +25,27 @@ pub(crate) fn configure_terminal_from_config(terminal: &mut TerminalManager, con
 
     // Apply Unicode width configuration
     let width_config = par_term_emu_core_rust::WidthConfig::new(
-        config.unicode.unicode_version,
-        config.unicode.ambiguous_width,
+        to_core_unicode_version(config.unicode.unicode_version),
+        to_core_ambiguous_width(config.unicode.ambiguous_width),
     );
     terminal.set_width_config(width_config);
 
     // Apply Unicode normalization form
-    terminal.set_normalization_form(config.unicode.normalization_form);
+    terminal.set_normalization_form(to_core_normalization_form(
+        config.unicode.normalization_form,
+    ));
 
     // Initialize cursor style from config
     use crate::config::CursorStyle as ConfigCursorStyle;
     use par_term_emu_core_rust::cursor::CursorStyle as TermCursorStyle;
-    let term_style = if config.cursor_blink {
-        match config.cursor_style {
+    let term_style = if config.cursor.cursor_blink {
+        match config.cursor.cursor_style {
             ConfigCursorStyle::Block => TermCursorStyle::BlinkingBlock,
             ConfigCursorStyle::Underline => TermCursorStyle::BlinkingUnderline,
             ConfigCursorStyle::Beam => TermCursorStyle::BlinkingBar,
         }
     } else {
-        match config.cursor_style {
+        match config.cursor.cursor_style {
             ConfigCursorStyle::Block => TermCursorStyle::SteadyBlock,
             ConfigCursorStyle::Underline => TermCursorStyle::SteadyUnderline,
             ConfigCursorStyle::Beam => TermCursorStyle::SteadyBar,

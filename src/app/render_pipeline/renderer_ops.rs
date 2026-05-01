@@ -114,7 +114,7 @@ pub(super) fn update_gpu_renderer_state(
     // visibility. Alt-screen apps may hide the terminal cursor while still moving it;
     // shader uniforms should continue tracking iCurrentCursor in that case.
     if let (Some(pos), Some(style)) = (shader_cursor_pos, shader_cursor_style) {
-        let cursor_color = color_u8_to_f32_a(config.cursor_color, 1.0);
+        let cursor_color = color_u8_to_f32_a(config.cursor.cursor_color, 1.0);
         let shader_opacity = if current_cursor_pos.is_some() {
             cursor_anim.cursor_opacity
         } else {

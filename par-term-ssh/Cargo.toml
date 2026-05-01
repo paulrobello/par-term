@@ -11,12 +11,16 @@ homepage = "https://github.com/paulrobello/par-term"
 keywords = ["terminal", "ssh", "mdns", "discovery"]
 categories = ["network-programming"]
 
+[features]
+default = ["mdns"]
+mdns = ["dep:mdns-sd"]
+
 [dependencies]
 # Serialization
 serde.workspace = true
 
-# mDNS/Bonjour service discovery for SSH host auto-detection
-mdns-sd.workspace = true
+# mDNS/Bonjour service discovery for SSH host auto-detection (feature-gated: `mdns`)
+mdns-sd = { workspace = true, optional = true }
 
 # Platform-specific directories (home dir for ~/.ssh)
 dirs.workspace = true

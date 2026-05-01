@@ -11,6 +11,9 @@ use std::sync::Arc;
 use crate::app::window_state::WindowState;
 use crate::app::window_state::config_updates::ConfigChanges;
 use crate::config::{Config, resolve_shader_config};
+use par_term_terminal::conversion::{
+    to_core_ambiguous_width, to_core_normalization_form, to_core_unicode_version,
+};
 
 /// Apply all renderer-related config changes to a single window state.
 ///
@@ -55,7 +58,11 @@ pub(super) fn apply_renderer_config(
         let (actual_mode, _changed) = renderer.update_vsync_mode(config.vsync_mode);
         // If the actual mode differs, update config
         if actual_mode != config.vsync_mode {
-            window_state.config.vsync_mode = actual_mode;
+            window_state.config.rcu(|old| {
+                let mut new = (**old).clone();
+                new.vsync_mode = actual_mode;
+                std::sync::Arc::new(new)
+            });
             log::warn!(
                 "Vsync mode {:?} is not supported. Using {:?} instead.",
                 config.vsync_mode,
@@ -74,12 +81,12 @@ pub(super) fn apply_renderer_config(
 
     // Update cursor color
     if changes.cursor_color {
-        renderer.update_cursor_color(config.cursor_color);
+        renderer.update_cursor_color(config.cursor.cursor_color);
     }
 
     // Update cursor text color
     if changes.cursor_text_color {
-        renderer.update_cursor_text_color(config.cursor_text_color);
+        renderer.update_cursor_text_color(config.cursor.cursor_text_color);
     }
 
     // Update cursor style and blink for all tabs
@@ -87,14 +94,14 @@ pub(super) fn apply_renderer_config(
         use crate::config::CursorStyle as ConfigCursorStyle;
         use par_term_emu_core_rust::cursor::CursorStyle as TermCursorStyle;
 
-        let term_style = if config.cursor_blink {
-            match config.cursor_style {
+        let term_style = if config.cursor.cursor_blink {
+            match config.cursor.cursor_style {
                 ConfigCursorStyle::Block => TermCursorStyle::BlinkingBlock,
                 ConfigCursorStyle::Beam => TermCursorStyle::BlinkingBar,
                 ConfigCursorStyle::Underline => TermCursorStyle::BlinkingUnderline,
             }
         } else {
-            match config.cursor_style {
+            match config.cursor.cursor_style {
                 ConfigCursorStyle::Block => TermCursorStyle::SteadyBlock,
                 ConfigCursorStyle::Beam => TermCursorStyle::SteadyBar,
                 ConfigCursorStyle::Underline => TermCursorStyle::SteadyUnderline,
@@ -114,15 +121,19 @@ pub(super) fn apply_renderer_config(
     if changes.cursor_enhancements {
         // Re-borrow renderer (can't hold it across the tabs_mut loop above)
         if let Some(renderer) = &mut window_state.renderer {
-            renderer.update_cursor_guide(config.cursor_guide_enabled, config.cursor_guide_color);
-            renderer.update_cursor_shadow(
-                config.cursor_shadow_enabled,
-                config.cursor_shadow_color,
-                config.cursor_shadow_offset,
-                config.cursor_shadow_blur,
+            renderer.update_cursor_guide(
+                config.cursor.cursor_guide_enabled,
+                config.cursor.cursor_guide_color,
             );
-            renderer.update_cursor_boost(config.cursor_boost, config.cursor_boost_color);
-            renderer.update_unfocused_cursor_style(config.unfocused_cursor_style);
+            renderer.update_cursor_shadow(
+                config.cursor.cursor_shadow_enabled,
+                config.cursor.cursor_shadow_color,
+                config.cursor.cursor_shadow_offset,
+                config.cursor.cursor_shadow_blur,
+            );
+            renderer
+                .update_cursor_boost(config.cursor.cursor_boost, config.cursor.cursor_boost_color);
+            renderer.update_unfocused_cursor_style(config.cursor.unfocused_cursor_style);
         }
         window_state.focus_state.needs_redraw = true;
     }
@@ -262,8 +273,8 @@ pub(super) fn apply_renderer_config(
     // Apply Unicode width settings
     if changes.unicode_width {
         let width_config = par_term_emu_core_rust::WidthConfig::new(
-            config.unicode.unicode_version,
-            config.unicode.ambiguous_width,
+            to_core_unicode_version(config.unicode.unicode_version),
+            to_core_ambiguous_width(config.unicode.ambiguous_width),
         );
         for tab in window_state.tab_manager.tabs_mut() {
             if let Ok(term) = tab.terminal.try_write() {
@@ -276,7 +287,9 @@ pub(super) fn apply_renderer_config(
     if changes.normalization_form {
         for tab in window_state.tab_manager.tabs_mut() {
             if let Ok(term) = tab.terminal.try_write() {
-                term.set_normalization_form(config.unicode.normalization_form);
+                term.set_normalization_form(to_core_normalization_form(
+                    config.unicode.normalization_form,
+                ));
             }
         }
     }
@@ -306,7 +319,7 @@ pub(super) fn apply_renderer_config(
     let shader_result = if changes.any_shader_change() || changes.shader_per_shader_config {
         log::info!(
             "SETTINGS: applying shader change: {:?} -> {:?}",
-            window_state.config.shader.custom_shader,
+            window_state.config.load().shader.custom_shader,
             config.shader.custom_shader
         );
         window_state.renderer.as_mut().map(|r| {

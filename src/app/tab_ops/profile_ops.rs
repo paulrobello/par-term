@@ -15,16 +15,18 @@ impl WindowState {
         log::debug!("open_profile called with id: {:?}", profile_id);
 
         // Check max tabs limit
-        if self.config.max_tabs > 0 && self.tab_manager.tab_count() >= self.config.max_tabs {
+        if self.config.load().max_tabs > 0
+            && self.tab_manager.tab_count() >= self.config.load().max_tabs
+        {
             log::warn!(
                 "Cannot open profile: max_tabs limit ({}) reached",
-                self.config.max_tabs
+                self.config.load().max_tabs
             );
             self.deliver_notification(
                 "Tab Limit Reached",
                 &format!(
                     "Cannot open profile: maximum of {} tabs already open",
-                    self.config.max_tabs
+                    self.config.load().max_tabs
                 ),
             );
             return;
@@ -45,13 +47,13 @@ impl WindowState {
         let prior_active_idx = self.tab_manager.active_tab_index();
 
         match self.tab_manager.new_tab_from_profile(
-            &self.config,
+            &self.config.load(),
             Arc::clone(&self.runtime),
             &profile,
             grid_size,
         ) {
             Ok(tab_id) => {
-                if self.config.new_tab_position == crate::config::NewTabPosition::AfterActive
+                if self.config.load().new_tab_position == crate::config::NewTabPosition::AfterActive
                     && let Some(idx) = prior_active_idx
                 {
                     self.tab_manager.move_tab_to_index(tab_id, idx + 1);
@@ -69,8 +71,8 @@ impl WindowState {
                     tab.start_refresh_task(
                         Arc::clone(&self.runtime),
                         Arc::clone(window),
-                        self.config.max_fps,
-                        self.config.inactive_tab_fps,
+                        self.config.load().max_fps,
+                        self.config.load().inactive_tab_fps,
                     );
 
                     // Resize terminal to match current renderer dimensions
@@ -116,7 +118,7 @@ impl WindowState {
 
                 // Auto-connect tmux session if profile has one configured
                 if let Some(ref session_name) = profile.tmux_session_name
-                    && self.config.tmux_enabled
+                    && self.config.load().tmux_enabled
                     && !self.is_gateway_active()
                 {
                     match profile.tmux_connection_mode {
@@ -133,7 +135,7 @@ impl WindowState {
                             // Write plain tmux command directly to the PTY
                             let cmd = format!(
                                 "{} new-session -A -s '{}'\n",
-                                self.config.tmux_path,
+                                self.config.load().tmux_path,
                                 session_name.replace('\'', "'\\''")
                             );
                             if let Some(tab) = self.tab_manager.active_tab_mut()
@@ -216,27 +218,63 @@ impl WindowState {
     pub(crate) fn apply_profile_shader_settings(&mut self, profile: &crate::profile::Profile) {
         let mut changed = false;
         if let Some(shader) = &profile.shader {
-            self.config.shader.custom_shader = Some(shader.clone());
-            self.config.shader.custom_shader_enabled = true;
+            self.config.rcu(|old| {
+                let mut new = (**old).clone();
+                new.shader.custom_shader = Some(shader.clone());
+                std::sync::Arc::new(new)
+            });
+            self.config.rcu(|old| {
+                let mut new = (**old).clone();
+                new.shader.custom_shader_enabled = true;
+                std::sync::Arc::new(new)
+            });
             changed = true;
         }
         if let Some(brightness) = profile.shader_brightness {
-            self.config.shader.custom_shader_brightness = brightness.clamp(0.05, 1.0);
+            self.config.rcu(|old| {
+                let mut new = (**old).clone();
+                new.shader.custom_shader_brightness = brightness.clamp(0.05, 1.0);
+                std::sync::Arc::new(new)
+            });
             changed = true;
         }
         if let Some(text_opacity) = profile.shader_text_opacity {
-            self.config.shader.custom_shader_text_opacity = text_opacity.clamp(0.0, 1.0);
+            self.config.rcu(|old| {
+                let mut new = (**old).clone();
+                new.shader.custom_shader_text_opacity = text_opacity.clamp(0.0, 1.0);
+                std::sync::Arc::new(new)
+            });
             changed = true;
         }
         if let Some(animation_speed) = profile.shader_animation_speed {
-            self.config.shader.custom_shader_animation_speed = animation_speed.clamp(0.0, 5.0);
+            self.config.rcu(|old| {
+                let mut new = (**old).clone();
+                new.shader.custom_shader_animation_speed = animation_speed.clamp(0.0, 5.0);
+                std::sync::Arc::new(new)
+            });
             changed = true;
         }
         if let Some(texture_set) = &profile.shader_texture_set {
-            self.config.shader.custom_shader_channel0 = texture_set[0].clone();
-            self.config.shader.custom_shader_channel1 = texture_set[1].clone();
-            self.config.shader.custom_shader_channel2 = texture_set[2].clone();
-            self.config.shader.custom_shader_channel3 = texture_set[3].clone();
+            self.config.rcu(|old| {
+                let mut new = (**old).clone();
+                new.shader.custom_shader_channel0 = texture_set[0].clone();
+                std::sync::Arc::new(new)
+            });
+            self.config.rcu(|old| {
+                let mut new = (**old).clone();
+                new.shader.custom_shader_channel1 = texture_set[1].clone();
+                std::sync::Arc::new(new)
+            });
+            self.config.rcu(|old| {
+                let mut new = (**old).clone();
+                new.shader.custom_shader_channel2 = texture_set[2].clone();
+                std::sync::Arc::new(new)
+            });
+            self.config.rcu(|old| {
+                let mut new = (**old).clone();
+                new.shader.custom_shader_channel3 = texture_set[3].clone();
+                std::sync::Arc::new(new)
+            });
             changed = true;
         }
 

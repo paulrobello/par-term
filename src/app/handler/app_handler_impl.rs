@@ -4,6 +4,7 @@
 //! and the top-level `about_to_wait` coordinator for all windows.
 
 use crate::app::window_manager::WindowManager;
+use std::sync::Arc;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::ActiveEventLoop;
@@ -17,7 +18,7 @@ impl ApplicationHandler for WindowManager {
                 self.auto_restore_done = true;
 
                 // Auto-restore arrangement takes precedence when configured
-                if let Some(ref name) = self.config.auto_restore_arrangement.clone()
+                if let Some(ref name) = self.config.load().auto_restore_arrangement.clone()
                     && !name.is_empty()
                     && self.arrangement_manager.find_by_name(name).is_some()
                 {
@@ -27,7 +28,7 @@ impl ApplicationHandler for WindowManager {
                 }
 
                 // Fall back to session restore if no arrangement
-                if self.config.restore_session && self.restore_session(event_loop) {
+                if self.config.load().restore_session && self.restore_session(event_loop) {
                     return;
                 }
             }
@@ -215,8 +216,8 @@ impl ApplicationHandler for WindowManager {
                 let close = window_state.handle_window_event(event_loop, event);
                 // Capture shader states to sync to settings window
                 let states = (
-                    window_state.config.shader.custom_shader_enabled,
-                    window_state.config.shader.cursor_shader_enabled,
+                    window_state.config.load().shader.custom_shader_enabled,
+                    window_state.config.load().shader.cursor_shader_enabled,
                 );
                 // Capture grid size if this was a resize
                 let size = if is_resize {
@@ -367,12 +368,12 @@ impl ApplicationHandler for WindowManager {
         // so other saves (update checker, settings) don't overwrite the agent's changes
         if config_changed_by_agent && let Some(window_state) = self.windows.values().next() {
             log::info!("CONFIG: syncing agent config changes to WindowManager");
-            self.config = window_state.config.clone();
+            self.config.store(Arc::clone(&window_state.config.load()));
             // Force-update the settings window's config copy so it doesn't
             // send stale values back via ApplyConfig/SaveConfig.
             // Must use force_update_config to bypass the has_changes guard.
             if let Some(settings_window) = &mut self.settings_window {
-                settings_window.force_update_config(self.config.clone());
+                settings_window.force_update_config((**self.config.load()).clone());
             }
         }
 
@@ -411,9 +412,9 @@ impl ApplicationHandler for WindowManager {
         if reload_dynamic_profiles {
             // Propagate the global `allow_http_profiles` flag into each source before
             // refreshing, consistent with how the initial fetch was set up.
-            let mut sources = self.config.dynamic_profile_sources.clone();
+            let mut sources = self.config.load().dynamic_profile_sources.clone();
             for src in &mut sources {
-                src.allow_http = self.config.allow_http_profiles;
+                src.allow_http = self.config.load().allow_http_profiles;
             }
             self.dynamic_profile_manager
                 .refresh_all(&sources, &self.runtime);

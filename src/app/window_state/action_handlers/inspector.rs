@@ -170,7 +170,11 @@ impl WindowState {
                     .ai_inspector
                     .chat
                     .record_user_input_history(&text);
-                if self.config.ai_inspector.ai_inspector_input_history_mode
+                if self
+                    .config
+                    .load()
+                    .ai_inspector
+                    .ai_inspector_input_history_mode
                     == AssistantInputHistoryMode::Persist
                 {
                     match par_term_config::load_assistant_input_history() {
@@ -215,7 +219,12 @@ impl WindowState {
 
                     // Inject terminal access context so the agent knows code-block
                     // commands are auto-executed when this capability is enabled.
-                    if self.config.ai_inspector.ai_inspector_agent_terminal_access {
+                    if self
+                        .config
+                        .load()
+                        .ai_inspector
+                        .ai_inspector_agent_terminal_access
+                    {
                         content.push(par_term_acp::ContentBlock::Text {
                             text: "[Terminal access enabled]\n\
                                 Shell commands you write in fenced code blocks \
@@ -234,11 +243,11 @@ impl WindowState {
                     // Inject shader context when relevant (keyword match or active shaders).
                     if crate::ai_inspector::shader_context::should_inject_shader_context(
                         &text,
-                        &self.config,
+                        &self.config.load(),
                     ) {
                         content.push(par_term_acp::ContentBlock::Text {
                             text: crate::ai_inspector::shader_context::build_shader_context(
-                                &self.config,
+                                &self.config.load(),
                             ),
                         });
                     }
@@ -279,7 +288,11 @@ impl WindowState {
                 self.focus_state.needs_redraw = true;
             }
             InspectorAction::SetTerminalAccess(enabled) => {
-                self.config.ai_inspector.ai_inspector_agent_terminal_access = enabled;
+                self.config.rcu(|old| {
+                    let mut new = (**old).clone();
+                    new.ai_inspector.ai_inspector_agent_terminal_access = enabled;
+                    std::sync::Arc::new(new)
+                });
                 self.focus_state.needs_redraw = true;
             }
             InspectorAction::RespondPermission {
@@ -338,7 +351,11 @@ impl WindowState {
             }
             InspectorAction::SetAgentMode(mode_id) => {
                 let is_yolo = mode_id == "bypassPermissions";
-                self.config.ai_inspector.ai_inspector_auto_approve = is_yolo;
+                self.config.rcu(|old| {
+                    let mut new = (**old).clone();
+                    new.ai_inspector.ai_inspector_auto_approve = is_yolo;
+                    std::sync::Arc::new(new)
+                });
                 if let Some(agent) = &self.agent_state.agent {
                     let agent = agent.clone();
                     self.runtime.spawn(async move {

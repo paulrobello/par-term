@@ -19,6 +19,7 @@ use super::types::{FrameRenderData, PostRenderActions};
 use crate::app::window_state::WindowState;
 use crate::progress_bar::ProgressBarSnapshot;
 use crate::ui_constants::VISUAL_BELL_FLASH_DURATION_MS;
+use par_term_render::RenderError;
 use wgpu::SurfaceError;
 
 impl WindowState {
@@ -69,21 +70,26 @@ impl WindowState {
         let effective_pane_padding = if is_tmux_gateway || active_pane_count <= 1 {
             0.0
         } else {
-            self.config.pane_divider_width.unwrap_or(2.0) / 2.0 + self.config.pane_padding
+            self.config.load().pane_divider_width.unwrap_or(2.0) / 2.0
+                + self.config.load().pane_padding
         };
 
         // Calculate status bar heights before mutable renderer borrow.
         // Note: These are in logical pixels; they get scaled to physical in RendererSizing.
         let is_tmux_connected = self.is_tmux_connected();
-        let status_bar_height =
-            crate::tmux_status_bar_ui::TmuxStatusBarUI::height(&self.config, is_tmux_connected);
-        let custom_status_bar_height = self.status_bar_ui.height(&self.config, self.is_fullscreen);
+        let status_bar_height = crate::tmux_status_bar_ui::TmuxStatusBarUI::height(
+            &self.config.load(),
+            is_tmux_connected,
+        );
+        let custom_status_bar_height = self
+            .status_bar_ui
+            .height(&self.config.load(), self.is_fullscreen);
 
         // Capture window size before mutable borrow (for badge rendering in egui)
         let window_size_for_badge = self.renderer.as_ref().map(|r| r.size());
 
         // Capture progress bar snapshot before mutable borrow
-        let progress_snapshot = if self.config.progress_bar_enabled {
+        let progress_snapshot = if self.config.load().progress_bar_enabled {
             self.tab_manager.active_tab().and_then(|tab| {
                 tab.terminal
                     .try_write()
@@ -154,7 +160,7 @@ impl WindowState {
                 renderer,
                 GpuStateUpdateParams {
                     tab_manager: &mut self.tab_manager,
-                    config: &self.config,
+                    config: &self.config.load(),
                     cursor_anim: &self.cursor_anim,
                     window: &self.window,
                     debug: &self.debug,
@@ -293,7 +299,7 @@ impl WindowState {
                 let pane_render_data = self.tab_manager.active_tab_mut().and_then(|tab| {
                     pane_render::gather_pane_render_data(
                         tab,
-                        &self.config,
+                        &self.config.load(),
                         &sizing,
                         effective_pane_padding,
                         self.cursor_anim.cursor_opacity,
@@ -327,23 +333,23 @@ impl WindowState {
                         let search_matches = self.overlay_ui.search_ui.matches();
                         let has_search_matches = !search_matches.is_empty();
                         let current_match_idx = self.overlay_ui.search_ui.current_match_index();
-                        let highlight_color = self.config.search.search_highlight_color;
+                        let highlight_color = self.config.load().search.search_highlight_color;
                         let current_highlight_color =
-                            self.config.search.search_current_highlight_color;
+                            self.config.load().search.search_current_highlight_color;
 
                         let url_overlay = self.tab_manager.active_tab().and_then(|tab| {
                             let detected_urls = &tab.active_mouse().detected_urls;
                             if detected_urls.is_empty() {
                                 return None;
                             }
-                            let c = self.config.link_highlight_color;
+                            let c = self.config.load().link_highlight_color;
                             Some((
                                 detected_urls,
                                 tab.active_mouse().url_detect_scroll_offset,
                                 tab.active_mouse().hovered_url_bounds,
                                 [c[0], c[1], c[2], 255],
-                                self.config.link_highlight_color_enabled,
-                                self.config.link_highlight_underline,
+                                self.config.load().link_highlight_color_enabled,
+                                self.config.load().link_highlight_underline,
                             ))
                         });
 
@@ -413,7 +419,7 @@ impl WindowState {
                             dividers,
                             pane_titles,
                             focused_viewport,
-                            config: &self.config,
+                            config: &self.config.load(),
                             egui_data: split_egui,
                             hovered_divider_index,
                             show_scrollbar,
@@ -460,6 +466,11 @@ impl WindowState {
                                 log::error!("Surface error: {:?}", surface_error);
                             }
                         }
+                    } else if let Some(RenderError::ShaderUnavailable(msg)) =
+                        e.downcast_ref::<RenderError>()
+                    {
+                        log::warn!("Shader renderer unavailable, reconfiguring: {}", msg);
+                        self.force_surface_reconfigure();
                     } else {
                         log::error!("Render error: {}", e);
                     }

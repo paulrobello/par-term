@@ -227,5 +227,5 @@ These filters ensure that par-term's own messages remain visible even at high ve
 
 ## Related Documentation
 
-- [Automation](AUTOMATION.md) - Trigger and coprocess debugging
-- [Integrations](INTEGRATIONS.md) - Shell integration troubleshooting
+- [Automation](features/AUTOMATION.md) - Trigger and coprocess debugging
+- [Integrations](features/INTEGRATIONS.md) - Shell integration troubleshooting

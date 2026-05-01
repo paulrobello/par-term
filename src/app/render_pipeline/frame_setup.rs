@@ -20,10 +20,11 @@ impl WindowState {
     /// press/release) would stall until the next unrelated wake — the "have to click
     /// twice to switch tabs" bug.
     pub(super) fn should_render_frame(&mut self) -> bool {
-        let target_fps = if self.config.pause_refresh_on_blur && !self.focus_state.is_focused {
-            self.config.unfocused_fps
+        let target_fps = if self.config.load().pause_refresh_on_blur && !self.focus_state.is_focused
+        {
+            self.config.load().unfocused_fps
         } else {
-            self.config.max_fps
+            self.config.load().max_fps
         };
         let frame_interval = std::time::Duration::from_millis((1000 / target_fps.max(1)) as u64);
         if let Some(last_render) = self.focus_state.last_render_time
@@ -70,9 +71,9 @@ impl WindowState {
             .is_none_or(|last| now.duration_since(last) >= Self::TAB_TITLE_REFRESH_INTERVAL);
         if should_refresh_titles {
             self.tab_manager.update_all_titles(
-                self.config.tab_title_mode,
-                self.config.remote_tab_title_format,
-                self.config.remote_tab_title_osc_priority,
+                self.config.load().tab_title_mode,
+                self.config.load().remote_tab_title_format,
+                self.config.load().remote_tab_title_osc_priority,
             );
             self.render_loop.last_tab_title_refresh = Some(now);
         }
@@ -96,20 +97,20 @@ impl WindowState {
         // Sync tab bar offsets with renderer's content offsets
         // This ensures the terminal grid correctly accounts for the tab bar position
         let tab_count = self.tab_manager.visible_tab_count();
-        let tab_bar_height = self.tab_bar_ui.get_height(tab_count, &self.config);
-        let tab_bar_width = self.tab_bar_ui.get_width(tab_count, &self.config);
+        let tab_bar_height = self.tab_bar_ui.get_height(tab_count, &self.config.load());
+        let tab_bar_width = self.tab_bar_ui.get_width(tab_count, &self.config.load());
         crate::debug_trace!(
             "TAB_SYNC",
             "Tab count={}, tab_bar_height={:.0}, tab_bar_width={:.0}, position={:?}, mode={:?}",
             tab_count,
             tab_bar_height,
             tab_bar_width,
-            self.config.tab_bar_position,
-            self.config.tab_bar_mode
+            self.config.load().tab_bar_position,
+            self.config.load().tab_bar_mode
         );
         if let Some(renderer) = &mut self.renderer {
             let grid_changed = Self::apply_tab_bar_offsets_for_position(
-                self.config.tab_bar_position,
+                self.config.load().tab_bar_position,
                 renderer,
                 tab_bar_height,
                 tab_bar_width,
@@ -137,7 +138,7 @@ impl WindowState {
                 crate::debug_info!(
                     "TAB_SYNC",
                     "Tab bar offsets changed (position={:?}), resized terminals to {}x{}",
-                    self.config.tab_bar_position,
+                    self.config.load().tab_bar_position,
                     new_cols,
                     new_rows
                 );

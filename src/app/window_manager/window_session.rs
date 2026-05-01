@@ -93,7 +93,7 @@ impl WindowManager {
             {
                 // Auto-reconnect tmux session if one was active at save time
                 if let Some(ref session_name) = session_window.tmux_session_name
-                    && window_state.config.tmux_enabled
+                    && window_state.config.load().tmux_enabled
                     && !session_name.is_empty()
                 {
                     if let Err(e) = window_state.initiate_tmux_gateway(Some(session_name)) {
@@ -109,7 +109,7 @@ impl WindowManager {
                         {
                             tab.restore_pane_layout(
                                 layout,
-                                &self.config,
+                                &self.config.load(),
                                 Arc::clone(&self.runtime),
                             );
                         }
@@ -135,8 +135,8 @@ impl WindowManager {
                             tab.start_pane_refresh_tasks(
                                 Arc::clone(&self.runtime),
                                 Arc::clone(win),
-                                self.config.max_fps,
-                                self.config.inactive_tab_fps,
+                                self.config.load().max_fps,
+                                self.config.load().inactive_tab_fps,
                             );
                         }
                     }
@@ -175,15 +175,15 @@ impl WindowManager {
 
         // Reload config from disk to pick up any changes
         if let Ok(fresh_config) = Config::load() {
-            self.config = fresh_config;
+            self.config.store(Arc::new(fresh_config));
         }
 
         // Build window title
         let window_number = self.windows.len() + 1;
-        let title = if self.config.show_window_number {
-            format!("{} [{}]", self.config.window_title, window_number)
+        let title = if self.config.load().show_window_number {
+            format!("{} [{}]", self.config.load().window_title, window_number)
         } else {
-            self.config.window_title.clone()
+            self.config.load().window_title.clone()
         };
 
         // position and size are in logical pixels (scale-factor-independent).
@@ -194,9 +194,9 @@ impl WindowManager {
                 position.0 as f64,
                 position.1 as f64,
             ))
-            .with_decorations(self.config.window.window_decorations);
+            .with_decorations(self.config.load().window.window_decorations);
 
-        if self.config.lock_window_size {
+        if self.config.load().lock_window_size {
             window_attrs = window_attrs.with_resizable(false);
         }
 
@@ -210,7 +210,7 @@ impl WindowManager {
             }
         }
 
-        if self.config.window.window_always_on_top {
+        if self.config.load().window.window_always_on_top {
             window_attrs = window_attrs.with_window_level(winit::window::WindowLevel::AlwaysOnTop);
         }
 
@@ -244,7 +244,7 @@ impl WindowManager {
                 }
 
                 let mut window_state =
-                    WindowState::new(self.config.clone(), Arc::clone(&self.runtime));
+                    WindowState::new((**self.config.load()).clone(), Arc::clone(&self.runtime));
                 window_state.window_index = window_number;
 
                 // Extract the first tab's CWD to pass during initialization
@@ -278,7 +278,7 @@ impl WindowManager {
                 let grid_size = window_state.renderer.as_ref().map(|r| r.grid_size());
                 for cwd in tab_cwds.iter().skip(1) {
                     if let Err(e) = window_state.tab_manager.new_tab_with_cwd(
-                        &self.config,
+                        &self.config.load(),
                         Arc::clone(&self.runtime),
                         cwd.clone(),
                         grid_size,
@@ -298,14 +298,14 @@ impl WindowManager {
                         tab.start_refresh_task(
                             Arc::clone(&self.runtime),
                             Arc::clone(win),
-                            self.config.max_fps,
-                            self.config.inactive_tab_fps,
+                            self.config.load().max_fps,
+                            self.config.load().inactive_tab_fps,
                         );
                         tab.start_pane_refresh_tasks(
                             Arc::clone(&self.runtime),
                             Arc::clone(win),
-                            self.config.max_fps,
-                            self.config.inactive_tab_fps,
+                            self.config.load().max_fps,
+                            self.config.load().inactive_tab_fps,
                         );
                     }
                 }

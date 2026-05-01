@@ -234,15 +234,15 @@ impl RendererInitParams {
                 .transparency_affects_only_default_background,
             keep_text_opaque: config.keep_text_opaque,
             link_underline_style: config.link_underline_style,
-            cursor_guide_enabled: config.cursor_guide_enabled,
-            cursor_guide_color: config.cursor_guide_color,
-            cursor_shadow_enabled: config.cursor_shadow_enabled,
-            cursor_shadow_color: config.cursor_shadow_color,
-            cursor_shadow_offset: config.cursor_shadow_offset,
-            cursor_shadow_blur: config.cursor_shadow_blur,
-            cursor_boost: config.cursor_boost,
-            cursor_boost_color: config.cursor_boost_color,
-            unfocused_cursor_style: config.unfocused_cursor_style,
+            cursor_guide_enabled: config.cursor.cursor_guide_enabled,
+            cursor_guide_color: config.cursor.cursor_guide_color,
+            cursor_shadow_enabled: config.cursor.cursor_shadow_enabled,
+            cursor_shadow_color: config.cursor.cursor_shadow_color,
+            cursor_shadow_offset: config.cursor.cursor_shadow_offset,
+            cursor_shadow_blur: config.cursor.cursor_shadow_blur,
+            cursor_boost: config.cursor.cursor_boost,
+            cursor_boost_color: config.cursor.cursor_boost_color,
+            unfocused_cursor_style: config.cursor.unfocused_cursor_style,
             command_separator_enabled: config.command_separator_enabled,
             command_separator_thickness: config.command_separator_thickness,
             command_separator_opacity: config.command_separator_opacity,
@@ -391,10 +391,10 @@ impl WindowState {
         );
 
         // Initialize cursor color from config
-        renderer.update_cursor_color(self.config.cursor_color);
+        renderer.update_cursor_color(self.config.load().cursor.cursor_color);
 
         // Initialize cursor text color from config
-        renderer.update_cursor_text_color(self.config.cursor_text_color);
+        renderer.update_cursor_text_color(self.config.load().cursor.cursor_text_color);
 
         // Hide cursor if cursor shader is enabled and configured to hide
         renderer.set_cursor_hidden_for_shader(

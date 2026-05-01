@@ -100,7 +100,11 @@ impl WindowManager {
             "font_size" => {
                 if let Some(v) = value.as_f64() {
                     let new_size = (v as f32).clamp(6.0, 72.0);
-                    ws.config.font_size = new_size;
+                    ws.config.rcu(|old| {
+                        let mut new = (**old).clone();
+                        new.font_size = new_size;
+                        std::sync::Arc::new(new)
+                    });
                     ws.focus_state.needs_redraw = true;
                     ws.request_redraw();
                     log::info!(
@@ -119,7 +123,11 @@ impl WindowManager {
             "window_opacity" => {
                 if let Some(v) = value.as_f64() {
                     let new_opacity = (v as f32).clamp(0.0, 1.0);
-                    ws.config.window.window_opacity = new_opacity;
+                    ws.config.rcu(|old| {
+                        let mut new = (**old).clone();
+                        new.window.window_opacity = new_opacity;
+                        std::sync::Arc::new(new)
+                    });
                     if let Some(renderer) = &mut ws.renderer {
                         renderer.update_opacity(new_opacity);
                     }
@@ -140,7 +148,11 @@ impl WindowManager {
             }
             "scrollback_lines" => {
                 if let Some(v) = value.as_u64() {
-                    ws.config.scrollback.scrollback_lines = v as usize;
+                    ws.config.rcu(|old| {
+                        let mut new = (**old).clone();
+                        new.scrollback.scrollback_lines = v as usize;
+                        std::sync::Arc::new(new)
+                    });
                     log::info!(
                         "Script[{}] ChangeConfig: scrollback_lines = {}",
                         config_index,
@@ -156,7 +168,11 @@ impl WindowManager {
             }
             "cursor_blink" => {
                 if let Some(v) = value.as_bool() {
-                    ws.config.cursor_blink = v;
+                    ws.config.rcu(|old| {
+                        let mut new = (**old).clone();
+                        new.cursor.cursor_blink = v;
+                        std::sync::Arc::new(new)
+                    });
                     ws.focus_state.needs_redraw = true;
                     ws.request_redraw();
                     log::info!(
@@ -174,7 +190,11 @@ impl WindowManager {
             }
             "notification_bell_desktop" => {
                 if let Some(v) = value.as_bool() {
-                    ws.config.notifications.notification_bell_desktop = v;
+                    ws.config.rcu(|old| {
+                        let mut new = (**old).clone();
+                        new.notifications.notification_bell_desktop = v;
+                        std::sync::Arc::new(new)
+                    });
                     log::info!(
                         "Script[{}] ChangeConfig: notification_bell_desktop = {}",
                         config_index,
@@ -191,7 +211,11 @@ impl WindowManager {
             }
             "notification_bell_visual" => {
                 if let Some(v) = value.as_bool() {
-                    ws.config.notifications.notification_bell_visual = v;
+                    ws.config.rcu(|old| {
+                        let mut new = (**old).clone();
+                        new.notifications.notification_bell_visual = v;
+                        std::sync::Arc::new(new)
+                    });
                     ws.focus_state.needs_redraw = true;
                     ws.request_redraw();
                     log::info!(

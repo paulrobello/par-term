@@ -245,7 +245,11 @@ impl WindowState {
                         .set_success(&format!("Installed {} shaders!", count));
 
                     // Update config to mark as installed
-                    self.config.shader_install_prompt = ShaderInstallPrompt::Installed;
+                    self.config.rcu(|old| {
+                        let mut new = (**old).clone();
+                        new.shader_install_prompt = ShaderInstallPrompt::Installed;
+                        std::sync::Arc::new(new)
+                    });
                     if let Err(e) = self.save_config_debounced() {
                         log::error!("Failed to save config after shader install: {}", e);
                     }
@@ -285,7 +289,11 @@ impl WindowState {
                 self.overlay_ui.shader_install_ui.hide();
 
                 // Update config to never ask again
-                self.config.shader_install_prompt = ShaderInstallPrompt::Never;
+                self.config.rcu(|old| {
+                    let mut new = (**old).clone();
+                    new.shader_install_prompt = ShaderInstallPrompt::Never;
+                    std::sync::Arc::new(new)
+                });
                 if let Err(e) = self.save_config_debounced() {
                     log::error!("Failed to save config after declining shaders: {}", e);
                 }

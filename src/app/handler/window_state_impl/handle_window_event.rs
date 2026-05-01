@@ -5,6 +5,7 @@
 //!   including close, resize, scale factor change, keyboard, mouse, focus, redraw, theme change.
 
 use crate::app::window_state::WindowState;
+use std::sync::Arc;
 use winit::event::WindowEvent;
 use winit::event_loop::ActiveEventLoop;
 
@@ -78,7 +79,7 @@ impl WindowState {
 
                 // Check if prompt_on_quit is enabled and there are active sessions
                 let tab_count = self.tab_manager.visible_tab_count();
-                if self.config.prompt_on_quit
+                if self.config.load().prompt_on_quit
                     && tab_count > 0
                     && !self.overlay_ui.quit_confirmation_ui.is_visible()
                 {
@@ -280,7 +281,9 @@ impl WindowState {
                         // else: this resize was triggered by our own snap request — done.
                     }
 
-                    if self.pending_snap_size.is_none() && self.config.window.snap_window_to_grid {
+                    if self.pending_snap_size.is_none()
+                        && self.config.load().window.snap_window_to_grid
+                    {
                         // Only snap in single-pane mode (split pane handled separately).
                         let is_split = self
                             .tab_manager
@@ -344,7 +347,7 @@ impl WindowState {
                 if self.is_mouse_in_tab_bar(mouse_position)
                     && self.tab_bar_ui.handle_mouse_wheel(
                         &delta,
-                        self.config.tab_min_width,
+                        self.config.load().tab_min_width,
                         tab_count,
                     )
                 {
@@ -502,7 +505,7 @@ impl WindowState {
 
             WindowEvent::CursorEntered { .. } => {
                 // Focus follows mouse: auto-focus window when cursor enters
-                if self.config.focus_follows_mouse
+                if self.config.load().mouse.focus_follows_mouse
                     && let Some(window) = &self.window
                 {
                     window.focus_window();
@@ -511,16 +514,50 @@ impl WindowState {
 
             WindowEvent::ThemeChanged(system_theme) => {
                 let is_dark = system_theme == winit::window::Theme::Dark;
-                let theme_changed = self.config.apply_system_theme(is_dark);
-                let tab_style_changed = self.config.apply_system_tab_style(is_dark);
+                // Apply theme changes via rcu (apply_system_theme/tab_style require &mut self)
+                let theme_changed = {
+                    let old = self.config.load();
+                    // Check if change would occur using a clone (apply_system_theme needs &mut)
+                    let mut probe = (**old).clone();
+                    let changed = probe.apply_system_theme(is_dark);
+                    drop(old);
+                    if changed {
+                        self.config.rcu(|old| {
+                            let mut new = (**old).clone();
+                            if new.apply_system_theme(is_dark) {
+                                Arc::new(new)
+                            } else {
+                                Arc::clone(old)
+                            }
+                        });
+                    }
+                    changed
+                };
+                let tab_style_changed = {
+                    let old = self.config.load();
+                    let mut probe = (**old).clone();
+                    let changed = probe.apply_system_tab_style(is_dark);
+                    drop(old);
+                    if changed {
+                        self.config.rcu(|old| {
+                            let mut new = (**old).clone();
+                            if new.apply_system_tab_style(is_dark) {
+                                Arc::new(new)
+                            } else {
+                                Arc::clone(old)
+                            }
+                        });
+                    }
+                    changed
+                };
 
                 if theme_changed {
                     log::info!(
                         "System theme changed to {}, switching to theme: {}",
                         if is_dark { "dark" } else { "light" },
-                        self.config.theme
+                        self.config.load().theme
                     );
-                    let theme = self.config.load_theme();
+                    let theme = self.config.load().load_theme();
                     for tab in self.tab_manager.tabs_mut() {
                         // try_lock: intentional — ThemeChanged fires in the sync event loop.
                         // On miss: this tab keeps the old theme until the next theme event
@@ -548,9 +585,9 @@ impl WindowState {
                     log::info!(
                         "Auto tab style: switching to {} tab style",
                         if is_dark {
-                            self.config.dark_tab_style.display_name()
+                            self.config.load().dark_tab_style.display_name()
                         } else {
-                            self.config.light_tab_style.display_name()
+                            self.config.load().light_tab_style.display_name()
                         }
                     );
                 }

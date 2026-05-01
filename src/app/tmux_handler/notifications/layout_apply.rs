@@ -170,7 +170,7 @@ impl WindowState {
                 parsed_layout,
                 &existing_mappings,
                 panes_to_add,
-                &self.config,
+                &self.config.load(),
                 std::sync::Arc::clone(&self.runtime),
             ) {
                 Ok(new_mappings) => {
@@ -241,7 +241,7 @@ impl WindowState {
         if let Some(pm) = tab.pane_manager_mut() {
             match pm.set_from_tmux_layout(
                 parsed_layout,
-                &self.config,
+                &self.config.load(),
                 std::sync::Arc::clone(&self.runtime),
             ) {
                 Ok(pane_mappings) => {

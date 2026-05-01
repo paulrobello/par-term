@@ -86,12 +86,12 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         // Cursor Style segmented control
         ui.horizontal(|ui| {
             ui.label("Cursor:");
-            let current = settings.config.cursor_style;
+            let current = settings.config.cursor.cursor_style;
             if ui
                 .selectable_label(current == CursorStyle::Block, "Block")
                 .clicked()
             {
-                settings.config.cursor_style = CursorStyle::Block;
+                settings.config.cursor.cursor_style = CursorStyle::Block;
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
@@ -99,7 +99,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
                 .selectable_label(current == CursorStyle::Beam, "Beam")
                 .clicked()
             {
-                settings.config.cursor_style = CursorStyle::Beam;
+                settings.config.cursor.cursor_style = CursorStyle::Beam;
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
@@ -107,7 +107,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
                 .selectable_label(current == CursorStyle::Underline, "Line")
                 .clicked()
             {
-                settings.config.cursor_style = CursorStyle::Underline;
+                settings.config.cursor.cursor_style = CursorStyle::Underline;
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
@@ -117,7 +117,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
 
         // Cursor Blink checkbox
         if ui
-            .checkbox(&mut settings.config.cursor_blink, "Blink")
+            .checkbox(&mut settings.config.cursor.cursor_blink, "Blink")
             .changed()
         {
             settings.has_changes = true;

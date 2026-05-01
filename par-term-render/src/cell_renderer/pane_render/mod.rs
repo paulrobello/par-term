@@ -70,6 +70,19 @@ pub(super) struct PaneInstanceBuildParams<'a> {
     pub separator_marks: &'a [SeparatorMark],
 }
 
+/// Parameters for emitting a cursor cell background instance (QA-006 extraction).
+struct CursorCellBgParams {
+    col: usize,
+    row: usize,
+    content_x: f32,
+    content_y: f32,
+    bg_color: [f32; 4],
+    cursor_opacity: f32,
+    render_hollow_here: bool,
+    opacity_multiplier: f32,
+    bg_index: usize,
+}
+
 impl CellRenderer {
     /// Render a single pane's content within a viewport to an existing surface texture
     ///
@@ -374,52 +387,22 @@ impl CellRenderer {
                         self.window_opacity
                     };
                 let pane_alpha = bg_alpha * opacity_multiplier;
-                let mut bg_color = color_u8x4_rgb_to_f32_a(cell.bg_color, pane_alpha);
+                let bg_color = color_u8x4_rgb_to_f32_a(cell.bg_color, pane_alpha);
 
-                // TODO(QA-002/QA-008): extract into `render_cursor_cell()` helper.
-                // Signature would be:
-                //   fn render_cursor_cell(&mut self, col: usize, row: usize,
-                //       content_x: f32, content_y: f32, bg_color: [f32; 4],
-                //       cursor_opacity: f32, render_hollow_here: bool,
-                //       bg_index: &mut usize)
-                // Handle cursor at this position
+                // Handle cursor at this position (QA-006: extracted to helper for readability)
                 if has_cursor {
-                    use par_term_emu_core_rust::cursor::CursorStyle;
-                    match self.cursor.style {
-                        CursorStyle::SteadyBlock | CursorStyle::BlinkingBlock => {
-                            if !render_hollow_here {
-                                // Solid block cursor: blend cursor color into background
-                                for (bg, &cursor) in
-                                    bg_color.iter_mut().take(3).zip(&self.cursor.color)
-                                {
-                                    *bg = *bg * (1.0 - cursor_opacity) + cursor * cursor_opacity;
-                                }
-                                bg_color[3] = bg_color[3].max(cursor_opacity * opacity_multiplier);
-                            }
-                            // If hollow: keep original background color (outline added as overlay)
-                        }
-                        _ => {}
-                    }
-
-                    // Cursor cell can't be merged
-                    // Snap to pixel boundaries to match text pipeline alignment
-                    let x0 = (content_x + col as f32 * self.grid.cell_width).round();
-                    let x1 = (content_x + (col + 1) as f32 * self.grid.cell_width).round();
-                    let y0 = (content_y + row as f32 * self.grid.cell_height).round();
-                    let y1 = (content_y + (row + 1) as f32 * self.grid.cell_height).round();
-
-                    if bg_index < self.buffers.max_bg_instances {
-                        self.bg_instances[bg_index] = BackgroundInstance {
-                            position: [
-                                x0 / self.config.width as f32 * 2.0 - 1.0,
-                                1.0 - (y0 / self.config.height as f32 * 2.0),
-                            ],
-                            size: [
-                                (x1 - x0) / self.config.width as f32 * 2.0,
-                                (y1 - y0) / self.config.height as f32 * 2.0,
-                            ],
-                            color: bg_color,
-                        };
+                    let emitted = self.emit_cursor_cell_bg(CursorCellBgParams {
+                        col,
+                        row,
+                        content_x,
+                        content_y,
+                        bg_color,
+                        cursor_opacity,
+                        render_hollow_here,
+                        opacity_multiplier,
+                        bg_index,
+                    });
+                    if emitted {
                         bg_index += 1;
                     }
                     col += 1;
@@ -811,5 +794,63 @@ impl CellRenderer {
         }
 
         Ok(cursor_overlay_start)
+    }
+
+    /// Emit a background instance for a cell containing the cursor.
+    ///
+    /// QA-006: Extracted from the RLE background loop in `build_pane_instance_buffers`.
+    /// Handles block-cursor color blending and pixel-snapped background quad placement.
+    /// Returns `true` if an instance was emitted (caller increments bg_index).
+    fn emit_cursor_cell_bg(&mut self, p: CursorCellBgParams) -> bool {
+        let CursorCellBgParams {
+            col,
+            row,
+            content_x,
+            content_y,
+            mut bg_color,
+            cursor_opacity,
+            render_hollow_here,
+            opacity_multiplier,
+            bg_index,
+        } = p;
+
+        use par_term_emu_core_rust::cursor::CursorStyle;
+        match self.cursor.style {
+            CursorStyle::SteadyBlock | CursorStyle::BlinkingBlock => {
+                if !render_hollow_here {
+                    // Solid block cursor: blend cursor color into background
+                    for (bg, &cursor) in bg_color.iter_mut().take(3).zip(&self.cursor.color) {
+                        *bg = *bg * (1.0 - cursor_opacity) + cursor * cursor_opacity;
+                    }
+                    bg_color[3] = bg_color[3].max(cursor_opacity * opacity_multiplier);
+                }
+                // If hollow: keep original background color (outline added as overlay)
+            }
+            _ => {}
+        }
+
+        // Cursor cell can't be merged
+        // Snap to pixel boundaries to match text pipeline alignment
+        let x0 = (content_x + col as f32 * self.grid.cell_width).round();
+        let x1 = (content_x + (col + 1) as f32 * self.grid.cell_width).round();
+        let y0 = (content_y + row as f32 * self.grid.cell_height).round();
+        let y1 = (content_y + (row + 1) as f32 * self.grid.cell_height).round();
+
+        if bg_index < self.buffers.max_bg_instances {
+            self.bg_instances[bg_index] = BackgroundInstance {
+                position: [
+                    x0 / self.config.width as f32 * 2.0 - 1.0,
+                    1.0 - (y0 / self.config.height as f32 * 2.0),
+                ],
+                size: [
+                    (x1 - x0) / self.config.width as f32 * 2.0,
+                    (y1 - y0) / self.config.height as f32 * 2.0,
+                ],
+                color: bg_color,
+            };
+            true
+        } else {
+            false
+        }
     }
 }

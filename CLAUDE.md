@@ -9,7 +9,7 @@ par-term is a cross-platform GPU-accelerated terminal emulator frontend built in
 **Language**: Rust (Edition 2024)
 **Platform**: Cross-platform (macOS, Linux, Windows)
 **Graphics**: wgpu (Vulkan/Metal/DirectX 12)
-**Version**: 0.30.4
+**Version**: 0.30.12
 
 ## Development Commands
 
@@ -94,7 +94,7 @@ make bundle            # Create macOS .app bundle (macOS only)
 
 ## Architecture Overview
 
-See `docs/ARCHITECTURE.md` for detailed architecture documentation.
+See `docs/architecture/ARCHITECTURE.md` for detailed architecture documentation.
 
 **Key layers**: App (`src/app/`) → Terminal (`src/terminal/`) → Renderer (`par-term-render/src/cell_renderer/`) → GPU Shaders (`par-term-render/src/shaders/`)
 
@@ -200,7 +200,7 @@ Layer 4 — Root crate (bump last):
 2. If needed, add sequence generation in `src/input.rs` → `InputHandler`
 
 ### Adding Snippet or Action Keybindings
-See `docs/SNIPPETS.md` for full documentation. Key points:
+See `docs/features/SNIPPETS.md` for full documentation. Key points:
 - Snippets use `snippet:<id>`, actions use `action:<id>` as keybinding action names
 - Auto-generated during config load via `generate_snippet_action_keybindings()`
 - `execute_keybinding_action()` in `input_events.rs` handles execution
@@ -209,7 +209,7 @@ See `docs/SNIPPETS.md` for full documentation. Key points:
 
 **IMPORTANT**: par-term has TWO separate shader systems — **background shaders** (`custom_shader`) and **cursor shaders** (`cursor_shader`). Do not confuse them when debugging.
 
-See `docs/CUSTOM_SHADERS.md` for full shader documentation including uniforms, creation, and debugging.
+See `docs/features/CUSTOM_SHADERS.md` for full shader documentation including uniforms, creation, and debugging.
 
 **Key rules**:
 - Develop shaders in `~/.config/par-term/shaders/` first; only move to repo `shaders/` when ready for distribution
@@ -243,50 +243,50 @@ See `docs/CUSTOM_SHADERS.md` for full shader documentation including uniforms, c
 
 | Topic | File |
 |-------|------|
-| Architecture overview | `docs/ARCHITECTURE.md` |
-| Crate dependency structure | `docs/CRATE_STRUCTURE.md` |
-| Concurrency / locking | `docs/CONCURRENCY.md` |
-| Mutex patterns reference | `docs/MUTEX_PATTERNS.md` |
-| State lifecycle | `docs/STATE_LIFECYCLE.md` |
-| Custom shaders (background + cursor) | `docs/CUSTOM_SHADERS.md` |
-| Included shader gallery | `docs/SHADERS.md` |
-| GPU compositor / render layers | `docs/COMPOSITOR.md` |
-| Session save/restore | `docs/SESSION_MANAGEMENT.md` |
-| Session logging | `docs/SESSION_LOGGING.md` |
-| Snippets & actions | `docs/SNIPPETS.md` |
-| Keyboard shortcuts | `docs/KEYBOARD_SHORTCUTS.md` |
+| Architecture overview | `docs/architecture/ARCHITECTURE.md` |
+| Crate dependency structure | `docs/architecture/CRATE_STRUCTURE.md` |
+| Concurrency / locking | `docs/architecture/CONCURRENCY.md` |
+| Mutex patterns reference | `docs/architecture/MUTEX_PATTERNS.md` |
+| State lifecycle | `docs/architecture/STATE_LIFECYCLE.md` |
+| Custom shaders (background + cursor) | `docs/features/CUSTOM_SHADERS.md` |
+| Included shader gallery | `docs/features/SHADERS.md` |
+| GPU compositor / render layers | `docs/architecture/COMPOSITOR.md` |
+| Session save/restore | `docs/features/SESSION_MANAGEMENT.md` |
+| Session logging | `docs/features/SESSION_LOGGING.md` |
+| Snippets & actions | `docs/features/SNIPPETS.md` |
+| Keyboard shortcuts | `docs/guides/KEYBOARD_SHORTCUTS.md` |
 | Logging & debug | `docs/LOGGING.md` |
-| SSH support | `docs/SSH.md` |
+| SSH support | `docs/features/SSH.md` |
 | Config reference | `docs/CONFIG_REFERENCE.md` |
 | ACP harness | `docs/ACP_HARNESS.md` |
-| Troubleshooting | `docs/TROUBLESHOOTING.md` |
-| Getting started guide | `docs/GETTING_STARTED.md` |
-| Quick start: fonts | `docs/QUICK_START_FONTS.md` |
+| Troubleshooting | `docs/guides/TROUBLESHOOTING.md` |
+| Getting started guide | `docs/guides/GETTING_STARTED.md` |
+| Quick start: fonts | `docs/guides/QUICK_START_FONTS.md` |
 | Public API index | `docs/API.md` |
-| Environment variables | `docs/ENVIRONMENT_VARIABLES.md` |
+| Environment variables | `docs/guides/ENVIRONMENT_VARIABLES.md` |
 | Enterprise deployment | `docs/ENTERPRISE_DEPLOYMENT.md` |
-| Automation (triggers, coprocesses) | `docs/AUTOMATION.md` |
+| Automation (triggers, coprocesses) | `docs/features/AUTOMATION.md` |
 | Assistant panel / ACP agents | `docs/ASSISTANT_PANEL.md` |
-| Split tabs | `docs/TABS.md` |
-| Window management | `docs/WINDOW_MANAGEMENT.md` |
-| Window arrangements | `docs/ARRANGEMENTS.md` |
-| Profiles | `docs/PROFILES.md` |
-| Accessibility | `docs/ACCESSIBILITY.md` |
-| Self-update | `docs/SELF_UPDATE.md` |
-| Mouse features | `docs/MOUSE_FEATURES.md` |
-| Copy mode | `docs/COPY_MODE.md` |
-| Search | `docs/SEARCH.md` |
-| Status bar | `docs/STATUS_BAR.md` |
-| Badges | `docs/BADGES.md` |
-| Integrations | `docs/INTEGRATIONS.md` |
-| Command history | `docs/COMMAND_HISTORY.md` |
-| Command separators | `docs/COMMAND_SEPARATORS.md` |
-| File transfers | `docs/FILE_TRANSFERS.md` |
-| Paste special | `docs/PASTE_SPECIAL.md` |
-| Preferences import/export | `docs/PREFERENCES_IMPORT_EXPORT.md` |
-| Progress bars | `docs/PROGRESS_BARS.md` |
-| Scrollback buffer | `docs/SCROLLBACK.md` |
-| Semantic history | `docs/SEMANTIC_HISTORY.md` |
+| Split tabs | `docs/features/TABS.md` |
+| Window management | `docs/features/WINDOW_MANAGEMENT.md` |
+| Window arrangements | `docs/features/ARRANGEMENTS.md` |
+| Profiles | `docs/features/PROFILES.md` |
+| Accessibility | `docs/features/ACCESSIBILITY.md` |
+| Self-update | `docs/features/SELF_UPDATE.md` |
+| Mouse features | `docs/features/MOUSE_FEATURES.md` |
+| Copy mode | `docs/features/COPY_MODE.md` |
+| Search | `docs/features/SEARCH.md` |
+| Status bar | `docs/features/STATUS_BAR.md` |
+| Badges | `docs/features/BADGES.md` |
+| Integrations | `docs/features/INTEGRATIONS.md` |
+| Command history | `docs/features/COMMAND_HISTORY.md` |
+| Command separators | `docs/features/COMMAND_SEPARATORS.md` |
+| File transfers | `docs/features/FILE_TRANSFERS.md` |
+| Paste special | `docs/features/PASTE_SPECIAL.md` |
+| Preferences import/export | `docs/features/PREFERENCES_IMPORT_EXPORT.md` |
+| Progress bars | `docs/features/PROGRESS_BARS.md` |
+| Scrollback buffer | `docs/features/SCROLLBACK.md` |
+| Semantic history | `docs/features/SEMANTIC_HISTORY.md` |
 
 ## Quick Debugging Checklist by Category
 

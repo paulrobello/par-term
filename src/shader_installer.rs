@@ -173,9 +173,13 @@ const MAX_SHADER_DOWNLOAD_SIZE: u64 = 50 * 1024 * 1024;
 ///
 /// # Security
 ///
+/// - Enforces HTTPS-only and host allowlist via [`crate::http::validate_download_url`].
 /// - Enforces a 50 MB size limit to prevent memory exhaustion.
 /// - Callers that require integrity checking should use [`download_file_with_checksum`].
 pub fn download_file(url: &str) -> Result<Vec<u8>, String> {
+    // Validate URL before making any network request.
+    crate::http::validate_download_url(url)?;
+
     let mut body = crate::http::agent()
         .get(url)
         .header("User-Agent", "par-term")
@@ -272,6 +276,18 @@ pub fn extract_shaders(zip_data: &[u8], target_dir: &Path) -> Result<(), String>
         }
 
         let final_path = target_dir.join(relative_path);
+
+        // Zip-slip protection: ensure the final path stays within the target
+        // directory. A crafted zip could contain paths like "../../etc/cron.d/malware"
+        // that escape the target directory after joining.
+        if !final_path.starts_with(target_dir) {
+            log::warn!(
+                "Skipping zip entry outside target directory: {} resolves to {}",
+                relative_path.display(),
+                final_path.display()
+            );
+            continue;
+        }
 
         // Create parent directories if needed
         if let Some(parent) = final_path.parent() {
@@ -523,6 +539,18 @@ fn extract_shaders_with_manifest(
         }
 
         let final_path = target_dir.join(relative_path);
+
+        // Zip-slip protection: ensure the final path stays within the target
+        // directory. A crafted zip could contain paths like "../../etc/cron.d/malware"
+        // that escape the target directory after joining.
+        if !final_path.starts_with(target_dir) {
+            log::warn!(
+                "Skipping zip entry outside target directory: {} resolves to {}",
+                relative_path.display(),
+                final_path.display()
+            );
+            continue;
+        }
 
         // Check if file exists and is modified (skip unless force)
         if !is_manifest && final_path.exists() && !force_overwrite {

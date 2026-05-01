@@ -145,10 +145,12 @@ impl WindowState {
         // Instead, create a new tab for this tmux pane
         if self.tmux_state.tmux_gateway_tab_id.is_some() {
             // Check if we can create a new tab
-            if self.config.max_tabs == 0 || self.tab_manager.tab_count() < self.config.max_tabs {
+            if self.config.load().max_tabs == 0
+                || self.tab_manager.tab_count() < self.config.load().max_tabs
+            {
                 let grid_size = self.renderer.as_ref().map(|r| r.grid_size());
                 match self.tab_manager.new_tab(
-                    &self.config,
+                    &self.config.load(),
                     std::sync::Arc::clone(&self.runtime),
                     false,
                     grid_size,
@@ -179,8 +181,8 @@ impl WindowState {
                                 tab.start_refresh_task(
                                     std::sync::Arc::clone(&self.runtime),
                                     std::sync::Arc::clone(window),
-                                    self.config.max_fps,
-                                    self.config.inactive_tab_fps,
+                                    self.config.load().max_fps,
+                                    self.config.load().inactive_tab_fps,
                                 );
                             }
 

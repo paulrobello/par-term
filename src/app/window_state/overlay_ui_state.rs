@@ -58,7 +58,6 @@ pub(crate) struct OverlayUiState {
     pub(crate) profile_manager: ProfileManager,
     /// Pending "Move Tab to New Window" / "Move Tab to Window" request,
     /// drained by `WindowManager::about_to_wait`.
-    #[allow(dead_code)]
     pub(crate) pending_move_tab_request: Option<crate::app::window_manager::MoveTabRequest>,
     /// Cached each frame by `about_to_wait`: `(WindowId, label)` pairs for every
     /// *other* par-term window, used to populate the "Move Tab to Window →"

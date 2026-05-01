@@ -51,9 +51,6 @@ parking_lot.workspace = true
 # Hostname detection for snippet variables
 hostname.workspace = true
 
-# Terminal emulator core (required for UnicodeVersion, AmbiguousWidth, NormalizationForm types)
-par-term-emu-core-rust.workspace = true
-
 [features]
 default = ["watcher"]
 watcher = ["notify"]

@@ -43,7 +43,7 @@ impl WindowState {
     /// Returns true if any notifications were processed (triggers redraw).
     pub(crate) fn check_tmux_notifications(&mut self) -> bool {
         // Early exit if tmux integration is disabled
-        if !self.config.tmux_enabled {
+        if !self.config.load().tmux_enabled {
             return false;
         }
 

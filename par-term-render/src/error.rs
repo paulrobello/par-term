@@ -3,6 +3,11 @@
 //! This module provides structured error types so callers at the crate boundary
 //! can match on specific error variants instead of relying on opaque `anyhow`
 //! strings.
+//!
+//! TODO(QA-010): Other workspace crates (53 files) use bare `anyhow::Result`.
+//! Consider migrating each crate's error types to thiserror-based enums for
+//! better error handling. Priority: `par-term-mcp` (IPC protocol errors),
+//! `par-term-terminal` (PTY/terminal errors).
 
 use thiserror::Error;
 
@@ -114,6 +119,15 @@ pub enum RenderError {
     /// A required cubemap face file could not be found on disk.
     #[error("Cubemap face file not found: {0}")]
     CubemapFaceNotFound(String),
+
+    // -----------------------------------------------------------------------
+    // Shader / renderer state
+    // -----------------------------------------------------------------------
+    /// A shader renderer that was previously active is no longer available,
+    /// typically due to GPU device loss. The frame should be skipped and
+    /// reinitialization attempted on the next frame.
+    #[error("Shader renderer unavailable (possible GPU device loss): {0}")]
+    ShaderUnavailable(String),
 
     // -----------------------------------------------------------------------
     // Surface / presentation

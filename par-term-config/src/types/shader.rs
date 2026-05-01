@@ -32,14 +32,24 @@ pub struct ShaderMetadata {
 }
 
 /// Readability/performance badges displayed for background shaders.
+/// Readability/performance badges displayed for background shaders.
+///
+/// These badges appear in the settings UI to indicate shader characteristics
+/// that affect text readability, GPU performance, or resource usage.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ShaderSafetyBadge {
+    /// Shader processes full terminal content (higher GPU cost, may distort text).
     FullContent,
+    /// Shader may distort or obscure text content.
     DistortsText,
+    /// Shader loads external texture files via iChannel0-3.
     UsesTextures,
+    /// Shader loads a cubemap texture for environment mapping.
     UsesCubemap,
+    /// Shader has high GPU compute cost (may impact battery life).
     HighGpuCost,
+    /// Shader is lightweight and works well on battery power.
     BatteryFriendly,
 }
 
@@ -56,15 +66,23 @@ impl ShaderSafetyBadge {
     }
 }
 
-/// Blend mode hint for shaders using the app background as iChannel0.
+/// Blend mode for compositing shader output over the background image.
+///
+/// Controls how the shader output is blended with the app's background image
+/// when `use_background_as_channel0` is enabled.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ShaderBackgroundBlendMode {
+    /// Replace the background entirely with shader output.
     #[default]
     Replace,
+    /// Multiply shader output with the background (darkens).
     Multiply,
+    /// Screen blend (lightens, opposite of multiply).
     Screen,
+    /// Overlay blend (combines multiply and screen based on brightness).
     Overlay,
+    /// Use shader luminance as an alpha mask over the background.
     LuminanceMask,
 }
 
@@ -98,6 +116,10 @@ impl ShaderBackgroundBlendMode {
     }
 }
 
+/// An RGBA color value stored as normalized floats (0.0-1.0 per channel).
+///
+/// Used for shader uniform color values. Parsed from hex strings (`#rrggbb`
+/// or `#rrggbbaa`) or from 3/4-element float arrays in YAML config.
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct ShaderColorValue(pub [f32; 4]);
 
@@ -171,12 +193,21 @@ impl ShaderColorValue {
     }
 }
 
+/// A typed value for a custom shader uniform.
+///
+/// Supports the GLSL types that can be declared as `// control` uniforms in
+/// shader files: float, int, bool, color (vec3/vec4), and vec2.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ShaderUniformValue {
+    /// A single-precision floating-point value.
     Float(f32),
+    /// A 32-bit integer value.
     Int(i32),
+    /// A boolean value.
     Bool(bool),
+    /// A color value (RGB or RGBA as normalized floats).
     Color(ShaderColorValue),
+    /// A 2-component float vector.
     Vec2([f32; 2]),
 }
 
