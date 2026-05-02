@@ -51,3 +51,4 @@ settings.local.json
 *.local.*
 .pi/extensions/discord-relay/state.json
 ideas.md
+graphify-out/
