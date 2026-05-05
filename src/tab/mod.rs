@@ -33,7 +33,7 @@ pub(crate) use setup::{
     apply_login_shell_flag, build_shell_env, configure_terminal_from_config, get_shell_command,
 };
 use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use tokio::runtime::Runtime;
 use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
@@ -127,6 +127,55 @@ pub struct Tab {
     pub(crate) shutdown_fast: bool,
     /// When true, this tab is hidden from the tab bar (e.g., tmux gateway tab while windows are active)
     pub(crate) is_hidden: bool,
+    /// Last-known modifyOtherKeys level. Updated on every successful read of
+    /// `terminal` from the input path; read as a fallback when `try_read()`
+    /// fails. Lock contention with the renderer (`try_write` on every frame in
+    /// release/LTO builds) was causing modifier-aware key encoding (notably
+    /// CSI-u Shift+Enter under tmux) to silently fall back to defaults.
+    pub(crate) cached_modify_other_keys_mode: AtomicU8,
+    /// Last-known DECCKM (application cursor) state. See cache rationale on
+    /// `cached_modify_other_keys_mode`.
+    pub(crate) cached_application_cursor: AtomicBool,
+    /// Last-known alt-screen state. See cache rationale on
+    /// `cached_modify_other_keys_mode`.
+    pub(crate) cached_alt_screen_active: AtomicBool,
+    /// Last-known result of "is a `tmux*` process running under this tab's
+    /// shell?", populated by [`crate::app::WindowState::shell_has_tmux_child`].
+    /// Used to disambiguate Shift+Enter encoding when a `try_read` collision
+    /// prevents a fresh process-tree query.
+    pub(crate) cached_has_tmux_child: AtomicBool,
+}
+
+impl Tab {
+    /// Read terminal mode flags with cache fallback.
+    ///
+    /// Tries to acquire a non-blocking read lock; on success, updates the
+    /// cached atomics and returns the fresh values. On contention, returns
+    /// the last successfully-read values from the cache.
+    ///
+    /// Returns `(modify_other_keys_mode, application_cursor, alt_screen_active)`.
+    ///
+    /// Used by the keyboard input path to keep modifier-aware encoding
+    /// correct when the renderer's `try_write` collides with our `try_read`
+    /// — see field-level docs on `cached_modify_other_keys_mode`.
+    pub(crate) fn read_or_cached_modes(&self) -> (u8, bool, bool) {
+        if let Ok(term) = self.terminal.try_read() {
+            let m = term.modify_other_keys_mode();
+            let a = term.application_cursor();
+            let s = term.is_alt_screen_active();
+            self.cached_modify_other_keys_mode
+                .store(m, Ordering::Relaxed);
+            self.cached_application_cursor.store(a, Ordering::Relaxed);
+            self.cached_alt_screen_active.store(s, Ordering::Relaxed);
+            (m, a, s)
+        } else {
+            (
+                self.cached_modify_other_keys_mode.load(Ordering::Relaxed),
+                self.cached_application_cursor.load(Ordering::Relaxed),
+                self.cached_alt_screen_active.load(Ordering::Relaxed),
+            )
+        }
+    }
 }
 
 /// Parameters that differ between `Tab::new()` and `Tab::new_from_profile()`.

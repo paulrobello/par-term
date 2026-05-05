@@ -222,17 +222,28 @@ impl WindowState {
     /// that tmux's `extended-keys on` parser can relay to the inner app in
     /// whatever keyboard protocol that app has negotiated (kitty/modifyOtherKeys).
     pub fn shell_has_tmux_child(&self) -> bool {
+        use std::sync::atomic::Ordering;
         let tab = match self.tab_manager.active_tab() {
             Some(t) => t,
             None => return false,
         };
-        let term = match tab.terminal.try_read() {
-            Ok(t) => t,
-            Err(_) => return false,
-        };
-        term.get_running_child_processes(&[])
-            .iter()
-            .any(|name| name.eq_ignore_ascii_case("tmux") || name.starts_with("tmux"))
+        // Cache fallback: on `try_read` contention (frequent in release/LTO
+        // builds because the renderer holds the write lock briefly on every
+        // frame), fall back to the last-known result rather than reporting
+        // "no tmux". Returning `false` here was causing the Shift+Enter
+        // handler to send raw LF in shell context, which tmux mangles into
+        // Ctrl+J. See cached_has_tmux_child docs in src/tab/mod.rs.
+        match tab.terminal.try_read() {
+            Ok(term) => {
+                let has = term
+                    .get_running_child_processes(&[])
+                    .iter()
+                    .any(|name| name.eq_ignore_ascii_case("tmux") || name.starts_with("tmux"));
+                tab.cached_has_tmux_child.store(has, Ordering::Relaxed);
+                has
+            }
+            Err(_) => tab.cached_has_tmux_child.load(Ordering::Relaxed),
+        }
     }
 
     /// Check if gateway mode is active (connected or connecting)

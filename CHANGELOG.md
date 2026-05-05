@@ -11,6 +11,9 @@ Each version entry may include a `### Security` subsection for vulnerability fix
 
 ## [Unreleased]
 
+### Fixed
+- Shift+Enter under tmux intermittently sending raw LF instead of CSI-u in release/LTO builds. The keyboard input path read terminal mode flags (`modify_other_keys_mode`, `application_cursor`, `is_alt_screen_active`) and the `tmux*` child-process detection via `tab.terminal.try_read()`, falling back to `(0, false, false)` on contention. With LTO/`opt-level=3` the renderer's per-frame `try_write` collided often enough that Shift+Enter was encoded as bare `\n`, which tmux re-encoded as Ctrl+J → `\x1b[106;5u` and Claude Code never saw a Shift+Enter. `Tab` now caches the last successfully-read mode flags and `shell_has_tmux_child` result in atomics, and the input handler reads those on contention instead of resetting to defaults.
+
 ---
 
 ## [0.31.0] - 2026-05-01

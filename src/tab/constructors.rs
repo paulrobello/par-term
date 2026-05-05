@@ -20,7 +20,7 @@ use crate::terminal::TerminalManager;
 use par_term_config::TabId;
 use par_term_terminal::conversion::to_core_restart_policy;
 use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, AtomicU8};
 use tokio::runtime::Runtime;
 use tokio::sync::RwLock;
 
@@ -199,6 +199,10 @@ impl Tab {
             is_active,
             shutdown_fast: false,
             is_hidden: false,
+            cached_modify_other_keys_mode: AtomicU8::new(0),
+            cached_application_cursor: AtomicBool::new(false),
+            cached_alt_screen_active: AtomicBool::new(false),
+            cached_has_tmux_child: AtomicBool::new(false),
         })
     }
 
@@ -421,6 +425,10 @@ impl Tab {
             is_active,
             shutdown_fast: false,
             is_hidden: false,
+            cached_modify_other_keys_mode: AtomicU8::new(0),
+            cached_application_cursor: AtomicBool::new(false),
+            cached_alt_screen_active: AtomicBool::new(false),
+            cached_has_tmux_child: AtomicBool::new(false),
         }
     }
 }

@@ -368,23 +368,21 @@ impl WindowState {
             self.request_redraw();
         }
 
-        // Get terminal modes (if available)
+        // Get terminal modes (if available).
+        //
         // try_read: intentional — only reading terminal mode flags, no mutation needed.
-        // Using try_read instead of try_write dramatically reduces contention with
-        // the render thread (multiple readers can hold the lock simultaneously),
-        // preventing intermittent fallback to wrong modes that caused modifier keys
-        // (especially Shift) to stop working in alt-screen/TUI apps.
+        // Multiple readers can hold the lock simultaneously, so this rarely blocks.
+        //
+        // Cache fallback: in release/LTO builds the renderer's per-frame `try_write`
+        // collides with this `try_read` often enough that the previous "fall back to
+        // (0, false, false)" behavior caused Shift+Enter under tmux to silently send
+        // raw LF (which tmux re-encodes as Ctrl+J → \x1b[106;5u for mode-2 panes,
+        // not recognized by Claude Code as Shift+Enter). `read_or_cached_modes`
+        // returns the last successfully-read values on contention, so modifier-aware
+        // encoding stays correct.
         let (modify_other_keys_mode, application_cursor, alt_screen_active) =
             if let Some(tab) = self.tab_manager.active_tab() {
-                if let Ok(term) = tab.terminal.try_read() {
-                    (
-                        term.modify_other_keys_mode(),
-                        term.application_cursor(),
-                        term.is_alt_screen_active(),
-                    )
-                } else {
-                    (0, false, false)
-                }
+                tab.read_or_cached_modes()
             } else {
                 (0, false, false)
             };
