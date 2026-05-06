@@ -517,6 +517,14 @@ impl CellRenderer {
                 let Some(ch) = cell.grapheme.chars().next() else {
                     continue;
                 };
+
+                // Kitty Unicode placeholder cells render as images (handled by
+                // the graphics path), not as glyphs. Most fonts have no glyph
+                // for U+10EEEE so falling through here would draw tofu where
+                // an image is supposed to appear.
+                if ch == '\u{10EEEE}' {
+                    continue;
+                }
                 let second_char = cell.grapheme.chars().nth(1);
                 // grapheme_len is 1, 2, or "more than 2" — we stop counting at 3.
                 let grapheme_len = match second_char {

@@ -54,6 +54,22 @@ impl TerminalManager {
         term.all_scrollback_graphics().to_vec()
     }
 
+    /// Get all Kitty virtual placements (U=1) for Unicode placeholder rendering.
+    ///
+    /// Virtual placements are stored separately from active placements in the
+    /// graphics store; they act as prototypes that get rendered wherever the
+    /// terminal grid contains the corresponding placeholder character runs.
+    pub fn get_virtual_placements(&self) -> Vec<TerminalGraphic> {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let term = terminal.lock();
+        term.graphics_store()
+            .all_virtual_placements()
+            .values()
+            .cloned()
+            .collect()
+    }
+
     /// Update animations and return true if any frames changed
     pub fn update_animations(&self) -> bool {
         let pty = self.pty_session.lock();

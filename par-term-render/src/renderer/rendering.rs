@@ -218,7 +218,7 @@ impl Renderer {
 
             // Render inline graphics to intermediate so shader can process them
             for pane in panes.iter() {
-                if !pane.graphics.is_empty() {
+                if !pane.graphics.is_empty() || !pane.virtual_placements.is_empty() {
                     self.render_pane_sixel_graphics(
                         &intermediate_view,
                         &pane.viewport,
@@ -226,6 +226,9 @@ impl Renderer {
                         pane.scroll_offset,
                         pane.scrollback_len,
                         pane.grid_size.1,
+                        pane.cells,
+                        pane.grid_size.0,
+                        &pane.virtual_placements,
                     )?;
                 }
             }
@@ -345,7 +348,7 @@ impl Renderer {
 
             // Render inline graphics (Sixel/iTerm2/Kitty) for each pane, clipped to its bounds
             for pane in panes {
-                if !pane.graphics.is_empty() {
+                if !pane.graphics.is_empty() || !pane.virtual_placements.is_empty() {
                     self.render_pane_sixel_graphics(
                         content_view,
                         &pane.viewport,
@@ -353,6 +356,9 @@ impl Renderer {
                         pane.scroll_offset,
                         pane.scrollback_len,
                         pane.grid_size.1,
+                        pane.cells,
+                        pane.grid_size.0,
+                        &pane.virtual_placements,
                     )?;
                 }
             }
