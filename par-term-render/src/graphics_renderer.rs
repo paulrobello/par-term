@@ -475,8 +475,27 @@ impl GraphicsRenderer {
                 };
                 let tex_v_height = 1.0 - tex_v_start;
 
-                // Calculate display size based on aspect ratio preservation setting
-                let (width, height) = if self.preserve_aspect_ratio {
+                // Calculate display size based on aspect ratio preservation setting.
+                //
+                // Kitty TGP virtual placements (high-bit flag on the id) are
+                // anchored to a *cell extent* (`c × r` in the a=p command), and
+                // the cell-grid scan in renderer/graphics.rs::scan_placeholder_cells
+                // already records that extent in `width_cells/height_cells`. The
+                // backing texture is the originally-transmitted image at its
+                // native pixel size, which may not match the placement footprint
+                // (e.g. a 400×400 image placed in a 40×20 cell area on a
+                // 10×20-px-cell terminal happens to match exactly, but a 600×450
+                // image with c=20,r=10 should still draw inside 200×200 cells,
+                // not at 600×450 pixels).
+                //
+                // For virtual placements, always size by the cell extent so the
+                // image stays inside its placement footprint; aspect ratio is
+                // the placement author's responsibility (they pre-scale to the
+                // cell area before transmission). For all other graphics, keep
+                // the existing texture-pixel-size behavior.
+                const VIRTUAL_PLACEMENT_ID_FLAG: u64 = 1u64 << 63;
+                let is_virtual_placement = id & VIRTUAL_PLACEMENT_ID_FLAG != 0;
+                let (width, height) = if self.preserve_aspect_ratio && !is_virtual_placement {
                     // Use actual texture pixel dimensions to preserve aspect ratio
                     // Rather than converting pixels→cells→pixels (which distorts non-square cells)
                     let visible_height_pixels = if scroll_offset_rows > 0 {
@@ -620,8 +639,13 @@ impl GraphicsRenderer {
                 };
                 let tex_v_height = 1.0 - tex_v_start;
 
-                // Calculate display size based on aspect ratio preservation setting
-                let (width, height) = if self.preserve_aspect_ratio {
+                // Calculate display size based on aspect ratio preservation setting.
+                // Virtual placements (high-bit flag on id) are sized by their cell
+                // extent, not by the backing texture's pixel dimensions — see the
+                // matching block in `render_graphics` for the full rationale.
+                const VIRTUAL_PLACEMENT_ID_FLAG: u64 = 1u64 << 63;
+                let is_virtual_placement = id & VIRTUAL_PLACEMENT_ID_FLAG != 0;
+                let (width, height) = if self.preserve_aspect_ratio && !is_virtual_placement {
                     let visible_height_pixels = if scroll_offset_rows > 0 {
                         (tex_info.height as f32 * tex_v_height).max(1.0)
                     } else {
