@@ -11,6 +11,10 @@ Each version entry may include a `### Security` subsection for vulnerability fix
 
 ## [Unreleased]
 
+### Changed
+- Bumped `par-term-emu-core-rust` to 0.42.0 (removes local `patch.crates-io` override now that the Kitty TGP ingestion + query-response work is published to crates.io).
+- Bumped `tokio` to 1.52, `notify-rust` to 4.17, `muda` to 0.19, `libc` to 0.2.186.
+
 ### Added
 - **Kitty Terminal Graphics Protocol — full support (Phases 1–3 complete)**: par-term now parses, stores, renders, and responds to Kitty TGP. Consumers like par-textual-image's autodetect probe (`\x1b_Gi=1,a=q,...`) will now receive `\x1b_Gi=N;OK\x1b\\` and select kitty mode in par-term, and virtual-placement images will display correctly. The implementation is split across the following three pieces:
 - **Kitty TGP — query response (Phase 3 of 3)**: par-term-emu-core-rust now responds to TGP query commands (`a=q`). New `quietness: u8` field on `KittyParser` (parses `q=` parameter); when a query payload completes and `quietness < 2`, `Terminal::filter_apc_and_advance` emits `\x1b_Gi={id};OK\x1b\\` (or `\x1b_G;OK\x1b\\` if no image_id) on `response_buffer`. `q=2` (silent) suppresses the reply per spec. Without this, terminal-feature-detection probes timed out and consumers correctly skipped kitty mode even though par-term supports it.

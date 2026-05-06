@@ -9,10 +9,10 @@ members = ["par-term-acp", "par-term-config", "par-term-fonts", "par-term-input"
 # ---------------------------------------------------------------------------
 [workspace.dependencies]
 # Terminal emulator core
-par-term-emu-core-rust = { version = "0.41.1", default-features = false, features = ["rust-only"] }
+par-term-emu-core-rust = { version = "0.42.0", default-features = false, features = ["rust-only"] }
 
 # Async runtime
-tokio = { version = "1.49", features = ["full"] }
+tokio = { version = "1.52", features = ["full"] }
 
 # Serialization
 serde = { version = "1.0.228", features = ["derive"] }
@@ -93,13 +93,6 @@ notify = "8.2"
 
 # Dev dependencies
 tempfile = "3.25"
-
-# Local path override for the in-tree par-term-emu-core-rust crate.
-# Required until the next core release is published to crates.io with the
-# Kitty TGP ingestion + query-response work; remove this block once
-# par-term-emu-core-rust >= 0.42.0 is on crates.io.
-[patch.crates-io]
-par-term-emu-core-rust = { path = "/Users/probello/Repos/par-term-emu-core-rust" }
 
 [package]
 name = "par-term"
@@ -224,7 +217,7 @@ url = "2"                      # URL parsing for shader download validation
 rodio = { version = "0.22.2", features = ["mp3"], optional = true }
 
 # Desktop notifications
-notify-rust = "4.16"
+notify-rust = "4.17"
 
 # GUI for settings interface
 egui.workspace = true
@@ -250,8 +243,8 @@ half.workspace = true
 naga.workspace = true
 
 # Native window menus
-muda = "0.18"
-libc = "0.2.185"
+muda = "0.19"
+libc = "0.2.186"
 clap = { version = "4.6.1", features = ["derive"] }
 ureq.workspace = true
 native-tls.workspace = true
@@ -271,7 +264,7 @@ mdns-sd = { workspace = true, optional = true }       # mDNS/Bonjour service dis
 
 # Linux-specific: GTK for native menus (muda requires gtk feature on Linux)
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))'.dependencies.muda]
-version = "0.18"
+version = "0.19"
 features = ["gtk"]
 
 # macOS-specific: Access CAMetalLayer for performance optimization
