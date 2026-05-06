@@ -59,14 +59,32 @@ impl TerminalManager {
     /// Virtual placements are stored separately from active placements in the
     /// graphics store; they act as prototypes that get rendered wherever the
     /// terminal grid contains the corresponding placeholder character runs.
+    ///
+    /// Important: a virtual placement record itself stores no pixel data and
+    /// no pixel dimensions — its `pixels` is `vec![]` and `width`/`height`
+    /// hold the placement's *cell* extent (set in
+    /// `KittyParser::build_graphic` for `a=p, U=1`). The renderer needs the
+    /// actual transmitted RGBA bytes, so we merge each placement with the
+    /// stored image data here. Placements whose image hasn't been
+    /// transmitted yet (or was deleted) are skipped — without pixels there
+    /// is nothing to draw.
     pub fn get_virtual_placements(&self) -> Vec<TerminalGraphic> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
         let term = terminal.lock();
-        term.graphics_store()
+        let store = term.graphics_store();
+        store
             .all_virtual_placements()
             .values()
-            .cloned()
+            .filter_map(|placement| {
+                let image_id = placement.kitty_image_id?;
+                let (img_w, img_h, pixels) = store.get_kitty_image(image_id)?;
+                let mut merged = placement.clone();
+                merged.pixels = pixels;
+                merged.width = img_w;
+                merged.height = img_h;
+                Some(merged)
+            })
             .collect()
     }
 
