@@ -260,6 +260,18 @@ impl GraphicsRenderer {
             // Update LRU timestamp on cache hit
             cached.last_used = Instant::now();
 
+            // Kitty TGP virtual placements (high-bit flag set on the cache id;
+            // see par-term-render/src/renderer/graphics.rs) reuse the same
+            // image data every frame — they're static placements anchored by
+            // grid placeholder cells, not animations. Re-uploading the
+            // pixels per frame here costs ~640 KB × 60 fps for a 400×400
+            // image, saturating the GPU command queue and freezing the pane.
+            // For these IDs, treat the cache hit as final.
+            const VIRTUAL_PLACEMENT_ID_FLAG: u64 = 1u64 << 63;
+            if id & VIRTUAL_PLACEMENT_ID_FLAG != 0 {
+                return Ok(());
+            }
+
             // Texture exists - update it if the data might have changed
             // Validate data size
             let expected_size = (width * height * 4) as usize;
