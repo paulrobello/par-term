@@ -100,6 +100,10 @@ pub struct PaneRenderInfo<'a> {
     pub background: Option<par_term_config::PaneBackground>,
     /// Inline graphics (Sixel/iTerm2/Kitty) to render for this pane
     pub graphics: Vec<par_term_emu_core_rust::graphics::TerminalGraphic>,
+    /// Kitty virtual placements (U=1) used as prototypes for Unicode placeholder
+    /// rendering. The actual on-screen position is taken from the placeholder
+    /// cells in `cells`, not from each graphic's `position` field.
+    pub virtual_placements: Vec<par_term_emu_core_rust::graphics::TerminalGraphic>,
 }
 
 /// Information needed to render a pane divider

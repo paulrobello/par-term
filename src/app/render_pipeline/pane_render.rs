@@ -38,6 +38,8 @@ pub(super) struct PaneRenderData {
     pub(super) background: Option<crate::pane::PaneBackground>,
     /// Inline graphics (Sixel/iTerm2/Kitty) to render for this pane
     pub(super) graphics: Vec<par_term_emu_core_rust::graphics::TerminalGraphic>,
+    /// Kitty virtual placements (U=1) used for Unicode placeholder rendering.
+    pub(super) virtual_placements: Vec<par_term_emu_core_rust::graphics::TerminalGraphic>,
 }
 
 /// Result of `gather_pane_render_data`.
@@ -347,6 +349,15 @@ pub(super) fn gather_pane_render_data(
             None
         };
 
+        // Collect Kitty virtual placements (U=1) — these are stored separately
+        // from active graphics and get rendered wherever the cell grid contains
+        // the corresponding placeholder character runs.
+        let pane_virtual_placements = if let Ok(term) = pane.terminal.try_read() {
+            term.get_virtual_placements()
+        } else {
+            Vec::new()
+        };
+
         // Collect inline graphics (Sixel/iTerm2/Kitty)
         let pane_graphics = if let Ok(term) = pane.terminal.try_write() {
             // Remove graphics whose rows have been overwritten by cell writes
@@ -405,6 +416,7 @@ pub(super) fn gather_pane_render_data(
             scroll_offset: pane_scroll_offset,
             background: pane_background,
             graphics: pane_graphics,
+            virtual_placements: pane_virtual_placements,
         });
     }
 
@@ -480,6 +492,7 @@ impl crate::app::window_state::WindowState {
                 scroll_offset: pane.scroll_offset,
                 background: pane.background,
                 graphics: pane.graphics,
+                virtual_placements: pane.virtual_placements,
             });
         }
 

@@ -94,6 +94,13 @@ notify = "8.2"
 # Dev dependencies
 tempfile = "3.25"
 
+# Local path override for the in-tree par-term-emu-core-rust crate.
+# Required until the next core release is published to crates.io with the
+# Kitty TGP ingestion + query-response work; remove this block once
+# par-term-emu-core-rust >= 0.42.0 is on crates.io.
+[patch.crates-io]
+par-term-emu-core-rust = { path = "/Users/probello/Repos/par-term-emu-core-rust" }
+
 [package]
 name = "par-term"
 version = "0.31.0"
