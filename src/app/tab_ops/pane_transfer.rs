@@ -157,6 +157,7 @@ impl WindowState {
             self.pane_transfer_state = PaneTransferState::DemotePickTab {
                 source_tab_id: tab_id,
             };
+            self.show_toast("Demote: Click a tab to merge into");
             self.focus_state.needs_redraw = true;
             self.request_redraw();
             crate::debug_info!("TAB_DEMOTE", "Started demote pick mode for tab {}", tab_id);
@@ -166,6 +167,7 @@ impl WindowState {
     /// Cancel the demote pick mode.
     pub fn cancel_pane_transfer(&mut self) {
         self.pane_transfer_state = PaneTransferState::Idle;
+        self.show_toast("Demote cancelled");
         self.focus_state.needs_redraw = true;
         self.request_redraw();
     }

@@ -117,6 +117,45 @@ impl WindowState {
                 Vec::new()
             };
 
+        // Capture demote state snapshot for overlay rendering inside the egui closure.
+        // This must happen before the closure borrows `*self`.
+        let demote_snapshot: super::types::DemoteSnapshot =
+            match &self.pane_transfer_state {
+                super::super::tab_ops::pane_transfer::PaneTransferState::Idle => {
+                    super::types::DemoteSnapshot::Idle
+                }
+                super::super::tab_ops::pane_transfer::PaneTransferState::DemotePickTab {
+                    ..
+                } => super::types::DemoteSnapshot::PickTab,
+                super::super::tab_ops::pane_transfer::PaneTransferState::DemotePickPane {
+                    ..
+                } => super::types::DemoteSnapshot::PickPane,
+                super::super::tab_ops::pane_transfer::PaneTransferState::DemoteChooseDirection {
+                    source_tab_id,
+                    target_tab_id,
+                    target_pane_id,
+                } => super::types::DemoteSnapshot::ChooseDirection {
+                    source_tab_id: *source_tab_id,
+                    target_tab_id: *target_tab_id,
+                    target_pane_id: *target_pane_id,
+                },
+            };
+
+        // Capture pane bounds for the demote direction overlay (if applicable)
+        let demote_pane_bounds: Option<crate::pane::PaneBounds> = match demote_snapshot {
+            super::types::DemoteSnapshot::ChooseDirection {
+                target_tab_id,
+                target_pane_id,
+                ..
+            } => self
+                .tab_manager
+                .get_tab(target_tab_id)
+                .and_then(|t| t.pane_manager())
+                .and_then(|pm| pm.get_pane(target_pane_id))
+                .map(|p| p.bounds),
+            _ => None,
+        };
+
         let result = if let Some(window) = self.window.as_ref() {
             if let (Some(egui_ctx), Some(egui_state)) = (&self.egui.ctx, &mut self.egui.state) {
                 let mut raw_input = egui_state.take_egui_input(window);
@@ -178,6 +217,88 @@ impl WindowState {
                         ctx,
                         self.overlay_state.toast_message.as_deref(),
                     );
+
+                    // Demote pick-mode overlays (toast hints + direction-choice dialog)
+                    match demote_snapshot {
+                        super::types::DemoteSnapshot::PickTab => {
+                            egui_overlays::render_toast_overlay(
+                                ctx,
+                                Some("Click a tab to merge into (Esc to cancel)"),
+                            );
+                        }
+                        super::types::DemoteSnapshot::PickPane => {
+                            egui_overlays::render_toast_overlay(
+                                ctx,
+                                Some("Click a pane to merge into (Esc to cancel)"),
+                            );
+                        }
+                        super::types::DemoteSnapshot::ChooseDirection { .. } => {
+                            if let Some(bounds) = demote_pane_bounds {
+                                let center_x = bounds.x + bounds.width / 2.0;
+                                let center_y = bounds.y + bounds.height / 2.0;
+
+                                egui::Area::new(egui::Id::new("demote_direction_overlay"))
+                                    .fixed_pos(egui::pos2(center_x - 100.0, center_y - 30.0))
+                                    .order(egui::Order::Foreground)
+                                    .show(ctx, |ui| {
+                                        egui::Frame::NONE
+                                            .fill(egui::Color32::from_rgba_unmultiplied(
+                                                30, 30, 30, 240,
+                                            ))
+                                            .inner_margin(egui::Margin::symmetric(16, 10))
+                                            .corner_radius(8.0)
+                                            .stroke(egui::Stroke::new(
+                                                1.0,
+                                                egui::Color32::from_rgb(80, 80, 80),
+                                            ))
+                                            .show(ui, |ui| {
+                                                ui.style_mut().visuals.override_text_color =
+                                                    Some(egui::Color32::from_rgb(255, 255, 255));
+                                                ui.vertical_centered(|ui| {
+                                                    ui.label(
+                                                        egui::RichText::new("Split direction:")
+                                                            .size(14.0),
+                                                    );
+                                                    ui.add_space(4.0);
+                                                    ui.horizontal(|ui| {
+                                                        if ui
+                                                            .button(
+                                                                egui::RichText::new("Horizontal")
+                                                                    .size(14.0),
+                                                            )
+                                                            .clicked()
+                                                        {
+                                                            actions.demote =
+                                                                super::types::DemoteAction::Execute {
+                                                                    source_tab_id: match demote_snapshot { super::types::DemoteSnapshot::ChooseDirection { source_tab_id, .. } => source_tab_id, _ => unreachable!() },
+                                                                    target_tab_id: match demote_snapshot { super::types::DemoteSnapshot::ChooseDirection { target_tab_id, .. } => target_tab_id, _ => unreachable!() },
+                                                                    target_pane_id: match demote_snapshot { super::types::DemoteSnapshot::ChooseDirection { target_pane_id, .. } => target_pane_id, _ => unreachable!() },
+                                                                    direction: crate::pane::SplitDirection::Horizontal,
+                                                                };
+                                                        }
+                                                        if ui
+                                                            .button(
+                                                                egui::RichText::new("Vertical")
+                                                                    .size(14.0),
+                                                            )
+                                                            .clicked()
+                                                        {
+                                                            actions.demote =
+                                                                super::types::DemoteAction::Execute {
+                                                                    source_tab_id: match demote_snapshot { super::types::DemoteSnapshot::ChooseDirection { source_tab_id, .. } => source_tab_id, _ => unreachable!() },
+                                                                    target_tab_id: match demote_snapshot { super::types::DemoteSnapshot::ChooseDirection { target_tab_id, .. } => target_tab_id, _ => unreachable!() },
+                                                                    target_pane_id: match demote_snapshot { super::types::DemoteSnapshot::ChooseDirection { target_pane_id, .. } => target_pane_id, _ => unreachable!() },
+                                                                    direction: crate::pane::SplitDirection::Vertical,
+                                                                };
+                                                        }
+                                                    });
+                                                });
+                                            });
+                                    });
+                            }
+                        }
+                        super::types::DemoteSnapshot::Idle => {}
+                    }
 
                     // Scrollbar mark tooltip (near mouse pointer)
                     egui_overlays::render_scrollbar_mark_tooltip(ctx, hovered_mark.as_ref());
