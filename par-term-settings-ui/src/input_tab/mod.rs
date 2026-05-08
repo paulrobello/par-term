@@ -235,6 +235,10 @@ pub fn keywords() -> &'static [&'static str] {
         "hotkey",
         "binding",
         "key",
+        "promote",
+        "demote",
+        "pane to tab",
+        "tab to pane",
         // Copy mode
         "copy mode",
         "yank",
