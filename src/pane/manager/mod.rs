@@ -39,6 +39,23 @@ use std::sync::atomic::AtomicBool;
 use tokio::runtime::Runtime;
 use tokio::sync::RwLock;
 
+/// Result of extracting a pane from the tree (returns live Pane ownership)
+pub enum ExtractResult {
+    /// Pane was extracted; remaining tree is returned (None if it was the only pane)
+    Extracted { pane: Pane, remaining: Option<PaneNode> },
+    /// The target pane was the only pane in the tree
+    OnlyPane(Pane),
+    /// Pane was not found in the tree
+    NotFound,
+}
+
+/// Internal result for recursive pane extraction (carries PaneNode on NotFound for tree reconstruction)
+enum ExtractInternal {
+    Extracted { pane: Pane, remaining: PaneNode },
+    OnlyPane(Pane),
+    NotFound(PaneNode),
+}
+
 /// Manages the pane tree within a single tab
 pub struct PaneManager {
     /// Root of the pane tree (None if no panes yet)
@@ -183,6 +200,42 @@ impl PaneManager {
     /// Get mutable access to the root node
     pub fn root_mut(&mut self) -> Option<&mut PaneNode> {
         self.root.as_mut()
+    }
+
+    /// Extract a pane from the tree by ID, returning ownership of the live `Pane`.
+    ///
+    /// Unlike `remove_pane()` which drops the pane, this returns the pane
+    /// intact so it can be transferred to another tab or pane tree.
+    /// All processes in the pane's PTY continue running.
+    pub fn extract_pane(&mut self, target_id: PaneId) -> ExtractResult {
+        if let Some(root) = self.root.take() {
+            match Self::extract_pane_from_node(root, target_id) {
+                ExtractInternal::Extracted { pane, remaining } => {
+                    self.root = Some(remaining);
+                    if let Some(id) = self.focused_pane_id {
+                        if id == target_id {
+                            self.focused_pane_id =
+                                self.root.as_ref().and_then(|r| r.first_pane_id());
+                        }
+                    }
+                    ExtractResult::Extracted {
+                        pane,
+                        remaining: self.root.take(),
+                    }
+                }
+                ExtractInternal::OnlyPane(pane) => {
+                    self.root = None;
+                    self.focused_pane_id = None;
+                    ExtractResult::OnlyPane(pane)
+                }
+                ExtractInternal::NotFound(node) => {
+                    self.root = Some(node);
+                    ExtractResult::NotFound
+                }
+            }
+        } else {
+            ExtractResult::NotFound
+        }
     }
 }
 

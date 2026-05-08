@@ -13,6 +13,7 @@ pub mod render_cache;
 mod tmux_helpers;
 mod types;
 
+pub use manager::ExtractResult;
 pub use manager::PaneManager;
 pub use types::{
     DividerRect, NavigationDirection, Pane, PaneBackground, PaneBounds, PaneId, PaneNode,
