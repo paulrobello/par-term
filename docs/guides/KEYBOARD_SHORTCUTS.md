@@ -162,6 +162,10 @@ Vi-style keyboard-driven text selection. See [Copy Mode](../features/COPY_MODE.m
 | Resize pane right | `Cmd + Alt + Shift + Right` | `Ctrl + Alt + Shift + Right` |
 | Resize pane up | `Cmd + Alt + Shift + Up` | `Ctrl + Alt + Shift + Up` |
 | Resize pane down | `Cmd + Alt + Shift + Down` | `Ctrl + Alt + Shift + Down` |
+| Promote pane to tab | *(unbound)* | *(unbound)* |
+| Demote tab to pane | *(unbound)* | *(unbound)* |
+
+> **📝 Note:** Promote and demote actions have no default keybinding. Bind them in Settings → Input → Keybindings or via config YAML using the `promote_pane_to_tab` and `demote_tab_to_pane` action names. See [Tabs](../features/TABS.md#promoting-and-demoting-panes) for details.
 
 ## Advanced Features
 

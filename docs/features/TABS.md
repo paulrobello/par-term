@@ -13,6 +13,7 @@ par-term provides a multi-tab interface for managing multiple terminal sessions 
   - [Keyboard Reordering](#keyboard-reordering)
 - [Duplicating Tabs](#duplicating-tabs)
 - [Moving tabs between windows](#moving-tabs-between-windows)
+- [Promoting and Demoting Panes](#promoting-and-demoting-panes)
 - [Tab Icons](#tab-icons)
 - [Tab Bar](#tab-bar)
   - [Tab Bar Position](#tab-bar-position)
@@ -213,6 +214,43 @@ keybindings cannot parameterize on a specific target window.
 - Per-window state (custom shader, assistant panel, window-level settings)
   does not travel with the tab. The moved tab adopts the destination window's
   settings.
+
+## Promoting and Demoting Panes
+
+Panes can be moved between tabs while preserving all running processes (shells, vim sessions, builds, SSH connections, etc.). Only the terminal grid dimensions change via a resize event.
+
+### Promote Pane to Tab
+
+The focused pane in the current tab is extracted and wrapped in a new tab. The new tab is inserted immediately after the source tab and receives focus.
+
+**Context menu:** Right-click a tab → **Promote Pane to Tab** (enabled only when the tab has multiple panes).
+
+**Keybinding:** Bind the `promote_pane_to_tab` action in Settings → Input → Keybindings. There is no default shortcut.
+
+**Behavior:**
+- If the source tab has multiple panes, the focused pane is extracted and the remaining panes stay in the source tab
+- If the source tab has a single pane, the new tab is created and the source tab is removed (equivalent to repositioning the tab)
+- All processes in the promoted pane continue running uninterrupted
+
+### Demote Tab to Pane
+
+The current tab's entire pane tree is merged into another tab as new split panes. This is a multi-step pick-mode operation:
+
+1. **Pick target tab** — a toast shows "Click a tab to merge into." Click a different tab in the tab bar.
+2. **Pick target pane** — switches to the target tab. A toast shows "Click a pane to merge into." Click a pane within that tab.
+3. **Choose direction** — an inline overlay appears near the clicked pane with **Horizontal** and **Vertical** buttons. Click to complete the merge.
+
+Press **Escape** or right-click at any step to cancel.
+
+**Context menu:** Right-click a tab → **Demote Tab to Pane** (enabled only when the window has 2+ tabs).
+
+**Keybinding:** Bind the `demote_tab_to_pane` action in Settings → Input → Keybindings. There is no default shortcut.
+
+**Behavior:**
+- The source tab's pane tree (including all splits and running processes) is grafted into the target tab at the chosen split point
+- The source tab is removed after the merge
+- All `is_active` flags on transplanted panes are updated to match the target tab's state
+- The merge is rejected if it would exceed the configured `max_panes` limit
 
 ## Tab Icons
 
