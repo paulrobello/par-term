@@ -16,6 +16,28 @@ impl WindowState {
         // (done here to avoid borrow conflicts with renderer)
         match action {
             TabBarAction::SwitchTo(id) => {
+                // Check if we're in demote pick-tab mode
+                if let crate::app::tab_ops::pane_transfer::PaneTransferState::DemotePickTab {
+                    source_tab_id,
+                } = &self.pane_transfer_state
+                {
+                    if id == *source_tab_id {
+                        // Reject demote to self — just switch normally
+                        self.tab_manager.switch_to(id);
+                        self.clear_and_invalidate();
+                        return;
+                    }
+                    let source = *source_tab_id;
+                    self.pane_transfer_state =
+                        crate::app::tab_ops::pane_transfer::PaneTransferState::DemotePickPane {
+                            source_tab_id: source,
+                            target_tab_id: id,
+                        };
+                    self.tab_manager.switch_to(id);
+                    self.clear_and_invalidate();
+                    return;
+                }
+                // Normal switch
                 self.tab_manager.switch_to(id);
                 // Clear renderer cells and invalidate cache to ensure clean switch
                 self.clear_and_invalidate();
@@ -137,6 +159,16 @@ impl WindowState {
                             dest_id,
                         ),
                     });
+            }
+            TabBarAction::PromotePaneToTab(tab_id) => {
+                self.tab_manager.switch_to(tab_id);
+                self.promote_pane_to_tab();
+                self.request_redraw();
+            }
+            TabBarAction::DemoteTabToPane(tab_id) => {
+                self.tab_manager.switch_to(tab_id);
+                self.start_demote_tab();
+                self.request_redraw();
             }
         }
     }

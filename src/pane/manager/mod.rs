@@ -39,6 +39,26 @@ use std::sync::atomic::AtomicBool;
 use tokio::runtime::Runtime;
 use tokio::sync::RwLock;
 
+/// Result of extracting a pane from the tree (returns live Pane ownership)
+pub enum ExtractResult {
+    /// Pane was extracted; remaining tree is returned (None if it was the only pane)
+    Extracted {
+        pane: Pane,
+        remaining: Option<PaneNode>,
+    },
+    /// The target pane was the only pane in the tree
+    OnlyPane(Pane),
+    /// Pane was not found in the tree
+    NotFound,
+}
+
+/// Internal result for recursive pane extraction (carries PaneNode on NotFound for tree reconstruction)
+enum ExtractInternal {
+    Extracted { pane: Pane, remaining: PaneNode },
+    OnlyPane(Pane),
+    NotFound(PaneNode),
+}
+
 /// Manages the pane tree within a single tab
 pub struct PaneManager {
     /// Root of the pane tree (None if no panes yet)
@@ -94,6 +114,19 @@ impl PaneManager {
         manager.root = Some(PaneNode::leaf(pane));
         manager.focused_pane_id = Some(primary_pane_id);
 
+        manager
+    }
+
+    /// Create a pane manager wrapping an existing `Pane` as the single root node.
+    ///
+    /// Used by `Tab::new_from_pane()` when promoting a pane to its own tab.
+    /// The pane's ID is preserved and `next_pane_id` is advanced past it.
+    pub fn new_with_pane(pane: Pane) -> Self {
+        let pane_id = pane.id;
+        let mut manager = Self::new();
+        manager.next_pane_id = pane_id + 1;
+        manager.root = Some(PaneNode::leaf(pane));
+        manager.focused_pane_id = Some(pane_id);
         manager
     }
 
@@ -183,6 +216,89 @@ impl PaneManager {
     /// Get mutable access to the root node
     pub fn root_mut(&mut self) -> Option<&mut PaneNode> {
         self.root.as_mut()
+    }
+
+    /// Insert a `PaneNode` subtree into the tree by splitting the target pane.
+    ///
+    /// The target leaf is replaced with a `Split` containing the original pane
+    /// as one child and the `subtree` as the other. Bounds are recalculated.
+    ///
+    /// Returns `true` if the insertion succeeded.
+    pub fn insert_subtree_at(
+        &mut self,
+        target_pane_id: PaneId,
+        subtree: PaneNode,
+        direction: crate::pane::types::SplitDirection,
+        ratio: f32,
+    ) -> bool {
+        if let Some(root) = self.root.take() {
+            match Self::insert_subtree_at_node(root, target_pane_id, subtree, direction, ratio) {
+                Ok(new_root) => {
+                    self.root = Some(new_root);
+                    self.recalculate_bounds();
+                    return true;
+                }
+                Err((original_root, _subtree)) => {
+                    self.root = Some(original_root);
+                }
+            }
+        }
+        false
+    }
+
+    /// Extract a pane from the tree by ID, returning ownership of the live `Pane`.
+    ///
+    /// Unlike `remove_pane()` which drops the pane, this returns the pane
+    /// intact so it can be transferred to another tab or pane tree.
+    /// All processes in the pane's PTY continue running.
+    pub fn extract_pane(&mut self, target_id: PaneId) -> ExtractResult {
+        if let Some(root) = self.root.take() {
+            match Self::extract_pane_from_node(root, target_id) {
+                ExtractInternal::Extracted { pane, remaining } => {
+                    self.root = Some(remaining);
+                    if let Some(id) = self.focused_pane_id {
+                        if id == target_id {
+                            self.focused_pane_id =
+                                self.root.as_ref().and_then(|r| r.first_pane_id());
+                        }
+                    }
+                    ExtractResult::Extracted {
+                        pane,
+                        remaining: self.root.take(),
+                    }
+                }
+                ExtractInternal::OnlyPane(pane) => {
+                    self.root = None;
+                    self.focused_pane_id = None;
+                    ExtractResult::OnlyPane(pane)
+                }
+                ExtractInternal::NotFound(node) => {
+                    self.root = Some(node);
+                    ExtractResult::NotFound
+                }
+            }
+        } else {
+            ExtractResult::NotFound
+        }
+    }
+
+    /// Take ownership of the root node, leaving `None` in its place.
+    ///
+    /// Used by demote (tab → pane) to extract the entire pane tree for
+    /// transplantation into another tab.
+    pub fn take_root(&mut self) -> Option<PaneNode> {
+        self.focused_pane_id = None;
+        self.root.take()
+    }
+
+    /// Replace the root node (drops any existing tree).
+    ///
+    /// Used after `extract_pane` when the remaining tree needs to be
+    /// restored and the default `ExtractResult::Extracted.remaining`
+    /// has already been taken by the caller.
+    pub fn set_root(&mut self, node: PaneNode) {
+        self.root = Some(node);
+        self.recalculate_bounds();
     }
 }
 

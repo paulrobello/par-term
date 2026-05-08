@@ -65,6 +65,10 @@ pub enum TabBarAction {
     MoveTabToNewWindow(TabId),
     /// Move a tab into an existing par-term window.
     MoveTabToExistingWindow(TabId, winit::window::WindowId),
+    /// Promote the focused pane of this tab to a new tab
+    PromotePaneToTab(TabId),
+    /// Start demote pick mode for this tab
+    DemoteTabToPane(TabId),
 }
 
 impl TabBarUI {
@@ -384,6 +388,11 @@ impl TabBarUI {
         self.context_menu_tab
     }
 
+    /// Get the tab ID for which the context menu is currently open, if any.
+    pub fn context_menu_tab_id(&self) -> Option<TabId> {
+        self.context_menu_tab
+    }
+
     /// Set rename mode active/inactive; used by integration tests.
     pub fn test_set_renaming(&mut self, value: bool) {
         self.renaming_tab = value;
@@ -414,9 +423,11 @@ impl TabBarUI {
         gateway_active: bool,
         tab_count: usize,
         candidates: Vec<(winit::window::WindowId, String)>,
+        context_tab_has_multiple_panes: bool,
     ) {
         self.move_gateway_active = gateway_active;
         self.move_source_tab_count = tab_count;
         self.move_candidates = candidates;
+        self.tab_has_multiple_panes = context_tab_has_multiple_panes;
     }
 }

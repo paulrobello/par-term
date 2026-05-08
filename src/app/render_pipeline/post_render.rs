@@ -35,11 +35,25 @@ impl WindowState {
             remote_install,
             ssh_connect,
             save_config,
+            demote,
         } = actions;
 
         // Persist config if any render-pass handler requested it (e.g., "Skip This Version").
         if save_config && let Err(e) = self.save_config_debounced() {
             log::error!("Failed to save config after render action: {}", e);
+        }
+
+        // Handle demote direction-choice overlay action
+        match demote {
+            super::types::DemoteAction::Execute {
+                source_tab_id,
+                target_tab_id,
+                target_pane_id,
+                direction,
+            } => {
+                self.execute_demote(source_tab_id, target_tab_id, target_pane_id, direction);
+            }
+            super::types::DemoteAction::None => {}
         }
 
         // Sync AI Inspector panel width after the render pass.

@@ -156,6 +156,14 @@ impl PaneNode {
         }
     }
 
+    /// Get the ID of the first (leftmost/topmost) leaf in this subtree
+    pub fn first_pane_id(&self) -> Option<PaneId> {
+        match self {
+            PaneNode::Leaf(pane) => Some(pane.id),
+            PaneNode::Split { first, .. } => first.first_pane_id(),
+        }
+    }
+
     /// Calculate bounds for all panes given the total available area
     ///
     /// This recursively distributes space according to split ratios

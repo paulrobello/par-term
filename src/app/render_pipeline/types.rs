@@ -9,6 +9,7 @@ use crate::clipboard_history_ui::ClipboardHistoryAction;
 use crate::close_confirmation_ui::CloseConfirmAction;
 use crate::command_history_ui::CommandHistoryAction;
 use crate::integrations_ui::IntegrationsResponse;
+use crate::pane::{PaneId, SplitDirection};
 use crate::paste_special_ui::PasteSpecialAction;
 use crate::profile_drawer_ui::ProfileDrawerAction;
 use crate::quit_confirmation_ui::QuitConfirmAction;
@@ -17,6 +18,7 @@ use crate::shader_install_ui::ShaderInstallResponse;
 use crate::ssh_connect_ui::SshConnectAction;
 use crate::tab_bar_ui::TabBarAction;
 use crate::tmux_session_picker_ui::SessionPickerAction;
+use par_term_config::TabId;
 use winit::dpi::PhysicalSize;
 
 /// Snapshot of physical pixel dimensions taken from the renderer before the borrow.
@@ -81,6 +83,35 @@ pub(super) struct FrameRenderData {
 ///   3. The dispatch loop becomes a simple `for action in actions { action.dispatch(ws); }`.
 ///
 /// Tracking: Issue ARC-009 in AUDIT.md.
+
+/// Deferred action from the demote direction-choice overlay.
+#[derive(Default)]
+pub(super) enum DemoteAction {
+    #[default]
+    None,
+    Execute {
+        source_tab_id: TabId,
+        target_tab_id: TabId,
+        target_pane_id: PaneId,
+        direction: SplitDirection,
+    },
+}
+
+/// Snapshot of the demote state machine for rendering inside the egui closure.
+/// Only carries Copy-friendly data so it can be cheaply cloned without borrowing.
+#[derive(Default, Clone, Copy)]
+pub(super) enum DemoteSnapshot {
+    #[default]
+    Idle,
+    PickTab,
+    PickPane,
+    ChooseDirection {
+        target_tab_id: TabId,
+        target_pane_id: PaneId,
+        source_tab_id: TabId,
+    },
+}
+
 pub(super) struct PostRenderActions {
     pub(super) clipboard: ClipboardHistoryAction,
     pub(super) command_history: CommandHistoryAction,
@@ -98,6 +129,8 @@ pub(super) struct PostRenderActions {
     pub(super) ssh_connect: SshConnectAction,
     /// Whether config should be saved (debounced) after the render pass
     pub(super) save_config: bool,
+    /// Deferred demote action from direction-choice overlay
+    pub(super) demote: DemoteAction,
 }
 
 impl Default for PostRenderActions {
@@ -118,6 +151,7 @@ impl Default for PostRenderActions {
             remote_install: RemoteShellInstallAction::None,
             ssh_connect: SshConnectAction::None,
             save_config: false,
+            demote: DemoteAction::None,
         }
     }
 }

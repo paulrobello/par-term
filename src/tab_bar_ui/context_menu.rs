@@ -248,6 +248,29 @@ impl TabBarUI {
                         ui.add_space(4.0);
                         // ----- end Move Tab entries -----
 
+                        // ----- Promote / Demote -----
+                        ui.add_space(4.0);
+                        ui.separator();
+                        ui.add_space(4.0);
+
+                        // "Promote Pane to Tab" — only when tab has multiple panes
+                        let has_multiple_panes = self.tab_has_multiple_panes;
+                        ui.add_enabled_ui(has_multiple_panes, |ui| {
+                            if menu_item(ui, "Promote Pane to Tab") {
+                                action = TabBarAction::PromotePaneToTab(tab_id);
+                                close_menu = true;
+                            }
+                        });
+
+                        // "Demote Tab to Pane" — only when there are other tabs to receive it
+                        let has_other_tabs = self.move_source_tab_count >= 2;
+                        ui.add_enabled_ui(has_other_tabs, |ui| {
+                            if menu_item(ui, "Demote Tab to Pane") {
+                                action = TabBarAction::DemoteTabToPane(tab_id);
+                                close_menu = true;
+                            }
+                        });
+
                         // Tab Color section
                         ui.horizontal(|ui| {
                             ui.add_space(8.0);

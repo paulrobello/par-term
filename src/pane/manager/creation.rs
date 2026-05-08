@@ -395,4 +395,133 @@ impl PaneManager {
             }
         }
     }
+
+    /// Recursive helper: find a target leaf and replace it with a Split
+    /// containing the leaf and the subtree to insert.
+    ///
+    /// Returns `Ok(new_node)` on success, or `Err(original_node)` if the
+    /// target was not found (so the caller can restore the tree).
+    pub(super) fn insert_subtree_at_node(
+        node: PaneNode,
+        target_id: PaneId,
+        subtree: PaneNode,
+        direction: crate::pane::types::SplitDirection,
+        ratio: f32,
+    ) -> Result<PaneNode, (PaneNode, PaneNode)> {
+        match node {
+            PaneNode::Leaf(pane) => {
+                if pane.id == target_id {
+                    Ok(PaneNode::Split {
+                        direction,
+                        ratio,
+                        first: Box::new(PaneNode::Leaf(pane)),
+                        second: Box::new(subtree),
+                    })
+                } else {
+                    Err((PaneNode::Leaf(pane), subtree))
+                }
+            }
+            PaneNode::Split {
+                direction: split_dir,
+                ratio: existing_ratio,
+                first,
+                second,
+            } => match Self::insert_subtree_at_node(*first, target_id, subtree, direction, ratio) {
+                Ok(new_first) => Ok(PaneNode::Split {
+                    direction: split_dir,
+                    ratio: existing_ratio,
+                    first: Box::new(new_first),
+                    second,
+                }),
+                Err((first_node, subtree)) => {
+                    match Self::insert_subtree_at_node(
+                        *second, target_id, subtree, direction, ratio,
+                    ) {
+                        Ok(new_second) => Ok(PaneNode::Split {
+                            direction: split_dir,
+                            ratio: existing_ratio,
+                            first: Box::new(first_node),
+                            second: Box::new(new_second),
+                        }),
+                        Err((second_node, subtree)) => Err((
+                            PaneNode::Split {
+                                direction: split_dir,
+                                ratio: existing_ratio,
+                                first: Box::new(first_node),
+                                second: Box::new(second_node),
+                            },
+                            subtree,
+                        )),
+                    }
+                }
+            },
+        }
+    }
+
+    /// Recursive helper: extract a pane from the tree, returning the live Pane.
+    pub(super) fn extract_pane_from_node(
+        node: PaneNode,
+        target_id: PaneId,
+    ) -> super::ExtractInternal {
+        match node {
+            PaneNode::Leaf(pane) => {
+                if pane.id == target_id {
+                    super::ExtractInternal::OnlyPane(*pane)
+                } else {
+                    super::ExtractInternal::NotFound(PaneNode::Leaf(pane))
+                }
+            }
+            PaneNode::Split {
+                direction,
+                ratio,
+                first,
+                second,
+            } => match Self::extract_pane_from_node(*first, target_id) {
+                super::ExtractInternal::OnlyPane(pane) => super::ExtractInternal::Extracted {
+                    pane,
+                    remaining: *second,
+                },
+                super::ExtractInternal::Extracted { pane, remaining } => {
+                    super::ExtractInternal::Extracted {
+                        pane,
+                        remaining: PaneNode::Split {
+                            direction,
+                            ratio,
+                            first: Box::new(remaining),
+                            second,
+                        },
+                    }
+                }
+                super::ExtractInternal::NotFound(first_node) => {
+                    match Self::extract_pane_from_node(*second, target_id) {
+                        super::ExtractInternal::OnlyPane(pane) => {
+                            super::ExtractInternal::Extracted {
+                                pane,
+                                remaining: first_node,
+                            }
+                        }
+                        super::ExtractInternal::Extracted { pane, remaining } => {
+                            super::ExtractInternal::Extracted {
+                                pane,
+                                remaining: PaneNode::Split {
+                                    direction,
+                                    ratio,
+                                    first: Box::new(first_node),
+                                    second: Box::new(remaining),
+                                },
+                            }
+                        }
+                        super::ExtractInternal::NotFound(second_node) => {
+                            super::ExtractInternal::NotFound(PaneNode::Split {
+                                direction,
+                                ratio,
+                                first: Box::new(first_node),
+                                second: Box::new(second_node),
+                            })
+                        }
+                    }
+                }
+            },
+        }
+    }
 }

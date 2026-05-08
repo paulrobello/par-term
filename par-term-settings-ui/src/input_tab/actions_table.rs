@@ -66,6 +66,8 @@ pub(super) const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     ("split_horizontal", "Split Pane Horizontal", Some("Cmd+D")),
     ("split_vertical", "Split Pane Vertical", Some("Cmd+Shift+D")),
     ("close_pane", "Close Pane", Some("Cmd+Shift+W")),
+    ("promote_pane_to_tab", "Promote Pane to Tab", None),
+    ("demote_tab_to_pane", "Demote Tab to Pane", None),
     (
         "navigate_pane_left",
         "Navigate Pane Left",
@@ -211,6 +213,8 @@ pub(super) const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
         Some("Ctrl+Shift+E"),
     ),
     ("close_pane", "Close Pane", Some("Ctrl+Shift+X")),
+    ("promote_pane_to_tab", "Promote Pane to Tab", None),
+    ("demote_tab_to_pane", "Demote Tab to Pane", None),
     (
         "navigate_pane_left",
         "Navigate Pane Left",

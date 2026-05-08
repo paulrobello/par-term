@@ -207,6 +207,11 @@ impl WindowState {
                 }
             }
             MouseButton::Right => {
+                // Cancel any active pane transfer pick mode on right-click
+                if self.pane_transfer_state.is_active() {
+                    self.cancel_pane_transfer();
+                    return;
+                }
                 // Try to send to terminal if mouse tracking is enabled
                 let _ = self.try_send_mouse_event(2, state == ElementState::Pressed);
                 // Event consumed by terminal (or ignored)

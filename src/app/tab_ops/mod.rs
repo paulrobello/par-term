@@ -12,6 +12,7 @@
 
 mod lifecycle;
 mod pane_ops;
+pub(crate) mod pane_transfer;
 mod profile_auto_switch;
 mod profile_ops;
 mod tab_helpers;
