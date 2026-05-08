@@ -42,7 +42,10 @@ use tokio::sync::RwLock;
 /// Result of extracting a pane from the tree (returns live Pane ownership)
 pub enum ExtractResult {
     /// Pane was extracted; remaining tree is returned (None if it was the only pane)
-    Extracted { pane: Pane, remaining: Option<PaneNode> },
+    Extracted {
+        pane: Pane,
+        remaining: Option<PaneNode>,
+    },
     /// The target pane was the only pane in the tree
     OnlyPane(Pane),
     /// Pane was not found in the tree

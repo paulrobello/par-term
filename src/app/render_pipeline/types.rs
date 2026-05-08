@@ -9,6 +9,7 @@ use crate::clipboard_history_ui::ClipboardHistoryAction;
 use crate::close_confirmation_ui::CloseConfirmAction;
 use crate::command_history_ui::CommandHistoryAction;
 use crate::integrations_ui::IntegrationsResponse;
+use crate::pane::{PaneId, SplitDirection};
 use crate::paste_special_ui::PasteSpecialAction;
 use crate::profile_drawer_ui::ProfileDrawerAction;
 use crate::quit_confirmation_ui::QuitConfirmAction;
@@ -18,7 +19,6 @@ use crate::ssh_connect_ui::SshConnectAction;
 use crate::tab_bar_ui::TabBarAction;
 use crate::tmux_session_picker_ui::SessionPickerAction;
 use par_term_config::TabId;
-use crate::pane::{PaneId, SplitDirection};
 use winit::dpi::PhysicalSize;
 
 /// Snapshot of physical pixel dimensions taken from the renderer before the borrow.

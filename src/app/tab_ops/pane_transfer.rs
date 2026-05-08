@@ -4,8 +4,8 @@ use std::sync::Arc;
 
 use par_term_config::TabId;
 
-use crate::pane::{ExtractResult, PaneId, SplitDirection};
 use super::super::window_state::WindowState;
+use crate::pane::{ExtractResult, PaneId, SplitDirection};
 
 /// State machine for the multi-step demote (tab → pane) pick mode.
 #[derive(Default)]
@@ -40,15 +40,14 @@ impl WindowState {
             None => return,
         };
 
-        let focused_pane_id =
-            match self
-                .tab_manager
-                .active_tab()
-                .and_then(|t| t.focused_pane_id())
-            {
-                Some(id) => id,
-                None => return,
-            };
+        let focused_pane_id = match self
+            .tab_manager
+            .active_tab()
+            .and_then(|t| t.focused_pane_id())
+        {
+            Some(id) => id,
+            None => return,
+        };
 
         // Extract the pane from the source tab's tree
         let pane = match self.tab_manager.get_tab_mut(source_tab_id) {

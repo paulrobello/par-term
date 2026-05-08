@@ -139,7 +139,9 @@ impl WindowState {
         }
 
         // Font size reset: Cmd+0 on macOS, Ctrl+0 elsewhere (applies live)
-        if font_mod && !shift && matches!(event.logical_key, Key::Character(ref c) if c.as_str() == "0")
+        if font_mod
+            && !shift
+            && matches!(event.logical_key, Key::Character(ref c) if c.as_str() == "0")
         {
             self.config.rcu(|old| {
                 let mut new = (**old).clone();

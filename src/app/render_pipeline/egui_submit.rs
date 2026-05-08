@@ -119,27 +119,26 @@ impl WindowState {
 
         // Capture demote state snapshot for overlay rendering inside the egui closure.
         // This must happen before the closure borrows `*self`.
-        let demote_snapshot: super::types::DemoteSnapshot =
-            match &self.pane_transfer_state {
-                super::super::tab_ops::pane_transfer::PaneTransferState::Idle => {
-                    super::types::DemoteSnapshot::Idle
-                }
-                super::super::tab_ops::pane_transfer::PaneTransferState::DemotePickTab {
-                    ..
-                } => super::types::DemoteSnapshot::PickTab,
-                super::super::tab_ops::pane_transfer::PaneTransferState::DemotePickPane {
-                    ..
-                } => super::types::DemoteSnapshot::PickPane,
-                super::super::tab_ops::pane_transfer::PaneTransferState::DemoteChooseDirection {
-                    source_tab_id,
-                    target_tab_id,
-                    target_pane_id,
-                } => super::types::DemoteSnapshot::ChooseDirection {
-                    source_tab_id: *source_tab_id,
-                    target_tab_id: *target_tab_id,
-                    target_pane_id: *target_pane_id,
-                },
-            };
+        let demote_snapshot: super::types::DemoteSnapshot = match &self.pane_transfer_state {
+            super::super::tab_ops::pane_transfer::PaneTransferState::Idle => {
+                super::types::DemoteSnapshot::Idle
+            }
+            super::super::tab_ops::pane_transfer::PaneTransferState::DemotePickTab { .. } => {
+                super::types::DemoteSnapshot::PickTab
+            }
+            super::super::tab_ops::pane_transfer::PaneTransferState::DemotePickPane { .. } => {
+                super::types::DemoteSnapshot::PickPane
+            }
+            super::super::tab_ops::pane_transfer::PaneTransferState::DemoteChooseDirection {
+                source_tab_id,
+                target_tab_id,
+                target_pane_id,
+            } => super::types::DemoteSnapshot::ChooseDirection {
+                source_tab_id: *source_tab_id,
+                target_tab_id: *target_tab_id,
+                target_pane_id: *target_pane_id,
+            },
+        };
 
         // Capture pane bounds for the demote direction overlay (if applicable)
         let demote_pane_bounds: Option<crate::pane::PaneBounds> = match demote_snapshot {
