@@ -93,8 +93,13 @@ impl WindowState {
             },
         );
 
-        // If source was empty, remove it (the removed Tab gets dropped)
+        // If source was empty, remove it without killing the terminal
+        // (the promoted pane still holds an Arc to the same terminal)
         if source_is_empty {
+            if let Some(source_tab) = self.tab_manager.get_tab_mut(source_tab_id) {
+                source_tab.shutdown_fast = true;
+                source_tab.stop_refresh_task();
+            }
             let _ = self.tab_manager.remove_tab(source_tab_id);
         }
 
@@ -240,7 +245,15 @@ impl WindowState {
             return;
         }
 
-        // Close the source tab
+        // Close the source tab without killing terminals (panes are now in target)
+        // Setting shutdown_fast prevents Tab::Drop from killing self.terminal,
+        // which is shared with the primary pane that was transplanted into the target.
+        if let Some(source_tab) = self.tab_manager.get_tab_mut(source_tab_id) {
+            source_tab.shutdown_fast = true;
+            // Also stop the tab-level refresh task so it doesn't poll the
+            // now-empty PaneManager after the tab is removed from the list.
+            source_tab.stop_refresh_task();
+        }
         let _ = self.tab_manager.remove_tab(source_tab_id);
 
         // Start refresh tasks for all panes in the target tab
