@@ -311,6 +311,14 @@ impl WindowState {
                 );
                 true
             }
+            "promote_pane_to_tab" => {
+                self.promote_pane_to_tab();
+                true
+            }
+            "demote_tab_to_pane" => {
+                self.start_demote_tab();
+                true
+            }
             "toggle_profile_drawer" => {
                 self.toggle_profile_drawer();
                 log::info!(

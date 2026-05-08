@@ -139,6 +139,14 @@ impl WindowState {
             }
         }
 
+        // Cancel pane transfer pick mode on Escape
+        if self.pane_transfer_state.is_active()
+            && matches!(event.logical_key, Key::Named(NamedKey::Escape))
+        {
+            self.cancel_pane_transfer();
+            return;
+        }
+
         // Prefix systems must run before normal keybindings so the follow-up key
         // is consumed by the two-stroke action instead of another shortcut.
         if self.handle_tmux_prefix_key(&event) {
