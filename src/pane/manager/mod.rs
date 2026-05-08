@@ -278,6 +278,25 @@ impl PaneManager {
             ExtractResult::NotFound
         }
     }
+
+    /// Take ownership of the root node, leaving `None` in its place.
+    ///
+    /// Used by demote (tab → pane) to extract the entire pane tree for
+    /// transplantation into another tab.
+    pub fn take_root(&mut self) -> Option<PaneNode> {
+        self.focused_pane_id = None;
+        self.root.take()
+    }
+
+    /// Replace the root node (drops any existing tree).
+    ///
+    /// Used after `extract_pane` when the remaining tree needs to be
+    /// restored and the default `ExtractResult::Extracted.remaining`
+    /// has already been taken by the caller.
+    pub fn set_root(&mut self, node: PaneNode) {
+        self.root = Some(node);
+        self.recalculate_bounds();
+    }
 }
 
 impl Default for PaneManager {

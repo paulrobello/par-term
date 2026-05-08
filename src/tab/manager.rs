@@ -394,6 +394,33 @@ impl TabManager {
         Ok(Some(id))
     }
 
+    /// Create and insert a new tab wrapping an existing Pane.
+    ///
+    /// The pane's PTY, scroll state, and session logger are preserved.
+    /// No new shell is spawned. Returns the new tab's ID.
+    pub fn new_tab_from_pane(
+        &mut self,
+        pane: crate::pane::Pane,
+        config: &Config,
+        runtime: Arc<Runtime>,
+        insert_after: Option<TabId>,
+    ) -> TabId {
+        let id = self.next_tab_id;
+        self.next_tab_id += 1;
+        let tab_number = self.tabs.len() + 1;
+        let tab = crate::tab::Tab::new_from_pane(id, pane, config, runtime, tab_number);
+
+        let insert_idx = insert_after
+            .and_then(|after_id| self.tabs.iter().position(|t| t.id == after_id))
+            .map(|idx| idx + 1)
+            .unwrap_or(self.tabs.len());
+
+        self.tabs.insert(insert_idx, tab);
+        self.set_active_tab(Some(id));
+        self.renumber_default_tabs();
+        id
+    }
+
     /// Get index of active tab (0-based)
     pub fn active_tab_index(&self) -> Option<usize> {
         self.active_tab_id

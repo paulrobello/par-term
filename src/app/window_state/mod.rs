@@ -213,6 +213,8 @@ pub struct WindowState {
     // =========================================================================
     /// Whether keyboard input is broadcast to all panes in current tab
     pub(crate) broadcast_input: bool,
+    /// State machine for promote/demote pane-tab operations
+    pub(crate) pane_transfer_state: crate::app::tab_ops::pane_transfer::PaneTransferState,
     /// Badge state for session information display
     pub(crate) badge_state: BadgeState,
     /// Copy mode state machine
