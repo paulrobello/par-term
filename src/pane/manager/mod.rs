@@ -114,6 +114,19 @@ impl PaneManager {
         manager
     }
 
+    /// Create a pane manager wrapping an existing `Pane` as the single root node.
+    ///
+    /// Used by `Tab::new_from_pane()` when promoting a pane to its own tab.
+    /// The pane's ID is preserved and `next_pane_id` is advanced past it.
+    pub fn new_with_pane(pane: Pane) -> Self {
+        let pane_id = pane.id;
+        let mut manager = Self::new();
+        manager.next_pane_id = pane_id + 1;
+        manager.root = Some(PaneNode::leaf(pane));
+        manager.focused_pane_id = Some(pane_id);
+        manager
+    }
+
     /// Create a pane manager with an initial pane
     pub fn with_initial_pane(
         config: &Config,

@@ -5,7 +5,7 @@
 
 use super::{Tab, TabInitParams};
 use crate::config::Config;
-use crate::pane::PaneManager;
+use crate::pane::{Pane, PaneManager};
 use crate::profile::Profile;
 use crate::session_logger::{SessionLogger, create_shared_logger};
 use crate::tab::activity_state::TabActivityMonitor;
@@ -384,6 +384,57 @@ impl Tab {
             config,
             session_title,
         )
+    }
+
+    /// Create a new tab wrapping an existing `Pane` (e.g., from a promote operation).
+    ///
+    /// The pane's PTY, scroll state, and session logger are preserved.
+    /// No new shell is spawned — the pane's terminal keeps running.
+    /// The tab shares the pane's `Arc<RwLock<TerminalManager>>` as its primary terminal.
+    pub fn new_from_pane(
+        id: TabId,
+        pane: Pane,
+        _config: &Config,
+        _runtime: Arc<Runtime>,
+        tab_number: usize,
+    ) -> Self {
+        // Clone the pane's terminal Arc as the tab's primary terminal
+        let terminal = Arc::clone(&pane.terminal);
+        let is_active = Arc::clone(&pane.is_active);
+        let session_logger = Arc::clone(&pane.session_logger);
+
+        // Create a PaneManager with this pane as the single root
+        let pane_manager = PaneManager::new_with_pane(pane);
+
+        let title = format!("Tab {}", tab_number);
+
+        Self {
+            id,
+            terminal,
+            pane_manager: Some(pane_manager),
+            title,
+            refresh_task: None,
+            working_directory: None,
+            custom_color: None,
+            has_default_title: true,
+            user_named: false,
+            activity: TabActivityMonitor::default(),
+            session_logger,
+            tmux: TabTmuxState::default(),
+            detected_hostname: None,
+            detected_cwd: None,
+            custom_icon: None,
+            profile: TabProfileState::default(),
+            scripting: TabScriptingState::default(),
+            was_alt_screen: false,
+            is_active,
+            shutdown_fast: false,
+            is_hidden: false,
+            cached_modify_other_keys_mode: AtomicU8::new(0),
+            cached_application_cursor: AtomicBool::new(false),
+            cached_alt_screen_active: AtomicBool::new(false),
+            cached_has_tmux_child: AtomicBool::new(false),
+        }
     }
 }
 
