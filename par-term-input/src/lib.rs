@@ -229,6 +229,22 @@ impl InputHandler {
                         }
                         return Some(vec![byte]);
                     }
+
+                    // Ctrl with ASCII punctuation in 0x40-0x5F range (@, [, \, ], ^, _)
+                    // maps to control codes via char & 0x1F (e.g. Ctrl+_ → 0x1F for joe undo).
+                    let byte = ch as u8;
+                    if byte >= 0x40 && byte <= 0x5F {
+                        let ctrl_byte = byte & 0x1F;
+                        if alt {
+                            return Some(match self.get_active_option_mode() {
+                                OptionKeyMode::Meta => vec![ctrl_byte | 0x80],
+                                OptionKeyMode::Normal | OptionKeyMode::Esc => {
+                                    vec![0x1b, ctrl_byte]
+                                }
+                            });
+                        }
+                        return Some(vec![ctrl_byte]);
+                    }
                 }
 
                 // Get the base character (without Alt modification) for Option key modes
