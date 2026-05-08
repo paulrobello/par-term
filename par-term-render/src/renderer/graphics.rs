@@ -31,19 +31,26 @@ fn virtual_placement_cache_id(image_id: u32, placement_id: u32) -> u64 {
 /// stores virtual placements keyed by `(image_id, placement_id)` with
 /// `placement_id == 0` being the common case, and `get_placeholder_graphic`
 /// falls back to any placement_id for an image when 0 is requested.
-fn decode_placeholder_cell(cell: &Cell) -> Option<(u32, u32, u8, u8)> {
+fn decode_placeholder_cell(cell: &Cell) -> Option<(u32, u32, u16, u16)> {
     let mut chars = cell.grapheme.chars();
     if chars.next()? != PLACEHOLDER_CHAR {
         return None;
     }
     let row_idx = diacritic_to_number(chars.next()?)?;
     let col_idx = diacritic_to_number(chars.next()?)?;
-    let msb = chars.next().and_then(diacritic_to_number).unwrap_or(0);
+    // The MSB diacritic only encodes 0..=255 per spec, even though the table
+    // now exposes 297 entries; clamp the high indices to 0 so we never overflow
+    // the u8 image-ID byte.
+    let msb_u8 = chars
+        .next()
+        .and_then(diacritic_to_number)
+        .map(|n| if n <= u8::MAX as u16 { n as u8 } else { 0 })
+        .unwrap_or(0);
 
     // fg_color is stored as RGBA; encode (R<<16 | G<<8 | B) as the low 24 bits
     // of the image id, then OR in the MSB diacritic as the top byte.
     let [r, g, b, _a] = cell.fg_color;
-    let image_id = ((msb as u32) << 24) | ((r as u32) << 16) | ((g as u32) << 8) | b as u32;
+    let image_id = ((msb_u8 as u32) << 24) | ((r as u32) << 16) | ((g as u32) << 8) | b as u32;
     Some((image_id, 0, row_idx, col_idx))
 }
 
@@ -601,7 +608,7 @@ mod virtual_placement_tests {
 
     /// Build a placeholder cell at (row_idx, col_idx) for `image_id` (low 24
     /// bits encoded in fg_color, no MSB diacritic).
-    fn placeholder_cell(image_id: u32, row_idx: u8, col_idx: u8) -> Cell {
+    fn placeholder_cell(image_id: u32, row_idx: u16, col_idx: u16) -> Cell {
         let r = ((image_id >> 16) & 0xFF) as u8;
         let g = ((image_id >> 8) & 0xFF) as u8;
         let b = (image_id & 0xFF) as u8;
@@ -654,7 +661,7 @@ mod virtual_placement_tests {
         let mut cells = vec![blank_cell(); 4 * 3];
         for r in 0..2 {
             for c in 1..4 {
-                cells[r * 4 + c] = placeholder_cell(42, r as u8, (c - 1) as u8);
+                cells[r * 4 + c] = placeholder_cell(42, r as u16, (c - 1) as u16);
             }
         }
         let (cells, cols, rows) = make_grid(cells, 4);
@@ -675,10 +682,10 @@ mod virtual_placement_tests {
         // 6 cols × 1 row: 3 cells of image 7 followed by 3 cells of image 99.
         let mut cells = Vec::with_capacity(6);
         for c in 0..3 {
-            cells.push(placeholder_cell(7, 0, c as u8));
+            cells.push(placeholder_cell(7, 0, c as u16));
         }
         for c in 0..3 {
-            cells.push(placeholder_cell(99, 0, c as u8));
+            cells.push(placeholder_cell(99, 0, c as u16));
         }
         let (cells, cols, rows) = make_grid(cells, 6);
 

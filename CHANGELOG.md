@@ -11,8 +11,11 @@ Each version entry may include a `### Security` subsection for vulnerability fix
 
 ## [Unreleased]
 
+### Fixed
+- **Kitty TGP virtual placement: image was rendered ~10% narrower than Sixel/iTerm2 at the same logical size.** `par-term-render::renderer::graphics::decode_placeholder_cell` deferred to the core's `diacritic_to_number`, which only mapped the first 64 of the 297 diacritics in the Kitty graphics-protocol spec; once a client emitted a placeholder cell with col index ≥ 64, the second-diacritic lookup returned `None`, the cell was rejected, and `scan_placeholder_cells`'s bounding-box scan stopped at column 63 — so a placement asked to fit in e.g. 75×26 cells rendered into only 64×26. Picked up `par-term-emu-core-rust` 0.42.1 which restores the full table, and updated `decode_placeholder_cell` and the `placeholder_cell` test helper to take `u16` row/col indices (the spec's 0..=296 range overflows `u8`); the third (MSB) diacritic is clamped to `u8::MAX` before being packed into the image-id byte. 0.42.1 also makes `CSI 16 t` return the renderer's actual cell pitch instead of a hardcoded 10×20.
+
 ### Changed
-- Bumped `par-term-emu-core-rust` to 0.42.0 (removes local `patch.crates-io` override now that the Kitty TGP ingestion + query-response work is published to crates.io).
+- Bumped `par-term-emu-core-rust` to 0.42.1 (removes local `patch.crates-io` override now that the Kitty TGP ingestion + query-response work is published to crates.io).
 - Bumped `tokio` to 1.52, `notify-rust` to 4.17, `muda` to 0.19, `libc` to 0.2.186.
 
 ### Added
