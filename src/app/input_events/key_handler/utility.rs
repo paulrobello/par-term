@@ -18,10 +18,16 @@ impl WindowState {
 
         let ctrl = self.input_handler.modifiers.state().control_key();
         let shift = self.input_handler.modifiers.state().shift_key();
+        let super_key = self.input_handler.modifiers.state().super_key();
 
-        // Ctrl+Shift+K: Clear scrollback
-        if ctrl
-            && shift
+        // Platform-native modifier for font size shortcuts: Cmd on macOS, Ctrl elsewhere
+        #[cfg(target_os = "macos")]
+        let font_mod = super_key;
+        #[cfg(not(target_os = "macos"))]
+        let font_mod = ctrl;
+
+        // Clear scrollback: Cmd+Shift+K on macOS, Ctrl+Shift+K elsewhere
+        if crate::platform::primary_modifier_with_shift(&self.input_handler.modifiers.state())
             && matches!(event.logical_key, Key::Character(ref c) if c.as_str() == "k" || c.as_str() == "K")
         {
             // Clear scrollback for the focused pane (or tab's root terminal)
@@ -94,9 +100,9 @@ impl WindowState {
             return true;
         }
 
-        // Ctrl+Plus/Equals: Increase font size (applies live)
-        // Also handles Ctrl+Shift+= (which produces "+") so the character doesn't leak to the PTY
-        if ctrl
+        // Font size increase: Cmd+Plus on macOS, Ctrl+Plus elsewhere (applies live)
+        // Also handles Cmd/Ctrl+Shift+= (which produces "+") so the character doesn't leak to the PTY
+        if font_mod
             && (matches!(event.logical_key, Key::Character(ref c) if c.as_str() == "+" || c.as_str() == "="))
         {
             self.config.rcu(|old| {
@@ -113,9 +119,9 @@ impl WindowState {
             return true;
         }
 
-        // Ctrl+Minus: Decrease font size (applies live)
-        // Also handles Ctrl+Shift+- (which produces "_") so the character doesn't leak to the PTY
-        if ctrl
+        // Font size decrease: Cmd+Minus on macOS, Ctrl+Minus elsewhere (applies live)
+        // Also handles Cmd/Ctrl+Shift+- (which produces "_") so the character doesn't leak to the PTY
+        if font_mod
             && matches!(event.logical_key, Key::Character(ref c) if c.as_str() == "-" || c.as_str() == "_")
         {
             self.config.rcu(|old| {
@@ -132,8 +138,8 @@ impl WindowState {
             return true;
         }
 
-        // Ctrl+0: Reset font size to default (applies live)
-        if ctrl && !shift && matches!(event.logical_key, Key::Character(ref c) if c.as_str() == "0")
+        // Font size reset: Cmd+0 on macOS, Ctrl+0 elsewhere (applies live)
+        if font_mod && !shift && matches!(event.logical_key, Key::Character(ref c) if c.as_str() == "0")
         {
             self.config.rcu(|old| {
                 let mut new = (**old).clone();
@@ -147,7 +153,6 @@ impl WindowState {
         }
 
         // Ctrl+, (Cmd+, on macOS): Cycle cursor style (Block -> Beam -> Underline -> Block)
-        let super_key = self.input_handler.modifiers.state().super_key();
         let ctrl_or_cmd = ctrl || super_key;
 
         if ctrl_or_cmd
