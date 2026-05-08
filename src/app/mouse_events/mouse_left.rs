@@ -11,10 +11,37 @@ use crate::terminal::ClipboardSlot;
 
 impl WindowState {
     pub(super) fn handle_left_mouse_press(&mut self, mouse_position: (f64, f64)) {
-        // --- 5. Scrollbar Interaction ---
-        // Check if clicking/dragging the scrollbar track or thumb
         let mouse_x = mouse_position.0 as f32;
         let mouse_y = mouse_position.1 as f32;
+
+        // --- Demote pick-pane mode ---
+        // If we're in DemotePickPane state, capture the clicked pane and advance
+        // to DemoteChooseDirection. Must run before scrollbar/divider/pane-focus checks.
+        if let crate::app::tab_ops::pane_transfer::PaneTransferState::DemotePickPane {
+            source_tab_id,
+            target_tab_id,
+        } = &self.pane_transfer_state
+        {
+            if let Some(tab) = self.tab_manager.active_tab()
+                && let Some(pm) = tab.pane_manager()
+                && let Some(pane) = pm.root().and_then(|r| r.find_pane_at(mouse_x, mouse_y))
+            {
+                let source = *source_tab_id;
+                let target = *target_tab_id;
+                self.pane_transfer_state =
+                    crate::app::tab_ops::pane_transfer::PaneTransferState::DemoteChooseDirection {
+                        source_tab_id: source,
+                        target_tab_id: target,
+                        target_pane_id: pane.id,
+                    };
+                self.focus_state.needs_redraw = true;
+                self.request_redraw();
+                return; // Don't process normal click
+            }
+        }
+
+        // --- 5. Scrollbar Interaction ---
+        // Check if clicking/dragging the scrollbar track or thumb
 
         if let Some(renderer) = &self.renderer
             && renderer.scrollbar_track_contains_x(mouse_x)

@@ -93,6 +93,11 @@ impl WindowState {
         let move_gateway_active = self.is_gateway_active();
         let move_tab_count = self.tab_manager.tab_count();
         let move_candidates = self.overlay_ui.move_tab_candidates.clone();
+        let context_tab_has_multiple_panes = self
+            .tab_bar_ui
+            .context_menu_tab_id()
+            .and_then(|tid| self.tab_manager.get_tab(tid))
+            .is_some_and(|tab: &crate::tab::Tab| tab.has_multiple_panes());
 
         // Collect pane bounds for identify overlay (before egui borrow)
         let pane_identify_bounds: Vec<(usize, crate::pane::PaneBounds)> =
@@ -191,6 +196,7 @@ impl WindowState {
                         move_gateway_active,
                         move_tab_count,
                         move_candidates.clone(),
+                        context_tab_has_multiple_panes,
                     );
                     actions.tab_action = self.tab_bar_ui.render(
                         ctx,

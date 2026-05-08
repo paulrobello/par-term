@@ -64,6 +64,8 @@ pub struct TabBarUI {
     /// Set per-frame: number of tabs in the source window. Used to disable
     /// "Move Tab to New Window" when `== 1` (solo-tab guard).
     pub(crate) move_source_tab_count: usize,
+    /// Set per-frame: true when the context-menu tab has multiple panes.
+    pub(crate) tab_has_multiple_panes: bool,
 }
 
 impl TabBarUI {
@@ -97,6 +99,7 @@ impl TabBarUI {
             move_candidates: Vec::new(),
             move_gateway_active: false,
             move_source_tab_count: 0,
+            tab_has_multiple_panes: false,
         }
     }
 }
