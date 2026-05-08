@@ -202,6 +202,34 @@ impl PaneManager {
         self.root.as_mut()
     }
 
+    /// Insert a `PaneNode` subtree into the tree by splitting the target pane.
+    ///
+    /// The target leaf is replaced with a `Split` containing the original pane
+    /// as one child and the `subtree` as the other. Bounds are recalculated.
+    ///
+    /// Returns `true` if the insertion succeeded.
+    pub fn insert_subtree_at(
+        &mut self,
+        target_pane_id: PaneId,
+        subtree: PaneNode,
+        direction: crate::pane::types::SplitDirection,
+        ratio: f32,
+    ) -> bool {
+        if let Some(root) = self.root.take() {
+            match Self::insert_subtree_at_node(root, target_pane_id, subtree, direction, ratio) {
+                Ok(new_root) => {
+                    self.root = Some(new_root);
+                    self.recalculate_bounds();
+                    return true;
+                }
+                Err((original_root, _subtree)) => {
+                    self.root = Some(original_root);
+                }
+            }
+        }
+        false
+    }
+
     /// Extract a pane from the tree by ID, returning ownership of the live `Pane`.
     ///
     /// Unlike `remove_pane()` which drops the pane, this returns the pane
