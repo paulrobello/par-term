@@ -95,6 +95,8 @@ jobs:
       - name: Run tests
         run: cargo test --workspace --verbose
         continue-on-error: true
+
+      - name: Get version
         run: |
           VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
@@ -143,6 +145,8 @@ jobs:
       - name: Run tests
         run: cargo test --workspace --verbose
         continue-on-error: true
+
+      - name: Get version
         run: |
           VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
