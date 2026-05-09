@@ -233,7 +233,7 @@ impl InputHandler {
                     // Ctrl with ASCII punctuation in 0x40-0x5F range (@, [, \, ], ^, _)
                     // maps to control codes via char & 0x1F (e.g. Ctrl+_ → 0x1F for joe undo).
                     let byte = ch as u8;
-                    if byte >= 0x40 && byte <= 0x5F {
+                    if (0x40..=0x5F).contains(&byte) {
                         let ctrl_byte = byte & 0x1F;
                         if alt {
                             return Some(match self.get_active_option_mode() {

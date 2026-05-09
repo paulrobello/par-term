@@ -83,7 +83,6 @@ pub(super) struct FrameRenderData {
 ///   3. The dispatch loop becomes a simple `for action in actions { action.dispatch(ws); }`.
 ///
 /// Tracking: Issue ARC-009 in AUDIT.md.
-
 /// Deferred action from the demote direction-choice overlay.
 #[derive(Default)]
 pub(super) enum DemoteAction {

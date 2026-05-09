@@ -41,13 +41,12 @@ New to par-term? The [Getting Started Guide](docs/guides/GETTING_STARTED.md) wal
 - **[Configuration Reference](docs/CONFIG_REFERENCE.md)** — All 200+ configuration options
 - **[Keyboard Shortcuts](docs/guides/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
 
-## What's New in 0.31.0
+## What's New in 0.32.0
 
-- **Unfocused Split Panes Showed Stale Content** -- fixed per-pane refresh tasks and cache fast-path gating for secondary panes.
-- **Shader Controls in Settings** -- grouped `// control` uniforms, safety badges, auto-dim readability controls, and quick controls for cycling/pausing background shaders.
-- **Terminal-Aware Shader Uniforms** -- `iCommand`, `iFocusedPane`, and `iScroll` expose command state, pane focus, and scroll position to background shaders.
-- **11 New Terminal-Aware Shaders** -- progress-reactive, command-state backdrop, pane-focus regions, scrollback parallax, and more.
-- **Content Prettifier Removed** -- the `par-term-prettifier` crate and all related wiring have been removed.
+- **Promote Pane to Tab / Demote Tab to Pane** -- new actions to move panes between tabs while preserving all running processes. Promote instantly extracts a focused pane into its own tab; demote provides a multi-step pick mode to merge a tab's pane tree into another tab.
+- **Kitty Terminal Graphics Protocol — Full Support** -- par-term now parses, stores, renders, and responds to Kitty TGP (Phases 1–3). Virtual-placement images display correctly and autodetect probes succeed.
+- **Platform-Native Modifier for Hardcoded Shortcuts** -- font size, clear scrollback, and clipboard history shortcuts now use Cmd on macOS instead of bare Ctrl.
+- **Ctrl+Punctuation Control Codes** -- Ctrl with ASCII punctuation (@ [ \ ] ^ _) now correctly maps to control equivalents (e.g. Ctrl+_ sends 0x1F for joe editor undo).
 
 For the full history of changes across all versions, see [CHANGELOG.md](CHANGELOG.md).
 

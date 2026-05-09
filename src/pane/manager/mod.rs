@@ -256,11 +256,11 @@ impl PaneManager {
             match Self::extract_pane_from_node(root, target_id) {
                 ExtractInternal::Extracted { pane, remaining } => {
                     self.root = Some(remaining);
-                    if let Some(id) = self.focused_pane_id {
-                        if id == target_id {
-                            self.focused_pane_id =
-                                self.root.as_ref().and_then(|r| r.first_pane_id());
-                        }
+                    if let Some(id) = self.focused_pane_id
+                        && id == target_id
+                    {
+                        self.focused_pane_id =
+                            self.root.as_ref().and_then(|r| r.first_pane_id());
                     }
                     ExtractResult::Extracted {
                         pane,

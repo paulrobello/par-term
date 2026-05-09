@@ -59,12 +59,11 @@ impl WindowState {
                 match pm.extract_pane(focused_pane_id) {
                     ExtractResult::Extracted { pane, remaining } => {
                         // Put the remaining tree back into the source tab
-                        if let Some(remaining_node) = remaining {
-                            if let Some(tab) = self.tab_manager.get_tab_mut(source_tab_id) {
-                                if let Some(pm) = tab.pane_manager_mut() {
-                                    pm.set_root(remaining_node);
-                                }
-                            }
+                        if let Some(remaining_node) = remaining
+                            && let Some(tab) = self.tab_manager.get_tab_mut(source_tab_id)
+                            && let Some(pm) = tab.pane_manager_mut()
+                        {
+                            pm.set_root(remaining_node);
                         }
                         pane
                     }
@@ -104,37 +103,37 @@ impl WindowState {
         }
 
         // Start refresh tasks for the new tab
-        if let Some(window) = &self.window {
-            if let Some(tab) = self.tab_manager.get_tab_mut(new_tab_id) {
-                tab.start_refresh_task(
-                    Arc::clone(&self.runtime),
-                    Arc::clone(window),
-                    self.config.load().max_fps,
-                    self.config.load().inactive_tab_fps,
-                );
-                tab.start_pane_refresh_tasks(
-                    Arc::clone(&self.runtime),
-                    Arc::clone(window),
-                    self.config.load().max_fps,
-                    self.config.load().inactive_tab_fps,
-                );
-            }
+        if let Some(window) = &self.window
+            && let Some(tab) = self.tab_manager.get_tab_mut(new_tab_id)
+        {
+            tab.start_refresh_task(
+                Arc::clone(&self.runtime),
+                Arc::clone(window),
+                self.config.load().max_fps,
+                self.config.load().inactive_tab_fps,
+            );
+            tab.start_pane_refresh_tasks(
+                Arc::clone(&self.runtime),
+                Arc::clone(window),
+                self.config.load().max_fps,
+                self.config.load().inactive_tab_fps,
+            );
         }
 
         // Resize the new tab's terminal to match renderer dimensions
-        if let Some(renderer) = &self.renderer {
-            if let Some(tab) = self.tab_manager.get_tab_mut(new_tab_id) {
-                let (cols, rows) = renderer.grid_size();
-                let cell_width = renderer.cell_width();
-                let cell_height = renderer.cell_height();
-                let width_px = (cols as f32 * cell_width) as usize;
-                let height_px = (rows as f32 * cell_height) as usize;
-                if let Ok(mut term) = tab.terminal.try_write() {
-                    term.set_cell_dimensions(cell_width as u32, cell_height as u32);
-                    let _ = term.resize_with_pixels(cols, rows, width_px, height_px);
+        if let Some(renderer) = &self.renderer
+            && let Some(tab) = self.tab_manager.get_tab_mut(new_tab_id)
+        {
+            let (cols, rows) = renderer.grid_size();
+            let cell_width = renderer.cell_width();
+            let cell_height = renderer.cell_height();
+            let width_px = (cols as f32 * cell_width) as usize;
+            let height_px = (rows as f32 * cell_height) as usize;
+            if let Ok(mut term) = tab.terminal.try_write() {
+                term.set_cell_dimensions(cell_width as u32, cell_height as u32);
+                let _ = term.resize_with_pixels(cols, rows, width_px, height_px);
                 }
             }
-        }
 
         // Clear renderer and request redraw
         if let Some(renderer) = &mut self.renderer {
@@ -258,15 +257,15 @@ impl WindowState {
 
         // Start refresh tasks for all panes in the target tab
         // (this also updates is_active on transplanted panes)
-        if let Some(window) = &self.window {
-            if let Some(tab) = self.tab_manager.get_tab_mut(target_tab_id) {
-                tab.start_pane_refresh_tasks(
-                    Arc::clone(&self.runtime),
-                    Arc::clone(window),
-                    self.config.load().max_fps,
-                    self.config.load().inactive_tab_fps,
-                );
-            }
+        if let Some(window) = &self.window
+            && let Some(tab) = self.tab_manager.get_tab_mut(target_tab_id)
+        {
+            tab.start_pane_refresh_tasks(
+                Arc::clone(&self.runtime),
+                Arc::clone(window),
+                self.config.load().max_fps,
+                self.config.load().inactive_tab_fps,
+            );
         }
 
         self.pane_transfer_state = PaneTransferState::Idle;

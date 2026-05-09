@@ -21,23 +21,21 @@ impl WindowState {
             source_tab_id,
             target_tab_id,
         } = &self.pane_transfer_state
+            && let Some(tab) = self.tab_manager.active_tab()
+            && let Some(pm) = tab.pane_manager()
+            && let Some(pane) = pm.root().and_then(|r| r.find_pane_at(mouse_x, mouse_y))
         {
-            if let Some(tab) = self.tab_manager.active_tab()
-                && let Some(pm) = tab.pane_manager()
-                && let Some(pane) = pm.root().and_then(|r| r.find_pane_at(mouse_x, mouse_y))
-            {
-                let source = *source_tab_id;
-                let target = *target_tab_id;
-                self.pane_transfer_state =
-                    crate::app::tab_ops::pane_transfer::PaneTransferState::DemoteChooseDirection {
-                        source_tab_id: source,
-                        target_tab_id: target,
-                        target_pane_id: pane.id,
-                    };
-                self.focus_state.needs_redraw = true;
-                self.request_redraw();
-                return; // Don't process normal click
-            }
+            let source = *source_tab_id;
+            let target = *target_tab_id;
+            self.pane_transfer_state =
+                crate::app::tab_ops::pane_transfer::PaneTransferState::DemoteChooseDirection {
+                    source_tab_id: source,
+                    target_tab_id: target,
+                    target_pane_id: pane.id,
+                };
+            self.focus_state.needs_redraw = true;
+            self.request_redraw();
+            return; // Don't process normal click
         }
 
         // --- 5. Scrollbar Interaction ---

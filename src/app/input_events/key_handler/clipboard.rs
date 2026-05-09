@@ -53,13 +53,12 @@ impl WindowState {
         }
 
         // Toggle clipboard history: Cmd+Shift+H on macOS, Ctrl+Shift+H elsewhere
-        if event.state == ElementState::Pressed {
-            if crate::platform::primary_modifier_with_shift(&self.input_handler.modifiers.state())
-                && matches!(event.logical_key, Key::Character(ref c) if c.as_str() == "h" || c.as_str() == "H")
-            {
-                self.toggle_clipboard_history();
-                return true;
-            }
+        if event.state == ElementState::Pressed
+            && crate::platform::primary_modifier_with_shift(&self.input_handler.modifiers.state())
+            && matches!(event.logical_key, Key::Character(ref c) if c.as_str() == "h" || c.as_str() == "H")
+        {
+            self.toggle_clipboard_history();
+            return true;
         }
 
         false

@@ -11,6 +11,10 @@ Each version entry may include a `### Security` subsection for vulnerability fix
 
 ## [Unreleased]
 
+---
+
+## [0.32.0] - 2026-05-08
+
 ### Added
 - **Promote pane to tab / demote tab to pane.** New actions `promote_pane_to_tab` and `demote_tab_to_pane` allow moving panes between tabs while preserving all running processes. Promote (instant) extracts the focused pane into its own tab. Demote (multi-step pick mode) merges a tab's entire pane tree into another tab: click target tab → click target pane → choose split direction. Both actions are available via keybindings (configurable in Settings → Input → Keybindings) and the tab bar right-click context menu. Escape or right-click cancels demote at any step.
 
