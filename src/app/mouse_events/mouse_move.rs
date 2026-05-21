@@ -124,6 +124,15 @@ impl WindowState {
         // Shift held bypasses mouse tracking so the user can drag-select even inside
         // apps like `less` that enable mouse tracking on the alternate screen.
         let shift_held = self.input_handler.modifiers.state().shift_key();
+        // When a divider drag is in progress, skip motion reporting entirely.
+        // Otherwise, dragging the divider toward the focused pane keeps the mouse
+        // inside that pane's bounds, causing motion reporting to return early and
+        // starving the divider-drag handler (section 4b) of move events.
+        let dragging_divider = self
+            .tab_manager
+            .active_tab()
+            .and_then(|t| t.active_mouse().dragging_divider)
+            .is_some();
         if let Some(tab) = self.tab_manager.active_tab() {
             let resolved = if let Some(ref pm) = tab.pane_manager
                 && let Some(focused_pane) = pm.focused_pane()
@@ -157,7 +166,7 @@ impl WindowState {
                     .ok()
                     .is_some_and(|term| term.should_report_mouse_motion(button_pressed));
 
-                if should_report && !shift_held {
+                if should_report && !shift_held && !dragging_divider {
                     // Encode button+motion (button 32 marker)
                     let button = if button_pressed {
                         32 // Motion while button pressed

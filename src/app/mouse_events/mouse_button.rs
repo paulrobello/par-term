@@ -360,9 +360,17 @@ impl WindowState {
         // Forward events to the PTY if terminal application requested tracking.
         // Shift held bypasses mouse tracking to allow local text selection
         // (standard terminal convention: iTerm2, Kitty, Alacritty all honour this).
+        // IMPORTANT: Never intercept clicks on a pane divider — the divider-drag
+        // handler below must receive them, otherwise mouse tracking steals the press
+        // and the divider drag never starts.
         let shift_held = self.input_handler.modifiers.state().shift_key();
+        let is_on_divider = self
+            .tab_manager
+            .active_tab()
+            .is_some_and(|t| t.is_on_divider(mouse_position.0 as f32, mouse_position.1 as f32));
         if !suppress_terminal_mouse_click
             && !shift_held
+            && !is_on_divider
             && self.try_send_mouse_event(0, state == ElementState::Pressed)
         {
             // Still track button state so mouse motion reporting works correctly.
