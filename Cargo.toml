@@ -96,7 +96,7 @@ tempfile = "3.25"
 
 [package]
 name = "par-term"
-version = "0.32.0"
+version = "0.32.1"
 edition = "2024"
 rust-version = "1.94"
 authors = ["Paul Robello <probello@gmail.com>"]

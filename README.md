@@ -41,6 +41,12 @@ New to par-term? The [Getting Started Guide](docs/guides/GETTING_STARTED.md) wal
 - **[Configuration Reference](docs/CONFIG_REFERENCE.md)** — All 200+ configuration options
 - **[Keyboard Shortcuts](docs/guides/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
 
+## What's New in 0.32.1
+
+- **Scrollback Fix for Partial Scroll Regions** -- top-anchored scroll regions (e.g. Codex CLI's `CSI 1;{rows-1}r`) now correctly preserve evicted rows in scrollback instead of discarding them, matching iTerm2 behavior.
+
+For the full history of changes across all versions, see [CHANGELOG.md](CHANGELOG.md).
+
 ## What's New in 0.32.0
 
 - **Promote Pane to Tab / Demote Tab to Pane** -- new actions to move panes between tabs while preserving all running processes. Promote instantly extracts a focused pane into its own tab; demote provides a multi-step pick mode to merge a tab's pane tree into another tab.
