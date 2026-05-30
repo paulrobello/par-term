@@ -11,6 +11,9 @@ Each version entry may include a `### Security` subsection for vulnerability fix
 
 ## [Unreleased]
 
+### Fixed
+- **Top-anchored scroll region lines lost instead of entering scrollback.** `scroll_region_up()` only pushed rows into scrollback when the region covered the full screen. Partial top-anchored regions (e.g. Codex CLI's `CSI 1;{rows-1} r`) now correctly preserve evicted rows in primary-screen scrollback, matching iTerm2 behavior. Picked up `par-term-emu-core-rust` 0.42.2 which refactors scrollback insertion into a shared `push_rows_to_scrollback()` helper used by both full-screen and region scrolling paths.
+
 ---
 
 ## [0.32.0] - 2026-05-08
