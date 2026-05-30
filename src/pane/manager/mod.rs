@@ -259,8 +259,7 @@ impl PaneManager {
                     if let Some(id) = self.focused_pane_id
                         && id == target_id
                     {
-                        self.focused_pane_id =
-                            self.root.as_ref().and_then(|r| r.first_pane_id());
+                        self.focused_pane_id = self.root.as_ref().and_then(|r| r.first_pane_id());
                     }
                     ExtractResult::Extracted {
                         pane,

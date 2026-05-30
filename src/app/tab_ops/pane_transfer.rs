@@ -132,8 +132,8 @@ impl WindowState {
             if let Ok(mut term) = tab.terminal.try_write() {
                 term.set_cell_dimensions(cell_width as u32, cell_height as u32);
                 let _ = term.resize_with_pixels(cols, rows, width_px, height_px);
-                }
             }
+        }
 
         // Clear renderer and request redraw
         if let Some(renderer) = &mut self.renderer {
