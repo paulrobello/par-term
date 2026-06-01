@@ -388,9 +388,35 @@ impl WindowState {
         // not recognized by Claude Code as Shift+Enter). `read_or_cached_modes`
         // returns the last successfully-read values on contention, so modifier-aware
         // encoding stays correct.
+        // Read keyboard mode flags from the correct terminal.
+        //
+        // When pane splits exist, the focused pane may have a different mode state
+        // than the primary pane (e.g., vim in primary with modifyOtherKeys=2, bash
+        // in split with modifyOtherKeys=0). Reading from the wrong terminal causes
+        // keys like Ctrl+U to be encoded as CSI-u sequences that the focused pane's
+        // shell can't interpret, producing garbage control characters.
+        //
+        // Priority: focused pane's terminal → tab's cached modes (fallback).
         let (modify_other_keys_mode, application_cursor, alt_screen_active) =
             if let Some(tab) = self.tab_manager.active_tab() {
-                tab.read_or_cached_modes()
+                if let Some(ref pane_manager) = tab.pane_manager {
+                    if let Some(focused_pane) = pane_manager.focused_pane() {
+                        if let Ok(term) = focused_pane.terminal.try_read() {
+                            (
+                                term.modify_other_keys_mode(),
+                                term.application_cursor(),
+                                term.is_alt_screen_active(),
+                            )
+                        } else {
+                            // Lock contention on focused pane — fall back to tab's cache
+                            tab.read_or_cached_modes()
+                        }
+                    } else {
+                        tab.read_or_cached_modes()
+                    }
+                } else {
+                    tab.read_or_cached_modes()
+                }
             } else {
                 (0, false, false)
             };
