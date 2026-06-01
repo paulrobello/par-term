@@ -11,6 +11,10 @@ Each version entry may include a `### Security` subsection for vulnerability fix
 
 ## [Unreleased]
 
+---
+
+## [0.32.2] - 2026-06-01
+
 ### Fixed
 - **Keyboard mode mismatch in split panes caused Ctrl+U and other combos to output control characters.** The key handler read modifyOtherKeys/application-cursor/alt-screen flags from the primary pane's terminal, then wrote the encoded bytes to the focused split pane's terminal. When the two panes had different mode state (e.g., vim with modifyOtherKeys=2 in the primary pane, bash with mode 0 in the split), keys like Ctrl+U were encoded as CSI-u sequences the focused pane's shell couldn't interpret, producing garbage output. Modes are now read from the focused pane's terminal when pane splits are active.
 
