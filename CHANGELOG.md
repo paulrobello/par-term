@@ -11,10 +11,14 @@ Each version entry may include a `### Security` subsection for vulnerability fix
 
 ## [Unreleased]
 
-### Fixed
-- **Background Color Erase (BCE) was missing from all erase operations.** Erase-in-line (`EL`), erase-in-display (`ED`), and erase-line (`ECH`) sequences cleared cells to the default background instead of the current background color. This caused visible artifacts in applications that set a colored background and then erased content — erased regions flashed to black instead of preserving the active background color. Picked up `par-term-emu-core-rust` 0.42.3 which implements BCE across all erase paths.
+---
 
-- **PTY generation counter incremented after processing instead of before.** The generation counter used to detect terminal content changes was bumped after VT sequence processing completed, creating a race where a render pass scheduled between `process()` and the counter increment would see stale content and skip the frame. Picked up `par-term-emu-core-rust` 0.42.4 which moves the increment ahead of processing.
+## [0.32.3] - 2026-06-08
+
+### Fixed
+- **Background Color Erase (BCE) was missing from all erase operations.** Erase-in-line (`EL`), erase-in-display (`ED`), and erase-line (`ECH`) sequences cleared cells to the default background instead of the current background color, causing visible artifacts in applications that set a colored background and then erased content. Picked up `par-term-emu-core-rust` 0.42.3.
+
+- **PTY generation counter race caused stale frames.** The counter was bumped after VT processing instead of before, creating a window where render passes could skip valid content updates. Picked up `par-term-emu-core-rust` 0.42.4.
 
 ### Changed
 - Bumped `par-term-emu-core-rust` to 0.42.4.
