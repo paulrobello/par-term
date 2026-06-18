@@ -314,10 +314,23 @@ impl WindowState {
         }
 
         // --- 5. Drag Selection Logic ---
-        // Perform local text selection if mouse tracking is NOT active
+        // Perform local text selection if mouse tracking is NOT active.
+        // Resolve the FOCUSED pane's terminal, not `tab.terminal` (which is the
+        // primary/first pane). Reading `tab.terminal` here was the multi-pane
+        // "Shift required to drag-select" bug: when the primary pane ran an
+        // alt-screen app (vim/tmux/less/...), drag-select was blocked in a
+        // normal-shell pane unless Shift was held, because this gate answered
+        // "is the PRIMARY pane on the alt screen?" instead of the focused one.
+        // Mirrors the focused-pane resolution in §2/§3 above and in detect_urls().
         // try_read (not try_write): is_alt_screen_active() takes &self.
         let alt_screen_active = self.tab_manager.active_tab().is_some_and(|tab| {
-            tab.terminal
+            let focused_terminal = tab
+                .pane_manager
+                .as_ref()
+                .and_then(|pm| pm.focused_pane())
+                .map(|p| Arc::clone(&p.terminal))
+                .unwrap_or_else(|| Arc::clone(&tab.terminal));
+            focused_terminal
                 .try_read()
                 .ok()
                 .is_some_and(|term| term.is_alt_screen_active())

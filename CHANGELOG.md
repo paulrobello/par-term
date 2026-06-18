@@ -11,6 +11,26 @@ Each version entry may include a `### Security` subsection for vulnerability fix
 
 ## [Unreleased]
 
+### Fixed
+- **Drag-selecting text required holding Shift in split panes whenever the primary pane ran an alt-screen app.** The drag-selection gate in `handle_mouse_move` read `is_alt_screen_active()` from the tab's primary/first pane terminal (`tab.terminal`) instead of the focused pane's terminal — every other per-pane path (selection state, mouse tracking, URL hover) already resolved the focused pane, so this was the one inconsistent spot. With a single pane `tab.terminal` is the active terminal so it worked; with multiple panes, if the primary pane was on the alternate screen (vim/tmux/less/...) while the focused pane was a normal shell, drag-select was blocked unless Shift was held. The gate now resolves the focused pane's terminal, mirroring the surrounding paths.
+
+- **Clicking a clickable hyperlink that wrapped across lines opened a truncated URL.** URL detection built a per-row text string and ran the regex on each visible row independently, so a URL split by a soft wrap was detected as two separate fragments — clicking either opened only the portion that fit on that row. Detection now queries the terminal's per-row soft-wrap flags (`is_line_wrapped`/`is_scrollback_wrapped`), joins wrapped rows into a logical line before regex matching, and emits one clickable segment per wrapped row carrying the full URL, so clicking any part of a wrapped link opens the complete URL. OSC 8 hyperlinks (whose URLs are stored by id) were already unaffected.
+
+- **Crash on launch after the egui 0.34 upgrade** (egui-wgpu 0.34 panics — "Tried to update a texture that has not been allocated yet", emilk/egui#8228 — when a partial font-atlas patch targeted an unallocated texture). The renderer now forces a full font-atlas upload before applying a partial patch to an unallocated texture, in both the terminal and settings renderers.
+
+- **Kitty `V=` relative offset now parsed unconditionally, and `d=i`/`d=p`/`d=x`/`d=y` delete targets are handled** (previously silently dropped). Picked up `par-term-emu-core-rust` 0.43.1.
+
+### Security
+- **Kitty graphics protocol: integer-overflow DoS in `decode_pixels`.** Raw RGBA/RGB size checks and the RGB `Vec::with_capacity` used `width * height * (4|3)` with attacker-controlled `u32` dimensions that could wrap `usize`, bypass the size check, and yield a graphic with huge dimensions over a tiny buffer → out-of-bounds read/panic on malicious terminal or SSH graphics output. Now uses `checked_mul` and rejects overflowing dimensions. Picked up `par-term-emu-core-rust` 0.43.0/0.43.1.
+
+### Changed
+- **Bumped `par-term-emu-core-rust` 0.42.4 → 0.43.1.** Note: the core's own CHANGELOG tags its lock and `Cell` changes as "no API change / behavior-identical", but that holds only for the Python binding surface — for this Rust consumer they were breaking and required migration: `Arc<Mutex<Terminal>>` → `Arc<RwLock<Terminal>>` (`lock()` → `write()`/`try_write()` on ~90 sites) and `Cell` field → accessor encapsulation on ~23 sites, including `hyperlink_id` becoming `Option<NonZeroU32>`. par-term enables only the core's `rust-only` feature (no `streaming`/`python`), so the core's streaming-server security hardening (WebSocket zip-bomb cap, `Origin`/CSRF allowlist, `cargo audit` 5 → 0) is feature-gated off and not compiled in.
+
+- **Bumped `wgpu`/`naga` 27 → 29** (required by egui-wgpu 0.34) and **`egui`/`egui-wgpu`/`egui-winit` 0.33.3 → 0.34.3**, plus `sha2` 0.10 → 0.11, `sysinfo` 0.37 → 0.39, `lru` 0.16 → 0.18, `mdns-sd` 0.18 → 0.20, and ~30 caret-compatible bumps. Toolchain/MSRV 1.94 → 1.95. Migrated `wgpu 29` (`PipelineLayoutDescriptor` immediates, `CurrentSurfaceTexture` enum replacing `SurfaceError`, by-value `InstanceDescriptor`, `MipmapFilterMode`) and `egui 0.34` (`run`→`run_ui`, `style`→`global_style`, pointer-input renames, and `Panel::show(ctx)`/`CentralPanel::show(ctx)` → `show_inside(ui)` for the top-level panels — removing the temporary `#[allow(deprecated)]` workarounds; layout is unaffected since the viewport is config-driven).
+
+### Performance
+- **Concurrent terminal reads** (`Arc<Mutex<Terminal>>` → `Arc<RwLock<Terminal>>`, so the ~129 read-query paths take a shared read lock and no longer spin-wait on the PTY reader's `process()` call); **bounded LRU glyph cache** (one-at-a-time eviction instead of clearing all entries at the 10k cap); and **`Cell.hyperlink_id` niche optimization** (`Option<u32>` → `Option<NonZeroU32>`, zero-cost `None`, ~4 bytes/cell saved across scrollback). Picked up `par-term-emu-core-rust` 0.43.0.
+
 ---
 
 ## [0.32.3] - 2026-06-08

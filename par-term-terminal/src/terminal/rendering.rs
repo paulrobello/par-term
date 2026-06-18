@@ -111,6 +111,55 @@ impl TerminalManager {
         Some(cells)
     }
 
+    /// Per-visible-row soft-wrap continuation flags for URL detection.
+    ///
+    /// Returns a `Vec` of length `rows` where entry `r` is `true` when visible
+    /// row `r` is a soft-wrapped continuation of row `r-1` (i.e. the line above
+    /// it overflowed the margin). This lets URL detection join wrapped lines so
+    /// a URL split across a wrap is detected as one link rather than a truncated
+    /// per-row fragment.
+    ///
+    /// Mirrors the line iteration in [`try_get_cells_with_scrollback`] so the
+    /// scrollback-vs-screen wrap resolution matches exactly. Non-blocking: on
+    /// lock contention returns an empty `Vec` (URL detection then falls back to
+    /// per-row behaviour for that frame).
+    pub fn viewport_wrap_flags(&self, scroll_offset: usize, rows: usize) -> Vec<bool> {
+        let Some(pty) = self.pty_session.try_lock() else {
+            return Vec::new();
+        };
+        let terminal = pty.terminal();
+        let Some(term) = terminal.try_read() else {
+            return Vec::new();
+        };
+        let grid = term.active_grid();
+
+        let scrollback_len = grid.scrollback_len();
+        let clamped_offset = scroll_offset.min(scrollback_len);
+        let total_lines = scrollback_len + grid.rows();
+        let end_line = total_lines.saturating_sub(clamped_offset);
+        let start_line = end_line.saturating_sub(rows);
+
+        // Visible row r (absolute line `start_line + r`) is a continuation iff
+        // the line above it (`start_line + r - 1`) was wrapped. Wrap is a
+        // property of the overflowing line, resolved against scrollback or the
+        // active screen the same way cell generation does.
+        let mut wrapped = Vec::with_capacity(rows);
+        for r in 0..rows {
+            let is_cont = if r == 0 {
+                false
+            } else {
+                let prev_line = (start_line + r).saturating_sub(1);
+                if prev_line < scrollback_len {
+                    grid.is_scrollback_wrapped(prev_line)
+                } else {
+                    grid.is_line_wrapped(prev_line - scrollback_len)
+                }
+            };
+            wrapped.push(is_cont);
+        }
+        wrapped
+    }
+
     /// Get terminal grid with scrollback offset as Cell array for CellRenderer
     pub fn get_cells_with_scrollback(
         &self,
