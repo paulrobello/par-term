@@ -1,6 +1,6 @@
 [package]
 name = "par-term-render"
-version = "0.7.1"
+version = "0.7.2"
 edition = "2024"
 rust-version = "1.95"
 description = "GPU-accelerated rendering engine for par-term terminal emulator"
@@ -9,8 +9,8 @@ repository = "https://github.com/paulrobello/par-term"
 
 [dependencies]
 # Workspace crates
-par-term-config = { path = "../par-term-config", version = "0.11.0", features = ["wgpu-types"] }
-par-term-fonts = { path = "../par-term-fonts", version = "0.1.8" }
+par-term-config = { path = "../par-term-config", version = "0.11.1", features = ["wgpu-types"] }
+par-term-fonts = { path = "../par-term-fonts", version = "0.1.9" }
 
 # Terminal emulator core (for CursorStyle type)
 par-term-emu-core-rust.workspace = true

@@ -178,7 +178,7 @@ sudo pacman -S gtk3 libxkbcommon wayland libxcb alsa-lib
 
 **Solution:**
 
-1. Ensure you have Rust 1.94+ installed (2024 edition required):
+1. Ensure you have Rust 1.95+ installed (2024 edition required):
 
    ```bash
    rustup update stable

@@ -41,9 +41,13 @@ New to par-term? The [Getting Started Guide](docs/guides/GETTING_STARTED.md) wal
 - **[Configuration Reference](docs/CONFIG_REFERENCE.md)** — All 200+ configuration options
 - **[Keyboard Shortcuts](docs/guides/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
 
-## What's New in 0.32.1
+## What's New in 0.33.0
 
-- **Scrollback Fix for Partial Scroll Regions** -- top-anchored scroll regions (e.g. Codex CLI's `CSI 1;{rows-1}r`) now correctly preserve evicted rows in scrollback instead of discarding them, matching iTerm2 behavior.
+- **Rendering stack upgrade** -- wgpu 29, egui 0.34, and `par-term-emu-core-rust` 0.43. Absorbs the core's breaking Rust API changes (the `Terminal` lock is now an `RwLock`; `Cell` fields are accessors) and fixes an egui-wgpu 0.34 launch crash.
+- **Split-pane drag-select** -- drag-selecting text no longer requires holding Shift when another pane is running an alt-screen app (vim/tmux/less).
+- **Wrapped hyperlinks** -- clicking a URL that wraps across lines opens the full URL, in both native panes and tmux.
+- **Kitty graphics DoS hardening** -- integer-overflow in Kitty RGBA/RGB decode is now bounds-checked (from core 0.43).
+- **Performance** -- concurrent terminal reads, a bounded LRU glyph cache, and a smaller `Cell`.
 
 For the full history of changes across all versions, see [CHANGELOG.md](CHANGELOG.md).
 
@@ -165,7 +169,7 @@ This builds and installs the binary to `~/.cargo/bin/par-term`.
 
 ### From Source
 
-Requires Rust 1.94+ (stable, 2024 edition) and modern graphics drivers:
+Requires Rust 1.95+ (stable, 2024 edition) and modern graphics drivers:
 
 ```bash
 # Clone the repository

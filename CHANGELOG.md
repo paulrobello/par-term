@@ -11,6 +11,10 @@ Each version entry may include a `### Security` subsection for vulnerability fix
 
 ## [Unreleased]
 
+---
+
+## [0.33.0] - 2026-06-18
+
 ### Fixed
 - **Drag-selecting text required holding Shift in split panes whenever the primary pane ran an alt-screen app.** The drag-selection gate in `handle_mouse_move` read `is_alt_screen_active()` from the tab's primary/first pane terminal (`tab.terminal`) instead of the focused pane's terminal — every other per-pane path (selection state, mouse tracking, URL hover) already resolved the focused pane, so this was the one inconsistent spot. With a single pane `tab.terminal` is the active terminal so it worked; with multiple panes, if the primary pane was on the alternate screen (vim/tmux/less/...) while the focused pane was a normal shell, drag-select was blocked unless Shift was held. The gate now resolves the focused pane's terminal, mirroring the surrounding paths.
 
