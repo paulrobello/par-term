@@ -315,16 +315,16 @@ impl CellRenderer {
         // macOS: Use Metal (native)
         // Linux: Try Vulkan first, fall back to GL for VM compatibility
         #[cfg(target_os = "windows")]
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::DX12,
-            ..Default::default()
+            ..wgpu::InstanceDescriptor::new_without_display_handle()
         });
         #[cfg(target_os = "macos")]
         let instance = wgpu::Instance::default();
         #[cfg(target_os = "linux")]
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::VULKAN | wgpu::Backends::GL,
-            ..Default::default()
+            ..wgpu::InstanceDescriptor::new_without_display_handle()
         });
         let surface = instance.create_surface(window.clone())?;
         let adapter = instance

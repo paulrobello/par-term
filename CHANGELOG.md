@@ -13,6 +13,13 @@ Each version entry may include a `### Security` subsection for vulnerability fix
 
 ---
 
+## [0.33.1] - 2026-06-18
+
+### Fixed
+- **Linux and Windows release builds failed to compile after the wgpu 29 migration.** `par-term-render`'s per-platform `wgpu::Instance` construction (the Windows and Linux branches) still used the pre-0.29 API — `Instance::new(&InstanceDescriptor { ..Default::default() })` — which broke because wgpu 29 takes `InstanceDescriptor` by value and the struct no longer implements `Default`. Now uses `..InstanceDescriptor::new_without_display_handle()`, matching the settings-window renderer. macOS was unaffected. Patch bump of `par-term-render` 0.7.3 and `par-term` 0.33.1; the broken `0.33.0` / `par-term-render` 0.7.2 are yanked.
+
+---
+
 ## [0.33.0] - 2026-06-18
 
 ### Fixed
