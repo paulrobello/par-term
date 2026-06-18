@@ -34,6 +34,26 @@ impl Renderer {
 
         // Update egui textures
         for (id, image_delta) in &egui_output.textures_delta.set {
+            // egui 0.34 can deliver a partial font-atlas patch before this
+            // renderer has allocated the font texture — e.g. when an earlier
+            // frame ran egui but skipped the GPU render, dropping the full
+            // (pos = None) font upload. egui-wgpu panics on a partial update of
+            // an unallocated texture (emilk/egui#8228), so pre-allocate it with
+            // the complete current font atlas before applying the patch.
+            if image_delta.pos.is_some() && self.egui_renderer.texture(id).is_none() {
+                let full_image = egui_ctx
+                    .fonts(|f| egui::epaint::ImageData::Color(std::sync::Arc::new(f.image())));
+                self.egui_renderer.update_texture(
+                    self.cell_renderer.device(),
+                    self.cell_renderer.queue(),
+                    *id,
+                    &egui::epaint::ImageDelta {
+                        pos: None,
+                        image: full_image,
+                        options: image_delta.options,
+                    },
+                );
+            }
             self.egui_renderer.update_texture(
                 self.cell_renderer.device(),
                 self.cell_renderer.queue(),

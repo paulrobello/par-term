@@ -90,6 +90,24 @@ impl SettingsWindow {
 
         // Upload egui textures
         for (id, delta) in &egui_output.textures_delta.set {
+            // egui 0.34 can deliver a partial font-atlas patch before this
+            // renderer has allocated the font texture (emilk/egui#8228);
+            // egui-wgpu panics on that, so pre-allocate the full atlas first.
+            if delta.pos.is_some() && self.egui_renderer.texture(id).is_none() {
+                let full_image = self
+                    .egui_ctx
+                    .fonts(|f| egui::epaint::ImageData::Color(std::sync::Arc::new(f.image())));
+                self.egui_renderer.update_texture(
+                    &self.device,
+                    &self.queue,
+                    *id,
+                    &egui::epaint::ImageDelta {
+                        pos: None,
+                        image: full_image,
+                        options: delta.options,
+                    },
+                );
+            }
             self.egui_renderer
                 .update_texture(&self.device, &self.queue, *id, delta);
         }
