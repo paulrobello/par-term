@@ -3,7 +3,7 @@
 //! Contains: show(), show_as_panel(), show_reset_defaults_dialog_window().
 //! Layout and tab dispatch are in sections.rs.
 
-use egui::{Color32, Context, Frame, Window, epaint::Shadow};
+use egui::{Color32, Context, Frame, Ui, Window, epaint::Shadow};
 use par_term_config::Config;
 
 use crate::{CursorShaderEditorResult, ShaderEditorResult};
@@ -244,10 +244,9 @@ impl SettingsUI {
     }
 
     /// Show the settings UI as a full-window panel (for standalone settings window)
-    #[allow(deprecated)] // egui 0.34 deprecated CentralPanel::show(ctx); no top-level show_inside replacement
     pub fn show_as_panel(
         &mut self,
-        ctx: &Context,
+        ctx: &mut Ui,
     ) -> (
         Option<Config>,
         Option<Config>,
@@ -277,7 +276,7 @@ impl SettingsUI {
 
         egui::CentralPanel::default()
             .frame(Frame::central_panel(&ctx.global_style()).fill(solid_bg))
-            .show(ctx, |ui| {
+            .show_inside(ctx, |ui| {
                 // Fixed header area (never scrolls)
                 ui.heading("Terminal Settings");
                 ui.horizontal(|ui| {

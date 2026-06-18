@@ -89,7 +89,7 @@ impl TabBarUI {
     /// Render the tab bar and return any action triggered
     pub fn render(
         &mut self,
-        ctx: &egui::Context,
+        ctx: &mut egui::Ui,
         tabs: &TabManager,
         config: &Config,
         profiles: &crate::profile::ProfileManager,
@@ -109,10 +109,9 @@ impl TabBarUI {
     }
 
     /// Render the tab bar in vertical layout (left side panel)
-    #[allow(deprecated)] // egui 0.34 deprecated Panel::show(ctx); no top-level show_inside replacement
     fn render_vertical(
         &mut self,
-        ctx: &egui::Context,
+        ctx: &mut egui::Ui,
         tabs: &TabManager,
         config: &Config,
         profiles: &crate::profile::ProfileManager,
@@ -132,7 +131,7 @@ impl TabBarUI {
         egui::Panel::left("tab_bar")
             .exact_size(config.tab_bar_width)
             .frame(egui::Frame::NONE.fill(egui::Color32::from_rgb(bar_bg[0], bar_bg[1], bar_bg[2])))
-            .show(ctx, |ui| {
+            .show_inside(ctx, |ui| {
                 egui::ScrollArea::vertical()
                     .scroll_bar_visibility(
                         egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded,

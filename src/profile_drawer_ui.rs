@@ -96,10 +96,9 @@ impl ProfileDrawerUI {
     /// `bottom_margin` should be set to the height of any floating status bar
     /// (e.g. the custom status bar rendered as an `egui::Area`) so the side
     /// panel stops above it rather than extending behind it.
-    #[allow(deprecated)] // egui 0.34 deprecated Panel::show(ctx); no top-level show_inside replacement
     pub fn render(
         &mut self,
-        ctx: &egui::Context,
+        ctx: &mut egui::Ui,
         profile_manager: &ProfileManager,
         config: &Config,
         modal_visible: bool,
@@ -115,7 +114,7 @@ impl ProfileDrawerUI {
             egui::Panel::bottom("profile_drawer_bottom_margin")
                 .exact_size(bottom_margin)
                 .frame(egui::Frame::NONE)
-                .show(ctx, |_ui| {});
+                .show_inside(ctx, |_ui| {});
         }
 
         // Render the side panel FIRST if expanded, so we get the current width
@@ -131,7 +130,7 @@ impl ProfileDrawerUI {
                         .fill(egui::Color32::from_rgba_unmultiplied(30, 30, 30, 245))
                         .inner_margin(egui::Margin::same(8)),
                 )
-                .show(ctx, |ui| {
+                .show_inside(ctx, |ui| {
                     self.render_panel_contents(ui, profile_manager, &mut action);
                 });
 

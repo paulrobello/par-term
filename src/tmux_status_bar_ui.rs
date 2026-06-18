@@ -79,10 +79,9 @@ impl TmuxStatusBarUI {
     /// Render the status bar
     ///
     /// Returns the height consumed by the status bar.
-    #[allow(deprecated)] // egui 0.34 deprecated Panel::show(ctx); no top-level show_inside replacement
     pub fn render(
         &mut self,
-        ctx: &egui::Context,
+        ctx: &mut egui::Ui,
         config: &Config,
         session: Option<&TmuxSession>,
         session_name: Option<&str>,
@@ -114,7 +113,7 @@ impl TmuxStatusBarUI {
                     .fill(egui::Color32::from_rgb(30, 40, 30)) // Dark green-ish background (tmux style)
                     .inner_margin(egui::Margin::symmetric(8, 4)),
             )
-            .show(ctx, |ui| {
+            .show_inside(ctx, |ui| {
                 ui.horizontal(|ui| {
                     // Left side - session and windows
                     let left_text = if !self.cached_left.is_empty() {

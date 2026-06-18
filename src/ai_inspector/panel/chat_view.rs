@@ -505,7 +505,6 @@ mod tests {
     }
 
     #[test]
-    #[allow(deprecated)] // egui 0.34 deprecated CentralPanel::show(ctx); no top-level show_inside replacement
     fn bounded_chat_input_scroll_area_caps_rendered_height() {
         let mut text = ["line"; 12].join("\n");
         let visible_rows = chat_input_visible_rows(&text);
@@ -515,7 +514,7 @@ mod tests {
 
         let ctx = egui::Context::default();
         let _ = ctx.run_ui(Default::default(), |ctx| {
-            egui::CentralPanel::default().show(ctx, |ui| {
+            egui::CentralPanel::default().show_inside(ctx, |ui| {
                 ui.set_width(320.0);
                 let output = render_bounded_chat_text_edit(
                     ui,

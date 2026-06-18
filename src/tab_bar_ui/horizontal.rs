@@ -15,10 +15,9 @@ use super::tab_rendering::TabRenderParams;
 
 impl TabBarUI {
     /// Render the tab bar in horizontal layout (top or bottom)
-    #[allow(deprecated)] // egui 0.34 deprecated Panel::show(ctx); no top-level show_inside replacement
     pub(super) fn render_horizontal(
         &mut self,
-        ctx: &egui::Context,
+        ctx: &mut egui::Ui,
         tabs: &TabManager,
         config: &Config,
         profiles: &crate::profile::ProfileManager,
@@ -54,7 +53,7 @@ impl TabBarUI {
             egui::Panel::top("tab_bar").exact_size(config.tab_bar_height)
         };
 
-        panel.frame(frame).show(ctx, |ui| {
+        panel.frame(frame).show_inside(ctx, |ui| {
             // Reserve space on the right for overlay panels (e.g. AI inspector Area)
             // so tabs/buttons don't render underneath them.
             let total_bar_width = (ui.available_width() - right_reserved_width.max(0.0)).max(0.0);
