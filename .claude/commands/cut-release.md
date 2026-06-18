@@ -55,7 +55,15 @@ This ensures crates.io publishes have the correct versions with all changes, pre
 
 Use docs/DOCUMENTATION_STYLE_GUIDE.md to update all docs/ and or create new docs for all the changes since last release. Cleanup and summarize changelog for this releaswe.
 
-commit and push all changes
+commit changes, then sync with remote before pushing:
+
+1. `git fetch origin` to get the latest remote state.
+2. Check for divergence — the remote frequently has an auto-generated commit from the *previous* release (e.g. "Update par-term cask to vX.Y.Z"), so a blind push will be rejected:
+   - `git log origin/main..HEAD --oneline` → commits you have that the remote doesn't ("ahead")
+   - `git log HEAD..origin/main --oneline` → commits the remote has that you don't ("behind")
+3. If "behind" is non-empty, **rebase** onto the remote (keeps history linear; avoids the push rejection):
+   `git rebase origin/main` — resolve any conflicts, then continue. Never `git push --force` to `main` — it would discard those remote-only commits.
+4. Push: `git push origin main` (fast-forwards cleanly after the rebase).
 
 - Run 'make deploy' to trigger cicd deployment
 - Monitor cicd every 5 minutes for issues and fix any found and re-trigger deploy
