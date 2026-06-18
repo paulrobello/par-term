@@ -71,19 +71,19 @@ impl SettingsWindow {
         // Create wgpu instance
         // Platform-specific backend selection for better VM compatibility
         #[cfg(target_os = "windows")]
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::DX12,
-            ..Default::default()
+            ..wgpu::InstanceDescriptor::new_without_display_handle()
         });
         #[cfg(target_os = "macos")]
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
-            ..Default::default()
+            ..wgpu::InstanceDescriptor::new_without_display_handle()
         });
         #[cfg(target_os = "linux")]
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::VULKAN | wgpu::Backends::GL,
-            ..Default::default()
+            ..wgpu::InstanceDescriptor::new_without_display_handle()
         });
 
         // Create surface
@@ -274,30 +274,26 @@ impl SettingsWindow {
                 return SettingsWindowAction::Close;
             }
 
-            WindowEvent::Resized(new_size) => {
-                if new_size.width > 0 && new_size.height > 0 {
+            WindowEvent::Resized(new_size)
+                if new_size.width > 0 && new_size.height > 0 => {
                     self.surface_config.width = new_size.width;
                     self.surface_config.height = new_size.height;
                     self.surface.configure(&self.device, &self.surface_config);
                     self.window.request_redraw();
                 }
-            }
 
-            WindowEvent::KeyboardInput { event, .. } => {
+            WindowEvent::KeyboardInput { event, .. }
                 // Handle Escape to close window (if egui didn't consume it)
                 if !event_response.consumed
                     && event.state.is_pressed()
                     && matches!(event.logical_key, Key::Named(NamedKey::Escape))
-                {
                     // Only close if no shader editor is open
-                    if !self.settings_ui.shader_editor_visible
+                    && !self.settings_ui.shader_editor_visible
                         && !self.settings_ui.cursor_shader_editor_visible
-                    {
+                    => {
                         self.should_close = true;
                         return SettingsWindowAction::Close;
                     }
-                }
-            }
 
             WindowEvent::RedrawRequested => {
                 return self.render();

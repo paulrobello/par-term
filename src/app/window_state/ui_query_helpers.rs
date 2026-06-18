@@ -27,7 +27,7 @@ impl WindowState {
         // Always check egui context - the tab bar is always rendered via egui
         // and can consume pointer events (e.g., close button clicks)
         if let Some(ctx) = &self.egui.ctx {
-            ctx.is_using_pointer() || ctx.wants_pointer_input()
+            ctx.egui_is_using_pointer() || ctx.egui_wants_pointer_input()
         } else {
             false
         }
@@ -76,7 +76,7 @@ impl WindowState {
 
         // Check egui context for keyboard usage
         if let Some(ctx) = &self.egui.ctx {
-            ctx.wants_keyboard_input()
+            ctx.egui_wants_keyboard_input()
         } else {
             false
         }

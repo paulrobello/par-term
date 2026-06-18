@@ -2,7 +2,7 @@
 //!
 //! Each function in this module is a pure free function that takes only the data
 //! it needs and an `egui::Context`.  They contain no borrow of `self`, which lets
-//! them be called freely from inside the `egui_ctx.run(|ctx| { ... })` closure
+//! them be called freely from inside the `egui_ctx.run_ui(|ctx| { ... })` closure
 //! while `self.renderer` is mutably borrowed.
 
 use crate::copy_mode::VisualMode;

@@ -132,9 +132,10 @@ pub enum RenderError {
     // -----------------------------------------------------------------------
     // Surface / presentation
     // -----------------------------------------------------------------------
-    /// `Surface::get_current_texture()` failed (timeout, outdated, lost, ...).
+    /// `Surface::get_current_texture()` returned a non-recoverable state
+    /// (outdated, lost, timeout, occluded, validation).
     #[error("GPU surface error: {0}")]
-    Surface(#[from] wgpu::SurfaceError),
+    Surface(String),
 
     // -----------------------------------------------------------------------
     // Screenshot

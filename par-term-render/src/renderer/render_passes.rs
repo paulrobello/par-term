@@ -291,6 +291,7 @@ impl Renderer {
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
 
             render_pass.set_pipeline(&self.cell_renderer.pipelines.bg_pipeline);
@@ -420,6 +421,7 @@ impl Renderer {
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
 
             render_pass.set_pipeline(&self.cell_renderer.pipelines.bg_pipeline);
@@ -505,6 +507,7 @@ impl Renderer {
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
 
             render_pass.set_pipeline(&self.cell_renderer.pipelines.bg_pipeline);
@@ -651,6 +654,7 @@ impl Renderer {
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
 
             render_pass.set_pipeline(&self.cell_renderer.pipelines.text_pipeline);

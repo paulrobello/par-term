@@ -19,7 +19,7 @@ pub(crate) struct EguiState {
     /// be delivered via the normal winit event path (e.g. macOS menu accelerators
     /// intercept Cmd+V before winit sees them).
     pub(crate) pending_events: Vec<egui::Event>,
-    /// Whether egui has completed its first `ctx.run()` call.
+    /// Whether egui has completed its first `ctx.run_ui()` call.
     ///
     /// Before the first run, egui state is unreliable — `is_using_pointer()` may
     /// return false even when egui owns the cursor. Code that gates on egui state

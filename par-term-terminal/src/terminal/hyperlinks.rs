@@ -6,7 +6,7 @@ impl TerminalManager {
     pub fn get_all_hyperlinks(&self) -> Vec<HyperlinkInfo> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         term.get_all_hyperlinks()
     }
 
@@ -18,7 +18,7 @@ impl TerminalManager {
     pub fn try_get_all_hyperlinks(&self) -> Option<Vec<HyperlinkInfo>> {
         let pty = self.pty_session.try_lock()?;
         let terminal = pty.terminal();
-        let term = terminal.try_lock()?;
+        let term = terminal.try_write()?;
         Some(term.get_all_hyperlinks())
     }
 
@@ -26,7 +26,7 @@ impl TerminalManager {
     pub fn get_hyperlink_url(&self, hyperlink_id: u32) -> Option<String> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         term.get_hyperlink_url(hyperlink_id)
     }
 }

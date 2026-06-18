@@ -10,7 +10,7 @@ impl TerminalManager {
     pub fn set_answerback_string(&self, answerback: Option<String>) {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let mut term = terminal.lock();
+        let mut term = terminal.write();
         term.set_answerback_string(answerback);
     }
 
@@ -18,7 +18,7 @@ impl TerminalManager {
     pub fn set_width_config(&self, config: par_term_emu_core_rust::WidthConfig) {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let mut term = terminal.lock();
+        let mut term = terminal.write();
         term.set_width_config(config);
     }
 
@@ -26,7 +26,7 @@ impl TerminalManager {
     pub fn set_normalization_form(&self, form: par_term_emu_core_rust::NormalizationForm) {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let mut term = terminal.lock();
+        let mut term = terminal.write();
         term.set_normalization_form(form);
     }
 
@@ -43,7 +43,7 @@ impl TerminalManager {
     pub fn start_recording(&self, title: Option<String>) {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let mut term = terminal.lock();
+        let mut term = terminal.write();
         term.start_recording(title);
     }
 
@@ -51,7 +51,7 @@ impl TerminalManager {
     pub fn stop_recording(&self) -> Option<par_term_emu_core_rust::terminal::RecordingSession> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let mut term = terminal.lock();
+        let mut term = terminal.write();
         term.stop_recording()
     }
 
@@ -59,7 +59,7 @@ impl TerminalManager {
     pub fn is_recording(&self) -> bool {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         term.is_recording()
     }
 
@@ -70,7 +70,7 @@ impl TerminalManager {
     ) -> String {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         term.export_asciicast(session)
     }
 }

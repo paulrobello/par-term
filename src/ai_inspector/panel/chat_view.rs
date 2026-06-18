@@ -492,8 +492,8 @@ mod tests {
         assert_eq!(chat_input_visible_rows("one"), 1);
         assert_eq!(chat_input_visible_rows("one\ntwo\nthree"), 3);
         assert_eq!(chat_input_visible_rows("one\n"), 2);
-        assert_eq!(chat_input_visible_rows(&vec!["line"; 10].join("\n")), 10);
-        assert_eq!(chat_input_visible_rows(&vec!["line"; 12].join("\n")), 10);
+        assert_eq!(chat_input_visible_rows(&["line"; 10].join("\n")), 10);
+        assert_eq!(chat_input_visible_rows(&["line"; 12].join("\n")), 10);
     }
 
     #[test]
@@ -505,15 +505,16 @@ mod tests {
     }
 
     #[test]
+    #[allow(deprecated)] // egui 0.34 deprecated CentralPanel::show(ctx); no top-level show_inside replacement
     fn bounded_chat_input_scroll_area_caps_rendered_height() {
-        let mut text = vec!["line"; 12].join("\n");
+        let mut text = ["line"; 12].join("\n");
         let visible_rows = chat_input_visible_rows(&text);
         let max_height = chat_input_height_for_rows(visible_rows);
         let mut viewport_height = 0.0;
         let mut content_height = 0.0;
 
         let ctx = egui::Context::default();
-        let _ = ctx.run(Default::default(), |ctx| {
+        let _ = ctx.run_ui(Default::default(), |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
                 ui.set_width(320.0);
                 let output = render_bounded_chat_text_edit(

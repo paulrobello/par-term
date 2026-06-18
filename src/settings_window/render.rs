@@ -4,8 +4,6 @@
 //! commands, and translates settings-UI results into [`SettingsWindowAction`]
 //! values returned to the caller.
 
-use wgpu::SurfaceError;
-
 use super::{SettingsWindow, SettingsWindowAction};
 use crate::settings_ui::UpdateCheckResult;
 
@@ -22,17 +20,18 @@ impl SettingsWindow {
 
         // Get surface texture
         let output = match self.surface.get_current_texture() {
-            Ok(output) => output,
-            Err(SurfaceError::Lost | SurfaceError::Outdated) => {
+            wgpu::CurrentSurfaceTexture::Success(o)
+            | wgpu::CurrentSurfaceTexture::Suboptimal(o) => o,
+            wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
                 self.surface.configure(&self.device, &self.surface_config);
                 return SettingsWindowAction::None;
             }
-            Err(SurfaceError::Timeout) => {
-                log::warn!("Settings window surface timeout");
+            wgpu::CurrentSurfaceTexture::Timeout | wgpu::CurrentSurfaceTexture::Occluded => {
+                log::warn!("Settings window surface timeout/occluded");
                 return SettingsWindowAction::None;
             }
-            Err(e) => {
-                log::error!("Settings window surface error: {:?}", e);
+            wgpu::CurrentSurfaceTexture::Validation => {
+                log::error!("Settings window surface validation error");
                 return SettingsWindowAction::None;
             }
         };
@@ -56,7 +55,7 @@ impl SettingsWindow {
         }
         raw_input.events.append(&mut self.pending_events);
 
-        let egui_output = self.egui_ctx.run(raw_input, |ctx| {
+        let egui_output = self.egui_ctx.run_ui(raw_input, |ctx| {
             // Show the settings UI as a panel (not a nested window) and capture results
             let (save, live, shader, cursor_shader) = self.settings_ui.show_as_panel(ctx);
             config_to_save = save;
@@ -138,6 +137,7 @@ impl SettingsWindow {
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
 
             // Convert to 'static lifetime as required by egui_renderer.render()

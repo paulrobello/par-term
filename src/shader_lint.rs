@@ -484,14 +484,12 @@ fn validate_channel_references(
                     );
                 }
             }
-            4 => {
-                if defaults.is_none_or(|defaults| defaults.full_content != Some(true)) {
-                    report.push(
+            4 if defaults.is_none_or(|defaults| defaults.full_content != Some(true)) => {
+                report.push(
                         LintSeverity::Warning,
                         None,
                         "Shader references iChannel4; set metadata defaults.full_content: true when terminal content sampling is required",
                     );
-                }
             }
             _ => {}
         }

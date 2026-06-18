@@ -15,6 +15,7 @@ use super::tab_rendering::TabRenderParams;
 
 impl TabBarUI {
     /// Render the tab bar in horizontal layout (top or bottom)
+    #[allow(deprecated)] // egui 0.34 deprecated Panel::show(ctx); no top-level show_inside replacement
     pub(super) fn render_horizontal(
         &mut self,
         ctx: &egui::Context,
@@ -48,9 +49,9 @@ impl TabBarUI {
             egui::Frame::NONE.fill(egui::Color32::from_rgb(bar_bg[0], bar_bg[1], bar_bg[2]));
 
         let panel = if config.tab_bar_position == TabBarPosition::Bottom {
-            egui::TopBottomPanel::bottom("tab_bar").exact_height(config.tab_bar_height)
+            egui::Panel::bottom("tab_bar").exact_size(config.tab_bar_height)
         } else {
-            egui::TopBottomPanel::top("tab_bar").exact_height(config.tab_bar_height)
+            egui::Panel::top("tab_bar").exact_size(config.tab_bar_height)
         };
 
         panel.frame(frame).show(ctx, |ui| {

@@ -73,12 +73,12 @@ impl ShaderInstallUI {
         let mut response = ShaderInstallResponse::None;
 
         // Ensure dialog is fully opaque
-        let mut style = (*ctx.style()).clone();
+        let mut style = (*ctx.global_style()).clone();
         let solid_bg = Color32::from_rgba_unmultiplied(32, 32, 32, 255);
         style.visuals.window_fill = solid_bg;
         style.visuals.panel_fill = solid_bg;
         style.visuals.widgets.noninteractive.bg_fill = solid_bg;
-        ctx.set_style(style);
+        ctx.set_global_style(style);
 
         let viewport = ctx.input(|i| i.viewport_rect());
 
@@ -89,7 +89,7 @@ impl ShaderInstallUI {
             .default_pos(viewport.center())
             .pivot(Align2::CENTER_CENTER)
             .frame(
-                Frame::window(&ctx.style())
+                Frame::window(&ctx.global_style())
                     .fill(solid_bg)
                     .inner_margin(SHADER_INSTALL_INNER_MARGIN)
                     .stroke(egui::Stroke::new(1.0, Color32::from_gray(80)))

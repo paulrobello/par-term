@@ -10,7 +10,7 @@ impl TerminalManager {
     pub fn set_tmux_control_mode(&self, enabled: bool) {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let mut term = terminal.lock();
+        let mut term = terminal.write();
         term.set_tmux_control_mode(enabled);
     }
 
@@ -18,7 +18,7 @@ impl TerminalManager {
     pub fn is_tmux_control_mode(&self) -> bool {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         term.is_tmux_control_mode()
     }
 
@@ -28,7 +28,7 @@ impl TerminalManager {
     ) -> Vec<par_term_emu_core_rust::tmux_control::TmuxNotification> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let mut term = terminal.lock();
+        let mut term = terminal.write();
         term.drain_tmux_notifications()
     }
 
@@ -38,7 +38,7 @@ impl TerminalManager {
     ) -> Vec<par_term_emu_core_rust::tmux_control::TmuxNotification> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         term.tmux_notifications().to_vec()
     }
 }

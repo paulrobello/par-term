@@ -172,107 +172,6 @@ pub(super) fn merge_custom_ai_inspector_agents(
     agents
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::collections::HashMap;
-
-    fn agent(identity: &str, name: &str) -> AgentConfig {
-        AgentConfig {
-            identity: identity.to_string(),
-            name: name.to_string(),
-            short_name: identity.to_string(),
-            protocol: "acp".to_string(),
-            r#type: "coding".to_string(),
-            active: None,
-            run_command: HashMap::from([("*".to_string(), "agent-acp".to_string())]),
-            env: HashMap::new(),
-            install_command: None,
-            actions: HashMap::new(),
-            connector_installed: false,
-        }
-    }
-
-    #[test]
-    fn merge_custom_ai_inspector_agents_puts_codex_first() {
-        let agents = vec![
-            agent("claude.com", "Claude Code"),
-            agent("geminicli.com", "Gemini CLI"),
-            agent("openai.com", "Codex CLI"),
-        ];
-
-        let merged = merge_custom_ai_inspector_agents(agents, &[]);
-
-        let identities: Vec<&str> = merged.iter().map(|agent| agent.identity.as_str()).collect();
-        assert_eq!(
-            identities,
-            vec!["openai.com", "claude.com", "geminicli.com"]
-        );
-    }
-
-    #[test]
-    fn resolve_agent_project_root_uses_nearest_git_marker() {
-        let temp = tempfile::tempdir().expect("tempdir");
-        let repo = temp.path().join("repo");
-        let nested = repo.join("src/app");
-        std::fs::create_dir_all(repo.join(".git")).expect("create .git");
-        std::fs::create_dir_all(&nested).expect("create nested dir");
-
-        assert_eq!(resolve_agent_project_root(&nested), repo);
-    }
-
-    #[test]
-    fn resolve_agent_project_root_falls_back_to_cwd_without_git_marker() {
-        let temp = tempfile::tempdir().expect("tempdir");
-        let project = temp.path().join("plain");
-        std::fs::create_dir_all(&project).expect("create project dir");
-
-        assert_eq!(resolve_agent_project_root(&project), project);
-    }
-
-    #[test]
-    fn resolve_extra_agent_roots_always_includes_shader_dir_and_dedupes() {
-        let temp = tempfile::tempdir().expect("tempdir");
-        let cwd = temp.path().join("repo");
-        let shared = temp.path().join("shared");
-        let shaders = temp.path().join("shaders");
-        std::fs::create_dir_all(&cwd).expect("create cwd");
-        std::fs::create_dir_all(&shared).expect("create shared");
-        std::fs::create_dir_all(&shaders).expect("create shaders");
-
-        let roots = resolve_extra_agent_roots(
-            &[
-                shared.to_string_lossy().to_string(),
-                shaders.to_string_lossy().to_string(),
-            ],
-            &cwd,
-            &shaders,
-        );
-
-        assert_eq!(
-            roots,
-            vec![
-                shared.to_string_lossy().to_string(),
-                shaders.to_string_lossy().to_string()
-            ]
-        );
-    }
-
-    #[test]
-    fn resolve_extra_agent_roots_resolves_relative_paths_against_session_cwd() {
-        let temp = tempfile::tempdir().expect("tempdir");
-        let cwd = temp.path().join("repo");
-        let shaders = temp.path().join("shaders");
-        std::fs::create_dir_all(&cwd).expect("create cwd");
-        std::fs::create_dir_all(&shaders).expect("create shaders");
-
-        let roots = resolve_extra_agent_roots(&["../shared".to_string()], &cwd, &shaders);
-
-        assert_eq!(roots[0], temp.path().join("shared").to_string_lossy());
-        assert_eq!(roots[1], shaders.to_string_lossy());
-    }
-}
-
 impl WindowState {
     /// Recompute available ACP agents from discovered + custom definitions.
     pub(crate) fn refresh_available_agents(&mut self) {
@@ -412,5 +311,106 @@ impl WindowState {
                 self.connect_agent(&identity);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    fn agent(identity: &str, name: &str) -> AgentConfig {
+        AgentConfig {
+            identity: identity.to_string(),
+            name: name.to_string(),
+            short_name: identity.to_string(),
+            protocol: "acp".to_string(),
+            r#type: "coding".to_string(),
+            active: None,
+            run_command: HashMap::from([("*".to_string(), "agent-acp".to_string())]),
+            env: HashMap::new(),
+            install_command: None,
+            actions: HashMap::new(),
+            connector_installed: false,
+        }
+    }
+
+    #[test]
+    fn merge_custom_ai_inspector_agents_puts_codex_first() {
+        let agents = vec![
+            agent("claude.com", "Claude Code"),
+            agent("geminicli.com", "Gemini CLI"),
+            agent("openai.com", "Codex CLI"),
+        ];
+
+        let merged = merge_custom_ai_inspector_agents(agents, &[]);
+
+        let identities: Vec<&str> = merged.iter().map(|agent| agent.identity.as_str()).collect();
+        assert_eq!(
+            identities,
+            vec!["openai.com", "claude.com", "geminicli.com"]
+        );
+    }
+
+    #[test]
+    fn resolve_agent_project_root_uses_nearest_git_marker() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let repo = temp.path().join("repo");
+        let nested = repo.join("src/app");
+        std::fs::create_dir_all(repo.join(".git")).expect("create .git");
+        std::fs::create_dir_all(&nested).expect("create nested dir");
+
+        assert_eq!(resolve_agent_project_root(&nested), repo);
+    }
+
+    #[test]
+    fn resolve_agent_project_root_falls_back_to_cwd_without_git_marker() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let project = temp.path().join("plain");
+        std::fs::create_dir_all(&project).expect("create project dir");
+
+        assert_eq!(resolve_agent_project_root(&project), project);
+    }
+
+    #[test]
+    fn resolve_extra_agent_roots_always_includes_shader_dir_and_dedupes() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let cwd = temp.path().join("repo");
+        let shared = temp.path().join("shared");
+        let shaders = temp.path().join("shaders");
+        std::fs::create_dir_all(&cwd).expect("create cwd");
+        std::fs::create_dir_all(&shared).expect("create shared");
+        std::fs::create_dir_all(&shaders).expect("create shaders");
+
+        let roots = resolve_extra_agent_roots(
+            &[
+                shared.to_string_lossy().to_string(),
+                shaders.to_string_lossy().to_string(),
+            ],
+            &cwd,
+            &shaders,
+        );
+
+        assert_eq!(
+            roots,
+            vec![
+                shared.to_string_lossy().to_string(),
+                shaders.to_string_lossy().to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn resolve_extra_agent_roots_resolves_relative_paths_against_session_cwd() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let cwd = temp.path().join("repo");
+        let shaders = temp.path().join("shaders");
+        std::fs::create_dir_all(&cwd).expect("create cwd");
+        std::fs::create_dir_all(&shaders).expect("create shaders");
+
+        let roots = resolve_extra_agent_roots(&["../shared".to_string()], &cwd, &shaders);
+
+        assert_eq!(roots[0], temp.path().join("shared").to_string_lossy());
+        assert_eq!(roots[1], shaders.to_string_lossy());
     }
 }

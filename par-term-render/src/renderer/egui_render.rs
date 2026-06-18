@@ -84,6 +84,7 @@ impl Renderer {
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
 
             // Convert to 'static lifetime as required by egui_renderer.render()

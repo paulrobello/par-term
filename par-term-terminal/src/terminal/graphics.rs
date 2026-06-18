@@ -8,7 +8,7 @@ impl TerminalManager {
     pub fn get_graphics(&self) -> Vec<TerminalGraphic> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         let graphics: Vec<_> = term.all_graphics().to_vec();
         if !graphics.is_empty() {
             log::debug!("Returning {} graphics from core library", graphics.len());
@@ -31,7 +31,7 @@ impl TerminalManager {
     pub fn get_graphics_at_row(&self, row: usize) -> Vec<TerminalGraphic> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         term.graphics_at_row(row)
             .iter()
             .map(|g| (*g).clone())
@@ -42,7 +42,7 @@ impl TerminalManager {
     pub fn graphics_count(&self) -> usize {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         term.graphics_count()
     }
 
@@ -50,7 +50,7 @@ impl TerminalManager {
     pub fn get_scrollback_graphics(&self) -> Vec<TerminalGraphic> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         term.all_scrollback_graphics().to_vec()
     }
 
@@ -71,7 +71,7 @@ impl TerminalManager {
     pub fn get_virtual_placements(&self) -> Vec<TerminalGraphic> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         let store = term.graphics_store();
         store
             .all_virtual_placements()
@@ -92,7 +92,7 @@ impl TerminalManager {
     pub fn update_animations(&self) -> bool {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let mut term = terminal.lock();
+        let mut term = terminal.write();
         let changed_images = term.graphics_store_mut().update_animations();
         !changed_images.is_empty()
     }
@@ -104,7 +104,7 @@ impl TerminalManager {
     pub fn mark_clean(&self) {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let mut term = terminal.lock();
+        let mut term = terminal.write();
         term.mark_clean();
     }
 
@@ -112,7 +112,7 @@ impl TerminalManager {
     pub fn get_dirty_rows(&self) -> Vec<usize> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         term.get_dirty_rows()
     }
 
@@ -149,7 +149,7 @@ impl TerminalManager {
 
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let mut term = terminal.lock();
+        let mut term = terminal.write();
 
         let dirty: HashSet<usize> = term.get_dirty_rows().into_iter().collect();
         term.mark_clean();
@@ -229,7 +229,7 @@ impl TerminalManager {
     pub fn get_graphics_with_animations(&self) -> Vec<TerminalGraphic> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
 
         let mut graphics = Vec::new();
 

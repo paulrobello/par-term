@@ -23,7 +23,7 @@ pub fn url_to_cache_filename(url: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(url.as_bytes());
     let hash = hasher.finalize();
-    format!("{:x}", hash)
+    hash.iter().map(|b| format!("{:02x}", b)).collect()
 }
 
 /// Cache metadata stored alongside profile data.

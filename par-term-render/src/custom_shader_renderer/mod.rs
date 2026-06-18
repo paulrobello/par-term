@@ -319,7 +319,7 @@ impl CustomShaderRenderer {
             address_mode_w: AddressMode::ClampToEdge,
             mag_filter: FilterMode::Nearest,
             min_filter: FilterMode::Nearest,
-            mipmap_filter: FilterMode::Nearest,
+            mipmap_filter: MipmapFilterMode::Nearest,
             ..Default::default()
         });
 
@@ -539,6 +539,7 @@ impl CustomShaderRenderer {
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
 
             // Note: We intentionally do NOT set a viewport here to exclude the panel area.

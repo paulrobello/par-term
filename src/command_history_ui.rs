@@ -174,7 +174,7 @@ impl CommandHistoryUI {
             .collect();
 
         // Sort by score descending (best matches first)
-        matches.sort_by(|a, b| b.score.cmp(&a.score));
+        matches.sort_by_key(|m| std::cmp::Reverse(m.score));
         matches
     }
 

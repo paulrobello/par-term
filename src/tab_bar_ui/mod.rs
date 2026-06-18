@@ -109,6 +109,7 @@ impl TabBarUI {
     }
 
     /// Render the tab bar in vertical layout (left side panel)
+    #[allow(deprecated)] // egui 0.34 deprecated Panel::show(ctx); no top-level show_inside replacement
     fn render_vertical(
         &mut self,
         ctx: &egui::Context,
@@ -128,8 +129,8 @@ impl TabBarUI {
         let tab_spacing = TAB_SPACING;
         let tab_height = config.tab_bar_height; // Reuse height config for per-tab row height
 
-        egui::SidePanel::left("tab_bar")
-            .exact_width(config.tab_bar_width)
+        egui::Panel::left("tab_bar")
+            .exact_size(config.tab_bar_width)
             .frame(egui::Frame::NONE.fill(egui::Color32::from_rgb(bar_bg[0], bar_bg[1], bar_bg[2])))
             .show(ctx, |ui| {
                 egui::ScrollArea::vertical()

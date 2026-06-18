@@ -70,7 +70,7 @@ pub fn create_bg_pipeline(device: &Device, surface_format: TextureFormat) -> Ren
     let bg_pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
         label: Some("bg pipeline layout"),
         bind_group_layouts: &[],
-        push_constant_ranges: &[],
+        immediate_size: 0,
     });
 
     device.create_render_pipeline(&RenderPipelineDescriptor {
@@ -111,8 +111,8 @@ pub fn create_bg_pipeline(device: &Device, surface_format: TextureFormat) -> Ren
         },
         depth_stencil: None,
         multisample: MultisampleState::default(),
-        multiview: None,
         cache: None,
+        multiview_mask: None,
     })
 }
 
@@ -174,8 +174,8 @@ pub fn create_text_pipeline(
 
     let text_pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
         label: Some("text pipeline layout"),
-        bind_group_layouts: &[text_bind_group_layout],
-        push_constant_ranges: &[],
+        bind_group_layouts: &[Some(text_bind_group_layout)],
+        immediate_size: 0,
     });
 
     device.create_render_pipeline(&RenderPipelineDescriptor {
@@ -225,8 +225,8 @@ pub fn create_text_pipeline(
         },
         depth_stencil: None,
         multisample: MultisampleState::default(),
-        multiview: None,
         cache: None,
+        multiview_mask: None,
     })
 }
 
@@ -276,8 +276,8 @@ pub fn create_bg_image_pipeline(
 
     let bg_image_pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
         label: Some("bg image pipeline layout"),
-        bind_group_layouts: &[bg_image_bind_group_layout],
-        push_constant_ranges: &[],
+        bind_group_layouts: &[Some(bg_image_bind_group_layout)],
+        immediate_size: 0,
     });
 
     device.create_render_pipeline(&RenderPipelineDescriptor {
@@ -310,8 +310,8 @@ pub fn create_bg_image_pipeline(
         },
         depth_stencil: None,
         multisample: MultisampleState::default(),
-        multiview: None,
         cache: None,
+        multiview_mask: None,
     })
 }
 
@@ -344,8 +344,8 @@ pub fn create_visual_bell_pipeline(
 
     let visual_bell_pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
         label: Some("visual bell pipeline layout"),
-        bind_group_layouts: &[&visual_bell_bind_group_layout],
-        push_constant_ranges: &[],
+        bind_group_layouts: &[Some(&visual_bell_bind_group_layout)],
+        immediate_size: 0,
     });
 
     let visual_bell_pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
@@ -374,8 +374,8 @@ pub fn create_visual_bell_pipeline(
         },
         depth_stencil: None,
         multisample: MultisampleState::default(),
-        multiview: None,
         cache: None,
+        multiview_mask: None,
     });
 
     let visual_bell_uniform_buffer = device.create_buffer(&BufferDescriptor {
@@ -510,7 +510,7 @@ pub fn create_opaque_alpha_pipeline(
     let layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
         label: Some("opaque alpha pipeline layout"),
         bind_group_layouts: &[],
-        push_constant_ranges: &[],
+        immediate_size: 0,
     });
 
     device.create_render_pipeline(&RenderPipelineDescriptor {
@@ -538,8 +538,8 @@ pub fn create_opaque_alpha_pipeline(
         },
         depth_stencil: None,
         multisample: MultisampleState::default(),
-        multiview: None,
         cache: None,
+        multiview_mask: None,
     })
 }
 

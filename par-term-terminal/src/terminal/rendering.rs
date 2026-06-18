@@ -34,7 +34,7 @@ impl TerminalManager {
     ) -> Option<Vec<Cell>> {
         let pty = self.pty_session.try_lock()?;
         let terminal = pty.terminal();
-        let mut term = terminal.try_lock()?;
+        let mut term = terminal.try_write()?;
         let grid = term.active_grid();
 
         let rows = grid.rows();
@@ -121,7 +121,7 @@ impl TerminalManager {
     ) -> Vec<Cell> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let mut term = terminal.lock();
+        let mut term = terminal.write();
         let grid = term.active_grid();
 
         let cursor_with_style = None;
@@ -303,35 +303,35 @@ impl TerminalManager {
         use par_term_emu_core_rust::color::{Color as TermColor, NamedColor};
         use par_term_emu_core_rust::cursor::CursorStyle as TermCursorStyle;
 
-        let bg_rgb = term_cell.bg.to_rgb();
-        let fg_rgb = term_cell.fg.to_rgb();
+        let bg_rgb = term_cell.bg().to_rgb();
+        let fg_rgb = term_cell.fg().to_rgb();
         let has_colored_bg = bg_rgb != (0, 0, 0);
-        let has_reverse = term_cell.flags.reverse();
+        let has_reverse = term_cell.flags().reverse();
 
         if has_colored_bg || has_reverse {
             log::debug!(
                 "Cell with colored BG or REVERSE: '{}' (U+{:04X}): fg={:?} (RGB:{},{},{}), bg={:?} (RGB:{},{},{}), reverse={}, flags={:?}",
-                if term_cell.c.is_control() {
+                if term_cell.c().is_control() {
                     '?'
                 } else {
-                    term_cell.c
+                    term_cell.c()
                 },
-                term_cell.c as u32,
-                term_cell.fg,
+                term_cell.c() as u32,
+                term_cell.fg(),
                 fg_rgb.0,
                 fg_rgb.1,
                 fg_rgb.2,
-                term_cell.bg,
+                term_cell.bg(),
                 bg_rgb.0,
                 bg_rgb.1,
                 bg_rgb.2,
                 has_reverse,
-                term_cell.flags
+                term_cell.flags()
             );
         }
 
         // Apply theme colors for ANSI colors (Named colors)
-        let fg = match &term_cell.fg {
+        let fg = match &term_cell.fg() {
             TermColor::Named(named) => {
                 #[allow(unreachable_patterns)]
                 let theme_color = match named {
@@ -355,10 +355,10 @@ impl TerminalManager {
                 };
                 (theme_color.r, theme_color.g, theme_color.b)
             }
-            _ => term_cell.fg.to_rgb(),
+            _ => term_cell.fg().to_rgb(),
         };
 
-        let bg = match &term_cell.bg {
+        let bg = match &term_cell.bg() {
             TermColor::Named(named) => {
                 #[allow(unreachable_patterns)]
                 let theme_color = match named {
@@ -382,10 +382,10 @@ impl TerminalManager {
                 };
                 (theme_color.r, theme_color.g, theme_color.b)
             }
-            _ => term_cell.bg.to_rgb(),
+            _ => term_cell.bg().to_rgb(),
         };
 
-        let is_reverse = term_cell.flags.reverse();
+        let is_reverse = term_cell.flags().reverse();
 
         let (fg_color, bg_color) = if let Some((opacity, style)) = cursor_info {
             let blend = |normal: u8, inverted: u8, opacity: f32| -> u8 {
@@ -441,13 +441,13 @@ impl TerminalManager {
             grapheme,
             fg_color,
             bg_color,
-            bold: term_cell.flags.bold(),
-            italic: term_cell.flags.italic(),
-            underline: term_cell.flags.underline(),
-            strikethrough: term_cell.flags.strikethrough(),
-            hyperlink_id: term_cell.flags.hyperlink_id,
-            wide_char: term_cell.flags.wide_char(),
-            wide_char_spacer: term_cell.flags.wide_char_spacer(),
+            bold: term_cell.flags().bold(),
+            italic: term_cell.flags().italic(),
+            underline: term_cell.flags().underline(),
+            strikethrough: term_cell.flags().strikethrough(),
+            hyperlink_id: term_cell.flags().hyperlink_id.map(|n| n.get()),
+            wide_char: term_cell.flags().wide_char(),
+            wide_char_spacer: term_cell.flags().wide_char_spacer(),
         }
     }
 }

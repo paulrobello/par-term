@@ -266,7 +266,7 @@ impl ProfileModalUI {
             .default_size(modal_size)
             .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
             .frame(
-                egui::Frame::window(&ctx.style())
+                egui::Frame::window(&ctx.global_style())
                     .fill(egui::Color32::from_rgba_unmultiplied(30, 30, 30, 250))
                     .inner_margin(egui::Margin::same(16)),
             )

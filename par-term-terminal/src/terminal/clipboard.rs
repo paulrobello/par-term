@@ -6,7 +6,7 @@ impl TerminalManager {
     pub fn get_clipboard_history(&self, slot: ClipboardSlot) -> Vec<ClipboardEntry> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         term.get_clipboard_history(slot)
     }
 
@@ -14,7 +14,7 @@ impl TerminalManager {
     pub fn get_latest_clipboard(&self, slot: ClipboardSlot) -> Option<ClipboardEntry> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         term.get_latest_clipboard(slot)
     }
 
@@ -26,7 +26,7 @@ impl TerminalManager {
     ) -> Vec<ClipboardEntry> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         term.search_clipboard_history(query, slot)
     }
 
@@ -39,7 +39,7 @@ impl TerminalManager {
     ) {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let mut term = terminal.lock();
+        let mut term = terminal.write();
         term.add_to_clipboard_history(slot, content, label);
     }
 
@@ -47,7 +47,7 @@ impl TerminalManager {
     pub fn clear_clipboard_history(&self, slot: ClipboardSlot) {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let mut term = terminal.lock();
+        let mut term = terminal.write();
         term.clear_clipboard_history(slot);
     }
 
@@ -55,7 +55,7 @@ impl TerminalManager {
     pub fn clear_all_clipboard_history(&self) {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let mut term = terminal.lock();
+        let mut term = terminal.write();
         term.clear_all_clipboard_history();
     }
 
@@ -63,7 +63,7 @@ impl TerminalManager {
     pub fn set_max_clipboard_sync_events(&self, max: usize) {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let mut term = terminal.lock();
+        let mut term = terminal.write();
         term.set_max_clipboard_sync_events(max);
     }
 
@@ -71,7 +71,7 @@ impl TerminalManager {
     pub fn set_max_clipboard_event_bytes(&self, max_bytes: usize) {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let mut term = terminal.lock();
+        let mut term = terminal.write();
         term.set_max_clipboard_event_bytes(max_bytes);
     }
 
@@ -79,7 +79,7 @@ impl TerminalManager {
     pub fn set_max_clipboard_sync_history(&self, max: usize) {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let mut term = terminal.lock();
+        let mut term = terminal.write();
         term.set_max_clipboard_sync_history(max);
     }
 }

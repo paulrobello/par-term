@@ -9,7 +9,7 @@ members = ["par-term-acp", "par-term-config", "par-term-fonts", "par-term-input"
 # ---------------------------------------------------------------------------
 [workspace.dependencies]
 # Terminal emulator core
-par-term-emu-core-rust = { version = "0.42.4", default-features = false, features = ["rust-only"] }
+par-term-emu-core-rust = { version = "0.43.1", default-features = false, features = ["rust-only"] }
 
 # Async runtime
 tokio = { version = "1.52", features = ["full"] }
@@ -41,9 +41,9 @@ arc-swap = "1"
 winit = "0.30"
 
 # GPU rendering
-wgpu = { version = "27", features = ["wgsl"] }
+wgpu = { version = "29", features = ["wgsl"] }
 bytemuck = { version = "1.25", features = ["derive"] }
-naga = { version = "27", features = ["glsl-in", "wgsl-out"] }
+naga = { version = "29", features = ["glsl-in", "wgsl-out"] }
 half = "2.7.1"
 
 # Font handling
@@ -51,12 +51,12 @@ swash = "0.2.6"
 fontdb = "0.23"
 rustybuzz = "0.20.1"
 unicode-segmentation = "1.12"
-lru = "0.16.3"
+lru = "0.18.0"
 
 # GUI
-egui = "0.33.3"
-egui-wgpu = "0.33.3"
-egui-winit = "0.33.3"
+egui = "0.34.3"
+egui-wgpu = "0.34.3"
+egui-winit = "0.34.3"
 rfd = "0.17.2"
 
 # Image / media
@@ -70,7 +70,7 @@ open = "5.3.3"
 # Network / HTTP
 ureq = { version = "3.2.0", default-features = false, features = ["native-tls", "gzip"] }
 native-tls = "0.2.18"
-mdns-sd = "0.18"
+mdns-sd = "0.20"
 
 # Date / time
 chrono = "0.4.43"
@@ -80,13 +80,13 @@ regex = "1.12.3"
 
 # Versioning / crypto
 semver = "1.0.27"
-sha2 = "0.10.9"
+sha2 = "0.11.0"
 zip = "8.1.0"
 
 # Misc utilities
 base64 = "0.22.1"
 hostname = "0.4.2"
-sysinfo = "0.37.2"
+sysinfo = "0.39"
 
 # File watching
 notify = "8.2"
@@ -98,7 +98,7 @@ tempfile = "3.25"
 name = "par-term"
 version = "0.32.3"
 edition = "2024"
-rust-version = "1.94"
+rust-version = "1.95"
 authors = ["Paul Robello <probello@gmail.com>"]
 description = "Cross-platform GPU-accelerated terminal emulator with inline graphics support (Sixel, iTerm2, Kitty)"
 readme = "README.md"

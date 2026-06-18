@@ -12,7 +12,7 @@ use super::types::FileTransferState;
 /// Render the file transfer progress overlay using egui.
 ///
 /// This is a free function (not a method on WindowState) so it can be called
-/// from inside the `egui_ctx.run()` closure where `self` is already borrowed.
+/// from inside the `egui_ctx.run_ui()` closure where `self` is already borrowed.
 ///
 /// Shows a semi-transparent window anchored at the bottom-right with
 /// progress bars for each active transfer. Auto-hides after transfers complete.
@@ -36,7 +36,7 @@ pub(crate) fn render_file_transfer_overlay(state: &FileTransferState, ctx: &egui
         .collapsible(false)
         .title_bar(true)
         .frame(
-            egui::Frame::window(&ctx.style())
+            egui::Frame::window(&ctx.global_style())
                 .fill(egui::Color32::from_rgba_unmultiplied(40, 40, 80, 240))
                 .stroke(egui::Stroke::new(
                     2.0,

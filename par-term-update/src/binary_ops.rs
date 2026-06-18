@@ -38,7 +38,11 @@ pub fn get_checksum_asset_name() -> Result<String, String> {
 pub fn compute_data_hash(data: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(data);
-    format!("{:x}", hasher.finalize())
+    hasher
+        .finalize()
+        .iter()
+        .map(|b| format!("{:02x}", b))
+        .collect()
 }
 
 /// Download URLs for the binary and optional checksum from a GitHub release.

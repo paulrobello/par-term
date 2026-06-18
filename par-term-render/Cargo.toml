@@ -2,7 +2,7 @@
 name = "par-term-render"
 version = "0.7.1"
 edition = "2024"
-rust-version = "1.94"
+rust-version = "1.95"
 description = "GPU-accelerated rendering engine for par-term terminal emulator"
 license = "MIT"
 repository = "https://github.com/paulrobello/par-term"

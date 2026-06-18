@@ -152,11 +152,11 @@ impl TmuxSessionPickerUI {
         let mut close_requested = false;
 
         // Ensure picker is fully opaque
-        let mut style = (*ctx.style()).clone();
+        let mut style = (*ctx.global_style()).clone();
         let solid_bg = Color32::from_rgba_unmultiplied(24, 24, 24, 255);
         style.visuals.window_fill = solid_bg;
         style.visuals.panel_fill = solid_bg;
-        ctx.set_style(style);
+        ctx.set_global_style(style);
 
         let mut open = true;
         let viewport = ctx.input(|i| i.viewport_rect());
@@ -169,7 +169,7 @@ impl TmuxSessionPickerUI {
             .pivot(egui::Align2::CENTER_CENTER)
             .open(&mut open)
             .frame(
-                Frame::window(&ctx.style())
+                Frame::window(&ctx.global_style())
                     .fill(solid_bg)
                     .stroke(egui::Stroke::NONE)
                     .shadow(Shadow {

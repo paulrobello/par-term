@@ -13,7 +13,7 @@ impl TerminalManager {
     ) -> par_term_emu_core_rust::observer::ObserverId {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let mut term = terminal.lock();
+        let mut term = terminal.write();
         term.add_observer(observer)
     }
 
@@ -21,7 +21,7 @@ impl TerminalManager {
     pub fn remove_observer(&self, id: par_term_emu_core_rust::observer::ObserverId) -> bool {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let mut term = terminal.lock();
+        let mut term = terminal.write();
         term.remove_observer(id)
     }
 }

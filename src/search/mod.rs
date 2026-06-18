@@ -240,12 +240,12 @@ impl SearchUI {
         let mut close_requested = false;
 
         // Ensure search bar is fully opaque regardless of terminal opacity
-        let mut style = (*ctx.style()).clone();
+        let mut style = (*ctx.global_style()).clone();
         let solid_bg = Color32::from_rgba_unmultiplied(30, 30, 30, 255);
         style.visuals.window_fill = solid_bg;
         style.visuals.panel_fill = solid_bg;
         style.visuals.widgets.noninteractive.bg_fill = solid_bg;
-        ctx.set_style(style);
+        ctx.set_global_style(style);
 
         let viewport = ctx.input(|i| i.viewport_rect());
 
@@ -259,7 +259,7 @@ impl SearchUI {
             .fixed_size([window_width, 0.0])
             .fixed_pos([viewport.center().x - window_width / 2.0, 10.0])
             .frame(
-                Frame::window(&ctx.style())
+                Frame::window(&ctx.global_style())
                     .fill(solid_bg)
                     .stroke(egui::Stroke::new(1.0, Color32::from_gray(60)))
                     .shadow(Shadow {

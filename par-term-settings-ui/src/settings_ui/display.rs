@@ -102,12 +102,12 @@ impl SettingsUI {
             }
         }
 
-        let mut style = (*ctx.style()).clone();
+        let mut style = (*ctx.global_style()).clone();
         let solid_bg = Color32::from_rgba_unmultiplied(24, 24, 24, 255);
         style.visuals.window_fill = solid_bg;
         style.visuals.panel_fill = solid_bg;
         style.visuals.widgets.noninteractive.bg_fill = solid_bg;
-        ctx.set_style(style);
+        ctx.set_global_style(style);
 
         let mut save_requested = false;
         let mut discard_requested = false;
@@ -125,7 +125,7 @@ impl SettingsUI {
                 .pivot(egui::Align2::CENTER_CENTER)
                 .open(&mut open)
                 .frame(
-                    Frame::window(&ctx.style())
+                    Frame::window(&ctx.global_style())
                         .fill(solid_bg)
                         .stroke(egui::Stroke::NONE)
                         .shadow(Shadow {
@@ -244,6 +244,7 @@ impl SettingsUI {
     }
 
     /// Show the settings UI as a full-window panel (for standalone settings window)
+    #[allow(deprecated)] // egui 0.34 deprecated CentralPanel::show(ctx); no top-level show_inside replacement
     pub fn show_as_panel(
         &mut self,
         ctx: &Context,
@@ -263,19 +264,19 @@ impl SettingsUI {
             }
         }
 
-        let mut style = (*ctx.style()).clone();
+        let mut style = (*ctx.global_style()).clone();
         let solid_bg = Color32::from_rgba_unmultiplied(24, 24, 24, 255);
         style.visuals.window_fill = solid_bg;
         style.visuals.panel_fill = solid_bg;
         style.visuals.widgets.noninteractive.bg_fill = solid_bg;
-        ctx.set_style(style);
+        ctx.set_global_style(style);
 
         let mut save_requested = false;
         let mut discard_requested = false;
         let mut changes_this_frame = false;
 
         egui::CentralPanel::default()
-            .frame(Frame::central_panel(&ctx.style()).fill(solid_bg))
+            .frame(Frame::central_panel(&ctx.global_style()).fill(solid_bg))
             .show(ctx, |ui| {
                 // Fixed header area (never scrolls)
                 ui.heading("Terminal Settings");

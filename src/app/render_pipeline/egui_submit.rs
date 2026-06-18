@@ -176,7 +176,7 @@ impl WindowState {
                     });
                 }
 
-                let egui_output = egui_ctx.run(raw_input, |ctx| {
+                let egui_output = egui_ctx.run_ui(raw_input, |ctx| {
                     // FPS overlay (top-right corner)
                     egui_overlays::render_fps_overlay(ctx, show_fps, fps_value, frame_time_ms);
 
@@ -573,7 +573,7 @@ impl WindowState {
             None
         };
 
-        // Mark egui as initialized after first ctx.run() - makes is_using_pointer() reliable
+        // Mark egui as initialized after first ctx.run_ui() - makes is_using_pointer() reliable
         if !self.egui.initialized && result.is_some() {
             self.egui.initialized = true;
         }

@@ -23,7 +23,7 @@ impl ProfileModalUI {
             .order(egui::Order::Foreground)
             .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
             .frame(
-                egui::Frame::window(&ctx.style())
+                egui::Frame::window(&ctx.global_style())
                     .fill(egui::Color32::from_rgba_unmultiplied(40, 40, 40, 255))
                     .inner_margin(egui::Margin::same(20)),
             )

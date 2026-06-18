@@ -224,6 +224,7 @@ impl CellRenderer {
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
 
             // Set scissor rect to clip rendering to pane bounds
@@ -824,16 +825,14 @@ impl CellRenderer {
 
         use par_term_emu_core_rust::cursor::CursorStyle;
         match self.cursor.style {
-            CursorStyle::SteadyBlock | CursorStyle::BlinkingBlock => {
-                if !render_hollow_here {
-                    // Solid block cursor: blend cursor color into background
-                    for (bg, &cursor) in bg_color.iter_mut().take(3).zip(&self.cursor.color) {
-                        *bg = *bg * (1.0 - cursor_opacity) + cursor * cursor_opacity;
-                    }
-                    bg_color[3] = bg_color[3].max(cursor_opacity * opacity_multiplier);
+            CursorStyle::SteadyBlock | CursorStyle::BlinkingBlock if !render_hollow_here => {
+                // Solid block cursor: blend cursor color into background
+                for (bg, &cursor) in bg_color.iter_mut().take(3).zip(&self.cursor.color) {
+                    *bg = *bg * (1.0 - cursor_opacity) + cursor * cursor_opacity;
                 }
-                // If hollow: keep original background color (outline added as overlay)
+                bg_color[3] = bg_color[3].max(cursor_opacity * opacity_multiplier);
             }
+            // If hollow: keep original background color (outline added as overlay)
             _ => {}
         }
 

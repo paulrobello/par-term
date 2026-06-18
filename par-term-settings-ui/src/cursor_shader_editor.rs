@@ -34,7 +34,7 @@ impl SettingsUI {
             .pivot(egui::Align2::CENTER_CENTER)
             .open(&mut cursor_shader_editor_open)
             .frame(
-                Frame::window(&ctx.style())
+                Frame::window(&ctx.global_style())
                     .fill(Color32::from_rgba_unmultiplied(20, 20, 20, 255))
                     .stroke(egui::Stroke::new(1.0, Color32::from_rgb(60, 60, 60)))
                     .shadow(Shadow {

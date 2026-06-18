@@ -162,7 +162,7 @@ impl TerminalManager {
     pub fn process_data(&self, data: &[u8]) {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let mut term = terminal.lock();
+        let mut term = terminal.write();
         term.process(data);
     }
 
@@ -179,7 +179,7 @@ impl TerminalManager {
         let (start, end) = {
             let pty = self.pty_session.lock();
             let terminal = pty.terminal();
-            let term = terminal.lock();
+            let term = terminal.write();
             (
                 term.bracketed_paste_start().to_vec(),
                 term.bracketed_paste_end().to_vec(),
@@ -212,7 +212,7 @@ impl TerminalManager {
         let (start, end) = {
             let pty = self.pty_session.lock();
             let terminal = pty.terminal();
-            let term = terminal.lock();
+            let term = terminal.write();
             (
                 term.bracketed_paste_start().to_vec(),
                 term.bracketed_paste_end().to_vec(),

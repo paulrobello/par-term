@@ -20,7 +20,6 @@ use crate::app::window_state::WindowState;
 use crate::progress_bar::ProgressBarSnapshot;
 use crate::ui_constants::VISUAL_BELL_FLASH_DURATION_MS;
 use par_term_render::RenderError;
-use wgpu::SurfaceError;
 
 impl WindowState {
     /// Run egui overlays and GPU render pass.
@@ -446,25 +445,16 @@ impl WindowState {
                     }
                 }
                 Err(e) => {
-                    if let Some(surface_error) = e.downcast_ref::<SurfaceError>() {
-                        match surface_error {
-                            SurfaceError::Outdated | SurfaceError::Lost => {
-                                log::warn!(
-                                    "Surface error detected ({:?}), reconfiguring...",
-                                    surface_error
-                                );
-                                self.force_surface_reconfigure();
-                            }
-                            SurfaceError::Timeout => {
-                                log::warn!("Surface timeout, will retry next frame");
-                                self.request_redraw();
-                            }
-                            SurfaceError::OutOfMemory => {
-                                log::error!("Surface out of memory: {:?}", surface_error);
-                            }
-                            _ => {
-                                log::error!("Surface error: {:?}", surface_error);
-                            }
+                    if let Some(RenderError::Surface(msg)) = e.downcast_ref::<RenderError>() {
+                        let lower = msg.to_ascii_lowercase();
+                        if lower.contains("outdated") || lower.contains("lost") {
+                            log::warn!("Surface error detected ({}), reconfiguring...", msg);
+                            self.force_surface_reconfigure();
+                        } else if lower.contains("timeout") || lower.contains("occluded") {
+                            log::warn!("Surface {}, will retry next frame", msg);
+                            self.request_redraw();
+                        } else {
+                            log::error!("Surface error: {}", msg);
                         }
                     } else if let Some(RenderError::ShaderUnavailable(msg)) =
                         e.downcast_ref::<RenderError>()

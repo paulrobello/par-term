@@ -79,6 +79,7 @@ impl TmuxStatusBarUI {
     /// Render the status bar
     ///
     /// Returns the height consumed by the status bar.
+    #[allow(deprecated)] // egui 0.34 deprecated Panel::show(ctx); no top-level show_inside replacement
     pub fn render(
         &mut self,
         ctx: &egui::Context,
@@ -106,8 +107,8 @@ impl TmuxStatusBarUI {
         let bar_height = 24.0;
 
         // Status bar at the bottom
-        egui::TopBottomPanel::bottom("tmux_status_bar")
-            .exact_height(bar_height)
+        egui::Panel::bottom("tmux_status_bar")
+            .exact_size(bar_height)
             .frame(
                 egui::Frame::NONE
                     .fill(egui::Color32::from_rgb(30, 40, 30)) // Dark green-ish background (tmux style)

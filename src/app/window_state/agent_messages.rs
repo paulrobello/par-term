@@ -70,16 +70,17 @@ impl WindowState {
                                 }
                             }
                         }
-                        par_term_acp::SessionUpdate::CurrentModeUpdate { mode_id } => {
-                            if mode_id.eq_ignore_ascii_case("plan") {
-                                self.agent_state.agent_skill_failure_detected = true;
-                                self.overlay_ui.ai_inspector.chat.add_system_message(
+                        par_term_acp::SessionUpdate::CurrentModeUpdate { mode_id }
+                            if mode_id.eq_ignore_ascii_case("plan") =>
+                        {
+                            self.agent_state.agent_skill_failure_detected = true;
+                            self.overlay_ui.ai_inspector.chat.add_system_message(
                                         "Agent switched to plan mode during an executable task. Requesting default mode and retry guidance."
                                             .to_string(),
                                     );
-                                if let Some(agent) = &self.agent_state.agent {
-                                    let agent = agent.clone();
-                                    self.runtime.spawn(async move {
+                            if let Some(agent) = &self.agent_state.agent {
+                                let agent = agent.clone();
+                                self.runtime.spawn(async move {
                                             let agent = agent.lock().await;
                                             if let Err(e) = agent.set_mode("default").await {
                                                 log::error!(
@@ -87,7 +88,6 @@ impl WindowState {
                                                 );
                                             }
                                         });
-                                }
                             }
                         }
                         _ => {}

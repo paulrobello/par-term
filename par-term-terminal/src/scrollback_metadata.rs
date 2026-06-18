@@ -150,14 +150,9 @@ impl ScrollbackMetadata {
         let mut finished_command = false;
 
         match marker {
-            Some(ShellIntegrationMarker::PromptStart) => {
-                if !repeat_marker {
-                    self.record_prompt_line(
-                        absolute_line,
-                        last_command.as_ref().map(|c| c.start_time),
-                    );
-                    self.prompt_start_pending = true;
-                }
+            Some(ShellIntegrationMarker::PromptStart) if !repeat_marker => {
+                self.record_prompt_line(absolute_line, last_command.as_ref().map(|c| c.start_time));
+                self.prompt_start_pending = true;
             }
             Some(ShellIntegrationMarker::CommandStart)
             | Some(ShellIntegrationMarker::CommandExecuted) => {

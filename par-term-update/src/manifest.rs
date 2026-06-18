@@ -105,7 +105,11 @@ pub fn compute_file_hash(path: &Path) -> Result<String, String> {
         hasher.update(&buffer[..bytes_read]);
     }
 
-    Ok(format!("{:x}", hasher.finalize()))
+    Ok(hasher
+        .finalize()
+        .iter()
+        .map(|b| format!("{:02x}", b))
+        .collect())
 }
 
 /// Result of comparing a file against the manifest

@@ -17,7 +17,7 @@ impl TerminalManager {
     pub fn update_scrollback_metadata(&mut self, scrollback_len: usize, cursor_row: usize) {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let mut term = terminal.lock();
+        let mut term = terminal.write();
 
         // Drain any screen-cleared events first.  Only reset scrollback mark
         // metadata when the scrollback buffer itself was cleared (ESC[3J).
@@ -180,7 +180,7 @@ impl TerminalManager {
         if let Some(cells) = grid.scrollback_line(scrollback_index) {
             cells
                 .iter()
-                .filter(|cell| !cell.flags.wide_char_spacer())
+                .filter(|cell| !cell.flags().wide_char_spacer())
                 .map(|cell| cell.get_grapheme())
                 .collect::<Vec<String>>()
                 .join("")
@@ -215,7 +215,7 @@ impl TerminalManager {
     pub fn core_command_history(&self) -> Vec<(String, Option<i32>, Option<u64>)> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         term.get_command_history()
             .iter()
             .map(|cmd| (cmd.command.clone(), cmd.exit_code, cmd.duration_ms))
@@ -238,7 +238,7 @@ impl TerminalManager {
     pub fn line_text_at_absolute(&self, absolute_line: usize) -> Option<String> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         let grid = term.active_grid();
         let scrollback_len = grid.scrollback_len();
 
@@ -258,7 +258,7 @@ impl TerminalManager {
     pub fn lines_text_range(&self, start: usize, end: usize) -> Vec<(String, usize)> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         let grid = term.active_grid();
         let scrollback_len = grid.scrollback_len();
         let max_line = scrollback_len + grid.rows();
@@ -292,7 +292,7 @@ impl TerminalManager {
     ) -> Vec<(String, usize, bool)> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         let grid = term.active_grid();
         let scrollback_len = grid.scrollback_len();
         let max_line = scrollback_len + grid.rows();
@@ -324,7 +324,7 @@ impl TerminalManager {
     pub fn scrollback_as_cells(&self) -> Vec<Vec<par_term_config::Cell>> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         let grid = term.active_grid();
 
         let scrollback_len = grid.scrollback_len();
@@ -359,7 +359,7 @@ impl TerminalManager {
     pub fn clear_scrollback(&self) {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let mut term = terminal.lock();
+        let mut term = terminal.write();
         term.process(b"\x1b[3J");
     }
 
@@ -382,7 +382,7 @@ impl TerminalManager {
     ) -> Vec<par_term_emu_core_rust::terminal::SearchMatch> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         term.search_text(query, case_sensitive)
     }
 
@@ -395,7 +395,7 @@ impl TerminalManager {
     ) -> Vec<par_term_emu_core_rust::terminal::SearchMatch> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         term.search_scrollback(query, case_sensitive, max_lines)
     }
 
@@ -403,7 +403,7 @@ impl TerminalManager {
     pub fn search_all(&self, query: &str, case_sensitive: bool) -> Vec<crate::SearchMatch> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
 
         let scrollback_len = term.active_grid().scrollback_len();
         let mut results = Vec::new();

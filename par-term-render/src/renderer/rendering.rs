@@ -90,7 +90,11 @@ impl Renderer {
         }
 
         // Get the surface texture
-        let surface_texture = self.cell_renderer.surface.get_current_texture()?;
+        let surface_texture = match self.cell_renderer.surface.get_current_texture() {
+            wgpu::CurrentSurfaceTexture::Success(t)
+            | wgpu::CurrentSurfaceTexture::Suboptimal(t) => t,
+            other => return Err(crate::error::RenderError::Surface(format!("{other:?}")).into()),
+        };
         let surface_view = surface_texture
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
@@ -279,6 +283,7 @@ impl Renderer {
                     depth_stencil_attachment: None,
                     timestamp_writes: None,
                     occlusion_query_set: None,
+                    multiview_mask: None,
                 });
             }
 
@@ -412,6 +417,7 @@ impl Renderer {
                     depth_stencil_attachment: None,
                     timestamp_writes: None,
                     occlusion_query_set: None,
+                    multiview_mask: None,
                 });
                 render_pass.set_pipeline(&self.cell_renderer.pipelines.visual_bell_pipeline);
                 render_pass.set_bind_group(

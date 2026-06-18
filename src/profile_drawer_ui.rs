@@ -96,6 +96,7 @@ impl ProfileDrawerUI {
     /// `bottom_margin` should be set to the height of any floating status bar
     /// (e.g. the custom status bar rendered as an `egui::Area`) so the side
     /// panel stops above it rather than extending behind it.
+    #[allow(deprecated)] // egui 0.34 deprecated Panel::show(ctx); no top-level show_inside replacement
     pub fn render(
         &mut self,
         ctx: &egui::Context,
@@ -111,8 +112,8 @@ impl ProfileDrawerUI {
         // egui::Area does not participate in the panel layout, so without this
         // spacer the SidePanel would extend behind the status bar.
         if bottom_margin > 0.0 {
-            egui::TopBottomPanel::bottom("profile_drawer_bottom_margin")
-                .exact_height(bottom_margin)
+            egui::Panel::bottom("profile_drawer_bottom_margin")
+                .exact_size(bottom_margin)
                 .frame(egui::Frame::NONE)
                 .show(ctx, |_ui| {});
         }
@@ -120,13 +121,13 @@ impl ProfileDrawerUI {
         // Render the side panel FIRST if expanded, so we get the current width
         // This ensures the toggle button position is accurate during resize
         let panel_rect = if self.expanded {
-            let response = egui::SidePanel::right("profile_drawer")
+            let response = egui::Panel::right("profile_drawer")
                 .resizable(true)
-                .default_width(self.width)
-                .min_width(PROFILE_DRAWER_MIN_WIDTH)
-                .max_width(PROFILE_DRAWER_MAX_WIDTH)
+                .default_size(self.width)
+                .min_size(PROFILE_DRAWER_MIN_WIDTH)
+                .max_size(PROFILE_DRAWER_MAX_WIDTH)
                 .frame(
-                    egui::Frame::side_top_panel(&ctx.style())
+                    egui::Frame::side_top_panel(&ctx.global_style())
                         .fill(egui::Color32::from_rgba_unmultiplied(30, 30, 30, 245))
                         .inner_margin(egui::Margin::same(8)),
                 )

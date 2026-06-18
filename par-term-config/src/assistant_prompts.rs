@@ -99,7 +99,7 @@ pub fn list_prompts_in_dir(dir: &Path) -> Result<Vec<AssistantPrompt>, String> {
         }
     }
 
-    prompts.sort_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()));
+    prompts.sort_by_key(|a| a.title.to_lowercase());
     Ok(prompts)
 }
 

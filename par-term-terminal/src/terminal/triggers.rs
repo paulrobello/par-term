@@ -20,7 +20,7 @@ impl TerminalManager {
     ) -> std::collections::HashMap<u64, bool> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let mut term = terminal.lock();
+        let mut term = terminal.write();
 
         // Clear existing trigger registrations before applying the new config.
         let existing: Vec<u64> = term.list_triggers().iter().map(|t| t.id).collect();
@@ -74,7 +74,7 @@ impl TerminalManager {
     pub fn trigger_names(&self) -> std::collections::HashMap<u64, String> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         term.list_triggers()
             .iter()
             .map(|t| (t.id, t.name.clone()))

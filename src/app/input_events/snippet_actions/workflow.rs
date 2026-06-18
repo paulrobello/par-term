@@ -156,11 +156,10 @@ impl WindowState {
                 const MAX_SAFE_REPEAT_COUNT: u32 = 100;
                 let count = (*count).min(MAX_SAFE_REPEAT_COUNT);
                 let rep_delay = *rep_delay;
-                let max_iterations_for_delay = if rep_delay > 0 {
-                    (MAX_TOTAL_DELAY_MS / rep_delay).max(1) as u32
-                } else {
-                    count
-                };
+                let max_iterations_for_delay = MAX_TOTAL_DELAY_MS
+                    .checked_div(rep_delay)
+                    .map(|d| d.max(1) as u32)
+                    .unwrap_or(count);
                 let count = count.min(max_iterations_for_delay);
                 let stop_on_success = *stop_on_success;
                 let stop_on_failure = *stop_on_failure;
@@ -401,11 +400,11 @@ impl WindowState {
         ctx: Arc<Mutex<Option<WorkflowContext>>>,
     ) {
         // QA-002: Cap total delay to MAX_TOTAL_DELAY_MS.
-        let count = if delay_ms > 0 {
-            count.min((MAX_TOTAL_DELAY_MS / delay_ms).max(1) as u32)
-        } else {
-            count
-        };
+        let delay_cap = MAX_TOTAL_DELAY_MS
+            .checked_div(delay_ms)
+            .map(|d| d.max(1) as u32)
+            .unwrap_or(count);
+        let count = count.min(delay_cap);
 
         let mut visited: HashSet<String> = HashSet::new();
 

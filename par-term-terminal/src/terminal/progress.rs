@@ -10,7 +10,7 @@ impl TerminalManager {
     pub fn progress_bar(&self) -> par_term_emu_core_rust::terminal::ProgressBar {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         *term.progress_bar()
     }
 
@@ -20,7 +20,7 @@ impl TerminalManager {
     ) -> std::collections::HashMap<String, par_term_emu_core_rust::terminal::NamedProgressBar> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         term.named_progress_bars().clone()
     }
 
@@ -28,7 +28,7 @@ impl TerminalManager {
     pub fn has_any_progress(&self) -> bool {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         term.has_progress() || !term.named_progress_bars().is_empty()
     }
 }

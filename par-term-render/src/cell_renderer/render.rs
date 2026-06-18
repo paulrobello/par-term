@@ -63,7 +63,11 @@ impl CellRenderer {
         target_view: &wgpu::TextureView,
         skip_background_image: bool,
     ) -> Result<wgpu::SurfaceTexture> {
-        let output = self.surface.get_current_texture()?;
+        let output = match self.surface.get_current_texture() {
+            wgpu::CurrentSurfaceTexture::Success(t)
+            | wgpu::CurrentSurfaceTexture::Suboptimal(t) => t,
+            other => return Err(crate::error::RenderError::Surface(format!("{other:?}")).into()),
+        };
         self.build_instance_buffers()?;
 
         // Render background to intermediate texture via bg_image_pipeline when available.
@@ -103,6 +107,7 @@ impl CellRenderer {
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
 
             // Render background IMAGE (not solid color) via bg_image_pipeline at full opacity
@@ -194,6 +199,7 @@ impl CellRenderer {
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
 
             // Render background via bg_image_pipeline (full-screen opaque quad)
@@ -251,6 +257,7 @@ impl CellRenderer {
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
 
             // Render background via bg_image_pipeline (full-screen opaque quad)
@@ -314,6 +321,7 @@ impl CellRenderer {
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
 
             if show_scrollbar {
@@ -386,6 +394,7 @@ impl CellRenderer {
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
 
             render_pass.set_pipeline(&self.pipelines.opaque_alpha_pipeline);

@@ -3,7 +3,7 @@ use anyhow::Result;
 use par_term_config::Theme;
 use par_term_emu_core_rust::pty_session::PtySession;
 use par_term_emu_core_rust::terminal::Terminal;
-use parking_lot::Mutex;
+use parking_lot::{Mutex, RwLock};
 use std::sync::Arc;
 
 /// Events produced by shell-integration markers for command lifecycle consumers.
@@ -103,7 +103,7 @@ impl TerminalManager {
     pub fn set_cell_dimensions(&self, width: u32, height: u32) {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let mut term = terminal.lock();
+        let mut term = terminal.write();
         term.set_cell_dimensions(width, height);
     }
 
@@ -153,7 +153,7 @@ impl TerminalManager {
     pub fn set_pixel_size(&mut self, width_px: usize, height_px: usize) -> Result<()> {
         let pty = self.pty_session.lock();
         let term_arc = pty.terminal();
-        let mut term = term_arc.lock();
+        let mut term = term_arc.write();
         term.set_pixel_size(width_px, height_px);
         Ok(())
     }
@@ -164,7 +164,7 @@ impl TerminalManager {
     }
 
     /// Get a clone of the underlying terminal for direct access
-    pub fn terminal(&self) -> Arc<Mutex<Terminal>> {
+    pub fn terminal(&self) -> Arc<RwLock<Terminal>> {
         let pty = self.pty_session.lock();
         pty.terminal()
     }
@@ -197,7 +197,7 @@ impl TerminalManager {
     pub fn take_notifications(&self) -> Vec<par_term_emu_core_rust::terminal::Notification> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let mut term = terminal.lock();
+        let mut term = terminal.write();
         term.take_notifications()
     }
 
@@ -205,7 +205,7 @@ impl TerminalManager {
     pub fn has_notifications(&self) -> bool {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         term.has_notifications()
     }
 
@@ -227,7 +227,7 @@ impl TerminalManager {
 
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
 
         let image_format = match format.to_lowercase().as_str() {
             "png" => ImageFormat::Png,
@@ -256,7 +256,7 @@ impl TerminalManager {
         log::debug!("Recording marker: {}", label);
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let mut term = terminal.lock();
+        let mut term = terminal.write();
         term.record_marker(label);
     }
 
@@ -270,7 +270,7 @@ impl TerminalManager {
         log::info!("Exporting recording to {}: {}", format, path.display());
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
 
         let content = match format.to_lowercase().as_str() {
             "json" => term.export_json(session),
@@ -286,7 +286,7 @@ impl TerminalManager {
     pub fn shell_integration_cwd(&self) -> Option<String> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         term.shell_integration().cwd().map(String::from)
     }
 
@@ -294,7 +294,7 @@ impl TerminalManager {
     pub fn shell_integration_exit_code(&self) -> Option<i32> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         term.shell_integration().exit_code()
     }
 
@@ -302,7 +302,7 @@ impl TerminalManager {
     pub fn shell_integration_command(&self) -> Option<String> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         term.shell_integration().command().map(String::from)
     }
 
@@ -310,7 +310,7 @@ impl TerminalManager {
     pub fn shell_integration_hostname(&self) -> Option<String> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         term.shell_integration().hostname().map(String::from)
     }
 
@@ -318,7 +318,7 @@ impl TerminalManager {
     pub fn shell_integration_username(&self) -> Option<String> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         term.shell_integration().username().map(String::from)
     }
 
@@ -326,7 +326,7 @@ impl TerminalManager {
     pub fn poll_cwd_events(&self) -> Vec<par_term_emu_core_rust::terminal::CwdChange> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let mut term = terminal.lock();
+        let mut term = terminal.write();
         term.poll_cwd_events()
     }
 
@@ -334,7 +334,7 @@ impl TerminalManager {
     pub fn poll_action_results(&self) -> Vec<par_term_emu_core_rust::terminal::ActionResult> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let mut term = terminal.lock();
+        let mut term = terminal.write();
         term.poll_action_results()
     }
 
@@ -346,7 +346,7 @@ impl TerminalManager {
     ) -> Vec<par_term_emu_core_rust::terminal::file_transfer::FileTransfer> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         term.get_active_transfers()
     }
 
@@ -356,7 +356,7 @@ impl TerminalManager {
     ) -> Vec<par_term_emu_core_rust::terminal::file_transfer::FileTransfer> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         term.get_completed_transfers()
     }
 
@@ -367,7 +367,7 @@ impl TerminalManager {
     ) -> Option<par_term_emu_core_rust::terminal::file_transfer::FileTransfer> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let mut term = terminal.lock();
+        let mut term = terminal.write();
         term.take_completed_transfer(id)
     }
 
@@ -375,7 +375,7 @@ impl TerminalManager {
     pub fn cancel_file_transfer(&self, id: u64) -> bool {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let mut term = terminal.lock();
+        let mut term = terminal.write();
         term.cancel_file_transfer(id)
     }
 
@@ -383,7 +383,7 @@ impl TerminalManager {
     pub fn send_upload_data(&self, data: &[u8]) {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let mut term = terminal.lock();
+        let mut term = terminal.write();
         term.send_upload_data(data);
     }
 
@@ -391,7 +391,7 @@ impl TerminalManager {
     pub fn cancel_upload(&self) {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let mut term = terminal.lock();
+        let mut term = terminal.write();
         term.cancel_upload();
     }
 
@@ -399,7 +399,7 @@ impl TerminalManager {
     pub fn poll_upload_requests(&self) -> Vec<String> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let mut term = terminal.lock();
+        let mut term = terminal.write();
         term.poll_upload_requests()
     }
 
@@ -407,7 +407,7 @@ impl TerminalManager {
     pub fn custom_session_variables(&self) -> std::collections::HashMap<String, String> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         term.session_variables().custom.clone()
     }
 
@@ -417,7 +417,7 @@ impl TerminalManager {
     ) -> par_term_emu_core_rust::terminal::ShellIntegrationStats {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         term.get_shell_integration_stats()
     }
 
@@ -431,7 +431,7 @@ impl TerminalManager {
     pub fn cursor_style(&self) -> par_term_emu_core_rust::cursor::CursorStyle {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         term.cursor().style()
     }
 
@@ -439,7 +439,7 @@ impl TerminalManager {
     pub fn set_cursor_style(&mut self, style: par_term_emu_core_rust::cursor::CursorStyle) {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let mut term = terminal.lock();
+        let mut term = terminal.write();
         term.set_cursor_style(style);
     }
 
@@ -447,7 +447,7 @@ impl TerminalManager {
     pub fn is_cursor_visible(&self) -> bool {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         term.cursor().visible
     }
 
@@ -455,7 +455,7 @@ impl TerminalManager {
     pub fn is_mouse_tracking_enabled(&self) -> bool {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         !matches!(
             term.mouse_mode(),
             par_term_emu_core_rust::mouse::MouseMode::Off
@@ -467,7 +467,7 @@ impl TerminalManager {
     pub fn report_focus_change(&self, focused: bool) -> bool {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         let data = if focused {
             term.report_focus_in()
         } else {
@@ -492,7 +492,7 @@ impl TerminalManager {
     pub fn is_alt_screen_active(&self) -> bool {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         term.is_alt_screen_active()
     }
 
@@ -500,7 +500,7 @@ impl TerminalManager {
     pub fn modify_other_keys_mode(&self) -> u8 {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         term.modify_other_keys_mode()
     }
 
@@ -508,7 +508,7 @@ impl TerminalManager {
     pub fn application_cursor(&self) -> bool {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         term.application_cursor()
     }
 
@@ -516,7 +516,7 @@ impl TerminalManager {
     pub fn get_title(&self) -> String {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         term.title().to_string()
     }
 
@@ -526,7 +526,7 @@ impl TerminalManager {
     ) -> Option<par_term_emu_core_rust::shell_integration::ShellIntegrationMarker> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
         term.shell_integration().marker()
     }
 
@@ -624,7 +624,7 @@ impl TerminalManager {
     pub fn should_report_mouse_motion(&self, button_pressed: bool) -> bool {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let term = terminal.write();
 
         match term.mouse_mode() {
             par_term_emu_core_rust::mouse::MouseMode::AnyEvent => true,
@@ -644,7 +644,7 @@ impl TerminalManager {
     ) -> Vec<u8> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let mut term = terminal.lock();
+        let mut term = terminal.write();
 
         let mouse_event =
             par_term_emu_core_rust::mouse::MouseEvent::new(button, col, row, pressed, modifiers);

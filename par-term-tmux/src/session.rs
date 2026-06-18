@@ -251,14 +251,13 @@ impl TmuxSession {
     /// Returns true if the notification caused a state transition.
     pub fn process_gateway_notification(&mut self, notification: &TmuxNotification) -> bool {
         match notification {
-            TmuxNotification::ControlModeStarted => {
+            TmuxNotification::ControlModeStarted
                 // Received %begin - transition from Initiating to Detecting
-                if self.gateway_state == GatewayState::Initiating {
+                if self.gateway_state == GatewayState::Initiating => {
                     log::info!("[TMUX] Control mode started (%begin), transitioning to Detecting");
                     self.set_gateway_detecting();
                     return true;
                 }
-            }
             TmuxNotification::SessionStarted(name) => {
                 // Transition from Initiating/Detecting -> Connected
                 if matches!(

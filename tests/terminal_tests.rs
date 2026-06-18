@@ -204,7 +204,7 @@ fn test_decscusr_escape_sequences() {
 
     // Get access to the underlying terminal to process escape sequences
     let term_arc = terminal.terminal();
-    let mut term = term_arc.lock();
+    let mut term = term_arc.write();
 
     // Test DECSCUSR 0 (default - blinking block)
     term.process(b"\x1b[0 q");
