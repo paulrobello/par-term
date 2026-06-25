@@ -178,13 +178,151 @@ pub struct Profile {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ssh_identity_file: Option<String>,
 
-    /// Extra SSH arguments (e.g., "-o StrictHostKeyChecking=no")
+    /// Extra SSH arguments, parsed with shell-style quoting via `shell_words::split`.
+    ///
+    /// # Security (SEC-002)
+    ///
+    /// To prevent SSH flag/option injection, tokens are filtered by
+    /// [`Profile::ssh_command_args`] before reaching the SSH argv. The following
+    /// are dropped (with a `warn!` log) because they enable arbitrary command
+    /// execution, forwarding pivots, or silent MITM:
+    ///
+    /// - **Flags**: `-A`, `-D`, `-R`, `-L`, `-W`, `-w` (standalone, clustered,
+    ///   or `=`-joined, e.g. `-A`, `-LA`, `-Wcat`).
+    /// - **Options** (in `-o Key=value`, `-O Key=value`, or bare `Key=value`):
+    ///   `ProxyCommand`, `LocalCommand`, `LocalMaster`, `StrictHostKeyChecking`,
+    ///   `UserKnownHostsFile`, `ForwardAgent`, `PermitLocalCommand`.
+    ///
+    /// If the string cannot be parsed as shell tokens, every token is dropped.
+    /// Safe example: `-o ServerAliveInterval=30 -o ConnectTimeout=10`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ssh_extra_args: Option<String>,
 
     /// Where this profile was loaded from (runtime-only, not persisted to YAML)
     #[serde(skip)]
     pub source: ProfileSource,
+}
+
+// =========================================================================
+// SSH extra-args validation (SEC-002)
+// =========================================================================
+//
+// `ssh_extra_args` is a free-form string pushed into the SSH argv. A profile
+// YAML must not be able to set `-o ProxyCommand=...` (arbitrary local command
+// execution), `-A` (agent-forwarding pivot), `-D`/`-R`/`-L`/`-W`/`-w` (tunnels),
+// or options that weaken host-key verification. We tokenize with
+// `shell_words::split` (so quoted values survive) and drop dangerous tokens
+// before they reach the argv.
+
+/// SSH short flags that enable command execution, forwarding, or tunneling.
+///
+/// A profile must never pass these to `ssh`: `-A` forwards the agent (pivot to
+/// the user's keys), `-D`/`-R`/`-L` open SOCKS/forward tunnels, and `-W`/`-w`
+/// proxy raw socket I/O.
+const DENIED_SSH_FLAGS: &[char] = &['A', 'D', 'R', 'L', 'W', 'w'];
+
+/// SSH option keys (in `-o Key=value`, `-O Key=value`, or bare `Key=value`)
+/// that allow arbitrary command execution or weaken host-key verification.
+const DENIED_SSH_OPTIONS: &[&str] = &[
+    "ProxyCommand",
+    "LocalCommand",
+    "LocalMaster",
+    "StrictHostKeyChecking",
+    "UserKnownHostsFile",
+    "ForwardAgent",
+    "PermitLocalCommand",
+];
+
+/// Return the option key when `tok` is a `Key=value` pair (no leading dash).
+fn ssh_option_key(tok: &str) -> Option<&str> {
+    if tok.starts_with('-') {
+        return None;
+    }
+    let (key, _value) = tok.split_once('=')?;
+    if key.is_empty() {
+        return None;
+    }
+    Some(key)
+}
+
+/// True if a standalone token is itself a denied flag or `-oKey=value` join.
+///
+/// Handles three forms: short flag (`-A`), short-flag cluster (`-LA`), and
+/// the joined `-o Key=value` form (`-oProxyCommand=...`).
+fn is_denied_ssh_token(tok: &str) -> bool {
+    let body = match tok.strip_prefix('-') {
+        Some(b) => b,
+        None => {
+            return ssh_option_key(tok)
+                .is_some_and(|k| DENIED_SSH_OPTIONS.iter().any(|o| o.eq_ignore_ascii_case(k)));
+        }
+    };
+    // Short-flag cluster or joined `-oKey=value`: flag chars are up to '='.
+    let (flag_chars, _value) = body.split_once('=').unwrap_or((body, ""));
+    if flag_chars.chars().any(|c| DENIED_SSH_FLAGS.contains(&c)) {
+        return true;
+    }
+    // Joined `-oKey=value` form: option key is everything after leading 'o'/'O'
+    // (only meaningful when no other flag char precedes it).
+    if let Some(opt) = flag_chars.strip_prefix(['o', 'O'])
+        && !opt.is_empty()
+        && DENIED_SSH_OPTIONS
+            .iter()
+            .any(|o| o.eq_ignore_ascii_case(opt))
+    {
+        return true;
+    }
+    false
+}
+
+/// Tokenize `ssh_extra_args` with shell-style quoting and drop dangerous
+/// flags/options (SEC-002) so they cannot reach the SSH argv.
+///
+/// Denied tokens are logged via `warn!` and dropped rather than failing the
+/// build, because [`Profile::ssh_command_args`] returns `Option`, not
+/// `Result`; the security goal (keep dangerous tokens out of argv) is
+/// preserved either way. If `shell_words::split` cannot parse the string,
+/// every token is dropped.
+fn filter_ssh_extra_args(extra: &str) -> Vec<String> {
+    let tokens = match shell_words::split(extra) {
+        Ok(t) => t,
+        Err(e) => {
+            log::warn!(
+                "[SEC-002] dropping all ssh_extra_args: failed to parse as shell tokens: {e}"
+            );
+            return Vec::new();
+        }
+    };
+
+    let mut filtered = Vec::with_capacity(tokens.len());
+    let mut i = 0;
+    while i < tokens.len() {
+        let tok = tokens[i].as_str();
+        if is_denied_ssh_token(tok) {
+            log::warn!("[SEC-002] dropping denied SSH extra arg {:?}", tok);
+            i += 1;
+            continue;
+        }
+        // `-o <option>` separate-token form: inspect the following token and
+        // drop both tokens when the option key is denied.
+        if (tok == "-o" || tok == "-O") && i + 1 < tokens.len() {
+            let next = tokens[i + 1].as_str();
+            if ssh_option_key(next)
+                .is_some_and(|k| DENIED_SSH_OPTIONS.iter().any(|o| o.eq_ignore_ascii_case(k)))
+            {
+                log::warn!(
+                    "[SEC-002] dropping denied SSH option {:?} (passed via {:?})",
+                    next,
+                    tok
+                );
+                i += 2;
+                continue;
+            }
+        }
+        filtered.push(tokens[i].clone());
+        i += 1;
+    }
+    filtered
 }
 
 impl Profile {
@@ -463,7 +601,9 @@ impl Profile {
         }
 
         if let Some(ref extra) = self.ssh_extra_args {
-            args.extend(extra.split_whitespace().map(String::from));
+            // SEC-002: parse with shell-style quoting and filter dangerous
+            // flags/options. See the `ssh_extra_args` field doc comment.
+            args.extend(filter_ssh_extra_args(extra));
         }
 
         let target = if let Some(ref user) = self.ssh_user {

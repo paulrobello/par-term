@@ -155,6 +155,11 @@ pub fn write_file_safe(path: &str, content: &str) -> Result<(), String> {
     if !p.is_absolute() {
         return Err("Path must be absolute".to_string());
     }
+    // SEC-001: Validate path against the sensitive directory blocklist before
+    // writing. Mirrors read_file_with_range / list_directory_entries /
+    // find_files_recursive so a `bypassPermissions` agent cannot overwrite
+    // files under ~/.ssh/, ~/.aws/, /etc/, etc.
+    check_path_allowed(path)?;
     if let Some(parent) = p.parent() {
         std::fs::create_dir_all(parent)
             .map_err(|e| format!("Failed to create directories: {e}"))?;

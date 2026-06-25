@@ -34,6 +34,9 @@ dirs.workspace = true
 # Regex for variable substitution
 regex.workspace = true
 
+# Shell-safe tokenization of ssh_extra_args (SEC-002)
+shell-words.workspace = true
+
 # File watching for config hot reload
 notify = { workspace = true, optional = true }
 
