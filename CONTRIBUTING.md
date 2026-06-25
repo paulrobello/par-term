@@ -59,24 +59,27 @@ No additional system libraries are required. The Metal GPU backend is used autom
 
 #### Linux
 
-Install the required X11/Wayland and SSL development libraries before building:
+Install the required GTK3, X11/Wayland, ALSA, and SSL development libraries before building. The package list below mirrors the [Linux Dependencies](README.md#linux-dependencies) section of the README; both must stay in sync.
+
+**Ubuntu/Debian**:
 
 ```bash
-# Debian / Ubuntu
-sudo apt-get install \
-  libxcb-render0-dev \
-  libxcb-shape0-dev \
-  libxcb-xfixes0-dev \
-  libxkbcommon-dev \
-  libssl-dev \
-  pkg-config
+sudo apt install libgtk-3-dev libxkbcommon-dev libwayland-dev \
+  libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev \
+  libasound2-dev libssl-dev pkg-config
+```
 
-# Fedora / RHEL
-sudo dnf install \
-  libxcb-devel \
-  libxkbcommon-devel \
-  openssl-devel \
-  pkg-config
+**Fedora/RHEL**:
+
+```bash
+sudo dnf install gtk3-devel libxkbcommon-devel wayland-devel libxcb-devel \
+  alsa-lib-devel openssl-devel pkg-config
+```
+
+**Arch Linux**:
+
+```bash
+sudo pacman -S gtk3 libxkbcommon wayland libxcb alsa-lib pkg-config
 ```
 
 #### Windows
@@ -463,6 +466,14 @@ Avoids per-frame Vec reallocation for the cell and graphics
 instance arrays by reserving capacity at startup based on
 the initial terminal dimensions.
 ```
+
+## Release Checklist
+
+When cutting a release, verify documentation stays internally consistent. GitHub strips punctuation and lowercases heading text to form anchors, so a heading rename silently breaks TOC links.
+
+- **TOC anchors** — after editing any heading in `README.md`, confirm every `[link](#anchor)` in the Table of Contents still resolves to a heading (e.g. `What's New in 0.33.0` → `#whats-new-in-0330`).
+- **Version sync** — `CLAUDE.md` (`**Version**:` line), `Cargo.toml` (`version`), and the top of `CHANGELOG.md` must all agree before tagging. An `sed` reminder lives next to the version line in `CLAUDE.md`.
+- **Tag the release** — `git tag v<X.Y.Z> <release-commit> && git push origin v<X.Y.Z>`. Homebrew SHA, the self-update checker, and `git describe` all require the tag to be pushed.
 
 ## Related Documentation
 

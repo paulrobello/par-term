@@ -957,22 +957,11 @@ impl BuiltInVariable {
     /// Resolve the variable to its string value.
     pub fn resolve(&self) -> String {
         match self {
-            Self::Date => {
-                use std::time::{SystemTime, UNIX_EPOCH};
-                let duration = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap_or_default();
-                let secs = duration.as_secs();
-                let days_since_epoch = secs / 86400;
-
-                // Simple date calculation (days since 1970-01-01)
-                let years = 1970 + days_since_epoch / 365;
-                let day_of_year = (days_since_epoch % 365) as u32;
-                let month = (day_of_year / 30) + 1;
-                let day = (day_of_year % 30) + 1;
-
-                format!("{:04}-{:02}-{:02}", years, month, day)
-            }
+            // QA-001: Use chrono for correct calendar arithmetic. The previous
+            // implementation derived the date from `secs / 86400` with every month
+            // treated as 30 days, which produced month=13 in late December and a
+            // wrong day-of-month year-round.
+            Self::Date => chrono::Local::now().format("%Y-%m-%d").to_string(),
             Self::Time => {
                 use std::time::{SystemTime, UNIX_EPOCH};
                 let duration = SystemTime::now()
@@ -1089,6 +1078,33 @@ mod tests {
         // These should not panic
         let date = BuiltInVariable::Date.resolve();
         assert!(!date.is_empty());
+        // QA-001: `\(date)` must be a valid `YYYY-MM-DD` string. The previous
+        // hand-rolled arithmetic produced month=13 in late December and a wrong
+        // day-of-month year-round; assert the shape so the regression is caught.
+        assert_eq!(
+            date.len(),
+            10,
+            "date must be 10 chars (YYYY-MM-DD), got {date:?}"
+        );
+        let mut parts = date.split('-');
+        let (year, month, day) = (
+            parts.next().unwrap(),
+            parts.next().unwrap(),
+            parts.next().unwrap(),
+        );
+        assert!(parts.next().is_none(), "date has extra components: {date:?}");
+        assert!(
+            (1..=9999).contains(&(year.parse::<u32>().unwrap())),
+            "year out of range: {year:?}"
+        );
+        assert!(
+            (1..=12).contains(&(month.parse::<u32>().unwrap())),
+            "month must be 1..=12, got {month:?} (date={date:?})"
+        );
+        assert!(
+            (1..=31).contains(&(day.parse::<u32>().unwrap())),
+            "day must be 1..=31, got {day:?} (date={date:?})"
+        );
 
         let time = BuiltInVariable::Time.resolve();
         assert!(!time.is_empty());

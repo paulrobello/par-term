@@ -3885,6 +3885,7 @@ name = "par-term-config"
 version = "0.11.1"
 dependencies = [
  "anyhow",
+ "chrono",
  "dirs",
  "hostname",
  "log",
@@ -3899,7 +3900,6 @@ dependencies = [
  "thiserror 2.0.18",
  "toml 1.1.2+spec-1.1.0",
  "uuid",
- "wgpu",
 ]
 
 [[package]]
@@ -3977,6 +3977,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
+ "uuid",
 ]
 
 [[package]]

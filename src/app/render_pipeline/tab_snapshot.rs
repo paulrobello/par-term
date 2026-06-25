@@ -173,7 +173,10 @@ impl WindowState {
 
             let shader_cursor_style = shader_cursor_pos.map(|_| term.cursor_style());
 
-            log::trace!(
+            // ARC-004: per-frame hot path — use the custom debug macros
+            // (DEBUG_LEVEL-gated, near-zero overhead) instead of log::trace!.
+            crate::debug_trace!(
+                "RENDER",
                 "Cursor: pos={:?}, shader_pos={:?}, opacity={:.2}, style={:?}, scroll={}, alt_screen={}, visible={}",
                 current_cursor_pos,
                 shader_cursor_pos,

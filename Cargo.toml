@@ -133,7 +133,7 @@ exclude = [
 par-term-acp = { path = "par-term-acp", version = "0.2.7" }
 
 # Configuration system
-par-term-config = { path = "par-term-config", version = "0.11.1", features = ["watcher", "wgpu-types"] }
+par-term-config = { path = "par-term-config", version = "0.11.1", features = ["watcher"] }
 
 # Font management and text shaping
 par-term-fonts = { path = "par-term-fonts", version = "0.1.9" }

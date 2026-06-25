@@ -170,22 +170,30 @@ pub(crate) fn parse_checksum_file(content: &str) -> Result<String, String> {
 
 /// Verify the downloaded data against a SHA256 checksum from the release.
 ///
-/// Returns `Ok(())` if verification passes or no checksum is available
-/// (with a warning log for older releases).
+/// Returns `Ok(())` only if a checksum is available AND it matches the
+/// downloaded data.
 /// Returns `Err` if:
+/// - No checksum URL is available for the release (SEC-008: hard-fail — refuse
+///   to install an unverified binary; matches the shader installer's policy)
 /// - A checksum URL exists but the download fails (security: abort unverified updates)
 /// - The checksum does not match (binary may be corrupted or tampered with)
 pub(crate) fn verify_download(data: &[u8], checksum_url: Option<&str>) -> Result<(), String> {
     let checksum_url = match checksum_url {
         Some(url) => url,
         None => {
-            // No checksum available for this release (older releases)
-            log::warn!(
+            // SEC-008: a missing .sha256 checksum file is a hard integrity
+            // failure, NOT a warning. Returning Ok(()) here would let a MITM
+            // attacker (or a compromised release) ship an unverified binary.
+            // Aborting matches the shader installer's hard-gate policy.
+            return Err(
                 "No .sha256 checksum file found in release — \
-                 skipping integrity verification. \
-                 This is expected for older releases."
+                 refusing to install an unverified binary.\n\
+                 Update aborted for safety. This release may predate checksum \
+                support, or the checksum file was stripped/blocked.\n\
+                 Please download manually from:\n\
+                 https://github.com/paulrobello/par-term/releases"
+                    .to_string(),
             );
-            return Ok(());
         }
     };
 
@@ -366,9 +374,15 @@ mod tests {
 
     #[test]
     fn test_verify_download_no_checksum_url() {
-        // Should succeed with warning when no checksum URL is available
+        // SEC-008: a missing checksum URL must abort the update (not silently
+        // pass with a warning), so a compromised release cannot ship an
+        // unverified binary.
         let data = b"some binary data";
         let result = verify_download(data, None);
-        assert!(result.is_ok());
+        assert!(result.is_err(), "expected hard-fail on missing checksum");
+        assert!(
+            result.unwrap_err().contains("refusing to install"),
+            "expected hard-fail message referencing the abort policy"
+        );
     }
 }

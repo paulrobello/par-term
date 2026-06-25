@@ -83,6 +83,17 @@ pub enum AgentMessage {
 // Agent
 // ---------------------------------------------------------------------------
 
+/// True if an env-var name is a dynamic-linker injection vector (SEC-004).
+///
+/// `LD_PRELOAD`, `LD_AUDIT`, `LD_LIBRARY_PATH`, and the `DYLD_*` family on
+/// macOS let a third-party agent TOML inject a dylib into every subprocess
+/// the agent spawns. Any key whose upper-cased name starts with `LD_` or
+/// `DYLD_` is rejected before `Command::envs` is called.
+fn is_dynamic_linker_env_key(key: &str) -> bool {
+    let upper = key.to_ascii_uppercase();
+    upper.starts_with("LD_") || upper.starts_with("DYLD_")
+}
+
 /// Manages the lifecycle of an ACP agent subprocess.
 pub struct Agent {
     /// The agent's configuration (from TOML discovery).
@@ -311,7 +322,33 @@ impl Agent {
         if let Some(ref sp) = shell_path {
             cmd.env("PATH", sp);
         }
-        cmd.envs(&self.config.env);
+        // SEC-004: filter out dynamic-linker env keys before applying the
+        // agent TOML `[env]` table. Without this gate, a third-party agent
+        // TOML can set `LD_PRELOAD` / `DYLD_INSERT_LIBRARIES` and inject a
+        // dylib into every subprocess the agent spawns. We drop any key whose
+        // upper-cased name starts with `LD_` or `DYLD_` and log what was
+        // dropped so the user can see the attempt in the log.
+        let dropped_env: Vec<String> = self
+            .config
+            .env
+            .keys()
+            .filter(|k| is_dynamic_linker_env_key(k))
+            .cloned()
+            .collect();
+        if !dropped_env.is_empty() {
+            log::warn!(
+                "ACP: agent '{}' TOML [env] contained dynamic-linker keys {:?}; \
+                 dropping (SEC-004). Agent TOML files are a trust boundary — \
+                 only install agents from trusted sources.",
+                self.config.identity,
+                dropped_env
+            );
+        }
+        for (key, value) in self.config.env.iter() {
+            if !is_dynamic_linker_env_key(key) {
+                cmd.env(key, value);
+            }
+        }
 
         // Ensure the agent doesn't think it's running inside another Claude
         // Code session (which would block session creation).

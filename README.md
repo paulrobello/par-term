@@ -16,7 +16,7 @@ A cross-platform, GPU-accelerated terminal emulator frontend built with Rust, po
 ## Table of Contents
 
 - [Getting Started](#getting-started)
-- [What's New](#whats-new-in-03012)
+- [What's New](#whats-new-in-0330)
 - [Features](#features)
 - [Documentation](#documentation)
 - [Installation](#installation)

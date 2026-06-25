@@ -8,6 +8,7 @@
 
 use crate::error::RenderError;
 use crate::gpu_utils;
+use crate::wgpu_conversions::ImageScalingModeWgpu;
 use par_term_config::ImageScalingMode;
 use std::collections::HashMap;
 use std::time::Instant;

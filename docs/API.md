@@ -4,6 +4,15 @@
 
 This document provides an overview of the public types and functions exported by each par-term workspace crate. For full generated API documentation, run `make doc` and open `target/doc/par_term/index.html`.
 
+## Coverage and Validation
+
+This index is maintained by hand and is **not** enforced by CI — it is a navigation aid, not a source of truth.
+
+- **Authoritative reference:** `make doc` (or `make doc-open`) generates the complete rustdoc site under `target/doc/`. When this index disagrees with the generated docs, the generated docs win.
+- **Suggested gate:** a `make doc-check` target (not yet implemented) could diff this index against `cargo doc`'s public-item list to catch drift on CI. Until then, reviewers should spot-check coverage when public types are added or renamed.
+- **Stable coverage:** the foundational crates (`par-term-config`, `par-term-fonts`, `par-term-input`, `par-term-keybindings`, `par-terminal`, `par-term-tmux`, `par-term-update`, `par-term-acp`, `par-term-ssh`, `par-term-mcp`, `par-term-scripting`) are documented at the public-type level and are not pending reorganization.
+- **Intentionally non-exhaustive:** the `par-term-settings-ui` and `par-term-render` sections are deliberately left lighter. Both are blocked behind the ARC-001 (root-crate extraction) and ARC-002 (`WindowState` decomposition) migrations — their module layouts and public surfaces are expected to move. Rewriting these entries now would immediately drift. They will be (re)written once those refactor lands and the public surface settles.
+
 ## Table of Contents
 
 - [par-term-config](#par-term-config)

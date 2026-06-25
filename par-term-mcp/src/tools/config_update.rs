@@ -7,6 +7,36 @@ use crate::ipc::{config_update_path, open_restricted_write};
 use serde_json::Value;
 use std::io::Write;
 
+/// Config keys that the MCP `config_update` tool is allowed to write (SEC-005).
+///
+/// This is an explicit allowlist. The original implementation wrote caller
+/// keys verbatim, which let any MCP client flip security-sensitive settings
+/// such as `bypassPermissions`, `permissions`, `automation`, or `triggers`.
+/// Only cosmetic / rendering keys are exposed here. The list mirrors the
+/// `config_update` tool descriptor in `tools/mod.rs`.
+const ALLOWED_CONFIG_KEYS: &[&str] = &[
+    // Background shader
+    "custom_shader",
+    "custom_shader_enabled",
+    "custom_shader_animation",
+    "custom_shader_animation_speed",
+    "custom_shader_brightness",
+    "custom_shader_text_opacity",
+    "custom_shader_full_content",
+    // Cursor shader
+    "cursor_shader",
+    "cursor_shader_enabled",
+    "cursor_shader_animation",
+    "cursor_shader_animation_speed",
+    "cursor_shader_glow_radius",
+    "cursor_shader_glow_intensity",
+    "cursor_shader_trail_duration",
+    "cursor_shader_hides_cursor",
+    // Window / font
+    "window_opacity",
+    "font_size",
+];
+
 /// Execute the `config_update` tool.
 pub fn handle_config_update(params: &Value) -> Value {
     let arguments = match params.get("arguments") {
@@ -34,6 +64,28 @@ pub fn handle_config_update(params: &Value) -> Value {
 ///
 /// Creates parent directories if needed, writes to a temp file, then renames.
 pub fn write_config_updates(updates: &Value, path: &std::path::Path) -> Value {
+    // SEC-005: enforce an explicit key allowlist BEFORE any disk I/O. The
+    // original implementation wrote caller-supplied keys verbatim, so any
+    // local MCP client could flip security-sensitive settings like
+    // `bypassPermissions` or `permissions`. Unknown keys (which includes all
+    // security-sensitive ones) are rejected with the list of allowed keys.
+    let updates_obj = match updates.as_object() {
+        Some(o) => o,
+        None => return super::tool_error("'updates' must be a JSON object"),
+    };
+    let rejected: Vec<&str> = updates_obj
+        .keys()
+        .filter(|k| !ALLOWED_CONFIG_KEYS.contains(&k.as_str()))
+        .map(String::as_str)
+        .collect();
+    if !rejected.is_empty() {
+        return super::tool_error(&format!(
+            "Rejected unknown config key(s): [{}]. Allowed keys: [{}]",
+            rejected.join(", "),
+            ALLOWED_CONFIG_KEYS.join(", ")
+        ));
+    }
+
     // Ensure parent directory exists
     if let Some(parent) = path.parent()
         && let Err(e) = std::fs::create_dir_all(parent)

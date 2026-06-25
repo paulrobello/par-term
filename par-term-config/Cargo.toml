@@ -37,16 +37,11 @@ regex.workspace = true
 # Shell-safe tokenization of ssh_extra_args (SEC-002)
 shell-words.workspace = true
 
+# Correct local date/time arithmetic for snippet built-in variables (QA-001)
+chrono.workspace = true
+
 # File watching for config hot reload
 notify = { workspace = true, optional = true }
-
-# GPU types (optional, for wgpu conversions)
-# TODO(ARC-011): This optional wgpu dependency belongs in par-term-render, not par-term-config.
-# par-term-config is a pure data/config crate and should not know about GPU types.
-# Migration plan: move WgpuColor/wgpu conversion helpers to par-term-render and update
-# any callers that currently use par_term_config's wgpu-types feature.
-# Blocked on: identifying all call sites that rely on par_term_config's wgpu re-exports.
-wgpu = { workspace = true, optional = true }
 
 # Mutex for watcher
 parking_lot.workspace = true
@@ -54,10 +49,13 @@ parking_lot.workspace = true
 # Hostname detection for snippet variables
 hostname.workspace = true
 
+# NOTE(ARC-003): The optional `wgpu` dependency and `wgpu-types` feature were
+# removed — wgpu conversion helpers now live in `par-term-render` where they
+# belong. A pure-data Layer-1 crate must not carry Layer-3 GPU types.
+
 [features]
 default = ["watcher"]
 watcher = ["notify"]
-wgpu-types = ["wgpu"]
 
 [dev-dependencies]
 tempfile.workspace = true

@@ -2,10 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-Each version entry may include a `### Security` subsection for vulnerability fixes, dependency patches, and trust-boundary changes. Older entries that predate this convention may be missing the section even when security-relevant changes were present.
+Recent releases use the six Keep a Changelog categories — Added, Changed, Deprecated, Removed, Fixed, Security. Older entries additionally use descriptive subsection labels (Performance, Architecture, Documentation, Refactored, Dependencies, Build, Code Quality, Testing) and a few carry timestamped compound headings; these are preserved for historical accuracy and map naturally onto Changed or Added. When present, a `### Security` subsection covers vulnerability fixes, dependency patches, and trust-boundary changes.
 
 ---
 
@@ -77,30 +77,24 @@ Each version entry may include a `### Security` subsection for vulnerability fix
 
 ### Added
 - **Promote pane to tab / demote tab to pane.** New actions `promote_pane_to_tab` and `demote_tab_to_pane` allow moving panes between tabs while preserving all running processes. Promote (instant) extracts the focused pane into its own tab. Demote (multi-step pick mode) merges a tab's entire pane tree into another tab: click target tab → click target pane → choose split direction. Both actions are available via keybindings (configurable in Settings → Input → Keybindings) and the tab bar right-click context menu. Escape or right-click cancels demote at any step.
-
-### Fixed
-- **Drag-resizing split pane dividers only worked in one direction when mouse tracking was active.** The mouse motion reporting section intercepted move events before the divider-drag handler could process them. Dragging the divider toward the focused pane kept the mouse inside that pane's bounds, so motion reporting returned early and starved the drag handler. Added guards to skip motion reporting during active divider drags, and to prevent mouse tracking from consuming divider clicks in the press handler.
-
-- **Hardcoded keyboard shortcuts used bare `Ctrl` instead of platform-native modifier on macOS.** Font size (Ctrl+Plus/Minus/0), clear scrollback (Ctrl+Shift+K), and clipboard history (Ctrl+Shift+H) all checked `ctrl` directly, so they fired on macOS even though the platform convention is Cmd. This caused user-configured `Cmd+Shift+Plus` bindings to be shadowed by the hardcoded Ctrl path. All three now use the platform-native modifier (Cmd on macOS, Ctrl on Linux/Windows) via `primary_modifier_with_shift` / platform `#[cfg]` helpers.
-- **Ctrl+Underscore (and other Ctrl+punctuation) sent literal character instead of control code.** The input handler only mapped Ctrl+A-Z to control codes (ASCII 1-26). Ctrl with ASCII punctuation in the 0x40-0x5F range (`@`, `[`, `\`, `]`, `^`, `_`) now correctly maps to their control equivalents via `char & 0x1F`. Most notably Ctrl+_ (used by joe editor for undo) now sends 0x1F instead of literal underscore.
-
-- **Kitty TGP virtual placement: image was rendered ~10% narrower than Sixel/iTerm2 at the same logical size.** `par-term-render::renderer::graphics::decode_placeholder_cell` deferred to the core's `diacritic_to_number`, which only mapped the first 64 of the 297 diacritics in the Kitty graphics-protocol spec; once a client emitted a placeholder cell with col index ≥ 64, the second-diacritic lookup returned `None`, the cell was rejected, and `scan_placeholder_cells`'s bounding-box scan stopped at column 63 — so a placement asked to fit in e.g. 75×26 cells rendered into only 64×26. Picked up `par-term-emu-core-rust` 0.42.1 which restores the full table, and updated `decode_placeholder_cell` and the `placeholder_cell` test helper to take `u16` row/col indices (the spec's 0..=296 range overflows `u8`); the third (MSB) diacritic is clamped to `u8::MAX` before being packed into the image-id byte. 0.42.1 also makes `CSI 16 t` return the renderer's actual cell pitch instead of a hardcoded 10×20.
-
-### Changed
-- Bumped `par-term-emu-core-rust` to 0.42.1 (removes local `patch.crates-io` override now that the Kitty TGP ingestion + query-response work is published to crates.io).
-- Bumped `tokio` to 1.52, `notify-rust` to 4.17, `muda` to 0.19, `libc` to 0.2.186.
-
-### Added
 - **Kitty Terminal Graphics Protocol — full support (Phases 1–3 complete)**: par-term now parses, stores, renders, and responds to Kitty TGP. Consumers like par-textual-image's autodetect probe (`\x1b_Gi=1,a=q,...`) will now receive `\x1b_Gi=N;OK\x1b\\` and select kitty mode in par-term, and virtual-placement images will display correctly. The implementation is split across the following three pieces:
 - **Kitty TGP — query response (Phase 3 of 3)**: par-term-emu-core-rust now responds to TGP query commands (`a=q`). New `quietness: u8` field on `KittyParser` (parses `q=` parameter); when a query payload completes and `quietness < 2`, `Terminal::filter_apc_and_advance` emits `\x1b_Gi={id};OK\x1b\\` (or `\x1b_G;OK\x1b\\` if no image_id) on `response_buffer`. `q=2` (silent) suppresses the reply per spec. Without this, terminal-feature-detection probes timed out and consumers correctly skipped kitty mode even though par-term supports it.
 - **Kitty TGP — virtual-placement rendering (Phase 2 of 3)**: par-term-render now scans grid cells for the U+10EEEE placeholder character + combining-mark diacritics, decodes the image ID from the cell's foreground color (low 24 bits) plus an optional 4th diacritic (high byte), looks up the virtual placement in `GraphicsStore::virtual_placements`, and emits a `GraphicRenderInfo` per `(image_id, placement_id)` group at the bounding box of the placeholder cells. Glyph emission for placeholder cells is suppressed in `cell_renderer/pane_render` (otherwise fonts render the codepoint as tofu). Texture cache uses synthetic `u64` ids with the high bit set so virtual-placement textures share the existing pipeline without colliding with regular `TerminalGraphic` ids. 7 new unit tests cover decoding, multi-image grouping, glyph suppression, and id namespacing.
 - **Kitty Terminal Graphics Protocol — APC ingestion plumbing (Phase 1 of 3)**: par-term-emu-core-rust parses Kitty TGP APC sequences (`ESC _ G ... ST`) and stores transmitted images and virtual placements in `GraphicsStore`. Streaming byte-level pre-filter (`src/terminal/apc_filter.rs`) strips Kitty APC bytes before they reach `vte::Parser` — necessary because vte 0.15 silently drops APC payloads in `State::SosPmApcString`. Handles chunked transmissions split across `process()` calls, both `\x1b\\` and `\x9c` ST terminators, and leaves non-Kitty APCs untouched. Phase 3 (responding `OK` to TGP query commands so terminal-detection probes succeed) is still required before consumers like par-textual-image will autodetect kitty mode in par-term.
 
 ### Fixed
+- **Drag-resizing split pane dividers only worked in one direction when mouse tracking was active.** The mouse motion reporting section intercepted move events before the divider-drag handler could process them. Dragging the divider toward the focused pane kept the mouse inside that pane's bounds, so motion reporting returned early and starved the drag handler. Added guards to skip motion reporting during active divider drags, and to prevent mouse tracking from consuming divider clicks in the press handler.
+- **Hardcoded keyboard shortcuts used bare `Ctrl` instead of platform-native modifier on macOS.** Font size (Ctrl+Plus/Minus/0), clear scrollback (Ctrl+Shift+K), and clipboard history (Ctrl+Shift+H) all checked `ctrl` directly, so they fired on macOS even though the platform convention is Cmd. This caused user-configured `Cmd+Shift+Plus` bindings to be shadowed by the hardcoded Ctrl path. All three now use the platform-native modifier (Cmd on macOS, Ctrl on Linux/Windows) via `primary_modifier_with_shift` / platform `#[cfg]` helpers.
+- **Ctrl+Underscore (and other Ctrl+punctuation) sent literal character instead of control code.** The input handler only mapped Ctrl+A-Z to control codes (ASCII 1-26). Ctrl with ASCII punctuation in the 0x40-0x5F range (`@`, `[`, `\`, `]`, `^`, `_`) now correctly maps to their control equivalents via `char & 0x1F`. Most notably Ctrl+_ (used by joe editor for undo) now sends 0x1F instead of literal underscore.
+- **Kitty TGP virtual placement: image was rendered ~10% narrower than Sixel/iTerm2 at the same logical size.** `par-term-render::renderer::graphics::decode_placeholder_cell` deferred to the core's `diacritic_to_number`, which only mapped the first 64 of the 297 diacritics in the Kitty graphics-protocol spec; once a client emitted a placeholder cell with col index ≥ 64, the second-diacritic lookup returned `None`, the cell was rejected, and `scan_placeholder_cells`'s bounding-box scan stopped at column 63 — so a placement asked to fit in e.g. 75×26 cells rendered into only 64×26. Picked up `par-term-emu-core-rust` 0.42.1 which restores the full table, and updated `decode_placeholder_cell` and the `placeholder_cell` test helper to take `u16` row/col indices (the spec's 0..=296 range overflows `u8`); the third (MSB) diacritic is clamped to `u8::MAX` before being packed into the image-id byte. 0.42.1 also makes `CSI 16 t` return the renderer's actual cell pitch instead of a hardcoded 10×20.
 - **Kitty TGP virtual placement images overflowed their cell extent.** With `preserve_aspect_ratio` on (the default), `GraphicsRenderer::render_graphics` and its per-pane sibling sized the on-screen rect by `tex_info.width × tex_info.height` (the texture's native pixels). For sixel/iterm2/regular kitty placements that's correct because the texture *is* the on-screen image. For virtual placements the texture is the originally-transmitted image at its source pixel size, while the on-screen footprint is dictated by the placement's cell extent (`c × r` in the `a=p` command — recorded in `width_cells`/`height_cells` after the cell-grid scan). When the two differed, the image bled past the placement boundary and overlapped subsequent terminal output. Branch on the virtual-placement high-bit id flag and use the cell-extent path for those, keeping native-pixel sizing for everything else.
 - **Kitty TGP virtual placements never displayed (and aborted the per-frame render).** `TerminalManager::get_virtual_placements` returned the placement records as stored, but those records carry `pixels: vec![]` and `width`/`height` set to *cell counts* rather than pixel dimensions (see `KittyParser::build_graphic` line 530, "Virtual placements don't need pixel data"). The renderer then passed those zero-length pixel buffers + cell-count "dimensions" to `get_or_create_texture`, which validated `0 != cells × cells × 4` and returned `Err(InvalidTextureData)` on every frame. The `?` propagated up `render_pane_sixel_graphics`, aborting the whole pane's render pass for as long as a placement existed. Fix: merge each placement with its actual transmitted RGBA bytes (via `GraphicsStore::get_kitty_image`) before returning. Placements whose image hasn't been transmitted yet are skipped.
 - **Kitty TGP virtual placements re-uploaded the GPU texture every frame.** `GraphicsRenderer::get_or_create_texture` blindly called `queue.write_texture` on every cache hit ("for animations") — for a 400×400 RGBA placement that's ~640 KB × 60 fps = 38 MB/s of GPU writes for a single static image. The GPU command queue saturated and the pane displaying the placement froze (other panes were unaffected because they had no virtual placements). Skip the re-upload when the cache id has the virtual-placement high-bit flag set; placements are static, not animated.
 - Shift+Enter under tmux intermittently sending raw LF instead of CSI-u in release/LTO builds. The keyboard input path read terminal mode flags (`modify_other_keys_mode`, `application_cursor`, `is_alt_screen_active`) and the `tmux*` child-process detection via `tab.terminal.try_read()`, falling back to `(0, false, false)` on contention. With LTO/`opt-level=3` the renderer's per-frame `try_write` collided often enough that Shift+Enter was encoded as bare `\n`, which tmux re-encoded as Ctrl+J → `\x1b[106;5u` and Claude Code never saw a Shift+Enter. `Tab` now caches the last successfully-read mode flags and `shell_has_tmux_child` result in atomics, and the input handler reads those on contention instead of resetting to defaults.
+
+### Changed
+- Bumped `par-term-emu-core-rust` to 0.42.1 (removes local `patch.crates-io` override now that the Kitty TGP ingestion + query-response work is published to crates.io).
+- Bumped `tokio` to 1.52, `notify-rust` to 4.17, `muda` to 0.19, `libc` to 0.2.186.
 
 ---
 
@@ -148,7 +142,7 @@ Each version entry may include a `### Security` subsection for vulnerability fix
 ### Removed
 - Content Prettifier — removed `par-term-prettifier` crate and all related wiring
 
-### Bug Fixes
+### Fixed
 - Auto-dim under text now affects background shaders correctly without double-rendered text
 - Codex Assistant shader edits work outside the repo root
 - Assistant chat input grows up to 10 rows without hiding controls
@@ -168,14 +162,14 @@ Each version entry may include a `### Security` subsection for vulnerability fix
 
 ## [0.30.12] - 2026-04-25
 
-### Bug Fixes
+### Fixed
 - **Unfocused split panes showed stale content** — two compounding bugs caused unfocused split panes to never update. (1) `Pane::start_refresh_task()` was defined but never called at split/restore entry points, so secondary panes had no polling task to detect output and trigger redraws. (2) The cell-cache fast path in `gather_pane_render_data` returned stale cached cells for unfocused panes because nothing refreshed their cache between frames. Fixed by starting per-pane refresh tasks at all split/restore entry points, gating the cache fast path to the focused pane only, and propagating `is_active` to pane refresh tasks on tab focus changes.
 
 ---
 
 ## [0.30.11] - 2026-04-24
 
-### Bug Fixes
+### Fixed
 - **Split panes: only the focused pane refreshed** — two compounding bugs caused unfocused split panes to show stale content. (1) `Pane::start_refresh_task()` was defined but never called, so secondary panes had no polling task to detect output changes and trigger redraws. (2) The cell-cache fast path in `gather_pane_render_data` skipped the generation check for unfocused panes, returning stale cached cells indefinitely. Fixed by starting per-pane refresh tasks at all split/restore entry points and gating the cache fast path to the focused pane only. Also propagates `is_active` to pane refresh tasks on tab focus changes so they poll at the correct rate.
 - **Keyboard input stalls every 1–2 seconds in tmux** — async keyboard writes and refresh polling tasks used exclusive write locks (`write().await` / `try_write()`) on the outer `RwLock<TerminalManager>` when only shared read access was needed for `TerminalManager::write()` and `update_generation()`. This caused lock contention between the keyboard path and the refresh/render pipeline. All paths now use shared read locks (`read().await` / `try_read()`), allowing concurrent access. Investigation also revealed the primary stall source was tmux status-bar plugin scripts blocking tmux's single-threaded event loop (see tmux config recommendations).
 - **Clicks in TUI apps (htop, lazygit, etc.) intermittently failed to register** — mouse event handling used exclusive write locks (`try_write`) on the outer `RwLock<TerminalManager>` when only shared read access was needed. This caused cascading lock contention: a previous async mouse-write task holding the write lock (blocked on the inner terminal mutex) prevented new clicks from acquiring the lock, silently dropping them. All mouse tracking queries and encoding paths now use shared read locks (`try_read`), allowing concurrent access and eliminating the contention chain.
@@ -191,7 +185,7 @@ Each version entry may include a `### Security` subsection for vulnerability fix
 - **Static tmux-heavy tabs could tank FPS even without par-term splits** — the pane-render path is used whenever the tab's pane manager exists, which includes the normal single-pane case. That path rebuilt and cloned pane cell buffers on every frame, so tabs with large static screen contents could render much slower than simpler tabs even when the PTY was idle. Pane cell snapshots are now cached across frames by terminal generation and scroll offset, with copy-on-write only when focused-pane decorations actually mutate the cells.
 - **Animated frames walked every tab title on every render** — `update_animations()` refreshed all tab/pane titles every frame, touching terminal state for every open tab and making idle-tab count reduce FPS. Title refresh is now throttled instead of running at render cadence.
 
-### Bug Fixes
+### Fixed
 - **Geometric shape characters (◼ ◻ ■ □ ▪ ▫ ◾ ◽ ▬ ▮) rendered vertically squished** — the pane render path only handled box-drawing, half-blocks, and block elements (U+2580–U+259F); Geometric Shapes (U+25A0–U+25FF) fell through to the font path and landed on the glyph-snap branch, which preserved the font's short baseline-relative metrics. Filled variants now render as pixel-perfect rectangles via `get_geometric_shape_rect`, and outline variants go through the same center+scale-to-fill treatment previously applied to `Symbol` chars (ballot boxes, dingbats).
 
 ### Dependencies
@@ -202,7 +196,7 @@ Each version entry may include a `### Security` subsection for vulnerability fix
 
 ## [0.30.9] - 2026-04-18
 
-### Bug Fixes
+### Fixed
 - **Ctrl+Alt+letter chords collapsed to plain Ctrl+letter without enhanced modifier reporting** — `Ctrl+Alt+P` and `Ctrl+P` both reached inner TUIs as `0x10` because Alt/Option was discarded before the C0 control byte was returned. par-term now preserves the Alt modifier using the configured Option-key mode; with the default `esc` mode, `Ctrl+Alt+P` emits `\x1b\x10`, which apps can distinguish from plain `Ctrl+P`.
 - **Hardcoded primary-modifier handlers shadowed registered shortcuts with extra modifiers** — chords like `Ctrl+Alt+R` could incorrectly fire simpler `Ctrl+R` handlers because `primary_modifier()` matched even when additional modifiers were held. `primary_modifier()` and `primary_modifier_with_shift()` now require exclusive modifier sets; the duplicate hardcoded `CmdOrCtrl+R` command-history check has been removed.
 
@@ -210,7 +204,7 @@ Each version entry may include a `### Security` subsection for vulnerability fix
 
 ## [0.30.8] - 2026-04-16
 
-### Bug Fixes
+### Fixed
 - **Shift+Enter still broken in kitty-keyboard TUIs under non-gateway tmux** — the previous fix relied on per-keypress `sysinfo` process-tree scanning to detect tmux, which was unreliable (failed silently, falling through to raw LF). tmux converts LF (0x0a) into Ctrl+J (its C0→Ctrl remapping in `tty-keys.c`), then re-encodes as `\x1b[106;5u` for `MODE_KEYS_EXTENDED_2` panes — the inner app never sees Shift+Enter. New approach: use alternate screen buffer state as the primary signal. TUI apps (and tmux wrapping TUIs) always enter alternate screen; when active, emit `\x1b[13;2u` so tmux's `extended-keys on` parser can re-encode for the pane's negotiated protocol. Process-tree detection kept as fallback. Shell context (no alternate screen) preserves the iTerm2 `\n` convention.
 - **Unicode symbol characters (ballot boxes, dingbats) rendered vertically squished** — `BlockCharType::Symbol` characters (U+2600–U+26FF, U+2700–U+27BF) used baseline-relative font metrics that produce glyphs much shorter than the terminal cell height. Now centered in the cell and scaled to fill the cell height while maintaining aspect ratio.
 
@@ -218,7 +212,7 @@ Each version entry may include a `### Security` subsection for vulnerability fix
 
 ## [0.30.7] - 2026-04-15
 
-### Bug Fixes
+### Fixed
 - **Shift+Enter lost as soft-newline in kitty-keyboard TUIs running under tmux** — apps like the pi agent detect `$TMUX` and negotiate the kitty-keyboard protocol with tmux, after which a raw `\n` is no longer interpreted as Shift+Enter (only `\x1b[13;2u` is). par-term was emitting LF in every scenario following the iTerm2 convention, so Shift+Enter silently no-op'd inside tmux. Two-part fix: (1) in gateway mode (`tmux -CC`), route Shift+Enter via `send-keys -t %N -H 0a` so the literal LF bypasses tmux's per-pane `modifyOtherKeys` re-encoding (the old `C-j` path was being rewritten to `\x1b[27;5;106~` for mode-2 apps); (2) in subprocess tmux, detect a `tmux*` process under the active tab's shell via sysinfo and emit `\x1b[13;2u` instead of `\n`, letting tmux's `extended-keys on` parser re-encode for whatever keyboard protocol the inner app has negotiated. Outside tmux the iTerm2 `\n` convention is preserved so Claude Code and other non-kitty TUIs keep working.
 
 ### Build
@@ -228,7 +222,7 @@ Each version entry may include a `### Security` subsection for vulnerability fix
 
 ## [0.30.6] - 2026-04-11
 
-### Bug Fixes
+### Fixed
 - **Shift+digit/symbol sends unshifted char to crossterm apps outside tmux** — Claude Code and other crossterm-based TUIs received `1` instead of `!`, `[` instead of `{`, etc. when run in a normal tab (tmux masked the bug by re-encoding). par-term was emitting `modifyOtherKeys` sequences like `CSI 27;2;49~` for any Shift-modified printable, and crossterm cannot reverse-map a base codepoint to the shifted character without keyboard-layout tables. Fixed by matching iTerm2's `iTermModifyOtherKeysMapper` reference exactly: skip `modifyOtherKeys` encoding for any Shift-only combo (regardless of mode or character class) and let winit's layout-resolved shifted character pass through. Ctrl+digit and Ctrl+Shift+digit still encode via `modifyOtherKeys` as before.
 
 ---
@@ -238,7 +232,7 @@ Each version entry may include a `### Security` subsection for vulnerability fix
 ### Features
 - **Move Tab to New Window** — tab context menu gains "Move Tab to New Window" and "Move Tab to Window ▸" (submenu listing every other par-term window). Moving a tab transfers its live PTY, scrollback, split panes, session logger, profile history, and custom title/color/icon without killing the shell. Tmux gateway and display tabs are disabled; solo-tab source windows auto-close after a merge into another window. A new keybinding action `MoveTabToNewWindow` pops the active tab out to a new window.
 
-### Bug Fixes
+### Fixed
 - **Tab click sometimes required a second click to switch** — when the FPS gate dropped a `RedrawRequested`, any events already sitting in `egui_winit`'s `raw_input` accumulator (tab click press+release) stalled until an unrelated wake, so the click appeared to be ignored. Added `pending_egui_repaint` tracking in `should_render_frame()` and extended the `about_to_wait` self-heal to re-arm a frame at the earliest eligible time so the gap closes on its own.
 
 ### Dependencies
@@ -248,7 +242,7 @@ Each version entry may include a `### Security` subsection for vulnerability fix
 
 ## [0.30.4] - 2026-04-03
 
-### Bug Fixes
+### Fixed
 - **Stale inline graphics persist after tmux split/clear** — when tmux redraws cells over Sixel/iTerm2/Kitty graphics without sending ED 2, images persisted indefinitely. Added three-layer invalidation: scroll detection, 500ms time-based grace period, and per-frame dirty-row threshold (>50% of graphic rows dirty).
 - **Tab click leaks mouse press to tmux** — clicking a tab sometimes caused text selection/highlight in tmux panes. Fixed by always updating stored mouse position on cursor move, and marking tab-bar presses as consumed so the matching release is also blocked.
 - **No UTF-8 locale when launched from Finder/Dock** — PTY environment had no LANG/LC_ALL/LC_CTYPE when launched outside a terminal, causing tmux and starship to fall back to ASCII. Now inherits locale vars from parent and defaults LANG to `en_US.UTF-8` when none are set.
@@ -262,7 +256,7 @@ Each version entry may include a `### Security` subsection for vulnerability fix
 
 ## [0.30.3] - 2026-04-01
 
-### Bug Fixes
+### Fixed
 - **Modifier keys ignored for special keys outside tmux** — Shift/Ctrl/Alt+Arrow, Home, End, PageUp/Down, Insert, Delete, and F1-F12 sent unmodified escape sequences. Alt-screen apps (vim, htop) could not distinguish modified from plain keys. Now emits xterm-standard modifier-parameterized sequences.
 - **URL underline position wrong in split panes and with scrollbar** — URL detection used renderer grid dimensions instead of actual pane terminal dimensions, causing row misalignment and underlines at wrong positions. Fixed by capturing terminal grid dims in the cell snapshot.
 - **URL underline drifts when scrolling** — on lock-contention frames, stale URLs used old scroll offset while the renderer used the new one. Fixed by storing and using the detection-time scroll offset consistently.
@@ -288,7 +282,7 @@ Each version entry may include a `### Security` subsection for vulnerability fix
 
 ## [0.30.1] - 2026-03-26
 
-### Bug Fixes
+### Fixed
 - **macOS/Linux: Shift+letter broken inside apps using modifyOtherKeys mode 2** — applications built with crossterm (e.g. Claude Code) set modifyOtherKeys mode 2, which caused par-term to encode `Shift+a` as `CSI 27;2;97~`. Crossterm receives this as `KeyEvent { code: Char('a'), modifiers: SHIFT }` but does not apply the SHIFT modifier to uppercase the character, producing lowercase `a`. Fix: shift-only alphabetic key combinations are now exempted from mode-2 encoding (matching the existing mode-1 exemption), allowing the logical-key path to send `'A'` directly.
 - **Text selection highlight does not follow content when scrolling** — selection coordinates were stored as viewport-relative rows with no record of the scroll offset at capture time. After scrolling, `is_cell_selected` still tested the original viewport rows, freezing the highlight at those visual positions while the selected content moved. Fix: `Selection` now records `scroll_offset` at capture time; the renderer adjusts rows by the delta between the stored and current offsets before highlighting. Applies to all selection modes (normal, line, rectangular) in both single-pane and split-pane layouts.
 
@@ -296,7 +290,7 @@ Each version entry may include a `### Security` subsection for vulnerability fix
 
 ## [0.30.0] - 2026-03-26
 
-### Bug Fixes
+### Fixed
 - **Windows: Shift/Ctrl/Alt stop working after a notification or popup briefly steals focus** — on Windows, `WM_NCACTIVATE(false)` fires when any notification balloon or popup window becomes active, causing winit to emit `ModifiersChanged(empty)` and zero out all modifier state. Because keyboard focus is never actually lost, no `WM_SETFOCUS` fires to restore the state, leaving Shift/Ctrl/Alt permanently broken until the key is re-pressed. Fix: `InputHandler` now synthesizes modifier-state updates directly from `KeyboardInput` events for physical modifier keys (ShiftLeft/Right, ControlLeft/Right, AltLeft/Right, SuperLeft/Right). This is a no-op in the normal path (winit guarantees `ModifiersChanged` fires before `KeyboardInput`) and only corrects state when `ModifiersChanged` delivery is stale or missing.
 - **tmux text selection: highlight persists and clipboard not populated on release** — when clicking between tmux panes, trackpad tap jitter could cause a press→drag→release sequence to be forwarded to tmux (which interpreted it as an empty selection), while simultaneously starting a local selection that was never finished. Root cause: `try_send_mouse_event` uses `try_write()` which can miss the lock during press (PTY reader holds it), causing the press to be handled locally (starting a selection); the release then succeeds via the alt-screen path and is consumed by tracking without completing the local selection. Fix: after tracking consumes a release, check for a pending local selection and call `handle_left_mouse_release()` to copy the text and clear the highlight.
 

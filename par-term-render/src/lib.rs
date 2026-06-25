@@ -36,6 +36,7 @@ pub mod gpu_utils;
 pub mod graphics_renderer;
 pub mod renderer;
 pub mod scrollbar;
+pub mod wgpu_conversions;
 
 // Re-export main public types
 pub use cell_renderer::{Cell, CellRenderer, PaneViewport};

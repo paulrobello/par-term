@@ -193,6 +193,36 @@ fn push_warning(warnings: &mut Vec<ShaderControlWarning>, line: usize, message: 
     warnings.push(ShaderControlWarning { line, message });
 }
 
+/// Capacity gate shared by the five per-type counters in `parse_shader_controls`
+/// (QA-003: collapses five identical `if count >= MAX { warn; continue }` blocks).
+///
+/// Returns `true` when `count` has reached `limit`, after pushing a warning
+/// identical to the original inline messages. The caller `continue`s the parse
+/// loop on `true` so the over-limit control is dropped — matching the prior
+/// inline behavior.
+fn check_and_push_capacity_warning(
+    warnings: &mut Vec<ShaderControlWarning>,
+    line: usize,
+    type_label: &str,
+    limit: usize,
+    count: usize,
+    uniform_name: &str,
+) -> bool {
+    if count >= limit {
+        push_warning(
+            warnings,
+            line,
+            format!(
+                "Only the first {} {} controls are active; ignoring over-limit control `{}`",
+                limit, type_label, uniform_name
+            ),
+        );
+        true
+    } else {
+        false
+    }
+}
+
 fn unquote(value: &str) -> Option<&str> {
     value
         .strip_prefix('"')
@@ -897,43 +927,40 @@ pub fn parse_shader_controls(source: &str) -> ShaderControlParseResult {
 
         match &kind {
             ShaderControlKind::Slider { .. } | ShaderControlKind::Angle { .. } => {
-                if float_count >= MAX_SHADER_FLOAT_CONTROLS {
-                    push_warning(
-                        &mut warnings,
-                        line_number,
-                        format!(
-                            "Only the first {} float controls are active; ignoring over-limit control `{}`",
-                            MAX_SHADER_FLOAT_CONTROLS, uniform_name
-                        ),
-                    );
+                if check_and_push_capacity_warning(
+                    &mut warnings,
+                    line_number,
+                    "float",
+                    MAX_SHADER_FLOAT_CONTROLS,
+                    float_count,
+                    uniform_name,
+                ) {
                     continue;
                 }
                 float_count += 1;
             }
             ShaderControlKind::Checkbox { .. } => {
-                if bool_count >= MAX_SHADER_BOOL_CONTROLS {
-                    push_warning(
-                        &mut warnings,
-                        line_number,
-                        format!(
-                            "Only the first {} checkbox controls are active; ignoring over-limit control `{}`",
-                            MAX_SHADER_BOOL_CONTROLS, uniform_name
-                        ),
-                    );
+                if check_and_push_capacity_warning(
+                    &mut warnings,
+                    line_number,
+                    "checkbox",
+                    MAX_SHADER_BOOL_CONTROLS,
+                    bool_count,
+                    uniform_name,
+                ) {
                     continue;
                 }
                 bool_count += 1;
             }
             ShaderControlKind::Color { .. } => {
-                if color_count >= MAX_SHADER_COLOR_CONTROLS {
-                    push_warning(
-                        &mut warnings,
-                        line_number,
-                        format!(
-                            "Only the first {} color controls are active; ignoring over-limit control `{}`",
-                            MAX_SHADER_COLOR_CONTROLS, uniform_name
-                        ),
-                    );
+                if check_and_push_capacity_warning(
+                    &mut warnings,
+                    line_number,
+                    "color",
+                    MAX_SHADER_COLOR_CONTROLS,
+                    color_count,
+                    uniform_name,
+                ) {
                     continue;
                 }
                 color_count += 1;
@@ -941,15 +968,14 @@ pub fn parse_shader_controls(source: &str) -> ShaderControlParseResult {
             ShaderControlKind::Int { .. }
             | ShaderControlKind::Select { .. }
             | ShaderControlKind::Channel { .. } => {
-                if int_count >= MAX_SHADER_INT_CONTROLS {
-                    push_warning(
-                        &mut warnings,
-                        line_number,
-                        format!(
-                            "Only the first {} int controls are active; ignoring over-limit control `{}`",
-                            MAX_SHADER_INT_CONTROLS, uniform_name
-                        ),
-                    );
+                if check_and_push_capacity_warning(
+                    &mut warnings,
+                    line_number,
+                    "int",
+                    MAX_SHADER_INT_CONTROLS,
+                    int_count,
+                    uniform_name,
+                ) {
                     continue;
                 }
                 int_count += 1;
@@ -957,15 +983,14 @@ pub fn parse_shader_controls(source: &str) -> ShaderControlParseResult {
             ShaderControlKind::Vec2 { .. }
             | ShaderControlKind::Point { .. }
             | ShaderControlKind::Range { .. } => {
-                if vec2_count >= MAX_SHADER_VEC2_CONTROLS {
-                    push_warning(
-                        &mut warnings,
-                        line_number,
-                        format!(
-                            "Only the first {} vec2 controls are active; ignoring over-limit control `{}`",
-                            MAX_SHADER_VEC2_CONTROLS, uniform_name
-                        ),
-                    );
+                if check_and_push_capacity_warning(
+                    &mut warnings,
+                    line_number,
+                    "vec2",
+                    MAX_SHADER_VEC2_CONTROLS,
+                    vec2_count,
+                    uniform_name,
+                ) {
                     continue;
                 }
                 vec2_count += 1;

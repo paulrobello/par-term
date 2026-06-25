@@ -275,6 +275,18 @@ fn is_denied_ssh_token(tok: &str) -> bool {
     false
 }
 
+/// True if `host` is safe to interpolate into an SSH argv (SEC-007).
+///
+/// Rejects:
+/// - leading `-`: parsed as a flag by SSH, enabling `-oProxyCommand=...`
+///   injection from a profile YAML.
+/// - embedded `\n` / `\r` / `\0`: control characters that could delimit
+///   arguments or smuggle content past argv parsing.
+fn is_safe_ssh_host(host: &str) -> bool {
+    !host.starts_with('-')
+        && !host.chars().any(|c| c == '\n' || c == '\r' || c == '\0')
+}
+
 /// Tokenize `ssh_extra_args` with shell-style quoting and drop dangerous
 /// flags/options (SEC-002) so they cannot reach the SSH argv.
 ///
@@ -586,6 +598,19 @@ impl Profile {
     /// Returns None if ssh_host is not set.
     pub fn ssh_command_args(&self) -> Option<Vec<String>> {
         let host = self.ssh_host.as_ref()?;
+        // SEC-007: defensively reject dangerous ssh_host values at the use
+        // site, in case a profile was constructed/built without going through
+        // `validate()`. A leading `-` lets `-oProxyCommand=...` be parsed as
+        // a flag, and embedded newlines/NUL can delimit argv entries.
+        if !is_safe_ssh_host(host) {
+            log::warn!(
+                "[SEC-007] refusing to build SSH argv for profile {:?}: \
+                 unsafe ssh_host {:?} (leading '-' or embedded newline/NUL)",
+                self.name,
+                host
+            );
+            return None;
+        }
         let mut args = Vec::new();
 
         if let Some(port) = self.ssh_port
@@ -639,6 +664,20 @@ impl Profile {
             && !std::path::Path::new(dir).exists()
         {
             warnings.push(format!("Working directory does not exist: {}", dir));
+        }
+
+        // SEC-007: ssh_host is formatted directly into the SSH argv, so a
+        // leading `-` (parsed as a flag) or embedded newlines/NUL must be
+        // reported before the profile is saved.
+        if let Some(host) = &self.ssh_host
+            && !host.is_empty()
+            && !is_safe_ssh_host(host)
+        {
+            warnings.push(format!(
+                "ssh_host {:?} is unsafe (SEC-007): must not start with '-' \
+                 or contain newline / NUL characters",
+                host
+            ));
         }
 
         warnings

@@ -47,6 +47,13 @@ pub fn expand_link_handler(command: &str, url: &str) -> Result<Vec<String>, Stri
 
 /// Open a URL in the configured browser or system default
 pub fn open_url(url: &str, link_handler_command: &str) -> Result<(), String> {
+    // SEC-009: validate the URL scheme before handing it to the OS handler.
+    // A remote program can emit an OSC 8 hyperlink with an arbitrary scheme
+    // (e.g. `file:///etc/cron.d/evil`); without this gate, `open::that`
+    // forwards it to the OS default handler, which happily opens `file://`,
+    // `ftp://`, etc. Only http(s)/mailto reach the OS.
+    validate_url_scheme(url)?;
+
     let url_with_scheme = ensure_url_scheme(url);
 
     if link_handler_command.is_empty() {
@@ -61,6 +68,42 @@ pub fn open_url(url: &str, link_handler_command: &str) -> Result<(), String> {
             .map(|_| ())
             .map_err(|e| format!("Failed to run link handler '{}': {}", parts[0], e))
     }
+}
+
+/// URL schemes the OS link handler is allowed to open (SEC-009).
+///
+/// `http`/`https` cover the common browser case; `mailto` is the only
+/// non-`://` scheme explicitly allowed. `file://`, `ftp://`, `data:`, and
+/// anything else are rejected because the OS handler would dispatch them to
+/// their default app with no further validation.
+const ALLOWED_URL_SCHEMES: &[&str] = &["http", "https", "mailto"];
+
+/// Validate that `url` uses an allowlisted scheme (SEC-009).
+///
+/// - URLs with no `://` and no `mailto:` prefix are accepted unchanged and
+///   later normalized by [`ensure_url_scheme`] (e.g. `www.example.com`,
+///   `localhost:3000` which is `host:port`, not a scheme).
+/// - URLs with an explicit `scheme://` must use `http`, `https`. `mailto:`
+///   is the only allowed non-`://` scheme.
+/// - Everything else (`file://`, `ftp://`, `data:`, ...) is rejected.
+fn validate_url_scheme(url: &str) -> Result<(), String> {
+    if let Some((scheme, _rest)) = url.split_once("://") {
+        let lower = scheme.to_ascii_lowercase();
+        if ALLOWED_URL_SCHEMES.contains(&lower.as_str()) {
+            return Ok(());
+        }
+        return Err(format!(
+            "Refusing to open URL with scheme '{lower}://' — only http, https, and mailto are allowed"
+        ));
+    }
+    // No `://`. Allow `mailto:` explicitly; treat everything else (including
+    // bare `host:port`) as scheme-less so `ensure_url_scheme` can prepend https.
+    if let Some((scheme, _)) = url.split_once(':')
+        && scheme.eq_ignore_ascii_case("mailto")
+    {
+        return Ok(());
+    }
+    Ok(())
 }
 
 /// Open a file path in the configured editor, or a directory in the file manager

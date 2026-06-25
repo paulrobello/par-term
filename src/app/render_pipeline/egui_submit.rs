@@ -231,7 +231,17 @@ impl WindowState {
                                 Some("Click a pane to merge into (Esc to cancel)"),
                             );
                         }
-                        super::types::DemoteSnapshot::ChooseDirection { .. } => {
+                        // QA-004: destructure ChooseDirection ONCE here so the click
+                        // handlers below can reference the bound IDs directly. The outer
+                        // match guarantees the variant, so there is no failing variant
+                        // check inside the closures — a wrong variant skips this arm
+                        // entirely (falling through to PickTab/PickPane/Idle) instead
+                        // of panicking mid-frame via `unreachable!()`.
+                        super::types::DemoteSnapshot::ChooseDirection {
+                            source_tab_id,
+                            target_tab_id,
+                            target_pane_id,
+                        } => {
                             if let Some(bounds) = demote_pane_bounds {
                                 let center_x = bounds.x + bounds.width / 2.0;
                                 let center_y = bounds.y + bounds.height / 2.0;
@@ -269,9 +279,9 @@ impl WindowState {
                                                         {
                                                             actions.demote =
                                                                 super::types::DemoteAction::Execute {
-                                                                    source_tab_id: match demote_snapshot { super::types::DemoteSnapshot::ChooseDirection { source_tab_id, .. } => source_tab_id, _ => unreachable!() },
-                                                                    target_tab_id: match demote_snapshot { super::types::DemoteSnapshot::ChooseDirection { target_tab_id, .. } => target_tab_id, _ => unreachable!() },
-                                                                    target_pane_id: match demote_snapshot { super::types::DemoteSnapshot::ChooseDirection { target_pane_id, .. } => target_pane_id, _ => unreachable!() },
+                                                                    source_tab_id,
+                                                                    target_tab_id,
+                                                                    target_pane_id,
                                                                     direction: crate::pane::SplitDirection::Horizontal,
                                                                 };
                                                         }
@@ -284,9 +294,9 @@ impl WindowState {
                                                         {
                                                             actions.demote =
                                                                 super::types::DemoteAction::Execute {
-                                                                    source_tab_id: match demote_snapshot { super::types::DemoteSnapshot::ChooseDirection { source_tab_id, .. } => source_tab_id, _ => unreachable!() },
-                                                                    target_tab_id: match demote_snapshot { super::types::DemoteSnapshot::ChooseDirection { target_tab_id, .. } => target_tab_id, _ => unreachable!() },
-                                                                    target_pane_id: match demote_snapshot { super::types::DemoteSnapshot::ChooseDirection { target_pane_id, .. } => target_pane_id, _ => unreachable!() },
+                                                                    source_tab_id,
+                                                                    target_tab_id,
+                                                                    target_pane_id,
                                                                     direction: crate::pane::SplitDirection::Vertical,
                                                                 };
                                                         }

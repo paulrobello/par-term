@@ -19,26 +19,31 @@
 //! - [`tools::screenshot`] — `terminal_screenshot` tool handler
 //! - [`tools::diagnostics`] — `shader_diagnostics` tool handler
 //!
-//! # SEC-008: Trust Boundary — stdin/stdout IPC Channel
+//! # SEC-006 / SEC-008: Trust Boundary — stdin/stdout IPC Channel
 //!
 //! This MCP server communicates over stdin and stdout using JSON-RPC 2.0.
-//! There is **no authentication, encryption, or integrity verification** on
-//! this IPC channel. Any process that can write to the MCP server's stdin can
+//! Any process that can write to the MCP server's stdin can, by default,
 //! invoke any tool (including `config_update`, which writes to the user's
 //! configuration file on disk).
 //!
-//! **The stdin/stdout channel is a trust boundary.** Only trusted MCP client
-//! processes (i.e., ACP agents that par-term itself has spawned) should be
-//! connected to this server. The caller is responsible for ensuring that:
+//! **SEC-006 mitigation:** the server now requires a launch-time session
+//! token in the `initialize` handshake. The token is either:
+//! 1. Read from the [`MCP_AUTH_TOKEN_ENV`] env var (set by the spawner), or
+//! 2. Generated at startup as a CSPRNG-backed `Uuid` and logged to stderr
+//!    so the parent process (which owns stderr) can capture it.
 //!
-//! 1. The MCP server process is only spawned by par-term's ACP subsystem.
-//! 2. The stdin pipe is not shared with or writable by untrusted processes.
-//! 3. Agent TOML files (which define which agents are launched) are treated as
-//!    a trust boundary — only install agents from sources you trust.
+//! The client must echo the token back in `initialize` params at
+//! `_meta.<AUTH_TOKEN_FIELD>`. Until a valid handshake completes, every
+//! `tools/call` and `tools/list` request is rejected with a `-32001` error.
+//!
+//! **The stdin/stdout channel is still a trust boundary.** Only trusted MCP
+//! client processes (i.e., ACP agents that par-term itself has spawned, with
+//! the auth token plumbed through) should be connected to this server. Agent
+//! TOML files (which define which agents are launched) are themselves a trust
+//! boundary — only install agents from sources you trust.
 //!
 //! The file-based IPC paths used for screenshot and diagnostics requests use
-//! restrictive permissions (0o600) to prevent unauthorized reads or writes,
-//! but the stdin/stdout channel itself has no such protection.
+//! restrictive permissions (0o600) to prevent unauthorized reads or writes.
 
 pub mod ipc;
 pub mod jsonrpc;
@@ -48,8 +53,12 @@ use serde::{Deserialize, Serialize};
 use std::io::BufRead;
 use std::sync::OnceLock;
 
-use jsonrpc::{IncomingMessage, method_not_found, parse_error, send_response, success_response};
+use jsonrpc::{
+    IncomingMessage, Response, RpcError, method_not_found, parse_error, send_response,
+    success_response,
+};
 use tools::{handle_tools_call, handle_tools_list};
+use uuid::Uuid;
 
 // ---------------------------------------------------------------------------
 // Protocol constants (pub(crate) so submodules can access them)
@@ -106,6 +115,110 @@ pub const SHADER_DIAGNOSTICS_RESPONSE_PATH_ENV: &str = "PAR_TERM_SHADER_DIAGNOST
 /// Optional environment variable for a static fallback screenshot file path.
 /// Used by the ACP harness to test the screenshot tool flow without a GUI.
 pub const SCREENSHOT_FALLBACK_PATH_ENV: &str = "PAR_TERM_SCREENSHOT_FALLBACK_PATH";
+
+/// Environment variable carrying the per-process MCP session auth token (SEC-006).
+///
+/// When par-term's ACP subsystem spawns this server it sets this env var to a
+/// random per-process value (CSPRNG-backed) and passes the same value to the
+/// spawned agent, which must echo it back in the `initialize` handshake. If the
+/// env var is unset, the server generates a token itself and prints it to
+/// stderr so the parent process (which owns stderr) can capture it.
+pub const MCP_AUTH_TOKEN_ENV: &str = "PAR_TERM_MCP_AUTH_TOKEN";
+
+/// Field name in the `initialize` params (`_meta.<field>`) that carries the
+/// session auth token (SEC-006).
+const AUTH_TOKEN_FIELD: &str = "parTermAuthToken";
+
+/// Resolve the session auth token (SEC-006).
+///
+/// Reads [`MCP_AUTH_TOKEN_ENV`] first; if unset, generates a fresh CSPRNG-backed
+/// `Uuid` and logs it to stderr so the parent process can capture and forward
+/// it. Trims whitespace from the env-var value.
+fn resolve_auth_token() -> String {
+    if let Ok(t) = std::env::var(MCP_AUTH_TOKEN_ENV)
+        && !t.trim().is_empty()
+    {
+        return t.trim().to_string();
+    }
+    let generated = Uuid::new_v4().to_string();
+    eprintln!(
+        "[mcp-server] no {MCP_AUTH_TOKEN_ENV} env var set; generated session auth token: {generated}"
+    );
+    generated
+}
+
+/// Constant-time string comparison to avoid timing side-channels on the token
+/// check (SEC-006). The threat model is local-process access control; this is
+/// defense-in-depth, not the primary gate.
+fn constant_time_eq(a: &str, b: &str) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut diff: u8 = 0;
+    for (x, y) in a.bytes().zip(b.bytes()) {
+        diff |= x ^ y;
+    }
+    diff == 0
+}
+
+/// Build the JSON-RPC `-32001` "auth required" error response used by the
+/// SEC-006 dispatch gate.
+fn auth_required_error(id: serde_json::Value, message: impl Into<String>) -> Response {
+    Response {
+        jsonrpc: "2.0",
+        result: None,
+        error: Some(RpcError {
+            code: -32001,
+            message: message.into(),
+            data: None,
+        }),
+        id,
+    }
+}
+
+/// Dispatch a JSON-RPC request with the SEC-006 authentication gate applied.
+///
+/// `initialize` must echo the session token in `params._meta.<AUTH_TOKEN_FIELD>`;
+/// on success the `authenticated` flag is flipped and the server info is
+/// returned. `tools/list` and `tools/call` are rejected with `-32001` until a
+/// valid handshake has completed.
+fn dispatch_authenticated(
+    method: &str,
+    id: serde_json::Value,
+    params: Option<serde_json::Value>,
+    expected_token: &str,
+    authenticated: &mut bool,
+) -> Response {
+    match method {
+        "initialize" => {
+            let provided = params
+                .as_ref()
+                .and_then(|p| p.get("_meta"))
+                .and_then(|m| m.get(AUTH_TOKEN_FIELD))
+                .and_then(|v| v.as_str());
+            if provided.is_some_and(|p| constant_time_eq(p, expected_token)) {
+                *authenticated = true;
+                success_response(id, handle_initialize())
+            } else {
+                auth_required_error(
+                    id,
+                    format!(
+                        "Authentication failed: provide the correct session token in \
+                         initialize params._meta.{AUTH_TOKEN_FIELD}"
+                    ),
+                )
+            }
+        }
+        "tools/list" | "tools/call" if !*authenticated => auth_required_error(
+            id,
+            "Not authenticated: complete the initialize handshake (with the \
+             session token) before invoking tools.",
+        ),
+        "tools/list" => success_response(id, handle_tools_list()),
+        "tools/call" => success_response(id, handle_tools_call(params)),
+        _ => method_not_found(id, method),
+    }
+}
 
 /// Default config update filename (relative to config dir).
 pub const CONFIG_UPDATE_FILENAME: &str = ".config-update.json";
@@ -187,11 +300,16 @@ pub use ipc::{
 /// callers can run destructors and exit cleanly.
 pub fn run_mcp_server() {
     let version = get_app_version();
+    let expected_token = resolve_auth_token();
     eprintln!("[mcp-server] Starting par-term MCP server v{version}");
+    eprintln!(
+        "[mcp-server] SEC-006: session auth enabled — client must send '{AUTH_TOKEN_FIELD}' in initialize params._meta"
+    );
 
     let stdin = std::io::stdin();
     let mut stdout = std::io::stdout();
     let reader = stdin.lock();
+    let mut authenticated = false;
 
     for line in reader.lines() {
         let line = match line {
@@ -237,13 +355,14 @@ pub fn run_mcp_server() {
             }
         };
 
-        // Dispatch the request
-        let response = match method {
-            "initialize" => success_response(id, handle_initialize()),
-            "tools/list" => success_response(id, handle_tools_list()),
-            "tools/call" => success_response(id, handle_tools_call(msg.params)),
-            _ => method_not_found(id, method),
-        };
+        // Dispatch with the SEC-006 authentication gate applied.
+        let response = dispatch_authenticated(
+            method,
+            id,
+            msg.params,
+            &expected_token,
+            &mut authenticated,
+        );
 
         eprintln!(
             "[mcp-server] -> {}",
@@ -276,6 +395,91 @@ mod tests {
         assert_eq!(result["protocolVersion"], PROTOCOL_VERSION);
         assert!(result["capabilities"]["tools"].is_object());
         assert_eq!(result["serverInfo"]["name"], SERVER_NAME);
+    }
+
+    #[test]
+    fn test_constant_time_eq_matches() {
+        assert!(constant_time_eq("abc123", "abc123"));
+        assert!(!constant_time_eq("abc123", "abc124"));
+        assert!(!constant_time_eq("abc", "abcd"));
+        assert!(constant_time_eq("", ""));
+    }
+
+    #[test]
+    fn test_sec006_initialize_rejects_missing_token() {
+        let mut authed = false;
+        let params = serde_json::json!({});
+        let resp = dispatch_authenticated(
+            "initialize",
+            serde_json::json!(1),
+            Some(params),
+            "secret-token",
+            &mut authed,
+        );
+        assert!(resp.result.is_none());
+        assert_eq!(resp.error.unwrap().code, -32001);
+        assert!(!authed, "auth flag must not flip on failed handshake");
+    }
+
+    #[test]
+    fn test_sec006_initialize_rejects_wrong_token() {
+        let mut authed = false;
+        let params = serde_json::json!({"_meta": {AUTH_TOKEN_FIELD: "wrong"}});
+        let resp = dispatch_authenticated(
+            "initialize",
+            serde_json::json!(1),
+            Some(params),
+            "secret-token",
+            &mut authed,
+        );
+        assert_eq!(resp.error.unwrap().code, -32001);
+        assert!(!authed);
+    }
+
+    #[test]
+    fn test_sec006_initialize_accepts_correct_token() {
+        let mut authed = false;
+        let params = serde_json::json!({"_meta": {AUTH_TOKEN_FIELD: "secret-token"}});
+        let resp = dispatch_authenticated(
+            "initialize",
+            serde_json::json!(1),
+            Some(params),
+            "secret-token",
+            &mut authed,
+        );
+        assert!(resp.error.is_none());
+        assert_eq!(resp.result.unwrap()["serverInfo"]["name"], SERVER_NAME);
+        assert!(authed, "auth flag must flip after valid handshake");
+    }
+
+    #[test]
+    fn test_sec006_tools_call_blocked_before_handshake() {
+        let mut authed = false;
+        let params = serde_json::json!({"name": "tools/list"});
+        let resp = dispatch_authenticated(
+            "tools/list",
+            serde_json::json!(2),
+            Some(params),
+            "secret-token",
+            &mut authed,
+        );
+        assert_eq!(resp.error.unwrap().code, -32001);
+        assert!(!authed);
+    }
+
+    #[test]
+    fn test_sec006_tools_call_allowed_after_handshake() {
+        let mut authed = true; // already authenticated
+        let params = serde_json::json!({"name": "tools/list"});
+        let resp = dispatch_authenticated(
+            "tools/list",
+            serde_json::json!(3),
+            Some(params),
+            "secret-token",
+            &mut authed,
+        );
+        assert!(resp.error.is_none());
+        assert!(resp.result.unwrap()["tools"].is_array());
     }
 
     #[test]

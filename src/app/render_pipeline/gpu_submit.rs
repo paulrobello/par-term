@@ -441,7 +441,9 @@ impl WindowState {
             match render_result {
                 Ok(rendered) => {
                     if !rendered {
-                        log::trace!("Skipped rendering - no changes");
+                        // ARC-004: per-frame hot path — use the custom debug macros
+                        // (DEBUG_LEVEL-gated, near-zero overhead) instead of log::trace!.
+                        crate::debug_trace!("RENDER", "Skipped rendering - no changes");
                     }
                 }
                 Err(e) => {

@@ -16,6 +16,7 @@ use std::sync::Arc;
 use winit::window::Window;
 
 use crate::scrollbar::Scrollbar;
+use crate::wgpu_conversions::{PowerPreferenceWgpu, VsyncModeWgpu};
 use par_term_config::{SeparatorMark, color_u8_to_f32_a};
 use par_term_fonts::font_manager::FontManager;
 

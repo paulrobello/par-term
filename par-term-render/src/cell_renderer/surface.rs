@@ -1,4 +1,5 @@
 use super::CellRenderer;
+use crate::wgpu_conversions::VsyncModeWgpu;
 
 impl CellRenderer {
     pub fn reconfigure_surface(&mut self) {

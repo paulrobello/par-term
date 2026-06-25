@@ -20,15 +20,8 @@ pub enum VsyncMode {
 }
 
 impl VsyncMode {
-    /// Convert to wgpu::PresentMode
-    #[cfg(feature = "wgpu-types")]
-    pub fn to_present_mode(self) -> wgpu::PresentMode {
-        match self {
-            VsyncMode::Immediate => wgpu::PresentMode::Immediate,
-            VsyncMode::Mailbox => wgpu::PresentMode::Mailbox,
-            VsyncMode::Fifo => wgpu::PresentMode::Fifo,
-        }
-    }
+    // wgpu::PresentMode conversion lives in par-term-render (AUDIT.md ARC-003):
+    // see `par_term_render::wgpu_conversions::VsyncModeWgpu`.
 }
 
 /// GPU power preference for adapter selection
@@ -48,15 +41,8 @@ pub enum PowerPreference {
 }
 
 impl PowerPreference {
-    /// Convert to wgpu::PowerPreference
-    #[cfg(feature = "wgpu-types")]
-    pub fn to_wgpu(self) -> wgpu::PowerPreference {
-        match self {
-            PowerPreference::None => wgpu::PowerPreference::None,
-            PowerPreference::LowPower => wgpu::PowerPreference::LowPower,
-            PowerPreference::HighPerformance => wgpu::PowerPreference::HighPerformance,
-        }
-    }
+    // wgpu::PowerPreference conversion lives in par-term-render (AUDIT.md ARC-003):
+    // see `par_term_render::wgpu_conversions::PowerPreferenceWgpu`.
 
     /// Display name for UI
     pub fn display_name(&self) -> &'static str {
@@ -108,14 +94,8 @@ impl ImageScalingMode {
         &[ImageScalingMode::Nearest, ImageScalingMode::Linear]
     }
 
-    /// Convert to wgpu FilterMode
-    #[cfg(feature = "wgpu-types")]
-    pub fn to_filter_mode(self) -> wgpu::FilterMode {
-        match self {
-            ImageScalingMode::Nearest => wgpu::FilterMode::Nearest,
-            ImageScalingMode::Linear => wgpu::FilterMode::Linear,
-        }
-    }
+    // wgpu::FilterMode conversion lives in par-term-render (AUDIT.md ARC-003):
+    // see `par_term_render::wgpu_conversions::ImageScalingModeWgpu`.
 }
 
 /// Background image display mode
