@@ -3,6 +3,8 @@
 //! Defines the widget identifiers, section layout, and per-widget configuration
 //! used by the status bar system.
 
+use serde::de::{self, Deserializer};
+use serde::ser::Serializer;
 use serde::{Deserialize, Serialize};
 
 /// Section of the status bar where a widget is placed.
@@ -19,8 +21,15 @@ pub enum StatusBarSection {
 }
 
 /// Identifier for a built-in or custom status bar widget.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+///
+/// Serialized as a single plain string (`as_key`/`from_key`) so it round-trips
+/// through `config.yaml`, which embeds the status bar via `#[serde(flatten)]`.
+/// Built-in widgets use their snake_case name (e.g. `git_branch`); custom
+/// widgets use `custom:<name>`. serde's flatten path cannot deserialize the
+/// externally-tagged `Custom(String)` map form (`"untagged and internally tagged
+/// enums do not support enum input"`), so a manual scalar representation is
+/// used instead of the derived one.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum WidgetId {
     /// Current time (HH:MM:SS)
     Clock,
@@ -87,6 +96,65 @@ impl WidgetId {
             self,
             WidgetId::CpuUsage | WidgetId::MemoryUsage | WidgetId::NetworkStatus
         )
+    }
+
+    /// Stable string key used for YAML serialization. Built-in widgets use their
+    /// snake_case name; custom widgets are prefixed with `custom:`.
+    fn as_key(&self) -> String {
+        match self {
+            WidgetId::Clock => "clock".to_string(),
+            WidgetId::UsernameHostname => "username_hostname".to_string(),
+            WidgetId::CurrentDirectory => "current_directory".to_string(),
+            WidgetId::GitBranch => "git_branch".to_string(),
+            WidgetId::CpuUsage => "cpu_usage".to_string(),
+            WidgetId::MemoryUsage => "memory_usage".to_string(),
+            WidgetId::NetworkStatus => "network_status".to_string(),
+            WidgetId::BellIndicator => "bell_indicator".to_string(),
+            WidgetId::CurrentCommand => "current_command".to_string(),
+            WidgetId::UpdateAvailable => "update_available".to_string(),
+            WidgetId::Custom(name) => format!("custom:{name}"),
+        }
+    }
+
+    /// Parse a serialization key back into a [`WidgetId`]. Returns `None` for
+    /// unrecognized built-in names.
+    fn from_key(key: &str) -> Option<WidgetId> {
+        if let Some(name) = key.strip_prefix("custom:") {
+            return Some(WidgetId::Custom(name.to_string()));
+        }
+        Some(match key {
+            "clock" => WidgetId::Clock,
+            "username_hostname" => WidgetId::UsernameHostname,
+            "current_directory" => WidgetId::CurrentDirectory,
+            "git_branch" => WidgetId::GitBranch,
+            "cpu_usage" => WidgetId::CpuUsage,
+            "memory_usage" => WidgetId::MemoryUsage,
+            "network_status" => WidgetId::NetworkStatus,
+            "bell_indicator" => WidgetId::BellIndicator,
+            "current_command" => WidgetId::CurrentCommand,
+            "update_available" => WidgetId::UpdateAvailable,
+            _ => return None,
+        })
+    }
+}
+
+impl Serialize for WidgetId {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.as_key())
+    }
+}
+
+impl<'de> Deserialize<'de> for WidgetId {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let key = String::deserialize(deserializer)?;
+        WidgetId::from_key(&key)
+            .ok_or_else(|| de::Error::custom(format!("unknown status bar widget id: `{key}`")))
     }
 }
 
