@@ -257,6 +257,15 @@ impl WindowState {
                     self.sync_pane_resize_to_tmux(is_horizontal);
                 }
                 self.focus_state.needs_redraw = true;
+                // Reset the resize cursor here too: this branch fires when the
+                // release was consumed by a mouse-tracking app (tmux), so the
+                // normal release handler never ran. The fall-through to hover
+                // detection below only clears the cursor on a hover *transition*,
+                // which may not fire — reset explicitly to avoid a stuck
+                // ColResize/RowResize cursor.
+                if let Some(window) = &self.window {
+                    window.set_cursor(winit::window::CursorIcon::Text);
+                }
                 // Fall through to hover detection so the highlight clears immediately.
             } else {
                 // Actively dragging a divider

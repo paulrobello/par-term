@@ -242,6 +242,13 @@ impl WindowState {
             self.sync_pane_resize_to_tmux(is_horizontal);
             self.focus_state.needs_redraw = true;
             self.request_redraw();
+            // Reset the resize cursor now: the next mouse-move is frequently
+            // consumed by a mouse-tracking app (tmux/vim/less) and returns
+            // before the divider-hover cursor logic runs, which would otherwise
+            // leave the ColResize/RowResize cursor stuck after a pane resize.
+            if let Some(window) = &self.window {
+                window.set_cursor(winit::window::CursorIcon::Text);
+            }
             return;
         } else if self
             .tab_manager
@@ -256,6 +263,9 @@ impl WindowState {
             }
             self.focus_state.needs_redraw = true;
             self.request_redraw();
+            if let Some(window) = &self.window {
+                window.set_cursor(winit::window::CursorIcon::Text);
+            }
             return;
         }
 
