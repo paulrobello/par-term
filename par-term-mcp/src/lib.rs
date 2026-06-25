@@ -26,15 +26,18 @@
 //! invoke any tool (including `config_update`, which writes to the user's
 //! configuration file on disk).
 //!
-//! **SEC-006 mitigation:** the server now requires a launch-time session
-//! token in the `initialize` handshake. The token is either:
-//! 1. Read from the [`MCP_AUTH_TOKEN_ENV`] env var (set by the spawner), or
-//! 2. Generated at startup as a CSPRNG-backed `Uuid` and logged to stderr
-//!    so the parent process (which owns stderr) can capture it.
+//! **SEC-006 mitigation (opt-in):** when the [`MCP_AUTH_TOKEN_ENV`] env var is
+//! set to a non-empty value, the server requires that token in the `initialize`
+//! handshake (`_meta.<AUTH_TOKEN_FIELD>`) and rejects every `tools/call` /
+//! `tools/list` request with a `-32001` error until a valid handshake completes.
 //!
-//! The client must echo the token back in `initialize` params at
-//! `_meta.<AUTH_TOKEN_FIELD>`. Until a valid handshake completes, every
-//! `tools/call` and `tools/list` request is rejected with a `-32001` error.
+//! When the env var is UNSET (the default), auth is DISABLED and the server
+//! behaves exactly as before — all calls are allowed. This keeps existing ACP
+//! flows working unchanged: par-term does not spawn this server itself (the
+//! agent host does, via the descriptor from `session/new`), so it cannot inject
+//! a token automatically. Operators who want the hardening set the env var on
+//! the spawned `par-term mcp-server` process AND configure their agent host to
+//! forward the same value.
 //!
 //! **The stdin/stdout channel is still a trust boundary.** Only trusted MCP
 //! client processes (i.e., ACP agents that par-term itself has spawned, with
@@ -58,7 +61,6 @@ use jsonrpc::{
     success_response,
 };
 use tools::{handle_tools_call, handle_tools_list};
-use uuid::Uuid;
 
 // ---------------------------------------------------------------------------
 // Protocol constants (pub(crate) so submodules can access them)
@@ -118,33 +120,34 @@ pub const SCREENSHOT_FALLBACK_PATH_ENV: &str = "PAR_TERM_SCREENSHOT_FALLBACK_PAT
 
 /// Environment variable carrying the per-process MCP session auth token (SEC-006).
 ///
-/// When par-term's ACP subsystem spawns this server it sets this env var to a
-/// random per-process value (CSPRNG-backed) and passes the same value to the
-/// spawned agent, which must echo it back in the `initialize` handshake. If the
-/// env var is unset, the server generates a token itself and prints it to
-/// stderr so the parent process (which owns stderr) can capture it.
+/// SEC-006 session auth is OPT-IN. When this env var is set to a non-empty
+/// value, the MCP server requires clients to echo it back as
+/// `_meta.<AUTH_TOKEN_FIELD>` in the `initialize` handshake and rejects
+/// `tools/list` / `tools/call` (`-32001`) until they do.
+///
+/// When the env var is UNSET (the default), auth is DISABLED and the server
+/// behaves exactly as before — all calls are allowed. par-term does not spawn
+/// this server itself (the agent host does), so it cannot inject a token
+/// automatically; operators who want the hardening set this env var on the
+/// spawned `par-term mcp-server` process AND configure their agent host to
+/// forward the same value in `_meta.<AUTH_TOKEN_FIELD>`.
 pub const MCP_AUTH_TOKEN_ENV: &str = "PAR_TERM_MCP_AUTH_TOKEN";
 
 /// Field name in the `initialize` params (`_meta.<field>`) that carries the
 /// session auth token (SEC-006).
 const AUTH_TOKEN_FIELD: &str = "parTermAuthToken";
 
-/// Resolve the session auth token (SEC-006).
+/// Resolve the session auth token (SEC-006), OPT-IN.
 ///
-/// Reads [`MCP_AUTH_TOKEN_ENV`] first; if unset, generates a fresh CSPRNG-backed
-/// `Uuid` and logs it to stderr so the parent process can capture and forward
-/// it. Trims whitespace from the env-var value.
-fn resolve_auth_token() -> String {
-    if let Ok(t) = std::env::var(MCP_AUTH_TOKEN_ENV)
-        && !t.trim().is_empty()
-    {
-        return t.trim().to_string();
+/// Returns `Some(token)` only when [`MCP_AUTH_TOKEN_ENV`] is explicitly set to a
+/// non-empty value (operator opted in to auth). Returns `None` otherwise, in
+/// which case [`run_mcp_server`] disables the auth gate entirely so existing
+/// ACP flows keep working. Trims whitespace from the env-var value.
+fn resolve_auth_token() -> Option<String> {
+    match std::env::var(MCP_AUTH_TOKEN_ENV) {
+        Ok(t) if !t.trim().is_empty() => Some(t.trim().to_string()),
+        _ => None,
     }
-    let generated = Uuid::new_v4().to_string();
-    eprintln!(
-        "[mcp-server] no {MCP_AUTH_TOKEN_ENV} env var set; generated session auth token: {generated}"
-    );
-    generated
 }
 
 /// Constant-time string comparison to avoid timing side-channels on the token
@@ -176,27 +179,37 @@ fn auth_required_error(id: serde_json::Value, message: impl Into<String>) -> Res
     }
 }
 
-/// Dispatch a JSON-RPC request with the SEC-006 authentication gate applied.
+/// Dispatch a JSON-RPC request with optional SEC-006 authentication.
 ///
-/// `initialize` must echo the session token in `params._meta.<AUTH_TOKEN_FIELD>`;
-/// on success the `authenticated` flag is flipped and the server info is
-/// returned. `tools/list` and `tools/call` are rejected with `-32001` until a
-/// valid handshake has completed.
-fn dispatch_authenticated(
+/// `expected_token` controls the gate:
+/// - `None` — auth DISABLED (the default). `initialize` always succeeds and all
+///   tools are allowed, matching pre-SEC-006 behavior so existing ACP flows keep
+///   working.
+/// - `Some(expected)` — auth ENABLED. `initialize` must echo the token in
+///   `params._meta.<AUTH_TOKEN_FIELD>`; on success the `authenticated` flag
+///   flips and the server info is returned. `tools/list` and `tools/call` are
+///   rejected with `-32001` until a valid handshake has completed.
+fn dispatch(
     method: &str,
     id: serde_json::Value,
     params: Option<serde_json::Value>,
-    expected_token: &str,
+    expected_token: Option<&str>,
     authenticated: &mut bool,
 ) -> Response {
     match method {
         "initialize" => {
-            let provided = params
-                .as_ref()
-                .and_then(|p| p.get("_meta"))
-                .and_then(|m| m.get(AUTH_TOKEN_FIELD))
-                .and_then(|v| v.as_str());
-            if provided.is_some_and(|p| constant_time_eq(p, expected_token)) {
+            let ok = match expected_token {
+                None => true,
+                Some(expected) => {
+                    let provided = params
+                        .as_ref()
+                        .and_then(|p| p.get("_meta"))
+                        .and_then(|m| m.get(AUTH_TOKEN_FIELD))
+                        .and_then(|v| v.as_str());
+                    provided.is_some_and(|p| constant_time_eq(p, expected))
+                }
+            };
+            if ok {
                 *authenticated = true;
                 success_response(id, handle_initialize())
             } else {
@@ -209,14 +222,26 @@ fn dispatch_authenticated(
                 )
             }
         }
-        "tools/list" | "tools/call" if !*authenticated => auth_required_error(
-            id,
-            "Not authenticated: complete the initialize handshake (with the \
-             session token) before invoking tools.",
-        ),
+        "tools/list" | "tools/call" if !tool_call_allowed(expected_token, *authenticated) => {
+            auth_required_error(
+                id,
+                "Not authenticated: complete the initialize handshake (with the \
+                 session token) before invoking tools.",
+            )
+        }
         "tools/list" => success_response(id, handle_tools_list()),
         "tools/call" => success_response(id, handle_tools_call(params)),
         _ => method_not_found(id, method),
+    }
+}
+
+/// Whether a `tools/list` / `tools/call` request may proceed. Auth-disabled
+/// (`expected_token = None`) always permits; auth-enabled requires the prior
+/// handshake to have flipped `authenticated`.
+fn tool_call_allowed(expected_token: Option<&str>, authenticated: bool) -> bool {
+    match expected_token {
+        None => true,
+        Some(_) => authenticated,
     }
 }
 
@@ -302,9 +327,16 @@ pub fn run_mcp_server() {
     let version = get_app_version();
     let expected_token = resolve_auth_token();
     eprintln!("[mcp-server] Starting par-term MCP server v{version}");
-    eprintln!(
-        "[mcp-server] SEC-006: session auth enabled — client must send '{AUTH_TOKEN_FIELD}' in initialize params._meta"
-    );
+    match &expected_token {
+        Some(_) => eprintln!(
+            "[mcp-server] SEC-006: session auth ENABLED ({MCP_AUTH_TOKEN_ENV} set) — \
+             client must send '{AUTH_TOKEN_FIELD}' in initialize params._meta"
+        ),
+        None => eprintln!(
+            "[mcp-server] SEC-006: session auth DISABLED ({MCP_AUTH_TOKEN_ENV} not set) — \
+             running unauthenticated (default; set the env var to opt in)"
+        ),
+    }
 
     let stdin = std::io::stdin();
     let mut stdout = std::io::stdout();
@@ -356,8 +388,13 @@ pub fn run_mcp_server() {
         };
 
         // Dispatch with the SEC-006 authentication gate applied.
-        let response =
-            dispatch_authenticated(method, id, msg.params, &expected_token, &mut authenticated);
+        let response = dispatch(
+            method,
+            id,
+            msg.params,
+            expected_token.as_deref(),
+            &mut authenticated,
+        );
 
         eprintln!(
             "[mcp-server] -> {}",
@@ -401,14 +438,47 @@ mod tests {
     }
 
     #[test]
+    fn test_sec006_auth_disabled_when_no_token_configured() {
+        // Auth disabled (expected_token = None, the default): initialize
+        // succeeds WITHOUT any token and tools are allowed WITHOUT a handshake.
+        // This is the path existing ACP flows rely on.
+        let mut authed = false;
+        let resp = dispatch(
+            "initialize",
+            serde_json::json!(1),
+            Some(serde_json::json!({})),
+            None,
+            &mut authed,
+        );
+        assert!(
+            resp.error.is_none(),
+            "initialize must succeed when auth disabled"
+        );
+        assert!(authed);
+
+        let resp = dispatch(
+            "tools/list",
+            serde_json::json!(2),
+            Some(serde_json::json!({})),
+            None,
+            &mut authed,
+        );
+        assert!(
+            resp.error.is_none(),
+            "tools must be allowed when auth disabled"
+        );
+        assert!(resp.result.unwrap()["tools"].is_array());
+    }
+
+    #[test]
     fn test_sec006_initialize_rejects_missing_token() {
         let mut authed = false;
         let params = serde_json::json!({});
-        let resp = dispatch_authenticated(
+        let resp = dispatch(
             "initialize",
             serde_json::json!(1),
             Some(params),
-            "secret-token",
+            Some("secret-token"),
             &mut authed,
         );
         assert!(resp.result.is_none());
@@ -420,11 +490,11 @@ mod tests {
     fn test_sec006_initialize_rejects_wrong_token() {
         let mut authed = false;
         let params = serde_json::json!({"_meta": {AUTH_TOKEN_FIELD: "wrong"}});
-        let resp = dispatch_authenticated(
+        let resp = dispatch(
             "initialize",
             serde_json::json!(1),
             Some(params),
-            "secret-token",
+            Some("secret-token"),
             &mut authed,
         );
         assert_eq!(resp.error.unwrap().code, -32001);
@@ -435,11 +505,11 @@ mod tests {
     fn test_sec006_initialize_accepts_correct_token() {
         let mut authed = false;
         let params = serde_json::json!({"_meta": {AUTH_TOKEN_FIELD: "secret-token"}});
-        let resp = dispatch_authenticated(
+        let resp = dispatch(
             "initialize",
             serde_json::json!(1),
             Some(params),
-            "secret-token",
+            Some("secret-token"),
             &mut authed,
         );
         assert!(resp.error.is_none());
@@ -451,11 +521,11 @@ mod tests {
     fn test_sec006_tools_call_blocked_before_handshake() {
         let mut authed = false;
         let params = serde_json::json!({"name": "tools/list"});
-        let resp = dispatch_authenticated(
+        let resp = dispatch(
             "tools/list",
             serde_json::json!(2),
             Some(params),
-            "secret-token",
+            Some("secret-token"),
             &mut authed,
         );
         assert_eq!(resp.error.unwrap().code, -32001);
@@ -466,11 +536,11 @@ mod tests {
     fn test_sec006_tools_call_allowed_after_handshake() {
         let mut authed = true; // already authenticated
         let params = serde_json::json!({"name": "tools/list"});
-        let resp = dispatch_authenticated(
+        let resp = dispatch(
             "tools/list",
             serde_json::json!(3),
             Some(params),
-            "secret-token",
+            Some("secret-token"),
             &mut authed,
         );
         assert!(resp.error.is_none());
