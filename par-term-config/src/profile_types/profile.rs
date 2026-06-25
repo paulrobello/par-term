@@ -283,8 +283,7 @@ fn is_denied_ssh_token(tok: &str) -> bool {
 /// - embedded `\n` / `\r` / `\0`: control characters that could delimit
 ///   arguments or smuggle content past argv parsing.
 fn is_safe_ssh_host(host: &str) -> bool {
-    !host.starts_with('-')
-        && !host.chars().any(|c| c == '\n' || c == '\r' || c == '\0')
+    !host.starts_with('-') && !host.chars().any(|c| c == '\n' || c == '\r' || c == '\0')
 }
 
 /// Tokenize `ssh_extra_args` with shell-style quoting and drop dangerous

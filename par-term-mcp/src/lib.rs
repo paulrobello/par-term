@@ -356,13 +356,8 @@ pub fn run_mcp_server() {
         };
 
         // Dispatch with the SEC-006 authentication gate applied.
-        let response = dispatch_authenticated(
-            method,
-            id,
-            msg.params,
-            &expected_token,
-            &mut authenticated,
-        );
+        let response =
+            dispatch_authenticated(method, id, msg.params, &expected_token, &mut authenticated);
 
         eprintln!(
             "[mcp-server] -> {}",

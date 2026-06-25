@@ -1092,7 +1092,10 @@ mod tests {
             parts.next().unwrap(),
             parts.next().unwrap(),
         );
-        assert!(parts.next().is_none(), "date has extra components: {date:?}");
+        assert!(
+            parts.next().is_none(),
+            "date has extra components: {date:?}"
+        );
         assert!(
             (1..=9999).contains(&(year.parse::<u32>().unwrap())),
             "year out of range: {year:?}"

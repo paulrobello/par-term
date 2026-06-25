@@ -185,15 +185,13 @@ pub(crate) fn verify_download(data: &[u8], checksum_url: Option<&str>) -> Result
             // failure, NOT a warning. Returning Ok(()) here would let a MITM
             // attacker (or a compromised release) ship an unverified binary.
             // Aborting matches the shader installer's hard-gate policy.
-            return Err(
-                "No .sha256 checksum file found in release — \
+            return Err("No .sha256 checksum file found in release — \
                  refusing to install an unverified binary.\n\
                  Update aborted for safety. This release may predate checksum \
                 support, or the checksum file was stripped/blocked.\n\
                  Please download manually from:\n\
                  https://github.com/paulrobello/par-term/releases"
-                    .to_string(),
-            );
+                .to_string());
         }
     };
 

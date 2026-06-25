@@ -38,15 +38,22 @@ fn test_profile_ssh_command_args() {
     profile.ssh_user = Some("admin".to_string());
     profile.ssh_port = Some(2222);
     profile.ssh_identity_file = Some("/home/user/.ssh/id_work".to_string());
-    profile.ssh_extra_args = Some("-o StrictHostKeyChecking=no".to_string());
+    // SEC-002: dangerous SSH options (StrictHostKeyChecking, ProxyCommand, ...)
+    // are filtered out of ssh_extra_args before reaching the argv, while safe
+    // options pass through. Mix one of each to assert both behaviors.
+    profile.ssh_extra_args =
+        Some("-o ServerAliveInterval=30 -o StrictHostKeyChecking=no".to_string());
 
     let args = profile.ssh_command_args().unwrap();
     assert!(args.contains(&"-p".to_string()));
     assert!(args.contains(&"2222".to_string()));
     assert!(args.contains(&"-i".to_string()));
     assert!(args.iter().any(|a| a.contains("admin@server.example.com")));
+    // Safe option is forwarded unchanged.
     assert!(args.contains(&"-o".to_string()));
-    assert!(args.contains(&"StrictHostKeyChecking=no".to_string()));
+    assert!(args.contains(&"ServerAliveInterval=30".to_string()));
+    // Dangerous option is filtered out (SEC-002).
+    assert!(!args.contains(&"StrictHostKeyChecking=no".to_string()));
 }
 
 #[test]
