@@ -1,8 +1,11 @@
 // ARC-009 TODO: This file is 742 lines (limit: 800 — approaching threshold). When it
 // exceeds 800 lines, extract into sub-modules under cell_renderer/:
 //
-//   glyph_ops.rs     — get_or_rasterize_glyph helper (see QA-006: glyph cache logic
-//                      currently duplicated 3x). Also resolves QA-013 scratch buffer.
+//   glyph_ops.rs     — get_or_rasterize_glyph helper. Note: the glyph cache logic
+//                      was previously duplicated 3x but is now centralized in
+//                      atlas.rs (rasterize_glyph / get_or_rasterize_glyph /
+//                      resolve_glyph_with_fallback); the only remaining TODO here
+//                      is the QA-013 scratch-buffer extraction.
 //   font_fallback.rs — font fallback chain construction
 //
 // Tracking: Issue ARC-009 in AUDIT.md. See also QA-006 (glyph cache deduplication).

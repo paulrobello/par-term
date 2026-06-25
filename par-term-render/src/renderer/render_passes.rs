@@ -564,34 +564,22 @@ impl Renderer {
                     let cache_key = ((font_idx as u64) << 32) | (glyph_id as u64);
                     // Check if this character should be rendered as a monochrome symbol
                     let force_monochrome = crate::cell_renderer::atlas::should_render_as_symbol(ch);
-                    let info = if self
-                        .cell_renderer
-                        .atlas
-                        .glyph_cache
-                        .contains_key(&cache_key)
-                    {
-                        self.cell_renderer.lru_remove(cache_key);
-                        self.cell_renderer.lru_push_front(cache_key);
-                        self.cell_renderer
-                            .atlas
-                            .glyph_cache
-                            .get(&cache_key)
-                            .expect("Glyph cache entry must exist after contains_key check")
-                            .clone()
-                    } else if let Some(raster) =
-                        self.cell_renderer
-                            .rasterize_glyph(font_idx, glyph_id, force_monochrome)
-                    {
-                        let info = self.cell_renderer.upload_glyph(cache_key, &raster);
-                        self.cell_renderer
-                            .atlas
-                            .glyph_cache
-                            .insert(cache_key, info.clone());
-                        self.cell_renderer.lru_push_front(cache_key);
-                        info
-                    } else {
-                        x_pos += self.cell_renderer.grid.cell_width;
-                        continue;
+                    // ARC-008: route through the shared `get_or_rasterize_glyph` helper
+                    // (defined in cell_renderer/atlas.rs) instead of inlining the
+                    // cache-check + rasterize + upload + LRU-update sequence. The helper
+                    // performs exactly the same steps in the same order, so this is a
+                    // behavior-preserving replacement of the previous inline block.
+                    let info = match self.cell_renderer.get_or_rasterize_glyph(
+                        font_idx,
+                        glyph_id,
+                        force_monochrome,
+                        cache_key,
+                    ) {
+                        Some(info) => info,
+                        None => {
+                            x_pos += self.cell_renderer.grid.cell_width;
+                            continue;
+                        }
                     };
 
                     let glyph_left = x_pos + info.bearing_x;
