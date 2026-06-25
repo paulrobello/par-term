@@ -15,13 +15,13 @@
 |-------|--------|-------|:--------:|:--------:|:-------:|:--------:|:------:|
 | 1 — Critical Security | ✅ | fix-security | 2 | 2 | 0 | 0 | 0 |
 | 2 — Critical Architecture | ✅ | fix-architecture | 3 | 1 | 0 | 2 | 0 |
-| 3a — High Security | ✅ | fix-security | 7 | 6 | 1 | 0 | 0 |
+| 3a — High Security | ✅ | fix-security | 7 | 7 | 0 | 0 | 0 |
 | 3b — High Architecture | ✅ | fix-architecture | 5 | 2 | 1 | 2 | 0 |
 | 3c — High Code Quality | ✅ | fix-code-quality | 5 | 2 | 1 | 2 | 0 |
 | 3d — High Documentation | ✅ | fix-documentation | 6 | 4 | 1 | 0 | 1 |
 | 4 — Verification | ✅ | orchestrator (+fmt/+test) | — | — | — | — | — |
 
-**Overall**: of 28 targeted issues — **17 Resolved**, **4 Partial**, **6 Deferred (documented)**, **1 requires manual action** (DOC-003 tag push; SEC-006 client-side also needs follow-up).
+**Overall**: of 28 targeted issues — **18 Resolved**, **3 Partial**, **6 Deferred (documented)**, **1 requires manual action** (DOC-003 tag push). SEC-006 was reworked to **opt-in / fail-open** so it no longer breaks ACP — see Resolved.
 
 > **Note on scope**: The audit's auto-generated Phase 2 table labeled ARC-001/ARC-002 as "Critical Architecture (Blocking)," but the audit's *own* Remediation Roadmap files both under "Long-term (Backlog)," and ARC-002 is explicitly "blocked on a field-by-field borrow audit." These were therefore attempted pragmatically and deferred with concrete next-step plans rather than force-solved. A prior `Pragmatic Code Quality Audit Remediation` vault lesson and the `Arc<Config>` migration note informed this posture.
 
@@ -38,6 +38,7 @@
 - **[SEC-007]** SSH host leading-hyphen injection — `par-term-config/src/profile_types/profile.rs:469` — `is_safe_ssh_host()` rejects leading `-` and embedded `\n`/`\r`/`\0`; wired into `validate()` (warning) and `ssh_command_args()` (defensive `None` return).
 - **[SEC-008]** Self-update installs on missing SHA256 — `par-term-update/src/binary_ops.rs:181` — `verify_download()` now returns `Err` on `None` checksum, matching the shader installer's hard-gate policy. Test updated.
 - **[SEC-009]** OSC 8 URL scheme not validated — `src/url_detection/render.rs:49` — `ALLOWED_URL_SCHEMES` (`http`/`https`/`mailto`) checked before `open::that`; `file://`/`ftp://`/`data:` rejected, bare `host:port` still allowed.
+- **[SEC-006]** MCP stdin authentication — `par-term-mcp/src/lib.rs` — **reworked to opt-in / fail-open**. The initial implementation auto-generated a random session token that no client knew, then rejected every `tools/list`/`tools/call` (`-32001`) — which would have broken all ACP tool calls (par-term doesn't spawn the MCP server; the agent host does, so nothing could supply the token). `resolve_auth_token()` now returns `Some` only when `PAR_TERM_MCP_AUTH_TOKEN` is explicitly set; otherwise auth is fully DISABLED and the server behaves exactly as before. The hardening remains available for operators who set the env var and configure their agent host to forward `_meta.parTermAuthToken`. 6 tests incl. the auth-disabled default.
 
 ### Architecture
 - **[ARC-003]** `par-term-config` optional `wgpu` layer violation — moved the three wgpu conversion helpers (`VsyncMode`/`PowerPreference`/`ImageScalingMode`) into a new `par-term-render/src/wgpu_conversions.rs` via narrow extension traits (call-site method names unchanged); removed the optional `wgpu` dep + `wgpu-types` feature from `par-term-config` and all 3 dependent Cargo.tomls. Layer-1 → Layer-3 layering now clean.
@@ -58,7 +59,6 @@
 
 ## Partially Fixed 🔶
 
-- **[SEC-006]** MCP stdin authentication — **server-side complete**: launch-time CSPRNG token (`Uuid::new_v4`), constant-time compare, required in the `initialize` handshake (`_meta.parTermAuthToken`), `tools/list`+`tools/call` rejected (`-32001`) until authenticated; 5 new tests. **Client-side incomplete** — see Manual Intervention.
 - **[ARC-004]** Dual logging systems — converted the 2 hottest per-frame `log::trace!` calls in the root render loop (`gpu_submit.rs:444`, `tab_snapshot.rs:176`) to `crate::debug_trace!`. The remaining ~90 root-crate + ~595 sub-crate `log::` calls are deferred to the `tracing` migration (multi-day; sub-crates correctly use `log::` per their own convention).
 - **[QA-003]** `parse_shader_controls` 660-line function — extracted the 5 identical capacity-check arms into a shared `check_and_push_capacity_warning()` helper. The 10 repetitive parsing match arms were deferred (each uses `continue` 2-5× for error recovery; safe extraction needs a control-flow enum + test gate).
 - **[DOC-006]** `docs/API.md` coverage — strengthened the drift warning + added a "Coverage and validation" section documenting that `par-term-settings-ui`/`par-term-render` sections are intentionally non-exhaustive (blocked on ARC-001/002). Full rewrite + `make doc-check` gate deferred.
@@ -88,11 +88,6 @@
 - **Impact if left undone**: Homebrew SHA formula, the self-update checker, and `git describe`-based version detection all remain broken against `0.33.1`.
 - **Effort**: small.
 
-### [SEC-006] MCP auth — client-side token plumbing
-- **Why**: The MCP server is spawned by third-party agent-host binaries (Claude Code, Codex, Gemini CLI) via the ACP `session/new` `mcp_server_bin` field. par-term does not sit between host and server, so it cannot inject the token into `initialize` without host cooperation or a proxy. Until resolved, production ACP tool calls will be rejected by the new server-side gate.
-- **Recommended approach**: in `par-term-acp/src/agent.rs`, generate a per-agent `Uuid::new_v4()` token, set `PAR_TERM_MCP_AUTH_TOKEN` on the spawned host process, and require the host's MCP client config to forward it as `_meta.parTermAuthToken`. Alternatively, wrap `par-term mcp-server` in a small stdin-rewriting proxy that injects the token into the first `initialize` frame.
-- **Effort**: medium.
-
 ---
 
 ## Verification Results
@@ -102,7 +97,7 @@
 | Format (`cargo fmt --check`) | ✅ Pass |
 | Lint (`cargo clippy`) | ✅ Pass (0 warnings) |
 | Type Check (`cargo check --workspace`) | ✅ Pass |
-| Tests | ✅ Pass (full suite, including the updated `ssh_integration` + 5 new SEC-006 tests + strengthened QA-001 test) |
+| Tests | ✅ Pass (full suite, including the updated `ssh_integration` + 6 SEC-006 tests incl. the auth-disabled default + strengthened QA-001 test) |
 
 `make checkall` → **"All quality checks passed!"** (exit 0). No regressions.
 
@@ -110,18 +105,18 @@ One pre-existing test (`test_profile_ssh_command_args`) was updated: it previous
 
 ---
 
-## Files Changed (36 remediation files + AUDIT.md input)
+## Files Changed (35 remediation files + AUDIT.md + this report)
 
 **New files (4):** `par-term-render/src/wgpu_conversions.rs` (ARC-003); `par-term-input/src/{clipboard,key_encoding,modifiers}.rs` (ARC-006).
-**Modified (32):** security — `par-term-acp/{src/fs_ops.rs,src/agent.rs}`, `par-term-mcp/{src/lib.rs,src/tools/screenshot.rs,src/tools/config_update.rs,Cargo.toml}`, `par-term-config/src/profile_types/profile.rs`, `par-term-update/src/binary_ops.rs`, `src/url_detection/render.rs`; architecture — `par-term-render/{src/lib.rs,src/cell_renderer/mod.rs,src/cell_renderer/surface.rs,src/graphics_renderer.rs,src/renderer/render_passes.rs,Cargo.toml}`, `par-term-config/{Cargo.toml,src/types/rendering.rs}`, `par-term-input/src/lib.rs`, `par-term-settings-ui/Cargo.toml`, root `Cargo.toml`/`Cargo.lock`, `src/app/render_pipeline/{egui_submit.rs,gpu_submit.rs,tab_snapshot.rs}`; quality — `par-term-config/src/{snippets.rs,shader_controls.rs}`; docs — `CLAUDE.md`, `README.md`, `CONTRIBUTING.md`, `CHANGELOG.md`, `docs/API.md`; test — `tests/ssh_integration.rs`.
+**Modified (31):** security — `par-term-acp/{src/fs_ops.rs,src/agent.rs}`, `par-term-mcp/{src/lib.rs,src/tools/screenshot.rs,src/tools/config_update.rs}`, `par-term-config/src/profile_types/profile.rs`, `par-term-update/src/binary_ops.rs`, `src/url_detection/render.rs`; architecture — `par-term-render/{src/lib.rs,src/cell_renderer/mod.rs,src/cell_renderer/surface.rs,src/graphics_renderer.rs,src/renderer/render_passes.rs,Cargo.toml}`, `par-term-config/{Cargo.toml,src/types/rendering.rs}`, `par-term-input/src/lib.rs`, `par-term-settings-ui/Cargo.toml`, root `Cargo.toml`/`Cargo.lock`, `src/app/render_pipeline/{egui_submit.rs,gpu_submit.rs,tab_snapshot.rs}`; quality — `par-term-config/src/{snippets.rs,shader_controls.rs}`; docs — `CLAUDE.md`, `README.md`, `CONTRIBUTING.md`, `CHANGELOG.md`, `docs/API.md`; test — `tests/ssh_integration.rs`.
 
-Cumulative: **37 files changed, +2011 / −824** (incl. `AUDIT.md`, the audit input now tracked on the branch).
+Cumulative: **37 files changed, +2204 / −824** (incl. `AUDIT.md` and this report, both tracked on the branch).
 
 ---
 
 ## Next Steps
 
-1. **Action the two manual items** above: push `v0.33.1` (DOC-003) and decide the SEC-006 client-side token strategy.
+1. **Action the manual item** above: push `v0.33.1` (DOC-003). SEC-006 is opt-in and no longer blocks ACP; enabling it is optional hardening (set `PAR_TERM_MCP_AUTH_TOKEN` + configure the agent host) if desired.
 2. **Begin the highest-ROI deferred work** when capacity allows: ARC-002 `WindowInfrastructure` extraction (unblocks ARC-007), then ARC-005 `ProgressBarConfig` (write a round-trip test first), then ARC-001 `par-term-ui`.
 3. **Re-run `/audit`** to regenerate AUDIT.md against the current state — the 17 resolved issues should drop off and the deferred items will re-surface with updated line numbers.
 4. Consider a follow-up remediation pass for the **Medium/Low** issues (SEC-010–023, ARC-009–020, QA-006–021, DOC-007–021) — many are small and safe.
