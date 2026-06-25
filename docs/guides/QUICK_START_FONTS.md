@@ -248,7 +248,14 @@ EOF
 
 ## Test Script
 
-Save this as `test_fonts.sh`:
+The project ships a comprehensive built-in test that exercises emoji, CJK, complex scripts, BiDi, combining diacritics, and ligatures:
+
+```bash
+make test-fonts          # Run the comprehensive font and text shaping suite
+make test-text-shaping   # Run the suite plus a shaping performance benchmark
+```
+
+For a lightweight, user-editable script focused on the features above, save this as `test_fonts.sh`:
 
 ```bash
 #!/bin/bash

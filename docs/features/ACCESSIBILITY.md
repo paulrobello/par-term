@@ -31,12 +31,17 @@ graph LR
     Pass --> Render
     Adjust --> Render
 
-    style FG fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
-    style BG fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
-    style Check fill:#ff6f00,stroke:#ffa726,stroke-width:2px,color:#ffffff
-    style Pass fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
-    style Adjust fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
-    style Render fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+    class FG,BG data
+    class Check warning
+    class Pass active
+    class Adjust primary
+    class Render neutral
+
+    classDef primary fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+    classDef active fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    classDef warning fill:#ff6f00,stroke:#ffa726,stroke-width:2px,color:#ffffff
+    classDef data fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    classDef neutral fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
 ```
 
 ### How It Works

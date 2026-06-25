@@ -31,9 +31,13 @@ graph LR
 
     Left --- Center --- Right
 
-    style Left fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
-    style Center fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
-    style Right fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
+    class Left active
+    class Center data
+    class Right external
+
+    classDef active fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    classDef data fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    classDef external fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
 ```
 
 ## Enabling the Status Bar
@@ -62,7 +66,7 @@ par-term includes 10 built-in widgets plus custom widgets:
 | **Bell Indicator** | `bell_indicator` | Bell emoji with count, shown when count > 0 (e.g., "🔔 3") | Right | Enabled |
 | **Update Available** | `update_available` | Yellow up-arrow with available version (e.g., "⬆ v0.20.0") | Right | Enabled |
 | **Current Command** | `current_command` | Currently executing shell command | Center | Enabled |
-| **Custom Text** | `custom:"Name"` | User-defined text with variable interpolation | Configurable | User-created |
+| **Custom Text** | `custom:<name>` | User-defined text with variable interpolation | Configurable | User-created |
 
 ### Clock
 
@@ -137,7 +141,7 @@ Widgets can be moved between sections and reordered via the Settings UI.
 
 ## Custom Widgets
 
-Create custom widgets with user-defined text and variable interpolation.
+Create custom widgets with user-defined text and variable interpolation through the Settings UI.
 
 **Creating a Custom Widget:**
 
@@ -146,6 +150,8 @@ Create custom widgets with user-defined text and variable interpolation.
 3. Click **+ Add Custom Text Widget**
 4. Enter a format string using `\(variable)` placeholders
 5. Assign to a section (Left, Center, or Right)
+
+> **Persistence:** Custom widgets persist to `config.yaml` under `status_bar_widgets` with the widget id `custom:<name>` (for example `id: custom: Build Stats`). They round-trip through the flattened status-bar config path on the next launch.
 
 ### Variable Interpolation
 
@@ -161,6 +167,7 @@ Custom widgets support these variables:
 | `\(session.job)` | Current foreground job name | `vim` |
 | `\(session.last_command)` | Last executed command | `cargo test` |
 | `\(session.profile_name)` | Active profile name | `Default` |
+| `\(session.selection)` | Currently selected terminal text | `selected text` |
 | `\(session.tty)` | TTY device name | `/dev/ttys001` |
 | `\(session.columns)` | Terminal columns | `120` |
 | `\(session.rows)` | Terminal rows | `40` |
@@ -180,6 +187,8 @@ Host: \(session.hostname) CPU: \(system.cpu)
 \(git.branch) [\(session.current_command)]
 Profile: \(session.profile_name) TTY: \(session.tty)
 ```
+
+> **Note:** The `format` field on any widget configuration (not only custom widgets) accepts the same `\(variable)` placeholders and overrides the widget's built-in formatting. The Settings UI only exposes this editor for custom widgets; for built-in widgets, set `format:` directly in `config.yaml`.
 
 ## Auto-Hide Behavior
 
@@ -298,7 +307,9 @@ status_bar_git_poll_interval: 5.0        # 1.0-60.0 sec
 # Widgets (array of widget configurations)
 # Widget IDs use snake_case format: clock, username_hostname, current_directory,
 # git_branch, cpu_usage, memory_usage, network_status, bell_indicator,
-# current_command, update_available, or custom:"My Widget"
+# current_command, update_available. Custom widgets use `custom:<name>`.
+# Each entry may also carry an optional `format:` override using \(variable)
+# placeholders; when set, it replaces the widget's built-in formatting.
 status_bar_widgets:
   - id: username_hostname
     enabled: true
@@ -340,6 +351,18 @@ status_bar_widgets:
     enabled: true
     section: right
     order: 5
+  # Example: built-in widget with a format override (replaces built-in formatting)
+  - id: git_branch
+    enabled: true
+    section: left
+    order: 3
+    format: \(git.branch) [\(session.current_command)]
+  # Example: custom widget (user-defined text via variable interpolation)
+  - id: custom: Build Stats
+    enabled: true
+    section: right
+    order: 6
+    format: CPU \(system.cpu) · \(git.branch)
 ```
 
 ## Settings UI

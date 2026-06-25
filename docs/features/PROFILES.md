@@ -340,14 +340,14 @@ Add `tmux_session_patterns` to a profile:
 
 ### Hostname-Based Switching
 
-Profiles automatically apply when connecting to remote hosts with matching hostnames, detected via OSC 7 and OSC 1337 RemoteHost sequences.
+Profiles automatically apply when connecting to remote hosts with matching hostnames, detected via OSC 7 shell-integration sequences (`file://hostname/path`). Hostname patterns are matched against the host extracted from the OSC 7 URL; the local host is ignored.
 
 ### Auto-Switch Priority
 
 When multiple auto-switch mechanisms could apply, the following priority order determines which profile wins:
 
 1. **Explicit user selection** — manual profile selection always takes precedence
-2. **Hostname match** — remote host detection via OSC 1337 / OSC 7 (highest auto priority)
+2. **Hostname match** — remote host detection via OSC 7 (highest auto priority)
 3. **SSH command detection** — running `ssh` process triggers profile matching
 4. **Directory match** — CWD-based matching via OSC 7
 5. **Tmux session match** — tmux session name pattern matching (applied via the tmux gateway separately)

@@ -160,7 +160,7 @@ Layer 0 — No internal deps (bump in any order):
 
 Layer 1 — Foundation (bump before anything that depends on it):
   par-term-config
-    └── depends on: (none, only external par-term-emu-core-rust)
+    └── depends on: (none — pure-data crate; Unicode types defined locally in src/types/)
 
 Layer 2 — Depend on par-term-config only (bump after Layer 1):
   par-term-fonts        → par-term-config

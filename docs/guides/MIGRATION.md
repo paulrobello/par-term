@@ -4,18 +4,19 @@ Upgrade notes for par-term covering breaking configuration changes, renamed fiel
 
 ## Table of Contents
 
-- [Unreleased — Content Prettifier Removed](#unreleased--content-prettifier-removed)
+- [v0.31.0 — Content Prettifier Removed](#v0310--content-prettifier-removed)
 - [v0.20.0 — Default Changes](#v0200--default-changes)
-- [v0.25.0 — Security Hardening and Behavior Shifts](#v0250--security-hardening-and-behavior-shifts)
+- [v0.25.0 — HTTP Profile URLs Blocked by Default](#v0250--http-profile-urls-blocked-by-default)
 - [v0.25.0 — Minimum Contrast Scale Change](#v0250--minimum-contrast-scale-change)
 - [v0.25.0 — Pane Padding Defaults](#v0250--pane-padding-defaults)
+- [v0.26.0 — ACP auto_approve Enforces Safe Write Paths](#v0260--acp-auto_approve-enforces-safe-write-paths)
 - [v0.27.0 — Trigger Field Renamed](#v0270--trigger-field-renamed)
 - [v0.27.0 — Security-Gated Trigger Execution](#v0270--security-gated-trigger-execution)
 - [Related Documentation](#related-documentation)
 
 ---
 
-## Unreleased — Content Prettifier Removed
+## v0.31.0 — Content Prettifier Removed
 
 The content prettifier feature has been removed. The `par-term-prettifier` workspace crate and all related runtime wiring have been deleted, including the settings UI tab, config/profile fields, trigger action (`type: prettify`), keybinding action (`toggle_prettifier`), and render-path substitutions.
 
@@ -50,17 +51,9 @@ window_padding: 4.0
 
 ---
 
-## v0.25.0 — Security Hardening and Behavior Shifts
-
-Several security-related defaults changed. Existing config files continue to load without error, but runtime behavior changes.
-
-**HTTP profile URLs are now blocked by default.**
+## v0.25.0 — HTTP Profile URLs Blocked by Default
 
 Profiles fetched from remote URLs must use HTTPS. HTTP URLs are rejected at fetch time with a warning. Update any profile `url` fields to use `https://`.
-
-**ACP `auto_approve` now enforces `is_safe_write_path`.**
-
-The ACP agent's automatic approval mode for file-write tools now validates that the target path falls within the user's home directory or an explicitly declared safe root. Writes to system paths are blocked even in `auto_approve` mode.
 
 ---
 
@@ -90,6 +83,12 @@ Default padding values changed:
 | `window_padding` | `0.0` px | `1.0` px |
 
 Split-pane mode now automatically adds base padding equal to half the divider width, so `pane_padding` of `0.0` is no longer needed to remove the inter-pane gap.
+
+---
+
+## v0.26.0 — ACP auto_approve Enforces Safe Write Paths
+
+The ACP agent's automatic approval mode for file-write tools now always validates that the target path passes `is_safe_write_path`. The target must fall within the user's home directory or an explicitly declared safe root. Writes to system paths are blocked even in `auto_approve` mode.
 
 ---
 

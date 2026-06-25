@@ -122,10 +122,10 @@ Vi-style keyboard-driven text selection. See [Copy Mode](../features/COPY_MODE.m
 |----------|--------|
 | `Ctrl + L` | Clear visible screen |
 | `Ctrl + Shift + K` | Clear scrollback buffer |
-| `Cmd/Ctrl + Shift + R` | Toggle session recording |
+| `Cmd/Ctrl + Shift + R` | Toggle session logging |
 | `Cmd + Shift + T` (macOS) / `Ctrl + Shift + M` (Linux/Win) | Toggle maximize throughput mode |
 
-> **📝 Note:** Throughput mode uses `toggle_throughput_mode` action. Screenshots are taken via the `--screenshot` CLI option or MCP server tool, not a keyboard shortcut.
+> **📝 Note:** Session logging uses the `toggle_session_logging` action (see [Session Logging](../features/SESSION_LOGGING.md)). Throughput mode uses `toggle_throughput_mode`. Screenshots are taken via the `--screenshot` CLI option or MCP server tool, not a keyboard shortcut.
 
 ## Font & Text Sizing
 
@@ -143,6 +143,7 @@ Vi-style keyboard-driven text selection. See [Copy Mode](../features/COPY_MODE.m
 | `F3` | Toggle FPS overlay |
 | `F5` | Reload configuration |
 | `F11` | Toggle fullscreen |
+| `Shift + F11` | Maximize window vertically (View menu) |
 | `F12` | Open Settings |
 | `Cmd + ,` (macOS) | Open Settings |
 | `Escape` | Close current UI panel |
@@ -206,13 +207,13 @@ remains visible; press `Esc` to cancel it. All action types — including the wo
 
 ### Available Modifiers
 
-| Modifier | Description |
-|----------|-------------|
-| `Ctrl` | Control key |
-| `Alt` | Alt/Option key |
-| `Shift` | Shift key |
-| `Super` | Windows/Command key |
-| `CmdOrCtrl` | Cmd (macOS) or Ctrl (Windows/Linux) |
+| Modifier | Aliases | Description |
+|----------|---------|-------------|
+| `Ctrl` | `Control` | Control key |
+| `Alt` | `Option` | Alt/Option key |
+| `Shift` | — | Shift key |
+| `Super` | `Cmd`, `Command`, `Meta`, `Win` | Windows/Command key |
+| `CmdOrCtrl` | — | Cmd (macOS) or Ctrl (Windows/Linux) |
 
 ### Available Actions
 
@@ -233,6 +234,7 @@ remains visible; press `Esc` to cancel it. All action types — including the wo
 - `navigate_pane_up`, `navigate_pane_down`
 - `resize_pane_left`, `resize_pane_right`
 - `resize_pane_up`, `resize_pane_down`
+- `promote_pane_to_tab`, `demote_tab_to_pane`
 
 **Display:**
 - `toggle_fullscreen`, `maximize_vertically`

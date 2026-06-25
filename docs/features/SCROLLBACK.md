@@ -40,17 +40,21 @@ graph TD
     Metadata --> Duration[Duration]
     Metadata --> Exit[Exit Code]
 
-    style Scrollback fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
-    style Buffer fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
-    style Marks fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
-    style Scrollbar fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
-    style Navigation fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
-    style Colors fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style Tooltips fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style Metadata fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style Time fill:#37474f,stroke:#78909c,stroke-width:1px,color:#ffffff
-    style Duration fill:#37474f,stroke:#78909c,stroke-width:1px,color:#ffffff
-    style Exit fill:#37474f,stroke:#78909c,stroke-width:1px,color:#ffffff
+    classDef primary fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+    classDef active fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    classDef data fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    classDef external fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
+    classDef accent fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
+    classDef neutral fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+    classDef neutralThin fill:#37474f,stroke:#78909c,stroke-width:1px,color:#ffffff
+
+    class Scrollback primary
+    class Buffer active
+    class Marks data
+    class Scrollbar external
+    class Navigation accent
+    class Colors,Tooltips,Metadata neutral
+    class Time,Duration,Exit neutralThin
 ```
 
 ## Scrollback Buffer
@@ -70,10 +74,12 @@ scrollback_lines: 10000
 |--------|----------|
 | Scroll up one line | Mouse wheel up |
 | Scroll down one line | Mouse wheel down |
-| Scroll up one page | `Page Up` |
-| Scroll down one page | `Page Down` |
+| Scroll up one page | `Shift+Page Up` |
+| Scroll down one page | `Shift+Page Down` |
 | Scroll to top | `Shift+Home` |
 | Scroll to bottom | `Shift+End` |
+
+> **Note:** Bare `Page Up` and `Page Down` are forwarded to the terminal application (as `\x1b[5~` / `\x1b[6~`) rather than scrolling par-term's buffer. Add `Shift` to scroll the buffer itself.
 
 ## Command Marks
 

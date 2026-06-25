@@ -537,7 +537,7 @@ Customize the visual style of tabs:
 |---------|-------------|---------|
 | `tab_inactive_outline_only` | Outline-only mode (no fill) | `true` |
 | `dim_inactive_tabs` | Dim inactive tabs with reduced opacity | `true` |
-| `inactive_tab_opacity` | Opacity for dimmed inactive tabs (0.0-1.0) | varies |
+| `inactive_tab_opacity` | Opacity for dimmed inactive tabs (0.0-1.0) | `0.6` |
 
 ### Automatic Style Sub-Styles
 

@@ -142,8 +142,9 @@ Discovers SSH hosts on the local network by browsing the `_ssh._tcp.local.` serv
 **This feature is opt-in.** Enable it in Settings > Integrations > SSH > mDNS/Bonjour Discovery, or in config:
 
 ```yaml
-enable_mdns_discovery: true
-mdns_scan_timeout_secs: 3  # Range: 1-10 seconds
+ssh:
+  enable_mdns_discovery: true
+  mdns_scan_timeout_secs: 3  # Range: 1-10 seconds
 ```
 
 When enabled, the Quick Connect dialog shows a spinner while scanning and displays discovered hosts in real time.
@@ -185,7 +186,7 @@ The profile builds the SSH command from its fields:
 ssh -p 2222 -i ~/.ssh/id_work deploy@example.com
 ```
 
-**Field Priority:** Profile `command` field takes precedence over SSH fields. If both `command` and `ssh_host` are set, `command` is used.
+**Field Priority:** The `ssh_host` field takes precedence over `command`. If both are set, par-term launches the SSH connection and ignores `command`.
 
 ## Automatic Profile Switching
 
@@ -193,7 +194,7 @@ par-term can automatically switch profiles when connecting to SSH hosts, providi
 
 ### Hostname-Based Switching
 
-When an SSH session is detected, par-term monitors terminal output for the remote hostname (via OSC 1337 RemoteHost sequences) and searches for a profile with matching `hostname_patterns`.
+When an SSH session is detected, par-term monitors terminal output for the remote hostname (via OSC 7 shell-integration sequences, emitted as `file://hostname/path`) and searches for a profile with matching `hostname_patterns`.
 
 **When a match is found:**
 - Profile icon appears in the tab bar
@@ -215,7 +216,7 @@ This behavior is controlled by the `ssh_revert_profile_on_disconnect` config opt
 
 ## Remote Tab Title Format
 
-When shell integration detects a remote host (via OSC 7 or OSC 1337 RemoteHost sequences), par-term can automatically update the tab title to reflect the remote connection. The format is controlled by `remote_tab_title_format`:
+When shell integration detects a remote host (via OSC 7 sequences), par-term can automatically update the tab title to reflect the remote connection. The format is controlled by `remote_tab_title_format`:
 
 | Value | Format | Example |
 |-------|--------|---------|
@@ -233,20 +234,21 @@ remote_tab_title_osc_priority: true
 
 **Settings UI:** Settings > Window > Tab Bar > "Remote Tab Title Format"
 
-> **Note:** `remote_tab_title_format` requires shell integration to be installed on the remote host so that OSC 7 or OSC 1337 RemoteHost sequences are emitted. See [Integrations](INTEGRATIONS.md) for installation instructions.
+> **Note:** `remote_tab_title_format` requires shell integration to be installed on the remote host so that OSC 7 sequences are emitted. See [Integrations](INTEGRATIONS.md) for installation instructions.
 
 ## Configuration
 
 ```yaml
-# mDNS/Bonjour discovery (opt-in)
-enable_mdns_discovery: false       # default: false
-mdns_scan_timeout_secs: 3          # range: 1-10, default: 3
+ssh:
+  # mDNS/Bonjour discovery (opt-in)
+  enable_mdns_discovery: false       # default: false
+  mdns_scan_timeout_secs: 3          # range: 1-10, default: 3
 
-# Automatic profile switching
-ssh_auto_profile_switch: true      # default: true
-ssh_revert_profile_on_disconnect: true  # default: true
+  # Automatic profile switching
+  ssh_auto_profile_switch: true      # default: true
+  ssh_revert_profile_on_disconnect: true  # default: true
 
-# Remote tab title format (requires shell integration on the remote host)
+# Remote tab title format (top-level; requires shell integration on the remote host)
 remote_tab_title_format: user_at_host  # user_at_host | host | host_and_cwd
 remote_tab_title_osc_priority: true    # OSC titles take priority over format
 ```
@@ -300,7 +302,7 @@ The **Integrations** tab in Settings (`F12`) includes an **SSH** section with th
 **Profile not auto-switching on SSH:**
 - Ensure `ssh_auto_profile_switch: true` in config
 - Verify the profile has `hostname_patterns` that match the remote hostname
-- Shell integration must be installed on the remote host for OSC 1337 hostname reporting
+- Shell integration must be installed on the remote host for OSC 7 hostname reporting
 
 **mDNS hosts not appearing:**
 - Enable mDNS in Settings > Integrations > SSH > mDNS/Bonjour Discovery

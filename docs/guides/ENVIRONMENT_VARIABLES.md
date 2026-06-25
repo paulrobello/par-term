@@ -136,6 +136,9 @@ These variables are set by par-term itself when launching the MCP server subproc
 | `PAR_TERM_SCREENSHOT_FALLBACK_PATH` | unset | Optional static fallback image path. Used by the ACP harness for testing the screenshot tool without a running GUI. |
 | `PAR_TERM_SHADER_DIAGNOSTICS_REQUEST_PATH` | `<config_dir>/.shader-diagnostics-request.json` | Path where the MCP server writes a shader diagnostics request. |
 | `PAR_TERM_SHADER_DIAGNOSTICS_RESPONSE_PATH` | `<config_dir>/.shader-diagnostics-response.json` | Path where the GUI app writes the shader diagnostics response. |
+| `PAR_TERM_MCP_AUTH_TOKEN` | unset | Opt-in per-process session auth token for the MCP server (SEC-006 hardening). Unlike the rows above, this is **not** set by par-term — operators set it on the spawned `par-term mcp-server` process. When set to a non-empty value, the server requires clients to echo it back as `_meta.parTermAuthToken` in the `initialize` handshake and rejects `tools/list` / `tools/call` (`-32001` error) until they do. When unset (the default), auth is disabled and all calls are allowed, preserving existing ACP flows. |
+
+> **Security:** `PAR_TERM_MCP_AUTH_TOKEN` is OPT-IN. par-term does not spawn the MCP server itself (the agent host does), so it cannot inject a token automatically. Operators who want the hardening must set this env var on the spawned `par-term mcp-server` process AND configure their agent host to forward the same value in `_meta.parTermAuthToken`. Token comparison uses constant-time comparison as defense-in-depth; the threat model is local-process access control.
 
 ---
 
@@ -172,9 +175,11 @@ shell: "${SHELL}"
 
 By default, only the following variable categories are substituted. References to other variables are left unchanged and a warning is logged.
 
-- Variables in the standard allowlist (all variables listed in this document under Shell, User/Home, XDG, Editor, Display, and Temp sections)
+- The standard allowlist defined in `par-term-config/src/config/env_vars.rs` (`ALLOWED_ENV_VARS`): `HOME`, `USER`, `USERNAME`, `LOGNAME`, `USERPROFILE`, `SHELL`, `TERM`, `LANG`, `COLORTERM`, `TERM_PROGRAM`, the five `XDG_*` directories, `PATH`, `TMPDIR`, `TEMP`, `TMP`, `DISPLAY`, `WAYLAND_DISPLAY`, `HOSTNAME`, `HOST`, `EDITOR`, `VISUAL`, `PAGER`, `APPDATA`, and `LOCALAPPDATA`.
 - Any variable prefixed with `PAR_TERM_`
 - Any variable prefixed with `LC_` (locale variables)
+
+> **Note:** `TERM_PROGRAM_VERSION`, `LC_TERMINAL`, `LC_TERMINAL_VERSION`, `ITERM_SESSION_ID`, `__PAR_TERM`, `TTY`, `GIT_BRANCH`, and `GIT_COMMIT` are read by par-term at runtime but are **not** on the config-substitution allowlist.
 
 To allow substitution of all environment variables (including secrets — use with caution):
 

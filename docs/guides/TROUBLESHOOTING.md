@@ -79,38 +79,63 @@ par-term writes debug logs to a file rather than the terminal, so logging never 
 
 **Enabling debug logging:**
 
+par-term has two parallel logging systems that write to the same file: the standard `log` crate (controlled by `--log-level`, `RUST_LOG`, or `log_level`) and the custom `debug_*!()` macros (controlled by `DEBUG_LEVEL`). For full diagnostic output, enable both.
+
+The recommended way is to use the Makefile targets, which enable both systems together:
+
 ```bash
-# Via command-line flag (highest priority)
+# Recommended: enables RUST_LOG=debug + DEBUG_LEVEL=3
+make run-debug
+
+# Most verbose: enables RUST_LOG=trace + DEBUG_LEVEL=4
+make run-trace
+```
+
+Alternatively, set each system directly:
+
+```bash
+# Standard log crate (CLI flag -- highest priority, overrides config and RUST_LOG)
 par-term --log-level debug
 
-# Via environment variable (also mirrors to stderr)
+# Standard log crate via env var (also mirrors to stderr)
 RUST_LOG=debug par-term
+
+# Custom debug macros via env var (separate system, 0-4)
+DEBUG_LEVEL=4 par-term
 
 # Via config file (~/.config/par-term/config.yaml)
 log_level: debug
 ```
 
-**Log levels** (from least to most verbose): `off`, `error`, `warn`, `info`, `debug`, `trace`
+**Standard log levels** (from least to most verbose): `off`, `error`, `warn`, `info`, `debug`, `trace`
+
+**Custom `DEBUG_LEVEL` values:** `0` = off (default), `1` = error, `2` = info, `3` = debug, `4` = trace (all macros)
 
 **Monitoring logs in real time:**
 
 ```bash
+# Recommended (Makefile target)
+make tail-log
+
+# Or directly
 tail -f /tmp/par_term_debug.log
 ```
 
 **Filtering logs by component:**
 
+Custom debug categories are uppercase tags (`SHADER`, `TERMINAL`, `RENDER`, `MOUSE`, `CONCURRENCY`, etc. -- see [LOGGING.md](../LOGGING.md) for the full list).
+
 ```bash
-tail -f /tmp/par_term_debug.log | grep --line-buffered "shader"
-tail -f /tmp/par_term_debug.log | grep --line-buffered "terminal"
-tail -f /tmp/par_term_debug.log | grep --line-buffered "renderer"
+tail -f /tmp/par_term_debug.log | grep --line-buffered "SHADER"
+tail -f /tmp/par_term_debug.log | grep --line-buffered "TERMINAL"
+tail -f /tmp/par_term_debug.log | grep --line-buffered "RENDER"
 ```
 
 **Capturing logs for a bug report:**
 
 ```bash
-# Start with trace logging, reproduce the issue, then exit
-par-term --log-level trace
+# Start with full trace logging (both log systems), reproduce the issue, then exit
+make run-trace
 
 # Copy the log file
 cp /tmp/par_term_debug.log ~/Desktop/par-term-debug.log
@@ -118,7 +143,7 @@ cp /tmp/par_term_debug.log ~/Desktop/par-term-debug.log
 
 The Settings UI also provides debug logging controls under **Settings > Advanced > Debug Logging**, including a log level dropdown, log file path display, and an Open Log File button. Changes take effect immediately without restarting.
 
-> **Note:** Some internal components use custom `debug_*!()` macros controlled by the `DEBUG_LEVEL` environment variable (separate from `log_level`). Set `DEBUG_LEVEL=4` for maximum custom debug output.
+> **Note:** High-frequency components (rendering, input, shaders) use the custom `debug_*!()` macros, which are controlled by `DEBUG_LEVEL` (separate from `log_level`). Use `make run-trace` (or `DEBUG_LEVEL=4 par-term`) to capture them. See [LOGGING.md](../LOGGING.md) for the full category list and the two-system architecture.
 
 ## Installation Issues
 
@@ -813,7 +838,7 @@ Close and reopen par-term. A restart is required after every update to use the n
 If the solutions in this guide do not resolve your issue:
 
 1. **Collect diagnostic information:**
-   - Start par-term with `--log-level trace`
+   - Start par-term with `make run-trace` (enables both `RUST_LOG=trace` and `DEBUG_LEVEL=4`)
    - Reproduce the issue
    - Copy `/tmp/par_term_debug.log` for your bug report
 

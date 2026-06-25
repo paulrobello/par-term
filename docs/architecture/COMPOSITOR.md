@@ -668,8 +668,8 @@ custom_shader_cubemap_enabled: true
 custom_shader_use_background_as_channel0: false
 
 # Blend mode when using background image as iChannel0
-# Options: normal, multiply, screen, overlay, soft_light, hard_light
-custom_shader_background_channel0_blend_mode: normal
+# Options: replace, multiply, screen, overlay, luminance_mask
+custom_shader_background_channel0_blend_mode: replace
 
 # Auto-dim shader under text for readability (default: false)
 custom_shader_auto_dim_under_text: false

@@ -59,8 +59,13 @@ Supported platform suffixes:
 
 **Install to a system-wide location:**
 ```bash
-# macOS / Linux
-sudo install -m 755 par-term-aarch64-apple-darwin /usr/local/bin/par-term
+# Linux (raw binary from the GitHub release)
+sudo install -m 755 par-term-linux-aarch64 /usr/local/bin/par-term
+
+# macOS: the release ships a .app.zip — extract the binary from inside the bundle
+# (the Scripted Deployment section below automates this)
+unzip -o par-term-macos-aarch64.zip -d /tmp/par-term-extract
+sudo install -m 755 /tmp/par-term-extract/par-term.app/Contents/MacOS/par-term /usr/local/bin/par-term
 
 # Windows (PowerShell, elevated)
 Copy-Item par-term.exe "C:\Program Files\par-term\par-term.exe"
@@ -68,10 +73,10 @@ Copy-Item par-term.exe "C:\Program Files\par-term\par-term.exe"
 
 ### macOS App Bundle
 
-The `.app` bundle is suitable for Jamf/MDM push. Download `par-term.app.tar.gz` from the GitHub release and extract to `/Applications`:
+The `.app` bundle is suitable for Jamf/MDM push. Download `par-term-macos-aarch64.zip` (or `par-term-macos-x86_64.zip`) from the GitHub release and extract to `/Applications`:
 
 ```bash
-sudo tar -xzf par-term.app.tar.gz -C /Applications
+sudo unzip par-term-macos-aarch64.zip -d /Applications
 sudo xattr -rd com.apple.quarantine /Applications/par-term.app
 ```
 
@@ -117,7 +122,7 @@ cargo build --profile dev-release --locked
 #!/usr/bin/env bash
 set -euo pipefail
 
-PAR_TERM_VERSION="0.33.0"
+PAR_TERM_VERSION="0.33.1"
 INSTALL_DIR="/usr/local/bin"
 PLATFORM="macos-aarch64"   # adjust: macos-x86_64, linux-x86_64, linux-aarch64
 BINARY="par-term-${PLATFORM}.zip"
@@ -161,7 +166,7 @@ echo "par-term ${PAR_TERM_VERSION} installed successfully."
 
 ```powershell
 # deploy-par-term.ps1
-$Version  = "0.33.0"
+$Version  = "0.33.1"
 $Platform = "windows-x86_64"
 $InstDir  = "C:\Program Files\par-term"
 $Url      = "https://github.com/paulrobello/par-term/releases/download/v$Version/par-term-$Platform.exe"
@@ -273,7 +278,7 @@ Valid values: `hourly`, `daily`, `weekly`, `monthly`, `never`.
 |----------------|-------------|
 | Homebrew | `brew pin par-term` |
 | Standalone binary | Replace binary file only during planned maintenance windows |
-| Cargo | `cargo install --locked --version 0.33.0 par-term` |
+| Cargo | `cargo install --locked --version 0.33.1 par-term` |
 
 ### Managed Update Workflow
 
@@ -295,18 +300,18 @@ No database migrations or service restarts are required; par-term reads its conf
 Wrap the binary in a standard `.pkg` installer for Jamf/MDM distribution:
 
 ```bash
-# Create payload
+# Create payload (binary extracted from the macOS release .app.zip, or built via `cargo build --release`)
 mkdir -p /tmp/par-term-pkg/usr/local/bin
-cp par-term-aarch64-apple-darwin /tmp/par-term-pkg/usr/local/bin/par-term
+cp par-term /tmp/par-term-pkg/usr/local/bin/par-term
 chmod 755 /tmp/par-term-pkg/usr/local/bin/par-term
 
 # Build pkg
 pkgbuild \
   --root /tmp/par-term-pkg \
   --identifier com.paulrobello.par-term \
-  --version 0.33.0 \
+  --version 0.33.1 \
   --install-location / \
-  par-term-0.33.0.pkg
+  par-term-0.33.1.pkg
 ```
 
 Upload the `.pkg` to Jamf Pro and deploy via a policy scoped to the target computer group.
@@ -314,7 +319,7 @@ Upload the `.pkg` to Jamf Pro and deploy via a policy scoped to the target compu
 ### LaunchAgent vs App Bundle
 
 - **Binary in `/usr/local/bin`**: Appropriate for users who launch par-term from another terminal or via a shell alias. No LaunchAgent is needed.
-- **App Bundle in `/Applications`**: Appropriate for users who launch par-term from the Dock or Spotlight. Use Jamf's "App Deployment" policy with the `.app.tar.gz` from the GitHub release.
+- **App Bundle in `/Applications`**: Appropriate for users who launch par-term from the Dock or Spotlight. Use Jamf's "App Deployment" policy with the `.app.zip` from the GitHub release.
 
 ### Gatekeeper Considerations
 
@@ -398,7 +403,7 @@ The [AI panel](ASSISTANT_PANEL.md) launches AI coding agents (Claude Code, Codex
 | `par-term: command not found` after install | Binary not in `PATH` | Add install directory to `PATH` in `/etc/profile` |
 | App bounces in Dock then quits (macOS) | Quarantine flag not cleared | Run `xattr -rd com.apple.quarantine /Applications/par-term.app` |
 | Settings changes lost on restart | Config file is read-only | Check file permissions; inform users or provide a writable path |
-| Black screen on launch | GPU driver issue or missing Vulkan/Metal support | See [Troubleshooting](TROUBLESHOOTING.md#black-screen-or-no-output) |
+| Black screen on launch | GPU driver issue or missing Vulkan/Metal support | See [Troubleshooting](guides/TROUBLESHOOTING.md#black-screen-or-no-output) |
 | Missing Linux libraries on startup | `libxcb-*` not installed | Run `sudo apt-get install libxcb-render0 libxcb-shape0 libxcb-xfixes0` |
 | Users cannot save settings | Config dir is a symlink to a read-only shared path | Provide a writable per-user config path or remove the symlink |
 

@@ -56,17 +56,19 @@ graph TD
     Utilities --> PtUl[pt-ul]
     Utilities --> PtImgcat[pt-imgcat]
 
-    style Protocol fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
-    style Downloads fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
-    style Uploads fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
-    style Overlay fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
-    style Utilities fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
-    style SaveDialog fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style FilePicker fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style Notify fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style PtDl fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style PtUl fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style PtImgcat fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+    class Protocol primary
+    class Downloads active
+    class Uploads data
+    class Overlay external
+    class Utilities utility
+    class SaveDialog,FilePicker,Notify,PtDl,PtUl,PtImgcat neutral
+
+    classDef primary fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+    classDef active fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    classDef data fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    classDef external fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
+    classDef utility fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
+    classDef neutral fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
 ```
 
 ## File Downloads

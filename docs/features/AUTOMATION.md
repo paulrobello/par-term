@@ -175,7 +175,7 @@ triggers:
 
 Each trigger can have multiple actions that all fire when the pattern matches. Actions are defined in the trigger's `actions` array. There are eight action types.
 
-> **📝 Note:** Dangerous actions (`RunCommand`, `SendText`, `SplitPane`) show an interactive confirmation dialog before executing when `prompt_before_run: true` (the default). The dialog offers three choices: **Allow** (run once), **Always Allow** (run automatically for the rest of the session, cleared on config reload), and **Deny** (discard the pending action). Setting `prompt_before_run: false` allows automatic execution — only the rate-limiter and denylist apply. Safe actions (`Highlight`, `Notify`, `MarkLine`, `SetVariable`, `PlaySound`) always fire without prompting.
+> **📝 Note:** Dangerous actions (`RunCommand`, `SendText`, `SplitPane`) show an interactive confirmation dialog before executing when `prompt_before_run: true` (the default). The dialog offers three choices: **Allow** (run once), **Always Allow** (run automatically for the rest of the session, cleared on config reload), and **Deny** (discard the pending action). Setting `prompt_before_run: false` allows automatic execution — the rate-limiter, built-in command denylist, and the optional trigger-level `allowed_commands` allowlist still apply. Safe actions (`Highlight`, `Notify`, `MarkLine`, `SetVariable`, `PlaySound`) always fire without prompting.
 >
 > **Security guard:** When `prompt_before_run: false`, you must also set `i_accept_the_risk: true` on the trigger. Without this explicit opt-in, execution is blocked and an audit warning is logged. This prevents accidental auto-execution after config copy/paste.
 >
@@ -261,6 +261,14 @@ Spawns an external command as a detached process. The command runs independently
 | `args` | array of strings | No | `[]` | Command-line arguments |
 
 > **⚠️ Warning:** The command is spawned without a shell. If you need shell features (pipes, redirection), set `command` to your shell and pass the expression as an argument: `command: "sh"`, `args: ["-c", "echo 'done' >> /tmp/log.txt"]`.
+
+> **🔒 Security:** Every `RunCommand` is screened by three layers, regardless of the `prompt_before_run` setting:
+>
+> 1. **Trigger allowlist** (`allowed_commands` on the trigger): when non-empty, only listed binaries may run. Matching is case-insensitive on the command's binary name or full path (so `"git"` matches both `git` and `/usr/bin/git`).
+> 2. **Built-in denylist**: a fixed set of substring patterns is always blocked — destructive operations (`rm -rf /`, `mkfs.`, `dd if=`), shell-eval wrappers (`eval`, `exec`, `sh -c`, `bash -c`, `/usr/bin/env …`), credential exfiltration (`.ssh/id_`, `.gnupg/`, `ssh-add`), and pipe-to-shell (`| bash`, `| sh`). The denylist is a best-effort heuristic, not a security boundary — encoded or obfuscated payloads can bypass it.
+> 3. **Rate limiter**: a per-trigger minimum interval (default 1 second) prevents output flooding from triggering repeated execution.
+>
+> The recommended protection is `prompt_before_run: true` (the default). The allowlist and denylist are secondary defenses for triggers that opt into `prompt_before_run: false` with `i_accept_the_risk: true`.
 
 ### Play Sound
 

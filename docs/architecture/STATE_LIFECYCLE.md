@@ -94,7 +94,7 @@ via the menu. Configuration is loaded in `App::new` (`src/app/mod.rs`) and passe
 - `about_to_wait()` — per-frame polling: notifications, config reloads (`check_config_reload()`), cursor blink, smooth scrolling, shader animation, file transfers, anti-idle keep-alive, and more (`src/app/handler/window_state_impl/about_to_wait.rs`).
 - `handle_window_event()` — processes OS keyboard, mouse, and resize events (`src/app/handler/window_state_impl/handle_window_event.rs`).
 - `process_agent_messages_tick()` — drains incoming ACP agent messages.
-- Rendering is performed by `RenderPipeline::render()` (`src/app/render_pipeline/mod.rs`), called from the `about_to_wait` path.
+- Rendering is performed by `WindowState::render()` (defined in `src/app/render_pipeline/mod.rs`; `render_pipeline` is a module, not a struct). `about_to_wait()` triggers a redraw via `request_redraw()`, and `handle_window_event()` invokes `render()` on each frame.
 
 ### Destruction
 

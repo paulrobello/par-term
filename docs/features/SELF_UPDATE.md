@@ -304,7 +304,7 @@ All update settings are accessible through Settings (`F12`) under **Advanced > U
 - **HTTPS only**: All communication with the GitHub API and asset downloads use HTTPS with TLS
 - **Host allowlist**: Only four GitHub hostnames are accepted for update-related network requests: `github.com`, `api.github.com`, `objects.githubusercontent.com`, and `github-releases.githubusercontent.com`. URLs pointing to any other host are rejected regardless of scheme or path
 - **GitHub API**: Release information is fetched from the official GitHub Releases API (`api.github.com`), and binaries are downloaded from GitHub's release asset URLs
-- **SHA256 checksum verification**: After downloading, the binary is verified against a `.sha256` checksum file published alongside each release asset. If the checksum is present and the hashes do not match, the update is aborted. If no checksum file is available (older releases), a warning is logged and the update proceeds
+- **SHA256 checksum verification**: After downloading, the binary is verified against a `.sha256` checksum file published alongside each release asset. Verification is a hard gate: if the hashes do not match, if the checksum file fails to download, or if no checksum file exists for the release, the update is aborted. A missing or unreachable checksum file is treated as a security failure (not a warning) so a compromised or MITM-altered release cannot ship an unverified binary
 - **Content validation**: The downloaded archive is inspected before checksum verification to catch obviously bad responses (e.g., HTML error pages). Platform-specific magic bytes are checked: ZIP header (`PK`) for macOS, ELF header (`\x7fELF`) for Linux, and PE header (`MZ`) for Windows
 - **No code execution during download**: Downloaded binaries are written to disk first and are not executed as part of the update process. The user must restart par-term to use the new version
 - **Permission preservation**: On Unix systems, the new binary receives standard executable permissions (`0o755`). On macOS app bundles, Unix permissions from the zip archive entries are preserved
@@ -331,6 +331,9 @@ Network connectivity issue or GitHub API rate limit. Try again later or check yo
 
 **"Failed to replace binary: Permission denied" error**:
 The running process does not have write access to its installation directory. On Linux, you may need to run the update with appropriate permissions if the binary is in a system directory.
+
+**"No .sha256 checksum file found in release" / "refusing to install an unverified binary" error**:
+The release does not include a `.sha256` checksum asset, or the checksum file could not be downloaded and the update was aborted for safety. This is intentional: a missing or unreachable checksum is treated as a security failure, not a warning. Download the binary manually from the [GitHub releases page](https://github.com/paulrobello/par-term/releases) and verify it yourself before installing.
 
 **Updated app is blocked by Gatekeeper / "app is damaged"**:
 macOS applies a quarantine attribute to files downloaded from the internet. When par-term updates itself, the updater strips this attribute by running `xattr -cr` on the new `.app` bundle. If you encounter this error after a manual installation or an interrupted update, remove the quarantine attribute manually:

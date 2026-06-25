@@ -39,12 +39,18 @@ graph TD
     Click --> Resolve
     Resolve --> Open
 
-    style Output fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
-    style Detect fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
-    style Highlight fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
-    style Click fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
-    style Resolve fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style Open fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
+    class Output primary
+    class Detect data
+    class Highlight external
+    class Click active
+    class Resolve neutral
+    class Open primary
+
+    classDef primary fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+    classDef active fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    classDef data fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    classDef external fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
+    classDef neutral fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
 ```
 
 **Purpose:** Jump from terminal output directly to source code in your editor
@@ -175,7 +181,7 @@ link_handler_command: "firefox --private-window {url}"
 
 When `link_handler_command` is empty (the default), par-term falls back to the operating system's default browser.
 
-**Settings UI:** Settings > Terminal > Semantic History > "Link Handler Command"
+**Settings UI:** Settings > Terminal > Semantic History > "Link handler"
 
 > **⚠️ Warning:** The Settings UI validates that the `{url}` placeholder is present in the command. A warning appears if the placeholder is missing, since the URL would not be passed to the handler.
 
@@ -188,7 +194,7 @@ Semantic history is configured in **Settings > Terminal > Semantic History**:
 - **Link highlight color** - Color picker for the highlight color applied to detected paths and URLs
 - **Change text color on hover** - Toggle to apply highlight color to link text (disable to underline only)
 - **Underline highlighted links** - Toggle underlines on highlighted links
-- **Underline style** - Choose between Solid and Stipple (dotted) underline styles
+- **Underline style** - Choose between Solid and Stipple (dotted) underline styles (shown only when "Underline highlighted links" is enabled)
 - **Editor mode** - Dropdown to select between Environment Variable, Custom, or System Default
 - **Editor command** - Text field for the editor command (shown only in Custom mode)
 

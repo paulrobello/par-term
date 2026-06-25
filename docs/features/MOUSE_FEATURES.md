@@ -54,7 +54,7 @@ graph TD
     classDef active fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
     classDef info fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
     classDef external fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
-    classDef warning fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
+    classDef warning fill:#ff6f00,stroke:#ffa726,stroke-width:2px,color:#ffffff
     classDef neutral fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
 ```
 

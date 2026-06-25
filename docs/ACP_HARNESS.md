@@ -210,7 +210,7 @@ cargo run --bin par-term-acp-harness -- \
 | `--cwd <PATH>` | Current directory | Working directory for the agent session |
 | `--par-term-bin <PATH>` | Auto-detected | Path to the `par-term` binary used to host the MCP server |
 | `--auto-approve` | `true` | Automatically approve permission requests |
-| `--auto-recover` | `true` | Emit follow-up recovery prompts on tool failures or incomplete shader activation |
+| `--auto-recover` | `true` | Emit up to 3 follow-up recovery prompts on tool failures or incomplete shader activation |
 | `--timeout-seconds <N>` | `120` | Overall timeout after sending the prompt |
 | `--idle-timeout-seconds <N>` | `8` | Stop after this many seconds with no incoming agent events |
 

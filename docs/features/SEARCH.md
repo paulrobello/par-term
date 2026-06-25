@@ -34,14 +34,19 @@ graph TD
     Options --> Regex[Regex Mode]
     Options --> WholeWord[Whole Word]
 
-    style Search fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
-    style Input fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
-    style Options fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
-    style Results fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
-    style Highlight fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
-    style CaseSensitive fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style Regex fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style WholeWord fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+    class Search primary
+    class Input active
+    class Options data
+    class Results external
+    class Highlight emphasis
+    class CaseSensitive,Regex,WholeWord neutral
+
+    classDef primary fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+    classDef active fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    classDef data fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    classDef external fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
+    classDef emphasis fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
+    classDef neutral fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
 ```
 
 ## Opening Search
@@ -71,12 +76,13 @@ graph LR
         Hints["Enter: Next | Shift+Enter: Prev | Escape: Close"]
     end
 
-    style Label fill:#37474f,stroke:#78909c,stroke-width:1px,color:#ffffff
-    style Input fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
-    style Counter fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
-    style Case fill:#37474f,stroke:#78909c,stroke-width:1px,color:#ffffff
-    style Regex fill:#37474f,stroke:#78909c,stroke-width:1px,color:#ffffff
-    style Word fill:#37474f,stroke:#78909c,stroke-width:1px,color:#ffffff
+    class Label,Case,Regex,Word neutral
+    class Input active
+    class Counter data
+
+    classDef active fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    classDef data fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    classDef neutral fill:#37474f,stroke:#78909c,stroke-width:1px,color:#ffffff
 ```
 
 ## Search Modes
@@ -117,7 +123,7 @@ Toggle with the **\b** button.
 ## Navigation
 
 ### Match Counter
-Displays current position: `3 of 42`
+Displays current position: `3 of 42`. When there are no results, the counter shows `No matches`, or `Invalid` when a regex pattern fails to compile (a separate `Regex error:` message is shown below the options row).
 
 ### Navigation Controls
 - **▲ (Up Arrow)** - Previous match
@@ -200,11 +206,17 @@ graph TD
     Engine --> RegexSearch
     RegexSearch --> Cache
 
-    style UI fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
-    style Engine fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
-    style Config fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
-    style Matches fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
-    style Cache fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+    class UI primary
+    class Engine active
+    class Config data
+    class Matches external
+    class Cache,PlainSearch,RegexSearch neutral
+
+    classDef primary fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+    classDef active fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    classDef data fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    classDef external fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
+    classDef neutral fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
 ```
 
 ### Search Scope

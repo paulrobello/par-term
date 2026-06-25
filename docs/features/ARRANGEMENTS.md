@@ -61,16 +61,19 @@ graph TD
     Mapping --> Clamping[Position Clamping]
     Clamping --> Restore
 
-    style Capture fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
-    style Storage fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
-    style Restore fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
-    style Windows fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style Monitors fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style Tabs fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style Props fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style Active fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style Mapping fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
-    style Clamping fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
+    class Capture primary
+    class Storage data
+    class Restore active
+    class Windows,Monitors,Tabs,Props,Active neutral
+    class Mapping external
+    class Clamping accent
+
+    classDef primary fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+    classDef data fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    classDef active fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    classDef neutral fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+    classDef external fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
+    classDef accent fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
 ```
 
 ## tmux Session Capture and Restore
@@ -189,11 +192,15 @@ graph TD
     IndexMatch -->|No| Primary
     Primary --> Placed
 
-    style Start fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
-    style NameMatch fill:#ff6f00,stroke:#ffa726,stroke-width:2px,color:#ffffff
-    style IndexMatch fill:#ff6f00,stroke:#ffa726,stroke-width:2px,color:#ffffff
-    style Primary fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
-    style Placed fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    class Start primary
+    class NameMatch,IndexMatch warning
+    class Primary data
+    class Placed active
+
+    classDef primary fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+    classDef warning fill:#ff6f00,stroke:#ffa726,stroke-width:2px,color:#ffffff
+    classDef data fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    classDef active fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
 ```
 
 1. **Match by name**: The monitor's display name (e.g., "DELL U2720Q") is compared against the saved name
@@ -326,16 +333,19 @@ graph TD
     SettingsUIArr --> ConfigSnapshot
     Mod --> SettingsUIArr
 
-    style SettingsUIArr fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
-    style ConfigSnapshot fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
-    style Capture fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
-    style Restore fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
-    style Storage fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
-    style Mod fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style WinMgr fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
-    style SettingsUI fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
-    style Menu fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style Input fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+    class SettingsUIArr primary
+    class ConfigSnapshot,SettingsUI accent
+    class Capture,Restore active
+    class Storage data
+    class Mod,Menu,Input neutral
+    class WinMgr external
+
+    classDef primary fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+    classDef accent fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
+    classDef active fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    classDef data fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    classDef neutral fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+    classDef external fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
 ```
 
 **Key types in `par-term-settings-ui/src/arrangements.rs`:**

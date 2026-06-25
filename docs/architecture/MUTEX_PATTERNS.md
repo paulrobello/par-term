@@ -125,7 +125,11 @@ flowchart TD
 |---|---|---|
 | `AgentState` | `agent: Option<Arc<tokio::sync::Mutex<Agent>>>` | Accessed from spawned async prompt tasks; exclusive access only |
 
-### `parking_lot::Mutex`
+### `parking_lot::Mutex` / `parking_lot::RwLock`
+
+All callers are sync (event loop or std threads), so no async support is needed. Most use
+`parking_lot::Mutex` for exclusive access; `BadgeState` uses `parking_lot::RwLock` because its
+session variables are read frequently (per-frame badge rendering) and written rarely.
 
 | Type | Field | Reason |
 |---|---|---|

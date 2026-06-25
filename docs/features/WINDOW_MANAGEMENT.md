@@ -168,13 +168,16 @@ Use the View menu or keybinding to maximize height while keeping current width a
 
 ## Window Title
 
-The window title updates dynamically based on terminal state:
+The window title updates dynamically based on terminal state. Components are appended left to right:
 
-- **Default**: Shows "par-term" or the OSC-set title from the shell
-- **Running Command**: When shell integration (OSC 133;C) detects a running command, the title shows `[command_name]` — e.g., `par-term [cargo build]`
-- **Window Number**: When `show_window_number` is enabled and multiple windows are open, the title includes `[N]` suffix
+- **Default**: Shows "par-term" (or the OSC-set title from the shell when `allow_title_change` is enabled)
+- **Window Number**: When `show_window_number` is enabled, the title includes `[N]`
+- **Working Directory**: When shell integration reports a CWD, the title includes `(abbreviated/path)`
+- **Running Command**: When shell integration (OSC 133;C) detects a running command, the title shows `[command_name]`
+- **Exit Code**: When the last command exited non-zero, the title includes `[Exit: N]`
+- **Recording**: While a session recording is in progress, the title includes `[RECORDING]`
 
-The command name automatically reverts when the command finishes.
+Example with several components active: `par-term [2] (~/src) [cargo build]`. The command name automatically reverts when the command finishes.
 
 ```yaml
 allow_title_change: true    # Let apps change title via OSC sequences
@@ -202,8 +205,8 @@ show_pane_titles: true                    # Enable pane title bars
 pane_title_position: top                  # top or bottom
 pane_title_height: 20.0                   # Height in pixels (14-30)
 pane_title_color: [200, 200, 200]         # Title text color (RGB)
-pane_title_bg_color: [40, 40, 40]         # Title background color (RGB)
-pane_title_font: "JetBrains Mono"         # Title font family
+pane_title_bg_color: [40, 40, 50]         # Title background color (RGB)
+pane_title_font: ""                       # Title font family (empty falls back to main font)
 ```
 
 **Features:**

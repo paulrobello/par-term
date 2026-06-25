@@ -118,9 +118,9 @@ One crate forms the root of the internal dependency graph. All Layer 2 crates de
 
 | Crate | Responsibility |
 |-------|---------------|
-| `par-term-config` | Configuration loading, YAML serialization, and shared types used across the workspace: `Config`, `Cell`, `ScrollbackMark`, `PaneId`, `TabId`, `KeyBinding`, `FontRange`, and more. Includes optional file watching (`notify`) for config hot-reload and optional `wgpu` type conversions for the render crate. |
+| `par-term-config` | Configuration loading, YAML serialization, and shared types used across the workspace: `Config`, `Cell`, `ScrollbackMark`, `PaneId`, `TabId`, `KeyBinding`, `FontRange`, `UnicodeVersion`, `AmbiguousWidth`, `NormalizationForm`, and more. Includes optional file watching (`notify`) for config hot-reload, enabled by the default `watcher` feature. |
 
-> **Note:** `par-term-config` depends on `par-term-emu-core-rust` (an external crate, not in this workspace) for `UnicodeVersion`, `AmbiguousWidth`, and `NormalizationForm` types. Bumping the core library version requires updating `par-term-config` first.
+> **Note:** `par-term-config` is a pure Layer-1 crate with no internal workspace dependencies. The Unicode types (`UnicodeVersion`, `AmbiguousWidth`, `NormalizationForm`) are defined locally in `par-term-config/src/types/unicode.rs`; wgpu conversion helpers live in `par-term-render` (ARC-003 removed the optional `wgpu` dependency from this crate).
 
 ### Layer 2 — Feature Crates
 
@@ -293,7 +293,7 @@ Add the crate to the correct step in the [Version Bump Order](#version-bump-orde
 
 ### 7. Update ARCHITECTURE.md
 
-Add the crate to the "Workspace Crate Architecture" section in `docs/ARCHITECTURE.md` — both the Mermaid diagram and the crate responsibilities table.
+Add the crate to the "Workspace Crate Architecture" section in `docs/architecture/ARCHITECTURE.md` — both the Mermaid diagram and the crate responsibilities table.
 
 ### 8. Verify
 

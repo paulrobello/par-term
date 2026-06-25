@@ -41,6 +41,13 @@ Configuration loading, saving, and type definitions for the terminal emulator. T
 |------|-------------|
 | `Config` | Main configuration struct. All terminal, display, input, and feature settings. Serialized to/from `config.yaml`. |
 | `ConfigError` | Error type returned by configuration load and save operations. |
+| `CursorConfig` | Nested `Config` sub-struct for cursor style, blink, and unfocused appearance. |
+| `FontRenderingConfig` | Nested `Config` sub-struct for font rendering options. |
+| `GlobalShaderConfig` | Nested `Config` sub-struct for background and cursor shader settings. |
+| `MouseConfig` | Nested `Config` sub-struct for mouse behavior and bindings. |
+| `StatusBarConfig` | Nested `Config` sub-struct for status bar layout and widgets. |
+| `WindowConfig` | Nested `Config` sub-struct for window decoration and lifecycle settings. |
+| `TabSnapshot` | Shared snapshot type for session and arrangement persistence. |
 | `ALLOWED_ENV_VARS` | Slice of environment variable names permitted in config `${VAR}` substitutions. |
 | `is_env_var_allowed(name)` | Returns `true` if `name` is on the substitution allowlist or has a permitted prefix. |
 | `substitute_variables(input)` | Expands `${VAR}` placeholders in a YAML string using the allowlist. |
@@ -322,6 +329,7 @@ Terminal session management, scrollback, and terminal state access.
 | `CommandSnapshot` | Immutable record of a completed command (text, start time, exit code, duration). |
 | `LineMetadata` | Timing and command metadata for a specific scrollback line, used by separator rendering. |
 | `ScrollbackMark` | Re-export of `par_term_config::ScrollbackMark`. |
+| `Cell` | Re-export of `par_term_config::Cell`. |
 | `coprocess_env()` | Returns the environment variables set in coprocess subprocesses. |
 | `ClipboardEntry` | Re-export: a clipboard slot entry from the core library. |
 | `ClipboardSlot` | Re-export: identifies which clipboard slot (primary or clipboard). |
@@ -593,6 +601,7 @@ Minimal MCP (Model Context Protocol) server over stdio. Exposes tools for ACP ag
 | `SCREENSHOT_RESPONSE_PATH_ENV` | Env var name for the screenshot response IPC path. |
 | `SHADER_DIAGNOSTICS_REQUEST_PATH_ENV` | Env var name for the shader diagnostics request IPC path. |
 | `SHADER_DIAGNOSTICS_RESPONSE_PATH_ENV` | Env var name for the shader diagnostics response IPC path. |
+| `MCP_AUTH_TOKEN_ENV` | Env var name for the optional MCP auth token (opt-in; when unset the server runs unauthenticated). |
 | `SCREENSHOT_FALLBACK_PATH_ENV` | Env var name for a static fallback screenshot path (harness use). |
 | `CONFIG_UPDATE_FILENAME` | Default filename for the config update IPC file. |
 | `SCREENSHOT_REQUEST_FILENAME` | Default filename for the screenshot request IPC file. |

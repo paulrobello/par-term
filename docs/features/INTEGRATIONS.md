@@ -250,14 +250,20 @@ par-term tracks installed bundled shaders, cubemaps, and texture packs using a m
 **Manifest Contents:**
 ```json
 {
-  "version": "0.32.0",
-  "generated": "2026-03-07T18:17:58.976671+00:00",
+  "version": "0.30.12",
+  "generated": "2026-04-30T23:05:46.147886+00:00",
   "files": [
     {
       "path": "crt.glsl",
       "sha256": "ca7bb2d0faeb09740206d3c2ede153f4...",
       "type": "shader",
       "category": "retro"
+    },
+    {
+      "path": "cursor_blaze.glsl",
+      "sha256": "f00623d94f15149f6af56ad20e9b6a2...",
+      "type": "cursor_shader",
+      "category": "cursor"
     },
     {
       "path": "textures/packs/noise/soft-value-128.png",
@@ -268,6 +274,8 @@ par-term tracks installed bundled shaders, cubemaps, and texture packs using a m
   ]
 }
 ```
+
+The manifest tracks four file types: `shader` (background effects), `cursor_shader` (cursor effects), `texture` (cubemaps and texture packs), and `doc` (asset documentation). The `version` field reflects the par-term release that generated the manifest and updates on each shader release.
 
 **File Status Detection:**
 - **Unchanged**: Hash matches manifest (safe to update/remove)

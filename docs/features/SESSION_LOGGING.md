@@ -30,11 +30,17 @@ graph TD
     Logger --> HTML
     Logger --> Asciicast
 
-    style Session fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
-    style Logger fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
-    style Plain fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style HTML fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
-    style Asciicast fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
+    class Session primary
+    class Logger active
+    class Plain neutral
+    class HTML data
+    class Asciicast external
+
+    classDef primary fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+    classDef active fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    classDef neutral fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+    classDef data fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    classDef external fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
 ```
 
 ## Recording Formats
@@ -70,7 +76,7 @@ graph TD
 Press `Cmd+Shift+R` (macOS) or `Ctrl+Shift+R` (Windows/Linux) to toggle recording.
 
 **Visual Feedback:**
-- Toast notification: "Recording Started" or "Recording Stopped"
+- Toast notification: `⏺ Recording Started` or `⏹ Recording Stopped`
 
 ### Method 2: CLI Flag
 
@@ -228,7 +234,7 @@ The `.cast` files follow the asciinema v2 specification:
   "version": 2,
   "width": 80,
   "height": 24,
-  "timestamp": 1706902800,
+  "timestamp": 1770042625,
   "title": "Tab 1 - 2026-02-02 14:30:25",
   "env": {
     "TERM": "xterm-256color",

@@ -36,11 +36,17 @@ graph TD
     Viewport --> Render
     Render --> Display
 
-    style Shell fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
-    style Meta fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
-    style Viewport fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style Render fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
-    style Display fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    class Shell external
+    class Meta data
+    class Viewport neutral
+    class Render primary
+    class Display success
+
+    classDef primary fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+    classDef data fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    classDef neutral fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+    classDef external fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
+    classDef success fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
 ```
 
 The feature is **disabled by default** and must be explicitly enabled in configuration or the Settings UI.
@@ -87,9 +93,13 @@ graph LR
     A --> B
     B --> C
 
-    style A fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
-    style B fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style C fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    class A success
+    class B neutral
+    class C data
+
+    classDef success fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    classDef neutral fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+    classDef data fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
 ```
 
 When a PromptStart (A) marker and CommandStart (B) marker are within a few lines of each other, the system merges them and keeps the earlier PromptStart position. This ensures the separator appears at the visual top of the prompt rather than partway through it.

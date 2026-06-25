@@ -483,10 +483,10 @@ Par-term specific uniforms for terminal integration:
 | `iFullContent` | `float` | 1.0 = shader receives full terminal content; 0.0 = background only |
 | `iBackgroundColor` | `vec4` | Solid background color `[R, G, B, A]` (0.0-1.0 normalized). When A > 0, indicates solid color mode is active |
 | `iBackgroundBlendMode` | `int` | Resolved `custom_shader_background_channel0_blend_mode` value for shaders that sample the app background through `iChannel0` |
-| `iTimeKeyPress` | `float` | Time when last key was pressed (same timebase as iTime). See [`keypress_ring_fullcontent.glsl`](../shaders/keypress_ring_fullcontent.glsl) for example. |
-| `iCommand` | `vec4` | Shell command state from OSC 133 shell integration: `x` = state (`0` unknown, `1` running, `2` success, `3` failure), `y` = last exit code, `z` = shader time when state last changed, `w` = running flag. See [`command_state_backdrop.glsl`](../shaders/command_state_backdrop.glsl). |
-| `iFocusedPane` | `vec4` | Focused pane bounds in pixels using GLSL/Shadertoy bottom-left origin: `xy` = bottom-left, `zw` = size. Defaults to the full viewport when no focused pane is available. See [`pane_focus_regions.glsl`](../shaders/pane_focus_regions.glsl). |
-| `iScroll` | `vec4` | Scrollback context for the focused viewport: `x` = scroll offset in lines, `y` = visible line count, `z` = scrollback line count, `w` = normalized depth (`x / max(z, 1)`). See [`scrollback_parallax.glsl`](../shaders/scrollback_parallax.glsl). |
+| `iTimeKeyPress` | `float` | Time when last key was pressed (same timebase as iTime). See [`keypress_ring_fullcontent.glsl`](../../shaders/keypress_ring_fullcontent.glsl) for example. |
+| `iCommand` | `vec4` | Shell command state from OSC 133 shell integration: `x` = state (`0` unknown, `1` running, `2` success, `3` failure), `y` = last exit code, `z` = shader time when state last changed, `w` = running flag. See [`command_state_backdrop.glsl`](../../shaders/command_state_backdrop.glsl). |
+| `iFocusedPane` | `vec4` | Focused pane bounds in pixels using GLSL/Shadertoy bottom-left origin: `xy` = bottom-left, `zw` = size. Defaults to the full viewport when no focused pane is available. See [`pane_focus_regions.glsl`](../../shaders/pane_focus_regions.glsl). |
+| `iScroll` | `vec4` | Scrollback context for the focused viewport: `x` = scroll offset in lines, `y` = visible line count, `z` = scrollback line count, `w` = normalized depth (`x / max(z, 1)`). See [`scrollback_parallax.glsl`](../../shaders/scrollback_parallax.glsl). |
 | `iReadability` | `vec4` | Auto-dim options: `x` = auto-dim enabled (1.0 or 0.0), `y` = auto-dim strength (0.0-1.0). When enabled, the renderer dims shader output beneath terminal content. Controlled by `custom_shader_auto_dim_under_text` and `custom_shader_auto_dim_strength`. |
 
 Background blend constants exposed in GLSL:
@@ -507,7 +507,7 @@ Shadertoy-compatible texture channels:
 
 | Uniform | Type | Description |
 |---------|------|-------------|
-| `iChannel0` | `sampler2D` | User texture channel 0. See [`rain.glsl`](../shaders/rain.glsl), [`bumped_sinusoidal_warp.glsl`](../shaders/bumped_sinusoidal_warp.glsl) for examples. |
+| `iChannel0` | `sampler2D` | User texture channel 0. See [`rain.glsl`](../../shaders/rain.glsl), [`bumped_sinusoidal_warp.glsl`](../../shaders/bumped_sinusoidal_warp.glsl) for examples. |
 | `iChannel1` | `sampler2D` | User texture channel 1 |
 | `iChannel2` | `sampler2D` | User texture channel 2 |
 | `iChannel3` | `sampler2D` | User texture channel 3 |
@@ -517,12 +517,12 @@ Shadertoy-compatible texture channels:
 | `iChannelResolution[2]` | `vec3` | Channel 2 resolution |
 | `iChannelResolution[3]` | `vec3` | Channel 3 resolution |
 | `iChannelResolution[4]` | `vec3` | Channel 4 (terminal) resolution |
-| `iCubemap` | `samplerCube` | Cubemap texture for environment mapping. See [`cubemap-skybox.glsl`](../shaders/cubemap-skybox.glsl) for example. |
+| `iCubemap` | `samplerCube` | Cubemap texture for environment mapping. See [`cubemap-skybox.glsl`](../../shaders/cubemap-skybox.glsl) for example. |
 | `iCubemapResolution` | `vec4` | Cubemap face size `[size, size, 1.0, 0.0]` (not in array, accessed directly) |
 
 ### Cursor Uniforms
 
-Ghostty-compatible cursor tracking uniforms (available in both background and cursor shaders). See [`cursor_trail.glsl`](../shaders/cursor_trail.glsl) and [`cursor_glow.glsl`](../shaders/cursor_glow.glsl) for simple examples.
+Ghostty-compatible cursor tracking uniforms (available in both background and cursor shaders). See [`cursor_trail.glsl`](../../shaders/cursor_trail.glsl) and [`cursor_glow.glsl`](../../shaders/cursor_glow.glsl) for simple examples.
 
 | Uniform | Type | Description |
 |---------|------|-------------|
@@ -622,7 +622,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
 - Shader receives full terminal content via `iChannel4`
 - Shader can distort, warp, or transform text
 - Required for CRT curvature, underwater distortion, etc.
-- See [`crt.glsl`](../shaders/crt.glsl), [`bloom.glsl`](../shaders/bloom.glsl), [`dither.glsl`](../shaders/dither.glsl) for examples
+- See [`crt.glsl`](../../shaders/crt.glsl), [`bloom.glsl`](../../shaders/bloom.glsl), [`dither.glsl`](../../shaders/dither.glsl) for examples
 
 ### Shader Metadata Format
 

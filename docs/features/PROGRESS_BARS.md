@@ -32,13 +32,18 @@ graph TD
     Render --> Bar[Progress Bar Overlay]
     Shader --> Effects[Shader Effects]
 
-    style Shell fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style OSC fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
-    style Core fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
-    style Render fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
-    style Shader fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
-    style Bar fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
-    style Effects fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
+    class Shell neutral
+    class OSC data
+    class Core primary
+    class Render active
+    class Shader external
+    class Bar,Effects primary
+
+    classDef primary fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+    classDef active fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    classDef data fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    classDef external fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
+    classDef neutral fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
 ```
 
 ## Protocols
@@ -93,7 +98,7 @@ ESC ] 934 ; action ; id [ ; key=value ... ] ST
 - `remove_all` — Remove all named bars
 
 **Parameters (key=value):**
-- `state` — Progress state: `normal`, `error`, `indeterminate`, `warning`
+- `state` — Progress state: `normal`, `error`, `indeterminate`, `warning`, `hidden`
 - `percent` — Progress percentage (0-100)
 - `label` — Optional text label displayed in `bar_with_text` style
 

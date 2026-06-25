@@ -16,6 +16,12 @@ par-term supports text snippets and custom actions, similar to iTerm2's snippets
   - [Split Pane Actions](#split-pane-actions)
 - [Configuration](#configuration)
 - [Examples](#examples)
+- [Tips and Best Practices](#tips-and-best-practices)
+- [Import and Export](#import-and-export)
+- [Custom Variables](#custom-variables)
+- [Workflow Actions](#workflow-actions)
+- [Related Documentation](#related-documentation)
+- [Future Enhancements](#future-enhancements)
 
 ## Snippets
 
@@ -179,7 +185,10 @@ Title: Run Tests
 Command: npm
 Arguments: test
 Notify on Success: true
+Timeout (secs): 30
 ```
+
+Set **Timeout (secs)** (`timeout_secs`, default `30`) to cap how long the command may run before par-term kills it. Add `capture_output: true` in the YAML to capture stdout/stderr for use by downstream Condition checks (see [Capturing Shell Output for Conditions](#capturing-shell-output-for-conditions)).
 
 #### 2. New Tab
 Open a new tab and optionally run a command in that tab's shell.

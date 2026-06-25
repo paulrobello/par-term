@@ -31,12 +31,19 @@ graph TD
     Fuzzy --> Results
     Results -->|Enter| Insert
 
-    style Trigger fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
-    style Overlay fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
-    style Input fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
-    style Fuzzy fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
-    style Results fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
-    style Insert fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+    class Trigger primary
+    class Overlay active
+    class Input data
+    class Fuzzy external
+    class Results results
+    class Insert neutral
+
+    classDef primary fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+    classDef active fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    classDef data fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    classDef external fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
+    classDef results fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
+    classDef neutral fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
 ```
 
 ## Opening Command History
@@ -55,7 +62,7 @@ The search uses the Skim fuzzy matching algorithm for ranked results:
 
 - Type any substring or abbreviation to filter commands
 - Results are ranked by match quality (best matches appear first)
-- Matching characters are highlighted with yellow underline in the results list
+- Matching characters are highlighted in yellow with a yellow underline
 - The search is case-insensitive
 
 **Examples:**
@@ -75,6 +82,8 @@ The search uses the Skim fuzzy matching algorithm for ranked results:
 | `Enter` | Insert selected command into terminal |
 | Double-click | Insert clicked command into terminal |
 | `Escape` | Close overlay without inserting |
+
+The overlay also exposes **Insert Selected** and **Close** buttons beneath the results list for mouse-driven use.
 
 ## Entry Details
 

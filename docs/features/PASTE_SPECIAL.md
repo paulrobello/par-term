@@ -34,19 +34,26 @@ graph TD
     Transform --> Preview
     Preview -->|Apply| Terminal
 
-    style Clipboard fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style UI fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
-    style Search fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
-    style Transform fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
-    style Preview fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
-    style Terminal fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
+    class Clipboard external
+    class UI primary
+    class Search active
+    class Transform data
+    class Preview external
+    class Terminal database
+
+    classDef primary fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+    classDef active fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    classDef data fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    classDef database fill:#1a237e,stroke:#3f51b5,stroke-width:2px,color:#ffffff
+    classDef external fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
+    classDef neutral fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
 ```
 
 ## Opening Paste Special
 
 **Keyboard Shortcut:** `Cmd+Shift+V` (macOS) or `Ctrl+Alt+V` (Windows/Linux)
 
-**Alternative:** From Clipboard History (`Ctrl+Shift+H`), press `Shift+Enter` on an entry.
+**Alternative:** From Clipboard History (`Cmd+Shift+H` on macOS, `Ctrl+Shift+H` on Windows/Linux), press `Shift+Enter` on an entry.
 
 ## Transformations
 
@@ -125,7 +132,7 @@ graph TD
 - Invalid Base64: Shows error message
 - Invalid hex: Shows error message
 - Invalid URL encoding: Shows error message
-- Invalid JSON escapes: Shows error message
+- Malformed JSON `\u` escapes: Shows error message (other unknown escapes are preserved as-is)
 
 ## Paste Delay
 
@@ -165,12 +172,18 @@ graph TB
     Preview --> Buttons
     Buttons --> Hints
 
-    style Window fill:#1E1E1E,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style Search fill:#37474f,stroke:#78909c,stroke-width:1px,color:#ffffff
-    style Transforms fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
-    style Preview fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
-    style Buttons fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
-    style Hints fill:#37474f,stroke:#78909c,stroke-width:1px,color:#ffffff
+    class Window neutral
+    class Search neutral
+    class Transforms data
+    class Preview external
+    class Buttons active
+    class Hints neutral
+
+    classDef primary fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+    classDef active fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    classDef data fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    classDef external fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
+    classDef neutral fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
 ```
 
 ### Navigation

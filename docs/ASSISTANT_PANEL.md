@@ -63,9 +63,13 @@ graph LR
     Agent -->|"session updates<br/>tool calls<br/>permissions"| Panel
     Panel -->|"execute command<br/>paste text"| Terminal
 
-    style Terminal fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
-    style Panel fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
-    style Agent fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    class Terminal data
+    class Panel primary
+    class Agent active
+
+    classDef data fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    classDef primary fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+    classDef active fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
 ```
 
 ## Opening and Closing
@@ -604,14 +608,21 @@ graph TD
     Config --> Watch
     Watch --> Reload
 
-    style User fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
-    style Detect fill:#ff6f00,stroke:#ffa726,stroke-width:2px,color:#ffffff
-    style Inject fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
-    style Agent fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
-    style Write fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style Config fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style Watch fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
-    style Reload fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
+    class User external
+    class Detect warning
+    class Inject data
+    class Agent active
+    class Write,Config neutral
+    class Watch primary
+    class Reload success
+
+    classDef external fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
+    classDef warning fill:#ff6f00,stroke:#ffa726,stroke-width:2px,color:#ffffff
+    classDef data fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    classDef active fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    classDef neutral fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+    classDef primary fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+    classDef success fill:#2e7d32,stroke:#66bb6a,stroke-width:2px,color:#ffffff
 ```
 
 ## Panel Behavior

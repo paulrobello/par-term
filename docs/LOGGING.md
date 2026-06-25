@@ -120,12 +120,12 @@ DEBUG_LEVEL=4 par-term  # Enable all custom debug output (0-4)
 
 ### Precedence
 
-Log level is determined by the highest-priority source:
+The effective `log` crate level is resolved during startup. The config setting is applied after the bridge initializes, so it overrides `RUST_LOG` when no CLI flag is present:
 
 1. **`--log-level` CLI flag** (highest priority)
-2. **`RUST_LOG` environment variable**
-3. **`log_level` config file setting**
-4. **Default: `off`** (lowest priority)
+2. **`log_level` config file setting** (applied at app startup; overrides `RUST_LOG` when no CLI flag is set)
+3. **`RUST_LOG` environment variable**
+4. **Default: `off`** (lowest priority; the config default is `LogLevel::Off`)
 
 ## Log File Location
 
@@ -217,6 +217,7 @@ Custom debug macros use category tags for selective filtering. The following cat
 
 | Category | Description |
 |----------|-------------|
+| `AI_INSPECTOR` | AI inspector panel operations |
 | `APP` | Application-level render pipeline operations |
 | `ARRANGEMENT` | Window arrangement save/restore |
 | `CAT` | General-purpose catch-all |
@@ -224,22 +225,37 @@ Custom debug macros use category tags for selective filtering. The following cat
 | `CONCURRENCY` | `try_lock()` failure telemetry and lock contention reporting |
 | `COPY_MODE` | Copy/selection mode operations |
 | `DYNAMIC_PROFILE` | Dynamic profile fetching, caching, and merging |
+| `EVENT_LOOP` | Event loop scheduling and wakeups |
 | `FILE_TRANSFER` | File transfer upload/download operations |
+| `FRAME_TIMING` | Frame timing and vsync measurements |
+| `GRAPHICS` | Graphics surface setup and adapter selection |
+| `KEYBINDING` | Keybinding dispatch and rebinding |
 | `MOUSE` | Mouse event handling |
+| `PANE_CHECK` | Pane health and lifecycle checks |
 | `PANE_CLOSE` | Pane closure lifecycle |
+| `PANE_EXIT` | Pane exit handling |
+| `PANE_PROMOTE` | Pane promotion to tab |
+| `PANE_SPLIT` | Pane split operations |
+| `PASTE` | Clipboard paste handling |
 | `PREFIX_ACTION` | Prefix key action processing |
 | `PROFILE` | Profile management and switching |
 | `REDRAW` | Screen redraw scheduling |
 | `RENDER` | GPU rendering pipeline (cells, graphics, overlays) |
+| `RESIZE` | Window and pane resize handling |
 | `SCRIPT` | Scripting engine lifecycle |
 | `SEMANTIC` | Semantic history and URL detection |
 | `SESSION_LOGGER` | Session logging operations |
 | `SHADER` | Custom shader loading, compilation, and hot-reload |
+| `SHADER_INSTALL` | Custom shader installation and removal |
 | `SHIFTENTER` | Shift+Enter key handling |
 | `TAB` | Tab management and lifecycle |
 | `TAB_ACTION` | Tab action execution from snippets/keybindings |
+| `TAB_DEMOTE` | Tab demotion to pane |
+| `TAB_SYNC` | Tab state synchronization |
 | `TERMINAL` | PTY and terminal emulator operations |
 | `TMUX` | Tmux integration (gateway, layout, session management) |
+| `TMUX_INPUT` | Tmux input forwarding |
+| `TRIGGER` | Automation trigger evaluation and firing |
 
 Filter by category using grep:
 ```bash

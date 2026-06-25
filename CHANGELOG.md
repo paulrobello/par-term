@@ -25,6 +25,7 @@ Audit remediation pass (Critical + High severity from the 2026-06-25 audit): 18 
 
 ### Fixed
 - **Snippet `\(date)` produced malformed dates** (QA-001). Naive integer math (ignoring leap years, all months = 30 days) yielded month=13 in late December and a wrong day year-round. Now uses `chrono::Local::now().format("%Y-%m-%d")`. Regression test strengthened to assert a valid `YYYY-MM-DD`.
+- **Custom status-bar widgets did not persist to `config.yaml`.** The externally-tagged `WidgetId::Custom(String)` variant serialized to a YAML map that serde's `#[serde(flatten)]` path (the `status_bar` sub-struct) could not deserialize back (`"untagged and internally tagged enums do not support enum input"`), so custom widgets vanished on relaunch while built-in widgets persisted normally. `WidgetId` now uses a manual scalar serialization — built-in widgets keep their snake_case names (e.g. `git_branch`); custom widgets use `custom:<name>` — that round-trips cleanly through the flattened path. Regression test added under `par-term-config`.
 
 ### Changed
 - **`par-term-config` no longer carries an optional `wgpu` dependency** (ARC-003). The wgpu conversion helpers moved into `par-term-render`, restoring clean Layer-1 (pure data) → Layer-3 (GPU) layering.
@@ -35,6 +36,7 @@ Audit remediation pass (Critical + High severity from the 2026-06-25 audit): 18 
 
 ### Documentation
 - Updated the stale CLAUDE.md version (0.30.12 → 0.33.1) with a `cut-release` sync note (DOC-001); fixed the broken README "What's New" TOC anchor (DOC-002); normalized CHANGELOG headings to Keep a Changelog categories (DOC-004); reconciled CONTRIBUTING's Linux dependency list with README, adding GTK3/Wayland/ALSA + Fedora/Arch (DOC-005).
+- Synced 39 of 46 docs under `docs/` to the current implementation via `/sync-all-docs-to-impl` — style-guide conformance (Mermaid `classDef`), corrected stale config fields/defaults and broken links, OSC 7 vs 1337 hostname-detection corrections (PROFILES/SSH), and SEC-006/SEC-008 audit-driven updates. Fixed the stale **Sub-Crate Dependency Graph** in `CLAUDE.md` (`par-term-config` no longer depends on `par-term-emu-core-rust`; Unicode types are local) and documented the now-fixed Custom-widget persistence format (`custom:<name>`) in STATUS_BAR.md.
 
 > Deferred (documented, not in this pass): root-crate extraction (ARC-001), `WindowState` decomposition (ARC-002), `Config` struct split (ARC-005 / QA-002), `EventHandler` trait (ARC-007, blocked by ARC-002), and the snippets enum restructure (QA-005). These are multi-day migrations the audit files under long-term backlog; see the per-issue source comments for plans.
 

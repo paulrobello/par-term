@@ -175,7 +175,7 @@ Override shader settings per-file. Keys are shader filenames (without path).
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `shader_configs` | `map` | `{}` | Per-background-shader overrides. Each value: `{animation_speed?, brightness?, text_opacity?, full_content?, channel0–3?, cubemap?, cubemap_enabled?, use_background_as_channel0?, background_channel0_blend_mode?, auto_dim_under_text?, auto_dim_strength?, uniforms?}` |
-| `cursor_shader_configs` | `map` | `{}` | Per-cursor-shader overrides. Same fields as `shader_configs` plus `hides_cursor?` |
+| `cursor_shader_configs` | `map` | `{}` | Per-cursor-shader overrides. Same fields as `shader_configs` plus `hides_cursor?`, `disable_in_alt_screen?`, `glow_radius?`, `glow_intensity?`, `trail_duration?`, and `cursor_color?` |
 
 ---
 
@@ -284,7 +284,7 @@ Override shader settings per-file. Keys are shader filenames (without path).
 | `cursor_guide_enabled` | `bool` | `false` | Show horizontal highlight line at cursor row |
 | `cursor_guide_color` | `[u8;4]` | `[255,255,255,20]` | Cursor guide color `[R, G, B, A]` |
 | `cursor_shadow_enabled` | `bool` | `false` | Show drop shadow behind cursor |
-| `cursor_shadow_color` | `[u8;4]` | (dark) | Shadow color `[R, G, B, A]` |
+| `cursor_shadow_color` | `[u8;4]` | `[0,0,0,128]` | Shadow color `[R, G, B, A]` (semi-transparent black) |
 | `cursor_shadow_offset` | `[f32;2]` | `[2.0,2.0]` | Shadow offset in pixels `[x, y]` |
 | `cursor_shadow_blur` | `f32` | `3.0` | Shadow blur radius in pixels |
 | `cursor_boost` | `f32` | `0.0` | Cursor glow intensity (0.0=off, 1.0=max) |
@@ -564,7 +564,7 @@ Override shader settings per-file. Keys are shader filenames (without path).
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `triggers` | `array` | `[]` | Regex trigger definitions. Each entry: `{name, pattern, enabled, prompt_before_run, i_accept_the_risk, actions}`. `prompt_before_run` (alias: `require_user_action`) defaults to `true`. When `prompt_before_run: false`, `i_accept_the_risk: true` is required; execution is blocked without it. Actions include `highlight`, `notify`, `mark_line`, `set_variable`, `run_command`, `play_sound`, `send_text`, `split_pane` (accepts `split_percent` 10–90, default `66`). |
+| `triggers` | `array` | `[]` | Regex trigger definitions. Each entry: `{name, pattern, enabled, prompt_before_run, i_accept_the_risk, allowed_commands, actions}`. `prompt_before_run` (alias: `require_user_action`) defaults to `true`. When `prompt_before_run: false`, `i_accept_the_risk: true` is required; execution is blocked without it. `allowed_commands` is an optional command allowlist (binary-name substring match; when set, only listed commands may run via `run_command` actions, defaulting to deny-all). Actions include `highlight`, `notify`, `mark_line`, `set_variable`, `run_command`, `play_sound`, `send_text`, `split_pane` (accepts `split_percent` 10–90, default `66`). |
 | `coprocesses` | `array` | `[]` | Coprocess definitions. Each entry: `{name, command, args, auto_start, copy_terminal_output, restart_policy, restart_delay_ms}` |
 | `scripts` | `array` | `[]` | External observer script definitions |
 | `snippets` | `array` | `[]` | Text snippets: `{id, title, content, keybinding, folder, enabled, auto_execute}` |
@@ -653,7 +653,7 @@ Dynamic profiles can be fetched from remote URLs:
 ```yaml
 dynamic_profile_sources:
   - url: "https://example.com/profiles.yaml"
-    conflict_resolution: keep_local  # or prefer_remote, merge
+    conflict_resolution: local_wins  # or remote_wins
 ```
 
 ---
