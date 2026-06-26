@@ -13,6 +13,9 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 Audit remediation pass (Critical + High severity from the 2026-06-25 audit): 18 issues resolved, 3 partial, 6 deferred (documented in source). See `git log` for the per-phase commits.
 
+### Added
+- **Opt-in `allow_file_scheme_urls` config option** re-enables opening `file://` OSC 8 hyperlinks via the OS handler (browser for `.html`, Finder for directories). SEC-009 still blocks `file://` by default, since a remote program can emit a `file://` link to open an arbitrary local path — enable only if you trust your sessions. Toggle in Settings → Terminal → Semantic History ("Allow opening file:// links") or set `allow_file_scheme_urls: true` in `config.yaml`.
+
 ### Security
 - **ACP `write_file_safe` bypassed the sensitive-path blocklist** (SEC-001). The write path only checked `is_absolute()`, unlike the sibling read functions, so a `bypassPermissions` agent could overwrite `~/.ssh/authorized_keys`, `~/.aws/`, `/etc/`, etc. Now calls `check_path_allowed()` before writing.
 - **`ssh_extra_args` allowed full SSH flag/option injection** (SEC-002). A profile YAML could set `-o ProxyCommand=...` (arbitrary command execution), `-A` (agent forwarding), or `-o UserKnownHostsFile=/dev/null` (silent MITM). Now parsed with `shell_words::split` and filtered against a denylist of dangerous flags (`-A -D -R -L -W -w`) and options (`ProxyCommand`, `LocalCommand`, `StrictHostKeyChecking`, `UserKnownHostsFile`, `ForwardAgent`, …). `ssh_host` leading-hyphen / CR-LF injection (SEC-007) is also rejected.
@@ -21,7 +24,7 @@ Audit remediation pass (Critical + High severity from the 2026-06-25 audit): 18 
 - **MCP `config_update` accepted arbitrary config keys** (SEC-005). Now enforces a key allowlist (cosmetic/rendering keys only), so callers can no longer flip `bypassPermissions` or other security-sensitive settings.
 - **MCP server gained opt-in stdin authentication** (SEC-006). When `PAR_TERM_MCP_AUTH_TOKEN` is set, clients must echo it in the `initialize` handshake (`_meta.parTermAuthToken`) or `tools/call` / `tools/list` are rejected. Auth is **disabled by default** (the env var is unset), so existing ACP flows are unchanged — par-term does not spawn the MCP server itself (the agent host does), so it cannot inject a token automatically.
 - **Self-update installed an unverified binary when the SHA256 checksum was missing** (SEC-008). Now aborts with an error, matching the shader installer's hard-gate policy.
-- **OSC 8 hyperlinks opened arbitrary URL schemes via the OS handler** (SEC-009). `file://` / `ftp://` / `data:` etc. are now rejected before `open::that`; `http(s)` / `mailto` and bare `host:port` still work.
+- **OSC 8 hyperlinks opened arbitrary URL schemes via the OS handler** (SEC-009). `file://` / `ftp://` / `data:` etc. are now rejected before `open::that`; `http(s)` / `mailto` and bare `host:port` still work. `file://` is additionally opt-in via the new `allow_file_scheme_urls` setting (see Added); all other non-allowlisted schemes stay blocked.
 
 ### Fixed
 - **Snippet `\(date)` produced malformed dates** (QA-001). Naive integer math (ignoring leap years, all months = 30 days) yielded month=13 in late December and a wrong day year-round. Now uses `chrono::Local::now().format("%Y-%m-%d")`. Regression test strengthened to assert a valid `YYYY-MM-DD`.

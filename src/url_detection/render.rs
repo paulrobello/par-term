@@ -45,14 +45,22 @@ pub fn expand_link_handler(command: &str, url: &str) -> Result<Vec<String>, Stri
     Ok(parts)
 }
 
-/// Open a URL in the configured browser or system default
-pub fn open_url(url: &str, link_handler_command: &str) -> Result<(), String> {
+/// Open a URL in the configured browser or system default.
+///
+/// `allow_file_scheme` (SEC-009 opt-in): when `true`, `file://` URLs are also
+/// forwarded to the OS handler (browser for `.html`, Finder for directories).
+/// Defaults to `false`; `file://` is otherwise blocked as a security measure.
+pub fn open_url(
+    url: &str,
+    link_handler_command: &str,
+    allow_file_scheme: bool,
+) -> Result<(), String> {
     // SEC-009: validate the URL scheme before handing it to the OS handler.
     // A remote program can emit an OSC 8 hyperlink with an arbitrary scheme
     // (e.g. `file:///etc/cron.d/evil`); without this gate, `open::that`
     // forwards it to the OS default handler, which happily opens `file://`,
-    // `ftp://`, etc. Only http(s)/mailto reach the OS.
-    validate_url_scheme(url)?;
+    // `ftp://`, etc. Only http(s)/mailto (and file:// when opted in) reach the OS.
+    validate_url_scheme(url, allow_file_scheme)?;
 
     let url_with_scheme = ensure_url_scheme(url);
 
@@ -85,15 +93,27 @@ const ALLOWED_URL_SCHEMES: &[&str] = &["http", "https", "mailto"];
 ///   `localhost:3000` which is `host:port`, not a scheme).
 /// - URLs with an explicit `scheme://` must use `http`, `https`. `mailto:`
 ///   is the only allowed non-`://` scheme.
-/// - Everything else (`file://`, `ftp://`, `data:`, ...) is rejected.
-fn validate_url_scheme(url: &str) -> Result<(), String> {
+/// - `file://` is rejected unless `allow_file_scheme` is `true` (opt-in), since
+///   the OS handler will open an arbitrary local path. All other `://` schemes
+///   (`ftp://`, `data:`, ...) are always rejected.
+fn validate_url_scheme(url: &str, allow_file_scheme: bool) -> Result<(), String> {
     if let Some((scheme, _rest)) = url.split_once("://") {
         let lower = scheme.to_ascii_lowercase();
         if ALLOWED_URL_SCHEMES.contains(&lower.as_str()) {
             return Ok(());
         }
+        // SEC-009: file:// is blocked by default; the OS handler opens arbitrary
+        // local paths. Allow it only when the user explicitly opts in.
+        if allow_file_scheme && lower == "file" {
+            return Ok(());
+        }
+        let hint = if lower == "file" && !allow_file_scheme {
+            " (enable 'allow_file_scheme_urls' to open file:// links)"
+        } else {
+            ""
+        };
         return Err(format!(
-            "Refusing to open URL with scheme '{lower}://' — only http, https, and mailto are allowed"
+            "Refusing to open URL with scheme '{lower}://' — only http, https, and mailto are allowed{hint}"
         ));
     }
     // No `://`. Allow `mailto:` explicitly; treat everything else (including
@@ -375,4 +395,58 @@ pub fn open_file_in_editor(
 pub fn shell_escape(s: &str) -> String {
     // Replace single quotes with escaped version and wrap in single quotes
     format!("'{}'", s.replace('\'', "'\\''"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn file_scheme_blocked_by_default() {
+        // SEC-009 default posture: file:// must not reach the OS handler.
+        assert!(validate_url_scheme("file:///etc/passwd", false).is_err());
+        assert!(validate_url_scheme("file://localhost/tmp/x", false).is_err());
+        assert!(validate_url_scheme("FILE:///etc/passwd", false).is_err()); // case-insensitive
+    }
+
+    #[test]
+    fn file_scheme_allowed_when_opted_in() {
+        assert!(validate_url_scheme("file:///etc/passwd", true).is_ok());
+        assert!(validate_url_scheme("file://localhost/tmp/x", true).is_ok());
+    }
+
+    #[test]
+    fn http_https_mailto_always_allowed() {
+        for url in [
+            "https://example.com",
+            "http://example.com",
+            "mailto:foo@bar.com",
+            "www.example.com", // scheme-less, normalized later
+            "localhost:3000",  // host:port, not a scheme
+        ] {
+            assert!(
+                validate_url_scheme(url, false).is_ok(),
+                "blocked by default: {url}"
+            );
+            assert!(
+                validate_url_scheme(url, true).is_ok(),
+                "blocked when opted in: {url}"
+            );
+        }
+    }
+
+    #[test]
+    fn other_colon_schemes_still_blocked_when_opted_in() {
+        // Opting into file:// must NOT weaken the gate for other :// schemes.
+        for url in [
+            "ftp://example.com",
+            "sftp://example.com",
+            "gopher://example.com",
+        ] {
+            assert!(
+                validate_url_scheme(url, true).is_err(),
+                "should stay blocked: {url}"
+            );
+        }
+    }
 }

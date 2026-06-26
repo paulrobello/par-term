@@ -266,6 +266,7 @@ impl WindowState {
                         if let Err(e) = url_detection::open_url(
                             &item.url,
                             &self.config.load().link_handler_command,
+                            self.config.load().allow_file_scheme_urls,
                         ) {
                             log::error!("Failed to open URL: {}", e);
                         }

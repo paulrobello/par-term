@@ -114,6 +114,7 @@ impl Default for Config {
             link_highlight_underline: crate::defaults::bool_true(),
             link_underline_style: crate::types::LinkUnderlineStyle::default(),
             link_handler_command: String::new(),
+            allow_file_scheme_urls: crate::defaults::bool_false(),
             scrollbar_position: crate::defaults::scrollbar_position(),
             scrollbar_width: crate::defaults::scrollbar_width(),
             scrollbar_thumb_color: crate::defaults::scrollbar_thumb_color(),

@@ -352,6 +352,7 @@ Override shader settings per-file. Keys are shader filenames (without path).
 | `link_highlight_underline` | `bool` | `true` | Underline highlighted links |
 | `link_underline_style` | `enum` | `stipple` | Underline style: `solid`, `stipple` |
 | `link_handler_command` | `string` | `""` | Custom URL open command (use `{url}` placeholder; empty=system default) |
+| `allow_file_scheme_urls` | `bool` | `false` | Allow Cmd/Ctrl+Click to open `file://` OSC 8 hyperlinks via the OS handler. Off by default (SEC-009): a remote program can emit `file://` links to open arbitrary local paths |
 
 ---
 
@@ -612,6 +613,7 @@ Override shader settings per-file. Keys are shader filenames (without path).
 |-------|------|---------|-------------|
 | `allow_all_env_vars` | `bool` | `false` | Allow all environment variables in `${VAR}` substitution (not just the safe allowlist) |
 | `allow_http_profiles` | `bool` | `false` | Allow loading profiles from HTTP/HTTPS URLs in `dynamic_profile_sources` |
+| `allow_file_scheme_urls` | `bool` | `false` | Allow opening `file://` OSC 8 hyperlinks via the OS handler (SEC-009). A remote program can emit `file://` links to open arbitrary local paths; enable only if you trust your sessions |
 
 ---
 

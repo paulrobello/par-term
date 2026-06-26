@@ -63,6 +63,25 @@ pub(super) fn show_semantic_history_section(
                 );
             }
 
+            // file:// link policy (SEC-009)
+            if ui
+                .checkbox(
+                    &mut settings.config.allow_file_scheme_urls,
+                    "Allow opening file:// links",
+                )
+                .on_hover_text(
+                    "Let Cmd+Click (macOS) / Ctrl+Click open `file://` hyperlinks via the OS \
+                     default handler (e.g. browser for .html, Finder for folders).\n\n\
+                     Off by default for security: a remote program can emit a `file://` OSC 8 \
+                     hyperlink to open an arbitrary local path. Enable only if you trust your \
+                     terminal sessions.",
+                )
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+
             ui.add_space(8.0);
             ui.separator();
 

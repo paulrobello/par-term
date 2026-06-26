@@ -277,6 +277,9 @@ pub fn keywords() -> &'static [&'static str] {
         "open url",
         "open links",
         "url handler",
+        "file url",
+        "file scheme",
+        "allow file scheme",
         // Unicode extras
         "normalization",
         "text normalization",

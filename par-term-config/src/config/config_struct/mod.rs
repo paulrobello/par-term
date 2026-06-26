@@ -704,6 +704,16 @@ pub struct Config {
     #[serde(default)]
     pub link_handler_command: String,
 
+    /// Allow Cmd+Click (macOS) / Ctrl+Click to open `file://` OSC 8 hyperlinks
+    /// and file URLs via the OS default handler (browser for `.html`, Finder for
+    /// directories, etc.).
+    ///
+    /// Disabled by default for security (SEC-009): a remote program can emit an
+    /// OSC 8 hyperlink with a `file://` scheme to make the OS handler open an
+    /// arbitrary local path. Enable only if you trust your terminal sessions.
+    #[serde(default = "crate::defaults::bool_false")]
+    pub allow_file_scheme_urls: bool,
+
     // ========================================================================
     // Scrollbar (GUI-specific)
     // ========================================================================
