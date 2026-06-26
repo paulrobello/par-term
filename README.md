@@ -16,7 +16,7 @@ A cross-platform, GPU-accelerated terminal emulator frontend built with Rust, po
 ## Table of Contents
 
 - [Getting Started](#getting-started)
-- [What's New](#whats-new-in-0330)
+- [What's New](#whats-new-in-0340)
 - [Features](#features)
 - [Documentation](#documentation)
 - [Installation](#installation)
@@ -40,6 +40,16 @@ New to par-term? The [Getting Started Guide](docs/guides/GETTING_STARTED.md) wal
 - **[Installation](#installation)** — Platform-specific install instructions below
 - **[Configuration Reference](docs/CONFIG_REFERENCE.md)** — All 200+ configuration options
 - **[Keyboard Shortcuts](docs/guides/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
+
+## What's New in 0.34.0
+
+- **Security hardening pass** -- 9 audit issues resolved (SEC-001 through SEC-009): ACP writes now respect the sensitive-path blocklist, SSH `extra_args` filter dangerous flags/options (`ProxyCommand`, `-A`, ...), MCP screenshot/config-update/auth paths are hardened, agent `[env]` blocks `LD_*`/`DYLD_*` linker injection, self-update rejects a missing SHA256 checksum, and OSC 8 hyperlinks reject non-`http(s)` URL schemes by default.
+- **Opt-in `file://` links** -- opening `file://` OSC 8 hyperlinks is now opt-in via `allow_file_scheme_urls`, since a remote program could otherwise open arbitrary local paths; `http(s)`/`mailto` and bare `host:port` links are unaffected.
+- **egui 0.34 → 0.35** -- migrated to egui 0.35 (plus `egui-wgpu`/`egui-winit`); the wgpu 29 / naga 29 / winit 0.30 GPU stack is unchanged and no overrides are needed.
+- **Persisted custom status-bar widgets** -- custom status-bar widgets now round-trip through `config.yaml` (`custom:<name>` serialization); the previously-broken format is fixed.
+- **Split-pane resize cursor** -- the resize cursor no longer stays stuck after dragging a split-pane divider when a mouse-tracking app (tmux/vim/less) swallows the release event.
+
+For the full history of changes across all versions, see [CHANGELOG.md](CHANGELOG.md).
 
 ## What's New in 0.33.0
 

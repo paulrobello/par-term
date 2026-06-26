@@ -11,6 +11,12 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ## [Unreleased]
 
+_Nothing yet._
+
+---
+
+## [0.34.0] - 2026-06-26
+
 Audit remediation pass (Critical + High severity from the 2026-06-25 audit): 18 issues resolved, 3 partial, 6 deferred (documented in source). See `git log` for the per-phase commits.
 
 ### Added
@@ -1540,7 +1546,27 @@ Audit remediation pass (Critical + High severity from the 2026-06-25 audit): 18 
 
 ---
 
-[Unreleased]: https://github.com/paulrobello/par-term/compare/v0.30.0...HEAD
+[Unreleased]: https://github.com/paulrobello/par-term/compare/v0.34.0...HEAD
+[0.34.0]: https://github.com/paulrobello/par-term/compare/v0.33.1...v0.34.0
+[0.33.1]: https://github.com/paulrobello/par-term/compare/v0.33.0...v0.33.1
+[0.33.0]: https://github.com/paulrobello/par-term/compare/v0.32.3...v0.33.0
+[0.32.3]: https://github.com/paulrobello/par-term/compare/v0.32.2...v0.32.3
+[0.32.2]: https://github.com/paulrobello/par-term/compare/v0.32.1...v0.32.2
+[0.32.1]: https://github.com/paulrobello/par-term/compare/v0.32.0...v0.32.1
+[0.32.0]: https://github.com/paulrobello/par-term/compare/v0.31.0...v0.32.0
+[0.31.0]: https://github.com/paulrobello/par-term/compare/v0.30.12...v0.31.0
+[0.30.12]: https://github.com/paulrobello/par-term/compare/v0.30.11...v0.30.12
+[0.30.11]: https://github.com/paulrobello/par-term/compare/v0.30.10...v0.30.11
+[0.30.10]: https://github.com/paulrobello/par-term/compare/v0.30.9...v0.30.10
+[0.30.9]: https://github.com/paulrobello/par-term/compare/v0.30.8...v0.30.9
+[0.30.8]: https://github.com/paulrobello/par-term/compare/v0.30.7...v0.30.8
+[0.30.7]: https://github.com/paulrobello/par-term/compare/v0.30.6...v0.30.7
+[0.30.6]: https://github.com/paulrobello/par-term/compare/v0.30.5...v0.30.6
+[0.30.5]: https://github.com/paulrobello/par-term/compare/v0.30.4...v0.30.5
+[0.30.4]: https://github.com/paulrobello/par-term/compare/v0.30.3...v0.30.4
+[0.30.3]: https://github.com/paulrobello/par-term/compare/v0.30.2...v0.30.3
+[0.30.2]: https://github.com/paulrobello/par-term/compare/v0.30.1...v0.30.2
+[0.30.1]: https://github.com/paulrobello/par-term/compare/v0.30.0...v0.30.1
 [0.30.0]: https://github.com/paulrobello/par-term/compare/v0.29.2...v0.30.0
 [0.29.2]: https://github.com/paulrobello/par-term/compare/v0.29.1...v0.29.2
 [0.29.1]: https://github.com/paulrobello/par-term/compare/v0.29.0...v0.29.1
