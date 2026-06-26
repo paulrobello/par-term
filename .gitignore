@@ -22,6 +22,8 @@ Thumbs.db
 *.log
 log.txt
 **/flamegraph.svg
+# par-term debug/trace log (make run-debug / run-trace tee output)
+par_term_debug.log
 
 # Step runner lock files and logs
 feature-spec/.step*.lock

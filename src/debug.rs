@@ -85,6 +85,9 @@ struct DebugLogger {
     level: DebugLevel,
     /// Log file handle (always opened)
     file: Option<std::fs::File>,
+    /// Mirror custom debug macros to stderr (true when `RUST_LOG` is set), so
+    /// `make run-debug` (which tees stderr to the log file) captures them live.
+    mirror_stderr: bool,
 }
 
 impl DebugLogger {
@@ -136,7 +139,12 @@ impl DebugLogger {
             let _ = std::fs::set_permissions(&log_path, std::fs::Permissions::from_mode(0o600));
         }
 
-        let mut logger = DebugLogger { level, file };
+        let mirror_stderr = std::env::var("RUST_LOG").is_ok();
+        let mut logger = DebugLogger {
+            level,
+            file,
+            mirror_stderr,
+        };
         logger.write_raw(&format!(
             "\n{}\npar-term log session started at {} (debug_level={:?}, rust_log={})\n{}\n",
             "=".repeat(80),
@@ -170,6 +178,11 @@ impl DebugLogger {
                 "[{}] [{}] [{}] {}\n",
                 timestamp, level_str, category, msg
             ));
+            // Mirror to stderr during debug runs (RUST_LOG set), so `make run-debug`
+            // — which tees stderr to the log file — captures custom-macro output too.
+            if self.mirror_stderr {
+                eprintln!("[{}] {}: {}", level_str.trim_end(), category, msg);
+            }
         }
     }
 
