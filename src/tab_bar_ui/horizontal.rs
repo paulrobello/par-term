@@ -53,7 +53,7 @@ impl TabBarUI {
             egui::Panel::top("tab_bar").exact_size(config.tab_bar_height)
         };
 
-        panel.frame(frame).show_inside(ctx, |ui| {
+        panel.frame(frame).show(ctx, |ui| {
             // Reserve space on the right for overlay panels (e.g. AI inspector Area)
             // so tabs/buttons don't render underneath them.
             let total_bar_width = (ui.available_width() - right_reserved_width.max(0.0)).max(0.0);

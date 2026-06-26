@@ -139,8 +139,8 @@ impl SettingsUI {
                             if let Some(state) = egui::TextEdit::load_state(ui.ctx(), editor_id)
                                 && let Some(range) = state.cursor.char_range()
                             {
-                                let start = range.primary.index.min(range.secondary.index);
-                                let end = range.primary.index.max(range.secondary.index);
+                                let start = range.primary.index.0.min(range.secondary.index.0);
+                                let end = range.primary.index.0.max(range.secondary.index.0);
                                 if start != end {
                                     let selected_text = &self.shader_editor_source[start..end];
                                     if let Ok(mut clipboard) = Clipboard::new() {
@@ -154,8 +154,8 @@ impl SettingsUI {
                             if let Some(mut state) = egui::TextEdit::load_state(ui.ctx(), editor_id)
                                 && let Some(range) = state.cursor.char_range()
                             {
-                                let start = range.primary.index.min(range.secondary.index);
-                                let end = range.primary.index.max(range.secondary.index);
+                                let start = range.primary.index.0.min(range.secondary.index.0);
+                                let end = range.primary.index.0.max(range.secondary.index.0);
                                 if start != end {
                                     let selected_text = &self.shader_editor_source[start..end];
                                     if let Ok(mut clipboard) = Clipboard::new() {
@@ -179,8 +179,8 @@ impl SettingsUI {
                             && let Some(mut state) = egui::TextEdit::load_state(ui.ctx(), editor_id)
                         {
                             let insert_pos = if let Some(range) = state.cursor.char_range() {
-                                let start = range.primary.index.min(range.secondary.index);
-                                let end = range.primary.index.max(range.secondary.index);
+                                let start = range.primary.index.0.min(range.secondary.index.0);
+                                let end = range.primary.index.0.max(range.secondary.index.0);
                                 // Delete selection if any
                                 if start != end {
                                     self.shader_editor_source.replace_range(start..end, "");

@@ -131,7 +131,7 @@ impl TabBarUI {
         egui::Panel::left("tab_bar")
             .exact_size(config.tab_bar_width)
             .frame(egui::Frame::NONE.fill(egui::Color32::from_rgb(bar_bg[0], bar_bg[1], bar_bg[2])))
-            .show_inside(ctx, |ui| {
+            .show(ctx, |ui| {
                 egui::ScrollArea::vertical()
                     .scroll_bar_visibility(
                         egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded,

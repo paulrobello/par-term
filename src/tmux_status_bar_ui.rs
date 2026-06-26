@@ -113,7 +113,7 @@ impl TmuxStatusBarUI {
                     .fill(egui::Color32::from_rgb(30, 40, 30)) // Dark green-ish background (tmux style)
                     .inner_margin(egui::Margin::symmetric(8, 4)),
             )
-            .show_inside(ctx, |ui| {
+            .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     // Left side - session and windows
                     let left_text = if !self.cached_left.is_empty() {

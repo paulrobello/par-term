@@ -122,8 +122,8 @@ impl SettingsUI {
                                 egui::TextEdit::load_state(ui.ctx(), cursor_editor_id)
                                 && let Some(range) = state.cursor.char_range()
                             {
-                                let start = range.primary.index.min(range.secondary.index);
-                                let end = range.primary.index.max(range.secondary.index);
+                                let start = range.primary.index.0.min(range.secondary.index.0);
+                                let end = range.primary.index.0.max(range.secondary.index.0);
                                 if start != end {
                                     let selected_text =
                                         &self.cursor_shader_editor_source[start..end];
@@ -139,8 +139,8 @@ impl SettingsUI {
                                 egui::TextEdit::load_state(ui.ctx(), cursor_editor_id)
                                 && let Some(range) = state.cursor.char_range()
                             {
-                                let start = range.primary.index.min(range.secondary.index);
-                                let end = range.primary.index.max(range.secondary.index);
+                                let start = range.primary.index.0.min(range.secondary.index.0);
+                                let end = range.primary.index.0.max(range.secondary.index.0);
                                 if start != end {
                                     let selected_text =
                                         &self.cursor_shader_editor_source[start..end];
@@ -167,8 +167,8 @@ impl SettingsUI {
                                 egui::TextEdit::load_state(ui.ctx(), cursor_editor_id)
                         {
                             let insert_pos = if let Some(range) = state.cursor.char_range() {
-                                let start = range.primary.index.min(range.secondary.index);
-                                let end = range.primary.index.max(range.secondary.index);
+                                let start = range.primary.index.0.min(range.secondary.index.0);
+                                let end = range.primary.index.0.max(range.secondary.index.0);
                                 // Delete selection if any
                                 if start != end {
                                     self.cursor_shader_editor_source

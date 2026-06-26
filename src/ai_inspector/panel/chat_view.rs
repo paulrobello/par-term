@@ -410,7 +410,7 @@ pub(super) fn chat_input_height_for_rows(rows: usize) -> f32 {
 fn text_edit_cursor_index(ctx: &egui::Context, id: egui::Id, text: &str) -> usize {
     egui::TextEdit::load_state(ctx, id)
         .and_then(|state| state.cursor.char_range())
-        .map(|range| range.primary.index)
+        .map(|range| range.primary.index.0)
         .unwrap_or_else(|| text.chars().count())
 }
 
@@ -514,7 +514,7 @@ mod tests {
 
         let ctx = egui::Context::default();
         let _ = ctx.run_ui(Default::default(), |ctx| {
-            egui::CentralPanel::default().show_inside(ctx, |ui| {
+            egui::CentralPanel::default().show(ctx, |ui| {
                 ui.set_width(320.0);
                 let output = render_bounded_chat_text_edit(
                     ui,

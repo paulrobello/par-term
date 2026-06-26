@@ -276,7 +276,7 @@ impl SettingsUI {
 
         egui::CentralPanel::default()
             .frame(Frame::central_panel(&ctx.global_style()).fill(solid_bg))
-            .show_inside(ctx, |ui| {
+            .show(ctx, |ui| {
                 // Fixed header area (never scrolls)
                 ui.heading("Terminal Settings");
                 ui.horizontal(|ui| {

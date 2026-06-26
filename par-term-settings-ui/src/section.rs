@@ -226,7 +226,7 @@ pub fn section_spacing(ui: &mut egui::Ui) {
 /// A helper for indented content blocks.
 pub fn indented<R>(
     ui: &mut egui::Ui,
-    id: impl std::hash::Hash,
+    id: impl std::hash::Hash + std::fmt::Debug,
     add_contents: impl FnOnce(&mut egui::Ui) -> R,
 ) -> egui::InnerResponse<R> {
     ui.indent(id, add_contents)

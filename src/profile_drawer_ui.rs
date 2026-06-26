@@ -114,7 +114,7 @@ impl ProfileDrawerUI {
             egui::Panel::bottom("profile_drawer_bottom_margin")
                 .exact_size(bottom_margin)
                 .frame(egui::Frame::NONE)
-                .show_inside(ctx, |_ui| {});
+                .show(ctx, |_ui| {});
         }
 
         // Render the side panel FIRST if expanded, so we get the current width
@@ -130,7 +130,7 @@ impl ProfileDrawerUI {
                         .fill(egui::Color32::from_rgba_unmultiplied(30, 30, 30, 245))
                         .inner_margin(egui::Margin::same(8)),
                 )
-                .show_inside(ctx, |ui| {
+                .show(ctx, |ui| {
                     self.render_panel_contents(ui, profile_manager, &mut action);
                 });
 
