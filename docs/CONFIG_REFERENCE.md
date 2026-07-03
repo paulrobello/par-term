@@ -614,6 +614,7 @@ Override shader settings per-file. Keys are shader filenames (without path).
 | `allow_all_env_vars` | `bool` | `false` | Allow all environment variables in `${VAR}` substitution (not just the safe allowlist) |
 | `allow_http_profiles` | `bool` | `false` | Allow loading profiles from HTTP/HTTPS URLs in `dynamic_profile_sources` |
 | `allow_file_scheme_urls` | `bool` | `false` | Allow opening `file://` OSC 8 hyperlinks via the OS handler (SEC-009). A remote program can emit `file://` links to open arbitrary local paths; enable only if you trust your sessions |
+| `max_osc_data_length` | `usize` | `134217728` (128 MiB) | Maximum total OSC (escape sequence) payload size in bytes before a sequence is rejected as a memory-exhaustion guard (QA-012). Must be large enough for inline images (iTerm2/Kitty base64) if used |
 
 ---
 

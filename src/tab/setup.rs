@@ -18,6 +18,10 @@ pub(crate) fn configure_terminal_from_config(terminal: &mut TerminalManager, con
     terminal.set_max_clipboard_sync_events(config.clipboard_max_sync_events);
     terminal.set_max_clipboard_event_bytes(config.clipboard_max_event_bytes);
 
+    // Apply OSC 9/777/99 notification buffer and OSC data length limits
+    terminal.set_max_notifications(config.notifications.notification_max_buffer);
+    terminal.set_max_osc_data_length(config.max_osc_data_length);
+
     // Set answerback string for ENQ response (if configured)
     if !config.answerback_string.is_empty() {
         terminal.set_answerback_string(Some(config.answerback_string.clone()));

@@ -55,6 +55,13 @@ pub fn clipboard_max_event_bytes() -> usize {
     2048 // Aligned with sister project
 }
 
+/// Default maximum total OSC data length in bytes before a sequence is
+/// rejected by the core terminal (QA-012 memory-exhaustion guard).
+/// Matches `par_term_emu_core_rust::terminal::DEFAULT_MAX_OSC_DATA_LENGTH`.
+pub fn max_osc_data_length() -> usize {
+    128 * 1024 * 1024 // 128 MiB — large enough for inline images (iTerm2/Kitty base64)
+}
+
 /// Default activity threshold in seconds before a tab is considered idle.
 pub fn activity_threshold() -> u64 {
     10 // Aligned with sister project (10 seconds)

@@ -87,6 +87,8 @@ pub fn show(
             "buffer",
             "notification queue",
             "suppress when focused",
+            "max notifications",
+            "notification limit",
         ],
     ) {
         behavior::show_behavior_section(ui, settings, changes_this_frame, collapsed);
@@ -141,6 +143,8 @@ pub fn keywords() -> &'static [&'static str] {
         "suppress notifications",
         "buffer",
         "max buffer",
+        "max notifications",
+        "notification limit",
         "test notification",
         // Anti-idle
         "anti-idle",

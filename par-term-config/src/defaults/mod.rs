@@ -32,11 +32,11 @@ pub use terminal::{
     activity_threshold, answerback_string, anti_idle_code, anti_idle_seconds, bell_sound,
     clipboard_max_event_bytes, clipboard_max_sync_events, command_history_max_entries,
     cursor_blink_interval, double_click_threshold, initial_text, initial_text_delay_ms,
-    initial_text_send_newline, jobs_to_ignore, login_shell, notification_max_buffer,
-    paste_delay_ms, scroll_speed, scrollback, scrollbar_autohide_delay, scrollbar_position,
-    scrollbar_width, semantic_history_editor, session_log_directory, session_undo_max_entries,
-    session_undo_preserve_shell, session_undo_timeout_secs, silence_threshold,
-    smart_selection_enabled, triple_click_threshold, word_characters,
+    initial_text_send_newline, jobs_to_ignore, login_shell, max_osc_data_length,
+    notification_max_buffer, paste_delay_ms, scroll_speed, scrollback, scrollbar_autohide_delay,
+    scrollbar_position, scrollbar_width, semantic_history_editor, session_log_directory,
+    session_undo_max_entries, session_undo_preserve_shell, session_undo_timeout_secs,
+    silence_threshold, smart_selection_enabled, triple_click_threshold, word_characters,
 };
 
 // ── Shader & render pipeline ───────────────────────────────────────────────

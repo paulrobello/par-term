@@ -440,5 +440,34 @@ pub(super) fn show_security_section(
             .small()
             .color(egui::Color32::GRAY),
         );
+
+        ui.add_space(8.0);
+        ui.horizontal(|ui| {
+            ui.label("Max OSC data length:");
+            let mut mib = (settings.config.max_osc_data_length / (1024 * 1024)).max(1);
+            if ui
+                .add_sized(
+                    [INPUT_WIDTH, 18.0],
+                    egui::DragValue::new(&mut mib)
+                        .range(1..=1024)
+                        .suffix(" MiB"),
+                )
+                .changed()
+            {
+                settings.config.max_osc_data_length = mib * 1024 * 1024;
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+        });
+        ui.add_space(4.0);
+        ui.label(
+            egui::RichText::new(
+                "Maximum total OSC (escape sequence) payload size before a sequence is \
+                     rejected as a memory-exhaustion guard. Must be large enough for inline \
+                     images (iTerm2/Kitty base64) if used.",
+            )
+            .small()
+            .color(egui::Color32::GRAY),
+        );
     });
 }

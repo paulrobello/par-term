@@ -172,6 +172,11 @@ pub fn show(
             "allowlist",
             "allow all env",
             "variable substitution",
+            "osc",
+            "osc data",
+            "osc data length",
+            "escape sequence limit",
+            "memory exhaustion",
         ],
     ) {
         system::show_security_section(ui, settings, changes_this_frame, collapsed);
@@ -276,5 +281,10 @@ pub fn keywords() -> &'static [&'static str] {
         "allowlist",
         "allow all env",
         "variable substitution",
+        "osc",
+        "osc data",
+        "osc data length",
+        "escape sequence limit",
+        "memory exhaustion",
     ]
 }

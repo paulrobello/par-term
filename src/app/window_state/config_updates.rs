@@ -55,6 +55,10 @@ pub(crate) struct ConfigChanges {
     // Terminal identification
     pub answerback_string: bool,
 
+    // OSC 9/777/99 notification buffer and OSC data length limits
+    pub max_notifications: bool,
+    pub max_osc_data_length: bool,
+
     // Unicode width settings
     pub unicode_width: bool,
 
@@ -208,6 +212,10 @@ impl ConfigChanges {
                 || new.cursor.unfocused_cursor_style != old.cursor.unfocused_cursor_style,
 
             answerback_string: new.answerback_string != old.answerback_string,
+
+            max_notifications: new.notifications.notification_max_buffer
+                != old.notifications.notification_max_buffer,
+            max_osc_data_length: new.max_osc_data_length != old.max_osc_data_length,
 
             unicode_width: new.unicode.unicode_version != old.unicode.unicode_version
                 || new.unicode.ambiguous_width != old.unicode.ambiguous_width,

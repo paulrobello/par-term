@@ -782,6 +782,15 @@ pub struct Config {
     pub clipboard_max_event_bytes: usize,
 
     // ========================================================================
+    // OSC Sequence Limits
+    // ========================================================================
+    /// Maximum total OSC data length in bytes before a sequence is rejected
+    /// by the core terminal (QA-012 memory-exhaustion guard). Must be large
+    /// enough for inline images (iTerm2/Kitty base64) if used.
+    #[serde(default = "crate::defaults::max_osc_data_length")]
+    pub max_osc_data_length: usize,
+
+    // ========================================================================
     // Command History
     // ========================================================================
     /// Maximum number of commands to persist in fuzzy search history

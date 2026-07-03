@@ -30,6 +30,22 @@ impl TerminalManager {
         term.set_normalization_form(form);
     }
 
+    /// Set maximum OSC 9/777/99 notifications retained (0 disables buffering)
+    pub fn set_max_notifications(&self, max: usize) {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let mut term = terminal.write();
+        term.set_max_notifications(max);
+    }
+
+    /// Set the maximum total OSC data length in bytes (QA-012 memory-exhaustion guard)
+    pub fn set_max_osc_data_length(&self, max: usize) {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let mut term = terminal.write();
+        term.set_max_osc_data_length(max);
+    }
+
     /// Register a callback invoked for every chunk of raw PTY output
     pub fn set_output_callback<F>(&self, callback: F)
     where

@@ -242,15 +242,18 @@ pub(super) fn apply_renderer_config(
                 term.set_theme(theme.clone());
             }
             // Set theme on additional split pane terminals (primary pane shares
-            // tab.terminal's Arc, so skip it to avoid double-locking)
+            // tab.terminal's Arc, so skip it to avoid double-locking). Theme
+            // changes recolor cells without bumping update_generation, so every
+            // pane's cross-frame cell cache must be invalidated here too.
             let tab_terminal = Arc::clone(&tab.terminal);
             if let Some(pm) = tab.pane_manager_mut() {
-                for pane in pm.all_panes() {
+                for pane in pm.all_panes_mut() {
                     if !Arc::ptr_eq(&pane.terminal, &tab_terminal)
                         && let Ok(mut term) = pane.terminal.try_write()
                     {
                         term.set_theme(theme.clone());
                     }
+                    pane.cache.invalidate_pane_cells();
                 }
             }
         }
@@ -266,6 +269,24 @@ pub(super) fn apply_renderer_config(
         for tab in window_state.tab_manager.tabs_mut() {
             if let Ok(term) = tab.terminal.try_read() {
                 term.set_answerback_string(answerback.clone());
+            }
+        }
+    }
+
+    // Update notification buffer limit across all tabs when changed
+    if changes.max_notifications {
+        for tab in window_state.tab_manager.tabs_mut() {
+            if let Ok(term) = tab.terminal.try_read() {
+                term.set_max_notifications(config.notifications.notification_max_buffer);
+            }
+        }
+    }
+
+    // Update OSC data length limit across all tabs when changed
+    if changes.max_osc_data_length {
+        for tab in window_state.tab_manager.tabs_mut() {
+            if let Ok(term) = tab.terminal.try_read() {
+                term.set_max_osc_data_length(config.max_osc_data_length);
             }
         }
     }
