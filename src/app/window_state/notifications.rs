@@ -2,10 +2,107 @@
 //!
 //! This module handles:
 //! - Desktop notifications (OSC 9/777)
+//! - OSC 99 (Kitty) notification metadata: id-based grouping/replacement and
+//!   click-to-activate `focus`/`report` actions
 //! - Bell events (audio, visual, desktop)
+//!
+//! ## OSC 99 click-to-activate
+//!
+//! Per the Kitty desktop notifications spec
+//! (<https://sw.kovidgoyal.net/kitty/desktop-notifications/>), the `a=` actions
+//! key accepts a comma-separated list of `report`/`focus`, each optionally
+//! negated with a leading `-`. When `a=` is never sent, the default active
+//! action is `focus` alone; `a=-focus` opts out of it, and `report` is never
+//! implied — it must be requested explicitly. Activation (when `report` is
+//! active) is reported back to the application as `OSC 99 ; i=<id> ; ST`,
+//! using `i=0` when the original notification had no id.
+//!
+//! Each such notification registers a [`PendingNotificationClick`] under a
+//! fresh `click_token` (see [`crate::platform::notify`]) in this window's
+//! [`NotificationClickState`]. `check_notification_clicks` (called from
+//! `about_to_wait`) resolves clicked tokens and performs the focus/report
+//! actions. See [`NotificationClickState`] docs for why the registry is
+//! per-window rather than a single process-global map.
 
 use super::WindowState;
+use crate::pane::PaneId;
+use crate::tab::TabId;
+use crate::terminal::TerminalManager;
 use par_term_emu_core_rust::terminal::Urgency;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, OnceLock, Weak};
+use std::time::Instant;
+use tokio::sync::RwLock;
+
+/// Maximum number of pending click registrations retained per window. Oldest
+/// entries are evicted once exceeded so that notifications nobody clicks
+/// don't leak memory indefinitely.
+const MAX_PENDING_NOTIFICATION_CLICKS: usize = 256;
+
+/// Maximum number of times a drained click token may be re-queued onto
+/// [`CLICK_TOKEN_REQUEUE`] before being dropped, bounding memory if the
+/// owning window closed before the notification was clicked.
+const MAX_CLICK_TOKEN_REQUEUES: u32 = 600;
+
+/// A pending click-to-action registration for an OSC 99 notification
+/// delivered with a `click_token`.
+pub(crate) struct PendingNotificationClick {
+    tab_id: TabId,
+    pane_id: Option<PaneId>,
+    terminal: Weak<RwLock<TerminalManager>>,
+    osc_id: Option<String>,
+    wants_focus: bool,
+    wants_report: bool,
+    registered_at: Instant,
+}
+
+/// Per-window registry of pending OSC 99 notification-click actions.
+///
+/// The click channel in [`crate::platform::notify`] is a single process-global
+/// channel shared by every window. `TabId`/`PaneId` values, however, are
+/// per-window counters that can collide across windows, so a window may only
+/// act on tokens *it* registered — acting on a foreign token could focus or
+/// write to the wrong tab/pane. `check_notification_clicks` therefore
+/// re-queues tokens it doesn't recognize onto [`CLICK_TOKEN_REQUEUE`] so
+/// another window gets a chance to claim them, typically within the same
+/// event-loop tick since `WindowManager::about_to_wait` polls all windows
+/// sequentially.
+#[derive(Default)]
+pub(crate) struct NotificationClickState {
+    pending: Vec<(u64, PendingNotificationClick)>,
+}
+
+/// Monotonically increasing counter for notification click tokens. Shared by
+/// every window — tokens must be globally unique so the re-queue mechanism
+/// above can match a drained token to at most one registry entry.
+static NEXT_CLICK_TOKEN: AtomicU64 = AtomicU64::new(1);
+
+fn next_click_token() -> u64 {
+    NEXT_CLICK_TOKEN.fetch_add(1, Ordering::Relaxed)
+}
+
+/// Cross-window re-route buffer: tokens drained by a window that doesn't own
+/// them are pushed here (with a retry count) so another window polled later
+/// this tick, or on a subsequent tick, can claim them. See
+/// [`NotificationClickState`] docs.
+static CLICK_TOKEN_REQUEUE: OnceLock<Mutex<Vec<(u64, u32)>>> = OnceLock::new();
+
+fn click_token_requeue() -> &'static Mutex<Vec<(u64, u32)>> {
+    CLICK_TOKEN_REQUEUE.get_or_init(|| Mutex::new(Vec::new()))
+}
+
+/// A notification collected from a tab/pane's terminal, still carrying its
+/// origin so `deliver_osc99_notification` can register click actions.
+struct CollectedNotification {
+    title: String,
+    message: String,
+    urgency: Urgency,
+    tab_id: TabId,
+    pane_id: Option<PaneId>,
+    terminal: Arc<RwLock<TerminalManager>>,
+    osc_id: Option<String>,
+    actions: Vec<String>,
+}
 
 impl WindowState {
     /// Check for OSC 9/777/99 notifications across every tab and pane's terminal.
@@ -18,22 +115,23 @@ impl WindowState {
         // Collect notifications from all tabs/panes first, deliver after releasing
         // the terminal locks (matches the borrow-safety pattern used elsewhere in
         // this file, e.g. `check_session_exit_notifications`).
-        let mut notifications_to_send: Vec<(String, String, Urgency)> = Vec::new();
+        let mut notifications_to_send: Vec<CollectedNotification> = Vec::new();
 
         for tab in self.tab_manager.tabs() {
-            // Every pane's terminal (falls back to tab.terminal when there's no pane manager)
-            let terminals: Vec<_> = tab
+            // Every pane's terminal (falls back to tab.terminal when there's no pane manager),
+            // paired with the pane id so a click can re-focus the exact origin pane.
+            let terminals: Vec<(Option<PaneId>, Arc<RwLock<TerminalManager>>)> = tab
                 .pane_manager
                 .as_ref()
                 .map(|pm| {
                     pm.all_panes()
                         .into_iter()
-                        .map(|pane| std::sync::Arc::clone(&pane.terminal))
+                        .map(|pane| (Some(pane.id), Arc::clone(&pane.terminal)))
                         .collect::<Vec<_>>()
                 })
-                .unwrap_or_else(|| vec![std::sync::Arc::clone(&tab.terminal)]);
+                .unwrap_or_else(|| vec![(None, Arc::clone(&tab.terminal))]);
 
-            for terminal in terminals {
+            for (pane_id, terminal) in terminals {
                 // try_lock: intentional — OSC notification polling in about_to_wait (sync loop).
                 // On miss: notifications are deferred to the next poll frame. Low risk; OSC
                 // notifications are informational and a one-frame delay is imperceptible.
@@ -43,15 +141,228 @@ impl WindowState {
                     && term.has_notifications()
                 {
                     for notif in term.take_notifications() {
-                        notifications_to_send.push((notif.title, notif.message, notif.urgency));
+                        notifications_to_send.push(CollectedNotification {
+                            title: notif.title,
+                            message: notif.message,
+                            urgency: notif.urgency,
+                            tab_id: tab.id,
+                            pane_id,
+                            terminal: Arc::clone(&terminal),
+                            osc_id: notif.id,
+                            actions: notif.actions,
+                        });
                     }
                 }
             }
         }
 
-        for (title, message, urgency) in notifications_to_send {
-            self.deliver_notification_urgent(&title, &message, urgency);
+        for n in notifications_to_send {
+            self.deliver_osc99_notification(
+                n.tab_id, n.pane_id, n.terminal, &n.title, &n.message, n.urgency, n.osc_id,
+                n.actions,
+            );
         }
+    }
+
+    /// Deliver an OSC 9/777/99 notification, honoring focus suppression and
+    /// (for OSC 99) wiring up identity-based replacement and click-to-activate
+    /// `focus`/`report` actions per the Kitty spec (see module docs).
+    #[allow(clippy::too_many_arguments)]
+    fn deliver_osc99_notification(
+        &mut self,
+        tab_id: TabId,
+        pane_id: Option<PaneId>,
+        terminal: Arc<RwLock<TerminalManager>>,
+        title: &str,
+        message: &str,
+        urgency: Urgency,
+        osc_id: Option<String>,
+        actions: Vec<String>,
+    ) {
+        // Always log notifications (mirrors `deliver_notification_inner`).
+        if !title.is_empty() {
+            log::info!("=== Notification: {} ===", title);
+            log::info!("{}", message);
+            log::info!("===========================");
+        } else {
+            log::info!("=== Notification ===");
+            log::info!("{}", message);
+            log::info!("===================");
+        }
+
+        // Skip desktop notification if window is focused and suppression is enabled
+        // (OSC 99 notifications respect suppression, same as `deliver_notification_inner`).
+        if self
+            .config
+            .load()
+            .notifications
+            .suppress_notifications_when_focused
+            && self.focus_state.is_focused
+        {
+            log::debug!(
+                "Suppressing desktop notification (window is focused): {}",
+                title
+            );
+            return;
+        }
+
+        // Kitty spec: `a=` defaults to `focus` active when never sent by the
+        // application; `-focus` opts out of that default; `report` is never
+        // implied and must be requested explicitly (and `-report` defensively
+        // cancels it back out).
+        let mut wants_focus = true;
+        let mut wants_report = false;
+        for action in &actions {
+            match action.as_str() {
+                "focus" => wants_focus = true,
+                "-focus" => wants_focus = false,
+                "report" => wants_report = true,
+                "-report" => wants_report = false,
+                _ => {}
+            }
+        }
+
+        // Prefix the OSC 99 id with the tab id so ids from different terminals
+        // can't collide, while staying stable across redeliveries with the
+        // same terminal + id (required for platform-side replacement).
+        let identity = osc_id.as_ref().map(|id| format!("osc99-{tab_id}-{id}"));
+
+        let click_token = if wants_focus || wants_report {
+            let token = next_click_token();
+            self.register_notification_click(
+                token,
+                PendingNotificationClick {
+                    tab_id,
+                    pane_id,
+                    terminal: Arc::downgrade(&terminal),
+                    osc_id,
+                    wants_focus,
+                    wants_report,
+                    registered_at: Instant::now(),
+                },
+            );
+            Some(token)
+        } else {
+            None
+        };
+
+        let platform_urgency = match urgency {
+            Urgency::Low => crate::platform::NotificationUrgency::Low,
+            Urgency::Normal => crate::platform::NotificationUrgency::Normal,
+            Urgency::Critical => crate::platform::NotificationUrgency::Critical,
+        };
+        crate::platform::deliver_desktop_notification_request(
+            &crate::platform::NotificationRequest {
+                title,
+                message,
+                timeout_ms: 3000,
+                urgency: platform_urgency,
+                identity: identity.as_deref(),
+                click_token,
+            },
+        );
+    }
+
+    /// Register a pending click action, evicting the oldest entry once the
+    /// per-window cap is exceeded (see [`MAX_PENDING_NOTIFICATION_CLICKS`]).
+    fn register_notification_click(&mut self, token: u64, entry: PendingNotificationClick) {
+        let pending = &mut self.notification_click_state.pending;
+        pending.push((token, entry));
+        if pending.len() > MAX_PENDING_NOTIFICATION_CLICKS {
+            pending.remove(0);
+        }
+    }
+
+    /// Drain clicked notification tokens (own and re-queued) and perform the
+    /// registered focus/report actions. Called once per frame from
+    /// `about_to_wait`, alongside `check_notifications`.
+    pub(crate) fn check_notification_clicks(&mut self) {
+        let fresh = crate::platform::drain_notification_clicks()
+            .into_iter()
+            .map(|token| (token, 0u32));
+        let requeued = std::mem::take(
+            &mut *click_token_requeue()
+                .lock()
+                .unwrap_or_else(|e| e.into_inner()),
+        );
+
+        for (token, retries) in fresh.chain(requeued) {
+            if let Some(pos) = self
+                .notification_click_state
+                .pending
+                .iter()
+                .position(|(t, _)| *t == token)
+            {
+                let (_, entry) = self.notification_click_state.pending.remove(pos);
+                self.execute_notification_click(entry);
+                continue;
+            }
+
+            // Not registered by this window — offer it back for another window
+            // (or a later tick) to claim, bounded so an unclaimed token from a
+            // closed window doesn't grow the buffer forever.
+            if retries + 1 < MAX_CLICK_TOKEN_REQUEUES {
+                click_token_requeue()
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .push((token, retries + 1));
+            } else {
+                log::debug!(
+                    "Dropping notification click token {} after {} unclaimed re-queues",
+                    token,
+                    retries + 1
+                );
+            }
+        }
+    }
+
+    /// Perform the focus/report actions for a resolved notification click.
+    fn execute_notification_click(&mut self, entry: PendingNotificationClick) {
+        log::debug!(
+            "Handling notification click for tab {} (age: {:?}, focus={}, report={})",
+            entry.tab_id,
+            entry.registered_at.elapsed(),
+            entry.wants_focus,
+            entry.wants_report
+        );
+
+        if entry.wants_focus {
+            if let Some(window) = &self.window {
+                window.focus_window();
+            }
+            self.tab_manager.switch_to(entry.tab_id);
+            if let Some(pane_id) = entry.pane_id
+                && let Some(tab) = self.tab_manager.get_tab_mut(entry.tab_id)
+                && let Some(pm) = tab.pane_manager.as_mut()
+            {
+                pm.focus_pane(pane_id);
+            }
+        }
+
+        if entry.wants_report {
+            // Kitty spec: activation is reported as `OSC 99 ; i=<id> ; ST`,
+            // using `i=0` when the original notification had no id.
+            let report = format!(
+                "\x1b]99;i={};\x1b\\",
+                entry.osc_id.as_deref().unwrap_or("0")
+            );
+            match entry.terminal.upgrade() {
+                Some(terminal) => match terminal.try_read() {
+                    Ok(term) => {
+                        if let Err(e) = term.write_str(&report) {
+                            log::debug!("Failed to write OSC 99 activation report: {}", e);
+                        }
+                    }
+                    Err(_) => {
+                        log::debug!("Skipped OSC 99 activation report: terminal lock contended")
+                    }
+                },
+                None => log::debug!("Skipped OSC 99 activation report: terminal no longer exists"),
+            }
+        }
+
+        self.focus_state.needs_redraw = true;
+        self.request_redraw();
     }
 
     /// Check for bell events and trigger appropriate feedback.
@@ -356,15 +667,6 @@ impl WindowState {
     /// is already looking at the terminal).
     pub(crate) fn deliver_notification(&self, title: &str, message: &str) {
         self.deliver_notification_inner(title, message, false, Urgency::Normal);
-    }
-
-    /// Deliver an OSC 99 (Kitty) notification, forwarding its reported urgency.
-    ///
-    /// Behaves like [`Self::deliver_notification`] (respects focus suppression) but
-    /// surfaces the terminal-reported urgency to the platform layer, e.g. so Critical
-    /// notifications stay on-screen / get an audible cue.
-    pub(crate) fn deliver_notification_urgent(&self, title: &str, message: &str, urgency: Urgency) {
-        self.deliver_notification_inner(title, message, false, urgency);
     }
 
     /// Inner notification delivery with force option.

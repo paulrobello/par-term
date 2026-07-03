@@ -119,6 +119,8 @@ impl WindowState {
 
             trigger_state: TriggerState::default(),
 
+            notification_click_state: super::NotificationClickState::default(),
+
             pending_snap_size: None,
 
             last_workflow_context: std::sync::Arc::new(std::sync::Mutex::new(None)),

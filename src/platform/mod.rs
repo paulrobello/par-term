@@ -15,10 +15,17 @@
 //! | Function | Description |
 //! |---|---|
 //! | [`deliver_desktop_notification`] | Send a native desktop notification |
+//! | [`deliver_desktop_notification_request`] | Send a notification with identity/click-token support |
+//! | [`drain_notification_clicks`] | Non-blocking drain of notification click tokens |
 //! | [`primary_modifier`] | Whether the platform's "primary" modifier key is held |
 
 mod modifiers;
 mod notify;
+#[cfg(target_os = "macos")]
+mod notify_macos;
 
 pub use modifiers::{primary_modifier, primary_modifier_with_shift};
-pub use notify::{NotificationUrgency, deliver_desktop_notification, escape_for_applescript};
+pub use notify::{
+    NotificationRequest, NotificationUrgency, deliver_desktop_notification,
+    deliver_desktop_notification_request, drain_notification_clicks, escape_for_applescript,
+};

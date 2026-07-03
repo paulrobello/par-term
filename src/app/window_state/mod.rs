@@ -83,6 +83,7 @@ mod watcher_state;
 pub(crate) use crate::app::tmux_handler::tmux_state::TmuxState;
 pub(crate) use egui_state::EguiState;
 pub(crate) use focus_state::FocusState;
+pub(crate) use notifications::NotificationClickState;
 pub(crate) use overlay_state::OverlayState;
 pub(crate) use render_loop_state::{ConfigSaveState, RenderLoopState};
 pub(crate) use trigger_state::{PendingTriggerAction, TriggerState};
@@ -201,6 +202,9 @@ pub struct WindowState {
     pub(crate) watcher_state: WatcherState,
     /// State for terminal triggers and their spawned processes
     pub(crate) trigger_state: TriggerState,
+    /// Pending OSC 99 notification click-to-action registry (per-window; see
+    /// `notifications::NotificationClickState` docs for why)
+    pub(crate) notification_click_state: NotificationClickState,
 
     // =========================================================================
     // Render loop control & config management (ARC-001 extraction: RenderLoopState)

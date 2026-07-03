@@ -273,6 +273,10 @@ objc2 = "0.6.4"
 objc2-app-kit = "0.3.2"
 objc2-foundation = "0.3.2"
 objc2-quartz-core = "0.3.2"
+# Native desktop notifications (UNUserNotificationCenter) — pinned to the same
+# objc2 0.6.x ecosystem already in the tree (see objc2-app-kit/objc2-foundation above).
+objc2-user-notifications = "0.3.2"
+block2 = "0.6.2"
 raw-window-handle = "0.6.2"
 
 # File watching for shader hot reload - platform-specific backends

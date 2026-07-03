@@ -34,8 +34,11 @@ impl WindowState {
         // The call is cheap (two atomic loads) when no new failures happened.
         crate::debug::maybe_log_try_lock_telemetry();
 
-        // Check for and deliver notifications (OSC 9/777)
+        // Check for and deliver notifications (OSC 9/777/99)
         self.check_notifications();
+
+        // Check for clicked OSC 99 notifications and perform their focus/report actions
+        self.check_notification_clicks();
 
         // Check for file transfer events (downloads, uploads, progress)
         self.check_file_transfers();
