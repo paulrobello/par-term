@@ -30,23 +30,29 @@ targets = [
 # The URL(s) of the advisory databases to use.
 db-urls = ["https://github.com/rustsec/advisory-db"]
 
-# The lint level for security vulnerabilities.
-vulnerability = "deny"
+# Vulnerability and notice advisories are always treated as errors as of the
+# v2 config schema (the old `vulnerability`/`notice` lint-level keys were
+# removed). Use `ignore` below to suppress specific advisory IDs.
 
-# The lint level for unmaintained crates.
-unmaintained = "warn"
+# Scope for unmaintained-crate advisories: "all", "workspace", "transitive",
+# or "none". Any crate matched by the chosen scope now always fails the
+# check (the old warn-only `unmaintained` lint level no longer exists), so
+# "workspace" is used to preserve the previous non-fatal intent — it flags
+# our own crates going unmaintained without failing on transitive deps we
+# don't control (e.g. font-parsing libs pulled in by rendering deps).
+unmaintained = "workspace"
 
 # The lint level for crates that have been yanked from their source registry.
 yanked = "warn"
-
-# The lint level for crates with security notices (non-critical).
-notice = "warn"
 
 # A list of advisory IDs to ignore. Add entries here only with a comment
 # explaining why the advisory does not apply to this project.
 ignore = [
     # Example (do not uncomment without justification):
     # "RUSTSEC-2020-0001",  # Reason: only affects the X feature which we don't use
+
+    "RUSTSEC-2026-0195",  # quick-xml <0.41: unbounded namespace alloc DoS — only reachable via wayland-scanner, a Linux-only build-time proc-macro parsing trusted Wayland protocol XML; no compatible patched version (wayland-scanner pins quick-xml 0.39)
+    "RUSTSEC-2026-0194",  # quick-xml <0.41: quadratic duplicate-attribute check — same trusted build-time-only exposure as above
 ]
 
 # ---------------------------------------------------------------------------
@@ -65,7 +71,6 @@ allow = [
     "BSD-3-Clause",
     "ISC",
     "Unicode-3.0",
-    "Unicode-DFS-2016",
     "Zlib",
     "CC0-1.0",
     "MPL-2.0",
@@ -76,6 +81,17 @@ allow = [
 # Provide the SPDX expression alongside the crate name.
 exceptions = [
     # Example: { allow = ["LicenseRef-ring"], name = "ring", version = "*" }
+
+    # Boost Software License 1.0 (OSI-approved permissive) — clipboard support via arboard.
+    { allow = ["BSL-1.0"], crate = "clipboard-win" },
+    { allow = ["BSL-1.0"], crate = "error-code" },
+    # SIL OFL 1.1 + Ubuntu Font License 1.0 — egui's embedded default UI fonts.
+    # Font licenses; permissive for embedding, standard for egui apps.
+    { allow = ["OFL-1.1", "Ubuntu-font-1.0"], crate = "epaint_default_fonts" },
+    # bzip2 license (BSD-style permissive) — transitive via zip archive support.
+    { allow = ["bzip2-1.0.6"], crate = "libbz2-rs-sys" },
+    # Community Data License Agreement Permissive 2.0 — Mozilla CA root certs via ureq.
+    { allow = ["CDLA-Permissive-2.0"], crate = "webpki-root-certs" },
 ]
 
 # ---------------------------------------------------------------------------
@@ -89,7 +105,7 @@ multiple-versions = "warn"
 wildcards = "deny"
 
 # The graph highlights used when outputting the bans section.
-highlight = "deepest"
+highlight = "all"
 
 # Crates that are allowed to have multiple versions (commonly unavoidable
 # due to transitive dependencies from separate ecosystems).
