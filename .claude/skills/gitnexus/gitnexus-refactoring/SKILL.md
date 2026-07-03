@@ -29,7 +29,7 @@ description: "Use when the user wants to rename, extract, split, move, or restru
 4. Plan update order: interfaces → implementations → callers → tests
 ```
 
-> If "Index is stale" → run `gitnexus analyze` in terminal.
+> If the index is stale (`gitnexus status`) → run `gitnexus analyze`.
 
 ## Checklists
 
@@ -37,7 +37,7 @@ description: "Use when the user wants to rename, extract, split, move, or restru
 
 ```
 - [ ] gitnexus rename "oldName" "newName" --repo <name> --dry-run — preview all edits
-- [ ] Review graph edits (high confidence) and ast_search edits (review carefully)
+- [ ] Review graph edits (high confidence) and text-search edits (review carefully)
 - [ ] If satisfied: gitnexus rename "oldName" "newName" --repo <name> — apply edits
 - [ ] gitnexus detect-changes --repo <name> — verify only expected files changed
 - [ ] Run tests for affected processes
@@ -46,8 +46,8 @@ description: "Use when the user wants to rename, extract, split, move, or restru
 ### Extract Module
 
 ```
-- [ ] gitnexus context "<target>" --repo <name> — see all incoming/outgoing refs
-- [ ] gitnexus impact "<target>" --direction upstream --repo <name> — find all external callers
+- [ ] gitnexus context "target" --repo <name> — see all incoming/outgoing refs
+- [ ] gitnexus impact "target" --direction upstream --repo <name> — find all external callers
 - [ ] Define new module interface
 - [ ] Extract code, update imports
 - [ ] gitnexus detect-changes --repo <name> — verify affected scope
@@ -57,9 +57,9 @@ description: "Use when the user wants to rename, extract, split, move, or restru
 ### Split Function/Service
 
 ```
-- [ ] gitnexus context "<target>" --repo <name> — understand all callees
+- [ ] gitnexus context "target" --repo <name> — understand all callees
 - [ ] Group callees by responsibility
-- [ ] gitnexus impact "<target>" --direction upstream --repo <name> — map callers to update
+- [ ] gitnexus impact "target" --direction upstream --repo <name> — map callers to update
 - [ ] Create new functions/services
 - [ ] Update callers
 - [ ] gitnexus detect-changes --repo <name> — verify affected scope
@@ -72,35 +72,49 @@ All commands are run directly via the Bash tool. Do **not** use `mcpl` or `npx`.
 
 | Command | What it gives you | Example |
 | ------- | ----------------- | ------- |
-| `gitnexus rename "<old>" "<new>" --repo <name>` | Multi-file coordinated rename with confidence-tagged edits | `gitnexus rename "validateUser" "authenticateUser" --repo <name> --dry-run` |
-| `gitnexus impact "<symbol>" --direction upstream --repo <name>` | Symbol blast radius — dependents at depth 1/2/3 | `gitnexus impact "validateUser" --direction upstream --repo <name>` |
-| `gitnexus detect-changes --repo <name>` | Git-diff impact — what your changes affect | `gitnexus detect-changes --repo <name>` |
-| `gitnexus context "<symbol>" --repo <name>` | 360-degree symbol view — callers, callees, processes | `gitnexus context "validateUser" --repo <name>` |
-| `gitnexus query "<concept>" --repo <name>` | Execution flows related to a concept | `gitnexus query "user validation" --repo <name>` |
-| `gitnexus cypher "<query>" --repo <name>` | Raw graph queries for custom reference queries | `gitnexus cypher "MATCH ..." --repo <name>` |
+| `gitnexus rename "<old>" "<new>" --repo <name>` | Multi-file coordinated rename with confidence-tagged edits | `gitnexus rename "myFunc" "myNewFunc" --repo <name> --dry-run` |
+| `gitnexus impact "<symbol>" --direction upstream --repo <name>` | Map all dependents before moving code | `gitnexus impact "validateUser" --direction upstream --repo <name>` |
+| `gitnexus context "<symbol>" --repo <name>` | All incoming/outgoing refs of the target | `gitnexus context "validateUser" --repo <name>` |
+| `gitnexus detect-changes --repo <name>` | Verify your changes after refactoring | `gitnexus detect-changes --repo <name>` |
+| `gitnexus cypher "<query>" --repo <name>` | Custom reference queries | see below |
+
+**rename** — automated multi-file rename:
+
+```
+gitnexus rename "validateUser" "authenticateUser" --repo <name> --dry-run
+→ 12 edits across 8 files
+→ 10 graph edits (high confidence), 2 text-search edits (review)
+```
+
+**cypher** — custom reference queries:
+
+```cypher
+MATCH (caller)-[:CodeRelation {type: 'CALLS'}]->(f:Function {name: "validateUser"})
+RETURN caller.name, caller.filePath ORDER BY caller.filePath
+```
 
 ## Risk Rules
 
-| Risk Factor         | Mitigation                                |
-| ------------------- | ----------------------------------------- |
-| Many callers (>5)   | Use gitnexus rename for automated updates |
-| Cross-area refs     | Use detect-changes after to verify scope  |
-| String/dynamic refs | gitnexus query to find them               |
-| External/public API | Version and deprecate properly            |
+| Risk Factor         | Mitigation                                       |
+| ------------------- | ------------------------------------------------ |
+| Many callers (>5)   | Use `gitnexus rename` for automated updates      |
+| Cross-area refs     | Use `gitnexus detect-changes` after to verify scope |
+| String/dynamic refs | `gitnexus query` to find them                    |
+| External/public API | Version and deprecate properly                   |
 
 ## Example: Rename `validateUser` to `authenticateUser`
 
 ```
-1. gitnexus rename "validateUser" "authenticateUser" --repo <name> --dry-run
-   → 12 edits: 10 graph (safe), 2 ast_search (review)
+1. gitnexus rename "validateUser" "authenticateUser" --repo my-app --dry-run
+   → 12 edits: 10 graph (safe), 2 text-search (review)
    → Files: validator.ts, login.ts, middleware.ts, config.json...
 
-2. Review ast_search edits (config.json: dynamic reference!)
+2. Review text-search edits (config.json: dynamic reference!)
 
-3. gitnexus rename "validateUser" "authenticateUser" --repo <name>
+3. gitnexus rename "validateUser" "authenticateUser" --repo my-app
    → Applied 12 edits across 8 files
 
-4. gitnexus detect-changes --repo <name>
+4. gitnexus detect-changes --repo my-app
    → Affected: LoginFlow, TokenRefresh
    → Risk: MEDIUM — run tests for these flows
 ```

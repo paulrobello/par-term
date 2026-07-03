@@ -29,12 +29,12 @@ description: "Use when the user wants to know what will break if they change som
 3. Assess risk and report to user
 ```
 
-> If "Index is stale" → run `gitnexus analyze` in terminal.
+> If the index is stale (`gitnexus status`) → run `gitnexus analyze`.
 
 ## Checklist
 
 ```
-- [ ] gitnexus impact "<symbol>" --direction upstream --repo <name> to find dependents
+- [ ] gitnexus impact "X" --direction upstream --repo <name> to find dependents
 - [ ] Review d=1 items first (these WILL BREAK)
 - [ ] Check high-confidence (>0.8) dependencies
 - [ ] gitnexus detect-changes --repo <name> for pre-commit check
@@ -64,9 +64,33 @@ All commands are run directly via the Bash tool. Do **not** use `mcpl` or `npx`.
 
 | Command | What it gives you | Example |
 | ------- | ----------------- | ------- |
-| `gitnexus impact "<symbol>" --direction upstream --repo <name>` | Symbol blast radius — what breaks at depth 1/2/3 with confidence | `gitnexus impact "validateUser" --direction upstream --repo <name>` |
-| `gitnexus detect-changes --repo <name>` | Git-diff impact — what your changes affect | `gitnexus detect-changes --repo <name>` |
+| `gitnexus impact "<symbol>" --direction upstream --repo <name>` | Symbol blast radius at depth 1/2/3 with confidence | `gitnexus impact "validateUser" --direction upstream --repo <name>` |
+| `gitnexus impact "<symbol>" --direction upstream --min-confidence 0.8 --max-depth 3 --repo <name>` | Filtered blast radius | |
+| `gitnexus detect-changes --repo <name>` | Git-diff based impact analysis | `gitnexus detect-changes --repo <name>` |
 | `gitnexus status` | Index freshness check | `gitnexus status` |
+
+**impact** — the primary command for symbol blast radius:
+
+```
+gitnexus impact "validateUser" --direction upstream --min-confidence 0.8 --max-depth 3 --repo <name>
+
+→ d=1 (WILL BREAK):
+  - loginHandler (src/auth/login.ts:42) [CALLS, 100%]
+  - apiMiddleware (src/api/middleware.ts:15) [CALLS, 100%]
+
+→ d=2 (LIKELY AFFECTED):
+  - authRouter (src/routes/auth.ts:22) [CALLS, 95%]
+```
+
+**detect-changes** — git-diff based impact analysis:
+
+```
+gitnexus detect-changes --repo <name>
+
+→ Changed: 5 symbols in 3 files
+→ Affected: LoginFlow, TokenRefresh, APIMiddlewarePipeline
+→ Risk: MEDIUM
+```
 
 ## Example: "What breaks if I change validateUser?"
 

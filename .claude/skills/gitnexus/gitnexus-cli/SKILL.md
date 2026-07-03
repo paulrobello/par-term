@@ -1,6 +1,6 @@
 ---
 name: gitnexus-cli
-description: "Use when the user needs to run GitNexus CLI commands like analyze/index a repo, check status, clean the index, generate a wiki, or list indexed repos. Examples: \"Index this repo\", \"Reanalyze the codebase\", \"Generate a wiki\""
+description: "Use when the user needs to run GitNexus maintenance commands like analyze/index a repo, check status, clean the index, generate a wiki, or list indexed repos. Examples: \"Index this repo\", \"Reanalyze the codebase\", \"Generate a wiki\""
 ---
 
 # GitNexus CLI Commands
@@ -12,8 +12,6 @@ description: "Use when the user needs to run GitNexus CLI commands like analyze/
 > **Multi-repo note**: Always pass `--repo <name>` to every command that operates on a
 > specific repo to avoid "multiple repositories" errors.
 
-All commands are run directly via the Bash tool — no `npx` or `mcpl` needed.
-
 ## Commands
 
 ### analyze — Build or refresh the index
@@ -22,7 +20,7 @@ All commands are run directly via the Bash tool — no `npx` or `mcpl` needed.
 gitnexus analyze
 ```
 
-Run from the project root. This parses all source files, builds the knowledge graph, writes it to `.gitnexus/`, and generates CLAUDE.md / AGENTS.md context files.
+Run from the project root. This parses all source files, builds the knowledge graph, and writes it to `.gitnexus/`.
 
 | Flag           | Effect                                                           |
 | -------------- | ---------------------------------------------------------------- |
@@ -85,5 +83,5 @@ Lists all repositories registered in `~/.gitnexus/registry.json`.
 ## Troubleshooting
 
 - **"Not inside a git repository"**: Run from a directory inside a git repo
-- **Index is stale after re-analyzing**: Restart Claude Code to reload the context
+- **"Multiple repositories indexed"**: Add `--repo <name>` to the command
 - **Embeddings slow**: Omit `--embeddings` (it's off by default) or set `OPENAI_API_KEY` for faster API-based embedding

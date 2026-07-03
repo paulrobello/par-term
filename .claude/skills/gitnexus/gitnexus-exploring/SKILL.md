@@ -23,21 +23,21 @@ description: "Use when the user asks how code works, wants to understand archite
 ## Workflow
 
 ```
-1. gitnexus status                                     → Check index freshness
-2. gitnexus query "<what you want>" --repo <name>      → Find related execution flows
-3. gitnexus context "<symbol>" --repo <name>           → Deep dive on specific symbol
-4. Read source files from the output for implementation details
+1. Run `gitnexus status`                                     → Check index freshness (use `gitnexus list` to discover repos)
+2. gitnexus query "<what you want to understand>" --repo <name>  → Find related execution flows
+3. gitnexus context "<symbol>" --repo <name>                 → Deep dive on specific symbol
+4. Read the source files from the query/context output       → Trace full execution flow
 ```
 
-> If step 1 says "Index is stale" → run `gitnexus analyze` in terminal.
+> If step 1 says the index is stale → run `gitnexus analyze`.
 
 ## Checklist
 
 ```
-- [ ] gitnexus status — check index freshness
-- [ ] gitnexus query for the concept you want to understand
+- [ ] Run gitnexus status
+- [ ] gitnexus query for the concept you want to understand (--repo <name>)
 - [ ] Review returned processes (execution flows)
-- [ ] gitnexus context on key symbols for callers/callees
+- [ ] gitnexus context on key symbols for callers/callees (--repo <name>)
 - [ ] Read source files for implementation details
 ```
 
@@ -47,14 +47,33 @@ All commands are run directly via the Bash tool. Do **not** use `mcpl` or `npx`.
 
 | Command | What it gives you | Example |
 | ------- | ----------------- | ------- |
-| `gitnexus query "<concept>" --repo <name>` | Process-grouped execution flows related to a concept | `gitnexus query "payment processing" --repo <name>` |
+| `gitnexus query "<concept>" --repo <name>` | Execution flows related to a concept, symbols grouped by flow | `gitnexus query "payment processing" --repo <name>` |
 | `gitnexus context "<symbol>" --repo <name>` | 360-degree symbol view — callers, callees, processes | `gitnexus context "validateUser" --repo <name>` |
 | `gitnexus status` | Index freshness check | `gitnexus status` |
+| `gitnexus list` | Discover indexed repos | `gitnexus list` |
+| `gitnexus cypher "<query>" --repo <name>` | Custom graph queries (e.g. Community/Process membership) | `gitnexus cypher "MATCH ..." --repo <name>` |
+
+**query** — find execution flows related to a concept:
+
+```
+gitnexus query "payment processing" --repo <name>
+→ Processes: CheckoutFlow, RefundFlow, WebhookHandler
+→ Symbols grouped by flow with file locations
+```
+
+**context** — 360-degree view of a symbol:
+
+```
+gitnexus context "validateUser" --repo <name>
+→ Incoming calls: loginHandler, apiMiddleware
+→ Outgoing calls: checkToken, getUserById
+→ Processes: LoginFlow (step 2/5), TokenRefresh (step 1/3)
+```
 
 ## Example: "How does payment processing work?"
 
 ```
-1. gitnexus status                                    → 918 symbols, 45 processes
+1. gitnexus status                              → index fresh, 918 symbols, 45 processes
 2. gitnexus query "payment processing" --repo my-app
    → CheckoutFlow: processPayment → validateCard → chargeStripe
    → RefundFlow: initiateRefund → calculateRefund → processRefund
