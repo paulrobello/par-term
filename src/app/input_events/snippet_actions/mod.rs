@@ -192,7 +192,7 @@ impl WindowState {
             // try_lock: intentional -- execute_snippet called from keybinding handler in
             // sync event loop. On miss: the snippet is not sent to the terminal this
             // invocation. The user can trigger the keybinding again.
-            if let Ok(terminal) = tab.terminal.try_write() {
+            if let Ok(terminal) = tab.terminal.try_read() {
                 // Append newline if auto_execute is enabled
                 let content_to_write = if snippet.auto_execute {
                     format!("{}\n", substituted_content)

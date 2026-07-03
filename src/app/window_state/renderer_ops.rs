@@ -350,7 +350,7 @@ impl WindowState {
             // Style is locked, use config's blink setting
             self.config.load().cursor.cursor_blink
         } else if let Some(tab) = self.tab_manager.active_tab()
-            && let Ok(term) = tab.terminal.try_write()
+            && let Ok(term) = tab.terminal.try_read()
         {
             use par_term_emu_core_rust::cursor::CursorStyle;
             let style = term.cursor_style();

@@ -298,7 +298,7 @@ impl WindowState {
             // On miss: this selection is not added to clipboard history. The clipboard
             // content itself was already copied above (separate operation).
             if let Some(tab) = self.tab_manager.active_tab()
-                && let Ok(term) = tab.terminal.try_write()
+                && let Ok(term) = tab.terminal.try_read()
             {
                 term.add_to_clipboard_history(
                     ClipboardSlot::Clipboard,

@@ -172,10 +172,10 @@ pub(super) fn update_gpu_renderer_state(
     }
 
     // Update animations and request redraw if frames changed.
-    // Use try_write() to avoid blocking the event loop when PTY reader holds the lock.
+    // Use try_read() to avoid blocking the event loop when PTY reader holds the lock.
     let anim_start = std::time::Instant::now();
     if let Some(tab) = tab_manager.active_tab()
-        && let Ok(terminal) = tab.terminal.try_write()
+        && let Ok(terminal) = tab.terminal.try_read()
         && terminal.update_animations()
     {
         // Animation frame changed — request continuous redraws.
@@ -197,7 +197,7 @@ pub(super) fn update_gpu_renderer_state(
         .unwrap_or(false);
     if !has_pane_manager_for_graphics
         && let Some(tab) = tab_manager.active_tab()
-        && let Ok(terminal) = tab.terminal.try_write()
+        && let Ok(terminal) = tab.terminal.try_read()
     {
         // Remove graphics whose rows have been overwritten by cell writes
         // (e.g. tmux redraw after split/clear doesn't send ED 2).

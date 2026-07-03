@@ -117,7 +117,7 @@ impl WindowState {
         let need_marks = self.config.load().scrollbar_command_marks
             || self.config.load().command_separator_enabled;
         let mut scrollback_marks: Vec<ScrollbackMark> = if need_marks {
-            if let Ok(term) = terminal.try_write() {
+            if let Ok(term) = terminal.try_read() {
                 term.scrollback_marks()
             } else {
                 Vec::new()
@@ -205,7 +205,7 @@ impl WindowState {
 
         if self.overlay_ui.search_ui.visible {
             if let Some(tab) = self.tab_manager.active_tab()
-                && let Ok(term) = tab.terminal.try_write()
+                && let Ok(term) = tab.terminal.try_read()
             {
                 let lines_iter =
                     crate::app::window_state::search_highlight::get_all_searchable_lines(
@@ -253,7 +253,7 @@ impl WindowState {
                 .and_then(|pm| pm.focused_pane())
                 .map(|p| p.terminal.clone())
                 .unwrap_or_else(|| tab.terminal.clone());
-            let new_gen = if let Ok(term) = focused_terminal.try_write() {
+            let new_gen = if let Ok(term) = focused_terminal.try_read() {
                 Some(term.update_generation())
             } else {
                 None

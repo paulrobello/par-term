@@ -186,7 +186,7 @@ impl WindowState {
         let mut next_due: Option<std::time::Instant> = None;
 
         for tab in self.tab_manager.tabs_mut() {
-            if let Ok(term) = tab.terminal.try_write() {
+            if let Ok(term) = tab.terminal.try_read() {
                 // Treat new terminal output as activity
                 let current_generation = term.update_generation();
                 if current_generation > tab.activity.anti_idle_last_generation {
@@ -233,7 +233,7 @@ impl WindowState {
         if self.config.load().startup_directory_mode
             == crate::config::StartupDirectoryMode::Previous
             && let Some(tab) = self.tab_manager.active_tab()
-            && let Ok(term) = tab.terminal.try_write()
+            && let Ok(term) = tab.terminal.try_read()
             && let Some(cwd) = term.shell_integration_cwd()
         {
             log::info!("Saving last working directory: {}", cwd);

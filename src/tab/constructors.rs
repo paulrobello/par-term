@@ -156,7 +156,7 @@ impl Tab {
                     tokio::time::sleep(tokio::time::Duration::from_millis(delay_ms)).await;
                 }
 
-                let term = terminal_clone.write().await;
+                let term = terminal_clone.read().await;
                 if let Err(err) = term.write(&payload) {
                     log::warn!("Failed to send initial text: {}", err);
                 }

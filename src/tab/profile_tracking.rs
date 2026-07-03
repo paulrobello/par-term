@@ -53,11 +53,11 @@ impl Tab {
         let home_dir = dirs::home_dir();
 
         // Step 3 — Iterate all panes and update each one's title from its own terminal.
-        // try_write: intentional — called every frame; blocking would stall rendering.
+        // try_read: intentional — called every frame; blocking would stall rendering.
         // On contention: skip that pane this frame, no data loss.
         if let Some(pm) = self.pane_manager.as_mut() {
             for pane in pm.all_panes_mut() {
-                if let Ok(term) = pane.terminal.try_write() {
+                if let Ok(term) = pane.terminal.try_read() {
                     let osc_title = term.get_title();
                     let hostname = term.shell_integration_hostname();
                     let username = term.shell_integration_username();
@@ -156,7 +156,7 @@ impl Tab {
 
     /// Check if the terminal in this tab is still running
     pub fn is_running(&self) -> bool {
-        if let Ok(term) = self.terminal.try_write() {
+        if let Ok(term) = self.terminal.try_read() {
             term.is_running()
         } else {
             true // Assume running if locked
@@ -165,7 +165,7 @@ impl Tab {
 
     /// Get the current working directory of this tab's shell
     pub fn get_cwd(&self) -> Option<String> {
-        if let Ok(term) = self.terminal.try_write() {
+        if let Ok(term) = self.terminal.try_read() {
             term.shell_integration_cwd()
         } else {
             self.working_directory.clone()
@@ -215,7 +215,7 @@ impl Tab {
     ///
     /// This uses the hostname extracted from OSC 7 sequences by the terminal emulator.
     pub fn check_hostname_change(&mut self) -> Option<String> {
-        let current_hostname = if let Ok(term) = self.terminal.try_write() {
+        let current_hostname = if let Ok(term) = self.terminal.try_read() {
             term.shell_integration_hostname()
         } else {
             return None;

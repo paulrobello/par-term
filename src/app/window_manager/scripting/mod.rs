@@ -234,7 +234,7 @@ impl WindowManager {
                     }
 
                     // ── WriteText ───────────────────────────────────────────────
-                    // NOTE: Uses `try_write()` for the terminal lock.  If the
+                    // NOTE: Uses `try_read()` for the terminal lock.  If the
                     // lock is held (e.g. by the PTY reader), the write is
                     // silently skipped this frame.  The script receives no
                     // failure signal — it may retry on the next event cycle.
@@ -285,7 +285,7 @@ impl WindowManager {
                             // try_lock: acceptable — script WriteText in sync event
                             // loop. On miss the write is skipped this frame; the
                             // script can retry.
-                            if let Ok(term) = tab.terminal.try_write()
+                            if let Ok(term) = tab.terminal.try_read()
                                 && let Err(e) = term.write_str(&clean)
                             {
                                 log::error!(

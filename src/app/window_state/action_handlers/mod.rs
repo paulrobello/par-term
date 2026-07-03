@@ -31,7 +31,7 @@ impl WindowState {
             }
             ClipboardHistoryAction::ClearAll => {
                 self.with_active_tab(|tab| {
-                    if let Ok(term) = tab.terminal.try_write() {
+                    if let Ok(term) = tab.terminal.try_read() {
                         term.clear_all_clipboard_history();
                         log::info!("Cleared all clipboard history");
                     }
@@ -42,7 +42,7 @@ impl WindowState {
             }
             ClipboardHistoryAction::ClearSlot(slot) => {
                 self.with_active_tab(|tab| {
-                    if let Ok(term) = tab.terminal.try_write() {
+                    if let Ok(term) = tab.terminal.try_read() {
                         term.clear_clipboard_history(slot);
                         log::info!("Cleared clipboard history for slot {:?}", slot);
                     }

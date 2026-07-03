@@ -35,9 +35,9 @@ impl WindowState {
             std::thread::spawn(move || {
                 std::thread::sleep(std::time::Duration::from_millis(NEW_TAB_COMMAND_DELAY_MS));
 
-                // try_write: background thread; on contention skip the write.
+                // try_read: background thread; on contention skip the write.
                 // Shell may not be ready yet -- user can re-run the action.
-                if let Ok(term) = terminal.try_write()
+                if let Ok(term) = terminal.try_read()
                     && let Err(e) = term.write(text_with_nl.as_bytes())
                 {
                     log::error!("NewTab action '{}' write failed: {}", title, e);

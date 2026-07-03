@@ -139,7 +139,7 @@ impl WindowState {
                                 session_name.replace('\'', "'\\''")
                             );
                             if let Some(tab) = self.tab_manager.active_tab_mut()
-                                && let Ok(term) = tab.terminal.try_write()
+                                && let Ok(term) = tab.terminal.try_read()
                             {
                                 let _ = term.write(cmd.as_bytes());
                             }

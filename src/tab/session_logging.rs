@@ -43,7 +43,7 @@ impl Tab {
             }
 
             // Get terminal dimensions
-            let dimensions = if let Ok(term) = self.terminal.try_write() {
+            let dimensions = if let Ok(term) = self.terminal.try_read() {
                 term.dimensions()
             } else {
                 (80, 24) // fallback
@@ -81,7 +81,7 @@ impl Tab {
 
             // Set up output callback to record PTY output
             let logger_clone = Arc::clone(&self.session_logger);
-            if let Ok(term) = self.terminal.try_write() {
+            if let Ok(term) = self.terminal.try_read() {
                 term.set_output_callback(move |data: &[u8]| {
                     if let Some(ref mut logger) = *logger_clone.lock() {
                         logger.record_output(data);

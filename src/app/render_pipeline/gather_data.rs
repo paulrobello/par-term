@@ -61,7 +61,7 @@ impl WindowState {
         };
 
         // Check if shell has exited
-        let _is_running = if let Ok(term) = terminal.try_write() {
+        let _is_running = if let Ok(term) = terminal.try_read() {
             term.is_running()
         } else {
             true // Assume running if locked
@@ -174,7 +174,7 @@ impl WindowState {
 
         // Keep copy mode dimensions in sync with terminal
         if self.copy_mode.active
-            && let Ok(term) = terminal.try_write()
+            && let Ok(term) = terminal.try_read()
         {
             let (cols, rows) = term.dimensions();
             self.copy_mode.update_dimensions(cols, rows, scrollback_len);

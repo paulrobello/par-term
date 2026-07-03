@@ -89,7 +89,7 @@ impl WindowState {
                 pm.all_panes().iter().any(|p| p.is_running())
             } else {
                 // Fallback: no pane manager, check tab.terminal directly
-                if let Ok(term) = tab.terminal.try_write() {
+                if let Ok(term) = tab.terminal.try_read() {
                     term.is_running()
                 } else {
                     true

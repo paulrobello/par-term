@@ -231,7 +231,7 @@ pub(super) fn gather_pane_render_data(
         //
         // Unfocused panes MUST NOT use this fast path: nothing refreshes their
         // cache between frames, so cache_dims_match would return true forever
-        // with stale content.  They always go through try_write() which compares
+        // with stale content.  They always go through try_read() which compares
         // the terminal's current generation against the cached generation.
         let grid_size = (cols, rows);
         let expected_cell_count = cols * rows;
@@ -252,7 +252,7 @@ pub(super) fn gather_pane_render_data(
                     .as_ref()
                     .expect("pane_cells must exist when pane cache dimensions match"),
             )
-        } else if let Ok(term) = pane.terminal.try_write() {
+        } else if let Ok(term) = pane.terminal.try_read() {
             let current_gen = term.update_generation();
             let selection = pane
                 .mouse
@@ -311,7 +311,7 @@ pub(super) fn gather_pane_render_data(
             }
         } else {
             // Still need scrollback_len for graphics position math
-            let sb_len = if let Ok(term) = pane.terminal.try_write() {
+            let sb_len = if let Ok(term) = pane.terminal.try_read() {
                 pane.cache.pane_scrollback_len = term.scrollback_len();
                 pane.cache.pane_scrollback_len
             } else {
@@ -336,7 +336,7 @@ pub(super) fn gather_pane_render_data(
         // Cursor position — only show when viewport is not scrolled away from the live screen.
         // When scroll_offset > 0 the cursor is off-screen (in scrollback), so hide it.
         let cursor_pos = if scroll_offset == 0 {
-            if let Ok(term) = pane.terminal.try_write() {
+            if let Ok(term) = pane.terminal.try_read() {
                 if term.is_cursor_visible() {
                     Some(term.cursor_position())
                 } else {
@@ -359,7 +359,7 @@ pub(super) fn gather_pane_render_data(
         };
 
         // Collect inline graphics (Sixel/iTerm2/Kitty)
-        let pane_graphics = if let Ok(term) = pane.terminal.try_write() {
+        let pane_graphics = if let Ok(term) = pane.terminal.try_read() {
             // Remove graphics whose rows have been overwritten by cell writes
             // (e.g. tmux control-mode redraw doesn't send ED 2).
             term.invalidate_overwritten_graphics();

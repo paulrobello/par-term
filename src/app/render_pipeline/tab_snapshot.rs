@@ -86,7 +86,7 @@ impl WindowState {
             terminal,
             was_alt_screen,
         } = p;
-        if let Ok(term) = terminal.try_write() {
+        if let Ok(term) = terminal.try_read() {
             // Get current generation to check if terminal content has changed
             let current_generation = term.update_generation();
 

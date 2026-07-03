@@ -183,7 +183,7 @@ impl WindowManager {
                         if let Some(tab) = window_state.tab_manager.active_tab() {
                             let terminal_clone = Arc::clone(&tab.terminal);
                             window_state.runtime.spawn(async move {
-                                let term = terminal_clone.write().await;
+                                let term = terminal_clone.read().await;
                                 let _ = term.write(b"\x16");
                             });
                         }

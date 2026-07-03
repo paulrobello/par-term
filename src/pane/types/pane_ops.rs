@@ -82,7 +82,7 @@ impl Pane {
 
     /// Write a restart prompt message to the terminal
     pub fn write_restart_prompt(&self) {
-        if let Ok(term) = self.terminal.try_write() {
+        if let Ok(term) = self.terminal.try_read() {
             // Write the prompt message directly to terminal display
             let message = "\r\n[Process exited. Press Enter to restart...]\r\n";
             term.process_data(message.as_bytes());
@@ -91,7 +91,7 @@ impl Pane {
 
     /// Get the title for this pane (from OSC or CWD)
     pub fn get_title(&self) -> String {
-        if let Ok(term) = self.terminal.try_write() {
+        if let Ok(term) = self.terminal.try_read() {
             let osc_title = term.get_title();
             if !osc_title.is_empty() {
                 return osc_title;

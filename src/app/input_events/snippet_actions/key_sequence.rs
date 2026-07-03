@@ -25,7 +25,7 @@ impl WindowState {
         let write_error = if let Some(tab) = self.tab_manager.active_tab_mut() {
             // try_lock: intentional -- send_keys action in sync event loop.
             // On miss: the key sequences are not written. User can retry.
-            if let Ok(terminal) = tab.terminal.try_write() {
+            if let Ok(terminal) = tab.terminal.try_read() {
                 let mut err: Option<String> = None;
                 for bytes in &byte_sequences {
                     if let Err(e) = terminal.write(bytes) {

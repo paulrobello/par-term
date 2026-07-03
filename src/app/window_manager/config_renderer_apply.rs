@@ -264,7 +264,7 @@ pub(super) fn apply_renderer_config(
             Some(config.answerback_string.clone())
         };
         for tab in window_state.tab_manager.tabs_mut() {
-            if let Ok(term) = tab.terminal.try_write() {
+            if let Ok(term) = tab.terminal.try_read() {
                 term.set_answerback_string(answerback.clone());
             }
         }
@@ -277,7 +277,7 @@ pub(super) fn apply_renderer_config(
             to_core_ambiguous_width(config.unicode.ambiguous_width),
         );
         for tab in window_state.tab_manager.tabs_mut() {
-            if let Ok(term) = tab.terminal.try_write() {
+            if let Ok(term) = tab.terminal.try_read() {
                 term.set_width_config(width_config);
             }
         }
@@ -286,7 +286,7 @@ pub(super) fn apply_renderer_config(
     // Apply Unicode normalization form
     if changes.normalization_form {
         for tab in window_state.tab_manager.tabs_mut() {
-            if let Ok(term) = tab.terminal.try_write() {
+            if let Ok(term) = tab.terminal.try_read() {
                 term.set_normalization_form(to_core_normalization_form(
                     config.unicode.normalization_form,
                 ));

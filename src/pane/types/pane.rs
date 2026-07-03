@@ -330,7 +330,7 @@ impl Pane {
 
     /// Check if the terminal in this pane is still running
     pub fn is_running(&self) -> bool {
-        if let Ok(term) = self.terminal.try_write() {
+        if let Ok(term) = self.terminal.try_read() {
             let running = term.is_running();
             if !running {
                 crate::debug_info!(
@@ -347,7 +347,7 @@ impl Pane {
 
     /// Get the current working directory of this pane's shell
     pub fn get_cwd(&self) -> Option<String> {
-        if let Ok(term) = self.terminal.try_write() {
+        if let Ok(term) = self.terminal.try_read() {
             term.shell_integration_cwd()
         } else {
             self.working_directory.clone()

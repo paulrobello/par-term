@@ -242,7 +242,7 @@ impl WindowManager {
 
             // Resync triggers from config into core registry for all tabs
             for tab in window_state.tab_manager.tabs_mut() {
-                if let Ok(term) = tab.terminal.try_write() {
+                if let Ok(term) = tab.terminal.try_read() {
                     tab.scripting.trigger_prompt_before_run = term.sync_triggers(&config.triggers);
                 }
             }

@@ -105,7 +105,7 @@ impl WindowState {
         // try_lock: intentional — trigger polling in about_to_wait (sync event loop).
         // On miss: triggers are not processed this frame; they will be on the next poll.
         let (mut action_results, current_scrollback_len, custom_vars) =
-            if let Ok(term) = tab.terminal.try_write() {
+            if let Ok(term) = tab.terminal.try_read() {
                 let ar = term.poll_action_results();
                 let sl = term.scrollback_len();
                 let cv = term.custom_session_variables();
@@ -632,7 +632,7 @@ impl WindowState {
                 // try_lock: intentional — trigger SendText in sync event loop.
                 // On miss: the triggered text is not sent this frame. Low risk:
                 // triggers fire on repeated output patterns and will retry.
-                if let Ok(term) = tab.terminal.try_write()
+                if let Ok(term) = tab.terminal.try_read()
                     && let Err(e) = term.write(text.as_bytes())
                 {
                     log::error!("SendText write failed: {}", e);
@@ -645,7 +645,7 @@ impl WindowState {
                     // try_lock: intentional — delayed SendText from spawned thread.
                     // On miss: the delayed text is not sent. Acceptable; trigger
                     // automation has inherent timing flexibility.
-                    if let Ok(term) = terminal.try_write()
+                    if let Ok(term) = terminal.try_read()
                         && let Err(e) = term.write(text_owned.as_bytes())
                     {
                         log::error!("Delayed SendText write failed: {}", e);
@@ -783,7 +783,7 @@ impl WindowState {
                     if delay_ms > 0 {
                         std::thread::sleep(std::time::Duration::from_millis(delay_ms));
                     }
-                    if let Ok(term) = terminal.try_write()
+                    if let Ok(term) = terminal.try_read()
                         && let Err(e) = term.write(text.as_bytes())
                     {
                         log::error!(

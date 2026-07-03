@@ -47,9 +47,9 @@ impl WindowState {
             return;
         };
 
-        // blocking_write: user-initiated double-click selection — must succeed
+        // blocking_read: user-initiated double-click selection — must succeed
         // for the word to be highlighted.
-        let term = terminal_arc.blocking_write();
+        let term = terminal_arc.blocking_read();
         let (cols, _rows) = term.dimensions();
         let visible_cells = term.get_cells_with_scrollback(scroll_offset, None, false, None);
         drop(term); // Release lock before accessing self fields
@@ -114,9 +114,9 @@ impl WindowState {
             return;
         };
 
-        // blocking_write: user-initiated triple-click selection — must succeed
+        // blocking_read: user-initiated triple-click selection — must succeed
         // for the line to be highlighted.
-        let term = terminal_arc.blocking_write();
+        let term = terminal_arc.blocking_read();
         let (cols, _rows) = term.dimensions();
         drop(term);
 
@@ -147,10 +147,10 @@ impl WindowState {
                     return;
                 };
 
-            // try_write: intentional — triple-click drag extension runs on every
+            // try_read: intentional — triple-click drag extension runs on every
             // mouse-move frame. On miss: selection is not extended this frame;
             // the user sees a brief lag. High-frequency; acceptable loss.
-            let cols = if let Ok(term) = terminal_arc.try_write() {
+            let cols = if let Ok(term) = terminal_arc.try_read() {
                 let (cols, _rows) = term.dimensions();
                 if cols == 0 {
                     return;
@@ -195,7 +195,7 @@ impl WindowState {
 
     /// Extract selected text from terminal.
     ///
-    /// Uses `blocking_write()` because this is called on mouse release (user-initiated)
+    /// Uses `blocking_read()` because this is called on mouse release (user-initiated)
     /// and must succeed to copy the selection to the clipboard. In split-pane mode,
     /// reads from the focused pane's terminal rather than the tab's gateway terminal.
     pub(crate) fn get_selected_text(&self) -> Option<String> {
@@ -205,10 +205,10 @@ impl WindowState {
         // Get the correct terminal and scroll offset (pane-aware)
         let (terminal_arc, scroll_offset) = self.selection_terminal_and_offset()?;
 
-        // blocking_write: user-initiated copy on mouse release — must succeed to
+        // blocking_read: user-initiated copy on mouse release — must succeed to
         // avoid silently dropping the selection. This is an infrequent operation
         // (once per mouse release) so the brief lock wait is acceptable.
-        let term = terminal_arc.blocking_write();
+        let term = terminal_arc.blocking_read();
         let (start, end) = selection.normalized();
         let (start_col, start_row) = start;
         let (end_col, end_row) = end;

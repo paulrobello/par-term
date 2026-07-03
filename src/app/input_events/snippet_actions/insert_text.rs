@@ -28,7 +28,7 @@ impl WindowState {
             // try_lock: intentional -- execute_custom_action runs from keybinding
             // handler in sync event loop. On miss: the action text is not written.
             // Logged as an error so the user is aware; they can retry the keybinding.
-            if let Ok(terminal) = tab.terminal.try_write() {
+            if let Ok(terminal) = tab.terminal.try_read() {
                 if let Err(e) = terminal.write(substituted_text.as_bytes()) {
                     log::error!("Failed to write action text to terminal: {}", e);
                     return false;

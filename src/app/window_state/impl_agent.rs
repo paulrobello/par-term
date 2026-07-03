@@ -239,7 +239,7 @@ impl WindowState {
                 .to_string_lossy()
                 .to_string();
             let cwd = if let Some(tab) = self.tab_manager.active_tab() {
-                if let Ok(term) = tab.terminal.try_write() {
+                if let Ok(term) = tab.terminal.try_read() {
                     term.shell_integration_cwd()
                         .unwrap_or_else(|| fallback_cwd.clone())
                 } else {

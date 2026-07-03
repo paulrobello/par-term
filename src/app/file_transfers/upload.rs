@@ -103,7 +103,7 @@ impl WindowState {
 
                                     // Acceptable risk: blocking_lock() from std thread (not Tokio).
                                     // See docs/CONCURRENCY.md for mutex strategy.
-                                    let term = terminal_arc.blocking_write();
+                                    let term = terminal_arc.blocking_read();
                                     match term.write(chunk) {
                                         Ok(()) => {
                                             drop(term);
@@ -146,7 +146,7 @@ impl WindowState {
         self.with_active_tab(|tab| {
             // Acceptable risk: blocking_lock() from sync winit event loop.
             // See docs/CONCURRENCY.md for mutex strategy.
-            let term = tab.terminal.blocking_write();
+            let term = tab.terminal.blocking_read();
             let _ = term.write(b"abort\n");
         });
     }

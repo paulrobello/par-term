@@ -70,7 +70,7 @@ impl WindowState {
         // On miss: clipboard history UI shows stale entries. Acceptable for a UI toggle;
         // the user can dismiss and re-open to get fresh entries.
         if let Some(tab) = self.tab_manager.active_tab()
-            && let Ok(term) = tab.terminal.try_write()
+            && let Ok(term) = tab.terminal.try_read()
         {
             // Get history for all slots and merge
             let mut all_entries = Vec::new();
@@ -177,7 +177,7 @@ impl WindowState {
                 .unwrap_or_else(|| Arc::clone(&tab.terminal));
             let delay_ms = self.config.load().paste_delay_ms;
             self.runtime.spawn(async move {
-                let term = terminal_clone.write().await;
+                let term = terminal_clone.read().await;
                 if delay_ms > 0 && text.contains('\n') {
                     let _ = term.paste_with_delay(&text, delay_ms).await;
                 } else {

@@ -164,7 +164,7 @@ impl WindowState {
                 let args = host.ssh_args();
                 let ssh_cmd = format!("ssh {}\n", args.join(" "));
                 if let Some(tab) = self.tab_manager.active_tab()
-                    && let Ok(term) = tab.terminal.try_write()
+                    && let Ok(term) = tab.terminal.try_read()
                 {
                     let _ = term.write_str(&ssh_cmd);
                 }

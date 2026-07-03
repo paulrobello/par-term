@@ -91,7 +91,7 @@ impl WindowState {
         let progress_snapshot = if self.config.load().progress_bar_enabled {
             self.tab_manager.active_tab().and_then(|tab| {
                 tab.terminal
-                    .try_write()
+                    .try_read()
                     .ok()
                     .map(|term| ProgressBarSnapshot {
                         simple: term.progress_bar(),
@@ -115,7 +115,7 @@ impl WindowState {
                     .map(|pane| pane.terminal.clone())
                     .unwrap_or_else(|| tab.terminal.clone());
 
-                terminal.try_write().ok().map(|term| {
+                terminal.try_read().ok().map(|term| {
                     let running = term.is_command_running();
                     let exit_code = term.shell_integration_exit_code();
                     let state = if running {

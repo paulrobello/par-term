@@ -120,7 +120,7 @@ impl WindowState {
 
                     let terminal_clone = std::sync::Arc::clone(&tab.terminal);
                     self.runtime.spawn(async move {
-                        let term = terminal_clone.write().await;
+                        let term = terminal_clone.read().await;
                         if let Err(e) = term.write(full_cmd.as_bytes()) {
                             log::error!("Failed to execute tmux profile command: {}", e);
                         }

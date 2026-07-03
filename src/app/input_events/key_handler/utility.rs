@@ -91,7 +91,7 @@ impl WindowState {
                     // try_lock: intentional — spawned async task uses try_lock to avoid
                     // blocking the tokio worker. On miss: the Ctrl+L clear is silently dropped.
                     // User can press the shortcut again.
-                    if let Ok(term) = terminal_clone.try_write() {
+                    if let Ok(term) = terminal_clone.try_read() {
                         let _ = term.write(&clear_sequence);
                         log::debug!("Sent clear screen sequence (Ctrl+L)");
                     }

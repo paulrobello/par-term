@@ -176,7 +176,7 @@ impl WindowState {
                             };
 
                             self.runtime.spawn(async move {
-                                let term = terminal_clone.write().await;
+                                let term = terminal_clone.read().await;
 
                                 // If mouse tracking is active (e.g., tmux with mouse on),
                                 // send a left-click press then release at the cursor
@@ -324,7 +324,7 @@ impl WindowState {
             // reposition logic. The cursor stays where it was — acceptable UX.
             let (is_alt_screen, current_col) = tab
                 .terminal
-                .try_write()
+                .try_read()
                 .ok()
                 .map(|t| (t.is_alt_screen_active(), t.cursor_position().0))
                 .unwrap_or((true, 0));
@@ -349,7 +349,7 @@ impl WindowState {
                     let terminal_clone = Arc::clone(&tab.terminal);
                     let runtime = Arc::clone(&self.runtime);
                     runtime.spawn(async move {
-                        let t = terminal_clone.write().await;
+                        let t = terminal_clone.read().await;
                         let _ = t.write(move_seq.as_bytes());
                     });
                 }

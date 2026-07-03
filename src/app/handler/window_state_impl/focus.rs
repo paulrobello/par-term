@@ -72,7 +72,7 @@ impl WindowState {
             // focus change event is not delivered to this terminal/pane. For most TUI apps
             // this means the focus-change visual update (e.g., tmux pane highlight) is
             // delayed one or more frames.
-            if let Ok(term) = tab.terminal.try_write() {
+            if let Ok(term) = tab.terminal.try_read() {
                 term.report_focus_change(focused);
             } else {
                 crate::debug::record_try_lock_failure("focus_event");
@@ -81,7 +81,7 @@ impl WindowState {
             if let Some(pm) = &tab.pane_manager {
                 for pane in pm.all_panes() {
                     // try_lock: intentional — same rationale as tab terminal above.
-                    if let Ok(term) = pane.terminal.try_write() {
+                    if let Ok(term) = pane.terminal.try_read() {
                         term.report_focus_change(focused);
                     } else {
                         crate::debug::record_try_lock_failure("focus_event_pane");

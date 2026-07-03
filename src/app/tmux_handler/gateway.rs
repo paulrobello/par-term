@@ -60,7 +60,7 @@ impl WindowState {
         // try_lock: intentional — initiate_tmux_gateway is user-initiated but called from
         // the sync event loop context. If the terminal is locked by the async PTY reader
         // the command cannot be sent. On miss: bails with an error so the caller can retry.
-        if let Ok(term) = tab.terminal.try_write() {
+        if let Ok(term) = tab.terminal.try_read() {
             crate::debug_info!(
                 "TMUX",
                 "Writing gateway command to tab {}: {}",
@@ -132,7 +132,7 @@ impl WindowState {
         // Write the command to the PTY
         // try_lock: intentional — same rationale as initiate_tmux_gateway. On miss: bails
         // so the user can retry the attach operation explicitly.
-        if let Ok(term) = tab.terminal.try_write() {
+        if let Ok(term) = tab.terminal.try_read() {
             crate::debug_info!(
                 "TMUX",
                 "Writing attach command to tab {}: {}",
@@ -187,7 +187,7 @@ impl WindowState {
                 // try_lock: intentional — disconnect is called from the sync event loop.
                 // On miss: control mode stays on the terminal until the next frame; benign
                 // since the session is already being torn down and no further output arrives.
-                if let Ok(term) = tab.terminal.try_write() {
+                if let Ok(term) = tab.terminal.try_read() {
                     term.set_tmux_control_mode(false);
                 }
             }
@@ -298,7 +298,7 @@ impl WindowState {
         // is lost; for control commands (resize, split) the caller should retry as needed.
         if let Some(tab) = self.tab_manager.get_tab(gateway_tab_id)
             && tab.tmux.tmux_gateway_active
-            && let Ok(term) = tab.terminal.try_write()
+            && let Ok(term) = tab.terminal.try_read()
             && term.write(cmd.as_bytes()).is_ok()
         {
             return true;

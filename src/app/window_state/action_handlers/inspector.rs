@@ -40,7 +40,7 @@ impl WindowState {
             }
             InspectorAction::WriteToTerminal(cmd) => {
                 self.with_active_tab(|tab| {
-                    if let Ok(term) = tab.terminal.try_write() {
+                    if let Ok(term) = tab.terminal.try_read() {
                         let _ = term.write(cmd.as_bytes());
                     }
                 });
@@ -48,7 +48,7 @@ impl WindowState {
             InspectorAction::RunCommandAndNotify(cmd) => {
                 // Write command + Enter to terminal
                 self.with_active_tab(|tab| {
-                    if let Ok(term) = tab.terminal.try_write() {
+                    if let Ok(term) = tab.terminal.try_read() {
                         let _ = term.write(format!("{cmd}\n").as_bytes());
                     }
                 });
@@ -56,7 +56,7 @@ impl WindowState {
                 let history_len = self
                     .tab_manager
                     .active_tab()
-                    .and_then(|tab| tab.terminal.try_write().ok())
+                    .and_then(|tab| tab.terminal.try_read().ok())
                     .map(|term| term.core_command_history().len())
                     .unwrap_or(0);
                 // Spawn a task that polls for command completion and notifies the agent
@@ -74,7 +74,7 @@ impl WindowState {
                         for _ in 0..300 {
                             tokio::time::sleep(std::time::Duration::from_millis(100)).await;
                             if let Some(ref terminal) = terminal
-                                && let Ok(term) = terminal.try_write()
+                                && let Ok(term) = terminal.try_read()
                             {
                                 let history = term.core_command_history();
                                 if history.len() > history_len {
