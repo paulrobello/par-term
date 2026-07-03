@@ -15,6 +15,7 @@ pub struct RenderCache {
     pub(crate) pane_cells: Option<Arc<Vec<Cell>>>, // Cached cells for pane rendering (reuse across frames)
     pub(crate) pane_cells_generation: u64, // Generation of cached pane_cells (0 = stale/unset)
     pub(crate) pane_cells_scroll_offset: usize, // Scroll offset used when pane_cells was generated
+    pub(crate) pane_cells_selection: Option<Selection>, // Selection used when pane_cells was generated
     pub(crate) pane_cells_grid_dims: (usize, usize), // Grid dimensions used when pane_cells was generated
     pub(crate) pane_scrollback_len: usize,           // Cached scrollback_len for pane rendering
 }
@@ -33,9 +34,21 @@ impl RenderCache {
             pane_cells: None,
             pane_cells_generation: 0,
             pane_cells_scroll_offset: 0,
+            pane_cells_selection: None,
             pane_cells_grid_dims: (0, 0),
             pane_scrollback_len: 0,
         }
+    }
+
+    /// Force the next `gather_pane_render_data` call to regather cells for this
+    /// pane instead of reusing the cross-frame cache.
+    ///
+    /// Needed for frontend-driven mutations that change rendered cell content
+    /// without going through the PTY reader thread (which is the only place
+    /// `update_generation` is bumped) — e.g. theme changes or `clear_scrollback()`.
+    pub(crate) fn invalidate_pane_cells(&mut self) {
+        self.pane_cells = None;
+        self.pane_cells_generation = 0;
     }
 }
 

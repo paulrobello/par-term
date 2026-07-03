@@ -55,6 +55,13 @@ impl WindowState {
                 if did_clear {
                     tab.active_cache_mut().scrollback_len = 0;
                     tab.scripting.trigger_marks.clear();
+                    if let Some(pm) = tab.pane_manager_mut() {
+                        for pane in pm.all_panes_mut() {
+                            if Arc::ptr_eq(&pane.terminal, &terminal) {
+                                pane.cache.invalidate_pane_cells();
+                            }
+                        }
+                    }
                 }
                 did_clear
             } else {

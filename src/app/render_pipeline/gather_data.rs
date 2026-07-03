@@ -123,6 +123,7 @@ impl WindowState {
             pane.cache.pane_cells = Some(std::sync::Arc::new(cells.clone()));
             pane.cache.pane_cells_generation = current_generation;
             pane.cache.pane_cells_scroll_offset = scroll_offset;
+            pane.cache.pane_cells_selection = mouse_selection;
             pane.cache.pane_cells_grid_dims = cell_grid_dims;
         }
 

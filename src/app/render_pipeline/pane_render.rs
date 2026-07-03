@@ -232,13 +232,24 @@ pub(super) fn gather_pane_render_data(
         // Unfocused panes MUST NOT use this fast path: nothing refreshes their
         // cache between frames, so cache_dims_match would return true forever
         // with stale content.  They always go through try_read() which compares
-        // the terminal's current generation against the cached generation.
+        // the terminal's current generation against the cached generation — this
+        // is the cross-frame cache: it still takes a cheap `try_read()` on the
+        // pane's TerminalManager every frame, but skips the expensive
+        // `try_get_cells_with_scrollback()` call (which takes the CORE terminal's
+        // write lock, contended by the PTY reader thread) whenever the generation,
+        // scroll offset, selection, and grid dims are unchanged since the cache
+        // was last populated.
         let grid_size = (cols, rows);
         let expected_cell_count = cols * rows;
         let scroll_offset = if is_focused { tab_scroll_offset } else { 0 };
+        // Selection is baked directly into cell colors (see `is_cell_selected` in
+        // rendering.rs), so it MUST be part of the cache key — a selection change
+        // does not bump `update_generation()`.
+        let current_selection = pane.mouse.selection;
         let cache_dims_match = is_focused
             && pane.cache.pane_cells_generation > 0
             && pane.cache.pane_cells_scroll_offset == scroll_offset
+            && pane.cache.pane_cells_selection == current_selection
             && pane.cache.pane_cells_grid_dims == grid_size
             && pane
                 .cache
@@ -254,13 +265,9 @@ pub(super) fn gather_pane_render_data(
             )
         } else if let Ok(term) = pane.terminal.try_read() {
             let current_gen = term.update_generation();
-            let selection = pane
-                .mouse
-                .selection
-                .map(|sel| sel.viewport_adjusted(scroll_offset).normalized());
-            let rectangular = pane
-                .mouse
-                .selection
+            let selection =
+                current_selection.map(|sel| sel.viewport_adjusted(scroll_offset).normalized());
+            let rectangular = current_selection
                 .map(|sel| sel.mode == SelectionMode::Rectangular)
                 .unwrap_or(false);
             // Use try_get_cells_with_scrollback to avoid blocking on the internal
@@ -268,6 +275,7 @@ pub(super) fn gather_pane_render_data(
             // to the pane_cells cache on contention.
             if current_gen == pane.cache.pane_cells_generation
                 && pane.cache.pane_cells_scroll_offset == scroll_offset
+                && pane.cache.pane_cells_selection == current_selection
                 && pane.cache.pane_cells_grid_dims == grid_size
                 && let Some(ref cached) = pane.cache.pane_cells
                 && cached.len() == expected_cell_count
@@ -280,6 +288,7 @@ pub(super) fn gather_pane_render_data(
                 pane.cache.pane_cells = Some(Arc::clone(&fresh));
                 pane.cache.pane_cells_generation = current_gen;
                 pane.cache.pane_cells_scroll_offset = scroll_offset;
+                pane.cache.pane_cells_selection = current_selection;
                 pane.cache.pane_cells_grid_dims = grid_size;
                 fresh
             } else if pane.cache.pane_cells_grid_dims == grid_size

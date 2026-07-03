@@ -113,15 +113,18 @@ impl WindowState {
                         if let Ok(mut term) = tab.terminal.try_write() {
                             term.set_theme(theme.clone());
                         }
-                        // Apply to split pane terminals (primary pane shares tab.terminal)
+                        // Apply to split pane terminals (primary pane shares tab.terminal).
+                        // Theme changes recolor cells without bumping update_generation,
+                        // so every pane's cross-frame cell cache must be invalidated too.
                         let tab_terminal = std::sync::Arc::clone(&tab.terminal);
                         if let Some(pm) = tab.pane_manager_mut() {
-                            for pane in pm.all_panes() {
+                            for pane in pm.all_panes_mut() {
                                 if !std::sync::Arc::ptr_eq(&pane.terminal, &tab_terminal)
                                     && let Ok(mut term) = pane.terminal.try_write()
                                 {
                                     term.set_theme(theme.clone());
                                 }
+                                pane.cache.invalidate_pane_cells();
                             }
                         }
                     }
