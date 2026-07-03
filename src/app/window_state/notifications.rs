@@ -5,35 +5,52 @@
 //! - Bell events (audio, visual, desktop)
 
 use super::WindowState;
+use par_term_emu_core_rust::terminal::Urgency;
 
 impl WindowState {
-    /// Check for OSC 9/777 notifications from the focused pane's terminal.
+    /// Check for OSC 9/777/99 notifications across every tab and pane's terminal.
+    ///
+    /// Polls all tabs (not just the active one) and, for split-pane tabs, every pane
+    /// (not just the focused one) — falling back to `tab.terminal` when there is no
+    /// pane manager — so notifications emitted in a background tab/pane are delivered
+    /// promptly instead of sitting queued until the user focuses it.
     pub(crate) fn check_notifications(&mut self) {
-        let tab = if let Some(t) = self.tab_manager.active_tab() {
-            t
-        } else {
-            return;
-        };
+        // Collect notifications from all tabs/panes first, deliver after releasing
+        // the terminal locks (matches the borrow-safety pattern used elsewhere in
+        // this file, e.g. `check_session_exit_notifications`).
+        let mut notifications_to_send: Vec<(String, String, Urgency)> = Vec::new();
 
-        // Use focused pane's terminal (not tab.terminal, which may differ after a split)
-        let terminal = tab
-            .pane_manager
-            .as_ref()
-            .and_then(|pm| pm.focused_pane())
-            .map(|pane| std::sync::Arc::clone(&pane.terminal))
-            .unwrap_or_else(|| std::sync::Arc::clone(&tab.terminal));
+        for tab in self.tab_manager.tabs() {
+            // Every pane's terminal (falls back to tab.terminal when there's no pane manager)
+            let terminals: Vec<_> = tab
+                .pane_manager
+                .as_ref()
+                .map(|pm| {
+                    pm.all_panes()
+                        .into_iter()
+                        .map(|pane| std::sync::Arc::clone(&pane.terminal))
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_else(|| vec![std::sync::Arc::clone(&tab.terminal)]);
 
-        // try_lock: intentional — OSC notification polling in about_to_wait (sync loop).
-        // On miss: notifications are deferred to the next poll frame. Low risk; OSC
-        // notifications are informational and a one-frame delay is imperceptible.
-        if let Ok(term) = terminal.try_write() {
-            // Check for OSC 9/777 notifications
-            if term.has_notifications() {
-                let notifications = term.take_notifications();
-                for notif in notifications {
-                    self.deliver_notification(&notif.title, &notif.message);
+            for terminal in terminals {
+                // try_lock: intentional — OSC notification polling in about_to_wait (sync loop).
+                // On miss: notifications are deferred to the next poll frame. Low risk; OSC
+                // notifications are informational and a one-frame delay is imperceptible.
+                // A read lock suffices here: `has_notifications`/`take_notifications` only
+                // require `&self` on `TerminalManager` (they lock the PTY/terminal internally).
+                if let Ok(term) = terminal.try_read()
+                    && term.has_notifications()
+                {
+                    for notif in term.take_notifications() {
+                        notifications_to_send.push((notif.title, notif.message, notif.urgency));
+                    }
                 }
             }
+        }
+
+        for (title, message, urgency) in notifications_to_send {
+            self.deliver_notification_urgent(&title, &message, urgency);
         }
     }
 
@@ -329,7 +346,7 @@ impl WindowState {
     /// Used for trigger-generated notifications which the user explicitly configured,
     /// so they should always be delivered regardless of window focus state.
     pub(crate) fn deliver_notification_force(&self, title: &str, message: &str) {
-        self.deliver_notification_inner(title, message, true);
+        self.deliver_notification_inner(title, message, true, Urgency::Normal);
     }
 
     /// Deliver a notification via desktop notification system and logs.
@@ -338,13 +355,28 @@ impl WindowState {
     /// only log the notification without sending a desktop notification (since the user
     /// is already looking at the terminal).
     pub(crate) fn deliver_notification(&self, title: &str, message: &str) {
-        self.deliver_notification_inner(title, message, false);
+        self.deliver_notification_inner(title, message, false, Urgency::Normal);
+    }
+
+    /// Deliver an OSC 99 (Kitty) notification, forwarding its reported urgency.
+    ///
+    /// Behaves like [`Self::deliver_notification`] (respects focus suppression) but
+    /// surfaces the terminal-reported urgency to the platform layer, e.g. so Critical
+    /// notifications stay on-screen / get an audible cue.
+    pub(crate) fn deliver_notification_urgent(&self, title: &str, message: &str, urgency: Urgency) {
+        self.deliver_notification_inner(title, message, false, urgency);
     }
 
     /// Inner notification delivery with force option.
     ///
     /// When `force` is true, bypasses focus suppression (used for trigger notifications).
-    fn deliver_notification_inner(&self, title: &str, message: &str, force: bool) {
+    fn deliver_notification_inner(
+        &self,
+        title: &str,
+        message: &str,
+        force: bool,
+        urgency: Urgency,
+    ) {
         // Always log notifications
         if !title.is_empty() {
             log::info!("=== Notification: {} ===", title);
@@ -374,6 +406,11 @@ impl WindowState {
         }
 
         // Send desktop notification via the platform abstraction layer
-        crate::platform::deliver_desktop_notification(title, message, 3000);
+        let platform_urgency = match urgency {
+            Urgency::Low => crate::platform::NotificationUrgency::Low,
+            Urgency::Normal => crate::platform::NotificationUrgency::Normal,
+            Urgency::Critical => crate::platform::NotificationUrgency::Critical,
+        };
+        crate::platform::deliver_desktop_notification(title, message, 3000, platform_urgency);
     }
 }

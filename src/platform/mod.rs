@@ -21,4 +21,4 @@ mod modifiers;
 mod notify;
 
 pub use modifiers::{primary_modifier, primary_modifier_with_shift};
-pub use notify::{deliver_desktop_notification, escape_for_applescript};
+pub use notify::{NotificationUrgency, deliver_desktop_notification, escape_for_applescript};

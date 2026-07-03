@@ -14,7 +14,12 @@ pub(super) fn notify_update_available(info: &UpdateInfo) {
         "You have v{}. Check Settings > Advanced > Updates.",
         current
     );
-    crate::platform::deliver_desktop_notification(&summary, &body, 8000);
+    crate::platform::deliver_desktop_notification(
+        &summary,
+        &body,
+        8000,
+        crate::platform::NotificationUrgency::Normal,
+    );
 }
 
 /// Convert a main-crate UpdateCheckResult to the settings-ui crate's type.
@@ -246,6 +251,7 @@ impl WindowManager {
             "par-term Test Notification",
             "If you see this, notifications are working!",
             5000,
+            crate::platform::NotificationUrgency::Normal,
         );
     }
 }
