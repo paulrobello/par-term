@@ -11,7 +11,27 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ## [Unreleased]
 
-_Nothing yet._
+Core 0.44.0 integration audit: full adoption of the new OSC 99 desktop-notification metadata, a lock-discipline sweep to realize the core's `Mutex` → `RwLock` migration, and supply-chain/CI hardening.
+
+### Added
+- **Kitty OSC 99 desktop notifications — full protocol adoption.** Building on core 0.44.0's OSC 99 support:
+  - **Urgency** (`u=`): mapped to the platform notification system — Linux gets the freedesktop urgency hint plus urgency-scaled timeouts (Critical is sticky), macOS gives Critical notifications an audible cue.
+  - **Identity** (`i=`): notifications redelivered with the same id now **replace** the previous one (native identifier replacement on macOS, freedesktop `replaces_id` on Linux) instead of stacking.
+  - **Click actions** (`a=`): per the Kitty spec, `focus` is the default action — clicking a notification focuses the par-term window, activates the originating tab, and focuses the originating pane. `a=report` writes the spec activation reply (`OSC 99 ; i=<id> ; ST`) back to the application via the PTY. Multi-window safe (per-window pending-click registries with a cross-window re-queue).
+  - **Native macOS backend**: `UNUserNotificationCenter` (via objc2) when running from a bundled app — identifier replacement, click delegate, and foreground presentation — with automatic fallback to the previous `osascript` path for unbundled (`cargo run`) builds. Windows keeps its existing notify-rust behavior.
+- **`max_osc_data_length` config option** (default 128 MiB, matching the core) caps OSC payload size for tighter memory/security bounds. Applied at terminal creation and on live config reload, with an Advanced-tab control (MiB units) and settings-search keywords.
+
+### Fixed
+- **Notifications from background tabs and panes were delayed until focus.** OSC 9/777/99 notification polling only swept the active tab's focused pane, so a "build finished" notification from a background tab sat queued until that tab was next focused — defeating the point of notifications. Every tab and pane is now polled each frame.
+- **`notification_max_buffer` was never applied.** The config option (with UI and docs) existed but was never forwarded to the core terminal's `set_max_notifications`; it now takes effect at terminal creation and on config reload.
+- **Per-pane cell-cache staleness.** The generation-gated cell cache that lets panes skip the expensive core-lock cell regather had two staleness holes: text selection was not part of the cache key (selection highlighting is baked into cell colors at gather time, so selecting text without new PTY output could render stale, unhighlighted cells), and frontend-driven mutations that don't bump the PTY update generation — `clear_scrollback` (3 call sites) and theme changes (4 call sites) — never invalidated the cache.
+
+### Changed
+- **Terminal lock discipline: 93 write-lock sites downgraded to read locks.** The core 0.43+ `Arc<Mutex<Terminal>>` → `Arc<RwLock<Terminal>>` migration only pays off when readers actually take read locks. A full sweep of terminal-lock acquisitions found 93 sites (render pipeline per-pane cell gathering, all `about_to_wait` polling paths, input/mouse/tmux handlers, file transfers) that only call `&self` methods through the guard; they now take read locks, letting rendering, polling, and input overlap instead of serializing and reducing skipped `try_lock` frames. Sites calling `&mut self` methods keep write locks (compiler-enforced).
+
+### Security
+- **`deny.toml` migrated to the cargo-deny v2 config schema.** The latest cargo-deny (installed fresh in CI) could no longer parse the old config at all. The migration also surfaced and resolved: two new quick-xml RUSTSEC advisories (2026-0194/0195 — ignored with justification: only reachable via `wayland-scanner`, a Linux-only build-time proc-macro parsing trusted Wayland protocol XML, with no compatible patched version yet) and five crate-scoped license exceptions for permissive transitive licenses (BSL-1.0, OFL-1.1 + Ubuntu-font-1.0 for egui's embedded fonts, bzip2-1.0.6, CDLA-Permissive-2.0). `cargo deny check` passes all four checks again.
+- **CI pins cargo-deny to 0.19.9** so future cargo-deny schema changes can't break CI without a deliberate, paired bump of the pin and `deny.toml`.
 
 ---
 
