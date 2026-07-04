@@ -9,7 +9,7 @@ par-term is a cross-platform GPU-accelerated terminal emulator frontend built in
 **Language**: Rust (Edition 2024)
 **Platform**: Cross-platform (macOS, Linux, Windows)
 **Graphics**: wgpu (Vulkan/Metal/DirectX 12)
-**Version**: 0.33.1
+**Version**: 0.35.0
 <!-- cut-release: this line MUST stay in sync with Cargo.toml / CHANGELOG.md.
      sed -i '' -E 's/^\*\*Version\*\*: .*/**Version**: <NEW_VERSION>/' CLAUDE.md -->
 
@@ -276,6 +276,7 @@ See `docs/features/CUSTOM_SHADERS.md` for full shader documentation including un
 | Accessibility | `docs/features/ACCESSIBILITY.md` |
 | Self-update | `docs/features/SELF_UPDATE.md` |
 | Mouse features | `docs/features/MOUSE_FEATURES.md` |
+| Notifications (OSC 9/777/99) | `docs/features/NOTIFICATIONS.md` |
 | Copy mode | `docs/features/COPY_MODE.md` |
 | Search | `docs/features/SEARCH.md` |
 | Status bar | `docs/features/STATUS_BAR.md` |

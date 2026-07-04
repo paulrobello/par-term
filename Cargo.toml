@@ -96,7 +96,7 @@ tempfile = "3.27"
 
 [package]
 name = "par-term"
-version = "0.34.0"
+version = "0.35.0"
 edition = "2024"
 rust-version = "1.95"
 authors = ["Paul Robello <probello@gmail.com>"]
@@ -133,19 +133,19 @@ exclude = [
 par-term-acp = { path = "par-term-acp", version = "0.2.8" }
 
 # Configuration system
-par-term-config = { path = "par-term-config", version = "0.11.2", features = ["watcher"] }
+par-term-config = { path = "par-term-config", version = "0.12", features = ["watcher"] }
 
 # Font management and text shaping
 par-term-fonts = { path = "par-term-fonts", version = "0.1.9" }
 
 # Terminal manager (PTY, shell integration, scrollback)
-par-term-terminal = { path = "par-term-terminal", version = "0.2.8" }
+par-term-terminal = { path = "par-term-terminal", version = "0.3" }
 
 # GPU-accelerated rendering engine
 par-term-render = { path = "par-term-render", version = "0.7.4" }
 
 # Settings UI (egui-based settings interface)
-par-term-settings-ui = { path = "par-term-settings-ui", version = "0.13.0" }
+par-term-settings-ui = { path = "par-term-settings-ui", version = "0.14" }
 
 # Input sequence generation (keyboard/mouse → VT escape sequences)
 par-term-input = { path = "par-term-input", version = "0.1.16" }

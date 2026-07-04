@@ -11,7 +11,13 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ## [Unreleased]
 
-Core 0.44.0 integration audit: full adoption of the new OSC 99 desktop-notification metadata, a lock-discipline sweep to realize the core's `Mutex` → `RwLock` migration, and supply-chain/CI hardening.
+_Nothing yet._
+
+---
+
+## [0.35.0] - 2026-07-03
+
+Core 0.44.0 integration audit: full adoption of the new OSC 99 desktop-notification metadata, a lock-discipline sweep to realize the core's `Mutex` → `RwLock` migration, and supply-chain/CI hardening. Bumps `par-term-emu-core-rust` to 0.44.0.
 
 ### Added
 - **Kitty OSC 99 desktop notifications — full protocol adoption.** Building on core 0.44.0's OSC 99 support:

@@ -41,6 +41,18 @@ New to par-term? The [Getting Started Guide](docs/guides/GETTING_STARTED.md) wal
 - **[Configuration Reference](docs/CONFIG_REFERENCE.md)** — All 200+ configuration options
 - **[Keyboard Shortcuts](docs/guides/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
 
+## What's New in 0.35.0
+
+- **Kitty OSC 99 desktop notifications** -- full adoption of the Kitty desktop-notification spec on top of core 0.44.0: urgency hints (`u=`) map to platform timeouts/audible cues, identity (`i=`) replaces an existing notification instead of stacking, and click actions (`a=`) focus the originating window/tab/pane (default) or send an activation reply to the app. Bundled macOS builds use a native `UNUserNotificationCenter` backend; `cargo run` builds fall back to `osascript`.
+- **Native macOS notification backend** -- identifier replacement, click delegate, and foreground presentation via `objc2`/`UNUserNotificationCenter` for bundled apps.
+- **`max_osc_data_length` config option** -- caps OSC payload size (default 128 MiB, matching the core) for tighter memory/security bounds, applied at terminal creation and on live reload; exposed under Settings → Advanced.
+- **Notifications from background tabs/panes** -- OSC 9/777/99 notifications are now polled across every tab and pane each frame, so a "build finished" alert from a background tab fires immediately instead of waiting for focus.
+- **Render cell-cache staleness fixes** -- text selection and frontend-driven `clear_scrollback`/theme changes now correctly invalidate the per-pane cell cache.
+- **Terminal lock-discipline sweep** -- 93 write-lock sites that only read state are now read locks (from core's `Mutex` → `RwLock` migration), letting rendering, polling, and input overlap.
+- **Supply-chain hardening** -- `deny.toml` migrated to the cargo-deny v2 schema; CI pins cargo-deny to 0.19.9.
+
+For the full history of changes across all versions, see [CHANGELOG.md](CHANGELOG.md).
+
 ## What's New in 0.34.0
 
 - **Security hardening pass** -- 9 audit issues resolved (SEC-001 through SEC-009): ACP writes now respect the sensitive-path blocklist, SSH `extra_args` filter dangerous flags/options (`ProxyCommand`, `-A`, ...), MCP screenshot/config-update/auth paths are hardened, agent `[env]` blocks `LD_*`/`DYLD_*` linker injection, self-update rejects a missing SHA256 checksum, and OSC 8 hyperlinks reject non-`http(s)` URL schemes by default.
