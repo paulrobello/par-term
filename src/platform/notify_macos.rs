@@ -255,11 +255,17 @@ fn deliver_osascript(req: &NotificationRequest<'_>) {
             escaped_message, escaped_title,
         )
     };
-    if let Err(e) = std::process::Command::new("osascript")
-        .arg("-e")
-        .arg(&script)
-        .output()
-    {
-        log::warn!("Failed to send macOS desktop notification: {}", e);
-    }
+    // `osascript` spawn is a slow, variable blocking syscall, and these can
+    // stack (check_notifications dispatches one per notification per frame on the
+    // main thread). Run it on a worker thread so it can never freeze the event
+    // loop. `script` is owned and moves into the thread.
+    std::thread::spawn(move || {
+        if let Err(e) = std::process::Command::new("osascript")
+            .arg("-e")
+            .arg(&script)
+            .output()
+        {
+            log::warn!("Failed to send macOS desktop notification: {}", e);
+        }
+    });
 }

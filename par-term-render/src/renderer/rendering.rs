@@ -702,16 +702,23 @@ impl Renderer {
             let _ = tx.send(result);
         });
 
-        // Wait for GPU to finish
+        // Wait for the GPU to finish — bounded so a stalled GPU can't freeze the
+        // event loop indefinitely. This readback runs on the main thread when an
+        // MCP screenshot is requested; a healthy GPU completes in milliseconds,
+        // but `wait_indefinitely` could hang the loop if the device is lost.
+        let gpu_timeout = std::time::Duration::from_secs(5);
         log::info!("take_screenshot: Waiting for GPU...");
-        if let Err(e) = device.poll(wgpu::PollType::wait_indefinitely()) {
+        if let Err(e) = device.poll(wgpu::PollType::Wait {
+            submission_index: None,
+            timeout: Some(gpu_timeout),
+        }) {
             log::warn!("take_screenshot: GPU poll returned error: {:?}", e);
         }
         log::info!("take_screenshot: GPU poll complete, waiting for buffer map...");
-        rx.recv()
+        rx.recv_timeout(gpu_timeout)
             .map_err(|e| {
                 crate::error::RenderError::ScreenshotMap(format!(
-                    "Failed to receive map result: {}",
+                    "Timed out or failed to receive map result: {}",
                     e
                 ))
             })?

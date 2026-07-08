@@ -38,6 +38,7 @@ use crate::update_checker::{UpdateCheckResult, UpdateChecker};
 use arc_swap::ArcSwap;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::sync::mpsc;
 use std::time::Instant;
 use tokio::runtime::Runtime;
 use winit::window::WindowId;
@@ -84,12 +85,17 @@ pub(crate) struct WindowManager {
     pub(crate) command_sent: bool,
     /// Whether the screenshot has been taken
     pub(crate) screenshot_taken: bool,
-    /// Update checker for checking GitHub releases
-    pub(crate) update_checker: UpdateChecker,
+    /// Update checker for checking GitHub releases. `Arc` so the blocking
+    /// `check_now` can run off the main thread via `runtime.spawn_blocking`.
+    pub(crate) update_checker: Arc<UpdateChecker>,
     /// Time of next scheduled update check
     pub(crate) next_update_check: Option<Instant>,
     /// Last update check result (for display in settings)
     pub(crate) last_update_result: Option<UpdateCheckResult>,
+    /// Delivers update-check results produced off the main thread.
+    pub(crate) update_check_tx: mpsc::Sender<update_checker::UpdateCheckOutcome>,
+    /// Drained on the main thread each frame to apply completed checks.
+    pub(crate) update_check_rx: mpsc::Receiver<update_checker::UpdateCheckOutcome>,
     /// Saved window arrangement manager
     pub(crate) arrangement_manager: ArrangementManager,
     /// Whether auto-restore has been attempted this session
@@ -121,6 +127,10 @@ impl WindowManager {
             dynamic_profile_manager.start(&sources, &runtime);
         }
 
+        // Channel for delivering off-thread update-check results back to the
+        // main thread (see `check_for_updates`).
+        let (update_check_tx, update_check_rx) = mpsc::channel();
+
         Self {
             windows: HashMap::new(),
             menu: None,
@@ -133,9 +143,11 @@ impl WindowManager {
             start_time: None,
             command_sent: false,
             screenshot_taken: false,
-            update_checker: UpdateChecker::new(env!("CARGO_PKG_VERSION")),
+            update_checker: Arc::new(UpdateChecker::new(env!("CARGO_PKG_VERSION"))),
             next_update_check: None,
             last_update_result: None,
+            update_check_tx,
+            update_check_rx,
             arrangement_manager,
             auto_restore_done: false,
             dynamic_profile_manager,
