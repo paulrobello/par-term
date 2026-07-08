@@ -11,6 +11,12 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ## [Unreleased]
 
+No unreleased changes.
+
+---
+
+## [0.35.1] - 2026-07-08
+
 Fixes a class of intermittent multi-second freezes where all terminal I/O — input, output, and rendering — would stop and then recover. All four were synchronous blocking calls running on the single winit main event-loop thread (`about_to_wait` / `render`); any blocking call there freezes the whole loop until it returns.
 
 ### Fixed

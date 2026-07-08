@@ -16,7 +16,7 @@ A cross-platform, GPU-accelerated terminal emulator frontend built with Rust, po
 ## Table of Contents
 
 - [Getting Started](#getting-started)
-- [What's New](#whats-new-in-0340)
+- [What's New](#whats-new-in-0351)
 - [Features](#features)
 - [Documentation](#documentation)
 - [Installation](#installation)
@@ -40,6 +40,12 @@ New to par-term? The [Getting Started Guide](docs/guides/GETTING_STARTED.md) wal
 - **[Installation](#installation)** — Platform-specific install instructions below
 - **[Configuration Reference](docs/CONFIG_REFERENCE.md)** — All 200+ configuration options
 - **[Keyboard Shortcuts](docs/guides/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
+
+## What's New in 0.35.1
+
+- **Event-loop freeze fixes** -- four synchronous blocking calls running on the single winit main event-loop thread (`about_to_wait` / `render`) that intermittently froze all terminal I/O (input, output, *and* rendering) for seconds at a time are now offloaded or bounded: the periodic update check and Settings → "Check Now" run the blocking `ureq` HTTPS GET on `spawn_blocking` (was a 30s main-thread freeze whenever the network/DNS/GitHub was slow or unreachable); the macOS `osascript` notification fallback runs in a worker thread; and MCP screenshot capture uses a bounded 5s GPU poll + `recv_timeout` instead of waiting indefinitely.
+
+For the full history of changes across all versions, see [CHANGELOG.md](CHANGELOG.md).
 
 ## What's New in 0.35.0
 
