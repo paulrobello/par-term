@@ -41,6 +41,12 @@ New to par-term? The [Getting Started Guide](docs/guides/GETTING_STARTED.md) wal
 - **[Configuration Reference](docs/CONFIG_REFERENCE.md)** — All 200+ configuration options
 - **[Keyboard Shortcuts](docs/guides/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
 
+## What's New in 0.35.2
+
+- **Alt-screen redraw freeze fixed** -- after a burst of alternate-screen output ended (common under full-screen TUIs and streaming agents like Claude Code), the terminal could stop redrawing and sit one burst behind the live content for 20+ seconds until a scroll, resize, or keypress forced a refresh. The per-pane cell cache was being stamped with a generation *newer* than the cells it held (the PTY reader bumps that counter mid-flush), so the next frame saw a false "up to date" match and served stale cells. The cache is now stamped with the generation the cells were actually gathered at, and a redraw is re-armed whenever a frame renders behind because it lost the race for the core terminal lock. Latent since the 0.35.0 read-lock sweep.
+
+For the full history of changes across all versions, see [CHANGELOG.md](CHANGELOG.md).
+
 ## What's New in 0.35.1
 
 - **Event-loop freeze fixes** -- four synchronous blocking calls running on the single winit main event-loop thread (`about_to_wait` / `render`) that intermittently froze all terminal I/O (input, output, *and* rendering) for seconds at a time are now offloaded or bounded: the periodic update check and Settings → "Check Now" run the blocking `ureq` HTTPS GET on `spawn_blocking` (was a 30s main-thread freeze whenever the network/DNS/GitHub was slow or unreachable); the macOS `osascript` notification fallback runs in a worker thread; and MCP screenshot capture uses a bounded 5s GPU poll + `recv_timeout` instead of waiting indefinitely.

@@ -3848,7 +3848,7 @@ dependencies = [
 
 [[package]]
 name = "par-term"
-version = "0.35.1"
+version = "0.35.2"
 dependencies = [
  "anyhow",
  "arboard",
