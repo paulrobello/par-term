@@ -453,9 +453,16 @@ impl WindowState {
         //
         // Re-arm needs_redraw when the FPS gate allows, or schedule a wake-up at
         // the earliest renderable time so the gap self-heals.
+        //
+        // 3. Stale-cell retry: the last render served cells older than the live
+        //    terminal because the core lock was contended. The edge-triggered output
+        //    heartbeat has already moved past this generation, so re-arm here until a
+        //    fresh gather catches up (self-clears once it does).
         let renderer_dirty = self.renderer.as_ref().is_some_and(|r| r.is_dirty());
         if !self.focus_state.needs_redraw
-            && (renderer_dirty || self.focus_state.pending_egui_repaint)
+            && (renderer_dirty
+                || self.focus_state.pending_egui_repaint
+                || self.focus_state.stale_cells_pending_retry)
         {
             if can_render {
                 self.focus_state.needs_redraw = true;

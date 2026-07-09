@@ -108,7 +108,14 @@ impl WindowState {
         }
 
         // Flush regenerated cells into the render cache (no-op on cache hit).
-        self.flush_cell_cache(&cells, current_cursor_pos, cell_grid_dims);
+        // Pass the generation the cells were gathered at so the cache is never
+        // stamped ahead of its content (see `flush_cell_cache`).
+        self.flush_cell_cache(
+            &cells,
+            current_cursor_pos,
+            cell_grid_dims,
+            current_generation,
+        );
 
         // Pre-populate the focused pane's cell cache so that gather_pane_render_data
         // uses the SAME cells that URL detection saw.  Only on cache-miss frames

@@ -238,36 +238,30 @@ impl WindowState {
         cells: &[Cell],
         current_cursor_pos: Option<(usize, usize)>,
         grid_dims: (usize, usize),
+        generation: u64,
     ) {
         if self.debug.cache_hit {
             return;
         }
         if let Some(tab) = self.tab_manager.active_tab_mut() {
-            // Use the focused pane's terminal to store the generation, matching the
-            // terminal used for cache invalidation in gather_render_data. If we stored
-            // the primary pane's generation but checked the focused pane's generation
-            // next frame, a mismatch would force a cache miss every frame in split mode.
-            let focused_terminal = tab
-                .pane_manager
-                .as_ref()
-                .and_then(|pm| pm.focused_pane())
-                .map(|p| p.terminal.clone())
-                .unwrap_or_else(|| tab.terminal.clone());
-            let new_gen = if let Ok(term) = focused_terminal.try_read() {
-                Some(term.update_generation())
-            } else {
-                None
-            };
-            if let Some(new_gen) = new_gen {
-                let current_scroll_offset = tab.active_scroll_state().offset;
-                let current_selection = tab.selection_mouse().selection;
-                tab.active_cache_mut().cells = Some(Arc::new(cells.to_vec()));
-                tab.active_cache_mut().generation = new_gen;
-                tab.active_cache_mut().scroll_offset = current_scroll_offset;
-                tab.active_cache_mut().cursor_pos = current_cursor_pos;
-                tab.active_cache_mut().selection = current_selection;
-                tab.active_cache_mut().grid_dims = grid_dims;
-            }
+            // Stamp the cache with the generation the cells were actually gathered at
+            // (`generation`, from the focused pane's terminal in `extract_tab_cells`),
+            // NOT a freshly re-read `update_generation()`. The PTY reader bumps the
+            // atomic generation on every read, so re-reading here can return a value
+            // newer than the `cells` we hold: the cache would then claim content it
+            // does not have, the next frame would see generation-match and serve the
+            // stale cells, and the display would stick one output burst behind until
+            // an unrelated event (scroll/resize) forced regeneration. Stamping the
+            // gathered generation is conservative — if output advanced mid-frame the
+            // next frame simply regenerates.
+            let current_scroll_offset = tab.active_scroll_state().offset;
+            let current_selection = tab.selection_mouse().selection;
+            tab.active_cache_mut().cells = Some(Arc::new(cells.to_vec()));
+            tab.active_cache_mut().generation = generation;
+            tab.active_cache_mut().scroll_offset = current_scroll_offset;
+            tab.active_cache_mut().cursor_pos = current_cursor_pos;
+            tab.active_cache_mut().selection = current_selection;
+            tab.active_cache_mut().grid_dims = grid_dims;
         }
     }
 }

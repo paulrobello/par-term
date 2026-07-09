@@ -11,7 +11,8 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ## [Unreleased]
 
-No unreleased changes.
+### Fixed
+- **Alt-screen renders froze for 20+ seconds until scroll or resize.** After a burst of alternate-screen output ended — very common under full-screen TUIs and Claude Code streaming — the terminal could stop redrawing and sit one output burst behind the live content until an unrelated event (scroll, resize, keypress) forced a fresh cell regather. Root cause: `flush_cell_cache` stamped the tab cell cache with a freshly re-read `update_generation()` at flush time rather than the generation the cells were actually gathered at. Because the core PTY reader bumps that atomic on every read, a burst advances it between the gather and the flush, so the cache recorded a generation newer than the cells it held; the next frame saw a generation match, skipped regeneration, and served the stale cells. The sole output-driven repaint trigger — the per-pane refresh task that calls `request_redraw()` on generation change — had already advanced past that point and never re-fired, so the display stayed frozen. Fixed by stamping the cache with the gathered generation (conservative: a mid-frame advance now simply regenerates next frame), plus re-arming a redraw (`FocusState.stale_cells_pending_retry`, consumed by `about_to_wait`'s self-heal) whenever a frame renders behind because `try_get_cells_with_scrollback` lost the race for the core terminal lock. Latent since the 0.35.0 read-lock sweep, which raised render/PTY-reader overlap enough to trigger it constantly.
 
 ---
 
