@@ -18,6 +18,13 @@ pub(crate) struct FocusState {
     /// a frame when the gate opens so the stall self-heals instead of waiting for
     /// an unrelated wake.
     pub(crate) pending_egui_repaint: bool,
+    /// The last render served cells older than the live terminal because
+    /// `try_get_cells_with_scrollback` lost the race for the core terminal lock
+    /// (`used_stale_cache`). The output-driven redraw heartbeat is edge-triggered
+    /// and has already advanced past this generation, so nothing else will schedule
+    /// the catch-up frame. `about_to_wait` re-arms a redraw while this is set so the
+    /// render retries at frame cadence until it captures the current generation.
+    pub(crate) stale_cells_pending_retry: bool,
     /// When the last frame was rendered
     pub(crate) last_render_time: Option<Instant>,
 
@@ -48,6 +55,7 @@ impl Default for FocusState {
             is_focused: true, // Assume focused on creation
             needs_redraw: true,
             pending_egui_repaint: false,
+            stale_cells_pending_retry: false,
             last_render_time: None,
             cursor_hidden_since: None,
             flicker_pending_render: false,

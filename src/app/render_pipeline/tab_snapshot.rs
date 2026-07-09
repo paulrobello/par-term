@@ -244,6 +244,10 @@ impl WindowState {
             }
 
             self.debug.cache_hit = is_cache_hit;
+            // Re-arm a redraw when we rendered behind the live terminal because the
+            // core lock was contended (`used_stale_cache`). Cleared as soon as a
+            // fresh gather succeeds, so this never loops once caught up / at idle.
+            self.focus_state.stale_cells_pending_retry = used_stale_cache;
             self.debug.cell_gen_time = cell_gen_start.elapsed();
 
             let grid_dims = term.dimensions();
