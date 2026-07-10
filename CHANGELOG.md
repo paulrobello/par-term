@@ -11,6 +11,12 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ## [Unreleased]
 
+### Fixed
+- **Full-screen TUI apps (joe, vim, less) left some regions stale after scrolling or paging.** These editors repaint by shifting rows with partial line edits (delete-line / insert-line / erase-line) rather than full repaints, so only a few rows change per burst. After such a burst, the changed rows could keep showing old content until the next keypress or a resize — the tail of the 0.35.2 alt-screen freeze, now surfacing as *partial* staleness rather than a full freeze. Root cause was in `par-term-emu-core-rust`: the PTY reader bumped the update-generation counter *before* writing the grid (issue #60 liveness), so a render that grabbed the terminal lock in the window between the bump and the grid write read the not-yet-updated grid but stamped its cell cache with the already-advanced generation; when it was the last read of a burst, the counter never advanced again and the stale content stuck. Fixed upstream by a second generation bump after the grid write (core 0.45.0), so the counter always moves past any value a render could have observed mid-write and the next frame regenerates.
+
+### Dependencies
+- Bump `par-term-emu-core-rust` 0.44 → 0.45 (carries the generation-counter fix above plus host-supplied XTWINOPS window-state reporting).
+
 ---
 
 ## [0.35.2] - 2026-07-09
