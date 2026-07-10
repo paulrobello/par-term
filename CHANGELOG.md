@@ -11,6 +11,12 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ## [Unreleased]
 
+---
+
+## [0.36.0] - 2026-07-10
+
+Full-screen TUI apps (vim, less, joe) no longer leave partial stale regions after scrolling or paging (the tail of the 0.35.2 alt-screen work, fixed in core 0.45.0); Edit → Select All now selects the whole terminal buffer; the "About par-term" menu item opens the About overlay instead of doing nothing; and the bundled Gemini CLI agent has been removed (Gemini CLI is no longer usable). Minor bump for the Select All feature.
+
 ### Added
 - **Edit → Select All now works over the terminal.** Previously the menu item (and its Cmd+A / Ctrl+Shift+A accelerator) only did anything when the settings window or an egui overlay was focused — over the terminal itself it was an unimplemented no-op that just wrote a debug log. It now selects the entire buffer (scrollback plus the visible screen), highlighting the visible screen; a subsequent Copy pulls the full contents via `export_text` rather than only the viewport.
 

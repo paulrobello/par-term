@@ -41,6 +41,15 @@ New to par-term? The [Getting Started Guide](docs/guides/GETTING_STARTED.md) wal
 - **[Configuration Reference](docs/CONFIG_REFERENCE.md)** — All 200+ configuration options
 - **[Keyboard Shortcuts](docs/guides/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
 
+## What's New in 0.36.0
+
+- **Full-screen TUI partial-staleness fixed** -- after a burst of partial-line edits (delete-line / insert-line / erase-line) under full-screen TUIs (joe, vim, less), a few changed rows could keep showing old content until the next keypress or a resize. The core PTY reader bumped its update-generation counter *before* writing the grid, so a render that grabbed the terminal lock in that gap read the not-yet-updated grid but stamped its cell cache with the already-advanced generation, and the changed rows stuck when it was the last read of a burst. Fixed upstream in `par-term-emu-core-rust` 0.45.0 with a second generation bump after the grid write.
+- **Edit → Select All works over the terminal** -- the menu item and its Cmd+A / Ctrl+Shift+A accelerator previously did nothing over the terminal (only over the settings window or egui overlays). It now selects the entire buffer (scrollback plus the visible screen), highlighting the visible screen, and a subsequent Copy pulls the full contents rather than only the viewport.
+- **"About par-term" opens the About overlay** -- the Help → About par-term and macOS app-menu About par-term items were wired to a stub that only logged; they now open the Help/About overlay.
+- **Bundled Gemini CLI agent removed** -- Gemini CLI is no longer usable, so its bundled ACP agent definition, identity, and supporting adapter code were removed (bundled agents 8 → 7). User-supplied agent configs in `~/.config/par-term/agents/` are unaffected.
+
+For the full history of changes across all versions, see [CHANGELOG.md](CHANGELOG.md).
+
 ## What's New in 0.35.2
 
 - **Alt-screen redraw freeze fixed** -- after a burst of alternate-screen output ended (common under full-screen TUIs and streaming agents like Claude Code), the terminal could stop redrawing and sit one burst behind the live content for 20+ seconds until a scroll, resize, or keypress forced a refresh. The per-pane cell cache was being stamped with a generation *newer* than the cells it held (the PTY reader bumps that counter mid-flush), so the next frame saw a false "up to date" match and served stale cells. The cache is now stamped with the generation the cells were actually gathered at, and a redraw is re-armed whenever a frame renders behind because it lost the race for the core terminal lock. Latent since the 0.35.0 read-lock sweep.

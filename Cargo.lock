@@ -3848,7 +3848,7 @@ dependencies = [
 
 [[package]]
 name = "par-term"
-version = "0.35.2"
+version = "0.36.0"
 dependencies = [
  "anyhow",
  "arboard",
@@ -3930,7 +3930,7 @@ dependencies = [
 
 [[package]]
 name = "par-term-acp"
-version = "0.2.8"
+version = "0.3.0"
 dependencies = [
  "dirs",
  "log",
@@ -4114,7 +4114,7 @@ dependencies = [
 
 [[package]]
 name = "par-term-terminal"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "arboard",

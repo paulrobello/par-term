@@ -96,7 +96,7 @@ tempfile = "3.27"
 
 [package]
 name = "par-term"
-version = "0.35.2"
+version = "0.36.0"
 edition = "2024"
 rust-version = "1.95"
 authors = ["Paul Robello <probello@gmail.com>"]
@@ -129,7 +129,7 @@ exclude = [
 
 [dependencies]
 # ACP (Agent Communication Protocol) implementation
-par-term-acp = { path = "par-term-acp", version = "0.2.8" }
+par-term-acp = { path = "par-term-acp", version = "0.3.0" }
 
 # Configuration system
 par-term-config = { path = "par-term-config", version = "0.12", features = ["watcher"] }
@@ -138,7 +138,7 @@ par-term-config = { path = "par-term-config", version = "0.12", features = ["wat
 par-term-fonts = { path = "par-term-fonts", version = "0.1.9" }
 
 # Terminal manager (PTY, shell integration, scrollback)
-par-term-terminal = { path = "par-term-terminal", version = "0.3" }
+par-term-terminal = { path = "par-term-terminal", version = "0.4" }
 
 # GPU-accelerated rendering engine
 par-term-render = { path = "par-term-render", version = "0.7.5" }
