@@ -221,8 +221,17 @@ impl WindowManager {
                     });
                     return;
                 }
-                // Not implemented for terminal - would select all visible text
-                log::debug!("SelectAll menu action (not implemented for terminal)");
+                // Terminal focused: select the entire buffer (scrollback + visible
+                // screen). The visible screen is highlighted; a subsequent Copy
+                // pulls the full buffer via export_text.
+                if let Some(window_id) = focused_window
+                    && let Some(window_state) = self.windows.get_mut(&window_id)
+                {
+                    window_state.select_all();
+                    if let Some(window) = &window_state.window {
+                        window.request_redraw();
+                    }
+                }
             }
             MenuAction::ClearScrollback => {
                 if let Some(window_id) = focused_window

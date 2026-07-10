@@ -193,6 +193,41 @@ impl WindowState {
         }
     }
 
+    /// Select the entire terminal buffer (scrollback + visible screen).
+    ///
+    /// Stores a full-screen `All`-mode selection so the visible screen is
+    /// highlighted through the normal cell-marking path, while copy operations
+    /// pull the whole buffer via `export_text`. Invoked by the Edit → Select All
+    /// menu item and its keyboard accelerator.
+    pub(crate) fn select_all(&mut self) {
+        let (terminal_arc, _scroll_offset) = match self.selection_terminal_and_offset() {
+            Some(v) => v,
+            None => return,
+        };
+
+        // try_read: only reading dimensions. On contention, skip this attempt —
+        // Select All is user-initiated and can simply be retried.
+        let (cols, rows) = if let Ok(term) = terminal_arc.try_read() {
+            term.dimensions()
+        } else {
+            return;
+        };
+
+        if cols == 0 || rows == 0 {
+            return;
+        }
+
+        if let Some(tab) = self.tab_manager.active_tab_mut() {
+            let so = tab.active_scroll_state().offset;
+            tab.selection_mouse_mut().selection = Some(Selection::new(
+                (0, 0),
+                (cols.saturating_sub(1), rows.saturating_sub(1)),
+                SelectionMode::All,
+                so,
+            ));
+        }
+    }
+
     /// Extract selected text from terminal.
     ///
     /// Uses `blocking_read()` because this is called on mouse release (user-initiated)
@@ -209,6 +244,13 @@ impl WindowState {
         // avoid silently dropping the selection. This is an infrequent operation
         // (once per mouse release) so the brief lock wait is acceptable.
         let term = terminal_arc.blocking_read();
+
+        // Select-all copies the entire buffer (scrollback + screen), not just the
+        // viewport, so bypass the per-row viewport extraction below.
+        if selection.mode == SelectionMode::All {
+            return Some(term.export_text());
+        }
+
         let (start, end) = selection.normalized();
         let (start_col, start_row) = start;
         let (end_col, end_row) = end;

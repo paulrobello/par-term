@@ -7,6 +7,12 @@ pub enum SelectionMode {
     Rectangular,
     /// Full line selection (triple-click)
     Line,
+    /// Entire terminal buffer (scrollback + visible screen).
+    ///
+    /// The stored `start`/`end` cover the visible screen so the on-screen
+    /// highlight works through the normal cell-marking path, but copy pulls the
+    /// whole buffer via `TerminalManager::export_text` rather than the viewport.
+    All,
 }
 
 /// Selection state for text selection

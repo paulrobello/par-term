@@ -35,11 +35,11 @@ pub enum MenuAction {
     PreviousTab,
     /// Switch to tab by index (1-9)
     SwitchToTab(usize),
-    /// Move tab left (not yet implemented)
+    /// Move the current tab one position to the left
     MoveTabLeft,
-    /// Move tab right (not yet implemented)
+    /// Move the current tab one position to the right
     MoveTabRight,
-    /// Duplicate the current tab (not yet implemented)
+    /// Duplicate the current tab
     DuplicateTab,
 
     // Edit menu

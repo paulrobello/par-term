@@ -251,6 +251,18 @@ impl TerminalManager {
         Ok(())
     }
 
+    /// Export the entire buffer (scrollback + visible screen) as plain text.
+    ///
+    /// Trailing spaces are trimmed per line and wrapped lines are joined without
+    /// an intervening newline. Used by the "Select All" command to copy the full
+    /// terminal contents rather than only the visible viewport.
+    pub fn export_text(&self) -> String {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let term = terminal.read();
+        term.export_text()
+    }
+
     /// Add a marker to the recording
     pub fn record_marker(&self, label: String) {
         log::debug!("Recording marker: {}", label);

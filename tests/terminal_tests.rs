@@ -115,6 +115,37 @@ fn test_terminal_scrollback() {
 }
 
 #[test]
+fn test_export_text_includes_scrollback() {
+    // `export_text` backs the "Select All" command: it must return the entire
+    // buffer — scrollback plus the visible screen — not just the viewport.
+    // Regression guard so Select All never silently degrades to a screen-only copy.
+    let terminal = TerminalManager::new_with_scrollback(20, 3, 100).unwrap();
+
+    // Feed 10 lines into a 3-row screen so the earliest lines scroll off the
+    // visible viewport into scrollback. No PTY needed — feed the parser directly.
+    {
+        let term_arc = terminal.terminal();
+        let mut term = term_arc.write();
+        for i in 1..=10 {
+            term.process(format!("Line{i}\r\n").as_bytes());
+        }
+    }
+
+    let text = terminal.export_text();
+
+    // A line that scrolled into scrollback must still be present...
+    assert!(
+        text.contains("Line1"),
+        "export_text dropped scrollback content: {text:?}"
+    );
+    // ...as must a line still on the visible screen.
+    assert!(
+        text.contains("Line10"),
+        "export_text dropped visible-screen content: {text:?}"
+    );
+}
+
+#[test]
 #[ignore] // PTY required for write operations
 fn test_terminal_multiple_writes() {
     let mut terminal = TerminalManager::new(80, 24).unwrap();
