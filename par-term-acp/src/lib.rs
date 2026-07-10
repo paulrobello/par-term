@@ -1,7 +1,7 @@
 //! par-term-acp: Agent Communication Protocol (ACP) implementation.
 //!
 //! This crate provides the core ACP protocol implementation for communicating
-//! with AI coding agents (Claude Code, Codex CLI, Gemini CLI, etc.) via JSON-RPC.
+//! with AI coding agents (Claude Code, Codex CLI, Copilot, etc.) via JSON-RPC.
 //!
 //! # Architecture
 //!

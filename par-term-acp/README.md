@@ -3,7 +3,7 @@
 Agent Communication Protocol (ACP) implementation for the par-term terminal emulator.
 
 This crate provides the core ACP protocol implementation for communicating with AI coding
-agents (Claude Code, Codex CLI, Gemini CLI, etc.) via JSON-RPC. It handles agent
+agents (Claude Code, Codex CLI, Copilot, etc.) via JSON-RPC. It handles agent
 lifecycle management, filesystem sandboxing, permission dispatch, and session management.
 
 ## What This Crate Provides

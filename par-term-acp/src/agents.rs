@@ -229,16 +229,6 @@ install_command = "npm install -g @zed-industries/codex-acp"
 "*" = "npx @zed-industries/codex-acp"
 "#,
     r#"
-identity = "geminicli.com"
-name = "Gemini CLI"
-short_name = "gemini"
-protocol = "acp"
-type = "coding"
-
-[run_command]
-"*" = "gemini --experimental-acp"
-"#,
-    r#"
 identity = "copilot.github.com"
 name = "Copilot"
 short_name = "copilot"
@@ -297,7 +287,6 @@ type = "coding"
 const BUILT_IN_IDENTITIES: &[&str] = &[
     "claude.com",
     "openai.com",
-    "geminicli.com",
     "copilot.github.com",
     "ampcode.com",
     "augmentcode.com",
@@ -491,10 +480,6 @@ short_name = "wc"
         assert!(
             identities.contains(&"openai.com"),
             "Missing openai.com (codex)"
-        );
-        assert!(
-            identities.contains(&"geminicli.com"),
-            "Missing geminicli.com (gemini)"
         );
     }
 

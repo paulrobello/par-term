@@ -1,6 +1,6 @@
 # Assistant Panel
 
-The Assistant Panel is a DevTools-style right-side panel for terminal state inspection and ACP (Agent Communication Protocol) agent integration. It provides command history browsing, structured JSON export, and a full chat interface for connecting to AI coding agents such as Claude Code, Gemini CLI, and others.
+The Assistant Panel is a DevTools-style right-side panel for terminal state inspection and ACP (Agent Communication Protocol) agent integration. It provides command history browsing, structured JSON export, and a full chat interface for connecting to AI coding agents such as Claude Code, Codex CLI, and others.
 
 ## Table of Contents
 
@@ -372,7 +372,6 @@ par-term ships with 8 pre-configured ACP agent definitions embedded at compile t
 |-------|----------|-------------------|-----------------|
 | Claude Code | `claude.com` | `claude-agent-acp` | `npm install -g @zed-industries/claude-agent-acp` |
 | Codex CLI (OpenAI) | `openai.com` | `npx @zed-industries/codex-acp` | `npm install -g @zed-industries/codex-acp` |
-| Gemini CLI | `geminicli.com` | `gemini --experimental-acp` | - |
 | Copilot | `copilot.github.com` | `copilot --acp` | - |
 | Amp (AmpCode) | `ampcode.com` | `npx -y amp-acp` | - |
 | Auggie (Augment Code) | `augmentcode.com` | `auggie --acp` | - |
@@ -662,7 +661,7 @@ The following configuration options are supported in `config.yaml`:
 | `ai_inspector_extra_agent_roots` | list | `[]` | Extra filesystem roots made available to supported ACP agents; `~/.config/par-term/shaders` is always included automatically |
 | `ai_inspector_custom_agents` | list | `[]` | Extra ACP agent definitions merged into discovery (override by `identity`) |
 
-Extra roots are passed through adapter-specific mechanisms when known: Claude-compatible ACP adapters receive `_meta.additionalRoots`, Codex receives workspace-write `writable_roots` config overrides, and Gemini CLI receives `--include-directories`. Other ACP agents receive `_meta.additionalRoots` and may ignore it if unsupported.
+Extra roots are passed through adapter-specific mechanisms when known: Claude-compatible ACP adapters receive `_meta.additionalRoots`, and Codex receives workspace-write `writable_roots` config overrides. Other ACP agents receive `_meta.additionalRoots` and may ignore it if unsupported.
 
 **Example configuration:**
 

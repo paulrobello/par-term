@@ -452,7 +452,7 @@ par-term implements iTerm2-style native tmux integration via control mode (`tmux
 | AI assistant | ✅ Full AI integration | ✅ | ✅ | ⭐⭐ | 🔵 | ACP agent integration — connect to Claude Code and other ACP-compatible agents. Agent chat panel with streaming responses, tool call display, command suggestions. Auto-context feeding on command completion. |
 | AI command generation | ✅ | ✅ | ✅ | ⭐⭐ | 🔵 | Agent suggests commands rendered as clickable `▸ command` blocks; click writes to terminal input line for user review before execution. |
 | AI terminal inspection | ✅ | ✅ | ✅ | ⭐⭐ | 🟡 | DevTools-style right-side panel with structured terminal state. 4 view modes (Cards/Timeline/Tree/List+Detail), configurable scope (Visible/Recent/Full), JSON export (copy/save). Terminal reflows columns when panel opens/closes. Core `get_semantic_snapshot()` API + frontend UI. |
-| Multiple AI providers | ✅ OpenAI, Anthropic, etc. | ✅ | ✅ | ⭐⭐ | 🔵 | 8 bundled agent configs (Claude Code, Amp, Augment, Copilot, Docker, Gemini CLI, OpenAI, OpenHands) + user-defined TOML configs in `~/.config/par-term/agents/`. Auto-launch configurable agent on panel open. |
+| Multiple AI providers | ✅ OpenAI, Anthropic, etc. | ✅ | ✅ | ⭐⭐ | 🔵 | 7 bundled agent configs (Claude Code, Amp, Augment, Copilot, Docker, OpenAI, OpenHands) + user-defined TOML configs in `~/.config/par-term/agents/`. Auto-launch configurable agent on panel open. |
 | AI permission management | ✅ | ✅ | ✅ | ⭐⭐ | 🟡 | Inline permission prompts in chat area. "Yolo mode" auto-approves all agent requests. Agent terminal access toggle. |
 | AI shader assistant | ❌ | ✅ | ✅ | ⭐⭐ | 🟡 | **par-term exclusive** — Context-triggered shader expertise injection. Auto-detects shader-related queries and injects full shader reference (uniforms, templates, debug paths, available shaders) into agent prompts. Config file watcher enables agents to apply shader changes via config.yaml with live reload. (#156) |
 
@@ -1106,7 +1106,7 @@ The following features are blocked by or significantly dependent on architectura
   - Full chat UI: user/agent/system/thinking/tool-call/command-suggestion/permission message types
   - Agent command suggestions with Run (execute + notify) and Paste actions
   - Agent connection bar with connect/disconnect, install buttons, terminal access toggle
-  - 8 bundled agent configs (Claude Code, Amp, Augment, Copilot, Docker, Gemini CLI, OpenAI, OpenHands)
+  - 7 bundled agent configs (Claude Code, Amp, Augment, Copilot, Docker, OpenAI, OpenHands)
   - Auto-context feeding on command completion; auto-launch; yolo mode
   - Resizable panel with drag handle; auto-expands on content overflow
   - Terminal reflows columns when panel opens/closes/resizes; Settings UI tab for all options

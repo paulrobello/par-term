@@ -17,14 +17,6 @@ fn is_codex_agent(agent_config: &AgentConfig, run_command: &str) -> bool {
     agent_config.identity == "openai.com" || run_command.contains("codex-acp")
 }
 
-fn is_gemini_agent(agent_config: &AgentConfig, run_command: &str) -> bool {
-    agent_config.identity == "geminicli.com"
-        || run_command
-            .split_whitespace()
-            .next()
-            .is_some_and(|binary| binary == "gemini" || binary.ends_with("/gemini"))
-}
-
 /// Add known-agent extra-root flags to an ACP subprocess run command.
 pub fn adapt_run_command_for_extra_roots(
     agent_config: &AgentConfig,
@@ -49,11 +41,6 @@ pub fn adapt_run_command_for_extra_roots(
         return format!(
             "{run_command} -c {sandbox_mode} -c {writable_roots} -c {disable_apply_patch}"
         );
-    }
-
-    if is_gemini_agent(agent_config, run_command) {
-        let include_dirs = shell_quote_arg(&extra_roots.join(","));
-        return format!("{run_command} --include-directories {include_dirs}");
     }
 
     run_command.to_string()
@@ -257,19 +244,5 @@ mod tests {
             "-c 'sandbox_workspace_write.writable_roots=[\"/workspace/shared\",\"/tmp/shaders\"]'"
         ));
         assert!(command.contains("-c 'include_apply_patch_tool=false'"));
-    }
-
-    #[test]
-    fn gemini_run_command_gets_include_directories() {
-        let command = adapt_run_command_for_extra_roots(
-            &agent("geminicli.com"),
-            "gemini --experimental-acp",
-            &["/workspace/shared".to_string(), "/tmp/shaders".to_string()],
-        );
-
-        assert_eq!(
-            command,
-            "gemini --experimental-acp --include-directories '/workspace/shared,/tmp/shaders'"
-        );
     }
 }

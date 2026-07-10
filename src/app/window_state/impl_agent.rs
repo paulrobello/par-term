@@ -339,7 +339,7 @@ mod tests {
     fn merge_custom_ai_inspector_agents_puts_codex_first() {
         let agents = vec![
             agent("claude.com", "Claude Code"),
-            agent("geminicli.com", "Gemini CLI"),
+            agent("copilot.github.com", "Copilot"),
             agent("openai.com", "Codex CLI"),
         ];
 
@@ -348,7 +348,7 @@ mod tests {
         let identities: Vec<&str> = merged.iter().map(|agent| agent.identity.as_str()).collect();
         assert_eq!(
             identities,
-            vec!["openai.com", "claude.com", "geminicli.com"]
+            vec!["openai.com", "claude.com", "copilot.github.com"]
         );
     }
 
