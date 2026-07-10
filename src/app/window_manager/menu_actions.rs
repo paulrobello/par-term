@@ -396,8 +396,18 @@ impl WindowManager {
                 }
             }
             MenuAction::About => {
-                log::info!("About par-term v{}", env!("CARGO_PKG_VERSION"));
-                // Could show an about dialog here
+                // The help overlay opens with the "About par-term" section
+                // (version, description, author, license, repository), so reuse
+                // it for the About menu item. Force it visible rather than
+                // toggling — selecting "About" should always open it.
+                if let Some(window_id) = focused_window
+                    && let Some(window_state) = self.windows.get_mut(&window_id)
+                {
+                    window_state.overlay_ui.help_ui.visible = true;
+                    if let Some(window) = &window_state.window {
+                        window.request_redraw();
+                    }
+                }
             }
             MenuAction::ToggleBackgroundShader => {
                 if let Some(window_id) = focused_window
