@@ -30,7 +30,7 @@
 //!
 //! **Blocker:** All 84 `impl WindowState` blocks must be audited before moving any
 //! field to ensure no method holds simultaneous mutable borrows across sub-systems.
-//! Recommend using `cargo expand` or GitNexus impact analysis on each field before
+//! Recommend using `cargo expand` on each field before
 //! moving it. The `#[path]` redirect blocker (ARC-003) has been resolved — field
 //! extraction from step 3+ can now proceed.
 //!
