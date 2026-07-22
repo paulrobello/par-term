@@ -128,6 +128,7 @@ impl Default for Config {
             command_separator_color: crate::defaults::command_separator_color(),
             clipboard_max_sync_events: crate::defaults::clipboard_max_sync_events(),
             clipboard_max_event_bytes: crate::defaults::clipboard_max_event_bytes(),
+            osc52_clipboard: crate::defaults::osc52_clipboard(),
             max_osc_data_length: crate::defaults::max_osc_data_length(),
             command_history_max_entries: crate::defaults::command_history_max_entries(),
             notifications: NotificationConfig::default(),

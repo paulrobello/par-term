@@ -220,6 +220,9 @@ pub fn keywords() -> &'static [&'static str] {
         "trailing newline",
         "middle-click",
         "middle click",
+        "osc 52",
+        "osc52",
+        "ssh clipboard",
         "dropped file",
         "quote style",
         // Clipboard limits

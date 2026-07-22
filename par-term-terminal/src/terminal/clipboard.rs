@@ -2,6 +2,18 @@ use super::TerminalManager;
 pub use par_term_emu_core_rust::terminal::{ClipboardEntry, ClipboardSlot};
 
 impl TerminalManager {
+    /// Get the OSC 52 clipboard content most recently set by a program.
+    ///
+    /// Returns `None` when no program has issued an OSC 52 set. The frontend
+    /// polls this each frame to bridge remote clipboard writes (e.g. over SSH)
+    /// to the system clipboard.
+    pub fn get_clipboard(&self) -> Option<String> {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let term = terminal.write();
+        term.get_clipboard()
+    }
+
     /// Get clipboard history for a specific slot
     pub fn get_clipboard_history(&self, slot: ClipboardSlot) -> Vec<ClipboardEntry> {
         let pty = self.pty_session.lock();

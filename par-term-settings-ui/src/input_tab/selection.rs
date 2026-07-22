@@ -57,6 +57,23 @@ pub(super) fn show_selection_section(
                 *changes_this_frame = true;
             }
 
+            if ui
+                .checkbox(
+                    &mut settings.config.osc52_clipboard,
+                    "OSC 52 clipboard sync (programs set clipboard over SSH)",
+                )
+                .on_hover_text(
+                    "Apply OSC 52 clipboard-set sequences from programs to the system \
+                     clipboard. This is how remote apps (tmux, herdr, etc.) copy to your \
+                     local clipboard over SSH. Disable if you don't want programs to \
+                     overwrite your clipboard.",
+                )
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+
             ui.horizontal(|ui| {
                 ui.label("Paste delay (ms):");
                 if ui

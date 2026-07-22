@@ -96,6 +96,8 @@ impl WindowState {
 
             clipboard_image_click_guard: None,
 
+            last_osc52_clipboard: None,
+
             overlay_state: OverlayState::default(),
 
             keybinding_registry,

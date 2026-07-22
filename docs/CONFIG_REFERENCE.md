@@ -227,6 +227,7 @@ Override shader settings per-file. Keys are shader filenames (without path).
 | `dropped_file_quote_style` | `enum` | `single_quotes` | Quote style for dropped paths: `single_quotes`, `double_quotes`, `backslash`, `none` |
 | `clipboard_max_sync_events` | `usize` | `64` | Maximum clipboard sync events retained |
 | `clipboard_max_event_bytes` | `usize` | `2048` | Maximum bytes per clipboard sync event |
+| `osc52_clipboard` | `bool` | `true` | Apply OSC 52 clipboard-set sequences from programs to the system clipboard. Lets remote apps (tmux, herdr, etc.) copy to the local clipboard over SSH. |
 | `warn_paste_control_chars` | `bool` | `true` | Log a warning when clipboard paste content contains VT escape sequences |
 
 ---

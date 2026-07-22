@@ -55,6 +55,13 @@ pub fn clipboard_max_event_bytes() -> usize {
     2048 // Aligned with sister project
 }
 
+/// Whether OSC 52 clipboard-set sequences from programs (local or over SSH)
+/// are applied to the system clipboard. This is how remote apps like tmux or
+/// workspace managers reach the local clipboard over a plain terminal session.
+pub fn osc52_clipboard() -> bool {
+    true
+}
+
 /// Default maximum total OSC data length in bytes before a sequence is
 /// rejected by the core terminal (QA-012 memory-exhaustion guard).
 /// Matches `par_term_emu_core_rust::terminal::DEFAULT_MAX_OSC_DATA_LENGTH`.

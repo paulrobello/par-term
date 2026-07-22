@@ -49,6 +49,9 @@ impl WindowState {
         // Check for trigger action results and dispatch them
         self.check_trigger_actions();
 
+        // Bridge OSC 52 clipboard writes from programs to the system clipboard
+        self.check_clipboard_sync();
+
         // Check for activity/idle notifications
         self.check_activity_idle_notifications();
 

@@ -781,6 +781,12 @@ pub struct Config {
     )]
     pub clipboard_max_event_bytes: usize,
 
+    /// Whether OSC 52 clipboard-set sequences from programs are applied to the
+    /// system clipboard. Enabled by default so remote programs (over SSH) can
+    /// copy to the local clipboard via OSC 52.
+    #[serde(default = "crate::defaults::osc52_clipboard")]
+    pub osc52_clipboard: bool,
+
     // ========================================================================
     // OSC Sequence Limits
     // ========================================================================

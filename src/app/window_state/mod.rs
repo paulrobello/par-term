@@ -52,6 +52,7 @@ mod agent_screenshot;
 pub(crate) mod agent_state;
 mod agent_tick_helpers;
 pub(crate) mod anti_idle;
+mod clipboard_sync;
 pub(crate) mod config_updates;
 mod config_watchers;
 pub(crate) mod cursor_anim_state;
@@ -227,6 +228,8 @@ pub struct WindowState {
     pub(crate) file_transfer_state: crate::app::file_transfers::FileTransferState,
     /// Snapshot of clipboard image for restore after tmux clicks
     pub(crate) clipboard_image_click_guard: Option<ClipboardImageClickGuard>,
+    /// Last OSC 52 clipboard content applied to the system clipboard (dedup).
+    pub(crate) last_osc52_clipboard: Option<String>,
     /// Shared transient context for chained workflow actions (Sequence / Condition / Repeat).
     /// Written by background ShellCommand threads (capture_output=true); read by Condition checks.
     pub(crate) last_workflow_context: std::sync::Arc<std::sync::Mutex<Option<WorkflowContext>>>,
