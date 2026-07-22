@@ -41,6 +41,12 @@ New to par-term? The [Getting Started Guide](docs/guides/GETTING_STARTED.md) wal
 - **[Configuration Reference](docs/CONFIG_REFERENCE.md)** — All 200+ configuration options
 - **[Keyboard Shortcuts](docs/guides/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
 
+## What's New in 0.37.0
+
+- **OSC 52 clipboard bridge -- remote copy now works** -- programs that set the clipboard via the OSC 52 escape sequence (locally and over SSH -- this is how tmux, herdr, and other remote workspace managers reach your local clipboard) now actually reach the system clipboard. par-term advertised OSC 52 support and parsed the sequences, but the frontend never forwarded the payload to the OS, so a remote app would report "copied" while paste kept delivering stale content. A per-frame poll now bridges the parsed OSC 52 content to the system clipboard (the same path local selection-copy uses), deduped per frame and polled only for the focused pane. Gated by `osc52_clipboard` (default `true`), with a toggle under Settings → Input → Selection & Clipboard; disable it if you don't want programs overwriting your clipboard.
+
+For the full history of changes across all versions, see [CHANGELOG.md](CHANGELOG.md).
+
 ## What's New in 0.36.0
 
 - **Full-screen TUI partial-staleness fixed** -- after a burst of partial-line edits (delete-line / insert-line / erase-line) under full-screen TUIs (joe, vim, less), a few changed rows could keep showing old content until the next keypress or a resize. The core PTY reader bumped its update-generation counter *before* writing the grid, so a render that grabbed the terminal lock in that gap read the not-yet-updated grid but stamped its cell cache with the already-advanced generation, and the changed rows stuck when it was the last read of a burst. Fixed upstream in `par-term-emu-core-rust` 0.45.0 with a second generation bump after the grid write.

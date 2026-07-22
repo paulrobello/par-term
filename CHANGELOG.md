@@ -11,6 +11,12 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ## [Unreleased]
 
+---
+
+## [0.37.0] - 2026-07-22
+
+OSC 52 clipboard-set sequences from programs now reach the system clipboard — the bridge that lets remote apps (tmux, herdr, and other workspace managers) copy to your local clipboard over a plain SSH session. par-term already advertised OSC 52 support and parsed the sequences, but the frontend never forwarded the payload to the OS clipboard, so a remote app would report "copied" while paste kept delivering stale content. A new per-frame poll bridges the parsed OSC 52 content to the system clipboard (arboard, the same path local selection-copy uses), gated by `osc52_clipboard` (default `true`). Minor bump for the new feature; sub-crate bumps: `par-term-terminal` 0.4 → 0.5 (new `get_clipboard()` accessor), `par-term-settings-ui` 0.14 → 0.15 (new toggle), `par-term-config` 0.12 → 0.12.1 (new additive field). No core-library change — `par-term-emu-core-rust` remains at 0.45.0.
+
 ### Added
 - **OSC 52 clipboard writes now reach the system clipboard.** Programs set the clipboard via the OSC 52 escape sequence — locally and over SSH, this is how tmux, herdr, and other remote workspace managers reach your local clipboard. par-term advertised support (`TERM_PROGRAM=iTerm.app` + `ITERM_SESSION_ID`) and parsed those sequences, but the frontend never forwarded the payload to the OS clipboard, so a remote app would report "copied" while Cmd+V / Ctrl+Shift+V kept pasting stale content. A new per-frame poll (`check_clipboard_sync`, in `src/app/window_state/clipboard_sync.rs`) reads the active terminal's OSC 52 content and, when it changes, writes it to the system clipboard via arboard — the same path local selection-copy already uses — deduped against the last applied value so it doesn't rewrite every frame. Only the focused pane is polled, which covers the single-PTY SSH case; background-pane writes sync when their pane is next focused. Gated by a new `osc52_clipboard` config option (default `true`), with a toggle under Settings → Input → Selection & Clipboard ("OSC 52 clipboard sync") and search keywords (`osc 52`, `osc52`, `ssh clipboard`); disable it if you don't want programs overwriting your clipboard.
 

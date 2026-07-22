@@ -109,6 +109,18 @@ auto_copy_selection: true
 copy_trailing_newline: false  # Strip trailing newlines
 ```
 
+### OSC 52 Clipboard (Remote Copy)
+
+Programs can also push content *to* your clipboard with the OSC 52 escape sequence. This is how a remote application copies to your local clipboard over a plain SSH session — terminal multiplexers such as tmux and remote workspace managers use it so that a copy initiated on the remote host lands in your local clipboard rather than the remote shell's.
+
+par-term polls the focused pane's OSC 52 content each frame and, when it changes, writes it to the system clipboard via the same path local selection-copy uses. Writes are deduped against the last applied value so the clipboard is not rewritten every frame, and only the focused pane is polled (covering the single-PTY SSH case); a background pane's OSC 52 write syncs the next time that pane is focused.
+
+```yaml
+osc52_clipboard: true  # Apply OSC 52 clipboard-set sequences to the system clipboard (default)
+```
+
+Disable it if you don't want programs — including those running over SSH — overwriting your clipboard. The toggle also lives under Settings → Input → Selection & Clipboard ("OSC 52 clipboard sync").
+
 ### Click Timing
 
 Configure double/triple-click detection:

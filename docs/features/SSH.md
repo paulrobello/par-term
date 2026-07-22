@@ -236,6 +236,16 @@ remote_tab_title_osc_priority: true
 
 > **Note:** `remote_tab_title_format` requires shell integration to be installed on the remote host so that OSC 7 sequences are emitted. See [Integrations](INTEGRATIONS.md) for installation instructions.
 
+## Remote Clipboard (OSC 52)
+
+When a remote program copies text — for example, a selection inside a remote tmux session — it typically uses the OSC 52 escape sequence to push that text to your local clipboard. par-term bridges OSC 52 clipboard-set sequences to the system clipboard, so a copy initiated on the remote host lands in your local clipboard and is ready to paste locally (Cmd+V / Ctrl+Shift+V). No shell integration is required; it works over any SSH session.
+
+```yaml
+osc52_clipboard: true  # default — set to false to stop programs overwriting your clipboard
+```
+
+See [Mouse Features](MOUSE_FEATURES.md#osc-52-clipboard-remote-copy) for the full OSC 52 clipboard behavior, including per-pane polling and the focused-pane caveat.
+
 ## Configuration
 
 ```yaml
