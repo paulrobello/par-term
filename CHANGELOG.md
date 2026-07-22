@@ -11,6 +11,9 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ## [Unreleased]
 
+### Added
+- **OSC 52 clipboard writes now reach the system clipboard.** Programs set the clipboard via the OSC 52 escape sequence — locally and over SSH, this is how tmux, herdr, and other remote workspace managers reach your local clipboard. par-term advertised support (`TERM_PROGRAM=iTerm.app` + `ITERM_SESSION_ID`) and parsed those sequences, but the frontend never forwarded the payload to the OS clipboard, so a remote app would report "copied" while Cmd+V / Ctrl+Shift+V kept pasting stale content. A new per-frame poll (`check_clipboard_sync`, in `src/app/window_state/clipboard_sync.rs`) reads the active terminal's OSC 52 content and, when it changes, writes it to the system clipboard via arboard — the same path local selection-copy already uses — deduped against the last applied value so it doesn't rewrite every frame. Only the focused pane is polled, which covers the single-PTY SSH case; background-pane writes sync when their pane is next focused. Gated by a new `osc52_clipboard` config option (default `true`), with a toggle under Settings → Input → Selection & Clipboard ("OSC 52 clipboard sync") and search keywords (`osc 52`, `osc52`, `ssh clipboard`); disable it if you don't want programs overwriting your clipboard.
+
 ---
 
 ## [0.36.0] - 2026-07-10
