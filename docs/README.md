@@ -64,6 +64,7 @@ Navigation index for all par-term documentation. Start with the [Getting Started
 |----------|-------------|
 | [Automation](features/AUTOMATION.md) | Triggers, actions, coprocesses, and observer scripts for terminal automation |
 | [Assistant Panel](ASSISTANT_PANEL.md) | DevTools-style panel for terminal inspection and ACP agent chat (Claude, Ollama) |
+| [Notifications](features/NOTIFICATIONS.md) | Desktop notifications for the bell, session activity/silence, and OSC 9/777/99 escape sequences |
 
 ## Architecture & Development
 

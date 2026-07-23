@@ -353,7 +353,7 @@ par-term can automatically save the current session state on clean exit and rest
 restore_session: false
 ```
 
-**Settings UI:** Settings > Terminal > Startup > "Restore session on startup"
+**Settings UI:** Settings > Terminal > Startup > "Restore previous session on startup"
 
 **What gets saved:** Open windows with positions and sizes, all tabs with working directories, split pane trees with ratios, and active tab indices.
 

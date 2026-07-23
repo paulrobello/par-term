@@ -46,7 +46,6 @@ graph TD
         InputSender[Input Sender Task]
         ResizeHandler[Resize Handler Task]
         Timers[Cursor Blink / Bell Timers]
-        ClipboardSync[Clipboard Sync Task]
         AgentTask[ACP Agent Task]
     end
 
@@ -73,7 +72,7 @@ graph TD
     classDef info fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
 
     class EventLoop primary
-    class PTYReader,InputSender,ResizeHandler,Timers,ClipboardSync active
+    class PTYReader,InputSender,ResizeHandler,Timers active
     class AgentTask external
     class SystemMonitor,GitCheck,ShaderWatcher,AudioBell neutral
     class Render,Input,EguiUI info

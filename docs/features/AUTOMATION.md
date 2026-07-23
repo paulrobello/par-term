@@ -175,7 +175,7 @@ triggers:
 
 Each trigger can have multiple actions that all fire when the pattern matches. Actions are defined in the trigger's `actions` array. There are eight action types.
 
-> **📝 Note:** Dangerous actions (`RunCommand`, `SendText`, `SplitPane`) show an interactive confirmation dialog before executing when `prompt_before_run: true` (the default). The dialog offers three choices: **Allow** (run once), **Always Allow** (run automatically for the rest of the session, cleared on config reload), and **Deny** (discard the pending action). Setting `prompt_before_run: false` allows automatic execution — the rate-limiter, built-in command denylist, and the optional trigger-level `allowed_commands` allowlist still apply. Safe actions (`Highlight`, `Notify`, `MarkLine`, `SetVariable`, `PlaySound`) always fire without prompting.
+> **📝 Note:** Dangerous actions (`RunCommand`, `SendText`, `SplitPane`) show an interactive confirmation dialog before executing when `prompt_before_run: true` (the default). The dialog offers three choices: **Allow Once** (run this one time), **Always Allow** (run automatically for the rest of the session, cleared on config reload), and **Deny** (discard the pending action). Setting `prompt_before_run: false` allows automatic execution — the rate-limiter, built-in command denylist, and the optional trigger-level `allowed_commands` allowlist still apply. Safe actions (`Highlight`, `Notify`, `MarkLine`, `SetVariable`, `PlaySound`) always fire without prompting.
 >
 > **Security guard:** When `prompt_before_run: false`, you must also set `i_accept_the_risk: true` on the trigger. Without this explicit opt-in, execution is blocked and an audit warning is logged. This prevents accidental auto-execution after config copy/paste.
 >
@@ -475,7 +475,7 @@ graph LR
 - Marks appear as colored horizontal bars on the scrollbar
 - Hover over a mark to see a tooltip with the label text, command context, and timing
 - Mark position tracks the absolute line in the scrollback buffer
-- Marks are automatically cleared when the scrollback buffer is cleared (e.g., via `clear` or `Cmd+K`)
+- Marks are automatically cleared when the scrollback buffer is cleared (e.g., via `clear` or `Cmd+Shift+K` on macOS / `Ctrl+Shift+K` elsewhere)
 
 **Deduplication:**
 - When triggers fire multiple times per frame (due to PTY read batching), marks are deduplicated

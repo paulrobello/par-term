@@ -190,6 +190,7 @@ When `link_handler_command` is empty (the default), par-term falls back to the o
 Semantic history is configured in **Settings > Terminal > Semantic History**:
 
 - **Link handler** - Custom command to open URLs (empty uses system default browser)
+- **Allow opening file:// links** - Toggle to let Cmd/Ctrl+Click open `file://` hyperlinks via the OS handler (off by default; see [Mouse Features](MOUSE_FEATURES.md) for the URL scheme allowlist)
 - **Enable file path detection** - Toggle to turn file path detection on or off
 - **Link highlight color** - Color picker for the highlight color applied to detected paths and URLs
 - **Change text color on hover** - Toggle to apply highlight color to link text (disable to underline only)

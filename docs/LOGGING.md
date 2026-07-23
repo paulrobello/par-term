@@ -257,6 +257,8 @@ Custom debug macros use category tags for selective filtering. The following cat
 | `TMUX_INPUT` | Tmux input forwarding |
 | `TRIGGER` | Automation trigger evaluation and firing |
 
+> **Note:** The bundled terminal-emulator core library (`par-term-emu-core-rust`) emits additional categories through the same custom macros, including `PTY` (PTY read errors), `PTY_SHUTDOWN` (reader-thread shutdown lifecycle), and `STREAMING` (session streaming server lifecycle). These appear in the same log file and can be filtered the same way.
+
 Filter by category using grep:
 ```bash
 tail -f /tmp/par_term_debug.log | grep --line-buffered "CONCURRENCY"

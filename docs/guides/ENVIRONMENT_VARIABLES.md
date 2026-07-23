@@ -179,7 +179,7 @@ By default, only the following variable categories are substituted. References t
 - Any variable prefixed with `PAR_TERM_`
 - Any variable prefixed with `LC_` (locale variables)
 
-> **Note:** `TERM_PROGRAM_VERSION`, `LC_TERMINAL`, `LC_TERMINAL_VERSION`, `ITERM_SESSION_ID`, `__PAR_TERM`, `TTY`, `GIT_BRANCH`, and `GIT_COMMIT` are read by par-term at runtime but are **not** on the config-substitution allowlist.
+> **Note:** `TERM_PROGRAM_VERSION`, `ITERM_SESSION_ID`, `__PAR_TERM`, `TTY`, `GIT_BRANCH`, and `GIT_COMMIT` are read by par-term at runtime but are **not** on the config-substitution allowlist. (`LC_TERMINAL` and `LC_TERMINAL_VERSION` are substituted via the `LC_` prefix rule above.)
 
 To allow substitution of all environment variables (including secrets — use with caution):
 

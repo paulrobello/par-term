@@ -119,7 +119,7 @@ par-term polls the focused pane's OSC 52 content each frame and, when it changes
 osc52_clipboard: true  # Apply OSC 52 clipboard-set sequences to the system clipboard (default)
 ```
 
-Disable it if you don't want programs — including those running over SSH — overwriting your clipboard. The toggle also lives under Settings → Input → Selection & Clipboard ("OSC 52 clipboard sync").
+Disable it if you don't want programs — including those running over SSH — overwriting your clipboard. The toggle also lives under Settings → Input → Selection & Clipboard ("OSC 52 clipboard sync (programs set clipboard over SSH)").
 
 ### Click Timing
 
@@ -135,11 +135,12 @@ mouse_triple_click_threshold: 500  # milliseconds (default)
 
 Hold `Cmd` (macOS) or `Ctrl` (Windows/Linux) and click a URL to open it.
 
-**Detected Schemes:**
+**Detected Schemes (highlighted on hover):**
 - `http://`, `https://`
-- `ftp://`, `ftps://`
-- `file://`, `git://`, `ssh://`
-- `www.*` (converted to https://)
+- `ftp://`, `ftps://`, `file://`, `git://`, `ssh://`
+- `www.*` (normalized to `https://` on open)
+
+**Openable schemes** are restricted by an allowlist (SEC-009): only `http`, `https`, and `mailto` open by default. `file://` opens only when `allow_file_scheme_urls: true` is set. The other detected schemes (`ftp://`, `ftps://`, `git://`, `ssh://`) are highlighted but not forwarded to the OS handler, since the OS would otherwise dispatch them to arbitrary default apps.
 
 **Visual Feedback:**
 - Cursor changes to hand pointer on URL hover

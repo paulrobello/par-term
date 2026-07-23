@@ -153,7 +153,7 @@ The update dialog is a modal overlay that provides detailed information about an
 
 ### Opening the Dialog
 
-When an update is available, the status bar displays an update widget. Clicking this widget opens the update dialog overlay. The dialog appears centered over the terminal content with a semi-transparent backdrop.
+When an update is available, the status bar displays an update widget. Clicking this widget opens the update dialog overlay. The dialog appears centered over the terminal content as a floating window.
 
 ### Dialog Layout
 

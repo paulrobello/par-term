@@ -33,14 +33,17 @@ printf '\e]99;i=42;u=critical;Build failed\e\\'  # OSC 99
 
 ## Kitty OSC 99 — full metadata support
 
-par-term adopts the Kitty desktop-notification spec on top of `par-term-emu-core-rust` 0.44.0. The supported keys are:
+par-term adopts the Kitty desktop-notification spec. The supported keys are:
 
 | Key | Meaning | par-term behavior |
 |-----|---------|-------------------|
-| `<text>` (payload) | Notification body | Shown as the notification text. |
+| `<text>` (payload) | Notification body (or title when `p=title`) | Shown as the notification text (or title when paired with a `p=body` chunk). |
 | `i=` | Identity | Notifications redelivered with the same `i=` **replace** the previous one instead of stacking. |
 | `u=` | Urgency (`low`/`normal`/`critical`) | `critical` is made sticky on Linux and given an audible cue on macOS; Linux also gets the freedesktop urgency hint and urgency-scaled timeouts. |
 | `a=` | Click action | `focus` (the default) or `report` — see [Click actions](#click-actions). |
+| `p=` | Payload type (`title` default, or `body`) | First chunk's text is the title; subsequent `p=body` chunks assemble the body. With no `p=body` chunk, the title text becomes the message (mirroring OSC 9/777). |
+| `d=` | Done (`0` = more chunks follow, `1` = last chunk, default `1`) | Enables multi-chunk assembly for long notifications; the notification is only delivered when `d=1` (or unset) is seen. |
+| `e=` | Encoding (`0` raw default, `1` base64) | Base64-decodes the payload before delivery, for binary-safe text. |
 
 ## Platform backends
 
@@ -71,7 +74,7 @@ Every tab and pane is polled each frame for pending OSC 9/777/99 notifications, 
 
 ## Payload size cap
 
-`max_osc_data_length` (default `134217728`, i.e. 128 MiB — matching the core) caps the total payload size of an OSC sequence before it is rejected as a memory-exhaustion guard. It is applied at terminal creation and on live config reload, and is exposed under **Settings → Advanced** (MiB units). See [Configuration Reference](../CONFIG_REFERENCE.md#terminal).
+`max_osc_data_length` (default `134217728`, i.e. 128 MiB — matching the core) caps the total payload size of an OSC sequence before it is rejected as a memory-exhaustion guard. It is applied at terminal creation and on live config reload, and is exposed under **Settings → Advanced** (MiB units). See [Configuration Reference](../CONFIG_REFERENCE.md#security).
 
 ## Related docs
 

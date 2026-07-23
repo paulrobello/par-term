@@ -187,14 +187,14 @@ par-term supports iTerm2's OSC 1337 escape sequences for programmatic badge and 
 
 ### SetBadgeFormat
 
-The core terminal library recognizes iTerm2's OSC 1337 `SetBadgeFormat` sequence and surfaces badge-text changes as a `BadgeChanged` scripting event. The base64 payload passes through the `decode_badge_format` validator in `src/badge.rs`, which rejects shell-substitution constructs (`$(`, backticks) and the keywords `eval` and `exec` to prevent injection:
+The core terminal library recognizes iTerm2's OSC 1337 `SetBadgeFormat` sequence and surfaces badge-text changes as a `BadgeChanged` scripting event. The base64 payload is decoded and validated inside the core library (`par-term-emu-core-rust`'s `badge` module), which rejects shell-metacharacter patterns to prevent injection:
 
 ```bash
 # Wire format recognized by the core library
 printf "\033]1337;SetBadgeFormat=%s\007" "$(echo -n "My Badge" | base64)"
 ```
 
-**Security:** Decoded badge formats are validated before use. Shell substitution (`$(`, backticks) and the keywords `eval` and `exec` are rejected.
+**Security:** Decoded badge formats are validated before use. Shell command syntax — backticks, `$(`, `${`, arithmetic expansion, chaining (`&&`, `||`), pipes, redirections, and control bytes — is rejected.
 
 > **Note:** The decoded format is exposed to the scripting/event system. To display it in the badge overlay, handle the `BadgeChanged` event from a trigger or set `badge_format` through the Settings UI or config file.
 

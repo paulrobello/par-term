@@ -298,12 +298,12 @@ All public types from workspace crates are re-exported from the main `par-term` 
 *   **History Scanner (`par-term-ssh/src/history.rs`)**: Scans bash/zsh/fish history files for previously-used SSH connections.
 *   **mDNS Discovery (`par-term-ssh/src/mdns.rs`)**: Discovers SSH services on the local network via `_ssh._tcp.local.` Bonjour/mDNS browsing (opt-in).
 *   **Discovery Aggregator (`par-term-ssh/src/discovery.rs`)**: Combines hosts from all sources with deduplication.
-*   **Quick Connect UI (`src/ssh/`)**: egui dialog with fuzzy search, keyboard navigation, and source grouping.
+*   **Quick Connect UI (`src/ssh_connect_ui.rs`)**: egui modal overlay for browsing and connecting to SSH hosts with fuzzy search, keyboard navigation, and source grouping. The `src/ssh/` module is a thin re-export shim for the `par-term-ssh` crate, not the UI.
 
 ### Status Bar
 
 *   **StatusBarUI (`src/status_bar/mod.rs`)**: egui-based status bar renderer with three-section layout (left/center/right).
-*   **Widget System (`src/status_bar/widgets.rs`)**: Trait-based architecture for 10 built-in widgets (clock, git branch, CPU/memory usage, network status, etc.).
+*   **Widget System (`src/status_bar/widgets.rs`)**: Match-based dispatch on `WidgetId` (defined in `par-term-config/src/status_bar.rs`) for 10 built-in widgets (clock, git branch, CPU/memory usage, network status, etc.).
 *   **System Monitor (`src/status_bar/system_monitor.rs`)**: Background thread polling CPU, memory, and network metrics at configurable intervals.
 *   **Git Poller (`src/status_bar/git_poller.rs`)**: Background thread for git repository status polling.
 *   **Configuration**: Per-widget enable/disable, section assignment, and styling options with auto-hide on fullscreen or mouse inactivity.

@@ -123,7 +123,7 @@ Toggle with the **\b** button.
 ## Navigation
 
 ### Match Counter
-Displays current position: `3 of 42`. When there are no results, the counter shows `No matches`, or `Invalid` when a regex pattern fails to compile (a separate `Regex error:` message is shown below the options row).
+Displays current position: `3 of 42`. When there are no results, the counter shows `No matches`, or `Invalid` when a regex pattern fails to compile (a separate `Regex error:` message is shown inline in the options row, after the toggle buttons).
 
 ### Navigation Controls
 - **▲ (Up Arrow)** - Previous match

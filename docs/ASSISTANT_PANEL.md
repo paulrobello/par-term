@@ -366,7 +366,7 @@ The exported JSON contains:
 
 ## Bundled Agent Configurations
 
-par-term ships with 8 pre-configured ACP agent definitions embedded at compile time. These are always available regardless of installation method:
+par-term ships with 7 pre-configured ACP agent definitions embedded at compile time. These are always available regardless of installation method:
 
 | Agent | Identity | Connector Command | Install Command |
 |-------|----------|-------------------|-----------------|

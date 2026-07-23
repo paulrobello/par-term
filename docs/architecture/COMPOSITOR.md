@@ -77,7 +77,7 @@ graph TB
     style L6 fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
 ```
 
-> **Note:** Par-term supports two independent custom shaders: a **background shader** for post-processing effects and a **cursor shader** for cursor-specific effects (trails, glows). When shaders are enabled, terminal content (cells, inline graphics, overlays) is first rendered to an intermediate texture, then processed by the background shader (if enabled), then by the cursor shader (if enabled). This ensures shader effects apply to the complete terminal content. The egui UI layer is rendered after all shaders to remain unaffected.
+> **Note:** Par-term supports two independent custom shaders: a **background shader** for post-processing effects and a **cursor shader** for cursor-specific effects (trails, glows). In background-only mode (the default), the background shader generates a background effect and terminal content is composited cleanly on top of it. In full-content mode, or whenever the cursor shader is active, terminal content (cells, inline graphics, overlays) is first rendered to an intermediate texture, then processed by the background shader (if enabled), then by the cursor shader (if enabled), so the shader effect applies to the complete terminal content. The egui UI layer is always rendered after all shaders to remain unaffected.
 >
 > **Scrollbars** are rendered within the terminal content phase (inside `render_pane_to_view`), not as a separate overlay pass.
 
@@ -127,6 +127,10 @@ sequenceDiagram
         Note over Renderer: Background shader to cursor intermediate, cursor shader to surface
         Renderer->>BSR: render_with_clear_color(cursor_intermediate, apply_opacity=false)
         BSR->>BSR: Apply background shader (chain mode, no opacity)
+        Renderer->>CR: render_pane_to_view(cursor_intermediate)
+        CR->>CR: 3-phase: bgs -> text -> cursor overlays (LoadOp::Load)
+        Renderer->>GR: render_pane_sixel_graphics(cursor_intermediate)
+        GR->>CR: Overlay graphics (LoadOp::Load)
         Note over Renderer: Dividers, pane titles, visual bell, focus indicator to cursor intermediate
         Renderer->>CSR: render(surface_view, apply_opacity=true)
         CSR->>Surface: Apply cursor shader effect with final opacity

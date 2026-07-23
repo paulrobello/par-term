@@ -65,14 +65,16 @@ The exported file contains all configuration values.
 1. Open Settings > **Advanced** > **Import/Export Preferences**
 2. Click **Import & Replace** to completely replace your config, or **Import & Merge** to preserve existing customizations
 3. Select a `.yaml` configuration file in the native file dialog
-4. The configuration applies immediately
+4. The configuration loads into the settings panel as unsaved changes (the panel shows "* Unsaved changes")
+5. Click **Save** to persist the configuration to disk and apply it to the running terminal
 
 ### Import from URL
 
 1. Open Settings > **Advanced** > **Import/Export Preferences**
 2. Enter the URL of a configuration file (must start with `http://` or `https://`)
 3. Click **Fetch & Replace** to completely replace your config, or **Fetch & Merge** to preserve existing customizations
-4. The configuration downloads and applies
+4. The configuration downloads and loads into the settings panel as unsaved changes
+5. Click **Save** to persist the configuration to disk and apply it to the running terminal
 
 ### Import Modes
 

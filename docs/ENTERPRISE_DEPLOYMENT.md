@@ -87,18 +87,10 @@ The `xattr` step removes the Gatekeeper quarantine flag — necessary for script
 For teams that manage Homebrew centrally (e.g., via Brewfile or a custom tap):
 
 ```bash
-brew install paulrobello/tap/par-term
+brew install --cask paulrobello/tap/par-term
 ```
 
-Pin a specific version to prevent automatic upgrades:
-```bash
-brew pin par-term
-```
-
-Unpin before a planned upgrade window:
-```bash
-brew unpin par-term && brew upgrade par-term && brew pin par-term
-```
+Hold a specific version by skipping `brew upgrade --cask par-term` during automated upgrade windows. Homebrew casks cannot be `brew pin`-ned (pinning applies to formulae only), so version control is enforced operationally rather than through `brew pin`.
 
 ### Build from Source
 
@@ -122,7 +114,7 @@ cargo build --profile dev-release --locked
 #!/usr/bin/env bash
 set -euo pipefail
 
-PAR_TERM_VERSION="0.34.0"
+PAR_TERM_VERSION="0.37.0"
 INSTALL_DIR="/usr/local/bin"
 PLATFORM="macos-aarch64"   # adjust: macos-x86_64, linux-x86_64, linux-aarch64
 BINARY="par-term-${PLATFORM}.zip"
@@ -166,7 +158,7 @@ echo "par-term ${PAR_TERM_VERSION} installed successfully."
 
 ```powershell
 # deploy-par-term.ps1
-$Version  = "0.34.0"
+$Version  = "0.37.0"
 $Platform = "windows-x86_64"
 $InstDir  = "C:\Program Files\par-term"
 $Url      = "https://github.com/paulrobello/par-term/releases/download/v$Version/par-term-$Platform.exe"
@@ -276,9 +268,9 @@ Valid values: `hourly`, `daily`, `weekly`, `monthly`, `never`.
 
 | Install Method | Pin Command |
 |----------------|-------------|
-| Homebrew | `brew pin par-term` |
+| Homebrew (cask) | Skip `brew upgrade --cask par-term` during upgrade windows (casks cannot be `brew pin`-ned) |
 | Standalone binary | Replace binary file only during planned maintenance windows |
-| Cargo | `cargo install --locked --version 0.34.0 par-term` |
+| Cargo | `cargo install --locked --version 0.37.0 par-term` |
 
 ### Managed Update Workflow
 
@@ -309,9 +301,9 @@ chmod 755 /tmp/par-term-pkg/usr/local/bin/par-term
 pkgbuild \
   --root /tmp/par-term-pkg \
   --identifier com.paulrobello.par-term \
-  --version 0.34.0 \
+  --version 0.37.0 \
   --install-location / \
-  par-term-0.34.0.pkg
+  par-term-0.37.0.pkg
 ```
 
 Upload the `.pkg` to Jamf Pro and deploy via a policy scoped to the target computer group.
@@ -375,7 +367,7 @@ par-term's [Automation](features/AUTOMATION.md) system can execute shell command
 - The Settings UI displays an amber warning banner when any trigger has `prompt_before_run: false`.
 - The built-in command denylist blocks known dangerous commands but is bypassable via obfuscation. Do not rely on it as a security boundary.
 
-To disable automation entirely in managed deployments, deploy a config with no `triggers` entries and no `automation_scripts`.
+To disable automation entirely in managed deployments, deploy a config with empty `triggers`, `coprocesses`, and `scripts` lists.
 
 ### Session Logging
 

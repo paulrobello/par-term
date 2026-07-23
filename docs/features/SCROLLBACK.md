@@ -210,7 +210,7 @@ scrollbar_track_color: [0.15, 0.15, 0.15, 0.6]
 
 # Command marks (requires shell integration)
 scrollbar_command_marks: true
-scrollbar_mark_tooltips: true
+scrollbar_mark_tooltips: false
 ```
 
 ## Requirements

@@ -172,7 +172,7 @@ flowchart LR
 
 ### Profile Icon Picker
 
-The profile icon field includes an icon picker popup with ~250 curated Nerd Font icons organized in 14 categories. Nerd Font icons render reliably in the egui-based settings UI and each icon shows a descriptive tooltip on hover.
+The profile icon field includes an icon picker popup with ~200 curated Nerd Font icons organized in 14 categories. Nerd Font icons render reliably in the egui-based settings UI and each icon shows a descriptive tooltip on hover.
 
 | Category | Description | Example Icons |
 |----------|-------------|---------------|
@@ -182,14 +182,14 @@ The profile icon field includes an icon picker popup with ~250 curated Nerd Font
 | Network & Cloud | Networking and cloud services | Globe, WiFi, Cloud, Server, SSH, AWS |
 | Security | Locks, keys, and access control | Lock, Shield, Key, Eye, Warning |
 | Git & VCS | Version control systems | Branch, Merge, Commit, GitHub, GitLab, BitBucket |
-| Weather & Nature | Weather and natural elements | Sun, Moon, Cloud, Rain, Snow, Tree, Leaf |
+| Weather & Nature | Weather and natural elements | Sun, Moon, Snowflake, Lightning, Rainy, Tree, Leaf |
 | Containers & Infra | Containers and infrastructure | Docker, Kubernetes, CPU, Gear, Memory |
 | OS & Platforms | Operating systems and platforms | Apple, Windows, Linux, Android, Homebrew |
 | Status & Alerts | Status indicators and signals | Check, Bolt, Rocket, Fire, Star |
 | UI Actions | Common interface actions | Search, Edit, Copy, Plus, Refresh, Save |
 | Navigation | Arrows and directional icons | Arrow Up/Down, Angle Left/Right, Reply |
 | People & Misc | People and miscellaneous symbols | User, Robot, Gamepad, Music, Bookmark |
-| Fun & Seasonal | Seasonal and fun symbols | Snowflake, Jack-o-Lantern, Gift, Fireworks, Clover |
+| Fun & Seasonal | Seasonal and fun symbols | Ghost, Skull, Gift, Magic Wand, Sparkle, Trophy |
 
 Click any icon to set it as the profile icon, or type a custom value directly in the text field. Use the "Clear icon" button to remove the current icon.
 
@@ -296,7 +296,7 @@ Add `directory_patterns` to a profile:
 
 1. Open Settings > Profiles
 2. Edit a profile
-3. Find the "Directory Patterns" field
+3. Find the "Auto-Switch Dirs" field
 4. Enter comma-separated glob patterns
 
 ### Tmux Profile Auto-Switching
@@ -522,7 +522,7 @@ pane_backgrounds:
 
 ### Settings UI
 
-Access per-pane background settings in **Settings > Appearance > Background**:
+Access per-pane background settings in **Settings > Effects > Per-Pane Background**:
 
 1. Click on a split pane in the preview (if using split panes)
 2. Configure the following for the selected pane:
@@ -626,8 +626,8 @@ When a dynamic profile has the same ID as a local profile, the `conflict_resolut
 Dynamic profiles are visually distinguished throughout the interface:
 
 - A `[dynamic]` badge appears next to dynamic profile names in the profile modal and profile drawer
-- Dynamic profiles are read-only; edit and delete controls are disabled for them
-- The source URL is shown in the profile detail view
+- Dynamic profiles are read-only; opening one shows a "managed by a remote source" notice and all form fields are disabled
+- Edit and delete controls are disabled for dynamic profiles in the profile list
 
 ### Keybinding
 
@@ -641,7 +641,7 @@ keybindings:
 
 ### Dynamic Profiles Settings UI
 
-Dynamic profile sources can be managed in **Settings > Profiles > Dynamic Sources**:
+Dynamic profile sources can be managed in **Settings > Profiles > Dynamic Profile Sources**:
 
 - Add, edit, and remove remote source URLs
 - Configure per-source headers, refresh interval, and size limits

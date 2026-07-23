@@ -182,7 +182,7 @@ Custom widgets support these variables:
 
 **Example format strings:**
 
-```
+```text
 Host: \(session.hostname) CPU: \(system.cpu)
 \(git.branch) [\(session.current_command)]
 Profile: \(session.profile_name) TTY: \(session.tty)

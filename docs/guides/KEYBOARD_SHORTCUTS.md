@@ -121,7 +121,7 @@ Vi-style keyboard-driven text selection. See [Copy Mode](../features/COPY_MODE.m
 | Shortcut | Action |
 |----------|--------|
 | `Ctrl + L` | Clear visible screen |
-| `Ctrl + Shift + K` | Clear scrollback buffer |
+| `Cmd/Ctrl + Shift + K` | Clear scrollback buffer |
 | `Cmd/Ctrl + Shift + R` | Toggle session logging |
 | `Cmd + Shift + T` (macOS) / `Ctrl + Shift + M` (Linux/Win) | Toggle maximize throughput mode |
 
@@ -131,9 +131,9 @@ Vi-style keyboard-driven text selection. See [Copy Mode](../features/COPY_MODE.m
 
 | Shortcut | Action |
 |----------|--------|
-| `Ctrl + +` or `Ctrl + =` | Increase font size |
-| `Ctrl + -` | Decrease font size |
-| `Ctrl + 0` | Reset font size to default |
+| `Cmd/Ctrl + +` or `Cmd/Ctrl + =` | Increase font size |
+| `Cmd/Ctrl + -` | Decrease font size |
+| `Cmd/Ctrl + 0` | Reset font size to default |
 
 ## UI Toggles & Display
 

@@ -72,8 +72,9 @@ graph TD
 |--------|-------|---------------|
 | New tab | `Cmd+T` | `Ctrl+Shift+T` |
 | Close (smart) | `Cmd+W` | `Ctrl+Shift+W` |
+| Close pane | `Cmd+Shift+W` | `Ctrl+Shift+X` |
 
-`Close` is a smart action: it closes the active split pane when the tab has splits, or closes the tab itself when there is only one pane. On macOS, press `Cmd+Shift+W` to close the entire window. On Linux/Windows, the window close button or window manager shortcut closes the window.
+`Close` is a smart action: it closes the current tab, and closes the window when that was the last remaining tab. `Close pane` closes the active split pane when the tab has splits, or falls through to closing the tab when there is only one pane. On Linux/Windows, the window close button or window manager shortcut closes the window.
 
 New tabs inherit the working directory from the current tab (if shell integration is installed) or start in the configured startup directory.
 

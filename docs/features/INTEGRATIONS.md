@@ -66,7 +66,7 @@ Shell integration enhances the terminal experience by enabling communication bet
 ### Shell Features
 
 - **Directory Tracking (OSC 7)**: Tab titles automatically update to show the current working directory
-- **Command Notifications (OSC 777)**: Desktop notifications for long-running commands
+- **Command Exit Status (OSC 133)**: Last command's exit code is captured for display in the command history
 - **Prompt Navigation (OSC 133)**: Navigate between command prompts using keyboard shortcuts
 - **Current Working Directory Sync**: New tabs can inherit the current directory from the active tab
 

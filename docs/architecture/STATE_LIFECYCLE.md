@@ -145,9 +145,11 @@ When a tab becomes active (user switches to it):
 ### Refresh Loop
 
 Each tab runs a background async task (`src/tab/refresh_task.rs`) that polls the
-`TerminalManager` for new PTY output. The task uses exponential backoff (16ms → 250ms)
-when idle and resets to 16ms immediately when new data arrives. Inactive tabs poll at a
-reduced rate controlled by `inactive_tab_fps` in the config.
+`TerminalManager`'s update generation for new PTY output. Active tabs poll at a constant
+rate derived from `max_fps` (default 60 Hz, ~16ms). Inactive tabs poll at
+`inactive_tab_fps` (default 2 Hz) and apply exponential backoff, doubling the interval
+per idle tick up to a 250ms cap. Whenever new output is detected the task calls
+`window.request_redraw()`.
 
 ### Title Updates
 
@@ -162,12 +164,13 @@ Tab titles update automatically from:
 
 ### Destruction
 
-When a tab is closed via `TabManager::close_tab`:
+When a tab is closed via `TabManager::close_tab`, the tab is removed from the
+`TabManager`'s list and dropped. The `Tab` `Drop` implementation then runs cleanup in
+this order:
 
-1. The refresh task is aborted via `Tab::stop_refresh_task` (non-blocking `abort()` call).
-2. Session logging is stopped and the log file is finalized.
+1. Session logging is stopped and the log file is finalized.
+2. The refresh task is aborted via `Tab::stop_refresh_task` (non-blocking `abort()` call).
 3. The `TerminalManager` is killed via `terminal.try_write().kill()`.
-4. The `Tab` is removed from `TabManager`'s list and dropped.
 
 The `Tab` `Drop` implementation handles cleanup when `shutdown_fast` is false. When
 `shutdown_fast` is true (application-exit path), the Drop impl returns immediately and
@@ -247,7 +250,7 @@ sequenceDiagram
 6. The **async PTY reader task** reads those bytes and calls the core VT parser, which
    updates the in-memory cell grid, scrollback, and graphics state.
 7. On the next frame, the **render pipeline** calls `gather_render_data()` which calls
-   `try_write()` on the `TerminalManager`'s `RwLock` and snapshots the current cell grid.
+   `try_read()` on the `TerminalManager`'s `RwLock` and snapshots the current cell grid.
 8. The snapshot is passed to the GPU renderer, which uploads changed cells to the glyph
    atlas and submits a wgpu command buffer.
 9. The frame is presented to the display.
@@ -267,7 +270,7 @@ sequenceDiagram
     Reader->>Core: feed(bytes)
     Core->>Core: Parse escape sequences
     Core->>Core: Update cell grid + graphics
-    Tab->>Gather: try_write() TerminalManager
+    Tab->>Gather: try_read() TerminalManager
     Gather->>Gather: Extract cells, graphics, metadata
     Gather->>Gather: Detect URLs, apply search highlights
     Gather-->>GPU: FrameRenderData snapshot
