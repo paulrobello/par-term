@@ -236,7 +236,7 @@ pub struct Config {
     /// - mailbox: Cap at monitor refresh rate with triple buffering (balanced)
     /// - fifo: Strict VSync with double buffering (lowest power, slight input lag)
     ///
-    /// Default: immediate (for maximum performance)
+    /// Default: fifo (strict VSync — lowest power, most compatible)
     #[serde(default)]
     pub vsync_mode: VsyncMode,
 
