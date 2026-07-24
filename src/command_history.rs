@@ -3,6 +3,7 @@
 //! Tracks commands captured via OSC 133 shell integration markers and persists
 //! them across sessions to `~/.config/par-term/command_history.yaml`.
 
+use par_term_config::Config;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::fs;
@@ -50,10 +51,7 @@ impl CommandHistory {
 
     /// Get the default persistence path.
     fn default_path() -> PathBuf {
-        dirs::config_dir()
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join("par-term")
-            .join("command_history.yaml")
+        Config::config_dir().join("command_history.yaml")
     }
 
     /// Load history from disk, merging with any existing in-memory entries.

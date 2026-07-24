@@ -11,9 +11,7 @@ use std::time::SystemTime;
 
 /// Get the cache directory for dynamic profiles.
 pub fn cache_dir() -> PathBuf {
-    dirs::config_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join("par-term")
+    par_term_config::Config::config_dir()
         .join("cache")
         .join("dynamic_profiles")
 }

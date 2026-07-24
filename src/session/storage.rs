@@ -4,14 +4,12 @@
 
 use super::SessionState;
 use anyhow::{Context, Result};
+use par_term_config::Config;
 use std::path::PathBuf;
 
 /// Get the path to the session state file
 pub fn session_path() -> PathBuf {
-    dirs::config_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join("par-term")
-        .join("last_session.yaml")
+    Config::config_dir().join("last_session.yaml")
 }
 
 /// Save session state to the default location

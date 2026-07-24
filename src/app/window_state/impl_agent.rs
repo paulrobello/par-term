@@ -175,7 +175,7 @@ pub(super) fn merge_custom_ai_inspector_agents(
 impl WindowState {
     /// Recompute available ACP agents from discovered + custom definitions.
     pub(crate) fn refresh_available_agents(&mut self) {
-        let config_dir = dirs::config_dir().unwrap_or_default().join("par-term");
+        let config_dir = Config::config_dir();
         let discovered_agents = discover_agents(&config_dir);
         self.agent_state.available_agents = merge_custom_ai_inspector_agents(
             discovered_agents,

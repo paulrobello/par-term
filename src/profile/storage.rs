@@ -3,15 +3,12 @@
 //! Profiles are stored in `~/.config/par-term/profiles.yaml`
 
 use anyhow::{Context, Result};
-use par_term_config::{Profile, ProfileManager};
+use par_term_config::{Config, Profile, ProfileManager};
 use std::path::PathBuf;
 
 /// Get the default profiles file path
 pub fn profiles_path() -> PathBuf {
-    dirs::config_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join("par-term")
-        .join("profiles.yaml")
+    Config::config_dir().join("profiles.yaml")
 }
 
 /// Load profiles from the default location

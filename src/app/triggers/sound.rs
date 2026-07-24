@@ -8,6 +8,8 @@
 
 use std::path::PathBuf;
 
+use par_term_config::Config;
+
 use crate::app::window_state::WindowState;
 
 // ---- audio feature enabled -------------------------------------------------
@@ -64,11 +66,7 @@ impl WindowState {
 
     /// Get the sounds directory path.
     pub(super) fn sounds_dir() -> PathBuf {
-        if let Some(config_dir) = dirs::config_dir() {
-            config_dir.join("par-term").join("sounds")
-        } else {
-            PathBuf::from("sounds")
-        }
+        Config::config_dir().join("sounds")
     }
 }
 
@@ -87,10 +85,6 @@ impl WindowState {
     /// Get the sounds directory path (still useful for path resolution even
     /// when audio playback is disabled).
     pub(super) fn sounds_dir() -> PathBuf {
-        if let Some(config_dir) = dirs::config_dir() {
-            config_dir.join("par-term").join("sounds")
-        } else {
-            PathBuf::from("sounds")
-        }
+        Config::config_dir().join("sounds")
     }
 }

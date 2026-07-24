@@ -4,14 +4,12 @@
 
 use super::{ArrangementManager, WindowArrangement};
 use anyhow::{Context, Result};
+use par_term_config::Config;
 use std::path::PathBuf;
 
 /// Get the default arrangements file path
 pub fn arrangements_path() -> PathBuf {
-    dirs::config_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join("par-term")
-        .join("arrangements.yaml")
+    Config::config_dir().join("arrangements.yaml")
 }
 
 /// Load arrangements from the default location
