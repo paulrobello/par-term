@@ -14,13 +14,19 @@ pub type ScriptId = u64;
 
 /// Interpreter candidates for `.py` scripts, in priority order.
 ///
-/// Windows leads with `py`, the PEP 397 launcher, which is installed by the
-/// official distribution and picks a suitable interpreter itself. `python3`
-/// often does not exist on Windows — the installer provides `python.exe`, and
-/// `python3` only sometimes appears via the Microsoft Store alias — so leading
-/// with it (as this code previously did unconditionally) fails there.
+/// Direct executables come first on Windows, with the PEP 397 launcher `py`
+/// only as a fallback. `py` is an indirection: it spawns the real interpreter
+/// as a child process and selects the version itself, so the script becomes a
+/// grandchild whose stdio is one hop further away, and it may pick a different
+/// Python than `python` resolves to (on a GitHub runner, 3.14 versus 3.12).
+/// Preferring `py` made the scripting integration tests spawn successfully but
+/// read back zero commands.
+///
+/// `python3` is kept because it exists on Windows CI images even though the
+/// official installer does not create it — and it must stay ahead of `py` for
+/// the same indirection reason.
 #[cfg(windows)]
-const PYTHON_CANDIDATES: &[&str] = &["py", "python", "python3"];
+const PYTHON_CANDIDATES: &[&str] = &["python", "python3", "py"];
 #[cfg(not(windows))]
 const PYTHON_CANDIDATES: &[&str] = &["python3", "python"];
 
