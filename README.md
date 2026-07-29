@@ -41,6 +41,16 @@ New to par-term? The [Getting Started Guide](docs/guides/GETTING_STARTED.md) wal
 - **[Configuration Reference](docs/CONFIG_REFERENCE.md)** — All 200+ configuration options
 - **[Keyboard Shortcuts](docs/guides/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
 
+## What's New in 0.37.1
+
+- **Scripts on Windows now run at all** -- `.py` scripts were spawned with a literal `python3`, which the official Windows Python distribution does not install (it provides `python.exe` and the `py.exe` launcher only), so every script silently failed to start. The interpreter is now resolved from `PATH`, honouring `PATHEXT`, and reports which candidates it tried when none is found.
+- **ACP agents on Windows are discoverable** -- agent lookup probed `PATH` for a bare binary name, but the file on disk carries a `PATHEXT` suffix (`claude-agent-acp.cmd`), so every bundled agent reported "not installed". Lookup now tries each `PATHEXT` extension, and the ACP safe-write allowlist uses the real temp directory instead of hardcoded Unix paths.
+- **The audio bell no longer crashes par-term on Windows** -- a device was opened per pane, and opening a second WASAPI device after the creating thread exits faults the process. One shared device is now opened per process, which also drops the per-pane device handles and mixer threads on every platform.
+- **`auto_start: true` scripts start with their tab** -- the flag was documented but never acted on; only the Settings UI button could launch a script. Tab creation now auto-starts scripts the way it already did coprocesses ([#220](https://github.com/paulrobello/par-term/issues/220)).
+- **Windows CI is back, and the full three-OS matrix with it** -- the audio crash above was the long-standing cause of the instability that got the Windows leg disabled.
+
+For the full history of changes across all versions, see [CHANGELOG.md](CHANGELOG.md).
+
 ## What's New in 0.37.0
 
 - **OSC 52 clipboard bridge -- remote copy now works** -- programs that set the clipboard via the OSC 52 escape sequence (locally and over SSH -- this is how tmux, herdr, and other remote workspace managers reach your local clipboard) now actually reach the system clipboard. par-term advertised OSC 52 support and parsed the sequences, but the frontend never forwarded the payload to the OS, so a remote app would report "copied" while paste kept delivering stale content. A per-frame poll now bridges the parsed OSC 52 content to the system clipboard (the same path local selection-copy uses), deduped per frame and polled only for the focused pane. Gated by `osc52_clipboard` (default `true`), with a toggle under Settings → Input → Selection & Clipboard; disable it if you don't want programs overwriting your clipboard.
