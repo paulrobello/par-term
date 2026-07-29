@@ -14,8 +14,9 @@ cmd = {"type": "Log", "level": "info", "message": "got " + event["kind"]}
 print(json.dumps(cmd), flush=True)
 "#;
 
-    let mut proc = ScriptProcess::spawn("python3", &["-c", python_script], &HashMap::new())
-        .expect("Failed to spawn python3 script process");
+    let mut proc =
+        ScriptProcess::spawn(crate::python_cmd(), &["-c", python_script], &HashMap::new())
+            .expect("Failed to spawn python3 script process");
 
     assert!(proc.is_running(), "Process should be running after spawn");
 
@@ -60,7 +61,7 @@ print("error line 1", file=sys.stderr, flush=True)
 print("error line 2", file=sys.stderr, flush=True)
 "#;
 
-    let proc = ScriptProcess::spawn("python3", &["-c", python_script], &HashMap::new())
+    let proc = ScriptProcess::spawn(crate::python_cmd(), &["-c", python_script], &HashMap::new())
         .expect("Failed to spawn python3 script process");
 
     // Wait for the script to run and exit

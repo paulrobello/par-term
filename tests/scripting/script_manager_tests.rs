@@ -27,7 +27,7 @@ fn make_config(script_path: &str, args: Vec<String>) -> ScriptConfig {
 fn test_manager_start_stop_script() {
     // A Python script that just sleeps, keeping the process alive.
     let config = make_config(
-        "python3",
+        crate::python_cmd(),
         vec!["-c".to_string(), "import time; time.sleep(60)".to_string()],
     );
 
@@ -47,11 +47,11 @@ fn test_manager_start_stop_script() {
 #[test]
 fn test_manager_stop_all() {
     let config1 = make_config(
-        "python3",
+        crate::python_cmd(),
         vec!["-c".to_string(), "import time; time.sleep(60)".to_string()],
     );
     let config2 = make_config(
-        "python3",
+        crate::python_cmd(),
         vec!["-c".to_string(), "import time; time.sleep(60)".to_string()],
     );
 
@@ -91,7 +91,10 @@ print(json.dumps(cmd), flush=True)
 print("test error", file=sys.stderr, flush=True)
 "#;
 
-    let config = make_config("python3", vec!["-c".to_string(), python_script.to_string()]);
+    let config = make_config(
+        crate::python_cmd(),
+        vec!["-c".to_string(), python_script.to_string()],
+    );
 
     let mut mgr = ScriptManager::new();
     let id = mgr.start_script(&config).expect("Failed to start script");
@@ -135,7 +138,7 @@ fn test_manager_panel_operations() {
     assert!(mgr.get_panel(999).is_none());
 
     let config = make_config(
-        "python3",
+        crate::python_cmd(),
         vec!["-c".to_string(), "import time; time.sleep(60)".to_string()],
     );
 
@@ -163,7 +166,7 @@ fn test_manager_script_ids() {
     assert!(mgr.script_ids().is_empty());
 
     let config = make_config(
-        "python3",
+        crate::python_cmd(),
         vec!["-c".to_string(), "import time; time.sleep(60)".to_string()],
     );
 
@@ -195,7 +198,10 @@ print(json.dumps(cmd), flush=True)
 import time; time.sleep(5)
 "#;
 
-    let config = make_config("python3", vec!["-c".to_string(), python_script.to_string()]);
+    let config = make_config(
+        crate::python_cmd(),
+        vec!["-c".to_string(), python_script.to_string()],
+    );
 
     let mut mgr = ScriptManager::new();
     let id1 = mgr.start_script(&config).expect("Failed to start script 1");
@@ -237,7 +243,7 @@ fn test_manager_auto_detect_python() {
     // start_script with a .py path would attempt python3.
     // Instead, test with a direct python3 command to verify the flow works.
     let config = make_config(
-        "python3",
+        crate::python_cmd(),
         vec!["-c".to_string(), "import time; time.sleep(60)".to_string()],
     );
 

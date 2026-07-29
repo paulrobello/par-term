@@ -9,7 +9,7 @@ fn make_integration_config(args: Vec<String>) -> ScriptConfig {
     ScriptConfig {
         name: "integration-test".to_string(),
         enabled: true,
-        script_path: "python3".to_string(),
+        script_path: crate::python_cmd().to_string(),
         args,
         auto_start: false,
         restart_policy: RestartPolicy::Never,

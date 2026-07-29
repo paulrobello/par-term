@@ -12,6 +12,66 @@ use par_term_config::ScriptConfig;
 /// Unique identifier for a managed script process.
 pub type ScriptId = u64;
 
+/// Interpreter candidates for `.py` scripts, in priority order.
+///
+/// Windows leads with `py`, the PEP 397 launcher, which is installed by the
+/// official distribution and picks a suitable interpreter itself. `python3`
+/// often does not exist on Windows — the installer provides `python.exe`, and
+/// `python3` only sometimes appears via the Microsoft Store alias — so leading
+/// with it (as this code previously did unconditionally) fails there.
+#[cfg(windows)]
+const PYTHON_CANDIDATES: &[&str] = &["py", "python", "python3"];
+#[cfg(not(windows))]
+const PYTHON_CANDIDATES: &[&str] = &["python3", "python"];
+
+/// Whether `name` resolves to an executable on `PATH`.
+///
+/// On Windows each `PATHEXT` suffix is tried, since `python` on disk is
+/// `python.exe`.
+fn executable_on_path(name: &str) -> bool {
+    let Some(path) = std::env::var_os("PATH") else {
+        return false;
+    };
+
+    #[cfg(windows)]
+    let extensions: Vec<String> = std::env::var("PATHEXT")
+        .unwrap_or_else(|_| ".EXE;.BAT;.CMD".to_string())
+        .split(';')
+        .filter(|e| !e.is_empty())
+        .map(str::to_string)
+        .collect();
+
+    for dir in std::env::split_paths(&path) {
+        #[cfg(windows)]
+        {
+            for ext in &extensions {
+                if dir.join(format!("{}{}", name, ext)).is_file() {
+                    return true;
+                }
+            }
+        }
+        #[cfg(not(windows))]
+        {
+            if dir.join(name).is_file() {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// The interpreter used to run `.py` scripts on this machine.
+///
+/// Returns the first candidate found on `PATH`, or `None` when no Python is
+/// installed, so callers can report that rather than failing to spawn a command
+/// that was never going to exist.
+pub fn python_interpreter() -> Option<&'static str> {
+    PYTHON_CANDIDATES
+        .iter()
+        .copied()
+        .find(|candidate| executable_on_path(candidate))
+}
+
 /// Default maximum `WriteText` writes per second.
 pub const DEFAULT_WRITE_TEXT_RATE: u32 = 10;
 /// Default maximum `RunCommand` executions per second.
@@ -49,20 +109,29 @@ impl ScriptManager {
 
     /// Start a script subprocess from the given configuration.
     ///
-    /// If `script_path` ends with `.py`, the command is `python3` with the script path
-    /// prepended to the args. Otherwise, `script_path` is used as the command directly.
+    /// If `script_path` ends with `.py`, it is run with the Python interpreter
+    /// resolved by [`python_interpreter`] (the script path is prepended to the
+    /// args). Otherwise, `script_path` is used as the command directly.
     ///
     /// Returns the assigned [`ScriptId`] on success.
     ///
     /// # Errors
-    /// Returns an error string if the subprocess cannot be spawned.
+    /// Returns an error string if no Python interpreter is installed (for `.py`
+    /// scripts) or if the subprocess cannot be spawned.
     pub fn start_script(&mut self, config: &ScriptConfig) -> Result<ScriptId, String> {
         let (command, args) = if config.script_path.ends_with(".py") {
+            let interpreter = python_interpreter().ok_or_else(|| {
+                format!(
+                    "no Python interpreter found on PATH (tried {}) to run '{}'",
+                    PYTHON_CANDIDATES.join(", "),
+                    config.script_path
+                )
+            })?;
             let mut full_args = vec![config.script_path.as_str()];
             let arg_refs: Vec<&str> = config.args.iter().map(String::as_str).collect();
             full_args.extend(arg_refs);
             (
-                "python3".to_string(),
+                interpreter.to_string(),
                 full_args.into_iter().map(String::from).collect::<Vec<_>>(),
             )
         } else {
