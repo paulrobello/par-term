@@ -1,0 +1,71 @@
+name: CI (Windows only)
+
+# Manual-dispatch mirror of the windows-latest leg of ci.yml, for verifying
+# Windows before re-enabling the full three-OS matrix. Runs only when triggered
+# by hand — no push or pull_request trigger — so it costs nothing until asked.
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_build:
+        description: "Also run the release build (slow; the rest of the windows matrix leg)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test-windows:
+    name: Test - windows-latest
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v7
+      with:
+        node-version: 22
+
+    - name: Install Rust toolchain
+      # Pinned to the 1.95.0 branch of the action, matching rust-toolchain.toml.
+      # To find the SHA: git ls-remote https://github.com/dtolnay/rust-toolchain refs/heads/1.95.0
+      uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1
+      with:
+        toolchain: 1.95.0
+
+    - name: Install ACP bridge
+      shell: pwsh
+      run: |
+        npm install -g @zed-industries/claude-agent-acp
+        Get-Command claude-agent-acp
+
+    - name: Cache cargo registry
+      uses: actions/cache@v6
+      with:
+        path: ~/.cargo/registry
+        key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Cache cargo index
+      uses: actions/cache@v6
+      with:
+        path: ~/.cargo/git
+        key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Cache target directory
+      uses: actions/cache@v6
+      with:
+        path: target
+        key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Run tests
+      run: cargo test --workspace --verbose
+
+    - name: Build release
+      if: inputs.release_build
+      run: cargo build --release --verbose

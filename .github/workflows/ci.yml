@@ -24,19 +24,19 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
 
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v7
 
     - name: Setup Node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v7
       with:
         node-version: 22
 
     - name: Install Rust toolchain
       # Pinned to a stable release tag; update SHA when bumping toolchain version.
       # To find the SHA: git ls-remote https://github.com/dtolnay/rust-toolchain refs/heads/master
-      uses: dtolnay/rust-toolchain@4305c38b25bff3e379fbb44ff7dfba641d7aa8ef
+      uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1
       with:
-        toolchain: 1.94.1
+        toolchain: 1.95.0
 
     - name: Install Linux dependencies
       if: runner.os == 'Linux'
@@ -56,19 +56,19 @@ jobs:
         Get-Command claude-agent-acp
 
     - name: Cache cargo registry
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: ~/.cargo/registry
         key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
 
     - name: Cache cargo index
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: ~/.cargo/git
         key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
 
     - name: Cache target directory
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: target
         key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
@@ -85,19 +85,19 @@ jobs:
     timeout-minutes: 15
 
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v7
 
     - name: Setup Node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v7
       with:
         node-version: 22
 
     - name: Install Rust toolchain
       # Pinned to a stable release tag; update SHA when bumping toolchain version.
       # To find the SHA: git ls-remote https://github.com/dtolnay/rust-toolchain refs/heads/master
-      uses: dtolnay/rust-toolchain@4305c38b25bff3e379fbb44ff7dfba641d7aa8ef
+      uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1
       with:
-        toolchain: 1.94.1
+        toolchain: 1.95.0
         components: rustfmt, clippy
 
     - name: Install Linux dependencies
