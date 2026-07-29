@@ -41,6 +41,12 @@ impl TabScriptingState {
     /// On spawn failure the observer is unregistered again so a failed start
     /// leaves no dangling observer on the terminal.
     ///
+    /// Any previous script at `config_index` is torn down first. A script that
+    /// exits on its own leaves its observer registered (only an explicit stop
+    /// removes it), so restarting after a crash would otherwise orphan the old
+    /// forwarder — still attached to the terminal, still being pushed events
+    /// into an unbounded buffer that nobody drains.
+    ///
     /// # Errors
     /// Returns the underlying spawn error string if the process cannot start.
     pub(crate) fn start_script_at(
@@ -49,6 +55,8 @@ impl TabScriptingState {
         config_index: usize,
         script_config: &ScriptConfig,
     ) -> Result<ScriptId, String> {
+        self.clear_script_at(terminal, config_index);
+
         let subscription_filter = if script_config.subscriptions.is_empty() {
             None
         } else {
@@ -88,6 +96,31 @@ impl TabScriptingState {
                 terminal.remove_observer(observer_id);
                 Err(e)
             }
+        }
+    }
+
+    /// Stop the script at `config_index` (if any), unregister its observer, and
+    /// clear its tracking slots.
+    ///
+    /// Safe to call for an index that was never started or has already exited.
+    pub(crate) fn clear_script_at(&mut self, terminal: &TerminalManager, config_index: usize) {
+        if let Some(slot) = self.script_ids.get_mut(config_index)
+            && let Some(script_id) = slot.take()
+        {
+            self.script_manager.stop_script(script_id);
+            log::info!(
+                "Stopped script at index {} (id={})",
+                config_index,
+                script_id
+            );
+        }
+        if let Some(slot) = self.script_observer_ids.get_mut(config_index)
+            && let Some(observer_id) = slot.take()
+        {
+            terminal.remove_observer(observer_id);
+        }
+        if let Some(slot) = self.script_forwarders.get_mut(config_index) {
+            *slot = None;
         }
     }
 }

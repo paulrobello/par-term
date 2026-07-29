@@ -106,35 +106,14 @@ impl WindowManager {
             && let Some(ws) = self.windows.get_mut(&window_id)
             && let Some(tab) = ws.tab_manager.active_tab_mut()
         {
-            // Stop the script process
-            if let Some(Some(script_id)) = tab.scripting.script_ids.get(config_index).copied() {
-                tab.scripting.script_manager.stop_script(script_id);
-                log::info!(
-                    "Stopped script at index {} (id={})",
-                    config_index,
-                    script_id
-                );
-            }
-
+            // Stop the process, unregister its observer, and clear tracking state.
+            // Shares `clear_script_at` with the restart path in `start_script_at`.
+            //
             // Acceptable risk: blocking_lock() from sync event loop for infrequent
             // user-initiated operation. See docs/CONCURRENCY.md for mutex strategy.
-            if let Some(Some(observer_id)) =
-                tab.scripting.script_observer_ids.get(config_index).copied()
             {
                 let term = tab.terminal.blocking_read();
-                term.remove_observer(observer_id);
-                drop(term);
-            }
-
-            // Clear tracking state
-            if let Some(slot) = tab.scripting.script_ids.get_mut(config_index) {
-                *slot = None;
-            }
-            if let Some(slot) = tab.scripting.script_observer_ids.get_mut(config_index) {
-                *slot = None;
-            }
-            if let Some(slot) = tab.scripting.script_forwarders.get_mut(config_index) {
-                *slot = None;
+                tab.scripting.clear_script_at(&term, config_index);
             }
 
             // Update running state in settings window

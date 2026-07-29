@@ -480,19 +480,28 @@ impl Tab {
 /// `auto_start` was documented as spawning a script at tab creation but was
 /// never wired up — only the Settings UI start button could launch a script.
 /// These drive the real `new_internal` auto-start loop against a terminal that
-/// has no shell spawned, so they run without a PTY.
-#[cfg(all(test, unix))]
+/// has no shell spawned, so they run without a PTY on every supported platform.
+#[cfg(test)]
 mod auto_start_tests {
     use super::*;
     use par_term_config::ScriptConfig;
 
+    /// A command that stays alive reading stdin, so `is_running` is stable for
+    /// the duration of the test. `findstr` is the Windows analogue of `cat`:
+    /// with no file argument it reads stdin until EOF.
+    #[cfg(unix)]
+    const LONG_LIVED: (&str, &[&str]) = ("/bin/cat", &[]);
+    #[cfg(windows)]
+    const LONG_LIVED: (&str, &[&str]) = ("cmd.exe", &["/c", "findstr", "^"]);
+
     /// Script config pointing at a long-lived process so `is_running` is stable.
     fn cat_script(name: &str, enabled: bool, auto_start: bool) -> ScriptConfig {
+        let (path, args) = LONG_LIVED;
         ScriptConfig {
             name: name.to_string(),
             enabled,
-            script_path: "/bin/cat".to_string(),
-            args: Vec::new(),
+            script_path: path.to_string(),
+            args: args.iter().map(|s| s.to_string()).collect(),
             auto_start,
             restart_policy: Default::default(),
             restart_delay_ms: 0,
@@ -613,6 +622,85 @@ mod auto_start_tests {
         let tab = tab_with_scripts(Vec::new());
         assert!(tab.scripting.script_ids.is_empty());
         assert!(tab.scripting.script_forwarders.is_empty());
+    }
+
+    /// Restarting an index must tear down the previous script first.
+    ///
+    /// A script that exits on its own leaves its observer registered — only an
+    /// explicit stop removes it — so a naive restart would overwrite the
+    /// tracking slot and orphan the old forwarder on the terminal, where it
+    /// keeps accumulating events into a buffer nobody drains.
+    #[test]
+    fn restarting_an_index_does_not_orphan_the_previous_observer() {
+        let config = cat_script("auto", true, true);
+        let mut tab = tab_with_scripts(vec![config.clone()]);
+
+        let first_id = tab
+            .scripting
+            .script_ids
+            .first()
+            .copied()
+            .flatten()
+            .expect("initial auto-start");
+        let first_observer = tab.scripting.script_observer_ids[0].expect("initial observer");
+
+        // Restart the same index, as the Settings UI does after a script exits.
+        let second_id = {
+            let term = tab.terminal.blocking_read();
+            tab.scripting
+                .start_script_at(&term, 0, &config)
+                .expect("restart")
+        };
+
+        assert_ne!(first_id, second_id, "restart must spawn a new process");
+        assert!(
+            !tab.scripting.script_manager.is_running(first_id),
+            "the superseded script process must be stopped"
+        );
+
+        // `remove_observer` reports whether the id was still registered, so a
+        // second removal returning `true` means the restart leaked it.
+        let still_registered = {
+            let term = tab.terminal.blocking_read();
+            term.remove_observer(first_observer)
+        };
+        assert!(
+            !still_registered,
+            "restart must unregister the superseded observer, not orphan it"
+        );
+    }
+
+    /// Stopping a script must leave no observer behind either.
+    #[test]
+    fn clearing_an_index_unregisters_its_observer() {
+        let mut tab = tab_with_scripts(vec![cat_script("auto", true, true)]);
+
+        let observer = tab.scripting.script_observer_ids[0].expect("initial observer");
+        {
+            let term = tab.terminal.blocking_read();
+            tab.scripting.clear_script_at(&term, 0);
+        }
+
+        let still_registered = {
+            let term = tab.terminal.blocking_read();
+            term.remove_observer(observer)
+        };
+        assert!(
+            !still_registered,
+            "stop must unregister the script's observer"
+        );
+        assert!(
+            tab.scripting
+                .script_ids
+                .first()
+                .copied()
+                .flatten()
+                .is_none()
+        );
+        assert!(matches!(
+            tab.scripting.script_forwarders.first(),
+            Some(None)
+        ));
     }
 }
 

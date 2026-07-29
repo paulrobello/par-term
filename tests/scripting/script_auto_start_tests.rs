@@ -6,8 +6,9 @@
 //!
 //! These tests lock in the selection semantics used by the tab-creation
 //! auto-start loop. The end-to-end check that a real tab spawns the process
-//! lives in `src/tab/constructors.rs` (it needs crate-internal state and a live
-//! PTY, so it is `#[ignore]`d).
+//! lives in `src/tab/constructors.rs`, where it can reach crate-internal tab
+//! state; it drives a terminal with no shell spawned, so it needs no PTY and
+//! runs as part of the normal test suite.
 
 use par_term::config::scripting::ScriptConfig;
 use par_term::config::{Config, RestartPolicy};
