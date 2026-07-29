@@ -73,3 +73,14 @@ pub struct ScriptConfig {
     #[serde(default)]
     pub run_command_rate_limit: u32,
 }
+
+impl ScriptConfig {
+    /// Whether this script should be started automatically when a tab is created.
+    ///
+    /// A script auto-starts only when it is both enabled and opted in via
+    /// `auto_start`; `enabled: false` disables the script entirely, including
+    /// auto-start, matching the manual start path in the Settings UI.
+    pub fn should_auto_start(&self) -> bool {
+        self.enabled && self.auto_start
+    }
+}

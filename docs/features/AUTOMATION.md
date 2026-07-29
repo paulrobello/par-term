@@ -630,9 +630,9 @@ Each script definition supports:
 | `enabled` | boolean | No | `true` | Whether the script is active |
 | `script_path` | string | Yes | -- | Path to the script executable |
 | `args` | array of strings | No | `[]` | Arguments to pass to the script |
-| `auto_start` | boolean | No | `false` | Start automatically when a tab is created |
-| `restart_policy` | enum | No | `never` | When to restart: `never`, `always`, or `on_failure` |
-| `restart_delay_ms` | integer | No | `0` | Delay in milliseconds before restarting |
+| `auto_start` | boolean | No | `false` | Start automatically when a tab is created (requires `enabled: true`) |
+| `restart_policy` | enum | No | `never` | ⚠️ Not yet implemented for scripts -- accepted and displayed, but no restart occurs |
+| `restart_delay_ms` | integer | No | `0` | ⚠️ Not yet implemented for scripts -- see `restart_policy` above |
 | `subscriptions` | array of strings | No | `[]` | Event types to receive (empty = all events) |
 | `env_vars` | object | No | `{}` | Additional environment variables for the script process |
 | `allow_write_text` | boolean | No | `false` | Allow `WriteText` command to inject text into PTY |
@@ -737,9 +737,9 @@ Panels appear in the terminal UI and update in real time as the script sends new
 
 Scripts follow the same lifecycle patterns as coprocesses:
 
-- **Auto-start**: Scripts with `auto_start: true` are started when a new tab is created
+- **Auto-start**: Scripts with `auto_start: true` and `enabled: true` are started when a new tab is created. Setting `enabled: false` disables the script entirely, including auto-start. Scripts with `auto_start: false` are started only from the Settings UI (**F12 → Automation → Scripts → Start**).
 - **Per-tab isolation**: Each tab has its own set of running scripts
-- **Restart policies**: The `restart_policy` and `restart_delay_ms` fields control automatic restart behavior (same options as coprocesses: `never`, `always`, `on_failure`)
+- **Restart policies**: ⚠️ `restart_policy` and `restart_delay_ms` are **not yet implemented for scripts**. The fields are parsed and shown in the Settings UI, but a script that exits is not restarted. (Restart policies *are* implemented for coprocesses.)
 - **Tab close**: All scripts in a tab are stopped when the tab is closed
 - **Settings sync**: Changes to script configuration in the Settings UI are applied when saved
 

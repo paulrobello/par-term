@@ -31,6 +31,7 @@ impl Tab {
     /// 1. Create and configure a `TerminalManager` (divergent: shell command, env, login_shell)
     /// 2. Call this method to handle the identical steps:
     ///    - Coprocess auto-start loop
+    ///    - Script auto-start loop
     ///    - Session logging setup
     ///    - `Arc<RwLock<>>` wrapping
     ///    - Initial text scheduling (only when `params.runtime` is `Some`)
@@ -39,7 +40,7 @@ impl Tab {
     /// # Arguments
     /// * `params` — Constructor-specific values (title, working_directory, etc.)
     /// * `terminal` — Fully configured `TerminalManager` with PTY already spawned
-    /// * `config` — Global config (used for coprocesses and session logging)
+    /// * `config` — Global config (used for coprocesses, scripts, and session logging)
     /// * `session_title` — Human-readable title written to the session log file header
     pub(super) fn new_internal(
         params: TabInitParams,
@@ -83,6 +84,46 @@ impl Tab {
                 }
             } else {
                 coprocess_ids.push(None);
+            }
+        }
+
+        // Auto-start configured scripts. Runs while `terminal` is still owned
+        // here, so the observer registration needs no lock (the `Arc<RwLock<_>>`
+        // wrap happens further down).
+        let mut scripting = TabScriptingState {
+            coprocess_ids,
+            trigger_prompt_before_run: trigger_security,
+            ..TabScriptingState::default()
+        };
+        for (index, script_config) in config.scripts.iter().enumerate() {
+            if !script_config.should_auto_start() {
+                continue;
+            }
+            match scripting.start_script_at(&terminal, index, script_config) {
+                Ok(id) => {
+                    log::info!("Auto-started script '{}' (id={})", script_config.name, id);
+                    crate::debug_info!(
+                        "SCRIPT",
+                        "auto-start: '{}' index={} id={}",
+                        script_config.name,
+                        index,
+                        id
+                    );
+                }
+                Err(e) => {
+                    log::warn!(
+                        "Failed to auto-start script '{}': {}",
+                        script_config.name,
+                        e
+                    );
+                    crate::debug_error!(
+                        "SCRIPT",
+                        "auto-start FAILED for '{}' index={}: {}",
+                        script_config.name,
+                        index,
+                        e
+                    );
+                }
             }
         }
 
@@ -190,11 +231,7 @@ impl Tab {
             detected_cwd: None,
             custom_icon: None,
             profile: TabProfileState::default(),
-            scripting: TabScriptingState {
-                coprocess_ids,
-                trigger_prompt_before_run: trigger_security,
-                ..TabScriptingState::default()
-            },
+            scripting,
             was_alt_screen: false,
             is_active,
             shutdown_fast: false,
@@ -435,6 +472,147 @@ impl Tab {
             cached_alt_screen_active: AtomicBool::new(false),
             cached_has_tmux_child: AtomicBool::new(false),
         }
+    }
+}
+
+/// Regression tests for script auto-start (issue #220).
+///
+/// `auto_start` was documented as spawning a script at tab creation but was
+/// never wired up — only the Settings UI start button could launch a script.
+/// These drive the real `new_internal` auto-start loop against a terminal that
+/// has no shell spawned, so they run without a PTY.
+#[cfg(all(test, unix))]
+mod auto_start_tests {
+    use super::*;
+    use par_term_config::ScriptConfig;
+
+    /// Script config pointing at a long-lived process so `is_running` is stable.
+    fn cat_script(name: &str, enabled: bool, auto_start: bool) -> ScriptConfig {
+        ScriptConfig {
+            name: name.to_string(),
+            enabled,
+            script_path: "/bin/cat".to_string(),
+            args: Vec::new(),
+            auto_start,
+            restart_policy: Default::default(),
+            restart_delay_ms: 0,
+            subscriptions: Vec::new(),
+            env_vars: Default::default(),
+            allow_write_text: false,
+            allow_run_command: false,
+            allow_change_config: false,
+            write_text_rate_limit: 0,
+            run_command_rate_limit: 0,
+        }
+    }
+
+    fn tab_with_scripts(scripts: Vec<ScriptConfig>) -> Tab {
+        let mut config = Config::default();
+        config.scripts = scripts;
+        let terminal =
+            TerminalManager::new_with_scrollback(80, 24, 100).expect("terminal creation");
+        Tab::new_internal(
+            TabInitParams {
+                id: 1,
+                title: "Tab 1".to_string(),
+                has_default_title: true,
+                user_named: false,
+                working_directory: None,
+                runtime: None,
+            },
+            terminal,
+            &config,
+            "Tab 1".to_string(),
+        )
+        .expect("tab creation")
+    }
+
+    #[test]
+    fn auto_start_script_is_running_after_tab_creation() {
+        let mut tab = tab_with_scripts(vec![cat_script("auto", true, true)]);
+
+        let id = tab
+            .scripting
+            .script_ids
+            .first()
+            .copied()
+            .flatten()
+            .expect("auto_start script must be spawned at tab creation");
+        assert!(
+            tab.scripting.script_manager.is_running(id),
+            "auto-started script process must be alive"
+        );
+        assert!(
+            matches!(tab.scripting.script_forwarders.first(), Some(Some(_))),
+            "auto-started script must have an event forwarder registered"
+        );
+        assert!(
+            matches!(tab.scripting.script_observer_ids.first(), Some(Some(_))),
+            "auto-started script must be registered as a terminal observer"
+        );
+    }
+
+    #[test]
+    fn script_without_auto_start_is_not_spawned() {
+        let tab = tab_with_scripts(vec![cat_script("manual", true, false)]);
+        assert!(
+            tab.scripting
+                .script_ids
+                .first()
+                .copied()
+                .flatten()
+                .is_none(),
+            "auto_start: false must stay manual-start only"
+        );
+    }
+
+    #[test]
+    fn disabled_script_is_not_spawned() {
+        let tab = tab_with_scripts(vec![cat_script("disabled", false, true)]);
+        assert!(
+            tab.scripting
+                .script_ids
+                .first()
+                .copied()
+                .flatten()
+                .is_none(),
+            "enabled: false must veto auto_start: true"
+        );
+    }
+
+    #[test]
+    fn tracking_state_stays_aligned_with_config_indices() {
+        // Per-tab script tracking is indexed by position in `config.scripts`,
+        // so skipped entries must leave holes rather than shifting later ones.
+        let mut tab = tab_with_scripts(vec![
+            cat_script("manual", true, false),
+            cat_script("auto", true, true),
+        ]);
+
+        assert!(
+            tab.scripting
+                .script_ids
+                .first()
+                .copied()
+                .flatten()
+                .is_none(),
+            "index 0 is manual-start and must stay empty"
+        );
+        let id = tab
+            .scripting
+            .script_ids
+            .get(1)
+            .copied()
+            .flatten()
+            .expect("index 1 has auto_start: true and must be spawned");
+        assert!(tab.scripting.script_manager.is_running(id));
+    }
+
+    #[test]
+    fn no_scripts_configured_leaves_tracking_empty() {
+        let tab = tab_with_scripts(Vec::new());
+        assert!(tab.scripting.script_ids.is_empty());
+        assert!(tab.scripting.script_forwarders.is_empty());
     }
 }
 
