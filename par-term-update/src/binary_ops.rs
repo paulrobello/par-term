@@ -267,23 +267,48 @@ pub fn cleanup_old_binary() {
 mod tests {
     use super::*;
 
+    /// Whether the current platform has a published release artifact.
+    ///
+    /// Mirrors the match in [`get_asset_name`]. Notably `windows` + `aarch64`
+    /// is absent: release.yml builds only `x86_64-pc-windows-msvc`, so ARM64
+    /// Windows genuinely has no artifact and an error there is correct
+    /// behaviour, not a failure.
+    fn platform_has_release_artifact() -> bool {
+        matches!(
+            (std::env::consts::OS, std::env::consts::ARCH),
+            ("macos", "aarch64")
+                | ("macos", "x86_64")
+                | ("linux", "aarch64")
+                | ("linux", "x86_64")
+                | ("windows", "x86_64")
+        )
+    }
+
     #[test]
     fn test_get_asset_name() {
-        // Should return a valid asset name for the current platform
         let result = get_asset_name();
-        assert!(
-            result.is_ok(),
-            "get_asset_name() should succeed on supported platforms"
-        );
-        let name = result.unwrap();
-        assert!(
-            name.starts_with("par-term-"),
-            "Asset name should start with 'par-term-'"
-        );
+        if platform_has_release_artifact() {
+            let name = result.expect("a platform with a release artifact must resolve a name");
+            assert!(
+                name.starts_with("par-term-"),
+                "Asset name should start with 'par-term-'"
+            );
+        } else {
+            let err = result.expect_err("a platform with no release artifact must report one");
+            assert!(
+                err.contains("Unsupported platform"),
+                "error should explain the platform is unsupported, got '{}'",
+                err
+            );
+        }
     }
 
     #[test]
     fn test_get_checksum_asset_name() {
+        if !platform_has_release_artifact() {
+            assert!(get_checksum_asset_name().is_err());
+            return;
+        }
         let result = get_checksum_asset_name();
         assert!(result.is_ok());
         let name = result.unwrap();
