@@ -7,6 +7,14 @@ name: CI (Windows only)
 on:
   workflow_dispatch:
     inputs:
+      test_args:
+        description: "Extra args appended to `cargo test` (e.g. `-p par-term --lib auto_start_tests`) for isolating a failure"
+        type: string
+        default: "--workspace"
+      test_threads:
+        description: "Value for --test-threads (1 serialises the harness, useful for pinning down a crash)"
+        type: string
+        default: ""
       release_build:
         description: "Also run the release build (slow; the rest of the windows matrix leg)"
         type: boolean
@@ -64,7 +72,14 @@ jobs:
         key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
 
     - name: Run tests
-      run: cargo test --workspace --verbose
+      shell: bash
+      run: |
+        threads=""
+        if [ -n "${{ inputs.test_threads }}" ]; then
+          threads="-- --test-threads=${{ inputs.test_threads }}"
+        fi
+        echo "cargo test ${{ inputs.test_args }} $threads"
+        cargo test ${{ inputs.test_args }} $threads
 
     - name: Build release
       if: inputs.release_build
