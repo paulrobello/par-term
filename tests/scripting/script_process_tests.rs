@@ -29,9 +29,7 @@ print(json.dumps(cmd), flush=True)
         .expect("Failed to send event to script process");
 
     // Wait for the script to process and output
-    std::thread::sleep(std::time::Duration::from_millis(500));
-
-    let commands = proc.read_commands();
+    let commands = crate::drain_until(|| proc.read_commands(), |c| !c.is_empty());
     assert!(
         !commands.is_empty(),
         "Should have received at least one command"
@@ -65,9 +63,7 @@ print("error line 2", file=sys.stderr, flush=True)
         .expect("Failed to spawn python3 script process");
 
     // Wait for the script to run and exit
-    std::thread::sleep(std::time::Duration::from_millis(500));
-
-    let errors = proc.read_errors();
+    let errors = crate::drain_until(|| proc.read_errors(), |e| e.len() >= 2);
     assert!(
         errors.len() >= 2,
         "Should have captured at least 2 stderr lines, got: {:?}",

@@ -107,9 +107,7 @@ print("test error", file=sys.stderr, flush=True)
     mgr.send_event(id, &event).expect("Failed to send event");
 
     // Wait for the script to process
-    std::thread::sleep(std::time::Duration::from_millis(500));
-
-    let commands = mgr.read_commands(id);
+    let commands = crate::drain_until(|| mgr.read_commands(id), |c| !c.is_empty());
     assert!(
         !commands.is_empty(),
         "Should have received at least one command"
@@ -122,7 +120,7 @@ print("test error", file=sys.stderr, flush=True)
         other => panic!("Expected Log command, got: {:?}", other),
     }
 
-    let errors = mgr.read_errors(id);
+    let errors = crate::drain_until(|| mgr.read_errors(id), |e| !e.is_empty());
     assert!(
         !errors.is_empty(),
         "Should have received at least one error line"
@@ -213,10 +211,8 @@ import time; time.sleep(5)
     };
     mgr.broadcast_event(&event);
 
-    std::thread::sleep(std::time::Duration::from_millis(500));
-
-    let cmds1 = mgr.read_commands(id1);
-    let cmds2 = mgr.read_commands(id2);
+    let cmds1 = crate::drain_until(|| mgr.read_commands(id1), |c| !c.is_empty());
+    let cmds2 = crate::drain_until(|| mgr.read_commands(id2), |c| !c.is_empty());
 
     assert!(
         !cmds1.is_empty(),

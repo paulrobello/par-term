@@ -90,10 +90,7 @@ for line in sys.stdin:
         .expect("Failed to send cwd event");
 
     // Wait for the Python script to process both events and emit responses
-    std::thread::sleep(std::time::Duration::from_millis(500));
-
-    // Read all commands from the script
-    let commands = manager.read_commands(id);
+    let commands = crate::drain_until(|| manager.read_commands(id), |c| c.len() >= 2);
     assert!(
         commands.len() >= 2,
         "Expected at least 2 commands, got {}",
@@ -155,11 +152,8 @@ print(json.dumps(cmd), flush=True)
         .send_event(id, &event)
         .expect("Failed to send event");
 
-    // Wait for the script to process and exit
-    std::thread::sleep(std::time::Duration::from_millis(500));
-
     // Script should have produced a command before exiting
-    let commands = manager.read_commands(id);
+    let commands = crate::drain_until(|| manager.read_commands(id), |c| !c.is_empty());
     assert!(
         !commands.is_empty(),
         "Expected at least 1 command, got {}",
@@ -173,9 +167,10 @@ print(json.dumps(cmd), flush=True)
         commands
     );
 
-    // Script exited naturally, so it should no longer be running
+    // Script exited naturally, so it should no longer be running. Emitting the
+    // command and the process actually reaping are separate events.
     assert!(
-        !manager.is_running(id),
+        crate::wait_until(|| !manager.is_running(id)),
         "Script should not be running after natural exit"
     );
 
@@ -212,10 +207,11 @@ import time; time.sleep(5)
         .send_event(id, &event)
         .expect("Failed to send event");
 
-    std::thread::sleep(std::time::Duration::from_millis(500));
-
     // Check that stderr was captured
-    let errors = manager.read_errors(id);
+    let errors = crate::drain_until(
+        || manager.read_errors(id),
+        |e: &[String]| e.iter().any(|l| l.contains("warning: something happened")),
+    );
     assert!(
         !errors.is_empty(),
         "Should have captured stderr output from the script"
@@ -229,7 +225,7 @@ import time; time.sleep(5)
     );
 
     // And stdout command was also captured
-    let commands = manager.read_commands(id);
+    let commands = crate::drain_until(|| manager.read_commands(id), |c| !c.is_empty());
     assert!(
         !commands.is_empty(),
         "Should have received command from stdout"
@@ -270,11 +266,9 @@ for line in sys.stdin:
     };
     manager.broadcast_event(&event);
 
-    std::thread::sleep(std::time::Duration::from_millis(500));
-
     // Both scripts should have responded
-    let cmds1 = manager.read_commands(id1);
-    let cmds2 = manager.read_commands(id2);
+    let cmds1 = crate::drain_until(|| manager.read_commands(id1), |c| !c.is_empty());
+    let cmds2 = crate::drain_until(|| manager.read_commands(id2), |c| !c.is_empty());
 
     assert!(
         !cmds1.is_empty(),
