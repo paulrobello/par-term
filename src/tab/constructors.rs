@@ -488,11 +488,16 @@ mod auto_start_tests {
 
     /// A command that stays alive reading stdin, so `is_running` is stable for
     /// the duration of the test. `findstr` is the Windows analogue of `cat`:
-    /// with no file argument it reads stdin until EOF.
+    /// given a pattern and no file argument it reads stdin until EOF.
+    ///
+    /// Invoked directly rather than through `cmd.exe /c`: the shell would treat
+    /// `^` as its escape character (`findstr ^` fails with "Bad command line"),
+    /// and wrapping in a shell would make the real reader a grandchild that
+    /// `Child::kill` does not reap.
     #[cfg(unix)]
     const LONG_LIVED: (&str, &[&str]) = ("/bin/cat", &[]);
     #[cfg(windows)]
-    const LONG_LIVED: (&str, &[&str]) = ("cmd.exe", &["/c", "findstr", "^"]);
+    const LONG_LIVED: (&str, &[&str]) = ("findstr.exe", &["x"]);
 
     /// Script config pointing at a long-lived process so `is_running` is stable.
     fn cat_script(name: &str, enabled: bool, auto_start: bool) -> ScriptConfig {

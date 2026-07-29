@@ -11,6 +11,32 @@ use std::sync::Arc;
 #[cfg(feature = "audio")]
 use std::time::Duration;
 
+/// The process-wide audio output, opened lazily on first use.
+///
+/// Opening an output device per pane is both wasteful — a terminal needs one
+/// output, not one per pane — and, on Windows, unsound: opening a device sink,
+/// letting the opening thread exit, then opening another from a second thread
+/// faults inside WASAPI with `STATUS_ACCESS_VIOLATION`. Sharing a single device
+/// for the life of the process avoids the re-open entirely.
+///
+/// Returns `None` when no output device could be opened (headless CI, no sound
+/// card, audio feature disabled at build time); callers treat that as "no bell".
+pub fn shared() -> Option<&'static AudioBell> {
+    static SHARED: std::sync::OnceLock<Option<AudioBell>> = std::sync::OnceLock::new();
+    SHARED
+        .get_or_init(|| match AudioBell::new() {
+            Ok(bell) => {
+                log::info!("Audio bell initialized successfully");
+                Some(bell)
+            }
+            Err(e) => {
+                log::warn!("Failed to initialize audio bell: {}", e);
+                None
+            }
+        })
+        .as_ref()
+}
+
 /// Audio bell manager for playing terminal bell sounds.
 ///
 /// When the `audio` feature is enabled this uses `rodio` for real audio
@@ -218,11 +244,16 @@ impl Default for AudioBell {
 mod tests_audio {
     use super::*;
 
+    // These go through `shared()` rather than `AudioBell::new()` on purpose.
+    // libtest runs each test on its own thread, so constructing a device per
+    // test opens one, lets the thread exit, then opens another from a different
+    // thread — which faults inside WASAPI on Windows. `shared()` is also how
+    // production code obtains the bell, so this is the path worth covering.
+
     #[test]
     fn test_audio_bell_creation() {
-        // Just ensure we can create the audio bell without panicking
-        let bell = AudioBell::new();
-        assert!(bell.is_ok() || bell.is_err());
+        // Opening the shared device must not panic, whether or not a device exists.
+        let _bell = shared();
     }
 
     #[test]
@@ -233,7 +264,7 @@ mod tests_audio {
 
     #[test]
     fn test_audio_bell_play_zero_volume() {
-        if let Ok(bell) = AudioBell::new() {
+        if let Some(bell) = shared() {
             // Should not panic with zero volume
             bell.play(0);
         }
@@ -241,7 +272,7 @@ mod tests_audio {
 
     #[test]
     fn test_audio_bell_play_max_volume() {
-        if let Ok(bell) = AudioBell::new() {
+        if let Some(bell) = shared() {
             // Should not panic with max volume
             bell.play(100);
         }
@@ -249,7 +280,7 @@ mod tests_audio {
 
     #[test]
     fn test_audio_bell_play_over_max_volume() {
-        if let Ok(bell) = AudioBell::new() {
+        if let Some(bell) = shared() {
             // Should clamp to max volume without panicking
             bell.play(150);
         }

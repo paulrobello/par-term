@@ -425,7 +425,7 @@ impl WindowState {
                 if alert_cfg.enabled
                     && alert_cfg.volume > 0
                     && let Some(tab) = self.tab_manager.active_tab()
-                    && let Some(ref audio_bell) = tab.active_bell().audio
+                    && let Some(audio_bell) = tab.active_bell().audio
                 {
                     log::info!(
                         "  Playing alert sound for bell at {}% volume",
@@ -435,7 +435,7 @@ impl WindowState {
                 }
             } else if self.config.load().notifications.notification_bell_sound > 0 {
                 if let Some(tab) = self.tab_manager.active_tab()
-                    && let Some(ref audio_bell) = tab.active_bell().audio
+                    && let Some(audio_bell) = tab.active_bell().audio
                 {
                     log::info!(
                         "  Playing audio bell at {}% volume",
@@ -487,7 +487,7 @@ impl WindowState {
             && alert_cfg.enabled
             && alert_cfg.volume > 0
             && let Some(tab) = self.tab_manager.active_tab()
-            && let Some(ref audio_bell) = tab.active_bell().audio
+            && let Some(audio_bell) = tab.active_bell().audio
         {
             log::info!(
                 "Playing alert sound for {:?} at {}% volume",
