@@ -40,8 +40,25 @@ use pipeline::{
 use textures::{ChannelTexture, load_channel_textures};
 use transpiler::transpile_glsl_to_wgsl;
 
+/// Path the transpiled WGSL is dumped to for shader debugging.
+///
+/// Unix keeps the documented `/tmp` location. Windows has no `/tmp` — the path
+/// resolves against the current drive (e.g. `D:\tmp`) and usually does not
+/// exist, so the dump silently failed there — and uses the real temp directory
+/// instead.
 fn debug_shader_wgsl_filename(shader_name: &str) -> String {
-    format!("/tmp/par_term_{shader_name}_shader.wgsl")
+    let file_name = format!("par_term_{shader_name}_shader.wgsl");
+    #[cfg(windows)]
+    {
+        std::env::temp_dir()
+            .join(file_name)
+            .to_string_lossy()
+            .into_owned()
+    }
+    #[cfg(not(windows))]
+    {
+        format!("/tmp/{file_name}")
+    }
 }
 
 fn write_debug_shader_wgsl(shader_name: &str, wgsl_source: &str) {
@@ -586,9 +603,13 @@ mod tests {
 
     #[test]
     fn debug_shader_wgsl_filename_matches_new_renderer_output_path() {
+        let path = debug_shader_wgsl_filename("matrix");
+        #[cfg(not(windows))]
+        assert_eq!(path, "/tmp/par_term_matrix_shader.wgsl");
+        #[cfg(windows)]
         assert_eq!(
-            debug_shader_wgsl_filename("matrix"),
-            "/tmp/par_term_matrix_shader.wgsl"
+            std::path::Path::new(&path),
+            std::env::temp_dir().join("par_term_matrix_shader.wgsl")
         );
     }
 

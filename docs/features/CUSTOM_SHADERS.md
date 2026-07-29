@@ -1096,8 +1096,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
 
 ### Debugging Tips
 
-- Transpiled WGSL is written to `/tmp/par_term_<shader_name>_shader.wgsl`
-- Wrapped GLSL is written to `/tmp/par_term_debug_wrapped.glsl` (last shader only)
+- Transpiled WGSL is written to `/tmp/par_term_<shader_name>_shader.wgsl` (on Windows, to `%TEMP%\par_term_<shader_name>_shader.wgsl` — there is no `/tmp`)
+- Wrapped GLSL is written to `par_term_debug_wrapped.glsl` in the system temp directory (last shader only, debug builds only). That is `$TMPDIR` on macOS — typically under `/var/folders/...`, **not** `/tmp` — `/tmp` on Linux, and `%TEMP%` on Windows.
 - Enable `shader_hot_reload: true` for faster iteration
 
 ---

@@ -215,7 +215,7 @@ See `docs/features/CUSTOM_SHADERS.md` for full shader documentation including un
 
 **Key rules**:
 - Develop shaders in `~/.config/par-term/shaders/` first; only move to repo `shaders/` when ready for distribution
-- Transpiled WGSL written to `/tmp/par_term_<name>_shader.wgsl` for debugging
+- Transpiled WGSL written to `/tmp/par_term_<name>_shader.wgsl` for debugging (Windows: `%TEMP%\par_term_<name>_shader.wgsl`)
 - When debugging one shader type, temporarily disable the other
 
 ### Modifying Rendering
