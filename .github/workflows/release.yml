@@ -123,7 +123,7 @@ jobs:
   build-linux-x86_64:
     name: Build binary - Linux x86_64
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     needs: [preflight-checks]
     steps:
       - uses: actions/checkout@v7
@@ -173,7 +173,7 @@ jobs:
   build-windows-x86_64:
     name: Build binary - Windows x86_64
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     needs: [preflight-checks]
     steps:
       - uses: actions/checkout@v7
@@ -217,7 +217,7 @@ jobs:
   build-macos-x86_64:
     name: Build binary - macOS x86_64
     runs-on: macos-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
     needs: [preflight-checks]
     steps:
       - uses: actions/checkout@v7
