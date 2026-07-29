@@ -198,11 +198,15 @@ impl AudioBell {
 
 #[cfg(feature = "audio")]
 impl Default for AudioBell {
+    /// A silent bell that owns no output device.
+    ///
+    /// This deliberately does **not** open a device. [`shared`] is the only
+    /// sanctioned way to obtain a working bell, because opening a second device
+    /// from another thread faults inside WASAPI on Windows. A `Default` that
+    /// quietly opened its own device re-introduced exactly that crash, and had
+    /// no callers outside tests. Matches the no-audio build's behaviour.
     fn default() -> Self {
-        Self::new().unwrap_or_else(|e| {
-            log::warn!("Failed to initialize audio bell: {}", e);
-            Self::disabled()
-        })
+        Self::disabled()
     }
 }
 
