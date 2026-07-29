@@ -53,6 +53,7 @@ ignore = [
 
     "RUSTSEC-2026-0195",  # quick-xml <0.41: unbounded namespace alloc DoS — only reachable via wayland-scanner, a Linux-only build-time proc-macro parsing trusted Wayland protocol XML; no compatible patched version (wayland-scanner pins quick-xml 0.39)
     "RUSTSEC-2026-0194",  # quick-xml <0.41: quadratic duplicate-attribute check — same trusted build-time-only exposure as above
+    "RUSTSEC-2026-0206",  # rustybuzz unmaintained — not a vulnerability. It is our text shaper (par-term, par-term-fonts) and also arrives transitively via usvg/resvg, so it cannot simply be dropped. The advisory states no safe upgrade exists; the successor is harfrust, and porting the shaping layer to it is tracked as its own work item. Revisit when that lands or when resvg moves first.
 ]
 
 # ---------------------------------------------------------------------------
