@@ -53,6 +53,22 @@ jobs:
         npm install -g @zed-industries/claude-agent-acp
         Get-Command claude-agent-acp
 
+    - name: Python diagnostics
+      shell: pwsh
+      run: |
+        foreach ($n in @('py','python','python3')) {
+          $c = Get-Command $n -ErrorAction SilentlyContinue
+          if ($c) {
+            Write-Host "== $n -> $($c.Source)"
+            & $n -c "import sys; print('version:', sys.version.split()[0]); print('exe:', sys.executable)" 2>&1 | Write-Host
+            Write-Host "   exit=$LASTEXITCODE"
+            & $n -c "import sys; sys.stdout.write('STDOUT_OK\n'); sys.stdout.flush()" 2>&1 | Write-Host
+            Write-Host "   stdout-test exit=$LASTEXITCODE"
+          } else {
+            Write-Host "== $n -> NOT FOUND"
+          }
+        }
+
     - name: Cache cargo registry
       uses: actions/cache@v6
       with:
