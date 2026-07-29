@@ -161,11 +161,18 @@ pub fn is_safe_write_path(tool_call: &serde_json::Value, safe_paths: &SafePaths)
     };
 
     let mut safe_roots: Vec<PathBuf> = vec![
-        PathBuf::from("/tmp"),
-        PathBuf::from("/var/folders"),
         safe_paths.shaders_dir.clone(),
         safe_paths.config_dir.clone(),
+        // Portable: honours TMPDIR on Unix and TEMP/TMP on Windows. Without
+        // this the system temp directory was never a safe root on Windows,
+        // since the entries below and the TMPDIR lookup are Unix-only.
+        std::env::temp_dir(),
     ];
+    #[cfg(unix)]
+    {
+        safe_roots.push(PathBuf::from("/tmp"));
+        safe_roots.push(PathBuf::from("/var/folders"));
+    }
     if let Ok(temp_dir) = std::env::var("TMPDIR") {
         safe_roots.push(PathBuf::from(temp_dir));
     }
@@ -446,10 +453,14 @@ mod tests {
 
     #[test]
     fn test_safe_write_path_tmp() {
+        // Use the platform temp dir, not a literal "/tmp": on Windows that is
+        // not even an absolute path (no drive prefix), so the check rejected it
+        // before reaching the safe-root comparison.
         let safe_paths = make_safe_paths();
+        let path = std::env::temp_dir().join("test.glsl");
         let tool_call = serde_json::json!({
-            "rawInput": {"file_path": "/tmp/test.glsl"},
-            "title": "Write /tmp/test.glsl"
+            "rawInput": {"file_path": path.to_string_lossy()},
+            "title": format!("Write {}", path.display())
         });
         assert!(is_safe_write_path(&tool_call, &safe_paths));
     }
@@ -497,8 +508,9 @@ mod tests {
     #[test]
     fn test_safe_write_path_from_title_fallback() {
         let safe_paths = make_safe_paths();
+        let path = std::env::temp_dir().join("shader.glsl");
         let tool_call = serde_json::json!({
-            "title": "Write /tmp/shader.glsl"
+            "title": format!("Write {}", path.display())
         });
         assert!(is_safe_write_path(&tool_call, &safe_paths));
     }

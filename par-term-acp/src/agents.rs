@@ -102,19 +102,48 @@ pub fn resolve_binary_in_path_str(binary: &str, path_var: &str) -> Option<std::p
     // If it's already an absolute path, just check it exists.
     let path = std::path::Path::new(binary);
     if path.is_absolute() {
-        return if path.is_file() {
-            Some(path.to_path_buf())
-        } else {
-            None
-        };
+        if path.is_file() {
+            return Some(path.to_path_buf());
+        }
+        return with_exe_extensions(path).find(|p| p.is_file());
     }
     for dir in std::env::split_paths(path_var) {
         let candidate = dir.join(binary);
         if candidate.is_file() {
             return Some(candidate);
         }
+        if let Some(found) = with_exe_extensions(&candidate).find(|p| p.is_file()) {
+            return Some(found);
+        }
     }
     None
+}
+
+/// Candidate paths formed by appending each executable extension to `base`.
+///
+/// On Windows a bare name on `PATH` is really `name.exe` (or another `PATHEXT`
+/// suffix), so probing the bare name alone never resolves anything — which
+/// previously made agent connector detection always report "not installed"
+/// there. Yields nothing on Unix, where executables have no mandatory suffix.
+fn with_exe_extensions(base: &std::path::Path) -> impl Iterator<Item = std::path::PathBuf> + '_ {
+    #[cfg(windows)]
+    {
+        let exts = std::env::var("PATHEXT").unwrap_or_else(|_| ".EXE;.BAT;.CMD;.COM".to_string());
+        exts.split(';')
+            .filter(|e| !e.is_empty())
+            .map(|e| {
+                let mut name = base.as_os_str().to_os_string();
+                name.push(e);
+                std::path::PathBuf::from(name)
+            })
+            .collect::<Vec<_>>()
+            .into_iter()
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = base;
+        Vec::new().into_iter()
+    }
 }
 
 /// Known-good shell basenames that are accepted by [`resolve_shell_path`] and
@@ -556,10 +585,18 @@ active = false
         );
     }
 
+    /// A binary present on every supported platform.
+    ///
+    /// `ls` is not one: it does not exist on Windows, which is what these
+    /// tests previously assumed.
+    #[cfg(windows)]
+    const UBIQUITOUS_BINARY: &str = "cmd";
+    #[cfg(not(windows))]
+    const UBIQUITOUS_BINARY: &str = "ls";
+
     #[test]
     fn test_binary_in_path_finds_common_binary() {
-        // "ls" should be available on all platforms
-        assert!(binary_in_path("ls"));
+        assert!(binary_in_path(UBIQUITOUS_BINARY));
     }
 
     #[test]
@@ -574,16 +611,16 @@ active = false
 
     #[test]
     fn test_detect_connector_for_known_binary() {
-        let mut config: AgentConfig = toml::from_str(
+        let mut config: AgentConfig = toml::from_str(&format!(
             r#"
 identity = "test.agent"
 name = "Test"
 short_name = "test"
 
 [run_command]
-"*" = "ls"
-"#,
-        )
+"*" = "{UBIQUITOUS_BINARY}"
+"#
+        ))
         .unwrap();
         config.detect_connector();
         assert!(config.connector_installed);
@@ -608,16 +645,16 @@ short_name = "test"
 
     #[test]
     fn test_detect_connector_extracts_first_token() {
-        let mut config: AgentConfig = toml::from_str(
+        let mut config: AgentConfig = toml::from_str(&format!(
             r#"
 identity = "test.agent"
 name = "Test"
 short_name = "test"
 
 [run_command]
-"*" = "ls --some-flag"
-"#,
-        )
+"*" = "{UBIQUITOUS_BINARY} --some-flag"
+"#
+        ))
         .unwrap();
         config.detect_connector();
         assert!(config.connector_installed);
