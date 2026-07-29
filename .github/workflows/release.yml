@@ -379,12 +379,26 @@ jobs:
           path: release-binaries/par-term-macos-aarch64.zip
           retention-days: 1
 
-  # Publish to crates.io (runs parallel with builds — no build artifacts needed)
+  # Publish to crates.io.
+  #
+  # Gated behind every binary build even though it needs none of their
+  # artifacts. Publishing is the one irreversible step in this workflow — a
+  # version pushed to crates.io can be yanked but never replaced — so it must
+  # not start until every target is known to build. v0.37.1 published all five
+  # crates and then lost the macOS x86_64 build to a timeout, which skipped
+  # github-release and left the version on crates.io with no release to match
+  # it. The cost is that publishing now waits for the slowest build.
   publish-crates:
     name: Publish to crates.io
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: [preflight-checks]
+    needs:
+      - preflight-checks
+      - build-linux-arm64
+      - build-linux-x86_64
+      - build-windows-x86_64
+      - build-macos-x86_64
+      - build-macos-arm64
     steps:
       - uses: actions/checkout@v7
 
@@ -510,12 +524,23 @@ jobs:
           args: 'Published {{ EVENT_PAYLOAD.repository.name }} v${{ steps.version.outputs.version }} to crates.io successfully!'
         continue-on-error: true
 
-  # Create GitHub release (after all builds complete)
+  # Create GitHub release, after every build AND the crates.io publish.
+  #
+  # Depending on publish-crates keeps the two registries consistent in both
+  # directions: no release without the crates, and (via publish-crates' own
+  # needs) no crates without every binary. Re-running a failed leg is safe —
+  # publish_if_needed skips crates already on the registry.
   github-release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    needs: [build-linux-arm64, build-linux-x86_64, build-windows-x86_64, build-macos-x86_64, build-macos-arm64]
+    needs:
+      - build-linux-arm64
+      - build-linux-x86_64
+      - build-windows-x86_64
+      - build-macos-x86_64
+      - build-macos-arm64
+      - publish-crates
     permissions:
       contents: write
       id-token: write
