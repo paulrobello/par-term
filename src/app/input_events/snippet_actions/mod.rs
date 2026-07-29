@@ -84,7 +84,11 @@ impl WindowState {
                 return true;
             }
 
-            let Some(input_char) = extract_prefix_action_char(event) else {
+            let Some(input_char) = extract_prefix_action_char(
+                event.text.as_deref(),
+                &event.logical_key,
+                event.physical_key,
+            ) else {
                 self.show_toast("Actions: unsupported key");
                 return true;
             };

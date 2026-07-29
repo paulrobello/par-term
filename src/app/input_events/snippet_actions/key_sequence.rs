@@ -1,7 +1,6 @@
 //! KeySequence action handler and prefix-action character extraction.
 
 use crate::app::window_state::WindowState;
-use winit::event::KeyEvent;
 use winit::keyboard::{Key, KeyCode, PhysicalKey};
 
 impl WindowState {
@@ -59,19 +58,24 @@ impl WindowState {
 
 /// Extract a character suitable for prefix-action matching from a key event.
 ///
-/// Prefers `event.text`, falls back to `logical_key`, then to `physical_key`
+/// Prefers `text`, falls back to `logical_key`, then to `physical_key`
 /// mapping. Filters out whitespace-only results.
-pub(crate) fn extract_prefix_action_char(event: &KeyEvent) -> Option<char> {
-    event
-        .text
-        .as_ref()
-        .and_then(|text| text.chars().next())
+///
+/// Takes the three fields it reads rather than a whole [`winit::event::KeyEvent`]:
+/// `KeyEvent` has a private platform-specific field and no public constructor,
+/// so a test that wants one has to fabricate it from uninitialized memory.
+pub(crate) fn extract_prefix_action_char(
+    text: Option<&str>,
+    logical_key: &Key,
+    physical_key: PhysicalKey,
+) -> Option<char> {
+    text.and_then(|text| text.chars().next())
         .filter(|ch| !ch.is_whitespace())
-        .or_else(|| match &event.logical_key {
+        .or_else(|| match logical_key {
             Key::Character(text) => text.chars().next().filter(|ch| !ch.is_whitespace()),
             _ => None,
         })
-        .or(match event.physical_key {
+        .or(match physical_key {
             PhysicalKey::Code(code) => match code {
                 KeyCode::KeyA => Some('a'),
                 KeyCode::KeyB => Some('b'),
