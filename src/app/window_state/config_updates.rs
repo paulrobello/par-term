@@ -93,6 +93,7 @@ pub(crate) struct ConfigChanges {
     pub link_underline_style: bool,
 
     // Blur settings (macOS only)
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
     pub blur: bool,
 
     // Keybindings

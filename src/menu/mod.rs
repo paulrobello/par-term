@@ -36,6 +36,10 @@ use winit::window::Window;
 /// Manages the native menu system
 pub struct MenuManager {
     /// The root menu
+    ///
+    /// Only attached on macOS and Windows; the Linux path logs display-server
+    /// support and never reads it.
+    #[cfg_attr(not(any(target_os = "macos", target_os = "windows")), allow(dead_code))]
     menu: Menu,
     /// Mapping from menu item IDs to actions
     action_map: HashMap<MenuId, MenuAction>,
@@ -473,7 +477,7 @@ impl MenuManager {
             target_os = "openbsd"
         ))]
         {
-            return linux::init_for_window(window);
+            linux::init_for_window(window)
         }
 
         #[cfg(not(any(

@@ -1,7 +1,9 @@
 //! Tab management keyboard shortcuts (new, close, navigate, move, number-switch).
 
 use crate::app::window_state::WindowState;
-use crate::platform::{primary_modifier, primary_modifier_with_shift};
+#[cfg(target_os = "macos")]
+use crate::platform::primary_modifier;
+use crate::platform::primary_modifier_with_shift;
 use winit::event::{ElementState, KeyEvent};
 use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::{Key, NamedKey};
