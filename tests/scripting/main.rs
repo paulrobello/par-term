@@ -3,6 +3,7 @@
 //! Covers: script configuration, integration with manager/process,
 //! command dispatch, observer bridge, and protocol serialization.
 
+mod script_auto_start_tests;
 mod script_command_dispatch_tests;
 mod script_integration_tests;
 mod script_manager_tests;
