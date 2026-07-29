@@ -475,6 +475,52 @@ impl Tab {
     }
 }
 
+/// Minimal stub for use in unit tests (no PTY, no runtime).
+#[cfg(test)]
+impl Tab {
+    pub(crate) fn new_stub(id: TabId, tab_number: usize) -> Self {
+        use crate::session_logger::create_shared_logger;
+
+        // Create a dummy TerminalManager without spawning a shell
+        let terminal =
+            TerminalManager::new_with_scrollback(80, 24, 100).expect("stub terminal creation");
+        let terminal = Arc::new(RwLock::new(terminal));
+        let is_active = Arc::new(AtomicBool::new(false));
+        let pane_manager = PaneManager::new_with_existing_terminal(
+            Arc::clone(&terminal),
+            None,
+            Arc::clone(&is_active),
+        );
+        Self {
+            id,
+            terminal,
+            pane_manager: Some(pane_manager),
+            title: format!("Tab {}", tab_number),
+            refresh_task: None,
+            working_directory: None,
+            custom_color: None,
+            has_default_title: true,
+            user_named: false,
+            activity: TabActivityMonitor::default(),
+            session_logger: create_shared_logger(),
+            tmux: TabTmuxState::default(),
+            detected_hostname: None,
+            detected_cwd: None,
+            custom_icon: None,
+            profile: TabProfileState::default(),
+            scripting: TabScriptingState::default(),
+            was_alt_screen: false,
+            is_active,
+            shutdown_fast: false,
+            is_hidden: false,
+            cached_modify_other_keys_mode: AtomicU8::new(0),
+            cached_application_cursor: AtomicBool::new(false),
+            cached_alt_screen_active: AtomicBool::new(false),
+            cached_has_tmux_child: AtomicBool::new(false),
+        }
+    }
+}
+
 /// Regression tests for script auto-start (issue #220).
 ///
 /// `auto_start` was documented as spawning a script at tab creation but was
@@ -521,8 +567,10 @@ mod auto_start_tests {
     }
 
     fn tab_with_scripts(scripts: Vec<ScriptConfig>) -> Tab {
-        let mut config = Config::default();
-        config.scripts = scripts;
+        let config = Config {
+            scripts,
+            ..Config::default()
+        };
         let terminal =
             TerminalManager::new_with_scrollback(80, 24, 100).expect("terminal creation");
         Tab::new_internal(
@@ -706,51 +754,5 @@ mod auto_start_tests {
             tab.scripting.script_forwarders.first(),
             Some(None)
         ));
-    }
-}
-
-/// Minimal stub for use in unit tests (no PTY, no runtime).
-#[cfg(test)]
-impl Tab {
-    pub(crate) fn new_stub(id: TabId, tab_number: usize) -> Self {
-        use crate::session_logger::create_shared_logger;
-
-        // Create a dummy TerminalManager without spawning a shell
-        let terminal =
-            TerminalManager::new_with_scrollback(80, 24, 100).expect("stub terminal creation");
-        let terminal = Arc::new(RwLock::new(terminal));
-        let is_active = Arc::new(AtomicBool::new(false));
-        let pane_manager = PaneManager::new_with_existing_terminal(
-            Arc::clone(&terminal),
-            None,
-            Arc::clone(&is_active),
-        );
-        Self {
-            id,
-            terminal,
-            pane_manager: Some(pane_manager),
-            title: format!("Tab {}", tab_number),
-            refresh_task: None,
-            working_directory: None,
-            custom_color: None,
-            has_default_title: true,
-            user_named: false,
-            activity: TabActivityMonitor::default(),
-            session_logger: create_shared_logger(),
-            tmux: TabTmuxState::default(),
-            detected_hostname: None,
-            detected_cwd: None,
-            custom_icon: None,
-            profile: TabProfileState::default(),
-            scripting: TabScriptingState::default(),
-            was_alt_screen: false,
-            is_active,
-            shutdown_fast: false,
-            is_hidden: false,
-            cached_modify_other_keys_mode: AtomicU8::new(0),
-            cached_application_cursor: AtomicBool::new(false),
-            cached_alt_screen_active: AtomicBool::new(false),
-            cached_has_tmux_child: AtomicBool::new(false),
-        }
     }
 }

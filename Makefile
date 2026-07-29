@@ -207,7 +207,7 @@ lint:
 # Run clippy on all targets
 lint-all:
 	@echo "Running clippy on all targets..."
-	cargo clippy --all-targets -- -D warnings
+	cargo clippy --all-targets --all-features -- -D warnings
 
 # Run all quality checks (format-check, lint, typecheck, test) — does NOT mutate files
 checkall: fmt-check lint typecheck test

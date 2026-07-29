@@ -5,7 +5,7 @@ use std::time::Duration;
 
 fn print_grid_row(pty: &PtySession, row: usize, cols: usize) {
     let terminal = pty.terminal();
-    let term = terminal.lock();
+    let term = terminal.read();
     let grid = term.active_grid();
 
     let mut line = String::new();

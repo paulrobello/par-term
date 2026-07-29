@@ -90,13 +90,15 @@ fn test_auto_start_selection_filters_mixed_config() {
     // Mirrors the tab-creation loop: only entries passing `should_auto_start`
     // are spawned, and the surviving indices must stay aligned with
     // `config.scripts` because per-tab tracking state is indexed by position.
-    let mut config = Config::default();
-    config.scripts = vec![
-        script("auto-on", "/bin/echo", true, true),
-        script("manual", "/bin/echo", true, false),
-        script("disabled-auto", "/bin/echo", false, true),
-        script("auto-on-2", "/bin/echo", true, true),
-    ];
+    let config = Config {
+        scripts: vec![
+            script("auto-on", "/bin/echo", true, true),
+            script("manual", "/bin/echo", true, false),
+            script("disabled-auto", "/bin/echo", false, true),
+            script("auto-on-2", "/bin/echo", true, true),
+        ],
+        ..Config::default()
+    };
 
     let selected: Vec<usize> = config
         .scripts
