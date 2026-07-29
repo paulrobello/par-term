@@ -3,39 +3,39 @@
 
 use par_term::config::{
     Config, TabBarPosition, TabStyle, is_env_var_allowed, substitute_variables,
-    substitute_variables_with_allowlist,
+    substitute_variables_with_lookup,
 };
 
 // ============================================================================
 // Variable Substitution Tests
 // ============================================================================
 
-/// Helper to set an environment variable in tests.
+/// Substitute against a fixed variable set instead of the process environment.
 ///
-/// # Safety
+/// These tests used to `std::env::set_var` a uniquely-named variable, justified
+/// on the grounds that no other concurrent test read that name. That argument
+/// does not hold: glibc's `setenv` can reallocate and free the `environ` array,
+/// so a concurrent `getenv` on any thread — inside libc, a dependency, or std
+/// itself, reading a completely unrelated variable — can read freed memory. The
+/// hazard is the shared array, not the key. Resolving through a lookup keeps
+/// these tests hermetic and removes the hazard rather than narrowing it.
 ///
-/// `std::env::set_var` is `unsafe` in Rust 2024 because modifying the process
-/// environment is not thread-safe. This is acceptable here because:
-/// - Cargo's default test harness runs tests on multiple threads, but each test
-///   that calls this helper uses a unique, test-specific env var name (prefixed
-///   with `PAR_TERM_TEST_`) that is not read by other concurrently-running tests.
-/// - The env var is set and removed within the same test body, minimising the
-///   window during which it is visible to other threads.
-/// - These are unit tests only; they never run in production.
-unsafe fn set_test_var(key: &str, val: &str) {
-    // SAFETY: See function-level safety comment.
-    unsafe { std::env::set_var(key, val) };
+/// A variable absent from `vars` reads as unset.
+fn subst(input: &str, vars: &[(&str, &str)]) -> String {
+    subst_with(input, false, vars)
 }
 
-/// Helper to remove an environment variable in tests.
-///
-/// # Safety
-///
-/// Same reasoning as `set_test_var`: the variable being removed is a
-/// test-specific key that is not shared with concurrently-running tests.
-unsafe fn remove_test_var(key: &str) {
-    // SAFETY: See set_test_var safety comment.
-    unsafe { std::env::remove_var(key) };
+/// As [`subst`], but with the allowlist bypassed (`allow_all_env_vars: true`).
+fn subst_all(input: &str, vars: &[(&str, &str)]) -> String {
+    subst_with(input, true, vars)
+}
+
+fn subst_with(input: &str, allow_all: bool, vars: &[(&str, &str)]) -> String {
+    substitute_variables_with_lookup(input, allow_all, |name| {
+        vars.iter()
+            .find(|(key, _)| *key == name)
+            .map(|(_, value)| (*value).to_string())
+    })
 }
 
 /// An allowlisted variable the OS always sets, used to exercise substitution of
@@ -43,9 +43,8 @@ unsafe fn remove_test_var(key: &str) {
 ///
 /// `HOME` is Unix-only — Windows sets `USERPROFILE` instead and leaves `HOME`
 /// unset, which made these tests fail there. Both names are on the allowlist,
-/// so either exercises the same path. This is read, never mutated: writing to a
-/// shared variable like `HOME` would break the `set_test_var` safety argument,
-/// which depends on tests only touching unique `PAR_TERM_TEST_`-prefixed keys.
+/// so either exercises the same path. This is read, never mutated — nothing in
+/// this file writes to the process environment; see `subst`.
 #[cfg(windows)]
 const AMBIENT_HOME_VAR: &str = "USERPROFILE";
 #[cfg(not(windows))]
@@ -53,10 +52,11 @@ const AMBIENT_HOME_VAR: &str = "HOME";
 
 #[test]
 fn test_substitute_variables_basic_env_var() {
-    unsafe { set_test_var("PAR_TERM_TEST_VAR", "hello_world") };
-    let result = substitute_variables("value: ${PAR_TERM_TEST_VAR}");
+    let result = subst(
+        "value: ${PAR_TERM_TEST_VAR}",
+        &[("PAR_TERM_TEST_VAR", "hello_world")],
+    );
     assert_eq!(result, "value: hello_world");
-    unsafe { remove_test_var("PAR_TERM_TEST_VAR") };
 }
 
 #[test]
@@ -69,44 +69,43 @@ fn test_substitute_variables_home_and_user() {
 
 #[test]
 fn test_substitute_variables_multiple_vars() {
-    unsafe { set_test_var("PAR_TERM_TEST_A", "alpha") };
-    unsafe { set_test_var("PAR_TERM_TEST_B", "beta") };
-    let result = substitute_variables("${PAR_TERM_TEST_A} and ${PAR_TERM_TEST_B}");
+    let result = subst(
+        "${PAR_TERM_TEST_A} and ${PAR_TERM_TEST_B}",
+        &[("PAR_TERM_TEST_A", "alpha"), ("PAR_TERM_TEST_B", "beta")],
+    );
     assert_eq!(result, "alpha and beta");
-    unsafe { remove_test_var("PAR_TERM_TEST_A") };
-    unsafe { remove_test_var("PAR_TERM_TEST_B") };
 }
 
 #[test]
 fn test_substitute_variables_missing_var_unchanged() {
     // Unset vars should remain as-is (PAR_TERM_ prefix so it passes allowlist)
-    unsafe { remove_test_var("PAR_TERM_NONEXISTENT_12345") };
-    let result = substitute_variables("value: ${PAR_TERM_NONEXISTENT_12345}");
+    let result = subst("value: ${PAR_TERM_NONEXISTENT_12345}", &[]);
     assert_eq!(result, "value: ${PAR_TERM_NONEXISTENT_12345}");
 }
 
 #[test]
 fn test_substitute_variables_default_value() {
-    unsafe { remove_test_var("PAR_TERM_MISSING_WITH_DEFAULT") };
-    let result = substitute_variables("shell: ${PAR_TERM_MISSING_WITH_DEFAULT:-/bin/bash}");
+    let result = subst("shell: ${PAR_TERM_MISSING_WITH_DEFAULT:-/bin/bash}", &[]);
     assert_eq!(result, "shell: /bin/bash");
 }
 
 #[test]
 fn test_substitute_variables_default_value_not_used_when_set() {
-    unsafe { set_test_var("PAR_TERM_SET_WITH_DEFAULT", "/bin/zsh") };
-    let result = substitute_variables("shell: ${PAR_TERM_SET_WITH_DEFAULT:-/bin/bash}");
+    let result = subst(
+        "shell: ${PAR_TERM_SET_WITH_DEFAULT:-/bin/bash}",
+        &[("PAR_TERM_SET_WITH_DEFAULT", "/bin/zsh")],
+    );
     assert_eq!(result, "shell: /bin/zsh");
-    unsafe { remove_test_var("PAR_TERM_SET_WITH_DEFAULT") };
 }
 
 #[test]
 fn test_substitute_variables_escaped_dollar() {
     // $${VAR} should produce the literal ${VAR}
-    unsafe { set_test_var("PAR_TERM_TEST_ESC", "should_not_appear") };
-    let result = substitute_variables("literal: $${PAR_TERM_TEST_ESC}");
+    let result = subst(
+        "literal: $${PAR_TERM_TEST_ESC}",
+        &[("PAR_TERM_TEST_ESC", "should_not_appear")],
+    );
     assert_eq!(result, "literal: ${PAR_TERM_TEST_ESC}");
-    unsafe { remove_test_var("PAR_TERM_TEST_ESC") };
 }
 
 #[test]
@@ -118,44 +117,45 @@ fn test_substitute_variables_no_vars() {
 
 #[test]
 fn test_substitute_variables_adjacent_vars() {
-    unsafe { set_test_var("PAR_TERM_TEST_X", "foo") };
-    unsafe { set_test_var("PAR_TERM_TEST_Y", "bar") };
-    let result = substitute_variables("${PAR_TERM_TEST_X}${PAR_TERM_TEST_Y}");
+    let result = subst(
+        "${PAR_TERM_TEST_X}${PAR_TERM_TEST_Y}",
+        &[("PAR_TERM_TEST_X", "foo"), ("PAR_TERM_TEST_Y", "bar")],
+    );
     assert_eq!(result, "foobar");
-    unsafe { remove_test_var("PAR_TERM_TEST_X") };
-    unsafe { remove_test_var("PAR_TERM_TEST_Y") };
 }
 
 #[test]
 fn test_substitute_variables_in_yaml_config() {
-    unsafe { set_test_var("PAR_TERM_TEST_FONT", "Fira Code") };
-    unsafe { set_test_var("PAR_TERM_TEST_TITLE", "My Terminal") };
     let yaml = r#"
 font_family: "${PAR_TERM_TEST_FONT}"
 window_title: "${PAR_TERM_TEST_TITLE}"
 cols: 120
 "#;
-    let substituted = substitute_variables(yaml);
+    let substituted = subst(
+        yaml,
+        &[
+            ("PAR_TERM_TEST_FONT", "Fira Code"),
+            ("PAR_TERM_TEST_TITLE", "My Terminal"),
+        ],
+    );
     let config: Config = serde_yaml_ng::from_str(&substituted).unwrap();
     assert_eq!(config.font_family, "Fira Code");
     assert_eq!(config.window_title, "My Terminal");
     assert_eq!(config.cols, 120);
-    unsafe { remove_test_var("PAR_TERM_TEST_FONT") };
-    unsafe { remove_test_var("PAR_TERM_TEST_TITLE") };
 }
 
 #[test]
 fn test_substitute_variables_partial_string() {
-    unsafe { set_test_var("PAR_TERM_TEST_USER", "testuser") };
-    let result = substitute_variables("badge: ${PAR_TERM_TEST_USER}@myhost");
+    let result = subst(
+        "badge: ${PAR_TERM_TEST_USER}@myhost",
+        &[("PAR_TERM_TEST_USER", "testuser")],
+    );
     assert_eq!(result, "badge: testuser@myhost");
-    unsafe { remove_test_var("PAR_TERM_TEST_USER") };
 }
 
 #[test]
 fn test_substitute_variables_empty_default() {
-    unsafe { remove_test_var("PAR_TERM_EMPTY_DEFAULT") };
-    let result = substitute_variables("val: ${PAR_TERM_EMPTY_DEFAULT:-}");
+    let result = subst("val: ${PAR_TERM_EMPTY_DEFAULT:-}", &[]);
     assert_eq!(result, "val: ");
 }
 
@@ -240,62 +240,68 @@ fn test_substitute_allowlisted_var_resolves() {
 
 #[test]
 fn test_substitute_non_allowlisted_var_blocked() {
-    // Set a non-allowlisted variable and verify it's NOT substituted
-    unsafe { set_test_var("SECRET_API_KEY_TEST_M3", "super_secret") };
-    let result = substitute_variables("key: ${SECRET_API_KEY_TEST_M3}");
+    // A non-allowlisted variable must NOT be substituted, even when it resolves
+    let result = subst(
+        "key: ${SECRET_API_KEY_TEST_M3}",
+        &[("SECRET_API_KEY_TEST_M3", "super_secret")],
+    );
     // Should remain as literal text, not resolved
     assert_eq!(result, "key: ${SECRET_API_KEY_TEST_M3}");
-    unsafe { remove_test_var("SECRET_API_KEY_TEST_M3") };
 }
 
 #[test]
 fn test_substitute_par_term_prefix_resolves() {
-    unsafe { set_test_var("PAR_TERM_MY_SETTING", "custom_value") };
-    let result = substitute_variables("setting: ${PAR_TERM_MY_SETTING}");
+    let result = subst(
+        "setting: ${PAR_TERM_MY_SETTING}",
+        &[("PAR_TERM_MY_SETTING", "custom_value")],
+    );
     assert_eq!(result, "setting: custom_value");
-    unsafe { remove_test_var("PAR_TERM_MY_SETTING") };
 }
 
 #[test]
 fn test_substitute_lc_prefix_resolves() {
-    unsafe { set_test_var("LC_TEST_LOCALE", "en_US.UTF-8") };
-    let result = substitute_variables("locale: ${LC_TEST_LOCALE}");
+    let result = subst(
+        "locale: ${LC_TEST_LOCALE}",
+        &[("LC_TEST_LOCALE", "en_US.UTF-8")],
+    );
     assert_eq!(result, "locale: en_US.UTF-8");
-    unsafe { remove_test_var("LC_TEST_LOCALE") };
 }
 
 #[test]
 fn test_substitute_allow_all_overrides_allowlist() {
     // With allow_all=true, even non-allowlisted vars should resolve
-    unsafe { set_test_var("SECRET_OVERRIDE_TEST_M3", "resolved_secret") };
-    let result = substitute_variables_with_allowlist("key: ${SECRET_OVERRIDE_TEST_M3}", true);
+    let result = subst_all(
+        "key: ${SECRET_OVERRIDE_TEST_M3}",
+        &[("SECRET_OVERRIDE_TEST_M3", "resolved_secret")],
+    );
     assert_eq!(result, "key: resolved_secret");
-    unsafe { remove_test_var("SECRET_OVERRIDE_TEST_M3") };
 }
 
 #[test]
 fn test_substitute_allow_all_false_blocks_non_allowlisted() {
-    unsafe { set_test_var("BLOCKED_VAR_TEST_M3", "should_not_appear") };
-    let result = substitute_variables_with_allowlist("val: ${BLOCKED_VAR_TEST_M3}", false);
+    let result = subst(
+        "val: ${BLOCKED_VAR_TEST_M3}",
+        &[("BLOCKED_VAR_TEST_M3", "should_not_appear")],
+    );
     assert_eq!(result, "val: ${BLOCKED_VAR_TEST_M3}");
-    unsafe { remove_test_var("BLOCKED_VAR_TEST_M3") };
 }
 
 #[test]
 fn test_substitute_mixed_allowed_and_blocked() {
-    unsafe { set_test_var("PAR_TERM_GOOD", "allowed") };
-    unsafe { set_test_var("NAUGHTY_SECRET_TEST_M3", "blocked") };
-    let result = substitute_variables("good: ${PAR_TERM_GOOD}, bad: ${NAUGHTY_SECRET_TEST_M3}");
+    let result = subst(
+        "good: ${PAR_TERM_GOOD}, bad: ${NAUGHTY_SECRET_TEST_M3}",
+        &[
+            ("PAR_TERM_GOOD", "allowed"),
+            ("NAUGHTY_SECRET_TEST_M3", "blocked"),
+        ],
+    );
     assert_eq!(result, "good: allowed, bad: ${NAUGHTY_SECRET_TEST_M3}");
-    unsafe { remove_test_var("PAR_TERM_GOOD") };
-    unsafe { remove_test_var("NAUGHTY_SECRET_TEST_M3") };
 }
 
 #[test]
 fn test_substitute_non_allowlisted_with_default_uses_literal() {
     // Non-allowlisted var with a default — the entire ${VAR:-default} is left as-is
-    unsafe { remove_test_var("BLOCKED_DEFAULT_TEST_M3") };
-    let result = substitute_variables("val: ${BLOCKED_DEFAULT_TEST_M3:-fallback}");
+    let result = subst("val: ${BLOCKED_DEFAULT_TEST_M3:-fallback}", &[]);
     // The variable is blocked, so the placeholder stays as literal text
     assert_eq!(result, "val: ${BLOCKED_DEFAULT_TEST_M3:-fallback}");
 }

@@ -102,6 +102,28 @@ pub fn substitute_variables(input: &str) -> String {
 /// resolved and non-allowlisted references are left as literal text with a
 /// warning logged.
 pub fn substitute_variables_with_allowlist(input: &str, allow_all: bool) -> String {
+    substitute_variables_with_lookup(input, allow_all, |name| std::env::var(name).ok())
+}
+
+/// Substitute variables, resolving names through `lookup` instead of the
+/// process environment.
+///
+/// `lookup` returns `Some(value)` for a set variable and `None` for an unset
+/// one; allowlist handling, defaults and `$${` escaping behave exactly as in
+/// [`substitute_variables_with_allowlist`], which is this function with an
+/// environment-backed lookup.
+///
+/// This exists so callers — tests, above all — can exercise substitution
+/// without mutating the process environment. `std::env::set_var` is not merely
+/// `unsafe` by ceremony: glibc's `setenv` can reallocate and free the
+/// `environ` array, so a concurrent `getenv` on any thread, reading any
+/// unrelated variable, can read freed memory. Using distinct variable names
+/// per test does not help, because the hazard is the shared array, not the key.
+pub fn substitute_variables_with_lookup(
+    input: &str,
+    allow_all: bool,
+    lookup: impl Fn(&str) -> Option<String>,
+) -> String {
     // First, replace escaped `$${` with a placeholder that won't match the regex
     let escaped_placeholder = "\x00ESC_DOLLAR\x00";
     let working = input.replace("$${", escaped_placeholder);
@@ -119,9 +141,9 @@ pub fn substitute_variables_with_allowlist(input: &str, allow_all: bool) -> Stri
             return caps[0].to_string();
         }
 
-        match std::env::var(var_name) {
-            Ok(val) => val,
-            Err(_) => {
+        match lookup(var_name) {
+            Some(val) => val,
+            None => {
                 // Use default value if provided, otherwise leave the placeholder as-is
                 caps.get(2)
                     .map(|m| m.as_str().replace("\\}", "}"))

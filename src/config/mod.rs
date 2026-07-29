@@ -35,7 +35,7 @@ pub use par_term_config::watcher;
 pub use par_term_config::{
     ALLOWED_ENV_VARS, Cell, Color, Config, CustomAcpAgentActionConfig, CustomAcpAgentConfig,
     ScrollbackMark, Theme, is_env_var_allowed, substitute_variables,
-    substitute_variables_with_allowlist,
+    substitute_variables_with_allowlist, substitute_variables_with_lookup,
 };
 
 // --- Color conversion helpers ---

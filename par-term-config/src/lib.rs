@@ -76,6 +76,7 @@ pub mod prelude {
             CustomAcpAgentActionConfig, CustomAcpAgentConfig, FontRenderingConfig,
             GlobalShaderConfig, MouseConfig, StatusBarConfig, WindowConfig, is_env_var_allowed,
             substitute_variables, substitute_variables_with_allowlist,
+            substitute_variables_with_lookup,
         };
         pub use crate::error::ConfigError;
         pub use crate::scrollback_mark::ScrollbackMark;
@@ -241,7 +242,7 @@ pub use config::{
     ALLOWED_ENV_VARS, AiInspectorConfig, AssistantInputHistoryMode, Config, CursorConfig,
     CustomAcpAgentActionConfig, CustomAcpAgentConfig, FontRenderingConfig, GlobalShaderConfig,
     MouseConfig, StatusBarConfig, WindowConfig, is_env_var_allowed, substitute_variables,
-    substitute_variables_with_allowlist,
+    substitute_variables_with_allowlist, substitute_variables_with_lookup,
 };
 pub use scrollback_mark::ScrollbackMark;
 pub use themes::{Color, Theme};

@@ -31,7 +31,8 @@ pub use config_struct::{
     SearchConfig, SshConfig, StatusBarConfig, UnicodeConfig, UpdateConfig, WindowConfig,
 };
 pub use env_vars::{
-    ALLOWED_ENV_VARS, is_env_var_allowed, substitute_variables, substitute_variables_with_allowlist,
+    ALLOWED_ENV_VARS, is_env_var_allowed, substitute_variables,
+    substitute_variables_with_allowlist, substitute_variables_with_lookup,
 };
 
 // KeyBinding is referenced in generate_snippet_action_keybindings via `crate::config::KeyBinding`
