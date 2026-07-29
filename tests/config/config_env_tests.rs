@@ -38,6 +38,19 @@ unsafe fn remove_test_var(key: &str) {
     unsafe { std::env::remove_var(key) };
 }
 
+/// An allowlisted variable the OS always sets, used to exercise substitution of
+/// an ambient (rather than test-injected) variable.
+///
+/// `HOME` is Unix-only — Windows sets `USERPROFILE` instead and leaves `HOME`
+/// unset, which made these tests fail there. Both names are on the allowlist,
+/// so either exercises the same path. This is read, never mutated: writing to a
+/// shared variable like `HOME` would break the `set_test_var` safety argument,
+/// which depends on tests only touching unique `PAR_TERM_TEST_`-prefixed keys.
+#[cfg(windows)]
+const AMBIENT_HOME_VAR: &str = "USERPROFILE";
+#[cfg(not(windows))]
+const AMBIENT_HOME_VAR: &str = "HOME";
+
 #[test]
 fn test_substitute_variables_basic_env_var() {
     unsafe { set_test_var("PAR_TERM_TEST_VAR", "hello_world") };
@@ -48,9 +61,9 @@ fn test_substitute_variables_basic_env_var() {
 
 #[test]
 fn test_substitute_variables_home_and_user() {
-    // HOME should be set on all Unix-like systems
-    let home = std::env::var("HOME").unwrap_or_default();
-    let result = substitute_variables("path: ${HOME}/Pictures/bg.png");
+    let home = std::env::var(AMBIENT_HOME_VAR)
+        .unwrap_or_else(|_| panic!("{AMBIENT_HOME_VAR} should be set by the OS"));
+    let result = substitute_variables(&format!("path: ${{{AMBIENT_HOME_VAR}}}/Pictures/bg.png"));
     assert_eq!(result, format!("path: {home}/Pictures/bg.png"));
 }
 
@@ -218,9 +231,10 @@ fn test_allowlist_blocks_sensitive_vars() {
 
 #[test]
 fn test_substitute_allowlisted_var_resolves() {
-    // HOME is on the allowlist and should be set on all Unix-like systems
-    let home = std::env::var("HOME").unwrap_or_default();
-    let result = substitute_variables("path: ${HOME}/config");
+    // An allowlisted, OS-provided variable must resolve.
+    let home = std::env::var(AMBIENT_HOME_VAR)
+        .unwrap_or_else(|_| panic!("{AMBIENT_HOME_VAR} should be set by the OS"));
+    let result = substitute_variables(&format!("path: ${{{AMBIENT_HOME_VAR}}}/config"));
     assert_eq!(result, format!("path: {home}/config"));
 }
 
