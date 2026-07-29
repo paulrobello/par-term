@@ -14,7 +14,7 @@ use winit::keyboard::{Key, KeyCode, NamedKey, PhysicalKey};
 
 use par_term_config::OptionKeyMode;
 
-use super::InputHandler;
+use super::{InputHandler, KeyInput};
 
 impl InputHandler {
     /// Apply Option/Alt key transformation based on the configured mode
@@ -79,7 +79,26 @@ impl InputHandler {
         modify_other_keys_mode: u8,
         application_cursor: bool,
     ) -> Option<Vec<u8>> {
-        if event.state != ElementState::Pressed {
+        self.handle_key_input_with_mode(
+            &KeyInput::from(event),
+            modify_other_keys_mode,
+            application_cursor,
+        )
+    }
+
+    /// Convert a [`KeyInput`] to terminal input bytes with modifyOtherKeys support.
+    ///
+    /// This is the implementation behind the [`KeyEvent`] entry points above, which
+    /// exist only to convert. Prefer this when you do not already hold a winit
+    /// event: `KeyEvent` cannot be constructed outside winit without undefined
+    /// behaviour, so callers that would otherwise forge one should use this.
+    pub fn handle_key_input_with_mode(
+        &mut self,
+        input: &KeyInput,
+        modify_other_keys_mode: u8,
+        application_cursor: bool,
+    ) -> Option<Vec<u8>> {
+        if input.state != ElementState::Pressed {
             return None;
         }
 
@@ -92,12 +111,12 @@ impl InputHandler {
         // decisions are made inside `try_modify_other_keys_encoding` (e.g. the Shift-only
         // exemption that matches iTerm2's reference implementation).
         if modify_other_keys_mode > 0
-            && let Some(bytes) = self.try_modify_other_keys_encoding(&event)
+            && let Some(bytes) = self.try_modify_other_keys_encoding(input)
         {
             return Some(bytes);
         }
 
-        match event.logical_key {
+        match input.logical_key {
             // Character keys
             Key::Character(ref s) => {
                 if ctrl {
@@ -141,7 +160,7 @@ impl InputHandler {
 
                 // Get the base character (without Alt modification) for Option key modes
                 // We need to look at the physical key to get the unmodified character
-                let base_char = self.get_base_character(&event);
+                let base_char = self.get_base_character(input);
 
                 // Regular character input
                 let mut bytes = s.as_bytes().to_vec();
@@ -312,7 +331,7 @@ impl InputHandler {
     /// - 6 = Shift+Ctrl
     /// - 7 = Alt+Ctrl
     /// - 8 = Shift+Alt+Ctrl
-    fn try_modify_other_keys_encoding(&self, event: &KeyEvent) -> Option<Vec<u8>> {
+    fn try_modify_other_keys_encoding(&self, input: &KeyInput) -> Option<Vec<u8>> {
         let ctrl = self.modifiers.state().control_key();
         let alt = self.modifiers.state().alt_key();
         let shift = self.modifiers.state().shift_key();
@@ -323,7 +342,7 @@ impl InputHandler {
         }
 
         // Get the base character for the key
-        let base_char = self.get_base_character(event)?;
+        let base_char = self.get_base_character(input)?;
 
         // Skip modifyOtherKeys encoding for any Shift-only combination on printable
         // characters, regardless of mode or character class.
@@ -380,10 +399,10 @@ impl InputHandler {
 
     /// Get the base character from a key event (the character without Alt modification)
     /// This maps physical key codes to their unmodified ASCII characters
-    fn get_base_character(&self, event: &KeyEvent) -> Option<char> {
+    fn get_base_character(&self, input: &KeyInput) -> Option<char> {
         // Map physical key codes to their base characters
         // This is needed because on macOS, Option+key produces a different logical character
-        match event.physical_key {
+        match input.physical_key {
             PhysicalKey::Code(code) => match code {
                 KeyCode::KeyA => Some('a'),
                 KeyCode::KeyB => Some('b'),
