@@ -433,19 +433,24 @@ startup_directory: "~"
 
 #[test]
 fn test_get_effective_startup_directory_legacy_working_directory() {
-    // Legacy working_directory should take precedence
-    let yaml = r#"
-working_directory: "/tmp"
-startup_directory_mode: custom
-startup_directory: "~"
-"#;
-    let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
+    // `working_directory` only wins when the directory actually exists, so this
+    // must point at a real one. A literal "/tmp" is resolved against the
+    // current drive on Windows (CI runs from D:, giving D:\tmp), which does not
+    // exist — the lookup then fell through to the mode below and the test
+    // failed there. Built as a struct rather than YAML to avoid quoting
+    // backslashes in a Windows path.
+    let existing_dir = std::env::temp_dir();
+    let config = Config {
+        working_directory: Some(existing_dir.to_string_lossy().to_string()),
+        startup_directory_mode: StartupDirectoryMode::Custom,
+        startup_directory: Some("~".to_string()),
+        ..Config::default()
+    };
     let effective_dir = config.get_effective_startup_directory();
-    assert!(effective_dir.is_some());
     assert_eq!(
-        effective_dir.unwrap(),
-        "/tmp",
-        "Legacy working_directory should take precedence"
+        effective_dir.as_deref(),
+        Some(existing_dir.to_string_lossy().as_ref()),
+        "Legacy working_directory should take precedence over startup_directory"
     );
 }
 
