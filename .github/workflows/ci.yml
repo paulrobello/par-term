@@ -17,7 +17,10 @@ jobs:
   test:
     name: Test - ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+    # Tests plus the release build take about 27 minutes on a warm Windows
+    # runner and longer cold. The original 15 dated from before this job built
+    # a release binary, and silently killed every leg mid-build.
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
