@@ -359,12 +359,23 @@ mod tests {
         monitor.start(1.0);
         assert!(monitor.is_running());
 
-        // Give the thread a moment to do an initial poll
-        std::thread::sleep(Duration::from_millis(500));
-
-        let data = monitor.data();
-        // After starting, last_update should be set (thread had 200ms init + sleep)
-        assert!(data.last_update.is_some());
+        // Wait for the first poll rather than assuming it lands within a fixed
+        // sleep. The initial `sysinfo` refresh enumerates processes and CPUs,
+        // which is markedly slower on Windows and on a loaded CI machine — a
+        // fixed 500ms made this test flaky there.
+        let deadline = std::time::Instant::now() + Duration::from_secs(10);
+        let mut polled = false;
+        while std::time::Instant::now() < deadline {
+            if monitor.data().last_update.is_some() {
+                polled = true;
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        assert!(
+            polled,
+            "system monitor recorded no initial poll within 10s of start()"
+        );
 
         monitor.stop();
         assert!(!monitor.is_running());
