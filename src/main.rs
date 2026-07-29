@@ -49,6 +49,11 @@ fn main() -> Result<()> {
     // Clean up leftover .old binary from a previous self-update (Windows)
     par_term::self_updater::cleanup_old_binary();
 
+    // Migrate user data (profiles, arrangements, session, command history,
+    // dynamic-profile cache, sounds, agents) from the legacy config dir into the
+    // canonical XDG location. No-op on plain Linux/Windows and after first run.
+    par_term::config_migration::migrate_legacy_config_dir();
+
     // Create Tokio runtime for async operations (PTY, etc.)
     let runtime = Arc::new(Runtime::new()?);
 

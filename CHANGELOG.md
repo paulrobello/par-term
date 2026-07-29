@@ -11,6 +11,9 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ## [Unreleased]
 
+### Fixed
+- **macOS user data now lives under `~/.config/par-term/` alongside `config.yaml`, with a one-time auto-migration.** Several storage sites — `profiles.yaml`, `command_history.yaml`, `arrangements.yaml`, `last_session.yaml`, the `cache/dynamic_profiles/` directory, the `sounds/` directory, and discovered ACP agent definitions — resolved their path with `dirs::config_dir().join("par-term")`, which on macOS is `~/Library/Application Support/par-term/`: a different directory than the main config and every doc, which use `~/.config/par-term/`. All nine sites now route through `Config::config_dir()` for consistency. On the first launch after upgrading, par-term moves any legacy entries from the old location into the canonical one without overwriting files already present, then removes the empty legacy directory; subsequent launches are a no-op (a pure path comparison). Linux and Windows are unaffected — the two paths already coincided there. Per-entry move failures (e.g. a cross-device rename) are logged and left in place rather than risking data loss.
+
 ---
 
 ## [0.37.1] - 2026-07-29

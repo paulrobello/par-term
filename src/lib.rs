@@ -68,6 +68,7 @@ pub mod close_confirmation_ui;
 pub mod command_history;
 pub mod command_history_ui;
 pub mod config;
+pub mod config_migration;
 pub mod copy_mode;
 pub mod font_metrics;
 pub mod help_ui;

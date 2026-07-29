@@ -4,6 +4,7 @@ Upgrade notes for par-term covering breaking configuration changes, renamed fiel
 
 ## Table of Contents
 
+- [Unreleased — macOS Config Directory Consolidation](#unreleased--macos-config-directory-consolidation)
 - [v0.31.0 — Content Prettifier Removed](#v0310--content-prettifier-removed)
 - [v0.20.0 — Default Changes](#v0200--default-changes)
 - [v0.25.0 — HTTP Profile URLs Blocked by Default](#v0250--http-profile-urls-blocked-by-default)
@@ -13,6 +14,16 @@ Upgrade notes for par-term covering breaking configuration changes, renamed fiel
 - [v0.27.0 — Trigger Field Renamed](#v0270--trigger-field-renamed)
 - [v0.27.0 — Security-Gated Trigger Execution](#v0270--security-gated-trigger-execution)
 - [Related Documentation](#related-documentation)
+
+---
+
+## Unreleased — macOS Config Directory Consolidation
+
+On macOS, par-term now keeps all of its per-user data under `~/.config/par-term/` — the same directory as `config.yaml` — instead of the previous mixed layout where some files landed in `~/Library/Application Support/par-term/`.
+
+Affected items: `profiles.yaml`, `command_history.yaml`, `arrangements.yaml`, `last_session.yaml`, the `cache/dynamic_profiles/` directory, the `sounds/` directory, and the `agents/` directory.
+
+**No manual steps required.** On the first launch after upgrading, par-term automatically moves any legacy entries into `~/.config/par-term/` (without overwriting files already present) and removes the now-empty legacy directory; a summary is written to the debug log. Subsequent launches do nothing. If an entry fails to move (for example a cross-device rename), it is left in place with a warning — move it by hand if you need it. Linux and Windows are unaffected; the two locations already coincided there.
 
 ---
 
