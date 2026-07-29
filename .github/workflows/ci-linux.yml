@@ -1,0 +1,93 @@
+name: CI (Linux only)
+
+# Manual-dispatch mirror of the ubuntu-latest leg of ci.yml, for isolating a
+# Linux-only failure without spending compute on the whole matrix. Runs only
+# when triggered by hand — no push or pull_request trigger — so it costs
+# nothing until asked.
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_args:
+        description: "Extra args appended to `cargo test` (e.g. `-p par-term --lib`) for isolating a failure"
+        type: string
+        default: "--workspace"
+      test_threads:
+        description: "Value for --test-threads (1 serialises the harness so the last name printed is the test that crashed)"
+        type: string
+        default: ""
+      release_build:
+        description: "Also run the release build (slow; the rest of the ubuntu matrix leg)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test-linux:
+    name: Test - ubuntu-latest
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v7
+      with:
+        node-version: 22
+
+    - name: Install Rust toolchain
+      # Pinned to the 1.95.0 branch of the action, matching rust-toolchain.toml.
+      # To find the SHA: git ls-remote https://github.com/dtolnay/rust-toolchain refs/heads/1.95.0
+      uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1
+      with:
+        toolchain: 1.95.0
+
+    - name: Install Linux dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libxkbcommon-dev libwayland-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libasound2-dev libgtk-3-dev libxdo-dev
+
+    - name: Install ACP bridge
+      run: make install-acp
+
+    - name: Cache cargo registry
+      uses: actions/cache@v6
+      with:
+        path: ~/.cargo/registry
+        key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Cache cargo index
+      uses: actions/cache@v6
+      with:
+        path: ~/.cargo/git
+        key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Cache target directory
+      uses: actions/cache@v6
+      with:
+        path: target
+        key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Enable core dumps
+      run: |
+        ulimit -c unlimited || true
+        sudo sysctl -w kernel.core_pattern=/tmp/core.%e.%p || true
+
+    - name: Run tests
+      run: |
+        threads=""
+        if [ -n "${{ inputs.test_threads }}" ]; then
+          threads="-- --test-threads=${{ inputs.test_threads }}"
+        fi
+        echo "cargo test ${{ inputs.test_args }} $threads"
+        RUST_BACKTRACE=1 cargo test ${{ inputs.test_args }} $threads
+
+    - name: Build release
+      if: inputs.release_build
+      run: cargo build --release --verbose
