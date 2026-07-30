@@ -135,7 +135,7 @@ impl WindowState {
     /// Search forward through lines for a query string
     pub(crate) fn search_lines_forward(
         &self,
-        term: &crate::terminal::TerminalManager,
+        term: &par_term_terminal::TerminalManager,
         query: &str,
         start_line: usize,
         start_col: usize,
@@ -170,7 +170,7 @@ impl WindowState {
     /// Search backward through lines for a query string
     pub(crate) fn search_lines_backward(
         &self,
-        term: &crate::terminal::TerminalManager,
+        term: &par_term_terminal::TerminalManager,
         query: &str,
         start_line: usize,
         start_col: usize,

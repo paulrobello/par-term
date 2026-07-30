@@ -16,8 +16,8 @@ use crate::tab::setup::{
     apply_login_shell_flag, build_shell_env, create_base_terminal, get_shell_command,
 };
 use crate::tab::tmux_state::TabTmuxState;
-use crate::terminal::TerminalManager;
 use par_term_config::TabId;
+use par_term_terminal::TerminalManager;
 use par_term_terminal::conversion::to_core_restart_policy;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU8};
@@ -59,7 +59,7 @@ impl Tab {
                     command: coproc_config.command.clone(),
                     args: coproc_config.args.clone(),
                     cwd: None,
-                    env: crate::terminal::coprocess_env(),
+                    env: par_term_terminal::coprocess_env(),
                     copy_terminal_output: coproc_config.copy_terminal_output,
                     restart_policy: to_core_restart_policy(coproc_config.restart_policy),
                     restart_delay_ms: coproc_config.restart_delay_ms,

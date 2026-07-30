@@ -1,7 +1,7 @@
 //! Clipboard history, paste special, and paste_text key handling.
 
 use crate::app::window_state::WindowState;
-use crate::terminal::ClipboardSlot;
+use par_term_terminal::ClipboardSlot;
 use winit::event::{ElementState, KeyEvent};
 use winit::keyboard::{Key, NamedKey};
 

@@ -4,14 +4,14 @@
 //! Opened via Cmd+Shift+S (macOS) or Ctrl+Shift+S (Linux/Windows).
 
 use crate::profile::ProfileId;
-use crate::ssh::mdns::MdnsDiscovery;
-use crate::ssh::{SshHost, SshHostSource, discover_local_hosts};
 use crate::ui_constants::{
     SSH_CONNECT_DIALOG_MAX_HEIGHT, SSH_CONNECT_DIALOG_MAX_WIDTH, SSH_CONNECT_DIALOG_MIN_HEIGHT,
     SSH_CONNECT_DIALOG_MIN_WIDTH, SSH_CONNECT_HOST_ROW_HEIGHT, SSH_CONNECT_INNER_MARGIN,
     SSH_CONNECT_LIST_BOTTOM_RESERVE, SSH_CONNECT_SEARCH_BAR_HEIGHT,
 };
 use egui::{Color32, Context, epaint::Shadow};
+use par_term_ssh::mdns::MdnsDiscovery;
+use par_term_ssh::{SshHost, SshHostSource, discover_local_hosts};
 
 /// Action returned by the quick connect dialog.
 #[derive(Debug, Clone)]

@@ -145,7 +145,7 @@ Log entries include Unix epoch timestamps with microsecond precision:
 par-term log session started at 1738864215.123456 (debug_level=Off, rust_log=info)
 ================================================================================
 [1738864215.234567] [INFO ] [par_term::app] Config loaded successfully
-[1738864215.345678] [DEBUG] [par_term::terminal] PTY read: 1024 bytes
+[1738864215.345678] [DEBUG] [par_term_terminal::terminal] PTY read: 1024 bytes
 ```
 
 ## Settings UI

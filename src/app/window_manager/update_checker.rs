@@ -3,7 +3,7 @@
 //! Handles periodic update checks, forced update checks (from UI),
 //! desktop notifications, and syncing update state to settings windows.
 
-use crate::update_checker::{UpdateCheckResult, UpdateInfo};
+use par_term_update::update_checker::{UpdateCheckResult, UpdateInfo};
 
 /// Show desktop notification when update is available.
 pub(super) fn notify_update_available(info: &UpdateInfo) {
@@ -132,7 +132,7 @@ impl WindowManager {
     /// Apply a completed update-check result on the main thread: log, notify,
     /// sync to status bar / update state, and persist the last-check timestamp.
     fn process_update_result(&mut self, outcome: UpdateCheckOutcome) {
-        use crate::update_checker::current_timestamp;
+        use par_term_update::update_checker::current_timestamp;
 
         let UpdateCheckOutcome {
             result,

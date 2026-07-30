@@ -661,8 +661,10 @@ regression from that baseline is yours.
   about).
 - **Method**: `src/input.rs` is two lines of `pub use par_term_input::{InputHandler, KeyInput};` — re-verified
   after `cb9abf12`, which added `KeyInput` but left it a shim. CLAUDE.md's "Adding a New Keyboard Shortcut"
-  workflow tells contributors to "add sequence generation in `src/input.rs`", which is impossible. **Keep the
-  shim** — downstream `crate::input::` paths use it; just stop advertising it as an implementation site.
+  workflow tells contributors to "add sequence generation in `src/input.rs`", which is impossible. ~~**Keep the
+  shim** — downstream `crate::input::` paths use it~~ — **superseded and now false.** This contradicted
+  ARC-010 in this same document, and its stated reason ("downstream paths use it") was exactly what ARC-010
+  exists to remove. The shim is deleted and all four importers repoint at `par-term-input`.
   **`CLAUDE.md` is the worst conflict file in this audit** — ten issues across four domains. Batch with DOC-006,
   DOC-007, DOC-011, DOC-015, DOC-018, DOC-023, QA-036, ARC-012 under a single owner.
 - **Verify**: every path in CLAUDE.md's Key File Map resolves (`while read -r p; do [ -e "$p" ] || echo "$p"; done`).

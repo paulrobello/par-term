@@ -9,7 +9,7 @@
 
 use crate::selection::{Selection, SelectionMode};
 use crate::smart_selection::find_word_boundaries;
-use crate::terminal::TerminalManager;
+use par_term_terminal::TerminalManager;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 

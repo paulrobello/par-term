@@ -4,8 +4,8 @@
 //! and trigger handling.
 
 use crate::scripting::manager::ScriptId;
-use crate::terminal::TerminalManager;
 use par_term_config::ScriptConfig;
+use par_term_terminal::TerminalManager;
 
 /// Scripting, coprocess, and trigger state for a terminal tab.
 pub(crate) struct TabScriptingState {

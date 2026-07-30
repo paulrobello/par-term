@@ -5,7 +5,7 @@
 // these do not go through `winit::event::KeyEvent`.
 
 use par_term::config::OptionKeyMode;
-use par_term::input::InputHandler;
+use par_term_input::InputHandler;
 
 #[test]
 fn test_input_handler_creation() {
@@ -83,7 +83,7 @@ fn test_option_key_mode_serde() {
 // `KeyInput` carries exactly the three fields encoding reads, and is safe to
 // construct.
 
-use par_term::input::KeyInput;
+use par_term_input::KeyInput;
 use winit::event::{ElementState, Modifiers};
 use winit::keyboard::{Key, KeyCode, ModifiersState, NamedKey, PhysicalKey};
 

@@ -36,8 +36,7 @@ application layer and the VT sequence processing / PTY I/O layer.
 ## Workspace Position
 
 Layer 2 in the dependency graph. Depends on `par-term-config` and
-`par-term-emu-core-rust` (external). Used directly by the root `par-term` crate and
-re-exported as `par_term::terminal`.
+`par-term-emu-core-rust` (external). Used directly by the root `par-term` crate.
 
 ## Installation
 

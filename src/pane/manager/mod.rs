@@ -32,8 +32,8 @@ mod tmux_update;
 
 use crate::config::{Config, PaneBackgroundConfig};
 use crate::pane::types::{Pane, PaneBounds, PaneId, PaneNode};
-use crate::terminal::TerminalManager;
 use anyhow::Result;
+use par_term_terminal::TerminalManager;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use tokio::runtime::Runtime;

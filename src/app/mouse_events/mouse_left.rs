@@ -7,7 +7,7 @@
 //! - `handle_left_mouse_release` — end drag (scrollbar/divider), copy selection to clipboard
 
 use crate::app::window_state::WindowState;
-use crate::terminal::ClipboardSlot;
+use par_term_terminal::ClipboardSlot;
 
 impl WindowState {
     pub(super) fn handle_left_mouse_press(&mut self, mouse_position: (f64, f64)) {

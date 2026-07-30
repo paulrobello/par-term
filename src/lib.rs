@@ -74,7 +74,6 @@ pub mod copy_mode;
 pub mod font_metrics;
 pub mod help_ui;
 pub mod http;
-pub mod input;
 pub mod integrations_ui;
 pub mod keybindings;
 pub mod macos_blur; // macOS window blur using private CGS API
@@ -139,24 +138,10 @@ pub mod shell_integration_installer;
 pub mod shell_quote;
 pub mod smart_selection;
 pub mod snippets;
-pub mod ssh;
 pub mod ssh_connect_ui;
 pub mod status_bar;
 pub mod tab;
 pub mod tab_bar_ui;
-pub mod terminal {
-    //! Terminal manager re-exports from `par-term-terminal` sub-crate.
-    pub use par_term_terminal::terminal::clipboard;
-    pub use par_term_terminal::terminal::coprocess_env;
-    pub use par_term_terminal::terminal::graphics;
-    pub use par_term_terminal::terminal::hyperlinks;
-    pub use par_term_terminal::terminal::rendering;
-    pub use par_term_terminal::terminal::spawn;
-    pub use par_term_terminal::terminal::{
-        ClipboardEntry, ClipboardSlot, ShellLifecycleEvent, TerminalManager,
-    };
-    pub use par_term_terminal::{HyperlinkInfo, SearchMatch};
-}
 pub mod text_shaper {
     //! Text shaping re-exports from par-term-fonts crate.
     pub use par_term_fonts::text_shaper::{ShapedGlyph, ShapedRun, ShapingOptions, TextShaper};
@@ -172,11 +157,5 @@ pub mod tmux_status_bar_ui;
 pub mod traits;
 pub mod traits_impl;
 pub mod ui_constants;
-pub(crate) mod update_checker {
-    //! Update checker re-exports from `par-term-update`.
-    pub use par_term_update::update_checker::{
-        UpdateCheckResult, UpdateChecker, UpdateInfo, current_timestamp, fetch_latest_release,
-    };
-}
 pub mod update_dialog;
 pub mod url_detection;

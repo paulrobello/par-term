@@ -135,7 +135,7 @@ See `docs/architecture/ARCHITECTURE.md` for detailed architecture documentation.
 | **ACP / AI panel** | `src/acp_harness/`, `src/ai_inspector/`, `par-term-acp/` | `par-term-acp` |
 | **Font/text shaping** | `par-term-fonts/` | `par-term-fonts` |
 
-> **Watch for re-export shims.** Several modules in `src/` exist only to `pub use` from a sub-crate and contain no implementation: `src/input.rs` (2 lines), the inline `pub mod terminal` in `src/lib.rs`, and `src/ssh/mod.rs` (re-exports only, with no `mod` declarations — so its sibling `.rs` files are **not compiled** and editing them changes nothing). Edit the sub-crate named in the third column, not the shim.
+> **Watch for re-export shims.** Several modules in `src/` exist only to `pub use` from a sub-crate and contain no implementation: `src/config/mod.rs`, `src/keybindings/mod.rs`, `src/scripting/mod.rs`, `src/manifest.rs`, `src/shell_detection.rs`, `src/status_bar/config.rs`, and the inline `cell_renderer`, `profile_modal_ui`, `renderer`, `scrollback_metadata`, `self_updater`, `text_shaper` and `themes` modules in `src/lib.rs`. Edit the sub-crate named in the third column, not the shim.
 
 ## Code Organization Guidelines
 
@@ -209,7 +209,7 @@ Layer 4 — Root crate (bump last):
 
 ### Adding a New Keyboard Shortcut
 1. Add key handling in `src/app/input_events/` (directory — `mod.rs` + `keybinding_actions.rs`)
-2. If needed, add sequence generation in `par-term-input/src/key_encoding.rs`; `InputHandler` itself is defined in `par-term-input/src/lib.rs`. (`src/input.rs` is a two-line re-export shim — there is nothing to edit there.)
+2. If needed, add sequence generation in `par-term-input/src/key_encoding.rs`; `InputHandler` itself is defined in `par-term-input/src/lib.rs`.
 
 ### Adding Snippet or Action Keybindings
 See `docs/features/SNIPPETS.md` for full documentation. Key points:

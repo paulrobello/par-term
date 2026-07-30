@@ -6,7 +6,7 @@
 //!
 //! # Status
 //!
-//! [`TerminalAccess`] is **fully implemented** on [`crate::terminal::TerminalManager`].
+//! [`TerminalAccess`] is **fully implemented** on [`par_term_terminal::TerminalManager`].
 //! See [`crate::traits_impl`] for the concrete `impl` and a `MockTerminal` test helper.
 //!
 //! [`UIElement`] is **fully implemented** on [`crate::tab_bar_ui::TabBarUI`] and

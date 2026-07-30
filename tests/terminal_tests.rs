@@ -25,7 +25,7 @@
 //! cargo test test_terminal_spawn_shell -- --include-ignored
 //! ```
 
-use par_term::terminal::TerminalManager;
+use par_term_terminal::TerminalManager;
 
 #[test]
 fn test_terminal_creation() {

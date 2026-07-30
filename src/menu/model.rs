@@ -125,13 +125,13 @@ pub fn menu_model(has_native_app_menu: bool) -> Vec<MenuSection> {
             accel(cmd_or_ctrl, Code::KeyT),
             MenuAction::NewTab,
         ),
-        // No accelerator: nothing in `Config::default().keybindings` binds
-        // `duplicate_tab`, and an accelerator here would be advertised by the
-        // in-app menu on platforms where only a keybinding can dispatch it.
+        // Matches the `duplicate_tab` default in `Config::default().keybindings`,
+        // which is what dispatches this on Linux (no native menu there, so the
+        // in-app menu only advertises the chord — it does not register it).
         item(
             "duplicate_tab",
             "Duplicate Tab",
-            None,
+            accel(cmd_or_ctrl_shift, Code::KeyJ),
             MenuAction::DuplicateTab,
         ),
         // No accelerator: same as Close in the File menu (smart close)
@@ -148,6 +148,21 @@ pub fn menu_model(has_native_app_menu: bool) -> Vec<MenuSection> {
             "Previous Tab",
             accel(cmd_or_ctrl_shift, Code::BracketLeft),
             MenuAction::PreviousTab,
+        ),
+        // Reordering is otherwise reachable only through the hardcoded
+        // Cmd/Ctrl+Shift+Arrow layer in `key_handler::tabs`, which nothing
+        // advertises. The accelerators here name that same chord.
+        item(
+            "move_tab_left",
+            "Move Tab Left",
+            accel(cmd_or_ctrl_shift, Code::ArrowLeft),
+            MenuAction::MoveTabLeft,
+        ),
+        item(
+            "move_tab_right",
+            "Move Tab Right",
+            accel(cmd_or_ctrl_shift, Code::ArrowRight),
+            MenuAction::MoveTabRight,
         ),
         MenuEntry::Separator,
     ];
@@ -414,6 +429,10 @@ fn code_label(code: Code) -> String {
         "BracketLeft" => "[".to_string(),
         "BracketRight" => "]".to_string(),
         "Space" => "Space".to_string(),
+        // Without these the in-app menu would advertise "ArrowLeft"; "Left" is
+        // also what the settings window's keybinding table prints.
+        "ArrowLeft" => "Left".to_string(),
+        "ArrowRight" => "Right".to_string(),
         other => other
             .strip_prefix("Key")
             .or_else(|| other.strip_prefix("Digit"))
@@ -478,6 +497,22 @@ mod tests {
                 actions.contains(&MenuAction::DuplicateTab),
                 "no menu item emits DuplicateTab (has_native_app_menu={has_native_app_menu})"
             );
+        }
+    }
+
+    /// `MoveTabLeft`/`MoveTabRight` were declared and handled but emitted by no
+    /// menu item, so tab reordering existed only as an unadvertised chord.
+    #[test]
+    fn tab_reordering_is_reachable_from_the_menu() {
+        for has_native_app_menu in [false, true] {
+            let model = menu_model(has_native_app_menu);
+            let actions: Vec<MenuAction> = items(&model).iter().map(|spec| spec.action).collect();
+            for expected in [MenuAction::MoveTabLeft, MenuAction::MoveTabRight] {
+                assert!(
+                    actions.contains(&expected),
+                    "no menu item emits {expected:?} (has_native_app_menu={has_native_app_menu})"
+                );
+            }
         }
     }
 
@@ -563,6 +598,8 @@ mod tests {
             "Tab/---",
             "Tab/next_tab = \"Next Tab\"",
             "Tab/prev_tab = \"Previous Tab\"",
+            "Tab/move_tab_left = \"Move Tab Left\"",
+            "Tab/move_tab_right = \"Move Tab Right\"",
             "Tab/---",
             "Tab/tab_1 = \"Tab 1\"",
             "Tab/tab_2 = \"Tab 2\"",
@@ -634,8 +671,11 @@ mod tests {
                 "close_window",
                 "quit",
                 "new_tab",
+                "duplicate_tab",
                 "next_tab",
                 "prev_tab",
+                "move_tab_left",
+                "move_tab_right",
                 "tab_1",
                 "tab_2",
                 "tab_3",
@@ -675,5 +715,15 @@ mod tests {
 
         let digit = Accelerator::new(Some(Modifiers::ALT), Code::Digit1);
         assert!(accelerator_label(&digit).ends_with('1'));
+
+        // The arrow keys reach the label through `code_label`'s fallback unless
+        // they are named, which would print "ArrowLeft" in the in-app menu.
+        let arrow = Accelerator::new(Some(Modifiers::SHIFT), Code::ArrowLeft);
+        assert!(
+            accelerator_label(&arrow).ends_with("Left"),
+            "unexpected label {:?}",
+            accelerator_label(&arrow)
+        );
+        assert!(!accelerator_label(&arrow).contains("Arrow"));
     }
 }

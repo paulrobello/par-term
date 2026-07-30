@@ -7,7 +7,6 @@ use super::{
 };
 use crate::badge::BadgeState;
 use crate::config::Config;
-use crate::input::InputHandler;
 use crate::keybindings::{KeyCombo, KeybindingRegistry};
 use crate::smart_selection::SmartSelectionCache;
 use crate::status_bar::StatusBarUI;
@@ -16,6 +15,7 @@ use crate::tab_bar_ui::TabBarUI;
 use anyhow::Result;
 use arc_swap::ArcSwap;
 use par_term_acp::discover_agents;
+use par_term_input::InputHandler;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 use winit::window::Window;

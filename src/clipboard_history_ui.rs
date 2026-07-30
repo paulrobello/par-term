@@ -1,8 +1,8 @@
-use crate::terminal::{ClipboardEntry, ClipboardSlot};
 use crate::ui_constants::{
     CLIPBOARD_WINDOW_DEFAULT_HEIGHT, CLIPBOARD_WINDOW_DEFAULT_WIDTH, CLIPBOARD_WINDOW_MAX_HEIGHT,
 };
 use egui::{Context, Window};
+use par_term_terminal::{ClipboardEntry, ClipboardSlot};
 
 /// Clipboard history UI manager using egui
 pub struct ClipboardHistoryUI {

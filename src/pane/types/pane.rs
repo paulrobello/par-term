@@ -16,8 +16,8 @@ use crate::session_logger::{SharedSessionLogger, create_shared_logger};
 use crate::tab::{
     apply_login_shell_flag, build_shell_env, configure_terminal_from_config, get_shell_command,
 };
-use crate::terminal::TerminalManager;
 use crate::ui_constants::VISUAL_BELL_FLASH_DURATION_MS;
+use par_term_terminal::TerminalManager;
 
 use super::bounds::PaneBounds;
 use super::common::{PaneBackground, PaneId, RestartState};

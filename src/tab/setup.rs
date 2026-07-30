@@ -4,7 +4,7 @@
 //! detection, and terminal configuration helpers used when spawning new tabs.
 
 use crate::config::Config;
-use crate::terminal::TerminalManager;
+use par_term_terminal::TerminalManager;
 use par_term_terminal::conversion::{
     to_core_ambiguous_width, to_core_normalization_form, to_core_unicode_version,
 };

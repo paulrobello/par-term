@@ -27,8 +27,8 @@ pub(crate) use tmux_state::TabTmuxState;
 
 use crate::pane::PaneManager;
 use crate::session_logger::SharedSessionLogger;
-use crate::terminal::TerminalManager;
 pub use manager::TabManager;
+use par_term_terminal::TerminalManager;
 pub(crate) use setup::{
     apply_login_shell_flag, build_shell_env, configure_terminal_from_config, get_shell_command,
 };

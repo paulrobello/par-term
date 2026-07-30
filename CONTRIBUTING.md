@@ -354,7 +354,7 @@ make config-example    # Writes config.yaml.example to the project root
 ### Adding a Keyboard Shortcut
 
 1. Add key handling in `src/app/input_events/` (a directory with 6+ files; the main dispatch logic is in `keybinding_actions.rs`).
-2. If the shortcut generates a terminal sequence, add sequence generation in `src/input.rs` via `InputHandler`.
+2. If the shortcut generates a terminal sequence, add sequence generation in `par-term-input/src/key_encoding.rs`; `InputHandler` is defined in `par-term-input/src/lib.rs`.
 
 For snippet or action keybindings, see `docs/features/SNIPPETS.md`. Key points:
 

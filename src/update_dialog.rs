@@ -3,7 +3,7 @@
 //! Renders an egui modal window when a new version of par-term is available,
 //! showing version info, release notes, and install/skip/dismiss actions.
 
-use crate::update_checker::UpdateCheckResult;
+use par_term_update::update_checker::UpdateCheckResult;
 
 /// Action returned by the update dialog.
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -1,10 +1,10 @@
 //! Integration tests for the SSH subsystem.
 
 use par_term::profile::Profile;
-use par_term::ssh::config_parser::parse_ssh_config_str;
-use par_term::ssh::history::parse_ssh_command;
-use par_term::ssh::known_hosts::parse_known_hosts_str;
-use par_term::ssh::types::{SshHost, SshHostSource};
+use par_term_ssh::config_parser::parse_ssh_config_str;
+use par_term_ssh::history::parse_ssh_command;
+use par_term_ssh::known_hosts::parse_known_hosts_str;
+use par_term_ssh::types::{SshHost, SshHostSource};
 
 #[test]
 fn test_ssh_config_roundtrip() {

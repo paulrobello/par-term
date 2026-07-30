@@ -2,7 +2,7 @@
 //!
 //! # What is implemented here
 //!
-//! - [`TerminalAccess`] on [`crate::terminal::TerminalManager`] — all five
+//! - [`TerminalAccess`] on [`par_term_terminal::TerminalManager`] — all five
 //!   read-only query methods are direct thin wrappers over the existing
 //!   `TerminalManager` methods, so there is no behaviour change at call sites.
 //!
@@ -35,8 +35,8 @@
 use crate::config::Config;
 use crate::status_bar::StatusBarUI;
 use crate::tab_bar_ui::TabBarUI;
-use crate::terminal::TerminalManager;
 use crate::traits::{TerminalAccess, UIElement};
+use par_term_terminal::TerminalManager;
 
 impl TerminalAccess for TerminalManager {
     /// Returns `true` if the alternate screen buffer (DECSC/smcup) is active.

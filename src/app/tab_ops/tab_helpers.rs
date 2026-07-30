@@ -88,7 +88,7 @@ impl WindowState {
     /// Get the active tab's terminal
     pub fn active_terminal(
         &self,
-    ) -> Option<&Arc<tokio::sync::RwLock<crate::terminal::TerminalManager>>> {
+    ) -> Option<&Arc<tokio::sync::RwLock<par_term_terminal::TerminalManager>>> {
         self.tab_manager.active_tab().map(|tab| &tab.terminal)
     }
 

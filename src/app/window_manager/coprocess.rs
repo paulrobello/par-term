@@ -24,7 +24,7 @@ impl WindowManager {
                 command: coproc_config.command.clone(),
                 args: coproc_config.args.clone(),
                 cwd: None,
-                env: crate::terminal::coprocess_env(),
+                env: par_term_terminal::coprocess_env(),
                 copy_terminal_output: coproc_config.copy_terminal_output,
                 restart_policy: to_core_restart_policy(coproc_config.restart_policy),
                 restart_delay_ms: coproc_config.restart_delay_ms,

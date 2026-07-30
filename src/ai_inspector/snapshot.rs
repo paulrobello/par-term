@@ -85,7 +85,7 @@ impl SnapshotData {
     /// * `scope` - Controls how much history to include
     /// * `_max_output_lines` - Reserved for future per-command output capture
     pub fn gather(
-        terminal: &crate::terminal::TerminalManager,
+        terminal: &par_term_terminal::TerminalManager,
         scope: &SnapshotScope,
         _max_output_lines: usize,
     ) -> Self {

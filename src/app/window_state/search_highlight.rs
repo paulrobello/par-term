@@ -85,7 +85,7 @@ pub(crate) fn apply_search_highlights_to_cells(params: SearchHighlightParams<'_>
 /// # Returns
 /// Iterator of (absolute_line_index, line_text) pairs where line 0 is the oldest scrollback line.
 pub(crate) fn get_all_searchable_lines(
-    term: &crate::terminal::TerminalManager,
+    term: &par_term_terminal::TerminalManager,
     visible_lines: usize,
 ) -> impl Iterator<Item = (usize, String)> {
     let cols = term.dimensions().0;

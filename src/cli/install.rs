@@ -282,7 +282,7 @@ pub fn uninstall_shaders_cli(force: bool) -> anyhow::Result<()> {
 /// Self-update par-term to the latest version (CLI version)
 pub fn self_update_cli(skip_prompt: bool) -> anyhow::Result<()> {
     use crate::self_updater;
-    use crate::update_checker;
+    use par_term_update::update_checker;
 
     println!("=============================================");
     println!("  par-term Self-Updater");

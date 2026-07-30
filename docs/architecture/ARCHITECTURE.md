@@ -298,7 +298,7 @@ All public types from workspace crates are re-exported from the main `par-term` 
 *   **History Scanner (`par-term-ssh/src/history.rs`)**: Scans bash/zsh/fish history files for previously-used SSH connections.
 *   **mDNS Discovery (`par-term-ssh/src/mdns.rs`)**: Discovers SSH services on the local network via `_ssh._tcp.local.` Bonjour/mDNS browsing (opt-in).
 *   **Discovery Aggregator (`par-term-ssh/src/discovery.rs`)**: Combines hosts from all sources with deduplication.
-*   **Quick Connect UI (`src/ssh_connect_ui.rs`)**: egui modal overlay for browsing and connecting to SSH hosts with fuzzy search, keyboard navigation, and source grouping. The `src/ssh/` module is a thin re-export shim for the `par-term-ssh` crate, not the UI.
+*   **Quick Connect UI (`src/ssh_connect_ui.rs`)**: egui modal overlay for browsing and connecting to SSH hosts with fuzzy search, keyboard navigation, and source grouping.
 
 ### Status Bar
 

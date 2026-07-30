@@ -27,8 +27,8 @@
 use super::WindowState;
 use crate::pane::PaneId;
 use crate::tab::TabId;
-use crate::terminal::TerminalManager;
 use par_term_emu_core_rust::terminal::Urgency;
+use par_term_terminal::TerminalManager;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, Weak};
 use std::time::Instant;
