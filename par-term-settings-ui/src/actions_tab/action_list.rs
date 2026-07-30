@@ -329,7 +329,6 @@ fn populate_edit_fields(settings: &mut SettingsUI, index: usize) {
             command,
             args,
             capture_output,
-            notify_on_success: _,
             ..
         } => {
             settings.actions_tab.temp_action_type = 0;

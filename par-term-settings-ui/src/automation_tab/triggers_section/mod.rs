@@ -257,7 +257,7 @@ fn show_trigger_row(
 
         // Pattern (monospace)
         ui.label(
-            egui::RichText::new(format!("/{}/", &trigger.pattern))
+            egui::RichText::new(format!("/{}/", trigger.pattern))
                 .monospace()
                 .color(egui::Color32::from_rgb(150, 150, 200)),
         );

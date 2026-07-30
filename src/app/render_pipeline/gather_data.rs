@@ -32,8 +32,9 @@ impl WindowState {
             cache_grid_dims,
             cached_terminal_title,
             hovered_url,
-        ) = match self.tab_manager.active_tab() {
-            Some(t) => (
+        ) = {
+            let t = self.tab_manager.active_tab()?;
+            (
                 // Use the focused pane's terminal for cache invalidation.
                 // In single-pane mode this is the same Arc as tab.terminal.
                 // In split-pane mode, using the primary pane's terminal means changes
@@ -56,8 +57,7 @@ impl WindowState {
                 t.active_cache().grid_dims,
                 t.active_cache().terminal_title.clone(),
                 t.active_mouse().hovered_url.clone(),
-            ),
-            None => return None,
+            )
         };
 
         // Check if shell has exited

@@ -37,9 +37,9 @@ jobs:
     - name: Install Rust toolchain
       # Pinned to a stable release tag; update SHA when bumping toolchain version.
       # To find the SHA: git ls-remote https://github.com/dtolnay/rust-toolchain refs/heads/master
-      uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1
+      uses: dtolnay/rust-toolchain@46511b1c83438f0dd37c02d843619ece5a4abb5b
       with:
-        toolchain: 1.95.0
+        toolchain: 1.97.1
 
     - name: Install Linux dependencies
       if: runner.os == 'Linux'
@@ -139,9 +139,9 @@ jobs:
     - name: Install Rust toolchain
       # Pinned to a stable release tag; update SHA when bumping toolchain version.
       # To find the SHA: git ls-remote https://github.com/dtolnay/rust-toolchain refs/heads/master
-      uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1
+      uses: dtolnay/rust-toolchain@46511b1c83438f0dd37c02d843619ece5a4abb5b
       with:
-        toolchain: 1.95.0
+        toolchain: 1.97.1
         components: rustfmt, clippy
 
     - name: Install Linux dependencies

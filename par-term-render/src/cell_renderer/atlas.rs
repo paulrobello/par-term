@@ -223,14 +223,9 @@ impl CellRenderer {
                 swash::scale::Source::ColorBitmap(swash::scale::StrikeWith::BestFit),
                 swash::scale::Source::ColorOutline(0),
             ];
-            if let Some(color_image) = Render::new(&color_sources)
+            image = Render::new(&color_sources)
                 .format(render_format)
-                .render(&mut retry_scaler, glyph_id)
-            {
-                image = color_image;
-            } else {
-                return None;
-            }
+                .render(&mut retry_scaler, glyph_id)?;
         }
 
         let (pixels, is_colored) = match image.content {

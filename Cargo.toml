@@ -100,7 +100,7 @@ serial_test = { version = "4.0.1", default-features = false }
 name = "par-term"
 version = "0.38.0"
 edition = "2024"
-rust-version = "1.95"
+rust-version = "1.97"
 authors = ["Paul Robello <probello@gmail.com>"]
 description = "Cross-platform GPU-accelerated terminal emulator with inline graphics support (Sixel, iTerm2, Kitty)"
 readme = "README.md"
@@ -233,7 +233,7 @@ chrono.workspace = true
 image.workspace = true
 
 # Native Mermaid diagram rendering (feature-gated: `mermaid`)
-mermaid-rs-renderer = { version = "0.2", default-features = false, optional = true }
+mermaid-rs-renderer = { version = "0.3", default-features = false, optional = true }
 # SVG rasterization for mermaid diagram PNG output (feature-gated: `mermaid`)
 resvg = { version = "0.47", optional = true }
 

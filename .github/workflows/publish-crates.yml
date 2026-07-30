@@ -58,11 +58,11 @@ jobs:
           echo "✓ All Cargo.toml files are ready for publish"
 
       - name: Install Rust toolchain
-        # Pinned to the 1.95.0 branch of the action, matching rust-toolchain.toml.
-        # To find the SHA: git ls-remote https://github.com/dtolnay/rust-toolchain refs/heads/1.95.0
-        uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1
+        # Pinned to the 1.97.1 branch of the action, matching rust-toolchain.toml.
+        # To find the SHA: git ls-remote https://github.com/dtolnay/rust-toolchain refs/heads/1.97.1
+        uses: dtolnay/rust-toolchain@46511b1c83438f0dd37c02d843619ece5a4abb5b
         with:
-          toolchain: 1.95.0
+          toolchain: 1.97.1
 
       - name: Install Linux dependencies
         run: |

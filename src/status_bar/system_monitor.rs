@@ -105,7 +105,7 @@ mod inner {
 
                         // Network totals
                         let (mut total_rx, mut total_tx) = (0u64, 0u64);
-                        for (_name, net) in networks.iter() {
+                        for net in networks.values() {
                             total_rx = total_rx.saturating_add(net.total_received());
                             total_tx = total_tx.saturating_add(net.total_transmitted());
                         }
