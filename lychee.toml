@@ -1,0 +1,26 @@
+# Configuration for lychee, the documentation link checker.
+# Run locally with `make doc-check`; CI runs the same check in the `docs` job.
+
+# Skip every network request. This check exists to catch links that point
+# inside the repository — a moved doc, a wrong number of `../` segments, a
+# heading that was renamed out from under an anchor. External URLs are left
+# unchecked so a third-party outage can never turn CI red.
+offline = true
+
+# Resolve each `#anchor` against the headings of the file it points at.
+# Without this, a link to a heading that no longer exists passes silently,
+# which is how five broken anchors accumulated before this check existed.
+include_fragments = "anchor-only"
+
+no_progress = true
+
+# The audit report and its companion playbook quote broken links verbatim as
+# evidence of the very problem they document, so checking them is wrong by
+# construction. They are transient working files, not published documentation.
+exclude_path = [
+  "AUDIT.md",
+  "AUDIT-REMEDIATION-PLAN.md",
+  "ENHANCEMENTS.md",
+  "docs/opus",
+  "target",
+]

@@ -1,7 +1,7 @@
 # Makefile for par-term
 # Cross-platform terminal emulator frontend
 
-.PHONY: help build build-debug run run-release run-error run-warn run-info run-debug run-trace release test check typecheck clean fmt lint checkall install install-shell-integration install-acp acp-harness acp-smoke doc doc-open coverage test-fonts benchmark-shaping test-text-shaping bundle bundle-install run-bundle deploy
+.PHONY: help build build-debug run run-release run-error run-warn run-info run-debug run-trace release test check typecheck clean fmt lint checkall install install-shell-integration install-acp acp-harness acp-smoke doc doc-open doc-check coverage test-fonts benchmark-shaping test-text-shaping bundle bundle-install run-bundle deploy
 
 ACP_AGENT ?= claude-ollama.local
 ACP_TIMEOUT ?= 45
@@ -76,6 +76,7 @@ help:
 	@echo "  make acp-smoke   - Run Claude+Ollama ACP smoke test with transcript"
 	@echo "  make doc         - Generate rustdoc documentation (no-deps)"
 	@echo "  make doc-open    - Generate and open rustdoc in the browser"
+	@echo "  make doc-check   - Validate Markdown links and anchors (requires lychee)"
 	@echo "  make coverage    - Generate test coverage report"
 	@echo "  make deploy      - Trigger Release and Deploy GitHub Action"
 	@echo ""
@@ -270,6 +271,16 @@ doc:
 doc-open:
 	@echo "Generating and opening documentation..."
 	cargo doc --no-deps --open
+
+# Validate documentation links. Flags live in lychee.toml so this and the CI
+# `docs` job cannot drift apart.
+doc-check:
+	@command -v lychee >/dev/null 2>&1 || { \
+		echo "lychee not found. Install it with: cargo install lychee --locked"; \
+		exit 1; \
+	}
+	@echo "Checking documentation links..."
+	lychee './**/*.md'
 
 # Run all checks (format, lint, test)
 all: fmt lint test build

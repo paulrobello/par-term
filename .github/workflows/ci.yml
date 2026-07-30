@@ -165,3 +165,32 @@ jobs:
 
     - name: Run cargo-deny
       run: cargo deny check
+
+  docs:
+    name: Docs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+    - uses: actions/checkout@v7
+
+    # Catches the two failure modes a reviewer cannot see in a diff: a relative
+    # path that no longer resolves after a doc moves, and a `#anchor` whose
+    # heading was renamed. Every flag lives in lychee.toml so `make doc-check`
+    # runs exactly this check locally.
+    #
+    # It will NOT catch a link whose target happens to exist but is the wrong
+    # file — `../README.md` from docs/features/ resolves to docs/README.md, not
+    # the root README. Those still need a human.
+    - name: Check documentation links
+      # Pinned to the v2.9.0 commit; bump deliberately, since a new lychee
+      # release can add checks that turn CI red with no repo change.
+      uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8
+      with:
+        # The inner single quotes are load-bearing: the action `eval`s this
+        # string, so an unquoted glob is expanded by bash instead of lychee.
+        # Bash without `globstar` treats `**` as `*`, which silently narrows
+        # the run to one directory level and skips docs/features, docs/guides,
+        # and every root-level Markdown file.
+        args: "'./**/*.md'"
+        fail: true
