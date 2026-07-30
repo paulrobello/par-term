@@ -35,8 +35,11 @@ pub(crate) struct PaneBackgroundEntry {
 /// Cached per-pane uniform buffer and bind group for background rendering.
 ///
 /// The uniform buffer is reused across frames via `queue.write_buffer()`.
-/// The bind group is recreated only when the texture entry changes (path changes).
+/// The bind group is recreated only when the pane's image path changes, since it
+/// is the only part of the entry that references the texture.
 pub(crate) struct PaneBgUniformEntry {
+    /// Image path this entry's bind group was built against.
+    pub(crate) path: String,
     pub(crate) uniform_buffer: wgpu::Buffer,
     pub(crate) bind_group: wgpu::BindGroup,
 }
@@ -578,17 +581,24 @@ impl CellRenderer {
         Ok(true)
     }
 
-    /// Prepare a per-pane background bind group and uniform buffer for the given path.
+    /// Prepare a per-pane background bind group and uniform buffer for one pane.
     ///
-    /// On the first call for a given path, the buffer and bind group are allocated and stored
-    /// in `bg_state.pane_bg_uniform_cache`. On subsequent calls the existing buffer is reused
-    /// via `queue.write_buffer()` — no GPU allocations occur per frame.
+    /// The cache is keyed by `pane_index`, not by image path: the uniform carries
+    /// the pane's position and size, so two panes sharing one image need two
+    /// buffers (ARC-004). On the first call for a pane — and whenever its image
+    /// path changes — the buffer and bind group are allocated; otherwise only the
+    /// uniform contents are rewritten, so no GPU allocation happens per frame.
     ///
     /// Call this before starting the render pass, then retrieve the bind group from
-    /// `self.bg_state.pane_bg_uniform_cache.get(path)` inside the render pass.
+    /// `self.bg_state.pane_bg_uniform_cache.get(&pane_index)` inside the render pass.
     ///
     /// The texture entry must already be loaded into `bg_state.pane_bg_cache`.
-    pub(crate) fn prepare_pane_bg_bind_group(&mut self, path: &str, p: PaneBgBindGroupParams) {
+    pub(crate) fn prepare_pane_bg_bind_group(
+        &mut self,
+        pane_index: usize,
+        path: &str,
+        p: PaneBgBindGroupParams,
+    ) {
         let PaneBgBindGroupParams {
             pane_x,
             pane_y,
@@ -635,16 +645,21 @@ impl CellRenderer {
         // darken (f32)
         data[40..44].copy_from_slice(&darken.to_le_bytes());
 
-        if self.bg_state.pane_bg_uniform_cache.contains_key(path) {
+        let reusable = self
+            .bg_state
+            .pane_bg_uniform_cache
+            .get(&pane_index)
+            .is_some_and(|cached| cached.path == path);
+        if reusable {
             // Reuse existing buffer — just update its contents, no GPU allocation.
             let cached = self
                 .bg_state
                 .pane_bg_uniform_cache
-                .get(path)
-                .expect("uniform cache entry must exist after contains_key check");
+                .get(&pane_index)
+                .expect("uniform cache entry must exist after the reuse check");
             self.queue.write_buffer(&cached.uniform_buffer, 0, &data);
         } else {
-            // First use for this path: allocate buffer and bind group, then cache them.
+            // First use for this pane, or its image changed: allocate and cache.
             let uniform_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("pane bg uniform buffer"),
                 size: 48,
@@ -680,8 +695,9 @@ impl CellRenderer {
             });
 
             self.bg_state.pane_bg_uniform_cache.insert(
-                path.to_string(),
+                pane_index,
                 super::background::PaneBgUniformEntry {
+                    path: path.to_string(),
                     uniform_buffer,
                     bind_group,
                 },
@@ -694,8 +710,9 @@ impl CellRenderer {
     /// Call this when a pane is destroyed or its background image changes, so that stale
     /// GPU buffers are freed.
     pub fn evict_pane_bg_uniform_cache(&mut self) {
+        let textures = &self.bg_state.pane_bg_cache;
         self.bg_state
             .pane_bg_uniform_cache
-            .retain(|path, _| self.bg_state.pane_bg_cache.contains_key(path.as_str()));
+            .retain(|_, entry| textures.contains_key(entry.path.as_str()));
     }
 }

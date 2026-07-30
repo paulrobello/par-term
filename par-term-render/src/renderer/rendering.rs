@@ -1,39 +1,48 @@
-// ARC-009 TODO: `make check-line-counts` fails this file at 800 production lines
-// and it sits a few lines under that. Extract into renderer/ siblings:
+// ARC-009: `take_screenshot` and its shader chain moved to `renderer/screenshot.rs`.
+// If this file needs cutting again, the next seams are:
 //
-//   screenshot.rs     — `take_screenshot`, self-contained and the cheapest first cut
 //   split_layout.rs   — Split-pane geometry (render_split_panes_with_data)
 //   separator_draw.rs — Separator-mark draw calls; QA-001 and QA-008 affect this area
 //
 // Tracking: Issue ARC-009 in AUDIT.md.
 
-// ARC-004 TODO: `render_split_panes` ends every pane in its own `queue.submit`,
-// and collapsing the loop into one encoder is the fix for the frame rate at
-// six-plus panes. It is not safe as written — three GPU resources are
-// single-instance and rewritten per pane, correct today only because a submit
-// separates each write from the next. Batching makes every pane draw with the
-// *last* pane's values:
+// ARC-004: `render_split_panes` used to end every pane in its own `queue.submit`.
+// Panes are now built in one pass and drawn from a single command encoder — one
+// render pass per pane, one submit per pane batch — so pane submits per frame went
+// from N to 1. The exception is auto-dim without full-content mode, the one
+// configuration that renders the panes twice: once into the shader's intermediate
+// texture as a content mask, then again onto the content view. That is 2.
 //
-//   1. bg_instance_buffer / text_instance_buffer — rebuilt at offset 0 per pane.
-//      Needs per-pane instance ranges. Keep the buffer bound at offset 0 and
-//      pass absolute ranges to `emit_three_phase_draw_calls`; that sidesteps
-//      vertex-buffer offset alignment and adds no fourth draw ordering.
-//   2. bg_state.pane_bg_uniform_cache — keyed by image path alone, but the
-//      uniform carries pane position and size. Two panes sharing one background
-//      image already alias; only the submit ordering hides it.
-//   3. The scrollbar's thumb, track and mark uniform buffers (scrollbar.rs) —
-//      one set for the whole renderer, rewritten by `update_scrollbar_for_pane`
-//      before each pane's pass.
+// That was unsafe until three single-instance GPU resources were made per-pane,
+// each of which had been correct only because a submit separated one pane's write
+// from the next's:
 //
-// Capacity is the other prerequisite: `max_bg_instances` is sized for one
-// full-window grid (cols*rows + 10 + rows + rows), while N panes additionally
-// need N * (1 + pane_rows + CURSOR_OVERLAY_SLOTS). The bounds guards in the
-// emitters drop instances silently, so under-sizing loses content in the last
-// panes rather than failing loudly.
+//   1. bg_instance_buffer / text_instance_buffer — every pane rebuilt them at
+//      offset 0. Panes now suballocate: `begin_pane_batch` resets the cursors,
+//      each build appends at them, and `emit_three_phase_draw_calls` takes
+//      absolute ranges. The buffers stay bound at offset 0, so no vertex-buffer
+//      offset alignment is involved and there is still one draw ordering.
+//   2. bg_state.pane_bg_uniform_cache — was keyed by image path while the uniform
+//      carries pane position and size, so two panes sharing an image aliased even
+//      before batching. Now keyed by pane index, with the path stored in the entry
+//      so the bind group is rebuilt only when a pane's image changes.
+//   3. The scrollbar's thumb, track and mark uniforms (scrollbar.rs) — one set for
+//      the whole renderer. Now one slot per pane. Hit testing stays
+//      single-instance and follows the *focused* pane rather than whichever pane
+//      was updated last.
 //
-// Tracking: Issue ARC-004 in AUDIT.md.
+// Capacity: `max_bg_instances` is sized for one full-window grid, which is not
+// enough once panes are simultaneously resident — each pane also needs a viewport
+// fill quad, its own separator rows and its own cursor overlay slots.
+// `begin_pane_batch` sums `pane_instance_capacity` over the frame's panes, keeps
+// the single-grid requirement as a floor, and grows the buffers when needed. The
+// emitters' bounds guards drop instances silently, so a build that reaches the cap
+// logs an error (once per allocation) instead of quietly losing content.
+//
+// Not measured: verifying the frame-rate effect needs a full workspace build, which
+// this change was not able to run. No speedup is claimed.
 
-use crate::cell_renderer::PaneViewport;
+use crate::cell_renderer::{PaneViewport, pane_instance_capacity};
 use anyhow::Result;
 
 use super::{
@@ -41,7 +50,7 @@ use super::{
     fill_visible_separator_marks,
 };
 
-// This file contains the multi-pane frame-level helper `render_split_panes` and `take_screenshot`.
+// This file contains the multi-pane frame-level helper `render_split_panes`.
 
 fn should_populate_terminal_intermediate_texture(
     full_content_mode: bool,
@@ -49,6 +58,17 @@ fn should_populate_terminal_intermediate_texture(
     auto_dim_strength: f32,
 ) -> bool {
     full_content_mode || (auto_dim_under_text && auto_dim_strength > 0.0)
+}
+
+/// Per-batch settings for [`Renderer::prepare_and_draw_panes`].
+///
+/// The capacities are the summed `pane_instance_capacity` of the panes in the
+/// batch; the two flags depend on which target the batch is being drawn to.
+struct PaneBatchSettings {
+    bg_capacity: usize,
+    text_capacity: usize,
+    skip_background_image: bool,
+    fill_default_bg_cells: bool,
 }
 
 /// Parameters for [`Renderer::render_split_panes`].
@@ -63,6 +83,75 @@ pub struct SplitPanesRenderParams<'a> {
 }
 
 impl Renderer {
+    /// Update one pane's scrollbar slot.
+    ///
+    /// Hit-test geometry is single-instance and follows the focused pane, so a
+    /// focused pane without a scrollbar has to drop it rather than leave another
+    /// pane's bounds in place.
+    fn update_pane_scrollbar(&mut self, index: usize, pane: &PaneRenderInfo<'_>) {
+        if pane.show_scrollbar {
+            let total_lines = pane.scrollback_len + pane.grid_size.1;
+            self.cell_renderer.update_scrollbar_for_pane(
+                index,
+                pane.scroll_offset,
+                pane.grid_size.1,
+                total_lines,
+                &pane.marks,
+                &pane.viewport,
+            );
+        } else if pane.viewport.focused {
+            self.cell_renderer.scrollbar.clear_hit_state();
+        }
+    }
+
+    /// Build every pane's instances and scrollbar slot, then draw the whole batch
+    /// to `target_view` from one command encoder (ARC-004).
+    fn prepare_and_draw_panes(
+        &mut self,
+        target_view: &wgpu::TextureView,
+        panes: &[PaneRenderInfo<'_>],
+        settings: PaneBatchSettings,
+    ) -> Result<()> {
+        self.cell_renderer
+            .begin_pane_batch(settings.bg_capacity, settings.text_capacity);
+
+        // `scratch` is declared outside the loop so its capacity is preserved
+        // across iterations, avoiding a per-pane heap allocation.
+        let mut scratch: Vec<SeparatorMark> = Vec::new();
+        let mut prepared = Vec::with_capacity(panes.len());
+        for (index, pane) in panes.iter().enumerate() {
+            self.update_pane_scrollbar(index, pane);
+            fill_visible_separator_marks(
+                &mut scratch,
+                &pane.marks,
+                pane.scrollback_len,
+                pane.scroll_offset,
+                pane.grid_size.1,
+            );
+            prepared.push(self.cell_renderer.prepare_pane(
+                index,
+                crate::cell_renderer::PaneRenderViewParams {
+                    viewport: &pane.viewport,
+                    cells: pane.cells,
+                    cols: pane.grid_size.0,
+                    rows: pane.grid_size.1,
+                    cursor_pos: pane.cursor_pos,
+                    cursor_opacity: pane.cursor_opacity,
+                    show_scrollbar: pane.show_scrollbar,
+                    clear_first: false, // Don't clear - the target was already cleared
+                    skip_background_image: settings.skip_background_image,
+                    fill_default_bg_cells: settings.fill_default_bg_cells,
+                    separator_marks: &scratch,
+                    pane_background: pane.background.as_ref(),
+                },
+            )?);
+        }
+
+        self.cell_renderer
+            .draw_prepared_panes(target_view, &prepared);
+        Ok(())
+    }
+
     /// Render split panes with dividers and focus indicator
     ///
     /// This is the main entry point for rendering a split pane layout.
@@ -114,6 +203,14 @@ impl Renderer {
                 log::error!("Failed to load pane background '{}': {}", path, e);
             }
         }
+
+        // Instance-buffer capacity this frame's panes need, all resident at once.
+        let (batch_bg_capacity, batch_text_capacity) =
+            panes.iter().fold((0usize, 0usize), |(bg, text), pane| {
+                let (pane_bg, pane_text) =
+                    pane_instance_capacity(pane.grid_size.0, pane.grid_size.1);
+                (bg + pane_bg, text + pane_text)
+            });
 
         // Get the surface texture
         let surface_texture = match self.cell_renderer.surface.get_current_texture() {
@@ -204,47 +301,18 @@ impl Renderer {
             let intermediate_view = custom_shader.intermediate_texture_view().clone();
 
             // Render each pane's content to the intermediate texture.
-            // Scrollbar geometry is updated per-pane before each render call so
-            // unfocused panes can also show their own scrollbar.
-            // `scratch` is declared outside the loop so its capacity is preserved
-            // across iterations, avoiding a per-pane heap allocation.
-            let mut scratch: Vec<SeparatorMark> = Vec::new();
-            for pane in panes.iter() {
-                if pane.show_scrollbar {
-                    let total_lines = pane.scrollback_len + pane.grid_size.1;
-                    self.cell_renderer.update_scrollbar_for_pane(
-                        pane.scroll_offset,
-                        pane.grid_size.1,
-                        total_lines,
-                        &pane.marks,
-                        &pane.viewport,
-                    );
-                }
-                fill_visible_separator_marks(
-                    &mut scratch,
-                    &pane.marks,
-                    pane.scrollback_len,
-                    pane.scroll_offset,
-                    pane.grid_size.1,
-                );
-                self.cell_renderer.render_pane_to_view(
-                    &intermediate_view,
-                    crate::cell_renderer::PaneRenderViewParams {
-                        viewport: &pane.viewport,
-                        cells: pane.cells,
-                        cols: pane.grid_size.0,
-                        rows: pane.grid_size.1,
-                        cursor_pos: pane.cursor_pos,
-                        cursor_opacity: pane.cursor_opacity,
-                        show_scrollbar: pane.show_scrollbar,
-                        clear_first: false,
-                        skip_background_image: true, // Shader handles background
-                        fill_default_bg_cells: false, // Shader shows through default-bg cells
-                        separator_marks: &scratch,
-                        pane_background: pane.background.as_ref(),
-                    },
-                )?;
-            }
+            // Scrollbar geometry is updated per-pane so unfocused panes can also
+            // show their own scrollbar.
+            self.prepare_and_draw_panes(
+                &intermediate_view,
+                panes,
+                PaneBatchSettings {
+                    bg_capacity: batch_bg_capacity,
+                    text_capacity: batch_text_capacity,
+                    skip_background_image: true, // Shader handles background
+                    fill_default_bg_cells: false, // Shader shows through default-bg cells
+                },
+            )?;
 
             // Render inline graphics to intermediate so shader can process them
             for pane in panes.iter() {
@@ -335,47 +403,19 @@ impl Renderer {
         // Skip re-rendering panes to the content view.
         if !full_content_mode {
             // Render each pane's content (skip background image since we rendered it full-screen).
-            // Scrollbar geometry is updated per-pane before each render call so
-            // unfocused panes can also show their own scrollbar.
-            // `scratch` is declared outside the loop so its capacity is preserved
-            // across iterations, avoiding a per-pane heap allocation.
-            let mut scratch: Vec<SeparatorMark> = Vec::new();
-            for pane in panes {
-                if pane.show_scrollbar {
-                    let total_lines = pane.scrollback_len + pane.grid_size.1;
-                    self.cell_renderer.update_scrollbar_for_pane(
-                        pane.scroll_offset,
-                        pane.grid_size.1,
-                        total_lines,
-                        &pane.marks,
-                        &pane.viewport,
-                    );
-                }
-                fill_visible_separator_marks(
-                    &mut scratch,
-                    &pane.marks,
-                    pane.scrollback_len,
-                    pane.scroll_offset,
-                    pane.grid_size.1,
-                );
-                self.cell_renderer.render_pane_to_view(
-                    content_view,
-                    crate::cell_renderer::PaneRenderViewParams {
-                        viewport: &pane.viewport,
-                        cells: pane.cells,
-                        cols: pane.grid_size.0,
-                        rows: pane.grid_size.1,
-                        cursor_pos: pane.cursor_pos,
-                        cursor_opacity: pane.cursor_opacity,
-                        show_scrollbar: pane.show_scrollbar,
-                        clear_first: false, // Don't clear - we already cleared the surface
-                        skip_background_image: has_background_image || has_custom_shader,
-                        fill_default_bg_cells: has_background_image, // Only fill gaps in bg-image mode; shader shows through
-                        separator_marks: &scratch,
-                        pane_background: pane.background.as_ref(),
-                    },
-                )?;
-            }
+            // Scrollbar geometry is updated per-pane so unfocused panes can also
+            // show their own scrollbar.
+            self.prepare_and_draw_panes(
+                content_view,
+                panes,
+                PaneBatchSettings {
+                    bg_capacity: batch_bg_capacity,
+                    text_capacity: batch_text_capacity,
+                    skip_background_image: has_background_image || has_custom_shader,
+                    // Only fill gaps in bg-image mode; shader shows through
+                    fill_default_bg_cells: has_background_image,
+                },
+            )?;
 
             // Render inline graphics (Sixel/iTerm2/Kitty) for each pane, clipped to its bounds
             for pane in panes {
@@ -493,302 +533,6 @@ impl Renderer {
 
         self.dirty = false;
         Ok(true)
-    }
-
-    /// Render the cell content through the shader chain to a target texture view.
-    ///
-    /// This encapsulates the 4 shader-combination paths:
-    /// 1. No shaders: render cells directly to target
-    /// 2. Custom shader only: cells -> custom shader -> target
-    /// 3. Cursor shader only: cells -> cursor shader -> target
-    /// 4. Custom + cursor: cells -> custom shader -> cursor shader -> target
-    ///
-    /// QA-003: Extracted from `take_screenshot` to deduplicate the shader-chaining logic.
-    /// Both `render_split_panes` (live rendering) and `take_screenshot` (offscreen) use
-    /// the same 4-branch pattern; this method handles the screenshot path where cells are
-    /// rendered via `render_to_texture`/`render_to_view` (no split-pane layout).
-    fn render_cells_to_target(
-        &mut self,
-        target_view: &wgpu::TextureView,
-    ) -> Result<(), crate::error::RenderError> {
-        let has_custom_shader = self.custom_shader_renderer.is_some();
-        let use_cursor_shader =
-            self.cursor_shader_renderer.is_some() && !self.cursor_shader_disabled_for_alt_screen;
-
-        let map_err = |e: anyhow::Error| {
-            crate::error::RenderError::ScreenshotMap(format!("Render failed: {:#}", e))
-        };
-
-        if has_custom_shader {
-            // Render cells to the custom shader's intermediate texture
-            let intermediate_view = self
-                .custom_shader_renderer
-                .as_ref()
-                .ok_or_else(|| {
-                    crate::error::RenderError::ShaderUnavailable(
-                        "custom_shader_renderer unavailable (GPU device loss?)".into(),
-                    )
-                })?
-                .intermediate_texture_view()
-                .clone();
-            self.cell_renderer
-                .render_to_texture(&intermediate_view, true)
-                .map_err(map_err)?;
-
-            if use_cursor_shader {
-                // Chain: cells -> custom shader -> cursor shader -> target
-                let cursor_intermediate = self
-                    .cursor_shader_renderer
-                    .as_ref()
-                    .ok_or_else(|| crate::error::RenderError::ShaderUnavailable(
-                        "cursor_shader_renderer unavailable during shader chain (GPU device loss?)".into(),
-                    ))?
-                    .intermediate_texture_view()
-                    .clone();
-                self.custom_shader_renderer
-                    .as_mut()
-                    .ok_or_else(|| crate::error::RenderError::ShaderUnavailable(
-                        "custom_shader_renderer unavailable during shader chain (GPU device loss?)".into(),
-                    ))?
-                    .render(
-                        self.cell_renderer.device(),
-                        self.cell_renderer.queue(),
-                        &cursor_intermediate,
-                        false,
-                    )
-                    .map_err(map_err)?;
-                self.cursor_shader_renderer
-                    .as_mut()
-                    .ok_or_else(|| crate::error::RenderError::ShaderUnavailable(
-                        "cursor_shader_renderer unavailable during shader chain (GPU device loss?)".into(),
-                    ))?
-                    .render(
-                        self.cell_renderer.device(),
-                        self.cell_renderer.queue(),
-                        target_view,
-                        true,
-                    )
-                    .map_err(map_err)?;
-            } else {
-                // Chain: cells -> custom shader -> target
-                self.custom_shader_renderer
-                    .as_mut()
-                    .ok_or_else(|| {
-                        crate::error::RenderError::ShaderUnavailable(
-                            "custom_shader_renderer unavailable during render (GPU device loss?)"
-                                .into(),
-                        )
-                    })?
-                    .render(
-                        self.cell_renderer.device(),
-                        self.cell_renderer.queue(),
-                        target_view,
-                        true,
-                    )
-                    .map_err(map_err)?;
-            }
-        } else if use_cursor_shader {
-            // Chain: cells -> cursor shader -> target
-            let cursor_intermediate = self
-                .cursor_shader_renderer
-                .as_ref()
-                .ok_or_else(|| {
-                    crate::error::RenderError::ShaderUnavailable(
-                        "cursor_shader_renderer unavailable (GPU device loss?)".into(),
-                    )
-                })?
-                .intermediate_texture_view()
-                .clone();
-            self.cell_renderer
-                .render_to_texture(&cursor_intermediate, true)
-                .map_err(map_err)?;
-            self.cursor_shader_renderer
-                .as_mut()
-                .ok_or_else(|| {
-                    crate::error::RenderError::ShaderUnavailable(
-                        "cursor_shader_renderer unavailable during render (GPU device loss?)"
-                            .into(),
-                    )
-                })?
-                .render(
-                    self.cell_renderer.device(),
-                    self.cell_renderer.queue(),
-                    target_view,
-                    true,
-                )
-                .map_err(map_err)?;
-        } else {
-            // No shaders: render cells directly to target
-            self.cell_renderer
-                .render_to_view(target_view)
-                .map_err(map_err)?;
-        }
-
-        Ok(())
-    }
-
-    /// Take a screenshot of the current terminal content
-    /// Returns an RGBA image that can be saved to disk
-    ///
-    /// This captures the fully composited output including shader effects.
-    pub fn take_screenshot(&mut self) -> Result<image::RgbaImage, crate::error::RenderError> {
-        log::info!(
-            "take_screenshot: Starting screenshot capture ({}x{})",
-            self.size.width,
-            self.size.height
-        );
-
-        let width = self.size.width;
-        let height = self.size.height;
-        // Use the same format as the surface to match pipeline expectations
-        let format = self.cell_renderer.surface_format();
-        log::info!("take_screenshot: Using texture format {:?}", format);
-
-        // Create a texture to render the final composited output to (with COPY_SRC for reading back)
-        let screenshot_texture =
-            self.cell_renderer
-                .device()
-                .create_texture(&wgpu::TextureDescriptor {
-                    label: Some("screenshot texture"),
-                    size: wgpu::Extent3d {
-                        width,
-                        height,
-                        depth_or_array_layers: 1,
-                    },
-                    mip_level_count: 1,
-                    sample_count: 1,
-                    dimension: wgpu::TextureDimension::D2,
-                    format,
-                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
-                    view_formats: &[],
-                });
-
-        let screenshot_view =
-            screenshot_texture.create_view(&wgpu::TextureViewDescriptor::default());
-
-        // Render the full composited frame through the shader chain (QA-003: deduplicated).
-        log::info!("take_screenshot: Rendering composited frame...");
-        self.render_cells_to_target(&screenshot_view)?;
-
-        log::info!("take_screenshot: Render complete");
-
-        // Get device and queue references for buffer operations
-        let device = self.cell_renderer.device();
-        let queue = self.cell_renderer.queue();
-
-        // Create buffer for reading back the texture
-        let bytes_per_pixel = 4u32;
-        let unpadded_bytes_per_row = width * bytes_per_pixel;
-        // wgpu requires rows to be aligned to 256 bytes
-        let align = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
-        let padded_bytes_per_row = unpadded_bytes_per_row.div_ceil(align) * align;
-        let buffer_size = (padded_bytes_per_row * height) as u64;
-
-        let output_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("screenshot buffer"),
-            size: buffer_size,
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-            mapped_at_creation: false,
-        });
-
-        // Copy texture to buffer
-        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("screenshot encoder"),
-        });
-
-        encoder.copy_texture_to_buffer(
-            wgpu::TexelCopyTextureInfo {
-                texture: &screenshot_texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            wgpu::TexelCopyBufferInfo {
-                buffer: &output_buffer,
-                layout: wgpu::TexelCopyBufferLayout {
-                    offset: 0,
-                    bytes_per_row: Some(padded_bytes_per_row),
-                    rows_per_image: Some(height),
-                },
-            },
-            wgpu::Extent3d {
-                width,
-                height,
-                depth_or_array_layers: 1,
-            },
-        );
-
-        queue.submit(std::iter::once(encoder.finish()));
-        log::info!("take_screenshot: Texture copy submitted");
-
-        // Map the buffer and read the data
-        let buffer_slice = output_buffer.slice(..);
-        let (tx, rx) = std::sync::mpsc::channel();
-        buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
-            let _ = tx.send(result);
-        });
-
-        // Wait for the GPU to finish — bounded so a stalled GPU can't freeze the
-        // event loop indefinitely. This readback runs on the main thread when an
-        // MCP screenshot is requested; a healthy GPU completes in milliseconds,
-        // but `wait_indefinitely` could hang the loop if the device is lost.
-        let gpu_timeout = std::time::Duration::from_secs(5);
-        log::info!("take_screenshot: Waiting for GPU...");
-        if let Err(e) = device.poll(wgpu::PollType::Wait {
-            submission_index: None,
-            timeout: Some(gpu_timeout),
-        }) {
-            log::warn!("take_screenshot: GPU poll returned error: {:?}", e);
-        }
-        log::info!("take_screenshot: GPU poll complete, waiting for buffer map...");
-        rx.recv_timeout(gpu_timeout)
-            .map_err(|e| {
-                crate::error::RenderError::ScreenshotMap(format!(
-                    "Timed out or failed to receive map result: {}",
-                    e
-                ))
-            })?
-            .map_err(|e| {
-                crate::error::RenderError::ScreenshotMap(format!("Failed to map buffer: {:?}", e))
-            })?;
-        log::info!("take_screenshot: Buffer mapped successfully");
-
-        // Read the data
-        let data = buffer_slice.get_mapped_range();
-        let mut pixels = Vec::with_capacity((width * height * 4) as usize);
-
-        // Check if format is BGRA (needs swizzle) or RGBA (direct copy)
-        let is_bgra = matches!(
-            format,
-            wgpu::TextureFormat::Bgra8Unorm | wgpu::TextureFormat::Bgra8UnormSrgb
-        );
-
-        // Copy data row by row (to handle padding)
-        for y in 0..height {
-            let row_start = (y * padded_bytes_per_row) as usize;
-            let row_end = row_start + (width * bytes_per_pixel) as usize;
-            let row = &data[row_start..row_end];
-
-            if is_bgra {
-                // Convert BGRA to RGBA
-                for chunk in row.chunks(4) {
-                    pixels.push(chunk[2]); // R (was B)
-                    pixels.push(chunk[1]); // G
-                    pixels.push(chunk[0]); // B (was R)
-                    pixels.push(chunk[3]); // A
-                }
-            } else {
-                // Already RGBA, direct copy
-                pixels.extend_from_slice(row);
-            }
-        }
-
-        drop(data);
-        output_buffer.unmap();
-
-        // Create image
-        image::RgbaImage::from_raw(width, height, pixels)
-            .ok_or(crate::error::RenderError::ScreenshotImageAssembly)
     }
 }
 

@@ -32,8 +32,13 @@ impl CellRenderer {
     /// Converts the pane viewport (pixel bounds) into the inset parameters
     /// that `Scrollbar::update` expects, so the track and thumb are confined
     /// to the pane instead of spanning the full window.
+    ///
+    /// `slot` is the pane's index in the frame's pane list; each pane owns its own
+    /// uniforms (ARC-004). The focused pane additionally owns the single-instance
+    /// hit-test geometry, since the mouse can only be over one scrollbar.
     pub fn update_scrollbar_for_pane(
         &mut self,
+        slot: usize,
         scroll_offset: usize,
         visible_lines: usize,
         total_lines: usize,
@@ -52,8 +57,9 @@ impl CellRenderer {
         let pane_bottom_inset = (win_h - (viewport.y + viewport.height)).max(0.0);
         let pane_right_inset = (win_w - (viewport.x + viewport.width)).max(0.0);
 
-        self.scrollbar.update(
+        self.scrollbar.update_slot(
             &self.queue,
+            slot,
             crate::scrollbar::ScrollbarUpdateParams {
                 scroll_offset,
                 visible_lines,
@@ -65,6 +71,7 @@ impl CellRenderer {
                 content_inset_right: pane_right_inset,
                 marks,
             },
+            viewport.focused,
         );
     }
 

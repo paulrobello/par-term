@@ -15,6 +15,16 @@ pub(crate) struct BackgroundInstance {
     pub color: [f32; 4],
 }
 
+impl BackgroundInstance {
+    /// A zero-sized, fully transparent instance — used to blank slots that fall
+    /// inside a fixed draw range but hold no geometry this frame.
+    pub(crate) const BLANK: Self = Self {
+        position: [0.0, 0.0],
+        size: [0.0, 0.0],
+        color: [0.0, 0.0, 0.0, 0.0],
+    };
+}
+
 /// Instance data for text rendering
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]

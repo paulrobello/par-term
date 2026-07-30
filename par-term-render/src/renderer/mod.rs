@@ -1,9 +1,10 @@
 // ARC-009: `Renderer` is split across sibling modules under `renderer/`. This
 // file holds the struct definition, its re-exports, and `Renderer::new`.
 //
-//   types.rs   — Pane/divider/title render-input types and separator-mark mapping
-//   resize.rs  — Surface resize and DPI scale-factor changes
-//   layout.rs  — Grid geometry, padding, and content offset/inset accessors
+//   types.rs      — Pane/divider/title render-input types and separator-mark mapping
+//   resize.rs     — Surface resize and DPI scale-factor changes
+//   layout.rs     — Grid geometry, padding, and content offset/inset accessors
+//   screenshot.rs — Offscreen capture: `take_screenshot` and its shader chain
 //
 // The remaining behaviour lives in rendering.rs, render_passes.rs, egui_render.rs,
 // graphics.rs, shaders/, params.rs, and state.rs.
@@ -24,6 +25,7 @@ pub mod params;
 mod render_passes;
 mod rendering;
 mod resize;
+mod screenshot;
 pub mod shaders;
 mod state;
 mod types;

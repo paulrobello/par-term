@@ -176,6 +176,15 @@ impl Renderer {
     /// affect the terminal grid sizing.
     pub fn set_egui_right_inset(&mut self, logical_inset: f32) {
         let physical_inset = logical_inset * self.cell_renderer.scale_factor;
+        if (self.cell_renderer.grid.egui_right_inset - physical_inset).abs() <= f32::EPSILON {
+            return;
+        }
         self.cell_renderer.grid.egui_right_inset = physical_inset;
+        // `update_scrollbar` adds this inset to `content_inset_right`, but its
+        // cached tuple does not contain it, so the next call would skip the
+        // upload and strand the scrollbar under the panel. Same reasoning as
+        // `set_content_inset_right`.
+        self.last_scrollbar_state = (usize::MAX, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        self.dirty = true;
     }
 }

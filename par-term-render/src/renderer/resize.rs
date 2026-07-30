@@ -101,10 +101,21 @@ impl Renderer {
                 self.cell_renderer.grid.egui_bottom_inset = logical_egui_bottom * new_scale;
             }
 
-            // Rescale content_inset_right (AI Inspector panel)
+            // Rescale content_inset_right (AI Inspector panel).
+            // The shader renderers keep their own copy so they can exclude the
+            // panel area from effects; `set_content_inset_right` fans the value
+            // out to them and this path has to do the same, or the shaders keep
+            // masking the pre-DPI-change panel width.
             if self.cell_renderer.grid.content_inset_right > 0.0 {
                 let logical_inset_right = self.cell_renderer.grid.content_inset_right / old_scale;
-                self.cell_renderer.grid.content_inset_right = logical_inset_right * new_scale;
+                let new_physical_inset_right = logical_inset_right * new_scale;
+                self.cell_renderer.grid.content_inset_right = new_physical_inset_right;
+                if let Some(ref mut cs) = self.custom_shader_renderer {
+                    cs.set_content_inset_right(new_physical_inset_right);
+                }
+                if let Some(ref mut cs) = self.cursor_shader_renderer {
+                    cs.set_content_inset_right(new_physical_inset_right);
+                }
             }
 
             // Rescale egui_right_inset
@@ -135,6 +146,13 @@ impl Renderer {
             if let Some(ref mut cs) = self.cursor_shader_renderer {
                 cs.set_scale_factor(new_scale);
             }
+
+            // Every inset rescaled above feeds scrollbar geometry, and so does the
+            // new scrollbar width. `update_scrollbar` skips the GPU upload when its
+            // cached tuple is unchanged, and none of those values are in the tuple,
+            // so without this the scrollbar stays at its pre-DPI-change size and
+            // position — the same failure the inset setters call out.
+            self.last_scrollbar_state = (usize::MAX, 0, 0, 0, 0, 0, 0, 0, 0, 0);
         }
 
         self.resize(new_size)

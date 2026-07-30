@@ -36,7 +36,7 @@ mod surface;
 mod text_instance_builder;
 pub mod types;
 // Re-export public types for external use
-pub(crate) use pane_render::PaneRenderViewParams;
+pub(crate) use pane_render::{PaneRenderViewParams, pane_instance_capacity};
 pub use types::{Cell, PaneViewport};
 // Re-export internal types for use within the cell_renderer module
 pub(crate) use types::{BackgroundInstance, GlyphInfo, RowCacheEntry, TextInstance};
@@ -116,16 +116,18 @@ pub(crate) struct GpuBuffers {
     pub(crate) actual_bg_instances: usize,
     /// Actual number of text instances written (used for draw calls)
     pub(crate) actual_text_instances: usize,
-    /// Highest `bg_instances` slot index the pane builder has ever populated.
+    /// Next free `bg_instances` slot in the pane batch being built.
     ///
-    /// `build_pane_instance_buffers` runs once per pane per frame and only ever
-    /// uploads and draws `[0..bg_index]`, so its reset pass only has to cover
-    /// slots a previous build could have left behind. Clearing the whole
-    /// full-window array instead made that reset cost O(window) per *pane*.
-    pub(crate) pane_bg_high_water: usize,
-    /// Highest `text_instances` slot index the pane builder has ever populated.
-    /// See `pane_bg_high_water`.
-    pub(crate) pane_text_high_water: usize,
+    /// ARC-004: panes suballocate the shared buffers instead of each restarting at
+    /// index 0, so every pane's instances stay resident and the whole frame can be
+    /// drawn from one command encoder. Reset by `begin_pane_batch`.
+    pub(crate) pane_bg_cursor: usize,
+    /// Next free `text_instances` slot in the pane batch being built.
+    /// See `pane_bg_cursor`.
+    pub(crate) pane_text_cursor: usize,
+    /// Set once after an instance-buffer over-run has been reported, so the error
+    /// is logged once per buffer allocation rather than once per frame.
+    pub(crate) overflow_reported: bool,
 }
 
 /// Glyph atlas texture, cache, and LRU eviction state.
@@ -161,9 +163,15 @@ pub(crate) struct BackgroundImageState {
     pub(crate) solid_bg_color: [f32; 3],
     /// Cache of per-pane background textures keyed by image path
     pub(crate) pane_bg_cache: HashMap<String, background::PaneBackgroundEntry>,
-    /// Cache of per-pane uniform buffers and bind groups keyed by image path.
+    /// Cache of per-pane uniform buffers and bind groups keyed by **pane index**.
     /// Reused across frames via `queue.write_buffer()` to avoid per-frame GPU allocations.
-    pub(crate) pane_bg_uniform_cache: HashMap<String, background::PaneBgUniformEntry>,
+    ///
+    /// ARC-004: this was keyed by image path, but the uniform carries the pane's
+    /// position and size, so two panes sharing one background image aliased onto a
+    /// single buffer — previously masked by the `queue.submit` between panes, and
+    /// fatal once they are batched. The entry records its path so the bind group
+    /// can be rebuilt when a pane's image changes.
+    pub(crate) pane_bg_uniform_cache: HashMap<usize, background::PaneBgUniformEntry>,
 }
 
 /// Command separator line settings and visible marks.
@@ -546,8 +554,9 @@ impl CellRenderer {
                 max_text_instances,
                 actual_bg_instances: 0,
                 actual_text_instances: 0,
-                pane_bg_high_water: 0,
-                pane_text_high_water: 0,
+                pane_bg_cursor: 0,
+                pane_text_cursor: 0,
+                overflow_reported: false,
             },
             atlas: GlyphAtlas {
                 atlas_texture,

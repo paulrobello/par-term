@@ -48,6 +48,15 @@ pub(crate) const STIPPLE_OFF_PX: f32 = 2.0;
 /// 2× because wide (double-width) characters can emit two instances.
 pub(crate) const TEXT_INSTANCES_PER_CELL: usize = 2;
 
+/// Text instances budgeted per cell when sizing a *pane batch*.
+///
+/// Higher than [`TEXT_INSTANCES_PER_CELL`] because the pane emitters can exceed
+/// two instances for a single cell: a stippled link underline emits one quad per
+/// dash across the cell, and geometrically drawn block/box-drawing characters emit
+/// several rectangles. Sizing exactly to 2× would let one such cell eat into the
+/// next pane's region.
+pub(crate) const PANE_TEXT_INSTANCES_PER_CELL: usize = 3;
+
 /// Compute the text foreground color when a block cursor covers a cell.
 ///
 /// If the cursor has an explicit `text_color` (RGB, 3 components), that is used
@@ -81,12 +90,16 @@ pub(crate) fn compute_cursor_text_color(
 impl CellRenderer {
     /// Orchestrate a full instance-buffer update for the current frame.
     ///
-    /// **This method serves only the offscreen screenshot path**, and only its
-    /// shader-active branch: `take_screenshot` → `render_cells_to_target` →
-    /// `render_to_texture`. The no-shader branch goes through `render_to_view`,
-    /// which takes `&self` and deliberately does not rebuild buffers. Everything
-    /// drawn to the window goes through `build_pane_instance_buffers` in
-    /// `pane_render/mod.rs`.
+    /// **This method serves only the offscreen screenshot path**, both branches:
+    /// `take_screenshot` → `render_cells_to_target` → `render_to_texture` (shader
+    /// active) or `render_to_view` (no shader). Everything drawn to the window goes
+    /// through `build_pane_instance_buffers` in `pane_render/mod.rs`.
+    ///
+    /// QA-011: `render_to_view` used to skip this rebuild, which left it drawing the
+    /// pane path's leftovers through the single-grid draw ranges. Both branches now
+    /// rebuild, so the buffer contents always match the layout they are drawn with.
+    /// The two paths still share the same buffers — the pane builder marks every row
+    /// dirty precisely so this one rebuilds in full rather than trusting its cache.
     ///
     /// For each dirty row the per-row background and text instance builders are called
     /// (see `instance_builders.rs`) and the results are written to the GPU buffers
@@ -172,7 +185,13 @@ impl CellRenderer {
         // --- Separator line instances ---
         // Write command separator line instances after cursor overlay slots.
         let separator_base = self.grid.cols * self.grid.rows + CURSOR_OVERLAY_SLOTS;
-        let separator_instances = self.build_separator_instances();
+        let mut separator_instances = self.build_separator_instances();
+
+        // The draw range below covers `rows` separator slots regardless of how many
+        // separators exist, so the unused tail has to be blanked or it draws
+        // whatever was last written there. The pane builder used to zero these as a
+        // side effect of its own reset pass; it no longer has one (ARC-004).
+        separator_instances.resize(self.grid.rows, BackgroundInstance::BLANK);
 
         for (i, instance) in separator_instances.iter().enumerate() {
             if separator_base + i < self.buffers.max_bg_instances {
@@ -195,7 +214,9 @@ impl CellRenderer {
         // --- Gutter indicator instances ---
         // Write gutter indicator background instances after separator slots.
         let gutter_base = separator_base + self.grid.rows;
-        let gutter_instances = self.build_gutter_instances();
+        let mut gutter_instances = self.build_gutter_instances();
+        // Blank the unused tail — see the separator slots above.
+        gutter_instances.resize(self.grid.rows, BackgroundInstance::BLANK);
 
         for (i, instance) in gutter_instances.iter().enumerate() {
             if gutter_base + i < self.buffers.max_bg_instances {

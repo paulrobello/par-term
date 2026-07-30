@@ -160,10 +160,25 @@ impl CellRenderer {
         (chrome_x, chrome_y)
     }
 
+    /// Instance capacity the single-grid (offscreen) layout needs:
+    /// cells + cursor overlays + one separator per row + one gutter bar per row.
+    pub(crate) fn single_grid_instance_capacity(&self) -> (usize, usize) {
+        let cells = self.grid.cols * self.grid.rows;
+        (
+            cells + super::CURSOR_OVERLAY_SLOTS + self.grid.rows + self.grid.rows,
+            cells * super::TEXT_INSTANCES_PER_CELL,
+        )
+    }
+
     pub(crate) fn recreate_instance_buffers(&mut self) {
-        self.buffers.max_bg_instances =
-            self.grid.cols * self.grid.rows + 10 + self.grid.rows + self.grid.rows; // Extra slots for cursor overlays + separator lines + gutter indicators
-        self.buffers.max_text_instances = self.grid.cols * self.grid.rows * 2;
+        let (bg, text) = self.single_grid_instance_capacity();
+        self.allocate_instance_buffers(bg, text);
+    }
+
+    /// Reallocate both instance buffers (GPU and CPU side) to the given capacities.
+    pub(crate) fn allocate_instance_buffers(&mut self, max_bg: usize, max_text: usize) {
+        self.buffers.max_bg_instances = max_bg;
+        self.buffers.max_text_instances = max_text;
         let (bg_buf, text_buf) = pipeline::create_instance_buffers(
             &self.device,
             self.buffers.max_bg_instances,
@@ -174,10 +189,11 @@ impl CellRenderer {
         // Reset actual counts - will be updated when instance buffers are built
         self.buffers.actual_bg_instances = 0;
         self.buffers.actual_text_instances = 0;
-        // The CPU-side arrays are reallocated zeroed below, so nothing is left
-        // over for the pane builder's reset pass to cover.
-        self.buffers.pane_bg_high_water = 0;
-        self.buffers.pane_text_high_water = 0;
+        self.buffers.pane_bg_cursor = 0;
+        self.buffers.pane_text_cursor = 0;
+        // A new allocation may well be the fix for a previous over-run, so let it
+        // be reported again if it still does not fit.
+        self.buffers.overflow_reported = false;
 
         self.bg_instances = vec![
             BackgroundInstance {

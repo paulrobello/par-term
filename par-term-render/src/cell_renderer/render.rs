@@ -1,5 +1,24 @@
 use super::CellRenderer;
 use anyhow::Result;
+use std::ops::Range;
+
+/// Absolute instance ranges for one three-phase cell draw.
+///
+/// ARC-004: the pane path suballocates the shared instance buffers, so a pane's
+/// instances no longer start at index 0. Every range here is absolute into
+/// `bg_instance_buffer` / `text_instance_buffer`, which lets several panes stay
+/// resident at once and be drawn from a single command encoder.
+pub(crate) struct ThreePhaseRanges {
+    /// Phase 1 — cell background quads (includes the pane's viewport fill quad).
+    pub bg: Range<u32>,
+    /// Phase 1b — separator / gutter quads that live *after* the cursor overlays.
+    /// Empty on the pane path, which packs separators before the overlays.
+    pub extra_bg: Range<u32>,
+    /// Phase 2 — glyph and underline quads.
+    pub text: Range<u32>,
+    /// Phase 3 — cursor overlays, drawn last so they sit on top of the glyphs.
+    pub cursor_overlays: Range<u32>,
+}
 
 impl CellRenderer {
     /// Emit the standard 3-phase draw calls into an existing render pass.
@@ -7,30 +26,26 @@ impl CellRenderer {
     /// This is the single source of truth for the cell rendering draw call sequence.
     /// Background images / pane backgrounds must be drawn by the caller before this.
     ///
-    /// **Phase 1**: Cell backgrounds (`0..cursor_overlay_start`)
-    /// **Phase 1b**: Separators / gutter (`cursor_overlay_end..actual_bg_instances`) — skipped
-    ///   when the range is empty (pane path packs these before cursor overlays)
-    /// **Phase 2**: Text glyphs (`0..actual_text_instances`)
-    /// **Phase 3**: Cursor overlays (`cursor_overlay_start..cursor_overlay_end`)
+    /// **Phase 1**: Cell backgrounds
+    /// **Phase 1b**: Separators / gutter — skipped when the range is empty
+    ///   (the pane path packs these before the cursor overlays)
+    /// **Phase 2**: Text glyphs
+    /// **Phase 3**: Cursor overlays — must stay last, or beam and underline
+    ///   cursors are hidden under the glyphs drawn in phase 2.
     pub(crate) fn emit_three_phase_draw_calls(
         &self,
         render_pass: &mut wgpu::RenderPass<'_>,
-        cursor_overlay_start: u32,
-        cursor_overlay_end: u32,
+        ranges: &ThreePhaseRanges,
     ) {
         // Phase 1: cell backgrounds (before text)
         render_pass.set_pipeline(&self.pipelines.bg_pipeline);
         render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
         render_pass.set_vertex_buffer(1, self.buffers.bg_instance_buffer.slice(..));
-        render_pass.draw(0..4, 0..cursor_overlay_start);
+        render_pass.draw(0..4, ranges.bg.clone());
 
         // Phase 1b: separator + gutter overlays (before text, background elements)
-        // Skipped when cursor_overlay_end == actual_bg_instances (pane path).
-        if cursor_overlay_end < self.buffers.actual_bg_instances as u32 {
-            render_pass.draw(
-                0..4,
-                cursor_overlay_end..self.buffers.actual_bg_instances as u32,
-            );
+        if !ranges.extra_bg.is_empty() {
+            render_pass.draw(0..4, ranges.extra_bg.clone());
         }
 
         // Phase 2: text (on top of cell backgrounds)
@@ -38,14 +53,31 @@ impl CellRenderer {
         render_pass.set_bind_group(0, &self.pipelines.text_bind_group, &[]);
         render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
         render_pass.set_vertex_buffer(1, self.buffers.text_instance_buffer.slice(..));
-        render_pass.draw(0..4, 0..self.buffers.actual_text_instances as u32);
+        render_pass.draw(0..4, ranges.text.clone());
 
         // Phase 3: cursor overlays (beam/underline bar + hollow outline) ON TOP of text
-        if cursor_overlay_start < cursor_overlay_end {
+        if !ranges.cursor_overlays.is_empty() {
             render_pass.set_pipeline(&self.pipelines.bg_pipeline);
             render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
             render_pass.set_vertex_buffer(1, self.buffers.bg_instance_buffer.slice(..));
-            render_pass.draw(0..4, cursor_overlay_start..cursor_overlay_end);
+            render_pass.draw(0..4, ranges.cursor_overlays.clone());
+        }
+    }
+
+    /// Ranges for the single-grid layout that `build_instance_buffers` writes.
+    ///
+    /// Layout: `[0..cols*rows]` cells, `[cols*rows..+CURSOR_OVERLAY_SLOTS]` cursor
+    /// overlays, then separators and gutter indicators up to `actual_bg_instances`.
+    fn single_grid_ranges(&self) -> ThreePhaseRanges {
+        let cursor_overlay_start = (self.grid.cols * self.grid.rows) as u32;
+        let cursor_overlay_end =
+            cursor_overlay_start + super::instance_buffers::CURSOR_OVERLAY_SLOTS as u32;
+        let bg_end = (self.buffers.actual_bg_instances as u32).max(cursor_overlay_end);
+        ThreePhaseRanges {
+            bg: 0..cursor_overlay_start,
+            extra_bg: cursor_overlay_end..bg_end,
+            text: 0..self.buffers.actual_text_instances as u32,
+            cursor_overlays: cursor_overlay_start..cursor_overlay_end,
         }
     }
 
@@ -58,16 +90,16 @@ impl CellRenderer {
     ///
     /// Note: Solid color backgrounds are NOT rendered here. For cursor shaders, the solid color
     /// is passed to the shader's render function as the clear color instead.
+    ///
+    /// QA-011: this used to acquire a `SurfaceTexture` it never drew to and never
+    /// presented. The caller dropped it, which returns the drawable to the swapchain
+    /// unpresented and can stall the next real frame's acquire. Nothing here targets
+    /// the surface — `target_view` is the only render target — so the acquire is gone.
     pub fn render_to_texture(
         &mut self,
         target_view: &wgpu::TextureView,
         skip_background_image: bool,
-    ) -> Result<wgpu::SurfaceTexture> {
-        let output = match self.surface.get_current_texture() {
-            wgpu::CurrentSurfaceTexture::Success(t)
-            | wgpu::CurrentSurfaceTexture::Suboptimal(t) => t,
-            other => return Err(crate::error::RenderError::Surface(format!("{other:?}")).into()),
-        };
+    ) -> Result<()> {
         self.build_instance_buffers()?;
 
         // Render background to intermediate texture via bg_image_pipeline when available.
@@ -120,14 +152,7 @@ impl CellRenderer {
                 render_pass.draw(0..4, 0..1);
             }
 
-            let cursor_overlay_start = (self.grid.cols * self.grid.rows) as u32;
-            let cursor_overlay_end =
-                cursor_overlay_start + super::instance_buffers::CURSOR_OVERLAY_SLOTS as u32;
-            self.emit_three_phase_draw_calls(
-                &mut render_pass,
-                cursor_overlay_start,
-                cursor_overlay_end,
-            );
+            self.emit_three_phase_draw_calls(&mut render_pass, &self.single_grid_ranges());
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
@@ -139,7 +164,7 @@ impl CellRenderer {
             self.update_bg_image_uniforms(None);
         }
 
-        Ok(output)
+        Ok(())
     }
 
     /// Render only the background (image or solid color) to a view.
@@ -219,9 +244,16 @@ impl CellRenderer {
 
     /// Render terminal content to a view for screenshots.
     /// This renders without requiring the surface texture.
-    pub fn render_to_view(&self, target_view: &wgpu::TextureView) -> Result<()> {
-        // Note: We don't rebuild instance buffers here since this is typically called
-        // right after a normal render, and the buffers should already be up to date.
+    ///
+    /// QA-011: this used to skip the rebuild on the theory that a normal render had
+    /// just left the buffers up to date. It has not been true since the pane path
+    /// became the only live path: the pane builder writes pane-relative geometry at
+    /// pane offsets, while the draw ranges below assume the single-grid layout, so
+    /// the capture drew stale bytes from an older frame. Rebuilding makes the buffer
+    /// contents and the ranges agree — the same thing `render_to_texture` does for
+    /// the shader-active branch.
+    pub fn render_to_view(&mut self, target_view: &wgpu::TextureView) -> Result<()> {
+        self.build_instance_buffers()?;
 
         let mut encoder = self
             .device
@@ -270,17 +302,10 @@ impl CellRenderer {
                 render_pass.draw(0..4, 0..1);
             }
 
-            let cursor_overlay_start = (self.grid.cols * self.grid.rows) as u32;
-            let cursor_overlay_end =
-                cursor_overlay_start + super::instance_buffers::CURSOR_OVERLAY_SLOTS as u32;
-            self.emit_three_phase_draw_calls(
-                &mut render_pass,
-                cursor_overlay_start,
-                cursor_overlay_end,
-            );
+            self.emit_three_phase_draw_calls(&mut render_pass, &self.single_grid_ranges());
 
-            // Render scrollbar
-            self.scrollbar.render(&mut render_pass);
+            // Render scrollbar (slot 0 — the single-grid path's slot)
+            self.scrollbar.render(&mut render_pass, 0);
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
@@ -325,7 +350,8 @@ impl CellRenderer {
             });
 
             if show_scrollbar {
-                self.scrollbar.render(&mut render_pass);
+                // Slot 0 — the single-grid path's slot.
+                self.scrollbar.render(&mut render_pass, 0);
             }
 
             if self.visual_bell_intensity > 0.0 {

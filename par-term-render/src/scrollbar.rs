@@ -21,10 +21,13 @@ pub struct ScrollbarUpdateParams<'a> {
 /// Geometry layout passed to [`Scrollbar::prepare_marks`].
 struct PrepareMarksLayout {
     total_lines: usize,
+    window_width: u32,
     window_height: u32,
     content_offset_y: f32,
     content_inset_bottom: f32,
     content_inset_right: f32,
+    /// Whether this slot owns the single-instance mark hit-test list.
+    record_hit_state: bool,
 }
 
 /// Minimum scrollbar thumb height in pixels.
@@ -44,22 +47,48 @@ use wgpu::{
 
 use par_term_config::{ScrollbackMark, color_tuple_to_f32_a};
 
+/// One pane's worth of scrollbar GPU state.
+///
+/// ARC-004: the renderer used to own a single thumb/track/mark uniform set that
+/// `update_scrollbar_for_pane` rewrote before each pane's pass. That was only
+/// correct because a `queue.submit` separated each write from the next. Batching
+/// all panes into one encoder makes every write land before any pass executes, so
+/// each pane needs its own uniforms.
+struct ScrollbarSlot {
+    visible: bool,
+    thumb_uniform_buffer: Buffer,
+    thumb_bind_group: BindGroup,
+    track_uniform_buffer: Buffer,
+    track_bind_group: BindGroup,
+    /// Pre-allocated mark uniform buffers, grown on demand and reused across frames.
+    mark_uniform_buffers: Vec<Buffer>,
+    /// Bind groups paired 1:1 with `mark_uniform_buffers`.
+    mark_bind_groups: Vec<BindGroup>,
+    /// How many of `mark_bind_groups` hold marks for the current frame.
+    mark_count: usize,
+}
+
 /// Scrollbar renderer using wgpu
 pub struct Scrollbar {
     device: Arc<Device>,
     pipeline: RenderPipeline,
-    uniform_buffer: Buffer,
-    bind_group: BindGroup,
-    track_bind_group: BindGroup,
-    track_uniform_buffer: Buffer,
-    mark_bind_group_layout: BindGroupLayout,
+    bind_group_layout: BindGroupLayout,
+    /// Per-pane GPU state, indexed by the pane's position in the frame's pane list.
+    /// Slot 0 doubles as the single-grid path's slot.
+    slots: Vec<ScrollbarSlot>,
     width: f32,
-    visible: bool,
     position_right: bool, // true = right side, false = left side
     thumb_color: [f32; 4],
     track_color: [f32; 4],
 
-    // Cached state for hit testing and interaction
+    // Cached state for hit testing and interaction.
+    //
+    // Hit testing is single-instance because the mouse can only be over one
+    // scrollbar: it tracks the *focused* pane. Before per-pane slots existed this
+    // was whichever pane happened to be updated last, which in a split was not
+    // usually the focused one.
+    /// Whether the pane owning the hit-test state currently shows a scrollbar.
+    hit_visible: bool,
     scrollbar_x: f32,      // Pixel position X
     scrollbar_y: f32,      // Pixel position Y
     scrollbar_height: f32, // Pixel height (thumb)
@@ -75,18 +104,11 @@ pub struct Scrollbar {
     visible_lines: usize,
     total_lines: usize,
 
-    // Mark overlays (prompt/command indicators)
-    marks: Vec<ScrollbarMarkInstance>,
     /// Mark hit-test data for tooltip display
     mark_hit_info: Vec<MarkHitInfo>,
 
-    // Pre-allocated GPU resources for marks to avoid per-frame allocation churn
-    /// Maximum number of marks we can render (pre-allocated)
+    /// Maximum number of marks a slot can render.
     max_marks: usize,
-    /// Pre-allocated uniform buffers for each mark slot
-    mark_uniform_buffers: Vec<Buffer>,
-    /// Bind groups for each mark slot (re-created when buffers are allocated)
-    mark_bind_groups: Vec<BindGroup>,
 }
 
 #[repr(C)]
@@ -97,10 +119,6 @@ struct ScrollbarUniforms {
     size: [f32; 2],     // width, height
     // Color (RGBA)
     color: [f32; 4],
-}
-
-struct ScrollbarMarkInstance {
-    bind_group: BindGroup,
 }
 
 /// Data for hit-testing marks on the scrollbar
@@ -189,72 +207,22 @@ impl Scrollbar {
             multiview_mask: None,
         });
 
-        // Create uniform buffers for thumb and track
         // Note: We don't need a vertex buffer because vertices are generated
-        // procedurally in the shader using builtin(vertex_index)
-
-        // Thumb uniform buffer
-        let thumb_uniforms = ScrollbarUniforms {
-            position: [0.0, 0.0],
-            size: [1.0, 1.0],
-            color: thumb_color,
-        };
-
-        let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Scrollbar Thumb Uniform Buffer"),
-            contents: bytemuck::cast_slice(&[thumb_uniforms]),
-            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-        });
-
-        // Track uniform buffer
-        let track_uniforms = ScrollbarUniforms {
-            position: [0.0, 0.0],
-            size: [1.0, 1.0],
-            color: track_color,
-        };
-
-        let track_uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Scrollbar Track Uniform Buffer"),
-            contents: bytemuck::cast_slice(&[track_uniforms]),
-            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-        });
-
-        // Create bind groups
-        let bind_group = device.create_bind_group(&BindGroupDescriptor {
-            label: Some("Scrollbar Thumb Bind Group"),
-            layout: &bind_group_layout,
-            entries: &[BindGroupEntry {
-                binding: 0,
-                resource: uniform_buffer.as_entire_binding(),
-            }],
-        });
-
-        let track_bind_group = device.create_bind_group(&BindGroupDescriptor {
-            label: Some("Scrollbar Track Bind Group"),
-            layout: &bind_group_layout,
-            entries: &[BindGroupEntry {
-                binding: 0,
-                resource: track_uniform_buffer.as_entire_binding(),
-            }],
-        });
-
-        let mark_bind_group_layout = bind_group_layout.clone();
+        // procedurally in the shader using builtin(vertex_index).
+        // Thumb/track uniform buffers are allocated per slot by `ensure_slot`.
 
         let position_right = position.eq_ignore_ascii_case("right");
 
         Self {
             device,
             pipeline,
-            uniform_buffer,
-            bind_group,
-            track_bind_group,
-            track_uniform_buffer,
-            mark_bind_group_layout,
+            bind_group_layout,
+            slots: Vec::new(),
             width,
-            visible: false,
             position_right,
             thumb_color,
             track_color,
+            hit_visible: false,
             scrollbar_x: 0.0,
             scrollbar_y: 0.0,
             scrollbar_height: 0.0,
@@ -265,18 +233,95 @@ impl Scrollbar {
             scroll_offset: 0,
             visible_lines: 0,
             total_lines: 0,
-            marks: Vec::new(),
             mark_hit_info: Vec::new(),
             max_marks: MAX_SCROLLBAR_MARKS,
-            mark_uniform_buffers: Vec::new(),
-            mark_bind_groups: Vec::new(),
         }
     }
 
-    /// Update scrollbar position and visibility.
+    /// Allocate slots up to and including `index`.
+    ///
+    /// Slots are never freed: a session's pane count is small and bounded, and
+    /// reusing them keeps per-frame GPU allocation at zero.
+    fn ensure_slot(&mut self, index: usize) {
+        while self.slots.len() <= index {
+            let thumb_uniform_buffer =
+                self.device
+                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: Some("Scrollbar Thumb Uniform Buffer"),
+                        contents: bytemuck::cast_slice(&[ScrollbarUniforms {
+                            position: [0.0, 0.0],
+                            size: [1.0, 1.0],
+                            color: self.thumb_color,
+                        }]),
+                        usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+                    });
+            let track_uniform_buffer =
+                self.device
+                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: Some("Scrollbar Track Uniform Buffer"),
+                        contents: bytemuck::cast_slice(&[ScrollbarUniforms {
+                            position: [0.0, 0.0],
+                            size: [1.0, 1.0],
+                            color: self.track_color,
+                        }]),
+                        usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+                    });
+            let thumb_bind_group = self.device.create_bind_group(&BindGroupDescriptor {
+                label: Some("Scrollbar Thumb Bind Group"),
+                layout: &self.bind_group_layout,
+                entries: &[BindGroupEntry {
+                    binding: 0,
+                    resource: thumb_uniform_buffer.as_entire_binding(),
+                }],
+            });
+            let track_bind_group = self.device.create_bind_group(&BindGroupDescriptor {
+                label: Some("Scrollbar Track Bind Group"),
+                layout: &self.bind_group_layout,
+                entries: &[BindGroupEntry {
+                    binding: 0,
+                    resource: track_uniform_buffer.as_entire_binding(),
+                }],
+            });
+            self.slots.push(ScrollbarSlot {
+                visible: false,
+                thumb_uniform_buffer,
+                thumb_bind_group,
+                track_uniform_buffer,
+                track_bind_group,
+                mark_uniform_buffers: Vec::new(),
+                mark_bind_groups: Vec::new(),
+                mark_count: 0,
+            });
+        }
+    }
+
+    /// Update slot 0 and adopt it as the hit-test scrollbar.
     ///
     /// All geometry and scroll-state parameters are passed via [`ScrollbarUpdateParams`].
     pub fn update(&mut self, queue: &Queue, params: ScrollbarUpdateParams<'_>) {
+        self.update_slot(queue, 0, params, true);
+    }
+
+    /// Forget the hit-test geometry.
+    ///
+    /// Called when the focused pane has no scrollbar this frame, so that clicks
+    /// are not tested against another pane's (or a previous frame's) bounds.
+    pub fn clear_hit_state(&mut self) {
+        self.hit_visible = false;
+        self.mark_hit_info.clear();
+    }
+
+    /// Update one pane's scrollbar slot.
+    ///
+    /// `record_hit_state` should be true for exactly one slot per frame — the
+    /// focused pane — since hit testing is single-instance.
+    pub fn update_slot(
+        &mut self,
+        queue: &Queue,
+        slot: usize,
+        params: ScrollbarUpdateParams<'_>,
+        record_hit_state: bool,
+    ) {
         let ScrollbarUpdateParams {
             scroll_offset,
             visible_lines,
@@ -289,25 +334,40 @@ impl Scrollbar {
             marks,
         } = params;
 
-        // Store parameters for hit testing
-        self.scroll_offset = scroll_offset;
-        self.visible_lines = visible_lines;
-        self.total_lines = total_lines;
-        self.window_width = window_width;
-        self.window_height = window_height;
+        self.ensure_slot(slot);
 
         // Show scrollbar when either scrollback exists or mark indicators are available
-        self.visible = total_lines > visible_lines || !marks.is_empty();
+        let visible = total_lines > visible_lines || !marks.is_empty();
+        self.slots[slot].visible = visible;
+        if record_hit_state {
+            self.hit_visible = visible;
+        }
 
-        if !self.visible {
+        if !visible {
+            // Drop any marks the slot carried last frame, or they would draw again.
+            self.slots[slot].mark_count = 0;
+            if record_hit_state {
+                self.mark_hit_info.clear();
+            }
             return;
+        }
+
+        // Store parameters for hit testing
+        if record_hit_state {
+            self.scroll_offset = scroll_offset;
+            self.visible_lines = visible_lines;
+            self.total_lines = total_lines;
+            self.window_width = window_width;
+            self.window_height = window_height;
         }
 
         // The visible track area excludes top and bottom insets (tab bar, status bar, etc.)
         let track_pixel_height =
             (window_height as f32 - content_offset_y - content_inset_bottom).max(1.0);
-        self.track_top = content_offset_y;
-        self.track_pixel_height = track_pixel_height;
+        if record_hit_state {
+            self.track_top = content_offset_y;
+            self.track_pixel_height = track_pixel_height;
+        }
 
         // Calculate scrollbar dimensions (guard against zero)
         let total = total_lines.max(1);
@@ -336,13 +396,15 @@ impl Scrollbar {
 
         // Store pixel coordinates for hit testing
         // Position on right or left based on config, accounting for right inset (panel)
-        self.scrollbar_x = if self.position_right {
-            window_width as f32 - self.width - content_inset_right
-        } else {
-            0.0
-        };
-        self.scrollbar_y = scrollbar_y;
-        self.scrollbar_height = scrollbar_height;
+        if record_hit_state {
+            self.scrollbar_x = if self.position_right {
+                window_width as f32 - self.width - content_inset_right
+            } else {
+                0.0
+            };
+            self.scrollbar_y = scrollbar_y;
+            self.scrollbar_height = scrollbar_height;
+        }
 
         // Convert to normalized device coordinates (-1 to 1)
         let ww = window_width as f32;
@@ -366,7 +428,7 @@ impl Scrollbar {
             color: self.track_color,
         };
         queue.write_buffer(
-            &self.track_uniform_buffer,
+            &self.slots[slot].track_uniform_buffer,
             0,
             bytemuck::cast_slice(&[track_uniforms]),
         );
@@ -381,7 +443,7 @@ impl Scrollbar {
             color: self.thumb_color,
         };
         queue.write_buffer(
-            &self.uniform_buffer,
+            &self.slots[slot].thumb_uniform_buffer,
             0,
             bytemuck::cast_slice(&[thumb_uniforms]),
         );
@@ -389,36 +451,45 @@ impl Scrollbar {
         // Prepare and upload mark uniforms (draw later)
         self.prepare_marks(
             queue,
+            slot,
             marks,
             PrepareMarksLayout {
                 total_lines,
+                window_width,
                 window_height,
                 content_offset_y,
                 content_inset_bottom,
                 content_inset_right,
+                record_hit_state,
             },
         );
     }
 
-    /// Render the scrollbar (track + thumb)
-    pub fn render<'a>(&'a self, render_pass: &mut RenderPass<'a>) {
-        if !self.visible {
+    /// Render one pane's scrollbar (track + thumb + marks).
+    ///
+    /// `slot` is the index passed to [`Scrollbar::update_slot`]; the single-grid
+    /// path uses slot 0.
+    pub fn render<'a>(&'a self, render_pass: &mut RenderPass<'a>, slot: usize) {
+        let Some(slot) = self.slots.get(slot) else {
+            return;
+        };
+        if !slot.visible {
             return;
         }
 
         render_pass.set_pipeline(&self.pipeline);
 
         // Render track (background) first
-        render_pass.set_bind_group(0, &self.track_bind_group, &[]);
+        render_pass.set_bind_group(0, &slot.track_bind_group, &[]);
         render_pass.draw(0..4, 0..1);
 
         // Render thumb on top
-        render_pass.set_bind_group(0, &self.bind_group, &[]);
+        render_pass.set_bind_group(0, &slot.thumb_bind_group, &[]);
         render_pass.draw(0..4, 0..1);
 
         // Render marks on top of track/thumb
-        for mark in &self.marks {
-            render_pass.set_bind_group(0, &mark.bind_group, &[]);
+        for bind_group in slot.mark_bind_groups.iter().take(slot.mark_count) {
+            render_pass.set_bind_group(0, bind_group, &[]);
             render_pass.draw(0..4, 0..1);
         }
     }
@@ -426,25 +497,30 @@ impl Scrollbar {
     fn prepare_marks(
         &mut self,
         queue: &Queue,
+        slot: usize,
         marks: &[par_term_config::ScrollbackMark],
         layout: PrepareMarksLayout,
     ) {
         let PrepareMarksLayout {
             total_lines,
+            window_width,
             window_height,
             content_offset_y,
             content_inset_bottom,
             content_inset_right,
+            record_hit_state,
         } = layout;
-        self.marks.clear();
-        self.mark_hit_info.clear();
+        self.slots[slot].mark_count = 0;
+        if record_hit_state {
+            self.mark_hit_info.clear();
+        }
 
         if total_lines == 0 || marks.is_empty() {
             return;
         }
 
         let num_marks = marks.len().min(self.max_marks);
-        let ww = self.window_width as f32;
+        let ww = window_width as f32;
         let wh = window_height as f32;
         let track_pixel_height = (wh - content_offset_y - content_inset_bottom).max(1.0);
         let mark_height_ndc = (2.0 * SCROLLBAR_MARK_HEIGHT_PX) / wh;
@@ -456,31 +532,28 @@ impl Scrollbar {
             -1.0
         };
 
-        // Ensure we have enough pre-allocated buffers and bind groups
-        if self.mark_uniform_buffers.len() < num_marks {
-            let additional = num_marks - self.mark_uniform_buffers.len();
-            for _ in 0..additional {
-                // Create pre-allocated uniform buffer for a mark
-                let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
-                    label: Some("Scrollbar Mark Uniform Buffer"),
-                    size: std::mem::size_of::<ScrollbarUniforms>() as u64,
-                    usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-                    mapped_at_creation: false,
-                });
+        // Ensure this slot has enough pre-allocated buffers and bind groups
+        while self.slots[slot].mark_uniform_buffers.len() < num_marks {
+            // Create pre-allocated uniform buffer for a mark
+            let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Scrollbar Mark Uniform Buffer"),
+                size: std::mem::size_of::<ScrollbarUniforms>() as u64,
+                usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
 
-                // Create bind group for this buffer
-                let bind_group = self.device.create_bind_group(&BindGroupDescriptor {
-                    label: Some("Scrollbar Mark Bind Group"),
-                    layout: &self.mark_bind_group_layout,
-                    entries: &[BindGroupEntry {
-                        binding: 0,
-                        resource: buffer.as_entire_binding(),
-                    }],
-                });
+            // Create bind group for this buffer
+            let bind_group = self.device.create_bind_group(&BindGroupDescriptor {
+                label: Some("Scrollbar Mark Bind Group"),
+                layout: &self.bind_group_layout,
+                entries: &[BindGroupEntry {
+                    binding: 0,
+                    resource: buffer.as_entire_binding(),
+                }],
+            });
 
-                self.mark_uniform_buffers.push(buffer);
-                self.mark_bind_groups.push(bind_group);
-            }
+            self.slots[slot].mark_uniform_buffers.push(buffer);
+            self.slots[slot].mark_bind_groups.push(bind_group);
         }
 
         // Process each mark and update the pre-allocated buffers
@@ -495,10 +568,12 @@ impl Scrollbar {
             let ndc_y = 1.0 - 2.0 * y_pixel / wh;
 
             // Store pixel position for hit testing (y from top)
-            self.mark_hit_info.push(MarkHitInfo {
-                y_pixel,
-                mark: mark.clone(),
-            });
+            if record_hit_state {
+                self.mark_hit_info.push(MarkHitInfo {
+                    y_pixel,
+                    mark: mark.clone(),
+                });
+            }
 
             let color = if let Some((r, g, b)) = mark.color {
                 color_tuple_to_f32_a(r, g, b, 1.0)
@@ -518,18 +593,16 @@ impl Scrollbar {
 
             // Update the pre-allocated buffer using queue.write_buffer (no new allocation)
             queue.write_buffer(
-                &self.mark_uniform_buffers[mark_index],
+                &self.slots[slot].mark_uniform_buffers[mark_index],
                 0,
                 bytemuck::cast_slice(&[mark_uniforms]),
             );
 
-            // Create mark instance reference to the pre-allocated bind group
-            self.marks.push(ScrollbarMarkInstance {
-                bind_group: self.mark_bind_groups[mark_index].clone(),
-            });
-
             mark_index += 1;
         }
+
+        // Marks occupy bind groups [0..mark_index] of this slot, in order.
+        self.slots[slot].mark_count = mark_index;
     }
 
     /// Update scrollbar appearance (width and colors) in real-time
@@ -567,7 +640,7 @@ impl Scrollbar {
     /// * `x` - X coordinate in pixels (from left edge)
     /// * `y` - Y coordinate in pixels (from top edge)
     pub fn contains_point(&self, x: f32, y: f32) -> bool {
-        if !self.visible {
+        if !self.hit_visible {
             return false;
         }
 
@@ -579,7 +652,7 @@ impl Scrollbar {
 
     /// Check if a point is within the scrollbar track (any Y position)
     pub fn track_contains_x(&self, x: f32) -> bool {
-        if !self.visible {
+        if !self.hit_visible {
             return false;
         }
 
@@ -588,7 +661,7 @@ impl Scrollbar {
 
     /// Get the current thumb bounds (top Y in pixels, height in pixels)
     pub fn thumb_bounds(&self) -> Option<(f32, f32)> {
-        if !self.visible {
+        if !self.hit_visible {
             return None;
         }
 
@@ -603,7 +676,7 @@ impl Scrollbar {
     /// # Returns
     /// The scroll offset corresponding to the mouse position, or None if scrollbar is not visible
     pub fn mouse_y_to_scroll_offset(&self, mouse_y: f32) -> Option<usize> {
-        if !self.visible {
+        if !self.hit_visible {
             return None;
         }
 
@@ -630,7 +703,7 @@ impl Scrollbar {
 
     /// Whether the scrollbar is currently visible
     pub fn is_visible(&self) -> bool {
-        self.visible
+        self.hit_visible
     }
 
     /// Find a mark at the given mouse position (in pixels from top-left).
@@ -642,7 +715,7 @@ impl Scrollbar {
         mouse_y: f32,
         tolerance: f32,
     ) -> Option<&ScrollbackMark> {
-        if !self.visible || !self.track_contains_x(mouse_x) {
+        if !self.hit_visible || !self.track_contains_x(mouse_x) {
             return None;
         }
 
