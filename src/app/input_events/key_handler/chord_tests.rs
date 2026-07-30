@@ -54,32 +54,16 @@ const KNOWN_MISMATCHES: &[(&str, &str)] = &[
     // native accelerator therefore claims Cmd+W before `tab_shortcuts` does, and
     // its `MenuAction` is named for the window case.
     ("close_tab", "native_menu/close_window"),
-    // A genuine conflict: the Profiles menu gives Cmd+Shift+P to `Manage
-    // Profiles...` and lists `Toggle Profile Drawer` with no accelerator, but
-    // the settings table advertises Cmd+Shift+P for the drawer. The native menu
-    // wins, so the advertised chord opens the profile manager instead. Not
-    // present on Linux, which has no native menu bar.
-    (
-        "toggle_profile_drawer",
-        "native_menu/internal:manage_profiles",
-    ),
 ];
 
-/// Windows attaches a native muda menu bar too, so it has the same two
-/// conflicts; `cmd_or_ctrl` is Ctrl+Shift there, making the chords Ctrl+Shift+W
-/// and Ctrl+Shift+P.
+/// Windows attaches a native muda menu bar too, so it has the same smart-close
+/// conflict; `cmd_or_ctrl` is Ctrl+Shift there, making the chord Ctrl+Shift+W.
 #[cfg(target_os = "windows")]
-const KNOWN_MISMATCHES: &[(&str, &str)] = &[
-    ("close_tab", "native_menu/close_window"),
-    (
-        "toggle_profile_drawer",
-        "native_menu/internal:manage_profiles",
-    ),
-];
+const KNOWN_MISMATCHES: &[(&str, &str)] = &[("close_tab", "native_menu/close_window")];
 
 /// Linux/BSD cannot attach a native menu bar (muda needs a `gtk::Window` winit
 /// never creates), so the in-app egui menu only *draws* accelerator labels and
-/// claims nothing. Both conflicts above are therefore absent here.
+/// claims nothing. The smart-close conflict is therefore absent here.
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 const KNOWN_MISMATCHES: &[(&str, &str)] = &[];
 
@@ -88,20 +72,18 @@ const KNOWN_MISMATCHES: &[(&str, &str)] = &[];
 ///
 /// Reported, not gated: under-advertisement is a documentation gap, not a
 /// dispatch defect, and correcting the table is a separate decision.
+///
+/// What remains here is deliberate, and all of one kind: chords supplied *only*
+/// by a native menu-bar accelerator. `AVAILABLE_ACTIONS` advertises a chord only
+/// when par-term's own key handling dispatches it — see that table's module
+/// docs for why a menu-only accelerator does not qualify.
 #[cfg(target_os = "macos")]
 const CLAIMED_BUT_ADVERTISED_AS_NONE: &[&str] = &[
     "close_window (native_menu)",
-    // `utility.rs` accepts `ctrl || super_key` for the cursor-style cycle, so
-    // Ctrl+Comma reaches it here even though the row is `None` — Cmd+Comma is
-    // taken by the application menu, but Ctrl+Comma is not. Off macOS the row
-    // advertises Ctrl+Comma, so it does not appear in this list there.
-    "cycle_cursor_style (utility_shortcuts)",
     "maximize_vertically (native_menu)",
     "new_window (native_menu)",
     "quit (macos_app_menu)",
     "select_all (native_menu)",
-    // Gated on `ai_inspector.ai_inspector_enabled`, which defaults to true.
-    "toggle_ai_inspector (ai_inspector_toggle)",
 ];
 
 /// Same menu-supplied entries as macOS, except Quit lives in the File menu
@@ -113,13 +95,12 @@ const CLAIMED_BUT_ADVERTISED_AS_NONE: &[&str] = &[
     "new_window (native_menu)",
     "quit (native_menu)",
     "select_all (native_menu)",
-    "toggle_ai_inspector (ai_inspector_toggle)",
 ];
 
-/// No native menu here, so every menu-only entry disappears and the Assistant
-/// panel toggle is the only chord claimed without being advertised.
+/// No native menu here, so every menu-only entry disappears and nothing modeled
+/// claims a chord the table advertises as having none.
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-const CLAIMED_BUT_ADVERTISED_AS_NONE: &[&str] = &["toggle_ai_inspector (ai_inspector_toggle)"];
+const CLAIMED_BUT_ADVERTISED_AS_NONE: &[&str] = &[];
 
 fn advertised() -> Vec<(&'static str, Chord)> {
     AVAILABLE_ACTIONS

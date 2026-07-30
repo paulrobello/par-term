@@ -8,6 +8,20 @@
 //! `par-term/src/app/input_events/key_handler/chord_tests.rs`, which resolves
 //! every advertised chord against the real dispatch precedence and fails when
 //! a higher-precedence layer claims it first. That is why this table is `pub`.
+//!
+//! # What earns a chord in the third column
+//!
+//! Only chords par-term's own key handling dispatches — a shipped
+//! `Config::default().keybindings` entry, or a hardcoded key layer. A chord
+//! that exists *only* as a native menu-bar accelerator is deliberately left
+//! `None`, for two reasons: this table is split macOS / not-macOS, and the
+//! not-macOS half is shared with Linux, which cannot attach a native menu bar
+//! (its in-app menu only draws accelerator labels), so such a chord does
+//! nothing there; and the native menu bar consumes the key before the
+//! keybinding registry runs, so it is not a *default* the user could rebind.
+//! That is why `new_window`, `close_window`, `quit`, `select_all` and
+//! `maximize_vertically` show no default even though the menu accelerates them
+//! on macOS and Windows.
 
 /// All available keybinding actions with their descriptions and default key combos.
 /// macOS uses Cmd as the primary modifier (safe for terminals).
@@ -42,7 +56,11 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
         "Toggle Command History",
         Some("Cmd+R"),
     ),
-    ("toggle_ai_inspector", "Toggle Assistant Panel", None),
+    (
+        "toggle_ai_inspector",
+        "Toggle Assistant Panel",
+        Some("Cmd+I"),
+    ),
     ("maximize_vertically", "Maximize Vertically", None),
     (
         "toggle_background_shader",
@@ -131,15 +149,17 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     ),
     ("reset_font_size", "Reset Font Size", Some("Cmd+0")),
     ("clear_scrollback", "Clear Scrollback", Some("Cmd+Shift+K")),
-    // No macOS default. `Cmd+,` is the `Settings...` key equivalent on the NSApp
-    // application menu (`menu/macos.rs`), so it is consumed before winit
-    // delivers a key event at all; the `settings_toggle` key layer would claim
-    // it next in any case. No keybinding default covers this action.
-    //
-    // The action is still reachable on macOS: `utility.rs` accepts
-    // `ctrl || super_key` for the cycle, so `Ctrl+,` gets there. That is
-    // deliberately not advertised as the default.
-    ("cycle_cursor_style", "Cycle Cursor Style", None),
+    // `Ctrl+,`, not `Cmd+,`, on macOS too. `Cmd+,` is the `Settings...` key
+    // equivalent on the NSApp application menu (`menu/macos.rs`) and is
+    // consumed before winit delivers a key event at all, but `utility.rs`
+    // accepts `ctrl || super_key` for the cycle, so `Ctrl+,` reaches it — and
+    // nothing higher in the chain claims that chord. Same string as the
+    // non-macOS table below.
+    (
+        "cycle_cursor_style",
+        "Cycle Cursor Style",
+        Some("Ctrl+Comma"),
+    ),
     (
         "paste_special",
         "Paste Special (Transform)",
@@ -204,7 +224,11 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
         "Toggle Command History",
         Some("Ctrl+Alt+R"),
     ),
-    ("toggle_ai_inspector", "Toggle Assistant Panel", None),
+    (
+        "toggle_ai_inspector",
+        "Toggle Assistant Panel",
+        Some("Ctrl+Shift+I"),
+    ),
     ("maximize_vertically", "Maximize Vertically", None),
     (
         "toggle_background_shader",

@@ -143,6 +143,15 @@ pub fn keybindings() -> Vec<crate::types::KeyBinding> {
             key: "CmdOrCtrl+Shift+J".to_string(),
             action: "duplicate_tab".to_string(),
         },
+        // Profile drawer. The chord was only ever a hardcoded key layer, so it
+        // was invisible in Settings and could not be rebound; shipping it as a
+        // default makes it a first-class binding. The Profiles menu used to
+        // give this accelerator to `Manage Profiles...`, which meant the native
+        // menu bar consumed it before this registry ever ran.
+        crate::types::KeyBinding {
+            key: "CmdOrCtrl+Shift+P".to_string(),
+            action: "toggle_profile_drawer".to_string(),
+        },
     ];
 
     #[cfg(not(target_os = "macos"))]
@@ -258,6 +267,14 @@ pub fn keybindings() -> Vec<crate::types::KeyBinding> {
         crate::types::KeyBinding {
             key: "Ctrl+Shift+J".to_string(),
             action: "duplicate_tab".to_string(),
+        },
+        // Profile drawer — see the macOS list above. Ctrl+Shift+P already
+        // reached the drawer here through the hardcoded key layer, because
+        // Linux cannot attach a native menu bar; the menu merely mislabelled it
+        // as `Manage Profiles...`.
+        crate::types::KeyBinding {
+            key: "Ctrl+Shift+P".to_string(),
+            action: "toggle_profile_drawer".to_string(),
         },
     ];
 

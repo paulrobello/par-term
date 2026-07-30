@@ -234,16 +234,28 @@ pub fn menu_model(has_native_app_menu: bool) -> Vec<MenuSection> {
         MenuSection {
             title: "Profiles",
             entries: vec![
+                // `Manage Profiles...` is a configuration dialog, also reachable
+                // from Settings, and it has no `AVAILABLE_ACTIONS` row, so a
+                // native accelerator on it burned Cmd/Ctrl+Shift+P for a chord
+                // no user could rebind.
                 item(
                     "manage_profiles",
                     "Manage Profiles...",
-                    accel(cmd_or_ctrl_shift, Code::KeyP),
+                    None,
                     MenuAction::ManageProfiles,
                 ),
+                // The drawer owns Cmd/Ctrl+Shift+P: the settings table
+                // advertises it, `Config::default().keybindings` binds it, and
+                // the hardcoded `profile_drawer_toggle` layer dispatches it.
+                // While `Manage Profiles...` held the accelerator the native
+                // menu bar ate the chord on macOS and Windows, and on Linux —
+                // where the in-app menu only *labels* accelerators — the same
+                // chord already reached the drawer while the menu named the
+                // manager. See `key_handler::chord_tests`.
                 item(
                     "toggle_profile_drawer",
                     "Toggle Profile Drawer",
-                    None,
+                    accel(cmd_or_ctrl_shift, Code::KeyP),
                     MenuAction::ToggleProfileDrawer,
                 ),
                 MenuEntry::Separator,
@@ -687,7 +699,7 @@ mod tests {
                 "tab_7",
                 "tab_8",
                 "tab_9",
-                "manage_profiles",
+                "toggle_profile_drawer",
                 "copy",
                 "paste",
                 "select_all",

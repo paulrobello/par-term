@@ -36,11 +36,11 @@ Complete reference for all par-term keyboard shortcuts.
 
 | Action | macOS | Linux/Windows |
 |--------|-------|---------------|
-| New window | `Cmd + N` *(menu)* | `Ctrl + N` *(menu)* |
+| New window | `Cmd + N` *(menu)* | `Ctrl + Shift + N` *(menu)* |
 | New tab | `Cmd + T` | `Ctrl + Shift + T` |
 | Duplicate tab | `Cmd+Shift+J` | `Ctrl+Shift+J` |
 | Close tab/window | `Cmd + W` | `Ctrl + Shift + W` |
-| Quit application | `Cmd + Q` *(menu)* | `Ctrl + Q` *(menu)* |
+| Quit application | `Cmd + Q` *(menu)* | `Ctrl + Shift + Q` *(menu)* |
 | Next tab | `Cmd + Shift + ]` | `Ctrl + Shift + ]` |
 | Previous tab | `Cmd + Shift + [` | `Ctrl + Shift + [` |
 | Next tab (alt) | `Ctrl + Tab` | `Ctrl + Tab` |
@@ -81,7 +81,7 @@ Modifier keys (`Shift`, `Ctrl`, `Alt`, and combinations) work with special keys 
 | Paste (X11 fallback) | `Shift + Insert` | `Shift + Insert` |
 | Paste Special | `Cmd + Shift + V` | `Ctrl + Alt + V` |
 | Clipboard history | `Cmd + Shift + H` | `Ctrl + Shift + H` |
-| Select all | `Cmd + A` *(menu)* | `Ctrl + A` *(menu)* |
+| Select all | `Cmd + A` *(menu)* | `Ctrl + Shift + A` *(menu)* |
 
 > **📝 Note:** A *(menu)* chord is dispatched by the **native** menu bar, which Linux does not have — its in-app menu prints the accelerator label beside the command but does not handle the chord. On Linux, open the menu from the `☰` button or bind `new_window`, `close_window`, `quit` and `select_all` directly (see [Available Actions](#available-actions)).
 
@@ -192,14 +192,16 @@ Vi-style keyboard-driven text selection. See [Copy Mode](../features/COPY_MODE.m
 |----------|--------|
 | `Cmd/Ctrl + Shift + B` | Toggle background shader |
 | `Cmd/Ctrl + Shift + U` | Toggle cursor shader |
-| `Cmd/Ctrl + Shift + P` | Manage Profiles (opens Settings to the Profiles tab) — this is the menu accelerator. `toggle_profile_drawer` is a separate action and ships **unbound**. |
+| `Cmd/Ctrl + Shift + P` | Toggle the profile drawer (`toggle_profile_drawer`) |
 | `Cmd + Shift + S` (macOS) / `Ctrl + Shift + S` (Linux/Win) | SSH Quick Connect |
 | `Cmd/Ctrl + Alt + I` | Toggle broadcast input |
 | `Cmd/Ctrl + Alt + T` | Toggle tmux session picker |
 | `Cmd + ,` (macOS) / `F12` | Open the Settings window |
-| `Ctrl + ,` (Linux/Windows) | Cycle cursor style (Block → Beam → Underline) |
+| `Ctrl + ,` (all platforms) | Cycle cursor style (Block → Beam → Underline) |
 
-> **📝 Note:** macOS has no working chord for cursor style. The Settings handler claims `Cmd + ,` before the cycler runs, so on macOS that chord opens Settings, and `cycle_cursor_style` ships with no default keybinding. Bind it to a chord of your own in **Settings ▸ Input ▸ Keybindings** or in `config.yaml`.
+> **📝 Note:** `Cmd/Ctrl + Shift + P` previously carried the **Manage Profiles...** menu accelerator, which meant the native menu bar on macOS and Windows consumed the chord before it could reach the profile drawer it is documented for. The accelerator now belongs to the drawer on all three platforms. Reach **Manage Profiles...** from the Profiles menu, or from **Settings ▸ Profiles**.
+
+> **📝 Note:** Cursor style cycles on `Ctrl + ,` on **every** platform, macOS included — the cycler accepts either Ctrl or Cmd, and nothing higher in the dispatch chain claims `Ctrl + ,`. On macOS it is specifically **not** `Cmd + ,`: that is the `Settings...` key equivalent on the application menu and opens the Settings window instead.
 
 > **📝 Note:** The Assistant panel is toggled with `Cmd + I` (macOS) or `Ctrl + Shift + I` (Linux/Windows) when `ai_inspector_enabled` is `true`. It can also be bound via custom keybindings. See [Assistant Panel](../ASSISTANT_PANEL.md) for details.
 
