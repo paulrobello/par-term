@@ -76,6 +76,7 @@ impl WindowState {
                 p.badge_text.clone(),
                 p.command.clone(),
                 p.command_args.clone(),
+                p.source.is_dynamic(),
             )
         });
 
@@ -85,7 +86,10 @@ impl WindowState {
             // Mark the auto-applied profile
             tab.profile.auto_applied_profile_id = Some(profile_id);
 
-            if let Some((tab_name, icon, badge_text, command, command_args)) = profile_settings {
+            let mut pending_command: Option<(String, Option<Vec<String>>, bool)> = None;
+            if let Some((tab_name, icon, badge_text, command, command_args, remote_origin)) =
+                profile_settings
+            {
                 // Apply profile icon
                 tab.profile.profile_icon = icon;
 
@@ -107,25 +111,21 @@ impl WindowState {
                     );
                 }
 
-                // Execute profile command in the running shell if configured
-                if let Some(cmd) = command {
-                    let mut full_cmd = cmd;
-                    if let Some(args) = command_args {
-                        for arg in args {
-                            full_cmd.push(' ');
-                            full_cmd.push_str(&arg);
-                        }
-                    }
-                    full_cmd.push('\n');
+                // Deferred rather than run here: the tmux session name that selected
+                // this profile is pattern-matched, so the command needs the same
+                // confirmation the hostname path uses. Dispatched once `tab` is free.
+                pending_command = command.map(|cmd| (cmd, command_args, remote_origin));
+            }
 
-                    let terminal_clone = std::sync::Arc::clone(&tab.terminal);
-                    self.runtime.spawn(async move {
-                        let term = terminal_clone.read().await;
-                        if let Err(e) = term.write(full_cmd.as_bytes()) {
-                            log::error!("Failed to execute tmux profile command: {}", e);
-                        }
-                    });
-                }
+            if let Some((command, command_args, remote_origin)) = pending_command {
+                self.dispatch_profile_command(
+                    profile_id,
+                    profile_name,
+                    Some(&command),
+                    command_args.as_deref(),
+                    remote_origin,
+                    "a tmux session pattern",
+                );
             }
 
             // Show notification about profile switch

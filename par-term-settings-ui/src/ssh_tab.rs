@@ -31,7 +31,9 @@ impl SettingsUI {
                 }
                 ui.label(
                     egui::RichText::new(
-                        "Automatically switch to a matching profile when an SSH hostname is detected.",
+                        "Automatically switch to a matching profile when an SSH hostname is detected. \
+                         The hostname is reported by the remote shell, so if the matched profile \
+                         defines a command you will be asked to confirm it before it runs.",
                     )
                     .weak()
                     .size(11.0),
