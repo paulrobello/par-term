@@ -89,7 +89,7 @@ pub(super) fn show_import_export_section(
 
                 if ui
                     .add_enabled(url_valid, egui::Button::new("Fetch & Replace"))
-                    .on_hover_text("Download and replace the current configuration")
+                    .on_hover_text("Download and replace the current configuration (https:// only)")
                     .clicked()
                 {
                     import_preferences_from_url(settings, changes_this_frame, ImportMode::Replace);
@@ -97,7 +97,9 @@ pub(super) fn show_import_export_section(
 
                 if ui
                     .add_enabled(url_valid, egui::Button::new("Fetch & Merge"))
-                    .on_hover_text("Download and merge into the current configuration")
+                    .on_hover_text(
+                        "Download and merge into the current configuration (https:// only)",
+                    )
                     .clicked()
                 {
                     import_preferences_from_url(settings, changes_this_frame, ImportMode::Merge);
@@ -131,6 +133,13 @@ pub(super) fn show_import_export_section(
 // ============================================================================
 // Import/Export Helpers
 // ============================================================================
+
+/// Maximum size of a configuration fetched from a URL (SEC-020).
+///
+/// Matches the dynamic-profile fetch limit (`DynamicProfileSource`'s default
+/// `max_size_bytes`, enforced in `src/profile/dynamic/fetch.rs`) so both
+/// remote-config paths cap the same way.
+const MAX_IMPORT_SIZE_BYTES: u64 = 1_048_576;
 
 /// Whether to replace or merge when importing preferences.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -207,14 +216,43 @@ fn import_preferences_from_url(
         return;
     }
 
+    // SEC-020: an imported config drives shell execution, startup commands and
+    // profiles, so it must not be MITM-replaceable in transit. `file://` is
+    // refused for the same reason as in `src/profile/dynamic/fetch.rs`: it would
+    // turn this URL field into an arbitrary local-file read.
+    if !url.starts_with("https://") {
+        settings.import_export_status = Some(format!(
+            "Refusing to import from {}: only https:// URLs are supported. \
+             An imported config can change shell and startup behaviour, so it \
+             must not be modifiable in transit.",
+            url
+        ));
+        settings.import_export_is_error = true;
+        log::warn!(
+            "[SEC-020] refusing non-HTTPS preference import from {}",
+            url
+        );
+        return;
+    }
+
     let agent = crate::http_agent();
     match agent.get(&url).call() {
-        Ok(response) => match response.into_body().read_to_string() {
+        // SEC-020: cap the response so a hostile or broken endpoint cannot
+        // stream an unbounded body into memory.
+        Ok(mut response) => match response
+            .body_mut()
+            .with_config()
+            .limit(MAX_IMPORT_SIZE_BYTES)
+            .read_to_string()
+        {
             Ok(body) => {
                 apply_imported_config(settings, changes_this_frame, &body, mode);
             }
             Err(e) => {
-                settings.import_export_status = Some(format!("Failed to read response: {}", e));
+                settings.import_export_status = Some(format!(
+                    "Failed to read response (limit {} bytes): {}",
+                    MAX_IMPORT_SIZE_BYTES, e
+                ));
                 settings.import_export_is_error = true;
                 log::error!("Failed to read URL response body: {}", e);
             }
