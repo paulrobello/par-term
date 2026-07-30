@@ -68,44 +68,31 @@ pub fn fetch_profiles(source: &DynamicProfileSource) -> FetchResult {
 fn fetch_profiles_inner(
     source: &DynamicProfileSource,
 ) -> anyhow::Result<(Vec<par_term_config::Profile>, Option<String>)> {
+    use crate::url_policy::{Transport, validate_scheme};
     use ureq::tls::{RootCerts, TlsConfig, TlsProvider};
 
-    // Enforce HTTPS-only policy for dynamic profile URLs (unless the user has
-    // explicitly opted in to HTTP via `allow_http_profiles: true` in the config).
-    //
     // SECURITY: Profile data fetched over plain HTTP can be intercepted and
     // replaced by a network-level attacker (MITM). A malicious profile could
     // influence shell execution, environment, or other terminal behaviour.
-    // HTTPS is the default requirement; HTTP is an explicit opt-in.
-    // SECURITY: file:// is explicitly rejected — allowing it would enable
-    // arbitrary local file reads via a crafted profile source URL.
-    if source.url.starts_with("file://") {
-        anyhow::bail!(
-            "Dynamic profile URL '{}' uses file:// scheme which is not permitted. \
-             Only https:// URLs are supported.",
-            source.url
-        );
-    }
+    // HTTPS is the default requirement; HTTP is an explicit opt-in via
+    // `allow_http_profiles: true`.
+    //
+    // ARC-006: the scheme policy is shared with the other caller-supplied-URL
+    // paths so the copies cannot drift. It allowlists https (plus http under the
+    // opt-in) rather than denylisting `file://`, which is what previously let
+    // `ftp:`, `data:` and single-slash `file:` through once the opt-in was set.
+    let transport = validate_scheme(&source.url, source.allow_http)
+        .map_err(|e| anyhow::anyhow!("Dynamic profile source rejected: {e}"))?;
 
-    if !source.url.starts_with("https://") {
-        // Always refuse auth headers over HTTP regardless of the opt-in flag,
-        // because credentials would be transmitted in the clear.
+    if transport == Transport::Http {
+        // The opt-in permits plaintext transport, but never plaintext credentials:
+        // refuse the fetch outright rather than send these headers in the clear.
         if source.headers.keys().any(|k| {
             let lower = k.to_lowercase();
             lower == "authorization" || lower.contains("token") || lower.contains("secret")
         }) {
             anyhow::bail!(
                 "Refusing to send authentication headers over insecure HTTP for {}. Use HTTPS.",
-                source.url
-            );
-        }
-
-        if !source.allow_http {
-            // HTTP is not opted-in — refuse the fetch with a clear error.
-            anyhow::bail!(
-                "Dynamic profile URL '{}' uses insecure HTTP. \
-                 Set `allow_http_profiles: true` in your config to allow HTTP (not recommended). \
-                 Use HTTPS to prevent MITM injection of profiles.",
                 source.url
             );
         }
@@ -133,6 +120,11 @@ fn fetch_profiles_inner(
 
     let agent: ureq::Agent = ureq::Agent::config_builder()
         .tls_config(tls_config)
+        // ureq follows up to 10 redirects and does not re-run the scheme check on
+        // each hop, so without this a `https://` source that answers 302 with an
+        // `http://` Location would be fetched in the clear — defeating the policy
+        // validated above. `https_only` applies to the whole redirect chain.
+        .https_only(transport == Transport::Https)
         .timeout_global(Some(std::time::Duration::from_secs(
             source.fetch_timeout_secs,
         )))
