@@ -13,6 +13,21 @@ pub struct TmuxCommand {
     command: String,
 }
 
+/// Render `arg` as a single POSIX single-quoted control-mode argument.
+///
+/// Every builder that interpolates caller-supplied text goes through this, so no
+/// argument can terminate its quoted region and be read as further tmux words.
+/// Embedded single-quotes use the `'\''` idiom (end quote, escaped literal quote,
+/// reopen quote).
+///
+/// Null bytes are stripped rather than quoted: tmux's control-mode protocol is
+/// newline-framed and a null byte inside a quoted argument truncates or mis-frames
+/// the command.
+fn quote(arg: &str) -> String {
+    let sanitized = arg.replace('\x00', "");
+    format!("'{}'", sanitized.replace('\'', "'\\''"))
+}
+
 impl TmuxCommand {
     /// Create a new command from a raw string
     fn new(command: impl Into<String>) -> Self {
@@ -46,20 +61,20 @@ impl TmuxCommand {
 
     /// Attach to a session
     pub fn attach_session(session: &str) -> Self {
-        Self::new(format!("attach-session -t '{}'", session))
+        Self::new(format!("attach-session -t {}", quote(session)))
     }
 
     /// Create a new session
     pub fn new_session(name: Option<&str>) -> Self {
         match name {
-            Some(n) => Self::new(format!("new-session -d -s '{}'", n)),
+            Some(n) => Self::new(format!("new-session -d -s {}", quote(n))),
             None => Self::new("new-session -d"),
         }
     }
 
     /// Kill a session
     pub fn kill_session(session: &str) -> Self {
-        Self::new(format!("kill-session -t '{}'", session))
+        Self::new(format!("kill-session -t {}", quote(session)))
     }
 
     // =========================================================================
@@ -76,7 +91,7 @@ impl TmuxCommand {
     /// Create a new window
     pub fn new_window(name: Option<&str>) -> Self {
         match name {
-            Some(n) => Self::new(format!("new-window -n '{}'", n)),
+            Some(n) => Self::new(format!("new-window -n {}", quote(n))),
             None => Self::new("new-window"),
         }
     }
@@ -93,7 +108,7 @@ impl TmuxCommand {
 
     /// Rename a window
     pub fn rename_window(window_id: TmuxWindowId, name: &str) -> Self {
-        Self::new(format!("rename-window -t @{} '{}'", window_id, name))
+        Self::new(format!("rename-window -t @{} {}", window_id, quote(name)))
     }
 
     // =========================================================================
@@ -173,11 +188,7 @@ impl TmuxCommand {
     ///   tokens such as `Enter`, `Escape`, `Up`, etc.  If you want the literal
     ///   string "Enter" to appear in the terminal, use `send_literal`.
     pub fn send_keys(pane_id: TmuxPaneId, keys: &str) -> Self {
-        // Strip null bytes: they cannot be represented safely inside a
-        // control-mode quoted argument and would truncate the command.
-        let sanitized = keys.replace('\x00', "");
-        let escaped = sanitized.replace('\'', "'\\''");
-        Self::new(format!("send-keys -t %{} '{}'", pane_id, escaped))
+        Self::new(format!("send-keys -t %{} {}", pane_id, quote(keys)))
     }
 
     /// Send literal text to a pane without tmux key-name interpretation.
@@ -198,21 +209,14 @@ impl TmuxCommand {
     /// one `send_literal` call per line, or replace `\n` with an `Enter`
     /// key-name call via `send_keys`.
     pub fn send_literal(pane_id: TmuxPaneId, text: &str) -> Self {
-        // Strip null bytes before quoting.
-        let sanitized = text.replace('\x00', "");
-        let escaped = sanitized.replace('\'', "'\\''");
-        Self::new(format!("send-keys -t %{} -l '{}'", pane_id, escaped))
+        Self::new(format!("send-keys -t %{} -l {}", pane_id, quote(text)))
     }
 
     /// Send keys to a window (sends to the active pane in that window).
     ///
     /// See [`Self::send_keys`] for the full escaping strategy and edge cases.
     pub fn send_keys_to_window(window_id: TmuxWindowId, keys: &str) -> Self {
-        // Strip null bytes: they cannot be represented safely inside a
-        // control-mode quoted argument and would truncate the command.
-        let sanitized = keys.replace('\x00', "");
-        let escaped = sanitized.replace('\'', "'\\''");
-        Self::new(format!("send-keys -t @{} '{}'", window_id, escaped))
+        Self::new(format!("send-keys -t @{} {}", window_id, quote(keys)))
     }
 
     /// Send literal text to a window (sends to the active pane in that window).
@@ -220,10 +224,7 @@ impl TmuxCommand {
     /// Uses the `-l` (literal) flag.  See [`Self::send_literal`] for the full
     /// escaping strategy and edge cases.
     pub fn send_literal_to_window(window_id: TmuxWindowId, text: &str) -> Self {
-        // Strip null bytes before quoting.
-        let sanitized = text.replace('\x00', "");
-        let escaped = sanitized.replace('\'', "'\\''");
-        Self::new(format!("send-keys -t @{} -l '{}'", window_id, escaped))
+        Self::new(format!("send-keys -t @{} -l {}", window_id, quote(text)))
     }
 
     /// Capture pane contents
@@ -248,8 +249,7 @@ impl TmuxCommand {
 
     /// Set the tmux paste buffer
     pub fn set_buffer(content: &str) -> Self {
-        let escaped = content.replace('\'', "'\\''");
-        Self::new(format!("set-buffer '{}'", escaped))
+        Self::new(format!("set-buffer {}", quote(content)))
     }
 
     /// Get the tmux paste buffer
@@ -317,8 +317,7 @@ impl TmuxCommand {
     /// Allows specifying a custom format string for the status bar.
     /// Uses tmux format variables like #{session_name}, #{window_index}, etc.
     pub fn get_status_formatted(format: &str) -> Self {
-        let escaped = format.replace('\'', "'\\''");
-        Self::new(format!("display-message -p '{}'", escaped))
+        Self::new(format!("display-message -p {}", quote(format)))
     }
 
     // =========================================================================
@@ -382,5 +381,65 @@ mod tests {
     fn test_send_literal_strips_null_bytes() {
         let cmd = TmuxCommand::send_literal(2, "te\x00xt");
         assert_eq!(cmd.as_str(), "send-keys -t %2 -l 'text'");
+    }
+
+    /// A single-quote in a session/window name must not be able to close the
+    /// quoted region and turn the rest of the name into further tmux words.
+    #[test]
+    fn name_arguments_are_quoted() {
+        assert_eq!(
+            TmuxCommand::attach_session("it's mine").as_str(),
+            "attach-session -t 'it'\\''s mine'"
+        );
+        assert_eq!(
+            TmuxCommand::new_session(Some("a'; kill-server; '")).as_str(),
+            "new-session -d -s 'a'\\''; kill-server; '\\'''"
+        );
+        assert_eq!(
+            TmuxCommand::kill_session("it's mine").as_str(),
+            "kill-session -t 'it'\\''s mine'"
+        );
+        assert_eq!(
+            TmuxCommand::new_window(Some("it's mine")).as_str(),
+            "new-window -n 'it'\\''s mine'"
+        );
+        assert_eq!(
+            TmuxCommand::rename_window(3, "it's mine").as_str(),
+            "rename-window -t @3 'it'\\''s mine'"
+        );
+    }
+
+    #[test]
+    fn name_arguments_strip_null_bytes() {
+        assert_eq!(
+            TmuxCommand::attach_session("se\x00ss").as_str(),
+            "attach-session -t 'sess'"
+        );
+    }
+
+    /// Inside the quoted region every single-quote must be part of the `'\''`
+    /// idiom — a bare one would close the region early and expose the remainder
+    /// of the argument to tmux as further words.
+    #[test]
+    fn quoted_body_contains_no_bare_quote() {
+        for input in [
+            "plain",
+            "it's",
+            "''",
+            "a'b'c",
+            "'",
+            "\x00'",
+            "a'; kill-server",
+        ] {
+            let quoted = quote(input);
+            let body = quoted
+                .strip_prefix('\'')
+                .and_then(|s| s.strip_suffix('\''))
+                .unwrap_or_else(|| panic!("{input:?} produced an unwrapped argument: {quoted}"));
+            assert!(
+                !body.replace("'\\''", "").contains('\''),
+                "bare quote survived for {input:?}: {quoted}"
+            );
+        }
     }
 }
