@@ -122,6 +122,12 @@ impl SshHost {
     ///   command line into the user's shell;
     /// - a leading `-`, which `ssh` parses as a flag (`-oProxyCommand=...`)
     ///   even when the arguments are passed as argv.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`UnsafeSshComponent`] naming the first of the connection
+    /// target, user, identity file, or proxy jump host that contains a shell
+    /// metacharacter or begins with `-`. Fields that are `None` are skipped.
     pub fn validate_for_connect(&self) -> Result<(), UnsafeSshComponent> {
         let fields: [(&'static str, Option<&str>); 4] = [
             ("hostname", Some(self.connection_target())),
@@ -148,6 +154,12 @@ impl SshHost {
     /// rather than spawning `ssh` via argv, so every argument is validated and
     /// then quoted. Returns the command **without** a trailing newline; the
     /// caller appends one to submit it.
+    ///
+    /// # Errors
+    ///
+    /// Propagates [`Self::validate_for_connect`]: returns
+    /// [`UnsafeSshComponent`] when any host field is unsafe to place on a
+    /// command line. Quoting is only applied to already-validated values.
     pub fn ssh_command_line(&self) -> Result<String, UnsafeSshComponent> {
         self.validate_for_connect()?;
 

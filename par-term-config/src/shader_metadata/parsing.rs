@@ -88,6 +88,13 @@ pub fn parse_shader_metadata_from_file(path: &Path) -> Option<ShaderMetadata> {
 }
 
 /// Serialize shader metadata to a YAML string (without the comment wrapper).
+///
+/// # Errors
+///
+/// Propagates a `serde_yaml_ng` serialization failure. [`ShaderMetadata`] is
+/// built from strings, numbers, bools, sequences, and string-keyed maps, none
+/// of which YAML can fail to represent, so in practice this always returns
+/// `Ok`. The `Result` exists so a future field cannot silently panic here.
 pub fn serialize_metadata_to_yaml(metadata: &ShaderMetadata) -> Result<String, String> {
     serde_yaml_ng::to_string(metadata).map_err(|e| format!("Failed to serialize metadata: {}", e))
 }
@@ -96,6 +103,11 @@ pub fn serialize_metadata_to_yaml(metadata: &ShaderMetadata) -> Result<String, S
 ///
 /// # Returns
 /// The formatted metadata block including the `/*! par-term shader metadata ... */` wrapper
+///
+/// # Errors
+///
+/// Only propagates a failure from [`serialize_metadata_to_yaml`], which cannot
+/// fail for the current [`ShaderMetadata`] shape.
 pub fn format_metadata_block(metadata: &ShaderMetadata) -> Result<String, String> {
     let yaml = serialize_metadata_to_yaml(metadata)?;
     Ok(format!("{}\n{}\n*/", METADATA_MARKER, yaml.trim_end()))
@@ -105,6 +117,13 @@ pub fn format_metadata_block(metadata: &ShaderMetadata) -> Result<String, String
 ///
 /// If the shader already has a metadata block, it will be replaced.
 /// If not, the metadata block will be inserted at the beginning of the file.
+///
+/// # Errors
+///
+/// Only propagates a failure from [`format_metadata_block`], which cannot fail
+/// for the current [`ShaderMetadata`] shape. Malformed `source` is not an
+/// error: a marker with no closing `*/` is treated as "no existing block" and
+/// a fresh one is prepended.
 pub fn update_shader_metadata(source: &str, metadata: &ShaderMetadata) -> Result<String, String> {
     let new_block = format_metadata_block(metadata)?;
 
@@ -123,6 +142,12 @@ pub fn update_shader_metadata(source: &str, metadata: &ShaderMetadata) -> Result
 }
 
 /// Update metadata in a shader file.
+///
+/// # Errors
+///
+/// Returns an error if the shader file cannot be read or cannot be written
+/// back. The rewrite itself is performed by [`update_shader_metadata`], whose
+/// own error path is unreachable for the current [`ShaderMetadata`] shape.
 pub fn update_shader_metadata_file(path: &Path, metadata: &ShaderMetadata) -> Result<(), String> {
     let source = std::fs::read_to_string(path)
         .map_err(|e| format!("Failed to read shader file '{}': {}", path.display(), e))?;
@@ -176,6 +201,12 @@ pub fn parse_cursor_shader_metadata_from_file(path: &Path) -> Option<CursorShade
 }
 
 /// Serialize cursor shader metadata to a YAML string (without the comment wrapper).
+///
+/// # Errors
+///
+/// Propagates a `serde_yaml_ng` serialization failure. As with
+/// [`serialize_metadata_to_yaml`], every [`CursorShaderMetadata`] field has a
+/// valid YAML representation, so this always returns `Ok` in practice.
 pub fn serialize_cursor_metadata_to_yaml(
     metadata: &CursorShaderMetadata,
 ) -> Result<String, String> {
@@ -183,12 +214,23 @@ pub fn serialize_cursor_metadata_to_yaml(
 }
 
 /// Format cursor shader metadata as a complete comment block ready to insert into a shader.
+///
+/// # Errors
+///
+/// Only propagates a failure from [`serialize_cursor_metadata_to_yaml`], which
+/// cannot fail for the current [`CursorShaderMetadata`] shape.
 pub fn format_cursor_metadata_block(metadata: &CursorShaderMetadata) -> Result<String, String> {
     let yaml = serialize_cursor_metadata_to_yaml(metadata)?;
     Ok(format!("{}\n{}\n*/", METADATA_MARKER, yaml.trim_end()))
 }
 
 /// Update or insert cursor shader metadata in shader source code.
+///
+/// # Errors
+///
+/// Only propagates a failure from [`format_cursor_metadata_block`], which
+/// cannot fail for the current [`CursorShaderMetadata`] shape. A marker with no
+/// closing `*/` is treated as "no existing block" rather than an error.
 pub fn update_cursor_shader_metadata(
     source: &str,
     metadata: &CursorShaderMetadata,
@@ -210,6 +252,13 @@ pub fn update_cursor_shader_metadata(
 }
 
 /// Update cursor shader metadata in a shader file.
+///
+/// # Errors
+///
+/// Returns an error if the shader file cannot be read or cannot be written
+/// back. The rewrite itself is performed by [`update_cursor_shader_metadata`],
+/// whose own error path is unreachable for the current
+/// [`CursorShaderMetadata`] shape.
 pub fn update_cursor_shader_metadata_file(
     path: &Path,
     metadata: &CursorShaderMetadata,

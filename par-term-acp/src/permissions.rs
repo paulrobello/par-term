@@ -82,7 +82,7 @@ pub struct SafePaths {
 /// common path-traversal vectors (e.g. `/tmp/../etc/passwd`).
 ///
 /// The entire canonicalize-and-compare phase is serialised behind
-/// [`SAFE_PATH_CHECK_LOCK`] to prevent concurrent ACP permission checks from
+/// `SAFE_PATH_CHECK_LOCK` to prevent concurrent ACP permission checks from
 /// interleaving their own canonicalize/compare steps (application-level TOCTOU
 /// reduction).
 ///
@@ -94,7 +94,7 @@ pub struct SafePaths {
 /// boundary against a local adversary with write access to the safe roots.
 ///
 /// For a stronger guarantee, deploy par-term under an OS-level sandbox:
-/// macOS App Sandbox or Linux Landlock. See [`SAFE_PATH_CHECK_LOCK`] for
+/// macOS App Sandbox or Linux Landlock. See `SAFE_PATH_CHECK_LOCK` for
 /// details on how OS-level sandboxing complements the in-process check.
 pub fn is_safe_write_path(tool_call: &serde_json::Value, safe_paths: &SafePaths) -> bool {
     // Try to extract the path from various locations in the tool_call JSON.

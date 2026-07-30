@@ -61,6 +61,12 @@ pub fn coprocess_env() -> std::collections::HashMap<String, String> {
 
 impl TerminalManager {
     /// Spawn a shell in the terminal
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a process is already running on this PTY, if the
+    /// PTY cannot be opened, or if the user's shell cannot be executed — for
+    /// example a `$SHELL` that does not exist or is not executable.
     pub fn spawn_shell(&mut self) -> Result<()> {
         log::info!("Spawning shell in PTY");
         let mut pty = self.pty_session.lock();
@@ -70,6 +76,12 @@ impl TerminalManager {
     }
 
     /// Spawn a custom shell command in the terminal
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a process is already running on this PTY, if the
+    /// PTY cannot be opened, or if `command` cannot be executed — for example a
+    /// binary that is missing or not executable.
     pub fn spawn_custom_shell(&mut self, command: &str) -> Result<()> {
         log::info!("Spawning custom shell: {}", command);
         let mut pty = self.pty_session.lock();
@@ -80,6 +92,12 @@ impl TerminalManager {
     }
 
     /// Spawn a custom shell with arguments
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a process is already running on this PTY, if the
+    /// PTY cannot be opened, or if `command` cannot be executed — for example a
+    /// binary that is missing or not executable.
     pub fn spawn_custom_shell_with_args(&mut self, command: &str, args: &[String]) -> Result<()> {
         log::info!("Spawning custom shell: {} with args: {:?}", command, args);
         let mut pty = self.pty_session.lock();
@@ -90,6 +108,12 @@ impl TerminalManager {
     }
 
     /// Spawn shell with optional working directory and environment variables
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a process is already running on this PTY, if the
+    /// PTY cannot be opened, if `working_dir` cannot be entered (missing
+    /// directory or no permission), or if the shell cannot be executed.
     pub fn spawn_shell_with_dir(
         &mut self,
         working_dir: Option<&str>,
@@ -106,6 +130,12 @@ impl TerminalManager {
     }
 
     /// Spawn custom shell with args, optional working directory, and environment variables
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a process is already running on this PTY, if the
+    /// PTY cannot be opened, if `working_dir` cannot be entered (missing
+    /// directory or no permission), or if `command` cannot be executed.
     pub fn spawn_custom_shell_with_dir(
         &mut self,
         command: &str,
@@ -136,6 +166,11 @@ impl TerminalManager {
 
 impl TerminalManager {
     /// Write data to the PTY (send user input to shell)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the write to the PTY master fails — in practice
+    /// because the child has exited and the slave end is closed.
     pub fn write(&self, data: &[u8]) -> Result<()> {
         if !data.is_empty() {
             log::debug!(
@@ -151,6 +186,11 @@ impl TerminalManager {
     }
 
     /// Write string to the PTY
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the write to the PTY master fails — in practice
+    /// because the child has exited and the slave end is closed.
     pub fn write_str(&self, data: &str) -> Result<()> {
         let mut pty = self.pty_session.lock();
         pty.write_str(data)
@@ -167,6 +207,16 @@ impl TerminalManager {
     }
 
     /// Paste text to the terminal with proper bracketed paste handling.
+    ///
+    /// Newlines are converted to carriage returns. When the application has
+    /// enabled bracketed paste, the content is wrapped in the start/end
+    /// sequences. Empty `content` is a no-op.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any of the writes to the PTY fail — in practice
+    /// because the child has exited. A failure partway through can leave the
+    /// bracketed-paste start sequence sent without its matching end.
     pub fn paste(&self, content: &str) -> Result<()> {
         if content.is_empty() {
             return Ok(());
@@ -204,6 +254,16 @@ impl TerminalManager {
     }
 
     /// Paste text with a delay between lines.
+    ///
+    /// Sleeps `delay_ms` between lines so applications that echo slowly are not
+    /// overrun. Empty `content` is a no-op.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any of the writes to the PTY fail — in practice
+    /// because the child has exited. Because the writes are interleaved with
+    /// sleeps, a failure can leave a partially pasted buffer and an unmatched
+    /// bracketed-paste start sequence.
     pub async fn paste_with_delay(&self, content: &str, delay_ms: u64) -> Result<()> {
         if content.is_empty() {
             return Ok(());
@@ -268,6 +328,11 @@ impl TerminalManager {
 
 impl TerminalManager {
     /// Starts a coprocess subprocess attached to this terminal. Returns the assigned id.
+    ///
+    /// # Errors
+    ///
+    /// Returns the core coprocess manager's error message, most commonly a
+    /// failure to spawn the configured command.
     pub fn start_coprocess(
         &self,
         config: par_term_emu_core_rust::coprocess::CoprocessConfig,
@@ -277,6 +342,11 @@ impl TerminalManager {
     }
 
     /// Stops a running coprocess by id.
+    ///
+    /// # Errors
+    ///
+    /// Returns the core coprocess manager's error message, most commonly that
+    /// no coprocess is registered under `id`.
     pub fn stop_coprocess(
         &self,
         id: par_term_emu_core_rust::coprocess::CoprocessId,
@@ -295,6 +365,11 @@ impl TerminalManager {
     }
 
     /// Reads pending stdout lines from a coprocess.
+    ///
+    /// # Errors
+    ///
+    /// Returns the core coprocess manager's error message, most commonly that
+    /// no coprocess is registered under `id`.
     pub fn read_from_coprocess(
         &self,
         id: par_term_emu_core_rust::coprocess::CoprocessId,
@@ -310,6 +385,11 @@ impl TerminalManager {
     }
 
     /// Reads pending stderr lines from a coprocess.
+    ///
+    /// # Errors
+    ///
+    /// Returns the core coprocess manager's error message, most commonly that
+    /// no coprocess is registered under `id`.
     pub fn read_coprocess_errors(
         &self,
         id: par_term_emu_core_rust::coprocess::CoprocessId,

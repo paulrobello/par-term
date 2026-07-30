@@ -6,11 +6,11 @@
 //!
 //! # Sub-modules
 //!
-//! - [`case`] — case conversion (title, camel, pascal, snake, screaming snake, kebab)
-//! - [`encoding`] — Base64, URL, Hex, and JSON escape/unescape
-//! - [`sanitize`] — clipboard content sanitization (strip dangerous control chars)
-//! - [`shell`] — shell quoting and backslash escaping
-//! - [`whitespace`] — whitespace and newline normalization
+//! - `case` — case conversion (title, camel, pascal, snake, screaming snake, kebab)
+//! - `encoding` — Base64, URL, Hex, and JSON escape/unescape
+//! - `sanitize` — clipboard content sanitization (strip dangerous control chars)
+//! - `shell` — shell quoting and backslash escaping
+//! - `whitespace` — whitespace and newline normalization
 
 mod case;
 mod encoding;

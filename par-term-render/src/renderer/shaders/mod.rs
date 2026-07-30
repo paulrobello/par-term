@@ -9,9 +9,9 @@
 //!
 //! ## Sub-modules
 //!
-//! - [`background`] — init and `impl Renderer` methods for the background shader
-//! - [`cursor`] — init and `impl Renderer` methods for the cursor shader
-//! - [`shared`] — `impl Renderer` methods that update both renderers (mouse, cursor state, etc.)
+//! - `background` — init and `impl Renderer` methods for the background shader
+//! - `cursor` — init and `impl Renderer` methods for the cursor shader
+//! - `shared` — `impl Renderer` methods that update both renderers (mouse, cursor state, etc.)
 
 pub(super) mod background;
 pub(super) mod cursor;

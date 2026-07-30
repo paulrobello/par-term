@@ -67,7 +67,7 @@ pub mod watcher;
 /// re-exports everything for backward compatibility — nothing changes for
 /// existing `use par_term_config::X` paths.
 pub mod prelude {
-    /// Core config types: the main [`Config`] struct, error type, cell, theme, and color.
+    /// Core config types: the main [`crate::Config`] struct, error type, cell, theme, and color.
     ///
     /// These are the types most downstream crates need on every import.
     pub mod core {

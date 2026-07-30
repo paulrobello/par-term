@@ -4,7 +4,7 @@
 //! considerations and password redaction.
 //!
 //! Format-specific finalization (HTML headers/footers, asciicast serialization)
-//! lives in [`super::format_writers`].
+//! lives in `super::format_writers`.
 
 use crate::config::SessionLogFormat;
 use crate::session_logger::writers::{html_escape, strip_ansi_escapes};

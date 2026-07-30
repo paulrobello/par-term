@@ -36,6 +36,13 @@ struct RawShaderBundleManifest {
 
 impl ShaderBundleManifest {
     /// Parse a JSON manifest string and report all missing required fields together.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `input` is not valid JSON for the manifest schema,
+    /// or if any of `shader`, `name`, `author`, `description`, or `license` is
+    /// absent or blank. Missing fields are reported in a single message rather
+    /// than one at a time.
     pub fn from_json_str(input: &str) -> Result<Self, String> {
         let raw: RawShaderBundleManifest = serde_json::from_str(input)
             .map_err(|e| format!("parse shader bundle manifest: {e}"))?;
@@ -66,6 +73,13 @@ impl ShaderBundleManifest {
     }
 
     /// Validate required fields are present and non-empty.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error listing every blank field among `shader`, `name`,
+    /// `author`, `description`, and `license`. A manifest obtained from
+    /// [`Self::from_json_str`] always passes; this matters for manifests built
+    /// or mutated through the public fields.
     pub fn validate_required_fields(&self) -> Result<(), String> {
         let missing = missing_required_fields(
             Some(&self.shader),
@@ -85,6 +99,14 @@ impl ShaderBundleManifest {
     }
 
     /// Validate that manifest asset paths are relative to `bundle_dir` and exist.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if [`Self::validate_required_fields`] fails; if any
+    /// `shader`, `textures`, `cubemaps`, or `screenshot` entry is blank,
+    /// absolute, or contains a `..` component; if `shader` does not end in
+    /// `.glsl`; or if a referenced file (or any face of a cubemap) is not
+    /// present under `bundle_dir`.
     pub fn validate_paths(&self, bundle_dir: &Path) -> Result<(), String> {
         self.validate_required_fields()?;
 

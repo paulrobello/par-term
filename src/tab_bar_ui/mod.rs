@@ -4,14 +4,14 @@
 //!
 //! ## Module layout
 //!
-//! - [`state`]: `TabBarUI` struct definition and constructor.
-//! - [`horizontal`]: Horizontal layout rendering (`render_horizontal`).
-//! - [`context_menu`]: Right-click context menu (rename, color, icon, duplicate, close).
-//! - [`drag_drop`]: Drag-and-drop state and rendering for tab reordering.
-//! - [`profile_menu`]: Profile selection popup for the new-tab chevron button.
-//! - [`tab_rendering`]: Vertical tab rendering and shared params/helpers.
-//! - [`tab_painter`]: Horizontal per-tab painting (`render_tab_with_width`).
-//! - [`title_utils`]: HTML title parsing, emoji sanitization, and styled segment rendering.
+//! - `state`: `TabBarUI` struct definition and constructor.
+//! - `horizontal`: Horizontal layout rendering (`render_horizontal`).
+//! - `context_menu`: Right-click context menu (rename, color, icon, duplicate, close).
+//! - `drag_drop`: Drag-and-drop state and rendering for tab reordering.
+//! - `profile_menu`: Profile selection popup for the new-tab chevron button.
+//! - `tab_rendering`: Vertical tab rendering and shared params/helpers.
+//! - `tab_painter`: Horizontal per-tab painting (`render_tab_with_width`).
+//! - `title_utils`: HTML title parsing, emoji sanitization, and styled segment rendering.
 
 mod context_menu;
 mod drag_drop;

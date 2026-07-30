@@ -40,6 +40,12 @@ impl InputHandler {
     }
 
     /// Copy text to clipboard
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if no clipboard could be opened when the handler was
+    /// constructed (common on headless systems), or if the platform rejects the
+    /// write.
     pub fn copy_to_clipboard(&mut self, text: &str) -> Result<(), String> {
         if let Some(ref mut clipboard) = self.clipboard {
             clipboard
@@ -51,6 +57,11 @@ impl InputHandler {
     }
 
     /// Copy text to primary selection (Linux X11 only)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if no clipboard could be opened when the handler was
+    /// constructed, or if the X11 primary selection rejects the write.
     #[cfg(target_os = "linux")]
     pub fn copy_to_primary_selection(&mut self, text: &str) -> Result<(), String> {
         use arboard::SetExtLinux;
@@ -94,6 +105,11 @@ impl InputHandler {
     }
 
     /// Fallback for non-Linux platforms - copy to primary selection not supported
+    ///
+    /// # Errors
+    ///
+    /// Never returns `Err` — there is no primary selection off Linux, so this
+    /// silently does nothing. The signature matches the Linux variant.
     #[cfg(not(target_os = "linux"))]
     pub fn copy_to_primary_selection(&mut self, _text: &str) -> Result<(), String> {
         Ok(()) // No-op on non-Linux platforms

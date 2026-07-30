@@ -23,7 +23,7 @@ use par_term_config::Config;
 /// Computes the legacy location (`dirs::config_dir().join("par-term")`) and, when
 /// it differs from `Config::config_dir()`, moves any entries present there but
 /// absent in the canonical location. Existing canonical files are never
-/// overwritten and failures never abort startup; see [`migrate_between`].
+/// overwritten and failures never abort startup; see `migrate_between`.
 pub fn migrate_legacy_config_dir() {
     let canonical = Config::config_dir();
     for legacy in legacy_config_dirs(&canonical) {

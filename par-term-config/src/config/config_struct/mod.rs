@@ -5,17 +5,17 @@
 //!
 //! # Sub-modules
 //!
-//! - [`default_impl`] — `impl Default for Config`
-//! - [`copy_mode_config`] — [`CopyModeConfig`]: vi-style copy mode settings
-//! - [`cursor_config`] — [`CursorConfig`]: cursor style, blink, color, locks, guide, shadow, boost, unfocused
-//! - [`global_shader_config`] — [`GlobalShaderConfig`]: all `custom_shader_*` and `cursor_shader_*` fields
-//! - [`mouse_config`] — [`MouseConfig`]: scroll speed, click thresholds, option-click, focus-follows-mouse
-//! - [`search_config`] — [`SearchConfig`]: search highlight and options
-//! - [`ssh_config`] — [`SshConfig`]: SSH discovery and profile switching
-//! - [`unicode_config`] — [`UnicodeConfig`]: Unicode width and normalization
-//! - [`notification_config`] — [`NotificationConfig`]: bell, activity/silence alerts, anti-idle
-//! - [`scrollback_config`] — [`ScrollbackConfig`]: scrollback buffer size
-//! - [`update`] — [`UpdateConfig`]: automatic update checking
+//! - `default_impl` — `impl Default for Config`
+//! - `copy_mode_config` — [`CopyModeConfig`]: vi-style copy mode settings
+//! - `cursor_config` — [`CursorConfig`]: cursor style, blink, color, locks, guide, shadow, boost, unfocused
+//! - `global_shader_config` — [`GlobalShaderConfig`]: all `custom_shader_*` and `cursor_shader_*` fields
+//! - `mouse_config` — [`MouseConfig`]: scroll speed, click thresholds, option-click, focus-follows-mouse
+//! - `search_config` — [`SearchConfig`]: search highlight and options
+//! - `ssh_config` — [`SshConfig`]: SSH discovery and profile switching
+//! - `unicode_config` — [`UnicodeConfig`]: Unicode width and normalization
+//! - `notification_config` — [`NotificationConfig`]: bell, activity/silence alerts, anti-idle
+//! - `scrollback_config` — [`ScrollbackConfig`]: scrollback buffer size
+//! - `update` — [`UpdateConfig`]: automatic update checking
 //!
 //! # Splitting Strategy
 //!
@@ -1504,7 +1504,7 @@ pub struct Config {
     /// Names of triggers that have `prompt_before_run: false` with dangerous
     /// actions (`RunCommand` or `SendText`).
     ///
-    /// Populated by [`Config::warn_insecure_triggers`] during config load.
+    /// Populated by `Config::warn_insecure_triggers` during config load.
     /// The UI reads this list to display a persistent visual warning banner
     /// so users are aware of the reduced security posture.
     ///

@@ -78,7 +78,7 @@ impl Config {
     /// Generate keybindings for snippets and actions that have keybindings configured.
     ///
     /// This method adds or updates keybindings for snippets and actions in the keybindings list,
-    /// using the format "snippet:<id>" for snippets and "action:<id>" for actions.
+    /// using the format `snippet:<id>` for snippets and `action:<id>` for actions.
     /// If a keybinding for a snippet/action already exists, it will be updated with the new key.
     pub fn generate_snippet_action_keybindings(&mut self) {
         use crate::config::KeyBinding;

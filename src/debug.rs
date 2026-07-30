@@ -429,7 +429,7 @@ pub fn record_try_lock_failure(site: &str) {
 /// Return the current lifetime total of `try_lock()` failures.
 ///
 /// Intended for periodic telemetry reporting (e.g., once per second in
-/// [`about_to_wait`][`crate::app::handler::window_state_impl::about_to_wait`]).
+/// `about_to_wait` in `crate::app::handler::window_state_impl`).
 #[inline]
 pub fn try_lock_failure_count() -> u64 {
     TRY_LOCK_FAILURE_COUNT.load(std::sync::atomic::Ordering::Relaxed)

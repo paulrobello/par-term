@@ -28,6 +28,7 @@ mod real {
     }
 
     impl MdnsDiscovery {
+        /// Create an idle discovery handle with no results and no scan running.
         pub fn new() -> Self {
             Self {
                 discovered: Vec::new(),
@@ -318,6 +319,7 @@ mod stub {
     }
 
     impl MdnsDiscovery {
+        /// Create the stub handle; it never discovers anything.
         pub fn new() -> Self {
             Self { _private: () }
         }

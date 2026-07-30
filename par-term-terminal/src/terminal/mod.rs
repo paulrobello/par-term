@@ -67,11 +67,24 @@ pub struct TerminalManager {
 
 impl TerminalManager {
     /// Create a new terminal manager with the specified dimensions
+    ///
+    /// Uses a default scrollback of 10,000 lines. No shell is spawned yet; call
+    /// one of the `spawn_*` methods afterwards.
+    ///
+    /// # Errors
+    ///
+    /// Never returns `Err` — constructing the session allocates only. The
+    /// `Result` is kept so the constructor can start failing without a breaking
+    /// signature change.
     pub fn new(cols: usize, rows: usize) -> Result<Self> {
         Self::new_with_scrollback(cols, rows, 10000)
     }
 
     /// Create a new terminal manager with specified dimensions and scrollback size
+    ///
+    /// # Errors
+    ///
+    /// Never returns `Err` — see [`Self::new`].
     pub fn new_with_scrollback(cols: usize, rows: usize, scrollback_size: usize) -> Result<Self> {
         log::info!(
             "Creating terminal with dimensions: {}x{}, scrollback: {}",
@@ -108,12 +121,23 @@ impl TerminalManager {
     }
 
     /// Get the terminal content as a string
+    ///
+    /// # Errors
+    ///
+    /// Never returns `Err` — the content is read straight out of the in-memory
+    /// screen buffer.
     pub fn content(&self) -> Result<String> {
         let pty = self.pty_session.lock();
         Ok(pty.content())
     }
 
     /// Resize the terminal
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the PTY resize ioctl fails — typically because the
+    /// PTY has already been closed. `self.dimensions` is only updated on
+    /// success.
     pub fn resize(&mut self, cols: usize, rows: usize) -> Result<()> {
         log::info!("Resizing terminal to: {}x{}", cols, rows);
 
@@ -126,6 +150,12 @@ impl TerminalManager {
     }
 
     /// Resize the terminal with pixel dimensions
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the PTY resize ioctl fails — typically because the
+    /// PTY has already been closed. `self.dimensions` is only updated on
+    /// success.
     pub fn resize_with_pixels(
         &mut self,
         cols: usize,
@@ -150,6 +180,13 @@ impl TerminalManager {
     }
 
     /// Set pixel dimensions for XTWINOPS CSI 14 t query support
+    ///
+    /// Records the size for reporting only; it does not resize the PTY. Use
+    /// [`Self::resize_with_pixels`] for that.
+    ///
+    /// # Errors
+    ///
+    /// Never returns `Err` — this only stores the values on the terminal.
     pub fn set_pixel_size(&mut self, width_px: usize, height_px: usize) -> Result<()> {
         let pty = self.pty_session.lock();
         let term_arc = pty.terminal();
@@ -181,6 +218,11 @@ impl TerminalManager {
     }
 
     /// Kill the PTY process
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if no shell has been spawned on this PTY yet, or if
+    /// signalling the child process fails.
     pub fn kill(&mut self) -> Result<()> {
         let mut pty = self.pty_session.lock();
         pty.kill()
@@ -210,6 +252,15 @@ impl TerminalManager {
     }
 
     /// Take a screenshot of the terminal and save to file
+    ///
+    /// `format` is matched case-insensitively against `png`, `jpeg`/`jpg`, and
+    /// `svg`; an unrecognised value logs a warning and falls back to PNG rather
+    /// than failing.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if rendering the screenshot or writing it to `path`
+    /// fails — for example a missing parent directory or a permission denial.
     pub fn screenshot_to_file(
         &self,
         path: &std::path::Path,
@@ -273,6 +324,15 @@ impl TerminalManager {
     }
 
     /// Export recording to file (asciicast or JSON format)
+    ///
+    /// `format` is matched case-insensitively; `json` selects the JSON encoder
+    /// and anything else falls back to asciicast rather than failing.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if writing `path` fails — for example a missing parent
+    /// directory or a permission denial. Serializing the recording itself
+    /// cannot fail.
     pub fn export_recording_to_file(
         &self,
         session: &par_term_emu_core_rust::terminal::RecordingSession,

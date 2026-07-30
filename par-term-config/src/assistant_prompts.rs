@@ -53,10 +53,27 @@ pub fn assistant_prompts_dir() -> PathBuf {
     Config::config_dir().join(PROMPT_DIR_NAME)
 }
 
+/// List every saved Assistant prompt from the default prompts directory,
+/// sorted case-insensitively by title.
+///
+/// # Errors
+///
+/// Returns an error if the prompts directory cannot be created or read. See
+/// [`list_prompts_in_dir`] — individual unreadable or malformed `.md` files are
+/// logged and skipped rather than failing the call.
 pub fn list_prompts() -> Result<Vec<AssistantPrompt>, String> {
     list_prompts_in_dir(&assistant_prompts_dir())
 }
 
+/// List saved Assistant prompts from `dir`, sorted case-insensitively by title.
+///
+/// Only `.md` regular files are considered. Entries that are unreadable, are
+/// not regular files, or fail to parse are logged and skipped.
+///
+/// # Errors
+///
+/// Returns an error if `dir` cannot be created, if it cannot be enumerated, or
+/// if reading a directory entry fails.
 pub fn list_prompts_in_dir(dir: &Path) -> Result<Vec<AssistantPrompt>, String> {
     fs::create_dir_all(dir).map_err(|e| format!("create prompt directory: {e}"))?;
     let mut prompts = Vec::new();
@@ -103,6 +120,16 @@ pub fn list_prompts_in_dir(dir: &Path) -> Result<Vec<AssistantPrompt>, String> {
     Ok(prompts)
 }
 
+/// Save `draft` into the default prompts directory.
+///
+/// When `existing_path` is `Some`, that file is overwritten; otherwise a new
+/// file is created from a slug of the title, suffixed to avoid collisions.
+///
+/// # Errors
+///
+/// Returns an error if the draft's title or body is blank, if the prompts
+/// directory cannot be created, if the frontmatter cannot be serialized, or if
+/// writing the file fails.
 pub fn save_prompt(
     existing_path: Option<&Path>,
     draft: &AssistantPromptDraft,
@@ -110,6 +137,13 @@ pub fn save_prompt(
     save_prompt_in_dir(&assistant_prompts_dir(), existing_path, draft)
 }
 
+/// Save `draft` into `dir`, returning the stored prompt with its final path.
+///
+/// # Errors
+///
+/// Returns an error if the draft's title or body is blank, if `dir` cannot be
+/// created, if the frontmatter cannot be serialized, or if writing the file
+/// fails.
 pub fn save_prompt_in_dir(
     dir: &Path,
     existing_path: Option<&Path>,
@@ -133,10 +167,26 @@ pub fn save_prompt_in_dir(
     })
 }
 
+/// Delete the prompt file at `path`.
+///
+/// # Errors
+///
+/// Returns an error if the file cannot be removed — most commonly because it
+/// does not exist or the process lacks permission.
 pub fn delete_prompt(path: &Path) -> Result<(), String> {
     fs::remove_file(path).map_err(|e| format!("delete prompt file {}: {e}", path.display()))
 }
 
+/// Parse a prompt file's markdown into a draft.
+///
+/// Expects a leading YAML frontmatter block delimited by `---` lines (a UTF-8
+/// BOM and CRLF line endings are both tolerated), followed by the prompt body.
+///
+/// # Errors
+///
+/// Returns an error if the opening or closing `---` delimiter is missing, if
+/// the frontmatter is not valid YAML with exactly the `title` and `auto_submit`
+/// keys, or if the resulting title or body is blank.
 pub fn parse_prompt_markdown(input: &str) -> Result<AssistantPromptDraft, String> {
     let input = input.strip_prefix('\u{feff}').unwrap_or(input);
     let rest = input
@@ -161,6 +211,13 @@ pub fn parse_prompt_markdown(input: &str) -> Result<AssistantPromptDraft, String
     Ok(draft)
 }
 
+/// Render `draft` as a prompt file: YAML frontmatter followed by the body.
+///
+/// # Errors
+///
+/// Returns an error if the draft's title or body is blank. Serialization of the
+/// frontmatter is also checked, but a `title`/`auto_submit` pair has no YAML
+/// representation that can fail.
 pub fn serialize_prompt_markdown(draft: &AssistantPromptDraft) -> Result<String, String> {
     validate_draft(draft)?;
     let metadata = AssistantPromptMetadata {

@@ -3,6 +3,8 @@
 //! Provides SSH config parsing, known_hosts scanning, shell history extraction,
 //! and mDNS/Bonjour discovery for SSH hosts.
 
+#![warn(missing_docs)]
+
 pub mod config_parser;
 pub mod discovery;
 pub mod history;

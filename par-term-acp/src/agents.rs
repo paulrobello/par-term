@@ -162,7 +162,7 @@ const KNOWN_SHELLS: &[&str] = &[
 
 /// Validate that `shell_path` is an acceptable shell binary.
 ///
-/// Returns `true` when the **basename** of `shell_path` is in [`KNOWN_SHELLS`].
+/// Returns `true` when the **basename** of `shell_path` is in `KNOWN_SHELLS`.
 /// The full path may be absolute or relative; only the last component is checked.
 ///
 /// # Security
@@ -193,7 +193,7 @@ pub fn is_known_shell(shell_path: &str) -> bool {
 ///
 /// # Security
 ///
-/// The value of `$SHELL` is validated against [`KNOWN_SHELLS`] before use.
+/// The value of `$SHELL` is validated against `KNOWN_SHELLS` before use.
 /// If the value is absent, empty, or not in the allowlist, `/bin/sh` is used
 /// as a safe fallback. This prevents a tampered environment variable from
 /// causing an arbitrary binary to be executed.

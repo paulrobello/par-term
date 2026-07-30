@@ -17,6 +17,16 @@ use std::path::PathBuf;
 
 impl Config {
     /// Load configuration from file or create default
+    ///
+    /// When no config file exists, a default one is written to disk and
+    /// returned.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the config file resolves outside the config
+    /// directory (a redirected symlink), if it cannot be read, if it is not
+    /// valid YAML for the [`Config`] schema, or — on the first-run path — if
+    /// writing the default config fails.
     pub fn load() -> Result<Self> {
         let config_path = Self::config_path();
         log::info!("Config path: {:?}", config_path);
@@ -124,6 +134,16 @@ impl Config {
     }
 
     /// Save configuration to file
+    ///
+    /// Writes to a `0600` temp file and renames it over the real config so a
+    /// crash mid-write cannot corrupt it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the config directory cannot be created, if the
+    /// config cannot be serialized to YAML, or if writing or renaming the temp
+    /// file fails. Re-applying the final `0600` permission bits is best-effort
+    /// and its failure is ignored.
     pub fn save(&self) -> Result<()> {
         let config_path = Self::config_path();
 
@@ -430,6 +450,15 @@ impl Config {
     }
 
     /// Save the last working directory to state file
+    ///
+    /// Updates `self.last_working_directory` and persists it to `state.yaml`
+    /// via a temp-file-and-rename, so the value survives across sessions.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the state directory cannot be created, if the state
+    /// cannot be serialized to YAML, or if writing or renaming the temp file
+    /// fails. The in-memory field is updated before any of these can fail.
     pub fn save_last_working_directory(&mut self, directory: &str) -> Result<()> {
         self.last_working_directory = Some(directory.to_string());
 

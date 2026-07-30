@@ -1,10 +1,10 @@
 //! Native menu support for par-term
 //!
 //! This module provides cross-platform native menu support using the `muda` crate.
-//! - macOS: Global application menu bar (see [`macos`])
+//! - macOS: Global application menu bar (see `macos`)
 //! - Windows: Per-window Win32 menu bar
 //! - Linux: **no menu bar** — the menu is built but never attached, because
-//!   muda needs a `gtk::Window` that winit does not create (see [`linux`])
+//!   muda needs a `gtk::Window` that winit does not create (see `linux`)
 
 mod actions;
 
@@ -432,7 +432,7 @@ impl MenuManager {
     /// — before any blocking GPU initialization — so that our custom accelerators
     /// (Cmd+, for Settings, Cmd+Q for graceful Quit) are active immediately.
     ///
-    /// On other platforms this is a no-op; use [`init_for_window`] to attach
+    /// On other platforms this is a no-op; use [`Self::init_for_window`] to attach
     /// per-window menu bars.
     pub fn init_global(&self) -> Result<()> {
         #[cfg(target_os = "macos")]

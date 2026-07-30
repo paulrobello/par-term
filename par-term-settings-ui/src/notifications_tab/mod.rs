@@ -3,11 +3,11 @@
 //! Consolidates: bell_tab (expanded)
 //!
 //! Contains:
-//! - [`bell`]: Visual bell, audio bell volume, and desktop notifications
-//! - [`activity`]: Activity, silence, and session notification settings
-//! - [`alert_sounds`]: Per-event sound configuration
-//! - [`behavior`]: Suppress-when-focused, buffer size, and test notification
-//! - [`anti_idle`]: Anti-idle keep-alive settings
+//! - `bell`: Visual bell, audio bell volume, and desktop notifications
+//! - `activity`: Activity, silence, and session notification settings
+//! - `alert_sounds`: Per-event sound configuration
+//! - `behavior`: Suppress-when-focused, buffer size, and test notification
+//! - `anti_idle`: Anti-idle keep-alive settings
 
 mod activity;
 mod alert_sounds;

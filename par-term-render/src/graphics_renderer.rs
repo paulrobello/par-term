@@ -578,7 +578,7 @@ impl GraphicsRenderer {
 
     /// Render sixel graphics for a specific pane using explicit origin coordinates.
     ///
-    /// Identical to [`render`] but uses `pane_origin_x`/`pane_origin_y` for positioning
+    /// Identical to [`Self::render`] but uses `pane_origin_x`/`pane_origin_y` for positioning
     /// instead of the global `window_padding + content_offset` values, so graphics are
     /// placed relative to the pane rather than the full window.
     ///

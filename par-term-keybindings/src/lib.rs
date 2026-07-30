@@ -8,6 +8,8 @@
 //! - Modifier remapping (swap Ctrl and Super, etc.)
 //! - Physical key support for language-agnostic bindings
 
+#![warn(missing_docs)]
+
 mod matcher;
 pub mod parser;
 pub mod platform;

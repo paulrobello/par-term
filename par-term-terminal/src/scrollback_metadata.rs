@@ -51,7 +51,7 @@ impl CommandSnapshot {
 
 /// Metadata for displaying timing and command information for a specific scrollback line.
 ///
-/// Returned by [`ScrollbackMetadata::get_line_metadata`] to let the renderer
+/// Returned by [`ScrollbackMetadata::metadata_for_line`] to let the renderer
 /// annotate prompt lines with exit codes, durations, and command text.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LineMetadata {

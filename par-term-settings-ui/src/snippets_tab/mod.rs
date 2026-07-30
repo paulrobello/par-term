@@ -1,10 +1,10 @@
 //! Snippets & Actions settings tab.
 //!
 //! Contains:
-//! - [`list`]: Snippet list rendering grouped by folder, with edit/delete/toggle actions
-//! - [`editor`]: Snippet edit form with variable substitution support
-//! - [`io`]: Import/export functionality (YAML)
-//! - [`variables_reference`]: Built-in variable documentation panel
+//! - `list`: Snippet list rendering grouped by folder, with edit/delete/toggle actions
+//! - `editor`: Snippet edit form with variable substitution support
+//! - `io`: Import/export functionality (YAML)
+//! - `variables_reference`: Built-in variable documentation panel
 //! - Custom actions (shell commands, text insertion, key sequences) — absorbed from actions_tab
 
 mod editor;

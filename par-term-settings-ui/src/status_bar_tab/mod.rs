@@ -1,12 +1,12 @@
 //! Status bar settings tab.
 //!
 //! Contains:
-//! - [`general`]: Enable/disable, position, height
-//! - [`styling`]: Colors, font size, separator
-//! - [`auto_hide`]: Fullscreen and mouse-inactivity auto-hide
-//! - [`widget_options`]: Time format, git status display
-//! - [`poll_intervals`]: System monitor and git branch poll rates
-//! - [`widgets`]: Three-column widget layout with toggle/reorder/move controls
+//! - `general`: Enable/disable, position, height
+//! - `styling`: Colors, font size, separator
+//! - `auto_hide`: Fullscreen and mouse-inactivity auto-hide
+//! - `widget_options`: Time format, git status display
+//! - `poll_intervals`: System monitor and git branch poll rates
+//! - `widgets`: Three-column widget layout with toggle/reorder/move controls
 
 mod auto_hide;
 mod general;

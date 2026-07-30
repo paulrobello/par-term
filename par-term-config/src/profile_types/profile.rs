@@ -93,7 +93,7 @@ pub struct Profile {
     pub tmux_session_patterns: Vec<String>,
 
     /// tmux session to auto-connect to when this profile is opened.
-    /// Uses create-or-attach semantics (tmux new-session -A -s <name>).
+    /// Uses create-or-attach semantics (`tmux new-session -A -s <name>`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tmux_session_name: Option<String>,
 

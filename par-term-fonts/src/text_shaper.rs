@@ -1,32 +1,33 @@
-/// Text shaping module using HarfBuzz via rustybuzz
-///
-/// This module provides text shaping capabilities for:
-/// - Ligatures (fi, fl, ffi, ffl, etc.)
-/// - Complex emoji sequences (flags, skin tones, ZWJ sequences)
-/// - Complex scripts (Arabic, Devanagari, etc.)
-/// - Bidirectional text (RTL languages)
-/// - Kerning and contextual alternates
-///
-/// # Architecture
-///
-/// The text shaping pipeline:
-/// 1. Grapheme cluster detection (unicode-segmentation)
-/// 2. Script and direction detection (unicode-bidi)
-/// 3. Font feature selection (based on script/language)
-/// 4. Text shaping (rustybuzz)
-/// 5. Glyph positioning and advances
-/// 6. Result caching for performance
-///
-/// # Usage
-///
-/// ```ignore
-/// let shaper = TextShaper::new();
-/// let shaped = shaper.shape_text(
-///     "Hello 🇺🇸 world",
-///     &font,
-///     ShapingOptions::default()
-/// );
-/// ```
+//! Text shaping module using HarfBuzz via rustybuzz
+//!
+//! This module provides text shaping capabilities for:
+//! - Ligatures (fi, fl, ffi, ffl, etc.)
+//! - Complex emoji sequences (flags, skin tones, ZWJ sequences)
+//! - Complex scripts (Arabic, Devanagari, etc.)
+//! - Bidirectional text (RTL languages)
+//! - Kerning and contextual alternates
+//!
+//! # Architecture
+//!
+//! The text shaping pipeline:
+//! 1. Grapheme cluster detection (unicode-segmentation)
+//! 2. Script and direction detection (unicode-bidi)
+//! 3. Font feature selection (based on script/language)
+//! 4. Text shaping (rustybuzz)
+//! 5. Glyph positioning and advances
+//! 6. Result caching for performance
+//!
+//! # Usage
+//!
+//! ```ignore
+//! let shaper = TextShaper::new();
+//! let shaped = shaper.shape_text(
+//!     "Hello 🇺🇸 world",
+//!     &font,
+//!     ShapingOptions::default()
+//! );
+//! ```
+
 use lru::LruCache;
 use rustybuzz::{Face, Feature, GlyphBuffer, Language, Script, UnicodeBuffer};
 use std::num::NonZeroUsize;

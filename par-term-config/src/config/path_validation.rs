@@ -131,6 +131,12 @@ impl Config {
     ///
     /// This is a strict variant of [`Self::shader_path`] for callers that
     /// prefer a hard error over a silent fallback.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConfigError::PathTraversal`] when a relative `shader_name`
+    /// contains a `..` component. Absolute paths are returned unchanged and are
+    /// never rejected — the caller is trusted to have vetted them.
     pub fn checked_shader_path(shader_name: &str) -> Result<PathBuf, ConfigError> {
         let path = PathBuf::from(shader_name);
         if path.is_absolute() {

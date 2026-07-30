@@ -23,10 +23,28 @@ pub fn assistant_input_history_path() -> PathBuf {
     Config::config_dir().join(INPUT_HISTORY_FILE_NAME)
 }
 
+/// Load the persisted Assistant input history, newest entry first.
+///
+/// A missing or empty history file yields an empty list rather than an error.
+///
+/// # Errors
+///
+/// Returns an error if the history file exists but cannot be read (any I/O
+/// failure other than "not found"), or if its contents are not valid YAML for
+/// the history schema.
 pub fn load_assistant_input_history() -> Result<Vec<String>, String> {
     load_assistant_input_history_from_path(&assistant_input_history_path())
 }
 
+/// Persist `entries` as the Assistant input history.
+///
+/// Entries are trimmed, de-duplicated, and truncated to
+/// [`MAX_ASSISTANT_INPUT_HISTORY_ENTRIES`] before writing.
+///
+/// # Errors
+///
+/// Returns an error if the config directory cannot be created, if the history
+/// cannot be serialized to YAML, or if writing the file fails.
 pub fn save_assistant_input_history(entries: &[String]) -> Result<(), String> {
     save_assistant_input_history_to_path(&assistant_input_history_path(), entries)
 }

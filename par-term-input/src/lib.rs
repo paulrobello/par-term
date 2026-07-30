@@ -14,12 +14,14 @@
 //! The implementation is split across three `impl InputHandler` modules that
 //! share the same struct defined here:
 //!
-//! - [`modifiers`] — shift/ctrl/alt/super tracking + Option/Alt key modes
-//! - [`key_encoding`] — VT byte sequence generation (character, named,
+//! - `modifiers` — shift/ctrl/alt/super tracking + Option/Alt key modes
+//! - `key_encoding` — VT byte sequence generation (character, named,
 //!   function keys, modifyOtherKeys)
-//! - [`clipboard`] — paste/copy and X11 primary selection
+//! - `clipboard` — paste/copy and X11 primary selection
 //!
 //! The split is purely organizational; the public API is unchanged.
+
+#![warn(missing_docs)]
 
 use arboard::Clipboard;
 use winit::event::{ElementState, KeyEvent, Modifiers};
@@ -70,6 +72,7 @@ impl From<&KeyEvent> for KeyInput {
 
 /// Input handler for converting winit events to terminal input
 pub struct InputHandler {
+    /// Latest modifier state reported by winit, consulted on every key encode.
     pub modifiers: Modifiers,
     clipboard: Option<Clipboard>,
     /// Option key mode for left Option/Alt key

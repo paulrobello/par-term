@@ -10,7 +10,7 @@ impl TerminalManager {
         term.get_all_hyperlinks()
     }
 
-    /// Non-blocking variant of [`get_all_hyperlinks`].
+    /// Non-blocking variant of [`Self::get_all_hyperlinks`].
     ///
     /// Uses `try_lock()` on the internal mutexes. Returns `None` when either
     /// lock is held (e.g., by the PTY reader), allowing the caller to keep

@@ -67,6 +67,14 @@ impl FontManager {
     /// * `italic_family` - Italic font family name (optional)
     /// * `bold_italic_family` - Bold italic font family name (optional)
     /// * `font_ranges` - Unicode range-specific font mappings
+    ///
+    /// # Errors
+    ///
+    /// Returns an error only if the embedded DejaVu Sans Mono fails to parse.
+    /// A `primary_family` that is absent or not installed is not an error — it
+    /// is logged and the embedded font is used instead. The bold, italic,
+    /// bold-italic, range, and fallback fonts are likewise best-effort: a
+    /// family that cannot be found is logged and omitted.
     pub fn new(
         primary_family: Option<&str>,
         bold_family: Option<&str>,

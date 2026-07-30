@@ -275,7 +275,7 @@ impl Renderer {
     /// Shares the same texture cache as the global path so textures are never duplicated.
     ///
     /// Returns a `Vec` of [`GraphicRenderInfo`] ready to pass to
-    /// [`GraphicsRenderer::render_for_pane`].
+    /// [`crate::graphics_renderer::GraphicsRenderer::render_for_pane`].
     pub fn update_pane_graphics(
         &mut self,
         graphics: &[par_term_emu_core_rust::graphics::TerminalGraphic],

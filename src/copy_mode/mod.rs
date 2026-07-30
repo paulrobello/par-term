@@ -6,11 +6,11 @@
 //!
 //! ## Module layout
 //!
-//! - [`types`]: All type and struct definitions (`CopyModeState`, `VisualMode`, etc.)
-//! - [`cursor`]: Cursor movement methods (basic motions, page motions, viewport helpers)
-//! - [`motion`]: Word and line navigation helpers (`move_word_forward`, etc.)
-//! - [`visual`]: Visual mode and selection methods (`toggle_visual_*`, `compute_selection`)
-//! - [`search`]: Search state methods (`start_search`, `search_input`, etc.)
+//! - `types`: All type and struct definitions (`CopyModeState`, `VisualMode`, etc.)
+//! - `cursor`: Cursor movement methods (basic motions, page motions, viewport helpers)
+//! - `motion`: Word and line navigation helpers (`move_word_forward`, etc.)
+//! - `visual`: Visual mode and selection methods (`toggle_visual_*`, `compute_selection`)
+//! - `search`: Search state methods (`start_search`, `search_input`, etc.)
 
 mod cursor;
 mod motion;

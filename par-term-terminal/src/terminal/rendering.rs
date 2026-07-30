@@ -20,7 +20,7 @@ pub(crate) struct RowRenderContext<'a> {
 }
 
 impl TerminalManager {
-    /// Non-blocking variant of [`get_cells_with_scrollback`].
+    /// Non-blocking variant of [`Self::get_cells_with_scrollback`].
     ///
     /// Uses `try_lock()` on the internal `PtySession` and `Terminal` mutexes
     /// instead of blocking `lock()`.  Returns `None` when either lock is held
@@ -119,7 +119,7 @@ impl TerminalManager {
     /// a URL split across a wrap is detected as one link rather than a truncated
     /// per-row fragment.
     ///
-    /// Mirrors the line iteration in [`try_get_cells_with_scrollback`] so the
+    /// Mirrors the line iteration in [`Self::try_get_cells_with_scrollback`] so the
     /// scrollback-vs-screen wrap resolution matches exactly. Non-blocking: on
     /// lock contention returns an empty `Vec` (URL detection then falls back to
     /// per-row behaviour for that frame).

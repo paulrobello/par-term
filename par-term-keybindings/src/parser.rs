@@ -1,7 +1,7 @@
 //! Key combination parser.
 //!
 //! Parses human-readable key strings like "Ctrl+Shift+B" into KeyCombo structs.
-//! Also supports physical key codes for language-agnostic bindings (e.g., "Ctrl+[KeyZ]").
+//! Also supports physical key codes for language-agnostic bindings (e.g., `Ctrl+[KeyZ]`).
 
 use crate::platform;
 use std::fmt;
@@ -99,6 +99,12 @@ pub enum ParsedKey {
 /// Keys:
 /// - Single characters: `A`, `B`, `1`, etc.
 /// - Named keys: `F1`-`F12`, `Enter`, `Escape`, `Space`, `Tab`, etc.
+///
+/// # Errors
+///
+/// Returns a [`ParseError`] when the combination is empty, ends with a modifier
+/// and no key, names more than one non-modifier key, or uses a key name or
+/// `[PhysicalCode]` that is not recognised.
 pub fn parse_key_combo(s: &str) -> Result<KeyCombo, ParseError> {
     let parts: Vec<&str> = s.split('+').map(str::trim).collect();
 
@@ -195,6 +201,13 @@ fn parse_key(s: &str) -> Result<ParsedKey, ParseError> {
 /// - Named keys (Enter, Tab, arrows, F-keys): standard escape sequences
 /// - Plain characters: UTF-8 bytes
 /// - Alt+key: ESC prefix + key bytes
+///
+/// # Errors
+///
+/// Returns an error when the combination has no byte encoding: a `Ctrl+` press
+/// on a character outside `A`-`Z`, a named key with no defined escape sequence,
+/// or a physical key code, which cannot be resolved without knowing the active
+/// keyboard layout.
 pub fn key_combo_to_bytes(combo: &KeyCombo) -> Result<Vec<u8>, String> {
     let has_ctrl = combo.modifiers.ctrl || combo.modifiers.cmd_or_ctrl;
     let has_alt = combo.modifiers.alt;
@@ -285,6 +298,12 @@ pub fn key_combo_to_bytes(combo: &KeyCombo) -> Result<Vec<u8>, String> {
 ///
 /// Example: "Up Up Down Down" → four arrow key escape sequences
 /// Example: "Ctrl+C" → single \x03 byte
+///
+/// # Errors
+///
+/// Returns an error if `keys` is empty or whitespace-only, or if any combo in
+/// it fails to parse or has no byte encoding. The message is prefixed with the
+/// offending combo. Parsing stops at the first failure.
 pub fn parse_key_sequence(keys: &str) -> Result<Vec<Vec<u8>>, String> {
     let trimmed = keys.trim();
     if trimmed.is_empty() {

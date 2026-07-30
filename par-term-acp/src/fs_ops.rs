@@ -16,11 +16,11 @@
 //!
 //! Three layers of path restriction are enforced:
 //!
-//! 1. **Sensitive path blocklist** ([`is_sensitive_path`]): credential stores
+//! 1. **Sensitive path blocklist** (`is_sensitive_path`): credential stores
 //!    such as `~/.ssh/`, `~/.gnupg/`, and `/etc/` are rejected for *both*
 //!    reads and writes, even when `auto_approve` is enabled.
 //!
-//! 2. **Protected write blocklist** ([`is_protected_write_path`]): paths that
+//! 2. **Protected write blocklist** (`is_protected_write_path`): paths that
 //!    par-term or the operating system later *executes* — shell init files,
 //!    launch agents, autostart units, and par-term's own hot-reloaded config
 //!    — are rejected for writes. Reads of these are allowed: diagnosing a
@@ -295,7 +295,7 @@ fn check_write_path_allowed(
 ///
 /// # Security
 ///
-/// - Files larger than [`MAX_FILE_SIZE`] (50MB) are rejected.
+/// - Files larger than `MAX_FILE_SIZE` (50MB) are rejected.
 /// - Paths under `~/.ssh/`, `~/.gnupg/`, and `/etc/` are unconditionally blocked.
 pub fn read_file_with_range(
     path: &str,
@@ -343,7 +343,7 @@ pub fn read_file_with_range(
 ///
 /// Rejects credential paths (`~/.ssh/`, `~/.aws/`, `/etc/`, ...) and paths that
 /// par-term or the OS later executes (shell init files, launch agents,
-/// `config.yaml`). See [`check_write_path_allowed`].
+/// `config.yaml`). See `check_write_path_allowed`.
 pub fn write_file_safe(
     path: &str,
     content: &str,
@@ -425,7 +425,7 @@ const MAX_SEARCH_DEPTH: usize = 20;
 ///
 /// # Security
 ///
-/// - Maximum recursion depth is limited to [`MAX_SEARCH_DEPTH`] to prevent stack overflow.
+/// - Maximum recursion depth is limited to `MAX_SEARCH_DEPTH` to prevent stack overflow.
 /// - Symlinks are skipped to prevent infinite loops from symlink cycles.
 /// - Paths under `~/.ssh/`, `~/.gnupg/`, and `/etc/` are blocked (SEC-014).
 pub fn find_files_recursive(base_path: &str, pattern: &str) -> Result<Vec<String>, String> {

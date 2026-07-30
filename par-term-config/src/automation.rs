@@ -373,7 +373,7 @@ const PIPE_SHELL_TARGETS: &[&str] = &["bash", "sh", "zsh", "fish", "dash", "ksh"
 /// fully mitigated by this check:
 ///
 /// - **Shell wrapper bypass**: `sh -c "rm -rf /"`, `bash -c "..."`, `zsh -c "..."`
-///   (partially mitigated by [`BYPASS_WRAPPER_PATTERNS`])
+///   (partially mitigated by `BYPASS_WRAPPER_PATTERNS`)
 /// - **env wrapper bypass**: `/usr/bin/env rm -rf /` (partially mitigated)
 /// - **Encoding/obfuscation**: `$'\x72\x6d' -rf /` — the raw bytes bypass substring matching
 /// - **Variable indirection**: `CMD=rm; $CMD -rf /` — shell variables are opaque
@@ -505,6 +505,12 @@ pub fn check_command_denylist(command: &str, args: &[String]) -> Option<&'static
 ///
 /// This means an allowlist entry of `"git"` will match both `git` and
 /// `/usr/bin/git`.
+///
+/// # Errors
+///
+/// Returns an error naming the command and the allowlist when `allowed_commands`
+/// is non-empty and no entry matches. An empty allowlist disables the check and
+/// always returns `Ok(())`.
 pub fn check_command_allowlist(command: &str, allowed_commands: &[String]) -> Result<(), String> {
     if allowed_commands.is_empty() {
         return Ok(());

@@ -2,7 +2,7 @@
 //!
 //! This module contains helpers for building the `session/new` request
 //! parameters, including MCP server injection and Claude-wrapper metadata.
-//! The actual async handshake lives in [`Agent::connect`] in `agent.rs`;
+//! The actual async handshake lives in [`crate::agent::Agent::connect`] in `agent.rs`;
 //! these helpers extract the stateless parts so `connect` stays readable.
 
 use std::path::Path;

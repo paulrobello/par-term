@@ -1,7 +1,7 @@
 //! Parser for ~/.ssh/known_hosts files.
 //!
 //! Extracts hostnames from known_hosts entries. Handles both plain and
-//! hashed hostname formats, as well as bracketed [host]:port entries.
+//! hashed hostname formats, as well as bracketed `[host]:port` entries.
 
 use super::types::{SshHost, SshHostSource};
 use std::collections::HashSet;

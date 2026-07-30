@@ -17,6 +17,8 @@
 //! The `TextShaper` provides HarfBuzz-based text shaping with LRU caching
 //! for performance.
 
+#![warn(missing_docs)]
+
 pub mod font_manager;
 pub mod text_shaper;
 

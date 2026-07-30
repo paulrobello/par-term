@@ -84,7 +84,7 @@ impl IncomingMessage {
         self.method.is_some() && self.id.is_some()
     }
 
-    /// Convert into a [`Response`] (only valid when [`is_response`] is true).
+    /// Convert into a [`Response`] (only valid when [`Self::is_response`] is true).
     pub fn into_response(self) -> Response {
         Response {
             jsonrpc: self.jsonrpc,
@@ -124,7 +124,7 @@ impl JsonRpcClient {
     /// Spawns a background tokio task that reads line-delimited JSON from
     /// `stdout`, routing responses to their pending futures and everything
     /// else (notifications / incoming RPC calls) to an mpsc channel
-    /// retrievable via [`take_incoming`].
+    /// retrievable via [`Self::take_incoming`].
     pub fn new(stdin: ChildStdin, stdout: ChildStdout) -> Self {
         let pending: Arc<Mutex<HashMap<u64, oneshot::Sender<Response>>>> =
             Arc::new(Mutex::new(HashMap::new()));
