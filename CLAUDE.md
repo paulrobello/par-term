@@ -34,7 +34,7 @@ make ci             # Full CI checks (fmt-check, lint-all, test, check-all)
 make fmt            # Format code with rustfmt
 make lint           # Run clippy
 make typecheck      # Type-check entire workspace (cargo check --workspace)
-make checkall       # Format, lint, typecheck, and test
+make checkall       # fmt-check, lint, typecheck, test — verification only, never rewrites files
 cargo test -- --include-ignored  # Run all tests including PTY-dependent ones
 ```
 
@@ -48,16 +48,22 @@ make run-trace      # Run with DEBUG_LEVEL=4 (most verbose)
 make tail-log       # Monitor debug log in real-time
 ```
 
-The project uses **custom debug macros**, not the standard `log` crate:
+The project runs **two logging systems, and both write to the same debug log file**. This is deliberate — see the module documentation at the top of `src/debug.rs`.
+
+**1. Custom debug macros** — root crate only, gated by the `DEBUG_LEVEL` env var (default `0`, i.e. off):
 ```rust
+crate::debug_error!("CATEGORY", "message");          // DEBUG_LEVEL=1+
 crate::debug_info!("CATEGORY", "message {}", var);   // DEBUG_LEVEL=2+
 crate::debug_log!("CATEGORY", "message");            // DEBUG_LEVEL=3+
 crate::debug_trace!("CATEGORY", "message");          // DEBUG_LEVEL=4
-crate::debug_error!("CATEGORY", "message");          // DEBUG_LEVEL=1+
-// Do NOT use log::info!() etc. — they won't appear in the debug log
 ```
+Use these for high-frequency render/input logging: they cost nothing at the default `DEBUG_LEVEL=0`, and the category tag makes the output filterable.
 
-Common log categories: `TAB`, `TAB_BAR`, `TAB_ACTION`, `MOUSE`, `RENDER`, `SHADER`, `TERMINAL`, `APP`
+**2. The standard `log` crate** — `log::info!()`, `log::warn!()`, etc. **These do reach the debug log.** `src/debug.rs` defines `LogCrateBridge` (an `impl log::Log`) and `src/main.rs` installs it via `init_log_bridge()`. Level precedence is CLI/config override → `RUST_LOG` → `Info` default. Setting `RUST_LOG` additionally mirrors output to stderr — but note it is parsed as a single token, so per-module syntax such as `RUST_LOG=par_term=debug` silently falls back to `Info`. Third-party crates (wgpu, tokio, egui) emit through this path too, and noisy targets are level-capped in `LogCrateBridge::new()`.
+
+**Sub-crates must use `log::`.** `crate::debug_info!` resolves against the *calling* crate's root, so it does not exist anywhere under `par-term-*/src/`. In a sub-crate, `log::` is the only option — and it works.
+
+Common debug-macro categories: `TAB`, `TAB_BAR`, `TAB_ACTION`, `MOUSE`, `RENDER`, `SHADER`, `TERMINAL`, `APP`
 
 **When testing, use the debug build window** (started via `cargo run`), not the app bundle. The app bundle won't have your code changes.
 
@@ -95,7 +101,7 @@ make bundle            # Create macOS .app bundle (macOS only)
 
 See `docs/architecture/ARCHITECTURE.md` for detailed architecture documentation.
 
-**Key layers**: App (`src/app/`) → Terminal (`src/terminal/`) → Renderer (`par-term-render/src/cell_renderer/`) → GPU Shaders (`par-term-render/src/shaders/`)
+**Key layers**: App (`src/app/`) → Terminal (`par-term-terminal/src/terminal/`) → Renderer (`par-term-render/src/cell_renderer/`) → GPU Shaders (`par-term-render/src/shaders/`)
 
 **Data flow**: Window Events → Input Handler → PTY → VT Parser → Styled Segments → GPU Renderer (three passes: cells → graphics → egui overlay)
 
@@ -113,24 +119,26 @@ See `docs/architecture/ARCHITECTURE.md` for detailed architecture documentation.
 | **Rendering (search highlights overlay)** | `src/app/window_state/search_highlight.rs` | main |
 | **Cursor rendering** | `par-term-render/src/cell_renderer/bg_instance_builder.rs`, `cursor.rs` | `par-term-render` |
 | **Block characters (▄▀ etc.)** | `par-term-render/src/cell_renderer/block_chars/` | `par-term-render` |
-| **Input handling** | `src/app/input_events/`, `src/input.rs` | `par-term-input` |
+| **Input handling** | `src/app/input_events/` (window-event dispatch), `par-term-input/src/lib.rs` (`InputHandler`), `par-term-input/src/key_encoding.rs` (escape-sequence generation) | `par-term-input` |
 | **Tab management** | `src/tab/manager.rs`, `src/app/tab_ops/` | main |
-| **Tab bar UI** | `src/tab_bar_ui/` (11 subdirs) | main |
+| **Tab bar UI** | `src/tab_bar_ui/` (9 files, no subdirectories) | main |
 | **Settings UI** | `src/settings_window/`, `par-term-settings-ui/` | `par-term-settings-ui` |
 | **Configuration** | `par-term-config/src/lib.rs` | `par-term-config` |
 | **Session save/restore** | `src/session/capture.rs`, `src/app/window_manager/window_session.rs` | main |
 | **Keybindings** | `par-term-keybindings/` | `par-term-keybindings` |
 | **Snippets/Actions** | `src/snippets/`, `src/app/input_events/` | main |
 | **Custom shaders** | `src/shader_installer.rs`, `shaders/` dir, `par-term-render/src/` | `par-term-render` |
-| **SSH** | `src/ssh/`, `par-term-ssh/` | `par-term-ssh` |
-| **Tmux integration** | `src/tmux_*/`, `par-term-tmux/` | `par-term-tmux` |
+| **SSH** | `par-term-ssh/src/` (all implementation), `src/ssh_connect_ui.rs` | `par-term-ssh` |
+| **Tmux integration** | `src/app/tmux_handler/`, `src/pane/manager/tmux_layout.rs`, `src/tmux_session_picker_ui.rs`, `par-term-tmux/` | `par-term-tmux` |
 | **ACP / AI panel** | `src/acp_harness/`, `src/ai_inspector/`, `par-term-acp/` | `par-term-acp` |
 | **Font/text shaping** | `par-term-fonts/` | `par-term-fonts` |
+
+> **Watch for re-export shims.** Several modules in `src/` exist only to `pub use` from a sub-crate and contain no implementation: `src/input.rs` (2 lines), the inline `pub mod terminal` in `src/lib.rs`, and `src/ssh/mod.rs` (re-exports only, with no `mod` declarations — so its sibling `.rs` files are **not compiled** and editing them changes nothing). Edit the sub-crate named in the third column, not the shim.
 
 ## Code Organization Guidelines
 
 - **Target**: Keep files under 500 lines; refactor files exceeding 800 lines
-- Extract modules when logical groupings emerge (see existing patterns: `src/app/`, `src/terminal/`, `src/cell_renderer/`)
+- Extract modules when logical groupings emerge (see existing patterns: `src/app/`, `src/app/render_pipeline/`, `par-term-render/src/cell_renderer/`)
 - Centralize constants, prefer composition over duplication, create helper traits for shared functionality
 
 ## Platform-Specific Notes
@@ -159,22 +167,24 @@ Layer 1 — Foundation (bump before anything that depends on it):
   par-term-config
     └── depends on: (none — pure-data crate; Unicode types defined locally in src/types/)
 
-Layer 2 — Depend on par-term-config only (bump after Layer 1):
+Layer 2 — Depend on par-term-config (bump after Layer 1):
   par-term-fonts        → par-term-config
   par-term-input        → par-term-config
   par-term-keybindings  → par-term-config
-  par-term-scripting    → par-term-config
+  par-term-scripting    → par-term-config  [+ emu-core]
   par-term-settings-ui  → par-term-config
-  par-term-terminal     → par-term-config
-  par-term-tmux         → par-term-config
+  par-term-terminal     → par-term-config  [+ emu-core]
+  par-term-tmux         → par-term-config  [+ emu-core]
   par-term-update       → par-term-config
 
 Layer 3 — Depend on Layer 2 crates (bump after Layer 2):
-  par-term-render       → par-term-config, par-term-fonts
+  par-term-render       → par-term-config, par-term-fonts  [+ emu-core]
 
 Layer 4 — Root crate (bump last):
-  par-term              → all of the above
+  par-term              → all of the above  [+ emu-core]
 ```
+
+`[+ emu-core]` marks a dependency on **`par-term-emu-core-rust`**, the *external* crates.io library, declared once in the root `[workspace.dependencies]` and consumed as `par-term-emu-core-rust.workspace = true`. It lives in a separate repository, so it never participates in this bump order — it is shown only so that a publish-order or version-bump decision made from this diagram does not miss the coupling.
 
 **Quick bump checklist:**
 1. Bump `par-term-config` version + update refs in all Layer 2/3 crates
@@ -196,13 +206,13 @@ Layer 4 — Root crate (bump last):
 
 ### Adding a New Keyboard Shortcut
 1. Add key handling in `src/app/input_events/` (directory — `mod.rs` + `keybinding_actions.rs`)
-2. If needed, add sequence generation in `src/input.rs` → `InputHandler`
+2. If needed, add sequence generation in `par-term-input/src/key_encoding.rs`; `InputHandler` itself is defined in `par-term-input/src/lib.rs`. (`src/input.rs` is a two-line re-export shim — there is nothing to edit there.)
 
 ### Adding Snippet or Action Keybindings
 See `docs/features/SNIPPETS.md` for full documentation. Key points:
 - Snippets use `snippet:<id>`, actions use `action:<id>` as keybinding action names
-- Auto-generated during config load via `generate_snippet_action_keybindings()`
-- `execute_keybinding_action()` in `input_events.rs` handles execution
+- Auto-generated during config load via `generate_snippet_action_keybindings()` in `par-term-config/src/config/keybindings_methods.rs`
+- `execute_keybinding_action()` in `src/app/input_events/keybinding_actions.rs` handles execution
 
 ### Custom Shaders
 
@@ -233,12 +243,14 @@ See `docs/features/CUSTOM_SHADERS.md` for full shader documentation including un
 ## Critical Gotchas
 
 - `tab.terminal` and `pane.terminal` are `Arc<tokio::sync::RwLock<TerminalManager>>` — **not** a `Mutex`. From the sync event loop use `try_read()` / `try_write()`; for user-initiated operations that must not be dropped (start/stop coprocess) use `blocking_read()` / `blocking_write()`. Prefer a **read** lock: most mutating methods (`write`, `paste`, `encode_mouse_event`) take `&self` and serialize internally. `try_lock()` and `blocking_lock()` do not exist on `tokio::sync::RwLock` and will not compile. See `docs/architecture/MUTEX_PATTERNS.md`.
-- `log::info!()` etc. go to stdout, NOT the debug log — use `crate::debug_info!()` macros instead
+- **Both logging systems reach the debug log** — `log::info!()` etc. are routed to `<temp_dir>/par_term_debug.log` by `LogCrateBridge` (`src/debug.rs`, installed from `src/main.rs`, default level `Info`). They are not stdout-only. Prefer `crate::debug_info!()` for high-frequency root-crate logging because it is gated on `DEBUG_LEVEL` (default off); in sub-crates `log::` is the *only* option, since `crate::debug_info!` resolves to the sub-crate's own root
 - The core library (`par-term-emu-core-rust`) has a `CoprocessManager` wired into the PTY reader thread; don't create separate managers in the frontend
-- **Single rendering path (pane)**: There is ONE rendering path — all rendering goes through `render_split_panes_with_data()` → `CellRenderer::build_pane_instance_buffers()` in `pane_render/mod.rs`. The `build_instance_buffers()` method in `instance_buffers.rs` is only used by the shader intermediate texture path (`render_to_texture` / `render_to_view`). Per-cell overlays (search highlights, URL detection) are applied to `pane_data[].cells` AFTER `gather_pane_render_data()` in `gpu_submit.rs`.
+- **Single rendering path (pane)**: All *live* rendering goes through `render_split_panes_with_data()` → `CellRenderer::build_pane_instance_buffers()` in `pane_render/mod.rs` — including when a custom or cursor shader is active. Per-cell overlays (search highlights, URL detection) are applied to `pane_data[].cells` AFTER `gather_pane_render_data()` in `gpu_submit.rs`. The only code outside that path is the **offscreen screenshot** chain, `Renderer::take_screenshot()` → `render_cells_to_target()`. On its shader-active branches that calls `render_to_texture()`, the sole caller of `build_instance_buffers()` in `instance_buffers.rs`; on the no-shader branch it calls `render_to_view()`, which deliberately rebuilds nothing and reuses the existing buffers. So `take_screenshot` is the only way to reach `build_instance_buffers` at all, and that builder reads the focused pane's `self.cells` rather than `pane_data[]`, so it does not see per-pane overlays. Do not treat it as a second live path.
 - **Render 3-phase ordering**: Cursor overlays MUST render in phase 3 (after text), otherwise beam/underline cursors are hidden under text glyphs. All three callers use `emit_three_phase_draw_calls()` in `render.rs` — the single source of truth for draw call sequencing.
 
-## Docs Reference (docs/)
+## Docs Reference
+
+Everything below lives under `docs/` except where the path says otherwise.
 
 | Topic | File |
 |-------|------|
@@ -257,6 +269,7 @@ See `docs/features/CUSTOM_SHADERS.md` for full shader documentation including un
 | Logging & debug | `docs/LOGGING.md` |
 | SSH support | `docs/features/SSH.md` |
 | Config reference | `docs/CONFIG_REFERENCE.md` |
+| Migration / upgrade notes | `docs/guides/MIGRATION.md` |
 | ACP harness | `docs/ACP_HARNESS.md` |
 | Troubleshooting | `docs/guides/TROUBLESHOOTING.md` |
 | Getting started guide | `docs/guides/GETTING_STARTED.md` |
@@ -287,6 +300,7 @@ See `docs/features/CUSTOM_SHADERS.md` for full shader documentation including un
 | Progress bars | `docs/features/PROGRESS_BARS.md` |
 | Scrollback buffer | `docs/features/SCROLLBACK.md` |
 | Semantic history | `docs/features/SEMANTIC_HISTORY.md` |
+| iTerm2 feature-comparison matrix | `MATRIX.md` (repo root) |
 
 ## Quick Debugging Checklist by Category
 
