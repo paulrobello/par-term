@@ -1,5 +1,6 @@
 //! Clipboard history, paste special, and paste_text key handling.
 
+use super::claims;
 use crate::app::window_state::WindowState;
 use par_term_terminal::ClipboardSlot;
 use winit::event::{ElementState, KeyEvent};
@@ -52,10 +53,12 @@ impl WindowState {
             return true;
         }
 
-        // Toggle clipboard history: Cmd+Shift+H on macOS, Ctrl+Shift+H elsewhere
+        // Toggle clipboard history: Cmd+Shift+H on macOS, Ctrl+Shift+H elsewhere.
+        // Driven by the layer's declared claim so the declaration cannot drift
+        // from what actually dispatches.
         if event.state == ElementState::Pressed
-            && crate::platform::primary_modifier_with_shift(&self.input_handler.modifiers.state())
-            && matches!(event.logical_key, Key::Character(ref c) if c.as_str() == "h" || c.as_str() == "H")
+            && claims::CLIPBOARD_HISTORY[0]
+                .matches_event(&self.input_handler.modifiers.state(), &event.logical_key)
         {
             self.toggle_clipboard_history();
             return true;

@@ -149,9 +149,11 @@ pub fn menu_model(has_native_app_menu: bool) -> Vec<MenuSection> {
             accel(cmd_or_ctrl_shift, Code::BracketLeft),
             MenuAction::PreviousTab,
         ),
-        // Reordering is otherwise reachable only through the hardcoded
-        // Cmd/Ctrl+Shift+Arrow layer in `key_handler::tabs`, which nothing
-        // advertises. The accelerators here name that same chord.
+        // Reordering is otherwise dispatched by the hardcoded
+        // Cmd/Ctrl+Shift+Arrow layer in `key_handler::tabs`. The accelerators
+        // here name that same chord, and the settings window's
+        // `AVAILABLE_ACTIONS` advertises it — `key_handler::chord_tests` checks
+        // all three agree.
         item(
             "move_tab_left",
             "Move Tab Left",

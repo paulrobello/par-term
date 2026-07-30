@@ -12,6 +12,7 @@
 //! - `tabs`: new/close/navigate/move/number-switch tab shortcuts
 //! - `profiles`: per-profile hotkeys and shortcut string building
 
+pub(crate) mod claims;
 mod clipboard;
 mod command_history;
 mod config_reload;
@@ -21,6 +22,9 @@ mod search;
 mod tabs;
 mod ui_toggles;
 mod utility;
+
+#[cfg(test)]
+mod chord_tests;
 
 use crate::app::window_state::WindowState;
 use std::sync::Arc;
@@ -39,6 +43,10 @@ pub(super) type KeyLayer = fn(&mut WindowState, &KeyEvent) -> bool;
 /// one for the same chord. Reordering entries changes which shortcut wins.
 /// `dispatch_tests::key_layer_precedence_is_unchanged` pins the order so a
 /// reorder has to be deliberate rather than incidental.
+///
+/// What each layer claims is declared as data in [`claims::LAYER_CLAIMS`], which
+/// is what lets `chord_tests` answer "who gets this chord first?" without
+/// running the chain.
 ///
 /// Two further layers — `handle_utility_shortcuts` and `handle_tab_shortcuts` —
 /// continue this chain immediately after the last entry here but take the

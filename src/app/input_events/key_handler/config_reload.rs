@@ -1,9 +1,9 @@
 //! Config reload key handling (F5) and the `reload_config` implementation.
 
+use super::claims;
 use crate::app::window_state::WindowState;
 use crate::config::Config;
 use winit::event::{ElementState, KeyEvent};
-use winit::keyboard::{Key, NamedKey};
 
 impl WindowState {
     pub(crate) fn handle_config_reload(&mut self, event: &KeyEvent) -> bool {
@@ -11,8 +11,11 @@ impl WindowState {
             return false;
         }
 
-        // F5 to reload config
-        if matches!(event.logical_key, Key::Named(NamedKey::F5)) {
+        // F5 to reload config. Driven by the layer's declared claim so the
+        // declaration cannot drift from what actually dispatches.
+        if claims::CONFIG_RELOAD[0]
+            .matches_event(&self.input_handler.modifiers.state(), &event.logical_key)
+        {
             log::info!("Reloading configuration (F5 pressed)");
             self.reload_config();
             return true;
@@ -152,9 +155,10 @@ impl WindowState {
 
                 // Refresh keybinding registry if keybindings changed
                 if new_config.keybindings != self.config.load().keybindings {
-                    self.keybinding_registry = crate::keybindings::KeybindingRegistry::from_config(
-                        &new_config.keybindings,
-                    );
+                    self.keybinding_registry =
+                        par_term_keybindings::KeybindingRegistry::from_config(
+                            &new_config.keybindings,
+                        );
                     let kb = new_config.keybindings.clone();
                     self.config.rcu(|old| {
                         let mut new = (**old).clone();

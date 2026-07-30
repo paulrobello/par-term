@@ -2,12 +2,18 @@
 //!
 //! Each entry is `(action_id, display_name, default_key_combo)`.
 //! macOS uses Cmd as the primary modifier; Windows/Linux uses Ctrl+Shift.
+//!
+//! The third column is shown to the user as that action's default chord. It is
+//! hand-maintained, and the root crate gates it: see
+//! `par-term/src/app/input_events/key_handler/chord_tests.rs`, which resolves
+//! every advertised chord against the real dispatch precedence and fails when
+//! a higher-precedence layer claims it first. That is why this table is `pub`.
 
 /// All available keybinding actions with their descriptions and default key combos.
 /// macOS uses Cmd as the primary modifier (safe for terminals).
 /// Windows/Linux uses Ctrl+Shift to avoid conflicts with terminal control codes.
 #[cfg(target_os = "macos")]
-pub(super) const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
+pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     ("toggle_help", "Toggle Help Panel", Some("F1")),
     ("new_window", "New Window", None),
     ("close_window", "Close Window", None),
@@ -125,9 +131,14 @@ pub(super) const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     ),
     ("reset_font_size", "Reset Font Size", Some("Cmd+0")),
     ("clear_scrollback", "Clear Scrollback", Some("Cmd+Shift+K")),
-    // No macOS default. The settings-toggle key layer claims `Cmd+,` four
-    // positions earlier, so that chord opens Settings and never reaches the
-    // cycler, and no keybinding default covers this action.
+    // No macOS default. `Cmd+,` is the `Settings...` key equivalent on the NSApp
+    // application menu (`menu/macos.rs`), so it is consumed before winit
+    // delivers a key event at all; the `settings_toggle` key layer would claim
+    // it next in any case. No keybinding default covers this action.
+    //
+    // The action is still reachable on macOS: `utility.rs` accepts
+    // `ctrl || super_key` for the cycle, so `Ctrl+,` gets there. That is
+    // deliberately not advertised as the default.
     ("cycle_cursor_style", "Cycle Cursor Style", None),
     (
         "paste_special",
@@ -164,7 +175,7 @@ pub(super) const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
 ];
 
 #[cfg(not(target_os = "macos"))]
-pub(super) const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
+pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     ("toggle_help", "Toggle Help Panel", Some("F1")),
     ("new_window", "New Window", None),
     ("close_window", "Close Window", None),

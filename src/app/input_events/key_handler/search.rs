@@ -1,5 +1,6 @@
 //! Search UI key handling (Cmd/Ctrl+F).
 
+use super::claims;
 use crate::app::window_state::WindowState;
 use winit::event::{ElementState, KeyEvent};
 use winit::keyboard::{Key, NamedKey};
@@ -22,16 +23,12 @@ impl WindowState {
 
         // macOS: Cmd+F / Windows/Linux: Ctrl+Shift+F
         // (Ctrl+F is "forward character" in readline, must not be intercepted on non-macOS)
+        //
+        // Driven by the layer's declared claim so the declaration cannot drift
+        // from what actually dispatches.
         if event.state == ElementState::Pressed {
             let mods = self.input_handler.modifiers.state();
-
-            // On macOS: Cmd+F (no Shift). On Windows/Linux: Ctrl+Shift+F.
-            #[cfg(target_os = "macos")]
-            let is_search = crate::platform::primary_modifier(&mods)
-                && matches!(event.logical_key, Key::Character(ref c) if c.eq_ignore_ascii_case("f"));
-            #[cfg(not(target_os = "macos"))]
-            let is_search = crate::platform::primary_modifier_with_shift(&mods)
-                && matches!(event.logical_key, Key::Character(ref c) if c.eq_ignore_ascii_case("f"));
+            let is_search = claims::SEARCH[0].matches_event(&mods, &event.logical_key);
 
             if is_search {
                 self.overlay_ui.search_ui.open();
