@@ -258,6 +258,11 @@ impl ApplicationHandler for WindowManager {
         // Check CLI timing-based options (exit-after, screenshot, command)
         self.check_cli_timers();
 
+        // Hand a known-good session snapshot to the panic hook. Here rather than
+        // in a window event, because no WindowState is part-way through mutation
+        // between events — which is what makes the snapshot safe to serialize.
+        self.publish_crash_snapshot();
+
         // Check for updates (respects configured frequency)
         self.check_for_updates();
 

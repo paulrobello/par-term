@@ -3,6 +3,8 @@
 //! Contains:
 //! - `save_session_state_background`: capture in-memory session state and
 //!   write it to disk on a background thread.
+//! - `publish_crash_snapshot`: hand a known-good session snapshot to the panic
+//!   boundary so a crash does not take every window's tabs with it.
 //! - `restore_session`: load a saved session and recreate its windows.
 //! - `create_window_with_overrides`: create a window at an exact position/size,
 //!   bypassing the normal `apply_window_positioning()` logic (used during session
@@ -21,6 +23,17 @@ use crate::menu::MenuManager;
 use super::WindowManager;
 use super::update_checker::update_available_version;
 
+/// How often [`WindowManager::publish_crash_snapshot`] re-captures the session
+/// for the panic boundary.
+///
+/// This is the worst-case staleness of a crash-recovered session. Session state
+/// only changes when a tab opens or closes, a shell changes directory, or a
+/// window moves, so five seconds costs at most one such change — against losing
+/// every tab, which is the alternative. The capture itself is cheap: it uses
+/// `try_read` on each terminal and falls back to the cached working directory
+/// rather than blocking the event loop.
+const CRASH_SNAPSHOT_INTERVAL: std::time::Duration = std::time::Duration::from_secs(5);
+
 impl WindowManager {
     /// Save session state on a background thread to avoid blocking the main thread.
     /// Captures state synchronously (fast, in-memory) then spawns disk I/O.
@@ -35,23 +48,100 @@ impl WindowManager {
             });
     }
 
+    /// Hand the panic boundary a known-good snapshot of the current session.
+    ///
+    /// Call from the event loop, at a point where no par-term structure is
+    /// mid-update. The panic hook can only write what has been published here:
+    /// it cannot reach the live `WindowManager`, and serializing live state from
+    /// a thread that has just panicked mid-mutation would be unsound anyway. See
+    /// `crate::session::crash_guard` for the full rationale.
+    ///
+    /// Throttled to [`CRASH_SNAPSHOT_INTERVAL`], so this is two atomic loads on
+    /// the overwhelming majority of event-loop iterations.
+    ///
+    /// # Not yet wired
+    ///
+    /// Nothing calls this yet, which is why the `allow` is here. The panic
+    /// boundary is inert until it is called: the hook can only write what has
+    /// been published. Wiring it is one line at the top of
+    /// `WindowManager::about_to_wait` in
+    /// `src/app/handler/app_handler_impl.rs`, next to `self.check_cli_timers()`:
+    ///
+    /// ```ignore
+    /// self.publish_crash_snapshot();
+    /// ```
+    ///
+    /// Delete this `allow` in the same change. `about_to_wait` is the right
+    /// place because it runs between events, when no window event is part-way
+    /// through mutating a `WindowState` — which is the whole premise of
+    /// snapshotting rather than serializing live state.
+    pub fn publish_crash_snapshot(&self) {
+        // Gate on the same setting as the normal session save. A user who has
+        // turned session restore off should not have a crash file appear in
+        // their config directory, and nothing would consume it if it did.
+        if !self.config.load().restore_session {
+            return;
+        }
+        // Checked before the throttle, not after: a capture that would yield
+        // nothing must not consume the interval, and this is the cheaper test
+        // anyway. Never let a transient empty capture — startup before the first
+        // window is registered, or teardown after the last one is removed —
+        // replace a good snapshot with one that restores nothing.
+        if self.windows.is_empty() {
+            return;
+        }
+        if !crate::session::crash_guard::snapshot_is_due(CRASH_SNAPSHOT_INTERVAL) {
+            return;
+        }
+
+        let state = crate::session::capture::capture_session(&self.windows);
+        // `capture_session` also skips a `WindowState` whose window is not yet
+        // created, so the map being non-empty is not on its own enough.
+        if state.windows.is_empty() {
+            return;
+        }
+        crate::session::crash_guard::publish(&state);
+    }
+
     /// Restore windows from the last saved session.
+    ///
+    /// Prefers a crash session file when one is present: the normal session file
+    /// is only written on a clean exit, so after a panic it is stale or missing
+    /// entirely, while the crash file holds what was open seconds before the
+    /// panic. Either file is consumed on use.
     ///
     /// Returns true if session was successfully restored, false otherwise.
     pub fn restore_session(&mut self, event_loop: &ActiveEventLoop) -> bool {
-        let session = match crate::session::storage::load_session() {
-            Ok(Some(session)) => session,
-            Ok(None) => {
-                log::info!("No saved session found, creating default window");
-                return false;
-            }
-            Err(e) => {
+        let recovered_from_crash = crate::session::crash_guard::take_crash_session();
+        let restored_after_crash = recovered_from_crash.is_some();
+
+        let session = match recovered_from_crash {
+            Some(session) => {
+                // Deliberately does not point at the debug log: `debug.rs` opens
+                // it with `truncate(true)`, so the panic report from the run
+                // that produced this file was wiped moments ago, at startup.
                 log::warn!(
-                    "Failed to load session state: {}, creating default window",
-                    e
+                    "Recovering session from a crash snapshot ({} windows) taken at {}. \
+                     The previous run ended in a panic.",
+                    session.windows.len(),
+                    session.saved_at
                 );
-                return false;
+                session
             }
+            None => match crate::session::storage::load_session() {
+                Ok(Some(session)) => session,
+                Ok(None) => {
+                    log::info!("No saved session found, creating default window");
+                    return false;
+                }
+                Err(e) => {
+                    log::warn!(
+                        "Failed to load session state: {}, creating default window",
+                        e
+                    );
+                    return false;
+                }
+            },
         };
 
         if session.windows.is_empty() {
@@ -153,6 +243,18 @@ impl WindowManager {
         if self.windows.is_empty() {
             log::warn!("Session restore created no windows, creating default");
             return false;
+        }
+
+        // Say why the tabs came back, and what did not come with them. A
+        // recovered session is otherwise indistinguishable from a normal one, so
+        // silently reopening everything after a crash reads as par-term having
+        // ignored the crash rather than having rescued the workspace — and the
+        // user has no way to know the scrollback is gone until they scroll.
+        if restored_after_crash {
+            for window_state in self.windows.values_mut() {
+                window_state
+                    .show_toast("Recovered session after a crash — scrollback not restored");
+            }
         }
 
         true

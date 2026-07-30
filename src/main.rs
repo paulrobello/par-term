@@ -44,6 +44,15 @@ fn main() -> Result<()> {
     // CLI --log-level flag takes highest precedence, then RUST_LOG, then config (applied later).
     par_term::debug::init_log_bridge(runtime_options.log_level);
 
+    // Arm the panic boundary immediately after logging, and before anything that
+    // can panic. It records this thread as the event-loop thread, writes the
+    // panic report into the debug log opened above, and — once the event loop
+    // starts publishing snapshots — saves the open tabs to a crash session file
+    // so a panic does not take every window's working directories with it.
+    // It does not swallow the panic: see `session::crash_guard` for exactly which
+    // panic classes it covers and which it cannot.
+    par_term::session::crash_guard::install();
+
     log::info!("Starting par-term terminal emulator");
 
     // Clean up leftover .old binary from a previous self-update (Windows)
@@ -60,6 +69,13 @@ fn main() -> Result<()> {
     // Create and run the application
     let app = App::new(Arc::clone(&runtime), runtime_options)?;
     let result = app.run();
+
+    // The event loop returned, so the normal shutdown path ran and
+    // `last_session.yaml` is authoritative. Drop any crash file: left behind, it
+    // would survive this clean shutdown and make the *next* launch announce a
+    // crash recovery that never happened. Returning here is not proof that no
+    // panic occurred, so `disarm` keeps a crash file this run's hook wrote.
+    par_term::session::crash_guard::disarm();
 
     // Event loop has exited. All windows have already been closed and their
     // Drop impls have run (PTY cleanup, session saves, etc.).

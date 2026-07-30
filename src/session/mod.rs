@@ -17,6 +17,17 @@
 //! is lifecycle: session state is ephemeral (overwritten on each clean exit), while
 //! arrangements are user-named and persist indefinitely.
 //!
+//! # Crash recovery
+//!
+//! Neither of those survives a panic: both are written on the way out, and a
+//! panicking process never gets there. [`crash_guard`] adds a third file,
+//! `crash_session.yaml`, written from a panic hook out of a snapshot the event
+//! loop publishes periodically. It is deliberately a separate file — a process
+//! that has just panicked must not overwrite the good session — and
+//! `WindowManager::restore_session` prefers it when present, then deletes it.
+//! Read that module's header before changing anything here: it is explicit about
+//! which panic classes it covers and which it cannot.
+//!
 //! # Shared types
 //!
 //! The common per-tab fields (`cwd`, `title`, `custom_color`, `user_title`,
@@ -27,6 +38,7 @@
 //! the same nesting level.
 
 pub mod capture;
+pub mod crash_guard;
 pub mod restore;
 pub mod storage;
 
