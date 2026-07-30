@@ -444,53 +444,41 @@ fn combining_marks_are_separate_columns_to_the_motions() {
 }
 
 #[test]
-fn a_combining_mark_is_not_a_word_character() {
-    // DEFECT (pinned, report-only — the assertions below record current
-    // behaviour and must not be read as desired).
-    //
-    // `is_word_char` is `ch.is_alphanumeric() || word_characters.contains(ch)`.
-    // Combining marks are Unicode category Mn, which is *not* alphanumeric, and
-    // neither are ZWJ, zero-width space, or emoji modifiers. So every one of
-    // them terminates a word as far as selection and word motion are concerned,
+fn a_combining_mark_continues_the_word_it_attaches_to() {
+    // Regression test. `is_word_char` was `is_alphanumeric() || contains(ch)`.
+    // Combining marks are Unicode category Mn, which is not alphanumeric, and
+    // neither are ZWJ or emoji modifiers — so each of them terminated a word,
     // even though the grid draws the mark inside the preceding cell.
     //
-    // User-visible consequences, both asserted below:
-    //   * double-clicking "café" typed as "cafe" + U+0301 selects "cafe" and
-    //     drops the accent;
-    //   * double-clicking a skin-toned 👍🏽 selects half the grapheme.
-    //
-    // A fix would treat Mn/Me/Cf and emoji modifiers as continuations of the
-    // preceding character rather than as separators. That is a behaviour change
-    // in shared selection code, so it is reported rather than made here.
+    // The user-visible symptoms: double-clicking "café" typed as "cafe" +
+    // U+0301 selected "cafe" and dropped the accent, and double-clicking a
+    // skin-toned 👍🏽 selected half the grapheme. Precomposed é worked, and that
+    // contrast is what identified it as a defect rather than a Unicode quirk.
     for (label, ch) in [
         ("combining acute", '\u{0301}'),
         ("zero width joiner", '\u{200D}'),
-        ("zero width space", '\u{200B}'),
         ("skin tone modifier", '\u{1F3FD}'),
     ] {
-        assert!(
-            !is_word_char(ch, ""),
-            "{label}: pinned as a non-word character"
-        );
+        assert!(is_word_char(ch, ""), "{label}: continues the previous word");
     }
 
-    // The accent is excluded from the word it belongs to.
+    // Zero-width space is a separator, not a mark, so it stays a non-word
+    // character. Grouping it with the marks would merge words either side of it.
+    assert!(!is_word_char('\u{200B}', ""));
+
     let text = "cafe\u{0301}";
     assert_eq!(
         find_word_boundaries(text, 3, ""),
-        (0, 3),
-        "pinned: selecting the 'e' stops before its combining accent"
+        (0, 4),
+        "the accent belongs to the word it sits on"
     );
-    // Clicking the accent itself selects only the accent — a "column" the grid
-    // never renders on its own.
     assert_eq!(
         find_word_boundaries(text, 4, ""),
-        (4, 4),
-        "pinned: the combining mark selects as a lone character"
+        (0, 4),
+        "clicking the mark selects the whole word, not the mark alone"
     );
 
-    // Precomposed é is alphanumeric, so the same word selects correctly. The
-    // contrast is what makes this a defect rather than a Unicode quirk.
+    // Precomposed é continues to select as before.
     assert!(is_word_char('é', ""));
     assert_eq!(find_word_boundaries("café", 3, ""), (0, 3));
 }

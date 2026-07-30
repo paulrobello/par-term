@@ -359,45 +359,37 @@ fn ctrl_question_mark_does_not_send_del() {
 }
 
 // ---------------------------------------------------------------------------
-// Ctrl + non-ASCII — PRODUCTION BUG, pinned
+// Ctrl + non-ASCII
 // ---------------------------------------------------------------------------
 
 #[test]
-fn ctrl_non_ascii_char_truncates_to_a_control_byte() {
-    // BUG (report-only, do not treat these assertions as desired behaviour).
+fn ctrl_non_ascii_char_is_sent_as_utf8_not_truncated() {
+    // Regression test. `ch as u8` truncates a non-ASCII scalar to its low byte,
+    // so before the `is_ascii()` guard any codepoint whose low byte landed in
+    // 0x40..=0x5F was masked with 0x1F and emitted as a control code. Reachable
+    // on real layouts at the default modifyOtherKeys level 0, and the damage is
+    // silent — a wrong byte reaching the shell rather than a panic:
     //
-    // `par-term-input/src/key_encoding.rs:146` does `let byte = ch as u8;`,
-    // which *truncates* a non-ASCII scalar to its low byte instead of rejecting
-    // it. Any codepoint whose low byte lands in 0x40..=0x5F is then masked with
-    // 0x1F and emitted as a control code. This is the same column/byte/char
-    // conflation class as the six defects fixed today, on a path where the
-    // damage is a wrong byte sent to the shell rather than a panic.
-    //
-    // Reachable on real layouts at the default modifyOtherKeys level 0:
-    //   Polish  Ctrl+ł  U+0142 -> low byte 0x42 -> 0x02  (indistinguishable from Ctrl+B)
+    //   Polish  Ctrl+ł  U+0142 -> low byte 0x42 -> 0x02  (looked like Ctrl+B)
     //   Latin   Ctrl+ŀ  U+0140 -> low byte 0x40 -> 0x00  (NUL)
-    //   Latin   Ctrl+ŕ  U+0155 -> low byte 0x55 -> 0x15  (Ctrl+U, kills the line in readline)
+    //   Latin   Ctrl+ŕ  U+0155 -> low byte 0x55 -> 0x15  (Ctrl+U, killed the line)
     //   Emoji   Ctrl+🍀 U+1F340 -> low byte 0x40 -> 0x00
-    //
-    // Correct behaviour would be to require `ch.is_ascii()` before the range
-    // test, letting non-ASCII fall through to the plain-character path.
-    let truncating = [
-        ("ł", KeyCode::KeyL, 0x02u8),
-        ("ŀ", KeyCode::KeyL, 0x00),
-        ("ŕ", KeyCode::KeyR, 0x15),
-        ("🍀", KeyCode::KeyK, 0x00),
+    let formerly_truncated = [
+        ("ł", KeyCode::KeyL),
+        ("ŀ", KeyCode::KeyL),
+        ("ŕ", KeyCode::KeyR),
+        ("🍀", KeyCode::KeyK),
     ];
-    for (text, code, wrong_byte) in truncating {
+    for (text, code) in formerly_truncated {
         assert_bytes(
             CTRL,
             &character(text, code),
-            &[wrong_byte],
-            &format!("Ctrl+{text} (pinned bug)"),
+            text.as_bytes(),
+            &format!("Ctrl+{text}"),
         );
     }
 
-    // Codepoints whose low byte falls outside the window are unaffected and
-    // reach the PTY as UTF-8, which is what all of them should do.
+    // Codepoints whose low byte always fell outside the window, unchanged.
     assert_bytes(
         CTRL,
         &character("é", KeyCode::KeyE),

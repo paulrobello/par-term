@@ -143,8 +143,13 @@ impl InputHandler {
 
                     // Ctrl with ASCII punctuation in 0x40-0x5F range (@, [, \, ], ^, _)
                     // maps to control codes via char & 0x1F (e.g. Ctrl+_ → 0x1F for joe undo).
+                    //
+                    // The ASCII guard is load-bearing: `ch as u8` truncates, so without it
+                    // a non-ASCII scalar whose low byte lands in this range is sent as a
+                    // control code. Ctrl+ŕ (U+0155) would become 0x15 — Ctrl+U, which
+                    // kills the line in readline.
                     let byte = ch as u8;
-                    if (0x40..=0x5F).contains(&byte) {
+                    if ch.is_ascii() && (0x40..=0x5F).contains(&byte) {
                         let ctrl_byte = byte & 0x1F;
                         if alt {
                             return Some(match self.get_active_option_mode() {

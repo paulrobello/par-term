@@ -126,7 +126,25 @@ fn byte_to_char_offset(s: &str, byte_offset: usize) -> Option<usize> {
 /// It is included in the default word_characters setting (`/-+\~_.`) but can be
 /// removed by the user for full control over word selection behavior.
 pub fn is_word_char(ch: char, word_characters: &str) -> bool {
-    ch.is_alphanumeric() || word_characters.contains(ch)
+    ch.is_alphanumeric() || is_combining_mark(ch) || word_characters.contains(ch)
+}
+
+/// Whether `ch` combines with the preceding character rather than standing alone.
+///
+/// Decomposed text puts these after the base letter, so treating them as
+/// non-word characters splits `café` (typed as `cafe` + U+0301) after `cafe`
+/// while the precomposed spelling selects correctly.
+fn is_combining_mark(ch: char) -> bool {
+    matches!(ch as u32,
+        0x0300..=0x036F      // combining diacritical marks
+        | 0x1AB0..=0x1AFF    // extended
+        | 0x1DC0..=0x1DFF    // supplement
+        | 0x20D0..=0x20F0    // for symbols
+        | 0xFE20..=0xFE2F    // half marks
+        | 0x200D             // zero-width joiner
+        | 0xFE0E | 0xFE0F    // variation selectors
+        | 0x1F3FB..=0x1F3FF  // emoji skin-tone modifiers
+    )
 }
 
 /// Find word boundaries at the given position using configurable word characters.
