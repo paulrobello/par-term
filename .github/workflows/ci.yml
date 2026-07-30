@@ -92,6 +92,16 @@ jobs:
 
     # Save even when the steps above failed. Skipped on an exact key hit, where
     # there is nothing new to write.
+    #
+    # Cache keys are immutable: the first run to reach this step for a given
+    # Cargo.lock wins, and a later, more complete run cannot overwrite it. That
+    # is a deliberate trade here. cargo compiles dependencies before workspace
+    # crates, so even a run that dies compiling par-term has already cached the
+    # expensive, stable part — and the workspace crates change on every
+    # iteration of a debugging streak, so they would be rebuilt either way.
+    # Versioning the key per run would remove the limitation in general, but it
+    # would rewrite a multi-GB target cache on every run and evict the registry
+    # caches under the 10GB per-repo limit.
     - name: Save cargo registry
       if: always() && steps.cache-registry.outputs.cache-hit != 'true'
       uses: actions/cache/save@v6
