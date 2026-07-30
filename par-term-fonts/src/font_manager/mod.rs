@@ -228,24 +228,16 @@ impl FontManager {
     }
 
     /// Get the appropriate font based on bold and italic attributes.
-    fn get_styled_font(&self, bold: bool, italic: bool) -> &FontRef<'static> {
+    fn get_styled_font(&self, bold: bool, italic: bool) -> &FontRef<'_> {
         match (bold, italic) {
             (true, true) => self
                 .bold_italic
                 .as_ref()
-                .map(|f| &f.font_ref)
-                .unwrap_or(&self.primary.font_ref),
-            (true, false) => self
-                .bold
-                .as_ref()
-                .map(|f| &f.font_ref)
-                .unwrap_or(&self.primary.font_ref),
-            (false, true) => self
-                .italic
-                .as_ref()
-                .map(|f| &f.font_ref)
-                .unwrap_or(&self.primary.font_ref),
-            (false, false) => &self.primary.font_ref,
+                .unwrap_or(&self.primary)
+                .font_ref(),
+            (true, false) => self.bold.as_ref().unwrap_or(&self.primary).font_ref(),
+            (false, true) => self.italic.as_ref().unwrap_or(&self.primary).font_ref(),
+            (false, false) => self.primary.font_ref(),
         }
     }
 
@@ -276,7 +268,7 @@ impl FontManager {
         let char_code = character as u32;
         for range_font in &self.range_fonts {
             if char_code >= range_font.start && char_code <= range_font.end {
-                let glyph_id = range_font.font.font_ref.charmap().map(character);
+                let glyph_id = range_font.font.font_ref().charmap().map(character);
                 if glyph_id != 0 {
                     log::info!(
                         "✓ Character '{}' (U+{:04X}) found in range font U+{:04X}-U+{:04X} (index {})",
@@ -302,7 +294,7 @@ impl FontManager {
         // Try fallback fonts
         let fallback_start_index = 4 + self.range_fonts.len();
         for (idx, fallback) in self.fallbacks.iter().enumerate() {
-            let glyph_id = fallback.font_ref.charmap().map(character);
+            let glyph_id = fallback.font_ref().charmap().map(character);
             if glyph_id != 0 {
                 if !character.is_ascii()
                     || character.is_ascii_punctuation()
@@ -362,7 +354,7 @@ impl FontManager {
                 && char_code >= range_font.start
                 && char_code <= range_font.end
             {
-                let glyph_id = range_font.font.font_ref.charmap().map(character);
+                let glyph_id = range_font.font.font_ref().charmap().map(character);
                 if glyph_id != 0 {
                     return Some((range_font.font_index, glyph_id));
                 }
@@ -376,7 +368,7 @@ impl FontManager {
             if excluded.contains(&font_index) {
                 continue;
             }
-            let glyph_id = fallback.font_ref.charmap().map(character);
+            let glyph_id = fallback.font_ref().charmap().map(character);
             if glyph_id != 0 {
                 return Some((font_index, glyph_id));
             }
@@ -390,7 +382,7 @@ impl FontManager {
         for range_font in &self.range_fonts {
             if char_code >= range_font.start && char_code <= range_font.end {
                 let character = char::from_u32(char_code)?;
-                let glyph_id = range_font.font.font_ref.charmap().map(character);
+                let glyph_id = range_font.font.font_ref().charmap().map(character);
                 if glyph_id != 0 {
                     return Some((range_font.font_index, glyph_id));
                 }
@@ -403,19 +395,19 @@ impl FontManager {
     ///
     /// # Arguments
     /// * `font_index` - Font index (see struct documentation for layout)
-    pub fn get_font(&self, font_index: usize) -> Option<&FontRef<'static>> {
+    pub fn get_font(&self, font_index: usize) -> Option<&FontRef<'_>> {
         match font_index {
-            0 => Some(&self.primary.font_ref),
-            1 => self.bold.as_ref().map(|f| &f.font_ref),
-            2 => self.italic.as_ref().map(|f| &f.font_ref),
-            3 => self.bold_italic.as_ref().map(|f| &f.font_ref),
+            0 => Some(self.primary.font_ref()),
+            1 => self.bold.as_ref().map(FontData::font_ref),
+            2 => self.italic.as_ref().map(FontData::font_ref),
+            3 => self.bold_italic.as_ref().map(FontData::font_ref),
             idx if idx >= 4 => {
                 let range_offset = idx - 4;
                 if range_offset < self.range_fonts.len() {
-                    Some(&self.range_fonts[range_offset].font.font_ref)
+                    Some(self.range_fonts[range_offset].font.font_ref())
                 } else {
                     let fallback_offset = range_offset - self.range_fonts.len();
-                    self.fallbacks.get(fallback_offset).map(|fd| &fd.font_ref)
+                    self.fallbacks.get(fallback_offset).map(FontData::font_ref)
                 }
             }
             _ => None,
@@ -423,8 +415,8 @@ impl FontManager {
     }
 
     /// Get the primary font reference.
-    pub fn primary_font(&self) -> &FontRef<'static> {
-        &self.primary.font_ref
+    pub fn primary_font(&self) -> &FontRef<'_> {
+        self.primary.font_ref()
     }
 
     /// Get number of fonts loaded (primary + styled + range + fallbacks).
