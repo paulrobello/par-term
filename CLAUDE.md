@@ -200,9 +200,10 @@ Layer 4 — Root crate (bump last):
 1. Add field to `Config` struct in `par-term-config/src/config/config_struct/mod.rs` with `#[serde(default = "default_my_option")]`
 2. Update `Default` impl
 3. Use config value in relevant component
-4. **REQUIRED**: Add UI controls in the appropriate `par-term-settings-ui/src/*_tab.rs`
+4. **REQUIRED**: Add UI controls in the appropriate `par-term-settings-ui/src/<name>_tab/` module (most tabs are directories, not single files — scripts settings, for example, live in `scripts_tab/editor.rs`, rendered from `automation_tab/mod.rs`)
    - Set `settings.has_changes = true` and `*changes_this_frame = true` on change
-5. **REQUIRED**: Update search keywords in `par-term-settings-ui/src/sidebar.rs` → `tab_search_keywords()`
+5. **REQUIRED**: Add search keywords to that tab module's own `keywords()` function. `tab_search_keywords()` lives in `par-term-settings-ui/src/search_keywords.rs` and only dispatches to them; `sidebar.rs` just calls it.
+6. If the field is on a struct with exhaustive literal construction sites (`ScriptConfig` has seven, none using `..Default::default()`), every one is a compile error until updated — `#[serde(default)]` covers deserialization only.
 
 ### Adding a New Keyboard Shortcut
 1. Add key handling in `src/app/input_events/` (directory — `mod.rs` + `keybinding_actions.rs`)
