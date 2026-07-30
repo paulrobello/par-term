@@ -58,6 +58,17 @@ impl SettingsUI {
 
     /// Create a new shader file from the template
     fn create_shader_file(&mut self) -> bool {
+        // SEC-022: the name is joined onto the shaders directory, so `..` or a
+        // path separator would write outside it.
+        if !is_safe_shader_name(&self.new_shader_name) {
+            self.shader_editor_error = Some(
+                "Shader name may only contain letters, digits, '-', '_' and '.' \
+                 (no path separators or '..')"
+                    .to_string(),
+            );
+            return false;
+        }
+
         // Ensure filename ends with .glsl
         let mut filename = self.new_shader_name.clone();
         if !filename.ends_with(".glsl")
@@ -178,6 +189,50 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 
         if close_dialog {
             self.show_delete_shader_dialog = false;
+        }
+    }
+}
+
+/// True if `name` is safe to join onto the shaders directory (SEC-022).
+///
+/// Allowlist rather than blocklist: letters, digits, `-`, `_` and `.` (needed
+/// for the extension). That excludes `/`, `\`, and NUL by construction; `..` is
+/// rejected explicitly so no `..`-only or `a/../..`-style name survives.
+fn is_safe_shader_name(name: &str) -> bool {
+    !name.is_empty()
+        && !name.contains("..")
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_safe_shader_name;
+
+    #[test]
+    fn rejects_traversal_and_separators() {
+        for name in [
+            "..",
+            "../evil",
+            "../../etc/passwd",
+            "..\\evil",
+            "sub/dir",
+            "/etc/passwd",
+            "a..b",
+            "",
+        ] {
+            assert!(
+                !is_safe_shader_name(name),
+                "expected {name:?} to be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn accepts_ordinary_shader_names() {
+        for name in ["crt", "crt-glow", "my_shader", "wave2.glsl", "Plasma.frag"] {
+            assert!(is_safe_shader_name(name), "expected {name:?} to be allowed");
         }
     }
 }
