@@ -1,9 +1,9 @@
-// ARC-009 TODO: When this file exceeds the 800-line limit, extract into renderer/
-// siblings:
+// ARC-009 TODO: `make check-line-counts` fails this file at 800 production lines
+// and it sits a few lines under that. Extract into renderer/ siblings:
 //
-//   split_layout.rs  — Split-pane geometry calculations (render_split_panes_with_data)
-//   separator_draw.rs — compute_visible_separator_marks + draw calls (see also QA-001,
-//                       QA-008 which affect this area)
+//   screenshot.rs     — `take_screenshot`, self-contained and the cheapest first cut
+//   split_layout.rs   — Split-pane geometry (render_split_panes_with_data)
+//   separator_draw.rs — Separator-mark draw calls; QA-001 and QA-008 affect this area
 //
 // Tracking: Issue ARC-009 in AUDIT.md.
 

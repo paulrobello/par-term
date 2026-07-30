@@ -434,7 +434,7 @@ impl CellRenderer {
     /// Resolve a renderable glyph for a character, walking font fallbacks until one succeeds.
     ///
     /// This is the single canonical implementation of the font-fallback loop previously
-    /// duplicated in `text_instance_builder.rs` and `pane_render/mod.rs` (see ARC-004 / QA-003).
+    /// duplicated in `text_instance_builder.rs` and `pane_render/` (see ARC-004 / QA-003).
     ///
     /// # Arguments
     /// * `base_char`       — the base Unicode scalar to look up (after stripping VS16 etc.)

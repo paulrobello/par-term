@@ -1,7 +1,7 @@
 # Makefile for par-term
 # Cross-platform terminal emulator frontend
 
-.PHONY: help build build-debug run run-release run-error run-warn run-info run-debug run-trace release test check typecheck clean fmt lint checkall secret-scan install install-shell-integration install-acp acp-harness acp-smoke doc doc-open doc-check coverage test-fonts benchmark-shaping test-text-shaping bundle bundle-install run-bundle deploy
+.PHONY: help build build-debug run run-release run-error run-warn run-info run-debug run-trace release test check typecheck clean fmt lint checkall secret-scan install install-shell-integration install-acp acp-harness acp-smoke doc doc-open doc-check check-line-counts coverage test-fonts benchmark-shaping test-text-shaping bundle bundle-install run-bundle deploy
 
 ACP_AGENT ?= claude-ollama.local
 ACP_TIMEOUT ?= 45
@@ -78,6 +78,7 @@ help:
 	@echo "  make doc         - Generate rustdoc documentation (no-deps)"
 	@echo "  make doc-open    - Generate and open rustdoc in the browser"
 	@echo "  make doc-check   - Validate Markdown links and anchors (requires lychee)"
+	@echo "  make check-line-counts - Enforce the 800-line production file limit"
 	@echo "  make coverage    - Generate test coverage report"
 	@echo "  make deploy      - Trigger Release and Deploy GitHub Action"
 	@echo ""
@@ -283,6 +284,18 @@ doc-check:
 	@echo "Checking documentation links..."
 	lychee './**/*.md'
 
+# Enforce the file-size policy from CLAUDE.md: warn over 500 production lines,
+# fail over 800. Counts production lines only -- `#[cfg(test)]` items are
+# subtracted wherever they appear -- so test-heavy files are not false
+# positives. Exemptions with reasons live in .line-count-exempt.
+check-line-counts:
+	@command -v python3 >/dev/null 2>&1 || { \
+		echo "python3 not found; it is required by scripts/check_line_counts.py"; \
+		exit 1; \
+	}
+	@echo "Checking production file line counts..."
+	python3 scripts/check_line_counts.py
+
 # Run all checks (format, lint, test)
 all: fmt lint test build
 	@echo "All checks passed!"
@@ -306,7 +319,7 @@ pre-commit: secret-scan fmt-check lint test
 	@echo "Pre-commit checks passed!"
 
 # CI checks (what CI would run)
-ci: fmt-check lint-all test check-all
+ci: fmt-check lint-all test check-all check-line-counts
 	@echo "CI checks passed!"
 
 # Update dependencies

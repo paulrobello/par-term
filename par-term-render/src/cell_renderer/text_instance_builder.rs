@@ -373,7 +373,7 @@ impl CellRenderer {
 
                 // Resolve a renderable glyph via the shared font-fallback helper (ARC-004).
                 // This replaces the duplicated excluded_fonts/get_or_rasterize_glyph loop
-                // that previously existed in both this file and pane_render/mod.rs.
+                // that previously existed in both this file and pane_render/.
                 let resolved_info = self.resolve_glyph_with_fallback(
                     base_char,
                     grapheme,

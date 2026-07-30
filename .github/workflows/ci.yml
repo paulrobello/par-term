@@ -194,3 +194,21 @@ jobs:
         # and every root-level Markdown file.
         args: "'./**/*.md'"
         fail: true
+
+  line-counts:
+    name: File size
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+    - uses: actions/checkout@v7
+
+    # Enforces the file-size policy CLAUDE.md states but nothing checked: warn
+    # over 500 production lines, fail over 800. This replaces five hand-written
+    # `ARC-009` line-count comments that had every one drifted below the real
+    # count, so the early warning they were meant to give never fired.
+    #
+    # `make check-line-counts` runs exactly this, and the ubuntu image ships
+    # python3, so no setup step is needed.
+    - name: Check production file line counts
+      run: make check-line-counts

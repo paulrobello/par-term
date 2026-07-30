@@ -1,16 +1,29 @@
-// ARC-005 completed: file reduced from ~1004 lines to ~791 lines (target: <800).
+// Pane rendering: builds and submits one pane's GPU instance buffers.
 //
-// Extracted submodules:
-//   powerline.rs        — Powerline fringe-extension logic (pure fn, no self access).
-//                         `extend_powerline_fringes()` adjusts bg-quad x0/x1 to eliminate
-//                         anti-aliased dark fringes at separator boundaries.
+// Module layout:
+//   render_to_view.rs    — `CellRenderer::render_pane_to_view()`: per-pane background image
+//                          preparation, render pass setup, and 3-phase draw call emission.
+//   row_backgrounds.rs   — Phase 1. `emit_row_backgrounds()` emits RLE-merged cell background
+//                          quads for one row, plus the cursor-cell background helper.
+//   text_render.rs       — Phase 2. `emit_row_text()` emits one row's glyph quads and its
+//                          underline rectangles; both go through the text pipeline.
+//   cursor_overlays.rs   — Phase 3. `emit_cursor_overlays()` appends guide, shadow,
+//                          beam/underline bar and hollow-outline instances on top of text.
+//   separators.rs        — `emit_separator_instances()` injects command separator lines.
 //   block_char_render.rs — Geometric rendering of block/box-drawing characters via the text
 //                          pipeline. `render_block_char_geometrically()` returns Some(new_idx)
 //                          when rendered; caller continues the per-cell loop.
+//   powerline.rs         — Powerline fringe-extension logic (pure fn, no self access).
+//                          `extend_powerline_fringes()` adjusts bg-quad x0/x1 to eliminate
+//                          anti-aliased dark fringes at separator boundaries.
+//
+// This file keeps only the orchestrator, `build_pane_instance_buffers()`: buffer reset,
+// viewport fill quad, per-row phase dispatch, and the final instance counts / GPU upload.
 //
 // Note: The glyph font-fallback loop was extracted to `CellRenderer::resolve_glyph_with_fallback()`
-// in `atlas.rs` (ARC-004 / QA-003). The RLE bg-instance merge inner loop remains inlined
-// as it mutates self.bg_instances in place with no clean free-function boundary.
+// in `atlas.rs` (ARC-004 / QA-003). The RLE bg-instance merge inner loop remains inlined,
+// now inside `emit_row_backgrounds()` in `row_backgrounds.rs`, as it mutates self.bg_instances
+// in place with no clean free-function boundary.
 //
 // IMPORTANT invariants to preserve (see MEMORY.md and CLAUDE.md):
 //   • 3-phase draw ordering: bg instances → text instances → cursor overlays
@@ -19,21 +32,20 @@
 //
 // Tracking: Issues ARC-005 and ARC-009 in AUDIT.md.
 
-use super::block_chars;
-use super::instance_buffers::{
-    STIPPLE_OFF_PX, STIPPLE_ON_PX, UNDERLINE_HEIGHT_RATIO, compute_cursor_text_color,
-};
-use super::{BackgroundInstance, Cell, CellRenderer, PaneViewport, TextInstance};
+use super::{Cell, CellRenderer, PaneViewport};
 use anyhow::Result;
-use par_term_config::{SeparatorMark, color_u8x4_rgb_to_f32, color_u8x4_rgb_to_f32_a};
+use par_term_config::SeparatorMark;
 mod block_char_render;
 mod cursor_overlays;
 mod powerline;
+mod render_to_view;
+mod row_backgrounds;
 mod separators;
-
-use block_char_render::BlockCharRenderParams;
+mod text_render;
 
 use cursor_overlays::CursorOverlayParams;
+use row_backgrounds::RowBackgroundParams;
+use text_render::RowTextParams;
 
 /// Atlas texture size in pixels. Must match the value used at atlas creation time.
 /// See `PREFERRED_ATLAS_SIZE` in `pipeline.rs` and `atlas_size` on `CellRendererAtlas`.
@@ -70,197 +82,7 @@ pub(super) struct PaneInstanceBuildParams<'a> {
     pub separator_marks: &'a [SeparatorMark],
 }
 
-/// Parameters for emitting a cursor cell background instance (QA-006 extraction).
-struct CursorCellBgParams {
-    col: usize,
-    row: usize,
-    content_x: f32,
-    content_y: f32,
-    bg_color: [f32; 4],
-    cursor_opacity: f32,
-    render_hollow_here: bool,
-    opacity_multiplier: f32,
-    bg_index: usize,
-}
-
 impl CellRenderer {
-    /// Render a single pane's content within a viewport to an existing surface texture
-    ///
-    /// This method renders cells to a specific region of the render target,
-    /// using a GPU scissor rect to clip to the pane bounds.
-    ///
-    /// # Arguments
-    /// * `surface_view` - The texture view to render to
-    /// * `viewport` - The pane's viewport (position, size, focus state, opacity)
-    /// * `cells` - The cells to render (should match viewport grid size)
-    /// * `cols` - Number of columns in the cell grid
-    /// * `rows` - Number of rows in the cell grid
-    /// * `cursor_pos` - Cursor position (col, row) within this pane, or None if no cursor
-    /// * `cursor_opacity` - Cursor opacity (0.0 = hidden, 1.0 = fully visible)
-    /// * `show_scrollbar` - Whether to render the scrollbar for this pane
-    /// * `clear_first` - If true, clears the viewport region before rendering
-    /// * `skip_background_image` - If true, skip rendering the background image. Use this
-    ///   when the background image has already been rendered full-screen (for split panes).
-    pub fn render_pane_to_view(
-        &mut self,
-        surface_view: &wgpu::TextureView,
-        p: PaneRenderViewParams<'_>,
-    ) -> Result<()> {
-        let PaneRenderViewParams {
-            viewport,
-            cells,
-            cols,
-            rows,
-            cursor_pos,
-            cursor_opacity,
-            show_scrollbar,
-            clear_first,
-            skip_background_image,
-            fill_default_bg_cells,
-            separator_marks,
-            pane_background,
-        } = p;
-        // Build instance buffers for this pane's cells.
-        // Returns cursor_overlay_start: the bg_instance index where cursor overlays begin.
-        // Used for 3-phase rendering (bgs → text → cursor overlays).
-        let cursor_overlay_start = self.build_pane_instance_buffers(PaneInstanceBuildParams {
-            viewport,
-            cells,
-            cols,
-            rows,
-            cursor_pos,
-            cursor_opacity,
-            skip_solid_background: skip_background_image,
-            fill_default_bg_cells,
-            separator_marks,
-        })?;
-
-        // Pre-update per-pane background uniform buffer and bind group if needed (must happen
-        // before the render pass). Buffers are allocated once and reused across frames.
-        // Per-pane backgrounds are explicit user overrides and always prepared, even when a
-        // custom shader or global background would normally be skipped.
-        let has_pane_bg = if let Some(pane_bg) = pane_background
-            && let Some(ref path) = pane_bg.image_path
-            && self.bg_state.pane_bg_cache.contains_key(path.as_str())
-        {
-            self.prepare_pane_bg_bind_group(
-                path.as_str(),
-                super::background::PaneBgBindGroupParams {
-                    pane_x: viewport.x,
-                    pane_y: viewport.y,
-                    pane_width: viewport.width,
-                    pane_height: viewport.height,
-                    mode: pane_bg.mode,
-                    opacity: pane_bg.opacity,
-                    darken: pane_bg.darken,
-                },
-            );
-            true
-        } else {
-            false
-        };
-
-        // Retrieve cached path for use in the render pass (must be done before borrow in pass).
-        let pane_bg_path: Option<String> = if has_pane_bg {
-            pane_background
-                .and_then(|pb| pb.image_path.as_ref())
-                .map(|p| p.to_string())
-        } else {
-            None
-        };
-
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("pane render encoder"),
-            });
-
-        // Determine load operation and clear color
-        let load_op = if clear_first {
-            let clear_color = if self.bg_state.bg_is_solid_color {
-                wgpu::Color {
-                    r: self.bg_state.solid_bg_color[0] as f64
-                        * self.window_opacity as f64
-                        * viewport.opacity as f64,
-                    g: self.bg_state.solid_bg_color[1] as f64
-                        * self.window_opacity as f64
-                        * viewport.opacity as f64,
-                    b: self.bg_state.solid_bg_color[2] as f64
-                        * self.window_opacity as f64
-                        * viewport.opacity as f64,
-                    a: self.window_opacity as f64 * viewport.opacity as f64,
-                }
-            } else {
-                wgpu::Color {
-                    r: self.background_color[0] as f64
-                        * self.window_opacity as f64
-                        * viewport.opacity as f64,
-                    g: self.background_color[1] as f64
-                        * self.window_opacity as f64
-                        * viewport.opacity as f64,
-                    b: self.background_color[2] as f64
-                        * self.window_opacity as f64
-                        * viewport.opacity as f64,
-                    a: self.window_opacity as f64 * viewport.opacity as f64,
-                }
-            };
-            wgpu::LoadOp::Clear(clear_color)
-        } else {
-            wgpu::LoadOp::Load
-        };
-
-        {
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("pane render pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: surface_view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: load_op,
-                        store: wgpu::StoreOp::Store,
-                    },
-                    depth_slice: None,
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                multiview_mask: None,
-            });
-
-            // Set scissor rect to clip rendering to pane bounds
-            let (sx, sy, sw, sh) = viewport.to_scissor_rect();
-            render_pass.set_scissor_rect(sx, sy, sw, sh);
-
-            // Render per-pane background image within scissor rect.
-            // Per-pane backgrounds are explicit user overrides and always render,
-            // even when a custom shader or global background is active.
-            if let Some(ref path) = pane_bg_path
-                && let Some(cached) = self.bg_state.pane_bg_uniform_cache.get(path.as_str())
-            {
-                render_pass.set_pipeline(&self.pipelines.bg_image_pipeline);
-                render_pass.set_bind_group(0, &cached.bind_group, &[]);
-                render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
-                render_pass.draw(0..4, 0..1);
-            }
-
-            self.emit_three_phase_draw_calls(
-                &mut render_pass,
-                cursor_overlay_start as u32,
-                self.buffers.actual_bg_instances as u32,
-            );
-
-            // Render scrollbar if requested (uses its own scissor rect internally)
-            if show_scrollbar {
-                // Reset scissor to full surface for scrollbar
-                render_pass.set_scissor_rect(0, 0, self.config.width, self.config.height);
-                self.scrollbar.render(&mut render_pass);
-            }
-        }
-
-        self.queue.submit(std::iter::once(encoder.finish()));
-        Ok(())
-    }
-
     /// Build instance buffers for a pane's cells with viewport offset.
     ///
     /// Similar to `build_instance_buffers` but adjusts all positions to be relative to the
@@ -352,407 +174,38 @@ impl CellRenderer {
             }
             let row_cells = &cells[row_start..row_end.min(cells.len())];
 
-            // Background - use RLE to merge consecutive cells with same color
-            let mut col = 0;
-            while col < row_cells.len() {
-                let cell = &row_cells[col];
-                let bg_f = color_u8x4_rgb_to_f32(cell.bg_color);
-                let is_default_bg = (bg_f[0] - self.background_color[0]).abs() < 0.001
-                    && (bg_f[1] - self.background_color[1]).abs() < 0.001
-                    && (bg_f[2] - self.background_color[2]).abs() < 0.001;
+            // Phase 1: cell background quads (RLE-merged) — see row_backgrounds.rs
+            bg_index = self.emit_row_backgrounds(
+                RowBackgroundParams {
+                    row_cells,
+                    row,
+                    cursor_pos,
+                    cursor_opacity,
+                    content_x,
+                    content_y,
+                    opacity_multiplier,
+                    fill_default_bg_cells,
+                    skip_solid_background,
+                },
+                bg_index,
+            );
 
-                // Check for cursor at this position (position check only, no opacity gate)
-                let cursor_at_cell = cursor_pos.is_some_and(|(cx, cy)| cx == col && cy == row)
-                    && !self.cursor.hidden_for_shader;
-                // Hollow cursor (unfocused + Hollow style) must show regardless of blink opacity
-                let render_hollow_here = cursor_at_cell
-                    && !self.is_focused
-                    && self.cursor.unfocused_style == par_term_config::UnfocusedCursorStyle::Hollow;
-                let has_cursor = (cursor_at_cell && cursor_opacity > 0.0) || render_hollow_here;
-
-                // Skip cells with half-block characters (▄/▀).
-                // These are rendered entirely through the text pipeline to avoid
-                // cross-pipeline coordinate seams that cause visible banding.
-                let is_half_block = {
-                    let mut chars = cell.grapheme.chars();
-                    matches!(chars.next(), Some('\u{2580}' | '\u{2584}')) && chars.next().is_none()
-                };
-
-                // Skip default-bg cells only when NOT in background-image/shader mode.
-                // When skip_solid_background is true (background image or custom shader active),
-                // no viewport fill is drawn, so default-bg cells between colored segments would
-                // show the background image through — causing visible gaps/lines in the tmux
-                // status bar. In that mode we render them with the theme background color instead.
-                // Skip default-bg cells unless fill_default_bg_cells is set (background-image mode).
-                // In normal mode: viewport fill quad covers them — no individual quad needed.
-                // In shader mode: shader output must show through — do not paint over it.
-                // In bg-image mode: fill_default_bg_cells=true — render with theme bg color to
-                // close gaps that would otherwise show the background image unexpectedly.
-                if is_half_block || (is_default_bg && !has_cursor && !fill_default_bg_cells) {
-                    col += 1;
-                    continue;
-                }
-
-                // Calculate background color with alpha and pane opacity
-                let bg_alpha =
-                    if self.transparency_affects_only_default_background && !is_default_bg {
-                        1.0
-                    } else {
-                        self.window_opacity
-                    };
-                let pane_alpha = bg_alpha * opacity_multiplier;
-                let bg_color = color_u8x4_rgb_to_f32_a(cell.bg_color, pane_alpha);
-
-                // Handle cursor at this position (QA-006: extracted to helper for readability)
-                if has_cursor {
-                    let emitted = self.emit_cursor_cell_bg(CursorCellBgParams {
-                        col,
-                        row,
-                        content_x,
-                        content_y,
-                        bg_color,
-                        cursor_opacity,
-                        render_hollow_here,
-                        opacity_multiplier,
-                        bg_index,
-                    });
-                    if emitted {
-                        bg_index += 1;
-                    }
-                    col += 1;
-                    continue;
-                }
-
-                // RLE: Find run of consecutive cells with same background color
-                let start_col = col;
-                let run_color = cell.bg_color;
-                col += 1;
-                while col < row_cells.len() {
-                    let next_cell = &row_cells[col];
-                    let next_cursor_at_cell = cursor_pos
-                        .is_some_and(|(cx, cy)| cx == col && cy == row)
-                        && !self.cursor.hidden_for_shader;
-                    let next_hollow = next_cursor_at_cell
-                        && !self.is_focused
-                        && self.cursor.unfocused_style
-                            == par_term_config::UnfocusedCursorStyle::Hollow;
-                    let next_has_cursor =
-                        (next_cursor_at_cell && cursor_opacity > 0.0) || next_hollow;
-                    let next_is_half_block = {
-                        let mut chars = next_cell.grapheme.chars();
-                        matches!(chars.next(), Some('\u{2580}' | '\u{2584}'))
-                            && chars.next().is_none()
-                    };
-                    if next_cell.bg_color != run_color || next_has_cursor || next_is_half_block {
-                        break;
-                    }
-                    col += 1;
-                }
-                let run_length = col - start_col;
-
-                // Create single quad spanning entire run.
-                // Snap all edges to pixel boundaries to match the text pipeline and
-                // eliminate sub-pixel gaps between adjacent differently-colored cell runs.
-                let x0 = (content_x + start_col as f32 * self.grid.cell_width).round();
-                let x1 =
-                    (content_x + (start_col + run_length) as f32 * self.grid.cell_width).round();
-                let y0 = (content_y + row as f32 * self.grid.cell_height).round();
-                let y1 = (content_y + (row + 1) as f32 * self.grid.cell_height).round();
-
-                // Extend the colored bg quad 1 px under adjacent powerline separator glyphs
-                // to eliminate the dark fringe at their anti-aliased edges.
-                // See powerline.rs for full rationale.
-                let (x0, x1) =
-                    powerline::extend_powerline_fringes(powerline::PowerlineFringeParams {
-                        row_cells,
-                        start_col,
-                        col,
-                        x0,
-                        x1,
-                        skip_solid_background,
-                        is_default_bg,
-                        background_color: self.background_color,
-                    });
-
-                if bg_index < self.buffers.max_bg_instances {
-                    self.bg_instances[bg_index] = BackgroundInstance {
-                        position: [
-                            x0 / self.config.width as f32 * 2.0 - 1.0,
-                            1.0 - (y0 / self.config.height as f32 * 2.0),
-                        ],
-                        size: [
-                            (x1 - x0) / self.config.width as f32 * 2.0,
-                            (y1 - y0) / self.config.height as f32 * 2.0,
-                        ],
-                        color: bg_color,
-                    };
-                    bg_index += 1;
-                }
-            }
-
-            // Text rendering
-            let natural_line_height =
-                self.font.font_ascent + self.font.font_descent + self.font.font_leading;
-            let vertical_padding = (self.grid.cell_height - natural_line_height).max(0.0) / 2.0;
-            let baseline_y = content_y
-                + (row as f32 * self.grid.cell_height)
-                + vertical_padding
-                + self.font.font_ascent;
-
-            // Compute text alpha - force opaque if keep_text_opaque is enabled
-            let text_alpha = if self.keep_text_opaque {
-                opacity_multiplier // Only apply pane dimming, not window transparency
-            } else {
-                self.window_opacity * opacity_multiplier
-            };
-
-            // Check if this row has the cursor and it's a visible block cursor
-            // (for cursor text color override in split-pane rendering)
-            let cursor_is_block_on_this_row = {
-                use par_term_emu_core_rust::cursor::CursorStyle;
-                cursor_pos.is_some_and(|(_, cy)| cy == row)
-                    && cursor_opacity > 0.0
-                    && !self.cursor.hidden_for_shader
-                    && matches!(
-                        self.cursor.style,
-                        CursorStyle::SteadyBlock | CursorStyle::BlinkingBlock
-                    )
-                    && (self.is_focused
-                        || self.cursor.unfocused_style
-                            == par_term_config::UnfocusedCursorStyle::Same)
-            };
-
-            for (col_idx, cell) in row_cells.iter().enumerate() {
-                if cell.wide_char_spacer || cell.grapheme == " " {
-                    continue;
-                }
-
-                // Avoid Vec<char> allocation: use iterator-based char access.
-                let Some(ch) = cell.grapheme.chars().next() else {
-                    continue;
-                };
-
-                // Kitty Unicode placeholder cells render as images (handled by
-                // the graphics path), not as glyphs. Most fonts have no glyph
-                // for U+10EEEE so falling through here would draw tofu where
-                // an image is supposed to appear.
-                if ch == '\u{10EEEE}' {
-                    continue;
-                }
-                let second_char = cell.grapheme.chars().nth(1);
-                // grapheme_len is 1, 2, or "more than 2" — we stop counting at 3.
-                let grapheme_len = match second_char {
-                    None => 1usize,
-                    Some(_) => {
-                        if cell.grapheme.chars().nth(2).is_none() {
-                            2
-                        } else {
-                            3
-                        }
-                    }
-                };
-
-                // Determine text color - apply cursor_text_color (or auto-contrast) when the
-                // block cursor is on this cell, otherwise use the cell's foreground color.
-                let render_fg_color: [f32; 4] = if cursor_is_block_on_this_row
-                    && cursor_pos.is_some_and(|(cx, _)| cx == col_idx)
-                {
-                    compute_cursor_text_color(self.cursor.color, self.cursor.text_color, text_alpha)
-                } else {
-                    color_u8x4_rgb_to_f32_a(cell.fg_color, text_alpha)
-                };
-
-                // Classify character for block/box-drawing detection and glyph snapping.
-                let char_type = block_chars::classify_char(ch);
-
-                // Attempt geometric rendering for block/box-drawing characters.
-                // See block_char_render.rs for the full implementation.
-                let block_x0 = (content_x + col_idx as f32 * self.grid.cell_width).round();
-                let block_y0 = (content_y + row as f32 * self.grid.cell_height).round();
-                let block_y1 = (content_y + (row + 1) as f32 * self.grid.cell_height).round();
-                if let Some(new_idx) = self.render_block_char_geometrically(BlockCharRenderParams {
-                    cell,
-                    ch,
-                    grapheme_len,
-                    x0_pixel: block_x0,
-                    y0_pixel: block_y0,
-                    y1_pixel: block_y1,
-                    render_fg_color,
-                    text_alpha,
-                    text_index,
-                }) {
-                    text_index = new_idx;
-                    continue;
-                }
-
-                // Check if this character should be rendered as a monochrome symbol.
-                // Also handle symbol + VS16 (U+FE0F): strip VS16, render monochrome.
-                let (force_monochrome, base_char) = if grapheme_len == 1 {
-                    (super::atlas::should_render_as_symbol(ch), ch)
-                } else if grapheme_len == 2
-                    && second_char == Some('\u{FE0F}')
-                    && super::atlas::should_render_as_symbol(ch)
-                {
-                    // Symbol + VS16: strip VS16 and render base char as monochrome
-                    (true, ch)
-                } else {
-                    (false, ch)
-                };
-
-                // Resolve a renderable glyph via the shared font-fallback helper (ARC-004 / QA-003).
-                // This replaces the duplicated excluded_fonts/get_or_rasterize_glyph loop
-                // that previously existed in both pane_render/mod.rs and text_instance_builder.rs.
-                let resolved_info = self.resolve_glyph_with_fallback(
-                    base_char,
-                    &cell.grapheme,
-                    cell.bold,
-                    cell.italic,
-                    force_monochrome,
-                );
-
-                if let Some(info) = resolved_info {
-                    let char_w = if cell.wide_char {
-                        self.grid.cell_width * 2.0
-                    } else {
-                        self.grid.cell_width
-                    };
-                    let x0 = content_x + col_idx as f32 * self.grid.cell_width;
-                    let y0 = content_y + row as f32 * self.grid.cell_height;
-                    let x1 = x0 + char_w;
-                    let y1 = y0 + self.grid.cell_height;
-
-                    let cell_w = x1 - x0;
-                    let cell_h = y1 - y0;
-                    let scale_x = cell_w / char_w;
-                    let scale_y = cell_h / self.grid.cell_height;
-
-                    let baseline_offset =
-                        baseline_y - (content_y + row as f32 * self.grid.cell_height);
-                    let glyph_left = x0 + (info.bearing_x * scale_x).round();
-                    let baseline_in_cell = (baseline_offset * scale_y).round();
-                    let glyph_top = y0 + baseline_in_cell - info.bearing_y;
-
-                    let render_w = info.width as f32 * scale_x;
-                    let render_h = info.height as f32 * scale_y;
-
-                    let (final_left, final_top, final_w, final_h) = if grapheme_len == 1
-                        && matches!(
-                            char_type,
-                            block_chars::BlockCharType::Symbol
-                                | block_chars::BlockCharType::Geometric
-                        ) {
-                        let height_scale = cell_h / render_h;
-                        let width_scale = cell_w / render_w;
-                        let symbol_scale = height_scale.min(width_scale).max(1.0);
-                        let final_w = render_w * symbol_scale;
-                        let final_h = render_h * symbol_scale;
-                        (
-                            x0 + (cell_w - final_w) / 2.0,
-                            y0 + (cell_h - final_h) / 2.0,
-                            final_w,
-                            final_h,
-                        )
-                    } else if grapheme_len == 1 && block_chars::should_snap_to_boundaries(char_type)
-                    {
-                        block_chars::snap_glyph_to_cell(block_chars::SnapGlyphParams {
-                            glyph_left,
-                            glyph_top,
-                            render_w,
-                            render_h,
-                            cell_x0: x0,
-                            cell_y0: y0,
-                            cell_x1: x1,
-                            cell_y1: y1,
-                            snap_threshold: 3.0,
-                            extension: 0.5,
-                        })
-                    } else {
-                        (glyph_left, glyph_top, render_w, render_h)
-                    };
-
-                    if text_index < self.buffers.max_text_instances {
-                        self.text_instances[text_index] = TextInstance {
-                            position: [
-                                final_left / self.config.width as f32 * 2.0 - 1.0,
-                                1.0 - (final_top / self.config.height as f32 * 2.0),
-                            ],
-                            size: [
-                                final_w / self.config.width as f32 * 2.0,
-                                final_h / self.config.height as f32 * 2.0,
-                            ],
-                            tex_offset: [info.x as f32 / ATLAS_SIZE, info.y as f32 / ATLAS_SIZE],
-                            tex_size: [
-                                info.width as f32 / ATLAS_SIZE,
-                                info.height as f32 / ATLAS_SIZE,
-                            ],
-                            color: render_fg_color,
-                            is_colored: if info.is_colored { 1 } else { 0 },
-                        };
-                        text_index += 1;
-                    }
-                }
-            }
-
-            // Underlines: emit a thin rectangle at the bottom of each underlined cell.
-            // Mirrors the logic in text_instance_builder.rs but uses pane-local coordinates.
-            {
-                let underline_thickness = (self.grid.cell_height * UNDERLINE_HEIGHT_RATIO)
-                    .max(1.0)
-                    .round();
-                let tex_offset = [
-                    self.atlas.solid_pixel_offset.0 as f32 / ATLAS_SIZE,
-                    self.atlas.solid_pixel_offset.1 as f32 / ATLAS_SIZE,
-                ];
-                let tex_size = [1.0 / ATLAS_SIZE, 1.0 / ATLAS_SIZE];
-                let y0 = content_y + (row + 1) as f32 * self.grid.cell_height - underline_thickness;
-                let ndc_y = 1.0 - (y0 / self.config.height as f32 * 2.0);
-                let ndc_h = underline_thickness / self.config.height as f32 * 2.0;
-                let is_stipple =
-                    self.link_underline_style == par_term_config::LinkUnderlineStyle::Stipple;
-                let stipple_period = STIPPLE_ON_PX + STIPPLE_OFF_PX;
-
-                for col_idx in 0..cols {
-                    if row_start + col_idx >= cells.len() {
-                        break;
-                    }
-                    let cell = &cells[row_start + col_idx];
-                    if !cell.underline {
-                        continue;
-                    }
-                    let fg = color_u8x4_rgb_to_f32_a(cell.fg_color, text_alpha);
-                    let cell_x0 = content_x + col_idx as f32 * self.grid.cell_width;
-
-                    if is_stipple {
-                        let mut px = 0.0;
-                        while px < self.grid.cell_width
-                            && text_index < self.buffers.max_text_instances
-                        {
-                            let seg_w = STIPPLE_ON_PX.min(self.grid.cell_width - px);
-                            let x = cell_x0 + px;
-                            self.text_instances[text_index] = TextInstance {
-                                position: [x / self.config.width as f32 * 2.0 - 1.0, ndc_y],
-                                size: [seg_w / self.config.width as f32 * 2.0, ndc_h],
-                                tex_offset,
-                                tex_size,
-                                color: fg,
-                                is_colored: 0,
-                            };
-                            text_index += 1;
-                            px += stipple_period;
-                        }
-                    } else if text_index < self.buffers.max_text_instances {
-                        self.text_instances[text_index] = TextInstance {
-                            position: [cell_x0 / self.config.width as f32 * 2.0 - 1.0, ndc_y],
-                            size: [self.grid.cell_width / self.config.width as f32 * 2.0, ndc_h],
-                            tex_offset,
-                            tex_size,
-                            color: fg,
-                            is_colored: 0,
-                        };
-                        text_index += 1;
-                    }
-                }
-            }
+            // Phase 2: glyphs and underlines — see text_render.rs
+            text_index = self.emit_row_text(
+                RowTextParams {
+                    row_cells,
+                    cells,
+                    row_start,
+                    cols,
+                    row,
+                    content_x,
+                    content_y,
+                    cursor_pos,
+                    cursor_opacity,
+                    opacity_multiplier,
+                },
+                text_index,
+            );
         }
 
         // Inject command separator line instances — see separators.rs
@@ -826,61 +279,5 @@ impl CellRenderer {
         }
 
         Ok(cursor_overlay_start)
-    }
-
-    /// Emit a background instance for a cell containing the cursor.
-    ///
-    /// QA-006: Extracted from the RLE background loop in `build_pane_instance_buffers`.
-    /// Handles block-cursor color blending and pixel-snapped background quad placement.
-    /// Returns `true` if an instance was emitted (caller increments bg_index).
-    fn emit_cursor_cell_bg(&mut self, p: CursorCellBgParams) -> bool {
-        let CursorCellBgParams {
-            col,
-            row,
-            content_x,
-            content_y,
-            mut bg_color,
-            cursor_opacity,
-            render_hollow_here,
-            opacity_multiplier,
-            bg_index,
-        } = p;
-
-        use par_term_emu_core_rust::cursor::CursorStyle;
-        match self.cursor.style {
-            CursorStyle::SteadyBlock | CursorStyle::BlinkingBlock if !render_hollow_here => {
-                // Solid block cursor: blend cursor color into background
-                for (bg, &cursor) in bg_color.iter_mut().take(3).zip(&self.cursor.color) {
-                    *bg = *bg * (1.0 - cursor_opacity) + cursor * cursor_opacity;
-                }
-                bg_color[3] = bg_color[3].max(cursor_opacity * opacity_multiplier);
-            }
-            // If hollow: keep original background color (outline added as overlay)
-            _ => {}
-        }
-
-        // Cursor cell can't be merged
-        // Snap to pixel boundaries to match text pipeline alignment
-        let x0 = (content_x + col as f32 * self.grid.cell_width).round();
-        let x1 = (content_x + (col + 1) as f32 * self.grid.cell_width).round();
-        let y0 = (content_y + row as f32 * self.grid.cell_height).round();
-        let y1 = (content_y + (row + 1) as f32 * self.grid.cell_height).round();
-
-        if bg_index < self.buffers.max_bg_instances {
-            self.bg_instances[bg_index] = BackgroundInstance {
-                position: [
-                    x0 / self.config.width as f32 * 2.0 - 1.0,
-                    1.0 - (y0 / self.config.height as f32 * 2.0),
-                ],
-                size: [
-                    (x1 - x0) / self.config.width as f32 * 2.0,
-                    (y1 - y0) / self.config.height as f32 * 2.0,
-                ],
-                color: bg_color,
-            };
-            true
-        } else {
-            false
-        }
     }
 }

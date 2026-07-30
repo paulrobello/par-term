@@ -108,10 +108,10 @@ impl CellRenderer {
         self.config.height = height;
         self.surface.configure(&self.device, &self.config);
 
-        // Match the pane render path formula (pane_render.rs:72-80) which is
-        // always active.  Width: no scrollbar deduction here — the pane render
-        // path conditionally subtracts scrollbar_width via RendererSizing when
-        // the scrollbar is visible.
+        // Match the pane render path formula (see `chrome_overhead` below),
+        // which is always active. Width: no scrollbar deduction here — the pane
+        // render path conditionally subtracts scrollbar_width via RendererSizing
+        // when the scrollbar is visible.
         // Height: 1× padding (top margin is content_offset_y, not padding).
         let available_width = (width as f32
             - self.grid.window_padding * 2.0
@@ -142,7 +142,7 @@ impl CellRenderer {
 
     /// Returns total non-terminal pixel overhead as (horizontal_px, vertical_px).
     ///
-    /// Matches the pane render path formula (pane_render.rs:72-80) which is always active:
+    /// Matches the pane render path formula, which is always active:
     ///   Horizontal: window_padding*2 + content_offset_x + content_inset_right
     ///   Vertical:   window_padding + content_offset_y + content_inset_bottom + egui_bottom_inset
     ///

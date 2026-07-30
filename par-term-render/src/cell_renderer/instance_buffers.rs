@@ -59,8 +59,8 @@ pub(crate) const TEXT_INSTANCES_PER_CELL: usize = 2;
 /// `CursorState`. The returned value is a 4-component RGBA with `text_alpha` as alpha.
 ///
 /// This is a free function rather than a method so it can be called from
-/// both `text_instance_builder.rs` and `pane_render/mod.rs` without any
-/// borrowing conflicts.
+/// both `text_instance_builder.rs` and `pane_render/text_render.rs` without
+/// any borrowing conflicts.
 pub(crate) fn compute_cursor_text_color(
     cursor_color: [f32; 3],
     cursor_text_color: Option<[f32; 3]>,
