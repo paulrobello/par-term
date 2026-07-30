@@ -56,20 +56,28 @@ jobs:
     - name: Install ACP bridge
       run: make install-acp
 
-    - name: Cache cargo registry
-      uses: actions/cache@v6
+    # Restore and save are split deliberately. `actions/cache` writes the cache
+    # in an implicit post-step, which GitHub skips when the job fails — so a
+    # streak of red runs never warms the cache and every attempt recompiles
+    # from scratch. The matching save steps at the end of this job run with
+    # `if: always()`. Key scheme is unchanged.
+    - name: Restore cargo registry
+      id: cache-registry
+      uses: actions/cache/restore@v6
       with:
         path: ~/.cargo/registry
         key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
 
-    - name: Cache cargo index
-      uses: actions/cache@v6
+    - name: Restore cargo index
+      id: cache-index
+      uses: actions/cache/restore@v6
       with:
         path: ~/.cargo/git
         key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
 
-    - name: Cache target directory
-      uses: actions/cache@v6
+    - name: Restore target directory
+      id: cache-target
+      uses: actions/cache/restore@v6
       with:
         path: target
         key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
@@ -91,3 +99,26 @@ jobs:
     - name: Build release
       if: inputs.release_build
       run: cargo build --release --verbose
+
+    # Save even when the steps above failed. Skipped on an exact key hit, where
+    # there is nothing new to write.
+    - name: Save cargo registry
+      if: always() && steps.cache-registry.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v6
+      with:
+        path: ~/.cargo/registry
+        key: ${{ steps.cache-registry.outputs.cache-primary-key }}
+
+    - name: Save cargo index
+      if: always() && steps.cache-index.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v6
+      with:
+        path: ~/.cargo/git
+        key: ${{ steps.cache-index.outputs.cache-primary-key }}
+
+    - name: Save target directory
+      if: always() && steps.cache-target.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v6
+      with:
+        path: target
+        key: ${{ steps.cache-target.outputs.cache-primary-key }}
