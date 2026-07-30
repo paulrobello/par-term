@@ -513,7 +513,9 @@ jobs:
         if: success()
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-        uses: Ilshidur/action-discord@0.4.0
+        # Pinned to a SHA: this step holds DISCORD_WEBHOOK, and a tag can be moved.
+        # To find the SHA: git ls-remote https://github.com/Ilshidur/action-discord 0.4.0
+        uses: Ilshidur/action-discord@d2594079a10f1d6739ee50a2471f0ca57418b554 # 0.4.0
         with:
           args: 'Published {{ EVENT_PAYLOAD.repository.name }} v${{ steps.version.outputs.version }} to crates.io successfully!'
         continue-on-error: true
