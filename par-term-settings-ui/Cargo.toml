@@ -17,8 +17,6 @@ par-term-config = { path = "../par-term-config", version = "0.12" }
 
 # egui for UI
 egui.workspace = true
-egui-wgpu = { workspace = true, optional = true }
-egui-winit = { workspace = true, optional = true }
 
 # File dialogs
 rfd.workspace = true
@@ -68,7 +66,6 @@ arboard.workspace = true
 
 [features]
 default = []
-wgpu = ["egui-wgpu", "egui-winit"]
 
 [dev-dependencies]
 tempfile.workspace = true
