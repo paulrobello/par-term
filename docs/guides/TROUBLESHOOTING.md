@@ -619,6 +619,9 @@ URL underline positioning now correctly accounts for split pane offsets, scrollb
 **Solution:**
 
 1. From the menu bar while connected to a remote host: **Shell > Install Shell Integration on Remote Host...**
+
+   **On Linux there is no menu bar**, so use step 2 instead.
+
 2. Or run manually in the SSH session:
 
    ```bash

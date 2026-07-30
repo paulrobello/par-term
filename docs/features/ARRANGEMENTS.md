@@ -103,6 +103,8 @@ Saving an arrangement captures a snapshot of every open window, including its po
 
 Select **View > Save Window Arrangement...** from the menu bar. This opens the Settings window to the Window tab (Arrangements section) where you can enter a name and save.
 
+Not available on Linux, which has no menu bar. Use the keybinding below, or open Settings and go to the Window tab (Arrangements section) directly.
+
 ### Via Keybinding
 
 Add a keybinding for the `save_arrangement` action in your `config.yaml`:

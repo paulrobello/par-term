@@ -4,6 +4,15 @@ Complete reference for all par-term keyboard shortcuts.
 
 > **📝 Note:** On macOS, keybindings use `Cmd` as the primary modifier. On Linux and Windows, keybindings use `Ctrl+Shift` combinations to avoid conflicts with standard terminal control codes (Ctrl+C for SIGINT, Ctrl+D for EOF, etc.). This follows conventions from WezTerm, Kitty, GNOME Terminal, and Windows Terminal.
 
+> **⚠️ Linux:** Shortcuts marked *(menu)* below are provided by the native menu
+> bar, and **par-term does not attach a menu bar on Linux** — `muda` requires a
+> `gtk::Window` that winit does not create. `New window`, `Close tab/window`,
+> `Quit application` and `Select all` are menu-only actions with no
+> configurable keybinding, so on Linux they have no direct keyboard route.
+> Workarounds: close the window with the window-manager control to quit,
+> `move_tab_to_new_window` to open a second window, and mouse selection in place
+> of Select all. Tracked on the project board.
+
 ## Table of Contents
 - [Window & Tab Management](#window--tab-management)
 - [Navigation & Scrolling](#navigation--scrolling)

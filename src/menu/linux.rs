@@ -17,8 +17,12 @@
 //!    are, driving the existing action map. Works on X11 and Wayland alike.
 //! 2. Export a global menu over DBus (`com.canonical.dbusmenu`). Works on KDE
 //!    Plasma, not on GNOME without an extension.
-//! 3. Leave it: every menu action also has a keybinding, so the menu is a
-//!    discoverability aid rather than the only route to any feature.
+//! 3. Leave it. Most menu actions also have keybindings, so the menu is
+//!    largely a discoverability aid — but four do not. `new_window`,
+//!    `close_window`, `quit` and `select_all` exist only as menu items (they
+//!    are absent from the bindable action list in
+//!    `src/app/input_events/keybinding_actions.rs`), so on Linux they have no
+//!    direct keyboard route at all. That makes this more than cosmetic.
 //!
 //! Until one of those lands, this function logs what it detected and returns
 //! `Ok(())`. It must not claim to have initialized a menu — the previous
@@ -31,8 +35,9 @@ use winit::window::Window;
 
 /// Report that no menu bar is attached on Linux, and why.
 ///
-/// Returns `Ok(())` because an absent menu bar is not a startup failure: the
-/// keybindings covering the same actions are unaffected.
+/// Returns `Ok(())` because an absent menu bar is not a startup failure. It is
+/// not harmless either: `new_window`, `close_window`, `quit` and `select_all`
+/// are menu-only, so Linux has no direct keyboard route to them.
 pub fn init_for_window(window: &Arc<Window>) -> Result<()> {
     let display_server = match window.window_handle().map(|handle| handle.as_raw()) {
         Ok(RawWindowHandle::Xlib(_)) => "X11",
@@ -43,7 +48,8 @@ pub fn init_for_window(window: &Arc<Window>) -> Result<()> {
 
     log::info!(
         "No native menu bar on Linux ({display_server}): muda needs a gtk::Window and winit \
-         creates none. Menu actions remain available through their keybindings."
+         creates none. Actions that have keybindings still work; new_window, close_window, \
+         quit and select_all are menu-only and have no keyboard route here."
     );
     Ok(())
 }
