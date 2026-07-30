@@ -4,8 +4,11 @@ Upgrade notes for par-term covering breaking configuration changes, renamed fiel
 
 ## Table of Contents
 
-- [Unreleased — `XDG_CONFIG_HOME` Is Now Honoured](#unreleased--xdg_config_home-is-now-honoured)
-- [Unreleased — macOS Config Directory Consolidation](#unreleased--macos-config-directory-consolidation)
+- [v0.38.0 — Preference Import Requires HTTPS](#v0380--preference-import-requires-https)
+- [v0.38.0 — Profile Commands Require Confirmation](#v0380--profile-commands-require-confirmation)
+- [v0.38.0 — `Cmd/Ctrl+Shift+P` Moves to the Profile Drawer](#v0380--cmdctrlshiftp-moves-to-the-profile-drawer)
+- [v0.38.0 — `XDG_CONFIG_HOME` Is Now Honoured](#v0380--xdg_config_home-is-now-honoured)
+- [v0.38.0 — macOS Config Directory Consolidation](#v0380--macos-config-directory-consolidation)
 - [v0.31.0 — Content Prettifier Removed](#v0310--content-prettifier-removed)
 - [v0.27.0 — Trigger Field Renamed](#v0270--trigger-field-renamed)
 - [v0.27.0 — Security-Gated Trigger Execution](#v0270--security-gated-trigger-execution)
@@ -18,7 +21,43 @@ Upgrade notes for par-term covering breaking configuration changes, renamed fiel
 
 ---
 
-## Unreleased — `XDG_CONFIG_HOME` Is Now Honoured
+## v0.38.0 — Preference Import Requires HTTPS
+
+**Settings ▸ Advanced ▸ Import/Export Preferences** now rejects any import URL that is not `https://`. There is no HTTP opt-in on this path, and `file:`, `ftp:` and `data:` URLs are rejected as well.
+
+**Affected users:** anyone whose preference-import URL uses `http://`. The Fetch buttons stay enabled and the status line reports why the URL was rejected.
+
+**Migration:** serve the configuration over HTTPS, or download it and use **Import from File** instead.
+
+Note that this path also used to abort par-term outright on any `https://` URL — the HTTP agent selected a TLS provider that is not compiled in, and the library panics rather than returning an error in that case. That is fixed in the same release, so HTTPS import works for the first time here.
+
+---
+
+## v0.38.0 — Profile Commands Require Confirmation
+
+A profile that specifies a **Command** now shows a confirmation dialog before that command runs, on every auto-switch path — working directory, tmux session name, and remote hostname.
+
+**Why:** profile matching is driven by remote-controlled input. The hostname comes from an OSC 7 sequence the remote shell emits, it is checked on every event-loop iteration, and a `*` pattern always matches. The trigger subsystem already gates the same capability behind an allowlist, a denylist, a rate limit, a concurrency cap, an audit log, and confirmation on by default; profile auto-switch had none of it.
+
+**Affected users:** anyone relying on a profile command running unattended on auto-switch.
+
+**Migration:** none available — there is deliberately no opt-out. Confirm the prompt when it appears. A profile fetched from a remote URL additionally cannot pre-approve its own command under any setting.
+
+---
+
+## v0.38.0 — `Cmd/Ctrl+Shift+P` Moves to the Profile Drawer
+
+`Cmd+Shift+P` (macOS) / `Ctrl+Shift+P` (Windows and Linux) now toggles the profile drawer on all three platforms. **Manage Profiles…** keeps its entry in the Profiles menu but no longer carries an accelerator.
+
+**Why:** the settings table always advertised this chord for the profile drawer, but the Profiles menu registered it for **Manage Profiles…**, and the native menu bar consumes a chord before it reaches the application — so on macOS and Windows the advertised binding opened the manager instead. On Linux, which had no native menu bar, the chord already toggled the drawer, so the defect was inverted per platform and could not be fixed by moving the drawer to a different chord.
+
+**Affected users:** macOS and Windows users who used this chord to open **Manage Profiles…**.
+
+**Migration:** reach **Manage Profiles…** from the Profiles menu, from **Settings ▸ Profiles**, or from the profile drawer's **Manage** button. If you prefer the old behavior, bind `toggle_profile_drawer` to a different chord in your keybindings and the menu accelerator will not conflict.
+
+---
+
+## v0.38.0 — `XDG_CONFIG_HOME` Is Now Honoured
 
 par-term previously hardcoded `~/.config/par-term/` on Linux and macOS and never read `XDG_CONFIG_HOME`, even though the documentation claimed otherwise. It now resolves its config directory to `$XDG_CONFIG_HOME/par-term/`, falling back to `~/.config/par-term/` when the variable is unset, empty, or not an absolute path.
 
@@ -30,7 +69,7 @@ Only `XDG_CONFIG_HOME` is read. `XDG_DATA_HOME`, `XDG_STATE_HOME`, `XDG_CACHE_HO
 
 ---
 
-## Unreleased — macOS Config Directory Consolidation
+## v0.38.0 — macOS Config Directory Consolidation
 
 On macOS, par-term now keeps all of its per-user data under `~/.config/par-term/` — the same directory as `config.yaml` — instead of the previous mixed layout where some files landed in `~/Library/Application Support/par-term/`.
 

@@ -470,7 +470,7 @@ Folder: Git
 ```yaml
 Title: Git Push
 Content: git push
-Keybinding: Ctrl+Shift+P
+Keybinding: Ctrl+Shift+O
 Folder: Git
 ```
 

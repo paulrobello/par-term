@@ -43,13 +43,31 @@ New to par-term? The [Getting Started Guide](docs/guides/GETTING_STARTED.md) wal
 
 ## What's New
 
-### 0.37.1
+### 0.38.0
 
-- **Scripts on Windows now run at all** -- `.py` scripts were spawned with a literal `python3`, which the official Windows Python distribution does not install (it provides `python.exe` and the `py.exe` launcher only), so every script silently failed to start. The interpreter is now resolved from `PATH`, honouring `PATHEXT`, and reports which candidates it tried when none is found.
-- **ACP agents on Windows are discoverable** -- agent lookup probed `PATH` for a bare binary name, but the file on disk carries a `PATHEXT` suffix (`claude-agent-acp.cmd`), so every bundled agent reported "not installed". Lookup now tries each `PATHEXT` extension, and the ACP safe-write allowlist uses the real temp directory instead of hardcoded Unix paths.
-- **The audio bell no longer crashes par-term on Windows** -- a device was opened per pane, and opening a second WASAPI device after the creating thread exits faults the process. One shared device is now opened per process, which also drops the per-pane device handles and mixer threads on every platform.
-- **`auto_start: true` scripts start with their tab** -- the flag was documented but never acted on; only the Settings UI button could launch a script. Tab creation now auto-starts scripts the way it already did coprocesses ([#220](https://github.com/paulrobello/par-term/issues/220)).
-- **Windows CI is back, and the full three-OS matrix with it** -- the audio crash above was the long-standing cause of the instability that got the Windows leg disabled.
+The result of a full security, architecture, quality and documentation audit — the largest release so far. Three changes break a working setup; they are listed first.
+
+**Breaking**
+
+- **Importing preferences from a URL now requires HTTPS** -- an `http://` import URL stops working. The same path also used to abort the process outright on any HTTPS URL, so in practice it only ever worked over plaintext.
+- **A profile's command asks for confirmation before it runs** -- profile matching is driven by the hostname a remote shell reports, so it is remote-controlled input. There is no opt-out.
+- **`Cmd/Ctrl+Shift+P` now toggles the profile drawer**, which is what the settings table always advertised; **Manage Profiles** keeps its menu entry but loses the accelerator.
+
+**Added**
+
+- **Linux has a menu bar** -- New Window, Close Window, Quit and Select All were menu-only actions on a platform with no menu, so there was no way to reach them at all. All four are now bindable on every platform.
+- **The session survives a panic** -- the event loop publishes a pre-serialized capture every few seconds and the panic hook writes it, so a crash no longer costs every tab its working directory.
+- **Duplicate Tab has a default binding** (`Cmd/Ctrl+Shift+J`), and tab reordering appears in the menu.
+- **`XDG_CONFIG_HOME` is honoured on Linux and macOS**, and macOS user data moves under `~/.config/par-term/` with a one-time automatic migration.
+
+**Security and stability**
+
+- **A malicious mDNS hostname could reach a shell** through Quick Connect; every SSH argument is now validated and quoted.
+- **Any emoji, CJK character or accented letter could crash the terminal** -- six sites used a grid column index as a UTF-8 byte offset. They survived 1,965 green tests because every test input in the repository was ASCII.
+- **A failed pane demote destroyed every terminal in the source tab**, silently.
+- **Scripting did nothing unless the Settings window was open** -- the entire script runtime sat behind that branch.
+- **Update downloads are signature-verified** and release assets are signed, notarized and checksummed.
+- **Every pane is submitted to the GPU in one submit instead of one each**, and the full cell grid is no longer deep-cloned on idle frames.
 
 Release notes for every earlier version live in [CHANGELOG.md](CHANGELOG.md).
 
