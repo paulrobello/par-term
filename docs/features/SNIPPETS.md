@@ -677,6 +677,7 @@ actions:
 **Step failure**: A step "fails" when:
 - It is a `ShellCommand` with `capture_output: true` and exits with a non-zero code
 - It is a `Condition` whose check evaluates to false
+- A `ShellCommand` **without** `capture_output` never fails: it is fire-and-forget, launched on a background thread, and the step reports success immediately whatever the command goes on to do (`timeout_secs` still kills the child, but the sequence has already moved on)
 - Steps of all other types (InsertText, KeySequence, NewTab, SplitPane) always succeed
 
 **`on_failure` values**:
@@ -685,6 +686,17 @@ actions:
 | `abort` (default) | Halt sequence and show an error toast |
 | `stop` | Halt sequence silently |
 | `continue` | Ignore failure and proceed to the next step |
+
+> **Not every bad outcome is a "failure".** A step can also *abort*, and an abort halts the sequence immediately **without consulting `on_failure`** — including `on_failure: continue`. A step aborts when:
+>
+> - a `ShellCommand` step with `capture_output: true` hits its `timeout_secs` deadline (default `30`), or cannot be spawned at all (e.g. the command is not on `PATH`);
+> - the step's `action_id` does not exist, or the sequence contains a circular reference.
+>
+> The distinction matters if you are relying on `on_failure` for cleanup: a build step that exits non-zero runs your cleanup step, and the same build step that hangs past its timeout does not. If a step must not be able to skip the rest of the sequence, give it a `timeout_secs` comfortably above its real worst case, and do not treat `continue` as a guarantee that later steps run.
+>
+> Only the first of these aborts is silent. A missing action or a circular reference shows a toast, and `on_failure: abort` shows a toast of its own, but a timed-out or unspawnable command is reported only to the log (`Step command '<title>' did not complete: timed out after 30.0s`) — see [LOGGING.md](../LOGGING.md). A sequence that stops early with no visible message is the signature of this case.
+>
+> `Repeat` behaves the same way: an aborted iteration breaks the loop regardless of `stop_on_failure`.
 
 **Sequence composition**: Sequences can reference other Sequence actions. Circular references are detected at execution time and show an error toast.
 

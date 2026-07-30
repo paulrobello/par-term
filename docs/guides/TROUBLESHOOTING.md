@@ -50,6 +50,10 @@ Centralized guide for diagnosing and resolving common issues with par-term. Each
   - [Settings Not Saving](#settings-not-saving)
   - [Profile Switching Issues](#profile-switching-issues)
   - [Arrangement Restore Issues](#arrangement-restore-issues)
+- [Crash Recovery](#crash-recovery)
+  - [Tabs Lost After a Crash](#tabs-lost-after-a-crash)
+  - [What Crash Recovery Does Not Cover](#what-crash-recovery-does-not-cover)
+  - [Finding the Crash Report](#finding-the-crash-report)
 - [Update Issues](#update-issues)
   - [Self-Update Refused](#self-update-refused)
   - [Platform Binary Not Found](#platform-binary-not-found)
@@ -765,6 +769,53 @@ URL underline positioning now correctly accounts for split pane offsets, scrollb
    - **macOS/Linux**: `~/.config/par-term/arrangements.yaml`
    - **Windows**: `%APPDATA%\par-term\arrangements.yaml`
 
+## Crash Recovery
+
+par-term has a panic boundary that can preserve your open tabs when the process dies from a Rust panic. It is narrow on purpose, and it is off unless you have enabled session restore — read this before assuming a crash cost you nothing, or that it should have cost you nothing.
+
+### Tabs Lost After a Crash
+
+**Symptom:** par-term disappeared and reopened with no tabs, or with a session much older than what was open.
+
+**Cause:** one of three things, in rough order of likelihood.
+
+**1. `restore_session` is disabled.** This is the default (`restore_session: false`), and crash recovery is gated on the same setting as the ordinary session save. With it off nothing is ever captured, so there is nothing for the panic handler to write — no crash file appears, and none would be consumed if it did.
+
+```yaml
+# ~/.config/par-term/config.yaml
+restore_session: true
+```
+
+**2. Nothing had been captured yet.** With `restore_session` enabled, the event loop republishes a snapshot at most every **5 seconds**, and only while at least one window is actually open. A panic during startup, before the first snapshot, has nothing to preserve. A panic later loses at most whatever changed in the last few seconds — a tab you opened a moment before the crash may be missing while everything else returns.
+
+**3. The crash was not a panic.** See the next section.
+
+**How recovery works when it does fire:** the handler writes `crash_session.yaml` into your config directory — deliberately *not* over `last_session.yaml`, so a bad snapshot can never destroy the good session file. On the next launch, par-term prefers the crash file over the normal session file (the normal one is only written on a clean exit, so after a crash it is stale) and shows the toast *"Recovered session after a crash — scrollback not restored"* in every restored window. Either file is consumed on use. A crash file that is empty or unparseable is discarded rather than retried forever. See [Session Management > Recovery After a Crash](../features/SESSION_MANAGEMENT.md#recovery-after-a-crash) for the feature-side description.
+
+A `crash_session.yaml` left in your config directory is safe to delete — the next launch consumes it regardless. par-term removes a stale one itself on any clean exit, with one deliberate exception: if *this* run's panic handler wrote the file, a later clean exit keeps it, because on some platforms the event loop can return normally after a panic the handler already rescued.
+
+### What Crash Recovery Does Not Cover
+
+**Only panics reach the handler.** A `SIGSEGV`, a `SIGBUS`, a stack overflow, an out-of-memory abort, a `kill -9`, or a double panic all terminate the process without running any hook. Nothing is written in those cases and there is nothing to recover — the absence of a crash file is not evidence that recovery is broken.
+
+**Only the main event-loop thread.** A panic on a spawned worker thread does not end the process; par-term keeps running and reports it to the log. No crash file is written, because manufacturing a "crash recovery" out of a survivable fault would be worse than the fault.
+
+**Only session structure, not session content.** What comes back is window geometry, the tab list, per-tab working directories and titles, and split-pane layout. **Scrollback, shell history, running processes and anything typed but not yet run are gone.** Restored tabs start fresh shells in the recorded directories; they are not the same processes.
+
+**Only the first panic.** If the process panics more than once, the first snapshot is the one kept — everything after the first panic was produced by a program already in an unknown state.
+
+### Finding the Crash Report
+
+The panic report goes to the debug log, but by the time you look you have almost certainly restarted par-term, and startup rolls the previous log aside. **The report is in `par_term_debug.log.1`, not the live log:**
+
+```bash
+cat "${TMPDIR:-/tmp}"/par_term_debug.log.1
+```
+
+Look for `PANIC` category lines: the panic message with its source location, followed by a line reporting what the panic boundary managed to do — `session snapshot written`, `no snapshot to write`, `session already preserved by an earlier panic`, or `snapshot write FAILED`. That last one means a snapshot existed but the file could not be written (a full disk or a read-only config directory).
+
+Only one generation of the log is kept, so relaunching a second time overwrites `.1` and the report is gone. Copy it before reproducing. Set `RUST_BACKTRACE=1` before the run to get a backtrace alongside the panic. Full rotation details are in [LOGGING.md](../LOGGING.md).
+
 ## Update Issues
 
 ### Self-Update Refused
@@ -870,6 +921,7 @@ If the solutions in this guide do not resolve your issue:
 - [SSH Host Management](../features/SSH.md) - SSH profiles, discovery, and auto-switching
 - [Profiles](../features/PROFILES.md) - Profile system, auto-switching, and storage
 - [Arrangements](../features/ARRANGEMENTS.md) - Window layout save and restore
+- [Session Management](../features/SESSION_MANAGEMENT.md) - Session restore, session undo, and crash recovery
 - [Self-Update](../features/SELF_UPDATE.md) - Update checking, installation types, and CLI usage
 - [Keyboard Shortcuts](KEYBOARD_SHORTCUTS.md) - Complete keybinding reference
 - [Architecture Overview](../architecture/ARCHITECTURE.md) - System design and component overview

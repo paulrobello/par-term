@@ -81,10 +81,36 @@ par-term install-shaders -y
 par-term install-shaders --force
 ```
 
+#### Checksum Verification Is Mandatory
+
+This applies to the `par-term install-shaders` command above; the shell script below does not verify a checksum.
+
+`install-shaders` downloads `shaders.zip` from the latest GitHub release and verifies it against a `shaders.zip.sha256` asset published in that same release. If the release has no such asset, the install **aborts** rather than proceeding unverified:
+
+```
+Shader installation requires a shaders.zip.sha256 checksum asset in the GitHub release.
+No checksum asset was found for this release. Installation cannot proceed without
+integrity verification. Please report this to the par-term maintainers.
+```
+
+This is deliberate. A missing checksum and a stripped checksum look identical from the client's side, so treating "absent" as "nothing to verify" would let anyone who can interfere with the download install arbitrary shader files. Nothing is written to the shaders directory when the check fails, and `--force` does not override it.
+
+Practically, this means **releases published before the checksum asset existed are not installable through this path**. Neither `-y` nor `--force` helps; use [the included collection](#from-the-included-collection) from a source checkout instead, or download `shaders.zip` from the releases page and extract it into your shaders directory by hand.
+
+### Shell Script Installer
+
 Alternatively, use the shell script installer:
 
 ```bash
 curl -sL https://raw.githubusercontent.com/paulrobello/par-term/main/install_shaders.sh | sh
+```
+
+This script downloads and extracts `shaders.zip` **without any checksum verification** — it does not implement the gate described above. Prefer `par-term install-shaders` when you have a par-term binary to run it with. If you do use the script, download and read it before executing rather than piping it straight into a shell, as its own header recommends:
+
+```bash
+curl -O https://raw.githubusercontent.com/paulrobello/par-term/main/install_shaders.sh
+less install_shaders.sh
+chmod +x install_shaders.sh && ./install_shaders.sh
 ```
 
 ### From the Included Collection

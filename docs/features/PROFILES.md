@@ -17,6 +17,7 @@ par-term provides a profile system for saving and quickly launching terminal ses
   - [Hostname-Based Switching](#hostname-based-switching)
   - [Auto-Switch Priority](#auto-switch-priority)
   - [Auto-Switch Visual Application](#auto-switch-visual-application)
+  - [Profile Commands and Confirmation](#profile-commands-and-confirmation)
 - [Tmux Auto-Connect](#tmux-auto-connect)
 - [Default Startup Directory](#default-startup-directory)
 - [Per-Profile Badge Configuration](#per-profile-badge-configuration)
@@ -364,9 +365,20 @@ When a profile is auto-applied via any switching mechanism (directory, hostname,
 | **Tab title** | Overrides the current tab title |
 | **Badge text** | Sets the badge overlay text |
 | **Badge styling** | Applies badge color, alpha, font, bold, margins, size |
-| **Command** | Executes the profile's command (if configured) |
+| **Command** | Queues the profile's command for confirmation (if configured) — see [Profile Commands and Confirmation](#profile-commands-and-confirmation) |
 
 The original tab title saves when an auto-profile applies and restores when the auto-profile clears.
+
+### Profile Commands and Confirmation
+
+A profile's `command` is written into the running shell, and the thing that triggers an auto-switch is an OSC 7 sequence — which is emitted by whatever is producing terminal output, including a remote host you are SSH'd into. A `*` hostname pattern matches everything. Auto-switch therefore **never executes a profile command inline**. The command is queued in the same confirmation queue that trigger `RunCommand` and `SendText` actions use, so you see the exact command text before anything runs.
+
+Two rules sit on top of that queue:
+
+- **`ssh.ssh_auto_profile_switch`** gates hostname-driven switching entirely. With it off, a remote host cannot cause a profile switch at all.
+- **A profile fetched from a dynamic source re-confirms every time**, even if you previously chose "Always Allow" for that exact command. Consenting to a profile *source* is not consent to arbitrary commands from it, and the source can change the command on any refresh. Local profiles do honour an earlier "Always Allow".
+
+The approval is keyed on both the profile and the command text, so an "Always Allow" granted for one command does not carry over when the profile is edited or re-fetched with a different one. Profile-command approvals are also kept in a separate identifier space from trigger approvals, so a grant cannot leak between the two systems.
 
 ## Tmux Auto-Connect
 
@@ -588,6 +600,8 @@ dynamic_profile_sources:
 | `enabled` | boolean | `true` | Whether this source is active |
 | `conflict_resolution` | string | `"local_wins"` | How to handle ID collisions with local profiles |
 
+There is no per-source option for allowing plain HTTP. Whether `http://` URLs are permitted comes from the single global `allow_http_profiles` setting (default `false`), which is applied to every source at load time; adding an `allow_http` key to a source entry in `config.yaml` does nothing.
+
 ### Background Refresh
 
 Dynamic profile sources refresh automatically on a configurable timer:
@@ -618,8 +632,15 @@ When a dynamic profile has the same ID as a local profile, the `conflict_resolut
 
 ### Security
 
-- **HTTPS enforcement**: HTTP URLs are rejected by default for all dynamic profile sources. To permit plain HTTP, set `allow_http_profiles: true` in your global `config.yaml` (not recommended)
-- **Size limits**: The `max_size_bytes` setting prevents downloading unexpectedly large payloads
+A dynamic profile source can influence what command a shell runs, so the fetch path is defended at several layers.
+
+- **Scheme allowlist**: only `https` is accepted, plus `http` when the global `allow_http_profiles` is `true`. This is an allowlist, not a `file://` denylist — every other scheme (`ftp:`, `data:`, `file:`, anything else) is rejected outright, regardless of the HTTP opt-in. Scheme matching is case-insensitive, so `HTTPS://` is recognised as HTTPS rather than misclassified
+- **No credentials in the clear**: even with the HTTP opt-in enabled, a source whose headers include `Authorization`, or any header name containing `token` or `secret`, is refused rather than fetched. The opt-in permits plaintext transport, never plaintext credentials
+- **Redirects cannot downgrade**: an `https` source is fetched with HTTPS enforced across the whole redirect chain, so a `302` answering with an `http://` `Location` fails instead of quietly continuing in the clear. (A source you explicitly opted into HTTP for has no such protection, by definition — it is already plaintext)
+- **HTTP is loud**: when a source is fetched over plain HTTP, a warning naming the URL is written to both the debug log and the standard log on every fetch
+- **Size limits**: a response body larger than `max_size_bytes` (1 MB by default) fails the fetch rather than being truncated and parsed, and `fetch_timeout_secs` (10s by default) bounds the request as a whole. Either way the source keeps its previously cached profiles
+- **Catch-all command profiles are rejected at merge**: a fetched profile that pairs a command with a catch-all auto-switch pattern (`*` or `**` in `hostname_patterns`, `directory_patterns` or `tmux_session_patterns`) is dropped and logged rather than added. Such a profile would fire its command on the first hostname or directory the terminal reports. You can still write one locally; a remote source cannot
+- **Fetched commands are never pre-approved**: a command carried by a dynamic profile re-confirms on every auto-switch even after an "Always Allow" — see [Profile Commands and Confirmation](#profile-commands-and-confirmation)
 
 ### Visual Indicators
 
@@ -674,6 +695,8 @@ Profiles are stored in YAML format:
 - UUIDs uniquely identify each profile
 - Order field controls display sequence
 - Changes save immediately when clicking **Save** in the modal
+
+**How the file is written:** profiles carry commands, SSH arguments and environment overrides, so `profiles.yaml` is written atomically and owner-only. The new contents are staged in a temporary file in the same directory at mode `0600`, flushed to disk, and then renamed over the target — so the final file is mode `0600` on Unix regardless of your umask, and an interrupted or failed save leaves the previous `profiles.yaml` byte-for-byte intact rather than truncated. That matters because a truncated profiles file parses as "no profiles" rather than as an error.
 
 ## Related Documentation
 

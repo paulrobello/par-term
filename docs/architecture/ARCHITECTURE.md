@@ -524,6 +524,8 @@ Tab and pane refresh tasks use exponential backoff when the terminal is idle. St
 
 An explicit `thread::sleep` in the `about_to_wait` handler prevents the macOS event loop from spinning at approximately 250K iterations/sec. This spin occurs despite using `ControlFlow::WaitUntil` due to interactions between CVDisplayLink and NSRunLoop on macOS. The sleep duration is capped at the frame interval when no redraw is needed, ensuring the loop remains responsive to incoming events while avoiding unnecessary CPU burn.
 
+With several windows open the loop sleeps **once per iteration, not once per window**. Each window returns a wake request instead of setting the control flow itself; the manager reduces them — minimum deadline, and any window wanting `Poll` settles it for all — and applies the result once. The sleep therefore runs after the per-window work rather than between windows, and is measured from a fresh instant, so that work shortens it instead of stacking on top of it.
+
 ### Status Bar Skip Updates When Hidden
 
 When the status bar is enabled but hidden (fullscreen auto-hide or mouse inactivity timeout), per-frame widget updates, session variable capture, and rendering are skipped entirely. This avoids the cost of polling system metrics (CPU, memory, network) and running egui layout calculations for a UI element that is not visible.

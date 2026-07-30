@@ -33,6 +33,7 @@ Par Terminal provides an automation system that lets you react to terminal outpu
     - [Events (stdin)](#events-stdin)
     - [Commands (stdout)](#commands-stdout)
   - [Event Subscription Filtering](#event-subscription-filtering)
+  - [Event Buffering and Overflow](#event-buffering-and-overflow)
   - [Markdown Panels](#markdown-panels)
   - [Script Lifecycle](#script-lifecycle)
   - [Example Script](#example-script)
@@ -644,9 +645,9 @@ Each script definition supports:
 
 > **🔒 Security:** The `allow_*` permission flags are off by default and must be explicitly enabled. Restricted commands (`WriteText`, `RunCommand`, `ChangeConfig`) are blocked unless the corresponding flag is set. Rate limiting prevents abuse even when enabled.
 >
-> Granting `allow_write_text` is not the last word on a `WriteText` payload: stripping VT sequences still leaves printable text and a newline, which is all it takes to type a command and submit it. So after the rate limit, each payload goes to the same confirmation dialog triggers use, showing the exact sanitized text with the submitting newline rendered as `\n`. **Always Allow** applies only to that script and that exact text, and is cleared on config reload. At most eight confirmations may be pending at once — a queue shared with trigger and profile confirmations, so eight pending trigger prompts will drop a script payload with no script prompt pending. Beyond the cap, payloads are dropped and logged. Set `prompt_before_write_text: false` to write immediately instead.
+> Granting `allow_write_text` is not the last word on a `WriteText` payload: stripping VT sequences still leaves printable text and a newline, which is all it takes to type a command and submit it. So after the rate limit, each payload goes to the same confirmation dialog triggers use, showing the exact sanitized text with the submitting newline rendered as `\n`. **Always Allow** applies only to that script, that exact text, and that tab, and is cleared on config reload. At most eight confirmations may be pending at once — a queue shared with trigger and profile confirmations, so eight pending trigger prompts will drop a script payload with no script prompt pending. Beyond the cap, payloads are dropped and logged. Set `prompt_before_write_text: false` to write immediately instead.
 >
-> **The dialog only works for the active tab.** It writes to whichever tab is focused when the user approves, so a payload from a script in a background tab or an unfocused window cannot be aimed and is denied outright — dropped and logged, not queued, for as long as that tab stays in the background. Switch to the tab, or set `prompt_before_write_text: false` for that script.
+> **The dialog names the tab it will write to.** A script keeps writing to its own tab, so a payload from a background tab or an unfocused window is prompted like any other and the dialog states the destination explicitly — approving one never types into whatever you happen to be looking at. If the target tab is closed while its prompt is still pending, the prompt is withdrawn rather than retargeted.
 
 ### JSON Protocol
 
@@ -697,7 +698,7 @@ Scripts write JSON commands to stdout to control the terminal. Each command has 
 | `SetVariable` | `name`, `value` | No | Set a user variable |
 | `SetPanel` | `title`, `content` | No | Display a markdown panel in the UI |
 | `ClearPanel` | -- | No | Remove the markdown panel |
-| `WriteText` | `text` | `allow_write_text` | Write text to the PTY (as if typed); VT sequences are stripped, then the payload is confirmed in the automation dialog unless `prompt_before_write_text: false`. While the prompt is enabled, a payload from a background tab is denied rather than prompted |
+| `WriteText` | `text` | `allow_write_text` | Write text to the PTY (as if typed); VT sequences are stripped, then the payload is confirmed in the automation dialog unless `prompt_before_write_text: false`. A payload from a background tab is prompted like any other, with the destination tab named in the dialog |
 | `RunCommand` | `command` | `allow_run_command` | Execute a shell command; checked against denylist |
 | `ChangeConfig` | `key`, `value` | `allow_change_config` | Change a configuration value; allowlisted keys only |
 
@@ -727,6 +728,23 @@ scripts:
 Only events whose `kind` matches an entry in the `subscriptions` array will be sent to the script. An empty array (or omitting the field) means the script receives every event.
 
 This filtering is useful for performance and simplicity: a script that only cares about command completion does not need to handle resize, bell, or title events.
+
+### Event Buffering and Overflow
+
+Events do not go straight to the script. Each running script gets its own event forwarder, which the terminal core calls from the PTY reader thread; the event loop drains that forwarder on its own schedule and writes the events to the script's stdin. The two ends run on different threads, so a buffer sits between them.
+
+**That buffer holds at most 1024 events.** Once it is full, each new event evicts the *oldest* one still queued rather than being dropped itself — a script acts on what just happened, so discarding the incoming event would hide the very thing still worth reacting to and leave the script a stale prefix.
+
+The cap exists because the buffer can genuinely grow without bound. A script that exits on its own — crashes, or simply returns — leaves its observer registered. Nothing notices the exit: the observer is unregistered only when the script is explicitly stopped, restarted, or its tab is closed, and `restart_policy` is not implemented for scripts (see [Script Lifecycle](#script-lifecycle)), so nothing restarts it either. Its forwarder therefore keeps receiving every subscribed event with nothing draining it. Without the cap that is an unbounded allocation driven by terminal output.
+
+Overflow is reported to the log **once per forwarder**, not once per discarded event, and the latch is never re-armed. A forwarder that overflows, gets drained, and overflows again stays quiet after the first report — draining does not mean the underlying problem was fixed, and re-arming would let it flood the log. The message names the cap and points at the likely cause:
+
+```
+Script event buffer reached its 1024 event cap; discarding oldest events from here on.
+Nothing is draining this forwarder — the script most likely exited while its observer stayed registered.
+```
+
+If you see that line, stop the script explicitly (**F12 → Automation → Scripts → Stop**) or close the tab; either unregisters the observer. Narrowing `subscriptions` reduces how fast the buffer fills but does not fix an undrained forwarder.
 
 ### Markdown Panels
 
