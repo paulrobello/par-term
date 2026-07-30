@@ -96,27 +96,71 @@ fn is_sensitive_path(canonical: &std::path::Path) -> bool {
     false
 }
 
+/// Resolve `path` to an absolute, symlink-free path suitable for comparison
+/// against the blocklists, even when it does not exist yet.
+///
+/// An existing path is simply canonicalized. For a path that does not exist,
+/// this walks up to the nearest **existing** ancestor, canonicalizes that, and
+/// re-appends the components below it — so a write into a directory tree that
+/// has yet to be created can still be checked. Canonicalizing only `p.parent()`
+/// was not enough: it fails outright as soon as the grandparent is missing,
+/// which is why `write_file_safe` could not honour its own "creating parent
+/// directories as needed" contract.
+///
+/// # Traversal
+///
+/// The unresolved tail is not on disk, so nothing can flatten a `..` inside it:
+/// `/tmp/not-yet/../../etc/passwd` would otherwise be re-assembled as though it
+/// sat under `/tmp` and sail past the blocklist. Any `..` below the nearest
+/// existing ancestor is therefore **rejected**, never normalized. A `..` at or
+/// above that ancestor is safe and still allowed, because the kernel resolves
+/// it during `canonicalize`.
+fn resolve_for_blocklist(p: &std::path::Path) -> Result<std::path::PathBuf, String> {
+    use std::path::Component;
+
+    if p.exists() {
+        return std::fs::canonicalize(p).map_err(|e| format!("Cannot resolve path: {e}"));
+    }
+
+    let mut tail: Vec<std::ffi::OsString> = Vec::new();
+    let mut cursor = p;
+    let base = loop {
+        match cursor.components().next_back() {
+            Some(Component::Normal(name)) => tail.push(name.to_os_string()),
+            Some(Component::CurDir) => {}
+            Some(Component::ParentDir) => {
+                return Err(format!(
+                    "Cannot resolve parent: '{}' uses '..' below the nearest existing \
+                     directory, which cannot be resolved safely",
+                    p.display()
+                ));
+            }
+            // A root or drive prefix that does not exist, or an empty path:
+            // there is nothing left to walk up to.
+            Some(_) | None => return Err("Cannot resolve parent: no existing ancestor".to_string()),
+        }
+
+        let Some(parent) = cursor.parent() else {
+            return Err("Cannot resolve parent: no existing ancestor".to_string());
+        };
+        if parent.exists() {
+            break parent;
+        }
+        cursor = parent;
+    };
+
+    let mut resolved =
+        std::fs::canonicalize(base).map_err(|e| format!("Cannot resolve parent: {e}"))?;
+    for name in tail.into_iter().rev() {
+        resolved.push(name);
+    }
+    Ok(resolved)
+}
+
 /// Canonicalize `path` and check it against the sensitive path blocklist.
 /// Returns `Ok(canonical)` when safe, `Err(message)` when blocked.
 fn check_path_allowed(path: &str) -> Result<std::path::PathBuf, String> {
-    let p = std::path::Path::new(path);
-
-    // Resolve the canonical path (follows symlinks, resolves ..).
-    // For non-existent paths, canonicalize the parent and re-append the filename
-    // so that new-file creation in safe directories is still allowed.
-    let canonical = if p.exists() {
-        std::fs::canonicalize(p).map_err(|e| format!("Cannot resolve path: {e}"))?
-    } else {
-        let parent = p
-            .parent()
-            .ok_or_else(|| "Path has no parent directory".to_string())?;
-        let canonical_parent =
-            std::fs::canonicalize(parent).map_err(|e| format!("Cannot resolve parent: {e}"))?;
-        let file_name = p
-            .file_name()
-            .ok_or_else(|| "Path has no file name".to_string())?;
-        canonical_parent.join(file_name)
-    };
+    let canonical = resolve_for_blocklist(std::path::Path::new(path))?;
 
     if is_sensitive_path(&canonical) {
         return Err(format!(
@@ -344,6 +388,14 @@ pub fn read_file_with_range(
 /// Rejects credential paths (`~/.ssh/`, `~/.aws/`, `/etc/`, ...) and paths that
 /// par-term or the OS later executes (shell init files, launch agents,
 /// `config.yaml`). See `check_write_path_allowed`.
+///
+/// The blocklist is applied **twice**: once before the parent directories are
+/// created, on the path resolved through its nearest existing ancestor, and
+/// again afterwards once the parent really exists. The second pass is the
+/// authoritative one — only then can `canonicalize` follow the whole chain and
+/// see a symlink that was created along the way. A residual TOCTOU window
+/// remains between that check and the write itself, which is inherent to a
+/// path-based check and no wider than it was before nested creation worked.
 pub fn write_file_safe(
     path: &str,
     content: &str,
@@ -363,6 +415,7 @@ pub fn write_file_safe(
         std::fs::create_dir_all(parent)
             .map_err(|e| format!("Failed to create directories: {e}"))?;
     }
+    check_write_path_allowed(path, config_dir)?;
     std::fs::write(p, content).map_err(|e| format!("Failed to write file: {e}"))
 }
 
@@ -648,11 +701,6 @@ mod tests {
         let temp = tempfile::tempdir().expect("tempdir");
         let config_dir = temp.path().to_path_buf();
         let target = config_dir.join("shaders").join("crt.glsl");
-        // `check_path_allowed` canonicalizes the parent, so the parent must
-        // already exist. See the nested-directory note in the crate report:
-        // `write_file_safe` documents "creating parent directories as needed"
-        // but checks the path before creating them.
-        std::fs::create_dir_all(target.parent().expect("parent")).expect("create shaders dir");
 
         write_file_safe(
             &target.to_string_lossy(),
@@ -664,6 +712,84 @@ mod tests {
         assert_eq!(
             std::fs::read_to_string(&target).expect("read back"),
             "void main() {}"
+        );
+    }
+
+    /// The documented "creating parent directories as needed" contract, several
+    /// levels deep. The permission check used to canonicalize the parent before
+    /// `create_dir_all` ran, so this failed with "Cannot resolve parent".
+    #[test]
+    fn write_file_safe_creates_missing_nested_parents() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let target = temp.path().join("a").join("b").join("c").join("note.txt");
+
+        write_file_safe(&target.to_string_lossy(), "hello", None)
+            .expect("nested directories must be created");
+
+        assert_eq!(
+            std::fs::read_to_string(&target).expect("read back"),
+            "hello"
+        );
+    }
+
+    /// Walking to the nearest existing ancestor must not become a traversal
+    /// primitive: `..` below that ancestor cannot be resolved by the kernel, so
+    /// re-assembling it would let a path escape the directory it appears to be
+    /// in. It is rejected outright.
+    #[test]
+    fn write_file_safe_rejects_parent_traversal_below_the_existing_ancestor() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let escape = temp.path().join("not-yet").join("..").join("..");
+        let target = escape.join("escaped.txt");
+
+        let err = write_file_safe(&target.to_string_lossy(), "pwned", None)
+            .expect_err("'..' below the nearest existing directory must be rejected");
+        assert!(err.contains("Cannot resolve parent"), "unexpected: {err}");
+        assert!(!target.exists(), "a rejected write must create nothing");
+    }
+
+    /// The same traversal aimed at a credential directory — the case the
+    /// blocklist exists to stop.
+    #[test]
+    fn write_file_safe_rejects_traversal_into_a_credential_directory() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let mut target = temp.path().join("not-yet");
+        // Climb back out of the temp dir, then dive into ~/.ssh.
+        for _ in 0..temp.path().components().count() {
+            target.push("..");
+        }
+        let home = home();
+        let home_tail = home
+            .strip_prefix("/")
+            .expect("home is absolute")
+            .to_path_buf();
+        target.push(home_tail);
+        target.push(".ssh");
+        target.push("authorized_keys");
+
+        let err = write_file_safe(&target.to_string_lossy(), "ssh-rsa AAAA", None)
+            .expect_err("traversal into ~/.ssh must be denied");
+        assert!(
+            err.contains("Cannot resolve parent") || err.contains("Access denied"),
+            "unexpected: {err}"
+        );
+    }
+
+    /// A `..` at or above the nearest existing directory is resolved by the
+    /// kernel during `canonicalize` and stays allowed — rejecting it would
+    /// break ordinary relative paths an agent might send.
+    #[test]
+    fn write_file_safe_allows_parent_traversal_through_existing_directories() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        std::fs::create_dir(temp.path().join("sub")).expect("create sub");
+        let target = temp.path().join("sub").join("..").join("note.txt");
+
+        write_file_safe(&target.to_string_lossy(), "hello", None)
+            .expect("'..' through an existing directory is resolvable and safe");
+
+        assert_eq!(
+            std::fs::read_to_string(temp.path().join("note.txt")).expect("read back"),
+            "hello"
         );
     }
 
