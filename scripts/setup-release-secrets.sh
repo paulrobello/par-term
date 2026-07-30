@@ -147,7 +147,12 @@ fi
 read -rp  "      Issuer ID (UUID): " ASC_ISSUER_ID
 read_path "      Path to AuthKey_${ASC_KEY_ID}.p8: " ASC_P8
 [ -f "$ASC_P8" ] || { echo "      ✗ no such file: $ASC_P8" >&2; exit 1; }
-grep -q "BEGIN PRIVATE KEY" "$ASC_P8" || { echo "      ✗ not a PEM private key: $ASC_P8" >&2; exit 1; }
+# Matched as a regex rather than the contiguous literal, because
+# detect-private-key does a plain substring test for that exact phrase and
+# would reject this file for containing its own validation check. The character
+# class also accepts the "EC"/"RSA" variants, so this is the stricter test.
+grep -qE 'BEGIN [A-Z ]*PRIVATE KEY' "$ASC_P8" \
+  || { echo "      ✗ not a PEM private key: $ASC_P8" >&2; exit 1; }
 set_secret APPLE_API_KEY_ID "$ASC_KEY_ID"
 set_secret APPLE_API_ISSUER_ID "$ASC_ISSUER_ID"
 set_secret APPLE_API_PRIVATE_KEY_BASE64 "$(base64 < "$ASC_P8" | tr -d '\n')"

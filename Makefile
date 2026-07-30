@@ -372,7 +372,7 @@ package: release
 	@echo "Creating release package..."
 	@mkdir -p dist
 	@cp target/release/par-term dist/
-	@cp README.md LICENSE-MIT dist/
+	@cp README.md LICENSE dist/
 	@echo "Package created in dist/"
 
 # macOS app bundle

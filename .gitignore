@@ -52,3 +52,6 @@ settings.local.json
 *.local.*
 .pi/extensions/discord-relay/state.json
 ideas.md
+
+# `make package` output
+dist/
