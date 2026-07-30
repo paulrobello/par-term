@@ -566,8 +566,16 @@ mod tests {
     /// "overwrite the developer's real ~/.zshrc" is not an acceptable test.
     /// End-to-end coverage of the same code path is provided below via a
     /// temporary `config_dir`.
+    ///
+    /// Canonicalized, because both predicates document that they take an
+    /// already-canonical path and compare against canonicalized roots. On Unix
+    /// a raw `dirs::home_dir()` usually happens to be canonical, so the
+    /// distinction is invisible; on Windows `canonicalize` returns the
+    /// `\\?\C:\…` verbatim form, which never compares equal to the raw
+    /// `C:\…` — so passing a raw path asserted the predicate against an input
+    /// production never gives it, and failed for that reason alone.
     fn home() -> PathBuf {
-        dirs::home_dir().expect("home dir")
+        canonical_or_raw(&dirs::home_dir().expect("home dir"))
     }
 
     #[test]
@@ -736,6 +744,16 @@ mod tests {
     /// primitive: `..` below that ancestor cannot be resolved by the kernel, so
     /// re-assembling it would let a path escape the directory it appears to be
     /// in. It is rejected outright.
+    ///
+    /// Unix-only, because the rejection is a property of how the ancestor walk
+    /// has to work *there*, not a security requirement in itself. Windows
+    /// normalizes `..` lexically inside the path APIs, so the walk finds an
+    /// existing ancestor several components earlier and `canonicalize` resolves
+    /// the `..` for real — the assembled path is then the true target rather
+    /// than a re-assembled fiction, and still goes through the blocklist. The
+    /// requirement that survives on both platforms is "a traversal cannot reach
+    /// a protected location", which the next test asserts everywhere.
+    #[cfg(unix)]
     #[test]
     fn write_file_safe_rejects_parent_traversal_below_the_existing_ancestor() {
         let temp = tempfile::tempdir().expect("tempdir");
@@ -758,11 +776,17 @@ mod tests {
         for _ in 0..temp.path().components().count() {
             target.push("..");
         }
-        let home = home();
-        let home_tail = home
-            .strip_prefix("/")
-            .expect("home is absolute")
-            .to_path_buf();
+        // Drop the root so the remainder can be appended after the `..` climb.
+        // Taking the `Normal` components rather than stripping a literal "/"
+        // covers the Windows prefix forms (`C:\`, and the `\\?\C:\` that
+        // `canonicalize` returns) as well as the Unix root.
+        let home_tail: PathBuf = home()
+            .components()
+            .filter_map(|c| match c {
+                std::path::Component::Normal(name) => Some(name),
+                _ => None,
+            })
+            .collect();
         target.push(home_tail);
         target.push(".ssh");
         target.push("authorized_keys");
