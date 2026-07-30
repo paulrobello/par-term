@@ -19,36 +19,13 @@ pub fn save_session(state: &SessionState) -> Result<()> {
 
 /// Save session state to a specific file
 pub fn save_session_to(state: &SessionState, path: PathBuf) -> Result<()> {
-    // Ensure parent directory exists
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .with_context(|| format!("Failed to create config directory {:?}", parent))?;
-    }
-
-    let contents = serde_yaml_ng::to_string(state).context("Failed to serialize session state")?;
-
-    // SEC-016: Write with restrictive permissions (owner read/write only).
-    // The session file contains working directory paths that reveal filesystem
-    // layout; it should not be world-readable.
-    #[cfg(unix)]
-    {
-        use std::io::Write;
-        use std::os::unix::fs::OpenOptionsExt;
-        let mut f = std::fs::OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .mode(0o600)
-            .open(&path)
-            .with_context(|| format!("Failed to open session state file {:?}", path))?;
-        f.write_all(contents.as_bytes())
-            .with_context(|| format!("Failed to write session state to {:?}", path))?;
-    }
-    #[cfg(not(unix))]
-    {
-        std::fs::write(&path, contents)
-            .with_context(|| format!("Failed to write session state to {:?}", path))?;
-    }
+    // QA-010/SEC-016/SEC-021: `save_yaml_atomic` stages the write in a sibling
+    // temp file created with mode 0600 (the session file records working
+    // directories, which reveal filesystem layout), fsyncs it, then renames it
+    // over the target. Session save runs at shutdown, when an abrupt kill is
+    // most likely, and a truncated file reads back as "no saved session".
+    crate::atomic_save::save_yaml_atomic(&path, state)
+        .with_context(|| format!("Failed to write session state to {:?}", path))?;
 
     log::info!(
         "Saved session state ({} windows) to {:?}",
@@ -265,6 +242,22 @@ mod tests {
         let state = sample_session();
         save_session_to(&state, path.clone()).unwrap();
         assert!(path.exists());
+    }
+
+    /// SEC-016/SEC-021: the session file records working directories, so it must
+    /// land at mode 0600 whatever the process umask is.
+    #[cfg(unix)]
+    #[test]
+    fn test_saved_session_is_owner_only() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let temp = tempdir().unwrap();
+        let path = temp.path().join("session.yaml");
+
+        save_session_to(&sample_session(), path.clone()).unwrap();
+
+        let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600, "expected 0600, got {mode:o}");
     }
 
     #[test]

@@ -54,6 +54,7 @@ pub mod acp_harness;
 pub mod ai_inspector;
 pub mod app;
 pub mod arrangements;
+pub mod atomic_save;
 pub mod audio_bell;
 pub mod badge;
 pub mod cell_renderer {
@@ -179,3 +180,4 @@ pub(crate) mod update_checker {
 }
 pub mod update_dialog;
 pub mod url_detection;
+pub mod url_policy;

@@ -71,9 +71,10 @@ pub fn write_cache(
     let data_path = dir.join(format!("{hash}.yaml"));
     let meta_path = dir.join(format!("{hash}.meta"));
 
-    let data = serde_yaml_ng::to_string(profiles)
-        .with_context(|| "Failed to serialize profiles for cache")?;
-    std::fs::write(&data_path, data)
+    // QA-010: the cache is what dynamic profiles fall back to when the network is
+    // unavailable, so a half-written entry costs the user their profiles exactly
+    // when they cannot be re-fetched. Both files are staged and renamed.
+    crate::atomic_save::save_yaml_atomic(&data_path, profiles)
         .with_context(|| format!("Failed to write cache data to {data_path:?}"))?;
 
     let meta = CacheMeta {
@@ -84,7 +85,7 @@ pub fn write_cache(
     };
     let meta_str = serde_json::to_string_pretty(&meta)
         .with_context(|| "Failed to serialize cache metadata")?;
-    std::fs::write(&meta_path, meta_str)
+    crate::atomic_save::save_string_atomic(&meta_path, &meta_str)
         .with_context(|| format!("Failed to write cache meta to {meta_path:?}"))?;
 
     Ok(())
