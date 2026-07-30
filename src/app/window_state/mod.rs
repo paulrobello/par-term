@@ -3,18 +3,25 @@
 //! This module contains `WindowState`, which holds all state specific to a single window,
 //! including its renderer, tab manager, input handler, and UI components.
 //!
-//! Architectural Note: `WindowState` is being decomposed from a God Object
-//! into cohesive sub-state structs (ARC-001). See `focus_state.rs`,
-//! `overlay_state.rs`, `update_state.rs`, `watcher_state.rs`, `trigger_state.rs`,
-//! and `render_loop_state.rs`.
-//!
 //! # ARC-002: Remaining God-Object Decomposition (Requires Manual Intervention)
 //!
-//! `WindowState` currently has 30+ fields and 84 separate `impl WindowState` blocks
-//! scattered across the codebase. Several sub-state bundles have already been extracted
-//! (see `EguiState`, `FocusState`, `OverlayState`, `RenderLoopState`, `ShaderState`,
-//! `AgentState`, `CursorAnimState`, `OverlayUiState`, `TriggerState`, `WatcherState`,
-//! `UpdateState`, `DebugState`). The remaining work deferred to a future session:
+//! `WindowState` is being decomposed from a God Object into cohesive sub-state structs.
+//! Twelve already live in their own `*_state.rs` module beside this one — `agent_state`,
+//! `cursor_anim_state`, `debug_state`, `egui_state`, `focus_state`, `overlay_state`,
+//! `overlay_ui_state`, `render_loop_state`, `shader_state`, `trigger_state`,
+//! `update_state`, `watcher_state` — joined by `NotificationClickState` in
+//! `notifications.rs`.
+//!
+//! What remains is a wide field list plus an `impl WindowState` surface spread across
+//! most of `src/app/`. No process maintains a count here, so re-measure before acting
+//! on this note instead of trusting a number written into it:
+//!
+//! ```text
+//! grep -rc '^impl WindowState' --include='*.rs' src/ | awk -F: '{s+=$2} END {print s}'
+//! grep -rl '^impl WindowState' --include='*.rs' src/ | wc -l
+//! ```
+//!
+//! The remaining work is deferred to a future session:
 //!
 //! **Suggested next extractions (in order of isolation):**
 //!
@@ -28,13 +35,14 @@
 //! 3. `WindowInfrastructure` — groups `window`, `renderer`, `runtime` as the GPU/OS
 //!    surface layer; separates it from application-level state.
 //!
-//! **Blocker:** All 84 `impl WindowState` blocks must be audited before moving any
+//! **Blocker:** every `impl WindowState` block must be audited before moving any
 //! field to ensure no method holds simultaneous mutable borrows across sub-systems.
 //! Recommend using `cargo expand` on each field before
 //! moving it. The `#[path]` redirect blocker (ARC-003) has been resolved — field
 //! extraction from step 3+ can now proceed.
 //!
-//! **Tracking:** Issue ARC-002 in AUDIT.md.
+//! **Tracking:** ARC-002 on the projects board. Lifecycle and ownership rules for the
+//! extracted sub-states are documented in `docs/architecture/STATE_LIFECYCLE.md`.
 //!
 //! # ARC-003: render_pipeline `#[path]` Redirect — RESOLVED
 //!
@@ -42,7 +50,7 @@
 //! `render_pipeline` is now declared as a first-class module in `src/app/mod.rs`,
 //! matching the physical directory layout (`src/app/render_pipeline/`).
 //! All `super::` references inside `render_pipeline/*.rs` correctly resolve to
-//! the `render_pipeline` module itself (unchanged). See ARC-001 in AUDIT.md.
+//! the `render_pipeline` module itself (unchanged).
 
 mod action_handlers;
 mod agent_config;
@@ -171,7 +179,7 @@ pub struct WindowState {
     pub(crate) window_index: usize,
 
     // =========================================================================
-    // egui overlay layer (ARC-001 extraction: EguiState)
+    // egui overlay layer (ARC-002 extraction: EguiState)
     // =========================================================================
     /// egui context, input state, and lifecycle flags (see `EguiState`)
     pub(crate) egui: EguiState,
@@ -191,7 +199,7 @@ pub struct WindowState {
     pub(crate) debug: DebugState,
 
     // =========================================================================
-    // Decomposed state objects (ARC-001)
+    // Decomposed state objects (ARC-002)
     // =========================================================================
     /// State for focus, redraw tracking, and render throttling
     pub(crate) focus_state: FocusState,
@@ -208,7 +216,7 @@ pub struct WindowState {
     pub(crate) notification_click_state: NotificationClickState,
 
     // =========================================================================
-    // Render loop control & config management (ARC-001 extraction: RenderLoopState)
+    // Render loop control & config management (ARC-002 extraction: RenderLoopState)
     // =========================================================================
     /// Pending-work flags for the render loop (agent config change, font rebuild, config save)
     pub(crate) render_loop: RenderLoopState,
