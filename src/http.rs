@@ -185,6 +185,13 @@ pub fn agent() -> Agent {
 /// would let an allowlisted host hand the download off to anywhere. Setting
 /// `max_redirects(0)` surfaces each 3xx to [`get_validated`], which re-applies
 /// the allowlist before making the next request.
+///
+/// Zero specifically is load-bearing, and raising it to a small non-zero number
+/// to "let ureq handle a hop" would break every download. ureq gates erroring on
+/// `max_redirects > 0 && max_redirects_will_error`, and the latter defaults to
+/// true, so only zero returns the 3xx response that [`get_validated`] needs in
+/// order to read `Location`. Any other value turns a redirect into
+/// `TooManyRedirects` instead.
 fn no_redirect_agent() -> Agent {
     build_agent(false)
 }

@@ -71,12 +71,7 @@ pub fn get_shaders_download_url(
     api_url: &str,
     repo: &str,
 ) -> Result<(String, Option<String>), String> {
-    let mut body = crate::http::agent()
-        .get(api_url)
-        .header("User-Agent", "par-term")
-        .call()
-        .map_err(|e| format!("Failed to fetch release info: {}", e))?
-        .into_body();
+    let mut body = crate::http::get_validated(api_url, None)?.into_body();
 
     let body_str = body
         .read_to_string()
@@ -165,37 +160,18 @@ pub fn download_and_verify(zip_url: &str, checksum_url: Option<&str>) -> Result<
     Ok(zip_data)
 }
 
-/// Maximum download size for shader zip files (50 MB).
-/// Prevents memory exhaustion or disk-fill from an oversized or malicious response.
-const MAX_SHADER_DOWNLOAD_SIZE: u64 = 50 * 1024 * 1024;
-
 /// Download a file from URL and return its contents.
 ///
 /// # Security
 ///
-/// - Enforces HTTPS-only and host allowlist via [`crate::http::validate_download_url`].
+/// - Enforces HTTPS-only and the GitHub host allowlist on the URL **and on every
+///   redirect hop**, via [`crate::http::download_file`]. A release-asset download
+///   redirects twice before it lands, so validating only the URL passed in would
+///   leave the hops that actually fetch the bytes unchecked.
 /// - Enforces a 50 MB size limit to prevent memory exhaustion.
 /// - Callers that require integrity checking should use [`download_file_with_checksum`].
 pub fn download_file(url: &str) -> Result<Vec<u8>, String> {
-    // Validate URL before making any network request.
-    crate::http::validate_download_url(url)?;
-
-    let mut body = crate::http::agent()
-        .get(url)
-        .header("User-Agent", "par-term")
-        .call()
-        .map_err(|e| format!("Failed to download file: {}", e))?
-        .into_body();
-
-    body.with_config()
-        .limit(MAX_SHADER_DOWNLOAD_SIZE)
-        .read_to_vec()
-        .map_err(|e| {
-            format!(
-                "Failed to read download (file may exceed 50 MB limit): {}",
-                e
-            )
-        })
+    crate::http::download_file(url)
 }
 
 /// Download a file and verify its SHA256 checksum.
@@ -648,6 +624,41 @@ fn cleanup_empty_dirs(dir: &Path) {
                 // Try to remove if empty (will fail if not empty, which is fine)
                 let _ = std::fs::remove_dir(&path);
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Live check that the release-API lookup still works now that it goes
+    /// through [`crate::http::get_validated`], which enforces the host allowlist
+    /// and follows redirects itself instead of letting the agent do it.
+    ///
+    /// Ignored by default because it needs the network. Run with
+    /// `cargo test -p par-term --lib -- --ignored release_api`.
+    #[test]
+    #[ignore = "requires network access to api.github.com"]
+    fn live_release_api_lookup_survives_per_hop_validation() {
+        const REPO: &str = "paulrobello/par-term";
+        let api_url = format!("https://api.github.com/repos/{}/releases/latest", REPO);
+
+        let (zip_url, checksum_url) = get_shaders_download_url(&api_url, REPO)
+            .expect("the release API lookup must survive allowlist validation");
+
+        assert!(
+            zip_url.ends_with("shaders.zip"),
+            "unexpected zip asset URL: {zip_url}"
+        );
+        // Every hop of this URL is re-validated when it is downloaded, so it has
+        // to be on the allowlist before the download is even attempted.
+        crate::http::validate_download_url(&zip_url)
+            .expect("the asset URL the API returns must be on the download allowlist");
+
+        if let Some(csum_url) = checksum_url {
+            crate::http::validate_download_url(&csum_url)
+                .expect("the checksum URL must be on the download allowlist");
         }
     }
 }
