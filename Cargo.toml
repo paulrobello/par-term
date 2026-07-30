@@ -232,10 +232,6 @@ chrono.workspace = true
 # Image loading for background images
 image.workspace = true
 
-# Native Mermaid diagram rendering (feature-gated: `mermaid`)
-mermaid-rs-renderer = { version = "0.3", default-features = false, optional = true }
-# SVG rasterization for mermaid diagram PNG output (feature-gated: `mermaid`)
-resvg = { version = "0.47", optional = true }
 
 # Half-precision float for HDR cubemap textures
 half.workspace = true
@@ -319,9 +315,8 @@ name = "par-term"
 path = "src/main.rs"
 
 [features]
-default = ["audio", "mermaid", "system-monitor", "mdns"]
+default = ["audio", "system-monitor", "mdns"]
 audio = ["dep:rodio"]
-mermaid = ["dep:mermaid-rs-renderer", "dep:resvg"]
 system-monitor = ["dep:sysinfo"]
 mdns = ["dep:mdns-sd", "par-term-ssh/mdns"]
 dev-tools = []  # Enable to build test-cr and test-grid utilities
