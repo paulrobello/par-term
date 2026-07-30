@@ -128,7 +128,9 @@ impl WindowState {
                 let runtime = Arc::clone(&self.runtime);
                 runtime.spawn(async move {
                     let t = terminal_clone.read().await;
-                    let _ = t.write(&all_encoded);
+                    if let Err(e) = t.write(&all_encoded) {
+                        crate::debug_error!("MOUSE", "PTY write failed (wheel events): {e}");
+                    }
                 });
             }
             return; // Exit early: terminal app handled the input

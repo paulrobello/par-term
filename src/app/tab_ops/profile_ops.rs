@@ -140,8 +140,12 @@ impl WindowState {
                             );
                             if let Some(tab) = self.tab_manager.active_tab_mut()
                                 && let Ok(term) = tab.terminal.try_read()
+                                && let Err(e) = term.write(cmd.as_bytes())
                             {
-                                let _ = term.write(cmd.as_bytes());
+                                crate::debug_error!(
+                                    "TAB_ACTION",
+                                    "PTY write failed (tmux profile attach): {e}"
+                                );
                             }
                         }
                     }

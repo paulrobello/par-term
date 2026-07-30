@@ -299,9 +299,14 @@ impl WindowState {
         if let Some(tab) = self.tab_manager.get_tab(gateway_tab_id)
             && tab.tmux.tmux_gateway_active
             && let Ok(term) = tab.terminal.try_read()
-            && term.write(cmd.as_bytes()).is_ok()
         {
-            return true;
+            match term.write(cmd.as_bytes()) {
+                Ok(()) => return true,
+                Err(e) => {
+                    crate::debug_error!("TMUX", "PTY write failed (gateway command): {e}");
+                    return false;
+                }
+            }
         }
 
         crate::debug_trace!("TMUX", "Failed to write to gateway tab");

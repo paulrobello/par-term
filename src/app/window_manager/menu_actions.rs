@@ -184,7 +184,12 @@ impl WindowManager {
                             let terminal_clone = Arc::clone(&tab.terminal);
                             window_state.runtime.spawn(async move {
                                 let term = terminal_clone.read().await;
-                                let _ = term.write(b"\x16");
+                                if let Err(e) = term.write(b"\x16") {
+                                    crate::debug_error!(
+                                        "INPUT",
+                                        "PTY write failed (menu image paste): {e}"
+                                    );
+                                }
                             });
                         }
                     }

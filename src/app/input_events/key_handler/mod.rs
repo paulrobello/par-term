@@ -312,7 +312,9 @@ impl WindowState {
                         let terminal_clone = Arc::clone(&tab.terminal);
                         self.runtime.spawn(async move {
                             let term = terminal_clone.read().await;
-                            let _ = term.write(b"\x16");
+                            if let Err(e) = term.write(b"\x16") {
+                                crate::debug_error!("INPUT", "PTY write failed (image paste): {e}");
+                            }
                         });
                     }
                 } else {
@@ -536,7 +538,9 @@ impl WindowState {
                     let cmd_bytes = cmd.into_bytes();
                     self.runtime.spawn(async move {
                         let term = terminal_clone.read().await;
-                        let _ = term.write(&cmd_bytes);
+                        if let Err(e) = term.write(&cmd_bytes) {
+                            crate::debug_error!("INPUT", "PTY write failed (tmux send-keys): {e}");
+                        }
                     });
                 }
                 if let Some(tab) = self.tab_manager.active_tab_mut() {
@@ -593,7 +597,9 @@ impl WindowState {
                     self.runtime.spawn(async move {
                         for terminal in terminals {
                             let term = terminal.read().await;
-                            let _ = term.write(&bytes_clone);
+                            if let Err(e) = term.write(&bytes_clone) {
+                                crate::debug_error!("INPUT", "PTY write failed (broadcast): {e}");
+                            }
                         }
                     });
                     return;
@@ -620,7 +626,9 @@ impl WindowState {
                 // render pipeline (try_write) of their generation checks.
                 self.runtime.spawn(async move {
                     let term = terminal_clone.read().await;
-                    let _ = term.write(&bytes);
+                    if let Err(e) = term.write(&bytes) {
+                        crate::debug_error!("INPUT", "PTY write failed (key input): {e}");
+                    }
                 });
             }
         }

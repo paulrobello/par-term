@@ -184,7 +184,12 @@ impl WindowState {
                 && let Ok(term) = tab.terminal.try_read()
             {
                 for cmd in &commands_to_run {
-                    let _ = term.write(cmd.as_bytes());
+                    if let Err(e) = term.write(cmd.as_bytes()) {
+                        crate::debug_error!(
+                            "AI_INSPECTOR",
+                            "PTY write failed (auto-executed command): {e}"
+                        );
+                    }
                 }
                 crate::debug_info!(
                     "AI_INSPECTOR",

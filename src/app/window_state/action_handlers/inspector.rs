@@ -40,16 +40,26 @@ impl WindowState {
             }
             InspectorAction::WriteToTerminal(cmd) => {
                 self.with_active_tab(|tab| {
-                    if let Ok(term) = tab.terminal.try_read() {
-                        let _ = term.write(cmd.as_bytes());
+                    if let Ok(term) = tab.terminal.try_read()
+                        && let Err(e) = term.write(cmd.as_bytes())
+                    {
+                        crate::debug_error!(
+                            "AI_INSPECTOR",
+                            "PTY write failed (write-to-terminal): {e}"
+                        );
                     }
                 });
             }
             InspectorAction::RunCommandAndNotify(cmd) => {
                 // Write command + Enter to terminal
                 self.with_active_tab(|tab| {
-                    if let Ok(term) = tab.terminal.try_read() {
-                        let _ = term.write(format!("{cmd}\n").as_bytes());
+                    if let Ok(term) = tab.terminal.try_read()
+                        && let Err(e) = term.write(format!("{cmd}\n").as_bytes())
+                    {
+                        crate::debug_error!(
+                            "AI_INSPECTOR",
+                            "PTY write failed (run-and-notify): {e}"
+                        );
                     }
                 });
                 // Record command count before execution so we can detect completion

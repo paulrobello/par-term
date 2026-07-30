@@ -169,8 +169,12 @@ impl WindowState {
                         // The trailing newline is what submits the command.
                         if let Some(tab) = self.tab_manager.active_tab()
                             && let Ok(term) = tab.terminal.try_read()
+                            && let Err(e) = term.write_str(&format!("{}\n", ssh_cmd))
                         {
-                            let _ = term.write_str(&format!("{}\n", ssh_cmd));
+                            crate::debug_error!(
+                                "TAB_ACTION",
+                                "PTY write failed (SSH quick connect): {e}"
+                            );
                         }
                         log::info!(
                             "SSH Quick Connect: connecting to {}",

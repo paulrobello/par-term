@@ -186,11 +186,21 @@ impl WindowState {
                                 {
                                     let press = term.encode_mouse_event(0, col, row, true, 0);
                                     let release = term.encode_mouse_event(0, col, row, false, 0);
-                                    if !press.is_empty() {
-                                        let _ = term.write(&press);
+                                    if !press.is_empty()
+                                        && let Err(e) = term.write(&press)
+                                    {
+                                        crate::debug_error!(
+                                            "MOUSE",
+                                            "PTY write failed (focus click press): {e}"
+                                        );
                                     }
-                                    if !release.is_empty() {
-                                        let _ = term.write(&release);
+                                    if !release.is_empty()
+                                        && let Err(e) = term.write(&release)
+                                    {
+                                        crate::debug_error!(
+                                            "MOUSE",
+                                            "PTY write failed (focus click release): {e}"
+                                        );
                                     }
                                 }
 
@@ -350,7 +360,9 @@ impl WindowState {
                     let runtime = Arc::clone(&self.runtime);
                     runtime.spawn(async move {
                         let t = terminal_clone.read().await;
-                        let _ = t.write(move_seq.as_bytes());
+                        if let Err(e) = t.write(move_seq.as_bytes()) {
+                            crate::debug_error!("MOUSE", "PTY write failed (cursor move): {e}");
+                        }
                     });
                 }
                 return; // Exit early: cursor move handled

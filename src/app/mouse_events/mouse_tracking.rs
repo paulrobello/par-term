@@ -82,7 +82,9 @@ impl WindowState {
                     let runtime = Arc::clone(&self.runtime);
                     runtime.spawn(async move {
                         let t = terminal_clone.read().await;
-                        let _ = t.write(&encoded);
+                        if let Err(e) = t.write(&encoded) {
+                            crate::debug_error!("MOUSE", "PTY write failed (mouse tracking): {e}");
+                        }
                     });
                 }
             }

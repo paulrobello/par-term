@@ -99,8 +99,11 @@ impl WindowState {
                     // blocking the tokio worker. On miss: the Ctrl+L clear is silently dropped.
                     // User can press the shortcut again.
                     if let Ok(term) = terminal_clone.try_read() {
-                        let _ = term.write(&clear_sequence);
-                        log::debug!("Sent clear screen sequence (Ctrl+L)");
+                        if let Err(e) = term.write(&clear_sequence) {
+                            crate::debug_error!("INPUT", "PTY write failed (clear screen): {e}");
+                        } else {
+                            log::debug!("Sent clear screen sequence (Ctrl+L)");
+                        }
                     }
                 });
             }
