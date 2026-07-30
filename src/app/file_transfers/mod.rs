@@ -51,6 +51,27 @@ pub(super) fn format_bytes(bytes: usize) -> String {
     }
 }
 
+/// Reduce a remote-supplied download filename to a bare basename (SEC-010).
+///
+/// The OSC 1337 `File=name=` value is chosen by whatever is on the other end of
+/// the PTY, and `rfd` *joins* it onto the dialog's directory: `../../.ssh/x`
+/// escapes that directory and an absolute name replaces it outright, letting
+/// the remote aim the save panel wherever it likes. `upload.rs` already reduces
+/// picked files this way; downloads must do the same.
+///
+/// Returns `None` when the name has no file component at all (empty, `.`, `..`,
+/// or a bare separator) — the caller rejects rather than inventing a name.
+fn sanitize_download_filename(name: &str) -> Option<String> {
+    let base = std::path::Path::new(name)
+        .file_name()?
+        .to_string_lossy()
+        .to_string();
+    if base.is_empty() || base == "." || base == ".." {
+        return None;
+    }
+    Some(base)
+}
+
 /// Extract UI transfer info from a core `FileTransfer`
 fn transfer_to_info(ft: &FileTransfer) -> TransferInfo {
     let (bytes_transferred, total_bytes) = match &ft.status {
@@ -129,11 +150,36 @@ impl WindowState {
                 if let Ok(term) = terminal_arc.try_read()
                     && let Some(ft) = term.take_completed_transfer(id)
                 {
-                    let filename = if ft.filename.is_empty() {
+                    let raw_filename = if ft.filename.is_empty() {
                         format!("download-{}", ft.id)
                     } else {
                         ft.filename.clone()
                     };
+                    // SEC-010: reduce to a basename before the name reaches the
+                    // save dialog, the notification, or the transfer list.
+                    let filename = match sanitize_download_filename(&raw_filename) {
+                        Some(name) => name,
+                        None => {
+                            crate::debug_info!(
+                                "FILE_TRANSFER",
+                                "[SEC-010] rejecting download with unusable filename {:?}",
+                                raw_filename
+                            );
+                            self.deliver_notification(
+                                "Download Rejected",
+                                &format!("Remote sent an invalid filename: {}", raw_filename),
+                            );
+                            continue;
+                        }
+                    };
+                    if filename != raw_filename {
+                        crate::debug_info!(
+                            "FILE_TRANSFER",
+                            "[SEC-010] reduced remote filename {:?} to {:?}",
+                            raw_filename,
+                            filename
+                        );
+                    }
                     crate::debug_info!(
                         "FILE_TRANSFER",
                         "Download completed: {} ({} bytes)",
@@ -315,11 +361,27 @@ impl WindowState {
 
     /// Show a native save dialog for a completed download and write the file.
     fn process_save_dialog(&mut self, pending: PendingSave) {
+        // SEC-010: `set_file_name` is joined onto the dialog directory, so the
+        // name must be a bare basename. Enforced here at the sink as well as at
+        // ingest, because this is the call `rfd` actually resolves.
+        let Some(safe_name) = sanitize_download_filename(&pending.filename) else {
+            crate::debug_info!(
+                "FILE_TRANSFER",
+                "[SEC-010] refusing save dialog for unusable filename {:?}",
+                pending.filename
+            );
+            self.deliver_notification(
+                "Download Save Failed",
+                &format!("Remote sent an invalid filename: {}", pending.filename),
+            );
+            return;
+        };
+
         self.file_transfer_state.dialog_open = true;
 
         let default_dir = self.resolve_download_directory();
 
-        let mut dialog = rfd::FileDialog::new().set_file_name(&pending.filename);
+        let mut dialog = rfd::FileDialog::new().set_file_name(&safe_name);
 
         if let Some(dir) = &default_dir {
             dialog = dialog.set_directory(dir);
@@ -395,7 +457,21 @@ impl WindowState {
                     && let Ok(term) = tab.terminal.try_read()
                     && let Some(cwd) = term.shell_integration_cwd()
                 {
-                    return Some(PathBuf::from(cwd));
+                    // SEC-010: the shell-integration CWD comes from OSC 7, which
+                    // the remote end controls. Without this it would supply the
+                    // dialog's base directory as well as the filename. Resolve
+                    // symlinks and `..` and require a real directory; anything
+                    // else falls back to Downloads.
+                    match std::fs::canonicalize(&cwd) {
+                        Ok(dir) if dir.is_dir() => return Some(dir),
+                        _ => {
+                            crate::debug_info!(
+                                "FILE_TRANSFER",
+                                "[SEC-010] ignoring OSC 7 cwd {:?}: not a resolvable directory",
+                                cwd
+                            );
+                        }
+                    }
                 }
                 // Fall back to Downloads if CWD not available
                 dirs::download_dir()
@@ -409,5 +485,47 @@ impl WindowState {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::sanitize_download_filename;
+
+    #[test]
+    fn traversal_and_absolute_names_reduce_to_a_basename() {
+        assert_eq!(
+            sanitize_download_filename("../../.ssh/authorized_keys").as_deref(),
+            Some("authorized_keys")
+        );
+        assert_eq!(
+            sanitize_download_filename("/etc/passwd").as_deref(),
+            Some("passwd")
+        );
+        assert_eq!(
+            sanitize_download_filename("../../../../../../tmp/x.sh").as_deref(),
+            Some("x.sh")
+        );
+    }
+
+    #[test]
+    fn ordinary_names_pass_through_unchanged() {
+        assert_eq!(
+            sanitize_download_filename("report.pdf").as_deref(),
+            Some("report.pdf")
+        );
+        assert_eq!(
+            sanitize_download_filename("my file (1).tar.gz").as_deref(),
+            Some("my file (1).tar.gz")
+        );
+    }
+
+    #[test]
+    fn names_without_a_file_component_are_rejected() {
+        assert_eq!(sanitize_download_filename(""), None);
+        assert_eq!(sanitize_download_filename("."), None);
+        assert_eq!(sanitize_download_filename(".."), None);
+        assert_eq!(sanitize_download_filename("/"), None);
+        assert_eq!(sanitize_download_filename("../.."), None);
     }
 }
