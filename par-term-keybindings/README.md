@@ -47,7 +47,7 @@ Layer 2 in the dependency graph. Depends on `par-term-config` for `KeyBinding` a
 
 ## Related Documentation
 
-- [Keyboard Shortcuts](../docs/KEYBOARD_SHORTCUTS.md) — default shortcut reference
+- [Keyboard Shortcuts](../docs/guides/KEYBOARD_SHORTCUTS.md) — default shortcut reference
 - [Config Reference](../docs/CONFIG_REFERENCE.md) — keybinding configuration
-- [Snippets & Actions](../docs/SNIPPETS.md) — custom action keybindings
-- [Crate Structure](../docs/CRATE_STRUCTURE.md) — dependency layers
+- [Snippets & Actions](../docs/features/SNIPPETS.md) — custom action keybindings
+- [Crate Structure](../docs/architecture/CRATE_STRUCTURE.md) — dependency layers

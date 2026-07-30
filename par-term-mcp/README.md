@@ -33,4 +33,4 @@ Layer 0 in the dependency graph. This crate has no internal workspace dependenci
 
 - [Assistant Panel](../docs/ASSISTANT_PANEL.md) — ACP agent integration user documentation
 - [ACP Harness](../docs/ACP_HARNESS.md) — debugging the ACP/MCP integration
-- [Architecture Overview](../docs/ARCHITECTURE.md) — workspace structure
+- [Architecture Overview](../docs/architecture/ARCHITECTURE.md) — workspace structure

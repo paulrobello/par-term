@@ -352,4 +352,4 @@ A restart is required after every update. Close and reopen par-term to use the n
 - [INTEGRATIONS.md](INTEGRATIONS.md) - Shell integration and shader installation
 - [ARCHITECTURE.md](../architecture/ARCHITECTURE.md) - System architecture overview
 - [../CHANGELOG.md](../../CHANGELOG.md) - Version history and release notes
-- [../README.md](../README.md) - Project overview and getting started
+- [../README.md](../../README.md) - Project overview and getting started

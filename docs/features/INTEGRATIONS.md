@@ -343,4 +343,4 @@ par-term install-integrations [-y|--yes]
 - [SHADERS.md](SHADERS.md) - Complete shader gallery and descriptions
 - [CUSTOM_SHADERS.md](CUSTOM_SHADERS.md) - Creating custom shaders
 - [SSH Host Management](SSH.md) - SSH host profiles and quick connect
-- [../README.md](../README.md) - Project overview
+- [../README.md](../../README.md) - Project overview

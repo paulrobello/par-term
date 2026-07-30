@@ -1108,6 +1108,6 @@ Both dumps share one location: the system temp directory. That is `$TMPDIR` on m
 
 - [Included Shaders](SHADERS.md) - Complete list of all available shaders
 - [Compositor Details](../architecture/COMPOSITOR.md) - Deep dive into the rendering pipeline
-- [README.md](../README.md) - Configuration reference
+- [README.md](../../README.md) - Configuration reference
 - [Shadertoy](https://www.shadertoy.com) - Shader inspiration and examples
 - [Ghostty](https://ghostty.org/) - Compatible shader format reference

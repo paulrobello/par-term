@@ -248,4 +248,4 @@ Each match tracks:
 
 - [Command History](COMMAND_HISTORY.md) - Fuzzy command history search (separate from terminal text search)
 - [Keyboard Shortcuts](../guides/KEYBOARD_SHORTCUTS.md) - All keyboard shortcuts
-- [README.md](../README.md) - Project overview
+- [README.md](../../README.md) - Project overview

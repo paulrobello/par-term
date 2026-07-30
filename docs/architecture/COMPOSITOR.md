@@ -772,7 +772,7 @@ background_image_opacity: 1.0
 
 ## Related Documentation
 
-- [README.md](../README.md) - Project overview and configuration reference
+- [README.md](../../README.md) - Project overview and configuration reference
 - [Custom Shaders Guide](../features/CUSTOM_SHADERS.md) - Installing and creating custom shaders
 - [Included Shaders](../features/SHADERS.md) - Complete list of all available shaders
 - [Architecture](ARCHITECTURE.md) - System architecture overview

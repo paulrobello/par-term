@@ -331,6 +331,6 @@ The following mouse-related issues have been resolved:
 
 ## Related Documentation
 
-- [README.md](../README.md) - Project overview
+- [README.md](../../README.md) - Project overview
 - [Keyboard Shortcuts](../guides/KEYBOARD_SHORTCUTS.md) - Keyboard shortcut reference
 - [Semantic History](SEMANTIC_HISTORY.md) - File path clicking details

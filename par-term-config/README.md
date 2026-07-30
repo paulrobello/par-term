@@ -76,5 +76,5 @@ Layer 1 in the dependency graph. All Layer 2 and higher crates depend on this cr
 ## Related Documentation
 
 - [Config Reference](../docs/CONFIG_REFERENCE.md) — complete field reference
-- [Architecture Overview](../docs/ARCHITECTURE.md) — workspace structure
-- [Crate Structure](../docs/CRATE_STRUCTURE.md) — dependency layers and version bumps
+- [Architecture Overview](../docs/architecture/ARCHITECTURE.md) — workspace structure
+- [Crate Structure](../docs/architecture/CRATE_STRUCTURE.md) — dependency layers and version bumps

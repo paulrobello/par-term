@@ -24,5 +24,5 @@ Files follow the pattern `YYYY-MM-DD-<feature>-<type>.md` where type is one of:
 
 ## Related Documentation
 
-- [Architecture Overview](../ARCHITECTURE.md) — current system architecture
-- [Crate Structure](../CRATE_STRUCTURE.md) — workspace organization
+- [Architecture Overview](../architecture/ARCHITECTURE.md) — current system architecture
+- [Crate Structure](../architecture/CRATE_STRUCTURE.md) — workspace organization

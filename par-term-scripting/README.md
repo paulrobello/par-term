@@ -27,7 +27,7 @@ types. Used directly by the root `par-term` crate.
 
 ## Related Documentation
 
-- [Automation](../docs/AUTOMATION.md) — triggers, coprocesses, and scripts
+- [Automation](../docs/features/AUTOMATION.md) — triggers, coprocesses, and scripts
 - [Config Reference](../docs/CONFIG_REFERENCE.md) — script configuration options
-- [Architecture Overview](../docs/ARCHITECTURE.md) — workspace structure
-- [Crate Structure](../docs/CRATE_STRUCTURE.md) — dependency layers
+- [Architecture Overview](../docs/architecture/ARCHITECTURE.md) — workspace structure
+- [Crate Structure](../docs/architecture/CRATE_STRUCTURE.md) — dependency layers

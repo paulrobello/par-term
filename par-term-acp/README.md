@@ -46,5 +46,5 @@ root `par-term` crate to drive the assistant panel.
 
 - [Assistant Panel](../docs/ASSISTANT_PANEL.md) — user-facing ACP configuration and usage
 - [ACP Harness](../docs/ACP_HARNESS.md) — smoke test harness for debugging agent behavior
-- [Architecture Overview](../docs/ARCHITECTURE.md) — workspace structure
-- [Crate Structure](../docs/CRATE_STRUCTURE.md) — dependency layers
+- [Architecture Overview](../docs/architecture/ARCHITECTURE.md) — workspace structure
+- [Crate Structure](../docs/architecture/CRATE_STRUCTURE.md) — dependency layers

@@ -502,7 +502,7 @@ The Window tab in Settings provides sections for:
 
 ## Related Documentation
 
-- [README.md](../README.md) - Project overview
+- [README.md](../../README.md) - Project overview
 - [KEYBOARD_SHORTCUTS.md](../guides/KEYBOARD_SHORTCUTS.md) - Window keyboard shortcuts
 - [ARRANGEMENTS.md](ARRANGEMENTS.md) - Full window arrangements documentation
 - [Status Bar](STATUS_BAR.md) - Status bar widgets and system monitoring

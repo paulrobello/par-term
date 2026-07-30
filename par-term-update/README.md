@@ -43,7 +43,7 @@ skipped-version settings. Used directly by the root `par-term` crate.
 
 ## Related Documentation
 
-- [Self-Update](../docs/SELF_UPDATE.md) — update configuration and installation methods
+- [Self-Update](../docs/features/SELF_UPDATE.md) — update configuration and installation methods
 - [Config Reference](../docs/CONFIG_REFERENCE.md) — update configuration options
 - [Security Policy](../SECURITY.md) — checksum verification and update security
-- [Crate Structure](../docs/CRATE_STRUCTURE.md) — dependency layers
+- [Crate Structure](../docs/architecture/CRATE_STRUCTURE.md) — dependency layers

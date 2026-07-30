@@ -45,7 +45,7 @@ Used directly by the root `par-term` crate and re-exported as `par_term::setting
 ## Related Documentation
 
 - [Config Reference](../docs/CONFIG_REFERENCE.md) — all configurable options
-- [Profiles](../docs/PROFILES.md) — profile management
-- [Arrangements](../docs/ARRANGEMENTS.md) — window arrangements
-- [Custom Shaders](../docs/CUSTOM_SHADERS.md) — shader editor documentation
-- [Crate Structure](../docs/CRATE_STRUCTURE.md) — dependency layers
+- [Profiles](../docs/features/PROFILES.md) — profile management
+- [Arrangements](../docs/features/ARRANGEMENTS.md) — window arrangements
+- [Custom Shaders](../docs/features/CUSTOM_SHADERS.md) — shader editor documentation
+- [Crate Structure](../docs/architecture/CRATE_STRUCTURE.md) — dependency layers

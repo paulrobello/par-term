@@ -95,7 +95,7 @@ make build
 make run
 ```
 
-> **📝 Note:** See the [README](../README.md) for full installation details, macOS bundle creation, and troubleshooting Gatekeeper issues.
+> **📝 Note:** See the [README](../../README.md) for full installation details, macOS bundle creation, and troubleshooting Gatekeeper issues.
 
 ## First Launch
 
@@ -316,7 +316,7 @@ graph TD
 
 ## Related Documentation
 
-- [README](../README.md) - Project overview, full installation instructions, and feature list
+- [README](../../README.md) - Project overview, full installation instructions, and feature list
 - [Keyboard Shortcuts](KEYBOARD_SHORTCUTS.md) - Complete keyboard shortcut reference
 - [Mouse Features](../features/MOUSE_FEATURES.md) - Mouse selection, URL handling, and pane interaction
 - [Profiles](../features/PROFILES.md) - Profile system for saved terminal configurations

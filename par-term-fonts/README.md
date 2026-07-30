@@ -66,7 +66,7 @@ let glyphs = shaper.shape("Hello, world!", &ShapingOptions::default());
 
 ## Related Documentation
 
-- [Quick Start: Fonts](../docs/QUICK_START_FONTS.md) — font configuration guide
+- [Quick Start: Fonts](../docs/guides/QUICK_START_FONTS.md) — font configuration guide
 - [Config Reference](../docs/CONFIG_REFERENCE.md) — font configuration options
-- [Architecture Overview](../docs/ARCHITECTURE.md) — workspace structure
-- [Crate Structure](../docs/CRATE_STRUCTURE.md) — dependency layers
+- [Architecture Overview](../docs/architecture/ARCHITECTURE.md) — workspace structure
+- [Crate Structure](../docs/architecture/CRATE_STRUCTURE.md) — dependency layers

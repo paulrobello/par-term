@@ -267,7 +267,7 @@ remains visible; press `Esc` to cancel it. All action types — including the wo
 
 ## Related Documentation
 
-- [README.md](../README.md) - Project overview
+- [README.md](../../README.md) - Project overview
 - [Mouse Features](../features/MOUSE_FEATURES.md) - Mouse interactions and semantic history
 - [Copy Mode](../features/COPY_MODE.md) - Vi-style keyboard-driven text selection
 - [Tabs](../features/TABS.md) - Tab and split pane management

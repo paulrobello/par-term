@@ -37,7 +37,7 @@ Layer 2 in the dependency graph. Depends on `par-term-config`. Used directly by 
 
 ## Related Documentation
 
-- [Architecture Overview](../docs/ARCHITECTURE.md) — tmux integration in the workspace
+- [Architecture Overview](../docs/architecture/ARCHITECTURE.md) — tmux integration in the workspace
 - [Config Reference](../docs/CONFIG_REFERENCE.md) — tmux configuration options
-- [Tabs](../docs/TABS.md) — split pane system that tmux panes map to
-- [Crate Structure](../docs/CRATE_STRUCTURE.md) — dependency layers
+- [Tabs](../docs/features/TABS.md) — split pane system that tmux panes map to
+- [Crate Structure](../docs/architecture/CRATE_STRUCTURE.md) — dependency layers

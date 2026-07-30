@@ -71,8 +71,8 @@ renderer.render(&params)?;
 
 ## Related Documentation
 
-- [Custom Shaders](../docs/CUSTOM_SHADERS.md) — background and cursor shader documentation
-- [Shader Gallery](../docs/SHADERS.md) — included shader reference
-- [GPU Compositor](../docs/COMPOSITOR.md) — render layer details
-- [Architecture Overview](../docs/ARCHITECTURE.md) — workspace structure
-- [Crate Structure](../docs/CRATE_STRUCTURE.md) — dependency layers
+- [Custom Shaders](../docs/features/CUSTOM_SHADERS.md) — background and cursor shader documentation
+- [Shader Gallery](../docs/features/SHADERS.md) — included shader reference
+- [GPU Compositor](../docs/architecture/COMPOSITOR.md) — render layer details
+- [Architecture Overview](../docs/architecture/ARCHITECTURE.md) — workspace structure
+- [Crate Structure](../docs/architecture/CRATE_STRUCTURE.md) — dependency layers

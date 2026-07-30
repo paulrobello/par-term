@@ -144,13 +144,13 @@ The scripting protocol defines `WriteText` and `RunCommand` commands (currently 
 
 ## Related Documentation
 
-- [Architecture](docs/ARCHITECTURE.md) - System design and component overview
+- [Architecture](docs/architecture/ARCHITECTURE.md) - System design and component overview
 - [Assistant Panel](docs/ASSISTANT_PANEL.md) - ACP agent integration and permissions
-- [Automation](docs/AUTOMATION.md) - Trigger system, coprocesses, and scripting
-- [Custom Shaders](docs/CUSTOM_SHADERS.md) - Shader loading and configuration
-- [Profiles](docs/PROFILES.md) - Dynamic profile fetching and security
-- [Session Logging](docs/SESSION_LOGGING.md) - Recording formats and configuration
-- [SSH](docs/SSH.md) - SSH host management
-- [Self Update](docs/SELF_UPDATE.md) - Update mechanism and zip extraction
-- [Paste Special](docs/PASTE_SPECIAL.md) - Clipboard inspection before pasting
-- [Snippets](docs/SNIPPETS.md) - Text snippets and custom actions
+- [Automation](docs/features/AUTOMATION.md) - Trigger system, coprocesses, and scripting
+- [Custom Shaders](docs/features/CUSTOM_SHADERS.md) - Shader loading and configuration
+- [Profiles](docs/features/PROFILES.md) - Dynamic profile fetching and security
+- [Session Logging](docs/features/SESSION_LOGGING.md) - Recording formats and configuration
+- [SSH](docs/features/SSH.md) - SSH host management
+- [Self Update](docs/features/SELF_UPDATE.md) - Update mechanism and zip extraction
+- [Paste Special](docs/features/PASTE_SPECIAL.md) - Clipboard inspection before pasting
+- [Snippets](docs/features/SNIPPETS.md) - Text snippets and custom actions

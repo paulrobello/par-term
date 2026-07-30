@@ -262,4 +262,4 @@ The `.cast` files follow the asciinema v2 specification:
 
 - [CONFIG_REFERENCE.md](../CONFIG_REFERENCE.md) - Configuration options reference
 - [KEYBOARD_SHORTCUTS.md](../guides/KEYBOARD_SHORTCUTS.md) - Recording hotkey
-- [README.md](../README.md) - Project overview
+- [README.md](../../README.md) - Project overview

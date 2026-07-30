@@ -66,8 +66,8 @@ let data = terminal.read()?;
 
 ## Related Documentation
 
-- [Scrollback Buffer](../docs/SCROLLBACK.md) — scrollback and semantic history
-- [Semantic History](../docs/SEMANTIC_HISTORY.md) — command and prompt tracking
-- [Session Logging](../docs/SESSION_LOGGING.md) — session recording
-- [Automation](../docs/AUTOMATION.md) — coprocess and trigger integration
-- [Crate Structure](../docs/CRATE_STRUCTURE.md) — dependency layers
+- [Scrollback Buffer](../docs/features/SCROLLBACK.md) — scrollback and semantic history
+- [Semantic History](../docs/features/SEMANTIC_HISTORY.md) — command and prompt tracking
+- [Session Logging](../docs/features/SESSION_LOGGING.md) — session recording
+- [Automation](../docs/features/AUTOMATION.md) — coprocess and trigger integration
+- [Crate Structure](../docs/architecture/CRATE_STRUCTURE.md) — dependency layers

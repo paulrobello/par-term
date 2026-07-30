@@ -67,7 +67,7 @@ if let Some(bytes) = handler.handle_key_event(&key_event) {
 
 ## Related Documentation
 
-- [Keyboard Shortcuts](../docs/KEYBOARD_SHORTCUTS.md) — user-facing keyboard reference
+- [Keyboard Shortcuts](../docs/guides/KEYBOARD_SHORTCUTS.md) — user-facing keyboard reference
 - [Config Reference](../docs/CONFIG_REFERENCE.md) — input configuration options
-- [Architecture Overview](../docs/ARCHITECTURE.md) — workspace structure
-- [Crate Structure](../docs/CRATE_STRUCTURE.md) — dependency layers
+- [Architecture Overview](../docs/architecture/ARCHITECTURE.md) — workspace structure
+- [Crate Structure](../docs/architecture/CRATE_STRUCTURE.md) — dependency layers

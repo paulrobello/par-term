@@ -27,5 +27,5 @@ Layer 0 in the dependency graph. This crate has no internal workspace dependenci
 
 ## Related Documentation
 
-- [SSH Support](../docs/SSH.md) — user-facing documentation for SSH features
-- [Architecture Overview](../docs/ARCHITECTURE.md) — workspace structure
+- [SSH Support](../docs/features/SSH.md) — user-facing documentation for SSH features
+- [Architecture Overview](../docs/architecture/ARCHITECTURE.md) — workspace structure
