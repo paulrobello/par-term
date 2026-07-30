@@ -160,18 +160,32 @@ impl WindowState {
                 host,
                 profile_override: _,
             } => {
-                // Build SSH command and write it to the active terminal's PTY
-                let args = host.ssh_args();
-                let ssh_cmd = format!("ssh {}\n", args.join(" "));
-                if let Some(tab) = self.tab_manager.active_tab()
-                    && let Ok(term) = tab.terminal.try_read()
-                {
-                    let _ = term.write_str(&ssh_cmd);
+                // SEC-003: the command is written into the active pane's shell,
+                // and discovery sources are untrusted (an mDNS responder on the
+                // LAN picks its own hostname). `ssh_command_line` validates every
+                // component and quotes them; never `ssh_args().join(" ")`.
+                match host.ssh_command_line() {
+                    Ok(ssh_cmd) => {
+                        // The trailing newline is what submits the command.
+                        if let Some(tab) = self.tab_manager.active_tab()
+                            && let Ok(term) = tab.terminal.try_read()
+                        {
+                            let _ = term.write_str(&format!("{}\n", ssh_cmd));
+                        }
+                        log::info!(
+                            "SSH Quick Connect: connecting to {}",
+                            host.connection_string()
+                        );
+                    }
+                    Err(e) => {
+                        log::warn!(
+                            "[SEC-003] refusing SSH Quick Connect to {:?}: {}",
+                            host.display_name(),
+                            e
+                        );
+                        self.show_toast(format!("Cannot connect to this host: {}", e));
+                    }
                 }
-                log::info!(
-                    "SSH Quick Connect: connecting to {}",
-                    host.connection_string()
-                );
                 self.request_redraw();
             }
             SshConnectAction::Cancel => {

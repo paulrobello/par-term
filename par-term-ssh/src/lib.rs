@@ -11,4 +11,4 @@ pub mod mdns;
 pub mod types;
 
 pub use discovery::discover_local_hosts;
-pub use types::{SshHost, SshHostSource};
+pub use types::{SshHost, SshHostSource, UnsafeSshComponent};
