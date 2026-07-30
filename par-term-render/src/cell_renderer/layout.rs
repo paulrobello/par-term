@@ -174,6 +174,10 @@ impl CellRenderer {
         // Reset actual counts - will be updated when instance buffers are built
         self.buffers.actual_bg_instances = 0;
         self.buffers.actual_text_instances = 0;
+        // The CPU-side arrays are reallocated zeroed below, so nothing is left
+        // over for the pane builder's reset pass to cover.
+        self.buffers.pane_bg_high_water = 0;
+        self.buffers.pane_text_high_water = 0;
 
         self.bg_instances = vec![
             BackgroundInstance {

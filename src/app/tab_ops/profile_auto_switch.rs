@@ -483,6 +483,16 @@ impl WindowState {
         } else {
             ""
         };
+        // Without an entry here the dialog claims "A trigger matched terminal
+        // output", which is false for this producer. Registered only on the path
+        // that actually queues a dialog — the dialog removes the entry when the
+        // action resolves, so an entry on a path that never queues would leak.
+        self.trigger_state.automation_action_notes.insert(
+            action_id,
+            "Automatic profile switching queued this, not an output trigger. \
+             Approving runs the command shown above in this shell."
+                .to_string(),
+        );
         self.trigger_state.pending_trigger_actions.push(
             crate::app::window_state::PendingTriggerAction {
                 trigger_id: action_id,

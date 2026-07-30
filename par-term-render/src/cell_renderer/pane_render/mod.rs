@@ -284,8 +284,17 @@ impl CellRenderer {
             fill_default_bg_cells,
             separator_marks,
         } = p;
-        // Clear previous instance buffers
-        for instance in &mut self.bg_instances {
+        // Clear whatever a previous build left behind.
+        //
+        // Every emitter below writes a slot before advancing the index, and only
+        // `[0..bg_index]` / `[0..text_index]` is uploaded and drawn, so the reset
+        // only has to cover slots this builder has populated before — not the
+        // whole full-window array. That distinction matters with split panes:
+        // this runs once per pane per frame, so clearing `max_bg_instances` +
+        // `max_text_instances` entries made the reset alone cost O(window) × N
+        // panes for buffers of which each pane uses roughly 1/N.
+        let bg_reset = self.buffers.pane_bg_high_water.min(self.bg_instances.len());
+        for instance in &mut self.bg_instances[..bg_reset] {
             instance.size = [0.0, 0.0];
             instance.color = [0.0, 0.0, 0.0, 0.0];
         }
@@ -319,7 +328,11 @@ impl CellRenderer {
             0 // Start cell backgrounds at index 0 (no viewport fill)
         };
 
-        for instance in &mut self.text_instances {
+        let text_reset = self
+            .buffers
+            .pane_text_high_water
+            .min(self.text_instances.len());
+        for instance in &mut self.text_instances[..text_reset] {
             instance.size = [0.0, 0.0];
         }
 
@@ -782,6 +795,16 @@ impl CellRenderer {
         // Update actual instance counts for draw calls
         self.buffers.actual_bg_instances = bg_index;
         self.buffers.actual_text_instances = text_index;
+        self.buffers.pane_bg_high_water = self.buffers.pane_bg_high_water.max(bg_index);
+        self.buffers.pane_text_high_water = self.buffers.pane_text_high_water.max(text_index);
+
+        // The offscreen screenshot builder (`build_instance_buffers`) keeps a
+        // per-row cache and skips rows it believes are still valid. Those rows
+        // live in the same `bg_instances` / `text_instances` arrays this builder
+        // has just overwritten with pane-relative geometry, so anything it skips
+        // would draw this pane's leftovers. Force it to rebuild in full; it only
+        // runs when a screenshot is taken, so the cost is not on the frame path.
+        self.dirty_rows.fill(true);
 
         // Upload only the used portion of instance buffers to GPU.
         // Each pane typically uses a fraction of the full-window buffer, so uploading

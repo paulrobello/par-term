@@ -116,6 +116,16 @@ pub(crate) struct GpuBuffers {
     pub(crate) actual_bg_instances: usize,
     /// Actual number of text instances written (used for draw calls)
     pub(crate) actual_text_instances: usize,
+    /// Highest `bg_instances` slot index the pane builder has ever populated.
+    ///
+    /// `build_pane_instance_buffers` runs once per pane per frame and only ever
+    /// uploads and draws `[0..bg_index]`, so its reset pass only has to cover
+    /// slots a previous build could have left behind. Clearing the whole
+    /// full-window array instead made that reset cost O(window) per *pane*.
+    pub(crate) pane_bg_high_water: usize,
+    /// Highest `text_instances` slot index the pane builder has ever populated.
+    /// See `pane_bg_high_water`.
+    pub(crate) pane_text_high_water: usize,
 }
 
 /// Glyph atlas texture, cache, and LRU eviction state.
@@ -536,6 +546,8 @@ impl CellRenderer {
                 max_text_instances,
                 actual_bg_instances: 0,
                 actual_text_instances: 0,
+                pane_bg_high_water: 0,
+                pane_text_high_water: 0,
             },
             atlas: GlyphAtlas {
                 atlas_texture,

@@ -168,21 +168,35 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
             });
 
         if delete_shader {
-            let shader_path = par_term_config::Config::shader_path(&shader_name);
-            match std::fs::remove_file(&shader_path) {
-                Ok(()) => {
-                    log::info!("Deleted shader: {}", shader_path.display());
-                    // Clear the selection
-                    self.temp_custom_shader.clear();
-                    self.config.shader.custom_shader = None;
-                    self.has_changes = true;
-                    // Refresh the shader list
-                    self.refresh_shaders();
-                    close_dialog = true;
-                }
-                Err(e) => {
-                    self.shader_editor_error = Some(format!("Failed to delete shader: {}", e));
-                    close_dialog = true;
+            // SEC-022: the name is joined onto the shaders directory by
+            // `shader_path`, exactly as in the create dialog. It arrives from
+            // the config's `custom_shader` field rather than a text box, so an
+            // imported or hand-edited config chooses it. The empty case matters
+            // too: `shader_path("")` resolves to the shaders directory itself.
+            if !is_safe_shader_name(&shader_name) {
+                self.shader_editor_error = Some(format!(
+                    "Refusing to delete '{}': a shader name may only contain letters, \
+                     digits, '-', '_' and '.' (no path separators or '..')",
+                    shader_name
+                ));
+                close_dialog = true;
+            } else {
+                let shader_path = par_term_config::Config::shader_path(&shader_name);
+                match std::fs::remove_file(&shader_path) {
+                    Ok(()) => {
+                        log::info!("Deleted shader: {}", shader_path.display());
+                        // Clear the selection
+                        self.temp_custom_shader.clear();
+                        self.config.shader.custom_shader = None;
+                        self.has_changes = true;
+                        // Refresh the shader list
+                        self.refresh_shaders();
+                        close_dialog = true;
+                    }
+                    Err(e) => {
+                        self.shader_editor_error = Some(format!("Failed to delete shader: {}", e));
+                        close_dialog = true;
+                    }
                 }
             }
         }

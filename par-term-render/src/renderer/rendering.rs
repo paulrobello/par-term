@@ -7,6 +7,32 @@
 //
 // Tracking: Issue ARC-009 in AUDIT.md.
 
+// ARC-004 TODO: `render_split_panes` ends every pane in its own `queue.submit`,
+// and collapsing the loop into one encoder is the fix for the frame rate at
+// six-plus panes. It is not safe as written — three GPU resources are
+// single-instance and rewritten per pane, correct today only because a submit
+// separates each write from the next. Batching makes every pane draw with the
+// *last* pane's values:
+//
+//   1. bg_instance_buffer / text_instance_buffer — rebuilt at offset 0 per pane.
+//      Needs per-pane instance ranges. Keep the buffer bound at offset 0 and
+//      pass absolute ranges to `emit_three_phase_draw_calls`; that sidesteps
+//      vertex-buffer offset alignment and adds no fourth draw ordering.
+//   2. bg_state.pane_bg_uniform_cache — keyed by image path alone, but the
+//      uniform carries pane position and size. Two panes sharing one background
+//      image already alias; only the submit ordering hides it.
+//   3. The scrollbar's thumb, track and mark uniform buffers (scrollbar.rs) —
+//      one set for the whole renderer, rewritten by `update_scrollbar_for_pane`
+//      before each pane's pass.
+//
+// Capacity is the other prerequisite: `max_bg_instances` is sized for one
+// full-window grid (cols*rows + 10 + rows + rows), while N panes additionally
+// need N * (1 + pane_rows + CURSOR_OVERLAY_SLOTS). The bounds guards in the
+// emitters drop instances silently, so under-sizing loses content in the last
+// panes rather than failing loudly.
+//
+// Tracking: Issue ARC-004 in AUDIT.md.
+
 use crate::cell_renderer::PaneViewport;
 use anyhow::Result;
 
