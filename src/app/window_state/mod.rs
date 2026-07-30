@@ -67,6 +67,7 @@ pub(crate) mod cursor_anim_state;
 pub(crate) mod debug_state;
 mod egui_state;
 mod focus_state;
+pub(crate) mod frame_state;
 mod impl_agent;
 mod impl_helpers;
 mod impl_init;
@@ -197,6 +198,8 @@ pub struct WindowState {
     pub(crate) cursor_anim: crate::app::window_state::cursor_anim_state::CursorAnimState,
     /// Debug / diagnostics state
     pub(crate) debug: DebugState,
+    /// Per-frame render decisions and reusable scratch buffers
+    pub(crate) frame: crate::app::window_state::frame_state::FrameState,
 
     // =========================================================================
     // Decomposed state objects (ARC-002)

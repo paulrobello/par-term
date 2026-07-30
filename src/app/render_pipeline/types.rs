@@ -42,8 +42,12 @@ pub(crate) struct RendererSizing {
 
 /// Data computed during `gather_render_data()` and consumed by the rest of `render()`.
 pub(super) struct FrameRenderData {
-    /// Processed terminal cells (URL underlines + search highlights applied)
-    pub(super) cells: Vec<crate::cell_renderer::Cell>,
+    /// Terminal cells for the focused tab, shared with the tab and pane caches.
+    ///
+    /// Read-only for the rest of the frame. The transient overlays (URL
+    /// underlines, search highlights) are *not* applied here — they go onto the
+    /// per-pane cells in `gpu_submit`, which is the only path the renderer sees.
+    pub(super) cells: std::sync::Arc<Vec<crate::cell_renderer::Cell>>,
     /// Cursor position on screen (col, row), None if hidden
     pub(super) cursor_pos: Option<(usize, usize)>,
     /// Cursor glyph style (from terminal or config overrides)

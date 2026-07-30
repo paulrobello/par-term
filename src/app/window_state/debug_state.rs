@@ -13,8 +13,6 @@ pub(crate) struct DebugState {
     pub(crate) cell_gen_time: Duration,
     /// Time spent executing the GPU render pass for the current frame.
     pub(crate) render_time: Duration,
-    /// Whether the current frame reused the cached cell buffer (no PTY output).
-    pub(crate) cache_hit: bool,
     /// Wall-clock start time of the current frame (set at the top of the event loop).
     pub(crate) last_frame_start: Option<Instant>,
     /// Wall-clock start of the GPU render phase (for end-of-frame timing).
@@ -42,7 +40,6 @@ impl DebugState {
             frame_times: VecDeque::with_capacity(60),
             cell_gen_time: Duration::ZERO,
             render_time: Duration::ZERO,
-            cache_hit: false,
             last_frame_start: None,
             render_start: None,
             show_fps_overlay: false,

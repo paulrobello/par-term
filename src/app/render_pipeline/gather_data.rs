@@ -86,7 +86,7 @@ impl WindowState {
             was_alt_screen,
         })?;
 
-        let mut cells = snap.cells;
+        let cells = snap.cells;
         let current_cursor_pos = snap.cursor_pos;
         let cursor_style = snap.cursor_style;
         let shader_cursor_pos = snap.shader_cursor_pos;
@@ -119,15 +119,14 @@ impl WindowState {
 
         // Pre-populate the focused pane's cell cache so that gather_pane_render_data
         // uses the SAME cells that URL detection saw.  Only on cache-miss frames
-        // (fresh cells generated) — on cache-hit frames the cells are unchanged, so
-        // the clone is unnecessary and its cost (10K+ String clones for each Cell's
-        // grapheme) degrades FPS in long-running tmux sessions with many panes.
-        if !self.debug.cache_hit
+        // (fresh cells generated) — a cache hit means the content is unchanged
+        // since the last store, so re-storing it would be pure overhead.
+        if !self.frame.cache_hit
             && let Some(tab) = self.tab_manager.active_tab_mut()
             && let Some(ref mut pm) = tab.pane_manager
             && let Some(pane) = pm.focused_pane_mut()
         {
-            pane.cache.pane_cells = Some(std::sync::Arc::new(cells.clone()));
+            pane.cache.pane_cells = Some(std::sync::Arc::clone(&cells));
             pane.cache.pane_cells_generation = current_generation;
             pane.cache.pane_cells_scroll_offset = scroll_offset;
             pane.cache.pane_cells_selection = mouse_selection;
@@ -209,7 +208,7 @@ impl WindowState {
 
         // Detect URLs, apply underlines, and apply search highlights.
         let debug_url_detect_time = self.apply_url_and_search_highlights(
-            &mut cells,
+            &cells,
             &renderer_size,
             cell_grid_dims,
             scroll_offset,

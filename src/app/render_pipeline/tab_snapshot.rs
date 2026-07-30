@@ -29,8 +29,13 @@ pub(super) struct TabCellsParams {
 
 /// Data returned by `extract_tab_cells`.
 pub(super) struct TabCellsSnapshot {
-    /// Rendered cell grid (with selection marks, cursor blink applied)
-    pub(super) cells: Vec<crate::cell_renderer::Cell>,
+    /// Rendered cell grid (with selection marks, cursor blink applied).
+    ///
+    /// Shared rather than owned: on a cache hit this is the tab cache's own
+    /// `Arc`, so serving a repeat frame costs a refcount bump instead of a
+    /// full-grid deep clone. Nothing downstream mutates it — the transient
+    /// overlays are applied to a scratch buffer in `gpu_submit`.
+    pub(super) cells: Arc<Vec<crate::cell_renderer::Cell>>,
     /// Actual terminal grid dimensions (cols, rows) at the time cells were generated.
     /// May differ from the renderer grid when split panes are active or a scrollbar
     /// inset reduces the column count.
@@ -204,28 +209,24 @@ impl WindowState {
                 if let Some(fresh_cells) =
                     term.try_get_cells_with_scrollback(scroll_offset, selection, rectangular)
                 {
-                    (fresh_cells, false)
+                    (Arc::new(fresh_cells), false)
                 } else if let Some(ref cached) = cache_cells {
                     // Internal lock contention — use cached cells, but do not advance
                     // the snapshot generation. Downstream consumers must not treat the
                     // terminal's new generation as processed using stale cell content.
                     used_stale_cache = true;
-                    (cached.as_ref().clone(), true)
+                    (Arc::clone(cached), true)
                 } else {
                     // No cache available — fall back to blocking lock for first frame.
                     let fresh_cells =
                         term.get_cells_with_scrollback(scroll_offset, selection, rectangular, None);
-                    (fresh_cells, false)
+                    (Arc::new(fresh_cells), false)
                 }
             } else {
                 (
-                    cache_cells
-                        .as_ref()
-                        .expect(
-                            "window_state: cache_cells must be Some when needs_regeneration is false",
-                        )
-                        .as_ref()
-                        .clone(),
+                    Arc::clone(cache_cells.as_ref().expect(
+                        "window_state: cache_cells must be Some when needs_regeneration is false",
+                    )),
                     true,
                 )
             };
@@ -243,7 +244,7 @@ impl WindowState {
                 );
             }
 
-            self.debug.cache_hit = is_cache_hit;
+            self.frame.cache_hit = is_cache_hit;
             // Re-arm a redraw when we rendered behind the live terminal because the
             // core lock was contended (`used_stale_cache`). Cleared as soon as a
             // fresh gather succeeds, so this never loops once caught up / at idle.
@@ -262,14 +263,12 @@ impl WindowState {
                 is_alt_screen,
                 current_generation: snapshot_generation,
             })
-        } else if let Some(cached) = cache_cells {
+        } else {
             // Terminal locked (e.g., upload in progress) — use cached cells so the
-            // rest of the render pipeline (including file transfer overlay) can proceed.
-            // Unwrap the Arc: if this is the sole reference the Vec is moved for free,
-            // otherwise a clone is made (rare — only if another Arc clone is live).
-            let cached_vec = Arc::try_unwrap(cached).unwrap_or_else(|a| (*a).clone());
-            Some(TabCellsSnapshot {
-                cells: cached_vec,
+            // rest of the render pipeline (including file transfer overlay) can
+            // proceed. With no cache there is nothing to draw, so skip the frame.
+            cache_cells.map(|cached| TabCellsSnapshot {
+                cells: cached,
                 grid_dims: cache_grid_dims,
                 cursor_pos: cache_cursor_pos,
                 cursor_style: None,
@@ -278,9 +277,6 @@ impl WindowState {
                 is_alt_screen: was_alt_screen,
                 current_generation: cache_generation,
             })
-        } else {
-            // Terminal locked and no cache available — skip this frame.
-            None
         }
     }
 }

@@ -11,7 +11,7 @@
 //! - Clipboard history (inline below) — paste, clear-all, clear-slot (too small for its own file).
 
 mod inspector;
-mod integrations;
+pub(crate) mod integrations;
 mod tab_bar;
 
 use crate::app::window_state::WindowState;

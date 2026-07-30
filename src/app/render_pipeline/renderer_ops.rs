@@ -18,7 +18,9 @@ pub(super) struct GpuStateUpdateParams<'a> {
     pub(super) config: &'a crate::config::Config,
     pub(super) cursor_anim: &'a crate::app::window_state::cursor_anim_state::CursorAnimState,
     pub(super) window: &'a Option<std::sync::Arc<winit::window::Window>>,
-    pub(super) debug: &'a crate::app::window_state::debug_state::DebugState,
+    /// Whether this frame reused the cached cell buffer; when set, the cell
+    /// upload is skipped because the GPU already holds this exact data.
+    pub(super) cache_hit: bool,
     pub(super) cells: &'a [crate::cell_renderer::Cell],
     pub(super) current_cursor_pos: Option<(usize, usize)>,
     pub(super) cursor_style: Option<par_term_emu_core_rust::cursor::CursorStyle>,
@@ -66,7 +68,7 @@ pub(super) fn update_gpu_renderer_state(
         config,
         cursor_anim,
         window,
-        debug,
+        cache_hit,
         cells,
         current_cursor_pos,
         cursor_style,
@@ -94,7 +96,7 @@ pub(super) fn update_gpu_renderer_state(
 
     // Only update renderer with cells if they changed (cache MISS).
     // This avoids re-uploading the same cell data to GPU on every frame.
-    if !debug.cache_hit {
+    if !cache_hit {
         let t = std::time::Instant::now();
         renderer.update_cells(cells);
         debug_update_cells_time = t.elapsed();

@@ -24,9 +24,12 @@ impl WindowState {
     /// Process incoming ACP agent messages for this render tick and refresh
     /// the AI Inspector snapshot when needed.
     ///
-    /// Called once per frame from `submit_gpu_frame()`. Handles the full agent message
-    /// dispatch loop, deferred config updates, inline tool-markup fallback,
-    /// bounded skill-failure recovery, auto-context feeding, and snapshot refresh.
+    /// Called once per event-loop iteration from `about_to_wait()` — deliberately
+    /// not from the render path, so an idle or unfocused window still services
+    /// the synchronous RPCs the agent subprocess is blocked on. Handles the full
+    /// agent message dispatch loop, deferred config updates, inline tool-markup
+    /// fallback, bounded skill-failure recovery, auto-context feeding, and
+    /// snapshot refresh.
     pub(crate) fn process_agent_messages_tick(&mut self) {
         let mut saw_prompt_complete_this_tick = false;
 

@@ -50,6 +50,13 @@ pub(crate) struct OverlayUiState {
     /// Receiver for shader installation results (from background thread)
     pub(crate) shader_install_receiver: Option<std::sync::mpsc::Receiver<Result<usize, String>>>,
     pub(crate) integrations_ui: IntegrationsUI,
+    /// Receiver for integrations-dialog install results (from a background thread).
+    /// `Some` exactly while an install is in flight.
+    pub(crate) integrations_install_receiver: Option<
+        std::sync::mpsc::Receiver<
+            crate::app::window_state::action_handlers::integrations::IntegrationsInstallOutcome,
+        >,
+    >,
     pub(crate) close_confirmation_ui: CloseConfirmationUI,
     pub(crate) quit_confirmation_ui: QuitConfirmationUI,
     pub(crate) remote_shell_install_ui: RemoteShellInstallUI,
@@ -96,6 +103,7 @@ impl OverlayUiState {
             shader_install_ui: ShaderInstallUI::new(),
             shader_install_receiver: None,
             integrations_ui: IntegrationsUI::new(),
+            integrations_install_receiver: None,
             close_confirmation_ui: CloseConfirmationUI::new(),
             quit_confirmation_ui: QuitConfirmationUI::new(),
             remote_shell_install_ui: RemoteShellInstallUI::new(),

@@ -8,6 +8,11 @@
 use crate::app::window_state::WindowState;
 use winit::event_loop::{ActiveEventLoop, ControlFlow};
 
+/// Longest explicit sleep taken per idle iteration when the window is focused.
+const FOCUSED_IDLE_SPIN_SLEEP_MS: u64 = 50;
+/// Longest explicit sleep taken per idle iteration when the window is unfocused.
+const UNFOCUSED_IDLE_SPIN_SLEEP_MS: u64 = 100;
+
 impl WindowState {
     /// Process per-window updates in about_to_wait
     pub(crate) fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
@@ -33,6 +38,22 @@ impl WindowState {
         // Emit a periodic telemetry summary when try_lock() failures have occurred.
         // The call is cheap (two atomic loads) when no new failures happened.
         crate::debug::maybe_log_try_lock_telemetry();
+
+        // Drain the ACP agent queue.
+        //
+        // This must not be gated on a frame being drawn: two of the three
+        // inbound message variants are synchronous RPCs the agent subprocess is
+        // blocked on, and nothing ties "an agent is connected" to a redraw. Every
+        // `needs_redraw = true` in the handler sits *after* the drain, so a
+        // render-path-only drain could never start itself — an idle or unfocused
+        // window stalled the agent instead. Draining here also keeps the
+        // (unbounded) queue from growing precisely when nothing consumes it.
+        self.process_agent_messages_tick();
+
+        // Apply a finished background integrations install (shaders / shell
+        // integration). Polled here rather than from the render path for the
+        // same reason as the agent queue above.
+        let integrations_install_running = self.poll_integrations_install();
 
         // Check for and deliver notifications (OSC 9/777/99)
         self.check_notifications();
@@ -406,12 +427,42 @@ impl WindowState {
         // 7. Shader Install Dialog
         // Force continuous redraws when shader install dialog is visible (for spinner animation)
         // and when installation is in progress (to check for completion)
-        if self.overlay_ui.shader_install_ui.visible {
+        if self.overlay_ui.shader_install_ui.visible || integrations_install_running {
             self.focus_state.needs_redraw = true;
             // Schedule frequent redraws for smooth spinner animation
             let next_frame = now + std::time::Duration::from_millis(16); // ~60fps
             if next_frame < next_wake {
                 next_wake = next_frame;
+            }
+        }
+
+        // 7b. ACP Agent Queue
+        // The drain at the top of this function only runs when the event loop
+        // wakes, and the idle default is a full second. Two message variants are
+        // synchronous RPCs the agent is blocked on, so bound that wait while an
+        // agent is live. Only the first message after a quiet period pays this
+        // latency: each drained message re-arms `needs_redraw`, so an actively
+        // streaming agent already keeps the loop at frame rate.
+        //
+        // This is a full extra `about_to_wait` pass, not just a `try_recv` — the
+        // request-file checks above stat the filesystem. The interval therefore
+        // matches the existing unfocused idle-spin cadence rather than beating
+        // it, so a connected agent never drives the loop faster than an idle
+        // focused window already runs.
+        //
+        // `agent_rx` stays `Some` after an agent exits on its own (only an
+        // explicit disconnect clears it), so gate on the status too — otherwise
+        // one Assistant-panel session would hold the faster cadence for the
+        // remaining life of the window.
+        let agent_is_live = self.agent_state.agent_rx.is_some()
+            && !matches!(
+                self.overlay_ui.ai_inspector.agent_status,
+                par_term_acp::AgentStatus::Disconnected | par_term_acp::AgentStatus::Error(_)
+            );
+        if agent_is_live {
+            let next_poll = now + std::time::Duration::from_millis(UNFOCUSED_IDLE_SPIN_SLEEP_MS);
+            if next_poll < next_wake {
+                next_wake = next_poll;
             }
         }
 
@@ -505,8 +556,6 @@ impl WindowState {
             // causes idle focused windows to wake at render cadence (e.g., 60Hz), which
             // burns CPU even when nothing is changing.
             if !self.focus_state.needs_redraw && !redraw_requested {
-                const FOCUSED_IDLE_SPIN_SLEEP_MS: u64 = 50;
-                const UNFOCUSED_IDLE_SPIN_SLEEP_MS: u64 = 100;
                 let max_idle_spin_sleep = if self.focus_state.is_focused {
                     std::time::Duration::from_millis(FOCUSED_IDLE_SPIN_SLEEP_MS)
                 } else {

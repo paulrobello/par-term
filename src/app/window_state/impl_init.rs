@@ -77,6 +77,7 @@ impl WindowState {
             status_bar_ui: StatusBarUI::new(),
 
             debug: crate::app::window_state::debug_state::DebugState::new(),
+            frame: crate::app::window_state::frame_state::FrameState::new(),
 
             cursor_anim: crate::app::window_state::cursor_anim_state::CursorAnimState::default(),
             is_fullscreen: false,

@@ -173,7 +173,7 @@ impl WindowState {
     /// Returns the elapsed time spent on URL detection (zero on cache hit).
     pub(super) fn apply_url_and_search_highlights(
         &mut self,
-        cells: &mut [Cell],
+        cells: &[Cell],
         _renderer_size: &PhysicalSize<u32>,
         cell_grid_dims: (usize, usize),
         scroll_offset: usize,
@@ -181,7 +181,7 @@ impl WindowState {
         visible_lines: usize,
     ) -> std::time::Duration {
         let url_detect_start = Instant::now();
-        let debug_url_detect_time = if !self.debug.cache_hit {
+        let debug_url_detect_time = if !self.frame.cache_hit {
             // Use the terminal's actual grid dimensions (from TabCellsSnapshot)
             // rather than the renderer's grid_cols.  In split-pane mode or when
             // the scrollbar is visible, the pane terminal has different dimensions
@@ -218,7 +218,7 @@ impl WindowState {
             // Force GPU cell update when search is visible: highlights are applied to
             // pane cells every frame, but renderer.update_cells() is skipped on cache
             // hits, causing the highlighted cells to never reach the GPU.
-            self.debug.cache_hit = false;
+            self.frame.cache_hit = false;
             // Also mark renderer dirty to ensure a full render pass runs (not just the
             // egui fast-path), so the updated cell buffer is actually drawn to screen.
             if let Some(renderer) = &mut self.renderer {
@@ -231,16 +231,17 @@ impl WindowState {
 
     /// Flush the regenerated cell snapshot into the active tab's render cache.
     ///
-    /// Skipped when `cache_hit` is set (no new content) to avoid redundant
-    /// `Arc` allocations every frame.
+    /// Stores the snapshot's `Arc` rather than copying out of it, so the tab
+    /// cache and this frame's cells share one allocation. Skipped entirely when
+    /// `cache_hit` is set, since the cache already holds this content.
     pub(super) fn flush_cell_cache(
         &mut self,
-        cells: &[Cell],
+        cells: &Arc<Vec<Cell>>,
         current_cursor_pos: Option<(usize, usize)>,
         grid_dims: (usize, usize),
         generation: u64,
     ) {
-        if self.debug.cache_hit {
+        if self.frame.cache_hit {
             return;
         }
         if let Some(tab) = self.tab_manager.active_tab_mut() {
@@ -256,7 +257,7 @@ impl WindowState {
             // next frame simply regenerates.
             let current_scroll_offset = tab.active_scroll_state().offset;
             let current_selection = tab.selection_mouse().selection;
-            tab.active_cache_mut().cells = Some(Arc::new(cells.to_vec()));
+            tab.active_cache_mut().cells = Some(Arc::clone(cells));
             tab.active_cache_mut().generation = generation;
             tab.active_cache_mut().scroll_offset = current_scroll_offset;
             tab.active_cache_mut().cursor_pos = current_cursor_pos;

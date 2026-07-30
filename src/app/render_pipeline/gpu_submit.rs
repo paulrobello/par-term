@@ -49,8 +49,10 @@ impl WindowState {
         let mut debug_actual_render_time = std::time::Duration::ZERO;
         let _ = &debug_actual_render_time;
 
-        // Process agent messages and refresh AI Inspector snapshot
-        self.process_agent_messages_tick();
+        // Agent messages are drained from `about_to_wait`, not here: gating the
+        // drain on a frame being drawn stalled the agent whenever the window was
+        // idle or unfocused (QA-012). Doing it in both places would only repeat
+        // the tick's chat-history scan and snapshot refresh.
 
         // Check tmux gateway state before renderer borrow to avoid borrow conflicts.
         // Note: pane_padding is in logical pixels (config); we defer DPI scaling to
@@ -163,7 +165,7 @@ impl WindowState {
                     config: &self.config.load(),
                     cursor_anim: &self.cursor_anim,
                     window: &self.window,
-                    debug: &self.debug,
+                    cache_hit: self.frame.cache_hit,
                     cells: &cells,
                     current_cursor_pos,
                     cursor_style,
@@ -264,7 +266,7 @@ impl WindowState {
                     fps,
                     avg_frame_time.as_secs_f64() * 1000.0,
                     self.debug.cell_gen_time.as_secs_f64() * 1000.0,
-                    if self.debug.cache_hit { "HIT" } else { "MISS" },
+                    if self.frame.cache_hit { "HIT" } else { "MISS" },
                     debug_url_detect_time.as_secs_f64() * 1000.0,
                     debug_anim_time.as_secs_f64() * 1000.0,
                     debug_graphics_time.as_secs_f64() * 1000.0,
@@ -356,7 +358,14 @@ impl WindowState {
                         if has_search_matches || url_overlay.is_some() {
                             for pane in &mut pane_data {
                                 if pane.viewport.focused {
-                                    let cells = std::sync::Arc::make_mut(&mut pane.cells);
+                                    // `pane.cells` is always an `Arc::clone` of a cache
+                                    // entry, so `Arc::make_mut` here would deep-clone the
+                                    // whole grid every frame — inside the cache built to
+                                    // avoid exactly that. Overlays are transient
+                                    // decoration and must not be written back into the
+                                    // cache, so apply them to a persistent scratch buffer
+                                    // whose element allocations survive across frames.
+                                    let cells = self.frame.refresh_overlay_scratch(&pane.cells);
                                     if has_search_matches {
                                         crate::app::window_state::search_highlight::apply_search_highlights_to_cells(
                                             crate::app::window_state::search_highlight::SearchHighlightParams {
@@ -395,6 +404,11 @@ impl WindowState {
                                             },
                                         );
                                     }
+                                    // Point this frame's render at the scratch buffer.
+                                    // The clone is dropped when `render_split_panes_with_data`
+                                    // returns, so next frame's `Arc::make_mut` sees a
+                                    // refcount of 1 and does not copy.
+                                    pane.cells = std::sync::Arc::clone(&self.frame.overlay_scratch);
                                     break; // Only one focused pane
                                 }
                             }
