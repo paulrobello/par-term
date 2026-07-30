@@ -466,6 +466,36 @@ impl WindowState {
             }
         }
 
+        // 7c. Script Command Queue
+        // `WindowManager::about_to_wait` drives the script command loop once per
+        // event-loop wake, and the idle default is a full second. A script that
+        // sends a command while nothing else is happening would therefore wait up
+        // to that long to be serviced. Bound the wait while a script is live, for
+        // the same reason and at the same cadence as the ACP block above: the
+        // reactive half is already covered (every command that produces on-screen
+        // state calls `request_redraw`, which wakes the loop regardless of
+        // `WaitUntil`), but nothing schedules the wake that *looks* for a new
+        // command.
+        //
+        // Gate on the process actually running, not merely on a script having
+        // been started — otherwise one exited script would hold the faster
+        // cadence for the remaining life of the tab. Gate on focus too, to match
+        // where the work actually happens: `sync_script_running_state` only
+        // services the focused window's active tab, so bumping the cadence for
+        // any other window would spin the loop with nothing to service.
+        let script_is_live = self.focus_state.is_focused
+            && self.tab_manager.active_tab_mut().is_some_and(|tab| {
+                let ids: Vec<_> = tab.scripting.script_ids.iter().flatten().copied().collect();
+                ids.into_iter()
+                    .any(|id| tab.scripting.script_manager.is_running(id))
+            });
+        if script_is_live {
+            let next_poll = now + std::time::Duration::from_millis(UNFOCUSED_IDLE_SPIN_SLEEP_MS);
+            if next_poll < next_wake {
+                next_wake = next_poll;
+            }
+        }
+
         // 8. File Transfer Progress
         // Ensure rendering during active file transfers so the progress overlay
         // updates. Uses 1-second interval since progress doesn't need smooth animation.

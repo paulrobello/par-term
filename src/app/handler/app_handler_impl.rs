@@ -477,10 +477,24 @@ impl ApplicationHandler for WindowManager {
             self.close_window(window_id);
         }
 
-        // Sync coprocess and script running state to settings window
+        // Drive the script command loop.
+        //
+        // This must not be gated on the settings window being open: the same
+        // call forwards terminal events into running scripts and executes the
+        // commands they send back (`Notify`, `RunCommand`, `ChangeConfig`,
+        // `WriteText`). Gating it made scripting inert in normal use — only a
+        // user who happened to have Settings open got a working script runtime.
+        // Its settings-UI update is guarded internally, so the call is a no-op
+        // for the UI when no settings window exists.
+        self.sync_script_running_state();
+
+        // Coprocess state, by contrast, is purely a settings-window mirror:
+        // its reads *drain* the core's stdout/stderr line buffers, which are
+        // bounded and self-trimming, so draining them with nothing to display
+        // would discard output the user would otherwise see on opening
+        // Settings. Keep it gated.
         if self.settings_window.is_some() {
             self.sync_coprocess_running_state();
-            self.sync_script_running_state();
         }
 
         // Request redraw for settings window if it needs continuous updates
