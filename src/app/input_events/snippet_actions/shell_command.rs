@@ -1,7 +1,9 @@
 //! ShellCommand action handler: fire-and-forget and capture_output paths.
 
+use crate::app::input_events::snippet_actions::workflow::MAX_CAPTURED_OUTPUT_CHARS;
 use crate::app::window_state::WindowState;
 use crate::app::window_state::WorkflowContext;
+use par_term_config::text::truncate_chars;
 use std::sync::Arc;
 
 impl WindowState {
@@ -56,17 +58,23 @@ impl WindowState {
             let start = std::time::Instant::now();
 
             if capture_output {
-                // Collect stdout+stderr, cap at 64KB
-                let output_result = std::process::Command::new(&command).args(&args).output();
+                // Collect stdout+stderr, capped. Bounded by the same
+                // `timeout_secs` the fire-and-forget branch below honors.
+                let mut cmd = std::process::Command::new(&command);
+                cmd.args(&args);
+                let output_result = crate::process_timeout::output_with_timeout(&mut cmd, timeout);
 
                 match output_result {
                     Ok(output) => {
                         let exit_code = output.status.code().unwrap_or(-1);
                         let mut combined = String::new();
-                        combined.push_str(&String::from_utf8_lossy(&output.stdout));
-                        combined.push_str(&String::from_utf8_lossy(&output.stderr));
-                        if combined.len() > 65536 {
-                            combined.truncate(65536);
+                        combined.push_str(&output.stdout);
+                        combined.push_str(&output.stderr);
+                        // By characters, not bytes: `String::truncate` panics on a
+                        // byte index that falls inside a multi-byte character.
+                        if combined.chars().count() > MAX_CAPTURED_OUTPUT_CHARS {
+                            combined =
+                                truncate_chars(&combined, MAX_CAPTURED_OUTPUT_CHARS).to_string();
                         }
                         let ctx = WorkflowContext {
                             last_exit_code: Some(exit_code),
@@ -93,7 +101,7 @@ impl WindowState {
                         }
                     }
                     Err(e) => {
-                        log::error!("Failed to spawn shell command '{}': {}", title, e);
+                        log::error!("Shell command '{}' did not complete: {}", title, e);
                     }
                 }
             } else {

@@ -6,6 +6,7 @@
 use crate::app::window_state::WindowState;
 use crate::app::window_state::WorkflowContext;
 use crate::config::snippets::{ConditionCheck, CustomActionConfig, SequenceStepBehavior};
+use par_term_config::text::truncate_chars;
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
@@ -29,6 +30,9 @@ pub(crate) const MAX_TOTAL_DELAY_MS: u64 = 5_000;
 /// Deadline for the `git rev-parse` invocation backing a `GitBranch` condition.
 /// Sub-millisecond for a healthy local repository.
 const GIT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// Cap on captured `ShellCommand` output stored in a [`WorkflowContext`].
+pub(crate) const MAX_CAPTURED_OUTPUT_CHARS: usize = 65536;
 
 impl WindowState {
     /// Execute an action as a workflow step and return a typed outcome.
@@ -74,21 +78,32 @@ impl WindowState {
                 command,
                 args,
                 notify_on_success,
-                timeout_secs: _,
+                timeout_secs,
                 title,
                 ..
             } => {
                 if *capture_output {
-                    // Run synchronously to get exit code for step outcome
-                    let output_result = std::process::Command::new(command).args(args).output();
+                    // Run synchronously: the exit code determines the step outcome, so
+                    // this cannot be moved off-thread without the command queue that
+                    // QA-002 tracks.  Bound it instead — an unbounded `output()` here
+                    // freezes the event loop for as long as the command runs.
+                    let mut cmd = std::process::Command::new(command);
+                    cmd.args(args);
+                    let output_result = crate::process_timeout::output_with_timeout(
+                        &mut cmd,
+                        std::time::Duration::from_secs(*timeout_secs),
+                    );
                     match output_result {
                         Ok(output) => {
                             let exit_code = output.status.code().unwrap_or(-1);
                             let mut combined = String::new();
-                            combined.push_str(&String::from_utf8_lossy(&output.stdout));
-                            combined.push_str(&String::from_utf8_lossy(&output.stderr));
-                            if combined.len() > 65536 {
-                                combined.truncate(65536);
+                            combined.push_str(&output.stdout);
+                            combined.push_str(&output.stderr);
+                            // By characters, not bytes: `String::truncate` panics on a
+                            // byte index that falls inside a multi-byte character.
+                            if combined.chars().count() > MAX_CAPTURED_OUTPUT_CHARS {
+                                combined = truncate_chars(&combined, MAX_CAPTURED_OUTPUT_CHARS)
+                                    .to_string();
                             }
                             let wf_ctx = WorkflowContext {
                                 last_exit_code: Some(exit_code),
@@ -117,7 +132,7 @@ impl WindowState {
                             }
                         }
                         Err(e) => {
-                            log::error!("Failed to spawn step command '{}': {}", title, e);
+                            log::error!("Step command '{}' did not complete: {}", title, e);
                             StepOutcome::Abort
                         }
                     }
