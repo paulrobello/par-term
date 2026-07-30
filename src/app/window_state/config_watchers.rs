@@ -348,16 +348,16 @@ impl WindowState {
                         .map(|name| shader_debug_wgsl_path(name)),
                 },
                 shaders_dir: Config::shaders_dir().display().to_string(),
-                wrapped_glsl_path: "/tmp/par_term_debug_wrapped.glsl".to_string(),
+                wrapped_glsl_path: par_term_render::shader_debug::wrapped_glsl_path()
+                    .display()
+                    .to_string(),
             }),
         }
     }
 }
 
 fn shader_debug_wgsl_path(shader_name: &str) -> String {
-    let stem = std::path::Path::new(shader_name)
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or(shader_name);
-    format!("/tmp/par_term_{stem}_shader.wgsl")
+    par_term_render::shader_debug::transpiled_wgsl_path(shader_name)
+        .display()
+        .to_string()
 }

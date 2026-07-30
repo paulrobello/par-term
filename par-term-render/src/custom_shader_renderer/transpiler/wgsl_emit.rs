@@ -281,7 +281,7 @@ fn transpile_impl(
     // DEBUG: Write wrapped GLSL to file for inspection (debug builds only)
     #[cfg(debug_assertions)]
     {
-        let debug_path = std::env::temp_dir().join(debug_glsl_filename);
+        let debug_path = crate::shader_debug::debug_dump_dir().join(debug_glsl_filename);
         // Use restricted permissions (0o600) to prevent world-readable access on multi-user systems
         #[cfg(unix)]
         {
@@ -472,7 +472,7 @@ pub(crate) fn transpile_glsl_to_wgsl(glsl_source: &str, shader_path: &Path) -> R
     transpile_impl(
         glsl_source,
         &shader_path.display().to_string(),
-        "par_term_debug_wrapped.glsl",
+        crate::shader_debug::WRAPPED_GLSL_FILE_NAME,
         BuiltinPositionOrder::After,
     )
 }

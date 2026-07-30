@@ -5,8 +5,6 @@
 //! describes the current shader state, available shaders, debug file paths,
 //! available uniforms, a minimal template, and how to apply changes.
 
-use std::path::Path;
-
 use crate::config::Config;
 
 use super::helpers::{classify_shaders, scan_shaders};
@@ -113,24 +111,21 @@ pub fn build_shader_context(config: &Config) -> String {
     ctx.push_str("## [Observation] Debug Files\n");
 
     if let Some(ref name) = config.shader.custom_shader {
-        let stem = Path::new(name)
-            .file_stem()
-            .map(|s| s.to_string_lossy().into_owned())
-            .unwrap_or_else(|| name.clone());
         ctx.push_str(&format!(
-            "- Transpiled WGSL: `/tmp/par_term_{stem}_shader.wgsl`\n"
+            "- Transpiled WGSL: `{}`\n",
+            par_term_render::shader_debug::transpiled_wgsl_path(name).display()
         ));
     }
     if let Some(ref name) = config.shader.cursor_shader {
-        let stem = Path::new(name)
-            .file_stem()
-            .map(|s| s.to_string_lossy().into_owned())
-            .unwrap_or_else(|| name.clone());
         ctx.push_str(&format!(
-            "- Cursor transpiled WGSL: `/tmp/par_term_{stem}_shader.wgsl`\n"
+            "- Cursor transpiled WGSL: `{}`\n",
+            par_term_render::shader_debug::transpiled_wgsl_path(name).display()
         ));
     }
-    ctx.push_str("- Wrapped GLSL (last shader): `/tmp/par_term_debug_wrapped.glsl`\n");
+    ctx.push_str(&format!(
+        "- Wrapped GLSL (last shader): `{}`\n",
+        par_term_render::shader_debug::wrapped_glsl_path().display()
+    ));
     ctx.push_str(
         "- Live diagnostics: call `shader_diagnostics` for active shader state, last compile/reload errors, and debug paths.\n",
     );

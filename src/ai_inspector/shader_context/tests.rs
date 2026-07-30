@@ -440,9 +440,12 @@ fn test_context_debug_paths_with_shaders() {
     config.shader.cursor_shader = Some("cursor_glow.glsl".to_string());
 
     let ctx = build_shader_context(&config);
-    assert!(ctx.contains("/tmp/par_term_crt_shader.wgsl"));
-    assert!(ctx.contains("/tmp/par_term_cursor_glow_shader.wgsl"));
-    assert!(ctx.contains("/tmp/par_term_debug_wrapped.glsl"));
+    // Assert against the shared helper, not a hardcoded root: the dumps live in
+    // the system temp dir, which is not /tmp on macOS or Windows.
+    use par_term_render::shader_debug::{transpiled_wgsl_path, wrapped_glsl_path};
+    assert!(ctx.contains(&transpiled_wgsl_path("crt").display().to_string()));
+    assert!(ctx.contains(&transpiled_wgsl_path("cursor_glow").display().to_string()));
+    assert!(ctx.contains(&wrapped_glsl_path().display().to_string()));
 }
 
 #[test]

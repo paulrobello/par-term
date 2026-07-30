@@ -47,18 +47,9 @@ use transpiler::transpile_glsl_to_wgsl;
 /// exist, so the dump silently failed there — and uses the real temp directory
 /// instead.
 fn debug_shader_wgsl_filename(shader_name: &str) -> String {
-    let file_name = format!("par_term_{shader_name}_shader.wgsl");
-    #[cfg(windows)]
-    {
-        std::env::temp_dir()
-            .join(file_name)
-            .to_string_lossy()
-            .into_owned()
-    }
-    #[cfg(not(windows))]
-    {
-        format!("/tmp/{file_name}")
-    }
+    crate::shader_debug::transpiled_wgsl_path(shader_name)
+        .to_string_lossy()
+        .into_owned()
 }
 
 fn write_debug_shader_wgsl(shader_name: &str, wgsl_source: &str) {
@@ -604,12 +595,9 @@ mod tests {
     #[test]
     fn debug_shader_wgsl_filename_matches_new_renderer_output_path() {
         let path = debug_shader_wgsl_filename("matrix");
-        #[cfg(not(windows))]
-        assert_eq!(path, "/tmp/par_term_matrix_shader.wgsl");
-        #[cfg(windows)]
         assert_eq!(
             std::path::Path::new(&path),
-            std::env::temp_dir().join("par_term_matrix_shader.wgsl")
+            crate::shader_debug::debug_dump_dir().join("par_term_matrix_shader.wgsl")
         );
     }
 

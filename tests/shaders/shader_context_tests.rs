@@ -123,5 +123,13 @@ fn test_shader_context_with_active_config() {
     assert!(ctx.contains("enabled"));
     assert!(ctx.contains("animation_speed: 2"));
     assert!(ctx.contains("brightness: 0.5"));
-    assert!(ctx.contains("/tmp/par_term_crt_shader.wgsl"));
+    // Resolved via the shared helper, not a hardcoded root: the dumps live in
+    // the system temp dir, which is not /tmp on macOS or Windows.
+    assert!(
+        ctx.contains(
+            &par_term_render::shader_debug::transpiled_wgsl_path("crt")
+                .display()
+                .to_string()
+        )
+    );
 }
