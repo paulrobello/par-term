@@ -96,7 +96,7 @@ Configuration loading, saving, and type definitions for the terminal emulator. T
 |------|-------------|
 | `ShellType` | Detected shell type (Bash, Zsh, Fish, PowerShell, etc.) with detection logic. |
 | `ShellExitAction` | What to do when the shell exits: `Close`, `Keep`, `RestartImmediately`, etc. |
-| `StartupDirectoryMode` | Where new tabs open: `Home`, `CurrentTab`, or `Custom`. |
+| `StartupDirectoryMode` | Where new tabs open: `Home`, `Previous`, or `Custom`. YAML: `home`, `previous`, `custom`. |
 | `SessionLogFormat` | Format for session recording: `Plain`, `Html`, or `Asciicast`. |
 
 ### Terminal Display
@@ -106,7 +106,7 @@ Configuration loading, saving, and type definitions for the terminal emulator. T
 | `CursorStyle` | Cursor shape: `Block`, `Beam`, or `Underline`. |
 | `UnfocusedCursorStyle` | Cursor style when the window does not have focus. |
 | `Cell` | A single terminal grid cell with character, colors, and attribute flags. |
-| `LinkUnderlineStyle` | How hyperlinks are underlined: `None`, `Always`, or `Hover`. |
+| `LinkUnderlineStyle` | How hyperlinks are underlined: `Solid` or `Stipple`. YAML: `solid`, `stipple`. |
 | `LogLevel` | Application log level. |
 | `SemanticHistoryEditorMode` | How semantic history opens files. |
 
@@ -114,11 +114,11 @@ Configuration loading, saving, and type definitions for the terminal emulator. T
 
 | Type | Description |
 |------|-------------|
-| `TabStyle` | Tab button style: `Default`, `Powerline`, `Slant`. |
-| `TabBarMode` | When the tab bar is shown: `Always`, `Auto`, `Never`. |
+| `TabStyle` | Tab button style: `Dark`, `Light`, `Compact`, `Minimal`, `HighContrast`, `Automatic`. YAML: `dark`, `light`, `compact`, `minimal`, `high_contrast`, `automatic`. |
+| `TabBarMode` | When the tab bar is shown: `Always`, `WhenMultiple`, `Never`. YAML: `always`, `when_multiple`, `never`. |
 | `TabBarPosition` | `Top` or `Bottom`. |
 | `TabTitleMode` | How tab titles are set: `Auto` or `OscOnly`. |
-| `NewTabPosition` | Where new tabs appear: `AfterActive` or `AtEnd`. |
+| `NewTabPosition` | Where new tabs appear: `End` or `AfterActive`. YAML: `end`, `after_active`. |
 | `RemoteTabTitleFormat` | Format string for remote (SSH/tmux) tab titles. |
 | `WindowType` | Window decoration style. |
 | `StatusBarPosition` | `Top` or `Bottom`. |
@@ -156,9 +156,9 @@ Configuration loading, saving, and type definitions for the terminal emulator. T
 | `ShaderBackgroundBlendMode` | How the shader blends with the background. |
 | `ShaderSafetyBadge` | Safety classification badge for a shader. |
 | `ShaderControl` | A single UI control exposed by a shader (slider, color picker, etc.). |
-| `ShaderControlKind` | Enum of control types: `Slider`, `Color`, `Toggle`, `Angle`, `Select`. |
+| `ShaderControlKind` | Control types parsed from a `// control` comment: `Slider`, `Checkbox`, `Color`, `Int`, `Select`, `Vec`, `Point`, `Range`, `Angle`, `Channel`. Not serde-backed — it is parsed from shader source, not config. |
 | `AngleUnit` | Unit for angle controls: `Radians` or `Degrees`. |
-| `SliderScale` | Slider value scale: `Linear` or `Logarithmic`. |
+| `SliderScale` | Slider value scale: `Linear` or `Log` (written `scale=log` in a `// control` comment). |
 | `resolve_shader_config(config, cache)` | Resolve a `ShaderConfig` against the metadata cache. |
 | `resolve_cursor_shader_config(config, cache)` | Resolve a cursor shader config. |
 | `parse_shader_controls(source)` | Parse `//@control` annotations from GLSL source. |
@@ -173,7 +173,7 @@ Configuration loading, saving, and type definitions for the terminal emulator. T
 | `ProfileId` | UUID identifier for a profile. |
 | `ProfileManager` | Loads and saves the profile list from `profiles.yaml`. |
 | `ProfileSource` | Whether a profile is `Local` or `Dynamic` (fetched from a URL). |
-| `TmuxConnectionMode` | How a profile connects to tmux: `Disable`, `AutoAttach`, or `ForceAttach`. |
+| `TmuxConnectionMode` | How a profile connects to tmux: `ControlMode` or `Normal`. YAML: `control_mode`, `normal`. |
 | `DynamicProfileSource` | URL and refresh configuration for a remote profile source. |
 | `ConflictResolution` | How to handle conflicts between local and remote profiles: `LocalWins` or `RemoteWins`. |
 
@@ -185,12 +185,12 @@ Configuration loading, saving, and type definitions for the terminal emulator. T
 | `TriggerActionConfig` | The action to execute when a trigger fires. |
 | `TriggerRateLimiter` | Rate limiting state for a trigger to prevent action storms. |
 | `TriggerSplitDirection` | Direction for trigger-initiated split panes (`Horizontal` or `Vertical`). |
-| `TriggerSplitTarget` | Which pane to use when a trigger splits (`Current` or `New`). |
+| `TriggerSplitTarget` | Which pane a trigger splits: `Active` or `Source`. YAML: `active`, `source`. |
 | `SplitPaneCommand` | Shell command to run in a trigger-initiated split pane. |
 | `CoprocessDefConfig` | Configuration for a coprocess (a subprocess wired to the PTY). |
 | `RestartPolicy` | When to restart a coprocess: `Never`, `OnFailure`, `Always`. |
-| `check_command_denylist(cmd)` | Returns an error if the command matches the security denylist. |
-| `check_command_allowlist(cmd)` | Returns `true` if the command is on the security allowlist. |
+| `check_command_denylist(command: &str, args: &[String])` | Returns `Option<&'static str>` — `Some(reason)` means **denied**, `None` means not matched. |
+| `check_command_allowlist(command: &str, allowed_commands: &[String])` | Returns `Result<(), String>` — `Ok(())` means **allowed**, `Err(reason)` means rejected. It does **not** return a bool; treating the return as truthy inverts the check and fails open. |
 | `warn_prompt_before_run_false` | Flag indicating a trigger skips the confirmation prompt. |
 
 ### Snippets and Actions
@@ -231,7 +231,7 @@ Configuration loading, saving, and type definitions for the terminal emulator. T
 
 | Type | Description |
 |------|-------------|
-| `AmbiguousWidth` | Width for ambiguous-width Unicode codepoints: `Single` or `Double`. |
+| `AmbiguousWidth` | Width for ambiguous-width Unicode codepoints: `Narrow` or `Wide`. YAML: `narrow`, `wide`. |
 | `NormalizationForm` | Unicode normalization form: `Nfc`, `Nfd`, `Nfkc`, or `Nfkd`. |
 | `UnicodeVersion` | Unicode version for width tables. |
 
@@ -392,7 +392,7 @@ egui-based settings interface decoupled from the main terminal crate via traits.
 | `SettingsUI` | Main settings window UI component. |
 | `SettingsTab` | Enum of settings tabs (Appearance, Terminal, Profiles, etc.). |
 | `ProfileModalUI` | Modal dialog for creating and editing profiles. |
-| `ProfileModalAction` | Actions returned by the profile modal (Save, Cancel, Delete). |
+| `ProfileModalAction` | Actions returned by the profile modal: `None`, `Save`, `Cancel`, `OpenProfile`, `List`, `Edit`, `Create`. |
 | `WindowArrangement` | A saved window layout (positions, sizes, tab configurations). |
 | `ArrangementManager` | Loads and saves window arrangements to disk. |
 | `ArrangementId` | UUID identifier for a saved arrangement. |

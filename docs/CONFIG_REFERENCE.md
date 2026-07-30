@@ -183,7 +183,7 @@ Override shader settings per-file. Keys are shader filenames (without path).
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `download_save_location` | `enum` | `downloads` | Default save location for downloaded files: `downloads`, `last_used`, `cwd`, or `custom` with a path |
+| `download_save_location` | `enum` | `downloads` | Default save location for downloaded files: `downloads`, `last_used`, `cwd`, or `!custom /path/to/dir` (a YAML tag, not a mapping) |
 
 ---
 
@@ -263,9 +263,9 @@ Override shader settings per-file. Keys are shader filenames (without path).
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `scrollback_lines` | `usize` | `10000` | Maximum scrollback buffer size in lines |
-| `unicode_version` | `enum` | `auto` | Unicode width table version: `unicode_9` … `unicode_16`, `auto` |
+| `unicode_version` | `enum` | `auto` | Unicode width table version: `unicode9`, `unicode10`, `unicode11`, `unicode12`, `unicode13`, `unicode14`, `unicode15`, `unicode15_1`, `unicode16`, `auto` (no underscore before the digit) |
 | `ambiguous_width` | `enum` | `narrow` | East Asian Ambiguous character width: `narrow`, `wide` |
-| `normalization_form` | `enum` | `nfc` | Unicode normalization: `nfc`, `nfd`, `nfkc`, `nfkd`, `none` |
+| `normalization_form` | `enum` | `NFC` | Unicode normalization: `NFC`, `NFD`, `NFKC`, `NFKD`, `none` (uppercase — this enum has no `rename_all`) |
 
 ---
 
@@ -534,7 +534,7 @@ Override shader settings per-file. Keys are shader filenames (without path).
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `progress_bar_enabled` | `bool` | `true` | Show OSC 9;4 / OSC 934 progress bars |
-| `progress_bar_style` | `enum` | `bar` | Style: `bar`, `bar_with_text` |
+| `progress_bar_style` | `enum` | `bar` | Style: `bar`, `barwithtext` (lowercased, no underscore) |
 | `progress_bar_position` | `enum` | `top` | Position: `top`, `bottom` |
 | `progress_bar_height` | `f32` | `4.0` | Bar height in pixels |
 | `progress_bar_opacity` | `f32` | `0.8` | Bar opacity (0.0–1.0) |
