@@ -163,10 +163,9 @@ impl CellRenderer {
     /// Instance capacity the single-grid (offscreen) layout needs:
     /// cells + cursor overlays + one separator per row + one gutter bar per row.
     pub(crate) fn single_grid_instance_capacity(&self) -> (usize, usize) {
-        let cells = self.grid.cols * self.grid.rows;
         (
-            cells + super::CURSOR_OVERLAY_SLOTS + self.grid.rows + self.grid.rows,
-            cells * super::TEXT_INSTANCES_PER_CELL,
+            super::render::SingleGridLayout::new(self.grid.cols, self.grid.rows).bg_instances(),
+            self.grid.cols * self.grid.rows * super::TEXT_INSTANCES_PER_CELL,
         )
     }
 

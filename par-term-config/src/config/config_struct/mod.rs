@@ -1319,7 +1319,8 @@ pub struct Config {
     // Debug Logging
     // ========================================================================
     /// Log level for debug log file output.
-    /// Controls verbosity of `/tmp/par_term_debug.log`.
+    /// Controls verbosity of `par_term_debug.log` in the system temp directory
+    /// (`$TMPDIR` on macOS, `/tmp` on Linux, `%TEMP%` on Windows).
     /// Environment variable RUST_LOG and --log-level CLI flag take precedence.
     #[serde(default)]
     pub log_level: LogLevel,

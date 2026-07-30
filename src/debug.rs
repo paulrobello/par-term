@@ -755,16 +755,14 @@ mod tests {
     /// mutex, and without being filtered out at the default `DEBUG_LEVEL=0`.
     #[test]
     fn try_logf_neither_blocks_nor_initializes_the_logger() {
-        // `LOGGER` is a `OnceLock`, so a concurrent test can initialize it but
-        // never clear it. Comparing `wrote` against a reading taken *after* the
-        // call therefore races. Only the two stable directions are asserted:
-        // an already-installed logger must be written to, and a write implies
-        // one exists.
-        let had_logger = LOGGER.get().is_some();
+        // Only one direction is assertable, and both of the tempting stronger
+        // claims are wrong under `cargo test`'s default parallelism. `LOGGER` is
+        // a `OnceLock`, so a concurrent test can install it between the call and
+        // a later reading. And an installed logger does *not* imply a write:
+        // `try_logf` uses `try_lock` and drops the line when another thread
+        // holds the mutex, which is the whole reason it exists for the panic
+        // hook. So: a write implies a logger, and nothing else.
         let wrote = try_logf(DebugLevel::Error, "TEST", format_args!("no deadlock"));
-        if had_logger {
-            assert!(wrote, "try_logf must write when the logger is installed");
-        }
         assert!(
             !wrote || LOGGER.get().is_some(),
             "try_logf reported a write with no logger installed"

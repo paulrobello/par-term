@@ -34,9 +34,6 @@ const HTTP_TIMEOUT: Duration = Duration::from_secs(30);
 /// add another hop without letting a redirect loop run indefinitely.
 const MAX_REDIRECTS: u32 = 5;
 
-/// Maximum response body size for API responses (10 MB).
-pub const MAX_API_RESPONSE_SIZE: u64 = 10 * 1024 * 1024;
-
 /// Maximum response body size for file downloads (50 MB).
 pub const MAX_DOWNLOAD_SIZE: u64 = 50 * 1024 * 1024;
 

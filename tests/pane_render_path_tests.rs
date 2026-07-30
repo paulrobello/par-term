@@ -13,16 +13,16 @@
 //! | Block-character classification | **yes** | `block_chars` is a public module |
 //! | Instance-buffer construction | no | `build_pane_instance_buffers` is `&mut self` on a device-backed `CellRenderer` |
 //! | Cell → instance mapping | no | `bg_instance_builder` / `text_instance_builder` are private |
-//! | Three-phase draw ordering | no | `emit_three_phase_draw_calls` is `pub(crate)` and takes a live `wgpu::RenderPass`; `CURSOR_OVERLAY_SLOTS` is `pub(crate)` |
+//! | Three-phase draw ordering | **yes**, in `par-term-render` | covered by `ThreePhaseRanges::draw_sequence` there, not from here — see below |
 //!
 //! The ordering invariant — cursor overlays must be emitted *after* text, or
-//! beam and underline cursors are hidden under glyphs — is the one this file
-//! most wants and cannot express. Duplicating the slot count here to fake it
-//! would create a second, unverified copy of the buffer layout that drifts
-//! silently, which is worse than the gap. Making it testable needs a small
-//! production change (a public function returning the bg-instance layout ranges
-//! that both `build_instance_buffers` and a test consult); that is reported
-//! rather than done here.
+//! beam and underline cursors are hidden under glyphs — is now covered, but
+//! inside `par-term-render` rather than here. `emit_three_phase_draw_calls`
+//! walks `ThreePhaseRanges::draw_sequence()`, so the order cannot be changed in
+//! the emitter without changing the function its tests assert on, and
+//! `SingleGridLayout` is the single source of the buffer arithmetic those
+//! ranges are built from. Restating either from this crate would recreate the
+//! drifting second copy the seam exists to prevent.
 //!
 //! What *is* covered targets the multi-pane failure mode directly: panes tiling
 //! a window must produce disjoint scissor rectangles and grid sizes derived

@@ -4,7 +4,10 @@ use anyhow::Result;
 /// Number of extra background instance slots reserved for cursor overlays
 /// (beam/underline, guide line, shadow, boost glow, hollow outline sides).
 /// Layout: [0] cursor overlay, [1] guide, [2] shadow, [3] boost glow, [4-7] hollow outline.
-pub(crate) const CURSOR_OVERLAY_SLOTS: usize = 10;
+///
+/// Re-exported publicly by `super::render`, which owns the buffer layout this
+/// count belongs to; this module is private.
+pub const CURSOR_OVERLAY_SLOTS: usize = 10;
 
 /// Width of gutter indicator bars in terminal cell columns.
 /// Each gutter indicator occupies this many cell-widths on the left side.
@@ -187,7 +190,12 @@ impl CellRenderer {
         // Write cursor-related overlays to extra slots at the end of bg_instances.
         // Slot layout: [0] cursor overlay (beam/underline), [1] guide, [2] shadow,
         //              [3] boost glow, [4-7] hollow outline.
-        let base_overlay_index = self.grid.cols * self.grid.rows;
+        //
+        // Every region offset below comes from `SingleGridLayout` — the same
+        // description the draw ranges are derived from, so the bytes written here
+        // and the instances drawn there cannot disagree.
+        let layout = super::render::SingleGridLayout::new(self.grid.cols, self.grid.rows);
+        let base_overlay_index = layout.cursor_overlays.start;
         let overlay_instances = self.build_cursor_overlay_instances();
 
         for (i, instance) in overlay_instances.iter().enumerate() {
@@ -201,7 +209,7 @@ impl CellRenderer {
 
         // --- Separator line instances ---
         // Write command separator line instances after cursor overlay slots.
-        let separator_base = self.grid.cols * self.grid.rows + CURSOR_OVERLAY_SLOTS;
+        let separator_base = layout.separators.start;
         let mut separator_instances = self.build_separator_instances();
 
         // The draw range below covers `rows` separator slots regardless of how many
@@ -230,7 +238,7 @@ impl CellRenderer {
 
         // --- Gutter indicator instances ---
         // Write gutter indicator background instances after separator slots.
-        let gutter_base = separator_base + self.grid.rows;
+        let gutter_base = layout.gutters.start;
         let mut gutter_instances = self.build_gutter_instances();
         // Blank the unused tail — see the separator slots above.
         gutter_instances.resize(self.grid.rows, BackgroundInstance::BLANK);
@@ -253,12 +261,7 @@ impl CellRenderer {
         }
 
         // Update actual instance counts for draw calls.
-        // Layout: [0..cols*rows] cells + [cols*rows..+CURSOR_OVERLAY_SLOTS] overlays
-        //         + [+CURSOR_OVERLAY_SLOTS..+rows] separators + [..+rows] gutters
-        self.buffers.actual_bg_instances = self.grid.cols * self.grid.rows
-            + CURSOR_OVERLAY_SLOTS
-            + self.grid.rows
-            + self.grid.rows;
+        self.buffers.actual_bg_instances = layout.bg_instances();
         self.buffers.actual_text_instances =
             self.grid.cols * self.grid.rows * TEXT_INSTANCES_PER_CELL;
 

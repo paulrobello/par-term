@@ -520,8 +520,7 @@ impl CellRenderer {
         let vertex_buffer = pipeline::create_vertex_buffer(&device);
 
         // Instance buffers
-        // Extra slots: CURSOR_OVERLAY_SLOTS for cursor overlays + rows for separator lines + rows for gutter indicators
-        let max_bg_instances = cols * rows + CURSOR_OVERLAY_SLOTS + rows + rows;
+        let max_bg_instances = render::SingleGridLayout::new(cols, rows).bg_instances();
         let max_text_instances = cols * rows * TEXT_INSTANCES_PER_CELL;
         let (bg_instance_buffer, text_instance_buffer) =
             pipeline::create_instance_buffers(&device, max_bg_instances, max_text_instances);

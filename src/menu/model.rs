@@ -125,6 +125,15 @@ pub fn menu_model(has_native_app_menu: bool) -> Vec<MenuSection> {
             accel(cmd_or_ctrl, Code::KeyT),
             MenuAction::NewTab,
         ),
+        // No accelerator: nothing in `Config::default().keybindings` binds
+        // `duplicate_tab`, and an accelerator here would be advertised by the
+        // in-app menu on platforms where only a keybinding can dispatch it.
+        item(
+            "duplicate_tab",
+            "Duplicate Tab",
+            None,
+            MenuAction::DuplicateTab,
+        ),
         // No accelerator: same as Close in the File menu (smart close)
         item("close_tab", "Close Tab", None, MenuAction::CloseTab),
         MenuEntry::Separator,
@@ -458,6 +467,20 @@ mod tests {
         assert!(actions.contains(&MenuAction::MaximizeVertically));
     }
 
+    /// `MenuAction::DuplicateTab` was declared and handled but emitted by no
+    /// menu item, which left `duplicate_tab` with a handler nothing could reach.
+    #[test]
+    fn duplicate_tab_is_reachable_from_the_menu() {
+        for has_native_app_menu in [false, true] {
+            let model = menu_model(has_native_app_menu);
+            let actions: Vec<MenuAction> = items(&model).iter().map(|spec| spec.action).collect();
+            assert!(
+                actions.contains(&MenuAction::DuplicateTab),
+                "no menu item emits DuplicateTab (has_native_app_menu={has_native_app_menu})"
+            );
+        }
+    }
+
     /// macOS keeps Quit in the application menu, so File must not duplicate it.
     #[test]
     fn quit_absent_when_native_app_menu_owns_it() {
@@ -535,6 +558,7 @@ mod tests {
             "File/close_window = \"Close\"",
             "File/---",
             "Tab/new_tab = \"New Tab\"",
+            "Tab/duplicate_tab = \"Duplicate Tab\"",
             "Tab/close_tab = \"Close Tab\"",
             "Tab/---",
             "Tab/next_tab = \"Next Tab\"",

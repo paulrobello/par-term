@@ -136,15 +136,7 @@ impl CellRenderer {
             scissor: viewport.to_scissor_rect(),
             clear_color,
             pane_bg_index,
-            ranges: ThreePhaseRanges {
-                bg: ranges.bg.start as u32..ranges.bg.end as u32,
-                // The pane layout packs separators before the cursor overlays, so
-                // there is nothing after them to draw in phase 1b.
-                extra_bg: 0..0,
-                text: ranges.text.start as u32..ranges.text.end as u32,
-                cursor_overlays: ranges.cursor_overlays.start as u32
-                    ..ranges.cursor_overlays.end as u32,
-            },
+            ranges: ThreePhaseRanges::for_pane(ranges.bg, ranges.cursor_overlays, ranges.text),
             scrollbar_slot: show_scrollbar.then_some(pane_index),
         })
     }

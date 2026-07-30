@@ -252,8 +252,6 @@ impl SettingsUI {
             shader_count_files_fn: None,
             shell_integration_is_installed_fn: None,
             shell_integration_detected_shell_fn: None,
-            shell_integration_install_fn: None,
-            shell_integration_uninstall_fn: None,
         }
     }
 

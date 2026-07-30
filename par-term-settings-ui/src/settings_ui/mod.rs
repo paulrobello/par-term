@@ -21,8 +21,7 @@ use crate::sidebar::SettingsTab;
 use crate::snippets_tab::SnippetsTabState;
 use crate::{
     ArrangementManager, InstallationType, SettingsWindowAction, ShaderDetectModifiedFn,
-    ShaderInstallResult, ShaderLintFn, ShaderUninstallResult, ShellIntegrationInstallResult,
-    ShellIntegrationUninstallResult, UpdateCheckResult, UpdateResult,
+    ShaderInstallResult, ShaderLintFn, ShaderUninstallResult, UpdateCheckResult, UpdateResult,
 };
 
 /// Settings UI manager using egui
@@ -325,13 +324,6 @@ pub struct SettingsUI {
 
     /// Callback: get detected shell type
     pub shell_integration_detected_shell_fn: Option<fn() -> par_term_config::ShellType>,
-
-    /// Callback: install shell integration
-    pub shell_integration_install_fn: Option<fn() -> Result<ShellIntegrationInstallResult, String>>,
-
-    /// Callback: uninstall shell integration
-    pub shell_integration_uninstall_fn:
-        Option<fn() -> Result<ShellIntegrationUninstallResult, String>>,
 }
 
 mod async_ops;
