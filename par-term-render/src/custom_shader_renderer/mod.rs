@@ -42,22 +42,56 @@ use transpiler::transpile_glsl_to_wgsl;
 
 /// Path the transpiled WGSL is dumped to for shader debugging.
 ///
-/// Unix keeps the documented `/tmp` location. Windows has no `/tmp` — the path
-/// resolves against the current drive (e.g. `D:\tmp`) and usually does not
-/// exist, so the dump silently failed there — and uses the real temp directory
-/// instead.
+/// Resolved through [`crate::shader_debug`] so the renderer, the transpiler and the
+/// paths reported by shader diagnostics all name the same file: `$TMPDIR` on Unix (a
+/// per-user directory on macOS, `/tmp` on Linux), `%TEMP%` on Windows. A hardcoded
+/// `/tmp` was wrong on Windows, where it resolves against the current drive.
+#[cfg_attr(not(debug_assertions), allow(dead_code))]
 fn debug_shader_wgsl_filename(shader_name: &str) -> String {
     crate::shader_debug::transpiled_wgsl_path(shader_name)
         .to_string_lossy()
         .into_owned()
 }
 
+/// Dump the transpiled WGSL next to the transpiler's wrapped-GLSL dump.
+///
+/// Debug builds only, matching the wrapped-GLSL dump in
+/// [`transpiler::wgsl_emit`], and written owner-only: on Linux the temp directory
+/// is the shared, world-writable `/tmp`, so a predictable filename there is both a
+/// disclosure and a symlink hazard. `create_new` gives `O_CREAT | O_EXCL`, which
+/// POSIX requires to fail rather than follow a symlink, so a pre-planted link is
+/// rejected atomically; the preceding unlink is what lets a real dump be refreshed
+/// on the next shader load.
 fn write_debug_shader_wgsl(shader_name: &str, wgsl_source: &str) {
-    let debug_filename = debug_shader_wgsl_filename(shader_name);
-    if let Err(e) = std::fs::write(&debug_filename, wgsl_source) {
-        log::warn!("Failed to write debug shader: {}", e);
-    } else {
-        log::info!("Wrote debug shader to {}", debug_filename);
+    #[cfg(debug_assertions)]
+    {
+        let debug_filename = debug_shader_wgsl_filename(shader_name);
+
+        // Removes our own previous dump, and a symlink planted in its place (this
+        // unlinks the link itself, never its target). Losing the race is handled by
+        // `create_new` below failing rather than writing through the attacker's link.
+        let _ = std::fs::remove_file(&debug_filename);
+
+        let mut opts = std::fs::OpenOptions::new();
+        opts.write(true).create_new(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            opts.mode(0o600);
+        }
+
+        let result = opts
+            .open(&debug_filename)
+            .and_then(|mut f| std::io::Write::write_all(&mut f, wgsl_source.as_bytes()));
+
+        match result {
+            Ok(()) => log::info!("Wrote debug shader to {}", debug_filename),
+            Err(e) => log::warn!("Failed to write debug shader: {}", e),
+        }
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        let _ = (shader_name, wgsl_source);
     }
 }
 
@@ -601,6 +635,9 @@ mod tests {
         );
     }
 
+    // The dump is debug-builds-only, so these exercise nothing under
+    // `cargo test --release`.
+    #[cfg(debug_assertions)]
     #[test]
     fn write_debug_shader_wgsl_refreshes_existing_output() {
         let shader_name = format!("par_term_test_{}", std::process::id());
@@ -615,5 +652,50 @@ mod tests {
             "second"
         );
         std::fs::remove_file(&path).expect("remove debug wgsl");
+    }
+
+    /// SEC-006: on Linux the dump lands in the shared, world-writable `/tmp`, so a
+    /// predictable filename must not be readable by other users.
+    #[cfg(all(debug_assertions, unix))]
+    #[test]
+    fn write_debug_shader_wgsl_creates_owner_only_file() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let shader_name = format!("par_term_mode_{}", std::process::id());
+        let path = debug_shader_wgsl_filename(&shader_name);
+        let _ = std::fs::remove_file(&path);
+
+        write_debug_shader_wgsl(&shader_name, "secret");
+
+        let mode = std::fs::metadata(&path)
+            .expect("dump exists")
+            .permissions()
+            .mode();
+        assert_eq!(mode & 0o777, 0o600, "dump must not be group/world readable");
+        std::fs::remove_file(&path).expect("remove debug wgsl");
+    }
+
+    /// SEC-006: a symlink pre-planted at the dump path must not be written through.
+    #[cfg(all(debug_assertions, unix))]
+    #[test]
+    fn write_debug_shader_wgsl_does_not_follow_a_planted_symlink() {
+        let shader_name = format!("par_term_link_{}", std::process::id());
+        let path = debug_shader_wgsl_filename(&shader_name);
+        let target = crate::shader_debug::debug_dump_dir()
+            .join(format!("par_term_link_target_{}", std::process::id()));
+
+        std::fs::write(&target, "original").expect("seed symlink target");
+        let _ = std::fs::remove_file(&path);
+        std::os::unix::fs::symlink(&target, &path).expect("plant symlink");
+
+        write_debug_shader_wgsl(&shader_name, "attacker-visible");
+
+        assert_eq!(
+            std::fs::read_to_string(&target).expect("read symlink target"),
+            "original",
+            "the dump must not be written through the planted symlink"
+        );
+        let _ = std::fs::remove_file(&path);
+        std::fs::remove_file(&target).expect("remove symlink target");
     }
 }
