@@ -246,7 +246,7 @@ fn parse_line_col_pair(s: &str) -> (Option<usize>, Option<usize>) {
 /// # Returns
 /// Vector of DetectedUrl objects for OSC 8 hyperlinks in this row
 pub fn detect_osc8_hyperlinks(
-    cells: &[crate::cell_renderer::Cell],
+    cells: &[crate::config::Cell],
     row: usize,
     hyperlink_urls: &std::collections::HashMap<u32, String>,
 ) -> Vec<DetectedUrl> {

@@ -47,7 +47,7 @@ pub(super) struct FrameRenderData {
     /// Read-only for the rest of the frame. The transient overlays (URL
     /// underlines, search highlights) are *not* applied here — they go onto the
     /// per-pane cells in `gpu_submit`, which is the only path the renderer sees.
-    pub(super) cells: std::sync::Arc<Vec<crate::cell_renderer::Cell>>,
+    pub(super) cells: std::sync::Arc<Vec<crate::config::Cell>>,
     /// Cursor position on screen (col, row), None if hidden
     pub(super) cursor_pos: Option<(usize, usize)>,
     /// Cursor glyph style (from terminal or config overrides)
@@ -65,7 +65,7 @@ pub(super) struct FrameRenderData {
     /// Visible grid rows count
     pub(super) visible_lines: usize,
     /// Scrollback marks (command marks, trigger marks) for scrollbar and separators
-    pub(super) scrollback_marks: Vec<crate::scrollback_metadata::ScrollbackMark>,
+    pub(super) scrollback_marks: Vec<crate::config::ScrollbackMark>,
     /// Total renderable lines (visible + scrollback)
     pub(super) total_lines: usize,
     /// Time spent on URL detection this frame (Zero on cache hit)

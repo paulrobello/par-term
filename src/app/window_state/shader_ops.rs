@@ -13,7 +13,7 @@ impl WindowState {
     /// while the identical failure on hot reload reaches the Settings window.
     pub(crate) fn collect_startup_shader_errors(
         &mut self,
-        renderer: &mut crate::renderer::Renderer,
+        renderer: &mut par_term_render::renderer::Renderer,
     ) {
         let (background_error, cursor_error) = renderer.take_startup_shader_errors();
 

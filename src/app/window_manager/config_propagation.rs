@@ -51,7 +51,7 @@ impl WindowManager {
             // Rebuild keybinding registry if keybindings changed
             if changes.keybindings {
                 window_state.keybinding_registry =
-                    crate::keybindings::KeybindingRegistry::from_config(&config.keybindings);
+                    par_term_keybindings::KeybindingRegistry::from_config(&config.keybindings);
                 log::info!(
                     "Keybinding registry rebuilt with {} bindings",
                     config.keybindings.len()

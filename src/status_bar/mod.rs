@@ -35,7 +35,6 @@
 //! so that third-party or plugin-style widgets can be registered without modifying
 //! the central dispatch function. This is tracked as ARC-009 in AUDIT.md.
 
-pub mod config;
 pub mod git_poller;
 pub mod system_monitor;
 pub mod widgets;
@@ -43,8 +42,7 @@ pub mod widgets;
 use std::time::Instant;
 
 use crate::badge::SessionVariables;
-use crate::config::{Config, StatusBarPosition};
-use config::StatusBarSection;
+use crate::config::{Config, StatusBarPosition, StatusBarSection};
 use git_poller::GitBranchPoller;
 use system_monitor::SystemMonitor;
 use widgets::{WidgetContext, sorted_widgets_for_section, widget_text};
@@ -159,7 +157,7 @@ impl StatusBarUI {
             .status_bar
             .status_bar_widgets
             .iter()
-            .any(|w| w.enabled && w.id == config::WidgetId::GitBranch);
+            .any(|w| w.enabled && w.id == crate::config::WidgetId::GitBranch);
 
         if needs_git && !self.git_poller.is_running() {
             self.git_poller
@@ -347,7 +345,7 @@ impl StatusBarUI {
                                             ui.label(make_sep(separator));
                                         }
                                         first = false;
-                                        if w.id == config::WidgetId::UpdateAvailable {
+                                        if w.id == crate::config::WidgetId::UpdateAvailable {
                                             let update_text = egui::RichText::new(&text)
                                                 .color(egui::Color32::from_rgb(255, 200, 50))
                                                 .size(font_size)

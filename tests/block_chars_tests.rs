@@ -1,6 +1,6 @@
 //! Integration tests for block character rendering utilities.
 
-use par_term::cell_renderer::block_chars::{
+use par_term_render::cell_renderer::block_chars::{
     BlockCharType, GeometricBlock, SnapGlyphParams, classify_char, get_geometric_block,
     should_render_geometrically, should_snap_to_boundaries, snap_glyph_to_cell,
 };

@@ -6,8 +6,8 @@
 
 use crate::config::{
     BackgroundImageMode, BackgroundMode, Config, CursorShaderMetadata, FontRange, PowerPreference,
-    ShaderMetadata, ThinStrokesMode, UnfocusedCursorStyle, VsyncMode, resolve_cursor_shader_config,
-    resolve_shader_config,
+    ShaderMetadata, Theme, ThinStrokesMode, UnfocusedCursorStyle, VsyncMode,
+    resolve_cursor_shader_config, resolve_shader_config,
 };
 
 /// Expand tilde in path to home directory
@@ -19,8 +19,7 @@ fn expand_path(path: &str) -> String {
     }
     path.to_string()
 }
-use crate::renderer::{Renderer, RendererParams};
-use crate::themes::Theme;
+use par_term_render::renderer::{Renderer, RendererParams};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Arc;

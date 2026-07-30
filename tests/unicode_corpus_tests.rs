@@ -28,11 +28,11 @@ mod unicode_corpus;
 use par_term::copy_mode::CopyModeState;
 use par_term::paste_transform::{PasteTransform, transform};
 use par_term::smart_selection::{find_word_boundaries, is_word_char};
-use par_term::text_shaper::TextShaper;
 use par_term_config::ShaderUniformValue;
 use par_term_config::text::{
     byte_offset_to_column, column_to_byte_offset, lowercase_with_source_map, truncate_chars,
 };
+use par_term_fonts::text_shaper::TextShaper;
 use unicode_corpus::{CORPUS, Lcg, WIDE_FIXTURES, multi_scalar_graphemes, non_ascii};
 
 // ===========================================================================

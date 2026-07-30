@@ -17,8 +17,9 @@ pub(crate) struct UpdateState {
     /// Status message from the update install
     pub(crate) install_status: Option<String>,
     /// Channel receiver for async update install result
-    pub(crate) install_receiver:
-        Option<std::sync::mpsc::Receiver<Result<crate::self_updater::UpdateResult, String>>>,
+    pub(crate) install_receiver: Option<
+        std::sync::mpsc::Receiver<Result<par_term_update::self_updater::UpdateResult, String>>,
+    >,
 }
 
 impl Default for UpdateState {

@@ -260,7 +260,7 @@ impl WindowManager {
     /// itself re-detects and refuses to run on an undetermined path
     /// (`par_term_update::detect_installation`).
     pub(super) fn detect_installation_type(&self) -> par_term_settings_ui::InstallationType {
-        let install = match crate::self_updater::detect_installation() {
+        let install = match par_term_update::self_updater::detect_installation() {
             Ok(install) => install,
             Err(e) => {
                 log::warn!("Could not detect installation type for the update hint: {e}");
@@ -268,16 +268,16 @@ impl WindowManager {
             }
         };
         match install {
-            crate::self_updater::InstallationType::Homebrew => {
+            par_term_update::self_updater::InstallationType::Homebrew => {
                 par_term_settings_ui::InstallationType::Homebrew
             }
-            crate::self_updater::InstallationType::CargoInstall => {
+            par_term_update::self_updater::InstallationType::CargoInstall => {
                 par_term_settings_ui::InstallationType::CargoInstall
             }
-            crate::self_updater::InstallationType::MacOSBundle => {
+            par_term_update::self_updater::InstallationType::MacOSBundle => {
                 par_term_settings_ui::InstallationType::MacOSBundle
             }
-            crate::self_updater::InstallationType::StandaloneBinary => {
+            par_term_update::self_updater::InstallationType::StandaloneBinary => {
                 par_term_settings_ui::InstallationType::StandaloneBinary
             }
         }

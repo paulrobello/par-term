@@ -9,8 +9,8 @@
 use super::types::RendererSizing;
 use crate::config::color_u8_to_f32_a;
 use crate::progress_bar::ProgressBarSnapshot;
-use crate::renderer::Renderer;
 use crate::ui_constants::{SCROLLBAR_MARK_HIT_RADIUS_PX, VISUAL_BELL_FLASH_DURATION_MS};
+use par_term_render::renderer::Renderer;
 
 /// Parameters for [`update_gpu_renderer_state`].
 pub(super) struct GpuStateUpdateParams<'a> {
@@ -21,7 +21,7 @@ pub(super) struct GpuStateUpdateParams<'a> {
     /// Whether this frame reused the cached cell buffer; when set, the cell
     /// upload is skipped because the GPU already holds this exact data.
     pub(super) cache_hit: bool,
-    pub(super) cells: &'a [crate::cell_renderer::Cell],
+    pub(super) cells: &'a [crate::config::Cell],
     pub(super) current_cursor_pos: Option<(usize, usize)>,
     pub(super) cursor_style: Option<par_term_emu_core_rust::cursor::CursorStyle>,
     pub(super) shader_cursor_pos: Option<(usize, usize)>,
@@ -33,7 +33,7 @@ pub(super) struct GpuStateUpdateParams<'a> {
     pub(super) scrollback_len: usize,
     pub(super) total_lines: usize,
     pub(super) is_alt_screen: bool,
-    pub(super) scrollback_marks: &'a [crate::scrollback_metadata::ScrollbackMark],
+    pub(super) scrollback_marks: &'a [crate::config::ScrollbackMark],
     pub(super) status_bar_height: f32,
     pub(super) custom_status_bar_height: f32,
 }
@@ -44,7 +44,7 @@ pub(super) struct GpuUploadResult {
     pub(super) debug_graphics_time: std::time::Duration,
     pub(super) debug_anim_time: std::time::Duration,
     pub(super) sizing: RendererSizing,
-    pub(super) hovered_mark: Option<crate::scrollback_metadata::ScrollbackMark>,
+    pub(super) hovered_mark: Option<crate::config::ScrollbackMark>,
 }
 
 /// Upload GPU state for the current frame (phases 1–2).
@@ -163,7 +163,7 @@ pub(super) fn update_gpu_renderer_state(
 
     // Compute and set command separator marks for single-pane rendering
     if config.command_separator.command_separator_enabled {
-        let separator_marks = crate::renderer::compute_visible_separator_marks(
+        let separator_marks = par_term_render::renderer::compute_visible_separator_marks(
             scrollback_marks,
             scrollback_len,
             scroll_offset,
@@ -261,7 +261,7 @@ pub(super) fn update_gpu_renderer_state(
     renderer.set_visual_bell_intensity(visual_bell_intensity);
 
     // Compute hovered scrollbar mark for tooltip display
-    let hovered_mark: Option<crate::scrollback_metadata::ScrollbackMark> =
+    let hovered_mark: Option<crate::config::ScrollbackMark> =
         if config.scrollbar.scrollbar_mark_tooltips && config.scrollbar.scrollbar_command_marks {
             tab_manager
                 .active_tab()

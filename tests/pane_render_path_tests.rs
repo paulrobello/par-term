@@ -32,12 +32,12 @@
 #[path = "common/unicode_corpus.rs"]
 mod unicode_corpus;
 
-use par_term::cell_renderer::block_chars::{
+use par_term_config::ScrollbackMark;
+use par_term_render::PaneViewport;
+use par_term_render::cell_renderer::block_chars::{
     BlockCharType, SnapGlyphParams, classify_char, should_render_geometrically,
     should_snap_to_boundaries, snap_glyph_to_cell,
 };
-use par_term_config::ScrollbackMark;
-use par_term_render::PaneViewport;
 use par_term_render::compute_visible_separator_marks;
 use unicode_corpus::{CORPUS, Lcg, WIDE_FIXTURES};
 

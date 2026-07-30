@@ -5,8 +5,8 @@
 //! them be called freely from inside the `egui_ctx.run_ui(|ctx| { ... })` closure
 //! while `self.renderer` is mutably borrowed.
 
+use crate::config::ScrollbackMark;
 use crate::copy_mode::VisualMode;
-use crate::scrollback_metadata::ScrollbackMark;
 use par_term_config::text::truncate_chars;
 
 /// Render the FPS / frame-time debug overlay in the top-right corner.

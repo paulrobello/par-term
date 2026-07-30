@@ -76,7 +76,7 @@ impl WindowState {
                 );
                 tab.scripting
                     .trigger_marks
-                    .push(crate::scrollback_metadata::ScrollbackMark {
+                    .push(crate::config::ScrollbackMark {
                         line: absolute_line,
                         exit_code: None,
                         start_time: None,

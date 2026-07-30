@@ -1,7 +1,7 @@
 /// Tests for the script command dispatcher helpers: VT stripping,
 /// command tokenisation, and rate-limit logic in `ScriptManager`.
-use par_term::scripting::manager::ScriptManager;
-use par_term::scripting::protocol::strip_vt_sequences;
+use par_term_scripting::manager::ScriptManager;
+use par_term_scripting::protocol::strip_vt_sequences;
 
 // ── strip_vt_sequences ───────────────────────────────────────────────────────
 

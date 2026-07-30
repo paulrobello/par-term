@@ -2,7 +2,7 @@
 //! Profile builder, validation, serialization, and ProfileModalAction variants.
 
 use par_term::profile::{Profile, ProfileManager};
-use par_term::profile_modal_ui::{ProfileModalAction, ProfileModalUI};
+use par_term::settings_ui::profile_modal_ui::{ProfileModalAction, ProfileModalUI};
 use uuid::Uuid;
 
 // ============================================================================

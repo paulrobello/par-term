@@ -127,7 +127,7 @@ impl WindowState {
             return false;
         }
 
-        let matcher = crate::keybindings::KeybindingMatcher::from_event_with_remapping(
+        let matcher = par_term_keybindings::KeybindingMatcher::from_event_with_remapping(
             event,
             &self.input_handler.modifiers,
             &self.config.load().input.modifier_remapping,

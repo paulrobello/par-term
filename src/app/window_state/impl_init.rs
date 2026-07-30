@@ -7,7 +7,6 @@ use super::{
 };
 use crate::badge::BadgeState;
 use crate::config::Config;
-use crate::keybindings::{KeyCombo, KeybindingRegistry};
 use crate::smart_selection::SmartSelectionCache;
 use crate::status_bar::StatusBarUI;
 use crate::tab::TabManager;
@@ -16,6 +15,7 @@ use anyhow::Result;
 use arc_swap::ArcSwap;
 use par_term_acp::discover_agents;
 use par_term_input::InputHandler;
+use par_term_keybindings::{KeyCombo, KeybindingRegistry};
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 use winit::window::Window;
@@ -27,7 +27,7 @@ impl WindowState {
             return None;
         }
 
-        match crate::keybindings::parser::parse_key_combo(trimmed) {
+        match par_term_keybindings::parser::parse_key_combo(trimmed) {
             Ok(combo) => Some(combo),
             Err(error) => {
                 log::warn!(

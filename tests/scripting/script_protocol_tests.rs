@@ -1,4 +1,4 @@
-use par_term::scripting::protocol::{ScriptCommand, ScriptEvent, ScriptEventData};
+use par_term_scripting::protocol::{ScriptCommand, ScriptEvent, ScriptEventData};
 use std::collections::HashMap;
 
 // ─── ScriptEvent serialization tests ───

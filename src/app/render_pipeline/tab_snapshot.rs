@@ -16,7 +16,7 @@ use std::sync::Arc;
 pub(super) struct TabCellsParams {
     pub scroll_offset: usize,
     pub mouse_selection: Option<crate::selection::Selection>,
-    pub cache_cells: Option<Arc<Vec<crate::cell_renderer::Cell>>>,
+    pub cache_cells: Option<Arc<Vec<crate::config::Cell>>>,
     pub cache_generation: u64,
     pub cache_scroll_offset: usize,
     pub cache_cursor_pos: Option<(usize, usize)>,
@@ -35,7 +35,7 @@ pub(super) struct TabCellsSnapshot {
     /// `Arc`, so serving a repeat frame costs a refcount bump instead of a
     /// full-grid deep clone. Nothing downstream mutates it — the transient
     /// overlays are applied to a scratch buffer in `gpu_submit`.
-    pub(super) cells: Arc<Vec<crate::cell_renderer::Cell>>,
+    pub(super) cells: Arc<Vec<crate::config::Cell>>,
     /// Actual terminal grid dimensions (cols, rows) at the time cells were generated.
     /// May differ from the renderer grid when split panes are active or a scrollbar
     /// inset reduces the column count.

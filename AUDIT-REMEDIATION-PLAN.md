@@ -670,6 +670,13 @@ regression from that baseline is yours.
 - **Verify**: every path in CLAUDE.md's Key File Map resolves (`while read -r p; do [ -e "$p" ] || echo "$p"; done`).
 
 ### [ARC-010] Delete the redundant re-export shim modules
+> **DONE.** Fifteen shims deleted across two passes; ~130 call sites repointed with zero
+> visibility changes. Three crate-alias shims (`mcp_server`, `settings_ui`, `tmux`) are kept
+> deliberately because they rename the crate. `src/config/mod.rs` is kept as a documented
+> exception — it is a curated ~150-name facade with deliberate gaps, and the ARC-003 field
+> drain touched none of its ~110 importers, which is the insulation it exists for. The file
+> list below names four shims that were not the ones fixed; treat it as unreliable.
+
 - **Files**: `src/shell_detection.rs` (4 lines), `par-term-settings-ui/src/shell_detection.rs` (4 lines),
   `src/status_bar/config.rs` (5 lines), `src/manifest.rs` (2 lines); declarations at `src/lib.rs:82,135`,
   `par-term-settings-ui/src/lib.rs:40`, `src/status_bar/mod.rs:38`

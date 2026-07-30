@@ -3,25 +3,25 @@
 //! Groups all fields related to script execution, coprocess management,
 //! and trigger handling.
 
-use crate::scripting::manager::ScriptId;
 use par_term_config::ScriptConfig;
+use par_term_scripting::manager::ScriptId;
 use par_term_terminal::TerminalManager;
 
 /// Scripting, coprocess, and trigger state for a terminal tab.
 pub(crate) struct TabScriptingState {
     /// Script manager for this tab
-    pub(crate) script_manager: crate::scripting::manager::ScriptManager,
+    pub(crate) script_manager: par_term_scripting::manager::ScriptManager,
     /// Maps config index to ScriptId for running scripts
-    pub(crate) script_ids: Vec<Option<crate::scripting::manager::ScriptId>>,
+    pub(crate) script_ids: Vec<Option<par_term_scripting::manager::ScriptId>>,
     /// Observer IDs registered with the terminal for script event forwarding
     pub(crate) script_observer_ids: Vec<Option<par_term_emu_core_rust::observer::ObserverId>>,
     /// Event forwarders (shared with observer registration)
     pub(crate) script_forwarders:
-        Vec<Option<std::sync::Arc<crate::scripting::observer::ScriptEventForwarder>>>,
+        Vec<Option<std::sync::Arc<par_term_scripting::observer::ScriptEventForwarder>>>,
     /// Mapping from config index to coprocess ID (for UI tracking)
     pub(crate) coprocess_ids: Vec<Option<par_term_emu_core_rust::coprocess::CoprocessId>>,
     /// Trigger-generated scrollbar marks (from MarkLine actions)
-    pub(crate) trigger_marks: Vec<crate::scrollback_metadata::ScrollbackMark>,
+    pub(crate) trigger_marks: Vec<crate::config::ScrollbackMark>,
     /// Security metadata: maps trigger_id -> prompt_before_run flag.
     /// When true, dangerous actions show a confirmation dialog instead of executing automatically.
     pub(crate) trigger_prompt_before_run: std::collections::HashMap<u64, bool>,
@@ -69,9 +69,9 @@ impl TabScriptingState {
             )
         };
 
-        let forwarder = std::sync::Arc::new(crate::scripting::observer::ScriptEventForwarder::new(
-            subscription_filter,
-        ));
+        let forwarder = std::sync::Arc::new(
+            par_term_scripting::observer::ScriptEventForwarder::new(subscription_filter),
+        );
         let observer_id = terminal.add_observer(forwarder.clone());
 
         match self.script_manager.start_script(script_config) {
@@ -128,7 +128,7 @@ impl TabScriptingState {
 impl Default for TabScriptingState {
     fn default() -> Self {
         Self {
-            script_manager: crate::scripting::manager::ScriptManager::new(),
+            script_manager: par_term_scripting::manager::ScriptManager::new(),
             script_ids: Vec::new(),
             script_observer_ids: Vec::new(),
             script_forwarders: Vec::new(),

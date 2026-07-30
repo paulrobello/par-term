@@ -7,7 +7,7 @@
 mod common;
 
 use par_term::config::{Config, CustomActionConfig};
-use par_term::keybindings::parser::parse_key_sequence;
+use par_term_keybindings::parser::parse_key_sequence;
 use std::collections::HashMap;
 use std::fs;
 

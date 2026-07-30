@@ -1,8 +1,7 @@
 //! Tests for status bar configuration serialization/deserialization.
 
-use par_term::config::Config;
-use par_term::status_bar::config::{
-    StatusBarSection, StatusBarWidgetConfig, WidgetId, default_widgets,
+use par_term::config::{
+    Config, StatusBarSection, StatusBarWidgetConfig, WidgetId, default_widgets,
 };
 
 #[test]

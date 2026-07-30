@@ -15,7 +15,7 @@ use crate::progress_bar::{ProgressBarSnapshot, render_progress_bars};
 /// the clippy `too_many_arguments` limit.
 pub(super) struct RenderEguiParams<'a> {
     pub(super) actions: &'a mut PostRenderActions,
-    pub(super) hovered_mark: &'a Option<crate::scrollback_metadata::ScrollbackMark>,
+    pub(super) hovered_mark: &'a Option<crate::config::ScrollbackMark>,
     pub(super) window_size_for_badge: Option<&'a winit::dpi::PhysicalSize<u32>>,
     pub(super) progress_snapshot: &'a Option<ProgressBarSnapshot>,
     pub(super) visible_lines: usize,
@@ -473,7 +473,7 @@ impl WindowState {
                                         let version = v.clone();
                                         let current_version = crate::VERSION.to_string();
                                         std::thread::spawn(move || {
-                                            let result = crate::self_updater::perform_update(
+                                            let result = par_term_update::self_updater::perform_update(
                                                 &version,
                                                 &current_version,
                                             );

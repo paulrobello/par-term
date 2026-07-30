@@ -5,7 +5,7 @@
 //! supports `\(variable)` interpolation.
 
 use crate::badge::SessionVariables;
-use crate::status_bar::config::{StatusBarSection, StatusBarWidgetConfig, WidgetId};
+use crate::config::{StatusBarSection, StatusBarWidgetConfig, WidgetId};
 use crate::status_bar::system_monitor::{SystemMonitorData, format_bytes_per_sec, format_memory};
 
 /// Runtime context passed to widget text generators.
@@ -177,7 +177,7 @@ pub fn sorted_widgets_for_section(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::status_bar::config::StatusBarSection;
+    use crate::config::StatusBarSection;
 
     fn make_ctx() -> WidgetContext {
         let sv = SessionVariables {

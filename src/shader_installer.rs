@@ -9,7 +9,7 @@
 //! New functions added to this module should follow the same pattern.
 
 use crate::config::Config;
-use crate::manifest::{self, FileStatus, Manifest};
+use par_term_update::manifest::{self, FileStatus, Manifest};
 use std::io::{Cursor, Read};
 use std::path::Path;
 

@@ -869,7 +869,7 @@ Six board items were passed to the auditors as known work. Outcomes:
   legitimately exempt, and CLAUDE.md should say so. *Deferred*: splitting files invalidates every
   line-anchored edit in this audit. Tracked as ENH-009.
 - **[ARC-010] Redundant re-export shim modules blur where implementations live.** `src/shell_detection.rs` (4
-  lines), `par-term-settings-ui/src/shell_detection.rs` (4 lines), `src/status_bar/config.rs` (5 lines),
+  lines), `par-term-settings-ui/src/shell_detection.rs` *(NOT dead — used by `profile_modal_ui/edit_view.rs`)* (4 lines), `src/status_bar/config.rs` (5 lines),
   `src/manifest.rs` (2 lines) — each exists solely to `pub use` from a sub-crate "for backward compatibility",
   and `shell_detection` is re-exported twice even though both crates already depend on `par-term-config`
   directly. Three plausible import paths for one symbol. Combined with ARC-008, this is the pattern that let

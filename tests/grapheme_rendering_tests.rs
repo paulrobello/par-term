@@ -7,7 +7,7 @@
 //! - Combining characters (diacritics)
 //! - Variation selectors
 
-use par_term::text_shaper::TextShaper;
+use par_term_fonts::text_shaper::TextShaper;
 
 /// Test grapheme cluster detection for various emoji types
 mod grapheme_detection {

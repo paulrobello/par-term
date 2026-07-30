@@ -1,4 +1,4 @@
-use crate::cell_renderer::Cell;
+use crate::config::Cell;
 use crate::selection::Selection;
 use std::sync::Arc;
 

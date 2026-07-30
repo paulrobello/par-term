@@ -3,7 +3,7 @@
 //! This module contains methods for detecting URLs in the terminal
 //! and applying visual styling to indicate clickable links.
 
-use crate::cell_renderer::Cell;
+use crate::config::Cell;
 use crate::url_detection;
 
 use super::WindowState;

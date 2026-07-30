@@ -3,7 +3,7 @@
 //! These run after terminal cell generation so transient overlays
 //! (URL hover/underline, search highlights) are applied as the final text layer.
 
-use crate::cell_renderer::Cell;
+use crate::config::Cell;
 use crate::url_detection::{DetectedItemType, DetectedUrl};
 
 /// Parameters for [`apply_url_overlays_to_cells`].
@@ -98,7 +98,7 @@ mod tests {
 
     #[test]
     fn url_overlay_applies_to_final_cells_after_substitution() {
-        let mut cells = vec![crate::cell_renderer::Cell::default(); 10];
+        let mut cells = vec![crate::config::Cell::default(); 10];
         for (idx, ch) in "rendered".chars().enumerate() {
             cells[idx].grapheme = ch.to_string();
         }
@@ -123,7 +123,7 @@ mod tests {
 
     #[test]
     fn url_overlay_uses_detection_scroll_offset() {
-        let mut cells = vec![crate::cell_renderer::Cell::default(); 20];
+        let mut cells = vec![crate::config::Cell::default(); 20];
 
         apply_url_overlays_to_cells(UrlOverlayParams {
             cells: &mut cells,
@@ -143,7 +143,7 @@ mod tests {
 
     #[test]
     fn file_path_hover_does_not_overwrite_existing_prompt_color() {
-        let mut cells = vec![crate::cell_renderer::Cell::default(); 10];
+        let mut cells = vec![crate::config::Cell::default(); 10];
         cells[2].fg_color = [9, 8, 7, 255];
 
         apply_url_overlays_to_cells(UrlOverlayParams {

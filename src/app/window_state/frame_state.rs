@@ -7,7 +7,7 @@
 
 use std::sync::Arc;
 
-use crate::cell_renderer::Cell;
+use crate::config::Cell;
 
 /// Rendering decisions and scratch storage for the current frame.
 pub(crate) struct FrameState {
@@ -69,7 +69,7 @@ impl FrameState {
 #[cfg(test)]
 mod tests {
     use super::FrameState;
-    use crate::cell_renderer::Cell;
+    use crate::config::Cell;
 
     fn cells(graphemes: &[&str]) -> Vec<Cell> {
         graphemes

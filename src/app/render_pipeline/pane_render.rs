@@ -8,14 +8,13 @@
 //! - `capture_frame_image`: the same gather, composited offscreen for screenshots (QA-011)
 
 use super::types::RendererSizing;
-use crate::cell_renderer::PaneViewport;
-use crate::config::{Config, PaneTitlePosition, color_u8_to_f32};
-use crate::renderer::{
-    DividerRenderInfo, PaneDividerSettings, PaneRenderInfo, PaneTitleInfo, Renderer,
-};
-use crate::scrollback_metadata::ScrollbackMark;
+use crate::config::{Config, PaneTitlePosition, ScrollbackMark, color_u8_to_f32};
 use crate::selection::SelectionMode;
 use anyhow::Result;
+use par_term_render::cell_renderer::PaneViewport;
+use par_term_render::renderer::{
+    DividerRenderInfo, PaneDividerSettings, PaneRenderInfo, PaneTitleInfo, Renderer,
+};
 use std::sync::Arc;
 
 /// Pane render data for split pane rendering
@@ -23,7 +22,7 @@ pub(super) struct PaneRenderData {
     /// Viewport bounds and state for this pane
     pub(super) viewport: PaneViewport,
     /// Cells to render (should match viewport grid size)
-    pub(super) cells: Arc<Vec<crate::cell_renderer::Cell>>,
+    pub(super) cells: Arc<Vec<crate::config::Cell>>,
     /// Grid dimensions (cols, rows)
     pub(super) grid_size: (usize, usize),
     /// Cursor position within this pane (col, row), or None if no cursor visible
@@ -467,7 +466,7 @@ pub(super) struct PaneCaptureInput<'a> {
     pub show_scrollbar: bool,
 }
 
-/// Build the borrowed [`crate::renderer::PaneCaptureParams`] and hand it to `f`.
+/// Build the borrowed [`par_term_render::renderer::PaneCaptureParams`] and hand it to `f`.
 ///
 /// A scoped callback rather than a returned value because the pane infos borrow
 /// the owned cell `Arc`s, the divider infos and the divider settings, all of
@@ -477,7 +476,7 @@ pub(super) struct PaneCaptureInput<'a> {
 fn with_pane_capture_params<R>(
     renderer: &mut Renderer,
     input: PaneCaptureInput<'_>,
-    f: impl FnOnce(&mut Renderer, crate::renderer::PaneCaptureParams<'_>) -> R,
+    f: impl FnOnce(&mut Renderer, par_term_render::renderer::PaneCaptureParams<'_>) -> R,
 ) -> R {
     let PaneCaptureInput {
         pane_data,
@@ -495,8 +494,7 @@ fn with_pane_capture_params<R>(
     //
     // Phase 1: Extract cells into a Vec that outlives the render infos.
     // The remaining pane fields are collected into partial render infos.
-    let mut owned_cells: Vec<Arc<Vec<crate::cell_renderer::Cell>>> =
-        Vec::with_capacity(pane_data.len());
+    let mut owned_cells: Vec<Arc<Vec<crate::config::Cell>>> = Vec::with_capacity(pane_data.len());
     let mut partial_infos: Vec<PaneRenderInfo> = Vec::with_capacity(pane_data.len());
 
     for pane in pane_data {
@@ -557,7 +555,7 @@ fn with_pane_capture_params<R>(
     // owned_cells is dropped automatically at scope exit, even on panic.
     f(
         renderer,
-        crate::renderer::PaneCaptureParams {
+        par_term_render::renderer::PaneCaptureParams {
             panes: &pane_render_infos,
             dividers: &divider_render_infos,
             pane_titles: &pane_titles,
@@ -595,7 +593,7 @@ impl crate::app::window_state::WindowState {
                 show_scrollbar,
             },
             move |renderer, cap| {
-                renderer.render_split_panes(crate::renderer::SplitPanesRenderParams {
+                renderer.render_split_panes(par_term_render::renderer::SplitPanesRenderParams {
                     panes: cap.panes,
                     dividers: cap.dividers,
                     pane_titles: cap.pane_titles,

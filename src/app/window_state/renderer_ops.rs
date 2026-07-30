@@ -157,7 +157,7 @@ impl WindowState {
     /// Returns Some((cols, rows)) if any offset changed and caused a grid resize.
     pub(crate) fn apply_tab_bar_offsets(
         &self,
-        renderer: &mut crate::renderer::Renderer,
+        renderer: &mut par_term_render::renderer::Renderer,
         tab_bar_height: f32,
         tab_bar_width: f32,
     ) -> Option<(usize, usize)> {
@@ -172,7 +172,7 @@ impl WindowState {
     /// Static helper to apply tab bar offsets (avoids borrowing self).
     pub(crate) fn apply_tab_bar_offsets_for_position(
         position: crate::config::TabBarPosition,
-        renderer: &mut crate::renderer::Renderer,
+        renderer: &mut par_term_render::renderer::Renderer,
         tab_bar_height: f32,
         tab_bar_width: f32,
     ) -> Option<(usize, usize)> {

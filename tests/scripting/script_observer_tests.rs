@@ -9,8 +9,8 @@ use std::sync::Arc;
 use par_term_emu_core_rust::observer::TerminalObserver;
 use par_term_emu_core_rust::terminal::{BellEvent, TerminalEvent};
 
-use par_term::scripting::observer::ScriptEventForwarder;
-use par_term::scripting::protocol::ScriptEventData;
+use par_term_scripting::observer::ScriptEventForwarder;
+use par_term_scripting::protocol::ScriptEventData;
 
 // ---------------------------------------------------------------------------
 // Helpers

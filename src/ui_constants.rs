@@ -59,7 +59,7 @@ pub const SSH_CONNECT_SEARCH_BAR_HEIGHT: f32 = 24.0;
 pub const SSH_CONNECT_LIST_BOTTOM_RESERVE: f32 = 100.0;
 
 // ---------------------------------------------------------------------------
-// Profile Modal UI  (src/profile_modal_ui.rs)
+// Profile Modal UI  (par-term-settings-ui/src/profile_modal_ui/)
 // ---------------------------------------------------------------------------
 
 /// Width of the Profile management modal dialog.

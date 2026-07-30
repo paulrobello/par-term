@@ -136,10 +136,10 @@ impl WindowManager {
                     let commands = tab.scripting.script_manager.read_commands(script_id);
                     for cmd in commands {
                         match cmd {
-                            crate::scripting::protocol::ScriptCommand::Log { level, message } => {
+                            par_term_scripting::protocol::ScriptCommand::Log { level, message } => {
                                 new_output[i].push(format!("[{}] {}", level, message));
                             }
-                            crate::scripting::protocol::ScriptCommand::SetPanel {
+                            par_term_scripting::protocol::ScriptCommand::SetPanel {
                                 title,
                                 content,
                             } => {
@@ -150,27 +150,27 @@ impl WindowManager {
                                 );
                                 panel_val = Some((title, content));
                             }
-                            crate::scripting::protocol::ScriptCommand::ClearPanel {} => {
+                            par_term_scripting::protocol::ScriptCommand::ClearPanel {} => {
                                 tab.scripting.script_manager.clear_panel(script_id);
                                 panel_val = None;
                             }
                             // Safe display-only commands — defer to Pass 2 so they can
                             // call `WindowState` methods without borrow conflicts.
-                            crate::scripting::protocol::ScriptCommand::Notify { title, body } => {
+                            par_term_scripting::protocol::ScriptCommand::Notify { title, body } => {
                                 pending_actions.push((
                                     window_id,
                                     tab_id,
                                     PendingScriptAction::Notify { title, body },
                                 ));
                             }
-                            crate::scripting::protocol::ScriptCommand::SetBadge { text } => {
+                            par_term_scripting::protocol::ScriptCommand::SetBadge { text } => {
                                 pending_actions.push((
                                     window_id,
                                     tab_id,
                                     PendingScriptAction::SetBadge { text },
                                 ));
                             }
-                            crate::scripting::protocol::ScriptCommand::SetVariable {
+                            par_term_scripting::protocol::ScriptCommand::SetVariable {
                                 name,
                                 value,
                             } => {
@@ -181,7 +181,7 @@ impl WindowManager {
                                 ));
                             }
                             // Restricted commands — permission-checked in Pass 2.
-                            crate::scripting::protocol::ScriptCommand::WriteText { text } => {
+                            par_term_scripting::protocol::ScriptCommand::WriteText { text } => {
                                 pending_actions.push((
                                     window_id,
                                     tab_id,
@@ -191,7 +191,7 @@ impl WindowManager {
                                     },
                                 ));
                             }
-                            crate::scripting::protocol::ScriptCommand::RunCommand { command } => {
+                            par_term_scripting::protocol::ScriptCommand::RunCommand { command } => {
                                 pending_actions.push((
                                     window_id,
                                     tab_id,
@@ -201,7 +201,7 @@ impl WindowManager {
                                     },
                                 ));
                             }
-                            crate::scripting::protocol::ScriptCommand::ChangeConfig {
+                            par_term_scripting::protocol::ScriptCommand::ChangeConfig {
                                 key,
                                 value,
                             } => {
@@ -326,7 +326,7 @@ impl WindowManager {
                     }
 
                     // Strip VT/ANSI sequences before PTY injection
-                    let clean = crate::scripting::protocol::strip_vt_sequences(&text);
+                    let clean = par_term_scripting::protocol::strip_vt_sequences(&text);
                     if clean.is_empty() {
                         continue;
                     }

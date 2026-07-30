@@ -13,7 +13,7 @@ use par_term_terminal::TerminalManager;
 use winit::dpi::PhysicalSize;
 
 use crate::app::window_state::WindowState;
-use crate::cell_renderer::Cell;
+use crate::config::Cell;
 
 impl WindowState {
     /// Collect scrollback length, terminal title, and drain shell lifecycle events

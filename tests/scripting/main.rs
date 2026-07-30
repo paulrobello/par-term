@@ -10,7 +10,7 @@
 /// literal `"python3"` fails there even when Python is correctly installed.
 /// Uses the same resolution as production code.
 pub fn python_cmd() -> &'static str {
-    par_term::scripting::manager::python_interpreter()
+    par_term_scripting::manager::python_interpreter()
         .expect("these tests require a Python interpreter (python3/python/py) on PATH")
 }
 

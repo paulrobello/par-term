@@ -9,7 +9,7 @@ impl WindowState {
     /// Parses the key sequence string, converts to byte sequences, and writes them
     /// to the active terminal.
     pub(crate) fn execute_key_sequence_action(&mut self, keys: String, title: String) -> bool {
-        use crate::keybindings::parse_key_sequence;
+        use par_term_keybindings::parse_key_sequence;
 
         let byte_sequences = match parse_key_sequence(&keys) {
             Ok(seqs) => seqs,

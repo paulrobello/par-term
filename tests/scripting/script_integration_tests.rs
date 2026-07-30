@@ -1,7 +1,7 @@
 use par_term::config::automation::RestartPolicy;
 use par_term::config::scripting::ScriptConfig;
-use par_term::scripting::manager::ScriptManager;
-use par_term::scripting::protocol::{ScriptCommand, ScriptEvent, ScriptEventData};
+use par_term_scripting::manager::ScriptManager;
+use par_term_scripting::protocol::{ScriptCommand, ScriptEvent, ScriptEventData};
 
 use std::collections::HashMap;
 

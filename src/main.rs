@@ -56,7 +56,7 @@ fn main() -> Result<()> {
     log::info!("Starting par-term terminal emulator");
 
     // Clean up leftover .old binary from a previous self-update (Windows)
-    par_term::self_updater::cleanup_old_binary();
+    par_term_update::self_updater::cleanup_old_binary();
 
     // Migrate user data (profiles, arrangements, session, command history,
     // dynamic-profile cache, sounds, agents) from the legacy config dir into the

@@ -1,6 +1,6 @@
 //! Search highlighting functionality for terminal cells.
 
-use crate::cell_renderer::Cell;
+use crate::config::Cell;
 use crate::search::SearchMatch;
 
 /// Parameters for [`apply_search_highlights_to_cells`].
