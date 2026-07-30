@@ -70,6 +70,45 @@ mod tests {
         assert!(extract_yaml_block(source).is_none());
     }
 
+    /// SEC-021: a shader is the user's own shareable content. Rewriting its
+    /// metadata must not silently tighten a `0o644` bundled shader to `0o600`,
+    /// and must not be able to truncate GLSL par-term cannot regenerate.
+    #[cfg(unix)]
+    #[test]
+    fn test_update_shader_metadata_file_preserves_mode() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let temp = tempfile::tempdir().expect("tempdir");
+        let path = temp.path().join("crt.glsl");
+        std::fs::write(&path, "void main() {}\n").expect("seed shader");
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).expect("chmod");
+
+        let metadata = crate::ShaderMetadata {
+            name: Some("CRT".to_string()),
+            ..Default::default()
+        };
+        update_shader_metadata_file(&path, &metadata).expect("update metadata");
+
+        let mode = std::fs::metadata(&path)
+            .expect("metadata")
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(mode, 0o644, "expected 0644 to survive, got {mode:o}");
+
+        let source = std::fs::read_to_string(&path).expect("read shader");
+        assert!(source.contains("CRT"), "metadata was not written");
+        assert!(source.contains("void main() {}"), "GLSL body was lost");
+
+        // No staging file may be left beside the shader.
+        let entries: Vec<String> = std::fs::read_dir(temp.path())
+            .expect("read_dir")
+            .filter_map(|e| e.ok())
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(entries, vec!["crt.glsl".to_string()]);
+    }
+
     #[test]
     fn test_parse_metadata_basic() {
         let source = r#"/*! par-term shader metadata

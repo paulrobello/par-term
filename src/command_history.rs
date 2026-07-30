@@ -78,6 +78,11 @@ impl CommandHistory {
     }
 
     /// Save history to disk.
+    ///
+    /// SEC-021: written through [`crate::atomic_save`] at mode `0o600`. Command
+    /// history routinely captures secrets typed on the command line (tokens in
+    /// `curl -H`, `export API_KEY=…`), so it must not be readable by other
+    /// users; and a truncated file parses as an error, discarding the history.
     pub fn save(&mut self) {
         if !self.dirty {
             return;
@@ -85,24 +90,12 @@ impl CommandHistory {
         let file = CommandHistoryFile {
             commands: self.entries.iter().cloned().collect(),
         };
-        if let Some(parent) = self.path.parent()
-            && let Err(e) = fs::create_dir_all(parent)
-        {
-            log::error!("Failed to create command history directory: {}", e);
-            return;
-        }
-        match serde_yaml_ng::to_string(&file) {
-            Ok(yaml) => {
-                if let Err(e) = fs::write(&self.path, yaml) {
-                    log::error!("Failed to write command history: {}", e);
-                } else {
-                    self.dirty = false;
-                    log::debug!("Saved {} command history entries", self.entries.len());
-                }
+        match crate::atomic_save::save_yaml_atomic(&self.path, &file) {
+            Ok(()) => {
+                self.dirty = false;
+                log::debug!("Saved {} command history entries", self.entries.len());
             }
-            Err(e) => {
-                log::error!("Failed to serialize command history: {}", e);
-            }
+            Err(e) => log::error!("Failed to write command history: {:#}", e),
         }
     }
 
@@ -119,21 +112,8 @@ impl CommandHistory {
         let spawned = std::thread::Builder::new()
             .name("cmd-history-save".into())
             .spawn(move || {
-                if let Some(parent) = path.parent()
-                    && let Err(e) = fs::create_dir_all(parent)
-                {
-                    log::error!("Failed to create command history directory: {}", e);
-                    return;
-                }
-                match serde_yaml_ng::to_string(&file) {
-                    Ok(yaml) => {
-                        if let Err(e) = fs::write(&path, yaml) {
-                            log::error!("Failed to write command history: {}", e);
-                        }
-                    }
-                    Err(e) => {
-                        log::error!("Failed to serialize command history: {}", e);
-                    }
+                if let Err(e) = crate::atomic_save::save_yaml_atomic(&path, &file) {
+                    log::error!("Failed to write command history: {:#}", e);
                 }
             });
 
@@ -296,6 +276,27 @@ mod tests {
         assert_eq!(loaded.len(), 2);
         assert_eq!(loaded.entries()[0].command, "ls -la");
         assert_eq!(loaded.entries()[1].command, "echo hello");
+    }
+
+    /// SEC-021: command lines routinely carry tokens and passwords, so the
+    /// history file must not be readable by other users on the machine.
+    #[cfg(unix)]
+    #[test]
+    fn test_saved_history_is_owner_only() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("command_history.yaml");
+        fs::write(&path, "commands: []").expect("seed history file");
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).expect("chmod");
+
+        let mut history = CommandHistory::new(100);
+        history.path = path.clone();
+        history.add("export API_KEY=secret".to_string(), Some(0), None);
+        history.save();
+
+        let mode = fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600, "expected 0600, got {mode:o}");
     }
 
     #[test]

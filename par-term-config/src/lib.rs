@@ -29,6 +29,7 @@
 
 pub mod assistant_input_history;
 pub mod assistant_prompts;
+pub mod atomic_save;
 pub mod automation;
 pub mod cell;
 pub mod config;
@@ -50,6 +51,7 @@ pub mod status_bar;
 pub mod text;
 pub mod themes;
 mod types;
+pub mod url_policy;
 #[cfg(feature = "watcher")]
 pub mod watcher;
 

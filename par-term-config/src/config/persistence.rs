@@ -135,59 +135,19 @@ impl Config {
 
     /// Save configuration to file
     ///
-    /// Writes to a `0600` temp file and renames it over the real config so a
-    /// crash mid-write cannot corrupt it.
+    /// SEC-008/SEC-021: written through [`crate::atomic_save`], which stages the
+    /// write in a sibling `0600` temp file, **fsyncs it**, renames it over the
+    /// real config and then fsyncs the directory. This used to be an inline
+    /// temp-and-rename with no fsync, which still lost the file on a power cut:
+    /// the rename can reach disk before the data it points at.
     ///
     /// # Errors
     ///
     /// Returns an error if the config directory cannot be created, if the
-    /// config cannot be serialized to YAML, or if writing or renaming the temp
-    /// file fails. Re-applying the final `0600` permission bits is best-effort
-    /// and its failure is ignored.
+    /// config cannot be serialized to YAML, or if writing, syncing or renaming
+    /// the temp file fails.
     pub fn save(&self) -> Result<()> {
-        let config_path = Self::config_path();
-
-        // Create parent directory if it doesn't exist
-        if let Some(parent) = config_path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-
-        let yaml = serde_yaml_ng::to_string(self)?;
-
-        // Atomic save: write to temp file then rename to prevent corruption on crash
-        let temp_path = config_path.with_extension("yaml.tmp");
-
-        // SEC-008: Create the temp file with restrictive permissions before writing.
-        // The config may contain env_vars with secrets (API keys, tokens). Writing
-        // to a world-readable temp file first would briefly expose them.
-        #[cfg(unix)]
-        {
-            use std::io::Write;
-            use std::os::unix::fs::OpenOptionsExt;
-            let mut f = fs::OpenOptions::new()
-                .write(true)
-                .create(true)
-                .truncate(true)
-                .mode(0o600)
-                .open(&temp_path)?;
-            f.write_all(yaml.as_bytes())?;
-        }
-        #[cfg(not(unix))]
-        {
-            fs::write(&temp_path, &yaml)?;
-        }
-
-        fs::rename(&temp_path, &config_path)?;
-
-        // Ensure the final file has restrictive permissions (belt-and-suspenders for
-        // renames that might reset mode, and for the initial creation path on some FSes).
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let _ = fs::set_permissions(&config_path, fs::Permissions::from_mode(0o600));
-        }
-
-        Ok(())
+        crate::atomic_save::save_yaml_atomic(&Self::config_path(), self)
     }
 
     /// Get the configuration file path.
@@ -226,27 +186,27 @@ impl Config {
         Self::config_dir()
     }
 
-    /// Get the session logs directory path, resolving ~ if present
-    /// Creates the directory if it doesn't exist
+    /// Resolve the session logs directory path, expanding a leading `~/`.
+    ///
+    /// QA-029: this is a pure path resolver and does **not** create the
+    /// directory. It used to `create_dir_all` as a side effect, which meant the
+    /// settings window created a directory just by rendering — including a
+    /// directory per keystroke while the user typed a new path into the
+    /// "Log directory" field, and at the process umask rather than the `0o700`
+    /// that SEC-010 requires of a directory holding session logs.
+    ///
+    /// The two callers that actually write logs (`Tab::toggle_session_logging`
+    /// and the auto-log path in `Tab::new`) already create the directory
+    /// themselves and then chmod it to `0o700`, so nothing is lost by removing
+    /// the side effect here.
     pub fn logs_dir(&self) -> PathBuf {
-        let path = if self.session_log_directory.starts_with("~/") {
-            if let Some(home) = dirs::home_dir() {
-                home.join(&self.session_log_directory[2..])
-            } else {
-                PathBuf::from(&self.session_log_directory)
-            }
-        } else {
-            PathBuf::from(&self.session_log_directory)
-        };
-
-        // Create directory if it doesn't exist
-        if !path.exists()
-            && let Err(e) = std::fs::create_dir_all(&path)
-        {
-            log::warn!("Failed to create logs directory {:?}: {}", path, e);
+        match self.session_log_directory.strip_prefix("~/") {
+            Some(rest) => match dirs::home_dir() {
+                Some(home) => home.join(rest),
+                None => PathBuf::from(&self.session_log_directory),
+            },
+            None => PathBuf::from(&self.session_log_directory),
         }
-
-        path
     }
 
     /// Resolve the tmux executable path at runtime.
@@ -451,22 +411,23 @@ impl Config {
 
     /// Save the last working directory to state file
     ///
-    /// Updates `self.last_working_directory` and persists it to `state.yaml`
-    /// via a temp-file-and-rename, so the value survives across sessions.
+    /// Updates `self.last_working_directory` and persists it to `state.yaml`,
+    /// so the value survives across sessions.
+    ///
+    /// SEC-021: written through [`crate::atomic_save`] at mode `0o600`. The
+    /// previous inline temp-and-rename had neither an fsync nor a mode, so the
+    /// path the user was last working in was world-readable.
     ///
     /// # Errors
     ///
     /// Returns an error if the state directory cannot be created, if the state
-    /// cannot be serialized to YAML, or if writing or renaming the temp file
-    /// fails. The in-memory field is updated before any of these can fail.
+    /// cannot be serialized to YAML, or if writing, syncing or renaming the
+    /// temp file fails. The in-memory field is updated before any of these can
+    /// fail.
     pub fn save_last_working_directory(&mut self, directory: &str) -> Result<()> {
         self.last_working_directory = Some(directory.to_string());
 
-        // Save to state file for persistence across sessions
         let state_path = Self::state_file_path();
-        if let Some(parent) = state_path.parent() {
-            fs::create_dir_all(parent)?;
-        }
 
         // Create a minimal state struct for persistence
         #[derive(Serialize)]
@@ -478,12 +439,7 @@ impl Config {
             last_working_directory: Some(directory.to_string()),
         };
 
-        let yaml = serde_yaml_ng::to_string(&state)?;
-
-        // Atomic save: write to temp file then rename to prevent corruption on crash
-        let temp_path = state_path.with_extension("yaml.tmp");
-        fs::write(&temp_path, &yaml)?;
-        fs::rename(&temp_path, &state_path)?;
+        crate::atomic_save::save_yaml_atomic(&state_path, &state)?;
 
         log::debug!(
             "Saved last working directory to {:?}: {}",

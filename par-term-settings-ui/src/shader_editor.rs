@@ -418,9 +418,18 @@ impl SettingsUI {
     }
 
     /// Save shader source to file
+    ///
+    /// SEC-021: staged and renamed rather than truncated in place — the buffer
+    /// is the user's only copy of their GLSL, and a partial write on a full disk
+    /// would destroy it. The file's mode is preserved rather than forced to
+    /// `0o600`: shaders are shareable, non-secret content, and a bundled
+    /// `0o644` shader must not be tightened just because it was opened here.
     fn save_shader_to_file(&mut self) {
         let shader_path = par_term_config::Config::shader_path(&self.temp_custom_shader);
-        match std::fs::write(&shader_path, &self.shader_editor_source) {
+        match par_term_config::atomic_save::save_string_atomic_preserving_mode(
+            &shader_path,
+            &self.shader_editor_source,
+        ) {
             Ok(()) => {
                 self.shader_editor_original = self.shader_editor_source.clone();
                 self.shader_controls_cache.remove(&self.temp_custom_shader);
@@ -428,7 +437,7 @@ impl SettingsUI {
             }
             Err(e) => {
                 self.shader_editor_error = Some(format!(
-                    "Failed to save shader file '{}': {}",
+                    "Failed to save shader file '{}': {:#}",
                     shader_path.display(),
                     e
                 ));

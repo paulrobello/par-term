@@ -8,6 +8,11 @@
 //! - Adds marker-wrapped source lines to RC files
 //! - Supports clean uninstall that safely removes the marker blocks
 //!
+//! RC files are rewritten through [`write_rc_file`], which stages the new
+//! contents in a sibling temp file and renames it into place while keeping the
+//! file's existing mode. Everything else in this module writes par-term's own
+//! reconstructable content and uses a plain `fs::write`.
+//!
 //! # Error Handling Convention
 //!
 //! Private helpers use `Result<(), String>` for simple string errors that are
@@ -271,26 +276,35 @@ fn add_to_rc_file(rc_file: &Path, shell: ShellType) -> Result<(), String> {
     };
 
     // Check if our markers already exist
-    if existing_content.contains(MARKER_START) {
+    let new_content = if existing_content.contains(MARKER_START) {
         // Remove existing block and add fresh one
         let cleaned = remove_marker_block(&existing_content);
-        let new_content = format!("{}\n{}", cleaned.trim_end(), generate_source_block(shell));
-        fs::write(rc_file, new_content)
-            .map_err(|e| format!("Failed to write {:?}: {}", rc_file, e))?;
+        format!("{}\n{}", cleaned.trim_end(), generate_source_block(shell))
+    } else if existing_content.is_empty() {
+        generate_source_block(shell)
+    } else if existing_content.ends_with('\n') {
+        format!("{}\n{}", existing_content, generate_source_block(shell))
     } else {
-        // Append our block to the file
-        let new_content = if existing_content.is_empty() {
-            generate_source_block(shell)
-        } else if existing_content.ends_with('\n') {
-            format!("{}\n{}", existing_content, generate_source_block(shell))
-        } else {
-            format!("{}\n\n{}", existing_content, generate_source_block(shell))
-        };
-        fs::write(rc_file, new_content)
-            .map_err(|e| format!("Failed to write {:?}: {}", rc_file, e))?;
-    }
+        format!("{}\n\n{}", existing_content, generate_source_block(shell))
+    };
 
-    Ok(())
+    write_rc_file(rc_file, &new_content)
+}
+
+/// Replace an RC file's contents atomically, keeping the mode the user gave it.
+///
+/// This is a full rewrite of a file par-term did not author and cannot
+/// reconstruct, so a partial write is the worst outcome in the module: a
+/// truncated `.zshrc` breaks the user's login shell. The write is staged in a
+/// sibling temp file and renamed, so a crash leaves either the old file or the
+/// new one.
+///
+/// The mode is **preserved, not forced to `0o600`** — unlike par-term's own
+/// state files, an rc file belongs to the user and may legitimately be
+/// group-readable.
+fn write_rc_file(rc_file: &Path, contents: &str) -> Result<(), String> {
+    crate::atomic_save::save_string_atomic_preserving_mode(rc_file, contents)
+        .map_err(|e| format!("Failed to write {:?}: {:#}", rc_file, e))
 }
 
 /// Remove our marker block from an RC file
@@ -310,8 +324,7 @@ fn remove_from_rc_file(rc_file: &Path) -> Result<bool, String> {
 
     // Only write if content changed
     if cleaned != content {
-        fs::write(rc_file, &cleaned)
-            .map_err(|e| format!("Failed to write {:?}: {}", rc_file, e))?;
+        write_rc_file(rc_file, &cleaned)?;
     }
 
     Ok(true)
@@ -477,6 +490,105 @@ mod tests {
         // This will return whatever $SHELL is set to in the test environment
         // We just verify it doesn't panic
         let _shell = detected_shell();
+    }
+
+    /// The installer rewrites the whole file, so the user's own lines must come
+    /// back byte-for-byte with only our block appended.
+    #[test]
+    fn test_add_to_rc_file_preserves_user_content() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let rc_file = temp.path().join(".zshrc");
+        let original = "export EDITOR=vim\nalias ll='ls -la'\n";
+        fs::write(&rc_file, original).expect("seed rc file");
+
+        add_to_rc_file(&rc_file, ShellType::Zsh).expect("install into rc file");
+
+        let updated = fs::read_to_string(&rc_file).expect("read rc file");
+        assert!(updated.starts_with(original), "user content was altered");
+        assert!(updated.contains(MARKER_START));
+        assert!(updated.contains(MARKER_END));
+    }
+
+    /// The fish path on a machine with no fish config: the rc file and its
+    /// parent directory both have to be created.
+    #[test]
+    fn test_add_to_rc_file_creates_a_missing_file_and_parent() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let rc_file = temp.path().join("fish").join("config.fish");
+
+        add_to_rc_file(&rc_file, ShellType::Fish).expect("install into a missing rc file");
+
+        let created = fs::read_to_string(&rc_file).expect("read rc file");
+        assert!(created.starts_with(MARKER_START));
+        assert!(created.contains("set -gx PATH"));
+    }
+
+    /// Installing twice must replace the block rather than stack a second copy.
+    #[test]
+    fn test_add_to_rc_file_is_idempotent() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let rc_file = temp.path().join(".zshrc");
+        fs::write(&rc_file, "export EDITOR=vim\n").expect("seed rc file");
+
+        add_to_rc_file(&rc_file, ShellType::Zsh).expect("first install");
+        add_to_rc_file(&rc_file, ShellType::Zsh).expect("second install");
+
+        let updated = fs::read_to_string(&rc_file).expect("read rc file");
+        assert_eq!(updated.matches(MARKER_START).count(), 1);
+        assert!(updated.contains("export EDITOR=vim"));
+    }
+
+    #[test]
+    fn test_remove_from_rc_file_restores_user_content() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let rc_file = temp.path().join(".bashrc");
+        fs::write(&rc_file, "export EDITOR=vim\n").expect("seed rc file");
+
+        add_to_rc_file(&rc_file, ShellType::Bash).expect("install");
+        assert!(remove_from_rc_file(&rc_file).expect("uninstall"));
+
+        let updated = fs::read_to_string(&rc_file).expect("read rc file");
+        assert_eq!(updated, "export EDITOR=vim\n");
+    }
+
+    /// An rc file is the user's, not par-term's: a group-readable `.zshrc` must
+    /// stay group-readable after the installer rewrites it.
+    #[cfg(unix)]
+    #[test]
+    fn test_rc_file_mode_is_preserved() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let temp = tempfile::tempdir().expect("tempdir");
+        let rc_file = temp.path().join(".zshrc");
+        fs::write(&rc_file, "export EDITOR=vim\n").expect("seed rc file");
+        fs::set_permissions(&rc_file, fs::Permissions::from_mode(0o644)).expect("chmod");
+
+        add_to_rc_file(&rc_file, ShellType::Zsh).expect("install");
+
+        let mode = fs::metadata(&rc_file)
+            .expect("metadata")
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(mode, 0o644, "expected 0644 to survive, got {mode:o}");
+    }
+
+    /// A rewrite must never leave debris beside the rc file for the next
+    /// install to trip over.
+    #[test]
+    fn test_rc_file_rewrite_leaves_no_staging_file() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let rc_file = temp.path().join(".zshrc");
+        fs::write(&rc_file, "export EDITOR=vim\n").expect("seed rc file");
+
+        add_to_rc_file(&rc_file, ShellType::Zsh).expect("install");
+
+        let entries: Vec<String> = fs::read_dir(temp.path())
+            .expect("read_dir")
+            .filter_map(|e| e.ok())
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(entries, vec![".zshrc".to_string()]);
     }
 
     #[test]

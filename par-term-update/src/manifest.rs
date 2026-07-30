@@ -63,24 +63,20 @@ impl Manifest {
 
     /// Save manifest to a directory
     ///
-    /// Uses atomic write pattern: writes to a temp file first, then renames to final path.
-    /// This ensures the manifest is never left in a corrupted state if writing fails.
+    /// SEC-021: written through [`par_term_config::atomic_save`] at mode
+    /// `0o600`. The previous inline temp-and-rename had no fsync — so a power
+    /// cut could land the rename before the data — and no mode. A manifest is
+    /// par-term's own bookkeeping about which bundled files it installed, not
+    /// user content, so `0o600` is right; a truncated one makes every installed
+    /// shader look user-modified and blocks the next upgrade from replacing it.
     pub fn save(&self, dir: &Path) -> Result<(), String> {
         let manifest_path = dir.join("manifest.json");
-        let temp_path = dir.join("manifest.json.tmp");
 
         let content = serde_json::to_string_pretty(self)
             .map_err(|e| format!("Failed to serialize manifest: {}", e))?;
 
-        // Write to temp file first
-        fs::write(&temp_path, content)
-            .map_err(|e| format!("Failed to write manifest temp file: {}", e))?;
-
-        // Atomically rename to final path
-        fs::rename(&temp_path, &manifest_path)
-            .map_err(|e| format!("Failed to rename manifest temp file: {}", e))?;
-
-        Ok(())
+        par_term_config::atomic_save::save_string_atomic(&manifest_path, &content)
+            .map_err(|e| format!("Failed to write manifest: {e:#}"))
     }
 
     /// Build a lookup map from path to file entry

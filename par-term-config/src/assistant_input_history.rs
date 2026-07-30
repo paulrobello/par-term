@@ -41,10 +41,12 @@ pub fn load_assistant_input_history() -> Result<Vec<String>, String> {
 /// Entries are trimmed, de-duplicated, and truncated to
 /// [`MAX_ASSISTANT_INPUT_HISTORY_ENTRIES`] before writing.
 ///
+/// The file is replaced atomically at mode `0o600`.
+///
 /// # Errors
 ///
 /// Returns an error if the config directory cannot be created, if the history
-/// cannot be serialized to YAML, or if writing the file fails.
+/// cannot be serialized to YAML, or if writing or renaming the file fails.
 pub fn save_assistant_input_history(entries: &[String]) -> Result<(), String> {
     save_assistant_input_history_to_path(&assistant_input_history_path(), entries)
 }
@@ -100,27 +102,20 @@ fn load_assistant_input_history_from_path(path: &Path) -> Result<Vec<String>, St
     Ok(normalize_assistant_input_history(file.entries))
 }
 
+/// SEC-021: written through [`crate::atomic_save`] at mode `0o600`. Submitted
+/// Assistant prompts are par-term's own state and frequently quote source code
+/// and credentials, so they must not be readable by other users; and a
+/// truncated file fails to parse, discarding the whole history.
 fn save_assistant_input_history_to_path(path: &Path, entries: &[String]) -> Result<(), String> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|error| {
-            format!(
-                "create assistant input history directory {}: {error}",
-                parent.display()
-            )
-        })?;
-    }
-
     let file = AssistantInputHistoryFile {
         entries: normalize_assistant_input_history(entries.iter().cloned()),
     };
-    let yaml = serde_yaml_ng::to_string(&file).map_err(|error| {
+    crate::atomic_save::save_yaml_atomic(path, &file).map_err(|error| {
         format!(
-            "serialize assistant input history {}: {error}",
+            "write assistant input history {}: {error:#}",
             path.display()
         )
-    })?;
-    fs::write(path, yaml)
-        .map_err(|error| format!("write assistant input history {}: {error}", path.display()))
+    })
 }
 
 #[cfg(test)]
@@ -171,6 +166,28 @@ mod tests {
         let entries = load_assistant_input_history_from_path(&path).expect("load history");
 
         assert_eq!(entries, vec!["newest".to_string(), "older".to_string()]);
+    }
+
+    /// SEC-021: prompts frequently quote source code and credentials.
+    #[cfg(unix)]
+    #[test]
+    fn assistant_input_history_is_owner_only() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let temp_dir = tempfile::tempdir().expect("tempdir");
+        let path = temp_dir.path().join("assistant_input_history.yaml");
+        std::fs::write(&path, "entries: []").expect("seed");
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).expect("chmod");
+
+        save_assistant_input_history_to_path(&path, &["deploy the prod key".to_string()])
+            .expect("save history");
+
+        let mode = std::fs::metadata(&path)
+            .expect("metadata")
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(mode, 0o600, "expected 0600, got {mode:o}");
     }
 
     #[test]

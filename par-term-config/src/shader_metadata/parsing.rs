@@ -143,6 +143,12 @@ pub fn update_shader_metadata(source: &str, metadata: &ShaderMetadata) -> Result
 
 /// Update metadata in a shader file.
 ///
+/// SEC-021: this is a read-modify-write of the *user's* GLSL, so the rewrite is
+/// staged and renamed — a truncated shader would destroy source par-term cannot
+/// regenerate. The file's mode is preserved rather than forced to `0o600`: a
+/// shader is shareable, non-secret content, and a bundled `0o644` shader must
+/// not be silently tightened just because its metadata was edited.
+///
 /// # Errors
 ///
 /// Returns an error if the shader file cannot be read or cannot be written
@@ -154,8 +160,8 @@ pub fn update_shader_metadata_file(path: &Path, metadata: &ShaderMetadata) -> Re
 
     let updated_source = update_shader_metadata(&source, metadata)?;
 
-    std::fs::write(path, updated_source)
-        .map_err(|e| format!("Failed to write shader file '{}': {}", path.display(), e))?;
+    crate::atomic_save::save_string_atomic_preserving_mode(path, &updated_source)
+        .map_err(|e| format!("Failed to write shader file '{}': {e:#}", path.display()))?;
 
     log::info!("Updated metadata in shader file: {}", path.display());
     Ok(())
@@ -253,6 +259,9 @@ pub fn update_cursor_shader_metadata(
 
 /// Update cursor shader metadata in a shader file.
 ///
+/// SEC-021: staged and renamed, with the file's mode preserved, for the same
+/// reasons as [`update_shader_metadata_file`].
+///
 /// # Errors
 ///
 /// Returns an error if the shader file cannot be read or cannot be written
@@ -268,8 +277,8 @@ pub fn update_cursor_shader_metadata_file(
 
     let updated_source = update_cursor_shader_metadata(&source, metadata)?;
 
-    std::fs::write(path, updated_source)
-        .map_err(|e| format!("Failed to write shader file '{}': {}", path.display(), e))?;
+    crate::atomic_save::save_string_atomic_preserving_mode(path, &updated_source)
+        .map_err(|e| format!("Failed to write shader file '{}': {e:#}", path.display()))?;
 
     log::info!("Updated cursor shader metadata in file: {}", path.display());
     Ok(())

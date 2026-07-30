@@ -4,6 +4,13 @@ use super::SettingsUI;
 use par_term_config::snippets::SnippetLibrary;
 
 /// Export all snippets to a YAML file via a save dialog.
+///
+/// SEC-021: the export is staged and renamed so that overwriting an existing
+/// export cannot truncate it. The destination is a path the user picked in a
+/// save dialog and is outside par-term's control, so its mode is preserved
+/// rather than forced to `0o600`; a file created fresh by the export gets
+/// `0o600`, which is the safe direction for snippet bodies that may embed
+/// credentials, and the user can loosen it.
 pub(super) fn export_snippets(settings: &mut SettingsUI) {
     let path = rfd::FileDialog::new()
         .set_title("Export Snippets")
@@ -17,8 +24,10 @@ pub(super) fn export_snippets(settings: &mut SettingsUI) {
         };
         match serde_yaml_ng::to_string(&library) {
             Ok(yaml) => {
-                if let Err(e) = std::fs::write(&path, yaml) {
-                    log::error!("Failed to write snippet library: {}", e);
+                if let Err(e) =
+                    par_term_config::atomic_save::save_string_atomic_preserving_mode(&path, &yaml)
+                {
+                    log::error!("Failed to write snippet library: {:#}", e);
                 } else {
                     log::info!(
                         "Exported {} snippets to {}",

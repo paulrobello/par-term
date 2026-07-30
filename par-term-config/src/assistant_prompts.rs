@@ -139,11 +139,17 @@ pub fn save_prompt(
 
 /// Save `draft` into `dir`, returning the stored prompt with its final path.
 ///
+/// SEC-021: the prompt file is replaced atomically at mode `0o600`. The prompt
+/// store lives in par-term's own config directory and its contents are user
+/// text that regularly quotes source code and credentials, so it must not be
+/// readable by other users; and an overwrite that truncates would destroy a
+/// prompt the user cannot recover.
+///
 /// # Errors
 ///
 /// Returns an error if the draft's title or body is blank, if `dir` cannot be
-/// created, if the frontmatter cannot be serialized, or if writing the file
-/// fails.
+/// created, if the frontmatter cannot be serialized, or if writing or renaming
+/// the file fails.
 pub fn save_prompt_in_dir(
     dir: &Path,
     existing_path: Option<&Path>,
@@ -156,8 +162,8 @@ pub fn save_prompt_in_dir(
         .map(Path::to_path_buf)
         .unwrap_or_else(|| unique_prompt_path(dir, &draft.title));
     let markdown = serialize_prompt_markdown(draft)?;
-    fs::write(&target_path, markdown)
-        .map_err(|e| format!("write prompt file {}: {e}", target_path.display()))?;
+    crate::atomic_save::save_string_atomic(&target_path, &markdown)
+        .map_err(|e| format!("write prompt file {}: {e:#}", target_path.display()))?;
 
     Ok(AssistantPrompt {
         path: target_path,

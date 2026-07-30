@@ -284,16 +284,22 @@ impl SettingsUI {
     }
 
     /// Save cursor shader source to file
+    ///
+    /// SEC-021: staged and renamed with the file's mode preserved, for the same
+    /// reasons as the background-shader editor.
     fn save_cursor_shader_to_file(&mut self) {
         let shader_path = par_term_config::Config::shader_path(&self.temp_cursor_shader);
-        match std::fs::write(&shader_path, &self.cursor_shader_editor_source) {
+        match par_term_config::atomic_save::save_string_atomic_preserving_mode(
+            &shader_path,
+            &self.cursor_shader_editor_source,
+        ) {
             Ok(()) => {
                 self.cursor_shader_editor_original = self.cursor_shader_editor_source.clone();
                 log::info!("Cursor shader saved to {}", shader_path.display());
             }
             Err(e) => {
                 self.cursor_shader_editor_error = Some(format!(
-                    "Failed to save cursor shader file '{}': {}",
+                    "Failed to save cursor shader file '{}': {:#}",
                     shader_path.display(),
                     e
                 ));

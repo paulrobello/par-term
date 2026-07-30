@@ -73,18 +73,17 @@ pub fn save_arrangements(manager: &ArrangementManager) -> Result<()> {
 }
 
 /// Save arrangements to a specific file
+///
+/// SEC-021: written through [`crate::atomic_save`], which creates the parent
+/// directory, stages the write in a sibling temp file at mode `0o600`, fsyncs
+/// it and renames it into place. Arrangements are par-term's own state and
+/// record the user's working directories and tmux session names, so `0o600` is
+/// the right mode; and a truncated file is read back as an empty list, which
+/// silently loses every saved arrangement.
 pub fn save_arrangements_to(manager: &ArrangementManager, path: PathBuf) -> Result<()> {
-    // Ensure parent directory exists
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .with_context(|| format!("Failed to create config directory {:?}", parent))?;
-    }
-
     let arrangements = manager.to_vec();
-    let contents =
-        serde_yaml_ng::to_string(&arrangements).context("Failed to serialize arrangements")?;
 
-    std::fs::write(&path, contents)
+    crate::atomic_save::save_yaml_atomic(&path, &arrangements)
         .with_context(|| format!("Failed to write arrangements to {:?}", path))?;
 
     log::info!("Saved {} arrangements to {:?}", arrangements.len(), path);
@@ -268,6 +267,32 @@ mod tests {
             .expect("failed to save arrangements to nested dir");
 
         assert!(path.exists());
+    }
+
+    /// SEC-021: arrangements record working directories and tmux session names,
+    /// so the saved file must not be readable by other users on the machine.
+    #[cfg(unix)]
+    #[test]
+    fn test_saved_arrangements_are_owner_only() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let temp = tempdir().expect("failed to create temp dir");
+        let path = temp.path().join("arrangements.yaml");
+
+        // Seed a world-readable file so the save has something to tighten.
+        std::fs::write(&path, "[]").expect("failed to seed arrangements file");
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644))
+            .expect("failed to chmod");
+
+        save_arrangements_to(&ArrangementManager::new(), path.clone())
+            .expect("failed to save arrangements");
+
+        let mode = std::fs::metadata(&path)
+            .expect("failed to stat arrangements")
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(mode, 0o600, "expected 0600, got {mode:o}");
     }
 
     #[test]
