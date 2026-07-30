@@ -267,7 +267,7 @@ All public types from workspace crates are re-exported from the main `par-term` 
 ### Rendering Engine
 
 *   **Renderer (`par-term-render/src/renderer/`)**: The high-level rendering coordinator. It manages the `wgpu` surface and delegates tasks to specialized sub-renderers.
-*   **Cell Renderer (`par-term-render/src/cell_renderer/`)**: Responsible for drawing the text grid. Includes glyph atlas management (`atlas.rs`), background images (`background.rs`), and the core render loop (`render.rs`, `pane_render/mod.rs`).
+*   **Cell Renderer (`par-term-render/src/cell_renderer/`)**: Responsible for drawing the text grid. Includes glyph atlas management (`atlas.rs`), background images (`background.rs`), and the core render loop (`render.rs`, `pane_render/mod.rs`, and the two-phase pane entry points in `pane_render/render_to_view.rs`).
 *   **Graphics Renderer (`par-term-render/src/graphics_renderer.rs`)**: Handles overlay graphics like Sixel, iTerm2 images, and Kitty graphics.
 *   **Custom Shaders (`par-term-render/src/custom_shader_renderer/`)**: Provides post-processing effects using GLSL shaders (compatible with Shadertoy/Ghostty). Includes GLSL-to-WGSL transpilation via `naga`, channel texture management (`textures.rs`) for iChannel0-3 user texture inputs (iChannel4 is the terminal content), and uniform handling (`types.rs`).
 

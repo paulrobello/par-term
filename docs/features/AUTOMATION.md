@@ -644,7 +644,9 @@ Each script definition supports:
 
 > **🔒 Security:** The `allow_*` permission flags are off by default and must be explicitly enabled. Restricted commands (`WriteText`, `RunCommand`, `ChangeConfig`) are blocked unless the corresponding flag is set. Rate limiting prevents abuse even when enabled.
 >
-> Granting `allow_write_text` is not the last word on a `WriteText` payload: stripping VT sequences still leaves printable text and a newline, which is all it takes to type a command and submit it. So after the rate limit, each payload goes to the same confirmation dialog triggers use, showing the exact sanitized text with the submitting newline rendered as `\n`. **Always Allow** applies only to that script and that exact text for the rest of the session. At most eight confirmations may be pending at once; beyond that, payloads are dropped and logged. Set `prompt_before_write_text: false` to write immediately instead.
+> Granting `allow_write_text` is not the last word on a `WriteText` payload: stripping VT sequences still leaves printable text and a newline, which is all it takes to type a command and submit it. So after the rate limit, each payload goes to the same confirmation dialog triggers use, showing the exact sanitized text with the submitting newline rendered as `\n`. **Always Allow** applies only to that script and that exact text, and is cleared on config reload. At most eight confirmations may be pending at once — a queue shared with trigger and profile confirmations, so eight pending trigger prompts will drop a script payload with no script prompt pending. Beyond the cap, payloads are dropped and logged. Set `prompt_before_write_text: false` to write immediately instead.
+>
+> **The dialog only works for the active tab.** It writes to whichever tab is focused when the user approves, so a payload from a script in a background tab or an unfocused window cannot be aimed and is denied outright — dropped and logged, not queued, for as long as that tab stays in the background. Switch to the tab, or set `prompt_before_write_text: false` for that script.
 
 ### JSON Protocol
 
@@ -695,7 +697,7 @@ Scripts write JSON commands to stdout to control the terminal. Each command has 
 | `SetVariable` | `name`, `value` | No | Set a user variable |
 | `SetPanel` | `title`, `content` | No | Display a markdown panel in the UI |
 | `ClearPanel` | -- | No | Remove the markdown panel |
-| `WriteText` | `text` | `allow_write_text` | Write text to the PTY (as if typed); VT sequences are stripped, then the payload is confirmed in the automation dialog unless `prompt_before_write_text: false` |
+| `WriteText` | `text` | `allow_write_text` | Write text to the PTY (as if typed); VT sequences are stripped, then the payload is confirmed in the automation dialog unless `prompt_before_write_text: false`. While the prompt is enabled, a payload from a background tab is denied rather than prompted |
 | `RunCommand` | `command` | `allow_run_command` | Execute a shell command; checked against denylist |
 | `ChangeConfig` | `key`, `value` | `allow_change_config` | Change a configuration value; allowlisted keys only |
 

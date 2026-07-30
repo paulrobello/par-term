@@ -98,16 +98,24 @@ Automatically save the current session state on clean exit and restore it when p
 ### Recovery After a Crash
 
 par-term also keeps a crash snapshot. While running, the event loop republishes a
-serialized copy of the session every few seconds, and a panic handler writes it to
-`crash_session.yaml` before the process dies. On the next launch that file is
-preferred over `last_session.yaml`, consumed, and a toast reports that the session
-was recovered.
+serialized copy of the session every five seconds, and a panic handler writes it to
+`crash_session.yaml` in the config directory before the process dies. On the next
+launch that file is preferred over `last_session.yaml`, consumed, and a toast reports
+that the session was recovered.
 
-Two limits are worth knowing. The snapshot is at most a few seconds old, so one very
-recent tab or directory change can be missing. And it only covers panics — a
+**This requires `restore_session: true`, which is not the default.** Both halves are
+gated on it: with session restore off, nothing is ever published, so no crash file is
+written, and nothing would consume one if it were.
+
+Three further limits are worth knowing. The snapshot is at most five seconds old, so
+one very recent tab or directory change can be missing. It only covers panics — a
 segmentation fault, a stack overflow, an out-of-memory kill or `kill -9` run no
-handler at all, so nothing is written. Scrollback and running processes are never
+handler at all, so nothing is written. And scrollback and running processes are never
 preserved by either path.
+
+The panic report itself goes to the debug log. Because a crash is normally followed by
+an immediate restart, look for it in the rolled-aside `par_term_debug.log.1` rather
+than the live log — see [Logging](../LOGGING.md#log-file-location).
 
 ### What Gets Saved
 

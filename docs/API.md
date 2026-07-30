@@ -157,7 +157,7 @@ Configuration loading, saving, and type definitions for the terminal emulator. T
 | `ShaderBackgroundBlendMode` | How the shader blends with the background. |
 | `ShaderSafetyBadge` | Safety classification badge for a shader. |
 | `ShaderControl` | A single UI control exposed by a shader (slider, color picker, etc.). |
-| `ShaderControlKind` | Control types parsed from a `// control` comment: `Slider`, `Checkbox`, `Color`, `Int`, `Select`, `Vec`, `Point`, `Range`, `Angle`, `Channel`. Not serde-backed — it is parsed from shader source, not config. |
+| `ShaderControlKind` | Control types parsed from a `// control` comment: `Slider`, `Checkbox`, `Color`, `Int`, `Select`, `Vec2`, `Point`, `Range`, `Angle`, `Channel`. Not serde-backed — it is parsed from shader source, not config. |
 | `AngleUnit` | Unit for angle controls: `Radians` or `Degrees`. |
 | `SliderScale` | Slider value scale: `Linear` or `Log` (written `scale=log` in a `// control` comment). |
 | `resolve_shader_config(config, cache)` | Resolve a `ShaderConfig` against the metadata cache. |

@@ -129,12 +129,16 @@ The effective `log` crate level is resolved during startup. The config setting i
 
 ## Log File Location
 
-| Platform | Path |
-|----------|------|
-| macOS/Linux | `$TMPDIR/par_term_debug.log` (defaults to `/tmp/`) |
-| Windows | `%TEMP%\par_term_debug.log` |
+| Platform | Current session | Previous session |
+|----------|-----------------|------------------|
+| macOS/Linux | `$TMPDIR/par_term_debug.log` (defaults to `/tmp/`) | `$TMPDIR/par_term_debug.log.1` |
+| Windows | `%TEMP%\par_term_debug.log` | `%TEMP%\par_term_debug.log.1` |
 
-The log file is created fresh each session (truncated on startup). Log entries include Unix epoch timestamps with microsecond precision:
+Each session starts with a fresh log. The previous session's log is **not** discarded: it is rolled aside to `par_term_debug.log.1` before the live path is truncated, so a crash report survives the restart that follows it. Only one generation is kept — the launch after that overwrites `.1`.
+
+The roll is skipped, leaving any existing `.1` intact, when the log is absent, empty, not a regular file, or owned by another user. The empty case matters in practice: `make run-debug` and `make run-trace` pipe through `tee`, which truncates the path before par-term opens it, so those runs do not produce a `.1`.
+
+Log entries include Unix epoch timestamps with microsecond precision:
 
 ```
 ================================================================================
@@ -195,6 +199,12 @@ par-term --log-level trace
 # Reproduce the issue, then exit
 # Copy the log file
 cp "${TMPDIR:-/tmp}"/par_term_debug.log ~/Desktop/par-term-debug.log
+```
+
+If par-term crashed and you have already restarted it, the panic report is in the rolled-aside log, not the live one:
+
+```bash
+cp "${TMPDIR:-/tmp}"/par_term_debug.log.1 ~/Desktop/par-term-crash.log
 ```
 
 ## Module Filtering
@@ -270,6 +280,7 @@ tail -f "${TMPDIR:-/tmp}"/par_term_debug.log | grep --line-buffered "CONCURRENCY
 - Verify `log_level` is not set to `off` in config
 - Check if `--log-level off` was passed on the command line
 - Ensure the log file path is writable (check `$TMPDIR` permissions)
+- If you are looking for output from a session that has already ended, check `par_term_debug.log.1` — the live path holds only the current session
 
 **Too much output:**
 - Lower the log level (e.g., `info` instead of `trace`)

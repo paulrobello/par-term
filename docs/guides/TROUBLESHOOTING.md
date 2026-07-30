@@ -72,10 +72,12 @@ par-term writes debug logs to a file rather than the terminal, so logging never 
 
 **Log file location:**
 
-| Platform | Path |
-|----------|------|
-| macOS/Linux | `$TMPDIR/par_term_debug.log` (defaults to `/tmp/`) |
-| Windows | `%TEMP%\par_term_debug.log` |
+| Platform | Current session | Previous session |
+|----------|-----------------|------------------|
+| macOS/Linux | `$TMPDIR/par_term_debug.log` (defaults to `/tmp/`) | `$TMPDIR/par_term_debug.log.1` |
+| Windows | `%TEMP%\par_term_debug.log` | `%TEMP%\par_term_debug.log.1` |
+
+The previous session's log is rolled aside to `.1` on startup rather than discarded, so a crash report survives the restart that follows it. Only one generation is kept. See [Logging](../LOGGING.md#log-file-location) for the cases where the roll is skipped.
 
 **Enabling debug logging:**
 
@@ -140,6 +142,8 @@ make run-trace
 # Copy the log file
 cp "${TMPDIR:-/tmp}"/par_term_debug.log ~/Desktop/par-term-debug.log
 ```
+
+If par-term crashed and you have already restarted it, the panic report is in the rolled-aside log instead — copy `"${TMPDIR:-/tmp}"/par_term_debug.log.1`. (A run started with `make run-debug` or `make run-trace` produces no `.1` of its own: those targets pipe through `tee`, which truncates the log before par-term opens it.)
 
 The Settings UI also provides debug logging controls under **Settings > Advanced > Debug Logging**, including a log level dropdown, log file path display, and an Open Log File button. Changes take effect immediately without restarting.
 
@@ -844,7 +848,7 @@ If the solutions in this guide do not resolve your issue:
 1. **Collect diagnostic information:**
    - Start par-term with `make run-trace` (enables both `RUST_LOG=trace` and `DEBUG_LEVEL=4`)
    - Reproduce the issue
-   - Copy the debug log for your bug report — `make tail-log` prints its path, or use `"${TMPDIR:-/tmp}"/par_term_debug.log`
+   - Copy the debug log for your bug report — `make tail-log` prints its path, or use `"${TMPDIR:-/tmp}"/par_term_debug.log`. For a crash you have already restarted from, take `"${TMPDIR:-/tmp}"/par_term_debug.log.1` instead
 
 2. **Include system information:**
    - Operating system and version

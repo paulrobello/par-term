@@ -257,12 +257,13 @@ The macOS release asset is a zip archive containing a complete `.app` bundle. Th
 1. Downloads the platform-appropriate zip file (e.g., `par-term-macos-aarch64.zip` or `par-term-macos-x86_64.zip`)
 2. Derives the `.app` root directory by navigating three levels up from the running binary (`Contents/MacOS/par-term` -> `.app/`)
 3. Opens the downloaded zip archive and locates the top-level `.app` directory within it
-4. Extracts all files from the archive into the existing `.app` bundle, overwriting existing files
+4. Extracts all files into a **staging directory** beside the live bundle (`.par-term-update-<pid>`). The live `.app` is never written into, so any failure below leaves it exactly as it was
 5. Preserves Unix file permissions from the archive entries
-6. Verifies the code signature using `codesign --verify --deep --strict` -- if the signature is invalid or missing, the update is aborted as a potential security risk
-7. Runs `spctl --assess --type execute` to check Gatekeeper assessment (notarization). A warning is logged if this fails (expected for unsigned dev builds), but the update is not aborted
-8. Runs `xattr -cr` on the extracted `.app` bundle to remove macOS quarantine attributes, preventing Gatekeeper from blocking the updated app on first launch
-9. Reports the install path and advises restarting
+6. Verifies the staged bundle's code signature with `codesign --verify --deep --strict`, pinned to par-term's Apple Team ID via `-R=anchor apple generic and certificate leaf[subject.OU] = "QMLVG482FY"`. A bundle signed by anyone else, ad-hoc signed, or unsigned is rejected and the update is aborted
+7. Runs `spctl --assess --type execute` on the staged bundle to check the Gatekeeper assessment (notarization). This is **fatal**, including when `spctl` itself cannot be run -- an unverifiable update is not an installable update, and nothing is installed
+8. Runs `xattr -cr` on the *staged* bundle to remove macOS quarantine attributes, so the live bundle never spends a moment in a half-verified state
+9. Swaps the staged bundle in with a two-rename move-aside/move-in, rolling back to the original bundle if the second rename fails
+10. Reports the install path and advises restarting
 
 ### Linux and Windows Standalone Updates
 
@@ -302,13 +303,14 @@ All update settings are accessible through Settings (`F12`) under **Advanced > U
 ## Security Considerations
 
 - **HTTPS only**: All communication with the GitHub API and asset downloads use HTTPS with TLS
-- **Host allowlist**: Only four GitHub hostnames are accepted for update-related network requests: `github.com`, `api.github.com`, `objects.githubusercontent.com`, and `github-releases.githubusercontent.com`. URLs pointing to any other host are rejected regardless of scheme or path
+- **Host allowlist**: Only five GitHub hostnames are accepted for update-related network requests: `github.com`, `api.github.com`, `objects.githubusercontent.com`, `github-releases.githubusercontent.com`, and `release-assets.githubusercontent.com`. URLs pointing to any other host are rejected regardless of scheme or path
+- **Per-hop redirect validation**: The HTTP client does not follow redirects on its own. Each `Location` is resolved, re-checked against the same HTTPS-and-allowlist policy, and only then followed, with the chain capped at 5 hops. A redirect to an off-allowlist host, or one that downgrades to `http://`, is rejected rather than followed
 - **GitHub API**: Release information is fetched from the official GitHub Releases API (`api.github.com`), and binaries are downloaded from GitHub's release asset URLs
 - **SHA256 checksum verification**: After downloading, the binary is verified against a `.sha256` checksum file published alongside each release asset. Verification is a hard gate: if the hashes do not match, if the checksum file fails to download, or if no checksum file exists for the release, the update is aborted. A missing or unreachable checksum file is treated as a security failure (not a warning) so a compromised or MITM-altered release cannot ship an unverified binary
 - **Content validation**: The downloaded archive is inspected before checksum verification to catch obviously bad responses (e.g., HTML error pages). Platform-specific magic bytes are checked: ZIP header (`PK`) for macOS, ELF header (`\x7fELF`) for Linux, and PE header (`MZ`) for Windows
 - **No code execution during download**: Downloaded binaries are written to disk first and are not executed as part of the update process. The user must restart par-term to use the new version
 - **Permission preservation**: On Unix systems, the new binary receives standard executable permissions (`0o755`). On macOS app bundles, Unix permissions from the zip archive entries are preserved
-- **macOS code signature verification**: Before removing quarantine attributes, the updater runs `codesign --verify --deep --strict` on the updated `.app` bundle. If the code signature is invalid, the update is aborted
+- **macOS code signature verification**: The updater runs `codesign --verify --deep --strict` on the *staged* bundle, before it is swapped in and before quarantine attributes are removed, with the leaf certificate pinned to par-term's Apple Team ID. If the code signature is invalid, missing, or from another developer, the update is aborted and the live bundle is untouched
 - **Atomic replacement on Unix**: The `rename()` system call provides atomic replacement, ensuring the binary is never in a partially-written state
 - **Safe Windows replacement**: On Windows, the rename-based strategy ensures the original binary is preserved as `.old` until the new version starts successfully
 - **No privilege escalation**: The update runs with the same permissions as the running process. If par-term does not have write access to its own binary, the update fails with a clear error message

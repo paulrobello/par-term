@@ -79,11 +79,15 @@ graph TB
 
 > **Note:** Par-term supports two independent custom shaders: a **background shader** for post-processing effects and a **cursor shader** for cursor-specific effects (trails, glows). In background-only mode (the default), the background shader generates a background effect and terminal content is composited cleanly on top of it. In full-content mode, or whenever the cursor shader is active, terminal content (cells, inline graphics, overlays) is first rendered to an intermediate texture, then processed by the background shader (if enabled), then by the cursor shader (if enabled), so the shader effect applies to the complete terminal content. The egui UI layer is always rendered after all shaders to remain unaffected.
 >
-> **Scrollbars** are rendered within the terminal content phase (inside `render_pane_to_view`), not as a separate overlay pass.
+> **Scrollbars** are rendered within the terminal content phase — in the same render pass as their pane's cells, at the end of `draw_prepared_panes` — not as a separate overlay pass. Each pane owns a scrollbar slot, updated by `Renderer::update_pane_scrollbar` before that pane is prepared.
 
 ### Render Order
 
 The rendering pipeline executes in this sequence. All content first renders to a target (surface or intermediate texture), then shaders process it, and finally egui overlays the UI:
+
+Rendering a frame's panes is two-phase (ARC-004). `Renderer::prepare_and_draw_panes` first sizes the shared instance buffers for the whole frame (`begin_pane_batch`), then calls `CellRenderer::prepare_pane` once per pane — the `&mut self` work: building that pane's slice of the instance buffers, updating its scrollbar slot, and preparing its background-image bind group — and finally calls `CellRenderer::draw_prepared_panes` once. That draw phase is `&self`: it opens **one** command encoder, runs one render pass per pane so each keeps its own scissor rect, and ends in a **single `queue.submit` for the whole frame**. Pane submits per frame therefore went from N to 1.
+
+The steps below name the two phases rather than `render_pane_to_view`. That function still exists as a convenience wrapper over the same pair for callers that render a single pane on its own; multi-pane frames drive the phases directly so they can share one encoder.
 
 ```mermaid
 sequenceDiagram
@@ -99,25 +103,29 @@ sequenceDiagram
 
     alt Full Content Mode (Background Shader)
         Note over Renderer: Terminal content rendered to shader's intermediate texture first
-        Renderer->>CR: render_pane_to_view(shader_intermediate)
-        CR->>CR: 3-phase: bgs -> text -> cursor overlays
+        Renderer->>CR: prepare_pane(i) for each pane
+        Renderer->>CR: draw_prepared_panes(shader_intermediate)
+        CR->>CR: One pass per pane, 3-phase: bgs -> text -> cursor overlays; one submit
         Renderer->>GR: render_pane_sixel_graphics(shader_intermediate)
         GR->>CR: Overlay graphics (LoadOp::Load)
         Renderer->>BSR: render_with_clear_color(content_view)
         BSR->>BSR: Process terminal content via iChannel4
     else Background Shader Only (Background Mode)
         Note over Renderer: Shader generates background, content composited on top
+        Note over Renderer,CR: With auto_dim_under_text the panes are drawn twice — once into<br/>the shader intermediate as a content mask, then again below. That is<br/>the one configuration costing two pane submits per frame, not one.
         Renderer->>BSR: render_with_clear_color(content_view)
         BSR->>BSR: Generate background effect to content_view
-        Renderer->>CR: render_pane_to_view(content_view)
-        CR->>CR: 3-phase: bgs -> text -> cursor overlays (LoadOp::Load)
+        Renderer->>CR: prepare_pane(i) for each pane
+        Renderer->>CR: draw_prepared_panes(content_view)
+        CR->>CR: One pass per pane, 3-phase: bgs -> text -> cursor overlays (LoadOp::Load); one submit
         Renderer->>GR: render_pane_sixel_graphics(content_view)
         GR->>CR: Overlay graphics (LoadOp::Load)
     else Cursor Shader Only
         Note over Renderer: Content to cursor intermediate, then cursor shader to surface
         Renderer->>Renderer: Clear cursor intermediate with full-opacity background
-        Renderer->>CR: render_pane_to_view(cursor_intermediate)
-        CR->>CR: 3-phase: bgs -> text -> cursor overlays
+        Renderer->>CR: prepare_pane(i) for each pane
+        Renderer->>CR: draw_prepared_panes(cursor_intermediate)
+        CR->>CR: One pass per pane, 3-phase: bgs -> text -> cursor overlays; one submit
         Renderer->>GR: render_pane_sixel_graphics(cursor_intermediate)
         GR->>CR: Overlay graphics (LoadOp::Load)
         Note over Renderer: Dividers, pane titles, visual bell, focus indicator to cursor intermediate
@@ -127,8 +135,9 @@ sequenceDiagram
         Note over Renderer: Background shader to cursor intermediate, cursor shader to surface
         Renderer->>BSR: render_with_clear_color(cursor_intermediate, apply_opacity=false)
         BSR->>BSR: Apply background shader (chain mode, no opacity)
-        Renderer->>CR: render_pane_to_view(cursor_intermediate)
-        CR->>CR: 3-phase: bgs -> text -> cursor overlays (LoadOp::Load)
+        Renderer->>CR: prepare_pane(i) for each pane
+        Renderer->>CR: draw_prepared_panes(cursor_intermediate)
+        CR->>CR: One pass per pane, 3-phase: bgs -> text -> cursor overlays (LoadOp::Load); one submit
         Renderer->>GR: render_pane_sixel_graphics(cursor_intermediate)
         GR->>CR: Overlay graphics (LoadOp::Load)
         Note over Renderer: Dividers, pane titles, visual bell, focus indicator to cursor intermediate
@@ -136,8 +145,9 @@ sequenceDiagram
         CSR->>Surface: Apply cursor shader effect with final opacity
     else No Shaders
         Note over Renderer: Direct rendering to surface
-        Renderer->>CR: render_pane_to_view(surface)
-        CR->>Surface: 3-phase: bgs -> text -> cursor overlays
+        Renderer->>CR: prepare_pane(i) for each pane
+        Renderer->>CR: draw_prepared_panes(surface)
+        CR->>Surface: One pass per pane, 3-phase: bgs -> text -> cursor overlays; one submit
         Renderer->>GR: render_pane_sixel_graphics(surface)
         GR->>Surface: Overlay graphics (LoadOp::Load)
     end

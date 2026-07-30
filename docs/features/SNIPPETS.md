@@ -649,7 +649,8 @@ Workflow actions let you compose, branch, and repeat existing actions from withi
 > event loop thread. Steps with `delay_ms > 0` or `ShellCommand` steps with `capture_output:
 > true` will block the UI for their duration. To keep the terminal responsive, keep `delay_ms`
 > at `0` where possible, and prefer short-running commands inside `capture_output` steps.
-> Long-running captured commands (e.g. a full build) will freeze input until they complete.
+> Long-running captured commands (e.g. a full build) will freeze input, though only until
+> the step's `timeout_secs` deadline (default `30`), at which point the child is killed.
 
 ### Sequence
 
@@ -812,7 +813,7 @@ actions:
     title: Run Build
     command: cargo
     args: ["build", "--release"]
-    capture_output: true            # capture stdout+stderr (capped at 64 KB)
+    capture_output: true            # capture stdout+stderr (capped at 65,536 characters)
 
   - type: condition
     id: after-build
