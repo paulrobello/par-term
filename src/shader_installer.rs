@@ -112,9 +112,9 @@ pub fn get_shaders_download_url(
 ///
 /// # Security
 ///
-/// When `checksum_url` is `None` the download proceeds without checksum
-/// verification (pre-checksum releases). A warning is logged to make this
-/// visible in the debug log.
+/// When `checksum_url` is `None` the installation is **refused**: a missing
+/// checksum means the download cannot be validated, so releases predating the
+/// checksum asset are not installable through this path.
 pub fn download_and_verify(zip_url: &str, checksum_url: Option<&str>) -> Result<Vec<u8>, String> {
     let zip_data = download_file(zip_url)?;
 

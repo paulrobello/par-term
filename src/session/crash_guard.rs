@@ -64,24 +64,35 @@
 //!   process under `panic = "unwind"`; tokio catches worker panics as a
 //!   `JoinError` and the app keeps running. Writing a crash file for each of
 //!   those would manufacture crash recoveries out of survivable faults. Such
-//!   panics are logged only — which is itself new: today they vanish silently.
-//! - **A panic taken inside the debug logger.** The save runs first and
-//!   completes; the *report* step then re-enters the logger's mutex, which
-//!   `parking_lot` does not make reentrant, and hangs. The session is on disk and
-//!   the default hook has already written the panic to stderr by that point, but
-//!   the process hangs instead of exiting. Removing this needs a `try_lock`
-//!   logging entry point in `src/debug.rs`.
+//!   panics are reported to the debug log and nothing more.
+//! - **A panic taken inside the debug logger.** The report is dropped rather
+//!   than written. `parking_lot` does not make the logger's mutex reentrant, so
+//!   every ordinary entry point — the `debug_*!` macros and the `log` crate
+//!   bridge alike, both of which end in `get_logger().lock()` — would block the
+//!   hook forever here. `report_fields` therefore goes through
+//!   `crate::debug::try_logf`, which walks away from a lock it cannot take.
+//!   The save has already run and the chained default hook has already put the
+//!   panic on stderr, so what is lost is the debug-log copy of a report the user
+//!   can still see. That chained hook is somebody else's code and could block on
+//!   its own account; what this module guarantees is that its *own* report step
+//!   does not.
 //! - **State that is not in the snapshot.** Scrollback, shell history, running
 //!   processes and anything typed but not yet run are gone. What survives is
 //!   window geometry, the tab list, per-tab working directories and titles, and
 //!   split-pane layout — i.e. exactly what `SessionState` holds.
 //! - **A panic before the first publish.** Nothing has been captured yet, so
 //!   there is nothing to write. Startup panics lose the (empty) session.
-//! - **The panic report does not outlive the next launch.** `src/debug.rs` opens
-//!   the debug log with `truncate(true)`, so the report is wiped when par-term
-//!   next starts — which after a crash is usually seconds later. The recovered
-//!   *session* survives that; the diagnostic only survives if the user reads it,
-//!   or still has the stderr the default hook wrote, before restarting.
+//! - **The panic report survives exactly one more launch.** `src/debug.rs` rolls
+//!   the previous log aside to `<log>.1` before truncating, so the restart after
+//!   a crash — usually seconds later — moves the report out of the way instead
+//!   of erasing it. Only one generation is kept, so the launch after that does
+//!   erase it. Two cases skip the roll, and neither loses a report: an empty log
+//!   (`make run-debug` pipes through `tee`, which truncates the path before
+//!   par-term opens it) holds nothing to preserve, and a log owned by another
+//!   user is one `open_log_file` refuses to write at all (SEC-016), so no report
+//!   of ours ever reached it — rolling it away would quietly convert that
+//!   refusal into "log anyway, into a fresh file". The recovered *session* is
+//!   unaffected either way: it lives in its own file.
 //!
 //! # The panic is not swallowed
 //!
@@ -311,39 +322,92 @@ fn payload_str<'a>(info: &'a PanicHookInfo<'_>) -> &'a str {
     }
 }
 
-/// Write the panic to the debug log.
+/// The panic facts the hook reports.
 ///
-/// `outcome` is `None` when no save was attempted (a panic off the event-loop
-/// thread, or a second panic after the latch was claimed).
+/// Lifted out of [`PanicHookInfo`], which cannot be constructed outside a real
+/// panic, so [`report_fields`] is exercisable from a test — the same split as
+/// [`claim`], [`write_crash_session`] and [`disarm_at`].
+pub(crate) struct PanicReport<'a> {
+    pub(crate) thread_name: &'a str,
+    pub(crate) file: &'a str,
+    pub(crate) line: u32,
+    pub(crate) column: u32,
+    pub(crate) payload: &'a str,
+    /// `None` when no save was attempted (a panic off the event-loop thread, or
+    /// a second panic after the latch was claimed).
+    pub(crate) outcome: Option<SaveOutcome>,
+}
+
+/// Write the panic to the debug log.
 fn report(info: &PanicHookInfo<'_>, outcome: Option<SaveOutcome>) {
     let thread = std::thread::current();
-    let thread_name = thread.name().unwrap_or("<unnamed>");
-    let location = info.location();
-    let (file, line, column) = location
+    let (file, line, column) = info
+        .location()
         .map(|l| (l.file(), l.line(), l.column()))
         .unwrap_or(("<unknown>", 0, 0));
 
-    // R-18: one call for the pair of debug-log + `log` crate destinations.
-    crate::debug_and_log_error!(
-        CATEGORY,
-        "PANIC on thread '{}' at {}:{}:{}: {}",
+    report_fields(PanicReport {
+        thread_name: thread.name().unwrap_or("<unnamed>"),
+        file,
+        line,
+        column,
+        payload: payload_str(info),
+        outcome,
+    });
+}
+
+/// The reporting half of [`report`], over plain data.
+///
+/// Every line goes through [`crate::debug::try_logf`], and that is the whole
+/// point: the ordinary entry points — the `debug_*!` macros *and* `log::error!`,
+/// which reaches the same place through the bridge in `src/debug.rs` — all end
+/// in `get_logger().lock()`, which `parking_lot` does not make reentrant. A
+/// panic taken inside the logger would hang the hook on any one of them.
+/// `try_logf` drops the line instead.
+///
+/// Two consequences worth stating rather than papering over. The `log` crate
+/// destination is gone from this path, so a panic no longer reaches a `log`
+/// subscriber; the chained default hook has already written the panic to stderr
+/// by the time this runs, which is what the user actually sees. And a report
+/// that loses its race for the mutex is simply not written — dropping a
+/// diagnostic beats hanging a process that has already saved the session.
+pub(crate) fn report_fields(r: PanicReport<'_>) {
+    let PanicReport {
         thread_name,
         file,
         line,
         column,
-        payload_str(info)
+        payload,
+        outcome,
+    } = r;
+
+    crate::debug::try_logf(
+        crate::debug::DebugLevel::Error,
+        CATEGORY,
+        format_args!("PANIC on thread '{thread_name}' at {file}:{line}:{column}: {payload}"),
     );
 
     match outcome {
-        Some(outcome) => log::error!(
-            "Panic boundary: {} ({:?}). Restart par-term to recover the session.",
-            outcome,
-            crash_session_path()
-        ),
-        None => log::error!(
-            "Panic boundary: no save attempted — this panic is off the event-loop \
-             thread, and a spawned thread's panic does not end the process"
-        ),
+        Some(outcome) => {
+            crate::debug::try_logf(
+                crate::debug::DebugLevel::Error,
+                CATEGORY,
+                format_args!(
+                    "Panic boundary: {outcome} ({:?}). Restart par-term to recover the session.",
+                    crash_session_path()
+                ),
+            );
+        }
+        None => {
+            crate::debug::try_logf(
+                crate::debug::DebugLevel::Error,
+                CATEGORY,
+                format_args!(
+                    "Panic boundary: no save attempted — this panic is off the event-loop \
+                     thread, and a spawned thread's panic does not end the process"
+                ),
+            );
+        }
     }
 
     // Opt-in via RUST_BACKTRACE, matching the default hook. `force_capture`
@@ -351,7 +415,11 @@ fn report(info: &PanicHookInfo<'_>, outcome: Option<SaveOutcome>) {
     // a hook on a broken thread should do.
     let backtrace = std::backtrace::Backtrace::capture();
     if backtrace.status() == std::backtrace::BacktraceStatus::Captured {
-        log::error!("PANIC backtrace:\n{backtrace}");
+        crate::debug::try_logf(
+            crate::debug::DebugLevel::Error,
+            CATEGORY,
+            format_args!("PANIC backtrace:\n{backtrace}"),
+        );
     }
 }
 

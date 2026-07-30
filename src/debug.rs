@@ -755,11 +755,20 @@ mod tests {
     /// mutex, and without being filtered out at the default `DEBUG_LEVEL=0`.
     #[test]
     fn try_logf_neither_blocks_nor_initializes_the_logger() {
-        // Whether `LOGGER` is initialized depends on test execution order, so
-        // assert the property that holds either way: the call returns rather
-        // than blocking, and it reports honestly whether it wrote.
+        // `LOGGER` is a `OnceLock`, so a concurrent test can initialize it but
+        // never clear it. Comparing `wrote` against a reading taken *after* the
+        // call therefore races. Only the two stable directions are asserted:
+        // an already-installed logger must be written to, and a write implies
+        // one exists.
+        let had_logger = LOGGER.get().is_some();
         let wrote = try_logf(DebugLevel::Error, "TEST", format_args!("no deadlock"));
-        assert_eq!(wrote, LOGGER.get().is_some());
+        if had_logger {
+            assert!(wrote, "try_logf must write when the logger is installed");
+        }
+        assert!(
+            !wrote || LOGGER.get().is_some(),
+            "try_logf reported a write with no logger installed"
+        );
 
         assert!(
             !try_logf(DebugLevel::Off, "TEST", format_args!("ignored")),
@@ -775,5 +784,67 @@ mod tests {
             );
             drop(held);
         }
+    }
+
+    /// The hazard [`try_logf`] exists to remove, exercised through the caller it
+    /// was wired into: the panic hook's report step must return while the logger
+    /// mutex is held rather than deadlocking on it.
+    ///
+    /// Driven through `crash_guard::report_fields` — the report path with the
+    /// `PanicHookInfo` destructuring lifted off — rather than a real panic. A
+    /// real one is not reproducible from a test: the hook is process-global and
+    /// latched, it binds to whichever thread installs it first, libtest installs
+    /// a hook of its own, and `PanicHookInfo` cannot be constructed.
+    ///
+    /// The contended half only bites once some earlier test has initialized
+    /// `LOGGER`, and nothing here forces that, because initializing it rotates
+    /// and truncates the developer's real debug log. The watchdog turns a
+    /// reintroduced blocking call — a `log::error!` in that path reaches this
+    /// same mutex through [`LogCrateBridge`] — into a failure rather than a run
+    /// that hangs forever.
+    #[test]
+    fn the_panic_report_never_blocks_on_the_logger() {
+        use crate::session::crash_guard::{PanicReport, SaveOutcome, report_fields};
+
+        fn fields(outcome: Option<SaveOutcome>) -> PanicReport<'static> {
+            PanicReport {
+                thread_name: "test",
+                file: "src/debug.rs",
+                line: 1,
+                column: 1,
+                payload: "provoked",
+                outcome,
+            }
+        }
+
+        // Uncontended: every outcome the hook can report runs to completion.
+        // The hook must stay infallible whichever branch it takes.
+        for outcome in [
+            None,
+            Some(SaveOutcome::Saved),
+            Some(SaveOutcome::NoSnapshot),
+            Some(SaveOutcome::AlreadySaved),
+            Some(SaveOutcome::WriteFailed),
+        ] {
+            report_fields(fields(outcome));
+        }
+
+        let Some(logger) = LOGGER.get() else {
+            return;
+        };
+        let held = logger.lock();
+
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            report_fields(fields(Some(SaveOutcome::Saved)));
+            let _ = tx.send(());
+        });
+        let finished = rx.recv_timeout(std::time::Duration::from_secs(10)).is_ok();
+        drop(held);
+
+        assert!(
+            finished,
+            "the panic hook's report step blocked on the logger mutex"
+        );
     }
 }

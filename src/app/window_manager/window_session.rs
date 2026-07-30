@@ -59,22 +59,12 @@ impl WindowManager {
     /// Throttled to [`CRASH_SNAPSHOT_INTERVAL`], so this is two atomic loads on
     /// the overwhelming majority of event-loop iterations.
     ///
-    /// # Not yet wired
-    ///
-    /// Nothing calls this yet, which is why the `allow` is here. The panic
-    /// boundary is inert until it is called: the hook can only write what has
-    /// been published. Wiring it is one line at the top of
-    /// `WindowManager::about_to_wait` in
-    /// `src/app/handler/app_handler_impl.rs`, next to `self.check_cli_timers()`:
-    ///
-    /// ```ignore
-    /// self.publish_crash_snapshot();
-    /// ```
-    ///
-    /// Delete this `allow` in the same change. `about_to_wait` is the right
-    /// place because it runs between events, when no window event is part-way
+    /// Called from `WindowManager::about_to_wait`. That is the right place
+    /// because it runs *between* events, when no window event is part-way
     /// through mutating a `WindowState` — which is the whole premise of
-    /// snapshotting rather than serializing live state.
+    /// snapshotting rather than serializing live state. The hook can only
+    /// write what has been published, so removing that call makes the panic
+    /// boundary inert.
     pub fn publish_crash_snapshot(&self) {
         // Gate on the same setting as the normal session save. A user who has
         // turned session restore off should not have a crash file appear in
@@ -117,9 +107,9 @@ impl WindowManager {
 
         let session = match recovered_from_crash {
             Some(session) => {
-                // Deliberately does not point at the debug log: `debug.rs` opens
-                // it with `truncate(true)`, so the panic report from the run
-                // that produced this file was wiped moments ago, at startup.
+                // The panic report from the run that produced this file is in
+                // the rotated log (`<log>.1`), not the live one — `debug.rs`
+                // rolls the previous log aside on open rather than truncating.
                 log::warn!(
                     "Recovering session from a crash snapshot ({} windows) taken at {}. \
                      The previous run ended in a panic.",
