@@ -16,7 +16,7 @@ GLSL→WGSL transpiler (19). At or near zero — and these are the load-bearing 
 
 **`par-term-input`** — no tests **within the crate** across all four source files, despite being the live
 winit-event → terminal-bytes path. It holds two of the repo's most complex functions:
-`handle_key_event_with_mode` (complexity 67, `key_encoding.rs:76`) and a second at 52. Commit `c11e308e`
+`handle_key_event_with_mode` (complexity 67, `key_encoding.rs:76`) and a second at 52. Commit `cb9abf12`
 rewrote the root crate's `tests/input_tests.rs` to drive `par_term::input::KeyInput`, so the crate is exercised
 *indirectly* — better than nothing, but the crate's own encoding matrix (modifier combinations × key types ×
 terminal modes) is untested at the unit level.
@@ -68,7 +68,7 @@ combination (Shift, Ctrl, Alt, Super) against arrows and letters; application-cu
 application-keypad mode; Ctrl+letter → control codes (Ctrl+A → `0x01`, and specifically the edge cases Ctrl+@,
 Ctrl+[, Ctrl+?); and the Kitty protocol levels if supported.
 
-**Use `KeyInput`, not a fabricated `KeyEvent`.** Commit `53705aaf` removed exactly that anti-pattern after it
+**Use `KeyInput`, not a fabricated `KeyEvent`.** Commit `eff2b1e6` removed exactly that anti-pattern after it
 caused a Linux SIGSEGV via `MaybeUninit::assume_init()` on a struct with a private field — `tests/input_tests.rs`
 now carries a comment explaining why. Do not reintroduce it.
 

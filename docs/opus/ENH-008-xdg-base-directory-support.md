@@ -131,7 +131,7 @@ Add to `par-term-config/tests/`:
 - legacy config present + XDG set → migration/warning path fires
 
 ⚠️ **These tests mutate the environment.** `par-term-config`'s sibling tests had exactly this problem —
-`env::set_var` racing `getenv` (AUDIT.md **SEC-007**), and commit `a203aadf` fixed the config half by resolving
+`env::set_var` racing `getenv` (AUDIT.md **SEC-007**), and commit `979ecd11` fixed the config half by resolving
 substitution through a **lookup instead of the environment**. Follow that precedent: make the resolver accept an
 injected lookup (`impl Fn(&str) -> Option<OsString>`) so tests need no `set_var` at all. Do not add new
 `env::set_var` calls to this crate.

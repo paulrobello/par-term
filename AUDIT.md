@@ -2,7 +2,7 @@
 
 > **Project**: par-term — cross-platform GPU-accelerated terminal emulator
 > **Date**: 2026-07-29
-> **Commit**: audited at `88e5d472`; **corrected against `a203aadf`** — 4 commits landed and 7 files
+> **Commit**: audited at `88e5d472`; **corrected against `979ecd11`** — 4 commits landed and 7 files
 > became dirty *during* the audit run (see Mid-Audit Repository Drift below)
 > **Stack**: Rust (Edition 2024), 13 workspace sub-crates + root app, wgpu/WGSL, egui, tokio, winit
 > **Scale**: 894 indexed files — 648 Rust, 145 markdown, 73 GLSL, 7 WGSL; 3,273 functions + 2,300 methods
@@ -10,7 +10,7 @@
 
 ---
 
-## Independent Re-Verification — 2026-07-29, at `353c0d6c`
+## Independent Re-Verification — 2026-07-29, at `caf96ed3`
 
 Every open finding was re-checked against the working tree by a second session
 (`5de7d58b`, Opus 5) after nine commits landed on top of the audited revision.
@@ -26,7 +26,7 @@ trusted, because nine commits shifted them; claims were matched by content.
 
 | id | status |
 |----|--------|
-| DOC-004 | Done in `6e661565` + `fab01018` — all six sites plus the rustdoc |
+| DOC-004 | Done in `d1bf97c3` + `f988ab70` — all six sites plus the rustdoc |
 
 **Figure corrections** (substance unaffected; counting method differs)
 
@@ -70,15 +70,15 @@ than recorded**:
 
 - **SEC-025** — eight sites, not five. Six are `Run tests` steps in `release.yml`
   (`:97, :147, :192, :236, :319, :429`); the other two are Discord notifications and are fine.
-  This **materially weakens `3e83f51a`**, which gated the crates.io publish behind all five binary builds:
+  This **materially weakens `eb97890b`**, which gated the crates.io publish behind all five binary builds:
   with `continue-on-error` on every test step, a build job reports success with failing tests, so the gate
-  stops a *build* failure but not a *test* failure. The claim that `3e83f51a` closed the stranded-publish
+  stops a *build* failure but not a *test* failure. The claim that `eb97890b` closed the stranded-publish
   hole was overstated by exactly that much.
 - **SEC-011** — `.github/workflows/publish-crates.yml:61` is the last surviving
   `dtolnay/rust-toolchain@master`. `d2e49cbd` pinned the six copies in `release.yml` and the `ci*.yml`
   workflows but never opened this file — the one job holding the crates.io token.
 
-**The nine intervening commits fixed none of these findings.** `88e5d472..353c0d6c`
+**The nine intervening commits fixed none of these findings.** `88e5d472..caf96ed3`
 addressed an unrelated intermittent Linux SIGSEGV (a `winit::event::KeyEvent`
 fabricated from uninitialized memory in a test helper), removed the matching
 `mem::zeroed` fabrication in `tests/input_tests.rs`, closed the release-workflow
@@ -130,15 +130,15 @@ against current code:
 
 | ID | Sev | Resolved by | Verified |
 |---|---|---|---|
-| QA-001 | Critical | `53705aaf` | No `MaybeUninit`/`assume_init` remains; Miri-proven in the commit |
-| QA-009 | High | `c11e308e` | `tests/input_tests.rs` builds a real `KeyInput` |
-| DOC-004 | High | `6e661565`, `fab01018` | `ARCHITECTURE.md:230` and `src/menu/linux.rs` now accurate — **picked up from the board card this audit filed** |
+| QA-001 | Critical | `eff2b1e6` | No `MaybeUninit`/`assume_init` remains; Miri-proven in the commit |
+| QA-009 | High | `cb9abf12` | `tests/input_tests.rs` builds a real `KeyInput` |
+| DOC-004 | High | `d1bf97c3`, `f988ab70` | `ARCHITECTURE.md:230` and `src/menu/linux.rs` now accurate — **picked up from the board card this audit filed** |
 
 Their entries are retained below with a resolution stamp rather than deleted, so the record of what the audit
 found independently survives. Originally reported: **11 Critical / 27 High / 113 total**.
 
 > **This repository moved continuously throughout the audit.** Six commits landed between `88e5d472` and
-> `353c0d6c`. The three findings above were fixed; **SEC-006** was partially fixed (path half shipped, security
+> `caf96ed3`. The three findings above were fixed; **SEC-006** was partially fixed (path half shipped, security
 > half still open — see its entry and the follow-up board card). Treat any line number as needing a re-read
 > before editing, which `/fix-audit`'s own instructions require regardless.
 
@@ -172,14 +172,14 @@ Four agent claims were revised after the orchestrator verified them directly. Re
 The audit ran for roughly 55 minutes against `88e5d472`. A concurrent session committed four times and left
 seven files dirty during that window. All findings were re-checked against the intersection of the delta:
 
-**Four commits landed** (`88e5d472..a203aadf`, 13 files):
+**Four commits landed** (`88e5d472..979ecd11`, 13 files):
 
 | Commit | Effect on this audit |
 |---|---|
-| `53705aaf` fix(tests): stop fabricating winit KeyEvent from uninitialized memory | **Resolves QA-001.** Verified: zero `MaybeUninit`/`assume_init`/`make_key_event` remain in `src/app/input_events/snippet_actions/tests.rs` (now 90 lines). |
-| `c11e308e` refactor(input): encode from a constructible KeyInput, not a forged KeyEvent | **Resolves QA-009.** `tests/input_tests.rs` now builds a real `KeyInput`; its comment even cites `53705aaf`. |
-| `a203aadf` refactor(config): resolve substitution through a lookup, not the environment | **Partially resolves SEC-007** — the `tests/config/` half. One `set_var` residual remains there, and `par-term-mcp/src/lib.rs` still has 10. |
-| `3e83f51a` fix(release): publish to crates.io only after every binary builds | Closes the board's release-ordering item. **Does not** affect SEC-025, which is still present at 5 sites. |
+| `eff2b1e6` fix(tests): stop fabricating winit KeyEvent from uninitialized memory | **Resolves QA-001.** Verified: zero `MaybeUninit`/`assume_init`/`make_key_event` remain in `src/app/input_events/snippet_actions/tests.rs` (now 90 lines). |
+| `cb9abf12` refactor(input): encode from a constructible KeyInput, not a forged KeyEvent | **Resolves QA-009.** `tests/input_tests.rs` now builds a real `KeyInput`; its comment even cites `eff2b1e6`. |
+| `979ecd11` refactor(config): resolve substitution through a lookup, not the environment | **Partially resolves SEC-007** — the `tests/config/` half. One `set_var` residual remains there, and `par-term-mcp/src/lib.rs` still has 10. |
+| `eb97890b` fix(release): publish to crates.io only after every binary builds | Closes the board's release-ordering item. **Does not** affect SEC-025, which is still present at 5 sites. |
 
 **Seven files dirty** — a concurrent session implementing SEC-006 / the shader-path board card, including a
 new `par-term-render/src/shader_debug.rs`. Not edited by this audit; inspected read-only. See SEC-006.
@@ -197,7 +197,7 @@ Six board items were passed to the auditors as known work. Outcomes:
 | Board item | Audit outcome |
 |---|---|
 | Report the real shader debug dump paths | **Escalated, and now in flight.** The same code contains a real security defect. A concurrent session is fixing the *path* half in the working tree; the *hardening* half remains open. Filed **SEC-006** (High) as verify-don't-implement. |
-| Root-cause intermittent Linux SIGSEGV | **Resolved during this audit** — the card is now `done`. The audit independently found the same defect (QA-001) by reading the code; the fix commit `53705aaf` proved it with Miri, which is stronger evidence than the audit produced. **SEC-007** (`env::set_var`/`environ` race) remains a *separate* live defect in `par-term-mcp`, not a duplicate of it. |
+| Root-cause intermittent Linux SIGSEGV | **Resolved during this audit** — the card is now `done`. The audit independently found the same defect (QA-001) by reading the code; the fix commit `eff2b1e6` proved it with Miri, which is stronger evidence than the audit produced. **SEC-007** (`env::set_var`/`environ` race) remains a *separate* live defect in `par-term-mcp`, not a duplicate of it. |
 | Attach the menu bar on Linux | Code side not re-reported. **DOC-004** (High) files the doc side: four docs advertise menu-bar procedures on Linux with no caveat, plus false rustdoc at `src/menu/linux.rs:11,32` that contradicts `src/menu/mod.rs:40-41`. |
 | Stop a failed release build stranding a crates.io publish | Not re-reported. Adjacent new finding: **SEC-025**, `release.yml:95-97` sets `continue-on-error: true` on `cargo test --workspace`. |
 | Populate CI cache on failed runs | Not re-reported; unchanged. |
@@ -248,7 +248,7 @@ Six board items were passed to the auditors as known work. Outcomes:
   `ssh_auto_profile_switch` to short-circuit `check_auto_hostname_switch`.
 
 ### [QA-001] ✅ RESOLVED — UB: `assume_init()` on a `KeyEvent` whose private 7th field is never written
-- **Status**: **Fixed during this audit run by commit `53705aaf`** (2026-07-29 16:37). Verified: zero
+- **Status**: **Fixed during this audit run by commit `eff2b1e6`** (2026-07-29 16:37). Verified: zero
   `MaybeUninit`, `assume_init`, or `make_key_event` remain in the cited file, which is now 90 lines.
   `extract_prefix_action_char` was narrowed exactly as the remedy below proposed. **No action for
   `/fix-audit`.** Retained for the record: the audit found this independently by reading winit's struct
@@ -533,7 +533,7 @@ Six board items were passed to the auditors as known work. Outcomes:
 ### [SEC-006] Transpiled-WGSL debug dump writes a predictable, unhardened temp file in release builds
 - **Area**: Security — CWE-377 Insecure Temporary File / CWE-59 Link Following
 - **⚠️ PARTIALLY FIXED — path half shipped, security half still open.** The concurrent session's work is now
-  **committed** (through `353c0d6c`, adding `par-term-render/src/shader_debug.rs`), and the board card was
+  **committed** (through `caf96ed3`, adding `par-term-render/src/shader_debug.rs`), and the board card was
   marked `done`. Re-verified after the commit: the path normalization is complete and correct; the hardening
   that made this a High security finding is **not** done. Tracked as a follow-up card. `/fix-audit` must close
   the gap, not re-implement the path work:
@@ -543,11 +543,11 @@ Six board items were passed to the auditors as known work. Outcomes:
   - ✅ **The blocking test assertion is already updated** — the diff replaces
     `assert_eq!(path, "/tmp/par_term_matrix_shader.wgsl")` with a `shader_debug::debug_dump_dir()` join, so
     the CI break this audit warned about will not happen.
-  - ❌ **The write is still unhardened.** Re-confirmed at `353c0d6c`: `write_debug_shader_wgsl`
+  - ❌ **The write is still unhardened.** Re-confirmed at `caf96ed3`: `write_debug_shader_wgsl`
     (`mod.rs:55-61`) remains a bare `std::fs::write(&debug_filename, wgsl_source)` — **no `mode(0o600)`, no
     `O_NOFOLLOW`, no `create_new`/`O_EXCL`**. This is the actual security property, and a pure path refactor
     does not supply it.
-  - ❌ **Still not `debug_assertions`-gated** — re-confirmed at `353c0d6c`: `grep -c debug_assertions` is
+  - ❌ **Still not `debug_assertions`-gated** — re-confirmed at `caf96ed3`: `grep -c debug_assertions` is
     **0** in both `custom_shader_renderer/mod.rs` and `hot_reload.rs`, so the dump still runs in release
     builds. Contrast `wgsl_emit.rs:281`, which *is* gated and *does* apply `mode(0o600)` (`:288-293`) — the
     correct pattern already exists 200 lines away and was not applied to this writer.
@@ -578,9 +578,9 @@ Six board items were passed to the auditors as known work. Outcomes:
 ### Code Quality
 
 ### [QA-009] ✅ RESOLVED — Same UB class via `mem::zeroed`, knowingly
-- **Status**: **Fixed during this audit run by commit `c11e308e`** ("encode from a constructible `KeyInput`,
+- **Status**: **Fixed during this audit run by commit `cb9abf12`** ("encode from a constructible `KeyInput`,
   not a forged `KeyEvent`"). Verified: `tests/input_tests.rs` now constructs a real `KeyInput` and its header
-  comment cites `53705aaf` explicitly. **No action for `/fix-audit`.**
+  comment cites `eff2b1e6` explicitly. **No action for `/fix-audit`.**
 - **Location**: `tests/input_tests.rs:87` *(at `88e5d472`; no longer present)*
 - **Description**: `let mut event: KeyEvent = std::mem::zeroed();` — the comment at `:84-85` explicitly
   acknowledges it is for "the platform-specific field which is pub(crate) in winit and cannot be set from
@@ -705,8 +705,8 @@ Six board items were passed to the auditors as known work. Outcomes:
 - **Remedy**: Change all 11 to `../../README.md`.
 
 ### [DOC-004] ✅ RESOLVED — The menu bar is documented as working on Linux; it is never attached
-- **Status**: **Fixed after this report was written**, by commits `6e661565` ("docs(menu): stop claiming Linux
-  has a menu bar") and `fab01018` ("docs(menu): correct the Linux keyboard-route claim and caveat the menu-only
+- **Status**: **Fixed after this report was written**, by commits `d1bf97c3` ("docs(menu): stop claiming Linux
+  has a menu bar") and `f988ab70` ("docs(menu): correct the Linux keyboard-route claim and caveat the menu-only
   docs"), picked up from the board card this audit filed. **Orchestrator-verified**: `ARCHITECTURE.md:230` now
   states the menu is built but never attached on Linux *and explains why* (muda requires a `gtk::Window`;
   winit's X11/Wayland backends never create one), directing Linux users to keybindings; `src/menu/linux.rs`'s
@@ -880,7 +880,7 @@ Six board items were passed to the auditors as known work. Outcomes:
 ### Security
 
 - **[SEC-007] `env::set_var` data race in test code.** **Scope narrowed after mid-audit drift**: commit
-  `a203aadf` ("resolve substitution through a lookup, not the environment") rewrote
+  `979ecd11` ("resolve substitution through a lookup, not the environment") rewrote
   `tests/config/config_env_tests.rs`, removing most of its `set_var` calls (**1 residual remains**). Still
   fully present in `par-term-mcp/src/lib.rs:696,704,724,728,744,745,802,806,822,823` — **10 calls, and
   re-verified: still no `serial_test` dependency anywhere in the workspace.** Note this is **not** the cause
@@ -893,10 +893,10 @@ Six board items were passed to the auditors as known work. Outcomes:
   `dirs::home_dir()` at `:118`. `ci.yml:80` runs `cargo test --workspace` with no `--test-threads=1`.
   Verified: **no `serial_test` dependency and no global env mutex anywhere in the workspace.** `set_var` is
   **not** in the root `par-term` lib test binary, so it never could have explained the SIGSEGV there — and it
-  no longer needs to, since `53705aaf` found and Miri-proved that cause. What remains is a genuine UB and
+  no longer needs to, since `eff2b1e6` found and Miri-proved that cause. What remains is a genuine UB and
   flakiness risk in `par-term-mcp`'s and the `config` integration binary's tests, both of which
   `cargo test --workspace` runs. *Remedy*: add `serial_test` and mark these `#[serial]`, or refactor to take
-  an explicit path parameter (the approach `a203aadf` already took for the config half); correct the
+  an explicit path parameter (the approach `979ecd11` already took for the config half); correct the
   comments. **Merged finding** — Security and Code Quality reported this independently.
 - **[SEC-008] `SECURITY.md` has drifted from the implementation in three places.** `:132` says the scripting
   protocol's `WriteText`/`RunCommand` are "currently unimplemented" and "a security model will be defined
@@ -1165,7 +1165,7 @@ Six board items were passed to the auditors as known work. Outcomes:
 - **[SEC-025]** Release workflow ignores test failures — **five sites, not one**: `continue-on-error: true` on
   `cargo test --workspace --verbose` at `.github/workflows/release.yml:97, 147, 192, 236, 319` (one per build
   job). A release can ship with a red suite on every platform. Re-verified as still present after
-  `3e83f51a`, which fixed the *publish ordering* on that workflow but left these untouched — so the board's
+  `eb97890b`, which fixed the *publish ordering* on that workflow but left these untouched — so the board's
   release-ordering item does **not** cover this.
 - **[SEC-026]** `Makefile:472` tells developers to `bash /tmp/test_par_term_graphics.sh`, a world-writable
   path nothing in-repo creates.
@@ -1330,7 +1330,7 @@ are well covered with precise value assertions (`par-term-config` 140 tests, `pa
 integration tests asserting exact escape bytes, the GLSL→WGSL transpiler 19). The areas CLAUDE.md flags as
 highest-risk are at or near zero: **`par-term-input` has no tests within the crate** across all four source
 files despite being the live winit-event→terminal-bytes path — it is exercised only indirectly by the root
-crate's `tests/input_tests.rs`, which commit `c11e308e` rewrote to drive `par_term::input::KeyInput`; the
+crate's `tests/input_tests.rs`, which commit `cb9abf12` rewrote to drive `par_term::input::KeyInput`; the
 designated single rendering path
 (`pane_render/mod.rs` 863 lines, `text_instance_builder.rs`, `bg_instance_builder.rs`) is untested;
 `src/session/capture.rs`, `src/app/window_manager/` (~4,500 lines), `src/app/tab_ops/` (~2,136 lines), and
@@ -1375,7 +1375,7 @@ gotchas are all true — `emit_three_phase_draw_calls` has exactly the 3 claimed
 3. **QA-004–QA-008** — the reachable-panic class, as one coordinated pass with a shared
    `column_to_byte_offset` helper.
 4. **DOC-001** — correct the four `CONFIG_REFERENCE.md` enum value-sets that prevent startup.
-5. ~~QA-001 + QA-009~~ — **already done during this audit** (`53705aaf`, `c11e308e`); the Linux SIGSEGV root
+5. ~~QA-001 + QA-009~~ — **already done during this audit** (`eff2b1e6`, `cb9abf12`); the Linux SIGSEGV root
    cause is Miri-proven and the board card is closed. Nothing to do.
 6. **SEC-006** — verify the in-flight shader-path work also hardens the write (`mode(0o600)`, `O_NOFOLLOW`,
    `debug_assertions` gate); the path half alone does not close the security finding.
@@ -1447,7 +1447,7 @@ gotchas are all true — `emit_three_phase_draw_calls` has exactly the 3 claimed
 | Code Quality | ~120 (largest files, all 15 `Drop` impls, all 14 PTY-write sites, test tree) | **High** for the reported findings; **dead-code analysis unavailable** — par-mem `find_dead_code` scored ~34% precision on this workspace and none of it was used |
 | Documentation | ~45 markdown files read in full of 145 present, plus every cited code counterpart | **High** for the files read; **Medium** on exhaustive coverage — 145 markdown files were prioritized by user impact, not swept |
 
-**Moving-tree caveat.** The audit read `88e5d472` while a concurrent session advanced the repo to `a203aadf`
+**Moving-tree caveat.** The audit read `88e5d472` while a concurrent session advanced the repo to `979ecd11`
 and left 7 files dirty. The delta is fully enumerated in Mid-Audit Repository Drift and every finding whose
 cited file falls inside it was re-verified against current state; two findings were retired as already fixed
 and three had their scope corrected. Findings outside the 20 affected files were not re-read, so their line
@@ -1457,7 +1457,7 @@ should still re-read before editing (which its own instructions require regardle
 Three findings carry explicit confidence qualifiers and are marked inline: **QA-014**'s
 `src/app/window_state/shader_ops.rs:219-221` reference was not independently re-verified; **SEC-005**'s
 open-redirect step is unproven; and **QA-014**'s fourth site. **QA-001**'s SIGSEGV link is no longer a
-hypothesis — `53705aaf` confirmed it with Miri and fixed it — while **SEC-007** is now scoped as a
+hypothesis — `eff2b1e6` confirmed it with Miri and fixed it — while **SEC-007** is now scoped as a
 correctness/flakiness defect rather than an incident lead.
 
 Four orchestrator corrections to agent claims are recorded in the Executive Summary. Nine `path:line`
@@ -1677,7 +1677,7 @@ editing** — a prior agent may already have changed these.
 - **QA-023 ⊃ QA-010, SEC-021**: QA-023's generic `save_yaml_atomic<T>` **is** QA-010's fix, and satisfies
   SEC-021 if the helper sets mode 0600. Do not implement them separately — that means writing the same logic
   three times and deleting it.
-- ~~**QA-001 ⊃ QA-009**~~: both **resolved mid-audit** by `53705aaf`/`c11e308e`. No work remains.
+- ~~**QA-001 ⊃ QA-009**~~: both **resolved mid-audit** by `eff2b1e6`/`cb9abf12`. No work remains.
 - **QA-002 + QA-024 together**: both concern redundant full-grid clones driven by the same `cache_hit` field;
   QA-024's scratch-buffer rework is the natural home for QA-002's `clone_from` fix.
 - **QA-004–QA-008, QA-014 as one coordinated pass**: shared root cause and fix vocabulary

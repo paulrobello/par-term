@@ -7,13 +7,13 @@
 > fresh agent contexts. Every entry names exact files, ordered steps, the reasoning that makes the fix
 > correct, and a command that proves it. Do not re-derive the analysis.
 >
-> **Written against**: `a203aadf`. The audit read `88e5d472`; four commits landed mid-run. See AUDIT.md
+> **Written against**: `979ecd11`. The audit read `88e5d472`; four commits landed mid-run. See AUDIT.md
 > § Mid-Audit Repository Drift.
 >
-> **Re-verified at `353c0d6c`** (2026-07-29, session `5de7d58b`): all 42 open entries still reproduce
+> **Re-verified at `caf96ed3`** (2026-07-29, session `5de7d58b`): all 42 open entries still reproduce
 > against the working tree, checked by content rather than by line number since nine commits have shifted
 > them. See AUDIT.md § Independent Re-Verification for the figure corrections. **[DOC-004] is DONE**
-> (`6e661565`, `fab01018`) — skip that entry; its doc caveats are live and must be reverted by whoever
+> (`d1bf97c3`, `f988ab70`) — skip that entry; its doc caveats are live and must be reverted by whoever
 > closes the Linux menu code card.
 
 ---
@@ -156,14 +156,14 @@ regression from that baseline is yours.
      invariant: *no other thread may read any environment variable concurrently*, which `#[serial]` is what
      actually enforces.
   4. Handle the residual `set_var` in `tests/config/config_env_tests.rs` the same way, or better, apply the
-     lookup-injection approach commit `a203aadf` already used for the rest of that file — read that commit
-     first (`git show a203aadf -- tests/config/config_env_tests.rs`) and follow its pattern.
+     lookup-injection approach commit `979ecd11` already used for the rest of that file — read that commit
+     first (`git show 979ecd11 -- tests/config/config_env_tests.rs`) and follow its pattern.
 - **Method**: The existing comment asserts the wrong invariant, which is why the hazard was missed. Key
   uniqueness is irrelevant: `setenv` mutates the process-wide `environ` array, and on glibc it may `realloc`
   it, so **any** concurrent `getenv` on **any** key can read freed memory. Real concurrent readers exist in
   the same binary — `resolve_ipc_path()` (`par-term-mcp/src/ipc.rs:107`) reads `std::env::var` at `:109` and
   `dirs::home_dir()` at `:118`. `ci.yml:80` runs `cargo test --workspace` with no `--test-threads=1`.
-  **Scope correction**: this is *not* the Linux SIGSEGV cause — `53705aaf` found and Miri-proved that (QA-001).
+  **Scope correction**: this is *not* the Linux SIGSEGV cause — `eff2b1e6` found and Miri-proved that (QA-001).
   Treat this as UB and CI flakiness in `par-term-mcp` and the config integration binary.
   **Why Phase 1**: it touches `Cargo.lock`, and `par-term-mcp/src/lib.rs` is also QA-034's target.
 - **Verify**:
@@ -574,7 +574,7 @@ regression from that baseline is yours.
 - **Steps**: Remove `continue-on-error: true` from all five `Run tests` steps. Confirm you have every one:
   `grep -n "continue-on-error" .github/workflows/release.yml`.
 - **Method**: With this set, a release ships with a red suite on every platform. **Re-verified as still present
-  after `3e83f51a`**, which fixed the *publish ordering* on the same workflow and left these untouched — so the
+  after `eb97890b`**, which fixed the *publish ordering* on the same workflow and left these untouched — so the
   board's release-ordering item does not cover this. Consider whether any of the five was added to work around
   a known-flaky test; if so, `#[ignore]` that specific test with a reason instead of blanket-ignoring the suite.
 - **Verify**: `grep -c "continue-on-error" .github/workflows/release.yml` returns 0 for test steps; a release
@@ -660,7 +660,7 @@ regression from that baseline is yours.
   definition) and `par-term-input/src/key_encoding.rs` (sequence generation, which is what `:202` is actually
   about).
 - **Method**: `src/input.rs` is two lines of `pub use par_term_input::{InputHandler, KeyInput};` — re-verified
-  after `c11e308e`, which added `KeyInput` but left it a shim. CLAUDE.md's "Adding a New Keyboard Shortcut"
+  after `cb9abf12`, which added `KeyInput` but left it a shim. CLAUDE.md's "Adding a New Keyboard Shortcut"
   workflow tells contributors to "add sequence generation in `src/input.rs`", which is impossible. **Keep the
   shim** — downstream `crate::input::` paths use it; just stop advertising it as an implementation site.
   **`CLAUDE.md` is the worst conflict file in this audit** — ten issues across four domains. Batch with DOC-006,
@@ -1239,7 +1239,7 @@ missing `0600` on `arrangements.yaml` — all resolved by the same helper.)*
 - **Verify**: `grep -rn "](\.\./README\.md)" docs/` returns 0; spot-check that two now land on the 28 KB file.
 
 ### [DOC-004] Document that the menu bar is not attached on Linux — ✅ DONE
-> Shipped in `6e661565` + `fab01018`. Every file and step below was carried out, including the
+> Shipped in `d1bf97c3` + `f988ab70`. Every file and step below was carried out, including the
 > rustdoc at `src/menu/linux.rs`. One correction to the steps: the menu-only shortcut list is
 > `new_window`, `close_window`, `quit`, `select_all` — `close_window` was missing here, and
 > `save_arrangement` IS bindable so it is not stranded. Do not redo; revert the caveats when the
@@ -1540,8 +1540,8 @@ risk for no correctness gain. Each has a full implementation plan and a board ca
 
 | ID | Reason |
 |----|--------|
-| [QA-001] | **Already fixed** by commit `53705aaf` during the audit run. Verified: no `MaybeUninit`/`assume_init` remains. Miri-proven; the Linux SIGSEGV board card is closed. |
-| [QA-009] | **Already fixed** by commit `c11e308e` ("encode from a constructible `KeyInput`"). Verified: `tests/input_tests.rs` builds a real `KeyInput`. |
+| [QA-001] | **Already fixed** by commit `eff2b1e6` during the audit run. Verified: no `MaybeUninit`/`assume_init` remains. Miri-proven; the Linux SIGSEGV board card is closed. |
+| [QA-009] | **Already fixed** by commit `cb9abf12` ("encode from a constructible `KeyInput`"). Verified: `tests/input_tests.rs` builds a real `KeyInput`. |
 | [SEC-027] | Informational only — `run-steps.sh:100-101` runs `claude --dangerously-skip-permissions` as deliberate developer automation. Recorded so its presence is known; not a defect. |
 
 **One exception**: **QA-008 must still be fixed this cycle.** It is a Critical crash in `par-term-config`'s
