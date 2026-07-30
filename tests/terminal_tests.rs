@@ -42,7 +42,7 @@ fn test_terminal_custom_dimensions() {
 }
 
 #[test]
-#[ignore] // Ignored because spawning a shell causes tests to hang waiting for input
+#[ignore = "spawning a shell causes tests to hang waiting for input"]
 fn test_terminal_spawn_shell() {
     let mut terminal = TerminalManager::new(80, 24).unwrap();
     let result = terminal.spawn_shell();
@@ -51,7 +51,7 @@ fn test_terminal_spawn_shell() {
 }
 
 #[test]
-#[ignore] // PTY required for write operations
+#[ignore = "PTY required for write operations"]
 fn test_terminal_write_string() {
     let mut terminal = TerminalManager::new(80, 24).unwrap();
     terminal.spawn_shell().unwrap();
@@ -60,7 +60,7 @@ fn test_terminal_write_string() {
 }
 
 #[test]
-#[ignore] // PTY required for write operations
+#[ignore = "PTY required for write operations"]
 fn test_terminal_write_bytes() {
     let mut terminal = TerminalManager::new(80, 24).unwrap();
     terminal.spawn_shell().unwrap();
@@ -79,7 +79,7 @@ fn test_terminal_content() {
 }
 
 #[test]
-#[ignore] // PTY required for write operations
+#[ignore = "PTY required for write operations"]
 fn test_terminal_ansi_sequences() {
     let mut terminal = TerminalManager::new(80, 24).unwrap();
     terminal.spawn_shell().unwrap();
@@ -146,7 +146,7 @@ fn test_export_text_includes_scrollback() {
 }
 
 #[test]
-#[ignore] // PTY required for write operations
+#[ignore = "PTY required for write operations"]
 fn test_terminal_multiple_writes() {
     let mut terminal = TerminalManager::new(80, 24).unwrap();
     terminal.spawn_shell().unwrap();
@@ -160,7 +160,7 @@ fn test_terminal_multiple_writes() {
 }
 
 #[test]
-#[ignore] // PTY required for write operations
+#[ignore = "PTY required for write operations"]
 fn test_terminal_control_characters() {
     let mut terminal = TerminalManager::new(80, 24).unwrap();
     terminal.spawn_shell().unwrap();

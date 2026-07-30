@@ -460,7 +460,7 @@ impl Renderer {
     /// Uses the same `surface_view` as the cell render pass (with `LoadOp::Load`) so
     /// graphics are composited on top of already-rendered cells.  A scissor rect derived
     /// from `viewport` clips output to the pane's bounds.
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments)] // Surface, viewport, graphics list and grid geometry reach this call from separate owners; no struct groups them
     pub(crate) fn render_pane_sixel_graphics(
         &mut self,
         surface_view: &wgpu::TextureView,

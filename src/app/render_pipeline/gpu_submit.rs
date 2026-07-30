@@ -45,6 +45,7 @@ impl WindowState {
         let render_start = std::time::Instant::now();
 
         #[allow(unused_assignments)]
+        // Only the interval-gated PERF log reads this; the final assignment feeds no later reader
         let mut debug_actual_render_time = std::time::Duration::ZERO;
         let _ = &debug_actual_render_time;
 

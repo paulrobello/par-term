@@ -167,7 +167,7 @@ impl WindowState {
     /// Deliver an OSC 9/777/99 notification, honoring focus suppression and
     /// (for OSC 99) wiring up identity-based replacement and click-to-activate
     /// `focus`/`report` actions per the Kitty spec (see module docs).
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments)] // Each parameter maps to a distinct OSC 99 field; grouping would obscure the 1:1 correspondence
     fn deliver_osc99_notification(
         &mut self,
         tab_id: TabId,

@@ -1,5 +1,5 @@
-// ARC-009 TODO: This file is 743 lines (limit: 800 — approaching threshold). When it
-// exceeds 800 lines, extract into sibling sub-modules under renderer/:
+// ARC-009 TODO: When this file exceeds the 800-line limit, extract into sibling
+// sub-modules under renderer/:
 //
 //   frame_timing.rs   — Frame throttle logic and vsync bookkeeping
 //   resize_ops.rs     — Window/surface resize and snap-to-grid

@@ -227,7 +227,7 @@ fn test_tab_bar_default_is_not_dragging() {
 // ============================================================================
 
 /// Helper to make an egui Rect given left-x, width and a fixed y extent.
-#[allow(dead_code)]
+#[allow(dead_code)] // No current caller; every test here builds rects through make_tab_rects
 fn make_tab_rect(left_x: f32, width: f32) -> Rect {
     Rect::from_min_size(Pos2::new(left_x, 0.0), Vec2::new(width, 30.0))
 }

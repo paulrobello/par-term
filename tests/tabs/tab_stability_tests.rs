@@ -412,7 +412,7 @@ fn test_should_show_with_never_mode() {
 
 /// Test that tabs get numbered by position when created
 #[test]
-#[ignore] // Requires PTY for tab creation
+#[ignore = "Requires PTY for tab creation"]
 fn test_tab_numbering_on_creation() {
     // This test would verify:
     // - First tab created is "Tab 1"
@@ -423,7 +423,7 @@ fn test_tab_numbering_on_creation() {
 
 /// Test that closing a middle tab renumbers subsequent tabs
 #[test]
-#[ignore] // Requires PTY for tab creation
+#[ignore = "Requires PTY for tab creation"]
 fn test_tab_renumbering_on_close() {
     // This test would verify:
     // - Create tabs "Tab 1", "Tab 2", "Tab 3"
@@ -433,7 +433,7 @@ fn test_tab_renumbering_on_close() {
 
 /// Test that reordering tabs renumbers default titles
 #[test]
-#[ignore] // Requires PTY for tab creation
+#[ignore = "Requires PTY for tab creation"]
 fn test_tab_renumbering_on_reorder() {
     // This test would verify:
     // - Create tabs "Tab 1", "Tab 2", "Tab 3"
@@ -443,7 +443,7 @@ fn test_tab_renumbering_on_reorder() {
 
 /// Test that OSC-titled tabs are not renumbered
 #[test]
-#[ignore] // Requires PTY for tab creation
+#[ignore = "Requires PTY for tab creation"]
 fn test_custom_titled_tabs_not_renumbered() {
     // This test would verify:
     // - Create tabs "Tab 1", "Tab 2"

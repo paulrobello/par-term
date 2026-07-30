@@ -85,6 +85,7 @@ pub(super) fn update_gpu_renderer_state(
     } = p;
     let mut debug_update_cells_time = std::time::Duration::ZERO;
     #[allow(unused_assignments)]
+    // The ZERO initializer is always overwritten once the graphics update below completes
     let mut debug_graphics_time = std::time::Duration::ZERO;
 
     // Disable cursor shader when alt screen is active (TUI apps like vim, htop)

@@ -382,6 +382,9 @@ impl TerminalManager {
         // Apply theme colors for ANSI colors (Named colors)
         let fg = match &term_cell.fg() {
             TermColor::Named(named) => {
+                // The 16 arms below are exhaustive for today's NamedColor, so the
+                // catch-all is unreachable; it is kept so adding a variant upstream
+                // in par-term-emu-core-rust does not break the build.
                 #[allow(unreachable_patterns)]
                 let theme_color = match named {
                     NamedColor::Black => theme.black,
@@ -409,6 +412,8 @@ impl TerminalManager {
 
         let bg = match &term_cell.bg() {
             TermColor::Named(named) => {
+                // Unreachable catch-all, same forward-compatibility guard as the
+                // foreground match above.
                 #[allow(unreachable_patterns)]
                 let theme_color = match named {
                     NamedColor::Black => theme.black,

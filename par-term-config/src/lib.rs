@@ -105,6 +105,7 @@ pub mod prelude {
         // Keybindings
         pub use crate::types::keybinding::KeyBinding;
         #[allow(unused_imports)]
+        // Re-exported for downstream crates; nothing inside par-term-config imports it
         pub use crate::types::keybinding::KeyModifier;
         // Rendering and layout
         pub use crate::types::rendering::{
@@ -123,6 +124,7 @@ pub mod prelude {
             ShaderSafetyBadge,
         };
         #[allow(unused_imports)]
+        // Re-exported for downstream crates; nothing inside par-term-config imports these
         pub use crate::types::shader::{ShaderColorValue, ShaderUniformValue};
         // Shell
         pub use crate::types::shell::{ShellExitAction, ShellType, StartupDirectoryMode};
@@ -304,7 +306,7 @@ pub use snapshot_types::TabSnapshot;
 
 // Unicode types (ARC-003: native config-layer definitions)
 pub use types::{AmbiguousWidth, NormalizationForm, UnicodeVersion};
-// KeyModifier and Resolved*ShaderConfig — unused-import suppressions are intentional;
+// KeyModifier and the shader value types — unused-import suppressions are intentional;
 // these are re-exported for downstream crates (root crate src/config/mod.rs facade).
 #[allow(unused_imports)]
 pub use types::KeyModifier;

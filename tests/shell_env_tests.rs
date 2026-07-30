@@ -3,6 +3,9 @@
 //! These tests cover the cross-platform PATH augmentation used when launching
 //! terminal sessions, particularly important when launching from Finder/Explorer.
 
+// The fixtures below mirror the production call shape rather than the tersest
+// equivalent: `vec![]` because the code under test joins a `Vec`, and `.is_empty()`
+// on a literal because that is the branch being exercised.
 #![allow(clippy::useless_vec)]
 #![allow(clippy::const_is_empty)]
 

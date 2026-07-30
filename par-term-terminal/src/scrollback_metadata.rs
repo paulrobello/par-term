@@ -171,6 +171,8 @@ impl ScrollbackMetadata {
                 self.current_command_start_time_ms = Some(now_ms());
             }
             Some(ShellIntegrationMarker::CommandFinished) => {
+                // Collapsing into a let-chain would route "history advanced but no
+                // command" into the else-if below instead of doing nothing.
                 #[allow(clippy::collapsible_if)]
                 if history_len > self.last_recorded_history_len {
                     if let Some(mut cmd) = last_command {

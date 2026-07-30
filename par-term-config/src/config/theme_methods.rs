@@ -87,8 +87,21 @@ impl Config {
     }
 
     /// Load theme configuration
+    ///
+    /// An unrecognized `theme` name falls back to the default theme; the fallback is
+    /// logged so a typo in the config does not silently produce the wrong colors.
     pub fn load_theme(&self) -> Theme {
-        Theme::by_name(&self.theme).unwrap_or_default()
+        match Theme::by_name(&self.theme) {
+            Some(theme) => theme,
+            None => {
+                log::warn!(
+                    "Unknown theme '{}', falling back to the default theme. Available themes: {}",
+                    self.theme,
+                    Theme::available_themes().join(", ")
+                );
+                Theme::default()
+            }
+        }
     }
 
     /// Apply system theme if auto_dark_mode is enabled.

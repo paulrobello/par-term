@@ -1,5 +1,5 @@
-// ARC-009 TODO: This file is 726 lines (limit: 800 — approaching threshold). When it
-// exceeds 800 lines, extract into a graphics_renderer/ sub-module directory:
+// ARC-009 TODO: When this file exceeds the 800-line limit, extract into a
+// graphics_renderer/ sub-module directory:
 //
 //   upload.rs    — Texture upload / cache invalidation logic
 //   layout.rs    — Graphics placement and scaling calculations

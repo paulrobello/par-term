@@ -1,5 +1,5 @@
-// ARC-009 TODO: This file is 705 lines (limit: 800 — approaching threshold). When it
-// exceeds 800 lines, extract into renderer/ siblings:
+// ARC-009 TODO: When this file exceeds the 800-line limit, extract into renderer/
+// siblings:
 //
 //   split_layout.rs  — Split-pane geometry calculations (render_split_panes_with_data)
 //   separator_draw.rs — compute_visible_separator_marks + draw calls (see also QA-001,

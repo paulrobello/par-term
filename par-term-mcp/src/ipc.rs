@@ -43,7 +43,7 @@ pub fn open_restricted_write(path: &Path) -> Result<std::fs::File, std::io::Erro
 /// Prefer `open_restricted_write` for new files to avoid a world-readable
 /// race between creation and permission fixup. This helper is retained for
 /// fixing permissions on pre-existing files.
-#[allow(dead_code)]
+#[allow(dead_code)] // No in-crate caller since open_restricted_write took over new-file creation; retained for pre-existing files
 pub fn set_ipc_file_permissions(path: &Path) -> Result<(), String> {
     #[cfg(unix)]
     {
