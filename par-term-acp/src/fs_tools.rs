@@ -8,6 +8,7 @@
 use std::sync::Arc;
 
 use super::jsonrpc::{JsonRpcClient, RpcError};
+use super::permissions::SafePaths;
 use super::protocol::{FsFindParams, FsListDirectoryParams, FsReadParams, FsWriteParams};
 
 /// Handle an `fs/read_text_file` or `fs/readTextFile` RPC call.
@@ -78,11 +79,19 @@ pub async fn handle_fs_read(
 /// Handle an `fs/write_text_file` or `fs/writeTextFile` RPC call.
 ///
 /// Spawns a blocking task to write the file and responds on the JSON-RPC channel.
+///
+/// # Security
+///
+/// `safe_paths` supplies par-term's config directory so the write can be
+/// rejected when it targets a file par-term hot-reloads and then acts on. The
+/// path check itself runs inside the blocking task, so no lock is held across
+/// an `.await`.
 pub async fn handle_fs_write(
     method: &str,
     request_id: u64,
     params: Option<serde_json::Value>,
     client: Arc<JsonRpcClient>,
+    safe_paths: &SafePaths,
 ) {
     match params
         .as_ref()
@@ -94,10 +103,15 @@ pub async fn handle_fs_write(
                 fs_params.path,
                 fs_params.content.len()
             );
+            let config_dir = safe_paths.config_dir.clone();
             tokio::spawn(async move {
                 let path = fs_params.path.clone();
                 let result = tokio::task::spawn_blocking(move || {
-                    super::fs_ops::write_file_safe(&fs_params.path, &fs_params.content)
+                    super::fs_ops::write_file_safe(
+                        &fs_params.path,
+                        &fs_params.content,
+                        Some(&config_dir),
+                    )
                 })
                 .await
                 .unwrap_or_else(|e| Err(format!("Internal error: {e}")));

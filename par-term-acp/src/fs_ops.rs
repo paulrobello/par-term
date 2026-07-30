@@ -7,15 +7,29 @@
 //!
 //! # Security
 //!
-//! All path-accepting functions enforce two layers of path restriction:
+//! These handlers are the *unconditional floor* on agent filesystem access.
+//! They are deliberately a denylist rather than an allowlist, because
+//! [`super::permissions::is_safe_write_path`] already answers a different
+//! question one layer up ("may this write skip the user prompt?"). A write
+//! that reaches here may have been explicitly approved by the user, so the
+//! only correct control at this layer is "never, regardless of approval".
 //!
-//! 1. **Sensitive path blocklist**: Paths under `~/.ssh/`, `~/.gnupg/`, and
-//!    `/etc/` are unconditionally rejected to protect private keys and
-//!    system credentials even when `auto_approve` is enabled.
+//! Three layers of path restriction are enforced:
 //!
-//! 2. **Directory restrictions for listing/find**: `list_directory_entries`
-//!    and `find_files_recursive` additionally apply the same blocklist so
-//!    that a malicious agent cannot enumerate sensitive directories.
+//! 1. **Sensitive path blocklist** ([`is_sensitive_path`]): credential stores
+//!    such as `~/.ssh/`, `~/.gnupg/`, and `/etc/` are rejected for *both*
+//!    reads and writes, even when `auto_approve` is enabled.
+//!
+//! 2. **Protected write blocklist** ([`is_protected_write_path`]): paths that
+//!    par-term or the operating system later *executes* — shell init files,
+//!    launch agents, autostart units, and par-term's own hot-reloaded config
+//!    — are rejected for writes. Reads of these are allowed: diagnosing a
+//!    user's shell configuration is a core job of a terminal assistant, and
+//!    they are not credential stores.
+//!
+//! 3. **Directory restrictions for listing/find**: `list_directory_entries`
+//!    and `find_files_recursive` apply the sensitive blocklist so that a
+//!    malicious agent cannot enumerate credential directories.
 
 /// Maximum file size allowed for reading via ACP (50MB).
 /// This prevents memory exhaustion from reading multi-GB files.
@@ -24,6 +38,17 @@ const MAX_FILE_SIZE: u64 = 50 * 1024 * 1024; // 50MB
 // =========================================================================
 // Sensitive path blocklist (SEC-011, SEC-014)
 // =========================================================================
+
+/// Resolve `p` for comparison against an already-canonicalized path.
+///
+/// Both operands must be canonical or the comparison silently fails open: a
+/// symlinked `$HOME`, or a `~/.zshrc` symlinked into a dotfiles repository,
+/// would otherwise never match the canonicalized incoming path. When `p` does
+/// not exist there is nothing to resolve, so the literal path is used — that
+/// still denies, which is the safe direction.
+fn canonical_or_raw(p: &std::path::Path) -> std::path::PathBuf {
+    std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf())
+}
 
 /// Sensitive path prefixes that ACP file operations must never access,
 /// regardless of `auto_approve` mode.
@@ -44,13 +69,14 @@ const MAX_FILE_SIZE: u64 = 50 * 1024 * 1024; // 50MB
 fn is_sensitive_path(canonical: &std::path::Path) -> bool {
     // Paths under the user's home directory that contain credentials.
     if let Some(home) = dirs::home_dir() {
-        let ssh_dir = home.join(".ssh");
-        let gnupg_dir = home.join(".gnupg");
-        let aws_dir = home.join(".aws");
-        let docker_dir = home.join(".docker");
-        let netrc_file = home.join(".netrc");
-        let gh_config_dir = home.join(".config").join("gh");
-        let gcloud_config_dir = home.join(".config").join("gcloud");
+        let home = canonical_or_raw(&home);
+        let ssh_dir = canonical_or_raw(&home.join(".ssh"));
+        let gnupg_dir = canonical_or_raw(&home.join(".gnupg"));
+        let aws_dir = canonical_or_raw(&home.join(".aws"));
+        let docker_dir = canonical_or_raw(&home.join(".docker"));
+        let netrc_file = canonical_or_raw(&home.join(".netrc"));
+        let gh_config_dir = canonical_or_raw(&home.join(".config").join("gh"));
+        let gcloud_config_dir = canonical_or_raw(&home.join(".config").join("gcloud"));
 
         if canonical.starts_with(&ssh_dir)
             || canonical.starts_with(&gnupg_dir)
@@ -104,6 +130,165 @@ fn check_path_allowed(path: &str) -> Result<std::path::PathBuf, String> {
     Ok(canonical)
 }
 
+/// Paths that par-term or the operating system later *executes*, and which an
+/// ACP agent must therefore never overwrite — regardless of `auto_approve` or
+/// of an explicit user approval granted at the permission layer.
+///
+/// Reads are intentionally *not* blocked here. These files are not credential
+/// stores, and reading them is a legitimate and frequent request for a
+/// terminal assistant ("why is my PATH wrong?"). Only the write side turns
+/// them into a command-execution primitive.
+///
+/// # Categories
+///
+/// - **Shell init files** at the home root: sourced by every new shell, so a
+///   write is equivalent to arbitrary command execution on the user's next
+///   prompt. Matched by exact path so a repository's own `.bashrc` fixture
+///   stays writable.
+/// - **Auto-start / persistence locations**: launchd agents and daemons on
+///   macOS, XDG autostart and systemd user units on Linux, and the Start Menu
+///   Startup folder on Windows.
+/// - **par-term's own executable-chain config**, when `config_dir` is known:
+///   `config.yaml` is hot-reloaded by design for ACP agents
+///   (`src/app/window_state/config_watchers.rs`) and carries triggers and
+///   automation; `profiles.yaml` carries `command` / `command_args` that
+///   profile auto-switch runs; `arrangements.yaml` and `last_session.yaml`
+///   respawn panes; and `agents/` holds ACP agent definitions with
+///   `run_command`. The rest of the directory — `shaders/`, `sounds/`,
+///   `.config-update.json` — stays writable, which is why this is a
+///   file-level rule and not a prefix on `config_dir`.
+fn is_protected_write_path(
+    canonical: &std::path::Path,
+    config_dir: Option<&std::path::Path>,
+) -> bool {
+    if let Some(home) = dirs::home_dir() {
+        let home = canonical_or_raw(&home);
+        // Shell startup files. A write here executes on the next shell.
+        const SHELL_INIT_FILES: &[&str] = &[
+            ".bashrc",
+            ".bash_profile",
+            ".bash_login",
+            ".bash_logout",
+            ".profile",
+            ".zshrc",
+            ".zshenv",
+            ".zprofile",
+            ".zlogin",
+            ".zlogout",
+            ".cshrc",
+            ".tcshrc",
+            ".kshrc",
+            ".login",
+            ".logout",
+            // readline can bind a key to an arbitrary command macro.
+            ".inputrc",
+        ];
+        if SHELL_INIT_FILES
+            .iter()
+            .any(|name| canonical == canonical_or_raw(&home.join(name)))
+        {
+            return true;
+        }
+
+        // fish keeps its startup files in a directory rather than a dotfile.
+        // fish resolves this under ~/.config even on macOS, so this does not
+        // go through `dirs::config_dir()`.
+        let dot_config = home.join(".config");
+        if canonical.starts_with(canonical_or_raw(&dot_config.join("fish"))) {
+            return true;
+        }
+
+        // Auto-start / persistence locations.
+        let auto_start_roots = [
+            home.join("Library").join("LaunchAgents"),
+            home.join("Library").join("LaunchDaemons"),
+            dot_config.join("autostart"),
+            dot_config.join("systemd").join("user"),
+        ];
+        if auto_start_roots
+            .iter()
+            .any(|root| canonical.starts_with(canonical_or_raw(root)))
+        {
+            return true;
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    if canonical.starts_with("/Library/LaunchAgents")
+        || canonical.starts_with("/Library/LaunchDaemons")
+        || canonical.starts_with("/System/Library/LaunchAgents")
+        || canonical.starts_with("/System/Library/LaunchDaemons")
+    {
+        return true;
+    }
+
+    #[cfg(windows)]
+    if let Some(app_data) = dirs::config_dir()
+        && canonical.starts_with(
+            app_data
+                .join("Microsoft")
+                .join("Windows")
+                .join("Start Menu")
+                .join("Programs")
+                .join("Startup"),
+        )
+    {
+        return true;
+    }
+
+    // par-term's own config files that feed a command-execution path.
+    if let Some(config_dir) = config_dir {
+        let config_dir = canonical_or_raw(config_dir);
+        const EXECUTABLE_CONFIG_FILES: &[&str] = &[
+            "config.yaml",
+            "config.yml",
+            "profiles.yaml",
+            "profiles.yml",
+            "arrangements.yaml",
+            "arrangements.yml",
+            "last_session.yaml",
+            "last_session.yml",
+        ];
+        if EXECUTABLE_CONFIG_FILES
+            .iter()
+            .any(|name| canonical == canonical_or_raw(&config_dir.join(name)))
+        {
+            return true;
+        }
+        // ACP agent definitions carry `run_command`.
+        if canonical.starts_with(canonical_or_raw(&config_dir.join("agents"))) {
+            return true;
+        }
+    }
+
+    false
+}
+
+/// Canonicalize `path` and check it against both the sensitive-path blocklist
+/// and the protected-write blocklist.
+///
+/// `config_dir` is par-term's configuration directory, when known, so that the
+/// hot-reloaded `config.yaml` and its siblings can be protected without
+/// duplicating the XDG resolution that `par-term-config` owns.
+fn check_write_path_allowed(
+    path: &str,
+    config_dir: Option<&std::path::Path>,
+) -> Result<std::path::PathBuf, String> {
+    let canonical = check_path_allowed(path)?;
+    if is_protected_write_path(&canonical, config_dir) {
+        return Err(format!(
+            "Access denied: '{}' is executed by par-term or the operating system, \
+             so ACP agents cannot write to it. This covers shell startup files \
+             (~/.zshrc, ~/.bashrc, ~/.profile, ...), auto-start locations \
+             (~/Library/LaunchAgents/, ~/.config/autostart/, ...), and par-term's \
+             own config.yaml / profiles.yaml / agents/. Use the `config/update` \
+             RPC to change par-term settings.",
+            path
+        ));
+    }
+    Ok(canonical)
+}
+
 /// Read a text file, optionally returning a line range.
 ///
 /// `line` is 1-based (line 1 is the first line).
@@ -150,16 +335,30 @@ pub fn read_file_with_range(
 /// Write content to a file, creating parent directories as needed.
 ///
 /// Requires an absolute path for safety.
-pub fn write_file_safe(path: &str, content: &str) -> Result<(), String> {
+///
+/// `config_dir` is par-term's configuration directory when known; pass `None`
+/// only when there is no par-term config to protect.
+///
+/// # Security
+///
+/// Rejects credential paths (`~/.ssh/`, `~/.aws/`, `/etc/`, ...) and paths that
+/// par-term or the OS later executes (shell init files, launch agents,
+/// `config.yaml`). See [`check_write_path_allowed`].
+pub fn write_file_safe(
+    path: &str,
+    content: &str,
+    config_dir: Option<&std::path::Path>,
+) -> Result<(), String> {
     let p = std::path::Path::new(path);
     if !p.is_absolute() {
         return Err("Path must be absolute".to_string());
     }
-    // SEC-001: Validate path against the sensitive directory blocklist before
-    // writing. Mirrors read_file_with_range / list_directory_entries /
-    // find_files_recursive so a `bypassPermissions` agent cannot overwrite
-    // files under ~/.ssh/, ~/.aws/, /etc/, etc.
-    check_path_allowed(path)?;
+    // SEC-001: Validate path against the sensitive directory blocklist and the
+    // protected-write blocklist before writing. Mirrors read_file_with_range /
+    // list_directory_entries / find_files_recursive so an agent cannot
+    // overwrite files under ~/.ssh/, ~/.aws/, /etc/, nor any file par-term or
+    // the OS will subsequently execute.
+    check_write_path_allowed(path, config_dir)?;
     if let Some(parent) = p.parent() {
         std::fs::create_dir_all(parent)
             .map_err(|e| format!("Failed to create directories: {e}"))?;
@@ -298,4 +497,194 @@ pub fn glob_match_simple(pattern: &str, name: &str) -> bool {
         return name.starts_with(prefix);
     }
     name == pattern
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::{Path, PathBuf};
+
+    /// Home-rooted cases are asserted against the predicate rather than
+    /// [`write_file_safe`], deliberately: a test whose failure mode is
+    /// "overwrite the developer's real ~/.zshrc" is not an acceptable test.
+    /// End-to-end coverage of the same code path is provided below via a
+    /// temporary `config_dir`.
+    fn home() -> PathBuf {
+        dirs::home_dir().expect("home dir")
+    }
+
+    #[test]
+    fn shell_init_files_are_write_protected() {
+        for name in [
+            ".zshrc",
+            ".zshenv",
+            ".zprofile",
+            ".bashrc",
+            ".bash_profile",
+            ".profile",
+            ".inputrc",
+        ] {
+            let path = home().join(name);
+            assert!(
+                is_protected_write_path(&path, None),
+                "{name} must be write-protected"
+            );
+        }
+    }
+
+    #[test]
+    fn fish_config_directory_is_write_protected() {
+        let path = home().join(".config").join("fish").join("config.fish");
+        assert!(is_protected_write_path(&path, None));
+    }
+
+    #[test]
+    fn auto_start_locations_are_write_protected() {
+        for path in [
+            home()
+                .join("Library")
+                .join("LaunchAgents")
+                .join("evil.plist"),
+            home()
+                .join("Library")
+                .join("LaunchDaemons")
+                .join("evil.plist"),
+            home()
+                .join(".config")
+                .join("autostart")
+                .join("evil.desktop"),
+            home()
+                .join(".config")
+                .join("systemd")
+                .join("user")
+                .join("evil.service"),
+        ] {
+            assert!(
+                is_protected_write_path(&path, None),
+                "{} must be write-protected",
+                path.display()
+            );
+        }
+    }
+
+    #[test]
+    fn shell_init_files_stay_readable() {
+        // Deliberate asymmetry: these are command-execution vectors on write,
+        // but they are not credential stores, and reading them is a core
+        // terminal-assistant task.
+        assert!(!is_sensitive_path(&home().join(".zshrc")));
+        assert!(!is_sensitive_path(&home().join(".bashrc")));
+    }
+
+    #[test]
+    fn credential_paths_stay_read_protected() {
+        assert!(is_sensitive_path(&home().join(".ssh").join("id_ed25519")));
+        assert!(is_sensitive_path(&home().join(".aws").join("credentials")));
+        assert!(is_sensitive_path(Path::new("/etc/passwd")));
+    }
+
+    #[test]
+    fn par_term_executable_config_is_write_protected() {
+        let config_dir = PathBuf::from("/opt/par-term-config");
+        for name in [
+            "config.yaml",
+            "profiles.yaml",
+            "arrangements.yaml",
+            "last_session.yaml",
+        ] {
+            assert!(
+                is_protected_write_path(&config_dir.join(name), Some(&config_dir)),
+                "{name} must be write-protected"
+            );
+        }
+        assert!(is_protected_write_path(
+            &config_dir.join("agents").join("rogue.toml"),
+            Some(&config_dir)
+        ));
+    }
+
+    #[test]
+    fn par_term_non_executable_config_stays_writable() {
+        // The rule is file-level, not a prefix on config_dir: shaders and the
+        // MCP config-update handoff file must keep working.
+        let config_dir = PathBuf::from("/opt/par-term-config");
+        for path in [
+            config_dir.join("shaders").join("crt.glsl"),
+            config_dir.join(".config-update.json"),
+            config_dir.join("command_history.yaml"),
+            config_dir.join("sounds").join("bell.wav"),
+        ] {
+            assert!(
+                !is_protected_write_path(&path, Some(&config_dir)),
+                "{} must stay writable",
+                path.display()
+            );
+        }
+    }
+
+    #[test]
+    fn write_file_safe_rejects_hot_reloaded_config() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let config_dir = temp.path().to_path_buf();
+        let target = config_dir.join("config.yaml");
+
+        let err = write_file_safe(
+            &target.to_string_lossy(),
+            "triggers: [pwned]",
+            Some(&config_dir),
+        )
+        .expect_err("writing config.yaml must be denied");
+
+        assert!(err.contains("Access denied"), "unexpected message: {err}");
+        assert!(!target.exists(), "denied write must not create the file");
+    }
+
+    #[test]
+    fn write_file_safe_allows_shader_inside_config_dir() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let config_dir = temp.path().to_path_buf();
+        let target = config_dir.join("shaders").join("crt.glsl");
+        // `check_path_allowed` canonicalizes the parent, so the parent must
+        // already exist. See the nested-directory note in the crate report:
+        // `write_file_safe` documents "creating parent directories as needed"
+        // but checks the path before creating them.
+        std::fs::create_dir_all(target.parent().expect("parent")).expect("create shaders dir");
+
+        write_file_safe(
+            &target.to_string_lossy(),
+            "void main() {}",
+            Some(&config_dir),
+        )
+        .expect("writing a shader must be allowed");
+
+        assert_eq!(
+            std::fs::read_to_string(&target).expect("read back"),
+            "void main() {}"
+        );
+    }
+
+    #[test]
+    fn write_file_safe_rejects_credential_directory() {
+        let target = home().join(".ssh").join("authorized_keys");
+        let err = write_file_safe(&target.to_string_lossy(), "ssh-rsa AAAA", None)
+            .expect_err("writing into ~/.ssh must be denied");
+        assert!(err.contains("Access denied"), "unexpected message: {err}");
+    }
+
+    #[test]
+    fn read_file_with_range_rejects_credential_directory() {
+        let target = home().join(".ssh").join("id_ed25519");
+        let err = read_file_with_range(&target.to_string_lossy(), None, None)
+            .expect_err("reading ~/.ssh must be denied");
+        // When ~/.ssh is absent the parent canonicalization fails first; both
+        // outcomes are a refusal, which is what this asserts.
+        assert!(
+            err.contains("Access denied") || err.contains("Cannot resolve"),
+            "unexpected message: {err}"
+        );
+    }
 }

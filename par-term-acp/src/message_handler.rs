@@ -97,6 +97,7 @@ pub async fn handle_incoming_messages(
                         request_id,
                         msg.params.clone(),
                         Arc::clone(&client),
+                        &safe_paths,
                     )
                     .await;
                 }
