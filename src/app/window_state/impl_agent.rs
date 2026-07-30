@@ -281,7 +281,11 @@ impl WindowState {
                 config: true,
             };
 
-            let auto_approve = self.config.load().ai_inspector.ai_inspector_auto_approve;
+            // SEC-014: auto-approve is a par-term-side policy ("par-term will not
+            // prompt me"), carried by `agent.auto_approve` above. It must not be
+            // pushed into the agent as `session/setMode("bypassPermissions")`:
+            // that disables the agent's *own* safeguards for tool uses par-term
+            // never sees, removing the last checkpoint rather than relocating it.
             let runtime = self.runtime.clone();
             runtime.spawn(async move {
                 let mut agent = agent.lock().await;
@@ -291,9 +295,6 @@ impl WindowState {
                 }
                 if let Some(client) = &agent.client {
                     let _ = ui_tx.send(AgentMessage::ClientReady(Arc::clone(client)));
-                }
-                if auto_approve && let Err(e) = agent.set_mode("bypassPermissions").await {
-                    log::error!("ACP: failed to set bypassPermissions mode: {e}");
                 }
             });
         }

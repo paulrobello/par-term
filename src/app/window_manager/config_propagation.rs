@@ -76,20 +76,14 @@ impl WindowManager {
             {
                 let agent = agent.clone();
                 let auto_approve = config.ai_inspector.ai_inspector_auto_approve;
-                let mode = if auto_approve {
-                    "bypassPermissions"
-                } else {
-                    "default"
-                }
-                .to_string();
+                // Auto-approve governs par-term's own prompts only. Pushing it into the
+                // agent's permission mode would tell the agent to stop protecting itself
+                // for tool uses par-term never sees.
                 window_state.runtime.spawn(async move {
                     let agent = agent.lock().await;
                     agent
                         .auto_approve
                         .store(auto_approve, std::sync::atomic::Ordering::Relaxed);
-                    if let Err(e) = agent.set_mode(&mode).await {
-                        log::error!("ACP: failed to set mode '{mode}': {e}");
-                    }
                 });
             }
 
