@@ -9,6 +9,11 @@
 #[cfg(target_os = "macos")]
 pub(super) const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     ("toggle_help", "Toggle Help Panel", Some("F1")),
+    ("new_window", "New Window", None),
+    ("close_window", "Close Window", None),
+    ("quit", "Quit par-term", None),
+    ("select_all", "Select All", None),
+    ("toggle_menu", "Open Application Menu", None),
     ("toggle_fps_overlay", "Toggle FPS Overlay", Some("F3")),
     ("reload_config", "Reload Configuration", Some("F5")),
     ("toggle_fullscreen", "Toggle Fullscreen", Some("F11")),
@@ -148,6 +153,11 @@ pub(super) const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
 #[cfg(not(target_os = "macos"))]
 pub(super) const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     ("toggle_help", "Toggle Help Panel", Some("F1")),
+    ("new_window", "New Window", None),
+    ("close_window", "Close Window", None),
+    ("quit", "Quit par-term", None),
+    ("select_all", "Select All", None),
+    ("toggle_menu", "Open Application Menu", None),
     ("toggle_fps_overlay", "Toggle FPS Overlay", Some("F3")),
     ("reload_config", "Reload Configuration", Some("F5")),
     ("toggle_fullscreen", "Toggle Fullscreen", Some("F11")),

@@ -69,7 +69,8 @@ impl WindowState {
         // Also check ai_inspector (side panel with text input) and tab rename (inline edit)
         let any_ui_visible = self.any_modal_ui_visible()
             || self.overlay_ui.ai_inspector.open
-            || self.tab_bar_ui.is_renaming();
+            || self.tab_bar_ui.is_renaming()
+            || self.tab_bar_ui.is_app_menu_open();
         if !any_ui_visible {
             return false;
         }

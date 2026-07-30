@@ -42,6 +42,14 @@ impl TabBarUI {
         let new_tab_btn_width =
             TAB_NEW_BTN_BASE_WIDTH + if show_chevron { CHEVRON_RESERVED } else { 0.0 };
         let scroll_btn_width = TAB_SCROLL_BTN_WIDTH;
+        // The in-app menu shares the tab bar strip, so it needs no space of its
+        // own in the terminal grid — but it does take width from the tabs.
+        let show_app_menu = crate::menu::AppMenuUi::enabled();
+        let app_menu_width = if show_app_menu {
+            crate::menu::AppMenuUi::BUTTON_WIDTH + tab_spacing
+        } else {
+            0.0
+        };
 
         let bar_bg = config.tab_bar_background;
         let frame =
@@ -66,9 +74,11 @@ impl TabBarUI {
             };
 
             // Available width for tabs (without scroll buttons initially).
-            // Budget: left_padding + tabs + tab_spacing (cursor gap) + new_tab_btn_width = total
+            // Budget: left_padding + app_menu_width + tabs + tab_spacing (cursor gap)
+            //         + new_tab_btn_width = total
             let base_tabs_area_width =
-                (total_bar_width - new_tab_btn_width - tab_spacing - left_padding).max(0.0);
+                (total_bar_width - new_tab_btn_width - tab_spacing - left_padding - app_menu_width)
+                    .max(0.0);
 
             // Determine if scrolling is needed
             let needs_scroll = tab_count > 0 && min_total_tabs_width > base_tabs_area_width;
@@ -112,6 +122,10 @@ impl TabBarUI {
                     ui.spacing_mut().button_padding = egui::vec2(0.0, 0.0);
                     // Small left padding so the first tab's border isn't clipped by the panel edge
                     ui.add_space(left_padding);
+
+                    if show_app_menu {
+                        self.app_menu.show(ui, profiles, btn_h);
+                    }
 
                     if needs_scroll {
                         // Left scroll button

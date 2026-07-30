@@ -1,12 +1,22 @@
-//! Native menu support for par-term
+//! Menu support for par-term
 //!
-//! This module provides cross-platform native menu support using the `muda` crate.
-//! - macOS: Global application menu bar (see `macos`)
-//! - Windows: Per-window Win32 menu bar
-//! - Linux: **no menu bar** — the menu is built but never attached, because
-//!   muda needs a `gtk::Window` that winit does not create (see `linux`)
+//! The menu's contents live in one place — [`model`] — and are rendered two
+//! ways:
+//!
+//! - Natively with the `muda` crate, by [`MenuManager`]: a global application
+//!   menu bar on macOS, a per-window Win32 menu bar on Windows.
+//! - In-app with egui, by [`egui_menu::AppMenuUi`], on Linux/BSD, where muda
+//!   cannot attach anything because it needs a `gtk::Window` that winit never
+//!   creates (see `linux`).
+//!
+//! Both renderers walk the same model, so neither platform can end up with
+//! commands the other lacks. Activations from either arrive as [`MenuAction`]s
+//! at `WindowManager::process_menu_events`.
 
 mod actions;
+mod bridge;
+pub mod egui_menu;
+pub mod model;
 
 /// macOS-specific menu building and NSApp initialization.
 #[cfg(target_os = "macos")]
@@ -23,13 +33,13 @@ pub(super) mod macos;
 pub(super) mod linux;
 
 pub use actions::MenuAction;
+pub use bridge::{dispatch, drain_pending_actions, request_toggle};
+pub use egui_menu::AppMenuUi;
 
 use crate::profile::Profile;
-use anyhow::Result;
-use muda::{
-    Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem, Submenu,
-    accelerator::{Accelerator, Code, Modifiers},
-};
+use anyhow::{Result, anyhow};
+use model::MenuEntry;
+use muda::{Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem, Submenu};
 use std::collections::HashMap;
 use std::sync::Arc;
 use winit::window::Window;
@@ -40,7 +50,8 @@ pub struct MenuManager {
     ///
     /// Only attached on macOS and Windows. Linux never reads it: muda needs a
     /// `gtk::Window` to attach a menubar and winit's X11/Wayland backends do
-    /// not create one. See `linux.rs` for the options and why none is wired up.
+    /// not create one. Linux gets [`egui_menu::AppMenuUi`] instead; see
+    /// `linux.rs`.
     #[cfg_attr(not(any(target_os = "macos", target_os = "windows")), allow(dead_code))]
     menu: Menu,
     /// Mapping from menu item IDs to actions
@@ -53,369 +64,51 @@ pub struct MenuManager {
 
 impl MenuManager {
     /// Create a new menu manager with the default menu structure
+    ///
+    /// The structure comes from [`model::platform_menu_model`]; this function
+    /// only turns it into muda objects and records the id → action mapping.
     pub fn new() -> Result<Self> {
         let menu = Menu::new();
         let mut action_map = HashMap::new();
+        let mut profiles_submenu = None;
 
-        // Platform-specific modifier keys
-        // macOS: Cmd (META) is safe — it's separate from Ctrl used by terminal control codes
-        // Windows/Linux: Use Ctrl+Shift to avoid conflicts with terminal control codes
-        // (Ctrl+C=SIGINT, Ctrl+D=EOF, Ctrl+W=delete-word, Ctrl+V=literal-next, etc.)
-        #[cfg(target_os = "macos")]
-        let cmd_or_ctrl = Modifiers::META;
-        #[cfg(not(target_os = "macos"))]
-        let cmd_or_ctrl = Modifiers::CONTROL | Modifiers::SHIFT;
-
-        // For items that already include Shift (same on all platforms)
-        #[cfg(target_os = "macos")]
-        let cmd_or_ctrl_shift = Modifiers::META | Modifiers::SHIFT;
-        #[cfg(not(target_os = "macos"))]
-        let cmd_or_ctrl_shift = Modifiers::CONTROL | Modifiers::SHIFT;
-
-        // Tab number switching: Cmd+N (macOS) / Alt+N (Windows/Linux)
-        #[cfg(target_os = "macos")]
-        let tab_switch_mod = Modifiers::META;
-        #[cfg(not(target_os = "macos"))]
-        let tab_switch_mod = Modifiers::ALT;
-
-        // macOS: Application menu (must be first submenu — becomes the macOS app menu)
+        // macOS: Application menu (must be first submenu — becomes the macOS app menu).
+        // It is built separately because it uses predefined items (Services,
+        // Hide, Show All) that the cross-platform model cannot express.
         #[cfg(target_os = "macos")]
         macos::build_app_menu(&menu, &mut action_map)?;
 
-        // File menu
-        let file_menu = Submenu::new("File", true);
+        for section in model::platform_menu_model() {
+            // macOS convention: the native Window menu sits just before Help.
+            #[cfg(target_os = "macos")]
+            if section.title == model::HELP_SECTION_TITLE {
+                macos::build_window_menu(&menu, &mut action_map)?;
+            }
 
-        let new_window = MenuItem::with_id(
-            "new_window",
-            "New Window",
-            true,
-            Some(Accelerator::new(Some(cmd_or_ctrl), Code::KeyN)),
-        );
-        action_map.insert(new_window.id().clone(), MenuAction::NewWindow);
-        file_menu.append(&new_window)?;
-
-        let close_window = MenuItem::with_id(
-            "close_window",
-            "Close", // Smart close: closes tab if multiple, window if single
-            true,
-            Some(Accelerator::new(Some(cmd_or_ctrl), Code::KeyW)),
-        );
-        action_map.insert(close_window.id().clone(), MenuAction::CloseWindow);
-        file_menu.append(&close_window)?;
-
-        file_menu.append(&PredefinedMenuItem::separator())?;
-
-        // On macOS, Quit is in the app menu (handled automatically)
-        // On Windows/Linux, add Quit to File menu
-        #[cfg(not(target_os = "macos"))]
-        {
-            let quit = MenuItem::with_id(
-                "quit",
-                "Quit",
-                true,
-                Some(Accelerator::new(Some(cmd_or_ctrl), Code::KeyQ)),
-            );
-            action_map.insert(quit.id().clone(), MenuAction::Quit);
-            file_menu.append(&quit)?;
+            let submenu = Submenu::new(section.title, true);
+            for entry in &section.entries {
+                match entry {
+                    MenuEntry::Separator => {
+                        submenu.append(&PredefinedMenuItem::separator())?;
+                    }
+                    MenuEntry::Item(spec) => {
+                        let item = MenuItem::with_id(spec.id, spec.label, true, spec.accelerator);
+                        action_map.insert(item.id().clone(), spec.action);
+                        submenu.append(&item)?;
+                    }
+                    MenuEntry::Profiles => {
+                        // Filled in by `update_profiles`, which appends to the
+                        // end of this submenu — so the model must not place
+                        // entries after the insertion point.
+                        profiles_submenu = Some(submenu.clone());
+                    }
+                }
+            }
+            menu.append(&submenu)?;
         }
 
-        menu.append(&file_menu)?;
-
-        // Tab menu
-        let tab_menu = Submenu::new("Tab", true);
-
-        let new_tab = MenuItem::with_id(
-            "new_tab",
-            "New Tab",
-            true,
-            Some(Accelerator::new(Some(cmd_or_ctrl), Code::KeyT)),
-        );
-        action_map.insert(new_tab.id().clone(), MenuAction::NewTab);
-        tab_menu.append(&new_tab)?;
-
-        let close_tab = MenuItem::with_id(
-            "close_tab",
-            "Close Tab",
-            true,
-            None, // Same as Close in File menu (smart close)
-        );
-        action_map.insert(close_tab.id().clone(), MenuAction::CloseTab);
-        tab_menu.append(&close_tab)?;
-
-        tab_menu.append(&PredefinedMenuItem::separator())?;
-
-        let next_tab = MenuItem::with_id(
-            "next_tab",
-            "Next Tab",
-            true,
-            Some(Accelerator::new(
-                Some(cmd_or_ctrl_shift),
-                Code::BracketRight,
-            )),
-        );
-        action_map.insert(next_tab.id().clone(), MenuAction::NextTab);
-        tab_menu.append(&next_tab)?;
-
-        let prev_tab = MenuItem::with_id(
-            "prev_tab",
-            "Previous Tab",
-            true,
-            Some(Accelerator::new(Some(cmd_or_ctrl_shift), Code::BracketLeft)),
-        );
-        action_map.insert(prev_tab.id().clone(), MenuAction::PreviousTab);
-        tab_menu.append(&prev_tab)?;
-
-        tab_menu.append(&PredefinedMenuItem::separator())?;
-
-        // Tab 1-9 shortcuts: Cmd+N (macOS) / Alt+N (Windows/Linux)
-        for i in 1..=9 {
-            let code = match i {
-                1 => Code::Digit1,
-                2 => Code::Digit2,
-                3 => Code::Digit3,
-                4 => Code::Digit4,
-                5 => Code::Digit5,
-                6 => Code::Digit6,
-                7 => Code::Digit7,
-                8 => Code::Digit8,
-                9 => Code::Digit9,
-                _ => unreachable!(),
-            };
-            let tab_item = MenuItem::with_id(
-                format!("tab_{}", i),
-                format!("Tab {}", i),
-                true,
-                Some(Accelerator::new(Some(tab_switch_mod), code)),
-            );
-            action_map.insert(tab_item.id().clone(), MenuAction::SwitchToTab(i));
-            tab_menu.append(&tab_item)?;
-        }
-
-        menu.append(&tab_menu)?;
-
-        // Profiles menu
-        let profiles_menu = Submenu::new("Profiles", true);
-
-        let manage_profiles = MenuItem::with_id(
-            "manage_profiles",
-            "Manage Profiles...",
-            true,
-            Some(Accelerator::new(Some(cmd_or_ctrl_shift), Code::KeyP)),
-        );
-        action_map.insert(manage_profiles.id().clone(), MenuAction::ManageProfiles);
-        profiles_menu.append(&manage_profiles)?;
-
-        let toggle_drawer = MenuItem::with_id(
-            "toggle_profile_drawer",
-            "Toggle Profile Drawer",
-            true,
-            None, // Same shortcut as manage for now, or use different
-        );
-        action_map.insert(toggle_drawer.id().clone(), MenuAction::ToggleProfileDrawer);
-        profiles_menu.append(&toggle_drawer)?;
-
-        profiles_menu.append(&PredefinedMenuItem::separator())?;
-
-        // Dynamic profile menu items will be added via update_profiles()
-
-        menu.append(&profiles_menu)?;
-
-        // Store reference to profiles submenu for dynamic updates
-        let profiles_submenu = profiles_menu;
-
-        // Edit menu
-        let edit_menu = Submenu::new("Edit", true);
-
-        // Copy/Paste/Select All: Cmd+C/V/A (macOS) / Ctrl+Shift+C/V/A (other)
-        let copy = MenuItem::with_id(
-            "copy",
-            "Copy",
-            true,
-            Some(Accelerator::new(Some(cmd_or_ctrl), Code::KeyC)),
-        );
-        action_map.insert(copy.id().clone(), MenuAction::Copy);
-        edit_menu.append(&copy)?;
-
-        let paste = MenuItem::with_id(
-            "paste",
-            "Paste",
-            true,
-            Some(Accelerator::new(Some(cmd_or_ctrl), Code::KeyV)),
-        );
-        action_map.insert(paste.id().clone(), MenuAction::Paste);
-        edit_menu.append(&paste)?;
-
-        let select_all = MenuItem::with_id(
-            "select_all",
-            "Select All",
-            true,
-            Some(Accelerator::new(Some(cmd_or_ctrl), Code::KeyA)),
-        );
-        action_map.insert(select_all.id().clone(), MenuAction::SelectAll);
-        edit_menu.append(&select_all)?;
-
-        edit_menu.append(&PredefinedMenuItem::separator())?;
-
-        let clear_scrollback = MenuItem::with_id(
-            "clear_scrollback",
-            "Clear Scrollback",
-            true,
-            Some(Accelerator::new(Some(cmd_or_ctrl_shift), Code::KeyK)),
-        );
-        action_map.insert(clear_scrollback.id().clone(), MenuAction::ClearScrollback);
-        edit_menu.append(&clear_scrollback)?;
-
-        let clipboard_history = MenuItem::with_id(
-            "clipboard_history",
-            "Clipboard History",
-            true,
-            Some(Accelerator::new(Some(cmd_or_ctrl_shift), Code::KeyH)),
-        );
-        action_map.insert(clipboard_history.id().clone(), MenuAction::ClipboardHistory);
-        edit_menu.append(&clipboard_history)?;
-
-        // Windows/Linux: Add Preferences to Edit menu (standard location on these platforms)
-        #[cfg(not(target_os = "macos"))]
-        {
-            edit_menu.append(&PredefinedMenuItem::separator())?;
-
-            let preferences = MenuItem::with_id(
-                "preferences",
-                "Preferences...",
-                true,
-                Some(Accelerator::new(
-                    Some(Modifiers::CONTROL | Modifiers::SHIFT),
-                    Code::Comma,
-                )),
-            );
-            action_map.insert(preferences.id().clone(), MenuAction::OpenSettings);
-            edit_menu.append(&preferences)?;
-        }
-
-        menu.append(&edit_menu)?;
-
-        // View menu
-        let view_menu = Submenu::new("View", true);
-
-        let toggle_fullscreen = MenuItem::with_id(
-            "toggle_fullscreen",
-            "Toggle Fullscreen",
-            true,
-            Some(Accelerator::new(None, Code::F11)),
-        );
-        action_map.insert(toggle_fullscreen.id().clone(), MenuAction::ToggleFullscreen);
-        view_menu.append(&toggle_fullscreen)?;
-
-        let maximize_vertically = MenuItem::with_id(
-            "maximize_vertically",
-            "Maximize Vertically",
-            true,
-            Some(Accelerator::new(Some(Modifiers::SHIFT), Code::F11)),
-        );
-        action_map.insert(
-            maximize_vertically.id().clone(),
-            MenuAction::MaximizeVertically,
-        );
-        view_menu.append(&maximize_vertically)?;
-
-        view_menu.append(&PredefinedMenuItem::separator())?;
-
-        let increase_font = MenuItem::with_id(
-            "increase_font",
-            "Increase Font Size",
-            true,
-            Some(Accelerator::new(Some(cmd_or_ctrl), Code::Equal)),
-        );
-        action_map.insert(increase_font.id().clone(), MenuAction::IncreaseFontSize);
-        view_menu.append(&increase_font)?;
-
-        let decrease_font = MenuItem::with_id(
-            "decrease_font",
-            "Decrease Font Size",
-            true,
-            Some(Accelerator::new(Some(cmd_or_ctrl), Code::Minus)),
-        );
-        action_map.insert(decrease_font.id().clone(), MenuAction::DecreaseFontSize);
-        view_menu.append(&decrease_font)?;
-
-        let reset_font = MenuItem::with_id(
-            "reset_font",
-            "Reset Font Size",
-            true,
-            Some(Accelerator::new(Some(cmd_or_ctrl), Code::Digit0)),
-        );
-        action_map.insert(reset_font.id().clone(), MenuAction::ResetFontSize);
-        view_menu.append(&reset_font)?;
-
-        view_menu.append(&PredefinedMenuItem::separator())?;
-
-        let fps_overlay = MenuItem::with_id(
-            "fps_overlay",
-            "FPS Overlay",
-            true,
-            Some(Accelerator::new(None, Code::F3)),
-        );
-        action_map.insert(fps_overlay.id().clone(), MenuAction::ToggleFpsOverlay);
-        view_menu.append(&fps_overlay)?;
-
-        let settings = MenuItem::with_id(
-            "settings",
-            "Settings...",
-            true,
-            Some(Accelerator::new(None, Code::F12)),
-        );
-        action_map.insert(settings.id().clone(), MenuAction::OpenSettings);
-        view_menu.append(&settings)?;
-
-        view_menu.append(&PredefinedMenuItem::separator())?;
-
-        let save_arrangement =
-            MenuItem::with_id("save_arrangement", "Save Window Arrangement...", true, None);
-        action_map.insert(save_arrangement.id().clone(), MenuAction::SaveArrangement);
-        view_menu.append(&save_arrangement)?;
-
-        menu.append(&view_menu)?;
-
-        // Shell menu
-        let shell_menu = Submenu::new("Shell", true);
-
-        let install_remote_integration = MenuItem::with_id(
-            "install_remote_shell_integration",
-            "Install Shell Integration on Remote Host...",
-            true,
-            None,
-        );
-        action_map.insert(
-            install_remote_integration.id().clone(),
-            MenuAction::InstallShellIntegrationRemote,
-        );
-        shell_menu.append(&install_remote_integration)?;
-
-        menu.append(&shell_menu)?;
-
-        // Window menu (primarily for macOS)
-        #[cfg(target_os = "macos")]
-        macos::build_window_menu(&menu, &mut action_map)?;
-
-        // Help menu
-        let help_menu = Submenu::new("Help", true);
-
-        let keyboard_shortcuts = MenuItem::with_id(
-            "keyboard_shortcuts",
-            "Keyboard Shortcuts",
-            true,
-            Some(Accelerator::new(None, Code::F1)),
-        );
-        action_map.insert(keyboard_shortcuts.id().clone(), MenuAction::ShowHelp);
-        help_menu.append(&keyboard_shortcuts)?;
-
-        help_menu.append(&PredefinedMenuItem::separator())?;
-
-        let about = MenuItem::with_id("about", "About par-term", true, None);
-        action_map.insert(about.id().clone(), MenuAction::About);
-        help_menu.append(&about)?;
-
-        menu.append(&help_menu)?;
+        let profiles_submenu = profiles_submenu
+            .ok_or_else(|| anyhow!("menu model has no profiles insertion point"))?;
 
         Ok(Self {
             menu,
@@ -520,20 +213,16 @@ impl MenuManager {
             let _ = self.profiles_submenu.remove(&item);
         }
 
-        // Add new profile menu items in order
-        for profile in profiles {
-            let menu_id = format!("profile_{}", profile.id);
-            let label = profile.display_label();
+        // Add new profile menu items in order. The entries come from the shared
+        // model so the in-app menu lists the same profiles under the same labels.
+        for entry in model::profile_entries(profiles.iter().copied()) {
+            let item = MenuItem::with_id(entry.menu_id, &entry.label, true, None);
 
-            let item = MenuItem::with_id(menu_id, &label, true, None);
-
-            // Map to OpenProfile action
-            self.action_map
-                .insert(item.id().clone(), MenuAction::OpenProfile(profile.id));
+            self.action_map.insert(item.id().clone(), entry.action);
 
             // Add to submenu
             if let Err(e) = self.profiles_submenu.append(&item) {
-                log::warn!("Failed to add profile menu item '{}': {}", label, e);
+                log::warn!("Failed to add profile menu item '{}': {}", entry.label, e);
                 continue;
             }
 

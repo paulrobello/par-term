@@ -488,17 +488,25 @@ impl WindowManager {
     }
 
     /// Process any pending menu events
+    ///
+    /// Drains both menus: the native one, whose activations arrive through
+    /// muda's event channel, and the in-app egui one, which queues actions in
+    /// [`crate::menu::drain_pending_actions`] from inside a window's render
+    /// pass. The in-app queue is drained even when no [`crate::menu::MenuManager`]
+    /// exists, since that menu does not depend on one.
     pub fn process_menu_events(
         &mut self,
         event_loop: &ActiveEventLoop,
         focused_window: Option<WindowId>,
     ) {
-        if let Some(menu) = &self.menu {
-            // Collect actions to avoid borrow conflicts
-            let actions: Vec<_> = menu.poll_events().collect();
-            for action in actions {
-                self.handle_menu_action(action, event_loop, focused_window);
-            }
+        // Collect actions to avoid borrow conflicts
+        let mut actions: Vec<_> = match &self.menu {
+            Some(menu) => menu.poll_events().collect(),
+            None => Vec::new(),
+        };
+        actions.extend(crate::menu::drain_pending_actions());
+        for action in actions {
+            self.handle_menu_action(action, event_loop, focused_window);
         }
     }
 }

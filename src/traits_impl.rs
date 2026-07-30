@@ -123,7 +123,7 @@ impl UIElement for TabBarUI {
     /// Returns `true` when the tab rename field or a context menu is open,
     /// indicating that keyboard input should not be forwarded to the terminal.
     fn is_capturing_input(&self) -> bool {
-        self.is_renaming() || self.is_context_menu_open()
+        self.is_renaming() || self.is_context_menu_open() || self.is_app_menu_open()
     }
 }
 

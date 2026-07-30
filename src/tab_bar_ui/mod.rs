@@ -99,6 +99,11 @@ impl TabBarUI {
 
         // Don't show if configured to hide
         if !self.should_show(tab_count, config.tab_bar_mode) {
+            // The in-app menu is drawn inside this bar, so hiding the bar makes
+            // the menu unreachable — including from a `toggle_menu` keybinding,
+            // which only takes effect where the menu is drawn. Users who hide
+            // the tab bar need keybindings for the commands themselves.
+            self.app_menu.hide(ctx.ctx());
             return TabBarAction::None;
         }
 
@@ -139,6 +144,15 @@ impl TabBarUI {
                     .show(ui, |ui| {
                         ui.vertical(|ui| {
                             ui.spacing_mut().item_spacing = egui::vec2(0.0, tab_spacing);
+
+                            // In-app menu — top of the panel, above the new-tab button
+                            if crate::menu::AppMenuUi::enabled() {
+                                self.app_menu.show(
+                                    ui,
+                                    profiles,
+                                    tab_height - TAB_DRAW_SHRINK_Y * 2.0,
+                                );
+                            }
 
                             // New tab split button — rendered first (top of the panel)
                             ui.horizontal(|ui| {
@@ -277,6 +291,15 @@ impl TabBarUI {
     /// Check if the context menu is currently open
     pub fn is_context_menu_open(&self) -> bool {
         self.context_menu_tab.is_some()
+    }
+
+    /// Check if the in-app menu's drop-down is open.
+    ///
+    /// True only on platforms that draw it (Linux/BSD, or a forced-on run —
+    /// see [`crate::menu::AppMenuUi::enabled`]). While it is open, keyboard
+    /// input should be routed to egui rather than the terminal.
+    pub fn is_app_menu_open(&self) -> bool {
+        self.app_menu.is_open()
     }
 
     /// Return the tab ID at the given egui logical-pixel position, using the
