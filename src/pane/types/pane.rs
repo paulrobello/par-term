@@ -401,15 +401,36 @@ impl Drop for Pane {
 
         self.stop_refresh_task();
 
-        // Give the task time to abort
-        std::thread::sleep(std::time::Duration::from_millis(50));
+        // `JoinHandle::abort` is asynchronous, so the refresh task may still hold a
+        // read guard on `terminal` for the duration of one `update_generation()`
+        // call.  Losing the race means the shell is never killed, so retry briefly
+        // instead of sleeping unconditionally — an uncontended drop acquires the
+        // write lock on the first attempt and pays nothing.  Sequential pane closes
+        // happen inside a single `RedrawRequested`, so a fixed per-pane delay is
+        // multiplied by the pane count.
+        const KILL_LOCK_ATTEMPTS: u32 = 20;
+        const KILL_LOCK_RETRY: std::time::Duration = std::time::Duration::from_millis(1);
 
-        // Kill the terminal
-        if let Ok(mut term) = self.terminal.try_write()
-            && term.is_running()
-        {
-            log::info!("Killing terminal for pane {}", self.id);
-            let _ = term.kill();
+        let mut acquired = false;
+        for _ in 0..KILL_LOCK_ATTEMPTS {
+            if let Ok(mut term) = self.terminal.try_write() {
+                if term.is_running() {
+                    log::info!("Killing terminal for pane {}", self.id);
+                    if let Err(e) = term.kill() {
+                        log::warn!("Failed to kill terminal for pane {}: {}", self.id, e);
+                    }
+                }
+                acquired = true;
+                break;
+            }
+            std::thread::sleep(KILL_LOCK_RETRY);
+        }
+
+        if !acquired {
+            log::warn!(
+                "Pane {}: terminal write lock unavailable at drop; shell may outlive the pane",
+                self.id
+            );
         }
     }
 }
