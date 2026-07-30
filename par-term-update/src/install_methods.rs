@@ -32,13 +32,18 @@ impl InstallationType {
 }
 
 /// Detect the installation method based on the current executable path.
-pub fn detect_installation() -> InstallationType {
-    detect_installation_from_path(
-        std::env::current_exe()
-            .unwrap_or_default()
-            .to_string_lossy()
-            .as_ref(),
-    )
+///
+/// Returns `Err` when the executable path cannot be determined, rather than
+/// classifying a placeholder path. Classification is purely substring-based, so any
+/// path that matches nothing — including the empty one — yields
+/// [`InstallationType::StandaloneBinary`], which would let a self-update overwrite a
+/// package-managed binary.
+pub fn detect_installation() -> Result<InstallationType, String> {
+    let exe = std::env::current_exe()
+        .map_err(|e| format!("Failed to determine current executable path: {}", e))?;
+    Ok(detect_installation_from_path(
+        exe.to_string_lossy().as_ref(),
+    ))
 }
 
 /// Detect installation type from a given path string (testable).

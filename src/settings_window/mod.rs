@@ -114,7 +114,8 @@ impl SettingsWindow {
             .iter()
             .find(|f| f.is_srgb())
             .copied()
-            .unwrap_or(surface_caps.formats[0]);
+            .or_else(|| surface_caps.formats.first().copied())
+            .context("Surface reports no supported texture formats")?;
 
         // Select alpha mode for window transparency (consistent with main window)
         let alpha_mode = if surface_caps
@@ -133,7 +134,11 @@ impl SettingsWindow {
         {
             wgpu::CompositeAlphaMode::Auto
         } else {
-            surface_caps.alpha_modes[0]
+            surface_caps
+                .alpha_modes
+                .first()
+                .copied()
+                .context("Surface reports no supported alpha modes")?
         };
 
         let surface_config = wgpu::SurfaceConfiguration {

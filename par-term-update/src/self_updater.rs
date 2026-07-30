@@ -35,7 +35,7 @@ pub struct UpdateResult {
 /// * `new_version` - The version being updated to
 /// * `old_version` - The current application version (from root crate's `VERSION` constant)
 pub fn perform_update(new_version: &str, old_version: &str) -> Result<UpdateResult, String> {
-    let installation = detect_installation();
+    let installation = detect_installation()?;
 
     // Refuse update for managed installations
     match &installation {

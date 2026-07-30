@@ -254,8 +254,19 @@ impl WindowManager {
     }
 
     /// Detect the installation type and convert to the settings-ui enum.
+    ///
+    /// Display only — it decides which "how to update" hint the settings window and
+    /// update dialog show. Detection failure is not fatal here because the update
+    /// itself re-detects and refuses to run on an undetermined path
+    /// (`par_term_update::detect_installation`).
     pub(super) fn detect_installation_type(&self) -> par_term_settings_ui::InstallationType {
-        let install = crate::self_updater::detect_installation();
+        let install = match crate::self_updater::detect_installation() {
+            Ok(install) => install,
+            Err(e) => {
+                log::warn!("Could not detect installation type for the update hint: {e}");
+                return par_term_settings_ui::InstallationType::StandaloneBinary;
+            }
+        };
         match install {
             crate::self_updater::InstallationType::Homebrew => {
                 par_term_settings_ui::InstallationType::Homebrew

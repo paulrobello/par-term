@@ -1,5 +1,5 @@
-// ARC-009 TODO: This file is 742 lines (limit: 800 — approaching threshold). When it
-// exceeds 800 lines, extract into sub-modules under cell_renderer/:
+// ARC-009 TODO: When this file exceeds the 800-line limit, extract into sub-modules
+// under cell_renderer/:
 //
 //   glyph_ops.rs     — get_or_rasterize_glyph helper. Note: the glyph cache logic
 //                      was previously duplicated 3x but is now centralized in
@@ -360,7 +360,8 @@ impl CellRenderer {
             .iter()
             .copied()
             .find(|f| !f.is_srgb())
-            .unwrap_or(surface_caps.formats[0]);
+            .or_else(|| surface_caps.formats.first().copied())
+            .context("Surface reports no supported texture formats")?;
 
         // Store supported present modes for runtime validation
         let supported_present_modes = surface_caps.present_modes.clone();
@@ -379,7 +380,10 @@ impl CellRenderer {
             if supported_present_modes.contains(&wgpu::PresentMode::Fifo) {
                 wgpu::PresentMode::Fifo
             } else {
-                supported_present_modes[0]
+                supported_present_modes
+                    .first()
+                    .copied()
+                    .context("Surface reports no supported present modes")?
             }
         };
 
@@ -401,7 +405,11 @@ impl CellRenderer {
         {
             wgpu::CompositeAlphaMode::Auto
         } else {
-            surface_caps.alpha_modes[0]
+            surface_caps
+                .alpha_modes
+                .first()
+                .copied()
+                .context("Surface reports no supported alpha modes")?
         };
         log::info!(
             "Selected alpha mode: {:?} (available: {:?})",

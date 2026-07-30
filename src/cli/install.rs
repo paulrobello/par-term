@@ -293,7 +293,7 @@ pub fn self_update_cli(skip_prompt: bool) -> anyhow::Result<()> {
     println!("Current version: {}", current_version);
 
     // Detect installation type
-    let installation = self_updater::detect_installation();
+    let installation = self_updater::detect_installation().map_err(|e| anyhow::anyhow!(e))?;
     println!("Installation type: {}", installation.description());
     println!();
 
