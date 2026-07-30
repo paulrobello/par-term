@@ -27,6 +27,7 @@ fn script(name: &str, script_path: &str, enabled: bool, auto_start: bool) -> Scr
         subscriptions: Vec::new(),
         env_vars: HashMap::new(),
         allow_write_text: false,
+        prompt_before_write_text: true,
         allow_run_command: false,
         allow_change_config: false,
         write_text_rate_limit: 0,

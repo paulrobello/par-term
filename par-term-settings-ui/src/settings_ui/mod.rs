@@ -280,6 +280,8 @@ pub struct SettingsUI {
     pub temp_script_subscriptions: String,
     /// Temporary: allow WriteText commands
     pub temp_script_allow_write_text: bool,
+    /// Temporary: confirm each WriteText injection before it reaches the PTY
+    pub temp_script_prompt_before_write_text: bool,
     /// Temporary: allow RunCommand commands
     pub temp_script_allow_run_command: bool,
     /// Temporary: allow ChangeConfig commands

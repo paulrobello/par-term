@@ -248,6 +248,7 @@ impl SettingsUI {
             temp_script_restart_delay_ms: 0,
             temp_script_subscriptions: String::new(),
             temp_script_allow_write_text: false,
+            temp_script_prompt_before_write_text: true,
             temp_script_allow_run_command: false,
             temp_script_allow_change_config: false,
             temp_script_write_text_rate_limit: 0,

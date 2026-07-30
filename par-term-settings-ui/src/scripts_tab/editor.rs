@@ -114,6 +114,18 @@ fn show_permissions_section(ui: &mut egui::Ui, settings: &mut SettingsUI) {
 
         if settings.temp_script_allow_write_text {
             ui.indent("write_text_rate", |ui| {
+                ui.checkbox(
+                    &mut settings.temp_script_prompt_before_write_text,
+                    "Confirm before each WriteText",
+                )
+                .on_hover_text(
+                    "Show a confirmation dialog with the exact text before it is \
+                     written to the terminal. Stripping escape sequences does not \
+                     stop a script typing a command and pressing Enter, so leaving \
+                     this on is the real protection. \"Always Allow\" in the dialog \
+                     applies to that exact text for the rest of the session.",
+                );
+
                 ui.horizontal(|ui| {
                     ui.label("Rate limit (writes/sec, 0 = default 10/s):");
                     ui.add(
@@ -201,6 +213,7 @@ fn show_save_cancel(
                     std::collections::HashMap::new()
                 },
                 allow_write_text: settings.temp_script_allow_write_text,
+                prompt_before_write_text: settings.temp_script_prompt_before_write_text,
                 allow_run_command: settings.temp_script_allow_run_command,
                 allow_change_config: settings.temp_script_allow_change_config,
                 write_text_rate_limit: settings.temp_script_write_text_rate_limit,

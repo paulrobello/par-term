@@ -8,9 +8,11 @@
 //! - `config_change` — `PendingScriptAction` enum, command tokenisation, and
 //!   allowlisted config-key application
 //! - `scripting_lifecycle` — `start_script` and `stop_script` implementations
+//! - `write_text` — queueing a `WriteText` payload behind the confirmation dialog
 
 mod config_change;
 mod scripting_lifecycle;
+mod write_text;
 
 use std::process::Stdio;
 
@@ -234,26 +236,31 @@ impl WindowManager {
                     }
 
                     // ── WriteText ───────────────────────────────────────────────
-                    // NOTE: Uses `try_read()` for the terminal lock.  If the
-                    // lock is held (e.g. by the PTY reader), the write is
-                    // silently skipped this frame.  The script receives no
-                    // failure signal — it may retry on the next event cycle.
+                    // SEC-013: sanitising the payload does not make it safe —
+                    // what runs a command is printable text plus a newline, and
+                    // both survive `strip_vt_sequences` by design. So the write
+                    // goes to the confirmation dialog unless the script opted
+                    // out via `prompt_before_write_text: false` or the user
+                    // chose "Always Allow" for this exact text.
+                    //
+                    // NOTE: the direct write uses `try_read()` for the terminal
+                    // lock.  If the lock is held (e.g. by the PTY reader), the
+                    // write is silently skipped this frame.  The script receives
+                    // no failure signal — it may retry on the next event cycle.
                     PendingScriptAction::WriteText { text, config_index } => {
-                        // Permission check (copy value to release config borrow)
-                        let allow = ws
-                            .config
-                            .load()
-                            .scripts
-                            .get(config_index)
-                            .map(|s| s.allow_write_text)
-                            .unwrap_or(false);
-                        let rate_limit = ws
-                            .config
-                            .load()
-                            .scripts
-                            .get(config_index)
-                            .map(|s| s.write_text_rate_limit)
-                            .unwrap_or(0);
+                        // Copy the settings out to release the config borrow.
+                        let (allow, rate_limit, prompt_before_write, script_name) = {
+                            let config = ws.config.load();
+                            match config.scripts.get(config_index) {
+                                Some(script) => (
+                                    script.allow_write_text,
+                                    script.write_text_rate_limit,
+                                    script.prompt_before_write_text,
+                                    script.name.clone(),
+                                ),
+                                None => (false, 0, true, String::new()),
+                            }
+                        };
 
                         if !allow {
                             log::warn!(
@@ -269,7 +276,9 @@ impl WindowManager {
                             continue;
                         }
 
-                        // Rate limit and write
+                        // Rate limit before either sink, so a flood cannot spend
+                        // the user's attention any faster than it could spend
+                        // the PTY.
                         if let Some(tab) = ws.tab_manager.active_tab_mut() {
                             let script_id =
                                 tab.scripting.script_ids.get(config_index).and_then(|o| *o);
@@ -282,6 +291,30 @@ impl WindowManager {
                                 log::warn!("Script[{}] WriteText RATE-LIMITED", config_index);
                                 continue;
                             }
+                        }
+
+                        let action_id =
+                            par_term_scripting::confirm::write_text_action_id(&script_name, &clean);
+                        let session_approved = ws
+                            .trigger_state
+                            .always_allow_trigger_ids
+                            .contains(&action_id);
+
+                        if par_term_scripting::confirm::write_text_needs_confirmation(
+                            prompt_before_write,
+                            session_approved,
+                        ) {
+                            Self::queue_script_write_text(
+                                ws,
+                                config_index,
+                                &script_name,
+                                action_id,
+                                clean,
+                            );
+                            continue;
+                        }
+
+                        if let Some(tab) = ws.tab_manager.active_tab() {
                             // try_lock: acceptable — script WriteText in sync event
                             // loop. On miss the write is skipped this frame; the
                             // script can retry.

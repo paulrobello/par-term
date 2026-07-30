@@ -50,6 +50,16 @@ pub struct ScriptConfig {
     #[serde(default)]
     pub allow_write_text: bool,
 
+    /// Ask before each `WriteText` injection from this script.
+    ///
+    /// Defaults to `true`, mirroring `prompt_before_run` on triggers. Stripping
+    /// escape sequences does not make an injection safe — the payload that runs
+    /// a command is ordinary printable text plus a newline — so confirmation,
+    /// not filtering, is the control on this path. Set to `false` to write
+    /// immediately; the write is still sanitized and rate limited.
+    #[serde(default = "crate::defaults::bool_true")]
+    pub prompt_before_write_text: bool,
+
     /// Allow this script to spawn external processes via `RunCommand`.
     ///
     /// Defaults to `false`. Must be explicitly set to `true` to enable.
@@ -82,5 +92,42 @@ impl ScriptConfig {
     /// auto-start, matching the manual start path in the Settings UI.
     pub fn should_auto_start(&self) -> bool {
         self.enabled && self.auto_start
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ScriptConfig;
+
+    const MINIMAL: &str = "name: observer\nscript_path: /tmp/observer.py\n";
+
+    fn parse(yaml: &str) -> ScriptConfig {
+        serde_yaml_ng::from_str(yaml).expect("deserialize ScriptConfig")
+    }
+
+    #[test]
+    fn write_text_confirmation_defaults_on_for_configs_that_predate_the_field() {
+        let script = parse(MINIMAL);
+        assert!(script.prompt_before_write_text);
+        // The capability itself stays opt-out by default; the prompt only
+        // matters once the user has granted it.
+        assert!(!script.allow_write_text);
+    }
+
+    #[test]
+    fn write_text_confirmation_can_be_switched_off_explicitly() {
+        let script = parse(&format!(
+            "{MINIMAL}allow_write_text: true\nprompt_before_write_text: false\n"
+        ));
+        assert!(script.allow_write_text);
+        assert!(!script.prompt_before_write_text);
+    }
+
+    #[test]
+    fn write_text_confirmation_survives_a_round_trip() {
+        let mut script = parse(MINIMAL);
+        script.prompt_before_write_text = false;
+        let yaml = serde_yaml_ng::to_string(&script).expect("serialize");
+        assert_eq!(parse(&yaml), script);
     }
 }

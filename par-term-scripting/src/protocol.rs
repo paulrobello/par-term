@@ -34,6 +34,9 @@
 //! - `WriteText`: Inject text into the PTY (requires `allow_write_text: true`)
 //!   - Must strip VT/ANSI escape sequences before writing
 //!   - Subject to rate limiting
+//!   - Queued for user confirmation unless `prompt_before_write_text: false`
+//!     (see [`crate::confirm`]) — stripping escapes leaves the printable text
+//!     and newline that make up a command line
 //! - `RunCommand`: Spawn an external process (requires `allow_run_command: true`)
 //!   - Must check against `check_command_denylist()` from par-term-config
 //!   - Must use shell tokenization (not `/bin/sh -c`) to prevent metacharacter injection
@@ -46,17 +49,20 @@
 //! All commands are implemented:
 //! - `Log`, `SetPanel`, `ClearPanel`: Safe, always allowed
 //! - `Notify`, `SetBadge`, `SetVariable`: Safe, always allowed
-//! - `WriteText`: Requires `allow_write_text`, rate-limited, VT sequences stripped
+//! - `WriteText`: Requires `allow_write_text`, rate-limited, VT sequences stripped,
+//!   and confirmed by the user unless `prompt_before_write_text` is off
 //! - `RunCommand`: Requires `allow_run_command`, rate-limited, denylist-checked,
 //!   tokenised without shell invocation
 //! - `ChangeConfig`: Requires `allow_change_config`, allowlisted keys only
 //!
 //! ## Dispatcher Responsibility
 //!
-//! The command dispatcher in `src/app/window_manager/scripting.rs` is responsible for:
+//! The command dispatcher in `src/app/window_manager/scripting/mod.rs` is responsible for:
 //! 1. Checking `command.requires_permission()` before executing restricted commands
 //! 2. Verifying the corresponding `ScriptConfig.allow_*` flag is set
 //! 3. Applying rate limits, denylists, and input sanitization
+//! 4. Routing `WriteText` through the confirmation dialog when it is not
+//!    pre-approved
 //!
 //! See `par-term-scripting/SECURITY.md` for the complete security model.
 

@@ -25,6 +25,7 @@ fn test_script_config_yaml_roundtrip() {
         subscriptions: vec!["output".to_string(), "title_change".to_string()],
         env_vars,
         allow_write_text: false,
+        prompt_before_write_text: true,
         allow_run_command: false,
         allow_change_config: false,
         write_text_rate_limit: 0,
@@ -53,6 +54,33 @@ script_path: /bin/my-script
     assert_eq!(script.restart_delay_ms, 0); // defaults to 0
     assert!(script.subscriptions.is_empty());
     assert!(script.env_vars.is_empty());
+    assert!(script.prompt_before_write_text); // defaults to true
+}
+
+#[test]
+fn test_write_text_confirmation_is_on_for_existing_opt_ins() {
+    // SEC-013: a config written before the field existed keeps its granted
+    // capability, and gains the confirmation dialog rather than a silent write.
+    let yaml = r#"
+name: writer
+script_path: /bin/writer
+allow_write_text: true
+"#;
+    let script: ScriptConfig = serde_yaml_ng::from_str(yaml).unwrap();
+    assert!(script.allow_write_text);
+    assert!(script.prompt_before_write_text);
+}
+
+#[test]
+fn test_write_text_confirmation_can_be_disabled() {
+    let yaml = r#"
+name: writer
+script_path: /bin/writer
+allow_write_text: true
+prompt_before_write_text: false
+"#;
+    let script: ScriptConfig = serde_yaml_ng::from_str(yaml).unwrap();
+    assert!(!script.prompt_before_write_text);
 }
 
 #[test]
@@ -129,6 +157,7 @@ fn test_config_with_scripts_yaml_roundtrip() {
             subscriptions: vec!["output".to_string()],
             env_vars: HashMap::new(),
             allow_write_text: false,
+            prompt_before_write_text: true,
             allow_run_command: false,
             allow_change_config: false,
             write_text_rate_limit: 0,

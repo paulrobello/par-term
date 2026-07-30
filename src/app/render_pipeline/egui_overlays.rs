@@ -230,9 +230,14 @@ pub(super) fn render_copy_mode_status_bar(
         });
 }
 
-/// Render the trigger confirmation dialog (center modal).
+/// Render the automation confirmation dialog (center modal).
 ///
-/// Shows the first pending trigger action and presents Allow Once / Always Allow / Deny buttons.
+/// Serves every producer that queues onto `pending_trigger_actions`: output
+/// triggers, profile auto-switch commands, and script `WriteText`. A producer
+/// that is not an output trigger registers a `TriggerState::automation_action_notes`
+/// entry so the dialog does not claim terminal output caused the action.
+///
+/// Shows the first pending action and presents Allow Once / Always Allow / Deny buttons.
 /// On approval: moves the action to `approved_pending_actions` for next-frame execution.
 /// On deny: discards the action.
 ///
@@ -264,11 +269,27 @@ pub(super) fn render_trigger_prompt_dialog(
     let description = trigger_state.pending_trigger_actions[0].description.clone();
     let pending_count = trigger_state.pending_trigger_actions.len();
 
+    // Actions that no output trigger produced carry their own source sentence;
+    // without one, this is a trigger and the default sentence is accurate.
+    let action_id = trigger_state.pending_trigger_actions[0].trigger_id;
+    let source_note = trigger_state
+        .automation_action_notes
+        .get(&action_id)
+        .cloned();
+    let source_label = if source_note.is_some() {
+        format!("Source: {}", trigger_name)
+    } else {
+        format!("Trigger: {}", trigger_name)
+    };
+    let source_note = source_note.unwrap_or_else(|| {
+        "A trigger matched terminal output and wants to run this action.".to_string()
+    });
+
     let mut approved = false;
     let mut always_approve = false;
     let mut denied = false;
 
-    egui::Window::new("Trigger Action Confirmation")
+    egui::Window::new("Automation Action Confirmation")
         .id(egui::Id::new("trigger_prompt_dialog"))
         .collapsible(false)
         .resizable(false)
@@ -279,12 +300,12 @@ pub(super) fn render_trigger_prompt_dialog(
 
             ui.add_space(4.0);
             ui.label(
-                egui::RichText::new("Trigger Action Requires Confirmation")
+                egui::RichText::new("Automation Action Requires Confirmation")
                     .strong()
                     .size(15.0),
             );
             ui.add_space(8.0);
-            ui.label(format!("Trigger: {}", trigger_name));
+            ui.label(source_label.as_str());
             ui.add_space(4.0);
 
             egui::Frame::NONE
@@ -296,13 +317,7 @@ pub(super) fn render_trigger_prompt_dialog(
                 });
 
             ui.add_space(4.0);
-            ui.label(
-                egui::RichText::new(
-                    "A trigger matched terminal output and wants to run this action.",
-                )
-                .weak()
-                .small(),
-            );
+            ui.label(egui::RichText::new(source_note.as_str()).weak().small());
 
             ui.add_space(12.0);
             ui.separator();
@@ -346,6 +361,9 @@ pub(super) fn render_trigger_prompt_dialog(
 
     if denied || approved {
         let pending = trigger_state.pending_trigger_actions.remove(0);
+        trigger_state
+            .automation_action_notes
+            .remove(&pending.trigger_id);
         if approved {
             if always_approve {
                 trigger_state

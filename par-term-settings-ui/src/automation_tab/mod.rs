@@ -97,5 +97,10 @@ pub fn keywords() -> &'static [&'static str] {
         "allow",
         "write text",
         "change config",
+        // Script WriteText confirmation
+        "prompt before write text",
+        "confirm before write text",
+        "write text confirmation",
+        "inject text",
     ]
 }

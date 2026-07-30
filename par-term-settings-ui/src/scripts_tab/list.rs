@@ -78,6 +78,7 @@ pub(super) fn show_scripts_section(
                 settings.temp_script_restart_delay_ms = script.restart_delay_ms;
                 settings.temp_script_subscriptions = script.subscriptions.join(", ");
                 settings.temp_script_allow_write_text = script.allow_write_text;
+                settings.temp_script_prompt_before_write_text = script.prompt_before_write_text;
                 settings.temp_script_allow_run_command = script.allow_run_command;
                 settings.temp_script_allow_change_config = script.allow_change_config;
                 settings.temp_script_write_text_rate_limit = script.write_text_rate_limit;
@@ -108,6 +109,7 @@ pub(super) fn show_scripts_section(
                 settings.temp_script_restart_delay_ms = 0;
                 settings.temp_script_subscriptions = String::new();
                 settings.temp_script_allow_write_text = false;
+                settings.temp_script_prompt_before_write_text = true;
                 settings.temp_script_allow_run_command = false;
                 settings.temp_script_allow_change_config = false;
                 settings.temp_script_write_text_rate_limit = 0;
