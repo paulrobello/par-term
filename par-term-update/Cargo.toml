@@ -20,7 +20,7 @@ ureq.workspace = true
 native-tls.workspace = true
 
 # URL parsing for domain validation (already a transitive dep via ureq)
-url = "2"
+url.workspace = true
 
 # Date/time for tracking last check timestamp
 chrono.workspace = true

@@ -71,6 +71,7 @@ open = "5.3.5"
 ureq = { version = "3.3.0", default-features = false, features = ["native-tls", "gzip"] }
 native-tls = "0.2.18"
 mdns-sd = "0.20"
+url = "2"
 
 # Date / time
 chrono = "0.4.45"
@@ -211,7 +212,7 @@ arboard.workspace = true
 regex.workspace = true
 open.workspace = true          # Cross-platform URL opener
 shell-words.workspace = true   # Safe shell command parsing (prevents argument injection)
-url = "2"                      # URL parsing for shader download validation
+url.workspace = true           # URL parsing for shader download validation
 
 # Audio playback for bell sound (feature-gated: `audio`)
 rodio = { version = "0.22.2", features = ["mp3"], optional = true }
