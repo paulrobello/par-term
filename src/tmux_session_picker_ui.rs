@@ -10,6 +10,11 @@ use crate::ui_constants::{
 };
 use egui::{Color32, Context, Frame, RichText, Window, epaint::Shadow};
 use std::process::Command;
+use std::time::Duration;
+
+/// Deadline for `tmux list-sessions`. Instant against a healthy server; an
+/// unresponsive one must not hold the egui frame.
+const TMUX_LIST_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// Information about a tmux session
 #[derive(Debug, Clone)]
@@ -100,18 +105,22 @@ impl TmuxSessionPickerUI {
     }
 
     /// List available tmux sessions by running `tmux list-sessions`
+    ///
+    /// Bounded by [`TMUX_LIST_TIMEOUT`]: this runs inside the egui closure on first
+    /// show and on Refresh, so an unresponsive tmux server would otherwise block the
+    /// frame indefinitely.
     fn list_tmux_sessions(tmux_path: &str) -> Result<Vec<TmuxSessionInfo>, String> {
-        let output = Command::new(tmux_path)
-            .args([
-                "list-sessions",
-                "-F",
-                "#{session_id}:#{session_name}:#{session_attached}:#{session_windows}",
-            ])
-            .output()
+        let mut cmd = Command::new(tmux_path);
+        cmd.args([
+            "list-sessions",
+            "-F",
+            "#{session_id}:#{session_name}:#{session_attached}:#{session_windows}",
+        ]);
+        let output = crate::process_timeout::output_with_timeout(&mut cmd, TMUX_LIST_TIMEOUT)
             .map_err(|e| format!("Failed to run tmux: {}", e))?;
 
         if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
+            let stderr = &output.stderr;
             // "no server running" is expected when there are no sessions
             if stderr.contains("no server running") || stderr.contains("no sessions") {
                 return Ok(Vec::new());
@@ -119,10 +128,9 @@ impl TmuxSessionPickerUI {
             return Err(format!("tmux error: {}", stderr.trim()));
         }
 
-        let stdout = String::from_utf8_lossy(&output.stdout);
         let mut sessions = Vec::new();
 
-        for line in stdout.lines() {
+        for line in output.stdout.lines() {
             let parts: Vec<&str> = line.split(':').collect();
             if parts.len() >= 4 {
                 sessions.push(TmuxSessionInfo {

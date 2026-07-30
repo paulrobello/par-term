@@ -13,6 +13,78 @@ const fn default_shell_command_timeout_secs() -> u64 {
     30
 }
 
+/// Deadline for the `git` invocations backing the `GitBranch`/`GitCommit` variables.
+const GIT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// How often [`git_stdout`] re-checks whether `git` has exited.
+const GIT_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(10);
+
+/// Run `git <args>` and return its trimmed stdout, killing it if it outlives
+/// [`GIT_TIMEOUT`].
+///
+/// Returns an empty string on spawn failure, non-zero exit, or timeout — matching
+/// how the caller already treats "not a repository". The deadline matters because
+/// `git rev-parse` is sub-millisecond against a healthy repository but unbounded
+/// against a network-mounted `.git` or a stale `index.lock`, and variable expansion
+/// runs on the caller's UI thread.
+fn git_stdout(args: &[&str]) -> String {
+    use std::io::Read;
+    use std::process::{Command, Stdio};
+    use std::time::Instant;
+
+    let mut child = match Command::new("git")
+        .args(args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+    {
+        Ok(child) => child,
+        Err(e) => {
+            log::warn!("git {} failed to spawn: {e}", args.join(" "));
+            return String::new();
+        }
+    };
+
+    // Drain stdout on a helper thread: polling `try_wait` without reading would
+    // deadlock as soon as the child fills the pipe buffer.
+    let Some(mut stdout) = child.stdout.take() else {
+        return String::new();
+    };
+    let reader = std::thread::spawn(move || {
+        let mut buf = String::new();
+        let _ = stdout.read_to_string(&mut buf);
+        buf
+    });
+
+    let deadline = Instant::now() + GIT_TIMEOUT;
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) if status.success() => {
+                return reader.join().unwrap_or_default().trim().to_string();
+            }
+            Ok(Some(_)) => return String::new(),
+            Ok(None) => {
+                if Instant::now() >= deadline {
+                    log::warn!(
+                        "git {} exceeded {:.1}s, terminating",
+                        args.join(" "),
+                        GIT_TIMEOUT.as_secs_f64()
+                    );
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return String::new();
+                }
+                std::thread::sleep(GIT_POLL_INTERVAL);
+            }
+            Err(e) => {
+                log::warn!("git {} failed while waiting: {e}", args.join(" "));
+                return String::new();
+            }
+        }
+    }
+}
+
 /// A text snippet that can be inserted into the terminal.
 ///
 /// Snippets support variable substitution using \(variable\) syntax.
@@ -999,29 +1071,14 @@ impl BuiltInVariable {
                 // Try to get git branch from environment or command
                 match std::env::var("GIT_BRANCH") {
                     Ok(branch) => branch,
-                    Err(_) => {
-                        // Try running git command
-                        std::process::Command::new("git")
-                            .args(["rev-parse", "--abbrev-ref", "HEAD"])
-                            .output()
-                            .ok()
-                            .and_then(|o| String::from_utf8(o.stdout).ok())
-                            .map(|s| s.trim().to_string())
-                            .unwrap_or_default()
-                    }
+                    Err(_) => git_stdout(&["rev-parse", "--abbrev-ref", "HEAD"]),
                 }
             }
             Self::GitCommit => {
                 // Try to get git commit from environment or command
                 match std::env::var("GIT_COMMIT") {
                     Ok(commit) => commit,
-                    Err(_) => std::process::Command::new("git")
-                        .args(["rev-parse", "--short", "HEAD"])
-                        .output()
-                        .ok()
-                        .and_then(|o| String::from_utf8(o.stdout).ok())
-                        .map(|s| s.trim().to_string())
-                        .unwrap_or_default(),
+                    Err(_) => git_stdout(&["rev-parse", "--short", "HEAD"]),
                 }
             }
             Self::Uuid => uuid::Uuid::new_v4().to_string(),

@@ -26,6 +26,10 @@ pub(crate) enum StepOutcome {
 /// See AUDIT.md QA-002 for the full plan.
 pub(crate) const MAX_TOTAL_DELAY_MS: u64 = 5_000;
 
+/// Deadline for the `git rev-parse` invocation backing a `GitBranch` condition.
+/// Sub-millisecond for a healthy local repository.
+const GIT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(2);
+
 impl WindowState {
     /// Execute an action as a workflow step and return a typed outcome.
     ///
@@ -270,12 +274,13 @@ impl WindowState {
                 if !cwd.is_empty() {
                     cmd.current_dir(&cwd);
                 }
-                let branch = cmd
-                    .output()
-                    .ok()
-                    .and_then(|o| String::from_utf8(o.stdout).ok())
-                    .map(|s| s.trim().to_string())
-                    .unwrap_or_default();
+                // Bounded: this runs on the event loop thread from a keybinding, and a
+                // network-mounted .git or a stale index.lock would otherwise freeze the UI.
+                let branch = crate::process_timeout::stdout_with_timeout(&mut cmd, GIT_TIMEOUT)
+                    .unwrap_or_else(|e| {
+                        log::warn!("git rev-parse for GitBranch condition failed: {e}");
+                        String::new()
+                    });
                 glob_match(pattern, &branch)
             }
         }

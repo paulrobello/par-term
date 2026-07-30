@@ -87,6 +87,7 @@ pub mod pane;
 pub mod paste_special_ui;
 pub mod paste_transform;
 pub mod platform;
+pub(crate) mod process_timeout;
 pub mod profile;
 pub mod profile_drawer_ui;
 pub mod profile_modal_ui {
