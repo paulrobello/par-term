@@ -426,6 +426,37 @@ fn test_invalid_hex() {
 }
 
 #[test]
+fn test_decode_base64_rejects_non_ascii() {
+    // Characters above U+00FF used to index the 256-entry table out of bounds;
+    // "café" was already rejected and must stay rejected.
+    for input in ["日本語", "😀😀😀😀", "aGVsbG8日", "café"] {
+        let result = transform(input, PasteTransform::DecodeBase64);
+        assert!(result.is_err(), "expected Err for {input:?}");
+    }
+}
+
+#[test]
+fn test_decode_hex_rejects_non_ascii() {
+    // "aée" is four bytes but three characters: byte pairing split the `é`.
+    for input in ["aée", "café", "日本", "😀", "68é5"] {
+        let result = transform(input, PasteTransform::DecodeHex);
+        assert!(result.is_err(), "expected Err for {input:?}");
+    }
+}
+
+#[test]
+fn test_decode_hex_still_accepts_whitespace_and_prefixes() {
+    assert_eq!(
+        transform("68 65 6c 6c 6f", PasteTransform::DecodeHex).expect("transform should succeed"),
+        "hello"
+    );
+    assert_eq!(
+        transform("0X48490A", PasteTransform::DecodeHex).expect("transform should succeed"),
+        "HI\n"
+    );
+}
+
+#[test]
 fn test_invalid_url_encoding() {
     let result = transform("%ZZ", PasteTransform::DecodeUrl);
     assert!(result.is_err());

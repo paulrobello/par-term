@@ -3,6 +3,8 @@
 //! Contains small utility functions used by [`super::panel::AIInspectorPanel`]
 //! for formatting and text truncation.
 
+pub(super) use par_term_config::text::truncate_chars;
+
 /// Format a duration in milliseconds to a human-readable string.
 pub(super) fn format_duration(ms: u64) -> String {
     if ms < 1000 {
@@ -13,20 +15,6 @@ pub(super) fn format_duration(ms: u64) -> String {
         let minutes = ms / 60_000;
         let seconds = (ms % 60_000) / 1000;
         format!("{minutes}m {seconds}s")
-    }
-}
-
-/// Truncate a string to at most `max_chars` characters, respecting UTF-8
-/// char boundaries (never panics on multi-byte characters like emoji or CJK).
-pub(super) fn truncate_chars(s: &str, max_chars: usize) -> &str {
-    // Use character count, not byte length, for comparison
-    if s.chars().count() <= max_chars {
-        return s;
-    }
-    // Find the byte index where we should truncate at the max_chars-th character
-    match s.char_indices().nth(max_chars) {
-        Some((byte_idx, _)) => &s[..byte_idx],
-        None => s, // Shouldn't happen due to check above, but safe fallback
     }
 }
 

@@ -60,7 +60,13 @@ pub(super) fn base64_decode(input: &str) -> Result<String, String> {
             continue;
         }
 
-        let value = decode_table[c as usize];
+        // Every Base64 alphabet character is ASCII, so a non-ASCII char must be
+        // rejected before it is used to index the 256-entry table.
+        let value = if c.is_ascii() {
+            decode_table[c as usize]
+        } else {
+            255
+        };
         if value == 255 {
             return Err(format!("Invalid Base64 character: '{}'", c));
         }
@@ -151,22 +157,25 @@ pub(super) fn hex_decode(input: &str) -> Result<String, String> {
         .or_else(|| input.strip_prefix("0X"))
         .unwrap_or(input);
 
-    // Filter out whitespace and collect hex chars
-    let hex_chars: String = input.chars().filter(|c| !c.is_whitespace()).collect();
+    // Skip whitespace and reject anything that is not a hex digit before
+    // pairing. Digits must be paired by character, not by byte: a multi-byte
+    // character would otherwise be split down the middle.
+    let mut digits: Vec<u8> = Vec::with_capacity(input.len());
+    for c in input.chars().filter(|c| !c.is_whitespace()) {
+        match c.to_digit(16) {
+            Some(digit) => digits.push(digit as u8),
+            None => return Err(format!("Invalid hex: {}", c)),
+        }
+    }
 
-    if !hex_chars.len().is_multiple_of(2) {
+    if !digits.len().is_multiple_of(2) {
         return Err("Hex string must have even length".to_string());
     }
 
-    let bytes: Result<Vec<u8>, _> = (0..hex_chars.len())
-        .step_by(2)
-        .map(|i| {
-            u8::from_str_radix(&hex_chars[i..i + 2], 16)
-                .map_err(|_| format!("Invalid hex: {}", &hex_chars[i..i + 2]))
-        })
+    let bytes: Vec<u8> = digits
+        .chunks(2)
+        .map(|pair| (pair[0] << 4) | pair[1])
         .collect();
-
-    let bytes = bytes?;
     String::from_utf8(bytes).map_err(|e| format!("Invalid UTF-8 in decoded data: {}", e))
 }
 

@@ -13,8 +13,50 @@
 
 use crate::app::window_state::WindowState;
 use crate::copy_mode::SearchDirection;
+use par_term_config::text::{
+    byte_offset_to_column, column_to_byte_offset, lowercase_with_source_map,
+};
 use winit::event::KeyEvent;
 use winit::keyboard::{Key, NamedKey};
+
+/// Case-insensitive substring search over `text`, restricted to matches that
+/// start at or after character `from_char`.
+///
+/// Returns the character index in `text` (not a byte offset) where the match
+/// starts, so the result can be used directly as a copy-mode cursor column —
+/// the same character indexing `Grid::row_text` feeds the motion helpers.
+fn find_case_insensitive_forward(text: &str, query_lower: &str, from_char: usize) -> Option<usize> {
+    let (lowered, sources) = lowercase_with_source_map(text);
+    // Lowercasing can expand one character into several, so the search window
+    // has to be located through the source map rather than by column arithmetic.
+    let first = sources.partition_point(|&source| source < from_char);
+    let window_start = column_to_byte_offset(&lowered, first);
+    let found = lowered[window_start..].find(query_lower)?;
+    let match_char = byte_offset_to_column(&lowered, window_start + found);
+    sources.get(match_char).copied()
+}
+
+/// Case-insensitive substring search over `text` for the *last* match that
+/// starts before character `before_char` (`None` searches the whole line).
+///
+/// Returns a character index in `text`, as [`find_case_insensitive_forward`] does.
+fn find_case_insensitive_backward(
+    text: &str,
+    query_lower: &str,
+    before_char: Option<usize>,
+) -> Option<usize> {
+    let (lowered, sources) = lowercase_with_source_map(text);
+    let window_end = match before_char {
+        Some(before) => {
+            let last = sources.partition_point(|&source| source < before);
+            column_to_byte_offset(&lowered, last)
+        }
+        None => lowered.len(),
+    };
+    let found = lowered[..window_end].rfind(query_lower)?;
+    let match_char = byte_offset_to_column(&lowered, found);
+    sources.get(match_char).copied()
+}
 
 impl WindowState {
     /// Handle key events during search input mode
@@ -80,7 +122,7 @@ impl WindowState {
 
         if let Some((line, col)) = found {
             self.copy_mode.cursor_absolute_line = line;
-            self.copy_mode.cursor_col = col;
+            self.copy_mode.cursor_col = col.min(self.copy_mode.cols.saturating_sub(1));
             self.after_copy_mode_motion();
             crate::debug_info!("COPY_MODE", "Search found '{}' at {}:{}", query, line, col);
         } else {
@@ -99,29 +141,27 @@ impl WindowState {
         start_col: usize,
         total_lines: usize,
     ) -> Option<(usize, usize)> {
-        let query_lower = query.to_lowercase();
+        let query_lower = lowercase_with_source_map(query).0;
 
         // Search from current position to end
         for abs_line in start_line..total_lines {
             if let Some(text) = term.line_text_at_absolute(abs_line) {
-                let search_start = if abs_line == start_line {
+                let from_char = if abs_line == start_line {
                     start_col + 1
                 } else {
                     0
                 };
-                let text_lower = text.to_lowercase();
-                if let Some(pos) = text_lower[search_start..].find(&query_lower) {
-                    return Some((abs_line, search_start + pos));
+                if let Some(col) = find_case_insensitive_forward(&text, &query_lower, from_char) {
+                    return Some((abs_line, col));
                 }
             }
         }
         // Wrap around from beginning
         for abs_line in 0..start_line {
-            if let Some(text) = term.line_text_at_absolute(abs_line) {
-                let text_lower = text.to_lowercase();
-                if let Some(pos) = text_lower.find(&query_lower) {
-                    return Some((abs_line, pos));
-                }
+            if let Some(text) = term.line_text_at_absolute(abs_line)
+                && let Some(col) = find_case_insensitive_forward(&text, &query_lower, 0)
+            {
+                return Some((abs_line, col));
             }
         }
         None
@@ -135,30 +175,25 @@ impl WindowState {
         start_line: usize,
         start_col: usize,
     ) -> Option<(usize, usize)> {
-        let query_lower = query.to_lowercase();
+        let query_lower = lowercase_with_source_map(query).0;
 
         // Search from current position to beginning
         for abs_line in (0..=start_line).rev() {
             if let Some(text) = term.line_text_at_absolute(abs_line) {
-                let text_lower = text.to_lowercase();
-                let search_end = if abs_line == start_line {
-                    start_col
-                } else {
-                    text_lower.len()
-                };
-                if let Some(pos) = text_lower[..search_end].rfind(&query_lower) {
-                    return Some((abs_line, pos));
+                let before_char = (abs_line == start_line).then_some(start_col);
+                if let Some(col) = find_case_insensitive_backward(&text, &query_lower, before_char)
+                {
+                    return Some((abs_line, col));
                 }
             }
         }
         // Wrap around from end
         let total = self.copy_mode.scrollback_len + self.copy_mode.rows;
         for abs_line in (start_line + 1..total).rev() {
-            if let Some(text) = term.line_text_at_absolute(abs_line) {
-                let text_lower = text.to_lowercase();
-                if let Some(pos) = text_lower.rfind(&query_lower) {
-                    return Some((abs_line, pos));
-                }
+            if let Some(text) = term.line_text_at_absolute(abs_line)
+                && let Some(col) = find_case_insensitive_backward(&text, &query_lower, None)
+            {
+                return Some((abs_line, col));
             }
         }
         None
@@ -253,6 +288,141 @@ impl WindowState {
             }
         } else if self.config.load().copy_mode.copy_mode_auto_exit_on_yank {
             self.exit_copy_mode();
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{find_case_insensitive_backward, find_case_insensitive_forward};
+    use par_term_config::text::lowercase_with_source_map;
+
+    const ACCENTED: &str = "un café au lait";
+    const CJK: &str = "日本語 test 日本語";
+    const EMOJI: &str = "😀 alpha 😁 beta";
+
+    fn lower(query: &str) -> String {
+        lowercase_with_source_map(query).0
+    }
+
+    /// Every returned column must address the intended character of the
+    /// original line under the same char indexing the copy-mode motions use.
+    fn assert_column_addresses(text: &str, col: usize, expected: char) {
+        assert_eq!(
+            text.chars().nth(col),
+            Some(expected),
+            "column {col} of {text:?}"
+        );
+    }
+
+    #[test]
+    fn forward_returns_a_column_not_a_byte_offset() {
+        let col = find_case_insensitive_forward(ACCENTED, &lower("au"), 0)
+            .expect("`au` occurs in the line");
+        assert_eq!(col, 8);
+        assert_column_addresses(ACCENTED, col, 'a');
+
+        let col = find_case_insensitive_forward(CJK, &lower("TEST"), 0)
+            .expect("`test` occurs in the line");
+        assert_eq!(col, 4);
+        assert_column_addresses(CJK, col, 't');
+
+        let col = find_case_insensitive_forward(EMOJI, &lower("beta"), 0)
+            .expect("`beta` occurs in the line");
+        assert_eq!(col, 10);
+        assert_column_addresses(EMOJI, col, 'b');
+    }
+
+    #[test]
+    fn forward_start_column_is_a_column() {
+        // Starting past the first "日本語" must find the second one, and the
+        // start column must not be mistaken for a byte offset (which would be
+        // 3x larger here and skip the whole line).
+        let col = find_case_insensitive_forward(CJK, &lower("日本語"), 1).expect("second match");
+        assert_eq!(col, 9);
+        assert_column_addresses(CJK, col, '日');
+        assert_eq!(
+            find_case_insensitive_forward(CJK, &lower("日本語"), 10),
+            None
+        );
+    }
+
+    #[test]
+    fn backward_finds_the_last_match_before_the_cursor() {
+        let col = find_case_insensitive_backward(CJK, &lower("日本語"), Some(9))
+            .expect("first match precedes column 9");
+        assert_eq!(col, 0);
+
+        let col = find_case_insensitive_backward(CJK, &lower("日本語"), None).expect("last match");
+        assert_eq!(col, 9);
+
+        // A match that straddles the cursor column must not be returned.
+        assert_eq!(
+            find_case_insensitive_backward(ACCENTED, &lower("café"), Some(5)),
+            None
+        );
+        assert_eq!(
+            find_case_insensitive_backward(ACCENTED, &lower("café"), Some(7)),
+            Some(3)
+        );
+    }
+
+    #[test]
+    fn out_of_range_start_column_is_saturating() {
+        assert_eq!(
+            find_case_insensitive_forward(CJK, &lower("test"), 9_999),
+            None
+        );
+        assert_eq!(
+            find_case_insensitive_backward(CJK, &lower("test"), Some(9_999)),
+            Some(4)
+        );
+        assert_eq!(find_case_insensitive_forward("", &lower("x"), 3), None);
+    }
+
+    #[test]
+    fn expanding_lowercase_still_round_trips_to_the_source_column() {
+        // `İ` (U+0130) lowercases to two characters, so a position in the
+        // lowercased line is not a position in the line.
+        let text = "aİb";
+        assert_eq!(text.chars().count(), 3);
+        assert_eq!(lower(text).chars().count(), 4);
+
+        let col = find_case_insensitive_forward(text, &lower("b"), 0).expect("`b` occurs");
+        assert_eq!(col, 2);
+        assert_column_addresses(text, col, 'b');
+
+        let col = find_case_insensitive_backward(text, &lower("b"), None).expect("`b` occurs");
+        assert_eq!(col, 2);
+        assert_column_addresses(text, col, 'b');
+
+        // The expanding character itself maps back to its single source column.
+        let col = find_case_insensitive_forward(text, &lower("İ"), 0).expect("`İ` occurs");
+        assert_eq!(col, 1);
+        assert_column_addresses(text, col, 'İ');
+    }
+
+    #[test]
+    fn ascii_results_match_the_previous_byte_offset_behavior() {
+        let text = "Hello World hello";
+        let query = lower("hello");
+        for from_char in 0..text.len() {
+            let expected = text.to_lowercase()[from_char..]
+                .find(&query)
+                .map(|pos| from_char + pos);
+            assert_eq!(
+                find_case_insensitive_forward(text, &query, from_char),
+                expected,
+                "from {from_char}"
+            );
+        }
+        for before_char in 0..=text.len() {
+            let expected = text.to_lowercase()[..before_char].rfind(&query);
+            assert_eq!(
+                find_case_insensitive_backward(text, &query, Some(before_char)),
+                expected,
+                "before {before_char}"
+            );
         }
     }
 }

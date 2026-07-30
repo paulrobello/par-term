@@ -6,6 +6,7 @@ use crate::section::{collapsing_section, collapsing_section_with_state};
 use crate::settings_ui::SettingsUI;
 use par_term_config::ConflictResolution;
 use par_term_config::DynamicProfileSource;
+use par_term_config::text::truncate_chars;
 use std::collections::HashSet;
 
 /// Show the dynamic profile sources section.
@@ -69,8 +70,8 @@ pub(super) fn show_dynamic_sources_section(
                         }
 
                         // URL (truncated)
-                        let url_display = if source.url.len() > 60 {
-                            format!("{}...", &source.url[..57])
+                        let url_display = if source.url.chars().count() > 60 {
+                            format!("{}...", truncate_chars(&source.url, 57))
                         } else {
                             source.url.clone()
                         };
@@ -366,10 +367,10 @@ fn show_headers_section(
                             let display_value = if key.to_lowercase().contains("auth")
                                 || key.to_lowercase().contains("token")
                             {
-                                if value.len() > 8 {
-                                    format!("{}...", &value[..8])
+                                if value.chars().count() > 8 {
+                                    format!("{}...", truncate_chars(value, 8))
                                 } else {
-                                    "*".repeat(value.len())
+                                    "*".repeat(value.chars().count())
                                 }
                             } else {
                                 value.clone()

@@ -11,6 +11,7 @@ pub use engine::SearchEngine;
 pub use types::{SearchAction, SearchConfig, SearchMatch};
 
 use egui::{Color32, Context, Frame, Key, RichText, Window, epaint::Shadow};
+use par_term_config::text::truncate_chars;
 use std::time::Instant;
 
 /// Search debounce delay in milliseconds.
@@ -408,7 +409,7 @@ impl SearchUI {
                     if let Some(ref error) = self.regex_error {
                         ui.colored_label(
                             Color32::from_rgb(255, 100, 100),
-                            format!("Regex error: {}", truncate_error(error, 40)),
+                            format!("Regex error: {}", truncate_chars(error, 40)),
                         );
                     }
                 });
@@ -488,14 +489,5 @@ impl SearchUI {
     pub fn init_from_config(&mut self, case_sensitive: bool, use_regex: bool) {
         self.case_sensitive = case_sensitive;
         self.use_regex = use_regex;
-    }
-}
-
-/// Truncate error message for display.
-fn truncate_error(error: &str, max_len: usize) -> &str {
-    if error.len() <= max_len {
-        error
-    } else {
-        &error[..max_len]
     }
 }

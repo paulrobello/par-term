@@ -3,6 +3,7 @@
 use crate::app::window_state::WindowState;
 use crate::config::{Config, resolve_shader_config};
 use crate::shader_watcher::{ShaderReloadEvent, ShaderType, ShaderWatcher};
+use par_term_config::text::truncate_chars;
 
 impl WindowState {
     /// Initialize the shader watcher for hot reload support
@@ -216,9 +217,9 @@ impl WindowState {
             Err(e) => {
                 // Extract the most relevant error message from the chain
                 let root_cause = e.to_string();
-                let error_msg = if root_cause.len() > 200 {
+                let error_msg = if root_cause.chars().count() > 200 {
                     // Truncate very long error messages
-                    format!("{}...", &root_cause[..200])
+                    format!("{}...", truncate_chars(&root_cause, 200))
                 } else {
                     root_cause
                 };

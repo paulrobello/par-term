@@ -129,7 +129,9 @@ impl ShaderColorValue {
             .strip_prefix('#')
             .ok_or_else(|| "color hex value must start with `#`".to_string())?;
 
-        if hex.len() != 6 && hex.len() != 8 {
+        // The ASCII check is what makes the byte ranges below valid slice
+        // bounds: a multi-byte character would otherwise split mid-character.
+        if !hex.is_ascii() || (hex.len() != 6 && hex.len() != 8) {
             return Err("color hex value must be `#rrggbb` or `#rrggbbaa`".to_string());
         }
 
@@ -517,6 +519,37 @@ impl Default for ResolvedCursorShaderConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn color_from_hex_rejects_non_ascii_without_panicking() {
+        // Six bytes, four characters — the old byte-length gate accepted these
+        // and then split `é` down the middle.
+        assert!(ShaderColorValue::from_hex("#1é234").is_err());
+        assert!(ShaderColorValue::from_hex("#café12").is_err());
+        assert!(ShaderColorValue::from_hex("#日本").is_err());
+        assert!(ShaderColorValue::from_hex("#😀😀").is_err());
+    }
+
+    #[test]
+    fn color_from_hex_still_accepts_ascii_forms() {
+        assert_eq!(
+            ShaderColorValue::from_hex("#ff8000").expect("rrggbb parses"),
+            ShaderColorValue([1.0, 128.0 / 255.0, 0.0, 1.0])
+        );
+        assert_eq!(
+            ShaderColorValue::from_hex("#00000080").expect("rrggbbaa parses"),
+            ShaderColorValue([0.0, 0.0, 0.0, 128.0 / 255.0])
+        );
+        assert!(ShaderColorValue::from_hex("#gg0000").is_err());
+    }
+
+    #[test]
+    fn non_ascii_color_uniform_is_skipped_not_fatal() {
+        let yaml = "uniforms:\n  iTint: \"#1é234\"\n";
+        let config: ShaderConfig =
+            serde_yaml_ng::from_str(yaml).expect("deserialize shader config");
+        assert!(!config.uniforms.contains_key("iTint"));
+    }
 
     #[test]
     fn shader_uniform_values_parse_int_float_and_vec2_defaults() {

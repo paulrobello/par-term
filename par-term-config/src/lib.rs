@@ -47,6 +47,7 @@ pub mod shell_detection;
 pub mod snapshot_types;
 pub mod snippets;
 pub mod status_bar;
+pub mod text;
 pub mod themes;
 mod types;
 #[cfg(feature = "watcher")]

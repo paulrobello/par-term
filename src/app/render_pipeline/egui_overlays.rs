@@ -7,6 +7,7 @@
 
 use crate::copy_mode::VisualMode;
 use crate::scrollback_metadata::ScrollbackMark;
+use par_term_config::text::truncate_chars;
 
 /// Render the FPS / frame-time debug overlay in the top-right corner.
 ///
@@ -116,8 +117,8 @@ pub(super) fn render_scrollbar_mark_tooltip(ctx: &egui::Context, mark: Option<&S
     let mut lines = Vec::new();
 
     if let Some(ref cmd) = mark.command {
-        let truncated = if cmd.len() > 50 {
-            format!("{}...", &cmd[..47])
+        let truncated = if cmd.chars().count() > 50 {
+            format!("{}...", truncate_chars(cmd, 47))
         } else {
             cmd.clone()
         };
