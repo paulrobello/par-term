@@ -234,9 +234,16 @@ impl PaneManager {
     /// The target leaf is replaced with a `Split` containing the original pane
     /// as one child and the `subtree` as the other. Bounds are recalculated.
     ///
-    /// Returns the ids the adopted panes hold afterwards, which are **not**
-    /// always the ids they arrived with, or `None` if `target_pane_id` was not
-    /// found (the tree is then left untouched).
+    /// On success, returns the ids the adopted panes hold afterwards, which are
+    /// **not** always the ids they arrived with.
+    ///
+    /// On failure — there is no tree here to insert into, or no pane holds
+    /// `target_pane_id` — the tree is left untouched and the `subtree` is handed
+    /// **back**, carrying the ids it arrived with. Handing it back is the point
+    /// of the `Err`, not a courtesy: a caller gets a subtree to pass here by
+    /// detaching it from wherever it was living, so this is the only remaining
+    /// reference to those panes, and dropping it closes them and kills their
+    /// PTYs. The caller must put it back somewhere.
     ///
     /// A subtree arriving from another tab ("Demote Tab to Pane") brings that
     /// tab's ids with it, and ids are allocated per `PaneManager` — that is,
@@ -254,22 +261,25 @@ impl PaneManager {
     /// A caller holding an id from the subtree across this call must translate
     /// it through the returned map; the pre-move id may now name a different
     /// pane, or no pane at all.
-    #[must_use = "a renumbered pane is only reachable through the returned remap"]
+    #[must_use = "on success a renumbered pane is only reachable through the returned \
+                  remap; on failure the returned subtree owns live terminals and dropping \
+                  it kills them"]
     pub fn insert_subtree_at(
         &mut self,
         target_pane_id: PaneId,
         mut subtree: PaneNode,
         direction: crate::pane::types::SplitDirection,
         ratio: f32,
-    ) -> Option<PaneIdRemap> {
-        let root = self.root.take()?;
+    ) -> Result<PaneIdRemap, PaneNode> {
+        let Some(root) = self.root.take() else {
+            return Err(subtree);
+        };
 
         // Reconcile before the insert, not after: `insert_subtree_at_node`
         // searches for `target_pane_id`, and a subtree pane still carrying that
         // id could be found first and split instead of the intended target.
-        // A failed insert therefore leaves the counter advanced and the subtree
-        // renumbered — skipped ids are harmless, and cheaper than walking the
-        // tree twice to pre-check that the target exists.
+        // Still cheaper than walking the tree twice to pre-check that the target
+        // exists; a failed insert undoes the renumbering below instead.
         let remap = self.reconcile_adopted_ids(&root, &mut subtree);
 
         match Self::insert_subtree_at_node(root, target_pane_id, subtree, direction, ratio) {
@@ -286,11 +296,42 @@ impl PaneManager {
                     self.root.as_ref().map(PaneNode::all_pane_ids)
                 );
 
-                Some(remap)
+                Ok(remap)
             }
-            Err((original_root, _subtree)) => {
+            Err((original_root, mut subtree)) => {
                 self.root = Some(original_root);
-                None
+                Self::undo_reconcile(&mut subtree, &remap);
+                Err(subtree)
+            }
+        }
+    }
+
+    /// Put back the ids [`Self::reconcile_adopted_ids`] replaced, so a subtree
+    /// handed back after a failed insert is the subtree that arrived.
+    ///
+    /// Without this the caller would be restoring panes that carry ids drawn
+    /// from *this* manager's counter into a tree that never agreed to them —
+    /// the collision this whole path exists to prevent, reintroduced by the
+    /// recovery. The ids a subtree arrived with are always safe to restore,
+    /// because they are the ids it already held wherever it came from.
+    ///
+    /// Inverting the map is sound because `reconcile_adopted_ids` gives every
+    /// pane a distinct id, so no two entries share a value. Panes are matched
+    /// by id rather than by traversal position, which keeps this independent of
+    /// the order `all_panes_mut` happens to walk in.
+    ///
+    /// `next_pane_id` is deliberately left advanced: the subtree goes back to
+    /// the tab it came from, whose counter is already past its own ids, and ids
+    /// skipped here cost nothing.
+    fn undo_reconcile(subtree: &mut PaneNode, remap: &PaneIdRemap) {
+        let arrived_as: HashMap<PaneId, PaneId> = remap
+            .iter()
+            .map(|(&arrived, &now)| (now, arrived))
+            .collect();
+
+        for pane in subtree.all_panes_mut() {
+            if let Some(&arrived) = arrived_as.get(&pane.id) {
+                pane.id = arrived;
             }
         }
     }
@@ -481,9 +522,9 @@ mod tests {
             PaneNode::leaf(stub_pane(2, MOVED_2)),
         );
 
-        let remap = target
-            .insert_subtree_at(1, subtree, SplitDirection::Vertical, 0.5)
-            .expect("target pane 1 exists, so the insert succeeds");
+        let Ok(remap) = target.insert_subtree_at(1, subtree, SplitDirection::Vertical, 0.5) else {
+            panic!("target pane 1 exists, so the insert succeeds");
+        };
 
         assert_eq!(target.pane_count(), 4, "all four panes must survive");
 
@@ -512,14 +553,14 @@ mod tests {
     fn an_adopted_pane_keeps_an_id_that_is_free() {
         let mut target = manager_with_two_panes("/target/one", "/target/two");
 
-        let remap = target
-            .insert_subtree_at(
-                1,
-                PaneNode::leaf(stub_pane(9, "/moved")),
-                SplitDirection::Vertical,
-                0.5,
-            )
-            .expect("target pane 1 exists, so the insert succeeds");
+        let Ok(remap) = target.insert_subtree_at(
+            1,
+            PaneNode::leaf(stub_pane(9, "/moved")),
+            SplitDirection::Vertical,
+            0.5,
+        ) else {
+            panic!("target pane 1 exists, so the insert succeeds");
+        };
 
         assert_eq!(remap[&9], 9, "an id that is free must be kept as-is");
         assert_eq!(marker_of(&target, 9).as_deref(), Some("/moved"));
@@ -532,14 +573,16 @@ mod tests {
         // an unrelated pane, and every id-keyed lookup would then be ambiguous.
         let mut target = manager_with_two_panes("/target/one", "/target/two");
 
-        let _ = target
-            .insert_subtree_at(
-                1,
-                PaneNode::leaf(stub_pane(9, "/moved")),
-                SplitDirection::Vertical,
-                0.5,
-            )
-            .expect("target pane 1 exists, so the insert succeeds");
+        let inserted = target.insert_subtree_at(
+            1,
+            PaneNode::leaf(stub_pane(9, "/moved")),
+            SplitDirection::Vertical,
+            0.5,
+        );
+        assert!(
+            inserted.is_ok(),
+            "target pane 1 exists, so the insert succeeds"
+        );
 
         let fresh = target.next_pane_id();
         let live = target
@@ -574,9 +617,9 @@ mod tests {
             PaneNode::leaf(stub_pane(1, "/moved/one")),
         );
 
-        let remap = target
-            .insert_subtree_at(1, subtree, SplitDirection::Vertical, 0.5)
-            .expect("target pane 1 exists, so the insert succeeds");
+        let Ok(remap) = target.insert_subtree_at(1, subtree, SplitDirection::Vertical, 0.5) else {
+            panic!("target pane 1 exists, so the insert succeeds");
+        };
 
         assert_eq!(remap[&2], 2, "the non-colliding incoming id is kept");
         assert_ne!(remap[&1], 2, "the replacement must not land on the kept id");
@@ -596,8 +639,75 @@ mod tests {
             0.5,
         );
 
-        assert!(result.is_none(), "no such target pane, so no insertion");
+        assert!(result.is_err(), "no such target pane, so no insertion");
         assert_eq!(target.pane_count(), 2, "the original tree is restored");
         assert_eq!(marker_of(&target, 1).as_deref(), Some("/target/one"));
+        assert_eq!(marker_of(&target, 2).as_deref(), Some("/target/two"));
+    }
+
+    #[test]
+    fn a_failed_insert_hands_the_subtree_back_alive() {
+        // Dropping the subtree here closes its panes and kills their PTYs, and
+        // the caller reaches this function by detaching the subtree from
+        // somewhere else — so this is the only reference to those terminals.
+        let mut target = manager_with_two_panes("/target/one", "/target/two");
+
+        let subtree = PaneNode::split(
+            SplitDirection::Horizontal,
+            0.5,
+            PaneNode::leaf(stub_pane(1, "/moved/one")),
+            PaneNode::leaf(stub_pane(2, "/moved/two")),
+        );
+
+        // Held across the call so the terminal's liveness is observable
+        // independently of whether the subtree comes back.
+        let kept_terminal = Arc::clone(&subtree.all_panes()[0].terminal);
+        let refs_before = Arc::strong_count(&kept_terminal);
+        let counter_before = target.next_pane_id();
+
+        let Err(returned) = target.insert_subtree_at(99, subtree, SplitDirection::Vertical, 0.5)
+        else {
+            panic!("no pane holds id 99, so the insert must fail");
+        };
+
+        assert_eq!(
+            Arc::strong_count(&kept_terminal),
+            refs_before,
+            "the moved terminal must still be referenced by its pane, not dropped"
+        );
+        assert_eq!(returned.pane_count(), 2, "both moved panes must come back");
+
+        // Ids must come back as they arrived. The replacements handed out
+        // during reconciliation were drawn from *this* manager's counter, and
+        // the caller is about to restore the subtree to a tree that never
+        // agreed to them — restoring renumbered panes would reintroduce exactly
+        // the collision reconciliation exists to prevent.
+        let mut returned_ids = returned.all_pane_ids();
+        returned_ids.sort_unstable();
+        assert_eq!(
+            returned_ids,
+            vec![1, 2],
+            "the subtree must carry the ids it arrived with"
+        );
+        for (id, marker) in [(1, "/moved/one"), (2, "/moved/two")] {
+            assert_eq!(
+                returned
+                    .find_pane(id)
+                    .and_then(|p| p.working_directory.clone())
+                    .as_deref(),
+                Some(marker),
+                "restored id {id} must name the pane that originally held it"
+            );
+        }
+
+        // The target's own panes are untouched, and its counter stays advanced:
+        // the subtree is going back to a tab whose counter is already past
+        // those ids, so ids skipped here cost nothing.
+        assert_eq!(marker_of(&target, 1).as_deref(), Some("/target/one"));
+        assert_eq!(marker_of(&target, 2).as_deref(), Some("/target/two"));
+        assert!(
+            target.next_pane_id() >= counter_before,
+            "the target's counter must not rewind onto an id its own panes hold"
+        );
     }
 }

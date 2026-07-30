@@ -295,41 +295,6 @@ impl PaneManager {
         }
     }
 
-    /// Add a pane for tmux integration (doesn't create split, just adds to flat structure)
-    ///
-    /// This is used when tmux splits a pane - we need to add a new native pane
-    /// without restructuring our tree (tmux layout update will handle that).
-    pub fn add_pane_for_tmux(&mut self, pane: Pane) {
-        let pane_id = pane.id;
-
-        // Update next_pane_id if needed
-        if pane_id >= self.next_pane_id {
-            self.next_pane_id = pane_id + 1;
-        }
-
-        // If no root, this becomes the root
-        if self.root.is_none() {
-            self.root = Some(PaneNode::leaf(pane));
-            self.focused_pane_id = Some(pane_id);
-            return;
-        }
-
-        // Otherwise, we need to add it to the tree structure
-        // For now, we'll create a simple vertical split with the new pane
-        // The actual layout will be corrected by update_layout_from_tmux
-        if let Some(existing_root) = self.root.take() {
-            self.root = Some(PaneNode::Split {
-                direction: SplitDirection::Vertical,
-                ratio: 0.5,
-                first: Box::new(existing_root),
-                second: Box::new(PaneNode::leaf(pane)),
-            });
-        }
-
-        // Focus the new pane
-        self.focused_pane_id = Some(pane_id);
-    }
-
     /// Remove a pane from the tree, returning the new tree structure
     pub(super) fn remove_pane(node: PaneNode, target_id: PaneId) -> RemoveResult {
         match node {

@@ -467,6 +467,17 @@ impl TabManager {
         id
     }
 
+    /// Append an already-built tab, for tests that need a populated manager
+    /// without spawning shells (pair with [`Tab::new_stub`]).
+    #[cfg(test)]
+    pub(crate) fn push_tab_for_test(&mut self, tab: Tab) {
+        self.next_tab_id = self.next_tab_id.max(tab.id + 1);
+        if self.active_tab_id.is_none() {
+            self.active_tab_id = Some(tab.id);
+        }
+        self.tabs.push(tab);
+    }
+
     /// Get index of active tab (0-based)
     pub fn active_tab_index(&self) -> Option<usize> {
         self.active_tab_id
