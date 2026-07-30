@@ -16,7 +16,12 @@ pub(crate) enum StepOutcome {
     Success,
     /// Step "failed" (ShellCommand non-zero exit, or Condition false).
     Failure,
-    /// Unrecoverable error (action not found, circular reference); always halts.
+    /// Unrecoverable error: action not found, circular reference, or a
+    /// `capture_output` ShellCommand that timed out or could not be spawned.
+    ///
+    /// Always halts the enclosing Sequence or Repeat *without* consulting
+    /// `on_failure` / `stop_on_failure`. Every arm that produces this variant
+    /// shows a toast first, so the halt is never silent.
     Abort,
 }
 
@@ -41,7 +46,12 @@ impl WindowState {
     /// - `StepOutcome::Success` for most action types (they don't "fail")
     /// - `StepOutcome::Failure` if a `ShellCommand` with `capture_output` exits non-zero,
     ///   or if a `Condition` check evaluates to false
-    /// - `StepOutcome::Abort` if the action is not found or a circular reference is detected
+    /// - `StepOutcome::Abort` if the action is not found, a circular reference is
+    ///   detected, or a `capture_output` `ShellCommand` hits `timeout_secs` or
+    ///   cannot be spawned
+    ///
+    /// Every `Abort` path shows a toast before returning, so a halted workflow
+    /// always leaves the user something to read.
     pub(crate) fn execute_action_as_step(
         &mut self,
         action_id: &str,
@@ -132,7 +142,15 @@ impl WindowState {
                             }
                         }
                         Err(e) => {
+                            // Timeout or spawn failure. This halts the whole
+                            // workflow, so it has to be visible: the log line
+                            // alone left the user watching a sequence stop for
+                            // no stated reason.
                             log::error!("Step command '{}' did not complete: {}", title, e);
+                            self.show_toast(format!(
+                                "Workflow: step '{}' did not complete: {}",
+                                title, e
+                            ));
                             StepOutcome::Abort
                         }
                     }
@@ -190,6 +208,10 @@ impl WindowState {
                     visited.clear();
                     match outcome {
                         StepOutcome::Abort => {
+                            // An aborted iteration breaks the loop regardless of
+                            // `stop_on_failure` — the abort is not a failure the
+                            // Repeat gets to override. The toast came from
+                            // execute_action_as_step.
                             final_outcome = StepOutcome::Abort;
                             break;
                         }
@@ -325,10 +347,15 @@ impl WindowState {
     /// as they return, allowing the same action to appear in separate (non-nested) steps.
     ///
     /// Returns:
-    /// - `StepOutcome::Abort` -- a step aborted (missing action, circular ref), or a step
-    ///   failed with `on_failure = Abort` (toast already shown)
+    /// - `StepOutcome::Abort` -- a step aborted (missing action, circular ref, or a
+    ///   captured `ShellCommand` that timed out or could not be spawned), or a step
+    ///   failed with `on_failure = Abort`. A toast has been shown either way.
     /// - `StepOutcome::Failure` -- a step failed with `on_failure = Stop` (silent early exit)
     /// - `StepOutcome::Success` -- all steps completed (including any `Continue`-on-failure steps)
+    ///
+    /// An abort is deliberately *not* a failure: it halts without reading
+    /// `step.on_failure`, so `continue` does not keep the sequence going past
+    /// one. See the "abort vs. failure" note in `docs/features/SNIPPETS.md`.
     pub(crate) fn execute_sequence_steps(
         &mut self,
         steps: &[par_term_config::snippets::SequenceStep],
@@ -357,7 +384,9 @@ impl WindowState {
 
             match outcome {
                 StepOutcome::Abort => {
-                    // Already showed toast in execute_action_as_step
+                    // Halt without reading `step.on_failure` — an abort overrides
+                    // even `continue`, by design (see the doc comment above).
+                    // execute_action_as_step has already toasted the reason.
                     return StepOutcome::Abort;
                 }
                 StepOutcome::Success => {
@@ -433,6 +462,8 @@ impl WindowState {
             visited.clear(); // Reset visited between repetitions to allow re-entry
 
             match outcome {
+                // Abort breaks the loop whatever `stop_on_failure` says; the
+                // toast came from execute_action_as_step.
                 StepOutcome::Abort => break,
                 StepOutcome::Success => {
                     if stop_on_success {

@@ -694,7 +694,7 @@ actions:
 >
 > The distinction matters if you are relying on `on_failure` for cleanup: a build step that exits non-zero runs your cleanup step, and the same build step that hangs past its timeout does not. If a step must not be able to skip the rest of the sequence, give it a `timeout_secs` comfortably above its real worst case, and do not treat `continue` as a guarantee that later steps run.
 >
-> Only the first of these aborts is silent. A missing action or a circular reference shows a toast, and `on_failure: abort` shows a toast of its own, but a timed-out or unspawnable command is reported only to the log (`Step command '<title>' did not complete: timed out after 30.0s`) — see [LOGGING.md](../LOGGING.md). A sequence that stops early with no visible message is the signature of this case.
+> Every one of these aborts is now reported on screen. A missing action or a circular reference shows a toast, `on_failure: abort` shows one of its own, and a timed-out or unspawnable command shows `Workflow: step '<title>' did not complete: timed out after 30.0s`. The same text goes to the log — see [LOGGING.md](../LOGGING.md).
 >
 > `Repeat` behaves the same way: an aborted iteration breaks the loop regardless of `stop_on_failure`.
 
