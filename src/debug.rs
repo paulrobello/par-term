@@ -43,7 +43,9 @@
 /// Both write to `<temp_dir>/par_term_debug.log` (respects `$TMPDIR` on Unix, `%TEMP%` on Windows).
 /// The log file is always created so that errors are captured even in GUI-only contexts
 /// (macOS app bundles, Windows GUI apps) where stderr is invisible.
-/// The log file is created with 0600 permissions on Unix and symlink-checked to prevent attacks.
+/// The log file is created with 0600 permissions on Unix (set at creation, not chmod'ed
+/// afterwards) and symlink-checked to prevent attacks. If the path already exists and is
+/// owned by another user, logging is disabled rather than writing where they can read it.
 ///
 /// When `RUST_LOG` is set, `log` crate output is also mirrored to stderr for terminal debugging.
 use parking_lot::Mutex;
@@ -90,54 +92,83 @@ struct DebugLogger {
     mirror_stderr: bool,
 }
 
+/// Open (creating or truncating) the debug log with owner-only permissions.
+///
+/// Returns `None` — disabling file logging rather than leaking — when the path
+/// cannot be opened safely.
+///
+/// SEC-010: any existing symlink is unlinked first, and on Unix `O_NOFOLLOW` closes
+/// the TOCTOU race between that unlink and the open. On non-Unix platforms the
+/// check-then-open approach is the only available option.
+///
+/// SEC-016: 0600 is requested as the *creation* mode rather than chmod'ed after the
+/// open. A post-open chmod leaves the file world-readable for the length of the
+/// write window and, in the case that actually matters, fails outright — silently —
+/// when the path was pre-created by someone else, because chmod requires ownership.
+/// `temp_dir()` is `/tmp` on Linux: shared and world-writable.
+fn open_log_file(log_path: &std::path::Path) -> Option<std::fs::File> {
+    if log_path
+        .symlink_metadata()
+        .map(|m| m.file_type().is_symlink())
+        .unwrap_or(false)
+    {
+        let _ = std::fs::remove_file(log_path);
+    }
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
+        // O_NOFOLLOW (0x20000 on Linux / 0x100 on macOS) causes open() to fail with
+        // ELOOP if the final path component is a symlink, regardless of who created it.
+        OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .create(true)
+            .mode(0o600)
+            .custom_flags(libc::O_NOFOLLOW)
+            .open(log_path)
+            .ok()
+            .filter(|f| {
+                // The creation mode above only applies to a file *this* process
+                // creates. If the path was pre-created mode 0666 by another user, the
+                // open still succeeds and they keep read access to everything written
+                // here, so refuse to log rather than leak. Checked on the open
+                // descriptor, so there is no TOCTOU window.
+                // SAFETY: `getuid` has no preconditions, takes no arguments and
+                // always succeeds.
+                let our_uid = unsafe { libc::getuid() };
+                match f.metadata() {
+                    Ok(meta) if meta.uid() == our_uid => true,
+                    Ok(meta) => {
+                        eprintln!(
+                            "par-term: refusing to write {} — it is owned by uid {}, not \
+                             this user. Debug file logging is disabled.",
+                            log_path.display(),
+                            meta.uid()
+                        );
+                        false
+                    }
+                    Err(_) => false,
+                }
+            })
+    }
+
+    #[cfg(not(unix))]
+    {
+        OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .create(true)
+            .open(log_path)
+            .ok()
+    }
+}
+
 impl DebugLogger {
     fn new() -> Self {
         let level = DebugLevel::from_env();
 
-        let log_path = std::env::temp_dir().join("par_term_debug.log");
-
-        // Security: refuse to open symlinks (prevents symlink attacks).
-        // Remove any existing symlink before opening; O_NOFOLLOW (Unix-only, below) closes
-        // the TOCTOU race between this removal and the open call.
-        if log_path
-            .symlink_metadata()
-            .map(|m| m.file_type().is_symlink())
-            .unwrap_or(false)
-        {
-            let _ = std::fs::remove_file(&log_path);
-        }
-
-        // SEC-010: Use O_NOFOLLOW on Unix to atomically reject symlinks at open time,
-        // eliminating the TOCTOU race between the symlink check above and this open call.
-        // On non-Unix platforms the check-then-open approach is the only available option.
-        #[cfg(unix)]
-        let file = {
-            use std::os::unix::fs::OpenOptionsExt;
-            // O_NOFOLLOW (0x20000 on Linux / 0x100 on macOS) causes open() to fail with
-            // ELOOP if the final path component is a symlink, regardless of who created it.
-            OpenOptions::new()
-                .write(true)
-                .truncate(true)
-                .create(true)
-                .custom_flags(libc::O_NOFOLLOW)
-                .open(&log_path)
-                .ok()
-        };
-
-        #[cfg(not(unix))]
-        let file = OpenOptions::new()
-            .write(true)
-            .truncate(true)
-            .create(true)
-            .open(&log_path)
-            .ok();
-
-        // Security: restrict log file to owner-only access on Unix
-        #[cfg(unix)]
-        if file.is_some() {
-            use std::os::unix::fs::PermissionsExt;
-            let _ = std::fs::set_permissions(&log_path, std::fs::Permissions::from_mode(0o600));
-        }
+        let file = open_log_file(&log_path());
 
         let mirror_stderr = std::env::var("RUST_LOG").is_ok();
         let mut logger = DebugLogger {
@@ -523,4 +554,70 @@ macro_rules! debug_and_log_error {
         );
         log::error!($($arg)*);
     }};
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// SEC-016: the log must be owner-only from the moment it is created. A chmod
+    /// after the open leaves a world-readable window and fails silently when the
+    /// path was pre-created by another user.
+    #[cfg(unix)]
+    #[test]
+    fn log_file_is_created_owner_only() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().expect("temp dir");
+        let path = dir.path().join("par_term_debug.log");
+
+        let file = open_log_file(&path).expect("log file opens");
+        drop(file);
+
+        let mode = std::fs::metadata(&path)
+            .expect("log file created")
+            .permissions()
+            .mode();
+        assert_eq!(
+            mode & 0o777,
+            0o600,
+            "debug log must not be group/world readable"
+        );
+    }
+
+    /// SEC-010 regression: a symlink planted at the log path must not be written
+    /// through, whoever owns it.
+    #[cfg(unix)]
+    #[test]
+    fn log_file_open_does_not_follow_a_planted_symlink() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let path = dir.path().join("par_term_debug.log");
+        let target = dir.path().join("victim");
+
+        std::fs::write(&target, "original").expect("seed symlink target");
+        std::os::unix::fs::symlink(&target, &path).expect("plant symlink");
+
+        let mut file = open_log_file(&path).expect("log file opens");
+        std::io::Write::write_all(&mut file, b"leaked").expect("write");
+        drop(file);
+
+        assert_eq!(
+            std::fs::read_to_string(&target).expect("read target"),
+            "original",
+            "the log must not be written through the planted symlink"
+        );
+    }
+
+    #[test]
+    fn log_file_is_truncated_on_reopen() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let path = dir.path().join("par_term_debug.log");
+
+        std::fs::write(&path, "stale session output").expect("seed log");
+
+        let file = open_log_file(&path).expect("log file opens");
+        drop(file);
+
+        assert_eq!(std::fs::read_to_string(&path).expect("read log"), "");
+    }
 }
