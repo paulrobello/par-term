@@ -498,7 +498,7 @@ test-graphics:
 	@echo "   make watch-graphics   (graphics only)"
 	@echo ""
 	@echo "In par-term, run test:"
-	@echo "   bash /tmp/test_par_term_graphics.sh"
+	@echo "   bash scripts/test_sixel.sh"
 	@echo ""
 	DEBUG_LEVEL=4 $(RUN_BASE)
 
