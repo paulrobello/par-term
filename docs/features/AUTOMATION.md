@@ -767,7 +767,7 @@ sequenceDiagram
 
 ### Example Script
 
-A complete working example is provided at [`scripts/examples/hello_observer.py`](../scripts/examples/hello_observer.py). This Python script demonstrates:
+A complete working example is provided at [`scripts/examples/hello_observer.py`](../../scripts/examples/hello_observer.py). This Python script demonstrates:
 
 - Reading JSON events from stdin
 - Sending `Log`, `SetPanel`, and `Notify` commands

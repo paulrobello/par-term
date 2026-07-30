@@ -42,7 +42,7 @@ pub struct WindowConfig {
     pub blur_enabled: bool,
 
     /// Blur radius in points (0–64, macOS only).
-    /// Higher values = more blur. Default: 10.
+    /// Higher values = more blur. Default: 8.
     #[serde(default = "crate::defaults::blur_radius")]
     pub blur_radius: u32,
 

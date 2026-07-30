@@ -325,9 +325,9 @@ pub struct Config {
     pub background_image_enabled: bool,
 
     /// Background image display mode
-    /// - fit: Scale to fit window while maintaining aspect ratio (default)
+    /// - fit: Scale to fit window while maintaining aspect ratio
     /// - fill: Scale to fill window while maintaining aspect ratio (may crop)
-    /// - stretch: Stretch to fill window (ignores aspect ratio)
+    /// - stretch: Stretch to fill window, ignoring aspect ratio (default)
     /// - tile: Repeat image in a tiled pattern
     /// - center: Center image at original size
     #[serde(default)]
@@ -1392,8 +1392,8 @@ pub struct Config {
     pub progress_bar_style: ProgressBarStyle,
 
     /// Progress bar position
-    /// - bottom: Display at the bottom of the terminal (default)
-    /// - top: Display at the top of the terminal
+    /// - top: Display at the top of the terminal (default)
+    /// - bottom: Display at the bottom of the terminal
     #[serde(default)]
     pub progress_bar_position: ProgressBarPosition,
 

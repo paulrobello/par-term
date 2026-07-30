@@ -2,6 +2,8 @@
 
 This document compares features between iTerm2 and par-term, including assessment of usefulness and implementation effort for features par-term doesn't yet have.
 
+> **As of:** the last end-to-end review of this comparison was the v0.17.0 release (2026-02-17); individual rows have been updated since as features shipped. At over 1,100 rows this table drifts between reviews — treat a row as a starting point and confirm current behavior against [docs/CONFIG_REFERENCE.md](docs/CONFIG_REFERENCE.md) and [CHANGELOG.md](CHANGELOG.md) before relying on it. Re-stamp this line whenever the matrix is reviewed in full.
+
 **Legend:**
 - **Status**: ✅ = Implemented | 🔶 = Partial | ❌ = Not Implemented
 - **Useful**: ⭐⭐⭐ = Essential | ⭐⭐ = Nice to have | ⭐ = Low priority | ➖ = Not applicable
@@ -89,7 +91,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Background image modes | ✅ Stretch/Tile/Scale Aspect | ✅ fit/fill/stretch/tile/center | ✅ | - | - | - |
 | Background image opacity | ✅ `Blend` | ✅ `background_image_opacity` | ✅ | - | - | - |
 | Per-pane background image | ✅ | ✅ `pane_backgrounds` | ✅ | - | - | Per-pane image, mode, opacity |
-| **Custom GLSL shaders** | ❌ | ✅ `custom_shader*` | ✅ | - | - | **par-term exclusive** - 49+ shaders |
+| **Custom GLSL shaders** | ❌ | ✅ `custom_shader*` | ✅ | - | - | **par-term exclusive** - 73 bundled shaders (61 background + 12 cursor) |
 | **Shader hot reload** | ❌ | ✅ `shader_hot_reload` | ✅ | - | - | **par-term exclusive** |
 | **Per-shader configuration** | ❌ | ✅ `shader_configs` | ✅ | - | - | **par-term exclusive** |
 | **Shader texture channels** | ❌ | ✅ `custom_shader_channel0-3` | ✅ | - | - | **par-term exclusive** - Shadertoy compatible |
@@ -952,8 +954,8 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 **Note: This includes many low-priority features. Core terminal functionality parity is much higher (80%+).**
 
 ### par-term Exclusive Features (Not in iTerm2)
-- 49+ custom GLSL background shaders with hot reload
-- 12+ cursor shader effects (GPU-powered cursor animations)
+- 61 custom GLSL background shaders with hot reload
+- 12 cursor shader effects (GPU-powered cursor animations)
 - Per-shader configuration system with metadata
 - Shadertoy-compatible texture channels and cubemaps
 - Progress bar shader uniforms (`iProgress` — react to OSC 9;4 / OSC 934 state)

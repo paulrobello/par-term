@@ -364,14 +364,14 @@ For snippet or action keybindings, see `docs/features/SNIPPETS.md`. Key points:
 
 ## Sub-Crate Architecture
 
-par-term is organized as a Cargo workspace with 14 sub-crates plus the root application crate. The dependency graph is a strict layered DAG.
+par-term is organized as a Cargo workspace with 13 sub-crates plus the root application crate. The dependency graph is a strict layered DAG.
 
 ### Dependency Layers
 
 | Layer | Crates | Notes |
 |-------|--------|-------|
 | **Layer 0** | `par-term-acp`, `par-term-ssh`, `par-term-mcp` | No internal deps; bump in any order |
-| **Layer 1** | `par-term-config` | Foundation; depends only on external `par-term-emu-core-rust` |
+| **Layer 1** | `par-term-config` | Foundation; a pure-data crate with no workspace dependencies. It does **not** depend on `par-term-emu-core-rust` — the Unicode types it needs are defined locally in `src/types/`. |
 | **Layer 2** | `par-term-fonts`, `par-term-input`, `par-term-keybindings`, `par-term-scripting`, `par-term-settings-ui`, `par-term-terminal`, `par-term-tmux`, `par-term-update` | All depend on `par-term-config` |
 | **Layer 3** | `par-term-render` | Depends on `par-term-config` and `par-term-fonts` |
 | **Layer 4** | `par-term` (root) | Depends on all of the above |
@@ -471,19 +471,20 @@ the initial terminal dimensions.
 
 When cutting a release, verify documentation stays internally consistent. GitHub strips punctuation and lowercases heading text to form anchors, so a heading rename silently breaks TOC links.
 
-- **TOC anchors** — after editing any heading in `README.md`, confirm every `[link](#anchor)` in the Table of Contents still resolves to a heading (e.g. `What's New in 0.33.0` → `#whats-new-in-0330`).
+- **Release notes** — replace the contents of the README's `## What's New` section with the new release's highlights; do not append a second section. The heading is deliberately version-free so its `#whats-new` anchor never goes stale, and every earlier release already lives in `CHANGELOG.md`. Put the version in the `###` subheading beneath it.
+- **TOC anchors** — after editing any heading in `README.md`, confirm every `[link](#anchor)` in the Table of Contents still resolves to a heading. `make doc-check` catches this automatically.
 - **Version sync** — `Cargo.toml` (`version`) and the top of `CHANGELOG.md` must agree before tagging. `CLAUDE.md` deliberately carries **no** version line: it had no consumer, silently fell two releases behind, and duplicating a version outside manifests and changelogs is what `docs/DOCUMENTATION_STYLE_GUIDE.md` advises against. Do not reintroduce one.
 - **Tag the release** — `git tag v<X.Y.Z> <release-commit> && git push origin v<X.Y.Z>`. Homebrew SHA, the self-update checker, and `git describe` all require the tag to be pushed.
 
 ## Related Documentation
 
-- [docs/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) — Full architecture, data flow, and threading model
+- [docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) — Full architecture, data flow, and threading model
 - [docs/LOGGING.md](docs/LOGGING.md) — Custom debug macro system and log levels
-- [docs/CUSTOM_SHADERS.md](docs/features/CUSTOM_SHADERS.md) — Background and cursor shader development
+- [docs/features/CUSTOM_SHADERS.md](docs/features/CUSTOM_SHADERS.md) — Background and cursor shader development
 - [docs/CONFIG_REFERENCE.md](docs/CONFIG_REFERENCE.md) — All configuration options
-- [docs/KEYBOARD_SHORTCUTS.md](docs/guides/KEYBOARD_SHORTCUTS.md) — Default keybinding reference
-- [docs/SNIPPETS.md](docs/features/SNIPPETS.md) — Snippet and action keybinding system
+- [docs/guides/KEYBOARD_SHORTCUTS.md](docs/guides/KEYBOARD_SHORTCUTS.md) — Default keybinding reference
+- [docs/features/SNIPPETS.md](docs/features/SNIPPETS.md) — Snippet and action keybinding system
 - [docs/ACP_HARNESS.md](docs/ACP_HARNESS.md) — ACP agent debugging harness
-- [docs/TROUBLESHOOTING.md](docs/guides/TROUBLESHOOTING.md) — Common issues and solutions
+- [docs/guides/TROUBLESHOOTING.md](docs/guides/TROUBLESHOOTING.md) — Common issues and solutions
 - [docs/DOCUMENTATION_STYLE_GUIDE.md](docs/DOCUMENTATION_STYLE_GUIDE.md) — Documentation conventions for this project
 - [CLAUDE.md](CLAUDE.md) — Full AI assistant development context and workflow reference

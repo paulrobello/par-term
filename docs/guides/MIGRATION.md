@@ -7,13 +7,13 @@ Upgrade notes for par-term covering breaking configuration changes, renamed fiel
 - [Unreleased — `XDG_CONFIG_HOME` Is Now Honoured](#unreleased--xdg_config_home-is-now-honoured)
 - [Unreleased — macOS Config Directory Consolidation](#unreleased--macos-config-directory-consolidation)
 - [v0.31.0 — Content Prettifier Removed](#v0310--content-prettifier-removed)
-- [v0.20.0 — Default Changes](#v0200--default-changes)
+- [v0.27.0 — Trigger Field Renamed](#v0270--trigger-field-renamed)
+- [v0.27.0 — Security-Gated Trigger Execution](#v0270--security-gated-trigger-execution)
+- [v0.26.0 — ACP auto_approve Enforces Safe Write Paths](#v0260--acp-auto_approve-enforces-safe-write-paths)
 - [v0.25.0 — HTTP Profile URLs Blocked by Default](#v0250--http-profile-urls-blocked-by-default)
 - [v0.25.0 — Minimum Contrast Scale Change](#v0250--minimum-contrast-scale-change)
 - [v0.25.0 — Pane Padding Defaults](#v0250--pane-padding-defaults)
-- [v0.26.0 — ACP auto_approve Enforces Safe Write Paths](#v0260--acp-auto_approve-enforces-safe-write-paths)
-- [v0.27.0 — Trigger Field Renamed](#v0270--trigger-field-renamed)
-- [v0.27.0 — Security-Gated Trigger Execution](#v0270--security-gated-trigger-execution)
+- [v0.20.0 — Default Changes](#v0200--default-changes)
 - [Related Documentation](#related-documentation)
 
 ---
@@ -55,23 +55,49 @@ The prettifier was an optional subsystem that reformatted terminal output (JSON,
 
 ---
 
-## v0.20.0 — Default Changes
+## v0.27.0 — Trigger Field Renamed
 
-**`tab_bar_mode` default changed from `when_multiple` to `always`.**
-
-If you were relying on the tab bar auto-hiding when only one tab was open, add this to your config explicitly:
+The `require_user_action` field on trigger definitions was renamed to `prompt_before_run`.
 
 ```yaml
-tab_bar_mode: "when_multiple"
+# Before v0.27.0
+triggers:
+  - name: "my trigger"
+    require_user_action: false
+
+# v0.27.0 and later
+triggers:
+  - name: "my trigger"
+    prompt_before_run: false
+    i_accept_the_risk: true   # required when prompt_before_run is false
 ```
 
-**`window_padding` default changed to `0.0`.**
+The old field name is accepted as a YAML alias — existing config files continue to load without modification. However, the Settings UI only shows `prompt_before_run`. Update your config to avoid confusion.
 
-If you preferred the previous padded look, restore it:
+---
+
+## v0.27.0 — Security-Gated Trigger Execution
+
+Triggers with `prompt_before_run: false` now **require** an explicit `i_accept_the_risk: true` field. Without it, execution is blocked and an audit warning is emitted.
+
+If your existing config has `require_user_action: false` (or the new `prompt_before_run: false`) on any trigger, add `i_accept_the_risk: true` to that trigger to restore automatic execution:
 
 ```yaml
-window_padding: 4.0
+triggers:
+  - name: "auto-run trigger"
+    prompt_before_run: false
+    i_accept_the_risk: true
+    pattern: "some pattern"
+    action: ...
 ```
+
+A warning banner appears in Settings → Automation when any trigger has this configuration.
+
+---
+
+## v0.26.0 — ACP auto_approve Enforces Safe Write Paths
+
+The ACP agent's automatic approval mode for file-write tools now always validates that the target path passes `is_safe_write_path`. The target must fall within the user's home directory or an explicitly declared safe root. Writes to system paths are blocked even in `auto_approve` mode.
 
 ---
 
@@ -110,49 +136,23 @@ Split-pane mode now automatically adds base padding equal to half the divider wi
 
 ---
 
-## v0.26.0 — ACP auto_approve Enforces Safe Write Paths
+## v0.20.0 — Default Changes
 
-The ACP agent's automatic approval mode for file-write tools now always validates that the target path passes `is_safe_write_path`. The target must fall within the user's home directory or an explicitly declared safe root. Writes to system paths are blocked even in `auto_approve` mode.
+**`tab_bar_mode` default changed from `when_multiple` to `always`.**
 
----
-
-## v0.27.0 — Trigger Field Renamed
-
-The `require_user_action` field on trigger definitions was renamed to `prompt_before_run`.
+If you were relying on the tab bar auto-hiding when only one tab was open, add this to your config explicitly:
 
 ```yaml
-# Before v0.27.0
-triggers:
-  - name: "my trigger"
-    require_user_action: false
-
-# v0.27.0 and later
-triggers:
-  - name: "my trigger"
-    prompt_before_run: false
-    i_accept_the_risk: true   # required when prompt_before_run is false
+tab_bar_mode: "when_multiple"
 ```
 
-The old field name is accepted as a YAML alias — existing config files continue to load without modification. However, the Settings UI only shows `prompt_before_run`. Update your config to avoid confusion.
+**`window_padding` default changed to `0.0`.**
 
----
-
-## v0.27.0 — Security-Gated Trigger Execution
-
-Triggers with `prompt_before_run: false` now **require** an explicit `i_accept_the_risk: true` field. Without it, execution is blocked and an audit warning is emitted.
-
-If your existing config has `require_user_action: false` (or the new `prompt_before_run: false`) on any trigger, add `i_accept_the_risk: true` to that trigger to restore automatic execution:
+If you preferred the previous padded look, restore it:
 
 ```yaml
-triggers:
-  - name: "auto-run trigger"
-    prompt_before_run: false
-    i_accept_the_risk: true
-    pattern: "some pattern"
-    action: ...
+window_padding: 4.0
 ```
-
-A warning banner appears in Settings → Automation when any trigger has this configuration.
 
 ---
 

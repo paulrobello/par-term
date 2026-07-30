@@ -99,6 +99,8 @@ field uses its documented default value.
 
 > **v0.30.0:** The following rendering fields are now internally grouped under a `FontRenderingConfig` sub-struct. Existing YAML configs are fully backward-compatible.
 
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
 | `font_antialias` | `bool` | `true` | Anti-aliased font rendering |
 | `font_hinting` | `bool` | `true` | Font hinting for pixel-aligned rendering |
 | `font_thin_strokes` | `enum` | `retina_only` | Stroke weight mode: `never`, `retina_only`, `dark_backgrounds_only`, `retina_dark_backgrounds_only`, `always` |
@@ -582,8 +584,8 @@ Override shader settings per-file. Keys are shader filenames (without path).
 | `ai_inspector_enabled` | `bool` | `true` | Enable AI Inspector panel |
 | `ai_inspector_open_on_startup` | `bool` | `false` | Open inspector automatically on startup |
 | `ai_inspector_width` | `f32` | `300.0` | Inspector panel width in pixels |
-| `ai_inspector_default_scope` | `string` | `"visible"` | Default capture scope: `visible`, `scrollback`, `selection` |
-| `ai_inspector_view_mode` | `string` | `"tree"` | View mode for inspector results: `tree`, `cards`, `raw` |
+| `ai_inspector_default_scope` | `string` | `"visible"` | Default capture scope: `visible`, `full`, or `recent_<n>` (the Settings UI offers `recent_5`, `recent_10`, `recent_25`, `recent_50`). Any unrecognized value silently falls back to `visible`. |
+| `ai_inspector_view_mode` | `string` | `"tree"` | View mode for inspector results: `cards`, `timeline`, `tree`, `list_detail`. Any unrecognized value silently falls back to `cards` — note this differs from the `tree` default applied when the field is absent. |
 | `ai_inspector_live_update` | `bool` | `false` | Automatically refresh inspector when terminal content changes |
 | `ai_inspector_show_zones` | `bool` | `true` | Show semantic zone overlays on terminal content |
 | `ai_inspector_agent` | `string` | `"claude.com"` | AI agent identifier for queries |

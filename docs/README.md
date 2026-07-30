@@ -86,3 +86,4 @@ Navigation index for all par-term documentation. Start with the [Getting Started
 | [Enterprise Deployment](ENTERPRISE_DEPLOYMENT.md) | Managed deployment, configuration distribution, and fleet management |
 | [Quick Start: Fonts](guides/QUICK_START_FONTS.md) | Set up font families, CJK, emoji, and math symbols in 5 minutes |
 | [Documentation Style Guide](DOCUMENTATION_STYLE_GUIDE.md) | Standards and best practices for project documentation |
+| [Feature Matrix](../MATRIX.md) | iTerm2 vs par-term feature-by-feature comparison, with usefulness and effort ratings for gaps |

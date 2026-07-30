@@ -219,6 +219,8 @@ Avoid:
 
 Line numbers are acceptable in temporary debugging notes, issue comments, or review comments tied to a specific commit SHA.
 
+They are also acceptable when the `path:line` string is the subject of the documentation rather than a reference to a real file. Features that recognize `file:line` text — semantic history, path detection, error-output parsing — must show that syntax to explain what they match, and rewriting those examples as symbol names would document the wrong thing.
+
 ### Version References
 
 Avoid duplicating dependency or package versions in general documentation. Version numbers drift and should usually live in package manifests, lockfiles, release notes, or generated API references.

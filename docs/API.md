@@ -9,7 +9,8 @@ This document provides an overview of the public types and functions exported by
 This index is maintained by hand and is **not** enforced by CI — it is a navigation aid, not a source of truth.
 
 - **Authoritative reference:** `make doc` (or `make doc-open`) generates the complete rustdoc site under `target/doc/`. When this index disagrees with the generated docs, the generated docs win.
-- **Suggested gate:** a `make doc-check` target (not yet implemented) could diff this index against `cargo doc`'s public-item list to catch drift on CI. Until then, reviewers should spot-check coverage when public types are added or renamed.
+- **Existing gate:** `make doc-check` validates documentation *links* — it runs `lychee` over every Markdown file and fails on broken relative paths and broken `#anchor` fragments. CI runs the same check in the `docs` job.
+- **Not yet gated:** nothing diffs this index against `cargo doc`'s public-item list, so a renamed or newly added public type will not be flagged. Reviewers should spot-check coverage when public types change.
 - **Stable coverage:** the foundational crates (`par-term-config`, `par-term-fonts`, `par-term-input`, `par-term-keybindings`, `par-term-terminal`, `par-term-tmux`, `par-term-update`, `par-term-acp`, `par-term-ssh`, `par-term-mcp`, `par-term-scripting`) are documented at the public-type level and are not pending reorganization.
 - **Intentionally non-exhaustive:** the `par-term-settings-ui` and `par-term-render` sections are deliberately left lighter. Both are blocked behind the ARC-001 (root-crate extraction) and ARC-002 (`WindowState` decomposition) migrations — their module layouts and public surfaces are expected to move. Rewriting these entries now would immediately drift. They will be (re)written once those refactor lands and the public surface settles.
 
@@ -146,10 +147,10 @@ Configuration loading, saving, and type definitions for the terminal emulator. T
 |------|-------------|
 | `ShaderConfig` | Background shader reference: name, enabled flag, per-shader parameters. |
 | `ResolvedShaderConfig` | Fully resolved shader config after metadata lookup. |
-| `ShaderMetadata` | TOML-parsed metadata for a background shader. |
+| `ShaderMetadata` | YAML metadata embedded in a background shader source file. |
 | `ShaderMetadataCache` | In-memory cache of background shader metadata. |
 | `CursorShaderConfig` | Configuration for cursor post-processing shaders. |
-| `CursorShaderMetadata` | TOML-parsed metadata for a cursor shader. |
+| `CursorShaderMetadata` | YAML metadata embedded in a cursor shader source file. |
 | `ResolvedCursorShaderConfig` | Fully resolved cursor shader config after metadata lookup. |
 | `CursorShaderMetadataCache` | In-memory cache of cursor shader metadata. |
 | `ShaderBundleManifest` | Manifest for a bundled shader package. |
@@ -162,8 +163,10 @@ Configuration loading, saving, and type definitions for the terminal emulator. T
 | `resolve_shader_config(config, cache)` | Resolve a `ShaderConfig` against the metadata cache. |
 | `resolve_cursor_shader_config(config, cache)` | Resolve a cursor shader config. |
 | `parse_shader_controls(source)` | Parse `//@control` annotations from GLSL source. |
-| `parse_shader_metadata(path)` | Parse TOML metadata for a background shader. |
-| `parse_cursor_shader_metadata(path)` | Parse TOML metadata for a cursor shader. |
+| `parse_shader_metadata(source: &str)` | Parse the embedded YAML metadata block out of background shader source text. |
+| `parse_shader_metadata_from_file(path: &Path)` | Read a background shader file from disk and parse its embedded YAML metadata. |
+| `parse_cursor_shader_metadata(source: &str)` | Parse the embedded YAML metadata block out of cursor shader source text. |
+| `parse_cursor_shader_metadata_from_file(path: &Path)` | Read a cursor shader file from disk and parse its embedded YAML metadata. |
 
 ### Profiles
 
@@ -252,6 +255,23 @@ Configuration loading, saving, and type definitions for the terminal emulator. T
 | `IntegrationVersions` | Version tracking for shell integration scripts. |
 | `UpdateCheckFrequency` | How often to check for updates: `Daily`, `Weekly`, `Monthly`, or `Never`. |
 | `ShaderInstallPrompt` | Whether the bundled shader install prompt was shown. |
+
+### Prelude
+
+The `prelude` module groups the crate's public surface into domain namespaces so consumers can import just the area they need. The crate root still re-exports everything, so existing `use par_term_config::X` paths keep working.
+
+| Module | Contents |
+|--------|----------|
+| `prelude::core` | `Config`, `ConfigError`, `Cell`, `Theme`, `Color`, the nested `Config` sub-structs, `TabSnapshot`, `ScrollbackMark`, and the `${VAR}` substitution helpers. |
+| `prelude::types` | Every configuration enum and struct from the internal `types` module, grouped by subsystem (font, rendering, selection, shader, shell, tab bar, terminal, integration, alert, keybinding). |
+| `prelude::automation` | Triggers, coprocesses, `ScriptConfig`, rate limiting, and the command allowlist/denylist checks. |
+| `prelude::shader` | Shader controls, metadata parsing and caches, bundle manifests, and config resolution. |
+| `prelude::assistant` | Assistant prompt library and input-history persistence. |
+| `prelude::snippets` | `SnippetConfig`, `SnippetLibrary`, `CustomActionConfig`, and `BuiltInVariable`. |
+| `prelude::status_bar` | `StatusBarSection`, `StatusBarWidgetConfig`, `WidgetId`, and `default_widgets()`. |
+| `prelude::profile` | `Profile`, `ProfileId`, `ProfileManager`, `ProfileSource`, `TmuxConnectionMode`, plus dynamic-source and conflict-resolution types. |
+| `prelude::unicode` | `AmbiguousWidth`, `NormalizationForm`, and `UnicodeVersion`. |
+| `prelude::color` | `u8`-to-`f32` color conversion helpers for GPU-ready values. |
 
 ---
 
@@ -405,7 +425,7 @@ egui-based settings interface decoupled from the main terminal crate via traits.
 | `ShaderInstallResult` | Result of shader installation (installed, skipped, removed counts). |
 | `ShaderUninstallResult` | Result of shader uninstallation (removed, kept, needs confirmation). |
 | `SettingsWindowAction` | Actions returned by settings UI for the main app to process. |
-| `UpdateCheckResult` | Result of an update check (UpToDate, UpdateAvailable, Error, etc.). |
+| `UpdateCheckResult` | Result of an update check (UpToDate, UpdateAvailable, Error, etc.). A distinct UI-facing type carrying `UpdateCheckInfo` — **not** a re-export of the same-named enum in `par-term-update`, which carries `UpdateInfo`. |
 | `UpdateCheckInfo` | Information about an available update. |
 | `ShellIntegrationInstallResult` | Result of shell integration installation. |
 | `ShellIntegrationUninstallResult` | Result of shell integration uninstallation. |
@@ -416,11 +436,13 @@ egui-based settings interface decoupled from the main terminal crate via traits.
 
 Observer-pattern scripting: launch Python or shell scripts that react to terminal events.
 
+The crate root declares its modules but re-exports nothing, so every type must be imported through its owning module.
+
 | Type | Description |
 |------|-------------|
-| `ScriptManager` | Manages multiple `ScriptProcess` instances for a single tab. Handles start, stop, event broadcast, and panel state. |
-| `ScriptId` | `u64` identifier for a managed script subprocess. |
-| `ScriptProcess` | A single script subprocess with JSON-line stdin/stdout communication. |
+| `manager::ScriptManager` | Manages multiple `ScriptProcess` instances for a single tab. Handles start, stop, event broadcast, and panel state. |
+| `manager::ScriptId` | `u64` identifier for a managed script subprocess. |
+| `process::ScriptProcess` | A single script subprocess with JSON-line stdin/stdout communication. |
 
 ### Public Modules
 

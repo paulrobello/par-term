@@ -57,16 +57,21 @@ Use `make tail-log` (which resolves the path for you) or `tail -f "${TMPDIR:-/tm
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `SHELL` | `/bin/bash` | Path to the shell to launch in new terminal tabs. Falls back to `/bin/bash` if unset. |
-| `TERM` | — | Terminal type reported to child processes. Also used in config variable substitution. |
+| `TERM` | `xterm-256color` | **Force-set, not inherited.** Whatever value the parent environment carries is overwritten before the child process starts, so a `TERM` exported in your login shell has no effect inside par-term. The name is still substitutable in config `${VAR}` placeholders, where it resolves against par-term's own environment. |
+| `COLORTERM` | `truecolor` | **Force-set, not inherited.** Overwritten in every child process to advertise 24-bit color, regardless of the parent value. |
 | `TERM_PROGRAM` | `iTerm.app` | Set by par-term in every child process environment for maximum protocol compatibility. Tools that check `TERM_PROGRAM` for feature detection (OSC 8 hyperlinks, OSC 9;4 progress bars, OSC 52 clipboard, OSC 1337 file transfer) will enable those features. |
 | `TERM_PROGRAM_VERSION` | `3.6.6` | Set by par-term alongside `TERM_PROGRAM` to advertise the iTerm2 protocol version. |
 | `LC_TERMINAL` | `iTerm2` | Set by par-term for tools that check this variable for iTerm2 feature compatibility. |
 | `LC_TERMINAL_VERSION` | `3.6.6` | Set by par-term alongside `LC_TERMINAL`. |
 | `ITERM_SESSION_ID` | `w0t0p0:<uuid>` | Set by par-term per session. Used by Claude Code and other tools for OSC 52 clipboard detection. Format: `w{window}t{tab}p{pane}:{UUID}`. |
+| `KITTY_WINDOW_ID` | `1` | Set by the terminal core so tools can detect the Kitty graphics protocol, which par-term implements. |
+| `KITTY_PID` | (par-term's PID) | Set by the terminal core alongside `KITTY_WINDOW_ID`. |
 | `__PAR_TERM` | `1` | Set by par-term as an identity marker. Shell integration scripts use this to detect they are running inside par-term. |
 | `PATH` | — | System executable search path. Read at startup to locate the shell and other programs. par-term augments `PATH` with common tool directories (e.g., `/opt/homebrew/bin`, `~/.cargo/bin`) when launching child processes. |
+| `PATHEXT` | `.EXE;.BAT;.CMD;.COM` | **Windows only.** Read when resolving a bare command name on `PATH` — used to find ACP agent binaries and script interpreters that are installed as `.cmd`, `.bat`, or `.exe`. Falls back to the listed default if unset. |
 | `LANG` | `en_US.UTF-8` | Locale setting inherited from the parent environment and forwarded to the child shell. If no locale variables (`LANG`, `LC_ALL`, `LC_CTYPE`) are set in the parent environment (e.g., when launched from Finder/Dock), defaults to `en_US.UTF-8`. |
-| `COLORTERM` | — | Color capability hint (`truecolor` or `24bit`). Forwarded to child processes. |
+
+> **Note:** `TERM` and `COLORTERM` are the only two variables in this table whose value from the parent environment is discarded rather than inherited. To change either one for child processes, set it under `shell_env` in `config.yaml` — user-configured `shell_env` entries are applied last and win over every default above.
 
 ---
 

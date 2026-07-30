@@ -10,7 +10,7 @@ This document provides a high-level overview of the `par-term` architecture, det
   - [Application Logic](#application-logic)
   - [Terminal Emulation](#terminal-emulation)
   - [Pane & Tab Management](#pane--tab-management)
-  - [tmux Integration](#tmux-integration)
+  - [tmux Integration](#tmux-integration-par-term-tmux)
   - [Rendering Engine](#rendering-engine)
   - [Text & Font Handling](#text--font-handling)
   - [Additional Features](#additional-features)

@@ -16,7 +16,7 @@ A cross-platform, GPU-accelerated terminal emulator frontend built with Rust, po
 ## Table of Contents
 
 - [Getting Started](#getting-started)
-- [What's New](#whats-new-in-0351)
+- [What's New](#whats-new)
 - [Features](#features)
 - [Documentation](#documentation)
 - [Installation](#installation)
@@ -41,7 +41,9 @@ New to par-term? The [Getting Started Guide](docs/guides/GETTING_STARTED.md) wal
 - **[Configuration Reference](docs/CONFIG_REFERENCE.md)** — All 200+ configuration options
 - **[Keyboard Shortcuts](docs/guides/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
 
-## What's New in 0.37.1
+## What's New
+
+### 0.37.1
 
 - **Scripts on Windows now run at all** -- `.py` scripts were spawned with a literal `python3`, which the official Windows Python distribution does not install (it provides `python.exe` and the `py.exe` launcher only), so every script silently failed to start. The interpreter is now resolved from `PATH`, honouring `PATHEXT`, and reports which candidates it tried when none is found.
 - **ACP agents on Windows are discoverable** -- agent lookup probed `PATH` for a bare binary name, but the file on disk carries a `PATHEXT` suffix (`claude-agent-acp.cmd`), so every bundled agent reported "not installed". Lookup now tries each `PATHEXT` extension, and the ACP safe-write allowlist uses the real temp directory instead of hardcoded Unix paths.
@@ -49,75 +51,7 @@ New to par-term? The [Getting Started Guide](docs/guides/GETTING_STARTED.md) wal
 - **`auto_start: true` scripts start with their tab** -- the flag was documented but never acted on; only the Settings UI button could launch a script. Tab creation now auto-starts scripts the way it already did coprocesses ([#220](https://github.com/paulrobello/par-term/issues/220)).
 - **Windows CI is back, and the full three-OS matrix with it** -- the audio crash above was the long-standing cause of the instability that got the Windows leg disabled.
 
-For the full history of changes across all versions, see [CHANGELOG.md](CHANGELOG.md).
-
-## What's New in 0.37.0
-
-- **OSC 52 clipboard bridge -- remote copy now works** -- programs that set the clipboard via the OSC 52 escape sequence (locally and over SSH -- this is how tmux, herdr, and other remote workspace managers reach your local clipboard) now actually reach the system clipboard. par-term advertised OSC 52 support and parsed the sequences, but the frontend never forwarded the payload to the OS, so a remote app would report "copied" while paste kept delivering stale content. A per-frame poll now bridges the parsed OSC 52 content to the system clipboard (the same path local selection-copy uses), deduped per frame and polled only for the focused pane. Gated by `osc52_clipboard` (default `true`), with a toggle under Settings → Input → Selection & Clipboard; disable it if you don't want programs overwriting your clipboard.
-
-For the full history of changes across all versions, see [CHANGELOG.md](CHANGELOG.md).
-
-## What's New in 0.36.0
-
-- **Full-screen TUI partial-staleness fixed** -- after a burst of partial-line edits (delete-line / insert-line / erase-line) under full-screen TUIs (joe, vim, less), a few changed rows could keep showing old content until the next keypress or a resize. The core PTY reader bumped its update-generation counter *before* writing the grid, so a render that grabbed the terminal lock in that gap read the not-yet-updated grid but stamped its cell cache with the already-advanced generation, and the changed rows stuck when it was the last read of a burst. Fixed upstream in `par-term-emu-core-rust` 0.45.0 with a second generation bump after the grid write.
-- **Edit → Select All works over the terminal** -- the menu item and its Cmd+A / Ctrl+Shift+A accelerator previously did nothing over the terminal (only over the settings window or egui overlays). It now selects the entire buffer (scrollback plus the visible screen), highlighting the visible screen, and a subsequent Copy pulls the full contents rather than only the viewport.
-- **"About par-term" opens the About overlay** -- the Help → About par-term and macOS app-menu About par-term items were wired to a stub that only logged; they now open the Help/About overlay.
-- **Bundled Gemini CLI agent removed** -- Gemini CLI is no longer usable, so its bundled ACP agent definition, identity, and supporting adapter code were removed (bundled agents 8 → 7). User-supplied agent configs in `~/.config/par-term/agents/` are unaffected.
-
-For the full history of changes across all versions, see [CHANGELOG.md](CHANGELOG.md).
-
-## What's New in 0.35.2
-
-- **Alt-screen redraw freeze fixed** -- after a burst of alternate-screen output ended (common under full-screen TUIs and streaming agents like Claude Code), the terminal could stop redrawing and sit one burst behind the live content for 20+ seconds until a scroll, resize, or keypress forced a refresh. The per-pane cell cache was being stamped with a generation *newer* than the cells it held (the PTY reader bumps that counter mid-flush), so the next frame saw a false "up to date" match and served stale cells. The cache is now stamped with the generation the cells were actually gathered at, and a redraw is re-armed whenever a frame renders behind because it lost the race for the core terminal lock. Latent since the 0.35.0 read-lock sweep.
-
-For the full history of changes across all versions, see [CHANGELOG.md](CHANGELOG.md).
-
-## What's New in 0.35.1
-
-- **Event-loop freeze fixes** -- four synchronous blocking calls running on the single winit main event-loop thread (`about_to_wait` / `render`) that intermittently froze all terminal I/O (input, output, *and* rendering) for seconds at a time are now offloaded or bounded: the periodic update check and Settings → "Check Now" run the blocking `ureq` HTTPS GET on `spawn_blocking` (was a 30s main-thread freeze whenever the network/DNS/GitHub was slow or unreachable); the macOS `osascript` notification fallback runs in a worker thread; and MCP screenshot capture uses a bounded 5s GPU poll + `recv_timeout` instead of waiting indefinitely.
-
-For the full history of changes across all versions, see [CHANGELOG.md](CHANGELOG.md).
-
-## What's New in 0.35.0
-
-- **Kitty OSC 99 desktop notifications** -- full adoption of the Kitty desktop-notification spec on top of core 0.44.0: urgency hints (`u=`) map to platform timeouts/audible cues, identity (`i=`) replaces an existing notification instead of stacking, and click actions (`a=`) focus the originating window/tab/pane (default) or send an activation reply to the app. Bundled macOS builds use a native `UNUserNotificationCenter` backend; `cargo run` builds fall back to `osascript`.
-- **Native macOS notification backend** -- identifier replacement, click delegate, and foreground presentation via `objc2`/`UNUserNotificationCenter` for bundled apps.
-- **`max_osc_data_length` config option** -- caps OSC payload size (default 128 MiB, matching the core) for tighter memory/security bounds, applied at terminal creation and on live reload; exposed under Settings → Advanced.
-- **Notifications from background tabs/panes** -- OSC 9/777/99 notifications are now polled across every tab and pane each frame, so a "build finished" alert from a background tab fires immediately instead of waiting for focus.
-- **Render cell-cache staleness fixes** -- text selection and frontend-driven `clear_scrollback`/theme changes now correctly invalidate the per-pane cell cache.
-- **Terminal lock-discipline sweep** -- 93 write-lock sites that only read state are now read locks (from core's `Mutex` → `RwLock` migration), letting rendering, polling, and input overlap.
-- **Supply-chain hardening** -- `deny.toml` migrated to the cargo-deny v2 schema; CI pins cargo-deny to 0.19.9.
-
-For the full history of changes across all versions, see [CHANGELOG.md](CHANGELOG.md).
-
-## What's New in 0.34.0
-
-- **Security hardening pass** -- 9 audit issues resolved (SEC-001 through SEC-009): ACP writes now respect the sensitive-path blocklist, SSH `extra_args` filter dangerous flags/options (`ProxyCommand`, `-A`, ...), MCP screenshot/config-update/auth paths are hardened, agent `[env]` blocks `LD_*`/`DYLD_*` linker injection, self-update rejects a missing SHA256 checksum, and OSC 8 hyperlinks reject non-`http(s)` URL schemes by default.
-- **Opt-in `file://` links** -- opening `file://` OSC 8 hyperlinks is now opt-in via `allow_file_scheme_urls`, since a remote program could otherwise open arbitrary local paths; `http(s)`/`mailto` and bare `host:port` links are unaffected.
-- **egui 0.34 → 0.35** -- migrated to egui 0.35 (plus `egui-wgpu`/`egui-winit`); the wgpu 29 / naga 29 / winit 0.30 GPU stack is unchanged and no overrides are needed.
-- **Persisted custom status-bar widgets** -- custom status-bar widgets now round-trip through `config.yaml` (`custom:<name>` serialization); the previously-broken format is fixed.
-- **Split-pane resize cursor** -- the resize cursor no longer stays stuck after dragging a split-pane divider when a mouse-tracking app (tmux/vim/less) swallows the release event.
-
-For the full history of changes across all versions, see [CHANGELOG.md](CHANGELOG.md).
-
-## What's New in 0.33.0
-
-- **Rendering stack upgrade** -- wgpu 29, egui 0.34, and `par-term-emu-core-rust` 0.43. Absorbs the core's breaking Rust API changes (the `Terminal` lock is now an `RwLock`; `Cell` fields are accessors) and fixes an egui-wgpu 0.34 launch crash.
-- **Split-pane drag-select** -- drag-selecting text no longer requires holding Shift when another pane is running an alt-screen app (vim/tmux/less).
-- **Wrapped hyperlinks** -- clicking a URL that wraps across lines opens the full URL, in both native panes and tmux.
-- **Kitty graphics DoS hardening** -- integer-overflow in Kitty RGBA/RGB decode is now bounds-checked (from core 0.43).
-- **Performance** -- concurrent terminal reads, a bounded LRU glyph cache, and a smaller `Cell`.
-
-For the full history of changes across all versions, see [CHANGELOG.md](CHANGELOG.md).
-
-## What's New in 0.32.0
-
-- **Promote Pane to Tab / Demote Tab to Pane** -- new actions to move panes between tabs while preserving all running processes. Promote instantly extracts a focused pane into its own tab; demote provides a multi-step pick mode to merge a tab's pane tree into another tab.
-- **Kitty Terminal Graphics Protocol — Full Support** -- par-term now parses, stores, renders, and responds to Kitty TGP (Phases 1–3). Virtual-placement images display correctly and autodetect probes succeed.
-- **Platform-Native Modifier for Hardcoded Shortcuts** -- font size, clear scrollback, and clipboard history shortcuts now use Cmd on macOS instead of bare Ctrl.
-- **Ctrl+Punctuation Control Codes** -- Ctrl with ASCII punctuation (@ [ \ ] ^ _) now correctly maps to control equivalents (e.g. Ctrl+_ sends 0x1F for joe editor undo).
-
-For the full history of changes across all versions, see [CHANGELOG.md](CHANGELOG.md).
+Release notes for every earlier version live in [CHANGELOG.md](CHANGELOG.md).
 
 ## Features
 
@@ -179,7 +113,7 @@ For the full history of changes across all versions, see [CHANGELOG.md](CHANGELO
 - **[Profiles](docs/features/PROFILES.md)** - Profile system for saving terminal configurations.
 - **[Session Logging](docs/features/SESSION_LOGGING.md)** - Recording sessions in Plain/HTML/Asciicast formats.
 - **[Search](docs/features/SEARCH.md)** - Terminal search with regex, case-sensitive, and whole-word modes.
-- **[Paste Special](docs/features/PASTE_SPECIAL.md)** - 28 clipboard transformations for pasting.
+- **[Paste Special](docs/features/PASTE_SPECIAL.md)** - 29 clipboard transformations for pasting.
 - **[Copy Mode](docs/features/COPY_MODE.md)** - Vi-style keyboard-driven text selection and navigation.
 - **[Snippets & Actions](docs/features/SNIPPETS.md)** - Text snippets with variables, custom actions, and keybinding management.
 - **[Progress Bars](docs/features/PROGRESS_BARS.md)** - OSC 9;4 and OSC 934 progress bar rendering and shader integration.
@@ -206,6 +140,7 @@ For the full history of changes across all versions, see [CHANGELOG.md](CHANGELO
 - **[Architecture Overview](docs/architecture/ARCHITECTURE.md)** - High-level system architecture and components.
 - **[API Documentation Index](docs/API.md)** - Public types across all workspace crates.
 - **[Environment Variables](docs/guides/ENVIRONMENT_VARIABLES.md)** - Runtime environment variable reference.
+- **[Feature Matrix](MATRIX.md)** - iTerm2 vs par-term feature-by-feature comparison.
 - **[Core Library](https://github.com/paulrobello/par-term-emu-core-rust)** - Documentation for the underlying terminal engine.
 
 ## Installation
