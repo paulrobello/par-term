@@ -101,8 +101,8 @@ pub fn print_updates(updates: &std::collections::HashMap<String, serde_json::Val
 /// Truncate a JSON value to at most 500 characters for console display.
 pub fn truncate_json(v: &serde_json::Value) -> String {
     let s = v.to_string();
-    if s.len() > 500 {
-        format!("{}...", &s[..500])
+    if s.chars().count() > 500 {
+        format!("{}...", par_term_config::text::truncate_chars(&s, 500))
     } else {
         s
     }
