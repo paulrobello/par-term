@@ -5,8 +5,8 @@
 //!   cursor blink, smooth scrolling, power saving, flicker reduction, throughput mode,
 //!   resize/toast overlay timers, shader animation, file transfers, anti-idle keep-alive.
 
+use crate::app::handler::wake::WakeRequest;
 use crate::app::window_state::WindowState;
-use winit::event_loop::{ActiveEventLoop, ControlFlow};
 
 /// Longest explicit sleep taken per idle iteration when the window is focused.
 const FOCUSED_IDLE_SPIN_SLEEP_MS: u64 = 50;
@@ -14,11 +14,18 @@ const FOCUSED_IDLE_SPIN_SLEEP_MS: u64 = 50;
 const UNFOCUSED_IDLE_SPIN_SLEEP_MS: u64 = 100;
 
 impl WindowState {
-    /// Process per-window updates in about_to_wait
-    pub(crate) fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+    /// Process per-window updates in about_to_wait.
+    ///
+    /// Returns what this window wants from the event loop, or `None` when it is
+    /// shutting down and wants nothing. Nothing here touches `ControlFlow`:
+    /// there is one event loop and many windows, so the requests are reduced to
+    /// a single decision by `WindowManager::about_to_wait`. Setting it here made
+    /// the last window iterated decide the cadence for every window.
+    #[must_use]
+    pub(crate) fn about_to_wait(&mut self) -> Option<WakeRequest> {
         // Skip all processing if shutting down
         if self.is_shutting_down {
-            return;
+            return None;
         }
 
         // Track inter-frame gap to detect event loop stalls.
@@ -66,6 +73,15 @@ impl WindowState {
 
         // Check for bell events and play audio/visual feedback
         self.check_bell();
+
+        // Withdraw queued confirmations whose target tab has been closed, then
+        // perform the writes the user already approved for a specific tab.
+        // Both run before `check_trigger_actions`, which resolves everything
+        // against the active tab and gives up early when that tab has no
+        // terminal lock to spare — neither condition applies to a targeted
+        // action.
+        self.prune_orphaned_pending_actions();
+        self.execute_approved_targeted_actions();
 
         // Check for trigger action results and dispatch them
         self.check_trigger_actions();
@@ -574,33 +590,38 @@ impl WindowState {
             redraw_requested = true;
         }
 
-        // Set the calculated sleep interval.
-        // Use Poll mode during active file transfers — WaitUntil prevents
+        // Report the calculated cadence. The reduction and the single
+        // `set_control_flow` happen in `WindowManager::about_to_wait`.
+        //
+        // Poll is requested during active file transfers — WaitUntil prevents
         // RedrawRequested events from being delivered on macOS when PTY data
         // events keep the event loop busy.
-        if has_active_file_transfers {
-            event_loop.set_control_flow(ControlFlow::Poll);
+        //
+        // On macOS, ControlFlow::WaitUntil doesn't always prevent the event loop
+        // from spinning (CVDisplayLink and NSRunLoop interactions), so an
+        // explicit sleep is offered when no render is needed, to guarantee low
+        // CPU usage when idle. It is only a cap: the loop sleeps once, for the
+        // shortest span any window will tolerate, and not at all if some other
+        // window has a frame in flight.
+        //
+        // Important: keep the cap independent from max_fps. Using frame interval
+        // here causes idle focused windows to wake at render cadence (e.g.,
+        // 60Hz), which burns CPU even when nothing is changing.
+        let idle_sleep_cap = if !self.focus_state.needs_redraw && !redraw_requested {
+            let max_idle_spin_sleep = if self.focus_state.is_focused {
+                FOCUSED_IDLE_SPIN_SLEEP_MS
+            } else {
+                UNFOCUSED_IDLE_SPIN_SLEEP_MS
+            };
+            Some(now + std::time::Duration::from_millis(max_idle_spin_sleep))
         } else {
-            // On macOS, ControlFlow::WaitUntil doesn't always prevent the event loop
-            // from spinning (CVDisplayLink and NSRunLoop interactions). Add an explicit
-            // sleep when no render is needed to guarantee low CPU usage when idle.
-            //
-            // Important: keep this independent from max_fps. Using frame interval here
-            // causes idle focused windows to wake at render cadence (e.g., 60Hz), which
-            // burns CPU even when nothing is changing.
-            if !self.focus_state.needs_redraw && !redraw_requested {
-                let max_idle_spin_sleep = if self.focus_state.is_focused {
-                    std::time::Duration::from_millis(FOCUSED_IDLE_SPIN_SLEEP_MS)
-                } else {
-                    std::time::Duration::from_millis(UNFOCUSED_IDLE_SPIN_SLEEP_MS)
-                };
-                let sleep_until = next_wake.min(now + max_idle_spin_sleep);
-                let sleep_dur = sleep_until.saturating_duration_since(now);
-                if sleep_dur > std::time::Duration::from_millis(1) {
-                    std::thread::sleep(sleep_dur);
-                }
-            }
-            event_loop.set_control_flow(ControlFlow::WaitUntil(next_wake));
-        }
+            None
+        };
+
+        Some(WakeRequest {
+            needs_poll: has_active_file_transfers,
+            wake_at: next_wake,
+            idle_sleep_cap,
+        })
     }
 }

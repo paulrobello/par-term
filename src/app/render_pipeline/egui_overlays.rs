@@ -238,16 +238,33 @@ pub(super) fn render_copy_mode_status_bar(
 /// entry so the dialog does not claim terminal output caused the action.
 ///
 /// Shows the first pending action and presents Allow Once / Always Allow / Deny buttons.
-/// On approval: moves the action to `approved_pending_actions` for next-frame execution.
-/// On deny: discards the action.
+/// On approval: moves the action to whichever approved queue matches its target —
+/// `approved_pending_actions` for the active tab, `approved_targeted_actions` when the
+/// action names a tab of its own. On deny: discards the action.
+///
+/// `target_note` is the caller-resolved sentence naming that tab (see
+/// `WindowState::pending_action_target_note`). It must be present whenever the head
+/// action carries a target: approving a write into a tab the user cannot see is only
+/// legitimate if the dialog says which tab that is.
 ///
 /// Uses `trigger_prompt_activated_frame` as a flicker guard to prevent the click that opens
 /// the dialog from immediately dismissing it.
 pub(super) fn render_trigger_prompt_dialog(
     ctx: &egui::Context,
     trigger_state: &mut crate::app::window_state::TriggerState,
+    target_note: Option<&str>,
 ) {
     if trigger_state.pending_trigger_actions.is_empty() {
+        trigger_state.trigger_prompt_dialog_open = false;
+        trigger_state.trigger_prompt_activated_frame = None;
+        return;
+    }
+
+    // A targeted action the caller could not name is one whose tab closed
+    // between `prune_orphaned_pending_actions` and this frame. Withholding the
+    // dialog makes "a targeted prompt always names its tab" true by
+    // construction rather than by convention; the next prune withdraws it.
+    if trigger_state.pending_trigger_actions[0].target.is_some() && target_note.is_none() {
         trigger_state.trigger_prompt_dialog_open = false;
         trigger_state.trigger_prompt_activated_frame = None;
         return;
@@ -319,6 +336,18 @@ pub(super) fn render_trigger_prompt_dialog(
             ui.add_space(4.0);
             ui.label(egui::RichText::new(source_note.as_str()).weak().small());
 
+            // Where the write lands. Rendered at full strength rather than as
+            // weak small print like the source note above: for a background tab
+            // this is the part of the dialog that changes the decision.
+            if let Some(note) = target_note {
+                ui.add_space(6.0);
+                ui.label(
+                    egui::RichText::new(note)
+                        .strong()
+                        .color(egui::Color32::from_rgb(230, 170, 60)),
+                );
+            }
+
             ui.add_space(12.0);
             ui.separator();
             ui.add_space(8.0);
@@ -370,7 +399,12 @@ pub(super) fn render_trigger_prompt_dialog(
                     .always_allow_trigger_ids
                     .insert(pending.trigger_id);
             }
-            trigger_state.approved_pending_actions.push(pending.action);
+            match pending.target {
+                Some(target) => trigger_state
+                    .approved_targeted_actions
+                    .push((target, pending.action)),
+                None => trigger_state.approved_pending_actions.push(pending.action),
+            }
         }
         if trigger_state.pending_trigger_actions.is_empty() {
             trigger_state.trigger_prompt_dialog_open = false;

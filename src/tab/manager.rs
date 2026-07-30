@@ -221,9 +221,18 @@ impl TabManager {
     /// Insert a live Tab at a specific index and make it active.
     ///
     /// The index is clamped to `0..=self.tabs.len()`.
+    ///
+    /// A tab arriving from another window ("Move Tab to Window") brings that
+    /// window's id with it, and ids are allocated per manager. Advancing the
+    /// counter past the incoming id keeps this window from later handing the
+    /// same id to a new tab, which is what makes a `TabId` safe to hold across
+    /// frames — a queued automation confirmation, an "Always Allow" grant, a
+    /// deferred script action — instead of silently resolving to an unrelated
+    /// terminal once the original tab is gone.
     pub fn insert_tab_at(&mut self, tab: Tab, index: usize) {
         let clamped = index.min(self.tabs.len());
         let id = tab.id;
+        self.next_tab_id = self.next_tab_id.max(id.saturating_add(1));
         self.tabs.insert(clamped, tab);
         self.set_active_tab(Some(id));
         self.renumber_default_tabs();
@@ -594,5 +603,29 @@ mod tests {
         assert_eq!(after.user_named, snapshot.3, "user_named mismatch");
         assert_eq!(after.custom_color, snapshot.4, "custom_color mismatch");
         assert_eq!(after.custom_icon, snapshot.5, "custom_icon mismatch");
+    }
+
+    #[test]
+    fn an_inserted_tab_id_is_never_handed_out_again() {
+        // A tab moved in from another window brings that window's id. Without
+        // advancing the counter, this manager would later allocate the same id
+        // for an unrelated tab, and anything holding the old id across frames —
+        // a queued automation confirmation, an "Always Allow" grant — would
+        // resolve to the wrong terminal.
+        let mut mgr = manager_with_ids(&[1, 2]);
+        let foreign = Tab::new_stub(9, 1);
+
+        mgr.insert_tab_at(foreign, 1);
+
+        let fresh = mgr.next_tab_id;
+        assert!(
+            fresh > 9,
+            "next id {} must not collide with the inserted id 9",
+            fresh
+        );
+        assert!(
+            mgr.tabs().iter().all(|tab| tab.id != fresh),
+            "the next id must be free"
+        );
     }
 }

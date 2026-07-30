@@ -6,6 +6,8 @@ use par_term_emu_core_rust::terminal::ActionResult;
 use std::collections::{HashMap, HashSet};
 use std::time::Instant;
 
+use super::AutomationTarget;
+
 /// A dangerous trigger action awaiting user confirmation in the prompt dialog.
 pub(crate) struct PendingTriggerAction {
     /// Trigger ID (assigned at config-load time)
@@ -16,6 +18,14 @@ pub(crate) struct PendingTriggerAction {
     pub(crate) action: ActionResult,
     /// Pre-formatted description of the action (for dialog body)
     pub(crate) description: String,
+    /// The tab this action must be resolved against, when it is not the active
+    /// one.
+    ///
+    /// `None` — the case for output triggers and profile auto-switch commands —
+    /// means the active tab at execution time, which is what `ActionResult`
+    /// alone can express. `Some` is what lets a background tab's script write
+    /// reach its own tab; see `automation_target`.
+    pub(crate) target: Option<AutomationTarget>,
 }
 
 /// State for managing terminal triggers and their spawned processes.
@@ -29,15 +39,21 @@ pub(crate) struct TriggerState {
     /// keyed by action id.
     ///
     /// The queue above carries actions no output trigger produced — script
-    /// `WriteText` — for which the default sentence would be false.
-    /// `PendingTriggerAction` cannot grow a field to say so: its producers in
-    /// `src/app/triggers/mod.rs` build it with exhaustive struct literals. A
-    /// producer that is not an output trigger registers its own sentence here;
-    /// an absent entry means the action did come from one. Entries are removed
-    /// with the action they describe.
+    /// `WriteText` and profile auto-switch commands — for which the default
+    /// sentence would be false. Those producers register their own sentence
+    /// here; an absent entry means the action did come from an output trigger.
+    /// Entries are removed with the action they describe, so every id in this
+    /// map must belong to at most one queued action.
     pub(crate) automation_action_notes: HashMap<u64, String>,
-    /// Dialog-approved actions awaiting execution on the next frame
+    /// Dialog-approved actions awaiting execution against the active tab on the
+    /// next frame, drained by `check_trigger_actions`
     pub(crate) approved_pending_actions: Vec<ActionResult>,
+    /// Dialog-approved actions awaiting execution against one specific tab,
+    /// drained by `WindowState::execute_approved_targeted_actions`
+    ///
+    /// Separate from `approved_pending_actions` because that queue's sink
+    /// resolves everything against the active tab. See `automation_target`.
+    pub(crate) approved_targeted_actions: Vec<(AutomationTarget, ActionResult)>,
     /// Trigger IDs the user has approved for auto-execution this session
     pub(crate) always_allow_trigger_ids: HashSet<u64>,
     /// Whether the confirmation dialog is currently open (prevents stacking)

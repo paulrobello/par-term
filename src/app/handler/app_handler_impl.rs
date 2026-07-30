@@ -3,6 +3,7 @@
 //! Implements the winit `ApplicationHandler` trait: `resumed`, `window_event`,
 //! and the top-level `about_to_wait` coordinator for all windows.
 
+use crate::app::handler::wake::{WakeRequest, apply_wake_decision, reduce_wake_requests};
 use crate::app::window_manager::WindowManager;
 use std::sync::Arc;
 use winit::application::ApplicationHandler;
@@ -283,6 +284,9 @@ impl ApplicationHandler for WindowManager {
         let mut config_changed_by_agent = false;
         let mut pending_moves: Vec<(WindowId, crate::app::window_manager::MoveTabRequest)> =
             Vec::new();
+        // Every window's desired wake cadence, reduced to one decision after the
+        // loop. See `crate::app::handler::wake`.
+        let mut wake_requests: Vec<WakeRequest> = Vec::with_capacity(self.windows.len());
 
         for (window_id, window_state) in self.windows.iter_mut() {
             if window_state.overlay_state.open_settings_window_requested {
@@ -323,7 +327,7 @@ impl ApplicationHandler for WindowManager {
                 pending_moves.push((*window_id, req));
             }
 
-            window_state.about_to_wait(event_loop);
+            wake_requests.extend(window_state.about_to_wait());
 
             // If an agent/MCP config update was applied, sync to WindowManager's
             // config so that subsequent saves (update checker, settings) don't
@@ -508,6 +512,18 @@ impl ApplicationHandler for WindowManager {
         // Exit if no windows remain
         if self.should_exit {
             event_loop.exit();
+            return;
+        }
+
+        // Fold every window's cadence into the one `ControlFlow` the loop can
+        // hold, and take the idle sleep once.
+        //
+        // Last in the function on purpose: the sleep must come after the work
+        // above, not before it. Run inside the window loop, as it used to be, it
+        // delayed script servicing, tab moves and window closes by up to the cap
+        // — once per window.
+        if let Some(decision) = reduce_wake_requests(&wake_requests) {
+            apply_wake_decision(event_loop, decision);
         }
     }
 }

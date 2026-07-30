@@ -21,6 +21,7 @@ use winit::window::WindowId;
 use config_change::{PendingScriptAction, tokenise_command};
 
 use super::WindowManager;
+use crate::app::window_state::AutomationTarget;
 use crate::tab::TabId;
 
 /// A script command that could not be executed while `self.windows` was borrowed,
@@ -295,7 +296,7 @@ impl WindowManager {
                 // both survive `strip_vt_sequences` by design. So the write
                 // goes to the confirmation dialog unless the script opted
                 // out via `prompt_before_write_text: false` or the user
-                // chose "Always Allow" for this exact text.
+                // chose "Always Allow" for this exact text in this tab.
                 //
                 // NOTE: the direct write uses `try_read()` for the terminal
                 // lock.  If the lock is held (e.g. by the PTY reader), the
@@ -346,8 +347,13 @@ impl WindowManager {
                         }
                     }
 
+                    // The confirmation carries the tab it belongs to, so the
+                    // dialog can name that tab and the approved write can reach
+                    // it. The id is scoped to the target for the same reason:
+                    // two tabs running one script are two separate decisions.
+                    let target = AutomationTarget { window_id, tab_id };
                     let action_id =
-                        par_term_scripting::confirm::write_text_action_id(&script_name, &clean);
+                        write_text::tab_scoped_write_text_action_id(&script_name, &clean, target);
                     let session_approved = ws
                         .trigger_state
                         .always_allow_trigger_ids
@@ -357,26 +363,12 @@ impl WindowManager {
                         prompt_before_write,
                         session_approved,
                     ) {
-                        // The confirmation sink is `check_trigger_actions`, which
-                        // writes to whichever tab is active when the user approves,
-                        // and the dialog text promises exactly that. A background
-                        // tab's payload would land in the wrong terminal, so deny
-                        // it rather than prompt for a write that cannot be aimed.
-                        if ws.tab_manager.active_tab_id() != Some(tab_id) {
-                            log::warn!(
-                                "Script[{}] WriteText DENIED: the script runs in a background \
-                                 tab and the confirmation dialog can only write to the active \
-                                 tab. Switch to that tab, or set prompt_before_write_text=false \
-                                 for this script.",
-                                config_index
-                            );
-                            continue;
-                        }
                         Self::queue_script_write_text(
                             ws,
                             config_index,
                             &script_name,
                             action_id,
+                            target,
                             clean,
                         );
                         continue;

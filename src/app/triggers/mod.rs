@@ -438,6 +438,8 @@ impl WindowState {
                         args,
                     },
                     description,
+                    // An output trigger fires on the active tab's own output.
+                    target: None,
                 },
             );
             return;
@@ -590,6 +592,7 @@ impl WindowState {
                         delay_ms,
                     },
                     description,
+                    target: None,
                 },
             );
             return;
@@ -703,6 +706,10 @@ impl WindowState {
                         source_pane_id,
                     },
                     description,
+                    // Not the `TriggerSplitTarget` above: this one is the tab
+                    // the action resolves against, and a split is aimed at the
+                    // active tab.
+                    target: None,
                 },
             );
             return;

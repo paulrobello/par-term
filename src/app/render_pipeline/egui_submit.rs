@@ -87,6 +87,12 @@ impl WindowState {
             .status_bar_ui
             .height(&self.config.load(), self.is_fullscreen);
 
+        // Resolve the confirmation dialog's target tab now, for the same borrow
+        // reason as the move-tab values below: the dialog takes `&mut
+        // self.trigger_state` and the lookup reads `self.tab_manager`. Resolving
+        // per frame rather than at queue time keeps the named tab current.
+        let pending_action_target_note = self.pending_action_target_note();
+
         // Capture move-tab context values BEFORE the egui closure so the
         // `self.is_gateway_active()` method call (which borrows `&self`) does
         // not conflict with the closure's unique borrow of `*self`.
@@ -526,7 +532,11 @@ impl WindowState {
                     egui_overlays::render_pane_identify_overlay(ctx, &pane_identify_bounds);
 
                     // Trigger action confirmation dialog (center modal, shown when pending_trigger_actions is non-empty)
-                    egui_overlays::render_trigger_prompt_dialog(ctx, &mut self.trigger_state);
+                    egui_overlays::render_trigger_prompt_dialog(
+                        ctx,
+                        &mut self.trigger_state,
+                        pending_action_target_note.as_deref(),
+                    );
 
                     // Render file transfer progress overlay (bottom-right corner)
                     crate::app::file_transfers::render_file_transfer_overlay(

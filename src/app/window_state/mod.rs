@@ -60,6 +60,7 @@ mod agent_screenshot;
 pub(crate) mod agent_state;
 mod agent_tick_helpers;
 pub(crate) mod anti_idle;
+mod automation_target;
 mod clipboard_sync;
 pub(crate) mod config_updates;
 mod config_watchers;
@@ -91,6 +92,7 @@ mod watcher_state;
 
 // Re-export the sub-state types
 pub(crate) use crate::app::tmux_handler::tmux_state::TmuxState;
+pub(crate) use automation_target::AutomationTarget;
 pub(crate) use egui_state::EguiState;
 pub(crate) use focus_state::FocusState;
 pub(crate) use notifications::NotificationClickState;

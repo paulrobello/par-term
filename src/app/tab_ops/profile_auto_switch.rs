@@ -502,6 +502,9 @@ impl WindowState {
                     "Matched {}.{}\nRun in this shell: {}",
                     match_reason, origin_note, displayed
                 ),
+                // Auto-switch matches on the active tab's hostname or CWD, and
+                // the dialog says "this shell" — the active tab is the target.
+                target: None,
             },
         );
     }

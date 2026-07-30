@@ -9,6 +9,9 @@
 //!   focus change, and per-frame `about_to_wait` polling.
 //! - `app_handler_impl`: `impl ApplicationHandler for WindowManager` — winit event loop
 //!   entry points (`resumed`, `window_event`, `about_to_wait`).
+//! - `wake`: folds every window's desired wake cadence into the single
+//!   `ControlFlow` the event loop can hold.
 
 mod app_handler_impl;
+pub(crate) mod wake;
 mod window_state_impl;
