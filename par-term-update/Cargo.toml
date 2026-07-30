@@ -31,6 +31,13 @@ semver.workspace = true
 # SHA-256 hashing for binary verification
 sha2.workspace = true
 
+# Detached Ed25519 signature verification for release binaries (SEC-005).
+# Verify-only and zero-dependency by design: this crate can check a `.minisig`
+# but cannot produce one, so no private key handling exists in par-term.
+# Not centralised in [workspace.dependencies] because par-term-update is its
+# only consumer.
+minisign-verify = "0.2.5"
+
 # ZIP archive extraction for binary updates
 zip.workspace = true
 

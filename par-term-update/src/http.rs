@@ -10,9 +10,13 @@
 //!    rejected unconditionally. This prevents a network-level attacker from
 //!    downgrading the connection and serving a malicious binary.
 //!
-//! 2. **Host allowlist** — only the four GitHub hostnames in [`ALLOWED_HOSTS`] are
+//! 2. **Host allowlist** — only the GitHub hostnames in [`ALLOWED_HOSTS`] are
 //!    accepted. This prevents a compromised DNS server or a SSRF-style redirect from
 //!    pointing the updater at an attacker-controlled server.
+//!
+//! 3. **Per-hop revalidation** (SEC-005) — the allowlist is re-applied to *every*
+//!    redirect target, not just to the URL the caller passed in. See
+//!    [`get_validated`].
 //!
 //! Additionally, response bodies are capped at [`MAX_API_RESPONSE_SIZE`] (API calls)
 //! and [`MAX_DOWNLOAD_SIZE`] (binary downloads) to prevent memory exhaustion, and
@@ -21,10 +25,20 @@
 
 use std::time::Duration;
 use ureq::Agent;
+use ureq::http::{Response, StatusCode};
 use ureq::tls::{RootCerts, TlsConfig, TlsProvider};
+use ureq::{Body, Error as UreqError};
 
 /// Global timeout for all HTTP operations (30 seconds).
 const HTTP_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Maximum number of redirects followed manually by [`get_validated`].
+///
+/// GitHub release downloads take exactly two hops
+/// (`github.com/…/releases/download/…` → `github.com/…/releases/download/<tag>/…`
+/// → `release-assets.githubusercontent.com/…`), so this leaves headroom without
+/// allowing a redirect loop to run indefinitely.
+const MAX_REDIRECTS: u32 = 5;
 
 /// Maximum response body size for API responses (10 MB).
 pub const MAX_API_RESPONSE_SIZE: u64 = 10 * 1024 * 1024;
@@ -38,11 +52,18 @@ pub const MAX_DOWNLOAD_SIZE: u64 = 50 * 1024 * 1024;
 /// Any other host is rejected regardless of the URL path, preventing SSRF
 /// or DNS-rebinding attacks that could redirect update traffic to an
 /// attacker-controlled server.
+///
+/// `release-assets.githubusercontent.com` is where GitHub currently terminates
+/// a release-asset download, and it is **load-bearing**: a `browser_download_url`
+/// redirects there, so removing it breaks every download now that redirects are
+/// revalidated per hop. The two older `*.githubusercontent.com` CDN names are
+/// kept because GitHub has rotated this host before.
 const ALLOWED_HOSTS: &[&str] = &[
     "github.com",
     "api.github.com",
     "objects.githubusercontent.com",
     "github-releases.githubusercontent.com",
+    "release-assets.githubusercontent.com",
 ];
 
 /// Validate that a URL is safe to use for update operations.
@@ -84,7 +105,72 @@ pub fn validate_update_url(url: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Render a URL for logs and error messages with its query string removed.
+///
+/// GitHub's final release-asset hop carries short-lived credentials in the query
+/// (`?sig=…&jwt=…`). Those are bearer-equivalent, so the full URL must never
+/// reach the debug log — only scheme, host and path do.
+fn redact_url(url: &str) -> String {
+    match url::Url::parse(url) {
+        Ok(parsed) => format!(
+            "{}://{}{}",
+            parsed.scheme(),
+            parsed.host_str().unwrap_or(""),
+            parsed.path()
+        ),
+        // Unparseable URLs never reach the network, and printing the raw string
+        // would defeat the redaction, so describe it instead of echoing it.
+        Err(_) => "<unparseable URL>".to_string(),
+    }
+}
+
+/// Resolve a `Location` header against the URL that produced it, then validate it.
+///
+/// `Location` is allowed to be relative (RFC 9110 §10.2.2), so it is joined onto
+/// the current URL before the allowlist is applied. Both halves matter: joining
+/// without validating is the open-redirect hole, and validating without joining
+/// rejects legitimate relative redirects.
+fn resolve_redirect(current: &str, location: &str) -> Result<String, String> {
+    let base = url::Url::parse(current)
+        .map_err(|e| format!("Could not parse the current update URL: {}", e))?;
+
+    let resolved = base.join(location).map_err(|e| {
+        format!(
+            "Update server redirected from {} to an unparseable Location: {}. \
+             Update aborted.",
+            redact_url(current),
+            e
+        )
+    })?;
+
+    let resolved = resolved.to_string();
+    // Deliberately does *not* forward `validate_update_url`'s message: that one
+    // interpolates the whole URL, and a rejected redirect target still carries
+    // GitHub's `sig`/`jwt` query credentials.
+    if validate_update_url(&resolved).is_err() {
+        return Err(format!(
+            "Update server redirected from {} to {}, which is not an allowed \
+             update host. Update aborted — a redirect cannot move the download \
+             off GitHub. Allowed hosts: {}.",
+            redact_url(current),
+            redact_url(&resolved),
+            ALLOWED_HOSTS.join(", ")
+        ));
+    }
+
+    Ok(resolved)
+}
+
 /// Create a new HTTP agent configured with native-tls and a global timeout.
+///
+/// Redirects are disabled at the agent level (`max_redirects(0)`) so that
+/// [`get_validated`] can follow them by hand and re-apply the allowlist at every
+/// hop. ureq's default is to follow up to ten redirects with no revalidation,
+/// which would let an allowlisted host hand the download off to anywhere.
+///
+/// `https_only(true)` is belt-and-braces: [`validate_update_url`] already rejects
+/// non-HTTPS schemes, but ureq's default is `false` and a config-level guarantee
+/// costs nothing.
 pub fn agent() -> Agent {
     let tls_config = TlsConfig::builder()
         .provider(TlsProvider::NativeTls)
@@ -94,39 +180,107 @@ pub fn agent() -> Agent {
     Agent::config_builder()
         .tls_config(tls_config)
         .timeout_global(Some(HTTP_TIMEOUT))
+        .https_only(true)
+        .max_redirects(0)
         .build()
         .into()
 }
 
+/// Describe a failed request without leaking the query string.
+fn describe_request_error(url: &str, error: &UreqError) -> String {
+    format!(
+        "Failed to fetch '{}': {}. \
+         Check your internet connection and try again. \
+         If the problem persists, download manually from: \
+         https://github.com/paulrobello/par-term/releases",
+        redact_url(url),
+        error
+    )
+}
+
+/// Perform a GET, following redirects manually with the allowlist re-applied at
+/// every hop.
+///
+/// The URL the caller passes is validated before the first request, and each
+/// `Location` is resolved and validated before the next one. A redirect to a
+/// host outside [`ALLOWED_HOSTS`], a redirect with no `Location`, and a chain
+/// longer than [`MAX_REDIRECTS`] are all hard errors — none of them fall through
+/// to reading a body.
+///
+/// This is hardening rather than a fix for an observed exploit: no redirect off
+/// an allowlisted GitHub host has been demonstrated. It closes the gap that the
+/// allowlist was only ever checked against the *first* URL.
+pub fn get_validated(url: &str, accept: Option<&str>) -> Result<Response<Body>, String> {
+    let agent = agent();
+    let mut current = url.to_string();
+
+    for _ in 0..=MAX_REDIRECTS {
+        // Re-validated on every iteration, not just the first.
+        validate_update_url(&current)?;
+
+        let mut request = agent.get(&current).header("User-Agent", "par-term");
+        if let Some(accept) = accept {
+            request = request.header("Accept", accept);
+        }
+
+        let response = request
+            .call()
+            .map_err(|e| describe_request_error(&current, &e))?;
+
+        let status = response.status();
+        if !status.is_redirection() {
+            return Ok(response);
+        }
+
+        let location = redirect_location(&response, status, &current)?;
+        // The 3xx body is intentionally never read.
+        current = resolve_redirect(&current, &location)?;
+    }
+
+    Err(format!(
+        "Update download exceeded {} redirects starting from {}. \
+         Update aborted — this may indicate a redirect loop.",
+        MAX_REDIRECTS,
+        redact_url(url)
+    ))
+}
+
+/// Extract the `Location` header from a redirect response.
+fn redirect_location(
+    response: &Response<Body>,
+    status: StatusCode,
+    current: &str,
+) -> Result<String, String> {
+    response
+        .headers()
+        .get("location")
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_string)
+        .ok_or_else(|| {
+            format!(
+                "Update server returned redirect status {} from {} with no usable \
+                 Location header. Update aborted.",
+                status.as_u16(),
+                redact_url(current)
+            )
+        })
+}
+
 /// Download a file from a URL and return its bytes.
 ///
-/// Validates the URL against the allowed-host allowlist before making
-/// any network request. Response body is limited to [`MAX_DOWNLOAD_SIZE`]
-/// (50 MB) to prevent memory exhaustion from malicious or misbehaving servers.
+/// Validates the URL against the allowed-host allowlist before making any
+/// network request, and again at every redirect hop. Response body is limited to
+/// [`MAX_DOWNLOAD_SIZE`] (50 MB) to prevent memory exhaustion from malicious or
+/// misbehaving servers.
 ///
 /// # Errors
 ///
 /// Returns an error if:
-/// - The URL fails allowlist validation (wrong host or non-HTTPS scheme)
+/// - The URL, or any redirect target, fails allowlist validation
 /// - The HTTP request fails (DNS, connection, TLS, or non-2xx response)
 /// - Reading the response body fails or exceeds the size limit
 pub fn download_file(url: &str) -> Result<Vec<u8>, String> {
-    // Validate URL before making any network request.
-    validate_update_url(url)?;
-
-    let bytes = agent()
-        .get(url)
-        .header("User-Agent", "par-term")
-        .call()
-        .map_err(|e| {
-            format!(
-                "Failed to download '{}': {}. \
-                 Check your internet connection and try again. \
-                 If the problem persists, download manually from: \
-                 https://github.com/paulrobello/par-term/releases",
-                url, e
-            )
-        })?
+    let bytes = get_validated(url, None)?
         .into_body()
         .with_config()
         .limit(MAX_DOWNLOAD_SIZE)
@@ -135,7 +289,8 @@ pub fn download_file(url: &str) -> Result<Vec<u8>, String> {
             format!(
                 "Failed to read downloaded content from '{}': {}. \
                  The response may have been truncated or the connection dropped.",
-                url, e
+                redact_url(url),
+                e
             )
         })?;
 
@@ -395,6 +550,130 @@ mod tests {
                 assert!(result.is_ok());
             }
         }
+    }
+
+    // --- redact_url ---
+
+    #[test]
+    fn redact_url_drops_the_query_string() {
+        // GitHub's final asset hop carries `sig` and `jwt` credentials here.
+        let redacted = redact_url(
+            "https://release-assets.githubusercontent.com/github-production-release-asset/1140148702/abc?sig=SECRET&jwt=ALSOSECRET",
+        );
+        assert_eq!(
+            redacted,
+            "https://release-assets.githubusercontent.com/github-production-release-asset/1140148702/abc"
+        );
+        assert!(!redacted.contains("SECRET"));
+    }
+
+    #[test]
+    fn redact_url_does_not_echo_an_unparseable_url() {
+        assert_eq!(redact_url("nonsense?token=SECRET"), "<unparseable URL>");
+    }
+
+    // --- resolve_redirect ---
+
+    #[test]
+    fn redirect_to_an_allowlisted_host_is_accepted() {
+        let resolved = resolve_redirect(
+            "https://github.com/paulrobello/par-term/releases/download/v1/par-term",
+            "https://release-assets.githubusercontent.com/asset/1?sig=abc",
+        )
+        .expect("an allowlisted redirect target must be accepted");
+        assert!(resolved.starts_with("https://release-assets.githubusercontent.com/"));
+    }
+
+    #[test]
+    fn relative_redirect_is_resolved_against_the_current_url() {
+        let resolved = resolve_redirect(
+            "https://github.com/paulrobello/par-term/releases/latest/download/par-term",
+            "/paulrobello/par-term/releases/download/v1/par-term",
+        )
+        .expect("a relative redirect on the same host must be accepted");
+        assert_eq!(
+            resolved,
+            "https://github.com/paulrobello/par-term/releases/download/v1/par-term"
+        );
+    }
+
+    #[test]
+    fn redirect_off_the_allowlist_is_rejected() {
+        // The core of SEC-005's redirect leg: an allowlisted host must not be
+        // able to hand the download to an arbitrary server.
+        let err = resolve_redirect(
+            "https://github.com/paulrobello/par-term/releases/download/v1/par-term",
+            "https://evil.example.com/par-term",
+        )
+        .expect_err("an off-allowlist redirect target must be rejected");
+        assert!(
+            err.contains("evil.example.com"),
+            "error should name the rejected host: {err}"
+        );
+    }
+
+    #[test]
+    fn rejected_redirect_does_not_leak_query_credentials() {
+        // The rejection message must name the host without echoing the query,
+        // because a GitHub asset URL carries `sig` and `jwt` credentials there.
+        let err = resolve_redirect(
+            "https://github.com/paulrobello/par-term/releases/download/v1/par-term",
+            "https://evil.example.com/par-term?sig=SECRET&jwt=ALSOSECRET",
+        )
+        .expect_err("an off-allowlist redirect target must be rejected");
+        assert!(!err.contains("SECRET"), "credentials leaked into: {err}");
+    }
+
+    #[test]
+    fn allowlist_contains_the_host_release_downloads_actually_land_on() {
+        // Load-bearing: `browser_download_url` 302s here, and per-hop validation
+        // means dropping this host breaks every self-update. Proven by
+        // `live_release_redirect_chain_stays_on_allowlisted_hosts`.
+        assert!(ALLOWED_HOSTS.contains(&"release-assets.githubusercontent.com"));
+    }
+
+    #[test]
+    fn relative_redirect_cannot_escape_to_another_host() {
+        // A protocol-relative Location changes host while looking relative.
+        assert!(
+            resolve_redirect(
+                "https://github.com/paulrobello/par-term/releases/download/v1/par-term",
+                "//evil.example.com/par-term",
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn redirect_downgrading_to_http_is_rejected() {
+        assert!(
+            resolve_redirect(
+                "https://github.com/paulrobello/par-term/releases/download/v1/par-term",
+                "http://github.com/paulrobello/par-term/releases/download/v1/par-term",
+            )
+            .is_err()
+        );
+    }
+
+    /// Live check that the real release-download chain still terminates on an
+    /// allowlisted host, and that `max_redirects(0)` surfaces the 3xx to
+    /// [`get_validated`] rather than erroring.
+    ///
+    /// Ignored by default because it needs the network. Run with
+    /// `cargo test -p par-term-update -- --ignored redirect_chain`.
+    #[test]
+    #[ignore = "requires network access to github.com"]
+    fn live_release_redirect_chain_stays_on_allowlisted_hosts() {
+        let response = get_validated(
+            "https://github.com/paulrobello/par-term/releases/latest/download/par-term-macos-aarch64.zip",
+            None,
+        )
+        .expect("the real release download must survive per-hop validation");
+        assert!(
+            response.status().is_success(),
+            "expected a 2xx after following redirects, got {}",
+            response.status()
+        );
     }
 
     // --- format_bytes_preview ---

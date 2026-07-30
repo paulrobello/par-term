@@ -34,6 +34,16 @@ pub fn get_checksum_asset_name() -> Result<String, String> {
     Ok(format!("{}.sha256", asset_name))
 }
 
+/// Get the detached-signature asset name for the current platform.
+///
+/// Returns the expected `.minisig` filename, e.g.
+/// `par-term-macos-aarch64.zip.minisig` — the name `minisign -S -m <asset>`
+/// produces by default.
+pub fn get_signature_asset_name() -> Result<String, String> {
+    let asset_name = get_asset_name()?;
+    Ok(format!("{}.minisig", asset_name))
+}
+
 /// Compute SHA256 hash of in-memory data, returning the lowercase hex string.
 pub fn compute_data_hash(data: &[u8]) -> String {
     let mut hasher = Sha256::new();
@@ -45,37 +55,25 @@ pub fn compute_data_hash(data: &[u8]) -> String {
         .collect()
 }
 
-/// Download URLs for the binary and optional checksum from a GitHub release.
+/// Download URLs for the binary and its verification assets from a GitHub release.
 pub struct DownloadUrls {
     /// URL for the platform binary/archive asset
     pub binary_url: String,
     /// URL for the `.sha256` checksum file, if present in the release
     pub checksum_url: Option<String>,
+    /// URL for the `.minisig` detached signature, if present in the release
+    pub signature_url: Option<String>,
 }
 
-/// Get the download URLs for the platform binary and checksum from the release API response.
+/// Get the download URLs for the platform binary, checksum and signature from
+/// the release API response.
 pub fn get_download_urls(api_url: &str) -> Result<DownloadUrls, String> {
     let asset_name = get_asset_name()?;
     let checksum_name = get_checksum_asset_name()?;
+    let signature_name = get_signature_asset_name()?;
 
-    // Validate the API URL before making the request.
-    crate::http::validate_update_url(api_url)?;
-
-    let mut body = crate::http::agent()
-        .get(api_url)
-        .header("User-Agent", "par-term")
-        .header("Accept", "application/vnd.github+json")
-        .call()
-        .map_err(|e| {
-            format!(
-                "Failed to fetch release info from '{}': {}. \
-                 Check your internet connection and try again.",
-                api_url, e
-            )
-        })?
-        .into_body();
-
-    let body_str = body
+    let body_str = crate::http::get_validated(api_url, Some("application/vnd.github+json"))?
+        .into_body()
         .with_config()
         .limit(crate::http::MAX_API_RESPONSE_SIZE)
         .read_to_string()
@@ -87,30 +85,34 @@ pub fn get_download_urls(api_url: &str) -> Result<DownloadUrls, String> {
 
     let mut binary_url: Option<String> = None;
     let mut checksum_url: Option<String> = None;
+    let mut signature_url: Option<String> = None;
 
     if let Some(assets) = json.get("assets").and_then(|a| a.as_array()) {
         for asset in assets {
             if let Some(url) = asset.get("browser_download_url").and_then(|u| u.as_str()) {
-                if url.ends_with(&checksum_name) {
-                    // Validate each download URL extracted from the release JSON
-                    // before storing it — a compromised release payload could
-                    // otherwise inject a URL pointing to an attacker-controlled host.
-                    crate::http::validate_update_url(url).map_err(|e| {
-                        format!(
-                            "Checksum asset URL from GitHub release failed validation: {}",
-                            e
-                        )
-                    })?;
-                    checksum_url = Some(url.to_string());
+                // Suffix order matters: `<asset>.sha256` and `<asset>.minisig`
+                // both contain `<asset>`, so the derived names are tested first.
+                let slot = if url.ends_with(&signature_name) {
+                    ("Signature", &mut signature_url)
+                } else if url.ends_with(&checksum_name) {
+                    ("Checksum", &mut checksum_url)
                 } else if url.ends_with(asset_name) {
-                    crate::http::validate_update_url(url).map_err(|e| {
-                        format!(
-                            "Binary asset URL from GitHub release failed validation: {}",
-                            e
-                        )
-                    })?;
-                    binary_url = Some(url.to_string());
-                }
+                    ("Binary", &mut binary_url)
+                } else {
+                    continue;
+                };
+
+                // Validate each download URL extracted from the release JSON
+                // before storing it — a compromised release payload could
+                // otherwise inject a URL pointing to an attacker-controlled host.
+                let (kind, target) = slot;
+                crate::http::validate_update_url(url).map_err(|e| {
+                    format!(
+                        "{} asset URL from GitHub release failed validation: {}",
+                        kind, e
+                    )
+                })?;
+                *target = Some(url.to_string());
             }
         }
     }
@@ -119,6 +121,7 @@ pub fn get_download_urls(api_url: &str) -> Result<DownloadUrls, String> {
         Some(url) => Ok(DownloadUrls {
             binary_url: url,
             checksum_url,
+            signature_url,
         }),
         None => Err(format!(
             "Could not find asset '{}' in the latest GitHub release.\n\
@@ -168,23 +171,23 @@ pub(crate) fn parse_checksum_file(content: &str) -> Result<String, String> {
     Ok(hash)
 }
 
-/// Verify the downloaded data against a SHA256 checksum from the release.
+/// Fetch and parse the expected SHA256 hash for this release.
 ///
-/// Returns `Ok(())` only if a checksum is available AND it matches the
-/// downloaded data.
 /// Returns `Err` if:
-/// - No checksum URL is available for the release (SEC-008: hard-fail — refuse
-///   to install an unverified binary; matches the shader installer's policy)
+/// - No checksum URL is available for the release (hard-fail — refuse to
+///   install an unverified binary; matches the shader installer's policy)
 /// - A checksum URL exists but the download fails (security: abort unverified updates)
-/// - The checksum does not match (binary may be corrupted or tampered with)
-pub(crate) fn verify_download(data: &[u8], checksum_url: Option<&str>) -> Result<(), String> {
+///
+/// Note that the checksum defends against *corruption*, not against a
+/// compromised release: the `.sha256` is an asset of the same release as the
+/// binary. [`crate::signature`] is the gate that covers compromise.
+pub(crate) fn fetch_expected_hash(checksum_url: Option<&str>) -> Result<String, String> {
     let checksum_url = match checksum_url {
         Some(url) => url,
         None => {
-            // SEC-008: a missing .sha256 checksum file is a hard integrity
-            // failure, NOT a warning. Returning Ok(()) here would let a MITM
-            // attacker (or a compromised release) ship an unverified binary.
-            // Aborting matches the shader installer's hard-gate policy.
+            // A missing .sha256 checksum file is a hard integrity failure, NOT
+            // a warning. Returning Ok here would let a MITM attacker (or a
+            // compromised release) ship an unverified binary.
             return Err("No .sha256 checksum file found in release — \
                  refusing to install an unverified binary.\n\
                  Update aborted for safety. This release may predate checksum \
@@ -195,25 +198,65 @@ pub(crate) fn verify_download(data: &[u8], checksum_url: Option<&str>) -> Result
         }
     };
 
-    // Download the checksum file
     // SECURITY: If a checksum URL exists but download fails, we MUST abort the update.
-    // Returning Ok(()) here would allow a MITM attacker to block the checksum URL
+    // Succeeding here would allow a MITM attacker to block the checksum URL
     // while allowing the binary URL through, resulting in an unverified install.
     let checksum_data = crate::http::download_file(checksum_url).map_err(|e| {
         format!(
-            "Failed to download checksum file from {}: {}\n\
+            "Failed to download the release checksum file: {}\n\
              Update aborted for security — cannot verify binary integrity without checksum.\n\
              This may indicate a network issue or a targeted attack blocking checksum verification.\n\
              If the problem persists, please download manually from:\n\
              https://github.com/paulrobello/par-term/releases",
-            checksum_url, e
+            e
         )
     })?;
 
     let checksum_content = String::from_utf8(checksum_data)
         .map_err(|_| "Checksum file contains invalid UTF-8".to_string())?;
 
-    let expected_hash = parse_checksum_file(&checksum_content)?;
+    parse_checksum_file(&checksum_content)
+}
+
+/// Fetch the detached `.minisig` signature text for this release.
+///
+/// A missing signature asset is a hard failure for the same reason a missing
+/// checksum is: silently skipping the gate is indistinguishable from an attacker
+/// stripping the asset.
+pub(crate) fn fetch_signature_text(signature_url: Option<&str>) -> Result<String, String> {
+    let signature_url = match signature_url {
+        Some(url) => url,
+        None => {
+            return Err("No .minisig signature file found in release — \
+                 refusing to install an unsigned binary.\n\
+                 The SHA256 checksum alone cannot detect a compromised release, \
+                 because the checksum is published as an asset of that same release.\n\
+                 Update aborted for safety. Please download manually from:\n\
+                 https://github.com/paulrobello/par-term/releases"
+                .to_string());
+        }
+    };
+
+    let signature_data = crate::http::download_file(signature_url).map_err(|e| {
+        format!(
+            "Failed to download the release signature file: {}\n\
+             Update aborted for security — cannot verify the binary's authenticity \
+             without its signature.\n\
+             If the problem persists, please download manually from:\n\
+             https://github.com/paulrobello/par-term/releases",
+            e
+        )
+    })?;
+
+    String::from_utf8(signature_data)
+        .map_err(|_| "Signature file contains invalid UTF-8; it is not a minisign .minisig".into())
+}
+
+/// Compare `data`'s SHA256 against the expected hash from the release.
+///
+/// Pure — no network access — so the verification ordering can be tested
+/// without a live release.
+pub(crate) fn verify_hash(data: &[u8], expected_hash: &str) -> Result<(), String> {
     let actual_hash = compute_data_hash(data);
 
     if actual_hash != expected_hash {
@@ -396,16 +439,57 @@ mod tests {
     }
 
     #[test]
-    fn test_verify_download_no_checksum_url() {
-        // SEC-008: a missing checksum URL must abort the update (not silently
-        // pass with a warning), so a compromised release cannot ship an
-        // unverified binary.
-        let data = b"some binary data";
-        let result = verify_download(data, None);
+    fn test_fetch_expected_hash_no_checksum_url() {
+        // A missing checksum URL must abort the update (not silently pass with
+        // a warning), so a compromised release cannot ship an unverified binary.
+        let result = fetch_expected_hash(None);
         assert!(result.is_err(), "expected hard-fail on missing checksum");
         assert!(
             result.unwrap_err().contains("refusing to install"),
             "expected hard-fail message referencing the abort policy"
         );
+    }
+
+    #[test]
+    fn test_fetch_signature_text_no_signature_url() {
+        // SEC-005: same policy for the signature. A release that ships no
+        // .minisig cannot be installed.
+        let result = fetch_signature_text(None);
+        assert!(result.is_err(), "expected hard-fail on missing signature");
+        let err = result.unwrap_err();
+        assert!(
+            err.contains("refusing to install an unsigned binary"),
+            "expected hard-fail message referencing the abort policy: {err}"
+        );
+    }
+
+    #[test]
+    fn test_get_signature_asset_name() {
+        if !platform_has_release_artifact() {
+            assert!(get_signature_asset_name().is_err());
+            return;
+        }
+        let name = get_signature_asset_name().expect("signature asset name");
+        assert!(
+            name.ends_with(".minisig"),
+            "signature asset name should end with .minisig, got '{}'",
+            name
+        );
+    }
+
+    #[test]
+    fn test_verify_hash_matches() {
+        let data = b"hello world";
+        assert!(verify_hash(data, &compute_data_hash(data)).is_ok());
+    }
+
+    #[test]
+    fn test_verify_hash_mismatch_is_rejected() {
+        let result = verify_hash(
+            b"tampered payload",
+            "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9",
+        );
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Checksum verification failed"));
     }
 }

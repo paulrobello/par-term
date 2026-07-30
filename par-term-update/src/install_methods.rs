@@ -61,20 +61,88 @@ pub(crate) fn detect_installation_from_path(path: &str) -> InstallationType {
     }
 }
 
-/// Install update for macOS .app bundle by extracting the zip.
+/// Code requirement the downloaded bundle must satisfy (SEC-005).
+///
+/// `anchor apple generic` requires the certificate chain to terminate at Apple's
+/// root; `subject.OU` pins the leaf to par-term's Apple Team ID. Together they
+/// reject a bundle signed by any other developer, and reject an ad-hoc signature
+/// outright.
+///
+/// Passed to `codesign` as `-R=<requirement>`. The `=` prefix is what makes
+/// `codesign` read the argument as requirement *text*; without it the argument
+/// is interpreted as a path to a requirements file and verification fails with
+/// "No such file or directory" on a perfectly valid bundle.
+#[cfg(target_os = "macos")]
+const REQUIRED_CODE_REQUIREMENT: &str =
+    "anchor apple generic and certificate leaf[subject.OU] = \"QMLVG482FY\"";
+
+/// Install update for macOS .app bundle.
+///
+/// The archive is extracted into a **staging directory beside the live bundle**,
+/// verified there, and only swapped into place once every gate has passed. The
+/// previous behaviour extracted straight over the running bundle and verified
+/// afterwards, so a failed signature check left a half-replaced application on
+/// disk and returned an error — the user lost the working copy either way.
+///
+/// The staging directory is a sibling of the live bundle so the final `rename`
+/// stays within one filesystem and is therefore atomic.
 pub(crate) fn install_macos_bundle(
     current_exe: &std::path::Path,
     zip_data: &[u8],
 ) -> Result<PathBuf, String> {
-    use std::io::Cursor;
-    use zip::ZipArchive;
-
     // Derive .app root: go up 3 levels from Contents/MacOS/par-term
     let app_root = current_exe
         .parent() // MacOS/
         .and_then(|p| p.parent()) // Contents/
         .and_then(|p| p.parent()) // .app/
         .ok_or_else(|| "Could not determine .app bundle root".to_string())?;
+
+    let install_dir = app_root.parent().ok_or_else(|| {
+        "Could not determine the directory containing the .app bundle".to_string()
+    })?;
+    let app_name = app_root
+        .file_name()
+        .ok_or_else(|| "Could not determine the .app bundle name".to_string())?;
+
+    let staging_dir = install_dir.join(format!(".par-term-update-{}", std::process::id()));
+    // A previous run killed mid-update could have left this behind.
+    let _ = std::fs::remove_dir_all(&staging_dir);
+    std::fs::create_dir_all(&staging_dir).map_err(|e| {
+        format!(
+            "Failed to create staging directory {}: {}. \
+             The update was not installed and the current version is untouched.",
+            staging_dir.display(),
+            e
+        )
+    })?;
+
+    let staged_app = staging_dir.join(app_name);
+
+    // Everything from here until the swap happens inside the staging directory,
+    // so any failure leaves the live bundle exactly as it was.
+    let staged =
+        extract_bundle(&staged_app, zip_data).and_then(|()| verify_staged_bundle(&staged_app));
+
+    if let Err(e) = staged {
+        let _ = std::fs::remove_dir_all(&staging_dir);
+        return Err(e);
+    }
+
+    swap_staged_bundle(&staged_app, app_root).inspect_err(|_| {
+        let _ = std::fs::remove_dir_all(&staging_dir);
+    })?;
+
+    // The staging directory is empty once the staged bundle has been renamed out
+    // of it; leaving it behind would only accumulate clutter.
+    let _ = std::fs::remove_dir_all(&staging_dir);
+
+    Ok(app_root.to_path_buf())
+}
+
+/// Extract the release archive into `staged_app`, inside the staging directory.
+fn extract_bundle(staged_app: &std::path::Path, zip_data: &[u8]) -> Result<(), String> {
+    use std::io::Cursor;
+    use zip::ZipArchive;
 
     let reader = Cursor::new(zip_data);
     let mut archive = ZipArchive::new(reader).map_err(|e| format!("Failed to open zip: {}", e))?;
@@ -102,14 +170,16 @@ pub(crate) fn install_macos_bundle(
             continue;
         }
 
-        let final_path = app_root.join(&relative_path);
+        let final_path = staged_app.join(&relative_path);
 
-        // Zip-slip protection: ensure the final path stays within the app bundle.
-        // A crafted zip could contain paths like "../../etc/cron.d/malware"
-        // that escape the target directory after joining.
-        if !final_path.starts_with(app_root) {
+        // Zip-slip protection: ensure the final path stays within the staged
+        // bundle. A crafted zip could contain paths like
+        // "../../etc/cron.d/malware" that escape the target after joining.
+        // The anchor is the staged bundle rather than the live one — the live
+        // bundle is not written to at all during extraction.
+        if !final_path.starts_with(staged_app) {
             log::warn!(
-                "Skipping zip entry outside target directory: {} resolves to {}",
+                "Skipping zip entry outside the staged bundle: {} resolves to {}",
                 relative_path.display(),
                 final_path.display()
             );
@@ -145,100 +215,193 @@ pub(crate) fn install_macos_bundle(
         }
     }
 
-    // Verify code signature and notarization BEFORE removing quarantine.
-    // This ensures the update has a valid Apple code signature and was
-    // signed by the expected developer. If verification fails, the update
-    // is aborted without stripping Gatekeeper's quarantine protection.
-    #[cfg(target_os = "macos")]
-    {
-        // Step 1: Verify the code signature is intact.
-        let codesign_status = std::process::Command::new("/usr/bin/codesign")
-            .args([
-                "--verify",
-                "--deep",
-                "--strict",
-                &app_root.to_string_lossy(),
-            ])
-            .output();
+    if !staged_app.exists() {
+        return Err(format!(
+            "The release archive did not produce a bundle at {}. \
+             Update aborted; the current version is untouched.",
+            staged_app.display()
+        ));
+    }
 
-        match codesign_status {
-            Ok(output) if output.status.success() => {
-                log::info!("Code signature verified for {}", app_root.display());
-            }
-            Ok(output) => {
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                return Err(format!(
-                    "Update rejected: code signature verification failed for {}.\n\
-                     The downloaded update may be corrupt or tampered with.\n\
-                     codesign output: {}",
-                    app_root.display(),
-                    stderr.trim()
-                ));
-            }
-            Err(e) => {
-                return Err(format!(
-                    "Update rejected: failed to run codesign verification on {}: {}.\n\
-                     Cannot safely proceed without verifying the update's code signature.",
-                    app_root.display(),
-                    e
-                ));
-            }
+    Ok(())
+}
+
+/// Run the Gatekeeper gates against the **staged** bundle.
+///
+/// Both gates are fatal. `spctl` used to only warn, on the theory that ad-hoc
+/// and development builds would trip it — but this code path only ever runs on
+/// an artifact just downloaded from the project's GitHub releases, where an
+/// unnotarized bundle is a reason to stop, not a reason to shrug. Because the
+/// bundle being assessed is the staged copy, a rejection now costs the user
+/// nothing: their working installation has not been touched.
+#[cfg(target_os = "macos")]
+fn verify_staged_bundle(staged_app: &std::path::Path) -> Result<(), String> {
+    let path = staged_app.to_string_lossy().to_string();
+
+    // Step 1: signature intact AND issued to par-term's Apple Team ID.
+    let codesign_status = std::process::Command::new("/usr/bin/codesign")
+        .args([
+            "--verify",
+            "--deep",
+            "--strict",
+            &format!("-R={}", REQUIRED_CODE_REQUIREMENT),
+            &path,
+        ])
+        .output();
+
+    match codesign_status {
+        Ok(output) if output.status.success() => {
+            log::info!("Code signature and Team ID verified for the staged update");
         }
-
-        // Step 2: Verify the app passes Gatekeeper assessment (notarization check).
-        let spctl_status = std::process::Command::new("/usr/sbin/spctl")
-            .args(["--assess", "--type", "execute", &app_root.to_string_lossy()])
-            .output();
-
-        match spctl_status {
-            Ok(output) if output.status.success() => {
-                log::info!("Gatekeeper assessment passed for {}", app_root.display());
-            }
-            Ok(output) => {
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                log::warn!(
-                    "Gatekeeper assessment failed for {} (may be unsigned dev build): {}",
-                    app_root.display(),
-                    stderr.trim()
-                );
-                // Log warning but do not abort — spctl --assess may reject
-                // ad-hoc or development-signed builds. The codesign verification
-                // above already confirmed the binary is structurally intact.
-                // Users who build from source will hit this path.
-            }
-            Err(e) => {
-                // spctl may not be available in all macOS configurations.
-                log::warn!(
-                    "Could not run spctl assessment on {}: {}",
-                    app_root.display(),
-                    e
-                );
-            }
+        Ok(output) => {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!(
+                "Update rejected: code signature verification failed.\n\
+                 The downloaded update is not signed by par-term's Apple Developer \
+                 ID, or the signature is damaged.\n\
+                 Required: {}\n\
+                 codesign output: {}\n\
+                 Nothing was installed; your current version is untouched.",
+                REQUIRED_CODE_REQUIREMENT,
+                stderr.trim()
+            ));
         }
-
-        // Step 3: Only now remove quarantine attributes — signature is verified.
-        let status = std::process::Command::new("xattr")
-            .args(["-cr", &app_root.to_string_lossy()])
-            .status();
-        match status {
-            Ok(s) if s.success() => {
-                log::info!("Removed quarantine attributes from {}", app_root.display());
-            }
-            Ok(s) => {
-                log::warn!(
-                    "xattr -cr exited with status {} for {}",
-                    s,
-                    app_root.display()
-                );
-            }
-            Err(e) => {
-                log::warn!("Failed to run xattr -cr on {}: {}", app_root.display(), e);
-            }
+        Err(e) => {
+            return Err(format!(
+                "Update rejected: failed to run codesign verification: {}.\n\
+                 Cannot safely proceed without verifying the update's code signature.\n\
+                 Nothing was installed; your current version is untouched.",
+                e
+            ));
         }
     }
 
-    Ok(app_root.to_path_buf())
+    // Step 2: Gatekeeper assessment (notarization check). Fatal, including when
+    // spctl itself cannot be run — an unverifiable update is not an installable
+    // update.
+    let spctl_status = std::process::Command::new("/usr/sbin/spctl")
+        .args(["--assess", "--type", "execute", &path])
+        .output();
+
+    match spctl_status {
+        Ok(output) if output.status.success() => {
+            log::info!("Gatekeeper assessment passed for the staged update");
+        }
+        Ok(output) => {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!(
+                "Update rejected: Gatekeeper assessment failed.\n\
+                 The downloaded update is not notarized by Apple.\n\
+                 spctl output: {}\n\
+                 Nothing was installed; your current version is untouched.",
+                stderr.trim()
+            ));
+        }
+        Err(e) => {
+            return Err(format!(
+                "Update rejected: could not run the Gatekeeper assessment: {}.\n\
+                 Nothing was installed; your current version is untouched.",
+                e
+            ));
+        }
+    }
+
+    // Step 3: only now remove quarantine attributes, and only on the staged
+    // copy — the live bundle never spends a moment in a half-verified state.
+    let status = std::process::Command::new("xattr")
+        .args(["-cr", &path])
+        .status();
+    match status {
+        Ok(s) if s.success() => {
+            log::info!("Removed quarantine attributes from the staged update");
+        }
+        Ok(s) => {
+            log::warn!("xattr -cr exited with status {} on the staged update", s);
+        }
+        Err(e) => {
+            log::warn!("Failed to run xattr -cr on the staged update: {}", e);
+        }
+    }
+
+    Ok(())
 }
+
+/// Non-macOS builds have no Gatekeeper gates to run.
+#[cfg(not(target_os = "macos"))]
+fn verify_staged_bundle(_staged_app: &std::path::Path) -> Result<(), String> {
+    Ok(())
+}
+
+/// Move the verified staged bundle over the live one.
+///
+/// Two renames within a single directory: the live bundle is moved aside, then
+/// the staged bundle takes its place. If the second rename fails the first is
+/// undone, so the outcome is always either the old bundle or the new one — never
+/// a missing application.
+fn swap_staged_bundle(
+    staged_app: &std::path::Path,
+    app_root: &std::path::Path,
+) -> Result<(), String> {
+    let backup = app_root.with_file_name(format!(
+        "{}.old-{}",
+        app_root
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "par-term.app".to_string()),
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&backup);
+
+    let had_previous = app_root.exists();
+    if had_previous {
+        std::fs::rename(app_root, &backup).map_err(|e| {
+            format!(
+                "Failed to move the current application aside before installing the \
+                 update: {}. Nothing was changed.",
+                e
+            )
+        })?;
+    }
+
+    if let Err(e) = std::fs::rename(staged_app, app_root) {
+        // Put the working installation back before reporting the failure.
+        if had_previous {
+            let _ = std::fs::rename(&backup, app_root);
+        }
+        return Err(format!(
+            "Failed to move the verified update into place: {}. \
+             Your previous version has been restored.",
+            e
+        ));
+    }
+
+    sync_parent_dir(app_root);
+
+    // The swap already succeeded, so failing to delete the backup is untidy
+    // rather than incorrect.
+    if had_previous && let Err(e) = std::fs::remove_dir_all(&backup) {
+        log::warn!(
+            "Update installed, but the previous bundle at {} could not be removed: {}",
+            backup.display(),
+            e
+        );
+    }
+
+    Ok(())
+}
+
+/// Best-effort fsync of a path's parent directory so a rename is durable.
+#[cfg(unix)]
+fn sync_parent_dir(path: &std::path::Path) {
+    if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty())
+        && let Ok(dir) = std::fs::File::open(parent)
+    {
+        let _ = dir.sync_all();
+    }
+}
+
+#[cfg(not(unix))]
+fn sync_parent_dir(_path: &std::path::Path) {}
 
 /// Find the top-level .app directory name in the zip archive.
 fn find_app_prefix(
@@ -259,45 +422,95 @@ fn find_app_prefix(
 }
 
 /// Install update for standalone binary (Linux/Windows).
+///
+/// Stages the new binary as a sibling of the target, flushes it to disk, and
+/// renames it into place. Any failure removes the staging file and leaves the
+/// existing binary exactly as it was.
 pub(crate) fn install_standalone(
     current_exe: &std::path::Path,
     data: &[u8],
 ) -> Result<PathBuf, String> {
     let new_path = current_exe.with_extension("new");
 
-    // Write the new binary to a temp file
-    std::fs::write(&new_path, data).map_err(|e| format!("Failed to write new binary: {}", e))?;
+    if let Err(e) = stage_binary(&new_path, data) {
+        let _ = std::fs::remove_file(&new_path);
+        return Err(e);
+    }
 
-    // Set executable permission on Unix
+    if let Err(e) = replace_binary(&new_path, current_exe) {
+        let _ = std::fs::remove_file(&new_path);
+        return Err(e);
+    }
+
+    sync_parent_dir(current_exe);
+
+    Ok(current_exe.to_path_buf())
+}
+
+/// Write the staged binary and flush it all the way to disk.
+///
+/// The `sync_all` matters here: without it a crash between rename and writeback
+/// can leave the target name pointing at a zero-length file, which is an
+/// unrunnable application rather than an old one.
+fn stage_binary(new_path: &std::path::Path, data: &[u8]) -> Result<(), String> {
+    use std::io::Write;
+
+    let mut file = std::fs::File::create(new_path)
+        .map_err(|e| format!("Failed to create the staged binary: {}", e))?;
+    file.write_all(data)
+        .map_err(|e| format!("Failed to write new binary: {}", e))?;
+    file.sync_all()
+        .map_err(|e| format!("Failed to flush the new binary to disk: {}", e))?;
+    drop(file);
+
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&new_path, std::fs::Permissions::from_mode(0o755))
+        std::fs::set_permissions(new_path, std::fs::Permissions::from_mode(0o755))
             .map_err(|e| format!("Failed to set permissions: {}", e))?;
     }
 
-    // Platform-specific replacement
-    #[cfg(unix)]
-    {
-        // On Unix, rename is atomic if on the same filesystem.
-        // A running binary's inode stays valid even after rename.
-        std::fs::rename(&new_path, current_exe)
-            .map_err(|e| format!("Failed to replace binary: {}", e))?;
+    Ok(())
+}
+
+/// Rename the staged binary over the live one.
+#[cfg(unix)]
+fn replace_binary(new_path: &std::path::Path, current_exe: &std::path::Path) -> Result<(), String> {
+    // On Unix, rename is atomic if on the same filesystem.
+    // A running binary's inode stays valid even after rename.
+    std::fs::rename(new_path, current_exe).map_err(|e| {
+        format!(
+            "Failed to replace binary: {}. The existing binary was left in place.",
+            e
+        )
+    })
+}
+
+/// Rename the staged binary over the live one.
+#[cfg(windows)]
+fn replace_binary(new_path: &std::path::Path, current_exe: &std::path::Path) -> Result<(), String> {
+    // On Windows the running exe cannot be overwritten, so it is renamed to
+    // `.old` first and removed on the next startup by `cleanup_old_binary`.
+    let old_path = current_exe.with_extension("old");
+    let _ = std::fs::remove_file(&old_path);
+
+    std::fs::rename(current_exe, &old_path).map_err(|e| {
+        format!(
+            "Failed to rename current binary: {}. The existing binary was left in place.",
+            e
+        )
+    })?;
+
+    if let Err(e) = std::fs::rename(new_path, current_exe) {
+        // Put the working binary back rather than leaving nothing at the path.
+        let _ = std::fs::rename(&old_path, current_exe);
+        return Err(format!(
+            "Failed to rename new binary: {}. Your previous version has been restored.",
+            e
+        ));
     }
 
-    #[cfg(windows)]
-    {
-        // On Windows, rename current exe to .old, then rename new to current
-        let old_path = current_exe.with_extension("old");
-        // Clean up previous .old file if it exists
-        let _ = std::fs::remove_file(&old_path);
-        std::fs::rename(current_exe, &old_path)
-            .map_err(|e| format!("Failed to rename current binary: {}", e))?;
-        std::fs::rename(&new_path, current_exe)
-            .map_err(|e| format!("Failed to rename new binary: {}", e))?;
-    }
-
-    Ok(current_exe.to_path_buf())
+    Ok(())
 }
 
 #[cfg(test)]
@@ -342,6 +555,72 @@ mod tests {
             detect_installation_from_path("/Applications/par-term.app/Contents/MacOS/par-term"),
             InstallationType::MacOSBundle
         );
+    }
+
+    /// Build a directory that stands in for a `.app` bundle, holding one marker
+    /// file so the swap can be observed.
+    fn make_bundle(path: &std::path::Path, contents: &str) {
+        std::fs::create_dir_all(path).expect("create bundle dir");
+        std::fs::write(path.join("marker"), contents).expect("write marker");
+    }
+
+    fn sibling_names(dir: &std::path::Path) -> Vec<String> {
+        let mut names: Vec<String> = std::fs::read_dir(dir)
+            .expect("read_dir")
+            .map(|e| e.expect("entry").file_name().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        names
+    }
+
+    #[test]
+    fn swap_replaces_the_live_bundle_and_removes_the_backup() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let staged_app = dir.path().join(".staging").join("par-term.app");
+        make_bundle(&staged_app, "NEW");
+        let live = dir.path().join("par-term.app");
+        make_bundle(&live, "OLD");
+
+        swap_staged_bundle(&staged_app, &live).expect("swap");
+
+        assert_eq!(
+            std::fs::read_to_string(live.join("marker")).expect("read marker"),
+            "NEW"
+        );
+        assert!(
+            !sibling_names(dir.path())
+                .iter()
+                .any(|n| n.contains(".old-")),
+            "the backup bundle should be removed once the swap succeeds: {:?}",
+            sibling_names(dir.path())
+        );
+    }
+
+    #[test]
+    fn swap_works_when_there_is_no_previous_bundle() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let staged_app = dir.path().join(".staging").join("par-term.app");
+        make_bundle(&staged_app, "NEW");
+        let live = dir.path().join("par-term.app");
+
+        swap_staged_bundle(&staged_app, &live).expect("swap with no previous bundle");
+
+        assert_eq!(
+            std::fs::read_to_string(live.join("marker")).expect("read marker"),
+            "NEW"
+        );
+    }
+
+    #[test]
+    fn standalone_install_replaces_the_binary_and_leaves_no_staging_file() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let exe = dir.path().join("par-term");
+        std::fs::write(&exe, b"OLD").expect("seed");
+
+        install_standalone(&exe, b"NEW").expect("install");
+
+        assert_eq!(std::fs::read(&exe).expect("read"), b"NEW");
+        assert!(!exe.with_extension("new").exists());
     }
 
     #[test]
