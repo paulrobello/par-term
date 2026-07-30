@@ -43,11 +43,19 @@ pub struct AiInspectorConfig {
     #[serde(default = "default_ai_inspector_width")]
     pub ai_inspector_width: f32,
 
-    /// Default capture scope: "visible", "scrollback", or "selection"
+    /// Default capture scope: `visible`, `full`, or `recent_<n>`.
+    ///
+    /// Matched by `CaptureScope::from_config_str`, not by serde, so an
+    /// unrecognized value falls back to `visible` instead of failing to load.
     #[serde(default = "default_ai_inspector_default_scope")]
     pub ai_inspector_default_scope: String,
 
-    /// View mode for inspector results: "cards" or "raw"
+    /// View mode for inspector results: `cards`, `timeline`, `tree`, or
+    /// `list_detail`.
+    ///
+    /// Matched by `InspectorViewMode::from_config_str`, not by serde, so an
+    /// unrecognized value falls back to `cards` — which differs from the
+    /// default applied when the key is absent.
     #[serde(default = "default_ai_inspector_view_mode")]
     pub ai_inspector_view_mode: String,
 

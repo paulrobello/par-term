@@ -81,10 +81,12 @@ pub(crate) fn compute_cursor_text_color(
 impl CellRenderer {
     /// Orchestrate a full instance-buffer update for the current frame.
     ///
-    /// **This method is used exclusively by the custom shader / cursor shader path**
-    /// (`render_to_texture` → intermediate texture → shader effect). Normal terminal
-    /// rendering always goes through `build_pane_instance_buffers` (in `pane_render.rs`)
-    /// via `render_pane_to_view`, because `pane_manager` is always initialized.
+    /// **This method serves only the offscreen screenshot path**, and only its
+    /// shader-active branch: `take_screenshot` → `render_cells_to_target` →
+    /// `render_to_texture`. The no-shader branch goes through `render_to_view`,
+    /// which takes `&self` and deliberately does not rebuild buffers. Everything
+    /// drawn to the window goes through `build_pane_instance_buffers` in
+    /// `pane_render/mod.rs`.
     ///
     /// For each dirty row the per-row background and text instance builders are called
     /// (see `instance_builders.rs`) and the results are written to the GPU buffers

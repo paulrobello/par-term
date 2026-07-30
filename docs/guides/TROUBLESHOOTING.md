@@ -391,7 +391,7 @@ par-term writes intermediate shader files for debugging. Paths use the OS temp d
 
 | File | Description |
 |------|-------------|
-| `/tmp/par_term_<shader_name>_shader.wgsl` | Transpiled WGSL output for each shader (hardcoded `/tmp/`) |
+| `<temp_dir>/par_term_<shader_name>_shader.wgsl` | Transpiled WGSL output for each shader (debug builds only) |
 | `<temp_dir>/par_term_debug_wrapped.glsl` | Wrapped GLSL input sent to the transpiler (last shader processed) |
 | `<temp_dir>/par_term_debug_wrapped_source.glsl` | Raw GLSL source before wrapping (last shader processed) |
 

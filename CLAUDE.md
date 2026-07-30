@@ -223,6 +223,7 @@ See `docs/features/CUSTOM_SHADERS.md` for full shader documentation including un
 **Key rules**:
 - Develop shaders in `~/.config/par-term/shaders/` first; only move to repo `shaders/` when ready for distribution
 - Transpiled WGSL and wrapped GLSL are written to the **system temp directory** for debugging — `par_term_<name>_shader.wgsl` and `par_term_debug_wrapped.glsl`. That is `$TMPDIR` (a `/var/folders/...` path) on macOS, `/tmp` on Linux, `%TEMP%` on Windows. Never hardcode `/tmp`; resolve through `par_term_render::shader_debug`, which every writer and reporter shares. Call the `shader_diagnostics` MCP tool to print the actual paths.
+- **Both dumps are `#[cfg(debug_assertions)]`-gated.** `dev-release` inherits from `release`, so `make build` / `make run` produce neither file — use `make build-debug`. `shader_diagnostics` reports the path unconditionally, so it can name a file that does not exist.
 - When debugging one shader type, temporarily disable the other
 
 ### Modifying Rendering

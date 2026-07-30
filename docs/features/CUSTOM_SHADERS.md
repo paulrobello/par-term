@@ -1096,8 +1096,10 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
 
 ### Debugging Tips
 
-- Transpiled WGSL is written to `par_term_<shader_name>_shader.wgsl` in the system temp directory
+- Transpiled WGSL is written to `par_term_<shader_name>_shader.wgsl` in the system temp directory (debug builds only)
 - Wrapped GLSL is written to `par_term_debug_wrapped.glsl` in the same directory (last shader only, debug builds only)
+
+Both dumps require debug assertions. The `dev-release` profile used by `make build` and `make run` inherits from `release`, so **neither file is written by the default development build** — use `make build-debug` when you need them.
 
 Both dumps share one location: the system temp directory. That is `$TMPDIR` on macOS — typically under `/var/folders/...`, **not** `/tmp` — `/tmp` on Linux, and `%TEMP%` on Windows. Rather than guessing, call the `shader_diagnostics` MCP tool, which reports the resolved paths for the active shaders.
 - Enable `shader_hot_reload: true` for faster iteration
