@@ -268,6 +268,7 @@ impl WindowState {
         drop(cfg); // release guard before moving to macOS section
 
         let mut renderer = params.create_renderer(Arc::clone(&window)).await?;
+        self.collect_startup_shader_errors(&mut renderer);
 
         // macOS: Configure CAMetalLayer (transparency + performance)
         // This MUST be done AFTER creating the wgpu surface/renderer

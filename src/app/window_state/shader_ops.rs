@@ -6,6 +6,32 @@ use crate::shader_watcher::{ShaderReloadEvent, ShaderType, ShaderWatcher};
 use par_term_config::text::truncate_chars;
 
 impl WindowState {
+    /// Move any shader failure recorded while building `renderer` into the same
+    /// state the hot-reload path writes to.
+    ///
+    /// Without this a shader that fails to compile at startup only reaches the log,
+    /// while the identical failure on hot reload reaches the Settings window.
+    pub(crate) fn collect_startup_shader_errors(
+        &mut self,
+        renderer: &mut crate::renderer::Renderer,
+    ) {
+        let (background_error, cursor_error) = renderer.take_startup_shader_errors();
+
+        if let Some(error) = background_error {
+            log::error!("Background shader failed to load at startup: {}", error);
+            self.shader_state.shader_reload_error = Some(error.clone());
+            self.shader_state.background_shader_last_error = Some(error.clone());
+            self.shader_state.background_shader_reload_result = Some(Some(error));
+        }
+
+        if let Some(error) = cursor_error {
+            log::error!("Cursor shader failed to load at startup: {}", error);
+            self.shader_state.shader_reload_error = Some(error.clone());
+            self.shader_state.cursor_shader_last_error = Some(error.clone());
+            self.shader_state.cursor_shader_reload_result = Some(Some(error));
+        }
+    }
+
     /// Initialize the shader watcher for hot reload support
     pub(crate) fn init_shader_watcher(&mut self) {
         debug_info!(

@@ -74,20 +74,20 @@ pub struct CustomShaderEnableParams<'a> {
 
 /// Initialize the custom (background) shader renderer if configured.
 ///
-/// Returns `(renderer, shader_path)` where both are `Some` if initialization succeeded.
+/// Returns `(renderer, shader_path, load_error)`.
 pub(super) fn init_custom_shader(
     cell_renderer: &CellRenderer,
     params: CustomShaderInitParams<'_>,
-) -> (Option<CustomShaderRenderer>, Option<String>) {
+) -> (Option<CustomShaderRenderer>, Option<String>, Option<String>) {
     background::init_custom_shader(cell_renderer, params)
 }
 
 /// Initialize the cursor shader renderer if configured.
 ///
-/// Returns `(renderer, shader_path)` where both are `Some` if initialization succeeded.
+/// Returns `(renderer, shader_path, load_error)`.
 pub(super) fn init_cursor_shader(
     cell_renderer: &CellRenderer,
     params: CursorShaderInitParams<'_>,
-) -> (Option<CustomShaderRenderer>, Option<String>) {
+) -> (Option<CustomShaderRenderer>, Option<String>, Option<String>) {
     cursor::init_cursor_shader(cell_renderer, params)
 }

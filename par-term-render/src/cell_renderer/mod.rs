@@ -246,11 +246,12 @@ pub struct CellRenderer {
 /// Bundles all font, grid, scrollbar, and background parameters so the
 /// constructor does not exceed the `clippy::too_many_arguments` threshold.
 pub struct CellRendererConfig<'a> {
-    pub font_family: Option<&'a str>,
-    pub font_family_bold: Option<&'a str>,
-    pub font_family_italic: Option<&'a str>,
-    pub font_family_bold_italic: Option<&'a str>,
-    pub font_ranges: &'a [par_term_config::FontRange],
+    /// Pre-built font manager.
+    ///
+    /// Passed in rather than constructed here because the caller already needs
+    /// one to derive `cols`/`rows`; building a second would enumerate every
+    /// system font again on each renderer rebuild (i.e. on every font-size change).
+    pub font_manager: FontManager,
     pub font_size: f32,
     pub cols: usize,
     pub rows: usize,
@@ -280,11 +281,7 @@ pub struct CellRendererConfig<'a> {
 impl CellRenderer {
     pub async fn new(window: Arc<Window>, config: CellRendererConfig<'_>) -> Result<Self> {
         let CellRendererConfig {
-            font_family,
-            font_family_bold,
-            font_family_italic,
-            font_family_bold_italic,
-            font_ranges,
+            font_manager,
             font_size,
             cols,
             rows,
@@ -439,14 +436,6 @@ impl CellRenderer {
 
         let base_font_pixels = font_size * platform_dpi / FONT_REFERENCE_DPI;
         let font_size_pixels = (base_font_pixels * scale_factor).max(1.0);
-
-        let font_manager = FontManager::new(
-            font_family,
-            font_family_bold,
-            font_family_italic,
-            font_family_bold_italic,
-            font_ranges,
-        )?;
 
         // Extract font metrics
         let (font_ascent, font_descent, font_leading, char_advance) = {

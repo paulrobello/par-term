@@ -204,11 +204,16 @@ pub struct Renderer {
     pub(crate) custom_shader_renderer: Option<CustomShaderRenderer>,
     // Track current shader path to detect changes
     pub(crate) custom_shader_path: Option<String>,
+    // Background shader failure from construction, awaiting collection by the
+    // frontend's shader-error sink. Read once via `take_startup_shader_errors`.
+    pub(crate) startup_shader_error: Option<String>,
 
     // Cursor shader renderer for cursor-specific effects (separate from background shader)
     pub(crate) cursor_shader_renderer: Option<CustomShaderRenderer>,
     // Track current cursor shader path to detect changes
     pub(crate) cursor_shader_path: Option<String>,
+    // Cursor shader failure from construction; see `startup_shader_error`.
+    pub(crate) startup_cursor_shader_error: Option<String>,
 
     // Cached for convenience
     pub(crate) size: PhysicalSize<u32>,
@@ -297,7 +302,9 @@ impl Renderer {
         let base_font_pixels = font_size * platform_dpi / 72.0;
         let font_size_pixels = (base_font_pixels * scale_factor as f32).max(1.0);
 
-        // Preliminary font lookup to get metrics for accurate cell height
+        // Font lookup for the metrics that determine `cols`/`rows` below.  The
+        // manager is then handed to `CellRenderer::new`; building a second one
+        // there would re-enumerate every system font on each renderer rebuild.
         let font_manager = par_term_fonts::font_manager::FontManager::new(
             font_family,
             font_family_bold,
@@ -358,11 +365,7 @@ impl Renderer {
         let cell_renderer = CellRenderer::new(
             window.clone(),
             CellRendererConfig {
-                font_family,
-                font_family_bold,
-                font_family_italic,
-                font_family_bold_italic,
-                font_ranges,
+                font_manager,
                 font_size,
                 cols,
                 rows,
@@ -415,43 +418,45 @@ impl Renderer {
         )?;
 
         // Create custom shader renderer if configured
-        let (mut custom_shader_renderer, initial_shader_path) = shaders::init_custom_shader(
-            &cell_renderer,
-            shaders::CustomShaderInitParams {
-                size_width: size.width,
-                size_height: size.height,
-                window_padding,
-                path: custom_shader_path,
-                enabled: custom_shader_enabled,
-                animation: custom_shader_animation,
-                animation_speed: custom_shader_animation_speed,
-                window_opacity,
-                full_content: custom_shader_full_content,
-                brightness: custom_shader_brightness,
-                channel_paths: custom_shader_channel_paths,
-                cubemap_path: custom_shader_cubemap_path,
-                custom_uniforms: custom_shader_custom_uniforms,
-                use_background_as_channel0,
-                background_channel0_blend_mode,
-                auto_dim_under_text: custom_shader_auto_dim_under_text,
-                auto_dim_strength: custom_shader_auto_dim_strength,
-            },
-        );
+        let (mut custom_shader_renderer, initial_shader_path, startup_shader_error) =
+            shaders::init_custom_shader(
+                &cell_renderer,
+                shaders::CustomShaderInitParams {
+                    size_width: size.width,
+                    size_height: size.height,
+                    window_padding,
+                    path: custom_shader_path,
+                    enabled: custom_shader_enabled,
+                    animation: custom_shader_animation,
+                    animation_speed: custom_shader_animation_speed,
+                    window_opacity,
+                    full_content: custom_shader_full_content,
+                    brightness: custom_shader_brightness,
+                    channel_paths: custom_shader_channel_paths,
+                    cubemap_path: custom_shader_cubemap_path,
+                    custom_uniforms: custom_shader_custom_uniforms,
+                    use_background_as_channel0,
+                    background_channel0_blend_mode,
+                    auto_dim_under_text: custom_shader_auto_dim_under_text,
+                    auto_dim_strength: custom_shader_auto_dim_strength,
+                },
+            );
 
         // Create cursor shader renderer if configured (separate from background shader)
-        let (mut cursor_shader_renderer, initial_cursor_shader_path) = shaders::init_cursor_shader(
-            &cell_renderer,
-            shaders::CursorShaderInitParams {
-                size_width: size.width,
-                size_height: size.height,
-                window_padding,
-                path: cursor_shader_path,
-                enabled: cursor_shader_enabled,
-                animation: cursor_shader_animation,
-                animation_speed: cursor_shader_animation_speed,
-                window_opacity,
-            },
-        );
+        let (mut cursor_shader_renderer, initial_cursor_shader_path, startup_cursor_shader_error) =
+            shaders::init_cursor_shader(
+                &cell_renderer,
+                shaders::CursorShaderInitParams {
+                    size_width: size.width,
+                    size_height: size.height,
+                    window_padding,
+                    path: cursor_shader_path,
+                    enabled: cursor_shader_enabled,
+                    animation: cursor_shader_animation,
+                    animation_speed: cursor_shader_animation_speed,
+                    window_opacity,
+                },
+            );
 
         // Sync DPI scale factor to shader renderers for cursor sizing
         if let Some(ref mut cs) = custom_shader_renderer {
@@ -474,8 +479,10 @@ impl Renderer {
             egui_renderer,
             custom_shader_renderer,
             custom_shader_path: initial_shader_path,
+            startup_shader_error,
             cursor_shader_renderer,
             cursor_shader_path: initial_cursor_shader_path,
+            startup_cursor_shader_error,
             size,
             dirty: true, // Start dirty to ensure initial render
             last_scrollbar_state: (usize::MAX, 0, 0, 0, 0, 0, 0, 0, 0, 0), // Force first update

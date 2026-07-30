@@ -11,11 +11,13 @@ use crate::custom_shader_renderer::CustomShaderRenderer;
 
 /// Initialize the custom shader renderer if configured.
 ///
-/// Returns `(renderer, shader_path)` where both are `Some` if initialization succeeded.
+/// Returns `(renderer, shader_path, load_error)`. The error is reported rather than
+/// only logged so that a shader broken at startup surfaces in the Settings window
+/// the same way one broken by a hot reload already does.
 pub(super) fn init_custom_shader(
     cell_renderer: &CellRenderer,
     params: CustomShaderInitParams<'_>,
-) -> (Option<CustomShaderRenderer>, Option<String>) {
+) -> (Option<CustomShaderRenderer>, Option<String>, Option<String>) {
     let CustomShaderInitParams {
         size_width,
         size_height,
@@ -42,12 +44,12 @@ pub(super) fn init_custom_shader(
     );
     if !custom_shader_enabled {
         log::info!("[shader-init] Skipping: custom_shader_enabled=false");
-        return (None, None);
+        return (None, None, None);
     }
 
     let Some(shader_path) = custom_shader_path else {
         log::info!("[shader-init] Skipping: custom_shader_path is None");
-        return (None, None);
+        return (None, None, None);
     };
 
     let path = par_term_config::Config::shader_path(shader_path);
@@ -95,15 +97,16 @@ pub(super) fn init_custom_shader(
                 path.display(),
                 use_background_as_channel0
             );
-            (Some(renderer), Some(shader_path.to_string()))
+            (Some(renderer), Some(shader_path.to_string()), None)
         }
         Err(e) => {
-            log::info!(
+            let error = format!("{:#}", e);
+            log::error!(
                 "[SHADER] ERROR: Failed to load custom shader '{}': {}",
                 path.display(),
-                e
+                error
             );
-            (None, None)
+            (None, None, Some(error))
         }
     }
 }
@@ -113,6 +116,20 @@ pub(super) fn init_custom_shader(
 // ============================================================================
 
 impl Renderer {
+    /// Take the `(background, cursor)` shader failures recorded while this renderer
+    /// was constructed.
+    ///
+    /// Startup and hot-reload failures are the same failure, so the caller feeds
+    /// these into the same error sink the reload path uses; otherwise a shader
+    /// broken before launch degrades to an unshaded terminal with no diagnostic.
+    /// Consuming, so a rebuilt renderer does not re-report a stale error.
+    pub fn take_startup_shader_errors(&mut self) -> (Option<String>, Option<String>) {
+        (
+            self.startup_shader_error.take(),
+            self.startup_cursor_shader_error.take(),
+        )
+    }
+
     /// Enable or disable animation for the custom shader at runtime
     pub fn set_custom_shader_animation(&mut self, enabled: bool) {
         if let Some(ref mut custom_shader) = self.custom_shader_renderer {

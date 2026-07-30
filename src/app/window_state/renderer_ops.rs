@@ -53,6 +53,7 @@ impl WindowState {
         let mut renderer = self
             .runtime
             .block_on(params.create_renderer(Arc::clone(&window)))?;
+        self.collect_startup_shader_errors(&mut renderer);
 
         let (cols, rows) = renderer.grid_size();
         let cell_width = renderer.cell_width();

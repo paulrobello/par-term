@@ -11,11 +11,12 @@ use crate::custom_shader_renderer::CustomShaderRenderer;
 
 /// Initialize the cursor shader renderer if configured.
 ///
-/// Returns `(renderer, shader_path)` where both are `Some` if initialization succeeded.
+/// Returns `(renderer, shader_path, load_error)`. See [`super::background::init_custom_shader`]
+/// for why the error is returned rather than only logged.
 pub(super) fn init_cursor_shader(
     cell_renderer: &CellRenderer,
     params: CursorShaderInitParams<'_>,
-) -> (Option<CustomShaderRenderer>, Option<String>) {
+) -> (Option<CustomShaderRenderer>, Option<String>, Option<String>) {
     let CursorShaderInitParams {
         size_width,
         size_height,
@@ -36,12 +37,12 @@ pub(super) fn init_cursor_shader(
 
     if !cursor_shader_enabled {
         log::info!("[cursor-shader] Disabled by config");
-        return (None, None);
+        return (None, None, None);
     }
 
     let Some(shader_path) = cursor_shader_path else {
         log::info!("[cursor-shader] Enabled but no path provided");
-        return (None, None);
+        return (None, None, None);
     };
 
     let path = par_term_config::Config::shader_path(shader_path);
@@ -78,15 +79,16 @@ pub(super) fn init_cursor_shader(
                 cell_h,
                 window_padding
             );
-            (Some(renderer), Some(shader_path.to_string()))
+            (Some(renderer), Some(shader_path.to_string()), None)
         }
         Err(e) => {
-            log::info!(
+            let error = format!("{:#}", e);
+            log::error!(
                 "[SHADER] ERROR: Failed to load cursor shader '{}': {}",
                 path.display(),
-                e
+                error
             );
-            (None, None)
+            (None, None, Some(error))
         }
     }
 }
