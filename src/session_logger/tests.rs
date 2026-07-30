@@ -52,6 +52,34 @@ fn test_session_logger_plain() {
     assert!(!content.contains("\x1b")); // No escape sequences
 }
 
+/// SEC-009: the session title comes from the tab title, which a remote process
+/// sets via OSC 0/2. An unescaped title breaks out of `<title>` and executes when
+/// the log is opened in a browser.
+#[test]
+fn test_html_header_escapes_remote_controlled_title() {
+    let temp_dir = TempDir::new().unwrap();
+    let mut logger = SessionLogger::new(
+        SessionLogFormat::Html,
+        temp_dir.path(),
+        (80, 24),
+        Some("</title><script>alert('xss')</script>".to_string()),
+    )
+    .unwrap();
+
+    logger.start().unwrap();
+    let path = logger.stop().unwrap();
+
+    let content = std::fs::read_to_string(&path).unwrap();
+    assert!(
+        !content.contains("<script>"),
+        "title must not be able to open a script tag: {content}"
+    );
+    assert!(
+        content.contains("&lt;/title&gt;&lt;script&gt;"),
+        "title must appear HTML-escaped: {content}"
+    );
+}
+
 #[test]
 fn test_session_logger_asciicast() {
     let temp_dir = TempDir::new().unwrap();

@@ -7,6 +7,7 @@ use anyhow::{Context, Result};
 use par_term_emu_core_rust::terminal::RecordingEventType;
 
 use super::core::SessionLogger;
+use super::writers::html_escape;
 use crate::config::SessionLogFormat;
 
 impl SessionLogger {
@@ -40,6 +41,11 @@ impl SessionLogger {
     }
 
     /// Write the HTML document header to the log file.
+    ///
+    /// SEC-009: the session title is derived from the tab title, which a remote
+    /// process controls through OSC 0/2. It is HTML-escaped here for the same
+    /// reason the log body is — an unescaped `</title><script>…` would execute
+    /// when the log is opened in a browser.
     pub(super) fn write_html_header(&mut self) -> Result<()> {
         use std::io::Write;
         let header = format!(
@@ -67,7 +73,7 @@ impl SessionLogger {
 <body>
 <pre>
 "#,
-            self.title.as_deref().unwrap_or("Terminal Session")
+            html_escape(self.title.as_deref().unwrap_or("Terminal Session"))
         );
 
         if let Some(ref mut writer) = self.writer {
