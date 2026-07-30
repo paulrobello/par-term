@@ -30,6 +30,34 @@ trap cleanup EXIT
 
 set_secret() { printf '%s' "$2" | gh secret set "$1" --repo "$REPO" && echo "  ✓ $1"; }
 
+# Read a filesystem path the way a user actually supplies one.
+#
+# Every convenient way to get a path onto the clipboard decorates it, and `read
+# -r` keeps the decoration verbatim — so a quoted path is looked up as a
+# filename literally beginning with a quote character:
+#
+#   Finder "Copy as Pathname" / shell paste  ->  '/Users/me/My File.p12'
+#   drag-and-drop into Terminal              ->  /Users/me/My\ File.p12
+#
+# Both forms are stripped here. Backslash unescaping is applied only to the
+# unquoted form, because inside quotes a backslash is a literal character.
+read_path() {
+  local prompt=$1 __out=$2 p
+  read -rp "$prompt" p
+  p="${p#"${p%%[![:space:]]*}"}"      # trim leading whitespace
+  p="${p%"${p##*[![:space:]]}"}"      # trim trailing whitespace
+  case $p in
+    \'*\') p=${p#\'}; p=${p%\'} ;;
+    \"*\") p=${p#\"}; p=${p%\"} ;;
+    # Unescape every backslash pair, not just "\ " — a dragged path escapes
+    # parentheses and other shell metacharacters too, and this identity has
+    # "(QMLVG482FY)" in its filename.
+    *)     p=$(printf '%s' "$p" | sed 's/\\\(.\)/\1/g') ;;
+  esac
+  p="${p/#\~/$HOME}"
+  printf -v "$__out" '%s' "$p"
+}
+
 echo "par-term release secrets → $REPO"
 echo
 
@@ -71,8 +99,7 @@ echo "        → \"Developer ID Application: PAUL AARON ROBELLO (QMLVG482FY)\""
 echo "        → right-click → Export… → .p12 → set a password"
 echo "        (SHA-1 $IDENTITY_SHA)"
 echo
-read -rp  "      Path to the exported .p12: " P12_PATH
-P12_PATH="${P12_PATH/#\~/$HOME}"
+read_path "      Path to the exported .p12: " P12_PATH
 [ -f "$P12_PATH" ] || { echo "      ✗ no such file: $P12_PATH" >&2; exit 1; }
 read -rsp "      Password you set on that .p12: " P12_PW; echo
 
@@ -107,10 +134,18 @@ echo
 echo "[4/4] App Store Connect API key (for notarytool)"
 echo "      From appstoreconnect.apple.com → Users and Access → Integrations → App Store Connect API."
 echo "      The key must be a TEAM key, not an Individual key — notarytool rejects Individual keys."
-read -rp  "      Key ID: " ASC_KEY_ID
+echo "      Leave the Key ID empty to skip — use that when these three are"
+echo "      already set (e.g. loaded from a secrets vault rather than a file)."
+read -rp  "      Key ID (empty to skip): " ASC_KEY_ID
+if [ -z "$ASC_KEY_ID" ]; then
+  echo "      skipped"
+  echo
+  echo "Done. Configured secrets:"
+  gh secret list --repo "$REPO" | cut -f1 | sed 's/^/  /'
+  exit 0
+fi
 read -rp  "      Issuer ID (UUID): " ASC_ISSUER_ID
-read -rp  "      Path to AuthKey_${ASC_KEY_ID}.p8: " ASC_P8
-ASC_P8="${ASC_P8/#\~/$HOME}"
+read_path "      Path to AuthKey_${ASC_KEY_ID}.p8: " ASC_P8
 [ -f "$ASC_P8" ] || { echo "      ✗ no such file: $ASC_P8" >&2; exit 1; }
 grep -q "BEGIN PRIVATE KEY" "$ASC_P8" || { echo "      ✗ not a PEM private key: $ASC_P8" >&2; exit 1; }
 set_secret APPLE_API_KEY_ID "$ASC_KEY_ID"
