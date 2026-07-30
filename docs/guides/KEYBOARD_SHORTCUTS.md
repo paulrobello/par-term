@@ -38,7 +38,7 @@ Complete reference for all par-term keyboard shortcuts.
 |--------|-------|---------------|
 | New window | `Cmd + N` *(menu)* | `Ctrl + N` *(menu)* |
 | New tab | `Cmd + T` | `Ctrl + Shift + T` |
-| Duplicate tab | *(unbound)* | *(unbound)* |
+| Duplicate tab | `Cmd+Shift+J` | `Ctrl+Shift+J` |
 | Close tab/window | `Cmd + W` | `Ctrl + Shift + W` |
 | Quit application | `Cmd + Q` *(menu)* | `Ctrl + Q` *(menu)* |
 | Next tab | `Cmd + Shift + ]` | `Ctrl + Shift + ]` |

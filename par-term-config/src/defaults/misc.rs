@@ -136,6 +136,13 @@ pub fn keybindings() -> Vec<crate::types::KeyBinding> {
             key: "CmdOrCtrl+Shift+S".to_string(),
             action: "ssh_quick_connect".to_string(),
         },
+        // Duplicate Tab. Cmd+D / Cmd+Shift+D (the natural mnemonic) are the two
+        // split actions and Cmd+Shift+T is throughput mode, so J — free in both
+        // the default keybindings and every hardcoded key layer.
+        crate::types::KeyBinding {
+            key: "CmdOrCtrl+Shift+J".to_string(),
+            action: "duplicate_tab".to_string(),
+        },
     ];
 
     #[cfg(not(target_os = "macos"))]
@@ -244,6 +251,13 @@ pub fn keybindings() -> Vec<crate::types::KeyBinding> {
         crate::types::KeyBinding {
             key: "Ctrl+Shift+S".to_string(),
             action: "ssh_quick_connect".to_string(),
+        },
+        // Duplicate Tab. Ctrl+Shift+D is the horizontal split here, and the menu
+        // model's `cmd_or_ctrl` is itself Ctrl+Shift off macOS, so every letter
+        // it uses (N, W, Q, T, C, V, A) is spoken for too. J is free on both.
+        crate::types::KeyBinding {
+            key: "Ctrl+Shift+J".to_string(),
+            action: "duplicate_tab".to_string(),
         },
     ];
 

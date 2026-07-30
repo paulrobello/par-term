@@ -172,7 +172,7 @@ Any tab can be duplicated via the context menu:
 
 1. **Right-click** on any tab in the tab bar to open the context menu and select **Duplicate Tab**
 
-To assign a keyboard shortcut, bind the `duplicate_tab` action in Settings > Keybindings. There is no default shortcut.
+Bound to `Cmd+Shift+J` (`Ctrl+Shift+J` on Linux and Windows) by default, and rebindable as the `duplicate_tab` action in Settings > Keybindings.
 
 **Behavior:**
 - The duplicated tab inherits the working directory of the source tab

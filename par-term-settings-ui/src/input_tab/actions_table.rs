@@ -61,11 +61,7 @@ pub(super) const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     ),
     ("new_tab", "New Tab", Some("Cmd+T")),
     ("close_tab", "Close Tab", Some("Cmd+W")),
-    // No default chord: this action has no entry in
-    // `Config::default().keybindings` and no hardcoded key layer claims one for
-    // it. It is reachable from the Tab menu's Duplicate Tab item and from the
-    // tab bar's context menu, both of which are unaccelerated for that reason.
-    ("duplicate_tab", "Duplicate Tab", None),
+    ("duplicate_tab", "Duplicate Tab", Some("Cmd+Shift+J")),
     ("reopen_closed_tab", "Reopen Closed Tab", Some("Cmd+Z")),
     ("move_tab_to_new_window", "Move Tab to New Window", None),
     ("next_tab", "Next Tab", Some("Cmd+Shift+]")),
@@ -222,11 +218,7 @@ pub(super) const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     ),
     ("new_tab", "New Tab", Some("Ctrl+Shift+T")),
     ("close_tab", "Close Tab", Some("Ctrl+Shift+W")),
-    // No default chord: this action has no entry in
-    // `Config::default().keybindings` and no hardcoded key layer claims one for
-    // it. It is reachable from the Tab menu's Duplicate Tab item and from the
-    // tab bar's context menu, both of which are unaccelerated for that reason.
-    ("duplicate_tab", "Duplicate Tab", None),
+    ("duplicate_tab", "Duplicate Tab", Some("Ctrl+Shift+J")),
     (
         "reopen_closed_tab",
         "Reopen Closed Tab",
