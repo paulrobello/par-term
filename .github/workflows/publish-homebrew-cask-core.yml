@@ -110,8 +110,20 @@ jobs:
             exit 1
           fi
 
+          # Authenticate with an environment-scoped http.extraheader rather than a
+          # credential embedded in the remote URL. A token in the URL is written to
+          # .git/config by clone and stays readable there — and in `git remote -v`
+          # output — for the rest of the job. GIT_CONFIG_* is read by every git
+          # invocation below, including the push inside the subshell, and is never
+          # written to any config file.
+          TAP_AUTH="$(printf 'x-access-token:%s' "$TAP_TOKEN" | base64 | tr -d '\n')"
+          echo "::add-mask::$TAP_AUTH"
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0="http.https://github.com/.extraheader"
+          export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic ${TAP_AUTH}"
+
           TAP_DIR="$(mktemp -d)"
-          git clone --depth 1 "https://${TAP_TOKEN}@github.com/${TAP_REPO}.git" "$TAP_DIR"
+          git clone --depth 1 "https://github.com/${TAP_REPO}.git" "$TAP_DIR"
 
           mkdir -p "$TAP_DIR/Casks"
           cp homebrew/Casks/par-term.rb "$TAP_DIR/Casks/par-term.rb"
