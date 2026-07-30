@@ -93,6 +93,7 @@ notify = "8.2"
 
 # Dev dependencies
 tempfile = "3.27"
+serial_test = { version = "4.0.1", default-features = false }
 
 [package]
 name = "par-term"

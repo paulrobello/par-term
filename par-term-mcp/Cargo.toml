@@ -25,3 +25,7 @@ base64.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
+
+# Serialises the tests that mutate the process environment against every other
+# test that reads it — see the `#[serial]` / `#[parallel]` pairing in `lib.rs`.
+serial_test.workspace = true

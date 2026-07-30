@@ -416,6 +416,7 @@ mod tests {
     use super::*;
     use ipc::{config_update_path, set_ipc_file_permissions, write_json_atomic};
     use jsonrpc::{IncomingMessage, method_not_found, parse_error, success_response};
+    use serial_test::{parallel, serial};
     use std::path::PathBuf;
     use tools::config_update::write_config_updates;
     use tools::diagnostics::diagnostics_tool_result;
@@ -617,7 +618,12 @@ mod tests {
         );
     }
 
+    // `#[parallel]` on the `tempfile::tempdir()` tests: `tempdir()` reaches
+    // `std::env::temp_dir()`, which reads `TMPDIR`. That read must not overlap a
+    // `#[serial]` test's `setenv`, and only the attribute enforces that — the two
+    // touch different keys, which is irrelevant to the hazard.
     #[test]
+    #[parallel]
     fn test_handle_config_update_success() {
         // Use a temp directory to avoid touching real config
         let dir = tempfile::tempdir().unwrap();
@@ -683,15 +689,21 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_config_update_path_env_override_and_default() {
         // Test env var override
         //
-        // SAFETY: `std::env::set_var` / `remove_var` are `unsafe` in Rust 2024 because
-        // they are not thread-safe. This is acceptable in test code because:
-        // (a) `CONFIG_UPDATE_PATH_ENV` is a unique, test-specific environment variable
-        //     that is not read by any other concurrently-executing test in this crate,
-        // (b) the variable is unset again at the end of this test body, and
-        // (c) this code is only compiled in `#[cfg(test)]` and never runs in production.
+        // SAFETY: the required invariant is that **no other thread reads any
+        // environment variable** for the duration of this test. It is not that the
+        // key is unique: glibc's `setenv` can reallocate and free the `environ`
+        // array, so a concurrent `getenv` on a completely unrelated name — inside
+        // libc, a dependency, or std itself — can read freed memory. The hazard is
+        // the shared array, not the key.
+        //
+        // `#[serial]` is what establishes the invariant. It excludes the other
+        // `#[serial]` tests here and every `#[parallel]` test in this module (the
+        // `tempfile::tempdir()` callers, which reach `std::env::temp_dir()`).
+        // Removing either attribute reintroduces the race.
         unsafe {
             std::env::set_var(CONFIG_UPDATE_PATH_ENV, "/tmp/test-par-term-update.json");
         }
@@ -699,7 +711,7 @@ mod tests {
         assert_eq!(path, PathBuf::from("/tmp/test-par-term-update.json"));
 
         // Test default path (env var unset)
-        // SAFETY: see set_var comment above.
+        // SAFETY: see set_var comment above — `remove_var` mutates the same array.
         unsafe {
             std::env::remove_var(CONFIG_UPDATE_PATH_ENV);
         }
@@ -716,10 +728,12 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_shader_diagnostics_paths_env_override_and_default() {
-        // SAFETY: `std::env::set_var` / `remove_var` are `unsafe` in Rust 2024 because
-        // they are not thread-safe. The diagnostics env vars are unique to this test
-        // and are removed before the test returns.
+        // SAFETY: `#[serial]` guarantees no other thread reads any environment
+        // variable while this test mutates `environ`. See
+        // `test_config_update_path_env_override_and_default` for why key
+        // uniqueness is not the relevant invariant.
         unsafe {
             std::env::set_var(
                 SHADER_DIAGNOSTICS_REQUEST_PATH_ENV,
@@ -739,7 +753,7 @@ mod tests {
             PathBuf::from("/tmp/test-par-term-shader-diag-resp.json")
         );
 
-        // SAFETY: see set_var comment above.
+        // SAFETY: see set_var comment above — `remove_var` mutates the same array.
         unsafe {
             std::env::remove_var(SHADER_DIAGNOSTICS_REQUEST_PATH_ENV);
             std::env::remove_var(SHADER_DIAGNOSTICS_RESPONSE_PATH_ENV);
@@ -791,13 +805,12 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_screenshot_paths_env_override_and_default() {
-        // SAFETY: `std::env::set_var` / `remove_var` are `unsafe` in Rust 2024 because
-        // they are not thread-safe. This is acceptable here because:
-        // (a) `SCREENSHOT_REQUEST_PATH_ENV` and `SCREENSHOT_RESPONSE_PATH_ENV` are
-        //     unique, test-specific keys not shared with other concurrently-running tests,
-        // (b) both variables are unset again later in this same test body, and
-        // (c) this block is only compiled in `#[cfg(test)]` and never runs in production.
+        // SAFETY: `#[serial]` guarantees no other thread reads any environment
+        // variable while this test mutates `environ`. See
+        // `test_config_update_path_env_override_and_default` for why key
+        // uniqueness is not the relevant invariant.
         unsafe {
             std::env::set_var(
                 SCREENSHOT_REQUEST_PATH_ENV,
@@ -817,7 +830,7 @@ mod tests {
             PathBuf::from("/tmp/test-par-term-shot-resp.json")
         );
 
-        // SAFETY: see set_var comment above — same reasoning applies to remove_var.
+        // SAFETY: see set_var comment above — `remove_var` mutates the same array.
         unsafe {
             std::env::remove_var(SCREENSHOT_REQUEST_PATH_ENV);
             std::env::remove_var(SCREENSHOT_RESPONSE_PATH_ENV);
@@ -862,6 +875,7 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
+    #[parallel]
     fn test_set_ipc_file_permissions() {
         use std::os::unix::fs::PermissionsExt;
 
@@ -881,6 +895,7 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
+    #[parallel]
     fn test_write_config_updates_sets_restrictive_permissions() {
         use std::os::unix::fs::PermissionsExt;
 
@@ -901,6 +916,7 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
+    #[parallel]
     fn test_write_json_atomic_sets_restrictive_permissions() {
         use std::os::unix::fs::PermissionsExt;
 
