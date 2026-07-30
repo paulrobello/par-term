@@ -50,8 +50,8 @@ impl WindowManager {
 
     /// Send a command to the shell
     pub(super) fn send_command_to_shell(&mut self, cmd: &str) {
-        // Send to the first window's active tab
-        if let Some(window_state) = self.windows.values_mut().next()
+        // Send to the focused window's active tab
+        if let Some(window_state) = self.focused_window_mut()
             && let Some(tab) = window_state.tab_manager.active_tab_mut()
         {
             // Send the command followed by Enter
@@ -85,8 +85,8 @@ impl WindowManager {
             }
         };
 
-        // Get the first window and take screenshot
-        if let Some(window_state) = self.windows.values_mut().next() {
+        // Get the focused window and take screenshot
+        if let Some(window_state) = self.focused_window_mut() {
             if let Some(renderer) = &mut window_state.renderer {
                 log::info!("Capturing screenshot from renderer...");
                 match renderer.take_screenshot() {

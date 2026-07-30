@@ -120,16 +120,14 @@ impl WindowManager {
                     .last_update_result
                     .as_ref()
                     .map(to_settings_update_result);
-                // Sync profiles from first window's profile manager
+                // Sync profiles from the focused window's profile manager
                 let profiles = self
-                    .windows
-                    .values()
-                    .next()
+                    .focused_window()
                     .map(|ws| ws.overlay_ui.profile_manager.to_vec())
                     .unwrap_or_default();
                 settings_window.settings_ui.sync_profiles(profiles);
-                // Sync available agents from first window's discovered agents
-                if let Some(ws) = self.windows.values().next() {
+                // Sync available agents from the focused window's discovered agents
+                if let Some(ws) = self.focused_window() {
                     settings_window.settings_ui.available_agent_ids = ws
                         .agent_state
                         .available_agents

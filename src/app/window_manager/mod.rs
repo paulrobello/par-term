@@ -166,4 +166,20 @@ impl WindowManager {
         // Fallback: return the first window if no window claims focus
         self.windows.keys().next().copied()
     }
+
+    /// Get the currently focused window's state.
+    ///
+    /// Prefer this over `self.windows.values().next()`: `windows` is a `HashMap`,
+    /// so iteration order is unspecified and "first entry" picks an arbitrary
+    /// window once more than one is open.
+    pub fn focused_window(&self) -> Option<&WindowState> {
+        let window_id = self.get_focused_window_id()?;
+        self.windows.get(&window_id)
+    }
+
+    /// Mutable counterpart of [`Self::focused_window`].
+    pub fn focused_window_mut(&mut self) -> Option<&mut WindowState> {
+        let window_id = self.get_focused_window_id()?;
+        self.windows.get_mut(&window_id)
+    }
 }

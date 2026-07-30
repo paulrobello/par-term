@@ -366,9 +366,13 @@ impl ApplicationHandler for WindowManager {
 
         // Sync agent config changes to WindowManager and settings window
         // so other saves (update checker, settings) don't overwrite the agent's changes
-        if config_changed_by_agent && let Some(window_state) = self.windows.values().next() {
+        if config_changed_by_agent
+            && let Some(window_config) = self
+                .focused_window()
+                .map(|ws| Arc::clone(&ws.config.load()))
+        {
             log::info!("CONFIG: syncing agent config changes to WindowManager");
-            self.config.store(Arc::clone(&window_state.config.load()));
+            self.config.store(window_config);
             // Force-update the settings window's config copy so it doesn't
             // send stale values back via ApplyConfig/SaveConfig.
             // Must use force_update_config to bypass the has_changes guard.
@@ -403,7 +407,7 @@ impl ApplicationHandler for WindowManager {
             );
 
             // Ensure profiles_to_update is refreshed after dynamic merge
-            if let Some(window_state) = self.windows.values().next() {
+            if let Some(window_state) = self.focused_window() {
                 profiles_to_update = Some(window_state.overlay_ui.profile_manager.to_vec());
             }
         }

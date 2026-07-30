@@ -253,15 +253,16 @@ impl WindowManager {
         }
 
         if ai_agent_list_changed
+            && let Some(agent_ids) = self.focused_window().map(|ws| {
+                ws.agent_state
+                    .available_agents
+                    .iter()
+                    .map(|a| (a.identity.clone(), a.name.clone()))
+                    .collect::<Vec<_>>()
+            })
             && let Some(sw) = &mut self.settings_window
-            && let Some(ws) = self.windows.values().next()
         {
-            sw.settings_ui.available_agent_ids = ws
-                .agent_state
-                .available_agents
-                .iter()
-                .map(|a| (a.identity.clone(), a.name.clone()))
-                .collect();
+            sw.settings_ui.available_agent_ids = agent_ids;
         }
 
         // Restart dynamic profile manager if sources changed
