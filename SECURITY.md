@@ -146,10 +146,10 @@ Observer scripts drive the terminal through the scripting protocol. Its three pr
 Once granted:
 
 - **`RunCommand`** tokenises the command and spawns the process directly rather than through a shell, checks it against par-term's command denylist, rate-limits it (1/s by default, `run_command_rate_limit`), and writes an audit line to the debug log.
-- **`WriteText`** injects text into the active tab's PTY with VT/ANSI escape sequences stripped, rate-limited (10/s by default, `write_text_rate_limit`) and audit-logged. Printable characters and newlines pass through by design, so a script holding this capability can type a command and submit it; unlike `RunCommand`, this path is not denylist-checked.
+- **`WriteText`** injects text into the active tab's PTY with VT/ANSI escape sequences stripped, rate-limited (10/s by default, `write_text_rate_limit`) and audit-logged. Printable characters and newlines pass through by design, so a script holding this capability can type a command and submit it. Unlike `RunCommand`, this path is not denylist-checked, and deliberately so: the denylist substring-matches a command plus its arguments, so run over free text it would reject ordinary script output containing `passwd` or `eval ` while missing the payloads that actually matter. The control here is confirmation instead. With `prompt_before_write_text` (default `true`), each payload is queued to the automation confirmation dialog, which shows the exact sanitized text that will be written, with the submitting newline rendered visibly as `\n`. **Always Allow** is scoped to that one script and that exact text for the rest of the session -- a payload that differs by so much as the trailing newline prompts again. Setting `prompt_before_write_text: false` restores the previous immediate write; sanitization and the rate limit still apply.
 - **`ChangeConfig`** applies only keys on the runtime allowlist; anything else is rejected and logged.
 
-> **Recommendation**: Leave the `allow_*` flags off unless a script genuinely needs them. Granting `allow_write_text` or `allow_run_command` is equivalent to giving that script the ability to run commands as you.
+> **Recommendation**: Leave the `allow_*` flags off unless a script genuinely needs them. Granting `allow_run_command` is equivalent to giving that script the ability to run commands as you, and so is granting `allow_write_text` once `prompt_before_write_text` is turned off -- with the prompt left on, each such command is one you have read and approved.
 
 ## Best Practices
 

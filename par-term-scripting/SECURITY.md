@@ -7,8 +7,8 @@ defined in `src/protocol.rs`. Scripts read `ScriptEvent` objects from stdin
 and write `ScriptCommand` objects to stdout. Most commands (`Log`, `SetPanel`,
 `ClearPanel`, `Notify`, `SetBadge`, `SetVariable`) are low-risk display
 operations. Two commands — **`WriteText`** and **`RunCommand`** — have the
-potential to cause significant harm and require a security gate before they
-are implemented.
+potential to cause significant harm. Both are implemented, and both are gated
+by the authorization requirements set out below.
 
 ---
 
@@ -97,6 +97,19 @@ because:
    (suggested default: 10/s). Commands that exceed the rate limit are dropped
    with a warning log.
 
+4. **User confirmation**: Unless the script sets `prompt_before_write_text:
+   false`, the sanitized payload is queued to the automation confirmation
+   dialog rather than written. The dialog shows the exact text that will reach
+   the PTY, with control characters escaped so the submitting newline is
+   visible, and offers Allow Once / Always Allow / Deny. An "Always Allow"
+   grant is scoped to that one script and that exact text for the session.
+   This check runs *after* rate limiting, so a chatty script cannot stack
+   dialogs faster than it could write; at most eight confirmations may be
+   pending at once, and further payloads are dropped with a warning log.
+   Stripping escape sequences is what makes this step necessary rather than
+   sufficient: the payload that runs a command is ordinary printable text plus
+   a newline, and both survive sanitization by design.
+
 ### When RunCommand May Be Used
 
 `RunCommand` execution requires **all** of the following conditions to be met:
@@ -170,7 +183,10 @@ ScriptCommand::WriteText { text } =>
     1. Reject if !script_config.allow_write_text
     2. Strip VT/ANSI escape sequences from text
     3. Check rate limit (write_text_rate_limit per second)
-    4. Write to PTY via terminal_manager.write_to_pty()
+    4. Unless prompt_before_write_text is false, or the user already chose
+       "Always Allow" for this script and this exact text, queue the payload
+       for confirmation instead of writing it
+    5. Write to PTY via terminal_manager.write_to_pty()
 
 ScriptCommand::RunCommand { command } =>
     1. Reject if !script_config.allow_run_command
@@ -206,10 +222,10 @@ This document addresses **AUDIT FINDING M6** (Medium Security):
 "Scripting protocol defines `WriteText`/`RunCommand` (unimplemented) — needs
 security model when added."
 
-Both commands remain unimplemented. They must not be activated without first:
-
-1. Adding `allow_write_text` / `allow_run_command` permission flags to
-   `ScriptConfig` with `default = false`.
-2. Implementing all dispatcher-level checks described in this document.
-3. Adding tests for the denylist, rate-limiting, and VT-stripping logic.
-4. Conducting a security review of the implementation against this model.
+Both commands are now implemented, with the `allow_write_text` /
+`allow_run_command` permission flags (both defaulting to `false`), the
+dispatcher-level checks described above, and tests for the denylist,
+rate-limiting and VT-stripping logic. `WriteText` additionally requires user
+confirmation by default (SEC-013), because sanitization cannot tell a benign
+payload from a command line — see condition 4 under "When WriteText May Be
+Used".

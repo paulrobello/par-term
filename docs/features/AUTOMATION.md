@@ -636,12 +636,15 @@ Each script definition supports:
 | `subscriptions` | array of strings | No | `[]` | Event types to receive (empty = all events) |
 | `env_vars` | object | No | `{}` | Additional environment variables for the script process |
 | `allow_write_text` | boolean | No | `false` | Allow `WriteText` command to inject text into PTY |
+| `prompt_before_write_text` | boolean | No | `true` | Confirm each `WriteText` payload in the automation dialog before it is written. Set to `false` to write immediately. |
 | `allow_run_command` | boolean | No | `false` | Allow `RunCommand` to spawn external processes |
 | `allow_change_config` | boolean | No | `false` | Allow `ChangeConfig` to modify runtime configuration |
 | `write_text_rate_limit` | integer | No | `10` | Maximum `WriteText` writes per second (0 = default) |
 | `run_command_rate_limit` | integer | No | `1` | Maximum `RunCommand` executions per second (0 = default) |
 
 > **🔒 Security:** The `allow_*` permission flags are off by default and must be explicitly enabled. Restricted commands (`WriteText`, `RunCommand`, `ChangeConfig`) are blocked unless the corresponding flag is set. Rate limiting prevents abuse even when enabled.
+>
+> Granting `allow_write_text` is not the last word on a `WriteText` payload: stripping VT sequences still leaves printable text and a newline, which is all it takes to type a command and submit it. So after the rate limit, each payload goes to the same confirmation dialog triggers use, showing the exact sanitized text with the submitting newline rendered as `\n`. **Always Allow** applies only to that script and that exact text for the rest of the session. At most eight confirmations may be pending at once; beyond that, payloads are dropped and logged. Set `prompt_before_write_text: false` to write immediately instead.
 
 ### JSON Protocol
 
@@ -692,7 +695,7 @@ Scripts write JSON commands to stdout to control the terminal. Each command has 
 | `SetVariable` | `name`, `value` | No | Set a user variable |
 | `SetPanel` | `title`, `content` | No | Display a markdown panel in the UI |
 | `ClearPanel` | -- | No | Remove the markdown panel |
-| `WriteText` | `text` | `allow_write_text` | Write text to the PTY (as if typed); VT sequences are stripped |
+| `WriteText` | `text` | `allow_write_text` | Write text to the PTY (as if typed); VT sequences are stripped, then the payload is confirmed in the automation dialog unless `prompt_before_write_text: false` |
 | `RunCommand` | `command` | `allow_run_command` | Execute a shell command; checked against denylist |
 | `ChangeConfig` | `key`, `value` | `allow_change_config` | Change a configuration value; allowlisted keys only |
 
