@@ -230,10 +230,19 @@ impl WindowState {
             }
         };
 
-        // Insert the source tree into the target tab
+        // Insert the source tree into the target tab.
+        //
+        // The remap is discarded because nothing here holds a source-side pane
+        // id across the insert: `take_root` already cleared the source's
+        // `focused_pane_id`, the source tab is removed below, and
+        // `target_pane_id` names a pane of the *target* tree, which is never
+        // renumbered. A future consumer that does carry an id across must
+        // translate it through the map instead of reusing the pre-move value.
         let inserted = match self.tab_manager.get_tab_mut(target_tab_id) {
             Some(tab) => match tab.pane_manager_mut() {
-                Some(pm) => pm.insert_subtree_at(target_pane_id, source_tree, direction, 0.5),
+                Some(pm) => pm
+                    .insert_subtree_at(target_pane_id, source_tree, direction, 0.5)
+                    .is_some(),
                 None => false,
             },
             None => false,

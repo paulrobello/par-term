@@ -34,6 +34,7 @@ use crate::config::{Config, PaneBackgroundConfig};
 use crate::pane::types::{Pane, PaneBounds, PaneId, PaneNode};
 use anyhow::Result;
 use par_term_terminal::TerminalManager;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use tokio::runtime::Runtime;
@@ -51,6 +52,16 @@ pub enum ExtractResult {
     /// Pane was not found in the tree
     NotFound,
 }
+
+/// The ids the panes of an adopted subtree hold once
+/// [`PaneManager::insert_subtree_at`] has placed them, keyed by the id each
+/// pane arrived with.
+///
+/// Every pane of the inserted subtree appears exactly once; an entry maps to
+/// itself when the arriving id was already free here. An id that was never part
+/// of the subtree is absent, so a lookup miss means "not from this subtree"
+/// rather than "unchanged".
+pub type PaneIdRemap = HashMap<PaneId, PaneId>;
 
 /// Internal result for recursive pane extraction (carries PaneNode on NotFound for tree reconstruction)
 enum ExtractInternal {
@@ -223,27 +234,115 @@ impl PaneManager {
     /// The target leaf is replaced with a `Split` containing the original pane
     /// as one child and the `subtree` as the other. Bounds are recalculated.
     ///
-    /// Returns `true` if the insertion succeeded.
+    /// Returns the ids the adopted panes hold afterwards, which are **not**
+    /// always the ids they arrived with, or `None` if `target_pane_id` was not
+    /// found (the tree is then left untouched).
+    ///
+    /// A subtree arriving from another tab ("Demote Tab to Pane") brings that
+    /// tab's ids with it, and ids are allocated per `PaneManager` — that is,
+    /// per tab — so an incoming id can already belong to a pane here: tab A's
+    /// panes 1 and 2 landing in a tab that already holds 1 and 2. `get_pane` is
+    /// a search over the tree, so a duplicate would make every id-keyed lookup
+    /// resolve to whichever pane the walk reaches first, and the adopted pane
+    /// would be unreachable. Colliding panes are therefore renumbered from this
+    /// manager's counter.
+    ///
+    /// Advancing the counter past every adopted id closes the other half: this
+    /// tab must not later hand a *new* pane an id one of the adopted panes is
+    /// already using.
+    ///
+    /// A caller holding an id from the subtree across this call must translate
+    /// it through the returned map; the pre-move id may now name a different
+    /// pane, or no pane at all.
+    #[must_use = "a renumbered pane is only reachable through the returned remap"]
     pub fn insert_subtree_at(
         &mut self,
         target_pane_id: PaneId,
-        subtree: PaneNode,
+        mut subtree: PaneNode,
         direction: crate::pane::types::SplitDirection,
         ratio: f32,
-    ) -> bool {
-        if let Some(root) = self.root.take() {
-            match Self::insert_subtree_at_node(root, target_pane_id, subtree, direction, ratio) {
-                Ok(new_root) => {
-                    self.root = Some(new_root);
-                    self.recalculate_bounds();
-                    return true;
-                }
-                Err((original_root, _subtree)) => {
-                    self.root = Some(original_root);
-                }
+    ) -> Option<PaneIdRemap> {
+        let root = self.root.take()?;
+
+        // Reconcile before the insert, not after: `insert_subtree_at_node`
+        // searches for `target_pane_id`, and a subtree pane still carrying that
+        // id could be found first and split instead of the intended target.
+        // A failed insert therefore leaves the counter advanced and the subtree
+        // renumbered — skipped ids are harmless, and cheaper than walking the
+        // tree twice to pre-check that the target exists.
+        let remap = self.reconcile_adopted_ids(&root, &mut subtree);
+
+        match Self::insert_subtree_at_node(root, target_pane_id, subtree, direction, ratio) {
+            Ok(new_root) => {
+                self.root = Some(new_root);
+                self.recalculate_bounds();
+
+                // Guard the mutation rather than `get_pane`: this is the only
+                // path by which a pane this manager did not allocate enters the
+                // tree, and the lookups run per frame and inside loops.
+                debug_assert!(
+                    self.pane_ids_are_unique(),
+                    "pane ids are not unique after adopting a subtree: {:?}",
+                    self.root.as_ref().map(PaneNode::all_pane_ids)
+                );
+
+                Some(remap)
+            }
+            Err((original_root, _subtree)) => {
+                self.root = Some(original_root);
+                None
             }
         }
-        false
+    }
+
+    /// Give every pane of an incoming subtree an id that is free in this tab,
+    /// and move `next_pane_id` past all of them.
+    ///
+    /// `existing_root` is this manager's tree, passed in because
+    /// [`Self::insert_subtree_at`] has already taken it out of `self`.
+    fn reconcile_adopted_ids(
+        &mut self,
+        existing_root: &PaneNode,
+        subtree: &mut PaneNode,
+    ) -> PaneIdRemap {
+        let existing: HashSet<PaneId> = existing_root.all_pane_ids().into_iter().collect();
+
+        // Seed above every id in *both* trees so each allocation is free
+        // without searching: a replacement must dodge the ids the subtree keeps
+        // as well as the ids already here (target {1}, subtree {2,1} would
+        // otherwise renumber the incoming 1 onto the incoming 2).
+        let mut next = self.next_pane_id;
+        for id in existing.iter().copied().chain(subtree.all_pane_ids()) {
+            next = next.max(id.saturating_add(1));
+        }
+
+        let mut remap = PaneIdRemap::new();
+        for pane in subtree.all_panes_mut() {
+            let arrived_as = pane.id;
+            if existing.contains(&arrived_as) {
+                log::info!(
+                    "Adopted pane id {} is already taken in this tab; renumbering it to {}",
+                    arrived_as,
+                    next
+                );
+                pane.id = next;
+                next = next.saturating_add(1);
+            }
+            remap.insert(arrived_as, pane.id);
+        }
+
+        self.next_pane_id = next;
+        remap
+    }
+
+    /// Whether no two panes in the tree share an id.
+    fn pane_ids_are_unique(&self) -> bool {
+        let ids = self
+            .root
+            .as_ref()
+            .map(PaneNode::all_pane_ids)
+            .unwrap_or_default();
+        ids.iter().collect::<HashSet<_>>().len() == ids.len()
     }
 
     /// Extract a pane from the tree by ID, returning ownership of the live `Pane`.
@@ -310,6 +409,7 @@ impl Default for PaneManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::pane::types::SplitDirection;
 
     // Note: Full tests would require mocking TerminalManager
     // These are placeholder tests for the manager logic
@@ -320,5 +420,184 @@ mod tests {
         assert!(manager.root.is_none());
         assert_eq!(manager.pane_count(), 0);
         assert!(!manager.has_multiple_panes());
+    }
+
+    /// A pane whose terminal has no shell spawned, so it runs without a PTY on
+    /// every supported platform.
+    ///
+    /// `working_directory` carries the marker: `insert_subtree_at` rewrites
+    /// only `bounds` (via `recalculate_bounds`), so the marker survives the
+    /// insert and identifies *which* pane a lookup resolved to.
+    fn stub_pane(id: PaneId, marker: &str) -> Pane {
+        let terminal = TerminalManager::new_with_scrollback(80, 24, 100)
+            .expect("stub terminal creation without a shell");
+        Pane::new_wrapping_terminal(
+            id,
+            Arc::new(RwLock::new(terminal)),
+            Some(marker.to_string()),
+            Arc::new(AtomicBool::new(false)),
+        )
+    }
+
+    fn marker_of(manager: &PaneManager, id: PaneId) -> Option<String> {
+        manager.get_pane(id)?.working_directory.clone()
+    }
+
+    /// A two-pane manager holding ids 1 and 2, as a tab that has been split
+    /// once would.
+    fn manager_with_two_panes(first: &str, second: &str) -> PaneManager {
+        let mut manager = PaneManager::new();
+        manager.root = Some(PaneNode::split(
+            SplitDirection::Vertical,
+            0.5,
+            PaneNode::leaf(stub_pane(1, first)),
+            PaneNode::leaf(stub_pane(2, second)),
+        ));
+        manager.focused_pane_id = Some(1);
+        manager.next_pane_id = 3;
+        manager
+    }
+
+    #[test]
+    fn an_adopted_subtree_does_not_shadow_panes_that_already_hold_its_ids() {
+        // Tab A holds panes {1,2} and tab B holds {1,2}; the user demotes A
+        // into B. Ids are allocated per tab, so B is handed two panes claiming
+        // ids it already uses. `get_pane` searches the tree, so without
+        // renumbering both lookups would resolve to B's *original* panes and
+        // the demoted terminals would be unreachable — a resize, a paste, or a
+        // close would hit the wrong terminal.
+        const TARGET_1: &str = "/target/one";
+        const TARGET_2: &str = "/target/two";
+        const MOVED_1: &str = "/moved/one";
+        const MOVED_2: &str = "/moved/two";
+
+        let mut target = manager_with_two_panes(TARGET_1, TARGET_2);
+
+        // The subtree arriving from another tab, carrying that tab's ids.
+        let subtree = PaneNode::split(
+            SplitDirection::Horizontal,
+            0.5,
+            PaneNode::leaf(stub_pane(1, MOVED_1)),
+            PaneNode::leaf(stub_pane(2, MOVED_2)),
+        );
+
+        let remap = target
+            .insert_subtree_at(1, subtree, SplitDirection::Vertical, 0.5)
+            .expect("target pane 1 exists, so the insert succeeds");
+
+        assert_eq!(target.pane_count(), 4, "all four panes must survive");
+
+        // The lookups are the point: id distinctness below is only the means.
+        for (arrived_as, marker) in [(1, MOVED_1), (2, MOVED_2)] {
+            let now = remap[&arrived_as];
+            assert_eq!(
+                marker_of(&target, now).as_deref(),
+                Some(marker),
+                "get_pane(remap[{arrived_as}]) must resolve to the pane that moved in, \
+                 not to the pane that was already holding that id"
+            );
+            assert_ne!(now, arrived_as, "a colliding id must not be kept");
+        }
+
+        for (id, marker) in [(1, TARGET_1), (2, TARGET_2)] {
+            assert_eq!(
+                marker_of(&target, id).as_deref(),
+                Some(marker),
+                "the pane that already held id {id} must keep it"
+            );
+        }
+    }
+
+    #[test]
+    fn an_adopted_pane_keeps_an_id_that_is_free() {
+        let mut target = manager_with_two_panes("/target/one", "/target/two");
+
+        let remap = target
+            .insert_subtree_at(
+                1,
+                PaneNode::leaf(stub_pane(9, "/moved")),
+                SplitDirection::Vertical,
+                0.5,
+            )
+            .expect("target pane 1 exists, so the insert succeeds");
+
+        assert_eq!(remap[&9], 9, "an id that is free must be kept as-is");
+        assert_eq!(marker_of(&target, 9).as_deref(), Some("/moved"));
+    }
+
+    #[test]
+    fn an_adopted_pane_id_is_never_handed_out_again() {
+        // A subtree moved in from another tab brings that tab's ids. Without
+        // advancing the counter this tab would later allocate the same id for
+        // an unrelated pane, and every id-keyed lookup would then be ambiguous.
+        let mut target = manager_with_two_panes("/target/one", "/target/two");
+
+        let _ = target
+            .insert_subtree_at(
+                1,
+                PaneNode::leaf(stub_pane(9, "/moved")),
+                SplitDirection::Vertical,
+                0.5,
+            )
+            .expect("target pane 1 exists, so the insert succeeds");
+
+        let fresh = target.next_pane_id();
+        let live = target
+            .root
+            .as_ref()
+            .map(PaneNode::all_pane_ids)
+            .unwrap_or_default();
+        assert!(
+            live.iter().all(|id| fresh > *id),
+            "next id {fresh} must be past every adopted id {live:?}"
+        );
+        assert!(
+            !live.contains(&fresh),
+            "the next id {fresh} must be free, but the tree holds {live:?}"
+        );
+    }
+
+    #[test]
+    fn a_replacement_id_dodges_the_ids_the_subtree_keeps() {
+        // Target {1}, subtree {2,1}: the incoming 1 collides and the incoming 2
+        // does not, so a counter seeded only from the target's ids would
+        // renumber the 1 straight onto the 2.
+        let mut target = PaneManager::new();
+        target.root = Some(PaneNode::leaf(stub_pane(1, "/target")));
+        target.focused_pane_id = Some(1);
+        target.next_pane_id = 2;
+
+        let subtree = PaneNode::split(
+            SplitDirection::Horizontal,
+            0.5,
+            PaneNode::leaf(stub_pane(2, "/moved/two")),
+            PaneNode::leaf(stub_pane(1, "/moved/one")),
+        );
+
+        let remap = target
+            .insert_subtree_at(1, subtree, SplitDirection::Vertical, 0.5)
+            .expect("target pane 1 exists, so the insert succeeds");
+
+        assert_eq!(remap[&2], 2, "the non-colliding incoming id is kept");
+        assert_ne!(remap[&1], 2, "the replacement must not land on the kept id");
+        assert_eq!(marker_of(&target, remap[&1]).as_deref(), Some("/moved/one"));
+        assert_eq!(marker_of(&target, 2).as_deref(), Some("/moved/two"));
+        assert_eq!(marker_of(&target, 1).as_deref(), Some("/target"));
+    }
+
+    #[test]
+    fn a_failed_insert_leaves_the_tree_untouched() {
+        let mut target = manager_with_two_panes("/target/one", "/target/two");
+
+        let result = target.insert_subtree_at(
+            99,
+            PaneNode::leaf(stub_pane(1, "/moved")),
+            SplitDirection::Vertical,
+            0.5,
+        );
+
+        assert!(result.is_none(), "no such target pane, so no insertion");
+        assert_eq!(target.pane_count(), 2, "the original tree is restored");
+        assert_eq!(marker_of(&target, 1).as_deref(), Some("/target/one"));
     }
 }
