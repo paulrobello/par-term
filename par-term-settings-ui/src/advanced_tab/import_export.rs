@@ -83,9 +83,11 @@ pub(super) fn show_import_export_section(
             });
 
             ui.horizontal(|ui| {
-                let url_valid = !settings.temp_import_url.trim().is_empty()
-                    && (settings.temp_import_url.starts_with("http://")
-                        || settings.temp_import_url.starts_with("https://"));
+                // Only emptiness disables the buttons. The scheme is judged by
+                // `validate_scheme` inside the fetch, which explains a rejection
+                // in the status line — a silently greyed-out button for a
+                // `file://` URL told the user nothing.
+                let url_valid = !settings.temp_import_url.trim().is_empty();
 
                 if ui
                     .add_enabled(url_valid, egui::Button::new("Fetch & Replace"))
@@ -140,6 +142,38 @@ pub(super) fn show_import_export_section(
 /// `max_size_bytes`, enforced in `src/profile/dynamic/fetch.rs`) so both
 /// remote-config paths cap the same way.
 const MAX_IMPORT_SIZE_BYTES: u64 = 1_048_576;
+
+/// Wall-clock cap on a preference-import fetch.
+///
+/// [`import_preferences_from_url`] runs on the winit main thread, so this bounds
+/// how long the whole window can stop redrawing. The shared `crate::http_agent()`
+/// sets no timeout at all, which made an unresponsive endpoint an indefinite
+/// freeze; 30 s matches the timeout the shader downloader and self-updater use.
+const IMPORT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// Build the agent used for preference imports.
+///
+/// The TLS provider must be named explicitly. ureq's default is
+/// `TlsProvider::Rustls`, but the workspace builds ureq with
+/// `default-features = false, features = ["native-tls", "gzip"]`, so the rustls
+/// feature is absent — and ureq *panics* rather than erroring when the selected
+/// provider's feature is missing ("uri scheme is https, provider is Rustls but
+/// feature is not enabled"). The previous `crate::http_agent()`
+/// (`Agent::new_with_defaults()`) hit exactly that, so importing from any
+/// https URL aborted the process. This matches the configuration the shader
+/// downloader and self-updater already use.
+fn import_agent() -> ureq::Agent {
+    let tls_config = ureq::tls::TlsConfig::builder()
+        .provider(ureq::tls::TlsProvider::NativeTls)
+        .root_certs(ureq::tls::RootCerts::PlatformVerifier)
+        .build();
+
+    ureq::Agent::config_builder()
+        .tls_config(tls_config)
+        .timeout_global(Some(IMPORT_TIMEOUT))
+        .build()
+        .into()
+}
 
 /// Whether to replace or merge when importing preferences.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -206,6 +240,14 @@ fn import_preferences_from_file(
 }
 
 /// Import preferences from a URL.
+///
+/// # Blocking
+///
+/// The fetch is synchronous and runs on the winit main thread, so the window
+/// stops redrawing for its duration — bounded by [`IMPORT_TIMEOUT`]. Moving it
+/// off-thread needs somewhere to park the in-flight result between frames,
+/// which means a new field on `SettingsUI`; until then the timeout is what
+/// keeps a dead endpoint from hanging the UI indefinitely.
 fn import_preferences_from_url(
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
@@ -217,25 +259,23 @@ fn import_preferences_from_url(
     }
 
     // SEC-020: an imported config drives shell execution, startup commands and
-    // profiles, so it must not be MITM-replaceable in transit. `file://` is
-    // refused for the same reason as in `src/profile/dynamic/fetch.rs`: it would
-    // turn this URL field into an arbitrary local-file read.
-    if !url.starts_with("https://") {
-        settings.import_export_status = Some(format!(
-            "Refusing to import from {}: only https:// URLs are supported. \
-             An imported config can change shell and startup behaviour, so it \
-             must not be modifiable in transit.",
-            url
-        ));
+    // profiles, so it must not be MITM-replaceable in transit.
+    //
+    // ARC-006: the same scheme allowlist the dynamic-profile fetch uses. The
+    // previous `starts_with("https://")` test was a denylist in disguise — it
+    // misclassified `HTTPS://` as insecure (RFC 3986 schemes are
+    // case-insensitive) and, on the sibling path that opts into HTTP, let
+    // `ftp:`, `data:` and single-slash `file:` through. No HTTP opt-in exists
+    // here, so `allow_http` is false: this path is https-only.
+    if let Err(message) = par_term_config::url_policy::validate_scheme(&url, false) {
+        // The returned string is already a complete user-facing sentence.
+        log::warn!("[SEC-020] refusing preference import: {}", message);
+        settings.import_export_status = Some(message);
         settings.import_export_is_error = true;
-        log::warn!(
-            "[SEC-020] refusing non-HTTPS preference import from {}",
-            url
-        );
         return;
     }
 
-    let agent = crate::http_agent();
+    let agent = import_agent();
     match agent.get(&url).call() {
         // SEC-020: cap the response so a hostile or broken endpoint cannot
         // stream an unbounded body into memory.

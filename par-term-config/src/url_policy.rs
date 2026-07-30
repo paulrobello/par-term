@@ -6,10 +6,11 @@
 //!
 //! * **Caller-supplied hosts** — the dynamic-profile fetch and the preferences
 //!   import. The user names the host, so there is no allowlist to check; the
-//!   control is the *scheme*. That policy lives here.
-//! * **Fixed-vendor hosts** — the shader downloader (`crate::http`) and the
+//!   control is the *scheme*. That policy lives here, and both call sites now
+//!   share it.
+//! * **Fixed-vendor hosts** — the shader downloader (`par_term::http`) and the
 //!   self-updater (`par_term_update::http`). Those two additionally pin the
-//!   host to a GitHub allowlist and are byte-for-byte duplicates of each other.
+//!   host to a GitHub allowlist and remain near-duplicates of each other.
 //!
 //! # Why a scheme allowlist and not a `file://` denylist
 //!
@@ -21,14 +22,17 @@
 //! was accepted. [`validate_scheme`] allowlists `https`, plus `http` only under
 //! an explicit opt-in, and rejects everything else unconditionally.
 //!
-//! # Moving this module to `par-term-config`
+//! # Why this lives in `par-term-config`
 //!
-//! This is the shared home for the caller-supplied-host cluster, but it
-//! currently sits in the root crate, which `par-term-settings-ui` cannot depend
-//! on. It is deliberately dependency-free — no `url` crate, no config types —
-//! so relocating it to `par-term-config` is a file move plus one `pub mod` line.
-//! Folding in the *fixed-vendor* cluster additionally needs host extraction, and
-//! therefore `url` as a dependency of `par-term-config`.
+//! It started in the root crate, which put it out of reach of
+//! `par-term-settings-ui` — one of the two call sites. `par-term-config` is the
+//! lowest layer both the root crate and the settings UI already depend on, so
+//! it is the only place a single copy can serve both.
+//!
+//! Keep this module dependency-free: no `url` crate, no config types. Folding
+//! in the *fixed-vendor* cluster would additionally need host extraction, and
+//! therefore `url` as a dependency of this crate — which is why that cluster
+//! has not been merged in.
 
 /// The transport a URL resolved to after policy validation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

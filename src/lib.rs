@@ -180,4 +180,3 @@ pub(crate) mod update_checker {
 }
 pub mod update_dialog;
 pub mod url_detection;
-pub mod url_policy;

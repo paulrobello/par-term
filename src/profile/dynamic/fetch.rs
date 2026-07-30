@@ -68,7 +68,7 @@ pub fn fetch_profiles(source: &DynamicProfileSource) -> FetchResult {
 fn fetch_profiles_inner(
     source: &DynamicProfileSource,
 ) -> anyhow::Result<(Vec<par_term_config::Profile>, Option<String>)> {
-    use crate::url_policy::{Transport, validate_scheme};
+    use par_term_config::url_policy::{Transport, validate_scheme};
     use ureq::tls::{RootCerts, TlsConfig, TlsProvider};
 
     // SECURITY: Profile data fetched over plain HTTP can be intercepted and
