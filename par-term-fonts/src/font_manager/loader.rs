@@ -58,7 +58,13 @@ pub fn load_font_from_db_with_style(
     let id = db.query(&query)?;
 
     // Load font data from the database
-    // SAFETY: make_shared_face_data is safe when called with a valid ID from query()
+    // SAFETY: `make_shared_face_data` may hand back a memory map of the font file
+    // rather than an owned buffer, so the returned bytes are only valid while that
+    // file is not modified or truncated by another process. A valid `id` from
+    // `query()` is necessary but is *not* the invariant that makes this call sound.
+    // The mapping is copied into an owned `Vec` below and the shared handle is
+    // dropped at the end of this function, which keeps the exposure window to a
+    // single synchronous copy.
     let (data, face_index) = unsafe { db.make_shared_face_data(id)? };
 
     // Convert the shared data to Vec<u8>

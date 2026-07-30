@@ -65,7 +65,13 @@ pub fn calculate_font_metrics(
         };
 
         if let Some(id) = font_db.query(&query) {
-            // SAFETY: make_shared_face_data is safe when called with a valid ID from query()
+            // SAFETY: `make_shared_face_data` may hand back a memory map of the font
+            // file rather than an owned buffer, so the returned bytes are only valid
+            // while that file is not modified or truncated by another process. A valid
+            // `id` from `query()` is necessary but is *not* the invariant that makes
+            // this call sound. The mapping is copied into an owned `Vec` on the next
+            // line and the shared handle is dropped immediately after, which keeps the
+            // exposure window to a single synchronous copy.
             if let Some((data, _)) = unsafe { font_db.make_shared_face_data(id) } {
                 data.as_ref().as_ref().to_vec()
             } else {
