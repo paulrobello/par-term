@@ -1,0 +1,29 @@
+# Secret-scanning gate.
+#
+# Purely preventive: when this was added the working tree, every ref-reachable
+# commit and all dangling blobs scanned clean. Nothing stopped the next leak
+# from landing, which is the gap these hooks close.
+#
+# Install once per clone:  pre-commit install
+# Run against the tree:    make secret-scan
+#
+# Scanning hooks only — nothing here rewrites files, so `pre-commit run
+# --all-files` never produces a diff. Formatting stays in `make fmt`.
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      # Runs `gitleaks git --pre-commit --staged`, so it inspects the staged
+      # diff rather than the checked-out tree: it gates the commit itself, and
+      # is a no-op when nothing is staged.
+      - id: gitleaks
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: detect-private-key
+        # Plain substring match on the PEM header, so prose that merely names
+        # the marker trips it. All three excluded files document the marker;
+        # none carries key material (confirmed with gitleaks 8.30.1, which
+        # reports no leaks on any of them).
+        exclude: '^(AUDIT\.md|AUDIT-REMEDIATION-PLAN\.md|docs/features/SESSION_LOGGING\.md)$'

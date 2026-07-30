@@ -1,7 +1,7 @@
 # Makefile for par-term
 # Cross-platform terminal emulator frontend
 
-.PHONY: help build build-debug run run-release run-error run-warn run-info run-debug run-trace release test check typecheck clean fmt lint checkall install install-shell-integration install-acp acp-harness acp-smoke doc doc-open doc-check coverage test-fonts benchmark-shaping test-text-shaping bundle bundle-install run-bundle deploy
+.PHONY: help build build-debug run run-release run-error run-warn run-info run-debug run-trace release test check typecheck clean fmt lint checkall secret-scan install install-shell-integration install-acp acp-harness acp-smoke doc doc-open doc-check coverage test-fonts benchmark-shaping test-text-shaping bundle bundle-install run-bundle deploy
 
 ACP_AGENT ?= claude-ollama.local
 ACP_TIMEOUT ?= 45
@@ -61,6 +61,7 @@ help:
 	@echo "  make fmt         - Format code using rustfmt"
 	@echo "  make lint        - Run clippy linter"
 	@echo "  make checkall    - Format, lint, typecheck, and test"
+	@echo "  make secret-scan - Scan for secrets (gitleaks, detect-private-key)"
 	@echo "  make all         - Format, lint, test, and build"
 	@echo ""
 	@echo "macOS Bundle:"
@@ -286,8 +287,22 @@ doc-check:
 all: fmt lint test build
 	@echo "All checks passed!"
 
-# Pre-commit checks
-pre-commit: fmt-check lint test
+# Secret scanning (gitleaks + detect-private-key), configured in
+# .pre-commit-config.yaml. That config holds scanning hooks only, so this never
+# rewrites a file. Note the gitleaks hook inspects the *staged* diff, so it is a
+# no-op here when nothing is staged — the enforcing copy is the git hook that
+# `pre-commit install` puts in place, which runs with the diff staged.
+secret-scan:
+	@command -v pre-commit >/dev/null 2>&1 || { \
+		echo "pre-commit not found. Install it with: pipx install pre-commit"; \
+		echo "Then enable the commit-time gate with: pre-commit install"; \
+		exit 1; \
+	}
+	pre-commit run --all-files
+
+# Pre-commit checks. secret-scan runs first: it is the cheapest gate and the
+# one whose failure must not be buried under a full test run.
+pre-commit: secret-scan fmt-check lint test
 	@echo "Pre-commit checks passed!"
 
 # CI checks (what CI would run)
