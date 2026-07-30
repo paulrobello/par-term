@@ -4,6 +4,7 @@ Upgrade notes for par-term covering breaking configuration changes, renamed fiel
 
 ## Table of Contents
 
+- [v0.38.0 — Upgrading Requires a Manual Download](#v0380--upgrading-requires-a-manual-download)
 - [v0.38.0 — Preference Import Requires HTTPS](#v0380--preference-import-requires-https)
 - [v0.38.0 — Profile Commands Require Confirmation](#v0380--profile-commands-require-confirmation)
 - [v0.38.0 — `Cmd/Ctrl+Shift+P` Moves to the Profile Drawer](#v0380--cmdctrlshiftp-moves-to-the-profile-drawer)
@@ -18,6 +19,18 @@ Upgrade notes for par-term covering breaking configuration changes, renamed fiel
 - [v0.25.0 — Pane Padding Defaults](#v0250--pane-padding-defaults)
 - [v0.20.0 — Default Changes](#v0200--default-changes)
 - [Related Documentation](#related-documentation)
+
+---
+
+## v0.38.0 — Upgrading Requires a Manual Download
+
+**Check for Updates will not install 0.38.0.** Download it from the [releases page](https://github.com/paulrobello/par-term/releases) instead, this once.
+
+**Why:** two independent gates both refuse. Releases before 0.38.0 published no per-binary `.sha256`, so the checksum gate that has always guarded self-update hard-failed on every one of them. And a 0.37.1 or earlier build has no release-signing public key compiled in, so it cannot verify 0.38.0's new `.minisig` signatures regardless of what the release publishes.
+
+**After this upgrade:** self-update works normally. 0.38.0 is the first release to publish both the per-binary checksums and the signatures, and it is the first build that carries the key needed to verify them.
+
+> **Note:** rotating the release signing key in future would have the same one-time effect — a build pins the key it shipped with, so it cannot verify a release signed by a newer one.
 
 ---
 

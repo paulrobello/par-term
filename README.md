@@ -47,6 +47,8 @@ New to par-term? The [Getting Started Guide](docs/guides/GETTING_STARTED.md) wal
 
 The result of a full security, architecture, quality and documentation audit — the largest release so far. Three changes break a working setup; they are listed first.
 
+> **Upgrading:** **Check for Updates** will not install this release — download it by hand once. Earlier releases published no per-binary checksums, and earlier builds carry no signing key, so both self-update gates refuse. Self-update works normally from 0.38.0 onward. See the [migration guide](docs/guides/MIGRATION.md#v0380--upgrading-requires-a-manual-download).
+
 **Breaking**
 
 - **Importing preferences from a URL now requires HTTPS** -- an `http://` import URL stops working. The same path also used to abort the process outright on any HTTPS URL, so in practice it only ever worked over plaintext.
