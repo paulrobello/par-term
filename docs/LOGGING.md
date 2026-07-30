@@ -159,7 +159,7 @@ Changes take effect immediately - no restart required.
 **Monitoring logs in real-time:**
 ```bash
 # Standard location
-tail -f /tmp/par_term_debug.log
+tail -f "${TMPDIR:-/tmp}"/par_term_debug.log
 
 # Or using the Makefile target
 make tail-log
@@ -178,13 +178,13 @@ make run-trace    # DEBUG_LEVEL=4
 **Filtering by component:**
 ```bash
 # Watch terminal-related events
-tail -f /tmp/par_term_debug.log | grep --line-buffered "terminal"
+tail -f "${TMPDIR:-/tmp}"/par_term_debug.log | grep --line-buffered "terminal"
 
 # Watch rendering events
-tail -f /tmp/par_term_debug.log | grep --line-buffered "RENDER"
+tail -f "${TMPDIR:-/tmp}"/par_term_debug.log | grep --line-buffered "RENDER"
 
 # Watch shader-related messages
-tail -f /tmp/par_term_debug.log | grep --line-buffered "SHADER"
+tail -f "${TMPDIR:-/tmp}"/par_term_debug.log | grep --line-buffered "SHADER"
 ```
 
 **Capturing logs for a bug report:**
@@ -194,7 +194,7 @@ par-term --log-level trace
 
 # Reproduce the issue, then exit
 # Copy the log file
-cp /tmp/par_term_debug.log ~/Desktop/par-term-debug.log
+cp "${TMPDIR:-/tmp}"/par_term_debug.log ~/Desktop/par-term-debug.log
 ```
 
 ## Module Filtering
@@ -261,7 +261,7 @@ Custom debug macros use category tags for selective filtering. The following cat
 
 Filter by category using grep:
 ```bash
-tail -f /tmp/par_term_debug.log | grep --line-buffered "CONCURRENCY"
+tail -f "${TMPDIR:-/tmp}"/par_term_debug.log | grep --line-buffered "CONCURRENCY"
 ```
 
 ## Troubleshooting

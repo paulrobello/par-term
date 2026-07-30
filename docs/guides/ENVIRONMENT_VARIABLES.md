@@ -34,10 +34,11 @@ par-term reads environment variables at startup for two purposes:
 
 The debug log is written to `<temp_dir>/par_term_debug.log`:
 
-- **macOS/Linux**: `$TMPDIR/par_term_debug.log` (typically `/tmp/par_term_debug.log`)
+- **macOS**: `$TMPDIR/par_term_debug.log` — a `/var/folders/...` path, **not** `/tmp`
+- **Linux**: `/tmp/par_term_debug.log`, or `$TMPDIR` if you have set it
 - **Windows**: `%TEMP%\par_term_debug.log`
 
-Use `make tail-log` or `tail -f /tmp/par_term_debug.log` to monitor the log in real time.
+Use `make tail-log` (which resolves the path for you) or `tail -f "${TMPDIR:-/tmp}"/par_term_debug.log` to monitor the log in real time.
 
 ### Debug Level Values
 

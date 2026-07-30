@@ -9,9 +9,6 @@ par-term is a cross-platform GPU-accelerated terminal emulator frontend built in
 **Language**: Rust (Edition 2024)
 **Platform**: Cross-platform (macOS, Linux, Windows)
 **Graphics**: wgpu (Vulkan/Metal/DirectX 12)
-**Version**: 0.36.0
-<!-- cut-release: this line MUST stay in sync with Cargo.toml / CHANGELOG.md.
-     sed -i '' -E 's/^\*\*Version\*\*: .*/**Version**: <NEW_VERSION>/' CLAUDE.md -->
 
 ## Development Commands
 
@@ -46,7 +43,7 @@ cargo test -- --include-ignored  # Run all tests including PTY-dependent ones
 **IMPORTANT**: When stopping a debug instance, NEVER use `killall par-term` — this will kill ALL par-term processes including the terminal you're working in. Use `pkill -f "target/debug/par-term"` or kill by PID.
 
 ```bash
-make run-debug      # Run with DEBUG_LEVEL=3 (logs to /tmp/par_term_debug.log)
+make run-debug      # Run with DEBUG_LEVEL=3 (logs to $TMPDIR/par_term_debug.log, /tmp on Linux)
 make run-trace      # Run with DEBUG_LEVEL=4 (most verbose)
 make tail-log       # Monitor debug log in real-time
 ```
@@ -235,7 +232,7 @@ See `docs/features/CUSTOM_SHADERS.md` for full shader documentation including un
 
 ## Critical Gotchas
 
-- Use `try_lock()` from sync contexts when accessing `tab.terminal` (tokio::sync::Mutex). For user-initiated operations (start/stop coprocess), use `blocking_lock()`. See MEMORY.md for details.
+- `tab.terminal` and `pane.terminal` are `Arc<tokio::sync::RwLock<TerminalManager>>` — **not** a `Mutex`. From the sync event loop use `try_read()` / `try_write()`; for user-initiated operations that must not be dropped (start/stop coprocess) use `blocking_read()` / `blocking_write()`. Prefer a **read** lock: most mutating methods (`write`, `paste`, `encode_mouse_event`) take `&self` and serialize internally. `try_lock()` and `blocking_lock()` do not exist on `tokio::sync::RwLock` and will not compile. See `docs/architecture/MUTEX_PATTERNS.md`.
 - `log::info!()` etc. go to stdout, NOT the debug log — use `crate::debug_info!()` macros instead
 - The core library (`par-term-emu-core-rust`) has a `CoprocessManager` wired into the PTY reader thread; don't create separate managers in the frontend
 - **Single rendering path (pane)**: There is ONE rendering path — all rendering goes through `render_split_panes_with_data()` → `CellRenderer::build_pane_instance_buffers()` in `pane_render/mod.rs`. The `build_instance_buffers()` method in `instance_buffers.rs` is only used by the shader intermediate texture path (`render_to_texture` / `render_to_view`). Per-cell overlays (search highlights, URL detection) are applied to `pane_data[].cells` AFTER `gather_pane_render_data()` in `gpu_submit.rs`.

@@ -118,7 +118,7 @@ log_level: debug
 make tail-log
 
 # Or directly
-tail -f /tmp/par_term_debug.log
+tail -f "${TMPDIR:-/tmp}"/par_term_debug.log
 ```
 
 **Filtering logs by component:**
@@ -126,9 +126,9 @@ tail -f /tmp/par_term_debug.log
 Custom debug categories are uppercase tags (`SHADER`, `TERMINAL`, `RENDER`, `MOUSE`, `CONCURRENCY`, etc. -- see [LOGGING.md](../LOGGING.md) for the full list).
 
 ```bash
-tail -f /tmp/par_term_debug.log | grep --line-buffered "SHADER"
-tail -f /tmp/par_term_debug.log | grep --line-buffered "TERMINAL"
-tail -f /tmp/par_term_debug.log | grep --line-buffered "RENDER"
+tail -f "${TMPDIR:-/tmp}"/par_term_debug.log | grep --line-buffered "SHADER"
+tail -f "${TMPDIR:-/tmp}"/par_term_debug.log | grep --line-buffered "TERMINAL"
+tail -f "${TMPDIR:-/tmp}"/par_term_debug.log | grep --line-buffered "RENDER"
 ```
 
 **Capturing logs for a bug report:**
@@ -138,7 +138,7 @@ tail -f /tmp/par_term_debug.log | grep --line-buffered "RENDER"
 make run-trace
 
 # Copy the log file
-cp /tmp/par_term_debug.log ~/Desktop/par-term-debug.log
+cp "${TMPDIR:-/tmp}"/par_term_debug.log ~/Desktop/par-term-debug.log
 ```
 
 The Settings UI also provides debug logging controls under **Settings > Advanced > Debug Logging**, including a log level dropdown, log file path display, and an Open Log File button. Changes take effect immediately without restarting.
@@ -236,7 +236,7 @@ sudo pacman -S gtk3 libxkbcommon wayland libxcb alsa-lib
 
    ```bash
    par-term --log-level debug
-   grep -i "wgpu\|gpu\|surface\|adapter" /tmp/par_term_debug.log
+   grep -i "wgpu\|gpu\|surface\|adapter" "${TMPDIR:-/tmp}"/par_term_debug.log
    ```
 
 3. On Linux, verify Vulkan support:
@@ -262,7 +262,7 @@ sudo pacman -S gtk3 libxkbcommon wayland libxcb alsa-lib
 
    ```bash
    par-term --log-level debug
-   grep -i "font\|glyph\|shap" /tmp/par_term_debug.log
+   grep -i "font\|glyph\|shap" "${TMPDIR:-/tmp}"/par_term_debug.log
    ```
 
 ### HiDPI and Scaling Issues
@@ -298,7 +298,7 @@ sudo pacman -S gtk3 libxkbcommon wayland libxcb alsa-lib
 
    ```bash
    par-term --log-level debug
-   grep -i "sixel\|iterm\|kitty\|graphic\|image" /tmp/par_term_debug.log
+   grep -i "sixel\|iterm\|kitty\|graphic\|image" "${TMPDIR:-/tmp}"/par_term_debug.log
    ```
 
 ## Shader Issues
@@ -667,7 +667,7 @@ URL underline positioning now correctly accounts for split pane offsets, scrollb
 
    ```bash
    par-term --log-level debug
-   grep -i "render\|frame\|fps\|FRAME_TIMING\|EVENT_LOOP" /tmp/par_term_debug.log
+   grep -i "render\|frame\|fps\|FRAME_TIMING\|EVENT_LOOP" "${TMPDIR:-/tmp}"/par_term_debug.log
    ```
 
    Per-phase render timing (`FRAME_TIMING`) reports animation, layout, gather, GPU, and post-render durations for frames exceeding 16ms. Inter-frame gap detection (`EVENT_LOOP`) reports gaps exceeding 100ms in the event loop.
@@ -710,7 +710,7 @@ URL underline positioning now correctly accounts for split pane offsets, scrollb
 
    ```bash
    par-term --log-level debug
-   grep -i "config\|yaml\|parse" /tmp/par_term_debug.log
+   grep -i "config\|yaml\|parse" "${TMPDIR:-/tmp}"/par_term_debug.log
    ```
 
 ### Settings Not Saving
@@ -843,7 +843,7 @@ If the solutions in this guide do not resolve your issue:
 1. **Collect diagnostic information:**
    - Start par-term with `make run-trace` (enables both `RUST_LOG=trace` and `DEBUG_LEVEL=4`)
    - Reproduce the issue
-   - Copy `/tmp/par_term_debug.log` for your bug report
+   - Copy the debug log for your bug report — `make tail-log` prints its path, or use `"${TMPDIR:-/tmp}"/par_term_debug.log`
 
 2. **Include system information:**
    - Operating system and version

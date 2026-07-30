@@ -195,14 +195,14 @@ make doc-open      # Generate and open rustdoc documentation in a browser
 
 ## Debug Logging
 
-par-term uses a custom debug macro system that writes to `/tmp/par_term_debug.log`. The standard `log` crate macros (`log::info!()`, `log::warn!()`, etc.) write to stdout and will not appear in the debug log file.
+par-term uses a custom debug macro system that writes to `par_term_debug.log` in the system temp directory (`$TMPDIR` on macOS, `/tmp` on Linux, `%TEMP%` on Windows). The standard `log` crate macros (`log::info!()`, `log::warn!()`, etc.) write to stdout and will not appear in the debug log file.
 
 ### Running with Debug Output
 
 In one terminal, start par-term with debug logging enabled:
 
 ```bash
-make run-debug    # DEBUG_LEVEL=3 — standard debug output → /tmp/par_term_debug.log
+make run-debug    # DEBUG_LEVEL=3 — standard debug output → $TMPDIR/par_term_debug.log
 make run-trace    # DEBUG_LEVEL=4 — most verbose, includes trace events
 ```
 
@@ -472,7 +472,7 @@ the initial terminal dimensions.
 When cutting a release, verify documentation stays internally consistent. GitHub strips punctuation and lowercases heading text to form anchors, so a heading rename silently breaks TOC links.
 
 - **TOC anchors** — after editing any heading in `README.md`, confirm every `[link](#anchor)` in the Table of Contents still resolves to a heading (e.g. `What's New in 0.33.0` → `#whats-new-in-0330`).
-- **Version sync** — `CLAUDE.md` (`**Version**:` line), `Cargo.toml` (`version`), and the top of `CHANGELOG.md` must all agree before tagging. An `sed` reminder lives next to the version line in `CLAUDE.md`.
+- **Version sync** — `Cargo.toml` (`version`) and the top of `CHANGELOG.md` must agree before tagging. `CLAUDE.md` deliberately carries **no** version line: it had no consumer, silently fell two releases behind, and duplicating a version outside manifests and changelogs is what `docs/DOCUMENTATION_STYLE_GUIDE.md` advises against. Do not reintroduce one.
 - **Tag the release** — `git tag v<X.Y.Z> <release-commit> && git push origin v<X.Y.Z>`. Homebrew SHA, the self-update checker, and `git describe` all require the tag to be pushed.
 
 ## Related Documentation

@@ -9,8 +9,11 @@ ACP_IDLE_TIMEOUT ?= 6
 ACP_TRANSCRIPT ?= /tmp/par-term-acp-harness.log
 ACP_SMOKE_PROMPT ?= create a new background only shader that uses a procedural checker patern and has an effect that looks like its being pulled into some kind of vortex, then set that shader as the active shader
 
-# Debug log path used by run-debug / run-trace targets
-DEBUG_LOG := /tmp/par_term_debug.log
+# Debug log path used by run-debug / run-trace targets.
+# The app writes to std::env::temp_dir(), which is $TMPDIR when set — a
+# /var/folders/... path on macOS — and /tmp otherwise. Hardcoding /tmp made
+# `make tail-log` watch a file that never appears on macOS.
+DEBUG_LOG := $(patsubst %/,%,$(if $(TMPDIR),$(TMPDIR),/tmp))/par_term_debug.log
 
 # Base cargo run invocation — override LOG_LEVEL and DEBUG_LEVEL per target
 # Usage: $(RUN_WITH_LOG) where callers set RUST_LOG / DEBUG_LEVEL before calling
@@ -35,7 +38,7 @@ help:
 	@echo "  make run-warn    - Run with warning level logs"
 	@echo "  make run-info    - Run with info level logs"
 	@echo "  make run-perf    - Run with performance logging to /tmp/par-term-perf.log"
-	@echo "  make run-debug   - Run with DEBUG_LEVEL=3 (logs to /tmp/par_term_debug.log)"
+	@echo "  make run-debug   - Run with DEBUG_LEVEL=3 (logs to $(DEBUG_LOG))"
 	@echo "  make run-trace   - Run with DEBUG_LEVEL=4 (most verbose)"
 	@echo ""
 	@echo "Text Shaping Testing:"
