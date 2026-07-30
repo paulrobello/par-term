@@ -51,9 +51,14 @@ impl WindowState {
         let old_tab_count = self.tab_manager.tab_count();
 
         if let Some(hidden_tab) = info.hidden_tab {
-            // Preserved shell: re-insert the live Tab
-            let tab_id = hidden_tab.id;
-            self.tab_manager.insert_tab_at(hidden_tab, info.index);
+            // Preserved shell: re-insert the live Tab.
+            //
+            // The undo entry can outlive its id: a tab moved in from another
+            // window may have claimed it while this one sat on the stack. The
+            // insert renumbers the tab in that case, so every lookup below goes
+            // through the returned id — the stale one would resize and refresh
+            // the wrong tab.
+            let tab_id = self.tab_manager.insert_tab_at(hidden_tab, info.index);
 
             // Handle tab bar visibility change
             self.handle_tab_bar_resize_after_add(old_tab_count, tab_id);

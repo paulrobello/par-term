@@ -222,26 +222,63 @@ impl TabManager {
     ///
     /// The index is clamped to `0..=self.tabs.len()`.
     ///
+    /// Returns the id the tab holds afterwards, which is **not** always the id
+    /// it arrived with.
+    ///
     /// A tab arriving from another window ("Move Tab to Window") brings that
-    /// window's id with it, and ids are allocated per manager. Advancing the
-    /// counter past the incoming id keeps this window from later handing the
-    /// same id to a new tab, which is what makes a `TabId` safe to hold across
-    /// frames — a queued automation confirmation, an "Always Allow" grant, a
-    /// deferred script action — instead of silently resolving to an unrelated
-    /// terminal once the original tab is gone.
-    pub fn insert_tab_at(&mut self, tab: Tab, index: usize) {
+    /// window's id with it, and ids are allocated per manager, so the incoming
+    /// id can already belong to a tab here — window A's tab 2 landing in a
+    /// window that already holds ids 1 and 2. `get_tab` is a linear scan, so a
+    /// duplicate would make every id-keyed lookup resolve to whichever tab sits
+    /// first: setting a badge, writing an approved automation action, or
+    /// closing "that" tab would hit an unrelated terminal. A colliding tab is
+    /// therefore renumbered from this manager's counter.
+    ///
+    /// Advancing the counter past the id it ends up with keeps this window from
+    /// later handing the same id to a new tab, which is what makes a `TabId`
+    /// safe to hold across frames — a queued automation confirmation, an
+    /// "Always Allow" grant, a deferred script action — instead of silently
+    /// resolving to an unrelated terminal once the original tab is gone.
+    ///
+    /// A caller that captured the id before the move must use the returned
+    /// value: the pre-move id may now name a different tab, or no tab at all.
+    #[must_use = "a renumbered tab is only reachable through the returned id"]
+    pub fn insert_tab_at(&mut self, mut tab: Tab, index: usize) -> TabId {
         let clamped = index.min(self.tabs.len());
+
+        if self.tabs.iter().any(|t| t.id == tab.id) {
+            // `next_tab_id` is always past every id in `tabs`, so it is free.
+            let renumbered = self.next_tab_id;
+            log::info!(
+                "Inserted tab id {} is already taken in this window; renumbering it to {}",
+                tab.id,
+                renumbered
+            );
+            tab.id = renumbered;
+        }
+
         let id = tab.id;
         self.next_tab_id = self.next_tab_id.max(id.saturating_add(1));
         self.tabs.insert(clamped, tab);
         self.set_active_tab(Some(id));
         self.renumber_default_tabs();
+
+        // Guard the mutation rather than `get_tab`: this is the only path by
+        // which a tab this manager did not allocate enters `tabs`, and the
+        // lookups run per frame and inside loops.
+        debug_assert_eq!(
+            self.tabs.iter().filter(|t| t.id == id).count(),
+            1,
+            "tab id {id} is not unique after insert"
+        );
+
         log::info!(
             "Inserted tab {} at index {} (total: {})",
             id,
             clamped,
             self.tabs.len()
         );
+        id
     }
 
     /// Renumber tabs that have default titles based on their current position
@@ -591,9 +628,15 @@ mod tests {
         // Round-trip: remove then re-insert at index 1.
         let (live_tab, is_empty) = mgr.remove_tab(id).expect("remove returns Some");
         assert!(!is_empty, "manager should still have tab 1");
-        mgr.insert_tab_at(live_tab, 1);
+        let reinserted = mgr.insert_tab_at(live_tab, 1);
+        assert_eq!(
+            reinserted, id,
+            "a tab returning to the manager it left cannot collide, so it keeps its id"
+        );
 
-        let after = mgr.get_tab(id).expect("tab still present after round-trip");
+        let after = mgr
+            .get_tab(reinserted)
+            .expect("tab still present after round-trip");
         assert_eq!(after.id, snapshot.0, "id mismatch");
         assert_eq!(after.title, snapshot.1, "title mismatch");
         assert_eq!(
@@ -615,7 +658,8 @@ mod tests {
         let mut mgr = manager_with_ids(&[1, 2]);
         let foreign = Tab::new_stub(9, 1);
 
-        mgr.insert_tab_at(foreign, 1);
+        let inserted = mgr.insert_tab_at(foreign, 1);
+        assert_eq!(inserted, 9, "an id that is free must be kept as-is");
 
         let fresh = mgr.next_tab_id;
         assert!(
@@ -627,5 +671,50 @@ mod tests {
             mgr.tabs().iter().all(|tab| tab.id != fresh),
             "the next id must be free"
         );
+    }
+
+    #[test]
+    fn a_moved_in_tab_does_not_shadow_a_tab_that_already_holds_its_id() {
+        // Window A holds {1,2,3}, window B holds {1,2}; the user moves A's tab
+        // 2 into B. Ids are allocated per window, so B is handed a second tab
+        // claiming id 2. `get_tab` is a linear scan, so without renumbering
+        // every lookup of id 2 would resolve to B's *original* tab and the
+        // moved tab would be unreachable — a badge, or an approved automation
+        // write, would land in the wrong terminal.
+        const ORIGINAL: [u8; 3] = [10, 20, 30];
+        const MOVED: [u8; 3] = [40, 50, 60];
+
+        let mut window_b = manager_with_ids(&[1, 2]);
+        window_b
+            .get_tab_mut(2)
+            .expect("window B's own tab 2")
+            .set_custom_color(ORIGINAL);
+
+        // The tab arriving from window A, carrying window A's id.
+        let mut moved = Tab::new_stub(2, 1);
+        moved.set_custom_color(MOVED);
+
+        let moved_id = window_b.insert_tab_at(moved, 2);
+
+        assert_eq!(window_b.tab_count(), 3, "both tabs must survive the move");
+        // The lookups are the point: id distinctness below is only the means.
+        assert_eq!(
+            window_b
+                .get_tab(moved_id)
+                .expect("the moved tab is reachable by its returned id")
+                .custom_color,
+            Some(MOVED),
+            "get_tab(returned id) must resolve to the tab that moved in, \
+             not to the tab that was already holding that id"
+        );
+        assert_eq!(
+            window_b
+                .get_tab(2)
+                .expect("window B's original tab 2 is still reachable")
+                .custom_color,
+            Some(ORIGINAL),
+            "the tab that already held id 2 must keep it"
+        );
+        assert_ne!(moved_id, 2, "a colliding id must not be kept");
     }
 }

@@ -38,6 +38,12 @@ const MAX_TARGET_TITLE_CHARS: usize = 48;
 ///
 /// Tab ids are allocated per window (`TabManager::next_tab_id` starts at 1 in
 /// every window), so the window is part of the identity, not decoration.
+///
+/// A tab that moves to another window is renumbered there if its id is already
+/// taken ([`crate::tab::TabManager::insert_tab_at`]), so a queued target can never be
+/// silently satisfied by the tab it once named. That is what makes rule 3
+/// above — discard, never retarget — the only sound response to a target whose
+/// tab has left this window.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub(crate) struct AutomationTarget {
     /// The window whose `TabManager` owns `tab_id`.

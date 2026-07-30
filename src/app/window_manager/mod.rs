@@ -6,7 +6,8 @@
 //! The implementation is split across sub-modules for clarity:
 //! - `cli_timer`             — timing-based CLI options (exit-after, screenshot, command send)
 //! - `update_checker`        — periodic/forced update checks and desktop notifications
-//! - `window_lifecycle`      — window creation, destruction, and monitor positioning
+//! - `window_close`          — window teardown and resource reaping
+//! - `window_lifecycle`      — window creation and monitor positioning
 //! - `window_session`        — session save/restore and arranged-window creation
 //! - `menu_actions`          — native menu event dispatch
 //! - `settings_actions`      — settings window open/close, event routing, and live config propagation (R-27)
@@ -25,6 +26,7 @@ mod menu_actions;
 mod scripting;
 mod settings_actions;
 mod update_checker;
+mod window_close;
 mod window_lifecycle;
 mod window_session;
 
