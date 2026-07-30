@@ -32,55 +32,56 @@ impl WindowState {
                 // Update Option/Alt key modes
                 self.config.rcu(|old| {
                     let mut new = (**old).clone();
-                    new.left_option_key_mode = new_config.left_option_key_mode;
+                    new.input.left_option_key_mode = new_config.input.left_option_key_mode;
                     std::sync::Arc::new(new)
                 });
                 self.config.rcu(|old| {
                     let mut new = (**old).clone();
-                    new.right_option_key_mode = new_config.right_option_key_mode;
+                    new.input.right_option_key_mode = new_config.input.right_option_key_mode;
                     std::sync::Arc::new(new)
                 });
                 self.input_handler.update_option_key_modes(
-                    new_config.left_option_key_mode,
-                    new_config.right_option_key_mode,
+                    new_config.input.left_option_key_mode,
+                    new_config.input.right_option_key_mode,
                 );
 
                 // Update modifier remapping and physical keys preference
                 self.config.rcu(|old| {
                     let mut new = (**old).clone();
-                    new.modifier_remapping = new_config.modifier_remapping;
+                    new.input.modifier_remapping = new_config.input.modifier_remapping;
                     std::sync::Arc::new(new)
                 });
                 self.config.rcu(|old| {
                     let mut new = (**old).clone();
-                    new.use_physical_keys = new_config.use_physical_keys;
+                    new.input.use_physical_keys = new_config.input.use_physical_keys;
                     std::sync::Arc::new(new)
                 });
 
                 // Update auto_copy_selection
                 self.config.rcu(|old| {
                     let mut new = (**old).clone();
-                    new.auto_copy_selection = new_config.auto_copy_selection;
+                    new.selection.auto_copy_selection = new_config.selection.auto_copy_selection;
                     std::sync::Arc::new(new)
                 });
 
                 // Update middle_click_paste
                 self.config.rcu(|old| {
                     let mut new = (**old).clone();
-                    new.middle_click_paste = new_config.middle_click_paste;
+                    new.selection.middle_click_paste = new_config.selection.middle_click_paste;
                     std::sync::Arc::new(new)
                 });
 
                 // Update paste_delay_ms
                 self.config.rcu(|old| {
                     let mut new = (**old).clone();
-                    new.paste_delay_ms = new_config.paste_delay_ms;
+                    new.selection.paste_delay_ms = new_config.selection.paste_delay_ms;
                     std::sync::Arc::new(new)
                 });
 
                 // Update window title (check both title and show_window_number)
                 if self.config.load().window_title != new_config.window_title
-                    || self.config.load().show_window_number != new_config.show_window_number
+                    || self.config.load().placement.show_window_number
+                        != new_config.placement.show_window_number
                 {
                     self.config.rcu(|old| {
                         let mut new = (**old).clone();
@@ -89,7 +90,7 @@ impl WindowState {
                     });
                     self.config.rcu(|old| {
                         let mut new = (**old).clone();
-                        new.show_window_number = new_config.show_window_number;
+                        new.placement.show_window_number = new_config.placement.show_window_number;
                         std::sync::Arc::new(new)
                     });
                     if let Some(window) = &self.window {
@@ -98,10 +99,10 @@ impl WindowState {
                 }
 
                 // Update theme
-                if self.config.load().theme != new_config.theme {
+                if self.config.load().theme_colors.theme != new_config.theme_colors.theme {
                     self.config.rcu(|old| {
                         let mut new = (**old).clone();
-                        new.theme = new_config.theme.clone();
+                        new.theme_colors.theme = new_config.theme_colors.theme.clone();
                         std::sync::Arc::new(new)
                     });
                     // Apply theme to all tabs and all pane terminals
@@ -128,7 +129,7 @@ impl WindowState {
                             }
                         }
                     }
-                    log::info!("Applied new theme: {}", new_config.theme);
+                    log::info!("Applied new theme: {}", new_config.theme_colors.theme);
                 }
 
                 // Note: Clipboard history and notification settings not yet available in core library

@@ -43,13 +43,13 @@ impl App {
             config.shader.custom_shader = Some(shader.clone());
             config.shader.custom_shader_enabled = true;
             // Disable background image so it doesn't compete with the shader
-            config.background_image_enabled = false;
+            config.background.background_image_enabled = false;
             log::info!("CLI override: using shader '{}'", shader);
         }
 
         // Apply CLI session logging override if specified
         if runtime_options.log_session {
-            config.auto_log_sessions = true;
+            config.session_log.auto_log_sessions = true;
             log::info!("CLI override: session logging enabled");
         }
 

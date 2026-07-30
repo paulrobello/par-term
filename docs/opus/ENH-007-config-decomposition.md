@@ -3,6 +3,31 @@
 > **Impact**: medium · **Effort**: large · **Source**: AUDIT.md **ARC-003** (High) — deferred out of the
 > remediation cycle
 
+> **Status: largely done.** `Config` is now **70 members — 41 flattened sub-configs and 29 leaf fields**,
+> and `config_struct/mod.rs` is **760 production lines** (was 1,529), so its `.line-count-exempt` entry
+> is gone. 27 new sub-configs took 195 of the 224 leaf fields. Corrections to the text below:
+>
+> - The 238 count is the **total member count**, of which 14 were already flattened sub-configs, so
+>   **224 leaf fields** were actually drainable. The `sed … | grep -c "^\s*pub "` command in Step 0
+>   returns **239** — it counts the `pub struct Config {` line itself.
+> - Step 2's **delegating accessors were not used**. Moving fields and letting rustc's `E0609`/`E0560`
+>   spans drive the call-site rewrite is exact, and accessors would only have to be deleted again.
+> - Step 2's choice of **font as the pilot was wrong** — 32 fields across 82 files is the largest and
+>   riskiest group, not the safest. Panes (20 fields, 70 refs) is the right shape for a first move.
+> - **`#[derive(Default)]` is not safe by default here**: 137 of the 224 leaf fields do not default to
+>   their type's `Default`. Each receiving sub-config's `Default` copies the exact initialiser from
+>   `default_impl.rs`; only three groups whose fields are all genuinely type-default derive it.
+> - Step 6's **version bump was deliberately not done** — it is a release action, not part of the
+>   refactor. The field-path change is still a breaking API change for `par-term-config` and needs the
+>   documented Layer 1 → Layer 4 bump order before publishing.
+>
+> Deliberately left on the root: terminal size, the font family/metrics block, one-field settings with
+> no group, `keybindings`/`snippets` (their natural member names shadow the fields they replace, which
+> disarms the compiler-guided rewrite for no structural gain), and the two `#[serde(skip)]` runtime
+> security lists, which are computed state rather than configuration.
+>
+> The acceptance gate of Step 4 exists as `par-term-config/tests/config_yaml_compat.rs` (9 tests).
+
 ## Goal
 
 Finish a decomposition that was started and abandoned. Move each thematic field cluster out of `Config`'s

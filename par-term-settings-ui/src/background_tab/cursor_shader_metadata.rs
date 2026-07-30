@@ -105,6 +105,7 @@ fn show_per_cursor_shader_settings(
     // Get current override or create empty one for display
     let has_override = settings
         .config
+        .shader_overrides
         .cursor_shader_configs
         .contains_key(shader_name);
 
@@ -114,6 +115,7 @@ fn show_per_cursor_shader_settings(
     // Clone current override to avoid borrow issues with closures
     let current_override = settings
         .config
+        .shader_overrides
         .cursor_shader_configs
         .get(shader_name)
         .cloned();
@@ -145,8 +147,11 @@ fn show_per_cursor_shader_settings(
             }
 
             if show_reset_button(ui, has_override_val)
-                && let Some(override_entry) =
-                    settings.config.cursor_shader_configs.get_mut(shader_name)
+                && let Some(override_entry) = settings
+                    .config
+                    .shader_overrides
+                    .cursor_shader_configs
+                    .get_mut(shader_name)
             {
                 override_entry.base.animation_speed = None;
                 settings.has_changes = true;
@@ -186,7 +191,7 @@ fn show_per_cursor_shader_settings(
 
             if show_reset_button(ui, has_override_val)
                 && let Some(override_entry) =
-                    settings.config.cursor_shader_configs.get_mut(shader_name)
+                    settings.config.shader_overrides.cursor_shader_configs.get_mut(shader_name)
             {
                 override_entry.hides_cursor = None;
                 settings.has_changes = true;
@@ -226,7 +231,7 @@ fn show_per_cursor_shader_settings(
 
             if show_reset_button(ui, has_override_val)
                 && let Some(override_entry) =
-                    settings.config.cursor_shader_configs.get_mut(shader_name)
+                    settings.config.shader_overrides.cursor_shader_configs.get_mut(shader_name)
             {
                 override_entry.disable_in_alt_screen = None;
                 settings.has_changes = true;
@@ -329,7 +334,11 @@ fn build_cursor_metadata_from_settings(
         });
 
     // Get the current override and metadata defaults
-    let current_override = settings.config.cursor_shader_configs.get(shader_name);
+    let current_override = settings
+        .config
+        .shader_overrides
+        .cursor_shader_configs
+        .get(shader_name);
     let meta_defaults = existing_metadata.as_ref().map(|m| &m.defaults);
 
     // Start with existing defaults to preserve shader-specific settings

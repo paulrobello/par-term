@@ -41,7 +41,7 @@ impl WindowState {
             let mut title_parts = vec![self.config.load().window_title.clone()];
 
             // Add window number if configured
-            if self.config.load().show_window_number {
+            if self.config.load().placement.show_window_number {
                 title_parts.push(format!("[{}]", self.window_index));
             }
 

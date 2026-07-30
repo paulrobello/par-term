@@ -279,7 +279,7 @@ impl WindowState {
                     // Update config to mark as installed
                     self.config.rcu(|old| {
                         let mut new = (**old).clone();
-                        new.shader_install_prompt = ShaderInstallPrompt::Installed;
+                        new.integrations.shader_install_prompt = ShaderInstallPrompt::Installed;
                         std::sync::Arc::new(new)
                     });
                     if let Err(e) = self.save_config_debounced() {
@@ -323,7 +323,7 @@ impl WindowState {
                 // Update config to never ask again
                 self.config.rcu(|old| {
                     let mut new = (**old).clone();
-                    new.shader_install_prompt = ShaderInstallPrompt::Never;
+                    new.integrations.shader_install_prompt = ShaderInstallPrompt::Never;
                     std::sync::Arc::new(new)
                 });
                 if let Err(e) = self.save_config_debounced() {

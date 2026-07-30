@@ -26,9 +26,15 @@ pub mod theme_methods;
 
 pub use acp::{CustomAcpAgentActionConfig, CustomAcpAgentConfig};
 pub use config_struct::{
-    AiInspectorConfig, AssistantInputHistoryMode, Config, CopyModeConfig, CursorConfig,
-    FontRenderingConfig, GlobalShaderConfig, MouseConfig, NotificationConfig, ScrollbackConfig,
-    SearchConfig, SshConfig, StatusBarConfig, UnicodeConfig, UpdateConfig, WindowConfig,
+    AiInspectorConfig, AssistantInputHistoryMode, AutomationConfig, BackgroundConfig, BadgeConfig,
+    ClipboardConfig, CommandSeparatorConfig, Config, CopyModeConfig, CursorConfig,
+    FontRenderingConfig, GlobalShaderConfig, ImageConfig, InputConfig, IntegrationConfig,
+    MouseConfig, NotificationConfig, PaneConfig, PowerConfig, ProgressBarConfig, RenderingConfig,
+    ScrollbackConfig, ScrollbarConfig, SearchConfig, SecurityConfig, SelectionConfig,
+    SemanticHistoryConfig, SessionLogConfig, SessionRestoreConfig, ShaderOverridesConfig,
+    ShaderWatchConfig, ShellConfig, SshConfig, StatusBarConfig, TabBarColorsConfig, TabConfig,
+    ThemeColorsConfig, TmuxConfig, UnicodeConfig, UpdateConfig, WindowConfig,
+    WindowPlacementConfig, WordSelectionConfig,
 };
 pub use env_vars::{
     ALLOWED_ENV_VARS, is_env_var_allowed, substitute_variables,

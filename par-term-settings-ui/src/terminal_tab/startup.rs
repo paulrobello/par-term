@@ -15,7 +15,7 @@ pub(super) fn show_startup_section(
     collapsing_section(ui, "Startup", "terminal_startup", false, collapsed, |ui| {
         if ui
             .checkbox(
-                &mut settings.config.restore_session,
+                &mut settings.config.session_restore.restore_session,
                 "Restore previous session on startup",
             )
             .on_hover_text(
@@ -34,9 +34,11 @@ pub(super) fn show_startup_section(
             ui.label("Undo close tab timeout:");
             if ui
                 .add(
-                    egui::DragValue::new(&mut settings.config.session_undo_timeout_secs)
-                        .range(0..=60)
-                        .suffix("s"),
+                    egui::DragValue::new(
+                        &mut settings.config.session_restore.session_undo_timeout_secs,
+                    )
+                    .range(0..=60)
+                    .suffix("s"),
                 )
                 .on_hover_text(
                     "How long closed tab metadata is kept for undo (reopen).\n\
@@ -51,8 +53,10 @@ pub(super) fn show_startup_section(
             ui.label("Max entries:");
             if ui
                 .add(
-                    egui::DragValue::new(&mut settings.config.session_undo_max_entries)
-                        .range(1..=50),
+                    egui::DragValue::new(
+                        &mut settings.config.session_restore.session_undo_max_entries,
+                    )
+                    .range(1..=50),
                 )
                 .on_hover_text("Maximum number of closed tabs to remember for undo.")
                 .changed()
@@ -64,7 +68,7 @@ pub(super) fn show_startup_section(
 
         if ui
             .checkbox(
-                &mut settings.config.session_undo_preserve_shell,
+                &mut settings.config.session_restore.session_undo_preserve_shell,
                 "Preserve shell session on close",
             )
             .on_hover_text(
@@ -84,7 +88,7 @@ pub(super) fn show_startup_section(
             .text_edit_multiline(&mut settings.temp_initial_text)
             .changed()
         {
-            settings.config.initial_text = settings.temp_initial_text.clone();
+            settings.config.shell.initial_text = settings.temp_initial_text.clone();
             settings.has_changes = true;
             *changes_this_frame = true;
         }
@@ -93,7 +97,7 @@ pub(super) fn show_startup_section(
             ui.label("Delay (ms):");
             if ui
                 .add(
-                    egui::DragValue::new(&mut settings.config.initial_text_delay_ms)
+                    egui::DragValue::new(&mut settings.config.shell.initial_text_delay_ms)
                         .range(0..=5000),
                 )
                 .changed()
@@ -104,7 +108,7 @@ pub(super) fn show_startup_section(
 
             if ui
                 .checkbox(
-                    &mut settings.config.initial_text_send_newline,
+                    &mut settings.config.shell.initial_text_send_newline,
                     "Append newline after text",
                 )
                 .changed()

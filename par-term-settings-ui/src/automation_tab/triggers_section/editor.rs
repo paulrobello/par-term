@@ -179,25 +179,25 @@ fn show_save_cancel(
                 prompt_before_run: settings.automation_tab.temp_trigger_prompt_before_run,
                 // Preserve existing i_accept_the_risk when editing; default false for new triggers.
                 i_accept_the_risk: edit_index
-                    .and_then(|i| settings.config.triggers.get(i))
+                    .and_then(|i| settings.config.automation.triggers.get(i))
                     .map(|t| t.i_accept_the_risk)
                     .unwrap_or(false),
                 // SEC-002: Preserve existing allowed_commands when editing;
                 // default empty (allowlist mode disabled) for new triggers.
                 allowed_commands: edit_index
-                    .and_then(|i| settings.config.triggers.get(i))
+                    .and_then(|i| settings.config.automation.triggers.get(i))
                     .map(|t| t.allowed_commands.clone())
                     .unwrap_or_default(),
             };
 
             if let Some(i) = edit_index {
                 // Update existing
-                let was_enabled = settings.config.triggers[i].enabled;
-                settings.config.triggers[i] = new_trigger;
-                settings.config.triggers[i].enabled = was_enabled;
+                let was_enabled = settings.config.automation.triggers[i].enabled;
+                settings.config.automation.triggers[i] = new_trigger;
+                settings.config.automation.triggers[i].enabled = was_enabled;
             } else {
                 // Add new
-                settings.config.triggers.push(new_trigger);
+                settings.config.automation.triggers.push(new_trigger);
             }
 
             settings.has_changes = true;

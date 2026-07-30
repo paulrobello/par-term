@@ -202,17 +202,18 @@ impl Config {
 
     /// Get the user override config for a specific shader (if any)
     pub fn get_shader_override(&self, shader_name: &str) -> Option<&ShaderConfig> {
-        self.shader_configs.get(shader_name)
+        self.shader_overrides.shader_configs.get(shader_name)
     }
 
     /// Get the user override config for a specific cursor shader (if any)
     pub fn get_cursor_shader_override(&self, shader_name: &str) -> Option<&CursorShaderConfig> {
-        self.cursor_shader_configs.get(shader_name)
+        self.shader_overrides.cursor_shader_configs.get(shader_name)
     }
 
     /// Get or create a mutable reference to a shader's config override
     pub fn get_or_create_shader_override(&mut self, shader_name: &str) -> &mut ShaderConfig {
-        self.shader_configs
+        self.shader_overrides
+            .shader_configs
             .entry(shader_name.to_string())
             .or_default()
     }
@@ -222,26 +223,29 @@ impl Config {
         &mut self,
         shader_name: &str,
     ) -> &mut CursorShaderConfig {
-        self.cursor_shader_configs
+        self.shader_overrides
+            .cursor_shader_configs
             .entry(shader_name.to_string())
             .or_default()
     }
 
     /// Remove a shader config override (revert to defaults)
     pub fn remove_shader_override(&mut self, shader_name: &str) {
-        self.shader_configs.remove(shader_name);
+        self.shader_overrides.shader_configs.remove(shader_name);
     }
 
     /// Remove a cursor shader config override (revert to defaults)
     pub fn remove_cursor_shader_override(&mut self, shader_name: &str) {
-        self.cursor_shader_configs.remove(shader_name);
+        self.shader_overrides
+            .cursor_shader_configs
+            .remove(shader_name);
     }
 
     /// Check if the shaders folder is missing or empty
     /// Returns true if user should be prompted to install shaders
     pub fn should_prompt_shader_install(&self) -> bool {
         // Only prompt if the preference is set to "ask"
-        if self.shader_install_prompt != ShaderInstallPrompt::Ask {
+        if self.integrations.shader_install_prompt != ShaderInstallPrompt::Ask {
             return false;
         }
 
@@ -271,19 +275,25 @@ impl Config {
     /// # Arguments
     /// * `current_version` - The application version (from root crate's `VERSION` constant)
     pub fn should_prompt_shader_install_versioned(&self, current_version: &str) -> bool {
-        if self.shader_install_prompt != ShaderInstallPrompt::Ask {
+        if self.integrations.shader_install_prompt != ShaderInstallPrompt::Ask {
             return false;
         }
 
         // Check if already prompted for this version
-        if let Some(ref prompted) = self.integration_versions.shaders_prompted_version
+        if let Some(ref prompted) = self
+            .integrations
+            .integration_versions
+            .shaders_prompted_version
             && prompted == current_version
         {
             return false;
         }
 
         // Check if installed and up to date
-        if let Some(ref installed) = self.integration_versions.shaders_installed_version
+        if let Some(ref installed) = self
+            .integrations
+            .integration_versions
+            .shaders_installed_version
             && installed == current_version
         {
             return false;

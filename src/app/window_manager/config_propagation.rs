@@ -129,8 +129,11 @@ impl WindowManager {
                     window.set_decorations(config.window.window_decorations);
                 }
                 if changes.lock_window_size {
-                    window.set_resizable(!config.lock_window_size);
-                    log::info!("Window resizable set to: {}", !config.lock_window_size);
+                    window.set_resizable(!config.placement.lock_window_size);
+                    log::info!(
+                        "Window resizable set to: {}",
+                        !config.placement.lock_window_size
+                    );
                 }
                 window.set_window_level(if config.window.window_always_on_top {
                     winit::window::WindowLevel::AlwaysOnTop
@@ -204,11 +207,14 @@ impl WindowManager {
                     tab.start_refresh_task(
                         Arc::clone(&window_state.runtime),
                         Arc::clone(window),
-                        config.max_fps,
-                        config.inactive_tab_fps,
+                        config.rendering.max_fps,
+                        config.power.inactive_tab_fps,
                     );
                 }
-                log::info!("Restarted refresh tasks with max_fps={}", config.max_fps);
+                log::info!(
+                    "Restarted refresh tasks with max_fps={}",
+                    config.rendering.max_fps
+                );
             }
 
             // Update badge state if badge settings changed
@@ -226,18 +232,19 @@ impl WindowManager {
                 .as_ref()
                 .map(|r| r.scale_factor())
                 .unwrap_or(1.0);
-            let divider_width = config.pane_divider_width.unwrap_or(2.0) * dpi_scale;
+            let divider_width = config.panes.pane_divider_width.unwrap_or(2.0) * dpi_scale;
             for tab in window_state.tab_manager.tabs_mut() {
                 if let Some(pm) = tab.pane_manager_mut() {
                     pm.set_divider_width(divider_width);
-                    pm.set_divider_hit_width(config.pane_divider_hit_width * dpi_scale);
+                    pm.set_divider_hit_width(config.panes.pane_divider_hit_width * dpi_scale);
                 }
             }
 
             // Resync triggers from config into core registry for all tabs
             for tab in window_state.tab_manager.tabs_mut() {
                 if let Ok(term) = tab.terminal.try_read() {
-                    tab.scripting.trigger_prompt_before_run = term.sync_triggers(&config.triggers);
+                    tab.scripting.trigger_prompt_before_run =
+                        term.sync_triggers(&config.automation.triggers);
                 }
             }
 

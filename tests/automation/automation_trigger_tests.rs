@@ -2,15 +2,15 @@
 //! deserialization, and core-action conversion.
 
 use par_term::config::{
-    Config, CoprocessDefConfig, RestartPolicy, TriggerActionConfig, TriggerConfig,
+    AutomationConfig, Config, CoprocessDefConfig, RestartPolicy, TriggerActionConfig, TriggerConfig,
 };
 use par_term_terminal::conversion::to_core_trigger_action;
 
 #[test]
 fn test_default_config_has_empty_triggers_and_coprocesses() {
     let config = Config::default();
-    assert!(config.triggers.is_empty());
-    assert!(config.coprocesses.is_empty());
+    assert!(config.automation.triggers.is_empty());
+    assert!(config.automation.coprocesses.is_empty());
 }
 
 #[test]
@@ -265,33 +265,39 @@ command: /bin/cat
 #[test]
 fn test_config_with_triggers_and_coprocesses_yaml_roundtrip() {
     let config = Config {
-        triggers: vec![TriggerConfig {
-            name: "error".to_string(),
-            pattern: "ERROR".to_string(),
-            enabled: true,
-            actions: vec![TriggerActionConfig::Highlight {
-                fg: Some([255, 0, 0]),
-                bg: None,
-                duration_ms: 5000,
+        automation: AutomationConfig {
+            triggers: vec![TriggerConfig {
+                name: "error".to_string(),
+                pattern: "ERROR".to_string(),
+                enabled: true,
+                actions: vec![TriggerActionConfig::Highlight {
+                    fg: Some([255, 0, 0]),
+                    bg: None,
+                    duration_ms: 5000,
+                }],
+                prompt_before_run: true,
+                i_accept_the_risk: false,
+                allowed_commands: vec![],
             }],
-            prompt_before_run: true,
-            i_accept_the_risk: false,
-            allowed_commands: vec![],
-        }],
-        coprocesses: vec![CoprocessDefConfig {
-            name: "logger".to_string(),
-            command: "/usr/bin/tee".to_string(),
-            args: vec!["/tmp/log.txt".to_string()],
-            auto_start: false,
-            copy_terminal_output: true,
-            restart_policy: RestartPolicy::Never,
-            restart_delay_ms: 0,
-        }],
+            coprocesses: vec![CoprocessDefConfig {
+                name: "logger".to_string(),
+                command: "/usr/bin/tee".to_string(),
+                args: vec!["/tmp/log.txt".to_string()],
+                auto_start: false,
+                copy_terminal_output: true,
+                restart_policy: RestartPolicy::Never,
+                restart_delay_ms: 0,
+            }],
+            ..Default::default()
+        },
         ..Config::default()
     };
 
     let yaml = serde_yaml_ng::to_string(&config).unwrap();
     let deserialized: Config = serde_yaml_ng::from_str(&yaml).unwrap();
-    assert_eq!(config.triggers, deserialized.triggers);
-    assert_eq!(config.coprocesses, deserialized.coprocesses);
+    assert_eq!(config.automation.triggers, deserialized.automation.triggers);
+    assert_eq!(
+        config.automation.coprocesses,
+        deserialized.automation.coprocesses
+    );
 }

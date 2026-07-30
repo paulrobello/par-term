@@ -12,14 +12,14 @@ impl WindowState {
         crate::debug_info!("TMUX", "Window added: @{}", window_id);
 
         // Check max tabs limit
-        if self.config.load().max_tabs > 0
-            && self.tab_manager.tab_count() >= self.config.load().max_tabs
+        if self.config.load().tabs.max_tabs > 0
+            && self.tab_manager.tab_count() >= self.config.load().tabs.max_tabs
         {
             crate::debug_error!(
                 "TMUX",
                 "Cannot create tab for tmux window @{}: max_tabs limit ({}) reached",
                 window_id,
-                self.config.load().max_tabs
+                self.config.load().tabs.max_tabs
             );
             return;
         }
@@ -58,8 +58,8 @@ impl WindowState {
                         tab.start_refresh_task(
                             std::sync::Arc::clone(&self.runtime),
                             std::sync::Arc::clone(window),
-                            self.config.load().max_fps,
-                            self.config.load().inactive_tab_fps,
+                            self.config.load().rendering.max_fps,
+                            self.config.load().power.inactive_tab_fps,
                         );
                     }
 

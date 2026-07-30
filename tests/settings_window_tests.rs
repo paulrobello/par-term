@@ -267,15 +267,15 @@ fn test_window_opacity_default_in_valid_range() {
 #[test]
 fn test_background_image_opacity_default_in_valid_range() {
     let config = Config::default();
-    assert!(config.background_image_opacity >= 0.0);
-    assert!(config.background_image_opacity <= 1.0);
+    assert!(config.background.background_image_opacity >= 0.0);
+    assert!(config.background.background_image_opacity <= 1.0);
 }
 
 #[test]
 fn test_inactive_tab_opacity_default_in_valid_range() {
     let config = Config::default();
-    assert!(config.inactive_tab_opacity >= 0.0);
-    assert!(config.inactive_tab_opacity <= 1.0);
+    assert!(config.tab_colors.inactive_tab_opacity >= 0.0);
+    assert!(config.tab_colors.inactive_tab_opacity <= 1.0);
 }
 
 #[test]
@@ -291,7 +291,7 @@ fn test_scrollback_lines_default_positive() {
 fn test_tab_bar_height_default_positive() {
     let config = Config::default();
     assert!(
-        config.tab_bar_height > 0.0,
+        config.tabs.tab_bar_height > 0.0,
         "Default tab_bar_height should be > 0"
     );
 }
@@ -300,7 +300,7 @@ fn test_tab_bar_height_default_positive() {
 fn test_tab_min_width_default_positive() {
     let config = Config::default();
     assert!(
-        config.tab_min_width > 0.0,
+        config.tab_colors.tab_min_width > 0.0,
         "Default tab_min_width should be > 0"
     );
 }
@@ -308,9 +308,12 @@ fn test_tab_min_width_default_positive() {
 #[test]
 fn test_max_fps_default_reasonable() {
     let config = Config::default();
-    assert!(config.max_fps > 0, "Default max_fps should be > 0");
     assert!(
-        config.max_fps <= 240,
+        config.rendering.max_fps > 0,
+        "Default max_fps should be > 0"
+    );
+    assert!(
+        config.rendering.max_fps <= 240,
         "Default max_fps should be <= 240 (reasonable upper bound)"
     );
 }

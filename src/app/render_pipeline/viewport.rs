@@ -39,7 +39,7 @@ impl WindowState {
         // hides_cursor: per-shader config override -> metadata defaults -> global config
         let hides_cursor_from_config = cursor_shader_name
             .as_deref()
-            .and_then(|name| cfg.cursor_shader_configs.get(name))
+            .and_then(|name| cfg.shader_overrides.cursor_shader_configs.get(name))
             .and_then(|c| c.hides_cursor);
 
         let resolved_hides_cursor = hides_cursor_from_config
@@ -54,7 +54,7 @@ impl WindowState {
         // disable_in_alt_screen: per-shader override -> metadata defaults -> global config
         let disable_in_alt_screen_from_config = cursor_shader_name
             .as_deref()
-            .and_then(|name| cfg.cursor_shader_configs.get(name))
+            .and_then(|name| cfg.shader_overrides.cursor_shader_configs.get(name))
             .and_then(|c| c.disable_in_alt_screen);
 
         let resolved_disable_in_alt_screen = disable_in_alt_screen_from_config

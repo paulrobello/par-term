@@ -178,7 +178,7 @@ impl WindowState {
 
             // Detect file paths for semantic history (if enabled), using the same
             // wrap-aware segmentation as URLs.
-            if self.config.load().semantic_history_enabled {
+            if self.config.load().semantic_history.semantic_history_enabled {
                 let file_paths = url_detection::detect_file_paths_in_line(&line, absolute_row);
                 for fp in file_paths {
                     crate::debug_trace!(

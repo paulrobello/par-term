@@ -401,7 +401,7 @@ mod tests {
         );
 
         let mut override_config = Config::default();
-        override_config.shader_configs.insert(
+        override_config.shader_overrides.shader_configs.insert(
             "test.glsl".to_string(),
             ShaderConfig {
                 channel0: Some(BUILTIN.to_string()),

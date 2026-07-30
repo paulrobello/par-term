@@ -68,7 +68,11 @@ fn build_metadata_from_settings(
     });
 
     // Get the current override and metadata defaults
-    let current_override = settings.config.shader_configs.get(shader_name);
+    let current_override = settings
+        .config
+        .shader_overrides
+        .shader_configs
+        .get(shader_name);
     let meta_defaults = existing_metadata.as_ref().map(|m| &m.defaults);
 
     // Build the new defaults from effective values

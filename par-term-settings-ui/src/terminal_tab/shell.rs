@@ -22,7 +22,7 @@ pub(super) fn show_shell_section(
                 )
                 .changed()
             {
-                settings.config.custom_shell = if settings.temp_custom_shell.is_empty() {
+                settings.config.shell.custom_shell = if settings.temp_custom_shell.is_empty() {
                     None
                 } else {
                     Some(settings.temp_custom_shell.clone())
@@ -35,7 +35,7 @@ pub(super) fn show_shell_section(
                 && let Some(path) = settings.pick_file_path("Select shell binary")
             {
                 settings.temp_custom_shell = path.clone();
-                settings.config.custom_shell = Some(path);
+                settings.config.shell.custom_shell = Some(path);
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
@@ -50,7 +50,7 @@ pub(super) fn show_shell_section(
                 )
                 .changed()
             {
-                settings.config.shell_args = if settings.temp_shell_args.is_empty() {
+                settings.config.shell.shell_args = if settings.temp_shell_args.is_empty() {
                     None
                 } else {
                     Some(
@@ -67,7 +67,7 @@ pub(super) fn show_shell_section(
         });
 
         if ui
-            .checkbox(&mut settings.config.login_shell, "Login shell (-l)")
+            .checkbox(&mut settings.config.shell.login_shell, "Login shell (-l)")
             .on_hover_text(
                 "Spawn shell as login shell. This ensures PATH is properly initialized from /etc/paths, ~/.zprofile, etc. Recommended on macOS.",
             )
@@ -83,7 +83,7 @@ pub(super) fn show_shell_section(
         // Startup directory mode dropdown
         ui.horizontal(|ui| {
             ui.label("Mode:");
-            let mode_text = settings.config.startup_directory_mode.display_name();
+            let mode_text = settings.config.shell.startup_directory_mode.display_name();
             egui::ComboBox::from_id_salt("startup_directory_mode")
                 .selected_text(mode_text)
                 .show_ui(ui, |ui| {
@@ -91,7 +91,7 @@ pub(super) fn show_shell_section(
                     for mode in StartupDirectoryMode::all() {
                         if ui
                             .selectable_value(
-                                &mut settings.config.startup_directory_mode,
+                                &mut settings.config.shell.startup_directory_mode,
                                 *mode,
                                 mode.display_name(),
                             )
@@ -112,7 +112,9 @@ pub(super) fn show_shell_section(
         });
 
         // Custom directory path (only shown when mode is Custom)
-        if settings.config.startup_directory_mode == par_term_config::StartupDirectoryMode::Custom {
+        if settings.config.shell.startup_directory_mode
+            == par_term_config::StartupDirectoryMode::Custom
+        {
             ui.horizontal(|ui| {
                 ui.label("Custom directory:");
                 if ui
@@ -122,7 +124,7 @@ pub(super) fn show_shell_section(
                     )
                     .changed()
                 {
-                    settings.config.startup_directory =
+                    settings.config.shell.startup_directory =
                         if settings.temp_startup_directory.is_empty() {
                             None
                         } else {
@@ -136,7 +138,7 @@ pub(super) fn show_shell_section(
                     && let Some(path) = settings.pick_folder_path("Select startup directory")
                 {
                     settings.temp_startup_directory = path.clone();
-                    settings.config.startup_directory = Some(path);
+                    settings.config.shell.startup_directory = Some(path);
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
@@ -144,9 +146,10 @@ pub(super) fn show_shell_section(
         }
 
         // Show last working directory info when in Previous mode
-        if settings.config.startup_directory_mode == par_term_config::StartupDirectoryMode::Previous
+        if settings.config.shell.startup_directory_mode
+            == par_term_config::StartupDirectoryMode::Previous
         {
-            if let Some(ref last_dir) = settings.config.last_working_directory {
+            if let Some(ref last_dir) = settings.config.shell.last_working_directory {
                 ui.label(
                     egui::RichText::new(format!("Last session: {}", last_dir))
                         .small()

@@ -41,7 +41,10 @@ pub(super) fn show_behavior_section(
             }
 
             if ui
-                .checkbox(&mut settings.config.lock_window_size, "Lock window size")
+                .checkbox(
+                    &mut settings.config.placement.lock_window_size,
+                    "Lock window size",
+                )
                 .on_hover_text("Prevent window from being resized by the user")
                 .changed()
             {
@@ -51,7 +54,7 @@ pub(super) fn show_behavior_section(
 
             if ui
                 .checkbox(
-                    &mut settings.config.show_window_number,
+                    &mut settings.config.placement.show_window_number,
                     "Show window number in title",
                 )
                 .on_hover_text(
@@ -68,14 +71,14 @@ pub(super) fn show_behavior_section(
             // Window type dropdown
             ui.horizontal(|ui| {
                 ui.label("Window type:");
-                let current_type = settings.config.window_type;
+                let current_type = settings.config.placement.window_type;
                 egui::ComboBox::from_id_salt("window_window_type")
                     .selected_text(current_type.display_name())
                     .show_ui(ui, |ui| {
                         for window_type in WindowType::all() {
                             if ui
                                 .selectable_value(
-                                    &mut settings.config.window_type,
+                                    &mut settings.config.placement.window_type,
                                     *window_type,
                                     window_type.display_name(),
                                 )
@@ -91,8 +94,9 @@ pub(super) fn show_behavior_section(
             // Target monitor setting
             ui.horizontal(|ui| {
                 ui.label("Target monitor:");
-                let mut monitor_index = settings.config.target_monitor.unwrap_or(0) as i32;
-                let mut use_default = settings.config.target_monitor.is_none();
+                let mut monitor_index =
+                    settings.config.placement.target_monitor.unwrap_or(0) as i32;
+                let mut use_default = settings.config.placement.target_monitor.is_none();
 
                 if ui
                     .checkbox(&mut use_default, "Auto")
@@ -100,9 +104,9 @@ pub(super) fn show_behavior_section(
                     .changed()
                 {
                     if use_default {
-                        settings.config.target_monitor = None;
+                        settings.config.placement.target_monitor = None;
                     } else {
-                        settings.config.target_monitor = Some(0);
+                        settings.config.placement.target_monitor = Some(0);
                     }
                     settings.has_changes = true;
                     *changes_this_frame = true;
@@ -114,13 +118,13 @@ pub(super) fn show_behavior_section(
                         .on_hover_text("Monitor index (0 = primary)")
                         .changed()
                 {
-                    settings.config.target_monitor = Some(monitor_index as usize);
+                    settings.config.placement.target_monitor = Some(monitor_index as usize);
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
             });
 
-            if settings.config.window_type.is_edge() {
+            if settings.config.placement.window_type.is_edge() {
                 ui.colored_label(
                     egui::Color32::YELLOW,
                     "Note: Edge-anchored windows take effect on next window creation",
@@ -132,8 +136,9 @@ pub(super) fn show_behavior_section(
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {
                     ui.label("Target Space:");
-                    let mut space_number = settings.config.target_space.unwrap_or(1) as i32;
-                    let mut use_default = settings.config.target_space.is_none();
+                    let mut space_number =
+                        settings.config.placement.target_space.unwrap_or(1) as i32;
+                    let mut use_default = settings.config.placement.target_space.is_none();
 
                     if ui
                         .checkbox(&mut use_default, "Auto")
@@ -141,9 +146,9 @@ pub(super) fn show_behavior_section(
                         .changed()
                     {
                         if use_default {
-                            settings.config.target_space = None;
+                            settings.config.placement.target_space = None;
                         } else {
-                            settings.config.target_space = Some(1);
+                            settings.config.placement.target_space = Some(1);
                         }
                         settings.has_changes = true;
                         *changes_this_frame = true;
@@ -155,7 +160,7 @@ pub(super) fn show_behavior_section(
                             .on_hover_text("Space number in Mission Control (1 = first Space)")
                             .changed()
                     {
-                        settings.config.target_space = Some(space_number as u32);
+                        settings.config.placement.target_space = Some(space_number as u32);
                         settings.has_changes = true;
                         *changes_this_frame = true;
                     }

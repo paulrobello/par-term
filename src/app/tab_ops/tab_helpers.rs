@@ -31,8 +31,8 @@ impl WindowState {
                     tab.start_refresh_task(
                         Arc::clone(&self.runtime),
                         Arc::clone(window),
-                        self.config.load().max_fps,
-                        self.config.load().inactive_tab_fps,
+                        self.config.load().rendering.max_fps,
+                        self.config.load().power.inactive_tab_fps,
                     );
                 }
                 self.focus_state.needs_redraw = true;
@@ -64,8 +64,8 @@ impl WindowState {
                     tab.start_refresh_task(
                         Arc::clone(&self.runtime),
                         Arc::clone(window),
-                        self.config.load().max_fps,
-                        self.config.load().inactive_tab_fps,
+                        self.config.load().rendering.max_fps,
+                        self.config.load().power.inactive_tab_fps,
                     );
                 }
                 self.focus_state.needs_redraw = true;
@@ -104,8 +104,8 @@ impl WindowState {
         let term = tab.terminal.blocking_read();
         log::info!(
             "[CLOSE_CONFIRM] checking: confirm_close_running_jobs={} jobs_to_ignore_len={}",
-            self.config.load().confirm_close_running_jobs,
-            self.config.load().jobs_to_ignore.len()
+            self.config.load().shell.confirm_close_running_jobs,
+            self.config.load().shell.jobs_to_ignore.len()
         );
         let marker = term.shell_integration_marker();
         let command_name = term.shell_integration_command();
@@ -116,7 +116,7 @@ impl WindowState {
             command_name,
             is_command_running
         );
-        let result = term.should_confirm_close(&self.config.load().jobs_to_ignore);
+        let result = term.should_confirm_close(&self.config.load().shell.jobs_to_ignore);
         log::info!("[CLOSE_CONFIRM] should_confirm_close result={:?}", result);
         result
     }

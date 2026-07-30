@@ -76,8 +76,9 @@ pub fn show_actions_section(
                     );
                 }
 
-                if settings.config.tmux_enabled
-                    && settings.config.custom_action_prefix_key == settings.config.tmux_prefix_key
+                if settings.config.tmux.tmux_enabled
+                    && settings.config.custom_action_prefix_key
+                        == settings.config.tmux.tmux_prefix_key
                 {
                     ui.label(
                         egui::RichText::new(

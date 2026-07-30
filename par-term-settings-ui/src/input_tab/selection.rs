@@ -26,7 +26,7 @@ pub(super) fn show_selection_section(
         |ui| {
             if ui
                 .checkbox(
-                    &mut settings.config.auto_copy_selection,
+                    &mut settings.config.selection.auto_copy_selection,
                     "Auto-copy selection",
                 )
                 .changed()
@@ -37,7 +37,7 @@ pub(super) fn show_selection_section(
 
             if ui
                 .checkbox(
-                    &mut settings.config.copy_trailing_newline,
+                    &mut settings.config.selection.copy_trailing_newline,
                     "Include trailing newline when copying",
                 )
                 .changed()
@@ -48,7 +48,7 @@ pub(super) fn show_selection_section(
 
             if ui
                 .checkbox(
-                    &mut settings.config.middle_click_paste,
+                    &mut settings.config.selection.middle_click_paste,
                     "Middle-click paste",
                 )
                 .changed()
@@ -59,7 +59,7 @@ pub(super) fn show_selection_section(
 
             if ui
                 .checkbox(
-                    &mut settings.config.osc52_clipboard,
+                    &mut settings.config.clipboard.osc52_clipboard,
                     "OSC 52 clipboard sync (programs set clipboard over SSH)",
                 )
                 .on_hover_text(
@@ -79,7 +79,7 @@ pub(super) fn show_selection_section(
                 if ui
                     .add_sized(
                         [SLIDER_WIDTH, SLIDER_HEIGHT],
-                        egui::Slider::new(&mut settings.config.paste_delay_ms, 0..=500),
+                        egui::Slider::new(&mut settings.config.selection.paste_delay_ms, 0..=500),
                     )
                     .on_hover_text(
                         "Delay between pasted lines in milliseconds (0 = no delay). \
@@ -98,12 +98,18 @@ pub(super) fn show_selection_section(
             ui.horizontal(|ui| {
                 ui.label("Quote style:");
                 egui::ComboBox::from_id_salt("input_dropped_file_quote_style")
-                    .selected_text(settings.config.dropped_file_quote_style.display_name())
+                    .selected_text(
+                        settings
+                            .config
+                            .selection
+                            .dropped_file_quote_style
+                            .display_name(),
+                    )
                     .show_ui(ui, |ui| {
                         for style in DroppedFileQuoteStyle::all() {
                             if ui
                                 .selectable_value(
-                                    &mut settings.config.dropped_file_quote_style,
+                                    &mut settings.config.selection.dropped_file_quote_style,
                                     *style,
                                     style.display_name(),
                                 )
@@ -143,7 +149,10 @@ pub(super) fn show_clipboard_limits_section(
                 if ui
                     .add_sized(
                         [SLIDER_WIDTH, SLIDER_HEIGHT],
-                        egui::Slider::new(&mut settings.config.clipboard_max_sync_events, 8..=256),
+                        egui::Slider::new(
+                            &mut settings.config.clipboard.clipboard_max_sync_events,
+                            8..=256,
+                        ),
                     )
                     .changed()
                 {
@@ -158,7 +167,7 @@ pub(super) fn show_clipboard_limits_section(
                     .add_sized(
                         [SLIDER_WIDTH, SLIDER_HEIGHT],
                         egui::Slider::new(
-                            &mut settings.config.clipboard_max_event_bytes,
+                            &mut settings.config.clipboard.clipboard_max_event_bytes,
                             512..=16384,
                         ),
                     )

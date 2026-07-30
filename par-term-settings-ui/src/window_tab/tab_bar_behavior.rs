@@ -17,14 +17,14 @@ pub(super) fn show_tab_bar_section(
         // Tab style preset dropdown
         ui.horizontal(|ui| {
             ui.label("Tab style:");
-            let current_style = settings.config.tab_style;
+            let current_style = settings.config.tabs.tab_style;
             egui::ComboBox::from_id_salt("window_tab_style")
                 .selected_text(current_style.display_name())
                 .show_ui(ui, |ui| {
                     for style in TabStyle::all() {
                         if ui
                             .selectable_value(
-                                &mut settings.config.tab_style,
+                                &mut settings.config.tabs.tab_style,
                                 *style,
                                 style.display_name(),
                             )
@@ -39,18 +39,18 @@ pub(super) fn show_tab_bar_section(
         });
 
         // Show light/dark sub-style dropdowns when Automatic is selected
-        if settings.config.tab_style == TabStyle::Automatic {
+        if settings.config.tabs.tab_style == TabStyle::Automatic {
             ui.indent("auto_tab_style_indent", |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Light tab style:");
-                    let current = settings.config.light_tab_style;
+                    let current = settings.config.tabs.light_tab_style;
                     egui::ComboBox::from_id_salt("window_light_tab_style")
                         .selected_text(current.display_name())
                         .show_ui(ui, |ui| {
                             for style in TabStyle::all_concrete() {
                                 if ui
                                     .selectable_value(
-                                        &mut settings.config.light_tab_style,
+                                        &mut settings.config.tabs.light_tab_style,
                                         *style,
                                         style.display_name(),
                                     )
@@ -64,14 +64,14 @@ pub(super) fn show_tab_bar_section(
                 });
                 ui.horizontal(|ui| {
                     ui.label("Dark tab style:");
-                    let current = settings.config.dark_tab_style;
+                    let current = settings.config.tabs.dark_tab_style;
                     egui::ComboBox::from_id_salt("window_dark_tab_style")
                         .selected_text(current.display_name())
                         .show_ui(ui, |ui| {
                             for style in TabStyle::all_concrete() {
                                 if ui
                                     .selectable_value(
-                                        &mut settings.config.dark_tab_style,
+                                        &mut settings.config.tabs.dark_tab_style,
                                         *style,
                                         style.display_name(),
                                     )
@@ -88,7 +88,7 @@ pub(super) fn show_tab_bar_section(
 
         ui.horizontal(|ui| {
             ui.label("Show tab bar:");
-            let current = match settings.config.tab_bar_mode {
+            let current = match settings.config.tabs.tab_bar_mode {
                 TabBarMode::Always => 0,
                 TabBarMode::WhenMultiple => 1,
                 TabBarMode::Never => 2,
@@ -107,7 +107,7 @@ pub(super) fn show_tab_bar_section(
                     ui.selectable_value(&mut selected, 2, "Never");
                 });
             if selected != current {
-                settings.config.tab_bar_mode = match selected {
+                settings.config.tabs.tab_bar_mode = match selected {
                     0 => TabBarMode::Always,
                     1 => TabBarMode::WhenMultiple,
                     2 => TabBarMode::Never,
@@ -120,7 +120,7 @@ pub(super) fn show_tab_bar_section(
 
         ui.horizontal(|ui| {
             ui.label("Tab title mode:");
-            let current = match settings.config.tab_title_mode {
+            let current = match settings.config.tabs.tab_title_mode {
                 TabTitleMode::Auto => 0,
                 TabTitleMode::OscOnly => 1,
             };
@@ -138,7 +138,7 @@ pub(super) fn show_tab_bar_section(
                         .on_hover_text("Only use titles set by OSC escape sequences");
                 });
             if selected != current {
-                settings.config.tab_title_mode = match selected {
+                settings.config.tabs.tab_title_mode = match selected {
                     0 => TabTitleMode::Auto,
                     1 => TabTitleMode::OscOnly,
                     _ => TabTitleMode::Auto,
@@ -151,12 +151,12 @@ pub(super) fn show_tab_bar_section(
         ui.horizontal(|ui| {
             ui.label("Remote tab title format:");
             egui::ComboBox::from_id_salt("window_remote_tab_title_format")
-                .selected_text(settings.config.remote_tab_title_format.display_name())
+                .selected_text(settings.config.tabs.remote_tab_title_format.display_name())
                 .show_ui(ui, |ui| {
                     for &fmt in RemoteTabTitleFormat::all() {
                         if ui
                             .selectable_value(
-                                &mut settings.config.remote_tab_title_format,
+                                &mut settings.config.tabs.remote_tab_title_format,
                                 fmt,
                                 fmt.display_name(),
                             )
@@ -180,7 +180,7 @@ pub(super) fn show_tab_bar_section(
 
         if ui
             .checkbox(
-                &mut settings.config.remote_tab_title_osc_priority,
+                &mut settings.config.tabs.remote_tab_title_osc_priority,
                 "OSC title takes priority on remote hosts",
             )
             .on_hover_text(
@@ -195,14 +195,14 @@ pub(super) fn show_tab_bar_section(
 
         ui.horizontal(|ui| {
             ui.label("Position:");
-            let current_position = settings.config.tab_bar_position;
+            let current_position = settings.config.tabs.tab_bar_position;
             egui::ComboBox::from_id_salt("window_tab_bar_position")
                 .selected_text(current_position.display_name())
                 .show_ui(ui, |ui| {
                     for &pos in TabBarPosition::all() {
                         if ui
                             .selectable_value(
-                                &mut settings.config.tab_bar_position,
+                                &mut settings.config.tabs.tab_bar_position,
                                 pos,
                                 pos.display_name(),
                             )
@@ -216,12 +216,12 @@ pub(super) fn show_tab_bar_section(
         });
 
         // Show tab bar width slider only for Left position
-        if settings.config.tab_bar_position == TabBarPosition::Left {
+        if settings.config.tabs.tab_bar_position == TabBarPosition::Left {
             ui.horizontal(|ui| {
                 ui.label("Tab bar width:");
                 if ui
                     .add(
-                        egui::Slider::new(&mut settings.config.tab_bar_width, 100.0..=300.0)
+                        egui::Slider::new(&mut settings.config.tabs.tab_bar_width, 100.0..=300.0)
                             .step_by(1.0)
                             .suffix("px"),
                     )
@@ -238,7 +238,7 @@ pub(super) fn show_tab_bar_section(
             ui.label("Tab bar height:");
             if ui
                 .add(
-                    egui::Slider::new(&mut settings.config.tab_bar_height, 20.0..=50.0)
+                    egui::Slider::new(&mut settings.config.tabs.tab_bar_height, 20.0..=50.0)
                         .step_by(1.0)
                         .suffix("px"),
                 )
@@ -252,7 +252,7 @@ pub(super) fn show_tab_bar_section(
 
         if ui
             .checkbox(
-                &mut settings.config.tab_show_index,
+                &mut settings.config.tabs.tab_show_index,
                 "Show tab index numbers",
             )
             .on_hover_text("Display tab numbers (1, 2, 3...) in tab titles for keyboard navigation")
@@ -264,7 +264,7 @@ pub(super) fn show_tab_bar_section(
 
         if ui
             .checkbox(
-                &mut settings.config.tab_show_close_button,
+                &mut settings.config.tabs.tab_show_close_button,
                 "Show close button on tabs",
             )
             .changed()
@@ -275,7 +275,7 @@ pub(super) fn show_tab_bar_section(
 
         if ui
             .checkbox(
-                &mut settings.config.tab_stretch_to_fill,
+                &mut settings.config.tab_colors.tab_stretch_to_fill,
                 "Stretch tabs to fill bar",
             )
             .on_hover_text("Make tabs share available width evenly when they fit without scrolling")
@@ -286,7 +286,10 @@ pub(super) fn show_tab_bar_section(
         }
 
         if ui
-            .checkbox(&mut settings.config.tab_html_titles, "HTML tab titles")
+            .checkbox(
+                &mut settings.config.tab_colors.tab_html_titles,
+                "HTML tab titles",
+            )
             .on_hover_text(
                 "Render limited HTML in tab titles: <b>, <i>, <u>, <span style=\"color:...\">",
             )
@@ -300,7 +303,7 @@ pub(super) fn show_tab_bar_section(
 
         if ui
             .checkbox(
-                &mut settings.config.tab_inherit_cwd,
+                &mut settings.config.tabs.tab_inherit_cwd,
                 "New tabs inherit current directory",
             )
             .on_hover_text("When opening a new tab, start in the same directory as the current tab")
@@ -314,12 +317,12 @@ pub(super) fn show_tab_bar_section(
         ui.horizontal(|ui| {
             ui.label("New tab position:");
             egui::ComboBox::from_id_salt("window_new_tab_position")
-                .selected_text(settings.config.new_tab_position.display_name())
+                .selected_text(settings.config.tabs.new_tab_position.display_name())
                 .show_ui(ui, |ui| {
                     for &pos in NewTabPosition::all() {
                         if ui
                             .selectable_value(
-                                &mut settings.config.new_tab_position,
+                                &mut settings.config.tabs.new_tab_position,
                                 pos,
                                 pos.display_name(),
                             )
@@ -342,7 +345,7 @@ pub(super) fn show_tab_bar_section(
 
         if ui
             .checkbox(
-                &mut settings.config.show_profile_drawer_button,
+                &mut settings.config.tabs.show_profile_drawer_button,
                 "Show profile drawer button",
             )
             .on_hover_text(
@@ -356,7 +359,7 @@ pub(super) fn show_tab_bar_section(
 
         if ui
             .checkbox(
-                &mut settings.config.new_tab_shortcut_shows_profiles,
+                &mut settings.config.tabs.new_tab_shortcut_shows_profiles,
                 "New tab shortcut shows profile picker",
             )
             .on_hover_text(
@@ -371,17 +374,17 @@ pub(super) fn show_tab_bar_section(
         ui.horizontal(|ui| {
             ui.label("Maximum tabs:");
             // Convert usize to u32 for slider
-            let mut max_tabs = settings.config.max_tabs as u32;
+            let mut max_tabs = settings.config.tabs.max_tabs as u32;
             if ui
                 .add(egui::Slider::new(&mut max_tabs, 0..=50))
                 .on_hover_text("Maximum number of tabs allowed (0 = unlimited)")
                 .changed()
             {
-                settings.config.max_tabs = max_tabs as usize;
+                settings.config.tabs.max_tabs = max_tabs as usize;
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
-            if settings.config.max_tabs == 0 {
+            if settings.config.tabs.max_tabs == 0 {
                 ui.label("(unlimited)");
             }
         });

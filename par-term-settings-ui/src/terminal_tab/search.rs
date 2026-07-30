@@ -168,7 +168,7 @@ pub(super) fn show_command_separator_section(
         |ui| {
             if ui
                 .checkbox(
-                    &mut settings.config.command_separator_enabled,
+                    &mut settings.config.command_separator.command_separator_enabled,
                     "Show separator lines between commands (requires shell integration)",
                 )
                 .changed()
@@ -177,76 +177,94 @@ pub(super) fn show_command_separator_section(
                 *changes_this_frame = true;
             }
 
-            ui.add_enabled_ui(settings.config.command_separator_enabled, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label("Thickness (px):");
-                    if ui
-                        .add_sized(
-                            [SLIDER_WIDTH, SLIDER_HEIGHT],
-                            egui::Slider::new(
-                                &mut settings.config.command_separator_thickness,
-                                0.5..=5.0,
-                            ),
-                        )
-                        .changed()
-                    {
-                        settings.has_changes = true;
-                        *changes_this_frame = true;
-                    }
-                });
-
-                ui.horizontal(|ui| {
-                    ui.label("Opacity:");
-                    if ui
-                        .add_sized(
-                            [SLIDER_WIDTH, SLIDER_HEIGHT],
-                            egui::Slider::new(
-                                &mut settings.config.command_separator_opacity,
-                                0.0..=1.0,
-                            ),
-                        )
-                        .changed()
-                    {
-                        settings.has_changes = true;
-                        *changes_this_frame = true;
-                    }
-                });
-
-                if ui
-                    .checkbox(
-                        &mut settings.config.command_separator_exit_color,
-                        "Color by exit code (green=success, red=failure)",
-                    )
-                    .changed()
-                {
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
-                }
-
-                // Custom color picker (only when exit-code coloring is off)
-                ui.add_enabled_ui(!settings.config.command_separator_exit_color, |ui| {
+            ui.add_enabled_ui(
+                settings.config.command_separator.command_separator_enabled,
+                |ui| {
                     ui.horizontal(|ui| {
-                        ui.label("Custom color:");
-                        let mut color = egui::Color32::from_rgb(
-                            settings.config.command_separator_color[0],
-                            settings.config.command_separator_color[1],
-                            settings.config.command_separator_color[2],
-                        );
-                        if egui::color_picker::color_edit_button_srgba(
-                            ui,
-                            &mut color,
-                            egui::color_picker::Alpha::Opaque,
-                        )
-                        .changed()
+                        ui.label("Thickness (px):");
+                        if ui
+                            .add_sized(
+                                [SLIDER_WIDTH, SLIDER_HEIGHT],
+                                egui::Slider::new(
+                                    &mut settings
+                                        .config
+                                        .command_separator
+                                        .command_separator_thickness,
+                                    0.5..=5.0,
+                                ),
+                            )
+                            .changed()
                         {
-                            settings.config.command_separator_color =
-                                [color.r(), color.g(), color.b()];
                             settings.has_changes = true;
                             *changes_this_frame = true;
                         }
                     });
-                });
-            });
+
+                    ui.horizontal(|ui| {
+                        ui.label("Opacity:");
+                        if ui
+                            .add_sized(
+                                [SLIDER_WIDTH, SLIDER_HEIGHT],
+                                egui::Slider::new(
+                                    &mut settings
+                                        .config
+                                        .command_separator
+                                        .command_separator_opacity,
+                                    0.0..=1.0,
+                                ),
+                            )
+                            .changed()
+                        {
+                            settings.has_changes = true;
+                            *changes_this_frame = true;
+                        }
+                    });
+
+                    if ui
+                        .checkbox(
+                            &mut settings
+                                .config
+                                .command_separator
+                                .command_separator_exit_color,
+                            "Color by exit code (green=success, red=failure)",
+                        )
+                        .changed()
+                    {
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
+
+                    // Custom color picker (only when exit-code coloring is off)
+                    ui.add_enabled_ui(
+                        !settings
+                            .config
+                            .command_separator
+                            .command_separator_exit_color,
+                        |ui| {
+                            ui.horizontal(|ui| {
+                                ui.label("Custom color:");
+                                let mut color = egui::Color32::from_rgb(
+                                    settings.config.command_separator.command_separator_color[0],
+                                    settings.config.command_separator.command_separator_color[1],
+                                    settings.config.command_separator.command_separator_color[2],
+                                );
+                                if egui::color_picker::color_edit_button_srgba(
+                                    ui,
+                                    &mut color,
+                                    egui::color_picker::Alpha::Opaque,
+                                )
+                                .changed()
+                                {
+                                    settings.config.command_separator.command_separator_color =
+                                        [color.r(), color.g(), color.b()];
+                                    settings.has_changes = true;
+                                    *changes_this_frame = true;
+                                }
+                            });
+                        },
+                    );
+                },
+            );
         },
     );
 }

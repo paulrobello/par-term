@@ -19,7 +19,7 @@ impl WindowState {
     /// try_lock: intentional — clipboard polling runs in about_to_wait (sync
     /// event loop). On a miss the write is simply retried next frame.
     pub(crate) fn check_clipboard_sync(&mut self) {
-        if !self.config.load().osc52_clipboard {
+        if !self.config.load().clipboard.osc52_clipboard {
             return;
         }
 

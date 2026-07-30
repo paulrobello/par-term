@@ -114,8 +114,8 @@ impl WindowState {
                     tab.start_pane_refresh_tasks(
                         Arc::clone(&self.runtime),
                         Arc::clone(window),
-                        self.config.load().max_fps,
-                        self.config.load().inactive_tab_fps,
+                        self.config.load().rendering.max_fps,
+                        self.config.load().power.inactive_tab_fps,
                     );
                 }
                 self.focus_state.needs_redraw = true;
@@ -194,7 +194,7 @@ impl WindowState {
         // Fall through to local close if tmux command failed or not connected
 
         // Check if we need to show confirmation for running jobs
-        if self.config.load().confirm_close_running_jobs
+        if self.config.load().shell.confirm_close_running_jobs
             && let Some(command_name) = self.check_current_pane_running_job()
             && let Some(tab) = self.tab_manager.active_tab()
             && let Some(pane_id) = tab.focused_pane_id()
@@ -257,7 +257,7 @@ impl WindowState {
                 term.shell_integration_marker(),
                 term.shell_integration_command()
             );
-            return term.should_confirm_close(&self.config.load().jobs_to_ignore);
+            return term.should_confirm_close(&self.config.load().shell.jobs_to_ignore);
         }
 
         // Single pane - use the tab's terminal.
@@ -269,7 +269,7 @@ impl WindowState {
             term.shell_integration_command(),
             term.is_command_running()
         );
-        term.should_confirm_close(&self.config.load().jobs_to_ignore)
+        term.should_confirm_close(&self.config.load().shell.jobs_to_ignore)
     }
 
     /// Check if the current tab has multiple panes

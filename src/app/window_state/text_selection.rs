@@ -72,9 +72,14 @@ impl WindowState {
             .collect();
 
         // Get config values
-        let smart_selection_enabled = self.config.load().smart_selection_enabled;
-        let word_characters = self.config.load().word_characters.clone();
-        let smart_selection_rules = self.config.load().smart_selection_rules.clone();
+        let smart_selection_enabled = self.config.load().word_selection.smart_selection_enabled;
+        let word_characters = self.config.load().word_selection.word_characters.clone();
+        let smart_selection_rules = self
+            .config
+            .load()
+            .word_selection
+            .smart_selection_rules
+            .clone();
 
         // Try smart selection first if enabled
         let (start_col, end_col) = if smart_selection_enabled {
@@ -342,7 +347,7 @@ impl WindowState {
         }
 
         // Inverted config logic: false means strip trailing line endings.
-        if !self.config.load().copy_trailing_newline {
+        if !self.config.load().selection.copy_trailing_newline {
             while selected_text.ends_with('\n') || selected_text.ends_with('\r') {
                 selected_text.pop();
             }

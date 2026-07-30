@@ -200,12 +200,12 @@ impl Config {
     /// themselves and then chmod it to `0o700`, so nothing is lost by removing
     /// the side effect here.
     pub fn logs_dir(&self) -> PathBuf {
-        match self.session_log_directory.strip_prefix("~/") {
+        match self.session_log.session_log_directory.strip_prefix("~/") {
             Some(rest) => match dirs::home_dir() {
                 Some(home) => home.join(rest),
-                None => PathBuf::from(&self.session_log_directory),
+                None => PathBuf::from(&self.session_log.session_log_directory),
             },
-            None => PathBuf::from(&self.session_log_directory),
+            None => PathBuf::from(&self.session_log.session_log_directory),
         }
     }
 
@@ -214,7 +214,7 @@ impl Config {
     /// If it's "tmux" (the default), search PATH and common installation locations.
     /// This handles cases where PATH may be incomplete (e.g., app launched from Finder).
     pub fn resolve_tmux_path(&self) -> String {
-        let configured = &self.tmux_path;
+        let configured = &self.tmux.tmux_path;
 
         // If it's an absolute path and exists, use it directly
         if configured.starts_with('/') && std::path::Path::new(configured).exists() {
@@ -282,12 +282,15 @@ impl Config {
     /// # Arguments
     /// * `current_version` - The application version (from root crate's `VERSION` constant)
     pub fn should_prompt_shell_integration(&self, current_version: &str) -> bool {
-        if self.shell_integration_state != InstallPromptState::Ask {
+        if self.integrations.shell_integration_state != InstallPromptState::Ask {
             return false;
         }
 
         // Check if already prompted for this version
-        if let Some(ref prompted) = self.integration_versions.shell_integration_prompted_version
+        if let Some(ref prompted) = self
+            .integrations
+            .integration_versions
+            .shell_integration_prompted_version
             && prompted == current_version
         {
             return false;
@@ -295,6 +298,7 @@ impl Config {
 
         // Check if installed and up to date
         if let Some(ref installed) = self
+            .integrations
             .integration_versions
             .shell_integration_installed_version
             && installed == current_version
@@ -326,7 +330,7 @@ impl Config {
     /// Returns None if the effective directory doesn't exist (caller should fall back to default).
     pub fn get_effective_startup_directory(&self) -> Option<String> {
         // Legacy working_directory takes precedence for backward compatibility
-        if let Some(ref wd) = self.working_directory {
+        if let Some(ref wd) = self.shell.working_directory {
             let expanded = Self::expand_home_dir(wd);
             if std::path::Path::new(&expanded).exists() {
                 return Some(expanded);
@@ -337,14 +341,14 @@ impl Config {
             );
         }
 
-        match self.startup_directory_mode {
+        match self.shell.startup_directory_mode {
             StartupDirectoryMode::Home => {
                 // Return home directory
                 dirs::home_dir().map(|p| p.to_string_lossy().to_string())
             }
             StartupDirectoryMode::Previous => {
                 // Return last working directory if it exists
-                if let Some(ref last_dir) = self.last_working_directory {
+                if let Some(ref last_dir) = self.shell.last_working_directory {
                     let expanded = Self::expand_home_dir(last_dir);
                     if std::path::Path::new(&expanded).exists() {
                         return Some(expanded);
@@ -359,7 +363,7 @@ impl Config {
             }
             StartupDirectoryMode::Custom => {
                 // Return custom directory if set and exists
-                if let Some(ref custom_dir) = self.startup_directory {
+                if let Some(ref custom_dir) = self.shell.startup_directory {
                     let expanded = Self::expand_home_dir(custom_dir);
                     if std::path::Path::new(&expanded).exists() {
                         return Some(expanded);
@@ -425,7 +429,7 @@ impl Config {
     /// temp file fails. The in-memory field is updated before any of these can
     /// fail.
     pub fn save_last_working_directory(&mut self, directory: &str) -> Result<()> {
-        self.last_working_directory = Some(directory.to_string());
+        self.shell.last_working_directory = Some(directory.to_string());
 
         let state_path = Self::state_file_path();
 
@@ -467,7 +471,7 @@ impl Config {
                     && let Some(dir) = state.last_working_directory
                 {
                     log::debug!("Loaded last working directory from state file: {}", dir);
-                    self.last_working_directory = Some(dir);
+                    self.shell.last_working_directory = Some(dir);
                 }
             }
             Err(e) => {
@@ -482,7 +486,8 @@ impl Config {
         &self,
         index: usize,
     ) -> Option<(String, BackgroundImageMode, f32, f32)> {
-        self.pane_backgrounds
+        self.image
+            .pane_backgrounds
             .iter()
             .find(|pb| pb.index == index)
             .map(|pb| (pb.image.clone(), pb.mode, pb.opacity, pb.darken))
@@ -518,7 +523,7 @@ impl Config {
     pub(crate) fn warn_insecure_triggers(&mut self) {
         self.insecure_trigger_names.clear();
         self.unaccepted_risk_trigger_names.clear();
-        for trigger in &self.triggers {
+        for trigger in &self.automation.triggers {
             if !trigger.prompt_before_run && trigger.actions.iter().any(|a| a.is_dangerous()) {
                 crate::automation::warn_prompt_before_run_false(
                     &trigger.name,

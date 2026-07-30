@@ -35,7 +35,7 @@ impl TabBarUI {
         // Layout constants
         let tab_spacing = TAB_SPACING;
         let left_padding = TAB_LEFT_PADDING;
-        let btn_h = config.tab_bar_height - TAB_DRAW_SHRINK_Y * 2.0;
+        let btn_h = config.tabs.tab_bar_height - TAB_DRAW_SHRINK_Y * 2.0;
         // Show the chevron dropdown when there's menu content:
         // profiles to pick from, or the AI assistant toggle.
         let show_chevron = !profiles.is_empty() || config.ai_inspector.ai_inspector_enabled;
@@ -51,14 +51,14 @@ impl TabBarUI {
             0.0
         };
 
-        let bar_bg = config.tab_bar_background;
+        let bar_bg = config.tab_colors.tab_bar_background;
         let frame =
             egui::Frame::NONE.fill(egui::Color32::from_rgb(bar_bg[0], bar_bg[1], bar_bg[2]));
 
-        let panel = if config.tab_bar_position == TabBarPosition::Bottom {
-            egui::Panel::bottom("tab_bar").exact_size(config.tab_bar_height)
+        let panel = if config.tabs.tab_bar_position == TabBarPosition::Bottom {
+            egui::Panel::bottom("tab_bar").exact_size(config.tabs.tab_bar_height)
         } else {
-            egui::Panel::top("tab_bar").exact_size(config.tab_bar_height)
+            egui::Panel::top("tab_bar").exact_size(config.tabs.tab_bar_height)
         };
 
         panel.frame(frame).show(ctx, |ui| {
@@ -68,7 +68,8 @@ impl TabBarUI {
 
             // Calculate minimum total width needed for all tabs at min_width
             let min_total_tabs_width = if tab_count > 0 {
-                tab_count as f32 * config.tab_min_width + (tab_count - 1) as f32 * tab_spacing
+                tab_count as f32 * config.tab_colors.tab_min_width
+                    + (tab_count - 1) as f32 * tab_spacing
             } else {
                 0.0
             };
@@ -93,13 +94,13 @@ impl TabBarUI {
 
             // Calculate tab width
             let tab_width = if tab_count == 0 || needs_scroll {
-                config.tab_min_width
-            } else if config.tab_stretch_to_fill {
+                config.tab_colors.tab_min_width
+            } else if config.tab_colors.tab_stretch_to_fill {
                 let total_spacing = (tab_count - 1) as f32 * tab_spacing;
                 let stretched = (tabs_area_width - total_spacing) / tab_count as f32;
-                stretched.max(config.tab_min_width)
+                stretched.max(config.tab_colors.tab_min_width)
             } else {
-                config.tab_min_width
+                config.tab_colors.tab_min_width
             };
 
             // Calculate max scroll offset

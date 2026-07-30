@@ -16,7 +16,7 @@ pub(super) fn show_scrollbar_section(
     collapsing_section(ui, "Scrollbar", "window_scrollbar", true, collapsed, |ui| {
         if ui
             .checkbox(
-                &mut settings.config.scrollbar_command_marks,
+                &mut settings.config.scrollbar.scrollbar_command_marks,
                 "Show command markers (requires shell integration)",
             )
             .changed()
@@ -28,10 +28,10 @@ pub(super) fn show_scrollbar_section(
         // Indent the tooltip option under command markers
         ui.horizontal(|ui| {
             ui.add_space(20.0);
-            ui.add_enabled_ui(settings.config.scrollbar_command_marks, |ui| {
+            ui.add_enabled_ui(settings.config.scrollbar.scrollbar_command_marks, |ui| {
                 if ui
                     .checkbox(
-                        &mut settings.config.scrollbar_mark_tooltips,
+                        &mut settings.config.scrollbar.scrollbar_mark_tooltips,
                         "Show tooltips on hover",
                     )
                     .changed()
@@ -47,7 +47,7 @@ pub(super) fn show_scrollbar_section(
             if ui
                 .add_sized(
                     [SLIDER_WIDTH, SLIDER_HEIGHT],
-                    egui::Slider::new(&mut settings.config.scrollbar_width, 4.0..=50.0),
+                    egui::Slider::new(&mut settings.config.scrollbar.scrollbar_width, 4.0..=50.0),
                 )
                 .changed()
             {
@@ -61,7 +61,10 @@ pub(super) fn show_scrollbar_section(
             if ui
                 .add_sized(
                     [SLIDER_WIDTH, SLIDER_HEIGHT],
-                    egui::Slider::new(&mut settings.config.scrollbar_autohide_delay, 0..=5000),
+                    egui::Slider::new(
+                        &mut settings.config.scrollbar.scrollbar_autohide_delay,
+                        0..=5000,
+                    ),
                 )
                 .changed()
             {
@@ -76,10 +79,10 @@ pub(super) fn show_scrollbar_section(
         ui.horizontal(|ui| {
             ui.label("Thumb color:");
             let mut thumb = egui::Color32::from_rgba_unmultiplied(
-                (settings.config.scrollbar_thumb_color[0] * 255.0) as u8,
-                (settings.config.scrollbar_thumb_color[1] * 255.0) as u8,
-                (settings.config.scrollbar_thumb_color[2] * 255.0) as u8,
-                (settings.config.scrollbar_thumb_color[3] * 255.0) as u8,
+                (settings.config.scrollbar.scrollbar_thumb_color[0] * 255.0) as u8,
+                (settings.config.scrollbar.scrollbar_thumb_color[1] * 255.0) as u8,
+                (settings.config.scrollbar.scrollbar_thumb_color[2] * 255.0) as u8,
+                (settings.config.scrollbar.scrollbar_thumb_color[3] * 255.0) as u8,
             );
             if egui::color_picker::color_edit_button_srgba(
                 ui,
@@ -88,7 +91,7 @@ pub(super) fn show_scrollbar_section(
             )
             .changed()
             {
-                settings.config.scrollbar_thumb_color =
+                settings.config.scrollbar.scrollbar_thumb_color =
                     color_u8x4_to_f32([thumb.r(), thumb.g(), thumb.b(), thumb.a()]);
                 settings.has_changes = true;
                 *changes_this_frame = true;
@@ -98,10 +101,10 @@ pub(super) fn show_scrollbar_section(
         ui.horizontal(|ui| {
             ui.label("Track color:");
             let mut track = egui::Color32::from_rgba_unmultiplied(
-                (settings.config.scrollbar_track_color[0] * 255.0) as u8,
-                (settings.config.scrollbar_track_color[1] * 255.0) as u8,
-                (settings.config.scrollbar_track_color[2] * 255.0) as u8,
-                (settings.config.scrollbar_track_color[3] * 255.0) as u8,
+                (settings.config.scrollbar.scrollbar_track_color[0] * 255.0) as u8,
+                (settings.config.scrollbar.scrollbar_track_color[1] * 255.0) as u8,
+                (settings.config.scrollbar.scrollbar_track_color[2] * 255.0) as u8,
+                (settings.config.scrollbar.scrollbar_track_color[3] * 255.0) as u8,
             );
             if egui::color_picker::color_edit_button_srgba(
                 ui,
@@ -110,7 +113,7 @@ pub(super) fn show_scrollbar_section(
             )
             .changed()
             {
-                settings.config.scrollbar_track_color =
+                settings.config.scrollbar.scrollbar_track_color =
                     color_u8x4_to_f32([track.r(), track.g(), track.b(), track.a()]);
                 settings.has_changes = true;
                 *changes_this_frame = true;

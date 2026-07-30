@@ -219,8 +219,8 @@ impl WindowState {
             && let Some(action) = self.keybinding_registry.lookup_with_options(
                 &event,
                 &self.input_handler.modifiers,
-                &self.config.load().modifier_remapping,
-                self.config.load().use_physical_keys,
+                &self.config.load().input.modifier_remapping,
+                self.config.load().input.use_physical_keys,
             )
         {
             crate::debug_info!(

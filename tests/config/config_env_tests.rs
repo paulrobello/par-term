@@ -2,8 +2,8 @@
 //! tab bar position, auto dark mode, and auto tab style config settings.
 
 use par_term::config::{
-    Config, TabBarPosition, TabStyle, is_env_var_allowed, substitute_variables,
-    substitute_variables_with_lookup,
+    Config, TabBarPosition, TabConfig, TabStyle, ThemeColorsConfig, is_env_var_allowed,
+    substitute_variables, substitute_variables_with_lookup,
 };
 
 // ============================================================================
@@ -316,7 +316,7 @@ fn test_substitute_escaped_dollar_still_works_with_allowlist() {
 #[test]
 fn test_config_default_allow_all_env_vars_is_false() {
     let config = Config::default();
-    assert!(!config.allow_all_env_vars);
+    assert!(!config.security.allow_all_env_vars);
 }
 
 // ============================================================================
@@ -326,8 +326,8 @@ fn test_config_default_allow_all_env_vars_is_false() {
 #[test]
 fn test_tab_bar_position_default() {
     let config = Config::default();
-    assert_eq!(config.tab_bar_position, TabBarPosition::Top);
-    assert_eq!(config.tab_bar_width, 160.0);
+    assert_eq!(config.tabs.tab_bar_position, TabBarPosition::Top);
+    assert_eq!(config.tabs.tab_bar_width, 160.0);
 }
 
 #[test]
@@ -335,14 +335,17 @@ fn test_tab_bar_position_serialization() {
     // Round-trip serialization for all variants
     for &position in TabBarPosition::all() {
         let config = Config {
-            tab_bar_position: position,
+            tabs: TabConfig {
+                tab_bar_position: position,
+                ..Default::default()
+            },
             ..Config::default()
         };
 
         let yaml = serde_yaml_ng::to_string(&config).unwrap();
         let deserialized: Config = serde_yaml_ng::from_str(&yaml).unwrap();
         assert_eq!(
-            deserialized.tab_bar_position, position,
+            deserialized.tabs.tab_bar_position, position,
             "Round-trip failed for {:?}",
             position
         );
@@ -353,15 +356,15 @@ fn test_tab_bar_position_serialization() {
 fn test_tab_bar_position_yaml_variants() {
     let yaml = r#"tab_bar_position: top"#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert_eq!(config.tab_bar_position, TabBarPosition::Top);
+    assert_eq!(config.tabs.tab_bar_position, TabBarPosition::Top);
 
     let yaml = r#"tab_bar_position: bottom"#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert_eq!(config.tab_bar_position, TabBarPosition::Bottom);
+    assert_eq!(config.tabs.tab_bar_position, TabBarPosition::Bottom);
 
     let yaml = r#"tab_bar_position: left"#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert_eq!(config.tab_bar_position, TabBarPosition::Left);
+    assert_eq!(config.tabs.tab_bar_position, TabBarPosition::Left);
 }
 
 #[test]
@@ -371,8 +374,8 @@ fn test_tab_bar_position_partial_yaml() {
 cols: 100
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert_eq!(config.tab_bar_position, TabBarPosition::Top);
-    assert_eq!(config.tab_bar_width, 160.0);
+    assert_eq!(config.tabs.tab_bar_position, TabBarPosition::Top);
+    assert_eq!(config.tabs.tab_bar_width, 160.0);
 }
 
 #[test]
@@ -382,15 +385,18 @@ tab_bar_position: left
 tab_bar_width: 250.0
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert_eq!(config.tab_bar_position, TabBarPosition::Left);
-    assert!((config.tab_bar_width - 250.0).abs() < f32::EPSILON);
+    assert_eq!(config.tabs.tab_bar_position, TabBarPosition::Left);
+    assert!((config.tabs.tab_bar_width - 250.0).abs() < f32::EPSILON);
 }
 
 #[test]
 fn test_tab_bar_width_yaml_serialization() {
     let config = Config {
-        tab_bar_position: TabBarPosition::Left,
-        tab_bar_width: 200.0,
+        tabs: TabConfig {
+            tab_bar_position: TabBarPosition::Left,
+            tab_bar_width: 200.0,
+            ..Default::default()
+        },
         ..Config::default()
     };
 
@@ -406,61 +412,73 @@ fn test_tab_bar_width_yaml_serialization() {
 #[test]
 fn test_auto_dark_mode_defaults() {
     let config = Config::default();
-    assert!(!config.auto_dark_mode);
-    assert_eq!(config.light_theme, "light-background");
-    assert_eq!(config.dark_theme, "dark-background");
+    assert!(!config.theme_colors.auto_dark_mode);
+    assert_eq!(config.theme_colors.light_theme, "light-background");
+    assert_eq!(config.theme_colors.dark_theme, "dark-background");
 }
 
 #[test]
 fn test_apply_system_theme_disabled() {
     let mut config = Config {
-        auto_dark_mode: false,
+        theme_colors: ThemeColorsConfig {
+            auto_dark_mode: false,
+            ..Default::default()
+        },
         ..Config::default()
     };
     // Should not change theme when auto_dark_mode is off
     assert!(!config.apply_system_theme(true));
     assert!(!config.apply_system_theme(false));
-    assert_eq!(config.theme, "dark-background");
+    assert_eq!(config.theme_colors.theme, "dark-background");
 }
 
 #[test]
 fn test_apply_system_theme_dark() {
     let mut config = Config {
-        auto_dark_mode: true,
-        theme: "light-background".to_string(),
-        dark_theme: "dracula".to_string(),
+        theme_colors: ThemeColorsConfig {
+            auto_dark_mode: true,
+            theme: "light-background".to_string(),
+            dark_theme: "dracula".to_string(),
+            ..Default::default()
+        },
         ..Config::default()
     };
 
     assert!(config.apply_system_theme(true));
-    assert_eq!(config.theme, "dracula");
+    assert_eq!(config.theme_colors.theme, "dracula");
 }
 
 #[test]
 fn test_apply_system_theme_light() {
     let mut config = Config {
-        auto_dark_mode: true,
-        theme: "dark-background".to_string(),
-        light_theme: "solarized-light".to_string(),
+        theme_colors: ThemeColorsConfig {
+            auto_dark_mode: true,
+            theme: "dark-background".to_string(),
+            light_theme: "solarized-light".to_string(),
+            ..Default::default()
+        },
         ..Config::default()
     };
 
     assert!(config.apply_system_theme(false));
-    assert_eq!(config.theme, "solarized-light");
+    assert_eq!(config.theme_colors.theme, "solarized-light");
 }
 
 #[test]
 fn test_apply_system_theme_no_change() {
     let mut config = Config {
-        auto_dark_mode: true,
-        theme: "dark-background".to_string(),
-        dark_theme: "dark-background".to_string(),
+        theme_colors: ThemeColorsConfig {
+            auto_dark_mode: true,
+            theme: "dark-background".to_string(),
+            dark_theme: "dark-background".to_string(),
+            ..Default::default()
+        },
         ..Config::default()
     };
 
     // Already using the dark theme, should return false (no change)
     assert!(!config.apply_system_theme(true));
-    assert_eq!(config.theme, "dark-background");
+    assert_eq!(config.theme_colors.theme, "dark-background");
 }
 
 #[test]
@@ -471,18 +489,18 @@ light_theme: solarized-light
 dark_theme: dracula
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert!(config.auto_dark_mode);
-    assert_eq!(config.light_theme, "solarized-light");
-    assert_eq!(config.dark_theme, "dracula");
+    assert!(config.theme_colors.auto_dark_mode);
+    assert_eq!(config.theme_colors.light_theme, "solarized-light");
+    assert_eq!(config.theme_colors.dark_theme, "dracula");
 }
 
 #[test]
 fn test_auto_dark_mode_yaml_defaults_when_absent() {
     let yaml = "cols: 120\n";
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert!(!config.auto_dark_mode);
-    assert_eq!(config.light_theme, "light-background");
-    assert_eq!(config.dark_theme, "dark-background");
+    assert!(!config.theme_colors.auto_dark_mode);
+    assert_eq!(config.theme_colors.light_theme, "light-background");
+    assert_eq!(config.theme_colors.dark_theme, "dark-background");
 }
 
 // =============================================================================
@@ -492,15 +510,18 @@ fn test_auto_dark_mode_yaml_defaults_when_absent() {
 #[test]
 fn test_auto_tab_style_defaults() {
     let config = Config::default();
-    assert_eq!(config.tab_style, TabStyle::Dark);
-    assert_eq!(config.light_tab_style, TabStyle::Light);
-    assert_eq!(config.dark_tab_style, TabStyle::Dark);
+    assert_eq!(config.tabs.tab_style, TabStyle::Dark);
+    assert_eq!(config.tabs.light_tab_style, TabStyle::Light);
+    assert_eq!(config.tabs.dark_tab_style, TabStyle::Dark);
 }
 
 #[test]
 fn test_apply_system_tab_style_disabled_when_not_automatic() {
     let mut config = Config {
-        tab_style: TabStyle::Dark,
+        tabs: TabConfig {
+            tab_style: TabStyle::Dark,
+            ..Default::default()
+        },
         ..Config::default()
     };
     assert!(!config.apply_system_tab_style(true));
@@ -510,43 +531,52 @@ fn test_apply_system_tab_style_disabled_when_not_automatic() {
 #[test]
 fn test_apply_system_tab_style_dark() {
     let mut config = Config {
-        tab_style: TabStyle::Automatic,
-        dark_tab_style: TabStyle::HighContrast,
+        tabs: TabConfig {
+            tab_style: TabStyle::Automatic,
+            dark_tab_style: TabStyle::HighContrast,
+            ..Default::default()
+        },
         ..Config::default()
     };
 
     assert!(config.apply_system_tab_style(true));
     // Should have applied HighContrast colors but kept Automatic as the tab_style
-    assert_eq!(config.tab_style, TabStyle::Automatic);
+    assert_eq!(config.tabs.tab_style, TabStyle::Automatic);
     // HighContrast sets tab_bar_background to [0, 0, 0]
-    assert_eq!(config.tab_bar_background, [0, 0, 0]);
+    assert_eq!(config.tab_colors.tab_bar_background, [0, 0, 0]);
 }
 
 #[test]
 fn test_apply_system_tab_style_light() {
     let mut config = Config {
-        tab_style: TabStyle::Automatic,
-        light_tab_style: TabStyle::Light,
+        tabs: TabConfig {
+            tab_style: TabStyle::Automatic,
+            light_tab_style: TabStyle::Light,
+            ..Default::default()
+        },
         ..Config::default()
     };
 
     assert!(config.apply_system_tab_style(false));
-    assert_eq!(config.tab_style, TabStyle::Automatic);
+    assert_eq!(config.tabs.tab_style, TabStyle::Automatic);
     // Light sets tab_bar_background to [235, 235, 235]
-    assert_eq!(config.tab_bar_background, [235, 235, 235]);
+    assert_eq!(config.tab_colors.tab_bar_background, [235, 235, 235]);
 }
 
 #[test]
 fn test_apply_system_tab_style_preserves_automatic() {
     let mut config = Config {
-        tab_style: TabStyle::Automatic,
-        dark_tab_style: TabStyle::Compact,
+        tabs: TabConfig {
+            tab_style: TabStyle::Automatic,
+            dark_tab_style: TabStyle::Compact,
+            ..Default::default()
+        },
         ..Config::default()
     };
 
     config.apply_system_tab_style(true);
     // tab_style must remain Automatic after applying
-    assert_eq!(config.tab_style, TabStyle::Automatic);
+    assert_eq!(config.tabs.tab_style, TabStyle::Automatic);
 }
 
 #[test]
@@ -571,15 +601,15 @@ light_tab_style: compact
 dark_tab_style: high_contrast
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert_eq!(config.tab_style, TabStyle::Automatic);
-    assert_eq!(config.light_tab_style, TabStyle::Compact);
-    assert_eq!(config.dark_tab_style, TabStyle::HighContrast);
+    assert_eq!(config.tabs.tab_style, TabStyle::Automatic);
+    assert_eq!(config.tabs.light_tab_style, TabStyle::Compact);
+    assert_eq!(config.tabs.dark_tab_style, TabStyle::HighContrast);
 }
 
 #[test]
 fn test_auto_tab_style_yaml_defaults_when_absent() {
     let yaml = "cols: 120\n";
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert_eq!(config.light_tab_style, TabStyle::Light);
-    assert_eq!(config.dark_tab_style, TabStyle::Dark);
+    assert_eq!(config.tabs.light_tab_style, TabStyle::Light);
+    assert_eq!(config.tabs.dark_tab_style, TabStyle::Dark);
 }

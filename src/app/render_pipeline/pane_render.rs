@@ -113,20 +113,21 @@ pub(super) fn gather_pane_render_data(
     let all_pane_ids: Vec<_> = pm.all_panes().iter().map(|p| p.id).collect();
     let dividers = pm.get_dividers();
 
-    let pane_bg_opacity = config.pane_background_opacity;
-    let inactive_opacity = if config.dim_inactive_panes {
-        config.inactive_pane_opacity
+    let pane_bg_opacity = config.panes.pane_background_opacity;
+    let inactive_opacity = if config.panes.dim_inactive_panes {
+        config.panes.inactive_pane_opacity
     } else {
         1.0
     };
 
     // Title settings (all in physical pixels)
-    let show_titles = config.show_pane_titles;
-    let title_height = config.pane_title_height * sizing.scale_factor;
-    let title_position = config.pane_title_position;
-    let title_text_color = color_u8_to_f32(config.pane_title_color);
-    let title_bg_color = color_u8_to_f32(config.pane_title_bg_color);
-    let need_marks = config.scrollbar_command_marks || config.command_separator_enabled;
+    let show_titles = config.panes.show_pane_titles;
+    let title_height = config.panes.pane_title_height * sizing.scale_factor;
+    let title_position = config.panes.pane_title_position;
+    let title_text_color = color_u8_to_f32(config.panes.pane_title_color);
+    let title_bg_color = color_u8_to_f32(config.panes.pane_title_bg_color);
+    let need_marks = config.scrollbar.scrollbar_command_marks
+        || config.command_separator.command_separator_enabled;
 
     let mut pane_data: Vec<PaneRenderData> = Vec::new();
     let mut pane_titles: Vec<PaneTitleInfo> = Vec::new();
@@ -543,12 +544,12 @@ fn with_pane_capture_params<R>(
 
     // Build divider settings from config
     let divider_settings = PaneDividerSettings {
-        divider_color: color_u8_to_f32(config.pane_divider_color),
-        hover_color: color_u8_to_f32(config.pane_divider_hover_color),
-        show_focus_indicator: config.pane_focus_indicator,
-        focus_color: color_u8_to_f32(config.pane_focus_color),
-        focus_width: config.pane_focus_width * renderer.scale_factor(),
-        divider_style: config.pane_divider_style,
+        divider_color: color_u8_to_f32(config.panes.pane_divider_color),
+        hover_color: color_u8_to_f32(config.panes.pane_divider_hover_color),
+        show_focus_indicator: config.panes.pane_focus_indicator,
+        focus_color: color_u8_to_f32(config.panes.pane_focus_color),
+        focus_width: config.panes.pane_focus_width * renderer.scale_factor(),
+        divider_style: config.panes.pane_divider_style,
     };
 
     renderer.update_shader_focused_pane(focused_viewport.as_ref());
@@ -645,7 +646,7 @@ impl crate::app::window_state::WindowState {
         let effective_pane_padding = if is_tmux_gateway || pane_count <= 1 {
             0.0
         } else {
-            config.pane_divider_width.unwrap_or(2.0) / 2.0 + config.pane_padding
+            config.panes.pane_divider_width.unwrap_or(2.0) / 2.0 + config.panes.pane_padding
         };
 
         let Some(renderer) = self.renderer.as_mut() else {

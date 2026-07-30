@@ -1,6 +1,6 @@
 //! Tests for import/export preferences functionality.
 
-use par_term::config::Config;
+use par_term::config::{Config, ThemeColorsConfig};
 use par_term::settings_ui::advanced_tab::merge_config;
 
 #[test]
@@ -12,7 +12,7 @@ fn test_export_config_round_trip() {
     assert_eq!(config.rows, imported.rows);
     assert_eq!(config.font_size, imported.font_size);
     assert_eq!(config.font_family, imported.font_family);
-    assert_eq!(config.theme, imported.theme);
+    assert_eq!(config.theme_colors.theme, imported.theme_colors.theme);
 }
 
 #[test]
@@ -60,7 +60,10 @@ fn test_merge_config_only_overrides_non_defaults() {
 fn test_merge_config_preserves_current_when_imported_is_default() {
     let mut current = Config {
         font_family: "Hack".to_string(),
-        theme: "my-custom-theme".to_string(),
+        theme_colors: ThemeColorsConfig {
+            theme: "my-custom-theme".to_string(),
+            ..Default::default()
+        },
         ..Config::default()
     };
 
@@ -70,7 +73,7 @@ fn test_merge_config_preserves_current_when_imported_is_default() {
 
     // Nothing should change since all imported values match defaults
     assert_eq!(current.font_family, "Hack");
-    assert_eq!(current.theme, "my-custom-theme");
+    assert_eq!(current.theme_colors.theme, "my-custom-theme");
 }
 
 #[test]
@@ -110,7 +113,7 @@ theme: "solarized-dark"
 
     // Explicitly set fields should match
     assert_eq!(imported.font_size, 20.0);
-    assert_eq!(imported.theme, "solarized-dark");
+    assert_eq!(imported.theme_colors.theme, "solarized-dark");
 
     // Missing fields should use defaults
     assert_eq!(imported.cols, 80);

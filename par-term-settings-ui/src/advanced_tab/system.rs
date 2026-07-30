@@ -416,7 +416,7 @@ pub(super) fn show_security_section(
         ui.label("Environment variable substitution in config files.");
         ui.add_space(8.0);
 
-        let mut allow_all = settings.config.allow_all_env_vars;
+        let mut allow_all = settings.config.security.allow_all_env_vars;
         if ui
             .checkbox(
                 &mut allow_all,
@@ -424,7 +424,7 @@ pub(super) fn show_security_section(
             )
             .changed()
         {
-            settings.config.allow_all_env_vars = allow_all;
+            settings.config.security.allow_all_env_vars = allow_all;
             settings.has_changes = true;
             *changes_this_frame = true;
         }

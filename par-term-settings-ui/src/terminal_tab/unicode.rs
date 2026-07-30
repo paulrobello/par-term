@@ -153,7 +153,7 @@ pub(super) fn show_unicode_section(
         ui.horizontal(|ui| {
             ui.label("Answerback string:");
             if ui
-                .text_edit_singleline(&mut settings.config.answerback_string)
+                .text_edit_singleline(&mut settings.config.shell.answerback_string)
                 .on_hover_text(
                     "String sent in response to ENQ (0x05) control character.\n\
                      Used for legacy terminal identification.\n\

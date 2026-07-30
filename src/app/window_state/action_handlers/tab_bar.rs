@@ -104,9 +104,9 @@ impl WindowState {
                         }
                         // Trigger immediate title update
                         tab.update_title(
-                            self.config.load().tab_title_mode,
-                            self.config.load().remote_tab_title_format,
-                            self.config.load().remote_tab_title_osc_priority,
+                            self.config.load().tabs.tab_title_mode,
+                            self.config.load().tabs.remote_tab_title_format,
+                            self.config.load().tabs.remote_tab_title_osc_priority,
                         );
                     } else {
                         tab.set_title(&name);

@@ -73,7 +73,7 @@ impl WindowManager {
         let mut pending_actions: Vec<TaggedAction> = Vec::new();
 
         for (window_id, ws) in self.windows.iter_mut() {
-            let script_count = ws.config.load().scripts.len();
+            let script_count = ws.config.load().automation.scripts.len();
             if script_count == 0 {
                 continue;
             }
@@ -306,7 +306,7 @@ impl WindowManager {
                     // Copy the settings out to release the config borrow.
                     let (allow, rate_limit, prompt_before_write, script_name) = {
                         let config = ws.config.load();
-                        match config.scripts.get(config_index) {
+                        match config.automation.scripts.get(config_index) {
                             Some(script) => (
                                 script.allow_write_text,
                                 script.write_text_rate_limit,
@@ -404,6 +404,7 @@ impl WindowManager {
                     let allow = ws
                         .config
                         .load()
+                        .automation
                         .scripts
                         .get(config_index)
                         .map(|s| s.allow_run_command)
@@ -411,6 +412,7 @@ impl WindowManager {
                     let rate_limit = ws
                         .config
                         .load()
+                        .automation
                         .scripts
                         .get(config_index)
                         .map(|s| s.run_command_rate_limit)
@@ -502,6 +504,7 @@ impl WindowManager {
                     let allow = ws
                         .config
                         .load()
+                        .automation
                         .scripts
                         .get(config_index)
                         .map(|s| s.allow_change_config)

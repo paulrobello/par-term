@@ -137,8 +137,8 @@ impl PaneManager {
         working_directory: Option<String>,
     ) -> Result<Self> {
         let mut manager = Self::new();
-        manager.divider_width = config.pane_divider_width.unwrap_or(1.0);
-        manager.divider_hit_width = config.pane_divider_hit_width;
+        manager.divider_width = config.panes.pane_divider_width.unwrap_or(1.0);
+        manager.divider_hit_width = config.panes.pane_divider_hit_width;
         manager.create_initial_pane(config, runtime, working_directory)?;
         Ok(manager)
     }

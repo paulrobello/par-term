@@ -23,13 +23,13 @@ pub(super) fn show_panes_section(
 
         ui.horizontal(|ui| {
             ui.label("Divider Width:");
-            let mut width = settings.config.pane_divider_width.unwrap_or(2.0);
+            let mut width = settings.config.panes.pane_divider_width.unwrap_or(2.0);
             if ui
                 .add(egui::Slider::new(&mut width, 1.0..=10.0).suffix(" px"))
                 .on_hover_text("Visual width of dividers between panes")
                 .changed()
             {
-                settings.config.pane_divider_width = Some(width);
+                settings.config.panes.pane_divider_width = Some(width);
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
@@ -39,8 +39,11 @@ pub(super) fn show_panes_section(
             ui.label("Drag Hit Width:");
             if ui
                 .add(
-                    egui::Slider::new(&mut settings.config.pane_divider_hit_width, 4.0..=20.0)
-                        .suffix(" px"),
+                    egui::Slider::new(
+                        &mut settings.config.panes.pane_divider_hit_width,
+                        4.0..=20.0,
+                    )
+                    .suffix(" px"),
                 )
                 .on_hover_text("Width of the drag area for resizing (larger = easier to grab)")
                 .changed()
@@ -53,7 +56,10 @@ pub(super) fn show_panes_section(
         ui.horizontal(|ui| {
             ui.label("Pane Padding:");
             if ui
-                .add(egui::Slider::new(&mut settings.config.pane_padding, 0.0..=20.0).suffix(" px"))
+                .add(
+                    egui::Slider::new(&mut settings.config.panes.pane_padding, 0.0..=20.0)
+                        .suffix(" px"),
+                )
                 .on_hover_text("Padding inside panes (space between content and border/divider)")
                 .changed()
             {
@@ -64,14 +70,14 @@ pub(super) fn show_panes_section(
 
         ui.horizontal(|ui| {
             ui.label("Divider Style:");
-            let current_style = settings.config.pane_divider_style;
+            let current_style = settings.config.panes.pane_divider_style;
             egui::ComboBox::from_id_salt("pane_divider_style")
                 .selected_text(current_style.display_name())
                 .show_ui(ui, |ui| {
                     for style in DividerStyle::ALL {
                         if ui
                             .selectable_value(
-                                &mut settings.config.pane_divider_style,
+                                &mut settings.config.panes.pane_divider_style,
                                 *style,
                                 style.display_name(),
                             )
@@ -89,7 +95,7 @@ pub(super) fn show_panes_section(
 
         if ui
             .checkbox(
-                &mut settings.config.pane_focus_indicator,
+                &mut settings.config.panes.pane_focus_indicator,
                 "Show focus indicator",
             )
             .on_hover_text("Draw a border around the focused pane")
@@ -99,15 +105,15 @@ pub(super) fn show_panes_section(
             *changes_this_frame = true;
         }
 
-        if settings.config.pane_focus_indicator {
+        if settings.config.panes.pane_focus_indicator {
             ui.horizontal(|ui| {
                 ui.label("Focus Color:");
-                let mut color = settings.config.pane_focus_color;
+                let mut color = settings.config.panes.pane_focus_color;
                 let egui_color = egui::Color32::from_rgb(color[0], color[1], color[2]);
                 let mut edit_color = egui_color;
                 if ui.color_edit_button_srgba(&mut edit_color).changed() {
                     color = [edit_color.r(), edit_color.g(), edit_color.b()];
-                    settings.config.pane_focus_color = color;
+                    settings.config.panes.pane_focus_color = color;
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
@@ -117,7 +123,7 @@ pub(super) fn show_panes_section(
                 ui.label("Focus Width:");
                 if ui
                     .add(
-                        egui::Slider::new(&mut settings.config.pane_focus_width, 1.0..=5.0)
+                        egui::Slider::new(&mut settings.config.panes.pane_focus_width, 1.0..=5.0)
                             .suffix(" px"),
                     )
                     .on_hover_text("Width of the focus indicator border")
@@ -135,7 +141,10 @@ pub(super) fn show_panes_section(
         ui.horizontal(|ui| {
             ui.label("Max Panes:");
             if ui
-                .add(egui::Slider::new(&mut settings.config.max_panes, 0..=32))
+                .add(egui::Slider::new(
+                    &mut settings.config.panes.max_panes,
+                    0..=32,
+                ))
                 .on_hover_text("Maximum number of panes per tab (0 = unlimited)")
                 .changed()
             {
@@ -147,7 +156,10 @@ pub(super) fn show_panes_section(
         ui.horizontal(|ui| {
             ui.label("Min Pane Size:");
             if ui
-                .add(egui::Slider::new(&mut settings.config.pane_min_size, 5..=40).suffix(" cells"))
+                .add(
+                    egui::Slider::new(&mut settings.config.panes.pane_min_size, 5..=40)
+                        .suffix(" cells"),
+                )
                 .on_hover_text("Minimum pane size in cells (prevents tiny unusable panes)")
                 .changed()
             {
@@ -206,12 +218,12 @@ pub(super) fn show_pane_appearance_section(
 
             ui.horizontal(|ui| {
                 ui.label("Divider Color:");
-                let mut color = settings.config.pane_divider_color;
+                let mut color = settings.config.panes.pane_divider_color;
                 let egui_color = egui::Color32::from_rgb(color[0], color[1], color[2]);
                 let mut edit_color = egui_color;
                 if ui.color_edit_button_srgba(&mut edit_color).changed() {
                     color = [edit_color.r(), edit_color.g(), edit_color.b()];
-                    settings.config.pane_divider_color = color;
+                    settings.config.panes.pane_divider_color = color;
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
@@ -219,7 +231,7 @@ pub(super) fn show_pane_appearance_section(
 
             ui.horizontal(|ui| {
                 ui.label("Hover Color:");
-                let mut color = settings.config.pane_divider_hover_color;
+                let mut color = settings.config.panes.pane_divider_hover_color;
                 let egui_color = egui::Color32::from_rgb(color[0], color[1], color[2]);
                 let mut edit_color = egui_color;
                 if ui
@@ -228,7 +240,7 @@ pub(super) fn show_pane_appearance_section(
                     .changed()
                 {
                     color = [edit_color.r(), edit_color.g(), edit_color.b()];
-                    settings.config.pane_divider_hover_color = color;
+                    settings.config.panes.pane_divider_hover_color = color;
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
@@ -239,7 +251,7 @@ pub(super) fn show_pane_appearance_section(
 
             if ui
                 .checkbox(
-                    &mut settings.config.dim_inactive_panes,
+                    &mut settings.config.panes.dim_inactive_panes,
                     "Dim inactive panes",
                 )
                 .on_hover_text("Reduce opacity of panes that don't have focus")
@@ -249,12 +261,12 @@ pub(super) fn show_pane_appearance_section(
                 *changes_this_frame = true;
             }
 
-            if settings.config.dim_inactive_panes {
+            if settings.config.panes.dim_inactive_panes {
                 ui.horizontal(|ui| {
                     ui.label("Inactive Opacity:");
                     if ui
                         .add(egui::Slider::new(
-                            &mut settings.config.inactive_pane_opacity,
+                            &mut settings.config.panes.inactive_pane_opacity,
                             0.3..=1.0,
                         ))
                         .on_hover_text("Opacity level for unfocused panes (1.0 = fully visible)")
@@ -270,7 +282,10 @@ pub(super) fn show_pane_appearance_section(
             ui.label(egui::RichText::new("Pane Titles").strong());
 
             if ui
-                .checkbox(&mut settings.config.show_pane_titles, "Show pane titles")
+                .checkbox(
+                    &mut settings.config.panes.show_pane_titles,
+                    "Show pane titles",
+                )
                 .on_hover_text("Display a title bar at the top of each pane")
                 .changed()
             {
@@ -278,13 +293,16 @@ pub(super) fn show_pane_appearance_section(
                 *changes_this_frame = true;
             }
 
-            if settings.config.show_pane_titles {
+            if settings.config.panes.show_pane_titles {
                 ui.horizontal(|ui| {
                     ui.label("Title Height:");
                     if ui
                         .add(
-                            egui::Slider::new(&mut settings.config.pane_title_height, 14.0..=30.0)
-                                .suffix(" px"),
+                            egui::Slider::new(
+                                &mut settings.config.panes.pane_title_height,
+                                14.0..=30.0,
+                            )
+                            .suffix(" px"),
                         )
                         .on_hover_text("Height of pane title bars")
                         .changed()
@@ -296,14 +314,14 @@ pub(super) fn show_pane_appearance_section(
 
                 ui.horizontal(|ui| {
                     ui.label("Title Position:");
-                    let current_pos = settings.config.pane_title_position;
+                    let current_pos = settings.config.panes.pane_title_position;
                     egui::ComboBox::from_id_salt("pane_title_position")
                         .selected_text(current_pos.display_name())
                         .show_ui(ui, |ui| {
                             for pos in PaneTitlePosition::ALL {
                                 if ui
                                     .selectable_value(
-                                        &mut settings.config.pane_title_position,
+                                        &mut settings.config.panes.pane_title_position,
                                         *pos,
                                         pos.display_name(),
                                     )
@@ -318,9 +336,9 @@ pub(super) fn show_pane_appearance_section(
 
                 ui.horizontal(|ui| {
                     ui.label("Title text color:");
-                    let mut color = settings.config.pane_title_color;
+                    let mut color = settings.config.panes.pane_title_color;
                     if ui.color_edit_button_srgb(&mut color).changed() {
-                        settings.config.pane_title_color = color;
+                        settings.config.panes.pane_title_color = color;
                         settings.has_changes = true;
                         *changes_this_frame = true;
                     }
@@ -328,9 +346,9 @@ pub(super) fn show_pane_appearance_section(
 
                 ui.horizontal(|ui| {
                     ui.label("Title background:");
-                    let mut color = settings.config.pane_title_bg_color;
+                    let mut color = settings.config.panes.pane_title_bg_color;
                     if ui.color_edit_button_srgb(&mut color).changed() {
-                        settings.config.pane_title_bg_color = color;
+                        settings.config.panes.pane_title_bg_color = color;
                         settings.has_changes = true;
                         *changes_this_frame = true;
                     }
@@ -344,7 +362,7 @@ pub(super) fn show_pane_appearance_section(
                 ui.label("Pane Opacity:");
                 if ui
                     .add(egui::Slider::new(
-                        &mut settings.config.pane_background_opacity,
+                        &mut settings.config.panes.pane_background_opacity,
                         0.5..=1.0,
                     ))
                     .on_hover_text(

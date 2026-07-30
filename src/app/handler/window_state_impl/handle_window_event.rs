@@ -79,7 +79,7 @@ impl WindowState {
 
                 // Check if prompt_on_quit is enabled and there are active sessions
                 let tab_count = self.tab_manager.visible_tab_count();
-                if self.config.load().prompt_on_quit
+                if self.config.load().shell.prompt_on_quit
                     && tab_count > 0
                     && !self.overlay_ui.quit_confirmation_ui.is_visible()
                 {
@@ -347,7 +347,7 @@ impl WindowState {
                 if self.is_mouse_in_tab_bar(mouse_position)
                     && self.tab_bar_ui.handle_mouse_wheel(
                         &delta,
-                        self.config.load().tab_min_width,
+                        self.config.load().tab_colors.tab_min_width,
                         tab_count,
                     )
                 {
@@ -555,7 +555,7 @@ impl WindowState {
                     log::info!(
                         "System theme changed to {}, switching to theme: {}",
                         if is_dark { "dark" } else { "light" },
-                        self.config.load().theme
+                        self.config.load().theme_colors.theme
                     );
                     let theme = self.config.load().load_theme();
                     for tab in self.tab_manager.tabs_mut() {
@@ -588,9 +588,9 @@ impl WindowState {
                     log::info!(
                         "Auto tab style: switching to {} tab style",
                         if is_dark {
-                            self.config.load().dark_tab_style.display_name()
+                            self.config.load().tabs.dark_tab_style.display_name()
                         } else {
-                            self.config.load().light_tab_style.display_name()
+                            self.config.load().tabs.light_tab_style.display_name()
                         }
                     );
                 }

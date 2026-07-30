@@ -129,7 +129,7 @@ fn show_inline_images(
             // Image scaling mode (nearest vs linear)
             ui.horizontal(|ui| {
                 ui.label("Scaling quality:");
-                let current = settings.config.image_scaling_mode;
+                let current = settings.config.image.image_scaling_mode;
                 egui::ComboBox::from_id_salt("image_scaling_mode")
                     .selected_text(current.display_name())
                     .show_ui(ui, |ui| {
@@ -138,7 +138,7 @@ fn show_inline_images(
                                 .selectable_label(current == *mode, mode.display_name())
                                 .clicked()
                             {
-                                settings.config.image_scaling_mode = *mode;
+                                settings.config.image.image_scaling_mode = *mode;
                                 settings.has_changes = true;
                                 *changes_this_frame = true;
                             }
@@ -149,7 +149,7 @@ fn show_inline_images(
             // Preserve aspect ratio
             if ui
                 .checkbox(
-                    &mut settings.config.image_preserve_aspect_ratio,
+                    &mut settings.config.image.image_preserve_aspect_ratio,
                     "Preserve aspect ratio",
                 )
                 .on_hover_text(

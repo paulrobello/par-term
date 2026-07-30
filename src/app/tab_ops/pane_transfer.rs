@@ -109,14 +109,14 @@ impl WindowState {
             tab.start_refresh_task(
                 Arc::clone(&self.runtime),
                 Arc::clone(window),
-                self.config.load().max_fps,
-                self.config.load().inactive_tab_fps,
+                self.config.load().rendering.max_fps,
+                self.config.load().power.inactive_tab_fps,
             );
             tab.start_pane_refresh_tasks(
                 Arc::clone(&self.runtime),
                 Arc::clone(window),
-                self.config.load().max_fps,
-                self.config.load().inactive_tab_fps,
+                self.config.load().rendering.max_fps,
+                self.config.load().power.inactive_tab_fps,
             );
         }
 
@@ -185,7 +185,7 @@ impl WindowState {
     ) {
         // Check max_panes on target tab
         let config = self.config.load();
-        if config.max_panes > 0 {
+        if config.panes.max_panes > 0 {
             let target_count = self
                 .tab_manager
                 .get_tab(target_tab_id)
@@ -196,10 +196,10 @@ impl WindowState {
                 .get_tab(source_tab_id)
                 .map(|t| t.pane_count())
                 .unwrap_or(0);
-            if target_count + source_count > config.max_panes {
+            if target_count + source_count > config.panes.max_panes {
                 log::warn!(
                     "Cannot demote: would exceed max_panes ({})",
-                    config.max_panes
+                    config.panes.max_panes
                 );
                 self.cancel_pane_transfer();
                 return;
@@ -263,8 +263,8 @@ impl WindowState {
             tab.start_pane_refresh_tasks(
                 Arc::clone(&self.runtime),
                 Arc::clone(window),
-                self.config.load().max_fps,
-                self.config.load().inactive_tab_fps,
+                self.config.load().rendering.max_fps,
+                self.config.load().power.inactive_tab_fps,
             );
         }
 

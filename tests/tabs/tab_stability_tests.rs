@@ -50,7 +50,7 @@
 //! Mouse events in the tab bar area are handled before setting terminal button state,
 //! and window redraws are requested to ensure egui processes the events.
 
-use par_term::config::{Config, TabBarMode};
+use par_term::config::{Config, TabBarMode, TabConfig};
 use par_term::tab_bar_ui::{TabBarAction, TabBarUI};
 
 // ============================================================================
@@ -63,7 +63,10 @@ fn test_tab_bar_height_affects_content_area() {
     // This test verifies the expected height values
     let tab_bar = TabBarUI::new();
     let config = Config {
-        tab_bar_mode: TabBarMode::WhenMultiple,
+        tabs: TabConfig {
+            tab_bar_mode: TabBarMode::WhenMultiple,
+            ..Default::default()
+        },
         ..Config::default()
     };
 
@@ -76,7 +79,7 @@ fn test_tab_bar_height_affects_content_area() {
     let height_2_tabs = tab_bar.get_height(2, &config);
     assert!(height_2_tabs > 0.0, "Multiple tabs should show tab bar");
     assert_eq!(
-        height_2_tabs, config.tab_bar_height,
+        height_2_tabs, config.tabs.tab_bar_height,
         "Tab bar height should match config"
     );
 }
@@ -85,7 +88,10 @@ fn test_tab_bar_height_affects_content_area() {
 fn test_tab_bar_height_zero_tabs() {
     let tab_bar = TabBarUI::new();
     let config = Config {
-        tab_bar_mode: TabBarMode::WhenMultiple,
+        tabs: TabConfig {
+            tab_bar_mode: TabBarMode::WhenMultiple,
+            ..Default::default()
+        },
         ..Config::default()
     };
 
@@ -354,7 +360,10 @@ fn test_mouse_event_timing_documented() {
     // Verify that we can detect when mouse is in tab bar area via height
     let tab_bar = TabBarUI::new();
     let config = Config {
-        tab_bar_mode: TabBarMode::WhenMultiple,
+        tabs: TabConfig {
+            tab_bar_mode: TabBarMode::WhenMultiple,
+            ..Default::default()
+        },
         ..Config::default()
     };
 

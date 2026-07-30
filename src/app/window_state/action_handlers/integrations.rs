@@ -184,8 +184,12 @@ impl WindowState {
             let v = current_version.clone();
             self.config.rcu(|old| {
                 let mut new = (**old).clone();
-                new.integration_versions.shaders_prompted_version = Some(v.clone());
-                new.integration_versions.shell_integration_prompted_version = Some(v.clone());
+                new.integrations
+                    .integration_versions
+                    .shaders_prompted_version = Some(v.clone());
+                new.integrations
+                    .integration_versions
+                    .shell_integration_prompted_version = Some(v.clone());
                 std::sync::Arc::new(new)
             });
             if let Err(e) = self.save_config_debounced() {
@@ -200,12 +204,12 @@ impl WindowState {
             // Set install prompts to Never
             self.config.rcu(|old| {
                 let mut new = (**old).clone();
-                new.shader_install_prompt = ShaderInstallPrompt::Never;
+                new.integrations.shader_install_prompt = ShaderInstallPrompt::Never;
                 std::sync::Arc::new(new)
             });
             self.config.rcu(|old| {
                 let mut new = (**old).clone();
-                new.shell_integration_state = crate::config::InstallPromptState::Never;
+                new.integrations.shell_integration_state = crate::config::InstallPromptState::Never;
                 std::sync::Arc::new(new)
             });
             if let Err(e) = self.save_config_debounced() {
@@ -260,8 +264,12 @@ impl WindowState {
                 let v = current_version.clone();
                 self.config.rcu(|old| {
                     let mut new = (**old).clone();
-                    new.integration_versions.shaders_installed_version = Some(v.clone());
-                    new.integration_versions.shaders_prompted_version = Some(v.clone());
+                    new.integrations
+                        .integration_versions
+                        .shaders_installed_version = Some(v.clone());
+                    new.integrations
+                        .integration_versions
+                        .shaders_prompted_version = Some(v.clone());
                     std::sync::Arc::new(new)
                 });
             }
@@ -278,8 +286,12 @@ impl WindowState {
                 let v = current_version.clone();
                 self.config.rcu(|old| {
                     let mut new = (**old).clone();
-                    new.integration_versions.shell_integration_installed_version = Some(v.clone());
-                    new.integration_versions.shell_integration_prompted_version = Some(v.clone());
+                    new.integrations
+                        .integration_versions
+                        .shell_integration_installed_version = Some(v.clone());
+                    new.integrations
+                        .integration_versions
+                        .shell_integration_prompted_version = Some(v.clone());
                     std::sync::Arc::new(new)
                 });
             }

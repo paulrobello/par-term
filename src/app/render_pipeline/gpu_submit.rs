@@ -72,8 +72,8 @@ impl WindowState {
         let effective_pane_padding = if is_tmux_gateway || active_pane_count <= 1 {
             0.0
         } else {
-            self.config.load().pane_divider_width.unwrap_or(2.0) / 2.0
-                + self.config.load().pane_padding
+            self.config.load().panes.pane_divider_width.unwrap_or(2.0) / 2.0
+                + self.config.load().panes.pane_padding
         };
 
         // Calculate status bar heights before mutable renderer borrow.
@@ -91,7 +91,7 @@ impl WindowState {
         let window_size_for_badge = self.renderer.as_ref().map(|r| r.size());
 
         // Capture progress bar snapshot before mutable borrow
-        let progress_snapshot = if self.config.load().progress_bar_enabled {
+        let progress_snapshot = if self.config.load().progress_bar.progress_bar_enabled {
             self.tab_manager.active_tab().and_then(|tab| {
                 tab.terminal
                     .try_read()
@@ -344,14 +344,17 @@ impl WindowState {
                             if detected_urls.is_empty() {
                                 return None;
                             }
-                            let c = self.config.load().link_highlight_color;
+                            let c = self.config.load().semantic_history.link_highlight_color;
                             Some((
                                 detected_urls,
                                 tab.active_mouse().url_detect_scroll_offset,
                                 tab.active_mouse().hovered_url_bounds,
                                 [c[0], c[1], c[2], 255],
-                                self.config.load().link_highlight_color_enabled,
-                                self.config.load().link_highlight_underline,
+                                self.config
+                                    .load()
+                                    .semantic_history
+                                    .link_highlight_color_enabled,
+                                self.config.load().semantic_history.link_highlight_underline,
                             ))
                         });
 

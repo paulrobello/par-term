@@ -122,7 +122,7 @@ impl WindowManager {
             // `fetch_profiles_inner` can enforce or relax the HTTPS requirement.
             let mut sources = config.dynamic_profile_sources.clone();
             for src in &mut sources {
-                src.allow_http = config.allow_http_profiles;
+                src.allow_http = config.security.allow_http_profiles;
             }
             dynamic_profile_manager.start(&sources, &runtime);
         }

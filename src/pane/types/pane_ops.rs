@@ -26,8 +26,8 @@ impl Pane {
 
         // Determine the shell command to use
         #[allow(unused_mut)] // mut is needed on Unix for login shell modification
-        let (shell_cmd, mut shell_args) = if let Some(ref custom) = config.custom_shell {
-            (custom.clone(), config.shell_args.clone())
+        let (shell_cmd, mut shell_args) = if let Some(ref custom) = config.shell.custom_shell {
+            (custom.clone(), config.shell.shell_args.clone())
         } else {
             #[cfg(target_os = "windows")]
             {
@@ -44,7 +44,7 @@ impl Pane {
 
         // On Unix-like systems, spawn as login shell if configured
         #[cfg(not(target_os = "windows"))]
-        if config.login_shell {
+        if config.shell.login_shell {
             let args = shell_args.get_or_insert_with(Vec::new);
             if !args.iter().any(|a| a == "-l" || a == "--login") {
                 args.insert(0, "-l".to_string());
@@ -55,10 +55,10 @@ impl Pane {
         let work_dir = self
             .get_cwd()
             .or_else(|| self.working_directory.clone())
-            .or_else(|| config.working_directory.clone());
+            .or_else(|| config.shell.working_directory.clone());
 
         let shell_args_deref = shell_args.as_deref();
-        let shell_env = build_shell_env(config.shell_env.as_ref());
+        let shell_env = build_shell_env(config.shell.shell_env.as_ref());
 
         // Respawn the shell
         if let Ok(mut term) = self.terminal.try_write() {

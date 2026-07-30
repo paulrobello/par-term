@@ -118,7 +118,7 @@ impl ConfigChanges {
     /// Compare two configs and detect what changed
     pub fn detect(old: &Config, new: &Config) -> Self {
         Self {
-            theme: new.theme != old.theme,
+            theme: new.theme_colors.theme != old.theme_colors.theme,
 
             shader_animation: new.shader.custom_shader_animation
                 != old.shader.custom_shader_animation,
@@ -167,12 +167,12 @@ impl ConfigChanges {
                     .shader
                     .custom_shader
                     .as_ref()
-                    .and_then(|name| old.shader_configs.get(name));
+                    .and_then(|name| old.shader_overrides.shader_configs.get(name));
                 let new_override = new
                     .shader
                     .custom_shader
                     .as_ref()
-                    .and_then(|name| new.shader_configs.get(name));
+                    .and_then(|name| new.shader_overrides.shader_configs.get(name));
                 old_override != new_override
             },
 
@@ -190,11 +190,12 @@ impl ConfigChanges {
 
             window_title: new.window_title != old.window_title,
             window_decorations: new.window.window_decorations != old.window.window_decorations,
-            lock_window_size: new.lock_window_size != old.lock_window_size,
-            show_window_number: new.show_window_number != old.show_window_number,
-            max_fps: new.max_fps != old.max_fps,
-            inactive_tab_fps: new.inactive_tab_fps != old.inactive_tab_fps,
-            vsync_mode: new.vsync_mode != old.vsync_mode,
+            lock_window_size: new.placement.lock_window_size != old.placement.lock_window_size,
+            show_window_number: new.placement.show_window_number
+                != old.placement.show_window_number,
+            max_fps: new.rendering.max_fps != old.rendering.max_fps,
+            inactive_tab_fps: new.power.inactive_tab_fps != old.power.inactive_tab_fps,
+            vsync_mode: new.rendering.vsync_mode != old.rendering.vsync_mode,
 
             cursor_style: new.cursor.cursor_style != old.cursor.cursor_style,
             cursor_blink: new.cursor.cursor_blink != old.cursor.cursor_blink,
@@ -212,7 +213,7 @@ impl ConfigChanges {
                 || new.cursor.cursor_boost_color != old.cursor.cursor_boost_color
                 || new.cursor.unfocused_cursor_style != old.cursor.unfocused_cursor_style,
 
-            answerback_string: new.answerback_string != old.answerback_string,
+            answerback_string: new.shell.answerback_string != old.shell.answerback_string,
 
             max_notifications: new.notifications.notification_max_buffer
                 != old.notifications.notification_max_buffer,
@@ -223,17 +224,21 @@ impl ConfigChanges {
 
             normalization_form: new.unicode.normalization_form != old.unicode.normalization_form,
 
-            bg_mode: new.background_mode != old.background_mode,
-            bg_color: new.background_color != old.background_color,
-            bg_image_enabled: new.background_image_enabled != old.background_image_enabled,
-            bg_image_path: new.background_image != old.background_image,
-            bg_image_mode: new.background_image_mode != old.background_image_mode,
-            bg_image_opacity: (new.background_image_opacity - old.background_image_opacity).abs()
+            bg_mode: new.image.background_mode != old.image.background_mode,
+            bg_color: new.image.background_color != old.image.background_color,
+            bg_image_enabled: new.background.background_image_enabled
+                != old.background.background_image_enabled,
+            bg_image_path: new.background.background_image != old.background.background_image,
+            bg_image_mode: new.background.background_image_mode
+                != old.background.background_image_mode,
+            bg_image_opacity: (new.background.background_image_opacity
+                - old.background.background_image_opacity)
+                .abs()
                 > f32::EPSILON,
 
-            image_scaling_mode: new.image_scaling_mode != old.image_scaling_mode,
-            image_preserve_aspect_ratio: new.image_preserve_aspect_ratio
-                != old.image_preserve_aspect_ratio,
+            image_scaling_mode: new.image.image_scaling_mode != old.image.image_scaling_mode,
+            image_preserve_aspect_ratio: new.image.image_preserve_aspect_ratio
+                != old.image.image_preserve_aspect_ratio,
 
             font: new.font_family != old.font_family
                 || new.font_family_bold != old.font_family_bold
@@ -252,39 +257,50 @@ impl ConfigChanges {
                 || new.window.hide_window_padding_on_split
                     != old.window.hide_window_padding_on_split,
 
-            shader_hot_reload: new.shader_hot_reload != old.shader_hot_reload,
-            shader_hot_reload_delay: new.shader_hot_reload_delay != old.shader_hot_reload_delay,
+            shader_hot_reload: new.shader_watch.shader_hot_reload
+                != old.shader_watch.shader_hot_reload,
+            shader_hot_reload_delay: new.shader_watch.shader_hot_reload_delay
+                != old.shader_watch.shader_hot_reload_delay,
 
-            transparency_mode: new.transparency_affects_only_default_background
-                != old.transparency_affects_only_default_background,
-            keep_text_opaque: new.keep_text_opaque != old.keep_text_opaque,
-            link_underline_style: new.link_underline_style != old.link_underline_style,
+            transparency_mode: new.background.transparency_affects_only_default_background
+                != old.background.transparency_affects_only_default_background,
+            keep_text_opaque: new.background.keep_text_opaque != old.background.keep_text_opaque,
+            link_underline_style: new.semantic_history.link_underline_style
+                != old.semantic_history.link_underline_style,
 
             blur: new.window.blur_enabled != old.window.blur_enabled
                 || new.window.blur_radius != old.window.blur_radius,
 
             keybindings: new.keybindings != old.keybindings,
 
-            badge: new.badge_enabled != old.badge_enabled
-                || new.badge_format != old.badge_format
-                || new.badge_color != old.badge_color
-                || (new.badge_color_alpha - old.badge_color_alpha).abs() > f32::EPSILON
-                || new.badge_font != old.badge_font
-                || new.badge_font_bold != old.badge_font_bold
-                || (new.badge_top_margin - old.badge_top_margin).abs() > f32::EPSILON
-                || (new.badge_right_margin - old.badge_right_margin).abs() > f32::EPSILON
-                || (new.badge_max_width - old.badge_max_width).abs() > f32::EPSILON
-                || (new.badge_max_height - old.badge_max_height).abs() > f32::EPSILON,
-
-            command_separator: new.command_separator_enabled != old.command_separator_enabled
-                || (new.command_separator_thickness - old.command_separator_thickness).abs()
+            badge: new.badge.badge_enabled != old.badge.badge_enabled
+                || new.badge.badge_format != old.badge.badge_format
+                || new.badge.badge_color != old.badge.badge_color
+                || (new.badge.badge_color_alpha - old.badge.badge_color_alpha).abs() > f32::EPSILON
+                || new.badge.badge_font != old.badge.badge_font
+                || new.badge.badge_font_bold != old.badge.badge_font_bold
+                || (new.badge.badge_top_margin - old.badge.badge_top_margin).abs() > f32::EPSILON
+                || (new.badge.badge_right_margin - old.badge.badge_right_margin).abs()
                     > f32::EPSILON
-                || (new.command_separator_opacity - old.command_separator_opacity).abs()
-                    > f32::EPSILON
-                || new.command_separator_exit_color != old.command_separator_exit_color
-                || new.command_separator_color != old.command_separator_color,
+                || (new.badge.badge_max_width - old.badge.badge_max_width).abs() > f32::EPSILON
+                || (new.badge.badge_max_height - old.badge.badge_max_height).abs() > f32::EPSILON,
 
-            pane_backgrounds: new.pane_backgrounds != old.pane_backgrounds,
+            command_separator: new.command_separator.command_separator_enabled
+                != old.command_separator.command_separator_enabled
+                || (new.command_separator.command_separator_thickness
+                    - old.command_separator.command_separator_thickness)
+                    .abs()
+                    > f32::EPSILON
+                || (new.command_separator.command_separator_opacity
+                    - old.command_separator.command_separator_opacity)
+                    .abs()
+                    > f32::EPSILON
+                || new.command_separator.command_separator_exit_color
+                    != old.command_separator.command_separator_exit_color
+                || new.command_separator.command_separator_color
+                    != old.command_separator.command_separator_color,
+
+            pane_backgrounds: new.image.pane_backgrounds != old.image.pane_backgrounds,
 
             ai_inspector_auto_approve: new.ai_inspector.ai_inspector_auto_approve
                 != old.ai_inspector.ai_inspector_auto_approve,

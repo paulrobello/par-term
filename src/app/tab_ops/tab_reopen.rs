@@ -15,9 +15,10 @@ impl WindowState {
     /// Reopen the most recently closed tab at its original position
     pub fn reopen_closed_tab(&mut self) {
         // Prune expired entries
-        if self.config.load().session_undo_timeout_secs > 0 {
-            let timeout =
-                std::time::Duration::from_secs(self.config.load().session_undo_timeout_secs as u64);
+        if self.config.load().session_restore.session_undo_timeout_secs > 0 {
+            let timeout = std::time::Duration::from_secs(
+                self.config.load().session_restore.session_undo_timeout_secs as u64,
+            );
             let now = std::time::Instant::now();
             self.overlay_state
                 .closed_tabs
@@ -33,12 +34,12 @@ impl WindowState {
         };
 
         // Check max tabs limit
-        if self.config.load().max_tabs > 0
-            && self.tab_manager.tab_count() >= self.config.load().max_tabs
+        if self.config.load().tabs.max_tabs > 0
+            && self.tab_manager.tab_count() >= self.config.load().tabs.max_tabs
         {
             log::warn!(
                 "Cannot reopen tab: max_tabs limit ({}) reached",
-                self.config.load().max_tabs
+                self.config.load().tabs.max_tabs
             );
             self.show_toast("Cannot reopen tab: max tabs limit reached");
             // Put the info back so the user can try again after closing another tab
@@ -64,8 +65,8 @@ impl WindowState {
                 tab.start_refresh_task(
                     Arc::clone(&self.runtime),
                     Arc::clone(window),
-                    self.config.load().max_fps,
-                    self.config.load().inactive_tab_fps,
+                    self.config.load().rendering.max_fps,
+                    self.config.load().power.inactive_tab_fps,
                 );
 
                 // Invalidate cell cache so content is re-rendered
@@ -127,8 +128,8 @@ impl WindowState {
                         tab.start_refresh_task(
                             Arc::clone(&self.runtime),
                             Arc::clone(window),
-                            self.config.load().max_fps,
-                            self.config.load().inactive_tab_fps,
+                            self.config.load().rendering.max_fps,
+                            self.config.load().power.inactive_tab_fps,
                         );
 
                         // try_lock: intentional — new pane initialization in sync event loop.
@@ -168,8 +169,8 @@ impl WindowState {
                             tab.start_pane_refresh_tasks(
                                 Arc::clone(&self.runtime),
                                 Arc::clone(window),
-                                self.config.load().max_fps,
-                                self.config.load().inactive_tab_fps,
+                                self.config.load().rendering.max_fps,
+                                self.config.load().power.inactive_tab_fps,
                             );
                         }
                     }
@@ -212,7 +213,7 @@ impl WindowState {
             || (new_tab_bar_width - old_tab_bar_width).abs() > 0.1)
             && let Some(renderer) = &mut self.renderer
             && let Some((new_cols, new_rows)) = Self::apply_tab_bar_offsets_for_position(
-                self.config.load().tab_bar_position,
+                self.config.load().tabs.tab_bar_position,
                 renderer,
                 new_tab_bar_height,
                 new_tab_bar_width,

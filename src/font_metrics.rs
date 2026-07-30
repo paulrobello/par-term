@@ -184,8 +184,8 @@ pub fn window_size_from_config(config: &Config, scale_factor: f32) -> Result<(u3
     )?;
 
     // Determine tab bar height based on mode
-    let tab_bar_height = match config.tab_bar_mode {
-        crate::config::TabBarMode::Always => config.tab_bar_height,
+    let tab_bar_height = match config.tabs.tab_bar_mode {
+        crate::config::TabBarMode::Always => config.tabs.tab_bar_height,
         crate::config::TabBarMode::WhenMultiple | crate::config::TabBarMode::Never => 0.0,
     };
 

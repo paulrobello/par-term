@@ -124,6 +124,7 @@ fn show_triggers_collapsing(
             // opening the Automation tab.
             let has_unsafe_trigger = settings
                 .config
+                .automation
                 .triggers
                 .iter()
                 .any(|t| !t.prompt_before_run && t.actions.iter().any(|a| a.is_dangerous()));
@@ -161,9 +162,9 @@ fn show_triggers_collapsing(
             let mut start_edit_index: Option<usize> = None;
 
             // List existing triggers
-            let trigger_count = settings.config.triggers.len();
+            let trigger_count = settings.config.automation.triggers.len();
             for i in 0..trigger_count {
-                let trigger = &settings.config.triggers[i];
+                let trigger = &settings.config.automation.triggers[i];
                 let is_editing = settings.automation_tab.editing_trigger_index == Some(i)
                     && !settings.automation_tab.adding_new_trigger;
 
@@ -185,12 +186,13 @@ fn show_triggers_collapsing(
 
             // Apply mutations after iteration
             if let Some(i) = toggle_index {
-                settings.config.triggers[i].enabled = !settings.config.triggers[i].enabled;
+                settings.config.automation.triggers[i].enabled =
+                    !settings.config.automation.triggers[i].enabled;
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
             if let Some(i) = delete_index {
-                settings.config.triggers.remove(i);
+                settings.config.automation.triggers.remove(i);
                 settings.has_changes = true;
                 *changes_this_frame = true;
                 // If we were editing this trigger, cancel the edit
@@ -199,7 +201,7 @@ fn show_triggers_collapsing(
                 }
             }
             if let Some(i) = start_edit_index {
-                let trigger = &settings.config.triggers[i];
+                let trigger = &settings.config.automation.triggers[i];
                 settings.automation_tab.editing_trigger_index = Some(i);
                 settings.automation_tab.adding_new_trigger = false;
                 settings.automation_tab.temp_trigger_name = trigger.name.clone();

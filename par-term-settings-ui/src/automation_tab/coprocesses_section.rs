@@ -52,9 +52,9 @@ fn show_coprocesses_collapsing(
             let mut start_edit_index: Option<usize> = None;
 
             // List existing coprocesses
-            let coproc_count = settings.config.coprocesses.len();
+            let coproc_count = settings.config.automation.coprocesses.len();
             for i in 0..coproc_count {
-                let coproc = &settings.config.coprocesses[i];
+                let coproc = &settings.config.automation.coprocesses[i];
                 let is_editing = settings.automation_tab.editing_coprocess_index == Some(i)
                     && !settings.automation_tab.adding_new_coprocess;
 
@@ -231,7 +231,7 @@ fn show_coprocesses_collapsing(
 
             // Apply mutations
             if let Some(i) = delete_index {
-                settings.config.coprocesses.remove(i);
+                settings.config.automation.coprocesses.remove(i);
                 settings.has_changes = true;
                 *changes_this_frame = true;
                 if settings.automation_tab.editing_coprocess_index == Some(i) {
@@ -239,7 +239,7 @@ fn show_coprocesses_collapsing(
                 }
             }
             if let Some(i) = start_edit_index {
-                let coproc = &settings.config.coprocesses[i];
+                let coproc = &settings.config.automation.coprocesses[i];
                 settings.automation_tab.editing_coprocess_index = Some(i);
                 settings.automation_tab.adding_new_coprocess = false;
                 settings.automation_tab.temp_coprocess_name = coproc.name.clone();
@@ -399,9 +399,9 @@ fn show_coprocess_edit_form(
                 };
 
                 if let Some(i) = edit_index {
-                    settings.config.coprocesses[i] = new_coproc;
+                    settings.config.automation.coprocesses[i] = new_coproc;
                 } else {
-                    settings.config.coprocesses.push(new_coproc);
+                    settings.config.automation.coprocesses.push(new_coproc);
                 }
 
                 settings.has_changes = true;

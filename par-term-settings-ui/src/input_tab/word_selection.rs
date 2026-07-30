@@ -25,9 +25,11 @@ pub(super) fn show_word_selection_section(
                 ui.label("Word characters:");
                 if ui
                     .add(
-                        egui::TextEdit::singleline(&mut settings.config.word_characters)
-                            .hint_text("/-+\\~_.")
-                            .desired_width(150.0),
+                        egui::TextEdit::singleline(
+                            &mut settings.config.word_selection.word_characters,
+                        )
+                        .hint_text("/-+\\~_.")
+                        .desired_width(150.0),
                     )
                     .on_hover_text(
                         "Characters considered part of a word (in addition to alphanumeric)",
@@ -41,7 +43,7 @@ pub(super) fn show_word_selection_section(
 
             if ui
                 .checkbox(
-                    &mut settings.config.smart_selection_enabled,
+                    &mut settings.config.word_selection.smart_selection_enabled,
                     "Enable smart selection",
                 )
                 .on_hover_text("Double-click will try to match patterns like URLs, emails, paths")
@@ -51,7 +53,7 @@ pub(super) fn show_word_selection_section(
                 *changes_this_frame = true;
             }
 
-            if settings.config.smart_selection_enabled {
+            if settings.config.word_selection.smart_selection_enabled {
                 ui.separator();
                 ui.label("Smart Selection Rules");
                 ui.label(
@@ -63,7 +65,7 @@ pub(super) fn show_word_selection_section(
                 egui::ScrollArea::vertical()
                     .max_height(150.0)
                     .show(ui, |ui| {
-                        for rule in &mut settings.config.smart_selection_rules {
+                        for rule in &mut settings.config.word_selection.smart_selection_rules {
                             ui.horizontal(|ui| {
                                 if ui.checkbox(&mut rule.enabled, "").changed() {
                                     settings.has_changes = true;
@@ -88,7 +90,7 @@ pub(super) fn show_word_selection_section(
                     .on_hover_text("Replace all rules with the default set")
                     .clicked()
                 {
-                    settings.config.smart_selection_rules =
+                    settings.config.word_selection.smart_selection_rules =
                         par_term_config::default_smart_selection_rules();
                     settings.has_changes = true;
                     *changes_this_frame = true;

@@ -79,7 +79,7 @@ fn show_general_section(
 ) {
     collapsing_section(ui, "General", "badge_general", true, collapsed, |ui| {
         if ui
-            .checkbox(&mut settings.config.badge_enabled, "Enable badge")
+            .checkbox(&mut settings.config.badge.badge_enabled, "Enable badge")
             .on_hover_text("Display a semi-transparent text overlay in the terminal corner")
             .changed()
         {
@@ -94,7 +94,7 @@ fn show_general_section(
         // Multi-line text editor for format string
         if ui
             .add(
-                egui::TextEdit::singleline(&mut settings.config.badge_format)
+                egui::TextEdit::singleline(&mut settings.config.badge.badge_format)
                     .hint_text("\\(session.username)@\\(session.hostname)")
                     .desired_width(ui.available_width() - 20.0),
             )
@@ -135,12 +135,12 @@ fn show_appearance_section(
             ui.horizontal(|ui| {
                 ui.label("Text color:");
                 let mut color = egui::Color32::from_rgb(
-                    settings.config.badge_color[0],
-                    settings.config.badge_color[1],
-                    settings.config.badge_color[2],
+                    settings.config.badge.badge_color[0],
+                    settings.config.badge.badge_color[1],
+                    settings.config.badge.badge_color[2],
                 );
                 if ui.color_edit_button_srgba(&mut color).changed() {
-                    settings.config.badge_color = [color.r(), color.g(), color.b()];
+                    settings.config.badge.badge_color = [color.r(), color.g(), color.b()];
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
@@ -152,7 +152,7 @@ fn show_appearance_section(
                 if ui
                     .add_sized(
                         [SLIDER_WIDTH, SLIDER_HEIGHT],
-                        egui::Slider::new(&mut settings.config.badge_color_alpha, 0.0..=1.0)
+                        egui::Slider::new(&mut settings.config.badge.badge_color_alpha, 0.0..=1.0)
                             .show_value(true),
                     )
                     .changed()
@@ -169,7 +169,7 @@ fn show_appearance_section(
                 ui.label("Font:");
                 if ui
                     .add(
-                        egui::TextEdit::singleline(&mut settings.config.badge_font)
+                        egui::TextEdit::singleline(&mut settings.config.badge.badge_font)
                             .hint_text("Helvetica")
                             .desired_width(150.0),
                     )
@@ -183,7 +183,7 @@ fn show_appearance_section(
 
             // Bold checkbox
             if ui
-                .checkbox(&mut settings.config.badge_font_bold, "Bold")
+                .checkbox(&mut settings.config.badge.badge_font_bold, "Bold")
                 .changed()
             {
                 settings.has_changes = true;
@@ -217,7 +217,7 @@ fn show_position_section(
                 if ui
                     .add_sized(
                         [SLIDER_WIDTH, SLIDER_HEIGHT],
-                        egui::Slider::new(&mut settings.config.badge_top_margin, 0.0..=100.0),
+                        egui::Slider::new(&mut settings.config.badge.badge_top_margin, 0.0..=100.0),
                     )
                     .changed()
                 {
@@ -231,7 +231,10 @@ fn show_position_section(
                 if ui
                     .add_sized(
                         [SLIDER_WIDTH, SLIDER_HEIGHT],
-                        egui::Slider::new(&mut settings.config.badge_right_margin, 0.0..=100.0),
+                        egui::Slider::new(
+                            &mut settings.config.badge.badge_right_margin,
+                            0.0..=100.0,
+                        ),
                     )
                     .changed()
                 {
@@ -248,7 +251,7 @@ fn show_position_section(
                 if ui
                     .add_sized(
                         [SLIDER_WIDTH, SLIDER_HEIGHT],
-                        egui::Slider::new(&mut settings.config.badge_max_width, 0.1..=1.0)
+                        egui::Slider::new(&mut settings.config.badge.badge_max_width, 0.1..=1.0)
                             .show_value(true),
                     )
                     .on_hover_text("Maximum badge width as fraction of terminal width")
@@ -264,7 +267,7 @@ fn show_position_section(
                 if ui
                     .add_sized(
                         [SLIDER_WIDTH, SLIDER_HEIGHT],
-                        egui::Slider::new(&mut settings.config.badge_max_height, 0.05..=0.5)
+                        egui::Slider::new(&mut settings.config.badge.badge_max_height, 0.05..=0.5)
                             .show_value(true),
                     )
                     .on_hover_text("Maximum badge height as fraction of terminal height")
@@ -350,7 +353,7 @@ fn show_variables_section(
 
             // Handle click outside the grid to avoid borrow conflict
             if let Some(var) = clicked_var {
-                settings.config.badge_format.push_str(var);
+                settings.config.badge.badge_format.push_str(var);
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }

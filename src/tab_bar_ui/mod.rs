@@ -98,7 +98,7 @@ impl TabBarUI {
         let tab_count = tabs.visible_tab_count();
 
         // Don't show if configured to hide
-        if !self.should_show(tab_count, config.tab_bar_mode) {
+        if !self.should_show(tab_count, config.tabs.tab_bar_mode) {
             // The in-app menu is drawn inside this bar, so hiding the bar makes
             // the menu unreachable — including from a `toggle_menu` keybinding,
             // which only takes effect where the menu is drawn. Users who hide
@@ -107,7 +107,7 @@ impl TabBarUI {
             return TabBarAction::None;
         }
 
-        match config.tab_bar_position {
+        match config.tabs.tab_bar_position {
             TabBarPosition::Left => self.render_vertical(ctx, tabs, config, profiles),
             _ => self.render_horizontal(ctx, tabs, config, profiles, right_reserved_width),
         }
@@ -129,12 +129,12 @@ impl TabBarUI {
         let mut action = TabBarAction::None;
         let active_tab_id = tabs.active_tab_id();
 
-        let bar_bg = config.tab_bar_background;
+        let bar_bg = config.tab_colors.tab_bar_background;
         let tab_spacing = TAB_SPACING;
-        let tab_height = config.tab_bar_height; // Reuse height config for per-tab row height
+        let tab_height = config.tabs.tab_bar_height; // Reuse height config for per-tab row height
 
         egui::Panel::left("tab_bar")
-            .exact_size(config.tab_bar_width)
+            .exact_size(config.tabs.tab_bar_width)
             .frame(egui::Frame::NONE.fill(egui::Color32::from_rgb(bar_bg[0], bar_bg[1], bar_bg[2])))
             .show(ctx, |ui| {
                 egui::ScrollArea::vertical()
@@ -268,10 +268,10 @@ impl TabBarUI {
 
     /// Get the tab bar height (0 if hidden or if position is Left)
     pub fn get_height(&self, tab_count: usize, config: &Config) -> f32 {
-        if self.should_show(tab_count, config.tab_bar_mode)
-            && config.tab_bar_position.is_horizontal()
+        if self.should_show(tab_count, config.tabs.tab_bar_mode)
+            && config.tabs.tab_bar_position.is_horizontal()
         {
-            config.tab_bar_height
+            config.tabs.tab_bar_height
         } else {
             0.0
         }
@@ -279,10 +279,10 @@ impl TabBarUI {
 
     /// Get the tab bar width (non-zero only for Left position, 0 if hidden)
     pub fn get_width(&self, tab_count: usize, config: &Config) -> f32 {
-        if self.should_show(tab_count, config.tab_bar_mode)
-            && config.tab_bar_position == TabBarPosition::Left
+        if self.should_show(tab_count, config.tabs.tab_bar_mode)
+            && config.tabs.tab_bar_position == TabBarPosition::Left
         {
-            config.tab_bar_width
+            config.tabs.tab_bar_width
         } else {
             0.0
         }

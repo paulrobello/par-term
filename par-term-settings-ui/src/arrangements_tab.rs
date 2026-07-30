@@ -410,6 +410,7 @@ fn show_auto_restore_section(
 
             let current = settings
                 .config
+                .session_restore
                 .auto_restore_arrangement
                 .clone()
                 .unwrap_or_default();
@@ -434,7 +435,7 @@ fn show_auto_restore_section(
                             .selectable_label(current.is_empty(), "None (disabled)")
                             .clicked()
                         {
-                            settings.config.auto_restore_arrangement = None;
+                            settings.config.session_restore.auto_restore_arrangement = None;
                             settings.has_changes = true;
                             *changes_this_frame = true;
                         }
@@ -443,7 +444,7 @@ fn show_auto_restore_section(
                         for name in &names {
                             let selected = current == *name;
                             if ui.selectable_label(selected, *name).clicked() {
-                                settings.config.auto_restore_arrangement =
+                                settings.config.session_restore.auto_restore_arrangement =
                                     Some((*name).to_string());
                                 settings.has_changes = true;
                                 *changes_this_frame = true;

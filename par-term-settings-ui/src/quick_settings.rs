@@ -46,7 +46,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         ui.horizontal(|ui| {
             ui.label("Theme:");
             let available = Theme::available_themes();
-            let mut selected = settings.config.theme.clone();
+            let mut selected = settings.config.theme_colors.theme.clone();
             egui::ComboBox::from_id_salt("quick_theme_select")
                 .width(120.0)
                 .selected_text(selected.clone())
@@ -55,8 +55,8 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
                         ui.selectable_value(&mut selected, theme.to_string(), *theme);
                     }
                 });
-            if selected != settings.config.theme {
-                settings.config.theme = selected;
+            if selected != settings.config.theme_colors.theme {
+                settings.config.theme_colors.theme = selected;
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
@@ -131,7 +131,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         // Tab Bar visibility dropdown
         ui.horizontal(|ui| {
             ui.label("Tab bar:");
-            let current = match settings.config.tab_bar_mode {
+            let current = match settings.config.tabs.tab_bar_mode {
                 TabBarMode::Always => 0,
                 TabBarMode::WhenMultiple => 1,
                 TabBarMode::Never => 2,
@@ -151,7 +151,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
                     ui.selectable_value(&mut selected, 2, "Never");
                 });
             if selected != current {
-                settings.config.tab_bar_mode = match selected {
+                settings.config.tabs.tab_bar_mode = match selected {
                     0 => TabBarMode::Always,
                     1 => TabBarMode::WhenMultiple,
                     2 => TabBarMode::Never,
@@ -167,7 +167,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         // Background mode dropdown
         ui.horizontal(|ui| {
             ui.label("Background:");
-            let current = match settings.config.background_mode {
+            let current = match settings.config.image.background_mode {
                 BackgroundMode::Default => 0,
                 BackgroundMode::Color => 1,
                 BackgroundMode::Image => 2,
@@ -187,7 +187,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
                     ui.selectable_value(&mut selected, 2, "Image");
                 });
             if selected != current {
-                settings.config.background_mode = match selected {
+                settings.config.image.background_mode = match selected {
                     0 => BackgroundMode::Default,
                     1 => BackgroundMode::Color,
                     2 => BackgroundMode::Image,

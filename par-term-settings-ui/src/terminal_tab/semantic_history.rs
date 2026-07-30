@@ -33,9 +33,11 @@ pub(super) fn show_semantic_history_section(
                 ui.label("Link handler:");
                 if ui
                     .add(
-                        egui::TextEdit::singleline(&mut settings.config.link_handler_command)
-                            .desired_width(INPUT_WIDTH)
-                            .hint_text("System default"),
+                        egui::TextEdit::singleline(
+                            &mut settings.config.semantic_history.link_handler_command,
+                        )
+                        .desired_width(INPUT_WIDTH)
+                        .hint_text("System default"),
                     )
                     .on_hover_text(
                         "Custom command to open URLs.\n\n\
@@ -53,8 +55,16 @@ pub(super) fn show_semantic_history_section(
                 }
             });
 
-            if !settings.config.link_handler_command.is_empty()
-                && !settings.config.link_handler_command.contains("{url}")
+            if !settings
+                .config
+                .semantic_history
+                .link_handler_command
+                .is_empty()
+                && !settings
+                    .config
+                    .semantic_history
+                    .link_handler_command
+                    .contains("{url}")
             {
                 ui.label(
                     egui::RichText::new("⚠ Command should contain {url} placeholder")
@@ -66,7 +76,7 @@ pub(super) fn show_semantic_history_section(
             // file:// link policy (SEC-009)
             if ui
                 .checkbox(
-                    &mut settings.config.allow_file_scheme_urls,
+                    &mut settings.config.semantic_history.allow_file_scheme_urls,
                     "Allow opening file:// links",
                 )
                 .on_hover_text(
@@ -89,7 +99,7 @@ pub(super) fn show_semantic_history_section(
 
             if ui
                 .checkbox(
-                    &mut settings.config.semantic_history_enabled,
+                    &mut settings.config.semantic_history.semantic_history_enabled,
                     "Enable file path detection",
                 )
                 .on_hover_text(
@@ -106,11 +116,14 @@ pub(super) fn show_semantic_history_section(
 
             ui.horizontal(|ui| {
                 ui.label("Link highlight color:");
-                let mut color = settings.config.link_highlight_color;
-                let color_enabled = settings.config.link_highlight_color_enabled;
+                let mut color = settings.config.semantic_history.link_highlight_color;
+                let color_enabled = settings
+                    .config
+                    .semantic_history
+                    .link_highlight_color_enabled;
                 ui.add_enabled_ui(color_enabled, |ui| {
                     if ui.color_edit_button_srgb(&mut color).changed() {
-                        settings.config.link_highlight_color = color;
+                        settings.config.semantic_history.link_highlight_color = color;
                         settings.has_changes = true;
                         *changes_this_frame = true;
                     }
@@ -119,7 +132,7 @@ pub(super) fn show_semantic_history_section(
 
             if ui
                 .checkbox(
-                    &mut settings.config.link_highlight_color_enabled,
+                    &mut settings.config.semantic_history.link_highlight_color_enabled,
                     "Change text color on hover",
                 )
                 .on_hover_text("Apply the highlight color to link text. Disable to underline only without changing the text color.")
@@ -131,7 +144,7 @@ pub(super) fn show_semantic_history_section(
 
             if ui
                 .checkbox(
-                    &mut settings.config.link_highlight_underline,
+                    &mut settings.config.semantic_history.link_highlight_underline,
                     "Underline highlighted links",
                 )
                 .changed()
@@ -140,16 +153,22 @@ pub(super) fn show_semantic_history_section(
                 *changes_this_frame = true;
             }
 
-            if settings.config.link_highlight_underline {
+            if settings.config.semantic_history.link_highlight_underline {
                 ui.horizontal(|ui| {
                     ui.label("Underline style:");
                     egui::ComboBox::from_id_salt("link_underline_style")
-                        .selected_text(settings.config.link_underline_style.display_name())
+                        .selected_text(
+                            settings
+                                .config
+                                .semantic_history
+                                .link_underline_style
+                                .display_name(),
+                        )
                         .show_ui(ui, |ui| {
                             for style in par_term_config::LinkUnderlineStyle::all() {
                                 if ui
                                     .selectable_value(
-                                        &mut settings.config.link_underline_style,
+                                        &mut settings.config.semantic_history.link_underline_style,
                                         *style,
                                         style.display_name(),
                                     )
@@ -168,12 +187,21 @@ pub(super) fn show_semantic_history_section(
             ui.horizontal(|ui| {
                 ui.label("Editor mode:");
                 egui::ComboBox::from_id_salt("semantic_history_editor_mode")
-                    .selected_text(settings.config.semantic_history_editor_mode.display_name())
+                    .selected_text(
+                        settings
+                            .config
+                            .semantic_history
+                            .semantic_history_editor_mode
+                            .display_name(),
+                    )
                     .show_ui(ui, |ui| {
                         for mode in par_term_config::SemanticHistoryEditorMode::all() {
                             if ui
                                 .selectable_value(
-                                    &mut settings.config.semantic_history_editor_mode,
+                                    &mut settings
+                                        .config
+                                        .semantic_history
+                                        .semantic_history_editor_mode,
                                     *mode,
                                     mode.display_name(),
                                 )
@@ -187,7 +215,11 @@ pub(super) fn show_semantic_history_section(
             });
 
             // Show description based on selected mode
-            let mode_description = match settings.config.semantic_history_editor_mode {
+            let mode_description = match settings
+                .config
+                .semantic_history
+                .semantic_history_editor_mode
+            {
                 par_term_config::SemanticHistoryEditorMode::Custom => {
                     "Use the custom editor command configured below"
                 }
@@ -201,7 +233,10 @@ pub(super) fn show_semantic_history_section(
             ui.label(egui::RichText::new(mode_description).small().weak());
 
             // Only show custom editor command when mode is Custom
-            if settings.config.semantic_history_editor_mode
+            if settings
+                .config
+                .semantic_history
+                .semantic_history_editor_mode
                 == par_term_config::SemanticHistoryEditorMode::Custom
             {
                 ui.add_space(4.0);
@@ -211,7 +246,7 @@ pub(super) fn show_semantic_history_section(
                     if ui
                         .add(
                             egui::TextEdit::singleline(
-                                &mut settings.config.semantic_history_editor,
+                                &mut settings.config.semantic_history.semantic_history_editor,
                             )
                             .desired_width(INPUT_WIDTH),
                         )
@@ -233,7 +268,12 @@ pub(super) fn show_semantic_history_section(
                     }
                 });
 
-                if settings.config.semantic_history_editor.is_empty() {
+                if settings
+                    .config
+                    .semantic_history
+                    .semantic_history_editor
+                    .is_empty()
+                {
                     ui.label(
                         egui::RichText::new(
                             "Note: When custom command is empty, falls back to system default",

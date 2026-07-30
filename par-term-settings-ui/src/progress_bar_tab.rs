@@ -66,7 +66,7 @@ fn show_general_section(
         |ui| {
             if ui
                 .checkbox(
-                    &mut settings.config.progress_bar_enabled,
+                    &mut settings.config.progress_bar.progress_bar_enabled,
                     "Enable progress bar",
                 )
                 .on_hover_text(
@@ -85,12 +85,18 @@ fn show_general_section(
             ui.horizontal(|ui| {
                 ui.label("Style:");
                 egui::ComboBox::from_id_salt("progress_bar_style")
-                    .selected_text(settings.config.progress_bar_style.display_name())
+                    .selected_text(
+                        settings
+                            .config
+                            .progress_bar
+                            .progress_bar_style
+                            .display_name(),
+                    )
                     .show_ui(ui, |ui| {
                         for style in par_term_config::ProgressBarStyle::all() {
                             if ui
                                 .selectable_value(
-                                    &mut settings.config.progress_bar_style,
+                                    &mut settings.config.progress_bar.progress_bar_style,
                                     *style,
                                     style.display_name(),
                                 )
@@ -107,12 +113,18 @@ fn show_general_section(
             ui.horizontal(|ui| {
                 ui.label("Position:");
                 egui::ComboBox::from_id_salt("progress_bar_position")
-                    .selected_text(settings.config.progress_bar_position.display_name())
+                    .selected_text(
+                        settings
+                            .config
+                            .progress_bar
+                            .progress_bar_position
+                            .display_name(),
+                    )
                     .show_ui(ui, |ui| {
                         for position in par_term_config::ProgressBarPosition::all() {
                             if ui
                                 .selectable_value(
-                                    &mut settings.config.progress_bar_position,
+                                    &mut settings.config.progress_bar.progress_bar_position,
                                     *position,
                                     position.display_name(),
                                 )
@@ -133,9 +145,12 @@ fn show_general_section(
                 if ui
                     .add_sized(
                         [SLIDER_WIDTH, SLIDER_HEIGHT],
-                        egui::Slider::new(&mut settings.config.progress_bar_height, 2.0..=20.0)
-                            .suffix(" px")
-                            .show_value(true),
+                        egui::Slider::new(
+                            &mut settings.config.progress_bar.progress_bar_height,
+                            2.0..=20.0,
+                        )
+                        .suffix(" px")
+                        .show_value(true),
                     )
                     .on_hover_text("Height of the progress bar in pixels")
                     .changed()
@@ -151,8 +166,11 @@ fn show_general_section(
                 if ui
                     .add_sized(
                         [SLIDER_WIDTH, SLIDER_HEIGHT],
-                        egui::Slider::new(&mut settings.config.progress_bar_opacity, 0.1..=1.0)
-                            .show_value(true),
+                        egui::Slider::new(
+                            &mut settings.config.progress_bar.progress_bar_opacity,
+                            0.1..=1.0,
+                        )
+                        .show_value(true),
                     )
                     .on_hover_text("Opacity of the progress bar overlay")
                     .changed()
@@ -189,12 +207,13 @@ fn show_colors_section(
             ui.horizontal(|ui| {
                 ui.label("Normal:");
                 let mut color = egui::Color32::from_rgb(
-                    settings.config.progress_bar_normal_color[0],
-                    settings.config.progress_bar_normal_color[1],
-                    settings.config.progress_bar_normal_color[2],
+                    settings.config.progress_bar.progress_bar_normal_color[0],
+                    settings.config.progress_bar.progress_bar_normal_color[1],
+                    settings.config.progress_bar.progress_bar_normal_color[2],
                 );
                 if ui.color_edit_button_srgba(&mut color).changed() {
-                    settings.config.progress_bar_normal_color = [color.r(), color.g(), color.b()];
+                    settings.config.progress_bar.progress_bar_normal_color =
+                        [color.r(), color.g(), color.b()];
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
@@ -209,12 +228,13 @@ fn show_colors_section(
             ui.horizontal(|ui| {
                 ui.label("Warning:");
                 let mut color = egui::Color32::from_rgb(
-                    settings.config.progress_bar_warning_color[0],
-                    settings.config.progress_bar_warning_color[1],
-                    settings.config.progress_bar_warning_color[2],
+                    settings.config.progress_bar.progress_bar_warning_color[0],
+                    settings.config.progress_bar.progress_bar_warning_color[1],
+                    settings.config.progress_bar.progress_bar_warning_color[2],
                 );
                 if ui.color_edit_button_srgba(&mut color).changed() {
-                    settings.config.progress_bar_warning_color = [color.r(), color.g(), color.b()];
+                    settings.config.progress_bar.progress_bar_warning_color =
+                        [color.r(), color.g(), color.b()];
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
@@ -229,12 +249,13 @@ fn show_colors_section(
             ui.horizontal(|ui| {
                 ui.label("Error:");
                 let mut color = egui::Color32::from_rgb(
-                    settings.config.progress_bar_error_color[0],
-                    settings.config.progress_bar_error_color[1],
-                    settings.config.progress_bar_error_color[2],
+                    settings.config.progress_bar.progress_bar_error_color[0],
+                    settings.config.progress_bar.progress_bar_error_color[1],
+                    settings.config.progress_bar.progress_bar_error_color[2],
                 );
                 if ui.color_edit_button_srgba(&mut color).changed() {
-                    settings.config.progress_bar_error_color = [color.r(), color.g(), color.b()];
+                    settings.config.progress_bar.progress_bar_error_color =
+                        [color.r(), color.g(), color.b()];
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
@@ -249,13 +270,24 @@ fn show_colors_section(
             ui.horizontal(|ui| {
                 ui.label("Indeterminate:");
                 let mut color = egui::Color32::from_rgb(
-                    settings.config.progress_bar_indeterminate_color[0],
-                    settings.config.progress_bar_indeterminate_color[1],
-                    settings.config.progress_bar_indeterminate_color[2],
+                    settings
+                        .config
+                        .progress_bar
+                        .progress_bar_indeterminate_color[0],
+                    settings
+                        .config
+                        .progress_bar
+                        .progress_bar_indeterminate_color[1],
+                    settings
+                        .config
+                        .progress_bar
+                        .progress_bar_indeterminate_color[2],
                 );
                 if ui.color_edit_button_srgba(&mut color).changed() {
-                    settings.config.progress_bar_indeterminate_color =
-                        [color.r(), color.g(), color.b()];
+                    settings
+                        .config
+                        .progress_bar
+                        .progress_bar_indeterminate_color = [color.r(), color.g(), color.b()];
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }

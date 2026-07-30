@@ -161,7 +161,7 @@ impl ProfileDrawerUI {
 
         // Render toggle button (skip if modal is open to avoid z-order issues,
         // or if profile drawer button is disabled in config)
-        if !modal_visible && config.show_profile_drawer_button {
+        if !modal_visible && config.tabs.show_profile_drawer_button {
             egui::Area::new(egui::Id::new("profile_drawer_toggle_area"))
                 .fixed_pos(button_rect.min)
                 .order(egui::Order::Foreground)

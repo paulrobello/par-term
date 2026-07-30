@@ -37,7 +37,7 @@ pub(super) fn show_transparency_section(
 
             if ui
                 .checkbox(
-                    &mut settings.config.transparency_affects_only_default_background,
+                    &mut settings.config.background.transparency_affects_only_default_background,
                     "Transparency affects only default background",
                 )
                 .on_hover_text(
@@ -50,7 +50,7 @@ pub(super) fn show_transparency_section(
             }
 
             if ui
-                .checkbox(&mut settings.config.keep_text_opaque, "Keep text opaque")
+                .checkbox(&mut settings.config.background.keep_text_opaque, "Keep text opaque")
                 .on_hover_text(
                     "When enabled, text is always rendered at full opacity regardless of window transparency",
                 )

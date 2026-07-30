@@ -40,15 +40,15 @@ pub fn render_progress_bars(
     top_inset: f32,
     bottom_inset: f32,
 ) {
-    if !config.progress_bar_enabled || !snapshot.has_active() {
+    if !config.progress_bar.progress_bar_enabled || !snapshot.has_active() {
         return;
     }
 
-    let bar_height = config.progress_bar_height;
-    let alpha = (config.progress_bar_opacity * 255.0) as u8;
+    let bar_height = config.progress_bar.progress_bar_height;
+    let alpha = (config.progress_bar.progress_bar_opacity * 255.0) as u8;
 
     // Calculate Y position based on config, respecting UI insets
-    let base_y = match config.progress_bar_position {
+    let base_y = match config.progress_bar.progress_bar_position {
         ProgressBarPosition::Top => top_inset,
         ProgressBarPosition::Bottom => window_height - bar_height - bottom_inset,
     };
@@ -84,7 +84,7 @@ pub fn render_progress_bars(
 
     // For multiple bars, stack them (each gets its own row)
     let total_height = bar_height * bars.len() as f32;
-    let stacked_y = match config.progress_bar_position {
+    let stacked_y = match config.progress_bar.progress_bar_position {
         ProgressBarPosition::Top => base_y,
         ProgressBarPosition::Bottom => window_height - total_height - bottom_inset,
     };
@@ -155,7 +155,8 @@ pub fn render_progress_bars(
                 }
 
                 // Draw text overlay if style requires it
-                if config.progress_bar_style == ProgressBarStyle::BarWithText && bar_height >= 10.0
+                if config.progress_bar.progress_bar_style == ProgressBarStyle::BarWithText
+                    && bar_height >= 10.0
                 {
                     let text = if let Some(label) = bar.label {
                         if bar.state == ProgressState::Indeterminate {
@@ -196,10 +197,10 @@ struct BarRenderInfo<'a> {
 /// Get the color for a progress state from config.
 fn state_color(state: ProgressState, config: &Config, alpha: u8) -> egui::Color32 {
     let rgb = match state {
-        ProgressState::Normal => config.progress_bar_normal_color,
-        ProgressState::Warning => config.progress_bar_warning_color,
-        ProgressState::Error => config.progress_bar_error_color,
-        ProgressState::Indeterminate => config.progress_bar_indeterminate_color,
+        ProgressState::Normal => config.progress_bar.progress_bar_normal_color,
+        ProgressState::Warning => config.progress_bar.progress_bar_warning_color,
+        ProgressState::Error => config.progress_bar.progress_bar_error_color,
+        ProgressState::Indeterminate => config.progress_bar.progress_bar_indeterminate_color,
         ProgressState::Hidden => [0, 0, 0],
     };
     egui::Color32::from_rgba_unmultiplied(rgb[0], rgb[1], rgb[2], alpha)
@@ -253,9 +254,9 @@ mod tests {
         assert_eq!(
             color,
             egui::Color32::from_rgba_unmultiplied(
-                config.progress_bar_normal_color[0],
-                config.progress_bar_normal_color[1],
-                config.progress_bar_normal_color[2],
+                config.progress_bar.progress_bar_normal_color[0],
+                config.progress_bar.progress_bar_normal_color[1],
+                config.progress_bar.progress_bar_normal_color[2],
                 255,
             )
         );
@@ -268,9 +269,9 @@ mod tests {
         assert_eq!(
             color,
             egui::Color32::from_rgba_unmultiplied(
-                config.progress_bar_warning_color[0],
-                config.progress_bar_warning_color[1],
-                config.progress_bar_warning_color[2],
+                config.progress_bar.progress_bar_warning_color[0],
+                config.progress_bar.progress_bar_warning_color[1],
+                config.progress_bar.progress_bar_warning_color[2],
                 200,
             )
         );
@@ -283,9 +284,9 @@ mod tests {
         assert_eq!(
             color,
             egui::Color32::from_rgba_unmultiplied(
-                config.progress_bar_error_color[0],
-                config.progress_bar_error_color[1],
-                config.progress_bar_error_color[2],
+                config.progress_bar.progress_bar_error_color[0],
+                config.progress_bar.progress_bar_error_color[1],
+                config.progress_bar.progress_bar_error_color[2],
                 128,
             )
         );

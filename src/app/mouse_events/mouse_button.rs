@@ -116,7 +116,7 @@ impl WindowState {
                 // where middle-click silently forwards a mouse event to a TUI app (vim,
                 // less, etc.) instead of pasting, causing apparent "different content"
                 // compared to Cmd+V.
-                if self.config.load().middle_click_paste {
+                if self.config.load().selection.middle_click_paste {
                     if state == ElementState::Pressed {
                         // Phase 1: Focus the pane under the click, if it differs from the
                         // current focus. Must run before Phase 2's terminal lookup so that
@@ -275,15 +275,20 @@ impl WindowState {
                     url_detection::DetectedItemType::Url => {
                         if let Err(e) = url_detection::open_url(
                             &item.url,
-                            &self.config.load().link_handler_command,
-                            self.config.load().allow_file_scheme_urls,
+                            &self.config.load().semantic_history.link_handler_command,
+                            self.config.load().semantic_history.allow_file_scheme_urls,
                         ) {
                             log::error!("Failed to open URL: {}", e);
                         }
                     }
                     url_detection::DetectedItemType::FilePath { line, column } => {
-                        let editor_mode = self.config.load().semantic_history_editor_mode;
-                        let editor_cmd = &self.config.load().semantic_history_editor;
+                        let editor_mode = self
+                            .config
+                            .load()
+                            .semantic_history
+                            .semantic_history_editor_mode;
+                        let editor_cmd =
+                            &self.config.load().semantic_history.semantic_history_editor;
                         let cwd = tab.get_cwd();
                         crate::debug_info!(
                             "SEMANTIC",
@@ -483,7 +488,7 @@ impl WindowState {
             .as_ref()
             .map(|w| w.scale_factor())
             .unwrap_or(1.0);
-        match self.config.load().tab_bar_position {
+        match self.config.load().tabs.tab_bar_position {
             crate::config::TabBarPosition::Top => {
                 mouse_position.1 < tab_bar_height as f64 * scale_factor
             }

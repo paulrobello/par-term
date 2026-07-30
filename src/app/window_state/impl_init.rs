@@ -46,12 +46,14 @@ impl WindowState {
         let custom_action_prefix_combo =
             Self::parse_custom_action_prefix_combo(&config.custom_action_prefix_key);
         let shaders_dir = Config::shaders_dir();
-        let tmux_prefix_key = crate::tmux::PrefixKey::parse(&config.tmux_prefix_key);
+        let tmux_prefix_key = crate::tmux::PrefixKey::parse(&config.tmux.tmux_prefix_key);
 
         let mut input_handler = InputHandler::new();
         // Initialize Option/Alt key modes from config
-        input_handler
-            .update_option_key_modes(config.left_option_key_mode, config.right_option_key_mode);
+        input_handler.update_option_key_modes(
+            config.input.left_option_key_mode,
+            config.input.right_option_key_mode,
+        );
 
         // Create badge state and overlay UI before wrapping config in ArcSwap
         let badge_state = BadgeState::new(&config);
@@ -133,7 +135,7 @@ impl WindowState {
     /// Format window title with optional window number
     /// This should be used everywhere a title is set to ensure consistency
     pub(crate) fn format_title(&self, base_title: &str) -> String {
-        if self.config.load().show_window_number {
+        if self.config.load().placement.show_window_number {
             format!("{} [{}]", base_title, self.window_index)
         } else {
             base_title.to_string()
@@ -186,7 +188,7 @@ impl WindowState {
         // Detect system theme at startup and apply if auto_dark_mode is enabled
         {
             let cfg = self.config.load();
-            if cfg.auto_dark_mode {
+            if cfg.theme_colors.auto_dark_mode {
                 let is_dark = window
                     .theme()
                     .is_none_or(|t| t == winit::window::Theme::Dark);
@@ -203,7 +205,7 @@ impl WindowState {
                 log::info!(
                     "Auto dark mode: detected {} system theme, using theme: {}",
                     if is_dark { "dark" } else { "light" },
-                    cfg.theme
+                    cfg.theme_colors.theme
                 );
             }
         }
@@ -231,9 +233,9 @@ impl WindowState {
                     "Auto tab style: detected {} system theme, applying {} tab style",
                     if is_dark { "dark" } else { "light" },
                     if is_dark {
-                        cfg.dark_tab_style.display_name()
+                        cfg.tabs.dark_tab_style.display_name()
                     } else {
-                        cfg.light_tab_style.display_name()
+                        cfg.tabs.light_tab_style.display_name()
                     }
                 );
             }
@@ -310,8 +312,8 @@ impl WindowState {
             (
                 self.tab_bar_ui.get_height(1, &cfg),
                 self.tab_bar_ui.get_width(1, &cfg),
-                cfg.tab_bar_mode,
-                cfg.tab_bar_position,
+                cfg.tabs.tab_bar_mode,
+                cfg.tabs.tab_bar_position,
             )
         };
         let (initial_cols, initial_rows) = renderer.grid_size();
@@ -368,7 +370,7 @@ impl WindowState {
             );
             let (max_fps, inactive_tab_fps) = {
                 let cfg = self.config.load();
-                (cfg.max_fps, cfg.inactive_tab_fps)
+                (cfg.rendering.max_fps, cfg.power.inactive_tab_fps)
             };
             let tab_id = self.tab_manager.new_tab_with_cwd(
                 &self.config.load(),

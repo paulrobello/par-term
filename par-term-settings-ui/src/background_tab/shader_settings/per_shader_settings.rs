@@ -23,13 +23,22 @@ pub(super) fn show_per_shader_settings(
     collapsed: &mut HashSet<String>,
 ) {
     // Get current override or create empty one for display
-    let has_override = settings.config.shader_configs.contains_key(shader_name);
+    let has_override = settings
+        .config
+        .shader_overrides
+        .shader_configs
+        .contains_key(shader_name);
 
     // Get metadata defaults (if any) - clone to avoid borrow issues
     let meta_defaults = metadata.as_ref().map(|m| m.defaults.clone());
 
     // Clone current override to avoid borrow issues with closures
-    let current_override = settings.config.shader_configs.get(shader_name).cloned();
+    let current_override = settings
+        .config
+        .shader_overrides
+        .shader_configs
+        .get(shader_name)
+        .cloned();
 
     // Animation Speed
     {
@@ -56,7 +65,11 @@ pub(super) fn show_per_shader_settings(
             }
 
             if show_reset_button(ui, has_override_val)
-                && let Some(override_entry) = settings.config.shader_configs.get_mut(shader_name)
+                && let Some(override_entry) = settings
+                    .config
+                    .shader_overrides
+                    .shader_configs
+                    .get_mut(shader_name)
             {
                 override_entry.animation_speed = None;
                 settings.has_changes = true;
@@ -93,7 +106,11 @@ pub(super) fn show_per_shader_settings(
             }
 
             if show_reset_button(ui, has_override_val)
-                && let Some(override_entry) = settings.config.shader_configs.get_mut(shader_name)
+                && let Some(override_entry) = settings
+                    .config
+                    .shader_overrides
+                    .shader_configs
+                    .get_mut(shader_name)
             {
                 override_entry.brightness = None;
                 settings.has_changes = true;
@@ -127,7 +144,11 @@ pub(super) fn show_per_shader_settings(
             }
 
             if show_reset_button(ui, has_override_val)
-                && let Some(override_entry) = settings.config.shader_configs.get_mut(shader_name)
+                && let Some(override_entry) = settings
+                    .config
+                    .shader_overrides
+                    .shader_configs
+                    .get_mut(shader_name)
             {
                 override_entry.text_opacity = None;
                 settings.has_changes = true;
@@ -162,7 +183,11 @@ pub(super) fn show_per_shader_settings(
             }
 
             if show_reset_button(ui, has_override_val)
-                && let Some(override_entry) = settings.config.shader_configs.get_mut(shader_name)
+                && let Some(override_entry) = settings
+                    .config
+                    .shader_overrides
+                    .shader_configs
+                    .get_mut(shader_name)
             {
                 override_entry.full_content = None;
                 settings.has_changes = true;
@@ -208,7 +233,7 @@ pub(super) fn show_per_shader_settings(
             }
 
             if show_reset_button(ui, has_override_val)
-                && let Some(override_entry) = settings.config.shader_configs.get_mut(shader_name)
+                && let Some(override_entry) = settings.config.shader_overrides.shader_configs.get_mut(shader_name)
             {
                 override_entry.use_background_as_channel0 = None;
                 settings.has_changes = true;

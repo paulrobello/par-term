@@ -56,13 +56,13 @@ impl Tab {
             ));
 
             let mut logger = SessionLogger::new(
-                config.session_log_format,
+                config.session_log.session_log_format,
                 &logs_dir,
                 dimensions,
                 session_title,
             )?;
 
-            logger.set_redact_passwords(config.session_log_redact_passwords);
+            logger.set_redact_passwords(config.session_log.session_log_redact_passwords);
             logger.start()?;
 
             // SEC-002: Emit a prominent one-time warning when session logging is enabled.
@@ -76,7 +76,7 @@ impl Tab {
                  Do NOT share session log files unless you have reviewed their contents.\n\
                  Disable session logging when working with sensitive credentials.\n",
                 logs_dir.display(),
-                config.session_log_redact_passwords,
+                config.session_log.session_log_redact_passwords,
             );
 
             // Set up output callback to record PTY output

@@ -123,10 +123,10 @@ pub(super) static DISPLAY_ACTION_HANDLERS: &[(&str, DisplayActionHandler)] = &[
     ("toggle_throughput_mode", |s: &mut WindowState| {
         s.config.rcu(|old| {
             let mut new = (**old).clone();
-            new.maximize_throughput = !old.maximize_throughput;
+            new.rendering.maximize_throughput = !old.rendering.maximize_throughput;
             std::sync::Arc::new(new)
         });
-        let message = if s.config.load().maximize_throughput {
+        let message = if s.config.load().rendering.maximize_throughput {
             "Throughput Mode: ON"
         } else {
             "Throughput Mode: OFF"
@@ -134,7 +134,7 @@ pub(super) static DISPLAY_ACTION_HANDLERS: &[(&str, DisplayActionHandler)] = &[
         s.show_toast(message);
         log::info!(
             "Throughput mode {}",
-            if s.config.load().maximize_throughput {
+            if s.config.load().rendering.maximize_throughput {
                 "enabled"
             } else {
                 "disabled"

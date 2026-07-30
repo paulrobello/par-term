@@ -199,8 +199,8 @@ Layer 4 — Root crate (bump last):
 ## Common Development Workflows
 
 ### Adding a New Configuration Option
-1. Add field to `Config` struct in `par-term-config/src/config/config_struct/mod.rs` with `#[serde(default = "default_my_option")]`
-2. Update `Default` impl
+1. Add the field to the **sub-config for its area** — `par-term-config/src/config/config_struct/<area>_config.rs` (`TabConfig`, `PaneConfig`, `ShellConfig`, `TmuxConfig`, `BadgeConfig`, … ~30 of them) — with `#[serde(default = "default_my_option")]`. Do **not** add it to `Config` in `config_struct/mod.rs`; that root struct is deliberately drained and adding to it is what grew it to 1,529 lines. The sub-config is already a `#[serde(flatten)]` member of `Config`, so the YAML key stays top-level and the access path is `config.<member>.<field>`.
+2. Update that sub-config's `Default` impl with the **same expression** the `#[serde(default = "…")]` names. Never swap a hand-written `Default` for `#[derive(Default)]` to add a field — most of these fields do not default to their type's default, and deriving resets them while compiling cleanly. `par-term-config/tests/config_yaml_compat.rs` fails if the two disagree.
 3. Use config value in relevant component
 4. **REQUIRED**: Add UI controls in the appropriate `par-term-settings-ui/src/<name>_tab/` module (most tabs are directories, not single files — scripts settings, for example, live in `scripts_tab/editor.rs`, rendered from `automation_tab/mod.rs`)
    - Set `settings.has_changes = true` and `*changes_this_frame = true` on change

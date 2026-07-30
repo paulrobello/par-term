@@ -114,8 +114,12 @@ impl WindowState {
         &self,
         terminal: &Arc<tokio::sync::RwLock<TerminalManager>>,
     ) -> (Vec<ScrollbackMark>, bool) {
-        let need_marks = self.config.load().scrollbar_command_marks
-            || self.config.load().command_separator_enabled;
+        let need_marks = self.config.load().scrollbar.scrollbar_command_marks
+            || self
+                .config
+                .load()
+                .command_separator
+                .command_separator_enabled;
         let mut scrollback_marks: Vec<ScrollbackMark> = if need_marks {
             if let Ok(term) = terminal.try_read() {
                 term.scrollback_marks()

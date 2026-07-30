@@ -69,7 +69,7 @@ impl WindowManager {
         // Gate on the same setting as the normal session save. A user who has
         // turned session restore off should not have a crash file appear in
         // their config directory, and nothing would consume it if it did.
-        if !self.config.load().restore_session {
+        if !self.config.load().session_restore.restore_session {
             return;
         }
         // Checked before the throttle, not after: a capture that would yield
@@ -173,7 +173,7 @@ impl WindowManager {
             {
                 // Auto-reconnect tmux session if one was active at save time
                 if let Some(ref session_name) = session_window.tmux_session_name
-                    && window_state.config.load().tmux_enabled
+                    && window_state.config.load().tmux.tmux_enabled
                     && !session_name.is_empty()
                 {
                     if let Err(e) = window_state.initiate_tmux_gateway(Some(session_name)) {
@@ -215,8 +215,8 @@ impl WindowManager {
                             tab.start_pane_refresh_tasks(
                                 Arc::clone(&self.runtime),
                                 Arc::clone(win),
-                                self.config.load().max_fps,
-                                self.config.load().inactive_tab_fps,
+                                self.config.load().rendering.max_fps,
+                                self.config.load().power.inactive_tab_fps,
                             );
                         }
                     }
@@ -272,7 +272,7 @@ impl WindowManager {
 
         // Build window title
         let window_number = self.windows.len() + 1;
-        let title = if self.config.load().show_window_number {
+        let title = if self.config.load().placement.show_window_number {
             format!("{} [{}]", self.config.load().window_title, window_number)
         } else {
             self.config.load().window_title.clone()
@@ -288,7 +288,7 @@ impl WindowManager {
             ))
             .with_decorations(self.config.load().window.window_decorations);
 
-        if self.config.load().lock_window_size {
+        if self.config.load().placement.lock_window_size {
             window_attrs = window_attrs.with_resizable(false);
         }
 
@@ -390,14 +390,14 @@ impl WindowManager {
                         tab.start_refresh_task(
                             Arc::clone(&self.runtime),
                             Arc::clone(win),
-                            self.config.load().max_fps,
-                            self.config.load().inactive_tab_fps,
+                            self.config.load().rendering.max_fps,
+                            self.config.load().power.inactive_tab_fps,
                         );
                         tab.start_pane_refresh_tasks(
                             Arc::clone(&self.runtime),
                             Arc::clone(win),
-                            self.config.load().max_fps,
-                            self.config.load().inactive_tab_fps,
+                            self.config.load().rendering.max_fps,
+                            self.config.load().power.inactive_tab_fps,
                         );
                     }
                 }

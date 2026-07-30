@@ -26,7 +26,12 @@ pub(super) fn show_per_shader_channel_settings(
     changes_this_frame: &mut bool,
 ) {
     // Clone current override to avoid borrow issues
-    let current_override = settings.config.shader_configs.get(shader_name).cloned();
+    let current_override = settings
+        .config
+        .shader_overrides
+        .shader_configs
+        .get(shader_name)
+        .cloned();
 
     // Show each channel
     for channel_num in 0..4u8 {
@@ -140,7 +145,11 @@ pub(super) fn show_per_shader_channel_settings(
 
             // Reset button - removes override to restore default
             if show_reset_button(ui, has_override)
-                && let Some(override_entry) = settings.config.shader_configs.get_mut(shader_name)
+                && let Some(override_entry) = settings
+                    .config
+                    .shader_overrides
+                    .shader_configs
+                    .get_mut(shader_name)
             {
                 match channel_num {
                     0 => override_entry.channel0 = None,
@@ -207,8 +216,11 @@ pub(super) fn show_per_shader_channel_settings(
                     .clicked()
                     && !using_default
                 {
-                    if let Some(override_entry) =
-                        settings.config.shader_configs.get_mut(shader_name)
+                    if let Some(override_entry) = settings
+                        .config
+                        .shader_overrides
+                        .shader_configs
+                        .get_mut(shader_name)
                     {
                         override_entry.cubemap = None;
                     }
@@ -258,7 +270,11 @@ pub(super) fn show_per_shader_channel_settings(
 
         // Reset button
         if show_reset_button(ui, has_cubemap_override)
-            && let Some(override_entry) = settings.config.shader_configs.get_mut(shader_name)
+            && let Some(override_entry) = settings
+                .config
+                .shader_overrides
+                .shader_configs
+                .get_mut(shader_name)
         {
             override_entry.cubemap = None;
             settings.has_changes = true;
@@ -284,7 +300,11 @@ pub(super) fn show_per_shader_channel_settings(
         }
 
         if show_reset_button(ui, has_cubemap_enabled_override)
-            && let Some(override_entry) = settings.config.shader_configs.get_mut(shader_name)
+            && let Some(override_entry) = settings
+                .config
+                .shader_overrides
+                .shader_configs
+                .get_mut(shader_name)
         {
             override_entry.cubemap_enabled = None;
             settings.has_changes = true;

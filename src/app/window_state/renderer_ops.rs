@@ -162,7 +162,7 @@ impl WindowState {
         tab_bar_width: f32,
     ) -> Option<(usize, usize)> {
         Self::apply_tab_bar_offsets_for_position(
-            self.config.load().tab_bar_position,
+            self.config.load().tabs.tab_bar_position,
             renderer,
             tab_bar_height,
             tab_bar_width,

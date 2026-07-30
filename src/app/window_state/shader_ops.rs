@@ -37,10 +37,10 @@ impl WindowState {
         debug_info!(
             "SHADER",
             "init_shader_watcher: hot_reload={}",
-            self.config.load().shader_hot_reload
+            self.config.load().shader_watch.shader_hot_reload
         );
 
-        if !self.config.load().shader_hot_reload {
+        if !self.config.load().shader_watch.shader_hot_reload {
             log::debug!("Shader hot reload disabled");
             return;
         }
@@ -78,13 +78,13 @@ impl WindowState {
         match ShaderWatcher::new(
             background_path.as_deref(),
             cursor_path.as_deref(),
-            self.config.load().shader_hot_reload_delay,
+            self.config.load().shader_watch.shader_hot_reload_delay,
         ) {
             Ok(watcher) => {
                 debug_info!(
                     "SHADER",
                     "Shader hot reload initialized (debounce: {}ms)",
-                    self.config.load().shader_hot_reload_delay
+                    self.config.load().shader_watch.shader_hot_reload_delay
                 );
                 self.shader_state.shader_watcher = Some(watcher);
             }

@@ -204,6 +204,7 @@ impl SettingsUI {
                 // Show installed version if available
                 if let Some(ref version) = self
                     .config
+                    .integrations
                     .integration_versions
                     .shell_integration_installed_version
                 {
@@ -274,8 +275,11 @@ impl SettingsUI {
                 });
 
                 // Show installed version if available
-                if let Some(ref version) =
-                    self.config.integration_versions.shaders_installed_version
+                if let Some(ref version) = self
+                    .config
+                    .integrations
+                    .integration_versions
+                    .shaders_installed_version
                 {
                     ui.horizontal(|ui| {
                         ui.label("Version:");

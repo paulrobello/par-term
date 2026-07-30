@@ -3,7 +3,10 @@
 //! Covers: window type, target monitor/space, session logging, startup directory modes,
 //! and effective startup directory resolution.
 
-use par_term::config::{Config, SessionLogFormat, StartupDirectoryMode, WindowType};
+use par_term::config::{
+    Config, SessionLogConfig, SessionLogFormat, ShellConfig, StartupDirectoryMode,
+    WindowPlacementConfig, WindowType,
+};
 
 // ============================================================================
 // Window Management Features Tests
@@ -13,15 +16,15 @@ use par_term::config::{Config, SessionLogFormat, StartupDirectoryMode, WindowTyp
 fn test_config_window_management_defaults() {
     let config = Config::default();
     // Window type should default to Normal
-    assert_eq!(config.window_type, WindowType::Normal);
+    assert_eq!(config.placement.window_type, WindowType::Normal);
     // Target monitor should be None (OS decides)
-    assert!(config.target_monitor.is_none());
+    assert!(config.placement.target_monitor.is_none());
     // Target Space should be None (OS decides)
-    assert!(config.target_space.is_none());
+    assert!(config.placement.target_space.is_none());
     // Lock window size should be disabled by default
-    assert!(!config.lock_window_size);
+    assert!(!config.placement.lock_window_size);
     // Show window number should be disabled by default
-    assert!(!config.show_window_number);
+    assert!(!config.placement.show_window_number);
 }
 
 #[test]
@@ -29,27 +32,27 @@ fn test_config_window_type_variants() {
     // Test all window type variants
     let yaml = r#"window_type: normal"#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert_eq!(config.window_type, WindowType::Normal);
+    assert_eq!(config.placement.window_type, WindowType::Normal);
 
     let yaml = r#"window_type: fullscreen"#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert_eq!(config.window_type, WindowType::Fullscreen);
+    assert_eq!(config.placement.window_type, WindowType::Fullscreen);
 
     let yaml = r#"window_type: edge_top"#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert_eq!(config.window_type, WindowType::EdgeTop);
+    assert_eq!(config.placement.window_type, WindowType::EdgeTop);
 
     let yaml = r#"window_type: edge_bottom"#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert_eq!(config.window_type, WindowType::EdgeBottom);
+    assert_eq!(config.placement.window_type, WindowType::EdgeBottom);
 
     let yaml = r#"window_type: edge_left"#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert_eq!(config.window_type, WindowType::EdgeLeft);
+    assert_eq!(config.placement.window_type, WindowType::EdgeLeft);
 
     let yaml = r#"window_type: edge_right"#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert_eq!(config.window_type, WindowType::EdgeRight);
+    assert_eq!(config.placement.window_type, WindowType::EdgeRight);
 }
 
 #[test]
@@ -71,19 +74,22 @@ lock_window_size: true
 show_window_number: true
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert_eq!(config.window_type, WindowType::EdgeTop);
-    assert_eq!(config.target_monitor, Some(1));
-    assert!(config.lock_window_size);
-    assert!(config.show_window_number);
+    assert_eq!(config.placement.window_type, WindowType::EdgeTop);
+    assert_eq!(config.placement.target_monitor, Some(1));
+    assert!(config.placement.lock_window_size);
+    assert!(config.placement.show_window_number);
 }
 
 #[test]
 fn test_config_window_management_yaml_serialization() {
     let config = Config {
-        window_type: WindowType::Fullscreen,
-        target_monitor: Some(2),
-        lock_window_size: true,
-        show_window_number: true,
+        placement: WindowPlacementConfig {
+            window_type: WindowType::Fullscreen,
+            target_monitor: Some(2),
+            lock_window_size: true,
+            show_window_number: true,
+            ..Default::default()
+        },
         ..Config::default()
     };
 
@@ -101,11 +107,11 @@ fn test_config_window_management_partial_yaml() {
 lock_window_size: true
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert!(config.lock_window_size);
+    assert!(config.placement.lock_window_size);
     // Other fields should have defaults
-    assert_eq!(config.window_type, WindowType::Normal);
-    assert!(config.target_monitor.is_none());
-    assert!(!config.show_window_number);
+    assert_eq!(config.placement.window_type, WindowType::Normal);
+    assert!(config.placement.target_monitor.is_none());
+    assert!(!config.placement.show_window_number);
 }
 
 #[test]
@@ -115,13 +121,13 @@ fn test_config_target_monitor_none_yaml() {
 target_monitor: null
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert!(config.target_monitor.is_none());
+    assert!(config.placement.target_monitor.is_none());
 }
 
 #[test]
 fn test_config_target_space_default() {
     let config = Config::default();
-    assert!(config.target_space.is_none());
+    assert!(config.placement.target_space.is_none());
 }
 
 #[test]
@@ -130,7 +136,7 @@ fn test_config_target_space_yaml_deserialization() {
 target_space: 3
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert_eq!(config.target_space, Some(3));
+    assert_eq!(config.placement.target_space, Some(3));
 }
 
 #[test]
@@ -139,13 +145,16 @@ fn test_config_target_space_null_yaml() {
 target_space: null
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert!(config.target_space.is_none());
+    assert!(config.placement.target_space.is_none());
 }
 
 #[test]
 fn test_config_target_space_yaml_serialization() {
     let config = Config {
-        target_space: Some(5),
+        placement: WindowPlacementConfig {
+            target_space: Some(5),
+            ..Default::default()
+        },
         ..Config::default()
     };
 
@@ -160,7 +169,7 @@ fn test_config_target_space_missing_defaults_to_none() {
 font_size: 14.0
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert!(config.target_space.is_none());
+    assert!(config.placement.target_space.is_none());
 }
 
 #[test]
@@ -193,14 +202,22 @@ fn test_window_type_all() {
 fn test_session_logging_defaults() {
     let config = Config::default();
     // Session logging should be disabled by default
-    assert!(!config.auto_log_sessions);
+    assert!(!config.session_log.auto_log_sessions);
     // Default format should be asciicast
-    assert_eq!(config.session_log_format, SessionLogFormat::Asciicast);
+    assert_eq!(
+        config.session_log.session_log_format,
+        SessionLogFormat::Asciicast
+    );
     // Archive on close should be enabled by default
-    assert!(config.archive_on_close);
+    assert!(config.session_log.archive_on_close);
     // Log directory should contain par-term/logs
-    assert!(config.session_log_directory.contains("par-term"));
-    assert!(config.session_log_directory.contains("logs"));
+    assert!(
+        config
+            .session_log
+            .session_log_directory
+            .contains("par-term")
+    );
+    assert!(config.session_log.session_log_directory.contains("logs"));
 }
 
 #[test]
@@ -232,18 +249,24 @@ session_log_directory: "/tmp/test-logs"
 archive_on_close: false
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert!(config.auto_log_sessions);
-    assert_eq!(config.session_log_format, SessionLogFormat::Plain);
-    assert_eq!(config.session_log_directory, "/tmp/test-logs");
-    assert!(!config.archive_on_close);
+    assert!(config.session_log.auto_log_sessions);
+    assert_eq!(
+        config.session_log.session_log_format,
+        SessionLogFormat::Plain
+    );
+    assert_eq!(config.session_log.session_log_directory, "/tmp/test-logs");
+    assert!(!config.session_log.archive_on_close);
 }
 
 #[test]
 fn test_session_logging_yaml_serialization() {
     let config = Config {
-        auto_log_sessions: true,
-        session_log_format: SessionLogFormat::Html,
-        session_log_directory: "/var/log/terminal".to_string(),
+        session_log: SessionLogConfig {
+            auto_log_sessions: true,
+            session_log_format: SessionLogFormat::Html,
+            session_log_directory: "/var/log/terminal".to_string(),
+            ..Default::default()
+        },
         ..Config::default()
     };
 
@@ -258,15 +281,24 @@ fn test_session_log_format_yaml_variants() {
     // Test all format variants
     let yaml = r#"session_log_format: plain"#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert_eq!(config.session_log_format, SessionLogFormat::Plain);
+    assert_eq!(
+        config.session_log.session_log_format,
+        SessionLogFormat::Plain
+    );
 
     let yaml = r#"session_log_format: html"#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert_eq!(config.session_log_format, SessionLogFormat::Html);
+    assert_eq!(
+        config.session_log.session_log_format,
+        SessionLogFormat::Html
+    );
 
     let yaml = r#"session_log_format: asciicast"#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert_eq!(config.session_log_format, SessionLogFormat::Asciicast);
+    assert_eq!(
+        config.session_log.session_log_format,
+        SessionLogFormat::Asciicast
+    );
 }
 
 #[test]
@@ -276,10 +308,13 @@ fn test_session_logging_partial_yaml() {
 auto_log_sessions: true
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert!(config.auto_log_sessions);
+    assert!(config.session_log.auto_log_sessions);
     // Other fields should have defaults
-    assert_eq!(config.session_log_format, SessionLogFormat::Asciicast);
-    assert!(config.archive_on_close);
+    assert_eq!(
+        config.session_log.session_log_format,
+        SessionLogFormat::Asciicast
+    );
+    assert!(config.session_log.archive_on_close);
 }
 
 // ============================================================================
@@ -290,16 +325,16 @@ auto_log_sessions: true
 fn test_startup_directory_mode_defaults() {
     let config = Config::default();
     assert_eq!(
-        config.startup_directory_mode,
+        config.shell.startup_directory_mode,
         StartupDirectoryMode::Home,
         "Default startup directory mode should be Home"
     );
     assert!(
-        config.startup_directory.is_none(),
+        config.shell.startup_directory.is_none(),
         "Default startup_directory should be None"
     );
     assert!(
-        config.last_working_directory.is_none(),
+        config.shell.last_working_directory.is_none(),
         "Default last_working_directory should be None"
     );
 }
@@ -309,20 +344,26 @@ fn test_startup_directory_mode_yaml_parsing() {
     // Test home mode
     let yaml = r#"startup_directory_mode: home"#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert_eq!(config.startup_directory_mode, StartupDirectoryMode::Home);
+    assert_eq!(
+        config.shell.startup_directory_mode,
+        StartupDirectoryMode::Home
+    );
 
     // Test previous mode
     let yaml = r#"startup_directory_mode: previous"#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
     assert_eq!(
-        config.startup_directory_mode,
+        config.shell.startup_directory_mode,
         StartupDirectoryMode::Previous
     );
 
     // Test custom mode
     let yaml = r#"startup_directory_mode: custom"#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert_eq!(config.startup_directory_mode, StartupDirectoryMode::Custom);
+    assert_eq!(
+        config.shell.startup_directory_mode,
+        StartupDirectoryMode::Custom
+    );
 }
 
 #[test]
@@ -332,8 +373,14 @@ startup_directory_mode: custom
 startup_directory: "/tmp/test-dir"
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert_eq!(config.startup_directory_mode, StartupDirectoryMode::Custom);
-    assert_eq!(config.startup_directory, Some("/tmp/test-dir".to_string()));
+    assert_eq!(
+        config.shell.startup_directory_mode,
+        StartupDirectoryMode::Custom
+    );
+    assert_eq!(
+        config.shell.startup_directory,
+        Some("/tmp/test-dir".to_string())
+    );
 }
 
 #[test]
@@ -441,9 +488,12 @@ fn test_get_effective_startup_directory_legacy_working_directory() {
     // backslashes in a Windows path.
     let existing_dir = std::env::temp_dir();
     let config = Config {
-        working_directory: Some(existing_dir.to_string_lossy().to_string()),
-        startup_directory_mode: StartupDirectoryMode::Custom,
-        startup_directory: Some("~".to_string()),
+        shell: ShellConfig {
+            working_directory: Some(existing_dir.to_string_lossy().to_string()),
+            startup_directory_mode: StartupDirectoryMode::Custom,
+            startup_directory: Some("~".to_string()),
+            ..Default::default()
+        },
         ..Config::default()
     };
     let effective_dir = config.get_effective_startup_directory();
@@ -457,8 +507,11 @@ fn test_get_effective_startup_directory_legacy_working_directory() {
 #[test]
 fn test_startup_directory_yaml_serialization() {
     let config = Config {
-        startup_directory_mode: StartupDirectoryMode::Custom,
-        startup_directory: Some("~/Projects".to_string()),
+        shell: ShellConfig {
+            startup_directory_mode: StartupDirectoryMode::Custom,
+            startup_directory: Some("~/Projects".to_string()),
+            ..Default::default()
+        },
         ..Config::default()
     };
 

@@ -10,7 +10,7 @@ use super::ClosedTabInfo;
 impl WindowState {
     /// Create a new tab, or show profile picker if configured and profiles exist
     pub fn new_tab_or_show_profiles(&mut self) {
-        if self.config.load().new_tab_shortcut_shows_profiles
+        if self.config.load().tabs.new_tab_shortcut_shows_profiles
             && !self.overlay_ui.profile_manager.is_empty()
         {
             self.tab_bar_ui.show_new_tab_profile_menu = !self.tab_bar_ui.show_new_tab_profile_menu;
@@ -25,12 +25,12 @@ impl WindowState {
     /// Create a new tab
     pub fn new_tab(&mut self) {
         // Check max tabs limit
-        if self.config.load().max_tabs > 0
-            && self.tab_manager.tab_count() >= self.config.load().max_tabs
+        if self.config.load().tabs.max_tabs > 0
+            && self.tab_manager.tab_count() >= self.config.load().tabs.max_tabs
         {
             log::warn!(
                 "Cannot create new tab: max_tabs limit ({}) reached",
-                self.config.load().max_tabs
+                self.config.load().tabs.max_tabs
             );
             return;
         }
@@ -48,12 +48,13 @@ impl WindowState {
         match self.tab_manager.new_tab(
             &self.config.load(),
             Arc::clone(&self.runtime),
-            self.config.load().tab_inherit_cwd,
+            self.config.load().tabs.tab_inherit_cwd,
             grid_size,
         ) {
             Ok(tab_id) => {
                 // Reposition new tab if configured
-                if self.config.load().new_tab_position == crate::config::NewTabPosition::AfterActive
+                if self.config.load().tabs.new_tab_position
+                    == crate::config::NewTabPosition::AfterActive
                     && let Some(idx) = prior_active_idx
                 {
                     self.tab_manager.move_tab_to_index(tab_id, idx + 1);
@@ -79,7 +80,7 @@ impl WindowState {
                     || (new_tab_bar_width - old_tab_bar_width).abs() > 0.1)
                     && let Some(renderer) = &mut self.renderer
                     && let Some((new_cols, new_rows)) = Self::apply_tab_bar_offsets_for_position(
-                        self.config.load().tab_bar_position,
+                        self.config.load().tabs.tab_bar_position,
                         renderer,
                         new_tab_bar_height,
                         new_tab_bar_width,
@@ -112,7 +113,7 @@ impl WindowState {
                     }
                     log::info!(
                         "Tab bar appeared (position={:?}), resized existing tabs to {}x{}",
-                        self.config.load().tab_bar_position,
+                        self.config.load().tabs.tab_bar_position,
                         new_cols,
                         new_rows
                     );
@@ -125,8 +126,8 @@ impl WindowState {
                     tab.start_refresh_task(
                         Arc::clone(&self.runtime),
                         Arc::clone(window),
-                        self.config.load().max_fps,
-                        self.config.load().inactive_tab_fps,
+                        self.config.load().rendering.max_fps,
+                        self.config.load().power.inactive_tab_fps,
                     );
 
                     // Resize terminal to match current renderer dimensions
@@ -181,11 +182,11 @@ impl WindowState {
     pub fn close_current_tab(&mut self) -> bool {
         log::info!(
             "[CLOSE_TAB] close_current_tab called, confirm_close_running_jobs={}",
-            self.config.load().confirm_close_running_jobs
+            self.config.load().shell.confirm_close_running_jobs
         );
 
         // Check if we need to show confirmation for running jobs
-        if self.config.load().confirm_close_running_jobs
+        if self.config.load().shell.confirm_close_running_jobs
             && let Some(command_name) = self.check_current_tab_running_job()
             && let Some(tab) = self.tab_manager.active_tab()
         {
@@ -221,7 +222,7 @@ impl WindowState {
             // If the tab being closed is the tmux gateway, send detach-client first so
             // that tmux can cleanly detach rather than treating the disconnect as a crash
             // (which may destroy the session if destroy-unattached is enabled).
-            let is_tmux_gateway = self.config.load().tmux_enabled
+            let is_tmux_gateway = self.config.load().tmux.tmux_enabled
                 && self.tmux_state.tmux_gateway_tab_id == Some(tab_id)
                 && self.is_gateway_active();
             if is_tmux_gateway {
@@ -231,7 +232,7 @@ impl WindowState {
 
             // Track whether this is a tmux display tab (non-gateway tab that shows tmux window
             // content) so we can restore the hidden gateway tab after it is closed.
-            let is_tmux_display_tab = self.config.load().tmux_enabled
+            let is_tmux_display_tab = self.config.load().tmux.tmux_enabled
                 && self.tmux_state.tmux_gateway_tab_id.is_some()
                 && self.tmux_state.tmux_gateway_tab_id != Some(tab_id)
                 && self.is_gateway_active();
@@ -246,8 +247,12 @@ impl WindowState {
                 .get_width(old_tab_count, &self.config.load());
 
             let is_last_tab = self.tab_manager.tab_count() <= 1;
-            let preserve_shell = self.config.load().session_undo_preserve_shell
-                && self.config.load().session_undo_timeout_secs > 0;
+            let preserve_shell = self
+                .config
+                .load()
+                .session_restore
+                .session_undo_preserve_shell
+                && self.config.load().session_restore.session_undo_timeout_secs > 0;
 
             // Capture closed tab metadata for session undo (before destroying the tab)
             let is_last = if preserve_shell {
@@ -275,7 +280,7 @@ impl WindowState {
                         };
                         self.overlay_state.closed_tabs.push_front(info);
                         while self.overlay_state.closed_tabs.len()
-                            > self.config.load().session_undo_max_entries
+                            > self.config.load().session_restore.session_undo_max_entries
                         {
                             self.overlay_state.closed_tabs.pop_back();
                         }
@@ -289,7 +294,7 @@ impl WindowState {
                 }
             } else {
                 // Standard mode: capture metadata, then close (drops the Tab)
-                if self.config.load().session_undo_timeout_secs > 0
+                if self.config.load().session_restore.session_undo_timeout_secs > 0
                     && let Some(tab) = self.tab_manager.get_tab(tab_id)
                 {
                     let info = ClosedTabInfo {
@@ -308,7 +313,7 @@ impl WindowState {
                     };
                     self.overlay_state.closed_tabs.push_front(info);
                     while self.overlay_state.closed_tabs.len()
-                        > self.config.load().session_undo_max_entries
+                        > self.config.load().session_restore.session_undo_max_entries
                     {
                         self.overlay_state.closed_tabs.pop_back();
                     }
@@ -349,7 +354,7 @@ impl WindowState {
                     .find(|kb| kb.action == "reopen_closed_tab")
                     .map(|kb| kb.key.clone())
                     .unwrap_or_else(|| "keybinding".to_string());
-                let timeout = self.config.load().session_undo_timeout_secs;
+                let timeout = self.config.load().session_restore.session_undo_timeout_secs;
                 if timeout > 0 {
                     self.show_toast(format!(
                         "Tab closed. Press {} to undo ({timeout}s)",
@@ -372,7 +377,7 @@ impl WindowState {
                     || (new_tab_bar_width - old_tab_bar_width).abs() > 0.1)
                     && let Some(renderer) = &mut self.renderer
                     && let Some((new_cols, new_rows)) = Self::apply_tab_bar_offsets_for_position(
-                        self.config.load().tab_bar_position,
+                        self.config.load().tabs.tab_bar_position,
                         renderer,
                         new_tab_bar_height,
                         new_tab_bar_width,
@@ -402,7 +407,7 @@ impl WindowState {
                     }
                     log::info!(
                         "Tab bar visibility changed (position={:?}), resized remaining tabs to {}x{}",
-                        self.config.load().tab_bar_position,
+                        self.config.load().tabs.tab_bar_position,
                         new_cols,
                         new_rows
                     );

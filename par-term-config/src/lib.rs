@@ -244,10 +244,16 @@ pub use error::ConfigError;
 // Core types
 pub use cell::Cell;
 pub use config::{
-    ALLOWED_ENV_VARS, AiInspectorConfig, AssistantInputHistoryMode, Config, CursorConfig,
+    ALLOWED_ENV_VARS, AiInspectorConfig, AssistantInputHistoryMode, AutomationConfig,
+    BackgroundConfig, BadgeConfig, ClipboardConfig, CommandSeparatorConfig, Config, CursorConfig,
     CustomAcpAgentActionConfig, CustomAcpAgentConfig, FontRenderingConfig, GlobalShaderConfig,
-    MouseConfig, StatusBarConfig, WindowConfig, is_env_var_allowed, substitute_variables,
-    substitute_variables_with_allowlist, substitute_variables_with_lookup,
+    ImageConfig, InputConfig, IntegrationConfig, MouseConfig, PaneConfig, PowerConfig,
+    ProgressBarConfig, RenderingConfig, ScrollbarConfig, SecurityConfig, SelectionConfig,
+    SemanticHistoryConfig, SessionLogConfig, SessionRestoreConfig, ShaderOverridesConfig,
+    ShaderWatchConfig, ShellConfig, StatusBarConfig, TabBarColorsConfig, TabConfig,
+    ThemeColorsConfig, TmuxConfig, WindowConfig, WindowPlacementConfig, WordSelectionConfig,
+    is_env_var_allowed, substitute_variables, substitute_variables_with_allowlist,
+    substitute_variables_with_lookup,
 };
 pub use scrollback_mark::ScrollbackMark;
 pub use themes::{Color, Theme};

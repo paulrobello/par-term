@@ -22,7 +22,7 @@ pub(super) fn show_keyboard_section(
         // Left Option/Alt key mode
         ui.horizontal(|ui| {
             ui.label("Left Option/Alt sends:");
-            let current = settings.config.left_option_key_mode;
+            let current = settings.config.input.left_option_key_mode;
             egui::ComboBox::from_id_salt("input_left_option_key_mode")
                 .selected_text(option_key_mode_label(current))
                 .show_ui(ui, |ui| {
@@ -33,7 +33,7 @@ pub(super) fn show_keyboard_section(
                     ] {
                         if ui
                             .selectable_value(
-                                &mut settings.config.left_option_key_mode,
+                                &mut settings.config.input.left_option_key_mode,
                                 mode,
                                 option_key_mode_label(mode),
                             )
@@ -49,7 +49,7 @@ pub(super) fn show_keyboard_section(
         ui.indent("input_left_option_desc", |ui| {
             ui.label(
                 egui::RichText::new(option_key_mode_description(
-                    settings.config.left_option_key_mode,
+                    settings.config.input.left_option_key_mode,
                 ))
                 .weak()
                 .small(),
@@ -61,7 +61,7 @@ pub(super) fn show_keyboard_section(
         // Right Option/Alt key mode
         ui.horizontal(|ui| {
             ui.label("Right Option/Alt sends:");
-            let current = settings.config.right_option_key_mode;
+            let current = settings.config.input.right_option_key_mode;
             egui::ComboBox::from_id_salt("input_right_option_key_mode")
                 .selected_text(option_key_mode_label(current))
                 .show_ui(ui, |ui| {
@@ -72,7 +72,7 @@ pub(super) fn show_keyboard_section(
                     ] {
                         if ui
                             .selectable_value(
-                                &mut settings.config.right_option_key_mode,
+                                &mut settings.config.input.right_option_key_mode,
                                 mode,
                                 option_key_mode_label(mode),
                             )
@@ -88,7 +88,7 @@ pub(super) fn show_keyboard_section(
         ui.indent("input_right_option_desc", |ui| {
             ui.label(
                 egui::RichText::new(option_key_mode_description(
-                    settings.config.right_option_key_mode,
+                    settings.config.input.right_option_key_mode,
                 ))
                 .weak()
                 .small(),
@@ -101,7 +101,7 @@ pub(super) fn show_keyboard_section(
         // Physical key preference
         if ui
             .checkbox(
-                &mut settings.config.use_physical_keys,
+                &mut settings.config.input.use_physical_keys,
                 "Use physical key positions for keybindings",
             )
             .on_hover_text(
@@ -155,14 +155,14 @@ pub(super) fn show_modifier_remapping_section(
             // Left Ctrl
             ui.horizontal(|ui| {
                 ui.label("Left Ctrl acts as:");
-                let current = settings.config.modifier_remapping.left_ctrl;
+                let current = settings.config.input.modifier_remapping.left_ctrl;
                 egui::ComboBox::from_id_salt("input_remap_left_ctrl")
                     .selected_text(current.display_name())
                     .show_ui(ui, |ui| {
                         for target in ModifierTarget::all() {
                             if ui
                                 .selectable_value(
-                                    &mut settings.config.modifier_remapping.left_ctrl,
+                                    &mut settings.config.input.modifier_remapping.left_ctrl,
                                     *target,
                                     target.display_name(),
                                 )
@@ -178,14 +178,14 @@ pub(super) fn show_modifier_remapping_section(
             // Right Ctrl
             ui.horizontal(|ui| {
                 ui.label("Right Ctrl acts as:");
-                let current = settings.config.modifier_remapping.right_ctrl;
+                let current = settings.config.input.modifier_remapping.right_ctrl;
                 egui::ComboBox::from_id_salt("input_remap_right_ctrl")
                     .selected_text(current.display_name())
                     .show_ui(ui, |ui| {
                         for target in ModifierTarget::all() {
                             if ui
                                 .selectable_value(
-                                    &mut settings.config.modifier_remapping.right_ctrl,
+                                    &mut settings.config.input.modifier_remapping.right_ctrl,
                                     *target,
                                     target.display_name(),
                                 )
@@ -203,14 +203,14 @@ pub(super) fn show_modifier_remapping_section(
             // Left Alt
             ui.horizontal(|ui| {
                 ui.label("Left Alt acts as:");
-                let current = settings.config.modifier_remapping.left_alt;
+                let current = settings.config.input.modifier_remapping.left_alt;
                 egui::ComboBox::from_id_salt("input_remap_left_alt")
                     .selected_text(current.display_name())
                     .show_ui(ui, |ui| {
                         for target in ModifierTarget::all() {
                             if ui
                                 .selectable_value(
-                                    &mut settings.config.modifier_remapping.left_alt,
+                                    &mut settings.config.input.modifier_remapping.left_alt,
                                     *target,
                                     target.display_name(),
                                 )
@@ -226,14 +226,14 @@ pub(super) fn show_modifier_remapping_section(
             // Right Alt
             ui.horizontal(|ui| {
                 ui.label("Right Alt acts as:");
-                let current = settings.config.modifier_remapping.right_alt;
+                let current = settings.config.input.modifier_remapping.right_alt;
                 egui::ComboBox::from_id_salt("input_remap_right_alt")
                     .selected_text(current.display_name())
                     .show_ui(ui, |ui| {
                         for target in ModifierTarget::all() {
                             if ui
                                 .selectable_value(
-                                    &mut settings.config.modifier_remapping.right_alt,
+                                    &mut settings.config.input.modifier_remapping.right_alt,
                                     *target,
                                     target.display_name(),
                                 )
@@ -256,14 +256,14 @@ pub(super) fn show_modifier_remapping_section(
             // Left Super/Cmd
             ui.horizontal(|ui| {
                 ui.label(format!("Left {} acts as:", super_label));
-                let current = settings.config.modifier_remapping.left_super;
+                let current = settings.config.input.modifier_remapping.left_super;
                 egui::ComboBox::from_id_salt("input_remap_left_super")
                     .selected_text(current.display_name())
                     .show_ui(ui, |ui| {
                         for target in ModifierTarget::all() {
                             if ui
                                 .selectable_value(
-                                    &mut settings.config.modifier_remapping.left_super,
+                                    &mut settings.config.input.modifier_remapping.left_super,
                                     *target,
                                     target.display_name(),
                                 )
@@ -279,14 +279,14 @@ pub(super) fn show_modifier_remapping_section(
             // Right Super/Cmd
             ui.horizontal(|ui| {
                 ui.label(format!("Right {} acts as:", super_label));
-                let current = settings.config.modifier_remapping.right_super;
+                let current = settings.config.input.modifier_remapping.right_super;
                 egui::ComboBox::from_id_salt("input_remap_right_super")
                     .selected_text(current.display_name())
                     .show_ui(ui, |ui| {
                         for target in ModifierTarget::all() {
                             if ui
                                 .selectable_value(
-                                    &mut settings.config.modifier_remapping.right_super,
+                                    &mut settings.config.input.modifier_remapping.right_super,
                                     *target,
                                     target.display_name(),
                                 )
@@ -302,7 +302,7 @@ pub(super) fn show_modifier_remapping_section(
             ui.add_space(8.0);
 
             if ui.button("Reset to defaults").clicked() {
-                settings.config.modifier_remapping = Default::default();
+                settings.config.input.modifier_remapping = Default::default();
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }

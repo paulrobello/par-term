@@ -101,7 +101,7 @@ impl UIElement for TabBarUI {
     /// Returns `true` when the tab bar is configured to show given the current
     /// tab count and `config.tab_bar_mode`.
     fn is_visible(&self, ctx: Self::Ctx<'_>) -> bool {
-        self.should_show(ctx.tab_count, ctx.config.tab_bar_mode)
+        self.should_show(ctx.tab_count, ctx.config.tabs.tab_bar_mode)
     }
 
     /// Effective height of the tab bar in logical pixels.
@@ -387,7 +387,7 @@ mod tests {
             config: &config,
             tab_count: 1,
         });
-        assert_eq!(height, config.tab_bar_height);
+        assert_eq!(height, config.tabs.tab_bar_height);
     }
 
     /// Compile-time check: `query_element` can be instantiated with both

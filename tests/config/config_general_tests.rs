@@ -4,7 +4,9 @@
 //! tab bar colors, inactive tab dimming, cursor enhancements, answerback string,
 //! and advanced mouse features.
 
-use par_term::config::{Config, UnfocusedCursorStyle};
+use par_term::config::{
+    Config, PowerConfig, ShellConfig, TabBarColorsConfig, UnfocusedCursorStyle,
+};
 
 #[test]
 fn test_config_defaults() {
@@ -17,15 +19,15 @@ fn test_config_defaults() {
     assert_eq!(config.char_spacing, 1.0);
     assert_eq!(config.scrollback.scrollback_lines, 10000);
     assert_eq!(config.window_title, "par-term");
-    assert_eq!(config.theme, "dark-background");
-    assert!(config.auto_copy_selection);
-    assert!(config.middle_click_paste);
-    assert!(!config.copy_trailing_newline); // Inverted logic: false means strip trailing newline
+    assert_eq!(config.theme_colors.theme, "dark-background");
+    assert!(config.selection.auto_copy_selection);
+    assert!(config.selection.middle_click_paste);
+    assert!(!config.selection.copy_trailing_newline); // Inverted logic: false means strip trailing newline
     assert_eq!(config.screenshot_format, "png");
     // Session undo defaults
-    assert_eq!(config.session_undo_timeout_secs, 5);
-    assert_eq!(config.session_undo_max_entries, 10);
-    assert!(!config.session_undo_preserve_shell);
+    assert_eq!(config.session_restore.session_undo_timeout_secs, 5);
+    assert_eq!(config.session_restore.session_undo_max_entries, 10);
+    assert!(!config.session_restore.session_undo_preserve_shell);
 }
 
 #[test]
@@ -64,9 +66,9 @@ screenshot_format: "svg"
     assert_eq!(config.font_family, "Consolas");
     assert_eq!(config.scrollback.scrollback_lines, 5000); // Tests backward compatibility via alias
     assert_eq!(config.window_title, "Test Terminal");
-    assert_eq!(config.theme, "light-background");
-    assert!(config.auto_copy_selection);
-    assert!(!config.middle_click_paste);
+    assert_eq!(config.theme_colors.theme, "light-background");
+    assert!(config.selection.auto_copy_selection);
+    assert!(!config.selection.middle_click_paste);
     assert_eq!(config.screenshot_format, "svg");
 }
 
@@ -120,16 +122,16 @@ fn test_config_builder_chain() {
 fn test_config_power_saving_defaults() {
     let config = Config::default();
     // Default: pause shaders on blur is enabled for power savings
-    assert!(config.pause_shaders_on_blur);
+    assert!(config.power.pause_shaders_on_blur);
     // Default: pause refresh on blur is enabled for power savings (changed from false)
-    assert!(config.pause_refresh_on_blur);
+    assert!(config.power.pause_refresh_on_blur);
     // Default unfocused FPS is 30
-    assert_eq!(config.unfocused_fps, 30);
+    assert_eq!(config.power.unfocused_fps, 30);
 
     // Initial text defaults
-    assert!(config.initial_text.is_empty());
-    assert_eq!(config.initial_text_delay_ms, 100);
-    assert!(config.initial_text_send_newline);
+    assert!(config.shell.initial_text.is_empty());
+    assert_eq!(config.shell.initial_text_delay_ms, 100);
+    assert!(config.shell.initial_text_send_newline);
 }
 
 #[test]
@@ -140,9 +142,9 @@ pause_refresh_on_blur: true
 unfocused_fps: 5
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert!(!config.pause_shaders_on_blur);
-    assert!(config.pause_refresh_on_blur);
-    assert_eq!(config.unfocused_fps, 5);
+    assert!(!config.power.pause_shaders_on_blur);
+    assert!(config.power.pause_refresh_on_blur);
+    assert_eq!(config.power.unfocused_fps, 5);
 }
 
 #[test]
@@ -154,17 +156,20 @@ initial_text_send_newline: false
 "#;
 
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert_eq!(config.initial_text, "ssh server");
-    assert_eq!(config.initial_text_delay_ms, 250);
-    assert!(!config.initial_text_send_newline);
+    assert_eq!(config.shell.initial_text, "ssh server");
+    assert_eq!(config.shell.initial_text_delay_ms, 250);
+    assert!(!config.shell.initial_text_send_newline);
 }
 
 #[test]
 fn test_config_initial_text_yaml_serialization() {
     let config = Config {
-        initial_text: "echo ready".to_string(),
-        initial_text_delay_ms: 10,
-        initial_text_send_newline: false,
+        shell: ShellConfig {
+            initial_text: "echo ready".to_string(),
+            initial_text_delay_ms: 10,
+            initial_text_send_newline: false,
+            ..Default::default()
+        },
         ..Config::default()
     };
 
@@ -177,9 +182,12 @@ fn test_config_initial_text_yaml_serialization() {
 #[test]
 fn test_config_power_saving_yaml_serialization() {
     let config = Config {
-        pause_shaders_on_blur: false,
-        pause_refresh_on_blur: true,
-        unfocused_fps: 15,
+        power: PowerConfig {
+            pause_shaders_on_blur: false,
+            pause_refresh_on_blur: true,
+            unfocused_fps: 15,
+            ..Default::default()
+        },
         ..Config::default()
     };
 
@@ -193,20 +201,20 @@ fn test_config_power_saving_yaml_serialization() {
 fn test_config_tab_bar_color_defaults() {
     let config = Config::default();
     // Tab bar background colors
-    assert_eq!(config.tab_bar_background, [40, 40, 40]);
-    assert_eq!(config.tab_active_background, [60, 60, 60]);
-    assert_eq!(config.tab_inactive_background, [40, 40, 40]);
-    assert_eq!(config.tab_hover_background, [50, 50, 50]);
+    assert_eq!(config.tab_colors.tab_bar_background, [40, 40, 40]);
+    assert_eq!(config.tab_colors.tab_active_background, [60, 60, 60]);
+    assert_eq!(config.tab_colors.tab_inactive_background, [40, 40, 40]);
+    assert_eq!(config.tab_colors.tab_hover_background, [50, 50, 50]);
     // Tab text colors
-    assert_eq!(config.tab_active_text, [255, 255, 255]);
-    assert_eq!(config.tab_inactive_text, [180, 180, 180]);
+    assert_eq!(config.tab_colors.tab_active_text, [255, 255, 255]);
+    assert_eq!(config.tab_colors.tab_inactive_text, [180, 180, 180]);
     // Tab indicator colors
-    assert_eq!(config.tab_active_indicator, [100, 150, 255]);
-    assert_eq!(config.tab_activity_indicator, [100, 180, 255]);
-    assert_eq!(config.tab_bell_indicator, [255, 200, 100]);
+    assert_eq!(config.tab_colors.tab_active_indicator, [100, 150, 255]);
+    assert_eq!(config.tab_colors.tab_activity_indicator, [100, 180, 255]);
+    assert_eq!(config.tab_colors.tab_bell_indicator, [255, 200, 100]);
     // Close button colors
-    assert_eq!(config.tab_close_button, [150, 150, 150]);
-    assert_eq!(config.tab_close_button_hover, [255, 100, 100]);
+    assert_eq!(config.tab_colors.tab_close_button, [150, 150, 150]);
+    assert_eq!(config.tab_colors.tab_close_button_hover, [255, 100, 100]);
 }
 
 #[test]
@@ -225,24 +233,27 @@ tab_close_button: [130, 130, 130]
 tab_close_button_hover: [255, 80, 80]
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert_eq!(config.tab_bar_background, [30, 30, 30]);
-    assert_eq!(config.tab_active_background, [80, 80, 80]);
-    assert_eq!(config.tab_inactive_background, [35, 35, 35]);
-    assert_eq!(config.tab_hover_background, [55, 55, 55]);
-    assert_eq!(config.tab_active_text, [240, 240, 240]);
-    assert_eq!(config.tab_inactive_text, [160, 160, 160]);
-    assert_eq!(config.tab_active_indicator, [120, 170, 255]);
-    assert_eq!(config.tab_activity_indicator, [80, 200, 255]);
-    assert_eq!(config.tab_bell_indicator, [255, 180, 80]);
-    assert_eq!(config.tab_close_button, [130, 130, 130]);
-    assert_eq!(config.tab_close_button_hover, [255, 80, 80]);
+    assert_eq!(config.tab_colors.tab_bar_background, [30, 30, 30]);
+    assert_eq!(config.tab_colors.tab_active_background, [80, 80, 80]);
+    assert_eq!(config.tab_colors.tab_inactive_background, [35, 35, 35]);
+    assert_eq!(config.tab_colors.tab_hover_background, [55, 55, 55]);
+    assert_eq!(config.tab_colors.tab_active_text, [240, 240, 240]);
+    assert_eq!(config.tab_colors.tab_inactive_text, [160, 160, 160]);
+    assert_eq!(config.tab_colors.tab_active_indicator, [120, 170, 255]);
+    assert_eq!(config.tab_colors.tab_activity_indicator, [80, 200, 255]);
+    assert_eq!(config.tab_colors.tab_bell_indicator, [255, 180, 80]);
+    assert_eq!(config.tab_colors.tab_close_button, [130, 130, 130]);
+    assert_eq!(config.tab_colors.tab_close_button_hover, [255, 80, 80]);
 }
 
 #[test]
 fn test_config_tab_bar_color_yaml_serialization() {
     let config = Config {
-        tab_bar_background: [50, 50, 50],
-        tab_active_indicator: [200, 100, 50],
+        tab_colors: TabBarColorsConfig {
+            tab_bar_background: [50, 50, 50],
+            tab_active_indicator: [200, 100, 50],
+            ..Default::default()
+        },
         ..Config::default()
     };
 
@@ -262,21 +273,21 @@ tab_bar_background: [25, 25, 25]
 tab_active_text: [200, 200, 200]
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert_eq!(config.tab_bar_background, [25, 25, 25]);
-    assert_eq!(config.tab_active_text, [200, 200, 200]);
+    assert_eq!(config.tab_colors.tab_bar_background, [25, 25, 25]);
+    assert_eq!(config.tab_colors.tab_active_text, [200, 200, 200]);
     // Other fields should have defaults
-    assert_eq!(config.tab_active_background, [60, 60, 60]);
-    assert_eq!(config.tab_inactive_background, [40, 40, 40]);
-    assert_eq!(config.tab_close_button, [150, 150, 150]);
+    assert_eq!(config.tab_colors.tab_active_background, [60, 60, 60]);
+    assert_eq!(config.tab_colors.tab_inactive_background, [40, 40, 40]);
+    assert_eq!(config.tab_colors.tab_close_button, [150, 150, 150]);
 }
 
 #[test]
 fn test_config_inactive_tab_dimming_defaults() {
     let config = Config::default();
     // Default: dimming is enabled
-    assert!(config.dim_inactive_tabs);
+    assert!(config.tab_colors.dim_inactive_tabs);
     // Default: 60% opacity for inactive tabs
-    assert!((config.inactive_tab_opacity - 0.6).abs() < f32::EPSILON);
+    assert!((config.tab_colors.inactive_tab_opacity - 0.6).abs() < f32::EPSILON);
 }
 
 #[test]
@@ -286,15 +297,18 @@ dim_inactive_tabs: false
 inactive_tab_opacity: 0.8
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert!(!config.dim_inactive_tabs);
-    assert!((config.inactive_tab_opacity - 0.8).abs() < f32::EPSILON);
+    assert!(!config.tab_colors.dim_inactive_tabs);
+    assert!((config.tab_colors.inactive_tab_opacity - 0.8).abs() < f32::EPSILON);
 }
 
 #[test]
 fn test_config_inactive_tab_dimming_yaml_serialization() {
     let config = Config {
-        dim_inactive_tabs: false,
-        inactive_tab_opacity: 0.5,
+        tab_colors: TabBarColorsConfig {
+            dim_inactive_tabs: false,
+            inactive_tab_opacity: 0.5,
+            ..Default::default()
+        },
         ..Config::default()
     };
 
@@ -310,9 +324,9 @@ fn test_config_inactive_tab_dimming_partial_yaml() {
 dim_inactive_tabs: true
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert!(config.dim_inactive_tabs);
+    assert!(config.tab_colors.dim_inactive_tabs);
     // Default opacity should be used
-    assert!((config.inactive_tab_opacity - 0.6).abs() < f32::EPSILON);
+    assert!((config.tab_colors.inactive_tab_opacity - 0.6).abs() < f32::EPSILON);
 }
 
 #[test]
@@ -322,19 +336,19 @@ fn test_config_inactive_tab_opacity_bounds() {
 inactive_tab_opacity: 0.0
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert!((config.inactive_tab_opacity).abs() < f32::EPSILON);
+    assert!((config.tab_colors.inactive_tab_opacity).abs() < f32::EPSILON);
 
     let yaml = r#"
 inactive_tab_opacity: 1.0
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert!((config.inactive_tab_opacity - 1.0).abs() < f32::EPSILON);
+    assert!((config.tab_colors.inactive_tab_opacity - 1.0).abs() < f32::EPSILON);
 
     let yaml = r#"
 inactive_tab_opacity: 0.3
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert!((config.inactive_tab_opacity - 0.3).abs() < f32::EPSILON);
+    assert!((config.tab_colors.inactive_tab_opacity - 0.3).abs() < f32::EPSILON);
 }
 
 #[test]
@@ -469,7 +483,7 @@ cursor_boost: 0.3
 fn test_config_answerback_string_default() {
     let config = Config::default();
     // Answerback should be empty by default for security
-    assert!(config.answerback_string.is_empty());
+    assert!(config.shell.answerback_string.is_empty());
 }
 
 #[test]
@@ -478,13 +492,16 @@ fn test_config_answerback_string_yaml_deserialization() {
 answerback_string: "par-term"
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert_eq!(config.answerback_string, "par-term");
+    assert_eq!(config.shell.answerback_string, "par-term");
 }
 
 #[test]
 fn test_config_answerback_string_yaml_serialization() {
     let config = Config {
-        answerback_string: "vt100".to_string(),
+        shell: ShellConfig {
+            answerback_string: "vt100".to_string(),
+            ..Default::default()
+        },
         ..Config::default()
     };
 
@@ -499,7 +516,7 @@ fn test_config_answerback_string_empty_by_default_yaml() {
 answerback_string: ""
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
-    assert!(config.answerback_string.is_empty());
+    assert!(config.shell.answerback_string.is_empty());
 }
 
 #[test]
@@ -510,7 +527,7 @@ cols: 120
 "#;
     let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
     // Answerback should use default (empty)
-    assert!(config.answerback_string.is_empty());
+    assert!(config.shell.answerback_string.is_empty());
     assert_eq!(config.cols, 120);
 }
 

@@ -190,6 +190,7 @@ impl WindowState {
             .filter_map(|(&id, name)| {
                 self.config
                     .load()
+                    .automation
                     .triggers
                     .iter()
                     .find(|t| &t.name == name)
@@ -213,6 +214,7 @@ impl WindowState {
             .filter_map(|(&id, name)| {
                 self.config
                     .load()
+                    .automation
                     .triggers
                     .iter()
                     .find(|t| &t.name == name)

@@ -19,7 +19,12 @@ impl ApplicationHandler for WindowManager {
                 self.auto_restore_done = true;
 
                 // Auto-restore arrangement takes precedence when configured
-                if let Some(ref name) = self.config.load().auto_restore_arrangement.clone()
+                if let Some(ref name) = self
+                    .config
+                    .load()
+                    .session_restore
+                    .auto_restore_arrangement
+                    .clone()
                     && !name.is_empty()
                     && self.arrangement_manager.find_by_name(name).is_some()
                 {
@@ -29,7 +34,9 @@ impl ApplicationHandler for WindowManager {
                 }
 
                 // Fall back to session restore if no arrangement
-                if self.config.load().restore_session && self.restore_session(event_loop) {
+                if self.config.load().session_restore.restore_session
+                    && self.restore_session(event_loop)
+                {
                     return;
                 }
             }
@@ -427,7 +434,7 @@ impl ApplicationHandler for WindowManager {
             // refreshing, consistent with how the initial fetch was set up.
             let mut sources = self.config.load().dynamic_profile_sources.clone();
             for src in &mut sources {
-                src.allow_http = self.config.load().allow_http_profiles;
+                src.allow_http = self.config.load().security.allow_http_profiles;
             }
             self.dynamic_profile_manager
                 .refresh_all(&sources, &self.runtime);

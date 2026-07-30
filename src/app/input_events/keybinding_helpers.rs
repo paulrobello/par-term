@@ -35,13 +35,20 @@ impl WindowState {
                 .custom_shader
                 .as_ref()
                 .and_then(|name| self.shader_state.shader_metadata_cache.get(name).cloned());
-            let shader_override = self
-                .config
-                .load()
-                .shader
-                .custom_shader
-                .as_ref()
-                .and_then(|name| self.config.load().shader_configs.get(name).cloned());
+            let shader_override =
+                self.config
+                    .load()
+                    .shader
+                    .custom_shader
+                    .as_ref()
+                    .and_then(|name| {
+                        self.config
+                            .load()
+                            .shader_overrides
+                            .shader_configs
+                            .get(name)
+                            .cloned()
+                    });
             let mut resolved = resolve_shader_config(
                 shader_override.as_ref(),
                 metadata.as_ref(),

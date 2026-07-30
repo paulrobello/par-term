@@ -37,35 +37,37 @@ pub(super) fn apply_renderer_config(
     // Update transparency mode if changed
     if changes.transparency_mode {
         renderer.set_transparency_affects_only_default_background(
-            config.transparency_affects_only_default_background,
+            config
+                .background
+                .transparency_affects_only_default_background,
         );
         window_state.focus_state.needs_redraw = true;
     }
 
     // Update text opacity mode if changed
     if changes.keep_text_opaque {
-        renderer.set_keep_text_opaque(config.keep_text_opaque);
+        renderer.set_keep_text_opaque(config.background.keep_text_opaque);
         window_state.focus_state.needs_redraw = true;
     }
 
     if changes.link_underline_style {
-        renderer.set_link_underline_style(config.link_underline_style);
+        renderer.set_link_underline_style(config.semantic_history.link_underline_style);
         window_state.focus_state.needs_redraw = true;
     }
 
     // Update vsync mode if changed
     if changes.vsync_mode {
-        let (actual_mode, _changed) = renderer.update_vsync_mode(config.vsync_mode);
+        let (actual_mode, _changed) = renderer.update_vsync_mode(config.rendering.vsync_mode);
         // If the actual mode differs, update config
-        if actual_mode != config.vsync_mode {
+        if actual_mode != config.rendering.vsync_mode {
             window_state.config.rcu(|old| {
                 let mut new = (**old).clone();
-                new.vsync_mode = actual_mode;
+                new.rendering.vsync_mode = actual_mode;
                 std::sync::Arc::new(new)
             });
             log::warn!(
                 "Vsync mode {:?} is not supported. Using {:?} instead.",
-                config.vsync_mode,
+                config.rendering.vsync_mode,
                 actual_mode
             );
         }
@@ -73,9 +75,9 @@ pub(super) fn apply_renderer_config(
 
     // Update scrollbar appearance
     renderer.update_scrollbar_appearance(
-        config.scrollbar_width,
-        config.scrollbar_thumb_color,
-        config.scrollbar_track_color,
+        config.scrollbar.scrollbar_width,
+        config.scrollbar.scrollbar_thumb_color,
+        config.scrollbar.scrollbar_track_color,
     );
     window_state.focus_state.needs_redraw = true;
 
@@ -142,11 +144,11 @@ pub(super) fn apply_renderer_config(
     if changes.command_separator {
         if let Some(renderer) = &mut window_state.renderer {
             renderer.update_command_separator(
-                config.command_separator_enabled,
-                config.command_separator_thickness,
-                config.command_separator_opacity,
-                config.command_separator_exit_color,
-                config.command_separator_color,
+                config.command_separator.command_separator_enabled,
+                config.command_separator.command_separator_thickness,
+                config.command_separator.command_separator_opacity,
+                config.command_separator.command_separator_exit_color,
+                config.command_separator.command_separator_color,
             );
         }
         window_state.focus_state.needs_redraw = true;
@@ -155,7 +157,7 @@ pub(super) fn apply_renderer_config(
     // Apply background changes (mode, color, or image)
     if changes.any_bg_change() {
         // Expand tilde in path
-        let expanded_path = config.background_image.as_ref().map(|p| {
+        let expanded_path = config.background.background_image.as_ref().map(|p| {
             if let Some(rest) = p.strip_prefix("~/")
                 && let Some(home) = dirs::home_dir()
             {
@@ -165,12 +167,12 @@ pub(super) fn apply_renderer_config(
         });
         if let Some(renderer) = &mut window_state.renderer {
             renderer.set_background(
-                config.background_mode,
-                config.background_color,
+                config.image.background_mode,
+                config.image.background_color,
                 expanded_path.as_deref(),
-                config.background_image_mode,
-                config.background_image_opacity,
-                config.background_image_enabled,
+                config.background.background_image_mode,
+                config.background.background_image_opacity,
+                config.background.background_image_enabled,
             );
         }
         window_state.focus_state.needs_redraw = true;
@@ -180,7 +182,7 @@ pub(super) fn apply_renderer_config(
     if changes.pane_backgrounds {
         // Pre-load all pane background textures into the renderer cache
         if let Some(renderer) = &mut window_state.renderer {
-            for pb_config in &config.pane_backgrounds {
+            for pb_config in &config.image.pane_backgrounds {
                 if let Err(e) = renderer.load_pane_background(&pb_config.image) {
                     log::error!(
                         "Failed to load pane {} background '{}': {}",
@@ -222,13 +224,13 @@ pub(super) fn apply_renderer_config(
     // Apply inline image settings changes
     if changes.image_scaling_mode {
         if let Some(renderer) = &mut window_state.renderer {
-            renderer.update_image_scaling_mode(config.image_scaling_mode);
+            renderer.update_image_scaling_mode(config.image.image_scaling_mode);
         }
         window_state.focus_state.needs_redraw = true;
     }
     if changes.image_preserve_aspect_ratio {
         if let Some(renderer) = &mut window_state.renderer {
-            renderer.update_image_preserve_aspect_ratio(config.image_preserve_aspect_ratio);
+            renderer.update_image_preserve_aspect_ratio(config.image.image_preserve_aspect_ratio);
         }
         window_state.focus_state.needs_redraw = true;
     }
@@ -261,10 +263,10 @@ pub(super) fn apply_renderer_config(
 
     // Update ENQ answerback string across all tabs when changed
     if changes.answerback_string {
-        let answerback = if config.answerback_string.is_empty() {
+        let answerback = if config.shell.answerback_string.is_empty() {
             None
         } else {
-            Some(config.answerback_string.clone())
+            Some(config.shell.answerback_string.clone())
         };
         for tab in window_state.tab_manager.tabs_mut() {
             if let Ok(term) = tab.terminal.try_read() {
@@ -320,7 +322,7 @@ pub(super) fn apply_renderer_config(
         .shader
         .custom_shader
         .as_ref()
-        .and_then(|name| config.shader_configs.get(name));
+        .and_then(|name| config.shader_overrides.shader_configs.get(name));
     // Get shader metadata from cache for full 3-tier resolution
     let metadata = config.shader.custom_shader.as_ref().and_then(|name| {
         window_state
@@ -377,8 +379,8 @@ pub(super) fn apply_renderer_config(
     {
         renderer.update_background_as_channel0_with_mode(
             resolved.use_background_as_channel0,
-            config.background_mode,
-            config.background_color,
+            config.image.background_mode,
+            config.image.background_color,
         );
     }
 

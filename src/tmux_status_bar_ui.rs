@@ -53,7 +53,7 @@ impl TmuxStatusBarUI {
 
     /// Get the height of the status bar (0 if not visible)
     pub fn height(config: &Config, is_connected: bool) -> f32 {
-        if config.tmux_show_status_bar && is_connected {
+        if config.tmux.tmux_show_status_bar && is_connected {
             24.0 // Fixed height for status bar
         } else {
             0.0
@@ -71,8 +71,8 @@ impl TmuxStatusBarUI {
         let ctx = FormatContext::new(Some(session), session_name);
 
         // Expand format strings from config
-        self.cached_left = expand_format(&config.tmux_status_bar_left, &ctx);
-        self.cached_right = expand_format(&config.tmux_status_bar_right, &ctx);
+        self.cached_left = expand_format(&config.tmux.tmux_status_bar_left, &ctx);
+        self.cached_right = expand_format(&config.tmux.tmux_status_bar_right, &ctx);
         self.last_refresh = std::time::Instant::now();
     }
 
@@ -92,13 +92,13 @@ impl TmuxStatusBarUI {
             s.state() == SessionState::Connected
         });
 
-        if !config.tmux_show_status_bar || !is_connected {
+        if !config.tmux.tmux_show_status_bar || !is_connected {
             return 0.0;
         }
 
         // Update content if needed
         if let Some(session) = session
-            && self.needs_refresh(config.tmux_status_bar_refresh_ms)
+            && self.needs_refresh(config.tmux.tmux_status_bar_refresh_ms)
         {
             self.update_from_session(config, session, session_name);
         }

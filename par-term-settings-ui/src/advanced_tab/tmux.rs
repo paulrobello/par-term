@@ -24,7 +24,10 @@ pub(super) fn show_tmux_section(
             ui.add_space(8.0);
 
             if ui
-                .checkbox(&mut settings.config.tmux_enabled, "Enable tmux integration")
+                .checkbox(
+                    &mut settings.config.tmux.tmux_enabled,
+                    "Enable tmux integration",
+                )
                 .on_hover_text("Use tmux control mode for session management and split panes")
                 .changed()
             {
@@ -32,7 +35,7 @@ pub(super) fn show_tmux_section(
                 *changes_this_frame = true;
             }
 
-            if !settings.config.tmux_enabled {
+            if !settings.config.tmux.tmux_enabled {
                 ui.label(egui::RichText::new("tmux integration is disabled").italics());
                 return;
             }
@@ -45,7 +48,7 @@ pub(super) fn show_tmux_section(
                 ui.label("tmux path:");
                 if ui
                     .add(
-                        egui::TextEdit::singleline(&mut settings.config.tmux_path)
+                        egui::TextEdit::singleline(&mut settings.config.tmux.tmux_path)
                             .desired_width(INPUT_WIDTH),
                     )
                     .on_hover_text("Path to tmux executable (default: 'tmux' uses PATH)")
@@ -64,6 +67,7 @@ pub(super) fn show_tmux_section(
                 ui.label("Default session name:");
                 let mut session_name = settings
                     .config
+                    .tmux
                     .tmux_default_session
                     .clone()
                     .unwrap_or_default();
@@ -72,7 +76,7 @@ pub(super) fn show_tmux_section(
                     .on_hover_text("Name for new tmux sessions (leave empty for tmux default)")
                     .changed()
                 {
-                    settings.config.tmux_default_session = if session_name.is_empty() {
+                    settings.config.tmux.tmux_default_session = if session_name.is_empty() {
                         None
                     } else {
                         Some(session_name)
@@ -88,7 +92,7 @@ pub(super) fn show_tmux_section(
             ui.label(egui::RichText::new("Auto-Attach").strong());
             if ui
                 .checkbox(
-                    &mut settings.config.tmux_auto_attach,
+                    &mut settings.config.tmux.tmux_auto_attach,
                     "Auto-attach on startup",
                 )
                 .on_hover_text("Automatically attach to a tmux session when par-term starts")
@@ -98,11 +102,12 @@ pub(super) fn show_tmux_section(
                 *changes_this_frame = true;
             }
 
-            if settings.config.tmux_auto_attach {
+            if settings.config.tmux.tmux_auto_attach {
                 ui.horizontal(|ui| {
                     ui.label("Session to attach:");
                     let mut attach_session = settings
                         .config
+                        .tmux
                         .tmux_auto_attach_session
                         .clone()
                         .unwrap_or_default();
@@ -114,7 +119,8 @@ pub(super) fn show_tmux_section(
                         .on_hover_text("Session name to auto-attach (leave empty for most recent)")
                         .changed()
                     {
-                        settings.config.tmux_auto_attach_session = if attach_session.is_empty() {
+                        settings.config.tmux.tmux_auto_attach_session = if attach_session.is_empty()
+                        {
                             None
                         } else {
                             Some(attach_session)
@@ -131,7 +137,7 @@ pub(super) fn show_tmux_section(
             ui.label(egui::RichText::new("Clipboard").strong());
             if ui
                 .checkbox(
-                    &mut settings.config.tmux_clipboard_sync,
+                    &mut settings.config.tmux.tmux_clipboard_sync,
                     "Sync clipboard with tmux",
                 )
                 .on_hover_text("When copying, also update tmux's paste buffer via set-buffer")
@@ -147,7 +153,7 @@ pub(super) fn show_tmux_section(
             ui.label(egui::RichText::new("Gateway Tab").strong());
             if ui
                 .checkbox(
-                    &mut settings.config.tmux_hide_gateway_tab,
+                    &mut settings.config.tmux.tmux_hide_gateway_tab,
                     "Hide control-mode tab",
                 )
                 .on_hover_text(
@@ -166,7 +172,7 @@ pub(super) fn show_tmux_section(
             ui.label(egui::RichText::new("Status Bar").strong());
             if ui
                 .checkbox(
-                    &mut settings.config.tmux_show_status_bar,
+                    &mut settings.config.tmux.tmux_show_status_bar,
                     "Show tmux status bar",
                 )
                 .on_hover_text("Display tmux status bar at bottom when connected")
@@ -177,17 +183,18 @@ pub(super) fn show_tmux_section(
             }
 
             // Status bar settings (only show if status bar is enabled)
-            if settings.config.tmux_show_status_bar {
+            if settings.config.tmux.tmux_show_status_bar {
                 ui.horizontal(|ui| {
                     ui.label("Refresh interval:");
                     let mut refresh_secs =
-                        settings.config.tmux_status_bar_refresh_ms as f32 / 1000.0;
+                        settings.config.tmux.tmux_status_bar_refresh_ms as f32 / 1000.0;
                     if ui
                         .add(egui::Slider::new(&mut refresh_secs, 0.5..=10.0).suffix("s"))
                         .on_hover_text("How often to update the status bar content")
                         .changed()
                     {
-                        settings.config.tmux_status_bar_refresh_ms = (refresh_secs * 1000.0) as u64;
+                        settings.config.tmux.tmux_status_bar_refresh_ms =
+                            (refresh_secs * 1000.0) as u64;
                         settings.has_changes = true;
                         *changes_this_frame = true;
                     }
@@ -200,7 +207,7 @@ pub(super) fn show_tmux_section(
                     ui.label("Left format:");
                     if ui
                         .add(
-                            egui::TextEdit::singleline(&mut settings.config.tmux_status_bar_left)
+                            egui::TextEdit::singleline(&mut settings.config.tmux.tmux_status_bar_left)
                                 .desired_width(INPUT_WIDTH),
                         )
                         .on_hover_text(
@@ -218,7 +225,7 @@ pub(super) fn show_tmux_section(
                     ui.label("Right format:");
                     if ui
                         .add(
-                            egui::TextEdit::singleline(&mut settings.config.tmux_status_bar_right)
+                            egui::TextEdit::singleline(&mut settings.config.tmux.tmux_status_bar_right)
                                 .desired_width(INPUT_WIDTH),
                         )
                         .on_hover_text(
@@ -250,7 +257,7 @@ pub(super) fn show_tmux_section(
                 ui.label("Prefix key:");
                 if ui
                     .add(
-                        egui::TextEdit::singleline(&mut settings.config.tmux_prefix_key)
+                        egui::TextEdit::singleline(&mut settings.config.tmux.tmux_prefix_key)
                             .desired_width(INPUT_WIDTH),
                     )
                     .on_hover_text("Key combination for tmux commands (e.g., C-b, C-Space)")

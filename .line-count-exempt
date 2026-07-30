@@ -11,13 +11,12 @@
 # the table. Permanent.
 par-term-render/src/cell_renderer/block_chars/box_drawing_data.rs: generated-style static glyph geometry table, no natural seam
 
-# The three below are real violations, owned by other in-flight work. They are
+# The two below are real violations, owned by other in-flight work. They are
 # listed so the gate can land green and start protecting every other file
-# rather than waiting on three unrelated refactors.
+# rather than waiting on two unrelated refactors.
 #
 # Reasons deliberately carry no line numbers. A hand-written count here would
 # drift exactly the way the five ARC-009 header comments did; the script prints
 # the live count next to each entry instead.
-par-term-config/src/config/config_struct/mod.rs: drained by the ENH-007 Config decomposition, not an independent split
 par-term-config/src/snippets.rs: ENH-009 step 3, sequenced with the QA-037 git-rev-parse timeout fix
 src/app/triggers/mod.rs: ENH-009 step 4, sequenced after SEC-002 stops reusing its security stack

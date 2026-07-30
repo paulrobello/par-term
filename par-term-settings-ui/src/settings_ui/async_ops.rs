@@ -58,8 +58,10 @@ impl SettingsUI {
                     };
                     self.shader_status = Some(detail);
                     self.shader_error = None;
-                    self.config.integration_versions.shaders_installed_version =
-                        Some(self.app_version.to_string());
+                    self.config
+                        .integrations
+                        .integration_versions
+                        .shaders_installed_version = Some(self.app_version.to_string());
                 }
                 Err(e) => {
                     self.shader_error = Some(e);

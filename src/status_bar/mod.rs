@@ -233,7 +233,7 @@ impl StatusBarUI {
         // width and ignores every attempt to narrow it.
         let h_margin: f32 = 8.0; // left + right inner margin per side
         let v_margin: f32 = 2.0; // top + bottom inner margin per side
-        let scrollbar_reserved = config.scrollbar_width + 2.0;
+        let scrollbar_reserved = config.scrollbar.scrollbar_width + 2.0;
         let viewport = ctx.input(|i| i.viewport_rect());
         // Content width is the frame width minus both horizontal margins.
         let content_width = (viewport.width() - scrollbar_reserved - h_margin * 2.0).max(0.0);

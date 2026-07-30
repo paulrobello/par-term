@@ -283,7 +283,7 @@ impl WindowState {
             }
 
             // Copy to clipboard if auto_copy is enabled
-            if self.config.load().auto_copy_selection {
+            if self.config.load().selection.auto_copy_selection {
                 if let Err(e) = self.input_handler.copy_to_clipboard(&selected_text) {
                     log::error!("Failed to copy to clipboard: {}", e);
                 } else {

@@ -25,8 +25,8 @@ impl WindowState {
             window_id
         );
 
-        if self.config.load().max_tabs > 0
-            && self.tab_manager.tab_count() >= self.config.load().max_tabs
+        if self.config.load().tabs.max_tabs > 0
+            && self.tab_manager.tab_count() >= self.config.load().tabs.max_tabs
         {
             return;
         }
@@ -56,8 +56,8 @@ impl WindowState {
                         tab.start_refresh_task(
                             std::sync::Arc::clone(&self.runtime),
                             std::sync::Arc::clone(window),
-                            self.config.load().max_fps,
-                            self.config.load().inactive_tab_fps,
+                            self.config.load().rendering.max_fps,
+                            self.config.load().power.inactive_tab_fps,
                         );
                     }
 

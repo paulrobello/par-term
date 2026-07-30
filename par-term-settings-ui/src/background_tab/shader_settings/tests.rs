@@ -19,6 +19,7 @@ fn shader_uniform_override_set_shader_uniform_override_creates_per_shader_entry(
     assert_eq!(
         settings
             .config
+            .shader_overrides
             .shader_configs
             .get("controlled.glsl")
             .and_then(|config| config.uniforms.get("iGlow")),
@@ -46,6 +47,7 @@ fn shader_uniform_override_clear_shader_uniform_override_removes_only_uniform_va
 
     let override_config = settings
         .config
+        .shader_overrides
         .shader_configs
         .get("controlled.glsl")
         .expect("non-uniform override should keep shader override entry");
@@ -70,6 +72,7 @@ fn shader_uniform_override_clear_shader_uniform_override_removes_empty_shader_en
     assert!(
         !settings
             .config
+            .shader_overrides
             .shader_configs
             .contains_key("controlled.glsl")
     );

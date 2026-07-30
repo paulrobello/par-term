@@ -40,7 +40,7 @@ pub fn show_background(
             // Background mode selector
             ui.horizontal(|ui| {
                 ui.label("Background mode:");
-                let current = match settings.config.background_mode {
+                let current = match settings.config.image.background_mode {
                     BackgroundMode::Default => 0,
                     BackgroundMode::Color => 1,
                     BackgroundMode::Image => 2,
@@ -59,7 +59,7 @@ pub fn show_background(
                         ui.selectable_value(&mut selected, 2, "Image");
                     });
                 if selected != current {
-                    settings.config.background_mode = match selected {
+                    settings.config.image.background_mode = match selected {
                         0 => BackgroundMode::Default,
                         1 => BackgroundMode::Color,
                         2 => BackgroundMode::Image,
@@ -73,7 +73,7 @@ pub fn show_background(
             ui.add_space(4.0);
 
             // Mode-specific settings
-            match settings.config.background_mode {
+            match settings.config.image.background_mode {
                 BackgroundMode::Default => {
                     ui.label("Using theme background color.");
                 }
@@ -89,7 +89,7 @@ pub fn show_background(
                         );
                         if ui.color_edit_button_srgba(&mut color).changed() {
                             settings.temp_background_color = [color.r(), color.g(), color.b()];
-                            settings.config.background_color = settings.temp_background_color;
+                            settings.config.image.background_color = settings.temp_background_color;
                             settings.has_changes = true;
                             *changes_this_frame = true;
                         }
@@ -112,7 +112,7 @@ pub fn show_background(
                             .text_edit_singleline(&mut settings.temp_background_image)
                             .changed()
                         {
-                            settings.config.background_image =
+                            settings.config.background.background_image =
                                 if settings.temp_background_image.is_empty() {
                                     None
                                 } else {
@@ -125,14 +125,14 @@ pub fn show_background(
                             && let Some(path) = settings.pick_file_path("Select background image")
                         {
                             settings.temp_background_image = path.clone();
-                            settings.config.background_image = Some(path);
+                            settings.config.background.background_image = Some(path);
                             settings.has_changes = true;
                         }
                     });
 
                     if ui
                         .checkbox(
-                            &mut settings.config.background_image_enabled,
+                            &mut settings.config.background.background_image_enabled,
                             "Enable background image",
                         )
                         .changed()
@@ -143,7 +143,7 @@ pub fn show_background(
 
                     ui.horizontal(|ui| {
                         ui.label("Background image mode:");
-                        let current = match settings.config.background_image_mode {
+                        let current = match settings.config.background.background_image_mode {
                             BackgroundImageMode::Fit => 0,
                             BackgroundImageMode::Fill => 1,
                             BackgroundImageMode::Stretch => 2,
@@ -168,7 +168,7 @@ pub fn show_background(
                                 ui.selectable_value(&mut selected, 4, "Center");
                             });
                         if selected != current {
-                            settings.config.background_image_mode = match selected {
+                            settings.config.background.background_image_mode = match selected {
                                 0 => BackgroundImageMode::Fit,
                                 1 => BackgroundImageMode::Fill,
                                 2 => BackgroundImageMode::Stretch,
@@ -184,7 +184,7 @@ pub fn show_background(
                         ui.label("Background image opacity:");
                         if ui
                             .add(egui::Slider::new(
-                                &mut settings.config.background_image_opacity,
+                                &mut settings.config.background.background_image_opacity,
                                 0.0..=1.0,
                             ))
                             .changed()
@@ -371,7 +371,7 @@ fn show_background_shader_controls(
 
     if ui
         .checkbox(
-            &mut settings.config.shader_hot_reload,
+            &mut settings.config.shader_watch.shader_hot_reload,
             "Enable shader hot reload",
         )
         .on_hover_text("Automatically reload shaders when files change on disk")
@@ -381,11 +381,11 @@ fn show_background_shader_controls(
         *changes_this_frame = true;
     }
 
-    if settings.config.shader_hot_reload {
+    if settings.config.shader_watch.shader_hot_reload {
         ui.horizontal(|ui| {
             ui.label("Hot reload delay:");
             // Convert u64 to u32 for slider
-            let mut delay = settings.config.shader_hot_reload_delay as u32;
+            let mut delay = settings.config.shader_watch.shader_hot_reload_delay as u32;
             if ui
                 .add(
                     egui::Slider::new(&mut delay, 50..=1000)
@@ -394,7 +394,7 @@ fn show_background_shader_controls(
                 .on_hover_text("Debounce delay before reloading shader after file change (helps avoid multiple reloads)")
                 .changed()
             {
-                settings.config.shader_hot_reload_delay = delay as u64;
+                settings.config.shader_watch.shader_hot_reload_delay = delay as u64;
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }

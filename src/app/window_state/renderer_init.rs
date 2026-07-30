@@ -137,7 +137,7 @@ impl RendererInitParams {
             .shader
             .custom_shader
             .as_ref()
-            .and_then(|name| config.shader_configs.get(name));
+            .and_then(|name| config.shader_overrides.shader_configs.get(name));
         let mut resolved = resolve_shader_config(shader_override, metadata, config);
         if config.shader.custom_shader_readability_mode {
             resolved.brightness = resolved
@@ -150,7 +150,7 @@ impl RendererInitParams {
             .shader
             .cursor_shader
             .as_ref()
-            .and_then(|name| config.cursor_shader_configs.get(name));
+            .and_then(|name| config.shader_overrides.cursor_shader_configs.get(name));
         let resolved_cursor =
             resolve_cursor_shader_config(cursor_shader_override, cursor_metadata, config);
 
@@ -168,10 +168,10 @@ impl RendererInitParams {
             window_padding: config.window.window_padding,
             line_spacing: config.line_spacing,
             char_spacing: config.char_spacing,
-            scrollbar_position: config.scrollbar_position.clone(),
-            scrollbar_width: config.scrollbar_width,
-            scrollbar_thumb_color: config.scrollbar_thumb_color,
-            scrollbar_track_color: config.scrollbar_track_color,
+            scrollbar_position: config.scrollbar.scrollbar_position.clone(),
+            scrollbar_width: config.scrollbar.scrollbar_width,
+            scrollbar_thumb_color: config.scrollbar.scrollbar_thumb_color,
+            scrollbar_track_color: config.scrollbar.scrollbar_track_color,
             enable_text_shaping: config.enable_text_shaping,
             enable_ligatures: config.enable_ligatures,
             enable_kerning: config.enable_kerning,
@@ -179,26 +179,30 @@ impl RendererInitParams {
             font_hinting: config.font_rendering.font_hinting,
             font_thin_strokes: config.font_rendering.font_thin_strokes,
             minimum_contrast: config.font_rendering.minimum_contrast,
-            vsync_mode: config.vsync_mode,
-            power_preference: config.power_preference,
+            vsync_mode: config.rendering.vsync_mode,
+            power_preference: config.rendering.power_preference,
             window_opacity: config.window.window_opacity,
             background_color: theme.background.as_array(),
-            background_mode: config.background_mode,
-            solid_background_color: config.background_color,
+            background_mode: config.image.background_mode,
+            solid_background_color: config.image.background_color,
             background_image_path: {
-                let path = config.background_image.as_ref().map(|p| expand_path(p));
+                let path = config
+                    .background
+                    .background_image
+                    .as_ref()
+                    .map(|p| expand_path(p));
                 log::info!(
                     "RendererInitParams: background_mode={:?}, solid_color={:?}, image_path={:?}, enabled={}",
-                    config.background_mode,
-                    config.background_color,
+                    config.image.background_mode,
+                    config.image.background_color,
                     path,
-                    config.background_image_enabled
+                    config.background.background_image_enabled
                 );
                 path
             },
-            background_image_enabled: config.background_image_enabled,
-            background_image_mode: config.background_image_mode,
-            background_image_opacity: config.background_image_opacity,
+            background_image_enabled: config.background.background_image_enabled,
+            background_image_mode: config.background.background_image_mode,
+            background_image_opacity: config.background.background_image_opacity,
             custom_shader_path: {
                 log::info!(
                     "RendererInitParams: custom_shader={:?}, enabled={}",
@@ -219,8 +223,8 @@ impl RendererInitParams {
             background_channel0_blend_mode: resolved.background_channel0_blend_mode,
             custom_shader_auto_dim_under_text: resolved.auto_dim_under_text,
             custom_shader_auto_dim_strength: resolved.auto_dim_strength,
-            image_scaling_mode: config.image_scaling_mode,
-            image_preserve_aspect_ratio: config.image_preserve_aspect_ratio,
+            image_scaling_mode: config.image.image_scaling_mode,
+            image_preserve_aspect_ratio: config.image.image_preserve_aspect_ratio,
             cursor_shader_path: config.shader.cursor_shader.clone(),
             cursor_shader_enabled: config.shader.cursor_shader_enabled,
             cursor_shader_animation: config.shader.cursor_shader_animation,
@@ -231,9 +235,10 @@ impl RendererInitParams {
             cursor_shader_trail_duration: resolved_cursor.trail_duration,
             cursor_shader_color: resolved_cursor.cursor_color,
             transparency_affects_only_default_background: config
+                .background
                 .transparency_affects_only_default_background,
-            keep_text_opaque: config.keep_text_opaque,
-            link_underline_style: config.link_underline_style,
+            keep_text_opaque: config.background.keep_text_opaque,
+            link_underline_style: config.semantic_history.link_underline_style,
             cursor_guide_enabled: config.cursor.cursor_guide_enabled,
             cursor_guide_color: config.cursor.cursor_guide_color,
             cursor_shadow_enabled: config.cursor.cursor_shadow_enabled,
@@ -243,12 +248,12 @@ impl RendererInitParams {
             cursor_boost: config.cursor.cursor_boost,
             cursor_boost_color: config.cursor.cursor_boost_color,
             unfocused_cursor_style: config.cursor.unfocused_cursor_style,
-            command_separator_enabled: config.command_separator_enabled,
-            command_separator_thickness: config.command_separator_thickness,
-            command_separator_opacity: config.command_separator_opacity,
-            command_separator_exit_color: config.command_separator_exit_color,
-            command_separator_color: config.command_separator_color,
-            pane_backgrounds: config.pane_backgrounds.clone(),
+            command_separator_enabled: config.command_separator.command_separator_enabled,
+            command_separator_thickness: config.command_separator.command_separator_thickness,
+            command_separator_opacity: config.command_separator.command_separator_opacity,
+            command_separator_exit_color: config.command_separator.command_separator_exit_color,
+            command_separator_color: config.command_separator.command_separator_color,
+            pane_backgrounds: config.image.pane_backgrounds.clone(),
         }
     }
 

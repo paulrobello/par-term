@@ -38,7 +38,12 @@ pub(super) fn show_shader_uniform_controls(
         );
     }
 
-    let current_override = settings.config.shader_configs.get(shader_name).cloned();
+    let current_override = settings
+        .config
+        .shader_overrides
+        .shader_configs
+        .get(shader_name)
+        .cloned();
     let groups = parsed.groups.clone();
     let mut current_group: Option<String> = None;
 

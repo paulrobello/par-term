@@ -130,12 +130,13 @@ impl WindowState {
         let matcher = crate::keybindings::KeybindingMatcher::from_event_with_remapping(
             event,
             &self.input_handler.modifiers,
-            &self.config.load().modifier_remapping,
+            &self.config.load().input.modifier_remapping,
         );
 
-        if matcher
-            .matches_with_physical_preference(prefix_combo, self.config.load().use_physical_keys)
-        {
+        if matcher.matches_with_physical_preference(
+            prefix_combo,
+            self.config.load().input.use_physical_keys,
+        ) {
             crate::debug_info!(
                 "PREFIX_ACTION",
                 "Prefix combo matched, entering prefix mode"

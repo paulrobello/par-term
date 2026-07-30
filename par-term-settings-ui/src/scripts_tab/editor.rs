@@ -214,7 +214,7 @@ fn show_save_cancel(
                 restart_delay_ms: settings.scripts_tab.temp_script_restart_delay_ms,
                 subscriptions,
                 env_vars: if let Some(i) = edit_index {
-                    settings.config.scripts[i].env_vars.clone()
+                    settings.config.automation.scripts[i].env_vars.clone()
                 } else {
                     std::collections::HashMap::new()
                 },
@@ -227,9 +227,9 @@ fn show_save_cancel(
             };
 
             if let Some(i) = edit_index {
-                settings.config.scripts[i] = new_script;
+                settings.config.automation.scripts[i] = new_script;
             } else {
-                settings.config.scripts.push(new_script);
+                settings.config.automation.scripts.push(new_script);
             }
 
             settings.has_changes = true;

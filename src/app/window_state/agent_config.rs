@@ -67,7 +67,7 @@ impl WindowState {
                             .shader
                             .custom_shader
                             .as_ref()
-                            .and_then(|name| cfg.shader_configs.get(name));
+                            .and_then(|name| cfg.shader_overrides.shader_configs.get(name));
                         let metadata =
                             self.config
                                 .load()
@@ -187,7 +187,7 @@ impl WindowState {
                     .shader
                     .custom_shader
                     .as_ref()
-                    .and_then(|name| cfg.shader_configs.get(name));
+                    .and_then(|name| cfg.shader_overrides.shader_configs.get(name));
                 let metadata =
                     cfg.shader.custom_shader.as_ref().and_then(|name| {
                         self.shader_state.shader_metadata_cache.get(name).cloned()

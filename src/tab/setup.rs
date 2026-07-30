@@ -15,16 +15,16 @@ pub(crate) fn configure_terminal_from_config(terminal: &mut TerminalManager, con
     terminal.set_theme(config.load_theme());
 
     // Apply clipboard history limits from config
-    terminal.set_max_clipboard_sync_events(config.clipboard_max_sync_events);
-    terminal.set_max_clipboard_event_bytes(config.clipboard_max_event_bytes);
+    terminal.set_max_clipboard_sync_events(config.clipboard.clipboard_max_sync_events);
+    terminal.set_max_clipboard_event_bytes(config.clipboard.clipboard_max_event_bytes);
 
     // Apply OSC 9/777/99 notification buffer and OSC data length limits
     terminal.set_max_notifications(config.notifications.notification_max_buffer);
     terminal.set_max_osc_data_length(config.max_osc_data_length);
 
     // Set answerback string for ENQ response (if configured)
-    if !config.answerback_string.is_empty() {
-        terminal.set_answerback_string(Some(config.answerback_string.clone()));
+    if !config.shell.answerback_string.is_empty() {
+        terminal.set_answerback_string(Some(config.shell.answerback_string.clone()));
     }
 
     // Apply Unicode width configuration
@@ -262,8 +262,8 @@ fn build_platform_extra_paths() -> Vec<String> {
 
 /// Determine the shell command and arguments to use based on config
 pub(crate) fn get_shell_command(config: &Config) -> (String, Option<Vec<String>>) {
-    if let Some(ref custom) = config.custom_shell {
-        (custom.clone(), config.shell_args.clone())
+    if let Some(ref custom) = config.shell.custom_shell {
+        (custom.clone(), config.shell.shell_args.clone())
     } else {
         #[cfg(target_os = "windows")]
         {
@@ -282,7 +282,7 @@ pub(crate) fn get_shell_command(config: &Config) -> (String, Option<Vec<String>>
 /// Apply login shell flag if configured (Unix only)
 #[cfg(not(target_os = "windows"))]
 pub(crate) fn apply_login_shell_flag(shell_args: &mut Option<Vec<String>>, config: &Config) {
-    if config.login_shell {
+    if config.shell.login_shell {
         let args = shell_args.get_or_insert_with(Vec::new);
         if !args.iter().any(|a| a == "-l" || a == "--login") {
             args.insert(0, "-l".to_string());

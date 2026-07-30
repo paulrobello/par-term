@@ -38,7 +38,7 @@
 //! 3. Set `close_hovered` state based on containment
 //! 4. On click, check if `close_hovered` is set before deciding action
 
-use par_term::config::{Config, TabBarMode, TabBarPosition};
+use par_term::config::{Config, TabBarMode, TabBarPosition, TabConfig};
 use par_term::tab_bar_ui::TabBarUI;
 
 #[test]
@@ -97,7 +97,10 @@ fn test_tab_bar_should_show_never() {
 fn test_tab_bar_height_when_hidden() {
     let tab_bar = TabBarUI::new();
     let config = Config {
-        tab_bar_mode: TabBarMode::WhenMultiple,
+        tabs: TabConfig {
+            tab_bar_mode: TabBarMode::WhenMultiple,
+            ..Default::default()
+        },
         ..Config::default()
     };
 
@@ -113,7 +116,7 @@ fn test_tab_bar_height_when_visible() {
 
     // When tab bar should show, height should match config
     // With default config (WhenMultiple) and 2 tabs
-    assert_eq!(tab_bar.get_height(2, &config), config.tab_bar_height);
+    assert_eq!(tab_bar.get_height(2, &config), config.tabs.tab_bar_height);
 }
 
 #[test]
@@ -147,7 +150,7 @@ fn test_tab_bar_uses_config_height() {
     assert!(default_height > 0.0);
 
     // Custom height
-    config.tab_bar_height = 50.0;
+    config.tabs.tab_bar_height = 50.0;
     let custom_height = tab_bar.get_height(2, &config);
     assert_eq!(custom_height, 50.0, "Tab bar should use config height");
 }
@@ -156,7 +159,10 @@ fn test_tab_bar_uses_config_height() {
 fn test_tab_bar_height_zero_when_hidden() {
     let tab_bar = TabBarUI::new();
     let config = Config {
-        tab_bar_mode: TabBarMode::WhenMultiple,
+        tabs: TabConfig {
+            tab_bar_mode: TabBarMode::WhenMultiple,
+            ..Default::default()
+        },
         ..Config::default()
     };
 
@@ -186,7 +192,10 @@ fn test_tab_bar_height_with_edge_case_heights() {
 
     // Very small height
     let config_small = Config {
-        tab_bar_height: 1.0,
+        tabs: TabConfig {
+            tab_bar_height: 1.0,
+            ..Default::default()
+        },
         ..Config::default()
     };
     let small = tab_bar.get_height(2, &config_small);
@@ -194,7 +203,10 @@ fn test_tab_bar_height_with_edge_case_heights() {
 
     // Very large height
     let config_large = Config {
-        tab_bar_height: 1000.0,
+        tabs: TabConfig {
+            tab_bar_height: 1000.0,
+            ..Default::default()
+        },
         ..Config::default()
     };
     let large = tab_bar.get_height(2, &config_large);
@@ -202,7 +214,10 @@ fn test_tab_bar_height_with_edge_case_heights() {
 
     // Zero height (unusual but valid)
     let config_zero = Config {
-        tab_bar_height: 0.0,
+        tabs: TabConfig {
+            tab_bar_height: 0.0,
+            ..Default::default()
+        },
         ..Config::default()
     };
     let zero = tab_bar.get_height(2, &config_zero);
@@ -216,14 +231,17 @@ fn test_tab_bar_height_with_edge_case_heights() {
 #[test]
 fn test_tab_bar_position_default_is_top() {
     let config = Config::default();
-    assert_eq!(config.tab_bar_position, TabBarPosition::Top);
+    assert_eq!(config.tabs.tab_bar_position, TabBarPosition::Top);
 }
 
 #[test]
 fn test_tab_bar_height_zero_for_left_position() {
     let tab_bar = TabBarUI::new();
     let config = Config {
-        tab_bar_position: TabBarPosition::Left,
+        tabs: TabConfig {
+            tab_bar_position: TabBarPosition::Left,
+            ..Default::default()
+        },
         ..Config::default()
     };
     // Left position should return 0 height since the bar is vertical
@@ -237,13 +255,19 @@ fn test_tab_bar_width_zero_for_top_bottom() {
     let tab_bar = TabBarUI::new();
 
     let config_top = Config {
-        tab_bar_position: TabBarPosition::Top,
+        tabs: TabConfig {
+            tab_bar_position: TabBarPosition::Top,
+            ..Default::default()
+        },
         ..Config::default()
     };
     assert_eq!(tab_bar.get_width(2, &config_top), 0.0);
 
     let config_bottom = Config {
-        tab_bar_position: TabBarPosition::Bottom,
+        tabs: TabConfig {
+            tab_bar_position: TabBarPosition::Bottom,
+            ..Default::default()
+        },
         ..Config::default()
     };
     assert_eq!(tab_bar.get_width(2, &config_bottom), 0.0);
@@ -253,8 +277,11 @@ fn test_tab_bar_width_zero_for_top_bottom() {
 fn test_tab_bar_width_for_left_position() {
     let tab_bar = TabBarUI::new();
     let config = Config {
-        tab_bar_position: TabBarPosition::Left,
-        tab_bar_width: 200.0,
+        tabs: TabConfig {
+            tab_bar_position: TabBarPosition::Left,
+            tab_bar_width: 200.0,
+            ..Default::default()
+        },
         ..Config::default()
     };
     assert_eq!(tab_bar.get_width(2, &config), 200.0);
@@ -266,9 +293,12 @@ fn test_tab_bar_width_respects_tab_bar_mode() {
 
     // With "when_multiple" mode and only 1 tab, width should be 0
     let config = Config {
-        tab_bar_position: TabBarPosition::Left,
-        tab_bar_width: 200.0,
-        tab_bar_mode: TabBarMode::WhenMultiple,
+        tabs: TabConfig {
+            tab_bar_position: TabBarPosition::Left,
+            tab_bar_width: 200.0,
+            tab_bar_mode: TabBarMode::WhenMultiple,
+            ..Default::default()
+        },
         ..Config::default()
     };
     assert_eq!(tab_bar.get_width(1, &config), 0.0);
@@ -282,15 +312,21 @@ fn test_tab_bar_height_for_top_and_bottom() {
     let tab_bar = TabBarUI::new();
 
     let config_top = Config {
-        tab_bar_position: TabBarPosition::Top,
-        tab_bar_height: 30.0,
+        tabs: TabConfig {
+            tab_bar_position: TabBarPosition::Top,
+            tab_bar_height: 30.0,
+            ..Default::default()
+        },
         ..Config::default()
     };
     assert_eq!(tab_bar.get_height(2, &config_top), 30.0);
 
     let config_bottom = Config {
-        tab_bar_position: TabBarPosition::Bottom,
-        tab_bar_height: 30.0,
+        tabs: TabConfig {
+            tab_bar_position: TabBarPosition::Bottom,
+            tab_bar_height: 30.0,
+            ..Default::default()
+        },
         ..Config::default()
     };
     assert_eq!(tab_bar.get_height(2, &config_bottom), 30.0);

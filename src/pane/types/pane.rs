@@ -105,7 +105,7 @@ impl Pane {
         // Determine working directory
         let work_dir = working_directory
             .as_deref()
-            .or(config.working_directory.as_deref());
+            .or(config.shell.working_directory.as_deref());
 
         // Get shell command and apply login shell flag
         #[allow(unused_mut)] // mut is needed on Unix for login shell modification
@@ -113,7 +113,7 @@ impl Pane {
         apply_login_shell_flag(&mut shell_args, config);
 
         let shell_args_deref = shell_args.as_deref();
-        let shell_env = build_shell_env(config.shell_env.as_ref());
+        let shell_env = build_shell_env(config.shell.shell_env.as_ref());
         terminal.spawn_custom_shell_with_dir(
             &shell_cmd,
             shell_args_deref,
@@ -134,7 +134,7 @@ impl Pane {
             bell: BellState::new(),
             cache: RenderCache::new(),
             refresh_task: None,
-            working_directory: working_directory.or_else(|| config.working_directory.clone()),
+            working_directory: working_directory.or_else(|| config.shell.working_directory.clone()),
             last_activity_time: std::time::Instant::now(),
             last_seen_generation: 0,
             anti_idle_last_activity: std::time::Instant::now(),
@@ -177,10 +177,10 @@ impl Pane {
         // Determine working directory
         let work_dir = working_directory
             .as_deref()
-            .or(config.working_directory.as_deref());
+            .or(config.shell.working_directory.as_deref());
 
         // Spawn the caller-supplied command instead of the login shell
-        let shell_env = build_shell_env(config.shell_env.as_ref());
+        let shell_env = build_shell_env(config.shell.shell_env.as_ref());
         terminal.spawn_custom_shell_with_dir(
             &command,
             Some(args.as_slice()),
@@ -201,7 +201,7 @@ impl Pane {
             bell: BellState::new(),
             cache: RenderCache::new(),
             refresh_task: None,
-            working_directory: working_directory.or_else(|| config.working_directory.clone()),
+            working_directory: working_directory.or_else(|| config.shell.working_directory.clone()),
             last_activity_time: std::time::Instant::now(),
             last_seen_generation: 0,
             anti_idle_last_activity: std::time::Instant::now(),

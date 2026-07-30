@@ -53,7 +53,7 @@ pub(super) fn show_display_options_section(
         |ui| {
             if ui
             .checkbox(
-                &mut settings.config.show_profile_drawer_button,
+                &mut settings.config.tabs.show_profile_drawer_button,
                 "Show profile drawer toggle button",
             )
             .on_hover_text("Show/hide the profile drawer toggle button on the right edge of the terminal window. The drawer can still be accessed via keyboard shortcuts when hidden.")

@@ -21,9 +21,12 @@ pub(super) fn show_tab_bar_appearance_section(
                 ui.label("Minimum tab width:");
                 if ui
                     .add(
-                        egui::Slider::new(&mut settings.config.tab_min_width, 120.0..=512.0)
-                            .step_by(1.0)
-                            .suffix("px"),
+                        egui::Slider::new(
+                            &mut settings.config.tab_colors.tab_min_width,
+                            120.0..=512.0,
+                        )
+                        .step_by(1.0)
+                        .suffix("px"),
                     )
                     .on_hover_text("Minimum width for tabs before horizontal scrolling is enabled")
                     .changed()
@@ -40,9 +43,12 @@ pub(super) fn show_tab_bar_appearance_section(
                 ui.label("Border width:");
                 if ui
                     .add(
-                        egui::Slider::new(&mut settings.config.tab_border_width, 0.0..=3.0)
-                            .step_by(0.5)
-                            .suffix("px"),
+                        egui::Slider::new(
+                            &mut settings.config.tab_colors.tab_border_width,
+                            0.0..=3.0,
+                        )
+                        .step_by(0.5)
+                        .suffix("px"),
                     )
                     .on_hover_text("Width of the border around each tab (0 = no border)")
                     .changed()
@@ -54,9 +60,9 @@ pub(super) fn show_tab_bar_appearance_section(
 
             ui.horizontal(|ui| {
                 ui.label("Border color:");
-                let mut color = settings.config.tab_border_color;
+                let mut color = settings.config.tab_colors.tab_border_color;
                 if ui.color_edit_button_srgb(&mut color).changed() {
-                    settings.config.tab_border_color = color;
+                    settings.config.tab_colors.tab_border_color = color;
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
@@ -64,7 +70,7 @@ pub(super) fn show_tab_bar_appearance_section(
 
             if ui
                 .checkbox(
-                    &mut settings.config.tab_inactive_outline_only,
+                    &mut settings.config.tab_colors.tab_inactive_outline_only,
                     "Inactive tabs outline only",
                 )
                 .on_hover_text("Render inactive tabs with just an outline border and no fill")
@@ -78,20 +84,26 @@ pub(super) fn show_tab_bar_appearance_section(
             ui.label(egui::RichText::new("Inactive Tab Dimming").strong());
 
             if ui
-                .checkbox(&mut settings.config.dim_inactive_tabs, "Dim inactive tabs")
+                .checkbox(
+                    &mut settings.config.tab_colors.dim_inactive_tabs,
+                    "Dim inactive tabs",
+                )
                 .changed()
             {
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
 
-            if settings.config.dim_inactive_tabs {
+            if settings.config.tab_colors.dim_inactive_tabs {
                 ui.horizontal(|ui| {
                     ui.label("Opacity:");
                     if ui
                         .add(
-                            egui::Slider::new(&mut settings.config.inactive_tab_opacity, 0.2..=1.0)
-                                .step_by(0.05),
+                            egui::Slider::new(
+                                &mut settings.config.tab_colors.inactive_tab_opacity,
+                                0.2..=1.0,
+                            )
+                            .step_by(0.05),
                         )
                         .changed()
                     {
@@ -106,9 +118,9 @@ pub(super) fn show_tab_bar_appearance_section(
 
             ui.horizontal(|ui| {
                 ui.label("Tab bar background:");
-                let mut color = settings.config.tab_bar_background;
+                let mut color = settings.config.tab_colors.tab_bar_background;
                 if ui.color_edit_button_srgb(&mut color).changed() {
-                    settings.config.tab_bar_background = color;
+                    settings.config.tab_colors.tab_bar_background = color;
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
@@ -116,9 +128,9 @@ pub(super) fn show_tab_bar_appearance_section(
 
             ui.horizontal(|ui| {
                 ui.label("Active tab:");
-                let mut color = settings.config.tab_active_background;
+                let mut color = settings.config.tab_colors.tab_active_background;
                 if ui.color_edit_button_srgb(&mut color).changed() {
-                    settings.config.tab_active_background = color;
+                    settings.config.tab_colors.tab_active_background = color;
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
@@ -126,9 +138,9 @@ pub(super) fn show_tab_bar_appearance_section(
 
             ui.horizontal(|ui| {
                 ui.label("Inactive tab:");
-                let mut color = settings.config.tab_inactive_background;
+                let mut color = settings.config.tab_colors.tab_inactive_background;
                 if ui.color_edit_button_srgb(&mut color).changed() {
-                    settings.config.tab_inactive_background = color;
+                    settings.config.tab_colors.tab_inactive_background = color;
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
@@ -136,9 +148,9 @@ pub(super) fn show_tab_bar_appearance_section(
 
             ui.horizontal(|ui| {
                 ui.label("Hovered tab:");
-                let mut color = settings.config.tab_hover_background;
+                let mut color = settings.config.tab_colors.tab_hover_background;
                 if ui.color_edit_button_srgb(&mut color).changed() {
-                    settings.config.tab_hover_background = color;
+                    settings.config.tab_colors.tab_hover_background = color;
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
@@ -149,9 +161,9 @@ pub(super) fn show_tab_bar_appearance_section(
 
             ui.horizontal(|ui| {
                 ui.label("Active tab text:");
-                let mut color = settings.config.tab_active_text;
+                let mut color = settings.config.tab_colors.tab_active_text;
                 if ui.color_edit_button_srgb(&mut color).changed() {
-                    settings.config.tab_active_text = color;
+                    settings.config.tab_colors.tab_active_text = color;
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
@@ -159,9 +171,9 @@ pub(super) fn show_tab_bar_appearance_section(
 
             ui.horizontal(|ui| {
                 ui.label("Inactive tab text:");
-                let mut color = settings.config.tab_inactive_text;
+                let mut color = settings.config.tab_colors.tab_inactive_text;
                 if ui.color_edit_button_srgb(&mut color).changed() {
-                    settings.config.tab_inactive_text = color;
+                    settings.config.tab_colors.tab_inactive_text = color;
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
@@ -172,9 +184,9 @@ pub(super) fn show_tab_bar_appearance_section(
 
             ui.horizontal(|ui| {
                 ui.label("Active tab border:");
-                let mut color = settings.config.tab_active_indicator;
+                let mut color = settings.config.tab_colors.tab_active_indicator;
                 if ui.color_edit_button_srgb(&mut color).changed() {
-                    settings.config.tab_active_indicator = color;
+                    settings.config.tab_colors.tab_active_indicator = color;
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
@@ -182,9 +194,9 @@ pub(super) fn show_tab_bar_appearance_section(
 
             ui.horizontal(|ui| {
                 ui.label("Activity indicator:");
-                let mut color = settings.config.tab_activity_indicator;
+                let mut color = settings.config.tab_colors.tab_activity_indicator;
                 if ui.color_edit_button_srgb(&mut color).changed() {
-                    settings.config.tab_activity_indicator = color;
+                    settings.config.tab_colors.tab_activity_indicator = color;
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
@@ -192,9 +204,9 @@ pub(super) fn show_tab_bar_appearance_section(
 
             ui.horizontal(|ui| {
                 ui.label("Bell indicator:");
-                let mut color = settings.config.tab_bell_indicator;
+                let mut color = settings.config.tab_colors.tab_bell_indicator;
                 if ui.color_edit_button_srgb(&mut color).changed() {
-                    settings.config.tab_bell_indicator = color;
+                    settings.config.tab_colors.tab_bell_indicator = color;
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
@@ -205,9 +217,9 @@ pub(super) fn show_tab_bar_appearance_section(
 
             ui.horizontal(|ui| {
                 ui.label("Close button:");
-                let mut color = settings.config.tab_close_button;
+                let mut color = settings.config.tab_colors.tab_close_button;
                 if ui.color_edit_button_srgb(&mut color).changed() {
-                    settings.config.tab_close_button = color;
+                    settings.config.tab_colors.tab_close_button = color;
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
@@ -215,9 +227,9 @@ pub(super) fn show_tab_bar_appearance_section(
 
             ui.horizontal(|ui| {
                 ui.label("Close button hover:");
-                let mut color = settings.config.tab_close_button_hover;
+                let mut color = settings.config.tab_colors.tab_close_button_hover;
                 if ui.color_edit_button_srgb(&mut color).changed() {
-                    settings.config.tab_close_button_hover = color;
+                    settings.config.tab_colors.tab_close_button_hover = color;
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }

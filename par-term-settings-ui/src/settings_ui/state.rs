@@ -59,7 +59,11 @@ impl SettingsUI {
 
     fn current_shader_readability_values(&mut self) -> (Option<f32>, Option<f32>) {
         let shader_name = self.temp_custom_shader.clone();
-        let current_override = self.config.shader_configs.get(&shader_name);
+        let current_override = self
+            .config
+            .shader_overrides
+            .shader_configs
+            .get(&shader_name);
         let metadata = self.shader_metadata_cache.get(&shader_name).cloned();
         let meta_defaults = metadata.as_ref().map(|metadata| &metadata.defaults);
 
@@ -115,16 +119,21 @@ impl SettingsUI {
             temp_enable_ligatures: config.enable_ligatures,
             temp_enable_kerning: config.enable_kerning,
             font_pending_changes: false,
-            temp_custom_shell: config.custom_shell.clone().unwrap_or_default(),
+            temp_custom_shell: config.shell.custom_shell.clone().unwrap_or_default(),
             temp_shell_args: config
+                .shell
                 .shell_args
                 .as_ref()
                 .map(|args| args.join(" "))
                 .unwrap_or_default(),
-            temp_working_directory: config.working_directory.clone().unwrap_or_default(),
-            temp_startup_directory: config.startup_directory.clone().unwrap_or_default(),
-            temp_initial_text: config.initial_text.clone(),
-            temp_background_image: config.background_image.clone().unwrap_or_default(),
+            temp_working_directory: config.shell.working_directory.clone().unwrap_or_default(),
+            temp_startup_directory: config.shell.startup_directory.clone().unwrap_or_default(),
+            temp_initial_text: config.shell.initial_text.clone(),
+            temp_background_image: config
+                .background
+                .background_image
+                .clone()
+                .unwrap_or_default(),
             temp_custom_shader: config.shader.custom_shader.clone().unwrap_or_default(),
             temp_cursor_shader: config.shader.cursor_shader.clone().unwrap_or_default(),
             temp_shader_channel0: config
@@ -152,7 +161,7 @@ impl SettingsUI {
                 .custom_shader_cubemap
                 .clone()
                 .unwrap_or_default(),
-            temp_background_color: config.background_color,
+            temp_background_color: config.image.background_color,
             background_tab: BackgroundTabState::default(),
             last_live_opacity: config.window.window_opacity,
             current_cols: initial_cols,
@@ -332,18 +341,34 @@ impl SettingsUI {
     /// Sync ALL temp fields from config
     pub fn sync_all_temps_from_config(&mut self) {
         self.sync_font_temps_from_config();
-        self.temp_custom_shell = self.config.custom_shell.clone().unwrap_or_default();
+        self.temp_custom_shell = self.config.shell.custom_shell.clone().unwrap_or_default();
         self.temp_shell_args = self
             .config
+            .shell
             .shell_args
             .as_ref()
             .map(|args| args.join(" "))
             .unwrap_or_default();
-        self.temp_working_directory = self.config.working_directory.clone().unwrap_or_default();
-        self.temp_startup_directory = self.config.startup_directory.clone().unwrap_or_default();
-        self.temp_initial_text = self.config.initial_text.clone();
-        self.temp_background_image = self.config.background_image.clone().unwrap_or_default();
-        self.temp_background_color = self.config.background_color;
+        self.temp_working_directory = self
+            .config
+            .shell
+            .working_directory
+            .clone()
+            .unwrap_or_default();
+        self.temp_startup_directory = self
+            .config
+            .shell
+            .startup_directory
+            .clone()
+            .unwrap_or_default();
+        self.temp_initial_text = self.config.shell.initial_text.clone();
+        self.temp_background_image = self
+            .config
+            .background
+            .background_image
+            .clone()
+            .unwrap_or_default();
+        self.temp_background_color = self.config.image.background_color;
         self.temp_custom_shader = self.config.shader.custom_shader.clone().unwrap_or_default();
         self.temp_cursor_shader = self.config.shader.cursor_shader.clone().unwrap_or_default();
         self.temp_shader_channel0 = self

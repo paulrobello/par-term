@@ -162,7 +162,7 @@ pub(super) fn update_gpu_renderer_state(
     renderer.update_scrollbar(scroll_offset, visible_lines, total_lines, scrollback_marks);
 
     // Compute and set command separator marks for single-pane rendering
-    if config.command_separator_enabled {
+    if config.command_separator.command_separator_enabled {
         let separator_marks = crate::renderer::compute_visible_separator_marks(
             scrollback_marks,
             scrollback_len,
@@ -262,7 +262,7 @@ pub(super) fn update_gpu_renderer_state(
 
     // Compute hovered scrollbar mark for tooltip display
     let hovered_mark: Option<crate::scrollback_metadata::ScrollbackMark> =
-        if config.scrollbar_mark_tooltips && config.scrollbar_command_marks {
+        if config.scrollbar.scrollbar_mark_tooltips && config.scrollbar.scrollbar_command_marks {
             tab_manager
                 .active_tab()
                 .map(|tab| tab.active_mouse().position)

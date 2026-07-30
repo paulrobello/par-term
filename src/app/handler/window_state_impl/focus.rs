@@ -45,7 +45,7 @@ impl WindowState {
         }
 
         // Handle shader animation pause/resume
-        if self.config.load().pause_shaders_on_blur
+        if self.config.load().power.pause_shaders_on_blur
             && let Some(renderer) = &mut self.renderer
         {
             if focused {
@@ -91,13 +91,13 @@ impl WindowState {
         }
 
         // Handle refresh rate adjustment for all tabs
-        if self.config.load().pause_refresh_on_blur
+        if self.config.load().power.pause_refresh_on_blur
             && let Some(window) = &self.window
         {
             let fps = if focused {
-                self.config.load().max_fps
+                self.config.load().rendering.max_fps
             } else {
-                self.config.load().unfocused_fps
+                self.config.load().power.unfocused_fps
             };
             for tab in self.tab_manager.tabs_mut() {
                 tab.stop_refresh_task();
@@ -105,7 +105,7 @@ impl WindowState {
                     Arc::clone(&self.runtime),
                     Arc::clone(window),
                     fps,
-                    self.config.load().inactive_tab_fps,
+                    self.config.load().power.inactive_tab_fps,
                 );
             }
             log::info!(

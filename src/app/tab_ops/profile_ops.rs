@@ -15,18 +15,18 @@ impl WindowState {
         log::debug!("open_profile called with id: {:?}", profile_id);
 
         // Check max tabs limit
-        if self.config.load().max_tabs > 0
-            && self.tab_manager.tab_count() >= self.config.load().max_tabs
+        if self.config.load().tabs.max_tabs > 0
+            && self.tab_manager.tab_count() >= self.config.load().tabs.max_tabs
         {
             log::warn!(
                 "Cannot open profile: max_tabs limit ({}) reached",
-                self.config.load().max_tabs
+                self.config.load().tabs.max_tabs
             );
             self.deliver_notification(
                 "Tab Limit Reached",
                 &format!(
                     "Cannot open profile: maximum of {} tabs already open",
-                    self.config.load().max_tabs
+                    self.config.load().tabs.max_tabs
                 ),
             );
             return;
@@ -53,7 +53,8 @@ impl WindowState {
             grid_size,
         ) {
             Ok(tab_id) => {
-                if self.config.load().new_tab_position == crate::config::NewTabPosition::AfterActive
+                if self.config.load().tabs.new_tab_position
+                    == crate::config::NewTabPosition::AfterActive
                     && let Some(idx) = prior_active_idx
                 {
                     self.tab_manager.move_tab_to_index(tab_id, idx + 1);
@@ -71,8 +72,8 @@ impl WindowState {
                     tab.start_refresh_task(
                         Arc::clone(&self.runtime),
                         Arc::clone(window),
-                        self.config.load().max_fps,
-                        self.config.load().inactive_tab_fps,
+                        self.config.load().rendering.max_fps,
+                        self.config.load().power.inactive_tab_fps,
                     );
 
                     // Resize terminal to match current renderer dimensions
@@ -118,7 +119,7 @@ impl WindowState {
 
                 // Auto-connect tmux session if profile has one configured
                 if let Some(ref session_name) = profile.tmux_session_name
-                    && self.config.load().tmux_enabled
+                    && self.config.load().tmux.tmux_enabled
                     && !self.is_gateway_active()
                 {
                     match profile.tmux_connection_mode {
@@ -135,7 +136,7 @@ impl WindowState {
                             // Write plain tmux command directly to the PTY
                             let cmd = format!(
                                 "{} new-session -A -s '{}'\n",
-                                self.config.load().tmux_path,
+                                self.config.load().tmux.tmux_path,
                                 session_name.replace('\'', "'\\''")
                             );
                             if let Some(tab) = self.tab_manager.active_tab_mut()

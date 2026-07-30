@@ -22,7 +22,7 @@ pub(super) fn show_theme_section(
     ) {
         collapsing_section(ui, "Theme", "appearance_theme", true, collapsed, |ui| {
             let available = Theme::available_themes();
-            let mut selected = settings.config.theme.clone();
+            let mut selected = settings.config.theme_colors.theme.clone();
 
             ui.horizontal(|ui| {
                 ui.label("Theme:");
@@ -36,8 +36,8 @@ pub(super) fn show_theme_section(
                     });
             });
 
-            if selected != settings.config.theme {
-                settings.config.theme = selected;
+            if selected != settings.config.theme_colors.theme {
+                settings.config.theme_colors.theme = selected;
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
@@ -73,7 +73,7 @@ pub(super) fn show_auto_dark_mode_section(
             |ui| {
                 if ui
                     .checkbox(
-                        &mut settings.config.auto_dark_mode,
+                        &mut settings.config.theme_colors.auto_dark_mode,
                         "Auto-switch theme with system appearance",
                     )
                     .on_hover_text(
@@ -85,12 +85,12 @@ pub(super) fn show_auto_dark_mode_section(
                     *changes_this_frame = true;
                 }
 
-                ui.add_enabled_ui(settings.config.auto_dark_mode, |ui| {
+                ui.add_enabled_ui(settings.config.theme_colors.auto_dark_mode, |ui| {
                     let available = Theme::available_themes();
 
                     ui.horizontal(|ui| {
                         ui.label("Light theme:");
-                        let mut selected = settings.config.light_theme.clone();
+                        let mut selected = settings.config.theme_colors.light_theme.clone();
                         egui::ComboBox::from_id_salt("appearance_light_theme_select")
                             .width(INPUT_WIDTH)
                             .selected_text(selected.clone())
@@ -99,8 +99,8 @@ pub(super) fn show_auto_dark_mode_section(
                                     ui.selectable_value(&mut selected, theme.to_string(), *theme);
                                 }
                             });
-                        if selected != settings.config.light_theme {
-                            settings.config.light_theme = selected;
+                        if selected != settings.config.theme_colors.light_theme {
+                            settings.config.theme_colors.light_theme = selected;
                             settings.has_changes = true;
                             *changes_this_frame = true;
                         }
@@ -108,7 +108,7 @@ pub(super) fn show_auto_dark_mode_section(
 
                     ui.horizontal(|ui| {
                         ui.label("Dark theme:");
-                        let mut selected = settings.config.dark_theme.clone();
+                        let mut selected = settings.config.theme_colors.dark_theme.clone();
                         egui::ComboBox::from_id_salt("appearance_dark_theme_select")
                             .width(INPUT_WIDTH)
                             .selected_text(selected.clone())
@@ -117,8 +117,8 @@ pub(super) fn show_auto_dark_mode_section(
                                     ui.selectable_value(&mut selected, theme.to_string(), *theme);
                                 }
                             });
-                        if selected != settings.config.dark_theme {
-                            settings.config.dark_theme = selected;
+                        if selected != settings.config.theme_colors.dark_theme {
+                            settings.config.theme_colors.dark_theme = selected;
                             settings.has_changes = true;
                             *changes_this_frame = true;
                         }

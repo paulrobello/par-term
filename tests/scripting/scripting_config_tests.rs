@@ -1,11 +1,11 @@
 use par_term::config::scripting::ScriptConfig;
-use par_term::config::{Config, RestartPolicy};
+use par_term::config::{AutomationConfig, Config, RestartPolicy};
 use std::collections::HashMap;
 
 #[test]
 fn test_default_config_has_empty_scripts() {
     let config = Config::default();
-    assert!(config.scripts.is_empty());
+    assert!(config.automation.scripts.is_empty());
 }
 
 #[test]
@@ -146,29 +146,32 @@ env_vars:
 #[test]
 fn test_config_with_scripts_yaml_roundtrip() {
     let config = Config {
-        scripts: vec![ScriptConfig {
-            name: "logger".to_string(),
-            enabled: true,
-            script_path: "/usr/local/bin/logger.py".to_string(),
-            args: vec!["--output".to_string(), "/tmp/log.txt".to_string()],
-            auto_start: true,
-            restart_policy: RestartPolicy::Always,
-            restart_delay_ms: 1000,
-            subscriptions: vec!["output".to_string()],
-            env_vars: HashMap::new(),
-            allow_write_text: false,
-            prompt_before_write_text: true,
-            allow_run_command: false,
-            allow_change_config: false,
-            write_text_rate_limit: 0,
-            run_command_rate_limit: 0,
-        }],
+        automation: AutomationConfig {
+            scripts: vec![ScriptConfig {
+                name: "logger".to_string(),
+                enabled: true,
+                script_path: "/usr/local/bin/logger.py".to_string(),
+                args: vec!["--output".to_string(), "/tmp/log.txt".to_string()],
+                auto_start: true,
+                restart_policy: RestartPolicy::Always,
+                restart_delay_ms: 1000,
+                subscriptions: vec!["output".to_string()],
+                env_vars: HashMap::new(),
+                allow_write_text: false,
+                prompt_before_write_text: true,
+                allow_run_command: false,
+                allow_change_config: false,
+                write_text_rate_limit: 0,
+                run_command_rate_limit: 0,
+            }],
+            ..Default::default()
+        },
         ..Config::default()
     };
 
     let yaml = serde_yaml_ng::to_string(&config).unwrap();
     let deserialized: Config = serde_yaml_ng::from_str(&yaml).unwrap();
-    assert_eq!(config.scripts, deserialized.scripts);
+    assert_eq!(config.automation.scripts, deserialized.automation.scripts);
 }
 
 #[test]

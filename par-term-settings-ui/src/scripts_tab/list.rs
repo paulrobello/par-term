@@ -31,7 +31,7 @@ pub(super) fn show_scripts_section(
             let mut toggle_index: Option<usize> = None;
 
             // List existing scripts
-            let script_count = settings.config.scripts.len();
+            let script_count = settings.config.automation.scripts.len();
             for i in 0..script_count {
                 let is_editing = settings.scripts_tab.editing_script_index == Some(i)
                     && !settings.scripts_tab.adding_new_script;
@@ -53,12 +53,13 @@ pub(super) fn show_scripts_section(
 
             // Apply mutations
             if let Some(i) = toggle_index {
-                settings.config.scripts[i].enabled = !settings.config.scripts[i].enabled;
+                settings.config.automation.scripts[i].enabled =
+                    !settings.config.automation.scripts[i].enabled;
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
             if let Some(i) = delete_index {
-                settings.config.scripts.remove(i);
+                settings.config.automation.scripts.remove(i);
                 settings.has_changes = true;
                 *changes_this_frame = true;
                 if settings.scripts_tab.editing_script_index == Some(i) {
@@ -66,7 +67,7 @@ pub(super) fn show_scripts_section(
                 }
             }
             if let Some(i) = start_edit_index {
-                let script = &settings.config.scripts[i];
+                let script = &settings.config.automation.scripts[i];
                 settings.scripts_tab.editing_script_index = Some(i);
                 settings.scripts_tab.adding_new_script = false;
                 settings.scripts_tab.temp_script_name = script.name.clone();
@@ -132,7 +133,7 @@ fn show_script_row(
     toggle_index: &mut Option<usize>,
     collapsed: &mut HashSet<String>,
 ) {
-    let script = &settings.config.scripts[i];
+    let script = &settings.config.automation.scripts[i];
     let is_running = settings.script_running.get(i).copied().unwrap_or(false);
     let has_error = settings.script_errors.get(i).is_some_and(|e| !e.is_empty());
 
@@ -200,7 +201,7 @@ fn show_script_row(
         });
     });
 
-    let script = &settings.config.scripts[i];
+    let script = &settings.config.automation.scripts[i];
 
     // Second row: script path (indented, monospace)
     let path_display = if script.args.is_empty() {

@@ -512,7 +512,7 @@ impl WindowState {
                     if let (Some(snap), Some(size)) = (progress_snapshot, window_size_for_badge) {
                         let tab_count = self.tab_manager.visible_tab_count();
                         let tb_height = self.tab_bar_ui.get_height(tab_count, &self.config.load());
-                        let (top_inset, bottom_inset) = match self.config.load().tab_bar_position {
+                        let (top_inset, bottom_inset) = match self.config.load().tabs.tab_bar_position {
                             par_term_config::TabBarPosition::Top => (tb_height, 0.0),
                             par_term_config::TabBarPosition::Bottom => (0.0, tb_height),
                             par_term_config::TabBarPosition::Left => (0.0, 0.0),
@@ -549,17 +549,17 @@ impl WindowState {
                         let tab_count = self.tab_manager.visible_tab_count();
                         let tb_height = self.tab_bar_ui.get_height(tab_count, &self.config.load());
 
-                        let top_inset = match self.config.load().tab_bar_position {
+                        let top_inset = match self.config.load().tabs.tab_bar_position {
                             par_term_config::TabBarPosition::Top => tb_height,
                             _ => 0.0,
                         };
-                        let bottom_inset = match self.config.load().tab_bar_position {
+                        let bottom_inset = match self.config.load().tabs.tab_bar_position {
                             par_term_config::TabBarPosition::Bottom => tb_height,
                             _ => 0.0,
                         } + badge_tmux_sb_height
                             + badge_custom_sb_height;
                         let scrollbar_inset = if show_scrollbar {
-                            self.config.load().scrollbar_width + 2.0
+                            self.config.load().scrollbar.scrollbar_width + 2.0
                         } else {
                             0.0
                         };

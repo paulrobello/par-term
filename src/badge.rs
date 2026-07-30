@@ -167,17 +167,17 @@ impl BadgeState {
     /// Create a new badge state from config
     pub fn new(config: &Config) -> Self {
         Self {
-            enabled: config.badge_enabled,
-            format: config.badge_format.clone(),
+            enabled: config.badge.badge_enabled,
+            format: config.badge.badge_format.clone(),
             rendered_text: String::new(),
-            color: config.badge_color,
-            alpha: config.badge_color_alpha,
-            font: config.badge_font.clone(),
-            font_bold: config.badge_font_bold,
-            top_margin: config.badge_top_margin,
-            right_margin: config.badge_right_margin,
-            max_width: config.badge_max_width,
-            max_height: config.badge_max_height,
+            color: config.badge.badge_color,
+            alpha: config.badge.badge_color_alpha,
+            font: config.badge.badge_font.clone(),
+            font_bold: config.badge.badge_font_bold,
+            top_margin: config.badge.badge_top_margin,
+            right_margin: config.badge.badge_right_margin,
+            max_width: config.badge.badge_max_width,
+            max_height: config.badge.badge_max_height,
             variables: Arc::new(parking_lot::RwLock::new(SessionVariables::new())),
             dirty: true,
         }
@@ -185,18 +185,18 @@ impl BadgeState {
 
     /// Update badge configuration
     pub fn update_config(&mut self, config: &Config) {
-        let format_changed = self.format != config.badge_format;
+        let format_changed = self.format != config.badge.badge_format;
 
-        self.enabled = config.badge_enabled;
-        self.format = config.badge_format.clone();
-        self.color = config.badge_color;
-        self.alpha = config.badge_color_alpha;
-        self.font = config.badge_font.clone();
-        self.font_bold = config.badge_font_bold;
-        self.top_margin = config.badge_top_margin;
-        self.right_margin = config.badge_right_margin;
-        self.max_width = config.badge_max_width;
-        self.max_height = config.badge_max_height;
+        self.enabled = config.badge.badge_enabled;
+        self.format = config.badge.badge_format.clone();
+        self.color = config.badge.badge_color;
+        self.alpha = config.badge.badge_color_alpha;
+        self.font = config.badge.badge_font.clone();
+        self.font_bold = config.badge.badge_font_bold;
+        self.top_margin = config.badge.badge_top_margin;
+        self.right_margin = config.badge.badge_right_margin;
+        self.max_width = config.badge.badge_max_width;
+        self.max_height = config.badge.badge_max_height;
 
         if format_changed {
             self.dirty = true;

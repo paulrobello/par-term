@@ -101,10 +101,10 @@ impl Tab {
         request: SplitRequest,
     ) -> anyhow::Result<Option<crate::pane::PaneId>> {
         // Check max panes limit
-        if config.max_panes > 0 && self.pane_count() >= config.max_panes {
+        if config.panes.max_panes > 0 && self.pane_count() >= config.panes.max_panes {
             log::warn!(
                 "Cannot split: max panes limit ({}) reached",
-                config.max_panes
+                config.panes.max_panes
             );
             return Ok(None);
         }
@@ -121,8 +121,10 @@ impl Tab {
             if self.pane_manager.is_none() {
                 let mut pm = PaneManager::new();
                 // Scale from logical pixels (config) to physical pixels for layout
-                pm.set_divider_width(config.pane_divider_width.unwrap_or(2.0) * request.dpi_scale);
-                pm.set_divider_hit_width(config.pane_divider_hit_width * request.dpi_scale);
+                pm.set_divider_width(
+                    config.panes.pane_divider_width.unwrap_or(2.0) * request.dpi_scale,
+                );
+                pm.set_divider_hit_width(config.panes.pane_divider_hit_width * request.dpi_scale);
                 self.pane_manager = Some(pm);
             }
 
@@ -357,8 +359,8 @@ impl Tab {
         runtime: Arc<Runtime>,
     ) {
         let mut pm = PaneManager::new();
-        pm.set_divider_width(config.pane_divider_width.unwrap_or(1.0));
-        pm.set_divider_hit_width(config.pane_divider_hit_width);
+        pm.set_divider_width(config.panes.pane_divider_width.unwrap_or(1.0));
+        pm.set_divider_hit_width(config.panes.pane_divider_hit_width);
 
         match pm.build_from_layout(layout, config, runtime) {
             Ok(()) => {

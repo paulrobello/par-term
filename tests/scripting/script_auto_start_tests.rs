@@ -11,7 +11,7 @@
 //! runs as part of the normal test suite.
 
 use par_term::config::scripting::ScriptConfig;
-use par_term::config::{Config, RestartPolicy};
+use par_term::config::{AutomationConfig, Config, RestartPolicy};
 use std::collections::HashMap;
 
 /// Build a script config with the auto-start-relevant fields set.
@@ -92,16 +92,20 @@ fn test_auto_start_selection_filters_mixed_config() {
     // are spawned, and the surviving indices must stay aligned with
     // `config.scripts` because per-tab tracking state is indexed by position.
     let config = Config {
-        scripts: vec![
-            script("auto-on", "/bin/echo", true, true),
-            script("manual", "/bin/echo", true, false),
-            script("disabled-auto", "/bin/echo", false, true),
-            script("auto-on-2", "/bin/echo", true, true),
-        ],
+        automation: AutomationConfig {
+            scripts: vec![
+                script("auto-on", "/bin/echo", true, true),
+                script("manual", "/bin/echo", true, false),
+                script("disabled-auto", "/bin/echo", false, true),
+                script("auto-on-2", "/bin/echo", true, true),
+            ],
+            ..Default::default()
+        },
         ..Config::default()
     };
 
     let selected: Vec<usize> = config
+        .automation
         .scripts
         .iter()
         .enumerate()

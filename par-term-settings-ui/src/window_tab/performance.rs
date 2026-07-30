@@ -25,7 +25,7 @@ pub(super) fn show_performance_section(
                 if ui
                     .add_sized(
                         [SLIDER_WIDTH, SLIDER_HEIGHT],
-                        egui::Slider::new(&mut settings.config.max_fps, 1..=240),
+                        egui::Slider::new(&mut settings.config.rendering.max_fps, 1..=240),
                     )
                     .changed()
                 {
@@ -36,7 +36,7 @@ pub(super) fn show_performance_section(
 
             ui.horizontal(|ui| {
                 ui.label("VSync Mode:");
-                let current = match settings.config.vsync_mode {
+                let current = match settings.config.rendering.vsync_mode {
                     VsyncMode::Immediate => 0,
                     VsyncMode::Mailbox => 1,
                     VsyncMode::Fifo => 2,
@@ -86,7 +86,7 @@ pub(super) fn show_performance_section(
 
                     // Check if the mode is supported
                     if settings.is_vsync_mode_supported(new_mode) {
-                        settings.config.vsync_mode = new_mode;
+                        settings.config.rendering.vsync_mode = new_mode;
                         settings.vsync_warning = None;
                         settings.has_changes = true;
                         *changes_this_frame = true;
@@ -96,7 +96,7 @@ pub(super) fn show_performance_section(
                             "{:?} is not supported on this display. Using FIFO instead.",
                             new_mode
                         ));
-                        settings.config.vsync_mode = VsyncMode::Fifo;
+                        settings.config.rendering.vsync_mode = VsyncMode::Fifo;
                         settings.has_changes = true;
                         *changes_this_frame = true;
                     }
@@ -110,14 +110,14 @@ pub(super) fn show_performance_section(
 
             ui.horizontal(|ui| {
                 ui.label("GPU Power Preference:");
-                let current_pref = settings.config.power_preference;
+                let current_pref = settings.config.rendering.power_preference;
                 egui::ComboBox::from_id_salt("gpu_power_preference")
                     .selected_text(current_pref.display_name())
                     .show_ui(ui, |ui| {
                         for pref in PowerPreference::all() {
                             if ui
                                 .selectable_value(
-                                    &mut settings.config.power_preference,
+                                    &mut settings.config.rendering.power_preference,
                                     *pref,
                                     pref.display_name(),
                                 )
@@ -139,7 +139,7 @@ pub(super) fn show_performance_section(
 
             if ui
                 .checkbox(
-                    &mut settings.config.pause_shaders_on_blur,
+                    &mut settings.config.power.pause_shaders_on_blur,
                     "Pause shader animations when unfocused",
                 )
                 .on_hover_text(
@@ -153,7 +153,7 @@ pub(super) fn show_performance_section(
 
             if ui
                 .checkbox(
-                    &mut settings.config.pause_refresh_on_blur,
+                    &mut settings.config.power.pause_refresh_on_blur,
                     "Reduce refresh rate when unfocused",
                 )
                 .on_hover_text(
@@ -169,8 +169,8 @@ pub(super) fn show_performance_section(
                 ui.label("Unfocused FPS:");
                 if ui
                     .add_enabled(
-                        settings.config.pause_refresh_on_blur,
-                        egui::Slider::new(&mut settings.config.unfocused_fps, 1..=30),
+                        settings.config.power.pause_refresh_on_blur,
+                        egui::Slider::new(&mut settings.config.power.unfocused_fps, 1..=30),
                     )
                     .on_hover_text(
                         "Target frame rate when window is unfocused (lower = more power savings)",
@@ -187,7 +187,7 @@ pub(super) fn show_performance_section(
                 if ui
                     .add_sized(
                         [SLIDER_WIDTH, SLIDER_HEIGHT],
-                        egui::Slider::new(&mut settings.config.inactive_tab_fps, 1..=30),
+                        egui::Slider::new(&mut settings.config.power.inactive_tab_fps, 1..=30),
                     )
                     .on_hover_text(
                         "Refresh rate for non-visible tabs. Lower values reduce CPU usage\n\
@@ -206,7 +206,7 @@ pub(super) fn show_performance_section(
 
             if ui
                 .checkbox(
-                    &mut settings.config.reduce_flicker,
+                    &mut settings.config.rendering.reduce_flicker,
                     "Reduce flicker during fast updates",
                 )
                 .on_hover_text(
@@ -224,9 +224,12 @@ pub(super) fn show_performance_section(
                 ui.label("Maximum delay:");
                 if ui
                     .add_enabled(
-                        settings.config.reduce_flicker,
-                        egui::Slider::new(&mut settings.config.reduce_flicker_delay_ms, 1..=100)
-                            .suffix("ms"),
+                        settings.config.rendering.reduce_flicker,
+                        egui::Slider::new(
+                            &mut settings.config.rendering.reduce_flicker_delay_ms,
+                            1..=100,
+                        )
+                        .suffix("ms"),
                     )
                     .on_hover_text(
                         "Maximum time to wait for cursor to become visible.\n\
@@ -244,7 +247,7 @@ pub(super) fn show_performance_section(
             ui.label(egui::RichText::new("Throughput Mode").strong());
 
             if ui
-                .checkbox(&mut settings.config.maximize_throughput, {
+                .checkbox(&mut settings.config.rendering.maximize_throughput, {
                     #[cfg(target_os = "macos")]
                     {
                         "Maximize throughput (Cmd+Shift+T)"
@@ -269,9 +272,9 @@ pub(super) fn show_performance_section(
                 ui.label("Render interval:");
                 if ui
                     .add_enabled(
-                        settings.config.maximize_throughput,
+                        settings.config.rendering.maximize_throughput,
                         egui::Slider::new(
-                            &mut settings.config.throughput_render_interval_ms,
+                            &mut settings.config.rendering.throughput_render_interval_ms,
                             50..=500,
                         )
                         .suffix("ms"),

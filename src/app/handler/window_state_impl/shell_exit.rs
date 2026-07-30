@@ -14,7 +14,7 @@ impl WindowState {
         use crate::config::ShellExitAction;
         use crate::pane::RestartState;
 
-        match self.config.load().shell_exit_action {
+        match self.config.load().shell.shell_exit_action {
             ShellExitAction::Keep => {
                 // Do nothing - keep dead shells showing
             }
@@ -85,8 +85,8 @@ impl WindowState {
                 {
                     let cell_width = renderer.cell_width();
                     let cell_height = renderer.cell_height();
-                    let title_offset = if self.config.load().show_pane_titles {
-                        self.config.load().pane_title_height
+                    let title_offset = if self.config.load().panes.show_pane_titles {
+                        self.config.load().panes.pane_title_height
                     } else {
                         0.0
                     };
@@ -100,8 +100,8 @@ impl WindowState {
                             let padding = if pm.pane_count() <= 1 {
                                 0.0
                             } else {
-                                self.config.load().pane_divider_width.unwrap_or(2.0) / 2.0
-                                    + self.config.load().pane_padding
+                                self.config.load().panes.pane_divider_width.unwrap_or(2.0) / 2.0
+                                    + self.config.load().panes.pane_padding
                             };
                             pm.resize_all_terminals_with_padding(
                                 cell_width,
@@ -146,7 +146,7 @@ impl WindowState {
                             // Check if pane needs restart action
                             if !is_running && pane.restart_state.is_none() {
                                 // Shell just exited, handle based on action
-                                match self.config.load().shell_exit_action {
+                                match self.config.load().shell.shell_exit_action {
                                     ShellExitAction::RestartImmediately => {
                                         log::info!(
                                             "Pane {} shell exited, restarting immediately",

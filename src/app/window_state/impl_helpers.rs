@@ -230,7 +230,7 @@ impl WindowState {
     /// Perform the shutdown sequence (save state and set shutdown flag)
     pub(crate) fn perform_shutdown(&mut self) {
         // Save last working directory for "previous session" mode
-        if self.config.load().startup_directory_mode
+        if self.config.load().shell.startup_directory_mode
             == crate::config::StartupDirectoryMode::Previous
             && let Some(tab) = self.tab_manager.active_tab()
             && let Ok(term) = tab.terminal.try_read()

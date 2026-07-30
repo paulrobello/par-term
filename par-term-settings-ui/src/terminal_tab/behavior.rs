@@ -35,12 +35,12 @@ pub(super) fn show_behavior_section(
         ui.horizontal(|ui| {
             ui.label("Shell exit action:");
             egui::ComboBox::from_id_salt("shell_exit_action")
-                .selected_text(settings.config.shell_exit_action.display_name())
+                .selected_text(settings.config.shell.shell_exit_action.display_name())
                 .show_ui(ui, |ui| {
                     for action in par_term_config::ShellExitAction::all() {
                         if ui
                             .selectable_value(
-                                &mut settings.config.shell_exit_action,
+                                &mut settings.config.shell.shell_exit_action,
                                 *action,
                                 action.display_name(),
                             )
@@ -58,7 +58,7 @@ pub(super) fn show_behavior_section(
 
         if ui
             .checkbox(
-                &mut settings.config.prompt_on_quit,
+                &mut settings.config.shell.prompt_on_quit,
                 "Confirm before quitting with open sessions",
             )
             .on_hover_text(
@@ -73,7 +73,7 @@ pub(super) fn show_behavior_section(
 
         if ui
             .checkbox(
-                &mut settings.config.confirm_close_running_jobs,
+                &mut settings.config.shell.confirm_close_running_jobs,
                 "Confirm before closing tabs with running jobs",
             )
             .on_hover_text(
@@ -87,7 +87,7 @@ pub(super) fn show_behavior_section(
         }
 
         // Jobs to ignore list (only shown when confirmation is enabled)
-        if settings.config.confirm_close_running_jobs {
+        if settings.config.shell.confirm_close_running_jobs {
             ui.horizontal(|ui| {
                 ui.add_space(20.0);
                 ui.vertical(|ui| {
@@ -96,7 +96,7 @@ pub(super) fn show_behavior_section(
                     );
                     ui.horizontal(|ui| {
                         // Show current list as comma-separated
-                        let mut jobs_text = settings.config.jobs_to_ignore.join(", ");
+                        let mut jobs_text = settings.config.shell.jobs_to_ignore.join(", ");
                         let response = ui
                             .add(
                                 egui::TextEdit::singleline(&mut jobs_text)
@@ -110,7 +110,7 @@ pub(super) fn show_behavior_section(
                             );
                         if response.changed() {
                             // Parse comma-separated list
-                            settings.config.jobs_to_ignore = jobs_text
+                            settings.config.shell.jobs_to_ignore = jobs_text
                                 .split(',')
                                 .map(|s| s.trim().to_string())
                                 .filter(|s| !s.is_empty())
@@ -126,7 +126,7 @@ pub(super) fn show_behavior_section(
                         .on_hover_text("Restore the default list of ignored jobs")
                         .clicked()
                     {
-                        settings.config.jobs_to_ignore =
+                        settings.config.shell.jobs_to_ignore =
                             par_term_config::defaults::jobs_to_ignore();
                         settings.has_changes = true;
                         *changes_this_frame = true;

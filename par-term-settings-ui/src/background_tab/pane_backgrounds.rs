@@ -178,19 +178,19 @@ pub fn show_pane_backgrounds(
                 let index = settings.background_tab.temp_pane_bg_index.unwrap_or(0);
                 settings
                     .config
+                    .image
                     .pane_backgrounds
                     .retain(|pb| pb.index != index);
                 if !settings.background_tab.temp_pane_bg_path.is_empty() {
-                    settings
-                        .config
-                        .pane_backgrounds
-                        .push(par_term_config::PaneBackgroundConfig {
+                    settings.config.image.pane_backgrounds.push(
+                        par_term_config::PaneBackgroundConfig {
                             index,
                             image: settings.background_tab.temp_pane_bg_path.clone(),
                             mode: settings.background_tab.temp_pane_bg_mode,
                             opacity: settings.background_tab.temp_pane_bg_opacity,
                             darken: settings.background_tab.temp_pane_bg_darken,
-                        });
+                        },
+                    );
                 }
                 settings.has_changes = true;
                 *changes_this_frame = true;
@@ -203,6 +203,7 @@ pub fn show_pane_backgrounds(
                 let index = settings.background_tab.temp_pane_bg_index.unwrap_or(0);
                 settings
                     .config
+                    .image
                     .pane_backgrounds
                     .retain(|pb| pb.index != index);
                 settings.background_tab.temp_pane_bg_path.clear();
@@ -214,10 +215,10 @@ pub fn show_pane_backgrounds(
             }
 
             // Show configured pane backgrounds
-            if !settings.config.pane_backgrounds.is_empty() {
+            if !settings.config.image.pane_backgrounds.is_empty() {
                 ui.add_space(4.0);
                 ui.label("Configured pane backgrounds:");
-                for pb in &settings.config.pane_backgrounds {
+                for pb in &settings.config.image.pane_backgrounds {
                     ui.label(format!(
                         "  Pane {}: {} ({:?}, opacity: {:.1}, darken: {:.1})",
                         pb.index, pb.image, pb.mode, pb.opacity, pb.darken

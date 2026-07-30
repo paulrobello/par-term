@@ -72,8 +72,8 @@ impl TabBarUI {
 
                 let indicator_color = egui::Color32::from_rgb(80, 160, 255);
                 let glow_color = egui::Color32::from_rgba_unmultiplied(80, 160, 255, 50);
-                let top = config.tab_bar_height * 0.1;
-                let bottom = config.tab_bar_height * 0.9;
+                let top = config.tabs.tab_bar_height * 0.1;
+                let bottom = config.tabs.tab_bar_height * 0.9;
 
                 // Glow behind the indicator (wider, semi-transparent)
                 ui.painter().rect_filled(
@@ -183,8 +183,8 @@ impl TabBarUI {
                 };
 
                 let indicator_color = egui::Color32::from_rgb(80, 160, 255);
-                let left = config.tab_bar_width * 0.05;
-                let right = config.tab_bar_width * 0.95;
+                let left = config.tabs.tab_bar_width * 0.05;
+                let right = config.tabs.tab_bar_width * 0.95;
 
                 ui.painter().line_segment(
                     [
@@ -224,7 +224,7 @@ impl TabBarUI {
         };
 
         let ghost_width = self.dragging_tab_width;
-        let ghost_height = config.tab_bar_height - TAB_DRAW_SHRINK_Y * 2.0;
+        let ghost_height = config.tabs.tab_bar_height - TAB_DRAW_SHRINK_Y * 2.0;
 
         // Center ghost on pointer horizontally, offset slightly below vertically
         let ghost_pos = egui::pos2(
@@ -236,7 +236,7 @@ impl TabBarUI {
         let bg_color = if let Some(custom) = self.dragging_color {
             egui::Color32::from_rgba_unmultiplied(custom[0], custom[1], custom[2], 200)
         } else {
-            let c = config.tab_active_background;
+            let c = config.tab_colors.tab_active_background;
             egui::Color32::from_rgba_unmultiplied(c[0], c[1], c[2], 200)
         };
 

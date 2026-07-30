@@ -53,17 +53,17 @@ impl TabBarUI {
         let is_hovered = self.hovered_tab == Some(id);
         let is_being_dragged = self.dragging_tab == Some(id) && self.drag_in_progress;
         let should_dim =
-            is_being_dragged || (config.dim_inactive_tabs && !is_active && !is_hovered);
+            is_being_dragged || (config.tab_colors.dim_inactive_tabs && !is_active && !is_hovered);
         let opacity: u8 = if is_being_dragged {
             100
         } else if should_dim {
-            (config.inactive_tab_opacity * 255.0) as u8
+            (config.tab_colors.inactive_tab_opacity * 255.0) as u8
         } else {
             255
         };
 
         // Whether this inactive tab should render as outline-only (no fill)
-        let outline_only = config.tab_inactive_outline_only && !is_active;
+        let outline_only = config.tab_colors.tab_inactive_outline_only && !is_active;
 
         let bg_color = if outline_only {
             egui::Color32::TRANSPARENT
@@ -88,13 +88,13 @@ impl TabBarUI {
                 )
             }
         } else if is_active {
-            let c = config.tab_active_background;
+            let c = config.tab_colors.tab_active_background;
             egui::Color32::from_rgba_unmultiplied(c[0], c[1], c[2], 255)
         } else if is_hovered {
-            let c = config.tab_hover_background;
+            let c = config.tab_colors.tab_hover_background;
             egui::Color32::from_rgba_unmultiplied(c[0], c[1], c[2], 255)
         } else {
-            let c = config.tab_inactive_background;
+            let c = config.tab_colors.tab_inactive_background;
             egui::Color32::from_rgba_unmultiplied(c[0], c[1], c[2], opacity)
         };
 
@@ -128,7 +128,7 @@ impl TabBarUI {
         let (bg_color, opacity) = self.compute_tab_bg_color(id, is_active, custom_color, config);
 
         // Whether this inactive tab should render as outline-only (no fill)
-        let outline_only = config.tab_inactive_outline_only && !is_active;
+        let outline_only = config.tab_colors.tab_inactive_outline_only && !is_active;
 
         let full_width = ui.available_width();
         let (tab_rect, _) =
@@ -145,7 +145,7 @@ impl TabBarUI {
                 let base = if let Some(custom) = custom_color {
                     custom
                 } else {
-                    config.tab_border_color
+                    config.tab_colors.tab_border_color
                 };
                 let c = if is_hovered {
                     let brighten = |v: u8| v.saturating_add(60);
@@ -153,7 +153,7 @@ impl TabBarUI {
                 } else {
                     base
                 };
-                let border_width = config.tab_border_width.max(1.0);
+                let border_width = config.tab_colors.tab_border_width.max(1.0);
                 ui.painter().rect_stroke(
                     tab_draw_rect,
                     tab_rounding,
@@ -168,7 +168,7 @@ impl TabBarUI {
                     let lighten = |v: u8| v.saturating_add(50);
                     [lighten(custom[0]), lighten(custom[1]), lighten(custom[2])]
                 } else {
-                    config.tab_active_indicator
+                    config.tab_colors.tab_active_indicator
                 };
                 let indicator_rect = egui::Rect::from_min_size(
                     tab_draw_rect.left_top(),
@@ -196,11 +196,11 @@ impl TabBarUI {
 
             content_ui.horizontal(|ui| {
                 if is_bell_active {
-                    let c = config.tab_bell_indicator;
+                    let c = config.tab_colors.tab_bell_indicator;
                     ui.colored_label(egui::Color32::from_rgb(c[0], c[1], c[2]), "🔔");
                     ui.add_space(2.0);
                 } else if has_activity && !is_active {
-                    let c = config.tab_activity_indicator;
+                    let c = config.tab_colors.tab_activity_indicator;
                     ui.colored_label(egui::Color32::from_rgb(c[0], c[1], c[2]), "•");
                     ui.add_space(2.0);
                 }
@@ -216,15 +216,15 @@ impl TabBarUI {
                 };
 
                 let text_color = if is_active {
-                    let c = config.tab_active_text;
+                    let c = config.tab_colors.tab_active_text;
                     egui::Color32::from_rgba_unmultiplied(c[0], c[1], c[2], 255)
                 } else {
-                    let c = config.tab_inactive_text;
+                    let c = config.tab_colors.tab_inactive_text;
                     egui::Color32::from_rgba_unmultiplied(c[0], c[1], c[2], opacity)
                 };
 
                 // Truncate title to fit available width
-                let close_width = if config.tab_show_close_button {
+                let close_width = if config.tabs.tab_show_close_button {
                     TAB_CLOSE_BTN_SIZE_H + TAB_CLOSE_BTN_MARGIN
                 } else {
                     0.0
@@ -239,7 +239,7 @@ impl TabBarUI {
             });
 
             // Close button at right edge
-            if config.tab_show_close_button {
+            if config.tabs.tab_show_close_button {
                 let close_size = TAB_CLOSE_BTN_SIZE_H;
                 let close_rect = egui::Rect::from_min_size(
                     egui::pos2(
@@ -258,10 +258,10 @@ impl TabBarUI {
                 }
 
                 let close_color = if self.close_hovered == Some(id) {
-                    let c = config.tab_close_button_hover;
+                    let c = config.tab_colors.tab_close_button_hover;
                     egui::Color32::from_rgb(c[0], c[1], c[2])
                 } else {
-                    let c = config.tab_close_button;
+                    let c = config.tab_colors.tab_close_button;
                     egui::Color32::from_rgba_unmultiplied(c[0], c[1], c[2], opacity)
                 };
 

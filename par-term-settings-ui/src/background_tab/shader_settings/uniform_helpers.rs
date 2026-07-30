@@ -28,16 +28,24 @@ pub fn clear_shader_uniform_override(
     shader_name: &str,
     uniform_name: &str,
 ) {
-    let should_prune =
-        if let Some(override_entry) = settings.config.shader_configs.get_mut(shader_name) {
-            override_entry.uniforms.remove(uniform_name);
-            *override_entry == par_term_config::ShaderConfig::default()
-        } else {
-            false
-        };
+    let should_prune = if let Some(override_entry) = settings
+        .config
+        .shader_overrides
+        .shader_configs
+        .get_mut(shader_name)
+    {
+        override_entry.uniforms.remove(uniform_name);
+        *override_entry == par_term_config::ShaderConfig::default()
+    } else {
+        false
+    };
 
     if should_prune {
-        settings.config.shader_configs.remove(shader_name);
+        settings
+            .config
+            .shader_overrides
+            .shader_configs
+            .remove(shader_name);
     }
 
     settings.has_changes = true;

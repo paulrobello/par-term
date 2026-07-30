@@ -49,11 +49,11 @@ impl Tab {
         session_title: String,
     ) -> anyhow::Result<Self> {
         // Sync triggers from config into the core TriggerRegistry
-        let trigger_security = terminal.sync_triggers(&config.triggers);
+        let trigger_security = terminal.sync_triggers(&config.automation.triggers);
 
         // Auto-start configured coprocesses via the PtySession's built-in manager
-        let mut coprocess_ids = Vec::with_capacity(config.coprocesses.len());
-        for coproc_config in &config.coprocesses {
+        let mut coprocess_ids = Vec::with_capacity(config.automation.coprocesses.len());
+        for coproc_config in &config.automation.coprocesses {
             if coproc_config.auto_start {
                 let core_config = par_term_emu_core_rust::coprocess::CoprocessConfig {
                     command: coproc_config.command.clone(),
@@ -95,7 +95,7 @@ impl Tab {
             trigger_prompt_before_run: trigger_security,
             ..TabScriptingState::default()
         };
-        for (index, script_config) in config.scripts.iter().enumerate() {
+        for (index, script_config) in config.automation.scripts.iter().enumerate() {
             if !script_config.should_auto_start() {
                 continue;
             }
@@ -131,7 +131,7 @@ impl Tab {
         let session_logger = create_shared_logger();
 
         // Set up session logging if enabled
-        if config.auto_log_sessions {
+        if config.session_log.auto_log_sessions {
             let logs_dir = config.logs_dir();
 
             // SEC-010: Ensure the logs directory exists with owner-only permissions
@@ -154,13 +154,13 @@ impl Tab {
             ));
 
             match SessionLogger::new(
-                config.session_log_format,
+                config.session_log.session_log_format,
                 &logs_dir,
                 (config.cols, config.rows),
                 title_with_ts,
             ) {
                 Ok(mut logger) => {
-                    logger.set_redact_passwords(config.session_log_redact_passwords);
+                    logger.set_redact_passwords(config.session_log.session_log_redact_passwords);
                     if let Err(e) = logger.start() {
                         log::warn!("Failed to start session logging: {}", e);
                     } else {
@@ -187,10 +187,12 @@ impl Tab {
 
         // Send initial text after optional delay (only when a runtime is provided)
         if let Some(runtime) = params.runtime
-            && let Some(payload) =
-                build_initial_text_payload(&config.initial_text, config.initial_text_send_newline)
+            && let Some(payload) = build_initial_text_payload(
+                &config.shell.initial_text,
+                config.shell.initial_text_send_newline,
+            )
         {
-            let delay_ms = config.initial_text_delay_ms;
+            let delay_ms = config.shell.initial_text_delay_ms;
             let terminal_clone = Arc::clone(&terminal);
             runtime.spawn(async move {
                 if delay_ms > 0 {
@@ -279,7 +281,7 @@ impl Tab {
         apply_login_shell_flag(&mut shell_args, config);
 
         let shell_args_deref = shell_args.as_deref();
-        let shell_env = build_shell_env(config.shell_env.as_ref());
+        let shell_env = build_shell_env(config.shell.shell_env.as_ref());
         terminal.spawn_custom_shell_with_dir(
             &shell_cmd,
             shell_args_deref,
@@ -296,7 +298,8 @@ impl Tab {
                 title,
                 has_default_title: true,
                 user_named: false,
-                working_directory: working_directory.or_else(|| config.working_directory.clone()),
+                working_directory: working_directory
+                    .or_else(|| config.shell.working_directory.clone()),
                 runtime: Some(runtime),
             },
             terminal,
@@ -365,7 +368,7 @@ impl Tab {
         // Apply login shell flag when using a shell (not a custom command or SSH profile).
         // Per-profile login_shell overrides global config.login_shell.
         if profile.command.is_none() && !is_ssh_profile {
-            let use_login_shell = profile.login_shell.unwrap_or(config.login_shell);
+            let use_login_shell = profile.login_shell.unwrap_or(config.shell.login_shell);
             if use_login_shell {
                 let args = shell_args.get_or_insert_with(Vec::new);
                 #[cfg(not(target_os = "windows"))]
@@ -376,7 +379,7 @@ impl Tab {
         }
 
         let shell_args_deref = shell_args.as_deref();
-        let mut shell_env = build_shell_env(config.shell_env.as_ref());
+        let mut shell_env = build_shell_env(config.shell.shell_env.as_ref());
 
         // When a profile specifies a shell, set the SHELL env var so child
         // processes (and $SHELL) reflect the selected shell, not the login shell.
@@ -403,7 +406,7 @@ impl Tab {
         let working_directory = profile
             .working_directory
             .clone()
-            .or_else(|| config.working_directory.clone());
+            .or_else(|| config.shell.working_directory.clone());
 
         // Session log title uses profile name (Tab::new uses "Tab N")
         let session_title = profile.name.clone();
@@ -530,6 +533,7 @@ impl Tab {
 #[cfg(test)]
 mod auto_start_tests {
     use super::*;
+    use crate::config::AutomationConfig;
     use par_term_config::ScriptConfig;
 
     /// A command that stays alive reading stdin, so `is_running` is stable for
@@ -569,7 +573,10 @@ mod auto_start_tests {
 
     fn tab_with_scripts(scripts: Vec<ScriptConfig>) -> Tab {
         let config = Config {
-            scripts,
+            automation: AutomationConfig {
+                scripts,
+                ..Default::default()
+            },
             ..Config::default()
         };
         let terminal =
