@@ -13,6 +13,33 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ---
 
+## [0.39.0] - 2026-07-30
+
+A maintenance release: the Rust toolchain moves to 1.97.1, every dependency is refreshed, and a feature that had been dead for three months is removed. No new functionality and no behavioural fixes — but it clears two high-severity advisories and drops 18 crates from the dependency graph, so it is worth taking.
+
+Minor bump because two changes are breaking for anyone consuming this as a library rather than a binary: the minimum supported Rust version rises to 1.97, and the `mermaid` cargo feature no longer exists. Users of the released binaries are unaffected. Sub-crate bumps are all patch-level: `par-term-acp` 0.5.1, `par-term-config` 0.14.1, `par-term-fonts` 0.3.1, `par-term-input` 0.1.19, `par-term-keybindings` 0.1.12, `par-term-mcp` 0.2.8, `par-term-render` 0.9.1, `par-term-scripting` 0.1.14, `par-term-settings-ui` 0.17.1, `par-term-ssh` 0.2.1, `par-term-terminal` 0.5.2, `par-term-tmux` 0.1.14, `par-term-update` 0.4.1. No core-library change — `par-term-emu-core-rust` remains at 0.45.0.
+
+### Security
+
+- **Two high-severity advisories in `quick-xml` are cleared.** RUSTSEC-2026-0194 (quadratic run time when checking a start tag for duplicate attribute names) and RUSTSEC-2026-0195 (unbounded namespace-declaration allocation enabling memory exhaustion) both required `quick-xml` ≥ 0.41.0, and the locked 0.39.4 was held there by `wayland-scanner`'s `^0.39` constraint. Updating `wayland-scanner` to 0.31.11 relaxed it. Worth keeping the real exposure in perspective: `quick-xml` reaches par-term only through `wayland-scanner`, a **build-time proc-macro** that parses the Wayland protocol XML bundled inside the crate, on Linux only — it never sees runtime or network input. `cargo audit` exits clean again; the remaining warnings are unmaintained GTK3 bindings pulled in by the menu library.
+
+### Changed
+
+- **Minimum supported Rust version is now 1.97** (was 1.95), and the toolchain is pinned to 1.97.1. This is breaking only for library consumers building on an older compiler; cargo's MSRV-aware resolver will select an earlier version for them rather than failing. The bump was not cosmetic — cargo caps dependency resolution at the declared `rust-version`, so the update was silently stopping at "latest Rust 1.95 compatible versions" until every manifest moved.
+- **Refreshed 105 dependencies.** Notable movements beyond the advisory fix: `tokio` 1.52.3 → 1.53.1 and `cc` 1.2.65 → 1.4.0. All within semver; no API changes reached par-term.
+- **Five new clippy lints introduced by 1.97.1 are fixed.** Two `?`-operator rewrites (glyph atlas colour-bitmap fallback, render-data gathering), a redundant reference in a `format!` argument, a redundant field binding before `..` in a pattern, and a map iteration that bound a key it never used. All behaviour-preserving; they matter because CI runs clippy with `-D warnings`.
+
+### Removed
+
+- **The `mermaid` cargo feature and both its dependencies.** `mermaid-rs-renderer` and `resvg` were referenced nowhere in the workspace — no import, no path reference, not one `cfg(feature = "mermaid")` block — yet the feature sat in the default set, so every default build compiled and linked both trees. It was not dead from the start: the content prettifier was its only consumer, and removing that in 0.31.0 orphaned the dependencies while leaving the feature declaration behind. Deleting it drops 18 crates, most of them `resvg`'s SVG rasterization stack (`usvg`, `tiny-skia`, `svgtypes`, `roxmltree`, and others). Anyone who explicitly enabled `--features mermaid` must drop the flag; it did nothing.
+
+### Fixed
+
+- **`make package` produced nothing.** It copied a `LICENSE-MIT` file that has never existed in this repository — the target had been broken since the initial commit in January, unnoticed because neither CI nor the release workflow uses it. It copies `LICENSE` now, and `dist/` is added to `.gitignore`, since the target writes a 33 MB binary into a directory that was untracked but not ignored.
+- **`make secret-scan` rejected the repository.** The `.p8` validation inside `scripts/setup-release-secrets.sh` greps for the PEM header, and the `detect-private-key` hook is a plain substring test for that exact phrase — so the script was flagged for containing its own check. Matching the header as a regex sidesteps the substring test and is stricter, since it also accepts the `EC` and `RSA` variants.
+
+---
+
 ## [0.38.0] - 2026-07-30
 
 The output of a full security, architecture, code-quality and documentation audit of the codebase — 104 commits, and by some distance the largest release so far. Roughly a third of it is security work: an unvalidated mDNS hostname that reached a shell, a config-import path that aborted the process on any HTTPS URL, agent file writes that could reach `~/.ssh` through a symlinked home, and a systemic class of UTF-8 panics that any emoji, CJK character or accented letter could trigger. Alongside that, Linux finally has a menu bar, the session survives a panic, and several features that were documented but inert — scripting outside the Settings window, `auto_start` scripts, four menu-only actions — now actually work.
@@ -1717,7 +1744,8 @@ Audit remediation pass (Critical + High severity from the 2026-06-25 audit): 18 
 
 ---
 
-[Unreleased]: https://github.com/paulrobello/par-term/compare/v0.38.0...HEAD
+[Unreleased]: https://github.com/paulrobello/par-term/compare/v0.39.0...HEAD
+[0.39.0]: https://github.com/paulrobello/par-term/compare/v0.38.0...v0.39.0
 [0.38.0]: https://github.com/paulrobello/par-term/compare/v0.37.1...v0.38.0
 [0.37.1]: https://github.com/paulrobello/par-term/compare/v0.37.0...v0.37.1
 [0.37.0]: https://github.com/paulrobello/par-term/compare/v0.36.0...v0.37.0

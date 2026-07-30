@@ -4,6 +4,7 @@ Upgrade notes for par-term covering breaking configuration changes, renamed fiel
 
 ## Table of Contents
 
+- [v0.39.0 — MSRV 1.97 and the `mermaid` Feature Removed](#v0390--msrv-197-and-the-mermaid-feature-removed)
 - [v0.38.0 — Upgrading Requires a Manual Download](#v0380--upgrading-requires-a-manual-download)
 - [v0.38.0 — Preference Import Requires HTTPS](#v0380--preference-import-requires-https)
 - [v0.38.0 — Profile Commands Require Confirmation](#v0380--profile-commands-require-confirmation)
@@ -19,6 +20,26 @@ Upgrade notes for par-term covering breaking configuration changes, renamed fiel
 - [v0.25.0 — Pane Padding Defaults](#v0250--pane-padding-defaults)
 - [v0.20.0 — Default Changes](#v0200--default-changes)
 - [Related Documentation](#related-documentation)
+
+---
+
+## v0.39.0 — MSRV 1.97 and the `mermaid` Feature Removed
+
+Both changes affect only projects that depend on par-term's crates as libraries. If you use the released binaries, there is nothing to do.
+
+**Minimum supported Rust version is now 1.97** (was 1.95). Cargo's MSRV-aware resolver will select an older version of these crates rather than failing your build, so an outdated toolchain degrades quietly instead of breaking — but you will silently stop receiving updates. Run `rustup update` to stay current.
+
+**The `mermaid` cargo feature no longer exists.** Remove it from any `features = [...]` list or `--features` flag; leaving it in place is a hard error from cargo, not a warning.
+
+```toml
+# before
+par-term = { version = "0.38", features = ["mermaid"] }
+
+# after
+par-term = { version = "0.39" }
+```
+
+Nothing is lost. The feature's two dependencies had been unreferenced since v0.31.0 removed the content prettifier that used them, so enabling it only added `resvg`'s SVG rasterization stack to your build — 18 crates — without changing behaviour.
 
 ---
 

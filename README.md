@@ -43,11 +43,24 @@ New to par-term? The [Getting Started Guide](docs/guides/GETTING_STARTED.md) wal
 
 ## What's New
 
+### 0.39.0
+
+A maintenance release. No new features and no behavioural fixes, but it clears two high-severity security advisories and removes 18 crates from the dependency graph.
+
+- **Two `quick-xml` advisories are cleared** (RUSTSEC-2026-0194 and -0195) by updating past the constraint that pinned it. Real exposure was low — the crate reaches par-term only through a build-time proc-macro parsing bundled Wayland protocol XML, on Linux — but `cargo audit` is clean again.
+- **The dead `mermaid` feature is gone**, along with `mermaid-rs-renderer` and `resvg`. Nothing had referenced them since 0.31.0 removed the content prettifier, yet the feature stayed in the default set, so every build compiled and linked an entire SVG rasterization stack. Drops 18 crates.
+- **Rust 1.97.1**, with the minimum supported version raised to 1.97, and 105 dependencies refreshed.
+- **`make package` and `make secret-scan` work again** — the first had been broken since the initial commit, copying a `LICENSE-MIT` file that never existed.
+
+> **Breaking for library consumers only:** the MSRV is now 1.97, and `--features mermaid` no longer exists. Users of the released binaries are unaffected.
+
+Release notes for every earlier version live in [CHANGELOG.md](CHANGELOG.md).
+
 ### 0.38.0
 
 The result of a full security, architecture, quality and documentation audit — the largest release so far. Three changes break a working setup; they are listed first.
 
-> **Upgrading:** **Check for Updates** will not install this release — download it by hand once. Earlier releases published no per-binary checksums, and earlier builds carry no signing key, so both self-update gates refuse. Self-update works normally from 0.38.0 onward. See the [migration guide](docs/guides/MIGRATION.md#v0380--upgrading-requires-a-manual-download).
+> **Upgrading from 0.37.1 or earlier:** **Check for Updates** will not install it — download by hand once. Those releases published no per-binary checksums and those builds carry no signing key, so both self-update gates refuse. Self-update works normally from 0.38.0 onward. See the [migration guide](docs/guides/MIGRATION.md#v0380--upgrading-requires-a-manual-download).
 
 **Breaking**
 
@@ -70,8 +83,6 @@ The result of a full security, architecture, quality and documentation audit —
 - **Scripting did nothing unless the Settings window was open** -- the entire script runtime sat behind that branch.
 - **Update downloads are signature-verified** and release assets are signed, notarized and checksummed.
 - **Every pane is submitted to the GPU in one submit instead of one each**, and the full cell grid is no longer deep-cloned on idle frames.
-
-Release notes for every earlier version live in [CHANGELOG.md](CHANGELOG.md).
 
 ## Features
 
@@ -183,7 +194,7 @@ This builds and installs the binary to `~/.cargo/bin/par-term`.
 
 ### From Source
 
-Requires Rust 1.95+ (stable, 2024 edition) and modern graphics drivers:
+Requires Rust 1.97+ (stable, 2024 edition) and modern graphics drivers:
 
 ```bash
 # Clone the repository
