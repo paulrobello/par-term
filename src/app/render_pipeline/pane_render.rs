@@ -3,7 +3,9 @@
 //! Contains:
 //! - `PaneRenderData`: per-pane snapshot used during `submit_gpu_frame`
 //! - `gather_pane_render_data`: collects per-pane cells/graphics/metadata from the pane manager
+//! - `with_pane_capture_params`: scoped construction of the borrowed pane render infos
 //! - `render_split_panes_with_data`: drives the GPU split-pane render pass
+//! - `capture_frame_image`: the same gather, composited offscreen for screenshots (QA-011)
 
 use super::types::RendererSizing;
 use crate::cell_renderer::PaneViewport;
@@ -450,6 +452,120 @@ pub(super) struct SplitPaneRenderParams<'a> {
     pub show_scrollbar: bool,
 }
 
+/// Gathered pane state, before it is turned into the borrowed render infos.
+///
+/// This is [`SplitPaneRenderParams`] minus `egui_data`, which is the part an
+/// offscreen capture can also supply.
+pub(super) struct PaneCaptureInput<'a> {
+    pub pane_data: Vec<PaneRenderData>,
+    pub dividers: Vec<crate::pane::DividerRect>,
+    pub pane_titles: Vec<PaneTitleInfo>,
+    pub focused_viewport: Option<PaneViewport>,
+    pub config: &'a Config,
+    pub hovered_divider_index: Option<usize>,
+    pub show_scrollbar: bool,
+}
+
+/// Build the borrowed [`crate::renderer::PaneCaptureParams`] and hand it to `f`.
+///
+/// A scoped callback rather than a returned value because the pane infos borrow
+/// the owned cell `Arc`s, the divider infos and the divider settings, all of
+/// which have to outlive the render call and none of which can escape this
+/// frame. Both the live path and the QA-011 screenshot path go through here, so
+/// a capture cannot drift out of step with what is drawn on screen.
+fn with_pane_capture_params<R>(
+    renderer: &mut Renderer,
+    input: PaneCaptureInput<'_>,
+    f: impl FnOnce(&mut Renderer, crate::renderer::PaneCaptureParams<'_>) -> R,
+) -> R {
+    let PaneCaptureInput {
+        pane_data,
+        dividers,
+        pane_titles,
+        focused_viewport,
+        config,
+        hovered_divider_index,
+        show_scrollbar,
+    } = input;
+    // Two-phase construction: separate owned cell data from pane metadata
+    // so PaneRenderInfo can borrow cell slices safely.  This replaces the
+    // previous unsafe Box::into_raw / Box::from_raw pattern that leaked
+    // memory if render_split_panes panicked.
+    //
+    // Phase 1: Extract cells into a Vec that outlives the render infos.
+    // The remaining pane fields are collected into partial render infos.
+    let mut owned_cells: Vec<Arc<Vec<crate::cell_renderer::Cell>>> =
+        Vec::with_capacity(pane_data.len());
+    let mut partial_infos: Vec<PaneRenderInfo> = Vec::with_capacity(pane_data.len());
+
+    for pane in pane_data {
+        let focused = pane.viewport.focused;
+        owned_cells.push(pane.cells);
+        partial_infos.push(PaneRenderInfo {
+            viewport: pane.viewport,
+            // Placeholder — will be patched in Phase 2 once owned_cells
+            // is finished growing and its elements have stable addresses.
+            cells: &[],
+            grid_size: pane.grid_size,
+            cursor_pos: pane.cursor_pos,
+            cursor_opacity: pane.cursor_opacity,
+            // Focused pane: respect autohide via show_scrollbar flag.
+            // Unfocused panes: always show scrollbar when they have scrollback
+            // content, so the scrollbar doesn't disappear on focus loss.
+            show_scrollbar: if focused {
+                show_scrollbar && pane.scrollback_len > 0
+            } else {
+                pane.scrollback_len > 0
+            },
+            marks: pane.marks,
+            scrollback_len: pane.scrollback_len,
+            scroll_offset: pane.scroll_offset,
+            background: pane.background,
+            graphics: pane.graphics,
+            virtual_placements: pane.virtual_placements,
+        });
+    }
+
+    // Phase 2: Patch cell references now that owned_cells won't reallocate.
+    // owned_cells lives until scope exit (even on panic), so the borrows
+    // are valid for the lifetime of partial_infos.
+    for (info, cells) in partial_infos.iter_mut().zip(owned_cells.iter()) {
+        info.cells = cells.as_slice();
+    }
+    let pane_render_infos = partial_infos;
+
+    // Build divider render info
+    let divider_render_infos: Vec<DividerRenderInfo> = dividers
+        .iter()
+        .enumerate()
+        .map(|(i, d)| DividerRenderInfo::from_rect(d, hovered_divider_index == Some(i)))
+        .collect();
+
+    // Build divider settings from config
+    let divider_settings = PaneDividerSettings {
+        divider_color: color_u8_to_f32(config.pane_divider_color),
+        hover_color: color_u8_to_f32(config.pane_divider_hover_color),
+        show_focus_indicator: config.pane_focus_indicator,
+        focus_color: color_u8_to_f32(config.pane_focus_color),
+        focus_width: config.pane_focus_width * renderer.scale_factor(),
+        divider_style: config.pane_divider_style,
+    };
+
+    renderer.update_shader_focused_pane(focused_viewport.as_ref());
+
+    // owned_cells is dropped automatically at scope exit, even on panic.
+    f(
+        renderer,
+        crate::renderer::PaneCaptureParams {
+            panes: &pane_render_infos,
+            dividers: &divider_render_infos,
+            pane_titles: &pane_titles,
+            focused_viewport: focused_viewport.as_ref(),
+            divider_settings: &divider_settings,
+        },
+    )
+}
+
 impl crate::app::window_state::WindowState {
     /// Render split panes when the active tab has multiple panes
     pub(super) fn render_split_panes_with_data(
@@ -466,82 +582,122 @@ impl crate::app::window_state::WindowState {
             hovered_divider_index,
             show_scrollbar,
         } = p;
-        // Two-phase construction: separate owned cell data from pane metadata
-        // so PaneRenderInfo can borrow cell slices safely.  This replaces the
-        // previous unsafe Box::into_raw / Box::from_raw pattern that leaked
-        // memory if render_split_panes panicked.
-        //
-        // Phase 1: Extract cells into a Vec that outlives the render infos.
-        // The remaining pane fields are collected into partial render infos.
-        let mut owned_cells: Vec<Arc<Vec<crate::cell_renderer::Cell>>> =
-            Vec::with_capacity(pane_data.len());
-        let mut partial_infos: Vec<PaneRenderInfo> = Vec::with_capacity(pane_data.len());
+        with_pane_capture_params(
+            renderer,
+            PaneCaptureInput {
+                pane_data,
+                dividers,
+                pane_titles,
+                focused_viewport,
+                config,
+                hovered_divider_index,
+                show_scrollbar,
+            },
+            move |renderer, cap| {
+                renderer.render_split_panes(crate::renderer::SplitPanesRenderParams {
+                    panes: cap.panes,
+                    dividers: cap.dividers,
+                    pane_titles: cap.pane_titles,
+                    focused_viewport: cap.focused_viewport,
+                    divider_settings: cap.divider_settings,
+                    egui_data,
+                    force_egui_opaque: false,
+                })
+            },
+        )
+    }
 
-        for pane in pane_data {
-            let focused = pane.viewport.focused;
-            owned_cells.push(pane.cells);
-            partial_infos.push(PaneRenderInfo {
-                viewport: pane.viewport,
-                // Placeholder — will be patched in Phase 2 once owned_cells
-                // is finished growing and its elements have stable addresses.
-                cells: &[],
-                grid_size: pane.grid_size,
-                cursor_pos: pane.cursor_pos,
-                cursor_opacity: pane.cursor_opacity,
-                // Focused pane: respect autohide via show_scrollbar flag.
-                // Unfocused panes: always show scrollbar when they have scrollback
-                // content, so the scrollbar doesn't disappear on focus loss.
-                show_scrollbar: if focused {
-                    show_scrollbar && pane.scrollback_len > 0
-                } else {
-                    pane.scrollback_len > 0
-                },
-                marks: pane.marks,
-                scrollback_len: pane.scrollback_len,
-                scroll_offset: pane.scroll_offset,
-                background: pane.background,
-                graphics: pane.graphics,
-                virtual_placements: pane.virtual_placements,
-            });
-        }
-
-        // Phase 2: Patch cell references now that owned_cells won't reallocate.
-        // owned_cells lives until scope exit (even on panic), so the borrows
-        // are valid for the lifetime of partial_infos.
-        for (info, cells) in partial_infos.iter_mut().zip(owned_cells.iter()) {
-            info.cells = cells.as_slice();
-        }
-        let pane_render_infos = partial_infos;
-
-        // Build divider render info
-        let divider_render_infos: Vec<DividerRenderInfo> = dividers
-            .iter()
-            .enumerate()
-            .map(|(i, d)| DividerRenderInfo::from_rect(d, hovered_divider_index == Some(i)))
-            .collect();
-
-        // Build divider settings from config
-        let divider_settings = PaneDividerSettings {
-            divider_color: color_u8_to_f32(config.pane_divider_color),
-            hover_color: color_u8_to_f32(config.pane_divider_hover_color),
-            show_focus_indicator: config.pane_focus_indicator,
-            focus_color: color_u8_to_f32(config.pane_focus_color),
-            focus_width: config.pane_focus_width * renderer.scale_factor(),
-            divider_style: config.pane_divider_style,
+    /// Capture the current frame as an image through the live pane render path.
+    ///
+    /// QA-011: screenshots used to re-render from the renderer's single-grid
+    /// state, which does not match a split — the capture showed one grid's worth
+    /// of the focused pane's cells re-wrapped at the full-window stride. This
+    /// gathers exactly the pane data the next live frame would draw and
+    /// composites it into an offscreen target, so the image is the screen.
+    ///
+    /// Not included: the egui overlay (tab bar, dialogs, menus). `render_egui`
+    /// consumes an `egui::FullOutput` produced once per frame by the live egui
+    /// pass, and a capture taken between frames has none. Unchanged from the
+    /// previous behaviour, and worth knowing when using `--screenshot` to verify
+    /// UI work.
+    pub(crate) fn capture_frame_image(&mut self) -> Result<image::RgbaImage, String> {
+        // Everything that needs `&self` is read up front, before the disjoint
+        // `self.renderer` / `self.tab_manager` field borrows below.
+        let config = self.config.load_full();
+        let is_tmux_gateway = self.is_gateway_active();
+        let is_tmux_connected = self.is_tmux_connected();
+        let show_scrollbar = self.should_show_scrollbar();
+        let cursor_opacity = self.cursor_anim.cursor_opacity;
+        let status_bar_height =
+            crate::tmux_status_bar_ui::TmuxStatusBarUI::height(&config, is_tmux_connected);
+        let custom_status_bar_height = self.status_bar_ui.height(&config, self.is_fullscreen);
+        let pane_count = self
+            .tab_manager
+            .active_tab()
+            .and_then(|t| t.pane_manager.as_ref())
+            .map(|pm| pm.pane_count())
+            .unwrap_or(0);
+        let hovered_divider_index = self
+            .tab_manager
+            .active_tab()
+            .and_then(|t| t.active_mouse().hovered_divider_index);
+        // Mirrors `submit_gpu_frame`: no divider padding when no divider is drawn.
+        let effective_pane_padding = if is_tmux_gateway || pane_count <= 1 {
+            0.0
+        } else {
+            config.pane_divider_width.unwrap_or(2.0) / 2.0 + config.pane_padding
         };
 
-        renderer.update_shader_focused_pane(focused_viewport.as_ref());
+        let Some(renderer) = self.renderer.as_mut() else {
+            return Err("No renderer available for screenshot".to_string());
+        };
+        let sizing = RendererSizing {
+            size: renderer.size(),
+            content_offset_y: renderer.content_offset_y(),
+            content_offset_x: renderer.content_offset_x(),
+            content_inset_bottom: renderer.content_inset_bottom(),
+            content_inset_right: renderer.content_inset_right(),
+            cell_width: renderer.cell_width(),
+            cell_height: renderer.cell_height(),
+            padding: renderer.window_padding(),
+            status_bar_height: (status_bar_height + custom_status_bar_height)
+                * renderer.scale_factor(),
+            scale_factor: renderer.scale_factor(),
+            scrollbar_width: renderer.scrollbar_width(),
+        };
 
-        // Call the split pane renderer.
-        // owned_cells is dropped automatically at scope exit, even on panic.
-        renderer.render_split_panes(crate::renderer::SplitPanesRenderParams {
-            panes: &pane_render_infos,
-            dividers: &divider_render_infos,
-            pane_titles: &pane_titles,
-            focused_viewport: focused_viewport.as_ref(),
-            divider_settings: &divider_settings,
-            egui_data,
-            force_egui_opaque: false,
-        })
+        // Same call the live frame makes. `resize_terminal_with_cell_dims` inside
+        // is a no-op when the dimensions already match, so a capture does not
+        // resize the PTY or emit SIGWINCH.
+        let Some((pane_data, dividers, pane_titles, focused_viewport, _)) =
+            self.tab_manager.active_tab_mut().and_then(|tab| {
+                gather_pane_render_data(
+                    tab,
+                    &config,
+                    &sizing,
+                    effective_pane_padding,
+                    cursor_opacity,
+                    pane_count,
+                    sizing.scrollbar_width,
+                )
+            })
+        else {
+            return Err("No pane data available for screenshot".to_string());
+        };
+
+        with_pane_capture_params(
+            renderer,
+            PaneCaptureInput {
+                pane_data,
+                dividers,
+                pane_titles,
+                focused_viewport,
+                config: &config,
+                hovered_divider_index,
+                show_scrollbar,
+            },
+            |renderer, cap| renderer.take_screenshot(cap),
+        )
+        .map_err(|e| format!("Renderer screenshot failed: {e}"))
     }
 }

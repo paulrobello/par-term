@@ -85,30 +85,28 @@ impl WindowManager {
             }
         };
 
-        // Get the focused window and take screenshot
+        // Get the focused window and take screenshot.
+        // QA-011: routed through the live pane path, so a split captures every
+        // pane. The egui overlay (tab bar, dialogs) is still absent from the image.
         if let Some(window_state) = self.focused_window_mut() {
-            if let Some(renderer) = &mut window_state.renderer {
-                log::info!("Capturing screenshot from renderer...");
-                match renderer.take_screenshot() {
-                    Ok(image_data) => {
-                        log::info!(
-                            "Screenshot captured: {}x{} pixels",
-                            image_data.width(),
-                            image_data.height()
-                        );
-                        // Save the image
-                        if let Err(e) = image_data.save(&output_path) {
-                            log::error!("Failed to save screenshot to {:?}: {}", output_path, e);
-                        } else {
-                            log::info!("Screenshot saved to {:?}", output_path);
-                        }
-                    }
-                    Err(e) => {
-                        log::error!("Failed to take screenshot: {}", e);
+            log::info!("Capturing screenshot from renderer...");
+            match window_state.capture_frame_image() {
+                Ok(image_data) => {
+                    log::info!(
+                        "Screenshot captured: {}x{} pixels",
+                        image_data.width(),
+                        image_data.height()
+                    );
+                    // Save the image
+                    if let Err(e) = image_data.save(&output_path) {
+                        log::error!("Failed to save screenshot to {:?}: {}", output_path, e);
+                    } else {
+                        log::info!("Screenshot saved to {:?}", output_path);
                     }
                 }
-            } else {
-                log::warn!("No renderer available for screenshot");
+                Err(e) => {
+                    log::error!("Failed to take screenshot: {}", e);
+                }
             }
         } else {
             log::warn!("No window available for screenshot");

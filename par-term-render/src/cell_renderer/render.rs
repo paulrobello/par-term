@@ -392,13 +392,28 @@ impl CellRenderer {
     ///
     /// Skipped when `window_opacity < 1.0` so that user-configured transparency works.
     pub fn render_opaque_alpha(&self, surface_texture: &wgpu::SurfaceTexture) -> Result<()> {
+        // Checked before creating the view, not only inside the delegate: this runs
+        // once per frame, and a transparent window would otherwise allocate and drop
+        // a `TextureView` on the hot path for a call that does nothing.
+        if self.window_opacity < 1.0 {
+            return Ok(());
+        }
+        let view = surface_texture
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+        self.render_opaque_alpha_to_view(&view)
+    }
+
+    /// [`CellRenderer::render_opaque_alpha`] against an arbitrary target view.
+    ///
+    /// QA-011: the offscreen screenshot target needs the same alpha stamp as the
+    /// surface, or a capture of an opaque window reads back semi-transparent
+    /// wherever anti-aliased text reduced alpha.
+    pub fn render_opaque_alpha_to_view(&self, view: &wgpu::TextureView) -> Result<()> {
         if self.window_opacity < 1.0 {
             return Ok(());
         }
 
-        let view = surface_texture
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -409,7 +424,7 @@ impl CellRenderer {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("opaque alpha pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
+                    view,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Load,

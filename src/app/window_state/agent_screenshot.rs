@@ -14,14 +14,9 @@ impl WindowState {
         &mut self,
         request_id: &str,
     ) -> Result<TerminalScreenshotResponse, String> {
-        let renderer = self
-            .renderer
-            .as_mut()
-            .ok_or_else(|| "No renderer available for screenshot".to_string())?;
-
-        let image = renderer
-            .take_screenshot()
-            .map_err(|e| format!("Renderer screenshot failed: {e}"))?;
+        // QA-011: routed through the live pane path, so a split captures every
+        // pane. The egui overlay (tab bar, dialogs) is still absent from the image.
+        let image = self.capture_frame_image()?;
         let width = image.width();
         let height = image.height();
 

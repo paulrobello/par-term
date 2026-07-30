@@ -90,10 +90,27 @@ pub(crate) fn compute_cursor_text_color(
 impl CellRenderer {
     /// Orchestrate a full instance-buffer update for the current frame.
     ///
-    /// **This method serves only the offscreen screenshot path**, both branches:
-    /// `take_screenshot` → `render_cells_to_target` → `render_to_texture` (shader
-    /// active) or `render_to_view` (no shader). Everything drawn to the window goes
-    /// through `build_pane_instance_buffers` in `pane_render/mod.rs`.
+    /// **No caller inside this workspace reaches this method.** Its only callers
+    /// are `render_to_texture` and `render_to_view`, which are `pub` API of this
+    /// published crate but are no longer invoked by par-term itself: QA-011 moved
+    /// the offscreen screenshot path onto `Renderer::composite_panes`, the same
+    /// code the live frame runs, and everything drawn to the window has always
+    /// gone through `build_pane_instance_buffers` in `pane_render/mod.rs`.
+    ///
+    /// Kept because removing it would be a breaking change to the crate's public
+    /// surface. Treat it — and the single-grid `CellRenderer::cells` state it
+    /// reads — as an external-consumer path, not one par-term exercises.
+    ///
+    /// That also settles what `CellRenderer::update_cells` is now for. In
+    /// split-pane mode the buffer it receives is the *focused pane's*, whose row
+    /// stride is the pane's column count, and it stores it at the full-window
+    /// stride — so `cells` holds a re-wrapped pane, and this builder could not
+    /// reproduce a split from it even with correct ranges. Fixing that stride
+    /// would only serve this unreachable path, so it was left alone. What does
+    /// still matter is `update_cells`' *return value*, which becomes
+    /// `Renderer::dirty` and gates whether a frame renders at all; it therefore
+    /// has to compare every incoming cell, including the trailing partial row
+    /// that the old `end <= new_cells.len()` guard silently dropped.
     ///
     /// QA-011: `render_to_view` used to skip this rebuild, which left it drawing the
     /// pane path's leftovers through the single-grid draw ranges. Both branches now

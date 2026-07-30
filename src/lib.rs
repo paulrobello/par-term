@@ -105,8 +105,8 @@ pub mod remote_shell_install_ui;
 pub(crate) mod renderer {
     //! Renderer re-exports from the `par-term-render` sub-crate.
     pub use par_term_render::renderer::{
-        DividerRenderInfo, PaneDividerSettings, PaneRenderInfo, PaneTitleInfo, Renderer,
-        RendererParams, SplitPanesRenderParams, compute_visible_separator_marks,
+        DividerRenderInfo, PaneCaptureParams, PaneDividerSettings, PaneRenderInfo, PaneTitleInfo,
+        Renderer, RendererParams, SplitPanesRenderParams, compute_visible_separator_marks,
     };
 }
 pub mod scripting;

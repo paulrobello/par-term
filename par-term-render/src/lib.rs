@@ -45,8 +45,8 @@ pub use custom_shader_renderer::CustomShaderRenderer;
 pub use error::RenderError;
 pub use graphics_renderer::{GraphicRenderInfo, GraphicsRenderer};
 pub use renderer::{
-    DividerRenderInfo, PaneDividerSettings, PaneRenderInfo, PaneTitleInfo, Renderer,
-    RendererParams, compute_visible_separator_marks,
+    DividerRenderInfo, PaneCaptureParams, PaneDividerSettings, PaneRenderInfo, PaneTitleInfo,
+    Renderer, RendererParams, compute_visible_separator_marks,
 };
 pub use scrollbar::Scrollbar;
 

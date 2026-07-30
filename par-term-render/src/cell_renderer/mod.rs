@@ -744,19 +744,27 @@ impl CellRenderer {
         self.keep_text_opaque
     }
 
-    /// Update cells. Returns `true` if any row actually changed.
+    /// Update cells. Returns `true` if any incoming cell actually changed.
+    ///
+    /// The return value is the point: `Renderer::update_cells` turns it into
+    /// `Renderer::dirty`, which gates whether a frame renders. `new_cells` is the
+    /// focused pane's buffer, whose stride is not `self.grid.cols`; see
+    /// `build_instance_buffers` for why that is now harmless and why the trailing
+    /// partial row must still be compared.
     pub fn update_cells(&mut self, new_cells: &[Cell]) -> bool {
+        let n = new_cells.len().min(self.cells.len());
         let mut changed = false;
         for row in 0..self.grid.rows {
             let start = row * self.grid.cols;
-            let end = (row + 1) * self.grid.cols;
-            if start < new_cells.len() && end <= new_cells.len() {
-                let row_slice = &new_cells[start..end];
-                if row_slice != &self.cells[start..end] {
-                    self.cells[start..end].clone_from_slice(row_slice);
-                    self.dirty_rows[row] = true;
-                    changed = true;
-                }
+            if start >= n {
+                break;
+            }
+            let end = ((row + 1) * self.grid.cols).min(n);
+            let row_slice = &new_cells[start..end];
+            if row_slice != &self.cells[start..end] {
+                self.cells[start..end].clone_from_slice(row_slice);
+                self.dirty_rows[row] = true;
+                changed = true;
             }
         }
         changed

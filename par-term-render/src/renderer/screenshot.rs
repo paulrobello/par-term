@@ -1,155 +1,37 @@
 //! Offscreen frame capture.
 //!
 //! `take_screenshot` renders a composited frame into a `COPY_SRC` texture and reads
-//! it back as an `RgbaImage`. `render_cells_to_target` encapsulates the four
-//! shader-combination paths shared with live rendering.
+//! it back as an `RgbaImage`.
 //!
-//! QA-011: this path still renders from the `CellRenderer`'s single-grid state
-//! (`self.cells`) rather than the live split-pane layout, so with more than one
-//! pane the capture shows the single-grid content, not what is on screen. Routing
-//! it through the pane path needs `SplitPanesRenderParams` at both call sites in
-//! the root crate; see the QA-011 note in `rendering.rs`.
+//! QA-011 (resolved): this used to render from the `CellRenderer`'s single-grid
+//! state (`self.cells`) rather than the live split-pane layout, so with more than
+//! one pane the capture showed the single-grid content, not what was on screen. It
+//! now runs the same `composite_panes` the live frame does, against an offscreen
+//! target instead of the surface, so the capture is the screen.
+//!
+//! Still absent from the image: the egui overlay (tab bar, settings window, menus).
+//! `render_egui` consumes an `egui::FullOutput` produced once per frame by the live
+//! egui pass; a capture taken between frames has none, so `PaneCaptureParams`
+//! carries no egui data by construction. This is unchanged from the old path.
 
-use super::Renderer;
+use super::{PaneCaptureParams, Renderer};
 
 impl Renderer {
-    /// Render the cell content through the shader chain to a target texture view.
+    /// Take a screenshot of the current terminal content.
+    /// Returns an RGBA image that can be saved to disk.
     ///
-    /// This encapsulates the 4 shader-combination paths:
-    /// 1. No shaders: render cells directly to target
-    /// 2. Custom shader only: cells -> custom shader -> target
-    /// 3. Cursor shader only: cells -> cursor shader -> target
-    /// 4. Custom + cursor: cells -> custom shader -> cursor shader -> target
+    /// This captures the fully composited output including shader effects, every
+    /// pane of a split, dividers, pane titles and the focus indicator — the same
+    /// draw sequence `render_split_panes` puts on the surface, minus the egui
+    /// overlay (see the module docs).
     ///
-    /// QA-003: Extracted from `take_screenshot` to deduplicate the shader-chaining logic.
-    /// Both `render_split_panes` (live rendering) and `take_screenshot` (offscreen) use
-    /// the same 4-branch pattern; this method handles the screenshot path where cells are
-    /// rendered via `render_to_texture`/`render_to_view` (no split-pane layout).
-    fn render_cells_to_target(
+    /// `params` is the same pane data the live frame renders; the caller gathers
+    /// it exactly as it would for `render_split_panes`. Rendering is unconditional:
+    /// unlike the live path this does not consult or clear `dirty`.
+    pub fn take_screenshot(
         &mut self,
-        target_view: &wgpu::TextureView,
-    ) -> Result<(), crate::error::RenderError> {
-        let has_custom_shader = self.custom_shader_renderer.is_some();
-        let use_cursor_shader =
-            self.cursor_shader_renderer.is_some() && !self.cursor_shader_disabled_for_alt_screen;
-
-        let map_err = |e: anyhow::Error| {
-            crate::error::RenderError::ScreenshotMap(format!("Render failed: {:#}", e))
-        };
-
-        if has_custom_shader {
-            // Render cells to the custom shader's intermediate texture
-            let intermediate_view = self
-                .custom_shader_renderer
-                .as_ref()
-                .ok_or_else(|| {
-                    crate::error::RenderError::ShaderUnavailable(
-                        "custom_shader_renderer unavailable (GPU device loss?)".into(),
-                    )
-                })?
-                .intermediate_texture_view()
-                .clone();
-            self.cell_renderer
-                .render_to_texture(&intermediate_view, true)
-                .map_err(map_err)?;
-
-            if use_cursor_shader {
-                // Chain: cells -> custom shader -> cursor shader -> target
-                let cursor_intermediate = self
-                    .cursor_shader_renderer
-                    .as_ref()
-                    .ok_or_else(|| crate::error::RenderError::ShaderUnavailable(
-                        "cursor_shader_renderer unavailable during shader chain (GPU device loss?)".into(),
-                    ))?
-                    .intermediate_texture_view()
-                    .clone();
-                self.custom_shader_renderer
-                    .as_mut()
-                    .ok_or_else(|| crate::error::RenderError::ShaderUnavailable(
-                        "custom_shader_renderer unavailable during shader chain (GPU device loss?)".into(),
-                    ))?
-                    .render(
-                        self.cell_renderer.device(),
-                        self.cell_renderer.queue(),
-                        &cursor_intermediate,
-                        false,
-                    )
-                    .map_err(map_err)?;
-                self.cursor_shader_renderer
-                    .as_mut()
-                    .ok_or_else(|| crate::error::RenderError::ShaderUnavailable(
-                        "cursor_shader_renderer unavailable during shader chain (GPU device loss?)".into(),
-                    ))?
-                    .render(
-                        self.cell_renderer.device(),
-                        self.cell_renderer.queue(),
-                        target_view,
-                        true,
-                    )
-                    .map_err(map_err)?;
-            } else {
-                // Chain: cells -> custom shader -> target
-                self.custom_shader_renderer
-                    .as_mut()
-                    .ok_or_else(|| {
-                        crate::error::RenderError::ShaderUnavailable(
-                            "custom_shader_renderer unavailable during render (GPU device loss?)"
-                                .into(),
-                        )
-                    })?
-                    .render(
-                        self.cell_renderer.device(),
-                        self.cell_renderer.queue(),
-                        target_view,
-                        true,
-                    )
-                    .map_err(map_err)?;
-            }
-        } else if use_cursor_shader {
-            // Chain: cells -> cursor shader -> target
-            let cursor_intermediate = self
-                .cursor_shader_renderer
-                .as_ref()
-                .ok_or_else(|| {
-                    crate::error::RenderError::ShaderUnavailable(
-                        "cursor_shader_renderer unavailable (GPU device loss?)".into(),
-                    )
-                })?
-                .intermediate_texture_view()
-                .clone();
-            self.cell_renderer
-                .render_to_texture(&cursor_intermediate, true)
-                .map_err(map_err)?;
-            self.cursor_shader_renderer
-                .as_mut()
-                .ok_or_else(|| {
-                    crate::error::RenderError::ShaderUnavailable(
-                        "cursor_shader_renderer unavailable during render (GPU device loss?)"
-                            .into(),
-                    )
-                })?
-                .render(
-                    self.cell_renderer.device(),
-                    self.cell_renderer.queue(),
-                    target_view,
-                    true,
-                )
-                .map_err(map_err)?;
-        } else {
-            // No shaders: render cells directly to target
-            self.cell_renderer
-                .render_to_view(target_view)
-                .map_err(map_err)?;
-        }
-
-        Ok(())
-    }
-
-    /// Take a screenshot of the current terminal content
-    /// Returns an RGBA image that can be saved to disk
-    ///
-    /// This captures the fully composited output including shader effects.
-    pub fn take_screenshot(&mut self) -> Result<image::RgbaImage, crate::error::RenderError> {
+        params: PaneCaptureParams<'_>,
+    ) -> Result<image::RgbaImage, crate::error::RenderError> {
         log::info!(
             "take_screenshot: Starting screenshot capture ({}x{})",
             self.size.width,
@@ -184,9 +66,18 @@ impl Renderer {
         let screenshot_view =
             screenshot_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
-        // Render the full composited frame through the shader chain (QA-003: deduplicated).
+        // Render the full composited frame through the live pane path (QA-011).
         log::info!("take_screenshot: Rendering composited frame...");
-        self.render_cells_to_target(&screenshot_view)?;
+        self.composite_panes_offscreen(params, &screenshot_view)
+            .map_err(|e| {
+                crate::error::RenderError::ScreenshotMap(format!("Render failed: {:#}", e))
+            })?;
+        // Match the surface path's alpha stamp so an opaque window reads back opaque.
+        self.cell_renderer
+            .render_opaque_alpha_to_view(&screenshot_view)
+            .map_err(|e| {
+                crate::error::RenderError::ScreenshotMap(format!("Alpha stamp failed: {:#}", e))
+            })?;
 
         log::info!("take_screenshot: Render complete");
 

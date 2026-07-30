@@ -71,6 +71,22 @@ struct PaneBatchSettings {
     fill_default_bg_cells: bool,
 }
 
+/// The pane content of one composited frame.
+///
+/// QA-011: this is the input [`Renderer::composite_panes`] needs, and it is all
+/// an offscreen capture can supply. [`SplitPanesRenderParams`] adds the two
+/// surface-only concerns — the egui overlay and its opacity override — which
+/// have no meaning off-surface: `egui::FullOutput` is produced once per frame by
+/// the live egui pass and consumed by value there, so a capture taken between
+/// frames has none to hand over.
+pub struct PaneCaptureParams<'a> {
+    pub panes: &'a [PaneRenderInfo<'a>],
+    pub dividers: &'a [DividerRenderInfo],
+    pub pane_titles: &'a [PaneTitleInfo],
+    pub focused_viewport: Option<&'a PaneViewport>,
+    pub divider_settings: &'a PaneDividerSettings,
+}
+
 /// Parameters for [`Renderer::render_split_panes`].
 pub struct SplitPanesRenderParams<'a> {
     pub panes: &'a [PaneRenderInfo<'a>],
@@ -152,49 +168,13 @@ impl Renderer {
         Ok(())
     }
 
-    /// Render split panes with dividers and focus indicator
+    /// Load any per-pane background textures that aren't cached yet.
     ///
-    /// This is the main entry point for rendering a split pane layout.
-    /// It handles:
-    /// 1. Clearing the surface
-    /// 2. Rendering each pane's content
-    /// 3. Rendering dividers between panes
-    /// 4. Rendering focus indicator around the focused pane
-    /// 5. Rendering egui overlay if provided
-    /// 6. Presenting the surface
-    ///
-    /// # Arguments
-    /// * `panes` - List of panes to render with their viewport info
-    /// * `dividers` - List of dividers between panes with hover state
-    /// * `focused_viewport` - Viewport of the focused pane (for focus indicator)
-    /// * `divider_settings` - Settings for divider and focus indicator appearance
-    /// * `egui_data` - Optional egui overlay data
-    /// * `force_egui_opaque` - Force egui to render at full opacity
-    ///
-    /// # Returns
-    /// `true` if rendering was performed, `false` if skipped
-    pub fn render_split_panes(&mut self, params: SplitPanesRenderParams<'_>) -> Result<bool> {
-        let SplitPanesRenderParams {
-            panes,
-            dividers,
-            pane_titles,
-            focused_viewport,
-            divider_settings,
-            egui_data,
-            force_egui_opaque,
-        } = params;
-        // Check if we need to render
-        let force_render = self.needs_continuous_render();
-        if !self.dirty && !force_render && egui_data.is_none() {
-            return Ok(false);
-        }
-
-        let has_custom_shader = self.custom_shader_renderer.is_some();
-        // Only use cursor shader if it's enabled and not disabled for alt screen
-        let use_cursor_shader =
-            self.cursor_shader_renderer.is_some() && !self.cursor_shader_disabled_for_alt_screen;
-
-        // Pre-load any per-pane background textures that aren't cached yet
+    /// Kept out of [`Renderer::composite_panes`] so the live path still runs it
+    /// *before* acquiring the swapchain drawable — the first frame using a pane
+    /// background reads it from disk, and holding the drawable across that read
+    /// would stall presentation.
+    fn preload_pane_backgrounds(&mut self, panes: &[PaneRenderInfo<'_>]) {
         for pane in panes.iter() {
             if let Some(ref bg) = pane.background
                 && let Some(ref path) = bg.image_path
@@ -203,6 +183,36 @@ impl Renderer {
                 log::error!("Failed to load pane background '{}': {}", path, e);
             }
         }
+    }
+
+    /// Composite one frame of pane content onto `final_view`.
+    ///
+    /// Covers the shader chain, every pane's cells and inline graphics, dividers,
+    /// pane titles, the visual bell and the focus indicator, ending with the
+    /// cursor-shader composite onto `final_view`.
+    ///
+    /// QA-011: deliberately excludes the surface-only tail (egui overlay,
+    /// opaque-alpha stamp, `present`) and the `dirty` bookkeeping, so
+    /// [`Renderer::take_screenshot`] can reuse it — a capture must render even
+    /// when the renderer is clean, and must not consume the live path's dirty
+    /// flag. Callers must run [`Renderer::preload_pane_backgrounds`] first.
+    fn composite_panes(
+        &mut self,
+        p: PaneCaptureParams<'_>,
+        final_view: &wgpu::TextureView,
+    ) -> Result<()> {
+        let PaneCaptureParams {
+            panes,
+            dividers,
+            pane_titles,
+            focused_viewport,
+            divider_settings,
+        } = p;
+
+        let has_custom_shader = self.custom_shader_renderer.is_some();
+        // Only use cursor shader if it's enabled and not disabled for alt screen
+        let use_cursor_shader =
+            self.cursor_shader_renderer.is_some() && !self.cursor_shader_disabled_for_alt_screen;
 
         // Instance-buffer capacity this frame's panes need, all resident at once.
         let (batch_bg_capacity, batch_text_capacity) =
@@ -212,18 +222,8 @@ impl Renderer {
                 (bg + pane_bg, text + pane_text)
             });
 
-        // Get the surface texture
-        let surface_texture = match self.cell_renderer.surface.get_current_texture() {
-            wgpu::CurrentSurfaceTexture::Success(t)
-            | wgpu::CurrentSurfaceTexture::Suboptimal(t) => t,
-            other => return Err(crate::error::RenderError::Surface(format!("{other:?}")).into()),
-        };
-        let surface_view = surface_texture
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
-
         // When cursor shader is active, render all content to its intermediate texture.
-        // The cursor shader will then composite the result onto the surface.
+        // The cursor shader will then composite the result onto `final_view`.
         let cursor_intermediate: Option<wgpu::TextureView> = if use_cursor_shader {
             Some(
                 self.cursor_shader_renderer
@@ -239,8 +239,9 @@ impl Renderer {
         } else {
             None
         };
-        // Content render target: cursor shader intermediate (if active) or surface directly
-        let content_view = cursor_intermediate.as_ref().unwrap_or(&surface_view);
+        // Content render target: cursor shader intermediate (if active) or the
+        // final target directly
+        let content_view = cursor_intermediate.as_ref().unwrap_or(final_view);
 
         // Clear color for content rendering. When cursor shader will apply opacity,
         // use non-premultiplied color so opacity isn't applied twice.
@@ -505,7 +506,7 @@ impl Renderer {
             self.render_focus_indicator(content_view, viewport, divider_settings)?;
         }
 
-        // Apply cursor shader if active: composite content to surface
+        // Apply cursor shader if active: composite content to the final target
         if use_cursor_shader {
             self.cursor_shader_renderer
                 .as_mut()
@@ -515,10 +516,77 @@ impl Renderer {
                 .render(
                     self.cell_renderer.device(),
                     self.cell_renderer.queue(),
-                    &surface_view,
-                    true, // Apply opacity - final render to surface
+                    final_view,
+                    true, // Apply opacity - final render to the target
                 )?;
         }
+
+        Ok(())
+    }
+
+    /// Render split panes with dividers and focus indicator
+    ///
+    /// This is the main entry point for rendering a split pane layout.
+    /// It handles:
+    /// 1. Clearing the surface
+    /// 2. Rendering each pane's content
+    /// 3. Rendering dividers between panes
+    /// 4. Rendering focus indicator around the focused pane
+    /// 5. Rendering egui overlay if provided
+    /// 6. Presenting the surface
+    ///
+    /// Steps 1–4 are shared with [`Renderer::take_screenshot`] via
+    /// [`Renderer::composite_panes`]; this method adds the surface acquisition,
+    /// the egui overlay, presentation and the `dirty` bookkeeping.
+    ///
+    /// # Arguments
+    /// * `panes` - List of panes to render with their viewport info
+    /// * `dividers` - List of dividers between panes with hover state
+    /// * `focused_viewport` - Viewport of the focused pane (for focus indicator)
+    /// * `divider_settings` - Settings for divider and focus indicator appearance
+    /// * `egui_data` - Optional egui overlay data
+    /// * `force_egui_opaque` - Force egui to render at full opacity
+    ///
+    /// # Returns
+    /// `true` if rendering was performed, `false` if skipped
+    pub fn render_split_panes(&mut self, params: SplitPanesRenderParams<'_>) -> Result<bool> {
+        let SplitPanesRenderParams {
+            panes,
+            dividers,
+            pane_titles,
+            focused_viewport,
+            divider_settings,
+            egui_data,
+            force_egui_opaque,
+        } = params;
+        // Check if we need to render
+        let force_render = self.needs_continuous_render();
+        if !self.dirty && !force_render && egui_data.is_none() {
+            return Ok(false);
+        }
+
+        self.preload_pane_backgrounds(panes);
+
+        // Get the surface texture
+        let surface_texture = match self.cell_renderer.surface.get_current_texture() {
+            wgpu::CurrentSurfaceTexture::Success(t)
+            | wgpu::CurrentSurfaceTexture::Suboptimal(t) => t,
+            other => return Err(crate::error::RenderError::Surface(format!("{other:?}")).into()),
+        };
+        let surface_view = surface_texture
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+
+        self.composite_panes(
+            PaneCaptureParams {
+                panes,
+                dividers,
+                pane_titles,
+                focused_viewport,
+                divider_settings,
+            },
+            &surface_view,
+        )?;
 
         // Render egui overlay if provided
         if let Some((egui_output, egui_ctx)) = egui_data {
@@ -533,6 +601,19 @@ impl Renderer {
 
         self.dirty = false;
         Ok(true)
+    }
+
+    /// Composite a frame of pane content into an offscreen target (QA-011).
+    ///
+    /// Used by [`Renderer::take_screenshot`]; kept next to the live path so the
+    /// two stay in step.
+    pub(super) fn composite_panes_offscreen(
+        &mut self,
+        params: PaneCaptureParams<'_>,
+        target_view: &wgpu::TextureView,
+    ) -> Result<()> {
+        self.preload_pane_backgrounds(params.panes);
+        self.composite_panes(params, target_view)
     }
 }
 
