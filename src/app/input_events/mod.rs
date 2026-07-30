@@ -13,7 +13,14 @@
 //!   shader toggles (`toggle_background_shader`, `toggle_cursor_shader`).
 //! - `snippet_actions`: snippet execution (`execute_snippet`) and custom action
 //!   execution (`execute_custom_action`).
+//!
+//! `keybinding_actions` and `keybinding_display_actions` dispatch through
+//! static tables rather than `match` ladders; `dispatch_tests` carries the
+//! coverage, uniqueness, and precedence guards that replace what the compiler
+//! checked before.
 
+#[cfg(test)]
+mod dispatch_tests;
 mod key_handler;
 mod keybinding_actions;
 mod keybinding_display_actions;

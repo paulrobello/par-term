@@ -29,6 +29,63 @@ use winit::event::KeyEvent;
 use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::{Key, NamedKey};
 
+/// One shortcut layer: inspects a key event and returns `true` if it consumed it.
+pub(super) type KeyLayer = fn(&mut WindowState, &KeyEvent) -> bool;
+
+/// Shortcut layers in precedence order, as consulted by `handle_key_event`.
+///
+/// This is **ordered dispatch, not a lookup table**: each layer decides for
+/// itself whether the key is its own, so an earlier layer can pre-empt a later
+/// one for the same chord. Reordering entries changes which shortcut wins.
+/// `dispatch_tests::key_layer_precedence_is_unchanged` pins the order so a
+/// reorder has to be deliberate rather than incidental.
+///
+/// Two further layers — `handle_utility_shortcuts` and `handle_tab_shortcuts` —
+/// continue this chain immediately after the last entry here but take the
+/// `ActiveEventLoop`, so they are invoked directly in `handle_key_event`.
+pub(super) static KEY_LAYERS: &[(&str, KeyLayer)] = &[
+    // Scroll navigation (PageUp/PageDown, Home/End, mark navigation)
+    ("scroll_keys", WindowState::handle_scroll_keys),
+    // Config reload (F5)
+    ("config_reload", WindowState::handle_config_reload),
+    // Clipboard history (Ctrl+Shift+H)
+    (
+        "clipboard_history",
+        WindowState::handle_clipboard_history_keys,
+    ),
+    // Command history (Ctrl+R / Cmd+R)
+    ("command_history", WindowState::handle_command_history_keys),
+    // Paste special UI
+    ("paste_special", WindowState::handle_paste_special_keys),
+    // Search (Cmd/Ctrl+F)
+    ("search", WindowState::handle_search_keys),
+    // Assistant panel toggle (Cmd+I / Ctrl+Shift+I)
+    (
+        "ai_inspector_toggle",
+        WindowState::handle_ai_inspector_toggle,
+    ),
+    // Fullscreen toggle (F11)
+    ("fullscreen_toggle", WindowState::handle_fullscreen_toggle),
+    // Help toggle (F1)
+    ("help_toggle", WindowState::handle_help_toggle),
+    // Settings toggle (F12)
+    ("settings_toggle", WindowState::handle_settings_toggle),
+    // Shader editor toggle (F11)
+    (
+        "shader_editor_toggle",
+        WindowState::handle_shader_editor_toggle,
+    ),
+    // FPS overlay toggle (F3)
+    ("fps_overlay_toggle", WindowState::handle_fps_overlay_toggle),
+    // Profile drawer toggle (Cmd+Shift+P / Ctrl+Shift+P)
+    (
+        "profile_drawer_toggle",
+        WindowState::handle_profile_drawer_toggle,
+    ),
+    // Per-profile hotkeys
+    ("profile_shortcuts", WindowState::handle_profile_shortcuts),
+];
+
 impl WindowState {
     pub(crate) fn handle_key_event(&mut self, event: KeyEvent, event_loop: &ActiveEventLoop) {
         // Synthesize modifier state from physical key events.  On Windows, WM_NCACTIVATE can
@@ -187,76 +244,18 @@ impl WindowState {
             );
         }
 
-        // Check if this is a scroll navigation key
-        if self.handle_scroll_keys(&event) {
-            return; // Key was handled for scrolling, don't send to terminal
+        // Shortcut layers, in precedence order — the first layer to claim the
+        // key wins and the key never reaches the terminal.  See KEY_LAYERS.
+        for (_, layer) in KEY_LAYERS {
+            if layer(self, &event) {
+                return;
+            }
         }
 
-        // Check if this is a config reload key (F5)
-        if self.handle_config_reload(&event) {
-            return; // Key was handled for config reload, don't send to terminal
-        }
-
-        // Check if this is a clipboard history key (Ctrl+Shift+H)
-        if self.handle_clipboard_history_keys(&event) {
-            return; // Key was handled for clipboard history, don't send to terminal
-        }
-
-        // Check if this is a command history key (Ctrl+R / Cmd+R)
-        if self.handle_command_history_keys(&event) {
-            return; // Key was handled for command history, don't send to terminal
-        }
-
-        // Check if paste special UI is handling keys
-        if self.handle_paste_special_keys(&event) {
-            return; // Key was handled for paste special, don't send to terminal
-        }
-
-        // Check for search keys (Cmd/Ctrl+F)
-        if self.handle_search_keys(&event) {
-            return; // Key was handled for search, don't send to terminal
-        }
-
-        // Check for Assistant panel toggle (Cmd+I / Ctrl+Shift+I)
-        if self.handle_ai_inspector_toggle(&event) {
-            return; // Key was handled for Assistant panel, don't send to terminal
-        }
-
-        // Check for fullscreen toggle (F11)
-        if self.handle_fullscreen_toggle(&event) {
-            return; // Key was handled for fullscreen toggle
-        }
-
-        // Check for help toggle (F1)
-        if self.handle_help_toggle(&event) {
-            return; // Key was handled for help toggle
-        }
-
-        // Check for settings toggle (F12)
-        if self.handle_settings_toggle(&event) {
-            return; // Key was handled for settings toggle
-        }
-
-        // Check for shader editor toggle (F11)
-        if self.handle_shader_editor_toggle(&event) {
-            return; // Key was handled for shader editor toggle
-        }
-
-        // Check for FPS overlay toggle (F3)
-        if self.handle_fps_overlay_toggle(&event) {
-            return; // Key was handled for FPS overlay toggle
-        }
-
-        // Check for profile drawer toggle (Cmd+Shift+P / Ctrl+Shift+P)
-        if self.handle_profile_drawer_toggle(&event) {
-            return; // Key was handled for profile drawer toggle
-        }
-
-        // Check for profile keyboard shortcuts (per-profile hotkeys)
-        if self.handle_profile_shortcuts(&event) {
-            return; // Key was handled for opening a profile
-        }
-
+        // These two layers continue the same precedence chain but need the
+        // event loop (they can exit the app / open windows), so they cannot
+        // live in KEY_LAYERS.  They run last, exactly as before.
+        //
         // Check for utility shortcuts (clear scrollback, font size, etc.)
         if self.handle_utility_shortcuts(&event, event_loop) {
             return; // Key was handled by utility shortcut
