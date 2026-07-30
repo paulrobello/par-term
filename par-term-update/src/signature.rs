@@ -15,47 +15,46 @@
 //! all produce an error. There is no path through this module that returns
 //! `Ok(())` for unverified bytes.
 //!
-//! # MAINTAINER: this build has no signing key yet
+//! # Release signing
 //!
-//! [`UPDATE_SIGNING_PUBLIC_KEY`] is an intentionally empty placeholder, so
-//! self-update currently refuses to install anything. Nothing in par-term
-//! generates key material — the steps below are yours to run, once, on a machine
-//! that is not the CI runner.
+//! [`UPDATE_SIGNING_PUBLIC_KEY`] carries the maintainer's release key, and the
+//! release workflow signs every published asset with the matching secret key.
+//! Nothing in par-term generates key material; the keypair was created once,
+//! by hand, off the CI runner.
 //!
-//! 1. **Generate the keypair locally** (needs the `minisign` CLI, `brew install
-//!    minisign`, or the Rust `rsign2` crate):
+//! The signing side lives in `scripts/release-minisign.sh`, driven by two
+//! repository secrets — `MINISIGN_SECRET_KEY` (the full text of the `.key`
+//! file) and `MINISIGN_SECRET_KEY_PASSWORD`. That script does not merely sign:
+//! it verifies each signature it produces against the constant below, so a
+//! keypair that does not match this pin fails the release preflight instead of
+//! producing a release nobody can install.
+//!
+//! > **Security:** a secret key the release runner can use is a secret key an
+//! > attacker who owns the runner can use. This defends against a tampered
+//! > *asset*, not against a compromised pipeline. Defending against the latter
+//! > needs signing to happen off-runner, which this setup does not do.
+//!
+//! ## Rotating the key
+//!
+//! 1. **Generate a new keypair locally** (needs the `minisign` CLI, `brew
+//!    install minisign`, or the Rust `rsign2` crate):
 //!
 //!    ```text
 //!    minisign -G -p par-term-release.pub -s par-term-release.key
 //!    ```
 //!
-//!    Keep `par-term-release.key` and its password offline. It must never be
-//!    committed, and it must never be added to GitHub Actions secrets if the
-//!    goal is to defend against a compromised release pipeline — a key the
-//!    release runner can use is a key an attacker who owns the runner can use.
-//!
 //! 2. **Paste the public key** into [`UPDATE_SIGNING_PUBLIC_KEY`] below. Use only
 //!    the base64 line of `par-term-release.pub` — the second line, not the
 //!    `untrusted comment:` line above it.
 //!
-//! 3. **Sign each release asset** and publish the `.minisig` next to it:
+//! 3. **Update both repository secrets** to the new key and its password, then
+//!    run a release. The preflight probe proves the three agree before any build
+//!    starts.
 //!
-//!    ```text
-//!    minisign -S -s par-term-release.key -m par-term-macos-aarch64.zip
-//!    # produces par-term-macos-aarch64.zip.minisig
-//!    ```
-//!
-//! 4. **Publish the assets.** As of v0.37.1 the release contains *neither* the
-//!    per-binary `.sha256` files nor the `.minisig` files — only `shaders.zip`
-//!    has a checksum. Both gates therefore reject every current release. The
-//!    upload step that needs to carry the new files is the `gh release upload`
-//!    in `.github/workflows/release.yml`; the per-binary `shasum -a 256` step
-//!    that produces them does not exist yet either.
-//!
-//! Until steps 1–4 are done, self-update fails with an explanatory error and
-//! users update by downloading a release manually. That is the intended
-//! behaviour, not a regression: the checksum gate already refuses every current
-//! release for the same reason.
+//! A rotation is a breaking change for anyone whose installed build pins the old
+//! key: their self-update will reject the new release's signatures, and they
+//! must download once by hand. Old releases keep verifying under the build that
+//! shipped with them.
 
 use minisign_verify::{PublicKey, Signature};
 
@@ -69,7 +68,8 @@ use minisign_verify::{PublicKey, Signature};
 /// The value is the single base64 line from `minisign -G`'s `.pub` file, e.g.
 /// `RWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3` (that example is
 /// the upstream minisign documentation's key, not par-term's — do not use it).
-pub const UPDATE_SIGNING_PUBLIC_KEY: &str = "";
+pub const UPDATE_SIGNING_PUBLIC_KEY: &str =
+    "RWRVW7gaf0VafV4bihSeMbq2JiaTYTanOpdm5EkgpPk65edfjHsAnA+t";
 
 /// Whether this build has a release-signing public key compiled in.
 ///
@@ -167,24 +167,36 @@ mod tests {
          trusted comment: timestamp:1700000000\tfile:par-term\n\
          77777777777777777777777777777777777777777777777777777777777777777777777777==\n";
 
+    /// The maintainer's release key is pinned, so the guard that used to assert
+    /// the constant was still an empty placeholder is now the opposite one.
+    ///
+    /// This catches an empty or malformed constant, and nothing more: a minisign
+    /// public key carries no checksum, so a single-character typo that keeps the
+    /// base64 valid decodes to a perfectly well-formed key of the wrong value and
+    /// passes here. Verified by corrupting the last character, which this test
+    /// did not notice. Whether the pin matches the keypair that actually signs is
+    /// established by `scripts/release-minisign.sh`, which signs a throwaway probe
+    /// and verifies it against this constant in the release preflight — before any
+    /// build starts, and long before the irreversible crates.io publish.
     #[test]
-    fn placeholder_key_is_not_configured() {
-        // The shipped default must stay empty. A committed key would mean key
-        // material was generated by tooling rather than by the maintainer.
+    fn pinned_key_is_configured_and_parses() {
         assert!(
-            !signing_key_configured(),
-            "UPDATE_SIGNING_PUBLIC_KEY should ship empty; if you filled it in, \
-             update this test to assert the real key parses instead"
+            signing_key_configured(),
+            "UPDATE_SIGNING_PUBLIC_KEY is empty — the shipped updater would trust no key"
         );
+        signing_key().expect("the pinned public key must parse as a minisign key");
     }
 
     #[test]
-    fn unconfigured_key_refuses_any_signature() {
+    fn a_malformed_signature_is_refused() {
         let err = verify_detached(b"payload", GARBAGE_SIGNATURE)
-            .expect_err("an unconfigured key must refuse to verify");
+            .expect_err("a malformed signature must never verify");
+        // With a key pinned this is rejected at decode, before any Ed25519 work;
+        // without one it was rejected for the missing key. Both are refusals, so
+        // the assertion is on failing closed rather than on which wall it hit.
         assert!(
-            err.contains("no release-signing public key") || err.contains("Signature verification"),
-            "unexpected error: {err}"
+            err.contains("Update aborted"),
+            "the error must state that nothing was installed: {err}"
         );
     }
 

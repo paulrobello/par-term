@@ -39,7 +39,13 @@ fi
 
 [ -f "$SIGNATURE_RS" ] || { echo "::error::cannot find $SIGNATURE_RS" >&2; exit 1; }
 
-PINNED_KEY=$(sed -n 's/^pub const UPDATE_SIGNING_PUBLIC_KEY: &str = "\(.*\)";$/\1/p' "$SIGNATURE_RS")
+# Newlines are squeezed out first so this matches whether or not rustfmt has
+# wrapped the constant onto its own line — the key plus the declaration exceeds
+# the 100-column default, so it wraps as soon as a real key is pinned. A
+# line-anchored match silently returned empty for the wrapped form, i.e. it
+# reported "no key pinned" for a correctly pinned key.
+PINNED_KEY=$(tr -d '\n' < "$SIGNATURE_RS" \
+  | sed -n 's/.*pub const UPDATE_SIGNING_PUBLIC_KEY: &str =[[:space:]]*"\([^"]*\)";.*/\1/p')
 if [ -z "$PINNED_KEY" ]; then
   echo "::error::UPDATE_SIGNING_PUBLIC_KEY in par-term-update/src/signature.rs is empty." >&2
   echo "The shipped updater trusts no key, so every signature this release publishes would be rejected." >&2
