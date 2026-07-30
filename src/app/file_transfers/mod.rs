@@ -228,8 +228,21 @@ impl WindowState {
                 // Take failed transfers to consume them
                 drop(term);
                 for (id, reason) in &failed {
-                    if let Ok(term) = terminal_arc.try_read() {
-                        let _ = term.take_completed_transfer(*id);
+                    // QA-026: the notification belongs inside the same gate that
+                    // consumes the transfer. A `try_read()` miss — or an entry a
+                    // concurrent path already took — leaves the failure in the
+                    // core's completed list, so notifying unconditionally re-fires
+                    // for the same failure on the next poll, and the next. There is
+                    // no dedupe in `deliver_notification`, and this runs once per
+                    // event-loop iteration, so the symptom is a desktop-notification
+                    // storm at frame rate (plus an overlay timer that never expires,
+                    // because `last_completion_time` is refreshed each repeat) —
+                    // not a single duplicate.
+                    let consumed = terminal_arc
+                        .try_read()
+                        .is_ok_and(|term| term.take_completed_transfer(*id).is_some());
+                    if !consumed {
+                        continue;
                     }
                     self.deliver_notification(
                         "File Transfer Failed",
