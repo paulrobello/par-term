@@ -382,10 +382,10 @@ impl TerminalManager {
         // Apply theme colors for ANSI colors (Named colors)
         let fg = match &term_cell.fg() {
             TermColor::Named(named) => {
-                // The 16 arms below are exhaustive for today's NamedColor, so the
-                // catch-all is unreachable; it is kept so adding a variant upstream
-                // in par-term-emu-core-rust does not break the build.
-                #[allow(unreachable_patterns)]
+                // Exhaustive over NamedColor, deliberately without a catch-all:
+                // `NamedColor` is not `#[non_exhaustive]`, so a new upstream variant
+                // is a breaking change that must fail this build rather than silently
+                // render as `theme.foreground`.
                 let theme_color = match named {
                     NamedColor::Black => theme.black,
                     NamedColor::Red => theme.red,
@@ -403,7 +403,6 @@ impl TerminalManager {
                     NamedColor::BrightMagenta => theme.bright_magenta,
                     NamedColor::BrightCyan => theme.bright_cyan,
                     NamedColor::BrightWhite => theme.bright_white,
-                    _ => theme.foreground,
                 };
                 (theme_color.r, theme_color.g, theme_color.b)
             }
@@ -412,9 +411,7 @@ impl TerminalManager {
 
         let bg = match &term_cell.bg() {
             TermColor::Named(named) => {
-                // Unreachable catch-all, same forward-compatibility guard as the
-                // foreground match above.
-                #[allow(unreachable_patterns)]
+                // Exhaustive, same reasoning as the foreground match above.
                 let theme_color = match named {
                     NamedColor::Black => theme.black,
                     NamedColor::Red => theme.red,
@@ -432,7 +429,6 @@ impl TerminalManager {
                     NamedColor::BrightMagenta => theme.bright_magenta,
                     NamedColor::BrightCyan => theme.bright_cyan,
                     NamedColor::BrightWhite => theme.bright_white,
-                    _ => theme.background,
                 };
                 (theme_color.r, theme_color.g, theme_color.b)
             }

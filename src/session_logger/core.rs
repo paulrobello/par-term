@@ -245,6 +245,12 @@ pub struct SessionLogger {
     pub(super) title: Option<String>,
     /// Whether password redaction is enabled (heuristic prompt detection)
     pub(super) redact_passwords: bool,
+    /// First write error seen since logging started, if any.
+    ///
+    /// A transcript that stops growing mid-session (disk full, log file deleted)
+    /// is indistinguishable from an idle one, so the failure is latched here and
+    /// reported through [`SessionLogger::is_active`] rather than discarded.
+    pub(super) write_error: Option<String>,
     /// Whether the logger has detected a password prompt in recent output
     /// and is currently suppressing input recording.
     pub(super) password_prompt_active: bool,
@@ -328,6 +334,7 @@ impl SessionLogger {
             dimensions,
             title,
             redact_passwords: true, // Enabled by default for safety
+            write_error: None,
             password_prompt_active: false,
             echo_suppressed: false,
             redaction_marker_emitted: false,
@@ -338,6 +345,13 @@ impl SessionLogger {
     pub fn start(&mut self) -> Result<()> {
         if self.active {
             return Ok(());
+        }
+
+        // A logger stopped by a write failure keeps the same unwritable file
+        // handle, so restarting it would fail again on the next byte. Surface the
+        // original error instead of pretending the restart worked.
+        if let Some(ref e) = self.write_error {
+            return Err(anyhow::anyhow!("session log is not writable: {}", e));
         }
 
         self.active = true;
@@ -452,17 +466,13 @@ impl SessionLogger {
             SessionLogFormat::Plain => {
                 // Strip ANSI escape sequences and write plain text
                 let text = strip_ansi_escapes(data);
-                if let Some(ref mut writer) = self.writer {
-                    let _ = writer.write_all(text.as_bytes());
-                }
+                self.write_bytes(text.as_bytes());
             }
             SessionLogFormat::Html => {
                 // Convert to HTML (basic escaping for now)
                 let text = String::from_utf8_lossy(data);
                 let escaped = html_escape(&text);
-                if let Some(ref mut writer) = self.writer {
-                    let _ = writer.write_all(escaped.as_bytes());
-                }
+                self.write_bytes(escaped.as_bytes());
             }
             SessionLogFormat::Asciicast => {
                 // Add event to recording
@@ -550,8 +560,37 @@ impl SessionLogger {
     }
 
     /// Check if logging is active.
+    ///
+    /// A write failure clears `active`, so this reflects writer health and not
+    /// just the user's last toggle: a transcript that stopped growing mid-session
+    /// must not keep reporting itself as being recorded.
     pub fn is_active(&self) -> bool {
         self.active
+    }
+
+    /// The write failure that stopped logging, if any.
+    pub fn write_error(&self) -> Option<&str> {
+        self.write_error.as_deref()
+    }
+
+    /// Write to the log file, stopping logging on the first failure.
+    ///
+    /// Logging is not retried: once the file is gone or the disk is full every
+    /// subsequent write fails too, and the transcript already has a hole in it.
+    fn write_bytes(&mut self, bytes: &[u8]) {
+        let Some(ref mut writer) = self.writer else {
+            return;
+        };
+        if let Err(e) = writer.write_all(bytes) {
+            let msg = e.to_string();
+            log::error!(
+                "Session log write failed for {:?}: {} — logging stopped",
+                self.output_path,
+                msg
+            );
+            self.write_error = Some(msg);
+            self.active = false;
+        }
     }
 
     /// SEC-006: Check whether a single stripped line matches any sensitive

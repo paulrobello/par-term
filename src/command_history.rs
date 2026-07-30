@@ -115,9 +115,8 @@ impl CommandHistory {
         let file = CommandHistoryFile {
             commands: self.entries.iter().cloned().collect(),
         };
-        self.dirty = false;
         let path = self.path.clone();
-        let _ = std::thread::Builder::new()
+        let spawned = std::thread::Builder::new()
             .name("cmd-history-save".into())
             .spawn(move || {
                 if let Some(parent) = path.parent()
@@ -137,6 +136,14 @@ impl CommandHistory {
                     }
                 }
             });
+
+        // Only clear `dirty` once the write is actually under way. Clearing it
+        // first meant a failed spawn discarded the session's history with nothing
+        // left to signal that a retry was needed.
+        match spawned {
+            Ok(_) => self.dirty = false,
+            Err(e) => log::error!("Failed to spawn command history save thread: {}", e),
+        }
     }
 
     /// Add a command to history, deduplicating by command text.

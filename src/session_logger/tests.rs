@@ -295,3 +295,49 @@ fn test_redaction_marker_emitted_once_per_period() {
         "Redaction marker should appear exactly once per password entry"
     );
 }
+
+/// QA-030: a failed write must stop logging and be reportable, rather than
+/// leaving the UI claiming an active transcript that has silently truncated.
+///
+/// Unix-only: the failure is provoked with a read-only file descriptor, which
+/// Windows reports differently.
+#[cfg(unix)]
+#[test]
+fn write_failure_deactivates_the_logger() {
+    use std::fs::OpenOptions;
+    use std::io::BufWriter;
+
+    let temp_dir = TempDir::new().unwrap();
+    let mut logger = SessionLogger::new(
+        SessionLogFormat::Plain,
+        temp_dir.path(),
+        (80, 24),
+        Some("Test Session".to_string()),
+    )
+    .unwrap();
+    logger.start().unwrap();
+    assert!(logger.is_active());
+
+    // Swap in a read-only handle to the same file so write_all fails. Capacity 0
+    // makes BufWriter pass every write straight through to the descriptor.
+    let read_only = OpenOptions::new()
+        .read(true)
+        .open(logger.output_path())
+        .unwrap();
+    logger.writer = Some(BufWriter::with_capacity(0, read_only));
+
+    logger.record_output(b"this write cannot land\n");
+
+    assert!(
+        !logger.is_active(),
+        "logger must not report itself active after a failed write"
+    );
+    assert!(
+        logger.write_error().is_some(),
+        "the failure must be retrievable for the UI"
+    );
+    assert!(
+        logger.start().is_err(),
+        "restarting an unwritable logger must surface the error"
+    );
+}
