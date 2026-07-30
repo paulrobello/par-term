@@ -4,13 +4,33 @@
 //! `par-term-emu-core-rust`.  It captures events into a thread-safe buffer
 //! that the main event loop drains and forwards to script sub-processes.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Mutex;
 
 use par_term_emu_core_rust::observer::TerminalObserver;
 use par_term_emu_core_rust::terminal::TerminalEvent;
 
 use super::protocol::{ScriptEvent, ScriptEventData};
+
+/// Maximum events retained in a forwarder's buffer.
+///
+/// The buffer is filled from the PTY reader thread and emptied by the event
+/// loop, so anything that stops the loop draining a particular forwarder makes
+/// it grow for the life of the process. A script that exits on its own leaves
+/// its observer registered — only an explicit stop unregisters it — so that
+/// case is reachable no matter how thoroughly the event loop sweeps its tabs,
+/// and this cap is the only thing bounding it.
+const MAX_BUFFERED_EVENTS: usize = 1024;
+
+/// The buffered events plus the once-only overflow latch, behind one lock.
+struct EventBuffer {
+    events: VecDeque<ScriptEvent>,
+    /// Set the first time the cap is reached, so overflow is reported once per
+    /// forwarder instead of once per discarded event. Never cleared: a drain
+    /// does not mean the underlying leak was fixed, and re-arming would let a
+    /// forwarder that overflows and drains repeatedly flood the log.
+    overflow_reported: bool,
+}
 
 /// Bridge between core terminal observer events and the scripting JSON protocol.
 ///
@@ -22,8 +42,8 @@ pub struct ScriptEventForwarder {
     /// `None` means "forward everything".
     subscription_filter: Option<HashSet<String>>,
     /// Thread-safe event buffer (uses std Mutex since observer callbacks are
-    /// invoked from the PTY reader thread).
-    event_buffer: Mutex<Vec<ScriptEvent>>,
+    /// invoked from the PTY reader thread), capped at [`MAX_BUFFERED_EVENTS`].
+    event_buffer: Mutex<EventBuffer>,
 }
 
 impl ScriptEventForwarder {
@@ -35,14 +55,17 @@ impl ScriptEventForwarder {
     pub fn new(subscriptions: Option<HashSet<String>>) -> Self {
         Self {
             subscription_filter: subscriptions,
-            event_buffer: Mutex::new(Vec::new()),
+            event_buffer: Mutex::new(EventBuffer {
+                events: VecDeque::new(),
+                overflow_reported: false,
+            }),
         }
     }
 
     /// Drain all buffered events, returning them and clearing the buffer.
     pub fn drain_events(&self) -> Vec<ScriptEvent> {
         let mut buf = self.event_buffer.lock().expect("event_buffer poisoned");
-        std::mem::take(&mut *buf)
+        buf.events.drain(..).collect()
     }
 
     /// Map a `TerminalEvent` to its snake_case kind name used by the protocol.
@@ -194,7 +217,24 @@ impl TerminalObserver for ScriptEventForwarder {
 
         let script_event = Self::convert_event(event);
         let mut buf = self.event_buffer.lock().expect("event_buffer poisoned");
-        buf.push(script_event);
+
+        if buf.events.len() >= MAX_BUFFERED_EVENTS {
+            // Drop the oldest rather than the newest. A script acts on what just
+            // happened, so discarding the incoming event would hide the very
+            // thing that is still worth reacting to and leave a stale prefix.
+            buf.events.pop_front();
+            if !buf.overflow_reported {
+                buf.overflow_reported = true;
+                log::warn!(
+                    "Script event buffer reached its {} event cap; discarding oldest \
+                     events from here on. Nothing is draining this forwarder — the \
+                     script most likely exited while its observer stayed registered.",
+                    MAX_BUFFERED_EVENTS
+                );
+            }
+        }
+
+        buf.events.push_back(script_event);
     }
 
     // We do NOT override `subscriptions()` — returning `None` means
@@ -287,6 +327,67 @@ mod tests {
         let events = fwd.drain_events();
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].kind, "bell_rang");
+    }
+
+    /// Extract the title from a `title_changed` event, so the drop-oldest tests
+    /// can identify which events survived.
+    fn title_of(event: &ScriptEvent) -> &str {
+        match &event.data {
+            ScriptEventData::TitleChanged { title } => title,
+            other => panic!("expected a title_changed event, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn buffer_stops_growing_at_the_cap() {
+        let fwd = ScriptEventForwarder::new(None);
+        for i in 0..(MAX_BUFFERED_EVENTS * 2) {
+            fwd.on_event(&TerminalEvent::TitleChanged(i.to_string()));
+        }
+        assert_eq!(fwd.drain_events().len(), MAX_BUFFERED_EVENTS);
+    }
+
+    #[test]
+    fn overflow_drops_the_oldest_events_not_the_newest() {
+        let fwd = ScriptEventForwarder::new(None);
+        let overflow = 10;
+        for i in 0..(MAX_BUFFERED_EVENTS + overflow) {
+            fwd.on_event(&TerminalEvent::TitleChanged(i.to_string()));
+        }
+
+        let events = fwd.drain_events();
+        assert_eq!(events.len(), MAX_BUFFERED_EVENTS);
+        // The first `overflow` events were discarded; the most recent survived.
+        assert_eq!(title_of(&events[0]), overflow.to_string());
+        assert_eq!(
+            title_of(&events[MAX_BUFFERED_EVENTS - 1]),
+            (MAX_BUFFERED_EVENTS + overflow - 1).to_string()
+        );
+    }
+
+    #[test]
+    fn draining_frees_the_capacity_again() {
+        let fwd = ScriptEventForwarder::new(None);
+        for i in 0..MAX_BUFFERED_EVENTS {
+            fwd.on_event(&TerminalEvent::TitleChanged(i.to_string()));
+        }
+        assert_eq!(fwd.drain_events().len(), MAX_BUFFERED_EVENTS);
+
+        // A drained forwarder accepts a full buffer again without dropping.
+        fwd.on_event(&TerminalEvent::TitleChanged("after-drain".to_string()));
+        let events = fwd.drain_events();
+        assert_eq!(events.len(), 1);
+        assert_eq!(title_of(&events[0]), "after-drain");
+    }
+
+    #[test]
+    fn filtered_out_events_do_not_consume_buffer_capacity() {
+        let filter = HashSet::from(["bell_rang".to_string()]);
+        let fwd = ScriptEventForwarder::new(Some(filter));
+        for i in 0..(MAX_BUFFERED_EVENTS * 2) {
+            fwd.on_event(&TerminalEvent::TitleChanged(i.to_string()));
+        }
+        assert!(fwd.drain_events().is_empty());
     }
 
     #[test]

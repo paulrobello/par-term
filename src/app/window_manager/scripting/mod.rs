@@ -16,9 +16,21 @@ mod write_text;
 
 use std::process::Stdio;
 
+use winit::window::WindowId;
+
 use config_change::{PendingScriptAction, tokenise_command};
 
 use super::WindowManager;
+use crate::tab::TabId;
+
+/// A script command that could not be executed while `self.windows` was borrowed,
+/// tagged with the window and tab whose script produced it.
+///
+/// The tag is what makes servicing background tabs safe: every deferred action
+/// has a sink that is specific to one tab (`SetBadge`), one window (`Notify`,
+/// `ChangeConfig`), or one terminal (`WriteText`), and resolving it against the
+/// *active* tab would silently aim it at the wrong terminal.
+type TaggedAction = (WindowId, TabId, PendingScriptAction);
 
 impl WindowManager {
     /// Maximum number of output lines kept per script in the UI.
@@ -28,69 +40,103 @@ impl WindowManager {
     ///
     /// Drains events from forwarders, sends them to scripts, reads commands
     /// and errors back, and updates the settings UI state.
+    ///
+    /// Every tab of every window is serviced, not just the focused window's
+    /// active tab. A script is attached to the tab it was started on and keeps
+    /// receiving terminal events there whether or not the user is looking at it,
+    /// so servicing only one tab left every other script's commands unread and
+    /// its event forwarder filling up untouched.
+    ///
+    /// This runs once per event-loop wake, so the sweep leads with the two
+    /// cheapest possible rejections: a window whose config declares no scripts,
+    /// and a tab that has no script attached.
     pub fn sync_script_running_state(&mut self) {
         let focused = self.get_focused_window_id();
 
-        // Pass 1 — Collect state from the active tab.
+        // Pass 1 — Service every tab that has a script attached.
         //
-        // Safe commands (Log, SetPanel, ClearPanel) are executed immediately.
+        // Safe commands (SetPanel, ClearPanel) are executed immediately.
         // Commands that need `WindowState` methods (Notify, SetBadge, etc.) or
         // require permission checks (WriteText, RunCommand, ChangeConfig) are
         // deferred into `pending_actions` and processed in Pass 2.
-        struct ScriptPassResult {
-            running_state: Vec<bool>,
-            error_state: Vec<String>,
-            new_output: Vec<Vec<String>>,
-            panel_state: Vec<Option<(String, String)>>,
-            pending_actions: Vec<PendingScriptAction>,
-        }
-        let ScriptPassResult {
-            running_state,
-            error_state,
-            new_output,
-            panel_state,
-            pending_actions,
-        } = if let Some(window_id) = focused
-            && let Some(ws) = self.windows.get_mut(&window_id)
-            && let Some(tab) = ws.tab_manager.active_tab_mut()
-        {
+        //
+        // All state is aggregated per script *config index*, because that is how
+        // the settings window indexes it. The same script running in several tabs
+        // therefore reports as running if any tab has it running, and its output
+        // lines are merged rather than dropped.
+        let mut running_state: Vec<bool> = Vec::new();
+        let mut error_lines: Vec<Vec<String>> = Vec::new();
+        let mut new_output: Vec<Vec<String>> = Vec::new();
+        let mut panel_state: Vec<Option<(String, String)>> = Vec::new();
+        let mut has_live_slot: Vec<bool> = Vec::new();
+        let mut pending_actions: Vec<TaggedAction> = Vec::new();
+
+        for (window_id, ws) in self.windows.iter_mut() {
             let script_count = ws.config.load().scripts.len();
-            let mut running = Vec::with_capacity(script_count);
-            let mut errors = Vec::with_capacity(script_count);
-            let mut output = Vec::with_capacity(script_count);
-            let mut panels = Vec::with_capacity(script_count);
-            let mut pending: Vec<PendingScriptAction> = Vec::new();
+            if script_count == 0 {
+                continue;
+            }
 
-            for i in 0..script_count {
-                let has_script_id = tab.scripting.script_ids.get(i).and_then(|opt| *opt);
-                let is_running =
-                    has_script_id.is_some_and(|id| tab.scripting.script_manager.is_running(id));
+            // Windows hold their own config, so size the aggregates to the
+            // largest script list seen rather than assuming they all match.
+            if running_state.len() < script_count {
+                running_state.resize(script_count, false);
+                error_lines.resize_with(script_count, Vec::new);
+                new_output.resize_with(script_count, Vec::new);
+                panel_state.resize_with(script_count, || None);
+                has_live_slot.resize(script_count, false);
+            }
 
-                // Drain events from forwarder and send to script
-                if is_running && let Some(Some(forwarder)) = tab.scripting.script_forwarders.get(i)
-                {
-                    let events = forwarder.drain_events();
-                    if let Some(script_id) = has_script_id {
-                        for event in &events {
-                            let _ = tab.scripting.script_manager.send_event(script_id, event);
-                        }
-                    }
+            let window_id = *window_id;
+            let is_focused_window = focused == Some(window_id);
+            let active_tab_id = ws.tab_manager.active_tab_id();
+
+            for tab in ws.tab_manager.tabs_mut() {
+                // A tab that never started a script has an empty `script_ids`,
+                // and one whose scripts were all stopped has all-`None` slots.
+                if tab.scripting.script_ids.iter().all(Option::is_none) {
+                    continue;
                 }
 
-                // Read commands from script and process them
-                let mut log_lines = Vec::new();
-                let mut panel_val = tab
-                    .scripting
-                    .script_manager
-                    .get_panel(has_script_id.unwrap_or(0))
-                    .cloned();
+                let tab_id = tab.id;
+                // Only one panel can be shown per script, so the tab the user is
+                // actually looking at is the one whose panel wins.
+                let tab_is_authoritative = is_focused_window && active_tab_id == Some(tab_id);
 
-                if let Some(script_id) = has_script_id {
+                let slot_count = script_count.min(tab.scripting.script_ids.len());
+                for i in 0..slot_count {
+                    let Some(script_id) = tab.scripting.script_ids[i] else {
+                        continue;
+                    };
+                    has_live_slot[i] = true;
+
+                    let is_running = tab.scripting.script_manager.is_running(script_id);
+                    running_state[i] |= is_running;
+
+                    // Drain events from forwarder and send to script.
+                    if is_running
+                        && let Some(forwarder) = tab
+                            .scripting
+                            .script_forwarders
+                            .get(i)
+                            .and_then(|s| s.clone())
+                    {
+                        for event in forwarder.drain_events() {
+                            let _ = tab.scripting.script_manager.send_event(script_id, &event);
+                        }
+                    }
+
+                    // Read commands from script and process them.
+                    let mut panel_val = tab.scripting.script_manager.get_panel(script_id).cloned();
+
+                    // Bound to a local first: temporaries in a `for` head live for
+                    // the whole loop, which would hold a borrow of `script_manager`
+                    // across the `set_panel`/`clear_panel` calls in the body.
                     let commands = tab.scripting.script_manager.read_commands(script_id);
                     for cmd in commands {
                         match cmd {
                             crate::scripting::protocol::ScriptCommand::Log { level, message } => {
-                                log_lines.push(format!("[{}] {}", level, message));
+                                new_output[i].push(format!("[{}] {}", level, message));
                             }
                             crate::scripting::protocol::ScriptCommand::SetPanel {
                                 title,
@@ -110,360 +156,375 @@ impl WindowManager {
                             // Safe display-only commands — defer to Pass 2 so they can
                             // call `WindowState` methods without borrow conflicts.
                             crate::scripting::protocol::ScriptCommand::Notify { title, body } => {
-                                pending.push(PendingScriptAction::Notify { title, body });
+                                pending_actions.push((
+                                    window_id,
+                                    tab_id,
+                                    PendingScriptAction::Notify { title, body },
+                                ));
                             }
                             crate::scripting::protocol::ScriptCommand::SetBadge { text } => {
-                                pending.push(PendingScriptAction::SetBadge { text });
+                                pending_actions.push((
+                                    window_id,
+                                    tab_id,
+                                    PendingScriptAction::SetBadge { text },
+                                ));
                             }
                             crate::scripting::protocol::ScriptCommand::SetVariable {
                                 name,
                                 value,
                             } => {
-                                pending.push(PendingScriptAction::SetVariable { name, value });
+                                pending_actions.push((
+                                    window_id,
+                                    tab_id,
+                                    PendingScriptAction::SetVariable { name, value },
+                                ));
                             }
                             // Restricted commands — permission-checked in Pass 2.
                             crate::scripting::protocol::ScriptCommand::WriteText { text } => {
-                                pending.push(PendingScriptAction::WriteText {
-                                    text,
-                                    config_index: i,
-                                });
+                                pending_actions.push((
+                                    window_id,
+                                    tab_id,
+                                    PendingScriptAction::WriteText {
+                                        text,
+                                        config_index: i,
+                                    },
+                                ));
                             }
                             crate::scripting::protocol::ScriptCommand::RunCommand { command } => {
-                                pending.push(PendingScriptAction::RunCommand {
-                                    command,
-                                    config_index: i,
-                                });
+                                pending_actions.push((
+                                    window_id,
+                                    tab_id,
+                                    PendingScriptAction::RunCommand {
+                                        command,
+                                        config_index: i,
+                                    },
+                                ));
                             }
                             crate::scripting::protocol::ScriptCommand::ChangeConfig {
                                 key,
                                 value,
                             } => {
-                                pending.push(PendingScriptAction::ChangeConfig {
-                                    key,
-                                    value,
-                                    config_index: i,
-                                });
+                                pending_actions.push((
+                                    window_id,
+                                    tab_id,
+                                    PendingScriptAction::ChangeConfig {
+                                        key,
+                                        value,
+                                        config_index: i,
+                                    },
+                                ));
                             }
                         }
                     }
-                }
 
-                // Read errors from script
-                let err_text = if let Some(script_id) = has_script_id {
-                    if is_running {
-                        // Drain any stderr lines even while running
-                        let err_lines = tab.scripting.script_manager.read_errors(script_id);
-                        if !err_lines.is_empty() {
-                            err_lines.join("\n")
-                        } else {
-                            String::new()
-                        }
-                    } else {
-                        let err_lines = tab.scripting.script_manager.read_errors(script_id);
-                        err_lines.join("\n")
+                    if tab_is_authoritative || panel_state[i].is_none() {
+                        panel_state[i] = panel_val;
                     }
-                } else if let Some(sw) = &self.settings_window
+
+                    // Read errors from script.
+                    let errors = tab.scripting.script_manager.read_errors(script_id);
+                    if !errors.is_empty() {
+                        error_lines[i].extend(errors);
+                    }
+                }
+            }
+        }
+
+        // A script index with no live slot in any tab keeps whatever error the
+        // settings window is already showing: nothing will produce that text
+        // again, and clearing it would erase the reason the script is not running.
+        let mut error_state: Vec<String> =
+            error_lines.iter().map(|lines| lines.join("\n")).collect();
+        if let Some(sw) = &self.settings_window {
+            for (i, err) in error_state.iter_mut().enumerate() {
+                if !has_live_slot[i]
+                    && err.is_empty()
                     && let Some(existing) = sw.settings_ui.script_errors.get(i)
-                    && !existing.is_empty()
                 {
-                    existing.clone()
-                } else {
-                    String::new()
-                };
-
-                running.push(is_running);
-                errors.push(err_text);
-                output.push(log_lines);
-                panels.push(panel_val);
+                    err.clone_from(existing);
+                }
             }
-
-            ScriptPassResult {
-                running_state: running,
-                error_state: errors,
-                new_output: output,
-                panel_state: panels,
-                pending_actions: pending,
-            }
-        } else {
-            ScriptPassResult {
-                running_state: Vec::new(),
-                error_state: Vec::new(),
-                new_output: Vec::new(),
-                panel_state: Vec::new(),
-                pending_actions: Vec::new(),
-            }
-        };
+        }
 
         // Pass 2 — Execute deferred actions that need `WindowState` access.
         //
         // The mutable borrow of `self.windows` from Pass 1 has been released,
-        // so we can take a fresh mutable borrow here.
-        if !pending_actions.is_empty()
-            && let Some(window_id) = focused
-            && let Some(ws) = self.windows.get_mut(&window_id)
-        {
-            for action in pending_actions {
-                match action {
-                    // ── Notify ──────────────────────────────────────────────────
-                    PendingScriptAction::Notify { title, body } => {
+        // so we can take a fresh mutable borrow here. Each action is resolved
+        // against the window and tab that produced it, never against whichever
+        // tab happens to be active now.
+        for (window_id, tab_id, action) in pending_actions {
+            let Some(ws) = self.windows.get_mut(&window_id) else {
+                continue;
+            };
+
+            match action {
+                // ── Notify ──────────────────────────────────────────────────
+                PendingScriptAction::Notify { title, body } => {
+                    crate::debug_info!(
+                        "SCRIPT",
+                        "AUDIT Script Notify title={:?} body={:?}",
+                        title,
+                        body
+                    );
+                    ws.deliver_notification(&title, &body);
+                }
+
+                // ── SetBadge ────────────────────────────────────────────────
+                PendingScriptAction::SetBadge { text } => {
+                    if let Some(tab) = ws.tab_manager.get_tab_mut(tab_id) {
+                        tab.profile.badge_override = Some(text.clone());
+                    }
+                    ws.request_redraw();
+                    crate::debug_info!("SCRIPT", "SetBadge text={:?}", text);
+                }
+
+                // ── SetVariable ─────────────────────────────────────────────
+                PendingScriptAction::SetVariable { name, value } => {
+                    {
+                        let mut vars = ws.badge_state.variables_mut();
+                        vars.custom.insert(name.clone(), value.clone());
+                    }
+                    ws.badge_state.mark_dirty();
+                    ws.request_redraw();
+                    crate::debug_info!("SCRIPT", "SetVariable {}={:?}", name, value);
+                }
+
+                // ── WriteText ───────────────────────────────────────────────
+                // SEC-013: sanitising the payload does not make it safe —
+                // what runs a command is printable text plus a newline, and
+                // both survive `strip_vt_sequences` by design. So the write
+                // goes to the confirmation dialog unless the script opted
+                // out via `prompt_before_write_text: false` or the user
+                // chose "Always Allow" for this exact text.
+                //
+                // NOTE: the direct write uses `try_read()` for the terminal
+                // lock.  If the lock is held (e.g. by the PTY reader), the
+                // write is silently skipped this frame.  The script receives
+                // no failure signal — it may retry on the next event cycle.
+                PendingScriptAction::WriteText { text, config_index } => {
+                    // Copy the settings out to release the config borrow.
+                    let (allow, rate_limit, prompt_before_write, script_name) = {
+                        let config = ws.config.load();
+                        match config.scripts.get(config_index) {
+                            Some(script) => (
+                                script.allow_write_text,
+                                script.write_text_rate_limit,
+                                script.prompt_before_write_text,
+                                script.name.clone(),
+                            ),
+                            None => (false, 0, true, String::new()),
+                        }
+                    };
+
+                    if !allow {
+                        log::warn!(
+                            "Script[{}] WriteText DENIED: allow_write_text=false",
+                            config_index
+                        );
+                        continue;
+                    }
+
+                    // Strip VT/ANSI sequences before PTY injection
+                    let clean = crate::scripting::protocol::strip_vt_sequences(&text);
+                    if clean.is_empty() {
+                        continue;
+                    }
+
+                    // Rate limit before either sink, so a flood cannot spend
+                    // the user's attention any faster than it could spend
+                    // the PTY.
+                    if let Some(tab) = ws.tab_manager.get_tab_mut(tab_id) {
+                        let script_id = tab.scripting.script_ids.get(config_index).and_then(|o| *o);
+                        if let Some(sid) = script_id
+                            && !tab
+                                .scripting
+                                .script_manager
+                                .check_write_text_rate(sid, rate_limit)
+                        {
+                            log::warn!("Script[{}] WriteText RATE-LIMITED", config_index);
+                            continue;
+                        }
+                    }
+
+                    let action_id =
+                        par_term_scripting::confirm::write_text_action_id(&script_name, &clean);
+                    let session_approved = ws
+                        .trigger_state
+                        .always_allow_trigger_ids
+                        .contains(&action_id);
+
+                    if par_term_scripting::confirm::write_text_needs_confirmation(
+                        prompt_before_write,
+                        session_approved,
+                    ) {
+                        // The confirmation sink is `check_trigger_actions`, which
+                        // writes to whichever tab is active when the user approves,
+                        // and the dialog text promises exactly that. A background
+                        // tab's payload would land in the wrong terminal, so deny
+                        // it rather than prompt for a write that cannot be aimed.
+                        if ws.tab_manager.active_tab_id() != Some(tab_id) {
+                            log::warn!(
+                                "Script[{}] WriteText DENIED: the script runs in a background \
+                                 tab and the confirmation dialog can only write to the active \
+                                 tab. Switch to that tab, or set prompt_before_write_text=false \
+                                 for this script.",
+                                config_index
+                            );
+                            continue;
+                        }
+                        Self::queue_script_write_text(
+                            ws,
+                            config_index,
+                            &script_name,
+                            action_id,
+                            clean,
+                        );
+                        continue;
+                    }
+
+                    if let Some(tab) = ws.tab_manager.get_tab(tab_id) {
+                        // try_lock: acceptable — script WriteText in sync event
+                        // loop. On miss the write is skipped this frame; the
+                        // script can retry.
+                        if let Ok(term) = tab.terminal.try_read()
+                            && let Err(e) = term.write_str(&clean)
+                        {
+                            log::error!("Script[{}] WriteText write failed: {}", config_index, e);
+                        }
                         crate::debug_info!(
                             "SCRIPT",
-                            "AUDIT Script Notify title={:?} body={:?}",
-                            title,
-                            body
+                            "AUDIT Script[{}] WriteText wrote {} bytes",
+                            config_index,
+                            clean.len()
                         );
-                        ws.deliver_notification(&title, &body);
+                    }
+                }
+
+                // ── RunCommand ──────────────────────────────────────────────
+                // NOTE: Spawned processes run fire-and-forget with
+                // stdout/stderr discarded (`Stdio::null()`).  Scripts that
+                // need command output should read it from the PTY stream
+                // or use a side-channel (e.g. writing to a temp file).
+                PendingScriptAction::RunCommand {
+                    command,
+                    config_index,
+                } => {
+                    let allow = ws
+                        .config
+                        .load()
+                        .scripts
+                        .get(config_index)
+                        .map(|s| s.allow_run_command)
+                        .unwrap_or(false);
+                    let rate_limit = ws
+                        .config
+                        .load()
+                        .scripts
+                        .get(config_index)
+                        .map(|s| s.run_command_rate_limit)
+                        .unwrap_or(0);
+
+                    if !allow {
+                        log::warn!(
+                            "Script[{}] RunCommand DENIED: allow_run_command=false",
+                            config_index
+                        );
+                        continue;
                     }
 
-                    // ── SetBadge ────────────────────────────────────────────────
-                    PendingScriptAction::SetBadge { text } => {
-                        if let Some(tab) = ws.tab_manager.active_tab_mut() {
-                            tab.profile.badge_override = Some(text.clone());
-                        }
-                        ws.request_redraw();
-                        crate::debug_info!("SCRIPT", "SetBadge text={:?}", text);
-                    }
+                    // Tokenise without invoking a shell
+                    let Some((program, args)) = tokenise_command(&command) else {
+                        log::warn!("Script[{}] RunCommand DENIED: empty command", config_index);
+                        continue;
+                    };
 
-                    // ── SetVariable ─────────────────────────────────────────────
-                    PendingScriptAction::SetVariable { name, value } => {
-                        {
-                            let mut vars = ws.badge_state.variables_mut();
-                            vars.custom.insert(name.clone(), value.clone());
-                        }
-                        ws.badge_state.mark_dirty();
-                        ws.request_redraw();
-                        crate::debug_info!("SCRIPT", "SetVariable {}={:?}", name, value);
-                    }
-
-                    // ── WriteText ───────────────────────────────────────────────
-                    // SEC-013: sanitising the payload does not make it safe —
-                    // what runs a command is printable text plus a newline, and
-                    // both survive `strip_vt_sequences` by design. So the write
-                    // goes to the confirmation dialog unless the script opted
-                    // out via `prompt_before_write_text: false` or the user
-                    // chose "Always Allow" for this exact text.
-                    //
-                    // NOTE: the direct write uses `try_read()` for the terminal
-                    // lock.  If the lock is held (e.g. by the PTY reader), the
-                    // write is silently skipped this frame.  The script receives
-                    // no failure signal — it may retry on the next event cycle.
-                    PendingScriptAction::WriteText { text, config_index } => {
-                        // Copy the settings out to release the config borrow.
-                        let (allow, rate_limit, prompt_before_write, script_name) = {
-                            let config = ws.config.load();
-                            match config.scripts.get(config_index) {
-                                Some(script) => (
-                                    script.allow_write_text,
-                                    script.write_text_rate_limit,
-                                    script.prompt_before_write_text,
-                                    script.name.clone(),
-                                ),
-                                None => (false, 0, true, String::new()),
-                            }
-                        };
-
-                        if !allow {
-                            log::warn!(
-                                "Script[{}] WriteText DENIED: allow_write_text=false",
-                                config_index
-                            );
-                            continue;
-                        }
-
-                        // Strip VT/ANSI sequences before PTY injection
-                        let clean = crate::scripting::protocol::strip_vt_sequences(&text);
-                        if clean.is_empty() {
-                            continue;
-                        }
-
-                        // Rate limit before either sink, so a flood cannot spend
-                        // the user's attention any faster than it could spend
-                        // the PTY.
-                        if let Some(tab) = ws.tab_manager.active_tab_mut() {
-                            let script_id =
-                                tab.scripting.script_ids.get(config_index).and_then(|o| *o);
-                            if let Some(sid) = script_id
-                                && !tab
-                                    .scripting
-                                    .script_manager
-                                    .check_write_text_rate(sid, rate_limit)
-                            {
-                                log::warn!("Script[{}] WriteText RATE-LIMITED", config_index);
-                                continue;
-                            }
-                        }
-
-                        let action_id =
-                            par_term_scripting::confirm::write_text_action_id(&script_name, &clean);
-                        let session_approved = ws
-                            .trigger_state
-                            .always_allow_trigger_ids
-                            .contains(&action_id);
-
-                        if par_term_scripting::confirm::write_text_needs_confirmation(
-                            prompt_before_write,
-                            session_approved,
-                        ) {
-                            Self::queue_script_write_text(
-                                ws,
-                                config_index,
-                                &script_name,
-                                action_id,
-                                clean,
-                            );
-                            continue;
-                        }
-
-                        if let Some(tab) = ws.tab_manager.active_tab() {
-                            // try_lock: acceptable — script WriteText in sync event
-                            // loop. On miss the write is skipped this frame; the
-                            // script can retry.
-                            if let Ok(term) = tab.terminal.try_read()
-                                && let Err(e) = term.write_str(&clean)
-                            {
-                                log::error!(
-                                    "Script[{}] WriteText write failed: {}",
-                                    config_index,
-                                    e
-                                );
-                            }
-                            crate::debug_info!(
-                                "SCRIPT",
-                                "AUDIT Script[{}] WriteText wrote {} bytes",
-                                config_index,
-                                clean.len()
-                            );
-                        }
-                    }
-
-                    // ── RunCommand ──────────────────────────────────────────────
-                    // NOTE: Spawned processes run fire-and-forget with
-                    // stdout/stderr discarded (`Stdio::null()`).  Scripts that
-                    // need command output should read it from the PTY stream
-                    // or use a side-channel (e.g. writing to a temp file).
-                    PendingScriptAction::RunCommand {
-                        command,
-                        config_index,
-                    } => {
-                        let allow = ws
-                            .config
-                            .load()
-                            .scripts
-                            .get(config_index)
-                            .map(|s| s.allow_run_command)
-                            .unwrap_or(false);
-                        let rate_limit = ws
-                            .config
-                            .load()
-                            .scripts
-                            .get(config_index)
-                            .map(|s| s.run_command_rate_limit)
-                            .unwrap_or(0);
-
-                        if !allow {
-                            log::warn!(
-                                "Script[{}] RunCommand DENIED: allow_run_command=false",
-                                config_index
-                            );
-                            continue;
-                        }
-
-                        // Tokenise without invoking a shell
-                        let Some((program, args)) = tokenise_command(&command) else {
-                            log::warn!("Script[{}] RunCommand DENIED: empty command", config_index);
-                            continue;
-                        };
-
-                        // Command denylist check
-                        if let Some(pattern) =
-                            par_term_config::check_command_denylist(&program, &args)
-                        {
-                            log::error!(
-                                "Script[{}] RunCommand DENIED: '{}' matches denylist \
+                    // Command denylist check
+                    if let Some(pattern) = par_term_config::check_command_denylist(&program, &args)
+                    {
+                        log::error!(
+                            "Script[{}] RunCommand DENIED: '{}' matches denylist \
                                      pattern '{}'",
+                            config_index,
+                            command,
+                            pattern
+                        );
+                        continue;
+                    }
+
+                    // Rate limit check
+                    if let Some(tab) = ws.tab_manager.get_tab_mut(tab_id) {
+                        let script_id = tab.scripting.script_ids.get(config_index).and_then(|o| *o);
+                        if let Some(sid) = script_id
+                            && !tab
+                                .scripting
+                                .script_manager
+                                .check_run_command_rate(sid, rate_limit)
+                        {
+                            log::warn!(
+                                "Script[{}] RunCommand RATE-LIMITED: '{}'",
+                                config_index,
+                                command
+                            );
+                            continue;
+                        }
+                    }
+
+                    crate::debug_info!(
+                        "SCRIPT",
+                        "AUDIT Script[{}] RunCommand program={} args={:?}",
+                        config_index,
+                        program,
+                        args
+                    );
+
+                    match std::process::Command::new(&program)
+                        .args(&args)
+                        .stdout(Stdio::null())
+                        .stderr(Stdio::null())
+                        .spawn()
+                    {
+                        Ok(child) => {
+                            log::debug!(
+                                "Script[{}] RunCommand spawned PID={}",
+                                config_index,
+                                child.id()
+                            );
+                        }
+                        Err(e) => {
+                            log::error!(
+                                "Script[{}] RunCommand failed to spawn '{}': {}",
                                 config_index,
                                 command,
-                                pattern
+                                e
                             );
-                            continue;
-                        }
-
-                        // Rate limit check
-                        if let Some(tab) = ws.tab_manager.active_tab_mut() {
-                            let script_id =
-                                tab.scripting.script_ids.get(config_index).and_then(|o| *o);
-                            if let Some(sid) = script_id
-                                && !tab
-                                    .scripting
-                                    .script_manager
-                                    .check_run_command_rate(sid, rate_limit)
-                            {
-                                log::warn!(
-                                    "Script[{}] RunCommand RATE-LIMITED: '{}'",
-                                    config_index,
-                                    command
-                                );
-                                continue;
-                            }
-                        }
-
-                        crate::debug_info!(
-                            "SCRIPT",
-                            "AUDIT Script[{}] RunCommand program={} args={:?}",
-                            config_index,
-                            program,
-                            args
-                        );
-
-                        match std::process::Command::new(&program)
-                            .args(&args)
-                            .stdout(Stdio::null())
-                            .stderr(Stdio::null())
-                            .spawn()
-                        {
-                            Ok(child) => {
-                                log::debug!(
-                                    "Script[{}] RunCommand spawned PID={}",
-                                    config_index,
-                                    child.id()
-                                );
-                            }
-                            Err(e) => {
-                                log::error!(
-                                    "Script[{}] RunCommand failed to spawn '{}': {}",
-                                    config_index,
-                                    command,
-                                    e
-                                );
-                            }
                         }
                     }
+                }
 
-                    // ── ChangeConfig ────────────────────────────────────────────
-                    PendingScriptAction::ChangeConfig {
-                        key,
-                        value,
-                        config_index,
-                    } => {
-                        let allow = ws
-                            .config
-                            .load()
-                            .scripts
-                            .get(config_index)
-                            .map(|s| s.allow_change_config)
-                            .unwrap_or(false);
+                // ── ChangeConfig ────────────────────────────────────────────
+                PendingScriptAction::ChangeConfig {
+                    key,
+                    value,
+                    config_index,
+                } => {
+                    let allow = ws
+                        .config
+                        .load()
+                        .scripts
+                        .get(config_index)
+                        .map(|s| s.allow_change_config)
+                        .unwrap_or(false);
 
-                        if !allow {
-                            log::warn!(
-                                "Script[{}] ChangeConfig DENIED: \
+                    if !allow {
+                        log::warn!(
+                            "Script[{}] ChangeConfig DENIED: \
                                      allow_change_config=false",
-                                config_index
-                            );
-                            continue;
-                        }
-
-                        Self::apply_script_config_change(ws, &key, &value, config_index);
+                            config_index
+                        );
+                        continue;
                     }
+
+                    Self::apply_script_config_change(ws, &key, &value, config_index);
                 }
             }
         }

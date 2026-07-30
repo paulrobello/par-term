@@ -479,16 +479,19 @@ impl WindowState {
         //
         // Gate on the process actually running, not merely on a script having
         // been started — otherwise one exited script would hold the faster
-        // cadence for the remaining life of the tab. Gate on focus too, to match
-        // where the work actually happens: `sync_script_running_state` only
-        // services the focused window's active tab, so bumping the cadence for
-        // any other window would spin the loop with nothing to service.
-        let script_is_live = self.focus_state.is_focused
-            && self.tab_manager.active_tab_mut().is_some_and(|tab| {
-                let ids: Vec<_> = tab.scripting.script_ids.iter().flatten().copied().collect();
-                ids.into_iter()
-                    .any(|id| tab.scripting.script_manager.is_running(id))
-            });
+        // cadence for the remaining life of the tab.
+        //
+        // Every tab counts, and focus does not: `sync_script_running_state`
+        // services every tab of every window, so a script in a background tab
+        // or an unfocused window has real work waiting on this wake. Checking
+        // the running flag rather than merely the presence of a script keeps an
+        // idle window idle.
+        let script_is_live = self.tab_manager.tabs_mut().iter_mut().any(|tab| {
+            (0..tab.scripting.script_ids.len()).any(|i| match tab.scripting.script_ids[i] {
+                Some(id) => tab.scripting.script_manager.is_running(id),
+                None => false,
+            })
+        });
         if script_is_live {
             let next_poll = now + std::time::Duration::from_millis(UNFOCUSED_IDLE_SPIN_SLEEP_MS);
             if next_poll < next_wake {

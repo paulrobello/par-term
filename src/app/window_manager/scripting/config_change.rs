@@ -17,11 +17,12 @@ use super::WindowManager;
 pub(super) enum PendingScriptAction {
     /// Show a desktop/in-app notification.
     Notify { title: String, body: String },
-    /// Set the active tab's badge text override.
+    /// Set the badge text override on the tab whose script sent this.
     SetBadge { text: String },
     /// Set a named user variable in the badge/session context.
     SetVariable { name: String, value: String },
-    /// Inject sanitised text into the active PTY (gated by `allow_write_text`).
+    /// Inject sanitised text into the PTY of the tab whose script sent this
+    /// (gated by `allow_write_text`).
     WriteText { text: String, config_index: usize },
     /// Spawn an external process (gated by `allow_run_command`).
     RunCommand {
