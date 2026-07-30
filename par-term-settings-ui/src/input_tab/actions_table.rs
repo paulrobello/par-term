@@ -11,6 +11,7 @@ pub(super) const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     ("toggle_help", "Toggle Help Panel", Some("F1")),
     ("new_window", "New Window", None),
     ("close_window", "Close Window", None),
+    ("save_arrangement", "Save Window Arrangement", None),
     ("quit", "Quit par-term", None),
     ("select_all", "Select All", None),
     ("toggle_menu", "Open Application Menu", None),
@@ -24,11 +25,18 @@ pub(super) const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
         "Toggle Profile Drawer",
         Some("Cmd+Shift+P"),
     ),
+    ("reload_dynamic_profiles", "Reload Dynamic Profiles", None),
     (
         "toggle_clipboard_history",
         "Toggle Clipboard History",
         Some("Cmd+Shift+H"),
     ),
+    (
+        "toggle_command_history",
+        "Toggle Command History",
+        Some("Cmd+R"),
+    ),
+    ("toggle_ai_inspector", "Toggle Assistant Panel", None),
     ("maximize_vertically", "Maximize Vertically", None),
     (
         "toggle_background_shader",
@@ -54,6 +62,7 @@ pub(super) const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     ("new_tab", "New Tab", Some("Cmd+T")),
     ("close_tab", "Close Tab", Some("Cmd+W")),
     ("duplicate_tab", "Duplicate Tab", Some("Cmd+Shift+N")),
+    ("reopen_closed_tab", "Reopen Closed Tab", Some("Cmd+Z")),
     ("move_tab_to_new_window", "Move Tab to New Window", None),
     ("next_tab", "Next Tab", Some("Cmd+Shift+]")),
     ("prev_tab", "Previous Tab", Some("Cmd+Shift+[")),
@@ -117,11 +126,10 @@ pub(super) const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     ),
     ("reset_font_size", "Reset Font Size", Some("Ctrl+0")),
     ("clear_scrollback", "Clear Scrollback", Some("Cmd+Shift+K")),
-    (
-        "cycle_cursor_style",
-        "Cycle Cursor Style",
-        Some("Cmd+Comma"),
-    ),
+    // No macOS default. The settings-toggle key layer claims `Cmd+,` four
+    // positions earlier, so that chord opens Settings and never reaches the
+    // cycler, and no keybinding default covers this action.
+    ("cycle_cursor_style", "Cycle Cursor Style", None),
     (
         "paste_special",
         "Paste Special (Transform)",
@@ -147,7 +155,13 @@ pub(super) const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
         "Toggle tmux Session Picker",
         Some("Cmd+Alt+T"),
     ),
+    (
+        "ssh_quick_connect",
+        "SSH Quick Connect",
+        Some("Cmd+Shift+S"),
+    ),
     ("toggle_copy_mode", "Toggle Copy Mode", Some("Cmd+Shift+C")),
+    ("enter_copy_mode", "Enter Copy Mode", None),
 ];
 
 #[cfg(not(target_os = "macos"))]
@@ -155,6 +169,7 @@ pub(super) const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     ("toggle_help", "Toggle Help Panel", Some("F1")),
     ("new_window", "New Window", None),
     ("close_window", "Close Window", None),
+    ("save_arrangement", "Save Window Arrangement", None),
     ("quit", "Quit par-term", None),
     ("select_all", "Select All", None),
     ("toggle_menu", "Open Application Menu", None),
@@ -168,11 +183,18 @@ pub(super) const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
         "Toggle Profile Drawer",
         Some("Ctrl+Shift+P"),
     ),
+    ("reload_dynamic_profiles", "Reload Dynamic Profiles", None),
     (
         "toggle_clipboard_history",
         "Toggle Clipboard History",
         Some("Ctrl+Shift+H"),
     ),
+    (
+        "toggle_command_history",
+        "Toggle Command History",
+        Some("Ctrl+Alt+R"),
+    ),
+    ("toggle_ai_inspector", "Toggle Assistant Panel", None),
     ("maximize_vertically", "Maximize Vertically", None),
     (
         "toggle_background_shader",
@@ -198,6 +220,11 @@ pub(super) const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     ("new_tab", "New Tab", Some("Ctrl+Shift+T")),
     ("close_tab", "Close Tab", Some("Ctrl+Shift+W")),
     ("duplicate_tab", "Duplicate Tab", Some("Ctrl+Shift+N")),
+    (
+        "reopen_closed_tab",
+        "Reopen Closed Tab",
+        Some("Ctrl+Shift+Z"),
+    ),
     ("move_tab_to_new_window", "Move Tab to New Window", None),
     ("next_tab", "Next Tab", Some("Ctrl+Shift+]")),
     ("prev_tab", "Previous Tab", Some("Ctrl+Shift+[")),
@@ -304,8 +331,14 @@ pub(super) const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
         Some("Ctrl+Alt+T"),
     ),
     (
+        "ssh_quick_connect",
+        "SSH Quick Connect",
+        Some("Ctrl+Shift+S"),
+    ),
+    (
         "toggle_copy_mode",
         "Toggle Copy Mode",
         Some("Ctrl+Shift+Space"),
     ),
+    ("enter_copy_mode", "Enter Copy Mode", None),
 ];

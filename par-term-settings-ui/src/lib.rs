@@ -301,8 +301,3 @@ pub fn log_path() -> std::path::PathBuf {
         std::env::temp_dir().join("par_term_debug.log")
     }
 }
-
-/// Create a configured HTTP agent for URL fetching.
-pub fn http_agent() -> ureq::Agent {
-    ureq::Agent::new_with_defaults()
-}

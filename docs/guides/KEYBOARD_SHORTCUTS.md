@@ -36,11 +36,11 @@ Complete reference for all par-term keyboard shortcuts.
 
 | Action | macOS | Linux/Windows |
 |--------|-------|---------------|
-| New window | `Cmd + N` *(menu)* | `Ctrl + Shift + N` *(menu)* |
+| New window | `Cmd + N` *(menu)* | `Ctrl + N` *(menu)* |
 | New tab | `Cmd + T` | `Ctrl + Shift + T` |
 | Duplicate tab | *(unbound)* | *(unbound)* |
 | Close tab/window | `Cmd + W` | `Ctrl + Shift + W` |
-| Quit application | `Cmd + Q` *(menu)* | `Ctrl + Shift + Q` *(menu)* |
+| Quit application | `Cmd + Q` *(menu)* | `Ctrl + Q` *(menu)* |
 | Next tab | `Cmd + Shift + ]` | `Ctrl + Shift + ]` |
 | Previous tab | `Cmd + Shift + [` | `Ctrl + Shift + [` |
 | Next tab (alt) | `Ctrl + Tab` | `Ctrl + Tab` |
@@ -51,6 +51,8 @@ Complete reference for all par-term keyboard shortcuts.
 | Reopen closed tab | `Cmd + Z` | `Ctrl + Shift + Z` |
 | Move tab to new window | *(unbound)* | *(unbound)* |
 | Save window arrangement | View menu: "Save Window Arrangement..." | View menu: "Save Window Arrangement..." |
+
+> **📝 Note:** A *(menu)* chord is dispatched by the **native** menu bar, which Linux does not have — its in-app menu prints the accelerator label beside the command but does not handle the chord. On Linux, open the menu from the `☰` button or bind `new_window`, `close_window`, `quit` and `select_all` directly (see [Available Actions](#available-actions)).
 
 ## Navigation & Scrolling
 
@@ -79,7 +81,9 @@ Modifier keys (`Shift`, `Ctrl`, `Alt`, and combinations) work with special keys 
 | Paste (X11 fallback) | `Shift + Insert` | `Shift + Insert` |
 | Paste Special | `Cmd + Shift + V` | `Ctrl + Alt + V` |
 | Clipboard history | `Cmd + Shift + H` | `Ctrl + Shift + H` |
-| Select all | `Cmd + A` *(menu)* | `Ctrl + Shift + A` *(menu)* |
+| Select all | `Cmd + A` *(menu)* | `Ctrl + A` *(menu)* |
+
+> **📝 Note:** A *(menu)* chord is dispatched by the **native** menu bar, which Linux does not have — its in-app menu prints the accelerator label beside the command but does not handle the chord. On Linux, open the menu from the `☰` button or bind `new_window`, `close_window`, `quit` and `select_all` directly (see [Available Actions](#available-actions)).
 
 **Mouse Selection:**
 
@@ -192,9 +196,10 @@ Vi-style keyboard-driven text selection. See [Copy Mode](../features/COPY_MODE.m
 | `Cmd + Shift + S` (macOS) / `Ctrl + Shift + S` (Linux/Win) | SSH Quick Connect |
 | `Cmd/Ctrl + Alt + I` | Toggle broadcast input |
 | `Cmd/Ctrl + Alt + T` | Toggle tmux session picker |
-| `Cmd + ,` (macOS) / `F12` | Open the Settings window — `Cmd + ,` is intercepted for Settings, so it never reaches a cursor-style cycler. `cycle_cursor_style` exists as a bindable action but ships **unbound**; add a keybinding for it in `config.yaml` if you want one. |
+| `Cmd + ,` (macOS) / `F12` | Open the Settings window |
+| `Ctrl + ,` (Linux/Windows) | Cycle cursor style (Block → Beam → Underline) |
 
-> **📝 Note:** On macOS, `Cmd + ,` also opens Settings; the Settings handler takes priority. Use the `cycle_cursor_style` action with a custom keybinding to avoid the conflict.
+> **📝 Note:** macOS has no working chord for cursor style. The Settings handler claims `Cmd + ,` before the cycler runs, so on macOS that chord opens Settings, and `cycle_cursor_style` ships with no default keybinding. Bind it to a chord of your own in **Settings ▸ Input ▸ Keybindings** or in `config.yaml`.
 
 > **📝 Note:** The Assistant panel is toggled with `Cmd + I` (macOS) or `Ctrl + Shift + I` (Linux/Windows) when `ai_inspector_enabled` is `true`. It can also be bound via custom keybindings. See [Assistant Panel](../ASSISTANT_PANEL.md) for details.
 
@@ -230,6 +235,18 @@ remains visible; press `Esc` to cancel it. All action types — including the wo
 | `CmdOrCtrl` | — | Cmd (macOS) or Ctrl (Windows/Linux) |
 
 ### Available Actions
+
+**Application & Windows:**
+- `new_window`, `close_window` (closes the tab when the window has several), `quit`
+- `select_all` - Select the whole terminal buffer (scrollback plus visible screen), or the focused text field when Settings or an overlay has focus
+- `toggle_menu` - Open the in-app application menu
+
+None of these five ships with a default `keybindings` entry. macOS and Windows
+reach the first four through native menu accelerators (`Cmd + N` / `Ctrl + N`,
+`+ W`, `+ Q`, `+ A`); Linux has no native menu bar, so on Linux a keybinding is
+the only direct keyboard route. Bind `toggle_menu` if you run with
+`tab_bar_mode: never` — the tab bar is what normally holds the `☰` button, so
+without a binding there is no way to open the in-app menu.
 
 **Tab Management:**
 - `new_tab`, `close_tab`, `duplicate_tab`, `next_tab`, `prev_tab`

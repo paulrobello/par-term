@@ -92,7 +92,53 @@ struct DebugLogger {
     mirror_stderr: bool,
 }
 
+/// Roll the previous session's log aside to `<log>.1`.
+///
+/// The log is opened with `truncate(true)`, so without this the crash report the
+/// panic hook writes (see `src/session/crash_guard.rs`) is erased by the next
+/// launch — which, after a crash, is usually seconds later.
+///
+/// Rename rather than copy: it is atomic, needs no read of a log that may be
+/// large, and leaves the `.1` file with the 0600 mode it was created under.
+/// Only one generation is kept; a log worth more than that belongs in a tee.
+///
+/// Skipped, leaving any existing `.1` intact, when the log is
+///
+/// - absent, or empty — `make run-debug` pipes through `tee`, which truncates
+///   the path before par-term starts, so rotating there would clobber a real
+///   previous log with nothing;
+/// - not a regular file — a symlink is unlinked by [`open_log_file`] first, and
+///   anything else is not ours to move;
+/// - owned by another user — [`open_log_file`] refuses to write such a path
+///   (SEC-016), and renaming it away would quietly convert that refusal into
+///   "log anyway, into a fresh file".
+fn rotate_log_file(log_path: &std::path::Path) {
+    let Ok(meta) = log_path.symlink_metadata() else {
+        return;
+    };
+    if !meta.is_file() || meta.len() == 0 {
+        return;
+    }
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        // SAFETY: `getuid` has no preconditions, takes no arguments and always
+        // succeeds.
+        if meta.uid() != unsafe { libc::getuid() } {
+            return;
+        }
+    }
+
+    let mut rolled = log_path.as_os_str().to_owned();
+    rolled.push(".1");
+    let _ = std::fs::rename(log_path, std::path::PathBuf::from(rolled));
+}
+
 /// Open (creating or truncating) the debug log with owner-only permissions.
+///
+/// The previous session's log is first rolled aside by [`rotate_log_file`], so
+/// truncation here costs the log of the run before last, not the last one.
 ///
 /// Returns `None` — disabling file logging rather than leaking — when the path
 /// cannot be opened safely.
@@ -114,6 +160,8 @@ fn open_log_file(log_path: &std::path::Path) -> Option<std::fs::File> {
     {
         let _ = std::fs::remove_file(log_path);
     }
+
+    rotate_log_file(log_path);
 
     #[cfg(unix)]
     {
@@ -272,6 +320,47 @@ pub fn logf(level: DebugLevel, category: &str, args: fmt::Arguments) {
     if is_enabled(level) {
         log(level, category, &format!("{}", args));
     }
+}
+
+/// Write one line to the debug log without ever blocking. Returns whether it
+/// was written.
+///
+/// Every other entry point takes the logger mutex unconditionally, and
+/// `parking_lot::Mutex` is not reentrant: a panic raised while that lock is held
+/// hangs any hook that then tries to log — the failure mode documented in
+/// `src/session/crash_guard.rs`. This drops the line instead of hanging. It also
+/// never initializes the logger, because re-entering `OnceLock::get_or_init` on
+/// the same thread is its own deadlock.
+///
+/// Two deliberate differences from [`logf`]:
+///
+/// - `DEBUG_LEVEL` does not filter the message. The callers this exists for are
+///   reporting a fault, not tracing, and at the default `DEBUG_LEVEL=0` a
+///   filtered write would produce nothing at all.
+/// - Nothing is mirrored to stderr. A panic hook's stderr output is already
+///   written by the default hook it chains to.
+pub fn try_logf(level: DebugLevel, category: &str, args: fmt::Arguments) -> bool {
+    let level_str = match level {
+        DebugLevel::Error => "ERROR",
+        DebugLevel::Info => "INFO ",
+        DebugLevel::Debug => "DEBUG",
+        DebugLevel::Trace => "TRACE",
+        DebugLevel::Off => return false,
+    };
+    let Some(logger) = LOGGER.get() else {
+        return false;
+    };
+    let Some(mut logger) = logger.try_lock() else {
+        return false;
+    };
+    logger.write_raw(&format!(
+        "[{}] [{}] [{}] {}\n",
+        get_timestamp(),
+        level_str,
+        category,
+        args
+    ));
+    true
 }
 
 // ============================================================================
@@ -619,5 +708,72 @@ mod tests {
         drop(file);
 
         assert_eq!(std::fs::read_to_string(&path).expect("read log"), "");
+    }
+
+    /// The previous session's log — which after a crash holds the panic report —
+    /// must survive the next launch's truncation.
+    #[test]
+    fn previous_log_is_rolled_aside_on_reopen() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let path = dir.path().join("par_term_debug.log");
+        let rolled = dir.path().join("par_term_debug.log.1");
+
+        std::fs::write(&path, "PANIC report from the run that crashed").expect("seed log");
+
+        let file = open_log_file(&path).expect("log file opens");
+        drop(file);
+
+        assert_eq!(
+            std::fs::read_to_string(&rolled).expect("previous log rolled aside"),
+            "PANIC report from the run that crashed"
+        );
+    }
+
+    /// `make run-debug` pipes through `tee`, which truncates the log before
+    /// par-term opens it. Rotating an empty log there would replace a real
+    /// previous log with nothing.
+    #[test]
+    fn an_empty_log_is_not_rotated() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let path = dir.path().join("par_term_debug.log");
+        let rolled = dir.path().join("par_term_debug.log.1");
+
+        std::fs::write(&rolled, "the log worth keeping").expect("seed rolled log");
+        std::fs::write(&path, "").expect("seed empty log");
+
+        let file = open_log_file(&path).expect("log file opens");
+        drop(file);
+
+        assert_eq!(
+            std::fs::read_to_string(&rolled).expect("read rolled log"),
+            "the log worth keeping",
+            "an empty log must not overwrite the previous rotation"
+        );
+    }
+
+    /// The panic hook's requirement: report a fault without taking the logger
+    /// mutex, and without being filtered out at the default `DEBUG_LEVEL=0`.
+    #[test]
+    fn try_logf_neither_blocks_nor_initializes_the_logger() {
+        // Whether `LOGGER` is initialized depends on test execution order, so
+        // assert the property that holds either way: the call returns rather
+        // than blocking, and it reports honestly whether it wrote.
+        let wrote = try_logf(DebugLevel::Error, "TEST", format_args!("no deadlock"));
+        assert_eq!(wrote, LOGGER.get().is_some());
+
+        assert!(
+            !try_logf(DebugLevel::Off, "TEST", format_args!("ignored")),
+            "DebugLevel::Off has no line format and must never be written"
+        );
+
+        // Held lock: the panic-hook case. Must return false, not hang.
+        if let Some(logger) = LOGGER.get() {
+            let held = logger.lock();
+            assert!(
+                !try_logf(DebugLevel::Error, "TEST", format_args!("contended")),
+                "try_logf must drop the line while the logger mutex is held"
+            );
+            drop(held);
+        }
     }
 }

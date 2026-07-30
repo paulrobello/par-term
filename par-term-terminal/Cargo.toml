@@ -16,7 +16,7 @@ categories = ["command-line-utilities"]
 par-term-emu-core-rust.workspace = true
 
 # Configuration (for Theme, Color, Cell types)
-par-term-config = { path = "../par-term-config", version = "0.12" }
+par-term-config = { path = "../par-term-config", version = "0.13" }
 
 # Synchronization
 parking_lot.workspace = true

@@ -146,8 +146,8 @@ const MAX_IMPORT_SIZE_BYTES: u64 = 1_048_576;
 /// Wall-clock cap on a preference-import fetch.
 ///
 /// [`import_preferences_from_url`] runs on the winit main thread, so this bounds
-/// how long the whole window can stop redrawing. The shared `crate::http_agent()`
-/// sets no timeout at all, which made an unresponsive endpoint an indefinite
+/// how long the whole window can stop redrawing. The shared agent this replaced
+/// set no timeout at all, which made an unresponsive endpoint an indefinite
 /// freeze; 30 s matches the timeout the shader downloader and self-updater use.
 const IMPORT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
 
@@ -158,10 +158,9 @@ const IMPORT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
 /// `default-features = false, features = ["native-tls", "gzip"]`, so the rustls
 /// feature is absent — and ureq *panics* rather than erroring when the selected
 /// provider's feature is missing ("uri scheme is https, provider is Rustls but
-/// feature is not enabled"). The previous `crate::http_agent()`
-/// (`Agent::new_with_defaults()`) hit exactly that, so importing from any
-/// https URL aborted the process. This matches the configuration the shader
-/// downloader and self-updater already use.
+/// feature is not enabled"). The `Agent::new_with_defaults()` this replaced hit
+/// exactly that, so importing from any https URL aborted the process. This
+/// matches the configuration the shader downloader and self-updater already use.
 fn import_agent() -> ureq::Agent {
     let tls_config = ureq::tls::TlsConfig::builder()
         .provider(ureq::tls::TlsProvider::NativeTls)

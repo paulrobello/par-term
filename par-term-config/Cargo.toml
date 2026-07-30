@@ -1,6 +1,6 @@
 [package]
 name = "par-term-config"
-version = "0.12.2"
+version = "0.13.0"
 edition = "2024"
 rust-version = "1.95"
 authors = ["Paul Robello <probello@gmail.com>"]
@@ -10,6 +10,10 @@ repository = "https://github.com/paulrobello/par-term"
 homepage = "https://github.com/paulrobello/par-term"
 keywords = ["terminal", "config", "configuration"]
 categories = ["config"]
+# `doc_config_values.rs` reads `../docs/CONFIG_REFERENCE.md` at run time. That
+# file is outside the package, so the test panics in an extracted `.crate` even
+# though the crate itself builds. It is a repository gate, not a consumer test.
+exclude = ["tests/doc_config_values.rs"]
 
 [dependencies]
 # Serialization
