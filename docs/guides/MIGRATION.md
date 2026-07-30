@@ -4,6 +4,7 @@ Upgrade notes for par-term covering breaking configuration changes, renamed fiel
 
 ## Table of Contents
 
+- [Unreleased — `XDG_CONFIG_HOME` Is Now Honoured](#unreleased--xdg_config_home-is-now-honoured)
 - [Unreleased — macOS Config Directory Consolidation](#unreleased--macos-config-directory-consolidation)
 - [v0.31.0 — Content Prettifier Removed](#v0310--content-prettifier-removed)
 - [v0.20.0 — Default Changes](#v0200--default-changes)
@@ -14,6 +15,18 @@ Upgrade notes for par-term covering breaking configuration changes, renamed fiel
 - [v0.27.0 — Trigger Field Renamed](#v0270--trigger-field-renamed)
 - [v0.27.0 — Security-Gated Trigger Execution](#v0270--security-gated-trigger-execution)
 - [Related Documentation](#related-documentation)
+
+---
+
+## Unreleased — `XDG_CONFIG_HOME` Is Now Honoured
+
+par-term previously hardcoded `~/.config/par-term/` on Linux and macOS and never read `XDG_CONFIG_HOME`, even though the documentation claimed otherwise. It now resolves its config directory to `$XDG_CONFIG_HOME/par-term/`, falling back to `~/.config/par-term/` when the variable is unset, empty, or not an absolute path.
+
+**Affected users:** only those who set `XDG_CONFIG_HOME` to something other than `~/.config` — typically dotfile-managed Linux setups. Previously par-term silently ignored the variable and read `~/.config/par-term/config.yaml`; now it reads the XDG location. Everyone else sees no change.
+
+**No manual steps required.** On the first launch after upgrading, par-term moves an existing `~/.config/par-term/` into the new location, without overwriting anything already present there, and logs a summary. If an entry cannot be moved (for example a cross-device rename) it is left in place with a warning.
+
+Only `XDG_CONFIG_HOME` is read. `XDG_DATA_HOME`, `XDG_STATE_HOME`, `XDG_CACHE_HOME` and `XDG_RUNTIME_DIR` are not consulted — par-term keeps all per-user data under the one config directory. Windows is unaffected and continues to use `%APPDATA%\par-term`.
 
 ---
 

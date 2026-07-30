@@ -170,48 +170,34 @@ impl Config {
         Ok(())
     }
 
-    /// Get the configuration file path (using XDG convention)
+    /// Get the configuration file path.
+    ///
+    /// Always [`Config::config_dir`] plus `config.yaml`. These two used to resolve
+    /// the directory independently, which meant any change to one silently
+    /// desynchronised the other.
     pub fn config_path() -> PathBuf {
-        #[cfg(target_os = "windows")]
-        {
-            if let Some(config_dir) = dirs::config_dir() {
-                config_dir.join("par-term").join("config.yaml")
-            } else {
-                PathBuf::from("config.yaml")
-            }
-        }
-        #[cfg(not(target_os = "windows"))]
-        {
-            // Use XDG convention on all platforms: ~/.config/par-term/config.yaml
-            if let Some(home_dir) = dirs::home_dir() {
-                home_dir
-                    .join(".config")
-                    .join("par-term")
-                    .join("config.yaml")
-            } else {
-                // Fallback if home directory cannot be determined
-                PathBuf::from("config.yaml")
-            }
-        }
+        Self::config_dir().join("config.yaml")
     }
 
-    /// Get the configuration directory path (using XDG convention)
+    /// Get the configuration directory path.
+    ///
+    /// On Unix this honours `XDG_CONFIG_HOME`, falling back to `~/.config/par-term`.
+    /// On Windows it is `%APPDATA%\par-term`; the XDG variables are a
+    /// freedesktop convention and are deliberately not consulted there.
+    ///
+    /// Only `XDG_CONFIG_HOME` is read. `XDG_DATA_HOME`, `XDG_STATE_HOME`,
+    /// `XDG_CACHE_HOME` and `XDG_RUNTIME_DIR` are **not** honoured — par-term keeps
+    /// all of its state under the config directory. See ENH-008.
     pub fn config_dir() -> PathBuf {
         #[cfg(target_os = "windows")]
         {
-            if let Some(config_dir) = dirs::config_dir() {
-                config_dir.join("par-term")
-            } else {
-                PathBuf::from(".")
-            }
+            dirs::config_dir()
+                .map(|dir| dir.join("par-term"))
+                .unwrap_or_else(|| PathBuf::from("."))
         }
         #[cfg(not(target_os = "windows"))]
         {
-            if let Some(home_dir) = dirs::home_dir() {
-                home_dir.join(".config").join("par-term")
-            } else {
-                PathBuf::from(".")
-            }
+            unix_config_dir(std::env::var_os("XDG_CONFIG_HOME"), dirs::home_dir())
         }
     }
 
@@ -560,5 +546,74 @@ impl Config {
                 }
             }
         }
+    }
+}
+
+/// Resolve the Unix configuration directory from the XDG variable and home dir.
+///
+/// Split out of [`Config::config_dir`] so it can be tested without touching the
+/// process environment: `std::env::set_var` is not thread-safe — glibc's `setenv`
+/// can reallocate and free `environ` under a concurrent `getenv` — so tests pass
+/// the values in instead.
+#[cfg(not(target_os = "windows"))]
+fn unix_config_dir(xdg_config_home: Option<std::ffi::OsString>, home: Option<PathBuf>) -> PathBuf {
+    // The XDG spec requires these variables to hold an absolute path and says an
+    // implementation "should consider the path invalid and ignore it" otherwise,
+    // which also covers the empty-string case.
+    if let Some(xdg) = xdg_config_home {
+        let path = PathBuf::from(xdg);
+        if path.is_absolute() {
+            return path.join("par-term");
+        }
+    }
+    match home {
+        Some(home) => home.join(".config").join("par-term"),
+        None => PathBuf::from("."),
+    }
+}
+
+#[cfg(all(test, not(target_os = "windows")))]
+mod xdg_tests {
+    use super::unix_config_dir;
+    use std::ffi::OsString;
+    use std::path::PathBuf;
+
+    fn home() -> Option<PathBuf> {
+        Some(PathBuf::from("/home/u"))
+    }
+
+    #[test]
+    fn absolute_xdg_config_home_wins() {
+        assert_eq!(
+            unix_config_dir(Some(OsString::from("/dotfiles/cfg")), home()),
+            PathBuf::from("/dotfiles/cfg/par-term")
+        );
+    }
+
+    #[test]
+    fn unset_falls_back_to_dot_config() {
+        assert_eq!(
+            unix_config_dir(None, home()),
+            PathBuf::from("/home/u/.config/par-term")
+        );
+    }
+
+    /// The spec requires an absolute path; relative and empty values are invalid
+    /// and must not be honoured, or a stray `XDG_CONFIG_HOME=.` would scatter
+    /// config into whatever directory par-term happened to start in.
+    #[test]
+    fn relative_or_empty_xdg_is_ignored() {
+        for bad in ["", "relative/path", "."] {
+            assert_eq!(
+                unix_config_dir(Some(OsString::from(bad)), home()),
+                PathBuf::from("/home/u/.config/par-term"),
+                "expected {bad:?} to be rejected as non-absolute"
+            );
+        }
+    }
+
+    #[test]
+    fn no_home_and_no_xdg_falls_back_to_cwd() {
+        assert_eq!(unix_config_dir(None, None), PathBuf::from("."));
     }
 }

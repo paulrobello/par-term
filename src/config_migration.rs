@@ -14,7 +14,7 @@
 //! already coincide (plain Linux/Windows) and a no-op after the first successful
 //! run (the legacy directory is then empty).
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use par_term_config::Config;
 
@@ -26,21 +26,43 @@ use par_term_config::Config;
 /// overwritten and failures never abort startup; see [`migrate_between`].
 pub fn migrate_legacy_config_dir() {
     let canonical = Config::config_dir();
-    let Some(legacy) = dirs::config_dir().map(|d| d.join("par-term")) else {
-        return;
-    };
-    // Plain Linux/Windows: legacy and canonical resolve to the same path.
-    if legacy == canonical {
-        return;
+    for legacy in legacy_config_dirs(&canonical) {
+        let moved = migrate_between(&legacy, &canonical);
+        if moved > 0 {
+            log::info!(
+                "Migrated {moved} legacy config file(s)/dir(s) from {legacy:?} to {canonical:?}"
+            );
+        }
+        // Clean up the now-empty legacy dir; silently ignored if entries remain.
+        let _ = std::fs::remove_dir(&legacy);
     }
-    let moved = migrate_between(&legacy, &canonical);
-    if moved > 0 {
-        log::info!(
-            "Migrated {moved} legacy config file(s)/dir(s) from {legacy:?} to {canonical:?}"
-        );
+}
+
+/// Locations that may hold config from an earlier par-term, excluding `canonical`.
+///
+/// Two roots can be stale, and which ones depends on the platform and on whether
+/// `XDG_CONFIG_HOME` is set:
+///
+/// - `dirs::config_dir()/par-term` — on macOS this is
+///   `~/Library/Application Support/par-term`, the pre-`adbf39f6` location. On Linux
+///   `dirs` already resolves `XDG_CONFIG_HOME`, so it usually equals `canonical`.
+/// - `~/.config/par-term` — the canonical location before par-term honoured
+///   `XDG_CONFIG_HOME`. Stale only for users who set that variable to something else.
+///
+/// Entries equal to `canonical`, and duplicates, are dropped — so on a plain Linux
+/// or Windows install this returns nothing and the migration is a no-op.
+fn legacy_config_dirs(canonical: &Path) -> Vec<PathBuf> {
+    let candidates = [
+        dirs::config_dir().map(|dir| dir.join("par-term")),
+        dirs::home_dir().map(|home| home.join(".config").join("par-term")),
+    ];
+    let mut out: Vec<PathBuf> = Vec::new();
+    for candidate in candidates.into_iter().flatten() {
+        if candidate != canonical && !out.contains(&candidate) {
+            out.push(candidate);
+        }
     }
-    // Clean up the now-empty legacy dir; silently ignored if entries remain.
-    let _ = std::fs::remove_dir(&legacy);
+    out
 }
 
 /// Move entries from `legacy` into `canonical` that are not already present there.
@@ -78,6 +100,39 @@ mod tests {
     use super::*;
     use std::fs;
     use tempfile::tempdir;
+
+    #[test]
+    fn canonical_is_never_a_migration_source() {
+        let canonical = Config::config_dir();
+        let legacy = legacy_config_dirs(&canonical);
+        assert!(
+            !legacy.contains(&canonical),
+            "migrating a directory into itself would be a no-op at best: {legacy:?}"
+        );
+        let mut unique = legacy.clone();
+        unique.sort();
+        unique.dedup();
+        assert_eq!(
+            unique.len(),
+            legacy.len(),
+            "duplicate legacy roots: {legacy:?}"
+        );
+    }
+
+    /// The reason `legacy_config_dirs` returns two roots rather than one: a user who
+    /// sets `XDG_CONFIG_HOME` moves `canonical` away from `~/.config/par-term`, and
+    /// their existing config there must still be picked up.
+    #[test]
+    fn dot_config_is_a_legacy_source_when_canonical_moves_away() {
+        let canonical = PathBuf::from("/an/xdg/root/par-term");
+        let legacy = legacy_config_dirs(&canonical);
+        if let Some(home) = dirs::home_dir() {
+            assert!(
+                legacy.contains(&home.join(".config").join("par-term")),
+                "~/.config/par-term must be migrated when XDG_CONFIG_HOME points elsewhere: {legacy:?}"
+            );
+        }
+    }
 
     #[test]
     fn moves_all_when_canonical_empty() {

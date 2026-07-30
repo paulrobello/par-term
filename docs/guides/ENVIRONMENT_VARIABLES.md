@@ -85,17 +85,19 @@ Use `make tail-log` or `tail -f /tmp/par_term_debug.log` to monitor the log in r
 
 ## XDG Base Directories
 
-par-term follows the [XDG Base Directory specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html) for configuration and data storage on Linux and macOS.
+par-term honours **`XDG_CONFIG_HOME` only**. It does not implement the full [XDG Base Directory specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html): all per-user data lives together under the config directory rather than being split across separate config, data, state and cache roots.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `XDG_CONFIG_HOME` | `~/.config` | Base directory for user configuration files. Config is stored at `$XDG_CONFIG_HOME/par-term/config.yaml`. |
-| `XDG_DATA_HOME` | `~/.local/share` | Base directory for user data files. |
-| `XDG_STATE_HOME` | `~/.local/state` | Base directory for user state files. |
-| `XDG_CACHE_HOME` | `~/.cache` | Base directory for user cache files. |
-| `XDG_RUNTIME_DIR` | — | Runtime directory for socket files and other per-session data. |
+| `XDG_CONFIG_HOME` | `~/.config` | Base directory for par-term's configuration **and all other per-user data**. Config is at `$XDG_CONFIG_HOME/par-term/config.yaml`; profiles, arrangements, command history, session state, sounds and discovered ACP agents sit beside it. |
 
-On Windows, `APPDATA` and `LOCALAPPDATA` are used instead of XDG directories.
+The value must be an **absolute** path. As the specification requires, a relative or empty `XDG_CONFIG_HOME` is treated as invalid and ignored, falling back to `~/.config`.
+
+`XDG_DATA_HOME`, `XDG_STATE_HOME`, `XDG_CACHE_HOME` and `XDG_RUNTIME_DIR` are **not** read for path resolution. They remain on the substitution allowlist, so `${XDG_DATA_HOME}` still expands inside your config file — but setting them does not move any par-term file.
+
+On Windows, `%APPDATA%\par-term` is used and the XDG variables are ignored entirely.
+
+> **Changing `XDG_CONFIG_HOME` after first run?** par-term looks for an existing `~/.config/par-term/` and moves it to the new location on next launch, without overwriting anything already there. See the [Migration Guide](MIGRATION.md).
 
 | Variable | Default | Description |
 |----------|---------|-------------|
