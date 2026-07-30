@@ -61,7 +61,10 @@ pub(super) const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     ),
     ("new_tab", "New Tab", Some("Cmd+T")),
     ("close_tab", "Close Tab", Some("Cmd+W")),
-    ("duplicate_tab", "Duplicate Tab", Some("Cmd+Shift+N")),
+    // No default. Nothing binds this action: it has no entry in
+    // `Config::default().keybindings`, no hardcoded key layer claims a chord for
+    // it, and no menu item emits `MenuAction::DuplicateTab`.
+    ("duplicate_tab", "Duplicate Tab", None),
     ("reopen_closed_tab", "Reopen Closed Tab", Some("Cmd+Z")),
     ("move_tab_to_new_window", "Move Tab to New Window", None),
     ("next_tab", "Next Tab", Some("Cmd+Shift+]")),
@@ -114,17 +117,16 @@ pub(super) const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
         "Resize Pane Down",
         Some("Cmd+Alt+Shift+Down"),
     ),
-    (
-        "increase_font_size",
-        "Increase Font Size",
-        Some("Ctrl+Plus"),
-    ),
+    // The font-size layer in the root crate uses the super key on macOS
+    // (`font_mod = super_key` under `#[cfg(target_os = "macos")]`), so Ctrl does
+    // not drive these actions here.
+    ("increase_font_size", "Increase Font Size", Some("Cmd+Plus")),
     (
         "decrease_font_size",
         "Decrease Font Size",
-        Some("Ctrl+Minus"),
+        Some("Cmd+Minus"),
     ),
-    ("reset_font_size", "Reset Font Size", Some("Ctrl+0")),
+    ("reset_font_size", "Reset Font Size", Some("Cmd+0")),
     ("clear_scrollback", "Clear Scrollback", Some("Cmd+Shift+K")),
     // No macOS default. The settings-toggle key layer claims `Cmd+,` four
     // positions earlier, so that chord opens Settings and never reaches the
@@ -219,7 +221,10 @@ pub(super) const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     ),
     ("new_tab", "New Tab", Some("Ctrl+Shift+T")),
     ("close_tab", "Close Tab", Some("Ctrl+Shift+W")),
-    ("duplicate_tab", "Duplicate Tab", Some("Ctrl+Shift+N")),
+    // No default. Nothing binds this action: it has no entry in
+    // `Config::default().keybindings`, no hardcoded key layer claims a chord for
+    // it, and no menu item emits `MenuAction::DuplicateTab`.
+    ("duplicate_tab", "Duplicate Tab", None),
     (
         "reopen_closed_tab",
         "Reopen Closed Tab",

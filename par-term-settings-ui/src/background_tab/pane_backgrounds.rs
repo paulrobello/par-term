@@ -33,15 +33,15 @@ pub fn show_pane_backgrounds(
             ui.add_space(4.0);
 
             // Initialize temp fields from pane 0 config on first render
-            if settings.temp_pane_bg_index.is_none() {
-                settings.temp_pane_bg_index = Some(0);
+            if settings.background_tab.temp_pane_bg_index.is_none() {
+                settings.background_tab.temp_pane_bg_index = Some(0);
                 if let Some((image_path, mode, opacity, darken)) =
                     settings.config.get_pane_background(0)
                 {
-                    settings.temp_pane_bg_path = image_path;
-                    settings.temp_pane_bg_mode = mode;
-                    settings.temp_pane_bg_opacity = opacity;
-                    settings.temp_pane_bg_darken = darken;
+                    settings.background_tab.temp_pane_bg_path = image_path;
+                    settings.background_tab.temp_pane_bg_mode = mode;
+                    settings.background_tab.temp_pane_bg_opacity = opacity;
+                    settings.background_tab.temp_pane_bg_darken = darken;
                 }
             }
 
@@ -49,7 +49,7 @@ pub fn show_pane_backgrounds(
             ui.horizontal(|ui| {
                 ui.label("Pane index:");
 
-                let mut index = settings.temp_pane_bg_index.unwrap_or(0);
+                let mut index = settings.background_tab.temp_pane_bg_index.unwrap_or(0);
                 let mut changed = false;
 
                 if ui.add_enabled(index > 0, egui::Button::new("<")).clicked() {
@@ -70,19 +70,19 @@ pub fn show_pane_backgrounds(
                 }
 
                 if changed {
-                    settings.temp_pane_bg_index = Some(index);
+                    settings.background_tab.temp_pane_bg_index = Some(index);
                     if let Some((image_path, mode, opacity, darken)) =
                         settings.config.get_pane_background(index)
                     {
-                        settings.temp_pane_bg_path = image_path;
-                        settings.temp_pane_bg_mode = mode;
-                        settings.temp_pane_bg_opacity = opacity;
-                        settings.temp_pane_bg_darken = darken;
+                        settings.background_tab.temp_pane_bg_path = image_path;
+                        settings.background_tab.temp_pane_bg_mode = mode;
+                        settings.background_tab.temp_pane_bg_opacity = opacity;
+                        settings.background_tab.temp_pane_bg_darken = darken;
                     } else {
-                        settings.temp_pane_bg_path.clear();
-                        settings.temp_pane_bg_mode = BackgroundImageMode::default();
-                        settings.temp_pane_bg_opacity = 1.0;
-                        settings.temp_pane_bg_darken = 0.0;
+                        settings.background_tab.temp_pane_bg_path.clear();
+                        settings.background_tab.temp_pane_bg_mode = BackgroundImageMode::default();
+                        settings.background_tab.temp_pane_bg_opacity = 1.0;
+                        settings.background_tab.temp_pane_bg_darken = 0.0;
                     }
                 }
             });
@@ -94,7 +94,7 @@ pub fn show_pane_backgrounds(
             ui.horizontal(|ui| {
                 ui.label("Image path:");
                 if ui
-                    .text_edit_singleline(&mut settings.temp_pane_bg_path)
+                    .text_edit_singleline(&mut settings.background_tab.temp_pane_bg_path)
                     .changed()
                 {
                     pane_bg_changed = true;
@@ -103,7 +103,7 @@ pub fn show_pane_backgrounds(
                 if ui.button("Browse\u{2026}").clicked()
                     && let Some(path) = settings.pick_file_path("Select pane background image")
                 {
-                    settings.temp_pane_bg_path = path;
+                    settings.background_tab.temp_pane_bg_path = path;
                     pane_bg_changed = true;
                 }
             });
@@ -111,7 +111,7 @@ pub fn show_pane_backgrounds(
             // Mode dropdown
             ui.horizontal(|ui| {
                 ui.label("Mode:");
-                let current = settings.temp_pane_bg_mode as usize;
+                let current = settings.background_tab.temp_pane_bg_mode as usize;
                 let mut selected = current;
                 egui::ComboBox::from_id_salt("pane_bg_mode")
                     .selected_text(match current {
@@ -130,7 +130,7 @@ pub fn show_pane_backgrounds(
                         ui.selectable_value(&mut selected, 4, "Center");
                     });
                 if selected != current {
-                    settings.temp_pane_bg_mode = match selected {
+                    settings.background_tab.temp_pane_bg_mode = match selected {
                         0 => BackgroundImageMode::Fit,
                         1 => BackgroundImageMode::Fill,
                         2 => BackgroundImageMode::Stretch,
@@ -147,7 +147,7 @@ pub fn show_pane_backgrounds(
                 ui.label("Opacity:");
                 if ui
                     .add(egui::Slider::new(
-                        &mut settings.temp_pane_bg_opacity,
+                        &mut settings.background_tab.temp_pane_bg_opacity,
                         0.0..=1.0,
                     ))
                     .changed()
@@ -161,7 +161,7 @@ pub fn show_pane_backgrounds(
                 ui.label("Darken:");
                 if ui
                     .add(egui::Slider::new(
-                        &mut settings.temp_pane_bg_darken,
+                        &mut settings.background_tab.temp_pane_bg_darken,
                         0.0..=1.0,
                     ))
                     .on_hover_text(
@@ -175,21 +175,21 @@ pub fn show_pane_backgrounds(
 
             // Auto-apply changes to config in real-time
             if pane_bg_changed {
-                let index = settings.temp_pane_bg_index.unwrap_or(0);
+                let index = settings.background_tab.temp_pane_bg_index.unwrap_or(0);
                 settings
                     .config
                     .pane_backgrounds
                     .retain(|pb| pb.index != index);
-                if !settings.temp_pane_bg_path.is_empty() {
+                if !settings.background_tab.temp_pane_bg_path.is_empty() {
                     settings
                         .config
                         .pane_backgrounds
                         .push(par_term_config::PaneBackgroundConfig {
                             index,
-                            image: settings.temp_pane_bg_path.clone(),
-                            mode: settings.temp_pane_bg_mode,
-                            opacity: settings.temp_pane_bg_opacity,
-                            darken: settings.temp_pane_bg_darken,
+                            image: settings.background_tab.temp_pane_bg_path.clone(),
+                            mode: settings.background_tab.temp_pane_bg_mode,
+                            opacity: settings.background_tab.temp_pane_bg_opacity,
+                            darken: settings.background_tab.temp_pane_bg_darken,
                         });
                 }
                 settings.has_changes = true;
@@ -200,15 +200,15 @@ pub fn show_pane_backgrounds(
 
             // Clear pane background button
             if ui.button("Clear pane background").clicked() {
-                let index = settings.temp_pane_bg_index.unwrap_or(0);
+                let index = settings.background_tab.temp_pane_bg_index.unwrap_or(0);
                 settings
                     .config
                     .pane_backgrounds
                     .retain(|pb| pb.index != index);
-                settings.temp_pane_bg_path.clear();
-                settings.temp_pane_bg_mode = BackgroundImageMode::default();
-                settings.temp_pane_bg_opacity = 1.0;
-                settings.temp_pane_bg_darken = 0.0;
+                settings.background_tab.temp_pane_bg_path.clear();
+                settings.background_tab.temp_pane_bg_mode = BackgroundImageMode::default();
+                settings.background_tab.temp_pane_bg_opacity = 1.0;
+                settings.background_tab.temp_pane_bg_darken = 0.0;
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }

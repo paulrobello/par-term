@@ -17,6 +17,9 @@ use std::collections::HashSet;
 
 mod editor;
 mod list;
+mod state;
+
+pub use state::ScriptsTabState;
 
 /// Show the scripts tab content.
 pub fn show(

@@ -17,7 +17,10 @@ use crate::SettingsUI;
 use std::collections::HashSet;
 
 mod coprocesses_section;
+mod state;
 mod triggers_section;
+
+pub use state::AutomationTabState;
 
 /// Show the automation tab content.
 pub fn show(

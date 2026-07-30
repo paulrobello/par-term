@@ -29,12 +29,13 @@ pub fn show_actions_section(
                     egui::Label::new(egui::RichText::new("Prefix key:").strong()),
                 );
 
-                if settings.recording_custom_action_prefix_key {
+                if settings.actions_tab.recording_custom_action_prefix_key {
                     ui.label(egui::RichText::new("🔴 Recording...").color(egui::Color32::RED));
                     if let Some(combo) = capture_key_combo(ui) {
-                        settings.custom_action_prefix_key_recorded_combo = Some(combo.clone());
+                        settings.actions_tab.custom_action_prefix_key_recorded_combo =
+                            Some(combo.clone());
                         settings.config.custom_action_prefix_key = combo;
-                        settings.recording_custom_action_prefix_key = false;
+                        settings.actions_tab.recording_custom_action_prefix_key = false;
                         settings.has_changes = true;
                         *changes_this_frame = true;
                     }
@@ -52,8 +53,8 @@ pub fn show_actions_section(
                         .on_hover_text("Record prefix key")
                         .clicked()
                     {
-                        settings.recording_custom_action_prefix_key = true;
-                        settings.custom_action_prefix_key_recorded_combo = None;
+                        settings.actions_tab.recording_custom_action_prefix_key = true;
+                        settings.actions_tab.custom_action_prefix_key_recorded_combo = None;
                     }
                 }
 
@@ -104,7 +105,7 @@ pub fn show_actions_section(
                         for i in 0..action_count {
                             let action = &settings.config.actions[i];
                             let is_editing =
-                                settings.editing_action_index == Some(i) && !settings.adding_new_action;
+                                settings.actions_tab.editing_action_index == Some(i) && !settings.actions_tab.adding_new_action;
 
                             if is_editing {
                                 // Show inline edit form for this action
@@ -245,9 +246,9 @@ pub fn show_actions_section(
                 settings.has_changes = true;
                 *changes_this_frame = true;
                 // Reset editing state if we deleted the item being edited
-                if settings.editing_action_index == Some(i) {
-                    settings.editing_action_index = None;
-                    settings.adding_new_action = false;
+                if settings.actions_tab.editing_action_index == Some(i) {
+                    settings.actions_tab.editing_action_index = None;
+                    settings.actions_tab.adding_new_action = false;
                 }
             }
 
@@ -265,44 +266,44 @@ pub fn show_actions_section(
             ui.separator();
 
             // Add new action button or form
-            if settings.adding_new_action {
+            if settings.actions_tab.adding_new_action {
                 show_action_edit_form(ui, settings, changes_this_frame, None);
             } else if ui.button("+ Add Action").clicked() {
-                settings.adding_new_action = true;
-                settings.editing_action_index = None;
+                settings.actions_tab.adding_new_action = true;
+                settings.actions_tab.editing_action_index = None;
                 // Clear temp fields
-                settings.temp_action_id = format!("action_{}", uuid::Uuid::new_v4());
-                settings.temp_action_title = String::new();
-                settings.temp_action_type = 0;
-                settings.temp_action_command = String::new();
-                settings.temp_action_args = String::new();
-                settings.temp_action_new_tab_command = String::new();
-                settings.temp_action_text = String::new();
-                settings.temp_action_keys = String::new();
-                settings.temp_action_keybinding = String::new();
-                settings.temp_action_prefix_char = String::new();
-                settings.temp_action_split_direction = 0;
-                settings.temp_action_split_command = String::new();
-                settings.temp_action_split_command_is_direct = false;
-                settings.temp_action_split_focus_new = true;
-                settings.temp_action_split_delay_ms = 200;
-                settings.temp_action_split_percent = 66;
-                settings.temp_action_keybinding_enabled = true;
-                settings.temp_action_steps = Vec::new();
-                settings.temp_action_check_type = 0;
-                settings.temp_action_check_value = String::new();
-                settings.temp_action_case_sensitive = false;
-                settings.temp_action_env_name = String::new();
-                settings.temp_action_env_value = String::new();
-                settings.temp_action_env_check_existence = false;
-                settings.temp_action_on_true_id = String::new();
-                settings.temp_action_on_false_id = String::new();
-                settings.temp_action_repeat_action_id = String::new();
-                settings.temp_action_repeat_count = 3;
-                settings.temp_action_repeat_delay_ms = 0;
-                settings.temp_action_stop_on_success = false;
-                settings.temp_action_stop_on_failure = false;
-                settings.temp_action_capture_output = false;
+                settings.actions_tab.temp_action_id = format!("action_{}", uuid::Uuid::new_v4());
+                settings.actions_tab.temp_action_title = String::new();
+                settings.actions_tab.temp_action_type = 0;
+                settings.actions_tab.temp_action_command = String::new();
+                settings.actions_tab.temp_action_args = String::new();
+                settings.actions_tab.temp_action_new_tab_command = String::new();
+                settings.actions_tab.temp_action_text = String::new();
+                settings.actions_tab.temp_action_keys = String::new();
+                settings.actions_tab.temp_action_keybinding = String::new();
+                settings.actions_tab.temp_action_prefix_char = String::new();
+                settings.actions_tab.temp_action_split_direction = 0;
+                settings.actions_tab.temp_action_split_command = String::new();
+                settings.actions_tab.temp_action_split_command_is_direct = false;
+                settings.actions_tab.temp_action_split_focus_new = true;
+                settings.actions_tab.temp_action_split_delay_ms = 200;
+                settings.actions_tab.temp_action_split_percent = 66;
+                settings.actions_tab.temp_action_keybinding_enabled = true;
+                settings.actions_tab.temp_action_steps = Vec::new();
+                settings.actions_tab.temp_action_check_type = 0;
+                settings.actions_tab.temp_action_check_value = String::new();
+                settings.actions_tab.temp_action_case_sensitive = false;
+                settings.actions_tab.temp_action_env_name = String::new();
+                settings.actions_tab.temp_action_env_value = String::new();
+                settings.actions_tab.temp_action_env_check_existence = false;
+                settings.actions_tab.temp_action_on_true_id = String::new();
+                settings.actions_tab.temp_action_on_false_id = String::new();
+                settings.actions_tab.temp_action_repeat_action_id = String::new();
+                settings.actions_tab.temp_action_repeat_count = 3;
+                settings.actions_tab.temp_action_repeat_delay_ms = 0;
+                settings.actions_tab.temp_action_stop_on_success = false;
+                settings.actions_tab.temp_action_stop_on_failure = false;
+                settings.actions_tab.temp_action_capture_output = false;
             }
         },
     );
@@ -310,14 +311,15 @@ pub fn show_actions_section(
 
 /// Populate temporary edit fields from an existing action at `index`.
 fn populate_edit_fields(settings: &mut SettingsUI, index: usize) {
-    settings.editing_action_index = Some(index);
-    settings.adding_new_action = false;
+    settings.actions_tab.editing_action_index = Some(index);
+    settings.actions_tab.adding_new_action = false;
     // Populate temp fields with current values
     let action = &settings.config.actions[index];
-    settings.temp_action_id = action.id().to_string();
-    settings.temp_action_title = action.title().to_string();
-    settings.temp_action_keybinding = action.keybinding().unwrap_or_default().to_string();
-    settings.temp_action_prefix_char = action
+    settings.actions_tab.temp_action_id = action.id().to_string();
+    settings.actions_tab.temp_action_title = action.title().to_string();
+    settings.actions_tab.temp_action_keybinding =
+        action.keybinding().unwrap_or_default().to_string();
+    settings.actions_tab.temp_action_prefix_char = action
         .prefix_char()
         .map(|c| c.to_string())
         .unwrap_or_default();
@@ -329,22 +331,22 @@ fn populate_edit_fields(settings: &mut SettingsUI, index: usize) {
             notify_on_success: _,
             ..
         } => {
-            settings.temp_action_type = 0;
-            settings.temp_action_command = command.clone();
-            settings.temp_action_args = args.join(" ");
-            settings.temp_action_capture_output = *capture_output;
+            settings.actions_tab.temp_action_type = 0;
+            settings.actions_tab.temp_action_command = command.clone();
+            settings.actions_tab.temp_action_args = args.join(" ");
+            settings.actions_tab.temp_action_capture_output = *capture_output;
         }
         CustomActionConfig::NewTab { command, .. } => {
-            settings.temp_action_type = 1;
-            settings.temp_action_new_tab_command = command.clone().unwrap_or_default();
+            settings.actions_tab.temp_action_type = 1;
+            settings.actions_tab.temp_action_new_tab_command = command.clone().unwrap_or_default();
         }
         CustomActionConfig::InsertText { text, .. } => {
-            settings.temp_action_type = 2;
-            settings.temp_action_text = text.clone();
+            settings.actions_tab.temp_action_type = 2;
+            settings.actions_tab.temp_action_text = text.clone();
         }
         CustomActionConfig::KeySequence { keys, .. } => {
-            settings.temp_action_type = 3;
-            settings.temp_action_keys = keys.clone();
+            settings.actions_tab.temp_action_type = 3;
+            settings.actions_tab.temp_action_keys = keys.clone();
         }
         CustomActionConfig::SplitPane {
             direction,
@@ -355,42 +357,42 @@ fn populate_edit_fields(settings: &mut SettingsUI, index: usize) {
             split_percent,
             ..
         } => {
-            settings.temp_action_type = 4;
-            settings.temp_action_split_direction = match direction {
+            settings.actions_tab.temp_action_type = 4;
+            settings.actions_tab.temp_action_split_direction = match direction {
                 par_term_config::snippets::ActionSplitDirection::Horizontal => 0,
                 par_term_config::snippets::ActionSplitDirection::Vertical => 1,
             };
-            settings.temp_action_split_command = command.clone().unwrap_or_default();
-            settings.temp_action_split_command_is_direct = *command_is_direct;
-            settings.temp_action_split_focus_new = *focus_new_pane;
-            settings.temp_action_split_delay_ms = *delay_ms;
-            settings.temp_action_split_percent = *split_percent;
+            settings.actions_tab.temp_action_split_command = command.clone().unwrap_or_default();
+            settings.actions_tab.temp_action_split_command_is_direct = *command_is_direct;
+            settings.actions_tab.temp_action_split_focus_new = *focus_new_pane;
+            settings.actions_tab.temp_action_split_delay_ms = *delay_ms;
+            settings.actions_tab.temp_action_split_percent = *split_percent;
         }
         CustomActionConfig::Sequence {
             steps,
             keybinding_enabled,
             ..
         } => {
-            settings.temp_action_type = 5;
-            settings.temp_action_keybinding_enabled = *keybinding_enabled;
-            settings.temp_action_steps = steps
+            settings.actions_tab.temp_action_type = 5;
+            settings.actions_tab.temp_action_keybinding_enabled = *keybinding_enabled;
+            settings.actions_tab.temp_action_steps = steps
                 .iter()
                 .map(|s| (s.action_id.clone(), s.delay_ms, s.on_failure))
                 .collect();
             // Reset non-sequence fields
-            settings.temp_action_check_type = 0;
-            settings.temp_action_check_value = String::new();
-            settings.temp_action_case_sensitive = false;
-            settings.temp_action_env_name = String::new();
-            settings.temp_action_env_value = String::new();
-            settings.temp_action_env_check_existence = false;
-            settings.temp_action_on_true_id = String::new();
-            settings.temp_action_on_false_id = String::new();
-            settings.temp_action_repeat_action_id = String::new();
-            settings.temp_action_repeat_count = 3;
-            settings.temp_action_repeat_delay_ms = 0;
-            settings.temp_action_stop_on_success = false;
-            settings.temp_action_stop_on_failure = false;
+            settings.actions_tab.temp_action_check_type = 0;
+            settings.actions_tab.temp_action_check_value = String::new();
+            settings.actions_tab.temp_action_case_sensitive = false;
+            settings.actions_tab.temp_action_env_name = String::new();
+            settings.actions_tab.temp_action_env_value = String::new();
+            settings.actions_tab.temp_action_env_check_existence = false;
+            settings.actions_tab.temp_action_on_true_id = String::new();
+            settings.actions_tab.temp_action_on_false_id = String::new();
+            settings.actions_tab.temp_action_repeat_action_id = String::new();
+            settings.actions_tab.temp_action_repeat_count = 3;
+            settings.actions_tab.temp_action_repeat_delay_ms = 0;
+            settings.actions_tab.temp_action_stop_on_success = false;
+            settings.actions_tab.temp_action_stop_on_failure = false;
         }
         CustomActionConfig::Condition {
             check,
@@ -399,51 +401,52 @@ fn populate_edit_fields(settings: &mut SettingsUI, index: usize) {
             keybinding_enabled,
             ..
         } => {
-            settings.temp_action_type = 6;
-            settings.temp_action_keybinding_enabled = *keybinding_enabled;
+            settings.actions_tab.temp_action_type = 6;
+            settings.actions_tab.temp_action_keybinding_enabled = *keybinding_enabled;
             match check {
                 par_term_config::snippets::ConditionCheck::ExitCode { value } => {
-                    settings.temp_action_check_type = 0;
-                    settings.temp_action_check_value = value.to_string();
-                    settings.temp_action_case_sensitive = false;
+                    settings.actions_tab.temp_action_check_type = 0;
+                    settings.actions_tab.temp_action_check_value = value.to_string();
+                    settings.actions_tab.temp_action_case_sensitive = false;
                 }
                 par_term_config::snippets::ConditionCheck::OutputContains {
                     pattern,
                     case_sensitive,
                 } => {
-                    settings.temp_action_check_type = 1;
-                    settings.temp_action_check_value = pattern.clone();
-                    settings.temp_action_case_sensitive = *case_sensitive;
+                    settings.actions_tab.temp_action_check_type = 1;
+                    settings.actions_tab.temp_action_check_value = pattern.clone();
+                    settings.actions_tab.temp_action_case_sensitive = *case_sensitive;
                 }
                 par_term_config::snippets::ConditionCheck::EnvVar { name, value } => {
-                    settings.temp_action_check_type = 2;
-                    settings.temp_action_env_name = name.clone();
-                    settings.temp_action_env_check_existence = value.is_none();
-                    settings.temp_action_env_value = value.clone().unwrap_or_default();
+                    settings.actions_tab.temp_action_check_type = 2;
+                    settings.actions_tab.temp_action_env_name = name.clone();
+                    settings.actions_tab.temp_action_env_check_existence = value.is_none();
+                    settings.actions_tab.temp_action_env_value = value.clone().unwrap_or_default();
                 }
                 par_term_config::snippets::ConditionCheck::DirMatches { pattern } => {
-                    settings.temp_action_check_type = 3;
-                    settings.temp_action_check_value = pattern.clone();
+                    settings.actions_tab.temp_action_check_type = 3;
+                    settings.actions_tab.temp_action_check_value = pattern.clone();
                 }
                 par_term_config::snippets::ConditionCheck::GitBranch { pattern } => {
-                    settings.temp_action_check_type = 4;
-                    settings.temp_action_check_value = pattern.clone();
+                    settings.actions_tab.temp_action_check_type = 4;
+                    settings.actions_tab.temp_action_check_value = pattern.clone();
                 }
             }
-            settings.temp_action_on_true_id = on_true_id.clone().unwrap_or_default();
-            settings.temp_action_on_false_id = on_false_id.clone().unwrap_or_default();
+            settings.actions_tab.temp_action_on_true_id = on_true_id.clone().unwrap_or_default();
+            settings.actions_tab.temp_action_on_false_id = on_false_id.clone().unwrap_or_default();
             // Reset non-condition fields
-            settings.temp_action_steps = Vec::new();
-            settings.temp_action_env_name = if settings.temp_action_check_type != 2 {
-                String::new()
-            } else {
-                settings.temp_action_env_name.clone()
-            };
-            settings.temp_action_repeat_action_id = String::new();
-            settings.temp_action_repeat_count = 3;
-            settings.temp_action_repeat_delay_ms = 0;
-            settings.temp_action_stop_on_success = false;
-            settings.temp_action_stop_on_failure = false;
+            settings.actions_tab.temp_action_steps = Vec::new();
+            settings.actions_tab.temp_action_env_name =
+                if settings.actions_tab.temp_action_check_type != 2 {
+                    String::new()
+                } else {
+                    settings.actions_tab.temp_action_env_name.clone()
+                };
+            settings.actions_tab.temp_action_repeat_action_id = String::new();
+            settings.actions_tab.temp_action_repeat_count = 3;
+            settings.actions_tab.temp_action_repeat_delay_ms = 0;
+            settings.actions_tab.temp_action_stop_on_success = false;
+            settings.actions_tab.temp_action_stop_on_failure = false;
         }
         CustomActionConfig::Repeat {
             action_id,
@@ -454,23 +457,23 @@ fn populate_edit_fields(settings: &mut SettingsUI, index: usize) {
             keybinding_enabled,
             ..
         } => {
-            settings.temp_action_type = 7;
-            settings.temp_action_keybinding_enabled = *keybinding_enabled;
-            settings.temp_action_repeat_action_id = action_id.clone();
-            settings.temp_action_repeat_count = *count;
-            settings.temp_action_repeat_delay_ms = *delay_ms;
-            settings.temp_action_stop_on_success = *stop_on_success;
-            settings.temp_action_stop_on_failure = *stop_on_failure;
+            settings.actions_tab.temp_action_type = 7;
+            settings.actions_tab.temp_action_keybinding_enabled = *keybinding_enabled;
+            settings.actions_tab.temp_action_repeat_action_id = action_id.clone();
+            settings.actions_tab.temp_action_repeat_count = *count;
+            settings.actions_tab.temp_action_repeat_delay_ms = *delay_ms;
+            settings.actions_tab.temp_action_stop_on_success = *stop_on_success;
+            settings.actions_tab.temp_action_stop_on_failure = *stop_on_failure;
             // Reset non-repeat fields
-            settings.temp_action_steps = Vec::new();
-            settings.temp_action_check_type = 0;
-            settings.temp_action_check_value = String::new();
-            settings.temp_action_case_sensitive = false;
-            settings.temp_action_env_name = String::new();
-            settings.temp_action_env_value = String::new();
-            settings.temp_action_env_check_existence = false;
-            settings.temp_action_on_true_id = String::new();
-            settings.temp_action_on_false_id = String::new();
+            settings.actions_tab.temp_action_steps = Vec::new();
+            settings.actions_tab.temp_action_check_type = 0;
+            settings.actions_tab.temp_action_check_value = String::new();
+            settings.actions_tab.temp_action_case_sensitive = false;
+            settings.actions_tab.temp_action_env_name = String::new();
+            settings.actions_tab.temp_action_env_value = String::new();
+            settings.actions_tab.temp_action_env_check_existence = false;
+            settings.actions_tab.temp_action_on_true_id = String::new();
+            settings.actions_tab.temp_action_on_false_id = String::new();
         }
     }
 }

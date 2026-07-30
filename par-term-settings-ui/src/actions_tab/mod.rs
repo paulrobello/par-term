@@ -8,6 +8,9 @@
 mod action_editor;
 mod action_forms;
 mod action_list;
+mod state;
+
+pub use state::ActionsTabState;
 
 use crate::SettingsUI;
 use crate::section::section_matches;

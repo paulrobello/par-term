@@ -39,7 +39,7 @@ pub(super) fn show_prompt_library_section(
             ui.label("Saved Assistant prompts are stored as Markdown files with YAML frontmatter.");
             ui.add_space(4.0);
 
-            if let Some(error) = &settings.assistant_prompt_error {
+            if let Some(error) = &settings.ai_inspector_tab.assistant_prompt_error {
                 ui.colored_label(egui::Color32::RED, error);
                 ui.add_space(4.0);
             }
@@ -47,10 +47,15 @@ pub(super) fn show_prompt_library_section(
             let mut edit_index: Option<usize> = None;
             let mut delete_index: Option<usize> = None;
 
-            if settings.assistant_prompts.is_empty() {
+            if settings.ai_inspector_tab.assistant_prompts.is_empty() {
                 ui.label(egui::RichText::new("No prompts saved.").italics());
             } else {
-                for (index, prompt) in settings.assistant_prompts.iter().enumerate() {
+                for (index, prompt) in settings
+                    .ai_inspector_tab
+                    .assistant_prompts
+                    .iter()
+                    .enumerate()
+                {
                     ui.horizontal(|ui| {
                         ui.label(egui::RichText::new(&prompt.title).strong());
                         ui.label(if prompt.auto_submit {
@@ -69,30 +74,41 @@ pub(super) fn show_prompt_library_section(
             }
 
             if let Some(index) = edit_index
-                && let Some(prompt) = settings.assistant_prompts.get(index).cloned()
+                && let Some(prompt) = settings
+                    .ai_inspector_tab
+                    .assistant_prompts
+                    .get(index)
+                    .cloned()
             {
-                settings.editing_assistant_prompt_index = Some(index);
-                settings.adding_new_assistant_prompt = false;
-                settings.assistant_prompt_error = None;
+                settings.ai_inspector_tab.editing_assistant_prompt_index = Some(index);
+                settings.ai_inspector_tab.adding_new_assistant_prompt = false;
+                settings.ai_inspector_tab.assistant_prompt_error = None;
                 populate_assistant_prompt_editor(settings, &prompt);
             }
 
             if let Some(index) = delete_index
-                && let Some(prompt) = settings.assistant_prompts.get(index).cloned()
+                && let Some(prompt) = settings
+                    .ai_inspector_tab
+                    .assistant_prompts
+                    .get(index)
+                    .cloned()
             {
                 delete_assistant_prompt(settings, &prompt);
             }
 
             ui.add_space(8.0);
             if ui.button("+ Add Prompt").clicked() {
-                settings.editing_assistant_prompt_index = None;
-                settings.adding_new_assistant_prompt = true;
-                settings.assistant_prompt_error = None;
+                settings.ai_inspector_tab.editing_assistant_prompt_index = None;
+                settings.ai_inspector_tab.adding_new_assistant_prompt = true;
+                settings.ai_inspector_tab.assistant_prompt_error = None;
                 reset_assistant_prompt_editor(settings);
             }
 
-            if settings.adding_new_assistant_prompt
-                || settings.editing_assistant_prompt_index.is_some()
+            if settings.ai_inspector_tab.adding_new_assistant_prompt
+                || settings
+                    .ai_inspector_tab
+                    .editing_assistant_prompt_index
+                    .is_some()
             {
                 ui.separator();
                 show_prompt_editor(ui, settings);
@@ -102,7 +118,7 @@ pub(super) fn show_prompt_library_section(
 }
 
 fn show_prompt_editor(ui: &mut egui::Ui, settings: &mut SettingsUI) {
-    let heading = if settings.adding_new_assistant_prompt {
+    let heading = if settings.ai_inspector_tab.adding_new_assistant_prompt {
         "Add Prompt"
     } else {
         "Edit Prompt"
@@ -113,7 +129,7 @@ fn show_prompt_editor(ui: &mut egui::Ui, settings: &mut SettingsUI) {
     ui.horizontal(|ui| {
         ui.label("Title:");
         ui.add(
-            egui::TextEdit::singleline(&mut settings.temp_assistant_prompt_title)
+            egui::TextEdit::singleline(&mut settings.ai_inspector_tab.temp_assistant_prompt_title)
                 .desired_width(320.0)
                 .hint_text("Debug build"),
         );
@@ -121,14 +137,14 @@ fn show_prompt_editor(ui: &mut egui::Ui, settings: &mut SettingsUI) {
 
     ui.label("Prompt:");
     ui.add(
-        egui::TextEdit::multiline(&mut settings.temp_assistant_prompt_body)
+        egui::TextEdit::multiline(&mut settings.ai_inspector_tab.temp_assistant_prompt_body)
             .desired_width(f32::INFINITY)
             .desired_rows(8)
             .hint_text("Write the Assistant prompt here..."),
     );
 
     ui.checkbox(
-        &mut settings.temp_assistant_prompt_auto_submit,
+        &mut settings.ai_inspector_tab.temp_assistant_prompt_auto_submit,
         "Auto-submit when selected",
     )
     .on_hover_text(
@@ -140,9 +156,9 @@ fn show_prompt_editor(ui: &mut egui::Ui, settings: &mut SettingsUI) {
             save_assistant_prompt(settings);
         }
         if ui.button("Cancel").clicked() {
-            settings.adding_new_assistant_prompt = false;
-            settings.editing_assistant_prompt_index = None;
-            settings.assistant_prompt_error = None;
+            settings.ai_inspector_tab.adding_new_assistant_prompt = false;
+            settings.ai_inspector_tab.editing_assistant_prompt_index = None;
+            settings.ai_inspector_tab.assistant_prompt_error = None;
             reset_assistant_prompt_editor(settings);
         }
     });
@@ -150,53 +166,54 @@ fn show_prompt_editor(ui: &mut egui::Ui, settings: &mut SettingsUI) {
 
 fn save_assistant_prompt(settings: &mut SettingsUI) {
     let draft = match assistant_prompt_draft(
-        &settings.temp_assistant_prompt_title,
-        &settings.temp_assistant_prompt_body,
-        settings.temp_assistant_prompt_auto_submit,
+        &settings.ai_inspector_tab.temp_assistant_prompt_title,
+        &settings.ai_inspector_tab.temp_assistant_prompt_body,
+        settings.ai_inspector_tab.temp_assistant_prompt_auto_submit,
     ) {
         Ok(draft) => draft,
         Err(error) => {
-            settings.assistant_prompt_error = Some(error);
+            settings.ai_inspector_tab.assistant_prompt_error = Some(error);
             return;
         }
     };
 
     let existing_path = settings
+        .ai_inspector_tab
         .editing_assistant_prompt_index
-        .and_then(|index| settings.assistant_prompts.get(index))
+        .and_then(|index| settings.ai_inspector_tab.assistant_prompts.get(index))
         .map(|prompt| prompt.path.as_path());
 
     match par_term_config::save_prompt(existing_path, &draft) {
         Ok(_) => {
-            settings.adding_new_assistant_prompt = false;
-            settings.editing_assistant_prompt_index = None;
+            settings.ai_inspector_tab.adding_new_assistant_prompt = false;
+            settings.ai_inspector_tab.editing_assistant_prompt_index = None;
             reset_assistant_prompt_editor(settings);
             refresh_assistant_prompts(settings);
         }
-        Err(error) => settings.assistant_prompt_error = Some(error),
+        Err(error) => settings.ai_inspector_tab.assistant_prompt_error = Some(error),
     }
 }
 
 fn delete_assistant_prompt(settings: &mut SettingsUI, prompt: &AssistantPrompt) {
     match par_term_config::delete_prompt(&prompt.path) {
         Ok(()) => {
-            settings.adding_new_assistant_prompt = false;
-            settings.editing_assistant_prompt_index = None;
+            settings.ai_inspector_tab.adding_new_assistant_prompt = false;
+            settings.ai_inspector_tab.editing_assistant_prompt_index = None;
             reset_assistant_prompt_editor(settings);
             refresh_assistant_prompts(settings);
         }
-        Err(error) => settings.assistant_prompt_error = Some(error),
+        Err(error) => settings.ai_inspector_tab.assistant_prompt_error = Some(error),
     }
 }
 
 fn refresh_assistant_prompts(settings: &mut SettingsUI) {
     match par_term_config::list_prompts() {
         Ok(prompts) => {
-            settings.assistant_prompts = prompts;
-            settings.assistant_prompt_error = None;
-            settings.assistant_prompts_changed = true;
+            settings.ai_inspector_tab.assistant_prompts = prompts;
+            settings.ai_inspector_tab.assistant_prompt_error = None;
+            settings.ai_inspector_tab.assistant_prompts_changed = true;
         }
-        Err(error) => settings.assistant_prompt_error = Some(error),
+        Err(error) => settings.ai_inspector_tab.assistant_prompt_error = Some(error),
     }
 }
 
@@ -222,9 +239,9 @@ fn assistant_prompt_draft(
 
 fn populate_assistant_prompt_editor(settings: &mut SettingsUI, prompt: &AssistantPrompt) {
     let (title, body, auto_submit) = assistant_prompt_editor_values(prompt);
-    settings.temp_assistant_prompt_title = title;
-    settings.temp_assistant_prompt_body = body;
-    settings.temp_assistant_prompt_auto_submit = auto_submit;
+    settings.ai_inspector_tab.temp_assistant_prompt_title = title;
+    settings.ai_inspector_tab.temp_assistant_prompt_body = body;
+    settings.ai_inspector_tab.temp_assistant_prompt_auto_submit = auto_submit;
 }
 
 fn assistant_prompt_editor_values(prompt: &AssistantPrompt) -> (String, String, bool) {
@@ -236,9 +253,12 @@ fn assistant_prompt_editor_values(prompt: &AssistantPrompt) -> (String, String, 
 }
 
 fn reset_assistant_prompt_editor(settings: &mut SettingsUI) {
-    settings.temp_assistant_prompt_title.clear();
-    settings.temp_assistant_prompt_body.clear();
-    settings.temp_assistant_prompt_auto_submit = false;
+    settings
+        .ai_inspector_tab
+        .temp_assistant_prompt_title
+        .clear();
+    settings.ai_inspector_tab.temp_assistant_prompt_body.clear();
+    settings.ai_inspector_tab.temp_assistant_prompt_auto_submit = false;
 }
 
 #[cfg(test)]
@@ -290,22 +310,28 @@ mod tests {
 
         populate_assistant_prompt_editor(&mut settings, &prompt);
 
-        assert_eq!(settings.temp_assistant_prompt_title, "Debug build");
-        assert_eq!(settings.temp_assistant_prompt_body, "Fix it");
-        assert!(settings.temp_assistant_prompt_auto_submit);
+        assert_eq!(
+            settings.ai_inspector_tab.temp_assistant_prompt_title,
+            "Debug build"
+        );
+        assert_eq!(
+            settings.ai_inspector_tab.temp_assistant_prompt_body,
+            "Fix it"
+        );
+        assert!(settings.ai_inspector_tab.temp_assistant_prompt_auto_submit);
     }
 
     #[test]
     fn reset_assistant_prompt_editor_clears_settings_state() {
         let mut settings = SettingsUI::new_for_tests(par_term_config::Config::default());
-        settings.temp_assistant_prompt_title = "Debug build".to_string();
-        settings.temp_assistant_prompt_body = "Fix it".to_string();
-        settings.temp_assistant_prompt_auto_submit = true;
+        settings.ai_inspector_tab.temp_assistant_prompt_title = "Debug build".to_string();
+        settings.ai_inspector_tab.temp_assistant_prompt_body = "Fix it".to_string();
+        settings.ai_inspector_tab.temp_assistant_prompt_auto_submit = true;
 
         reset_assistant_prompt_editor(&mut settings);
 
-        assert_eq!(settings.temp_assistant_prompt_title, "");
-        assert_eq!(settings.temp_assistant_prompt_body, "");
-        assert!(!settings.temp_assistant_prompt_auto_submit);
+        assert_eq!(settings.ai_inspector_tab.temp_assistant_prompt_title, "");
+        assert_eq!(settings.ai_inspector_tab.temp_assistant_prompt_body, "");
+        assert!(!settings.ai_inspector_tab.temp_assistant_prompt_auto_submit);
     }
 }

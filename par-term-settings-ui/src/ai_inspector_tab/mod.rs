@@ -20,6 +20,9 @@ use std::collections::HashSet;
 mod agent_config_section;
 mod context_section;
 mod prompt_library;
+mod state;
+
+pub use state::AiInspectorTabState;
 
 /// Show the AI Inspector tab content.
 pub fn show(

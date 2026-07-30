@@ -16,21 +16,21 @@ pub fn show_shell_command_form(
 ) {
     ui.label("Command:");
     if ui
-        .text_edit_singleline(&mut settings.temp_action_command)
+        .text_edit_singleline(&mut settings.actions_tab.temp_action_command)
         .changed()
     {
         *changes_this_frame = true;
     }
     ui.label("Arguments (space-separated):");
     if ui
-        .text_edit_singleline(&mut settings.temp_action_args)
+        .text_edit_singleline(&mut settings.actions_tab.temp_action_args)
         .changed()
     {
         *changes_this_frame = true;
     }
     if ui
         .checkbox(
-            &mut settings.temp_action_capture_output,
+            &mut settings.actions_tab.temp_action_capture_output,
             "Capture output (makes exit code and stdout available to Condition checks)",
         )
         .changed()
@@ -48,7 +48,7 @@ pub fn show_new_tab_form(
     ui.label("Command to run in the new tab (optional):");
     if ui
         .add(
-            egui::TextEdit::multiline(&mut settings.temp_action_new_tab_command)
+            egui::TextEdit::multiline(&mut settings.actions_tab.temp_action_new_tab_command)
                 .desired_rows(3)
                 .desired_width(f32::INFINITY),
         )
@@ -71,7 +71,7 @@ pub fn show_insert_text_form(
 ) {
     ui.label("Text to insert:");
     if ui
-        .text_edit_multiline(&mut settings.temp_action_text)
+        .text_edit_multiline(&mut settings.actions_tab.temp_action_text)
         .changed()
     {
         *changes_this_frame = true;
@@ -86,7 +86,7 @@ pub fn show_key_sequence_form(
 ) {
     ui.label("Key sequence:");
     if ui
-        .text_edit_singleline(&mut settings.temp_action_keys)
+        .text_edit_singleline(&mut settings.actions_tab.temp_action_keys)
         .changed()
     {
         *changes_this_frame = true;
@@ -102,15 +102,15 @@ pub fn show_split_pane_form(
     ui.label("Direction:");
     let dir_labels = ["Horizontal (below)", "Vertical (right)"];
     egui::ComboBox::from_id_salt("split_direction")
-        .selected_text(dir_labels[settings.temp_action_split_direction])
+        .selected_text(dir_labels[settings.actions_tab.temp_action_split_direction])
         .width(160.0)
         .show_ui(ui, |ui| {
             for (i, &label) in dir_labels.iter().enumerate() {
                 if ui
-                    .selectable_label(settings.temp_action_split_direction == i, label)
+                    .selectable_label(settings.actions_tab.temp_action_split_direction == i, label)
                     .clicked()
                 {
-                    settings.temp_action_split_direction = i;
+                    settings.actions_tab.temp_action_split_direction = i;
                     *changes_this_frame = true;
                 }
             }
@@ -118,17 +118,17 @@ pub fn show_split_pane_form(
 
     ui.label("Command (optional):");
     if ui
-        .text_edit_singleline(&mut settings.temp_action_split_command)
+        .text_edit_singleline(&mut settings.actions_tab.temp_action_split_command)
         .changed()
     {
         *changes_this_frame = true;
     }
 
-    if !settings.temp_action_split_command.is_empty() {
+    if !settings.actions_tab.temp_action_split_command.is_empty() {
         ui.horizontal(|ui| {
             if ui
                 .checkbox(
-                    &mut settings.temp_action_split_command_is_direct,
+                    &mut settings.actions_tab.temp_action_split_command_is_direct,
                     "Run as pane command (pane closes when done)",
                 )
                 .on_hover_text(
@@ -145,7 +145,10 @@ pub fn show_split_pane_form(
 
     ui.horizontal(|ui| {
         if ui
-            .checkbox(&mut settings.temp_action_split_focus_new, "Focus new pane")
+            .checkbox(
+                &mut settings.actions_tab.temp_action_split_focus_new,
+                "Focus new pane",
+            )
             .changed()
         {
             *changes_this_frame = true;
@@ -154,7 +157,7 @@ pub fn show_split_pane_form(
 
     ui.horizontal(|ui| {
         ui.label("Split percent (existing pane):");
-        let mut pct = settings.temp_action_split_percent as u32;
+        let mut pct = settings.actions_tab.temp_action_split_percent as u32;
         if ui
             .add(egui::DragValue::new(&mut pct).range(10..=90).suffix("%"))
             .on_hover_text(
@@ -164,20 +167,20 @@ pub fn show_split_pane_form(
             )
             .changed()
         {
-            settings.temp_action_split_percent = pct as u8;
+            settings.actions_tab.temp_action_split_percent = pct as u8;
             *changes_this_frame = true;
         }
     });
 
-    if !settings.temp_action_split_command.is_empty()
-        && !settings.temp_action_split_command_is_direct
+    if !settings.actions_tab.temp_action_split_command.is_empty()
+        && !settings.actions_tab.temp_action_split_command_is_direct
     {
         ui.horizontal(|ui| {
             ui.label("Command delay (ms):");
-            let mut delay_str = settings.temp_action_split_delay_ms.to_string();
+            let mut delay_str = settings.actions_tab.temp_action_split_delay_ms.to_string();
             if ui.text_edit_singleline(&mut delay_str).changed() {
                 if let Ok(v) = delay_str.parse::<u64>() {
-                    settings.temp_action_split_delay_ms = v;
+                    settings.actions_tab.temp_action_split_delay_ms = v;
                 }
                 *changes_this_frame = true;
             }
@@ -201,11 +204,11 @@ pub fn show_sequence_form(
     let mut step_to_delete: Option<usize> = None;
     let mut step_to_move_up: Option<usize> = None;
     let mut step_to_move_down: Option<usize> = None;
-    let step_count = settings.temp_action_steps.len();
+    let step_count = settings.actions_tab.temp_action_steps.len();
     for step_idx in 0..step_count {
         ui.horizontal(|ui| {
             ui.label(format!("{}.", step_idx + 1));
-            let current_id = settings.temp_action_steps[step_idx].0.clone();
+            let current_id = settings.actions_tab.temp_action_steps[step_idx].0.clone();
             let display_text = action_ids
                 .iter()
                 .find(|(id, _)| id == &current_id)
@@ -224,25 +227,28 @@ pub fn show_sequence_form(
                     for (id, title) in &action_ids {
                         let label = format!("{} ({})", title, id);
                         if ui
-                            .selectable_label(settings.temp_action_steps[step_idx].0 == *id, &label)
+                            .selectable_label(
+                                settings.actions_tab.temp_action_steps[step_idx].0 == *id,
+                                &label,
+                            )
                             .clicked()
                         {
-                            settings.temp_action_steps[step_idx].0 = id.clone();
+                            settings.actions_tab.temp_action_steps[step_idx].0 = id.clone();
                             *changes_this_frame = true;
                         }
                     }
                 });
             ui.label("delay ms:");
-            let mut delay = settings.temp_action_steps[step_idx].1;
+            let mut delay = settings.actions_tab.temp_action_steps[step_idx].1;
             if ui
                 .add(egui::DragValue::new(&mut delay).range(0..=60000))
                 .changed()
             {
-                settings.temp_action_steps[step_idx].1 = delay;
+                settings.actions_tab.temp_action_steps[step_idx].1 = delay;
                 *changes_this_frame = true;
             }
             let behavior_labels = ["Abort", "Stop", "Continue"];
-            let cur_behavior = settings.temp_action_steps[step_idx].2;
+            let cur_behavior = settings.actions_tab.temp_action_steps[step_idx].2;
             let cur_behavior_idx = match cur_behavior {
                 par_term_config::snippets::SequenceStepBehavior::Abort => 0,
                 par_term_config::snippets::SequenceStepBehavior::Stop => 1,
@@ -259,7 +265,7 @@ pub fn show_sequence_form(
                             _ => par_term_config::snippets::SequenceStepBehavior::Continue,
                         };
                         if ui.selectable_label(cur_behavior_idx == i, label).clicked() {
-                            settings.temp_action_steps[step_idx].2 = behavior;
+                            settings.actions_tab.temp_action_steps[step_idx].2 = behavior;
                             *changes_this_frame = true;
                         }
                     }
@@ -292,17 +298,17 @@ pub fn show_sequence_form(
         });
     }
     if let Some(i) = step_to_delete {
-        settings.temp_action_steps.remove(i);
+        settings.actions_tab.temp_action_steps.remove(i);
         *changes_this_frame = true;
     } else if let Some(i) = step_to_move_up {
-        settings.temp_action_steps.swap(i - 1, i);
+        settings.actions_tab.temp_action_steps.swap(i - 1, i);
         *changes_this_frame = true;
     } else if let Some(i) = step_to_move_down {
-        settings.temp_action_steps.swap(i, i + 1);
+        settings.actions_tab.temp_action_steps.swap(i, i + 1);
         *changes_this_frame = true;
     }
     if ui.button("+ Add Step").clicked() {
-        settings.temp_action_steps.push((
+        settings.actions_tab.temp_action_steps.push((
             String::new(),
             0u64,
             par_term_config::snippets::SequenceStepBehavior::Abort,
@@ -327,26 +333,26 @@ pub fn show_condition_form(
     ui.horizontal(|ui| {
         ui.label("Check type:");
         egui::ComboBox::from_id_salt("condition_check_type")
-            .selected_text(check_labels[settings.temp_action_check_type.min(4)])
+            .selected_text(check_labels[settings.actions_tab.temp_action_check_type.min(4)])
             .width(150.0)
             .show_ui(ui, |ui| {
                 for (i, &label) in check_labels.iter().enumerate() {
                     if ui
-                        .selectable_label(settings.temp_action_check_type == i, label)
+                        .selectable_label(settings.actions_tab.temp_action_check_type == i, label)
                         .clicked()
                     {
-                        settings.temp_action_check_type = i;
+                        settings.actions_tab.temp_action_check_type = i;
                         *changes_this_frame = true;
                     }
                 }
             });
     });
-    match settings.temp_action_check_type {
+    match settings.actions_tab.temp_action_check_type {
         0 => {
             ui.horizontal(|ui| {
                 ui.label("Exit code:");
                 if ui
-                    .text_edit_singleline(&mut settings.temp_action_check_value)
+                    .text_edit_singleline(&mut settings.actions_tab.temp_action_check_value)
                     .changed()
                 {
                     *changes_this_frame = true;
@@ -356,14 +362,17 @@ pub fn show_condition_form(
         1 => {
             ui.label("Pattern:");
             if ui
-                .text_edit_singleline(&mut settings.temp_action_check_value)
+                .text_edit_singleline(&mut settings.actions_tab.temp_action_check_value)
                 .changed()
             {
                 *changes_this_frame = true;
             }
             ui.horizontal(|ui| {
                 if ui
-                    .checkbox(&mut settings.temp_action_case_sensitive, "Case sensitive")
+                    .checkbox(
+                        &mut settings.actions_tab.temp_action_case_sensitive,
+                        "Case sensitive",
+                    )
                     .changed()
                 {
                     *changes_this_frame = true;
@@ -374,7 +383,7 @@ pub fn show_condition_form(
             ui.horizontal(|ui| {
                 ui.label("Var name:");
                 if ui
-                    .text_edit_singleline(&mut settings.temp_action_env_name)
+                    .text_edit_singleline(&mut settings.actions_tab.temp_action_env_name)
                     .changed()
                 {
                     *changes_this_frame = true;
@@ -383,7 +392,7 @@ pub fn show_condition_form(
             ui.horizontal(|ui| {
                 if ui
                     .checkbox(
-                        &mut settings.temp_action_env_check_existence,
+                        &mut settings.actions_tab.temp_action_env_check_existence,
                         "Check existence only",
                     )
                     .changed()
@@ -391,11 +400,11 @@ pub fn show_condition_form(
                     *changes_this_frame = true;
                 }
             });
-            if !settings.temp_action_env_check_existence {
+            if !settings.actions_tab.temp_action_env_check_existence {
                 ui.horizontal(|ui| {
                     ui.label("Expected value:");
                     if ui
-                        .text_edit_singleline(&mut settings.temp_action_env_value)
+                        .text_edit_singleline(&mut settings.actions_tab.temp_action_env_value)
                         .changed()
                     {
                         *changes_this_frame = true;
@@ -406,7 +415,7 @@ pub fn show_condition_form(
         3 => {
             ui.label("Pattern (glob):");
             if ui
-                .text_edit_singleline(&mut settings.temp_action_check_value)
+                .text_edit_singleline(&mut settings.actions_tab.temp_action_check_value)
                 .on_hover_text("e.g. /home/user/projects/*")
                 .changed()
             {
@@ -416,7 +425,7 @@ pub fn show_condition_form(
         4 => {
             ui.label("Pattern (glob):");
             if ui
-                .text_edit_singleline(&mut settings.temp_action_check_value)
+                .text_edit_singleline(&mut settings.actions_tab.temp_action_check_value)
                 .on_hover_text("e.g. feature/*")
                 .changed()
             {
@@ -435,33 +444,44 @@ pub fn show_condition_form(
 
     ui.horizontal(|ui| {
         ui.label("On True:");
-        let true_display = if settings.temp_action_on_true_id.is_empty() {
+        let true_display = if settings.actions_tab.temp_action_on_true_id.is_empty() {
             "(none)".to_string()
         } else {
             action_ids
                 .iter()
-                .find(|(id, _)| id == &settings.temp_action_on_true_id)
-                .map(|(_, title)| format!("{} ({})", title, settings.temp_action_on_true_id))
-                .unwrap_or_else(|| settings.temp_action_on_true_id.clone())
+                .find(|(id, _)| id == &settings.actions_tab.temp_action_on_true_id)
+                .map(|(_, title)| {
+                    format!(
+                        "{} ({})",
+                        title, settings.actions_tab.temp_action_on_true_id
+                    )
+                })
+                .unwrap_or_else(|| settings.actions_tab.temp_action_on_true_id.clone())
         };
         egui::ComboBox::from_id_salt("condition_on_true")
             .selected_text(true_display)
             .width(200.0)
             .show_ui(ui, |ui| {
                 if ui
-                    .selectable_label(settings.temp_action_on_true_id.is_empty(), "(none)")
+                    .selectable_label(
+                        settings.actions_tab.temp_action_on_true_id.is_empty(),
+                        "(none)",
+                    )
                     .clicked()
                 {
-                    settings.temp_action_on_true_id = String::new();
+                    settings.actions_tab.temp_action_on_true_id = String::new();
                     *changes_this_frame = true;
                 }
                 for (id, title) in &action_ids {
                     let label = format!("{} ({})", title, id);
                     if ui
-                        .selectable_label(settings.temp_action_on_true_id == *id, &label)
+                        .selectable_label(
+                            settings.actions_tab.temp_action_on_true_id == *id,
+                            &label,
+                        )
                         .clicked()
                     {
-                        settings.temp_action_on_true_id = id.clone();
+                        settings.actions_tab.temp_action_on_true_id = id.clone();
                         *changes_this_frame = true;
                     }
                 }
@@ -474,33 +494,44 @@ pub fn show_condition_form(
     });
     ui.horizontal(|ui| {
         ui.label("On False:");
-        let false_display = if settings.temp_action_on_false_id.is_empty() {
+        let false_display = if settings.actions_tab.temp_action_on_false_id.is_empty() {
             "(none)".to_string()
         } else {
             action_ids
                 .iter()
-                .find(|(id, _)| id == &settings.temp_action_on_false_id)
-                .map(|(_, title)| format!("{} ({})", title, settings.temp_action_on_false_id))
-                .unwrap_or_else(|| settings.temp_action_on_false_id.clone())
+                .find(|(id, _)| id == &settings.actions_tab.temp_action_on_false_id)
+                .map(|(_, title)| {
+                    format!(
+                        "{} ({})",
+                        title, settings.actions_tab.temp_action_on_false_id
+                    )
+                })
+                .unwrap_or_else(|| settings.actions_tab.temp_action_on_false_id.clone())
         };
         egui::ComboBox::from_id_salt("condition_on_false")
             .selected_text(false_display)
             .width(200.0)
             .show_ui(ui, |ui| {
                 if ui
-                    .selectable_label(settings.temp_action_on_false_id.is_empty(), "(none)")
+                    .selectable_label(
+                        settings.actions_tab.temp_action_on_false_id.is_empty(),
+                        "(none)",
+                    )
                     .clicked()
                 {
-                    settings.temp_action_on_false_id = String::new();
+                    settings.actions_tab.temp_action_on_false_id = String::new();
                     *changes_this_frame = true;
                 }
                 for (id, title) in &action_ids {
                     let label = format!("{} ({})", title, id);
                     if ui
-                        .selectable_label(settings.temp_action_on_false_id == *id, &label)
+                        .selectable_label(
+                            settings.actions_tab.temp_action_on_false_id == *id,
+                            &label,
+                        )
                         .clicked()
                     {
-                        settings.temp_action_on_false_id = id.clone();
+                        settings.actions_tab.temp_action_on_false_id = id.clone();
                         *changes_this_frame = true;
                     }
                 }
@@ -527,33 +558,44 @@ pub fn show_repeat_form(
         .collect();
     ui.horizontal(|ui| {
         ui.label("Action:");
-        let repeat_display = if settings.temp_action_repeat_action_id.is_empty() {
+        let repeat_display = if settings.actions_tab.temp_action_repeat_action_id.is_empty() {
             "(none)".to_string()
         } else {
             action_ids
                 .iter()
-                .find(|(id, _)| id == &settings.temp_action_repeat_action_id)
-                .map(|(_, title)| format!("{} ({})", title, settings.temp_action_repeat_action_id))
-                .unwrap_or_else(|| settings.temp_action_repeat_action_id.clone())
+                .find(|(id, _)| id == &settings.actions_tab.temp_action_repeat_action_id)
+                .map(|(_, title)| {
+                    format!(
+                        "{} ({})",
+                        title, settings.actions_tab.temp_action_repeat_action_id
+                    )
+                })
+                .unwrap_or_else(|| settings.actions_tab.temp_action_repeat_action_id.clone())
         };
         egui::ComboBox::from_id_salt("repeat_action_id")
             .selected_text(repeat_display)
             .width(200.0)
             .show_ui(ui, |ui| {
                 if ui
-                    .selectable_label(settings.temp_action_repeat_action_id.is_empty(), "(none)")
+                    .selectable_label(
+                        settings.actions_tab.temp_action_repeat_action_id.is_empty(),
+                        "(none)",
+                    )
                     .clicked()
                 {
-                    settings.temp_action_repeat_action_id = String::new();
+                    settings.actions_tab.temp_action_repeat_action_id = String::new();
                     *changes_this_frame = true;
                 }
                 for (id, title) in &action_ids {
                     let label = format!("{} ({})", title, id);
                     if ui
-                        .selectable_label(settings.temp_action_repeat_action_id == *id, &label)
+                        .selectable_label(
+                            settings.actions_tab.temp_action_repeat_action_id == *id,
+                            &label,
+                        )
                         .clicked()
                     {
-                        settings.temp_action_repeat_action_id = id.clone();
+                        settings.actions_tab.temp_action_repeat_action_id = id.clone();
                         *changes_this_frame = true;
                     }
                 }
@@ -562,7 +604,10 @@ pub fn show_repeat_form(
     ui.horizontal(|ui| {
         ui.label("Count (1-100):");
         if ui
-            .add(egui::DragValue::new(&mut settings.temp_action_repeat_count).range(1..=100))
+            .add(
+                egui::DragValue::new(&mut settings.actions_tab.temp_action_repeat_count)
+                    .range(1..=100),
+            )
             .changed()
         {
             *changes_this_frame = true;
@@ -571,7 +616,10 @@ pub fn show_repeat_form(
     ui.horizontal(|ui| {
         ui.label("Delay between (ms):");
         if ui
-            .add(egui::DragValue::new(&mut settings.temp_action_repeat_delay_ms).range(0..=60000))
+            .add(
+                egui::DragValue::new(&mut settings.actions_tab.temp_action_repeat_delay_ms)
+                    .range(0..=60000),
+            )
             .changed()
         {
             *changes_this_frame = true;
@@ -579,7 +627,10 @@ pub fn show_repeat_form(
     });
     ui.horizontal(|ui| {
         if ui
-            .checkbox(&mut settings.temp_action_stop_on_success, "Stop on success")
+            .checkbox(
+                &mut settings.actions_tab.temp_action_stop_on_success,
+                "Stop on success",
+            )
             .changed()
         {
             *changes_this_frame = true;
@@ -587,7 +638,10 @@ pub fn show_repeat_form(
     });
     ui.horizontal(|ui| {
         if ui
-            .checkbox(&mut settings.temp_action_stop_on_failure, "Stop on failure")
+            .checkbox(
+                &mut settings.actions_tab.temp_action_stop_on_failure,
+                "Stop on failure",
+            )
             .changed()
         {
             *changes_this_frame = true;

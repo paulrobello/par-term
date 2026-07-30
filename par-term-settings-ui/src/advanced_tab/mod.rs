@@ -24,8 +24,11 @@
 
 mod import_export;
 mod logging;
+mod state;
 mod system;
 mod tmux;
+
+pub use state::AdvancedTabState;
 
 use crate::SettingsUI;
 use crate::section::section_matches;

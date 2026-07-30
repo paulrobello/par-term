@@ -164,8 +164,8 @@ fn show_triggers_collapsing(
             let trigger_count = settings.config.triggers.len();
             for i in 0..trigger_count {
                 let trigger = &settings.config.triggers[i];
-                let is_editing =
-                    settings.editing_trigger_index == Some(i) && !settings.adding_new_trigger;
+                let is_editing = settings.automation_tab.editing_trigger_index == Some(i)
+                    && !settings.automation_tab.adding_new_trigger;
 
                 if is_editing {
                     // Show inline edit form for this trigger
@@ -194,41 +194,41 @@ fn show_triggers_collapsing(
                 settings.has_changes = true;
                 *changes_this_frame = true;
                 // If we were editing this trigger, cancel the edit
-                if settings.editing_trigger_index == Some(i) {
-                    settings.editing_trigger_index = None;
+                if settings.automation_tab.editing_trigger_index == Some(i) {
+                    settings.automation_tab.editing_trigger_index = None;
                 }
             }
             if let Some(i) = start_edit_index {
                 let trigger = &settings.config.triggers[i];
-                settings.editing_trigger_index = Some(i);
-                settings.adding_new_trigger = false;
-                settings.temp_trigger_name = trigger.name.clone();
-                settings.temp_trigger_pattern = trigger.pattern.clone();
-                settings.temp_trigger_actions = trigger.actions.clone();
-                settings.temp_trigger_prompt_before_run = trigger.prompt_before_run;
-                settings.trigger_pattern_error = None;
+                settings.automation_tab.editing_trigger_index = Some(i);
+                settings.automation_tab.adding_new_trigger = false;
+                settings.automation_tab.temp_trigger_name = trigger.name.clone();
+                settings.automation_tab.temp_trigger_pattern = trigger.pattern.clone();
+                settings.automation_tab.temp_trigger_actions = trigger.actions.clone();
+                settings.automation_tab.temp_trigger_prompt_before_run = trigger.prompt_before_run;
+                settings.automation_tab.trigger_pattern_error = None;
             }
 
             ui.add_space(4.0);
 
             // Add new trigger button / form
-            if settings.adding_new_trigger {
+            if settings.automation_tab.adding_new_trigger {
                 ui.separator();
                 ui.label(egui::RichText::new("New Trigger").strong());
                 editor::show_trigger_edit_form(ui, settings, changes_this_frame, None);
-            } else if settings.editing_trigger_index.is_none()
+            } else if settings.automation_tab.editing_trigger_index.is_none()
                 && ui
                     .button("+ Add Trigger")
                     .on_hover_text("Add a new trigger definition")
                     .clicked()
             {
-                settings.adding_new_trigger = true;
-                settings.editing_trigger_index = None;
-                settings.temp_trigger_name = String::new();
-                settings.temp_trigger_pattern = String::new();
-                settings.temp_trigger_actions = Vec::new();
-                settings.temp_trigger_prompt_before_run = true;
-                settings.trigger_pattern_error = None;
+                settings.automation_tab.adding_new_trigger = true;
+                settings.automation_tab.editing_trigger_index = None;
+                settings.automation_tab.temp_trigger_name = String::new();
+                settings.automation_tab.temp_trigger_pattern = String::new();
+                settings.automation_tab.temp_trigger_actions = Vec::new();
+                settings.automation_tab.temp_trigger_prompt_before_run = true;
+                settings.automation_tab.trigger_pattern_error = None;
             }
         },
     );

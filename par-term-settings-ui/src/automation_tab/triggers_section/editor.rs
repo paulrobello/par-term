@@ -18,43 +18,45 @@ pub(super) fn show_trigger_edit_form(
         // Name field
         ui.horizontal(|ui| {
             ui.label("Name:");
-            ui.text_edit_singleline(&mut settings.temp_trigger_name);
+            ui.text_edit_singleline(&mut settings.automation_tab.temp_trigger_name);
         });
 
         // Pattern field with regex validation
         ui.horizontal(|ui| {
             ui.label("Pattern:");
-            let response = ui.text_edit_singleline(&mut settings.temp_trigger_pattern);
+            let response =
+                ui.text_edit_singleline(&mut settings.automation_tab.temp_trigger_pattern);
             if response.changed() {
                 // Validate regex
-                settings.trigger_pattern_error =
-                    match regex::Regex::new(&settings.temp_trigger_pattern) {
+                settings.automation_tab.trigger_pattern_error =
+                    match regex::Regex::new(&settings.automation_tab.temp_trigger_pattern) {
                         Ok(_) => None,
                         Err(e) => Some(format!("Invalid regex: {e}")),
                     };
             }
         });
-        if let Some(ref err) = settings.trigger_pattern_error {
+        if let Some(ref err) = settings.automation_tab.trigger_pattern_error {
             ui.colored_label(egui::Color32::RED, err);
         }
 
         // Security: prompt_before_run checkbox
         // Only shown when the trigger has dangerous actions (RunCommand, SendText).
         let has_dangerous = settings
+            .automation_tab
             .temp_trigger_actions
             .iter()
             .any(|a| a.is_dangerous());
         if has_dangerous {
             ui.add_space(4.0);
             ui.checkbox(
-                &mut settings.temp_trigger_prompt_before_run,
+                &mut settings.automation_tab.temp_trigger_prompt_before_run,
                 "Prompt before running dangerous actions",
             )
             .on_hover_text(
                 "When enabled, a confirmation dialog is shown before RunCommand, SendText, \
                  or SplitPane actions execute. Disable to allow the trigger to run automatically.",
             );
-            if !settings.temp_trigger_prompt_before_run {
+            if !settings.automation_tab.temp_trigger_prompt_before_run {
                 ui.colored_label(
                     egui::Color32::from_rgb(220, 160, 50),
                     "Warning: Dangerous actions can be triggered by terminal output. \
@@ -68,7 +70,12 @@ pub(super) fn show_trigger_edit_form(
         ui.label(egui::RichText::new("Actions:").strong());
 
         let mut action_delete_index: Option<usize> = None;
-        for (j, action) in settings.temp_trigger_actions.iter_mut().enumerate() {
+        for (j, action) in settings
+            .automation_tab
+            .temp_trigger_actions
+            .iter_mut()
+            .enumerate()
+        {
             ui.horizontal(|ui| {
                 ui.label(format!("{}.", j + 1));
                 ui.label(
@@ -88,7 +95,7 @@ pub(super) fn show_trigger_edit_form(
         }
 
         if let Some(j) = action_delete_index {
-            settings.temp_trigger_actions.remove(j);
+            settings.automation_tab.temp_trigger_actions.remove(j);
         }
 
         // Add action combo
@@ -113,6 +120,7 @@ pub(super) fn show_trigger_edit_form(
                 });
             if selected_type > 0 {
                 settings
+                    .automation_tab
                     .temp_trigger_actions
                     .push(default_action_for_type(selected_type - 1));
             }
@@ -147,20 +155,28 @@ fn show_save_cancel(
     edit_index: Option<usize>,
 ) {
     ui.horizontal(|ui| {
-        let can_save = !settings.temp_trigger_name.trim().is_empty()
-            && !settings.temp_trigger_pattern.trim().is_empty()
-            && settings.trigger_pattern_error.is_none();
+        let can_save = !settings.automation_tab.temp_trigger_name.trim().is_empty()
+            && !settings
+                .automation_tab
+                .temp_trigger_pattern
+                .trim()
+                .is_empty()
+            && settings.automation_tab.trigger_pattern_error.is_none();
 
         if ui
             .add_enabled(can_save, egui::Button::new("Save"))
             .clicked()
         {
             let new_trigger = TriggerConfig {
-                name: settings.temp_trigger_name.trim().to_string(),
-                pattern: settings.temp_trigger_pattern.trim().to_string(),
+                name: settings.automation_tab.temp_trigger_name.trim().to_string(),
+                pattern: settings
+                    .automation_tab
+                    .temp_trigger_pattern
+                    .trim()
+                    .to_string(),
                 enabled: true,
-                actions: settings.temp_trigger_actions.clone(),
-                prompt_before_run: settings.temp_trigger_prompt_before_run,
+                actions: settings.automation_tab.temp_trigger_actions.clone(),
+                prompt_before_run: settings.automation_tab.temp_trigger_prompt_before_run,
                 // Preserve existing i_accept_the_risk when editing; default false for new triggers.
                 i_accept_the_risk: edit_index
                     .and_then(|i| settings.config.triggers.get(i))
@@ -186,15 +202,15 @@ fn show_save_cancel(
 
             settings.has_changes = true;
             *changes_this_frame = true;
-            settings.editing_trigger_index = None;
-            settings.adding_new_trigger = false;
-            settings.trigger_resync_requested = true;
+            settings.automation_tab.editing_trigger_index = None;
+            settings.automation_tab.adding_new_trigger = false;
+            settings.automation_tab.trigger_resync_requested = true;
         }
 
         if ui.button("Cancel").clicked() {
-            settings.editing_trigger_index = None;
-            settings.adding_new_trigger = false;
-            settings.trigger_pattern_error = None;
+            settings.automation_tab.editing_trigger_index = None;
+            settings.automation_tab.adding_new_trigger = false;
+            settings.automation_tab.trigger_pattern_error = None;
         }
     });
 }

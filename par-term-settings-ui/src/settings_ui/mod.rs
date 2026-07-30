@@ -4,21 +4,53 @@
 //! methods for displaying and managing the settings window.
 
 use par_term_config::{
-    BackgroundImageMode, Config, CursorShaderMetadataCache, ProfileId, ShaderControlParseResult,
-    ShaderMetadataCache,
+    Config, CursorShaderMetadataCache, ProfileId, ShaderControlParseResult, ShaderMetadataCache,
 };
 use std::collections::{HashMap, HashSet};
 
+use crate::actions_tab::ActionsTabState;
+use crate::advanced_tab::AdvancedTabState;
+use crate::ai_inspector_tab::AiInspectorTabState;
+use crate::arrangements_tab::ArrangementsTabState;
+use crate::automation_tab::AutomationTabState;
+use crate::background_tab::BackgroundTabState;
 use crate::profile_modal_ui::ProfileModalUI;
+use crate::profiles_tab::ProfilesTabState;
+use crate::scripts_tab::ScriptsTabState;
 use crate::sidebar::SettingsTab;
+use crate::snippets_tab::SnippetsTabState;
 use crate::{
-    ArrangementId, ArrangementManager, InstallationType, SettingsWindowAction,
-    ShaderDetectModifiedFn, ShaderInstallResult, ShaderLintFn, ShaderUninstallResult,
-    ShellIntegrationInstallResult, ShellIntegrationUninstallResult, UpdateCheckResult,
-    UpdateResult,
+    ArrangementManager, InstallationType, SettingsWindowAction, ShaderDetectModifiedFn,
+    ShaderInstallResult, ShaderLintFn, ShaderUninstallResult, ShellIntegrationInstallResult,
+    ShellIntegrationUninstallResult, UpdateCheckResult, UpdateResult,
 };
 
 /// Settings UI manager using egui
+///
+/// # ARC-002 — decomposition in progress (2026-07-30)
+///
+/// This struct held 221 flat fields. Per-tab form state is being moved into
+/// `<tab>/state.rs` structs; nine groups (111 fields) have moved so far. Count
+/// what is left, and what has moved, rather than trusting a written-down number:
+///
+/// ```text
+/// awk '/^pub struct SettingsUI/,/^}/' par-term-settings-ui/src/settings_ui/mod.rs \
+///   | grep -cE '^    (pub(\(crate\))? )?[a-z][a-z0-9_]*:'
+/// grep -chE '^    pub [a-z][a-z0-9_]*:' par-term-settings-ui/src/*_tab/state.rs \
+///   | awk '{s+=$1} END {print s}'
+/// ```
+///
+/// A group whose fields are not all their types' defaults writes `Default` out
+/// by hand rather than deriving it; see `grouped_tab_state_keeps_its_non_default_seeds`.
+///
+/// Two rules constrain what may still move:
+///
+/// - `has_changes` and the per-frame change flag are cross-cutting and stay
+///   here. A tab-state struct cannot reach them, and losing an assignment
+///   compiles fine while silently dropping the edit.
+/// - Fields the **root crate** reads (runtime coprocess/script status, the
+///   pending-action queues, the installed callbacks, `config`, `visible`) stay
+///   here too; moving one is a breaking change to a published crate.
 pub struct SettingsUI {
     /// Whether the settings window is currently visible
     pub visible: bool,
@@ -65,16 +97,8 @@ pub struct SettingsUI {
     /// Temporary color for solid background color editing
     pub temp_background_color: [u8; 3],
 
-    /// Temporary per-pane background image path for editing
-    pub temp_pane_bg_path: String,
-    /// Temporary per-pane background mode
-    pub temp_pane_bg_mode: BackgroundImageMode,
-    /// Temporary per-pane background opacity
-    pub temp_pane_bg_opacity: f32,
-    /// Temporary per-pane background darken amount
-    pub temp_pane_bg_darken: f32,
-    /// Index of the pane currently being configured (None = no pane selected)
-    pub temp_pane_bg_index: Option<usize>,
+    /// Background tab per-pane image editor state
+    pub background_tab: BackgroundTabState,
 
     /// Search query used to filter settings sections
     pub search_query: String,
@@ -105,23 +129,8 @@ pub struct SettingsUI {
     /// Available agent identities for the AI Inspector dropdown (identity, name)
     pub available_agent_ids: Vec<(String, String)>,
 
-    // Assistant prompt library state
-    /// Assistant prompts loaded from the Markdown-backed prompt library
-    pub assistant_prompts: Vec<par_term_config::AssistantPrompt>,
-    /// Error from loading or mutating the assistant prompt library
-    pub assistant_prompt_error: Option<String>,
-    /// Index of the assistant prompt currently being edited
-    pub editing_assistant_prompt_index: Option<usize>,
-    /// Whether the add-new assistant prompt form is active
-    pub adding_new_assistant_prompt: bool,
-    /// Temporary assistant prompt title for the inline editor
-    pub temp_assistant_prompt_title: String,
-    /// Temporary assistant prompt body for the inline editor
-    pub temp_assistant_prompt_body: String,
-    /// Temporary assistant prompt auto-submit flag for the inline editor
-    pub temp_assistant_prompt_auto_submit: bool,
-    /// Whether prompt-library files changed and Assistant panels should reload their menu list
-    pub assistant_prompts_changed: bool,
+    /// AI Inspector tab prompt-library state
+    pub ai_inspector_tab: AiInspectorTabState,
 
     // Shader management state
     /// List of available shader files in the shaders folder
@@ -214,41 +223,8 @@ pub struct SettingsUI {
     /// Channel receiver for async shader installs
     shader_install_receiver: Option<std::sync::mpsc::Receiver<Result<ShaderInstallResult, String>>>,
 
-    // Automation tab state
-    /// Index of trigger currently being edited (None = not editing)
-    pub editing_trigger_index: Option<usize>,
-    /// Temporary trigger name for edit form
-    pub temp_trigger_name: String,
-    /// Temporary trigger regex pattern for edit form
-    pub temp_trigger_pattern: String,
-    /// Temporary trigger actions for edit form
-    pub temp_trigger_actions: Vec<par_term_config::automation::TriggerActionConfig>,
-    /// Temporary prompt_before_run flag for trigger edit form
-    pub temp_trigger_prompt_before_run: bool,
-    /// Whether the add-new-trigger form is active
-    pub adding_new_trigger: bool,
-    /// Regex validation error for trigger pattern
-    pub trigger_pattern_error: Option<String>,
-    /// Index of coprocess currently being edited (None = not editing)
-    pub editing_coprocess_index: Option<usize>,
-    /// Temporary coprocess name for edit form
-    pub temp_coprocess_name: String,
-    /// Temporary coprocess command for edit form
-    pub temp_coprocess_command: String,
-    /// Temporary coprocess args for edit form
-    pub temp_coprocess_args: String,
-    /// Temporary coprocess auto_start for edit form
-    pub temp_coprocess_auto_start: bool,
-    /// Temporary coprocess copy_terminal_output for edit form
-    pub temp_coprocess_copy_output: bool,
-    /// Temporary coprocess restart policy for edit form
-    pub temp_coprocess_restart_policy: par_term_config::automation::RestartPolicy,
-    /// Temporary coprocess restart delay for edit form
-    pub temp_coprocess_restart_delay_ms: u64,
-    /// Whether the add-new-coprocess form is active
-    pub adding_new_coprocess: bool,
-    /// Flag to request trigger resync after save
-    pub trigger_resync_requested: bool,
+    /// Automation tab form state
+    pub automation_tab: AutomationTabState,
     /// Pending coprocess start/stop actions: (config_index, start=true/stop=false)
     pub pending_coprocess_actions: Vec<(usize, bool)>,
     /// Running state of coprocesses (indexed by config position, updated by main window)
@@ -259,39 +235,8 @@ pub struct SettingsUI {
     pub coprocess_output: Vec<Vec<String>>,
     /// Which coprocess output viewers are expanded (indexed by config position)
     pub coprocess_output_expanded: Vec<bool>,
-    // === Script management state ===
-    /// Index of script currently being edited (None = not editing)
-    pub editing_script_index: Option<usize>,
-    /// Temporary script name for edit form
-    pub temp_script_name: String,
-    /// Temporary script path for edit form
-    pub temp_script_path: String,
-    /// Temporary script args for edit form
-    pub temp_script_args: String,
-    /// Temporary script auto_start for edit form
-    pub temp_script_auto_start: bool,
-    /// Temporary script enabled for edit form
-    pub temp_script_enabled: bool,
-    /// Temporary script restart policy for edit form
-    pub temp_script_restart_policy: par_term_config::automation::RestartPolicy,
-    /// Temporary script restart delay for edit form
-    pub temp_script_restart_delay_ms: u64,
-    /// Temporary script subscriptions for edit form (comma-separated)
-    pub temp_script_subscriptions: String,
-    /// Temporary: allow WriteText commands
-    pub temp_script_allow_write_text: bool,
-    /// Temporary: confirm each WriteText injection before it reaches the PTY
-    pub temp_script_prompt_before_write_text: bool,
-    /// Temporary: allow RunCommand commands
-    pub temp_script_allow_run_command: bool,
-    /// Temporary: allow ChangeConfig commands
-    pub temp_script_allow_change_config: bool,
-    /// Temporary: WriteText rate limit (writes/sec, 0 = default)
-    pub temp_script_write_text_rate_limit: u32,
-    /// Temporary: RunCommand rate limit (runs/sec, 0 = default)
-    pub temp_script_run_command_rate_limit: u32,
-    /// Whether the add-new-script form is active
-    pub adding_new_script: bool,
+    /// Scripts tab form state
+    pub scripts_tab: ScriptsTabState,
     /// Pending script start/stop actions: (config_index, start=true/stop=false)
     pub pending_script_actions: Vec<(usize, bool)>,
     /// Running state of scripts (indexed by config position, updated by main window)
@@ -327,156 +272,24 @@ pub struct SettingsUI {
     /// Channel receiver for async update installs
     update_install_receiver: Option<std::sync::mpsc::Receiver<Result<UpdateResult, String>>>,
 
-    // Snippets tab state
-    /// Index of snippet currently being edited (None = not editing)
-    pub editing_snippet_index: Option<usize>,
-    /// Temporary snippet ID for edit form
-    pub temp_snippet_id: String,
-    /// Temporary snippet title for edit form
-    pub temp_snippet_title: String,
-    /// Temporary snippet content for edit form
-    pub temp_snippet_content: String,
-    /// Temporary snippet keybinding for edit form
-    pub temp_snippet_keybinding: String,
-    /// Temporary snippet folder for edit form
-    pub temp_snippet_folder: String,
-    /// Temporary snippet description for edit form
-    pub temp_snippet_description: String,
-    /// Temporary snippet keybinding enabled for edit form
-    pub temp_snippet_keybinding_enabled: bool,
-    /// Temporary snippet auto_execute for edit form
-    pub temp_snippet_auto_execute: bool,
-    /// Temporary snippet custom variables for edit form (ordered pairs for stable UI)
-    pub temp_snippet_variables: Vec<(String, String)>,
-    /// Whether the add-new-snippet form is active
-    pub adding_new_snippet: bool,
-    /// Whether currently recording a keybinding for a snippet
-    pub recording_snippet_keybinding: bool,
-    /// Recorded keybinding combo for snippet (displayed during recording)
-    pub snippet_recorded_combo: Option<String>,
+    /// Snippets tab form state
+    pub snippets_tab: SnippetsTabState,
 
-    // Actions tab state
-    /// Index of action currently being edited (None = not editing)
-    pub editing_action_index: Option<usize>,
-    /// Temporary action type for edit form (0=ShellCommand, 1=NewTab, 2=InsertText, 3=KeySequence, 4=SplitPane, 5=Sequence, 6=Condition, 7=Repeat)
-    pub temp_action_type: usize,
-    /// Temporary action ID for edit form
-    pub temp_action_id: String,
-    /// Temporary action title for edit form
-    pub temp_action_title: String,
-    /// Temporary action command (for ShellCommand type)
-    pub temp_action_command: String,
-    /// Temporary action args (for ShellCommand type)
-    pub temp_action_args: String,
-    /// Temporary command text for NewTab type (empty = open an empty tab)
-    pub temp_action_new_tab_command: String,
-    /// Temporary action text (for InsertText type)
-    pub temp_action_text: String,
-    /// Temporary action keys (for KeySequence type)
-    pub temp_action_keys: String,
-    /// Temporary action keybinding for edit form
-    pub temp_action_keybinding: String,
-    /// Temporary single-character suffix used after the global custom action prefix key
-    pub temp_action_prefix_char: String,
-    /// Split direction index for SplitPane type (0=Horizontal, 1=Vertical)
-    pub temp_action_split_direction: usize,
-    /// Optional command text for SplitPane type (empty = no command)
-    pub temp_action_split_command: String,
-    /// Whether to focus new pane for SplitPane type
-    pub temp_action_split_focus_new: bool,
-    /// Delay ms before sending command for SplitPane type
-    pub temp_action_split_delay_ms: u64,
-    /// When true, command is the pane's initial process (not sent to shell)
-    pub temp_action_split_command_is_direct: bool,
-    /// Split percent for SplitPane type (10–90, default 66)
-    pub temp_action_split_percent: u8,
-    /// Whether the add-new-action form is active
-    pub adding_new_action: bool,
-    /// Whether currently recording a keybinding for an action
-    pub recording_action_keybinding: bool,
-    /// Recorded keybinding combo for action (displayed during recording)
-    pub action_recorded_combo: Option<String>,
-    /// Whether currently recording the section-level custom action prefix key
-    pub recording_custom_action_prefix_key: bool,
-    /// Recorded combo for the section-level custom action prefix key
-    pub custom_action_prefix_key_recorded_combo: Option<String>,
+    /// Actions tab form state
+    pub actions_tab: ActionsTabState,
 
-    // Workflow: Sequence action type
-    /// Steps in a Sequence action (action_id, delay_ms, on_failure behavior)
-    pub temp_action_steps: Vec<(String, u64, par_term_config::snippets::SequenceStepBehavior)>,
+    /// Profiles tab dynamic-source editor state
+    pub profiles_tab: ProfilesTabState,
 
-    // Workflow: Condition action type
-    /// Check type index: 0=exit_code, 1=output_contains, 2=env_var, 3=dir_matches, 4=git_branch
-    pub temp_action_check_type: usize,
-    /// Check value (exit code as string, or glob/regex pattern)
-    pub temp_action_check_value: String,
-    /// Case sensitive flag (for output_contains check type)
-    pub temp_action_case_sensitive: bool,
-    /// Environment variable name (for env_var check type)
-    pub temp_action_env_name: String,
-    /// Environment variable expected value (for env_var check type, empty = existence-only)
-    pub temp_action_env_value: String,
-    /// Whether to check env var existence only (for env_var check type)
-    pub temp_action_env_check_existence: bool,
-    /// Action ID to execute when condition is true
-    pub temp_action_on_true_id: String,
-    /// Action ID to execute when condition is false
-    pub temp_action_on_false_id: String,
-
-    // Workflow: Repeat action type
-    /// Action ID to repeat
-    pub temp_action_repeat_action_id: String,
-    /// Number of repetitions (1–100)
-    pub temp_action_repeat_count: u32,
-    /// Delay in milliseconds between repetitions
-    pub temp_action_repeat_delay_ms: u64,
-    /// Stop repeating when the action succeeds
-    pub temp_action_stop_on_success: bool,
-    /// Stop repeating when the action fails
-    pub temp_action_stop_on_failure: bool,
-    /// Whether to capture stdout/stderr for use in Condition checks (for ShellCommand type)
-    pub temp_action_capture_output: bool,
-
-    /// Temporary keybinding_enabled flag for action edit form
-    pub temp_action_keybinding_enabled: bool,
-
-    // Dynamic profile sources editing state
-    /// Index of dynamic source currently being edited (None = not editing)
-    pub dynamic_source_editing: Option<usize>,
-    /// Temp copy of the source being edited
-    pub dynamic_source_edit_buffer: Option<par_term_config::DynamicProfileSource>,
-    /// Temp buffer for new header key being added
-    pub dynamic_source_new_header_key: String,
-    /// Temp buffer for new header value being added
-    pub dynamic_source_new_header_value: String,
-
-    // Import/export preferences state
-    /// Temporary URL for import-from-URL feature
-    pub temp_import_url: String,
-    /// Status message for import/export operations
-    pub import_export_status: Option<String>,
-    /// Whether the import/export status is an error (true) or success (false)
-    pub import_export_is_error: bool,
+    /// Advanced tab import/export state
+    pub advanced_tab: AdvancedTabState,
 
     // Reset to defaults dialog state
     /// Whether to show the reset to defaults confirmation dialog
     pub show_reset_defaults_dialog: bool,
 
-    // Arrangements tab state
-    /// Name for saving a new arrangement
-    pub arrangement_save_name: String,
-    /// Arrangement ID pending restore confirmation
-    pub arrangement_confirm_restore: Option<ArrangementId>,
-    /// Arrangement ID pending delete confirmation
-    pub arrangement_confirm_delete: Option<ArrangementId>,
-    /// Name pending overwrite confirmation (when saving with duplicate name)
-    pub arrangement_confirm_overwrite: Option<String>,
-    /// Arrangement ID pending replace confirmation
-    pub arrangement_confirm_replace: Option<ArrangementId>,
-    /// Arrangement ID being renamed
-    pub arrangement_rename_id: Option<ArrangementId>,
-    /// Text buffer for rename operation
-    pub arrangement_rename_text: String,
+    /// Arrangements tab form state
+    pub arrangements_tab: ArrangementsTabState,
     /// Pending arrangement actions to send to the main window
     pub pending_arrangement_actions: Vec<SettingsWindowAction>,
     /// Cached arrangement manager data (synced from WindowManager)

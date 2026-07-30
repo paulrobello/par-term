@@ -70,6 +70,7 @@ pub mod window_tab;
 
 // Internal implementation modules (no longer exposed as standalone tabs)
 mod arrangements_tab;
+pub use arrangements_tab::ArrangementsTabState;
 mod badge_tab;
 mod progress_bar_tab;
 
@@ -291,13 +292,10 @@ pub fn format_timestamp(timestamp: &str) -> String {
 }
 
 /// Get the path to the debug log file.
+///
+/// Must stay in sync with the writer in the root crate (`src/debug.rs`), which
+/// resolves the same `std::env::temp_dir()` location — `$TMPDIR` on macOS
+/// (a `/var/folders/…` path), `/tmp` on Linux, `%TEMP%` on Windows.
 pub fn log_path() -> std::path::PathBuf {
-    #[cfg(unix)]
-    {
-        std::path::PathBuf::from("/tmp/par_term_debug.log")
-    }
-    #[cfg(windows)]
-    {
-        std::env::temp_dir().join("par_term_debug.log")
-    }
+    std::env::temp_dir().join("par_term_debug.log")
 }

@@ -20,28 +20,33 @@ pub(super) fn show_snippet_edit_form(
     ui.horizontal(|ui| {
         if ui.button("Save").clicked() {
             let snippet = SnippetConfig {
-                id: settings.temp_snippet_id.clone(),
-                title: settings.temp_snippet_title.clone(),
-                content: settings.temp_snippet_content.clone(),
-                keybinding: if settings.temp_snippet_keybinding.is_empty() {
+                id: settings.snippets_tab.temp_snippet_id.clone(),
+                title: settings.snippets_tab.temp_snippet_title.clone(),
+                content: settings.snippets_tab.temp_snippet_content.clone(),
+                keybinding: if settings.snippets_tab.temp_snippet_keybinding.is_empty() {
                     None
                 } else {
-                    Some(settings.temp_snippet_keybinding.clone())
+                    Some(settings.snippets_tab.temp_snippet_keybinding.clone())
                 },
-                keybinding_enabled: settings.temp_snippet_keybinding_enabled,
-                folder: if settings.temp_snippet_folder.is_empty() {
+                keybinding_enabled: settings.snippets_tab.temp_snippet_keybinding_enabled,
+                folder: if settings.snippets_tab.temp_snippet_folder.is_empty() {
                     None
                 } else {
-                    Some(settings.temp_snippet_folder.clone())
+                    Some(settings.snippets_tab.temp_snippet_folder.clone())
                 },
                 enabled: true,
-                description: if settings.temp_snippet_description.is_empty() {
+                description: if settings.snippets_tab.temp_snippet_description.is_empty() {
                     None
                 } else {
-                    Some(settings.temp_snippet_description.clone())
+                    Some(settings.snippets_tab.temp_snippet_description.clone())
                 },
-                auto_execute: settings.temp_snippet_auto_execute,
-                variables: settings.temp_snippet_variables.iter().cloned().collect(),
+                auto_execute: settings.snippets_tab.temp_snippet_auto_execute,
+                variables: settings
+                    .snippets_tab
+                    .temp_snippet_variables
+                    .iter()
+                    .cloned()
+                    .collect(),
             };
 
             if let Some(i) = edit_index {
@@ -54,13 +59,13 @@ pub(super) fn show_snippet_edit_form(
 
             settings.has_changes = true;
             *changes_this_frame = true;
-            settings.editing_snippet_index = None;
-            settings.adding_new_snippet = false;
+            settings.snippets_tab.editing_snippet_index = None;
+            settings.snippets_tab.adding_new_snippet = false;
         }
 
         if ui.button("Cancel").clicked() {
-            settings.editing_snippet_index = None;
-            settings.adding_new_snippet = false;
+            settings.snippets_tab.editing_snippet_index = None;
+            settings.snippets_tab.adding_new_snippet = false;
         }
     });
 
@@ -72,7 +77,7 @@ pub(super) fn show_snippet_edit_form(
         .show(ui, |ui| {
             ui.label("Title:");
             if ui
-                .text_edit_singleline(&mut settings.temp_snippet_title)
+                .text_edit_singleline(&mut settings.snippets_tab.temp_snippet_title)
                 .changed()
             {
                 *changes_this_frame = true;
@@ -80,14 +85,14 @@ pub(super) fn show_snippet_edit_form(
 
             ui.label("ID:");
             ui.label(
-                egui::RichText::new(&settings.temp_snippet_id)
+                egui::RichText::new(&settings.snippets_tab.temp_snippet_id)
                     .monospace()
                     .small(),
             );
 
             ui.label("Content:");
             if ui
-                .text_edit_multiline(&mut settings.temp_snippet_content)
+                .text_edit_multiline(&mut settings.snippets_tab.temp_snippet_content)
                 .changed()
             {
                 *changes_this_frame = true;
@@ -95,7 +100,10 @@ pub(super) fn show_snippet_edit_form(
 
             ui.horizontal(|ui| {
                 if ui
-                    .checkbox(&mut settings.temp_snippet_auto_execute, "Auto-execute")
+                    .checkbox(
+                        &mut settings.snippets_tab.temp_snippet_auto_execute,
+                        "Auto-execute",
+                    )
                     .changed()
                 {
                     *changes_this_frame = true;
@@ -110,26 +118,26 @@ pub(super) fn show_snippet_edit_form(
             ui.label("Keybinding:");
             ui.horizontal(|ui| {
                 // Check for recording state
-                if settings.recording_snippet_keybinding {
+                if settings.snippets_tab.recording_snippet_keybinding {
                     // Show recording indicator and capture key combo
                     ui.label(egui::RichText::new("🔴 Recording...").color(egui::Color32::RED));
                     if let Some(combo) = capture_key_combo(ui) {
-                        settings.snippet_recorded_combo = Some(combo.clone());
-                        settings.temp_snippet_keybinding = combo;
-                        settings.recording_snippet_keybinding = false;
+                        settings.snippets_tab.snippet_recorded_combo = Some(combo.clone());
+                        settings.snippets_tab.temp_snippet_keybinding = combo;
+                        settings.snippets_tab.recording_snippet_keybinding = false;
                         *changes_this_frame = true;
                     }
                 } else {
                     // Show text input and record button
                     if ui
-                        .text_edit_singleline(&mut settings.temp_snippet_keybinding)
+                        .text_edit_singleline(&mut settings.snippets_tab.temp_snippet_keybinding)
                         .changed()
                     {
                         *changes_this_frame = true;
                     }
 
                     // Check for conflicts
-                    if !settings.temp_snippet_keybinding.is_empty() {
+                    if !settings.snippets_tab.temp_snippet_keybinding.is_empty() {
                         let exclude_id = if let Some(i) = edit_index {
                             settings.config.snippets.get(i).map(|s| s.id.as_ref())
                         } else {
@@ -137,7 +145,7 @@ pub(super) fn show_snippet_edit_form(
                         };
 
                         if let Some(conflict) = settings.check_keybinding_conflict(
-                            &settings.temp_snippet_keybinding,
+                            &settings.snippets_tab.temp_snippet_keybinding,
                             exclude_id,
                         ) {
                             ui.label(
@@ -154,17 +162,20 @@ pub(super) fn show_snippet_edit_form(
                         .on_hover_text("Record keybinding")
                         .clicked()
                     {
-                        settings.recording_snippet_keybinding = true;
-                        settings.snippet_recorded_combo = None;
+                        settings.snippets_tab.recording_snippet_keybinding = true;
+                        settings.snippets_tab.snippet_recorded_combo = None;
                     }
                 }
             });
 
             // Show keybinding enabled checkbox if keybinding is set
-            if !settings.temp_snippet_keybinding.is_empty() {
+            if !settings.snippets_tab.temp_snippet_keybinding.is_empty() {
                 ui.horizontal(|ui| {
                     if ui
-                        .checkbox(&mut settings.temp_snippet_keybinding_enabled, "Enabled")
+                        .checkbox(
+                            &mut settings.snippets_tab.temp_snippet_keybinding_enabled,
+                            "Enabled",
+                        )
                         .changed()
                     {
                         *changes_this_frame = true;
@@ -179,7 +190,7 @@ pub(super) fn show_snippet_edit_form(
 
             ui.label("Folder:");
             if ui
-                .text_edit_singleline(&mut settings.temp_snippet_folder)
+                .text_edit_singleline(&mut settings.snippets_tab.temp_snippet_folder)
                 .changed()
             {
                 *changes_this_frame = true;
@@ -187,14 +198,14 @@ pub(super) fn show_snippet_edit_form(
 
             ui.label("Description:");
             if ui
-                .text_edit_singleline(&mut settings.temp_snippet_description)
+                .text_edit_singleline(&mut settings.snippets_tab.temp_snippet_description)
                 .changed()
             {
                 *changes_this_frame = true;
             }
 
             // Custom Variables section
-            let var_count = settings.temp_snippet_variables.len();
+            let var_count = settings.snippets_tab.temp_snippet_variables.len();
             let header_text = if var_count > 0 {
                 format!("Custom Variables ({})", var_count)
             } else {
@@ -210,7 +221,7 @@ pub(super) fn show_snippet_edit_form(
                 |ui| {
                     let mut delete_var_index: Option<usize> = None;
 
-                    if !settings.temp_snippet_variables.is_empty() {
+                    if !settings.snippets_tab.temp_snippet_variables.is_empty() {
                         egui::Grid::new("snippet_variables_edit_grid")
                             .num_columns(3)
                             .spacing([8.0, 4.0])
@@ -220,9 +231,9 @@ pub(super) fn show_snippet_edit_form(
                                 ui.label(""); // Delete column header
                                 ui.end_row();
 
-                                for i in 0..settings.temp_snippet_variables.len() {
+                                for i in 0..settings.snippets_tab.temp_snippet_variables.len() {
                                     let (ref mut name, ref mut value) =
-                                        settings.temp_snippet_variables[i];
+                                        settings.snippets_tab.temp_snippet_variables[i];
 
                                     let name_response = ui.add(
                                         egui::TextEdit::singleline(name)
@@ -270,12 +281,13 @@ pub(super) fn show_snippet_edit_form(
                     }
 
                     if let Some(idx) = delete_var_index {
-                        settings.temp_snippet_variables.remove(idx);
+                        settings.snippets_tab.temp_snippet_variables.remove(idx);
                         *changes_this_frame = true;
                     }
 
                     if ui.small_button("+ Add Variable").clicked() {
                         settings
+                            .snippets_tab
                             .temp_snippet_variables
                             .push((String::new(), String::new()));
                         *changes_this_frame = true;

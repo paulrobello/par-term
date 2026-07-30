@@ -55,8 +55,8 @@ fn show_coprocesses_collapsing(
             let coproc_count = settings.config.coprocesses.len();
             for i in 0..coproc_count {
                 let coproc = &settings.config.coprocesses[i];
-                let is_editing =
-                    settings.editing_coprocess_index == Some(i) && !settings.adding_new_coprocess;
+                let is_editing = settings.automation_tab.editing_coprocess_index == Some(i)
+                    && !settings.automation_tab.adding_new_coprocess;
 
                 if is_editing {
                     show_coprocess_edit_form(ui, settings, changes_this_frame, Some(i));
@@ -234,45 +234,45 @@ fn show_coprocesses_collapsing(
                 settings.config.coprocesses.remove(i);
                 settings.has_changes = true;
                 *changes_this_frame = true;
-                if settings.editing_coprocess_index == Some(i) {
-                    settings.editing_coprocess_index = None;
+                if settings.automation_tab.editing_coprocess_index == Some(i) {
+                    settings.automation_tab.editing_coprocess_index = None;
                 }
             }
             if let Some(i) = start_edit_index {
                 let coproc = &settings.config.coprocesses[i];
-                settings.editing_coprocess_index = Some(i);
-                settings.adding_new_coprocess = false;
-                settings.temp_coprocess_name = coproc.name.clone();
-                settings.temp_coprocess_command = coproc.command.clone();
-                settings.temp_coprocess_args = coproc.args.join(" ");
-                settings.temp_coprocess_auto_start = coproc.auto_start;
-                settings.temp_coprocess_copy_output = coproc.copy_terminal_output;
-                settings.temp_coprocess_restart_policy = coproc.restart_policy;
-                settings.temp_coprocess_restart_delay_ms = coproc.restart_delay_ms;
+                settings.automation_tab.editing_coprocess_index = Some(i);
+                settings.automation_tab.adding_new_coprocess = false;
+                settings.automation_tab.temp_coprocess_name = coproc.name.clone();
+                settings.automation_tab.temp_coprocess_command = coproc.command.clone();
+                settings.automation_tab.temp_coprocess_args = coproc.args.join(" ");
+                settings.automation_tab.temp_coprocess_auto_start = coproc.auto_start;
+                settings.automation_tab.temp_coprocess_copy_output = coproc.copy_terminal_output;
+                settings.automation_tab.temp_coprocess_restart_policy = coproc.restart_policy;
+                settings.automation_tab.temp_coprocess_restart_delay_ms = coproc.restart_delay_ms;
             }
 
             ui.add_space(4.0);
 
             // Add new coprocess button / form
-            if settings.adding_new_coprocess {
+            if settings.automation_tab.adding_new_coprocess {
                 ui.separator();
                 ui.label(egui::RichText::new("New Coprocess").strong());
                 show_coprocess_edit_form(ui, settings, changes_this_frame, None);
-            } else if settings.editing_coprocess_index.is_none()
+            } else if settings.automation_tab.editing_coprocess_index.is_none()
                 && ui
                     .button("+ Add Coprocess")
                     .on_hover_text("Add a new coprocess definition")
                     .clicked()
             {
-                settings.adding_new_coprocess = true;
-                settings.editing_coprocess_index = None;
-                settings.temp_coprocess_name = String::new();
-                settings.temp_coprocess_command = String::new();
-                settings.temp_coprocess_args = String::new();
-                settings.temp_coprocess_auto_start = false;
-                settings.temp_coprocess_copy_output = true;
-                settings.temp_coprocess_restart_policy = RestartPolicy::Never;
-                settings.temp_coprocess_restart_delay_ms = 0;
+                settings.automation_tab.adding_new_coprocess = true;
+                settings.automation_tab.editing_coprocess_index = None;
+                settings.automation_tab.temp_coprocess_name = String::new();
+                settings.automation_tab.temp_coprocess_command = String::new();
+                settings.automation_tab.temp_coprocess_args = String::new();
+                settings.automation_tab.temp_coprocess_auto_start = false;
+                settings.automation_tab.temp_coprocess_copy_output = true;
+                settings.automation_tab.temp_coprocess_restart_policy = RestartPolicy::Never;
+                settings.automation_tab.temp_coprocess_restart_delay_ms = 0;
             }
         },
     );
@@ -288,29 +288,29 @@ fn show_coprocess_edit_form(
         // Name field
         ui.horizontal(|ui| {
             ui.label("Name:");
-            ui.text_edit_singleline(&mut settings.temp_coprocess_name);
+            ui.text_edit_singleline(&mut settings.automation_tab.temp_coprocess_name);
         });
 
         // Command field
         ui.horizontal(|ui| {
             ui.label("Command:");
-            ui.text_edit_singleline(&mut settings.temp_coprocess_command);
+            ui.text_edit_singleline(&mut settings.automation_tab.temp_coprocess_command);
         });
 
         // Args field
         ui.horizontal(|ui| {
             ui.label("Arguments:");
-            ui.text_edit_singleline(&mut settings.temp_coprocess_args);
+            ui.text_edit_singleline(&mut settings.automation_tab.temp_coprocess_args);
         });
 
         // Options (use persistent temp fields so checkbox state survives across frames)
         ui.checkbox(
-            &mut settings.temp_coprocess_auto_start,
+            &mut settings.automation_tab.temp_coprocess_auto_start,
             "Auto-start with terminal",
         )
         .on_hover_text("Start this coprocess automatically when a new tab is opened");
         ui.checkbox(
-            &mut settings.temp_coprocess_copy_output,
+            &mut settings.automation_tab.temp_coprocess_copy_output,
             "Copy terminal output",
         )
         .on_hover_text("Send terminal output to the coprocess stdin");
@@ -323,11 +323,16 @@ fn show_coprocess_edit_form(
             } else {
                 "coproc_restart_policy_new"
             })
-            .selected_text(settings.temp_coprocess_restart_policy.display_name())
+            .selected_text(
+                settings
+                    .automation_tab
+                    .temp_coprocess_restart_policy
+                    .display_name(),
+            )
             .show_ui(ui, |ui| {
                 for &policy in RestartPolicy::all() {
                     ui.selectable_value(
-                        &mut settings.temp_coprocess_restart_policy,
+                        &mut settings.automation_tab.temp_coprocess_restart_policy,
                         policy,
                         policy.display_name(),
                     );
@@ -336,13 +341,15 @@ fn show_coprocess_edit_form(
         });
 
         // Restart delay (only shown when restart policy is not Never)
-        if settings.temp_coprocess_restart_policy != RestartPolicy::Never {
+        if settings.automation_tab.temp_coprocess_restart_policy != RestartPolicy::Never {
             ui.horizontal(|ui| {
                 ui.label("Restart delay (ms):");
                 ui.add(
-                    egui::DragValue::new(&mut settings.temp_coprocess_restart_delay_ms)
-                        .range(0..=60000)
-                        .speed(100.0),
+                    egui::DragValue::new(
+                        &mut settings.automation_tab.temp_coprocess_restart_delay_ms,
+                    )
+                    .range(0..=60000)
+                    .speed(100.0),
                 );
             });
         }
@@ -351,27 +358,44 @@ fn show_coprocess_edit_form(
 
         // Save / Cancel
         ui.horizontal(|ui| {
-            let can_save = !settings.temp_coprocess_name.trim().is_empty()
-                && !settings.temp_coprocess_command.trim().is_empty();
+            let can_save = !settings
+                .automation_tab
+                .temp_coprocess_name
+                .trim()
+                .is_empty()
+                && !settings
+                    .automation_tab
+                    .temp_coprocess_command
+                    .trim()
+                    .is_empty();
 
             if ui
                 .add_enabled(can_save, egui::Button::new("Save"))
                 .clicked()
             {
                 let args: Vec<String> = settings
+                    .automation_tab
                     .temp_coprocess_args
                     .split_whitespace()
                     .map(|s| s.to_string())
                     .collect();
 
                 let new_coproc = CoprocessDefConfig {
-                    name: settings.temp_coprocess_name.trim().to_string(),
-                    command: settings.temp_coprocess_command.trim().to_string(),
+                    name: settings
+                        .automation_tab
+                        .temp_coprocess_name
+                        .trim()
+                        .to_string(),
+                    command: settings
+                        .automation_tab
+                        .temp_coprocess_command
+                        .trim()
+                        .to_string(),
                     args,
-                    auto_start: settings.temp_coprocess_auto_start,
-                    copy_terminal_output: settings.temp_coprocess_copy_output,
-                    restart_policy: settings.temp_coprocess_restart_policy,
-                    restart_delay_ms: settings.temp_coprocess_restart_delay_ms,
+                    auto_start: settings.automation_tab.temp_coprocess_auto_start,
+                    copy_terminal_output: settings.automation_tab.temp_coprocess_copy_output,
+                    restart_policy: settings.automation_tab.temp_coprocess_restart_policy,
+                    restart_delay_ms: settings.automation_tab.temp_coprocess_restart_delay_ms,
                 };
 
                 if let Some(i) = edit_index {
@@ -382,13 +406,13 @@ fn show_coprocess_edit_form(
 
                 settings.has_changes = true;
                 *changes_this_frame = true;
-                settings.editing_coprocess_index = None;
-                settings.adding_new_coprocess = false;
+                settings.automation_tab.editing_coprocess_index = None;
+                settings.automation_tab.adding_new_coprocess = false;
             }
 
             if ui.button("Cancel").clicked() {
-                settings.editing_coprocess_index = None;
-                settings.adding_new_coprocess = false;
+                settings.automation_tab.editing_coprocess_index = None;
+                settings.automation_tab.adding_new_coprocess = false;
             }
         });
     });

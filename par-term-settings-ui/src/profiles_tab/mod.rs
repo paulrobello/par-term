@@ -19,6 +19,9 @@ use std::collections::HashSet;
 
 mod dynamic_sources;
 mod management;
+mod state;
+
+pub use state::ProfilesTabState;
 
 /// Show the profiles tab content.
 pub fn show(

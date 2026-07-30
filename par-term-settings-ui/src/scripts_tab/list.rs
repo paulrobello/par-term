@@ -33,8 +33,8 @@ pub(super) fn show_scripts_section(
             // List existing scripts
             let script_count = settings.config.scripts.len();
             for i in 0..script_count {
-                let is_editing =
-                    settings.editing_script_index == Some(i) && !settings.adding_new_script;
+                let is_editing = settings.scripts_tab.editing_script_index == Some(i)
+                    && !settings.scripts_tab.adding_new_script;
 
                 if is_editing {
                     show_script_edit_form(ui, settings, changes_this_frame, Some(i));
@@ -61,59 +61,62 @@ pub(super) fn show_scripts_section(
                 settings.config.scripts.remove(i);
                 settings.has_changes = true;
                 *changes_this_frame = true;
-                if settings.editing_script_index == Some(i) {
-                    settings.editing_script_index = None;
+                if settings.scripts_tab.editing_script_index == Some(i) {
+                    settings.scripts_tab.editing_script_index = None;
                 }
             }
             if let Some(i) = start_edit_index {
                 let script = &settings.config.scripts[i];
-                settings.editing_script_index = Some(i);
-                settings.adding_new_script = false;
-                settings.temp_script_name = script.name.clone();
-                settings.temp_script_path = script.script_path.clone();
-                settings.temp_script_args = script.args.join(" ");
-                settings.temp_script_auto_start = script.auto_start;
-                settings.temp_script_enabled = script.enabled;
-                settings.temp_script_restart_policy = script.restart_policy;
-                settings.temp_script_restart_delay_ms = script.restart_delay_ms;
-                settings.temp_script_subscriptions = script.subscriptions.join(", ");
-                settings.temp_script_allow_write_text = script.allow_write_text;
-                settings.temp_script_prompt_before_write_text = script.prompt_before_write_text;
-                settings.temp_script_allow_run_command = script.allow_run_command;
-                settings.temp_script_allow_change_config = script.allow_change_config;
-                settings.temp_script_write_text_rate_limit = script.write_text_rate_limit;
-                settings.temp_script_run_command_rate_limit = script.run_command_rate_limit;
+                settings.scripts_tab.editing_script_index = Some(i);
+                settings.scripts_tab.adding_new_script = false;
+                settings.scripts_tab.temp_script_name = script.name.clone();
+                settings.scripts_tab.temp_script_path = script.script_path.clone();
+                settings.scripts_tab.temp_script_args = script.args.join(" ");
+                settings.scripts_tab.temp_script_auto_start = script.auto_start;
+                settings.scripts_tab.temp_script_enabled = script.enabled;
+                settings.scripts_tab.temp_script_restart_policy = script.restart_policy;
+                settings.scripts_tab.temp_script_restart_delay_ms = script.restart_delay_ms;
+                settings.scripts_tab.temp_script_subscriptions = script.subscriptions.join(", ");
+                settings.scripts_tab.temp_script_allow_write_text = script.allow_write_text;
+                settings.scripts_tab.temp_script_prompt_before_write_text =
+                    script.prompt_before_write_text;
+                settings.scripts_tab.temp_script_allow_run_command = script.allow_run_command;
+                settings.scripts_tab.temp_script_allow_change_config = script.allow_change_config;
+                settings.scripts_tab.temp_script_write_text_rate_limit =
+                    script.write_text_rate_limit;
+                settings.scripts_tab.temp_script_run_command_rate_limit =
+                    script.run_command_rate_limit;
             }
 
             ui.add_space(4.0);
 
             // Add new script button / form
-            if settings.adding_new_script {
+            if settings.scripts_tab.adding_new_script {
                 ui.separator();
                 ui.label(egui::RichText::new("New Script").strong());
                 show_script_edit_form(ui, settings, changes_this_frame, None);
-            } else if settings.editing_script_index.is_none()
+            } else if settings.scripts_tab.editing_script_index.is_none()
                 && ui
                     .button("+ Add Script")
                     .on_hover_text("Add a new observer script definition")
                     .clicked()
             {
-                settings.adding_new_script = true;
-                settings.editing_script_index = None;
-                settings.temp_script_name = String::new();
-                settings.temp_script_path = String::new();
-                settings.temp_script_args = String::new();
-                settings.temp_script_auto_start = false;
-                settings.temp_script_enabled = true;
-                settings.temp_script_restart_policy = RestartPolicy::Never;
-                settings.temp_script_restart_delay_ms = 0;
-                settings.temp_script_subscriptions = String::new();
-                settings.temp_script_allow_write_text = false;
-                settings.temp_script_prompt_before_write_text = true;
-                settings.temp_script_allow_run_command = false;
-                settings.temp_script_allow_change_config = false;
-                settings.temp_script_write_text_rate_limit = 0;
-                settings.temp_script_run_command_rate_limit = 0;
+                settings.scripts_tab.adding_new_script = true;
+                settings.scripts_tab.editing_script_index = None;
+                settings.scripts_tab.temp_script_name = String::new();
+                settings.scripts_tab.temp_script_path = String::new();
+                settings.scripts_tab.temp_script_args = String::new();
+                settings.scripts_tab.temp_script_auto_start = false;
+                settings.scripts_tab.temp_script_enabled = true;
+                settings.scripts_tab.temp_script_restart_policy = RestartPolicy::Never;
+                settings.scripts_tab.temp_script_restart_delay_ms = 0;
+                settings.scripts_tab.temp_script_subscriptions = String::new();
+                settings.scripts_tab.temp_script_allow_write_text = false;
+                settings.scripts_tab.temp_script_prompt_before_write_text = true;
+                settings.scripts_tab.temp_script_allow_run_command = false;
+                settings.scripts_tab.temp_script_allow_change_config = false;
+                settings.scripts_tab.temp_script_write_text_rate_limit = 0;
+                settings.scripts_tab.temp_script_run_command_rate_limit = 0;
             }
         },
     );

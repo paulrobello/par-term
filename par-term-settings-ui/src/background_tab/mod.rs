@@ -12,6 +12,9 @@ mod pane_backgrounds;
 mod shader_channel_settings;
 mod shader_metadata;
 mod shader_settings;
+mod state;
+
+pub use state::BackgroundTabState;
 
 pub use cursor_shader::show_cursor_shader;
 pub use pane_backgrounds::show_pane_backgrounds;

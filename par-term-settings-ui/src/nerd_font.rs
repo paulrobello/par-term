@@ -4,7 +4,7 @@
 //! Uses SymbolsNerdFontMono-Regular.ttf (Nerd Fonts v3.4.0).
 
 /// Embedded Nerd Font Symbols (Mono variant, ~2.5MB).
-const NERD_FONT_BYTES: &[u8] = include_bytes!("../../assets/fonts/SymbolsNerdFontMono-Regular.ttf");
+const NERD_FONT_BYTES: &[u8] = include_bytes!("../assets/fonts/SymbolsNerdFontMono-Regular.ttf");
 
 /// Configure egui to use Nerd Font Symbols as a fallback font.
 ///

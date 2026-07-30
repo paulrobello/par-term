@@ -50,8 +50,8 @@ pub(super) fn render_snippet_list(
 
         for &i in indices {
             let snippet = &settings.config.snippets[i];
-            let is_editing =
-                settings.editing_snippet_index == Some(i) && !settings.adding_new_snippet;
+            let is_editing = settings.snippets_tab.editing_snippet_index == Some(i)
+                && !settings.snippets_tab.adding_new_snippet;
 
             if is_editing {
                 // Show inline edit form for this snippet
@@ -122,9 +122,9 @@ pub(super) fn render_snippet_list(
         settings.has_changes = true;
         *changes_this_frame = true;
         // Reset editing state if we deleted the item being edited
-        if settings.editing_snippet_index == Some(i) {
-            settings.editing_snippet_index = None;
-            settings.adding_new_snippet = false;
+        if settings.snippets_tab.editing_snippet_index == Some(i) {
+            settings.snippets_tab.editing_snippet_index = None;
+            settings.snippets_tab.adding_new_snippet = false;
         }
     }
 
@@ -135,19 +135,21 @@ pub(super) fn render_snippet_list(
     }
 
     if let Some(i) = start_edit_index {
-        settings.editing_snippet_index = Some(i);
-        settings.adding_new_snippet = false;
+        settings.snippets_tab.editing_snippet_index = Some(i);
+        settings.snippets_tab.adding_new_snippet = false;
         // Populate temp fields with current values
         let snippet = &settings.config.snippets[i];
-        settings.temp_snippet_id = snippet.id.clone();
-        settings.temp_snippet_title = snippet.title.clone();
-        settings.temp_snippet_content = snippet.content.clone();
-        settings.temp_snippet_keybinding = snippet.keybinding.clone().unwrap_or_default();
-        settings.temp_snippet_folder = snippet.folder.clone().unwrap_or_default();
-        settings.temp_snippet_description = snippet.description.clone().unwrap_or_default();
-        settings.temp_snippet_keybinding_enabled = snippet.keybinding_enabled;
-        settings.temp_snippet_auto_execute = snippet.auto_execute;
-        settings.temp_snippet_variables = snippet
+        settings.snippets_tab.temp_snippet_id = snippet.id.clone();
+        settings.snippets_tab.temp_snippet_title = snippet.title.clone();
+        settings.snippets_tab.temp_snippet_content = snippet.content.clone();
+        settings.snippets_tab.temp_snippet_keybinding =
+            snippet.keybinding.clone().unwrap_or_default();
+        settings.snippets_tab.temp_snippet_folder = snippet.folder.clone().unwrap_or_default();
+        settings.snippets_tab.temp_snippet_description =
+            snippet.description.clone().unwrap_or_default();
+        settings.snippets_tab.temp_snippet_keybinding_enabled = snippet.keybinding_enabled;
+        settings.snippets_tab.temp_snippet_auto_execute = snippet.auto_execute;
+        settings.snippets_tab.temp_snippet_variables = snippet
             .variables
             .iter()
             .map(|(k, v)| (k.clone(), v.clone()))
@@ -161,25 +163,25 @@ pub(super) fn render_add_import_bar(
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
 ) {
-    if settings.adding_new_snippet {
+    if settings.snippets_tab.adding_new_snippet {
         // edit form is rendered from the caller (mod.rs)
         return;
     }
 
     ui.horizontal(|ui| {
         if ui.button("+ Add Snippet").clicked() {
-            settings.adding_new_snippet = true;
-            settings.editing_snippet_index = None;
+            settings.snippets_tab.adding_new_snippet = true;
+            settings.snippets_tab.editing_snippet_index = None;
             // Clear temp fields
-            settings.temp_snippet_id = format!("snippet_{}", uuid::Uuid::new_v4());
-            settings.temp_snippet_title = String::new();
-            settings.temp_snippet_content = String::new();
-            settings.temp_snippet_keybinding = String::new();
-            settings.temp_snippet_folder = String::new();
-            settings.temp_snippet_description = String::new();
-            settings.temp_snippet_keybinding_enabled = true;
-            settings.temp_snippet_auto_execute = false;
-            settings.temp_snippet_variables = Vec::new();
+            settings.snippets_tab.temp_snippet_id = format!("snippet_{}", uuid::Uuid::new_v4());
+            settings.snippets_tab.temp_snippet_title = String::new();
+            settings.snippets_tab.temp_snippet_content = String::new();
+            settings.snippets_tab.temp_snippet_keybinding = String::new();
+            settings.snippets_tab.temp_snippet_folder = String::new();
+            settings.snippets_tab.temp_snippet_description = String::new();
+            settings.snippets_tab.temp_snippet_keybinding_enabled = true;
+            settings.snippets_tab.temp_snippet_auto_execute = false;
+            settings.snippets_tab.temp_snippet_variables = Vec::new();
         }
 
         ui.separator();

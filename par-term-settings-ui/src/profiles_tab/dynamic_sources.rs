@@ -39,7 +39,7 @@ pub(super) fn show_dynamic_sources_section(
 
             let source_count = settings.config.dynamic_profile_sources.len();
 
-            if source_count == 0 && settings.dynamic_source_editing.is_none() {
+            if source_count == 0 && settings.profiles_tab.dynamic_source_editing.is_none() {
                 ui.label(
                     egui::RichText::new("No dynamic profile sources configured.")
                         .color(egui::Color32::GRAY),
@@ -48,7 +48,7 @@ pub(super) fn show_dynamic_sources_section(
 
             // Show each source
             for i in 0..source_count {
-                let is_editing = settings.dynamic_source_editing == Some(i);
+                let is_editing = settings.profiles_tab.dynamic_source_editing == Some(i);
 
                 if is_editing {
                     // Show inline edit form
@@ -120,13 +120,13 @@ pub(super) fn show_dynamic_sources_section(
                 settings.has_changes = true;
                 *changes_this_frame = true;
                 // Reset editing state if we deleted the item being edited
-                if settings.dynamic_source_editing == Some(i) {
-                    settings.dynamic_source_editing = None;
-                    settings.dynamic_source_edit_buffer = None;
-                } else if let Some(editing) = settings.dynamic_source_editing {
+                if settings.profiles_tab.dynamic_source_editing == Some(i) {
+                    settings.profiles_tab.dynamic_source_editing = None;
+                    settings.profiles_tab.dynamic_source_edit_buffer = None;
+                } else if let Some(editing) = settings.profiles_tab.dynamic_source_editing {
                     // Adjust editing index if a preceding item was deleted
                     if editing > i {
-                        settings.dynamic_source_editing = Some(editing - 1);
+                        settings.profiles_tab.dynamic_source_editing = Some(editing - 1);
                     }
                 }
             }
@@ -139,31 +139,33 @@ pub(super) fn show_dynamic_sources_section(
             }
 
             if let Some(i) = start_edit_index {
-                settings.dynamic_source_editing = Some(i);
-                settings.dynamic_source_edit_buffer =
+                settings.profiles_tab.dynamic_source_editing = Some(i);
+                settings.profiles_tab.dynamic_source_edit_buffer =
                     Some(settings.config.dynamic_profile_sources[i].clone());
-                settings.dynamic_source_new_header_key = String::new();
-                settings.dynamic_source_new_header_value = String::new();
+                settings.profiles_tab.dynamic_source_new_header_key = String::new();
+                settings.profiles_tab.dynamic_source_new_header_value = String::new();
             }
 
             ui.separator();
 
             // Show "add new" form if editing index is set to a new entry sentinel
-            let is_adding = settings.dynamic_source_editing.is_some()
+            let is_adding = settings.profiles_tab.dynamic_source_editing.is_some()
                 && settings
+                    .profiles_tab
                     .dynamic_source_editing
                     .expect("dynamic_source_editing checked is_some() above")
                     >= source_count;
             if is_adding {
                 show_dynamic_source_edit_form(ui, settings, changes_this_frame, None, collapsed);
-            } else if settings.dynamic_source_editing.is_none()
+            } else if settings.profiles_tab.dynamic_source_editing.is_none()
                 && ui.button("+ Add Source").clicked()
             {
                 // Use source_count as sentinel for "new entry"
-                settings.dynamic_source_editing = Some(source_count);
-                settings.dynamic_source_edit_buffer = Some(DynamicProfileSource::default());
-                settings.dynamic_source_new_header_key = String::new();
-                settings.dynamic_source_new_header_value = String::new();
+                settings.profiles_tab.dynamic_source_editing = Some(source_count);
+                settings.profiles_tab.dynamic_source_edit_buffer =
+                    Some(DynamicProfileSource::default());
+                settings.profiles_tab.dynamic_source_new_header_key = String::new();
+                settings.profiles_tab.dynamic_source_new_header_value = String::new();
             }
         },
     );
@@ -184,7 +186,7 @@ fn show_dynamic_source_edit_form(
     // Save / Cancel buttons at top (always visible)
     ui.horizontal(|ui| {
         if ui.button("Save").clicked() {
-            if let Some(buffer) = settings.dynamic_source_edit_buffer.take() {
+            if let Some(buffer) = settings.profiles_tab.dynamic_source_edit_buffer.take() {
                 if let Some(i) = edit_index {
                     // Update existing source
                     settings.config.dynamic_profile_sources[i] = buffer;
@@ -195,27 +197,27 @@ fn show_dynamic_source_edit_form(
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
-            settings.dynamic_source_editing = None;
+            settings.profiles_tab.dynamic_source_editing = None;
         }
 
         if ui.button("Cancel").clicked() {
-            settings.dynamic_source_editing = None;
-            settings.dynamic_source_edit_buffer = None;
+            settings.profiles_tab.dynamic_source_editing = None;
+            settings.profiles_tab.dynamic_source_edit_buffer = None;
         }
     });
 
     ui.separator();
 
     // Edit form fields inside a scrollable area
-    if settings.dynamic_source_edit_buffer.is_some() {
+    if settings.profiles_tab.dynamic_source_edit_buffer.is_some() {
         // Split borrows: extract header-key/value pointers separately before
         // borrowing edit_buffer as mut so we stay within Rust's borrow rules.
         let (source, new_header_key, new_header_value) = {
             let s = settings;
             (
-                s.dynamic_source_edit_buffer.as_mut().unwrap(),
-                &mut s.dynamic_source_new_header_key,
-                &mut s.dynamic_source_new_header_value,
+                s.profiles_tab.dynamic_source_edit_buffer.as_mut().unwrap(),
+                &mut s.profiles_tab.dynamic_source_new_header_key,
+                &mut s.profiles_tab.dynamic_source_new_header_value,
             )
         };
 

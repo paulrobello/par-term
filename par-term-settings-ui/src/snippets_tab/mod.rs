@@ -10,7 +10,10 @@
 mod editor;
 mod io;
 mod list;
+mod state;
 mod variables_reference;
+
+pub use state::SnippetsTabState;
 
 use super::SettingsUI;
 use super::section::{collapsing_section_with_state, section_matches};
@@ -91,7 +94,7 @@ fn show_snippets_section(
             ui.separator();
 
             // Add new snippet button or form
-            if settings.adding_new_snippet {
+            if settings.snippets_tab.adding_new_snippet {
                 editor::show_snippet_edit_form(ui, settings, changes_this_frame, None, collapsed);
             } else {
                 list::render_add_import_bar(ui, settings, changes_this_frame);

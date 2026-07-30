@@ -1,13 +1,20 @@
 //! SettingsUI state management and lifecycle methods.
 
-use par_term_config::{
-    BackgroundImageMode, Config, CursorShaderMetadataCache, Profile, ProfileId, ShaderMetadataCache,
-};
+use par_term_config::{Config, CursorShaderMetadataCache, Profile, ProfileId, ShaderMetadataCache};
 use rfd::FileDialog;
 use std::collections::HashSet;
 
+use crate::actions_tab::ActionsTabState;
+use crate::advanced_tab::AdvancedTabState;
+use crate::ai_inspector_tab::AiInspectorTabState;
+use crate::arrangements_tab::ArrangementsTabState;
+use crate::automation_tab::AutomationTabState;
+use crate::background_tab::BackgroundTabState;
 use crate::profile_modal_ui::ProfileModalUI;
+use crate::profiles_tab::ProfilesTabState;
+use crate::scripts_tab::ScriptsTabState;
 use crate::sidebar::SettingsTab;
+use crate::snippets_tab::SnippetsTabState;
 use crate::{ArrangementManager, InstallationType};
 
 use super::SettingsUI;
@@ -146,11 +153,7 @@ impl SettingsUI {
                 .clone()
                 .unwrap_or_default(),
             temp_background_color: config.background_color,
-            temp_pane_bg_path: String::new(),
-            temp_pane_bg_mode: BackgroundImageMode::default(),
-            temp_pane_bg_opacity: 1.0,
-            temp_pane_bg_darken: 0.0,
-            temp_pane_bg_index: None,
+            background_tab: BackgroundTabState::default(),
             last_live_opacity: config.window.window_opacity,
             current_cols: initial_cols,
             current_rows: initial_rows,
@@ -173,14 +176,7 @@ impl SettingsUI {
             cursor_shader_editor_error: None,
             cursor_shader_editor_original: String::new(),
             available_agent_ids: Vec::new(),
-            assistant_prompts,
-            assistant_prompt_error,
-            editing_assistant_prompt_index: None,
-            adding_new_assistant_prompt: false,
-            temp_assistant_prompt_title: String::new(),
-            temp_assistant_prompt_body: String::new(),
-            temp_assistant_prompt_auto_submit: false,
-            assistant_prompts_changed: false,
+            ai_inspector_tab: AiInspectorTabState::new(assistant_prompts, assistant_prompt_error),
             available_shaders: Self::scan_shaders_folder(),
             available_cubemaps: Self::scan_cubemaps_folder(),
             new_shader_name: String::new(),
@@ -216,44 +212,13 @@ impl SettingsUI {
             shader_overwrite_prompt_visible: false,
             shader_conflicts: Vec::new(),
             shader_install_receiver: None,
-            editing_trigger_index: None,
-            temp_trigger_name: String::new(),
-            temp_trigger_pattern: String::new(),
-            temp_trigger_actions: Vec::new(),
-            temp_trigger_prompt_before_run: true,
-            adding_new_trigger: false,
-            trigger_pattern_error: None,
-            editing_coprocess_index: None,
-            temp_coprocess_name: String::new(),
-            temp_coprocess_command: String::new(),
-            temp_coprocess_args: String::new(),
-            temp_coprocess_auto_start: false,
-            temp_coprocess_copy_output: true,
-            temp_coprocess_restart_policy: par_term_config::automation::RestartPolicy::Never,
-            temp_coprocess_restart_delay_ms: 0,
-            adding_new_coprocess: false,
-            trigger_resync_requested: false,
+            automation_tab: AutomationTabState::default(),
             pending_coprocess_actions: Vec::new(),
             coprocess_running: Vec::new(),
             coprocess_errors: Vec::new(),
             coprocess_output: Vec::new(),
             coprocess_output_expanded: Vec::new(),
-            editing_script_index: None,
-            temp_script_name: String::new(),
-            temp_script_path: String::new(),
-            temp_script_args: String::new(),
-            temp_script_auto_start: false,
-            temp_script_enabled: true,
-            temp_script_restart_policy: par_term_config::automation::RestartPolicy::Never,
-            temp_script_restart_delay_ms: 0,
-            temp_script_subscriptions: String::new(),
-            temp_script_allow_write_text: false,
-            temp_script_prompt_before_write_text: true,
-            temp_script_allow_run_command: false,
-            temp_script_allow_change_config: false,
-            temp_script_write_text_rate_limit: 0,
-            temp_script_run_command_rate_limit: 0,
-            adding_new_script: false,
+            scripts_tab: ScriptsTabState::default(),
             pending_script_actions: Vec::new(),
             script_running: Vec::new(),
             script_errors: Vec::new(),
@@ -269,72 +234,12 @@ impl SettingsUI {
             last_update_result: None,
             update_installing: false,
             update_install_receiver: None,
-            editing_snippet_index: None,
-            temp_snippet_id: String::new(),
-            temp_snippet_title: String::new(),
-            temp_snippet_content: String::new(),
-            temp_snippet_keybinding: String::new(),
-            temp_snippet_folder: String::new(),
-            temp_snippet_description: String::new(),
-            temp_snippet_keybinding_enabled: true,
-            temp_snippet_auto_execute: false,
-            temp_snippet_variables: Vec::new(),
-            adding_new_snippet: false,
-            editing_action_index: None,
-            temp_action_type: 0,
-            temp_action_id: String::new(),
-            temp_action_title: String::new(),
-            temp_action_command: String::new(),
-            temp_action_args: String::new(),
-            temp_action_new_tab_command: String::new(),
-            temp_action_text: String::new(),
-            temp_action_keys: String::new(),
-            temp_action_keybinding: String::new(),
-            temp_action_prefix_char: String::new(),
-            temp_action_split_direction: 0,
-            temp_action_split_command: String::new(),
-            temp_action_split_focus_new: true,
-            temp_action_split_delay_ms: 200,
-            temp_action_split_command_is_direct: false,
-            temp_action_split_percent: 66,
-            adding_new_action: false,
-            recording_snippet_keybinding: false,
-            snippet_recorded_combo: None,
-            recording_action_keybinding: false,
-            action_recorded_combo: None,
-            recording_custom_action_prefix_key: false,
-            custom_action_prefix_key_recorded_combo: None,
-            temp_action_steps: Vec::new(),
-            temp_action_check_type: 0,
-            temp_action_check_value: String::new(),
-            temp_action_case_sensitive: false,
-            temp_action_env_name: String::new(),
-            temp_action_env_value: String::new(),
-            temp_action_env_check_existence: false,
-            temp_action_on_true_id: String::new(),
-            temp_action_on_false_id: String::new(),
-            temp_action_repeat_action_id: String::new(),
-            temp_action_repeat_count: 3,
-            temp_action_repeat_delay_ms: 0,
-            temp_action_stop_on_success: false,
-            temp_action_stop_on_failure: false,
-            temp_action_capture_output: false,
-            temp_action_keybinding_enabled: true,
-            dynamic_source_editing: None,
-            dynamic_source_edit_buffer: None,
-            dynamic_source_new_header_key: String::new(),
-            dynamic_source_new_header_value: String::new(),
-            temp_import_url: String::new(),
-            import_export_status: None,
-            import_export_is_error: false,
+            snippets_tab: SnippetsTabState::default(),
+            actions_tab: ActionsTabState::default(),
+            profiles_tab: ProfilesTabState::default(),
+            advanced_tab: AdvancedTabState::default(),
             show_reset_defaults_dialog: false,
-            arrangement_save_name: String::new(),
-            arrangement_confirm_restore: None,
-            arrangement_confirm_delete: None,
-            arrangement_confirm_overwrite: None,
-            arrangement_confirm_replace: None,
-            arrangement_rename_id: None,
-            arrangement_rename_text: String::new(),
+            arrangements_tab: ArrangementsTabState::default(),
             pending_arrangement_actions: Vec::new(),
             arrangement_manager: ArrangementManager::new(),
             app_version: "",
@@ -563,9 +468,45 @@ impl SettingsUI {
 
     /// Check whether the Assistant prompt library changed and clear the flag.
     pub fn take_assistant_prompts_changed(&mut self) -> bool {
-        let changed = self.assistant_prompts_changed;
-        self.assistant_prompts_changed = false;
+        let changed = self.ai_inspector_tab.assistant_prompts_changed;
+        self.ai_inspector_tab.assistant_prompts_changed = false;
         changed
+    }
+}
+
+#[cfg(test)]
+mod grouped_state_tests {
+    use super::*;
+    use par_term_config::Config;
+
+    /// Guards the per-tab state groups against a `#[derive(Default)]` rewrite.
+    ///
+    /// Every field asserted here starts at a value that is *not* its type's
+    /// `Default`. Deriving instead of writing the impl out compiles fine and
+    /// silently resets each one, so these are the values that would be lost.
+    ///
+    /// `advanced_tab`, `profiles_tab` and `arrangements_tab` are absent on
+    /// purpose: every field in those groups genuinely is its type's default, so
+    /// they derive `Default` and have nothing here to protect.
+    #[test]
+    fn grouped_tab_state_keeps_its_non_default_seeds() {
+        let s = SettingsUI::new_for_tests(Config::default());
+
+        assert!(s.snippets_tab.temp_snippet_keybinding_enabled);
+
+        assert!(s.actions_tab.temp_action_split_focus_new);
+        assert_eq!(s.actions_tab.temp_action_split_delay_ms, 200);
+        assert_eq!(s.actions_tab.temp_action_split_percent, 66);
+        assert_eq!(s.actions_tab.temp_action_repeat_count, 3);
+        assert!(s.actions_tab.temp_action_keybinding_enabled);
+
+        assert!(s.automation_tab.temp_trigger_prompt_before_run);
+        assert!(s.automation_tab.temp_coprocess_copy_output);
+
+        assert!(s.scripts_tab.temp_script_enabled);
+        assert!(s.scripts_tab.temp_script_prompt_before_write_text);
+
+        assert_eq!(s.background_tab.temp_pane_bg_opacity, 1.0);
     }
 }
 
@@ -590,9 +531,9 @@ mod assistant_prompt_tests {
             Some("injected error".to_string()),
         );
 
-        assert_eq!(settings.assistant_prompts, vec![prompt]);
+        assert_eq!(settings.ai_inspector_tab.assistant_prompts, vec![prompt]);
         assert_eq!(
-            settings.assistant_prompt_error.as_deref(),
+            settings.ai_inspector_tab.assistant_prompt_error.as_deref(),
             Some("injected error")
         );
     }
@@ -601,20 +542,23 @@ mod assistant_prompt_tests {
     fn settings_ui_new_for_tests_initializes_empty_prompt_state_without_prompt_file_access() {
         let settings = SettingsUI::new_for_tests(Config::default());
 
-        assert!(settings.assistant_prompts.is_empty());
-        assert!(settings.assistant_prompt_error.is_none());
-        assert_eq!(settings.editing_assistant_prompt_index, None);
-        assert!(!settings.adding_new_assistant_prompt);
-        assert_eq!(settings.temp_assistant_prompt_title, "");
-        assert_eq!(settings.temp_assistant_prompt_body, "");
-        assert!(!settings.temp_assistant_prompt_auto_submit);
-        assert!(!settings.assistant_prompts_changed);
+        assert!(settings.ai_inspector_tab.assistant_prompts.is_empty());
+        assert!(settings.ai_inspector_tab.assistant_prompt_error.is_none());
+        assert_eq!(
+            settings.ai_inspector_tab.editing_assistant_prompt_index,
+            None
+        );
+        assert!(!settings.ai_inspector_tab.adding_new_assistant_prompt);
+        assert_eq!(settings.ai_inspector_tab.temp_assistant_prompt_title, "");
+        assert_eq!(settings.ai_inspector_tab.temp_assistant_prompt_body, "");
+        assert!(!settings.ai_inspector_tab.temp_assistant_prompt_auto_submit);
+        assert!(!settings.ai_inspector_tab.assistant_prompts_changed);
     }
 
     #[test]
     fn take_assistant_prompts_changed_returns_and_clears_flag() {
         let mut settings = SettingsUI::new_for_tests(Config::default());
-        settings.assistant_prompts_changed = true;
+        settings.ai_inspector_tab.assistant_prompts_changed = true;
 
         assert!(settings.take_assistant_prompts_changed());
         assert!(!settings.take_assistant_prompts_changed());

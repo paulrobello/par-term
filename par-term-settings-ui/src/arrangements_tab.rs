@@ -5,6 +5,10 @@
 //! - Save current layout button
 //! - Auto-restore on startup setting
 
+mod state;
+
+pub use state::ArrangementsTabState;
+
 use super::SettingsUI;
 use super::section::{collapsing_section, section_matches};
 use crate::SettingsWindowAction;
@@ -73,21 +77,29 @@ fn show_save_section(
 
             ui.horizontal(|ui| {
                 ui.label("Name:");
-                ui.text_edit_singleline(&mut settings.arrangement_save_name);
+                ui.text_edit_singleline(&mut settings.arrangements_tab.arrangement_save_name);
 
-                let name_valid = !settings.arrangement_save_name.trim().is_empty();
+                let name_valid = !settings
+                    .arrangements_tab
+                    .arrangement_save_name
+                    .trim()
+                    .is_empty();
                 if ui
                     .add_enabled(name_valid, egui::Button::new("Save"))
                     .clicked()
                 {
-                    let name = settings.arrangement_save_name.trim().to_string();
+                    let name = settings
+                        .arrangements_tab
+                        .arrangement_save_name
+                        .trim()
+                        .to_string();
                     if settings.arrangement_manager.find_by_name(&name).is_some() {
-                        settings.arrangement_confirm_overwrite = Some(name);
+                        settings.arrangements_tab.arrangement_confirm_overwrite = Some(name);
                     } else {
                         settings
                             .pending_arrangement_actions
                             .push(SettingsWindowAction::SaveArrangement(name));
-                        settings.arrangement_save_name.clear();
+                        settings.arrangements_tab.arrangement_save_name.clear();
                     }
                 }
             });
@@ -181,17 +193,17 @@ pub fn show_arrangements_with_manager(
                 }
 
                 if ui.small_button("Delete").clicked() {
-                    settings.arrangement_confirm_delete = Some(id);
+                    settings.arrangements_tab.arrangement_confirm_delete = Some(id);
                 }
                 if ui.small_button("Replace").clicked() {
-                    settings.arrangement_confirm_replace = Some(id);
+                    settings.arrangements_tab.arrangement_confirm_replace = Some(id);
                 }
                 if ui.small_button("Rename").clicked() {
-                    settings.arrangement_rename_id = Some(id);
-                    settings.arrangement_rename_text = arr.name.clone();
+                    settings.arrangements_tab.arrangement_rename_id = Some(id);
+                    settings.arrangements_tab.arrangement_rename_text = arr.name.clone();
                 }
                 if ui.small_button("Restore").clicked() {
-                    settings.arrangement_confirm_restore = Some(id);
+                    settings.arrangements_tab.arrangement_confirm_restore = Some(id);
                 }
             });
         });
@@ -225,7 +237,11 @@ fn format_date(iso: &str) -> String {
 // ============================================================================
 
 fn show_confirm_overwrite_dialog(ui: &mut egui::Ui, settings: &mut SettingsUI) {
-    if let Some(name) = settings.arrangement_confirm_overwrite.clone() {
+    if let Some(name) = settings
+        .arrangements_tab
+        .arrangement_confirm_overwrite
+        .clone()
+    {
         ui.add_space(8.0);
         ui.group(|ui| {
             ui.label(
@@ -242,11 +258,11 @@ fn show_confirm_overwrite_dialog(ui: &mut egui::Ui, settings: &mut SettingsUI) {
                     settings
                         .pending_arrangement_actions
                         .push(SettingsWindowAction::SaveArrangement(name));
-                    settings.arrangement_confirm_overwrite = None;
-                    settings.arrangement_save_name.clear();
+                    settings.arrangements_tab.arrangement_confirm_overwrite = None;
+                    settings.arrangements_tab.arrangement_save_name.clear();
                 }
                 if ui.button("Cancel").clicked() {
-                    settings.arrangement_confirm_overwrite = None;
+                    settings.arrangements_tab.arrangement_confirm_overwrite = None;
                 }
             });
         });
@@ -254,7 +270,7 @@ fn show_confirm_overwrite_dialog(ui: &mut egui::Ui, settings: &mut SettingsUI) {
 }
 
 fn show_confirm_restore_dialog(ui: &mut egui::Ui, settings: &mut SettingsUI) {
-    if let Some(id) = settings.arrangement_confirm_restore {
+    if let Some(id) = settings.arrangements_tab.arrangement_confirm_restore {
         ui.add_space(8.0);
         ui.group(|ui| {
             ui.label(
@@ -268,10 +284,10 @@ fn show_confirm_restore_dialog(ui: &mut egui::Ui, settings: &mut SettingsUI) {
                     settings
                         .pending_arrangement_actions
                         .push(SettingsWindowAction::RestoreArrangement(id));
-                    settings.arrangement_confirm_restore = None;
+                    settings.arrangements_tab.arrangement_confirm_restore = None;
                 }
                 if ui.button("Cancel").clicked() {
-                    settings.arrangement_confirm_restore = None;
+                    settings.arrangements_tab.arrangement_confirm_restore = None;
                 }
             });
         });
@@ -279,7 +295,7 @@ fn show_confirm_restore_dialog(ui: &mut egui::Ui, settings: &mut SettingsUI) {
 }
 
 fn show_confirm_delete_dialog(ui: &mut egui::Ui, settings: &mut SettingsUI) {
-    if let Some(id) = settings.arrangement_confirm_delete {
+    if let Some(id) = settings.arrangements_tab.arrangement_confirm_delete {
         ui.add_space(8.0);
         ui.group(|ui| {
             ui.label(
@@ -293,10 +309,10 @@ fn show_confirm_delete_dialog(ui: &mut egui::Ui, settings: &mut SettingsUI) {
                     settings
                         .pending_arrangement_actions
                         .push(SettingsWindowAction::DeleteArrangement(id));
-                    settings.arrangement_confirm_delete = None;
+                    settings.arrangements_tab.arrangement_confirm_delete = None;
                 }
                 if ui.button("Cancel").clicked() {
-                    settings.arrangement_confirm_delete = None;
+                    settings.arrangements_tab.arrangement_confirm_delete = None;
                 }
             });
         });
@@ -304,7 +320,7 @@ fn show_confirm_delete_dialog(ui: &mut egui::Ui, settings: &mut SettingsUI) {
 }
 
 fn show_confirm_replace_dialog(ui: &mut egui::Ui, settings: &mut SettingsUI) {
-    if let Some(id) = settings.arrangement_confirm_replace {
+    if let Some(id) = settings.arrangements_tab.arrangement_confirm_replace {
         let name = settings
             .arrangement_manager
             .get(&id)
@@ -327,10 +343,10 @@ fn show_confirm_replace_dialog(ui: &mut egui::Ui, settings: &mut SettingsUI) {
                     settings
                         .pending_arrangement_actions
                         .push(SettingsWindowAction::ReplaceArrangement(id));
-                    settings.arrangement_confirm_replace = None;
+                    settings.arrangements_tab.arrangement_confirm_replace = None;
                 }
                 if ui.button("Cancel").clicked() {
-                    settings.arrangement_confirm_replace = None;
+                    settings.arrangements_tab.arrangement_confirm_replace = None;
                 }
             });
         });
@@ -338,26 +354,34 @@ fn show_confirm_replace_dialog(ui: &mut egui::Ui, settings: &mut SettingsUI) {
 }
 
 fn show_rename_dialog(ui: &mut egui::Ui, settings: &mut SettingsUI) {
-    if let Some(id) = settings.arrangement_rename_id {
+    if let Some(id) = settings.arrangements_tab.arrangement_rename_id {
         ui.add_space(8.0);
         ui.group(|ui| {
             ui.label(egui::RichText::new("Rename arrangement").strong());
             ui.horizontal(|ui| {
                 ui.label("New name:");
-                ui.text_edit_singleline(&mut settings.arrangement_rename_text);
+                ui.text_edit_singleline(&mut settings.arrangements_tab.arrangement_rename_text);
 
-                let valid = !settings.arrangement_rename_text.trim().is_empty();
+                let valid = !settings
+                    .arrangements_tab
+                    .arrangement_rename_text
+                    .trim()
+                    .is_empty();
                 if ui.add_enabled(valid, egui::Button::new("Rename")).clicked() {
-                    let new_name = settings.arrangement_rename_text.trim().to_string();
+                    let new_name = settings
+                        .arrangements_tab
+                        .arrangement_rename_text
+                        .trim()
+                        .to_string();
                     settings
                         .pending_arrangement_actions
                         .push(SettingsWindowAction::RenameArrangement(id, new_name));
-                    settings.arrangement_rename_id = None;
-                    settings.arrangement_rename_text.clear();
+                    settings.arrangements_tab.arrangement_rename_id = None;
+                    settings.arrangements_tab.arrangement_rename_text.clear();
                 }
                 if ui.button("Cancel").clicked() {
-                    settings.arrangement_rename_id = None;
-                    settings.arrangement_rename_text.clear();
+                    settings.arrangements_tab.arrangement_rename_id = None;
+                    settings.arrangements_tab.arrangement_rename_text.clear();
                 }
             });
         });
