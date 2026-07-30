@@ -1,34 +1,49 @@
-//! Linux-specific menu initialization.
+//! Linux menu initialization — currently a no-op, deliberately.
 //!
-//! On Linux, menus are GTK-based and must be attached to a specific window.
-//! Both X11 (Xlib) and Wayland display servers are handled here.
+//! par-term builds a full [`muda::Menu`] on every platform, but on Linux it is
+//! never attached to anything, and this module is where that stops.
+//!
+//! muda attaches a menubar with `Menu::init_for_gtk_window<W, C>()`, whose
+//! bounds are `W: IsA<gtk::Window> + IsA<gtk::Container>`. winit's X11 and
+//! Wayland backends do not create GTK windows — they create a raw X11 window
+//! or a Wayland surface directly — so there is no `gtk::Window` to hand it.
+//! This is not winit failing to expose a handle: no GTK window exists to
+//! expose. GTK would have to own the window from creation, which would mean
+//! replacing the winit backend on Linux.
+//!
+//! The realistic ways to give Linux a menu are therefore:
+//!
+//! 1. Draw it in-app with egui, as the tab bar and settings window already
+//!    are, driving the existing action map. Works on X11 and Wayland alike.
+//! 2. Export a global menu over DBus (`com.canonical.dbusmenu`). Works on KDE
+//!    Plasma, not on GNOME without an extension.
+//! 3. Leave it: every menu action also has a keybinding, so the menu is a
+//!    discoverability aid rather than the only route to any feature.
+//!
+//! Until one of those lands, this function logs what it detected and returns
+//! `Ok(())`. It must not claim to have initialized a menu — the previous
+//! version logged "Linux menu bar initialized (GTK-based)", which was false.
 
 use anyhow::Result;
 use std::sync::Arc;
 use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use winit::window::Window;
 
-/// Attach the menu bar to a Linux window.
+/// Report that no menu bar is attached on Linux, and why.
 ///
-/// GTK menu initialization is more complex than macOS or Windows because
-/// it depends on the display server (X11 vs Wayland) and requires GTK
-/// to be available. The `muda` GTK feature handles the underlying plumbing.
+/// Returns `Ok(())` because an absent menu bar is not a startup failure: the
+/// keybindings covering the same actions are unaffected.
 pub fn init_for_window(window: &Arc<Window>) -> Result<()> {
-    if let Ok(handle) = window.window_handle() {
-        match handle.as_raw() {
-            RawWindowHandle::Xlib(_xlib_handle) => {
-                // For X11, menu support goes through GTK integration
-                log::info!("Linux X11 menu support (using GTK integration)");
-            }
-            RawWindowHandle::Wayland(_wayland_handle) => {
-                log::info!("Linux Wayland menu support (using GTK integration)");
-            }
-            _ => {
-                log::warn!("Linux: unrecognised window handle type for menu attachment");
-            }
-        }
-    }
-    // GTK menu initialization is handled by muda's gtk feature
-    log::info!("Linux menu bar initialized (GTK-based)");
+    let display_server = match window.window_handle().map(|handle| handle.as_raw()) {
+        Ok(RawWindowHandle::Xlib(_)) => "X11",
+        Ok(RawWindowHandle::Wayland(_)) => "Wayland",
+        Ok(_) => "an unrecognised display server",
+        Err(_) => "an unavailable window handle",
+    };
+
+    log::info!(
+        "No native menu bar on Linux ({display_server}): muda needs a gtk::Window and winit \
+         creates none. Menu actions remain available through their keybindings."
+    );
     Ok(())
 }

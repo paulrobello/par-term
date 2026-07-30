@@ -2,8 +2,9 @@
 //!
 //! This module provides cross-platform native menu support using the `muda` crate.
 //! - macOS: Global application menu bar (see [`macos`])
-//! - Linux: Per-window GTK-based menu bar (see [`linux`])
 //! - Windows: Per-window Win32 menu bar
+//! - Linux: **no menu bar** — the menu is built but never attached, because
+//!   muda needs a `gtk::Window` that winit does not create (see [`linux`])
 
 mod actions;
 
@@ -11,7 +12,7 @@ mod actions;
 #[cfg(target_os = "macos")]
 pub(super) mod macos;
 
-/// Linux-specific menu initialization (GTK/X11/Wayland).
+/// Linux menu initialization — a no-op that explains itself.
 #[cfg(any(
     target_os = "linux",
     target_os = "dragonfly",
@@ -37,8 +38,9 @@ use winit::window::Window;
 pub struct MenuManager {
     /// The root menu
     ///
-    /// Only attached on macOS and Windows; the Linux path logs display-server
-    /// support and never reads it.
+    /// Only attached on macOS and Windows. Linux never reads it: muda needs a
+    /// `gtk::Window` to attach a menubar and winit's X11/Wayland backends do
+    /// not create one. See `linux.rs` for the options and why none is wired up.
     #[cfg_attr(not(any(target_os = "macos", target_os = "windows")), allow(dead_code))]
     menu: Menu,
     /// Mapping from menu item IDs to actions
