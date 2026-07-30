@@ -95,6 +95,20 @@ session_undo_preserve_shell: false
 
 Automatically save the current session state on clean exit and restore it when par-term launches.
 
+### Recovery After a Crash
+
+par-term also keeps a crash snapshot. While running, the event loop republishes a
+serialized copy of the session every few seconds, and a panic handler writes it to
+`crash_session.yaml` before the process dies. On the next launch that file is
+preferred over `last_session.yaml`, consumed, and a toast reports that the session
+was recovered.
+
+Two limits are worth knowing. The snapshot is at most a few seconds old, so one very
+recent tab or directory change can be missing. And it only covers panics — a
+segmentation fault, a stack overflow, an out-of-memory kill or `kill -9` run no
+handler at all, so nothing is written. Scrollback and running processes are never
+preserved by either path.
+
 ### What Gets Saved
 
 - Open windows with their positions and sizes

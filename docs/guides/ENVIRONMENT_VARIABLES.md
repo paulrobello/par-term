@@ -129,6 +129,7 @@ On Windows, `%APPDATA%\par-term` is used and the XDG variables are ignored entir
 | `DISPLAY` | — | X11 display server connection string (Linux). Required on X11 systems for GPU rendering. |
 | `WAYLAND_DISPLAY` | — | Wayland compositor socket name (Linux). Used when running under a Wayland compositor. |
 | `TMPDIR` / `TEMP` / `TMP` | — | Temporary directory override. Used to locate or create the debug log file. |
+| `PAR_TERM_IN_APP_MENU` | unset | Force the in-app egui menu on (`1`) or off (`0`). Unset means on where no native menu bar can be attached — Linux and BSD — and off on macOS and Windows, which have a native menu. |
 
 ---
 

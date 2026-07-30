@@ -29,7 +29,7 @@ is 920 total but only **413** production (the rest is tests), and `par-term-acp/
 `BOX_DRAWING_ENTRIES` glyph table — **legitimately exempt**, and CLAUDE.md should say so explicitly rather than
 leaving it as a standing violation.
 
-**QA-022** — `parse_shader_controls` (`par-term-config/src/shader_controls.rs:368-1022`) is a **655-line single
+**QA-022** — `parse_shader_controls` (`par-term-config/src/shader_controls.rs` (now split into `shader_controls/`)) is a **655-line single
 function** with cyclomatic complexity 71 and **zero nested functions**: the worst long method in the repo. Its
 helpers already exist at `:126-342`; the body is one per-line branch ladder that should delegate per control kind.
 

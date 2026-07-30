@@ -35,6 +35,8 @@ make fmt            # Format code with rustfmt
 make lint           # Run clippy
 make typecheck      # Type-check entire workspace (cargo check --workspace)
 make checkall       # fmt-check, lint, typecheck, test — verification only, never rewrites files
+make doc-check      # Validate markdown links and anchors (needs lychee)
+make check-line-counts  # Fail on production .rs files over 800 lines (warn over 500)
 cargo test -- --include-ignored  # Run all tests including PTY-dependent ones
 ```
 

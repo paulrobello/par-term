@@ -4,14 +4,19 @@ Complete reference for all par-term keyboard shortcuts.
 
 > **📝 Note:** On macOS, keybindings use `Cmd` as the primary modifier. On Linux and Windows, keybindings use `Ctrl+Shift` combinations to avoid conflicts with standard terminal control codes (Ctrl+C for SIGINT, Ctrl+D for EOF, etc.). This follows conventions from WezTerm, Kitty, GNOME Terminal, and Windows Terminal.
 
-> **⚠️ Linux:** Shortcuts marked *(menu)* below are provided by the native menu
-> bar, and **par-term does not attach a menu bar on Linux** — `muda` requires a
-> `gtk::Window` that winit does not create. `New window`, `Close tab/window`,
-> `Quit application` and `Select all` are menu-only actions with no
-> configurable keybinding, so on Linux they have no direct keyboard route.
-> Workarounds: close the window with the window-manager control to quit,
-> `move_tab_to_new_window` to open a second window, and mouse selection in place
-> of Select all. Tracked on the project board.
+> **📝 Linux:** par-term cannot attach a *native* menu bar on Linux — `muda`
+> requires a `gtk::Window` that winit does not create — so Linux gets an in-app
+> menu instead, opened from the `☰` button in the tab bar or by binding
+> `toggle_menu`. It offers the same commands as the macOS and Windows menus,
+> because all three are built from one shared model.
+>
+> `new_window`, `close_window`, `quit` and `select_all` are now bindable actions
+> on every platform. None ships with a default chord — bind them in
+> **Settings ▸ Input ▸ Keybindings**. Binding `toggle_menu` matters if you run
+> with `tab_bar_mode: never`, since there is then no tab bar to hold the button.
+>
+> Set `PAR_TERM_IN_APP_MENU=1` to force the in-app menu on any platform, or `0`
+> to disable it.
 
 ## Table of Contents
 - [Window & Tab Management](#window--tab-management)

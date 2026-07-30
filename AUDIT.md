@@ -986,7 +986,7 @@ Six board items were passed to the auditors as known work. Outcomes:
   threshold while advertising 55 lines of headroom. *Remedy*: delete the hand-maintained counts, keep the
   extraction plans, enforce via a CI line-count check (ENH-009).
 - **[QA-022] `parse_shader_controls` is a 655-line single function (complexity 71).** — **deferred.**
-  `par-term-config/src/shader_controls.rs:368-1022`, zero nested functions — the worst long method in the
+  `par-term-config/src/shader_controls.rs` (now split into `shader_controls/`), zero nested functions — the worst long method in the
   repo. Helpers already exist at `:126-342`; the body is one per-line branch ladder that should delegate per
   control kind. *Deferred* with ARC-009. Tracked as ENH-009.
 - **[QA-023] Persistence layer triplicated, production and tests.** Identical five-function shape at
