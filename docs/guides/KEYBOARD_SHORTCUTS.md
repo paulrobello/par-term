@@ -73,7 +73,7 @@ Modifier keys (`Shift`, `Ctrl`, `Alt`, and combinations) work with special keys 
 | Paste | `Cmd + V` | `Ctrl + Shift + V` |
 | Paste (X11 fallback) | `Shift + Insert` | `Shift + Insert` |
 | Paste Special | `Cmd + Shift + V` | `Ctrl + Alt + V` |
-| Clipboard history | `Ctrl + Shift + H` | `Ctrl + Shift + H` |
+| Clipboard history | `Cmd + Shift + H` | `Ctrl + Shift + H` |
 | Select all | `Cmd + A` *(menu)* | `Ctrl + Shift + A` *(menu)* |
 
 **Mouse Selection:**
@@ -152,7 +152,7 @@ Vi-style keyboard-driven text selection. See [Copy Mode](../features/COPY_MODE.m
 | `F3` | Toggle FPS overlay |
 | `F5` | Reload configuration |
 | `F11` | Toggle fullscreen |
-| `Shift + F11` | Maximize window vertically (View menu) |
+| `Shift + F11` | **Also toggles fullscreen** — the handler matches bare `F11` with no modifier guard, so any `F11` chord hits it. Maximize-vertically is on the View menu and as the bindable `maximize_vertically` action, which ships **unbound**. |
 | `F12` | Open Settings |
 | `Cmd + ,` (macOS) | Open Settings |
 | `Escape` | Close current UI panel |
@@ -183,11 +183,11 @@ Vi-style keyboard-driven text selection. See [Copy Mode](../features/COPY_MODE.m
 |----------|--------|
 | `Cmd/Ctrl + Shift + B` | Toggle background shader |
 | `Cmd/Ctrl + Shift + U` | Toggle cursor shader |
-| `Cmd/Ctrl + Shift + P` | Toggle profile drawer |
+| `Cmd/Ctrl + Shift + P` | Manage Profiles (opens Settings to the Profiles tab) — this is the menu accelerator. `toggle_profile_drawer` is a separate action and ships **unbound**. |
 | `Cmd + Shift + S` (macOS) / `Ctrl + Shift + S` (Linux/Win) | SSH Quick Connect |
 | `Cmd/Ctrl + Alt + I` | Toggle broadcast input |
 | `Cmd/Ctrl + Alt + T` | Toggle tmux session picker |
-| `Cmd + ,` (macOS) / `Ctrl + ,` (Linux/Win) | Cycle cursor style (Block/Beam/Underline) |
+| `Cmd + ,` (macOS) / `F12` | Open the Settings window — `Cmd + ,` is intercepted for Settings, so it never reaches a cursor-style cycler. `cycle_cursor_style` exists as a bindable action but ships **unbound**; add a keybinding for it in `config.yaml` if you want one. |
 
 > **📝 Note:** On macOS, `Cmd + ,` also opens Settings; the Settings handler takes priority. Use the `cycle_cursor_style` action with a custom keybinding to avoid the conflict.
 
