@@ -12,7 +12,7 @@
 use par_term_config::KeyBinding;
 use par_term_keybindings::{
     KeyCombo, key_combo_to_bytes, parse_key_sequence,
-    parser::{ParsedKey, parse_key_combo},
+    parser::{Modifiers, ParsedKey, parse_key_combo},
 };
 use winit::keyboard::NamedKey;
 
@@ -162,106 +162,85 @@ fn parse_cmd_or_ctrl() {
 // Parser — modifier aliases
 // ---------------------------------------------------------------------------
 
+/// Every spelling of a modifier must set exactly one flag, and must not leak
+/// into a neighbouring one — asserting the whole `Modifiers` value catches an
+/// alias that sets the right flag plus a wrong one.
 #[test]
-fn parse_control_alias() {
-    let combo = parse_key_combo("Control+Z").unwrap();
-    assert!(combo.modifiers.ctrl);
-    assert_eq!(combo.key, ParsedKey::Character('Z'));
-}
+fn parse_all_modifier_aliases() {
+    let ctrl = Modifiers {
+        ctrl: true,
+        ..Modifiers::default()
+    };
+    let alt = Modifiers {
+        alt: true,
+        ..Modifiers::default()
+    };
+    let super_key = Modifiers {
+        super_key: true,
+        ..Modifiers::default()
+    };
+    let expected = [
+        ("Control+Z", ctrl),
+        ("Option+Z", alt),
+        ("Cmd+Z", super_key),
+        ("Command+Z", super_key),
+        ("Meta+Z", super_key),
+        ("Win+Z", super_key),
+    ];
 
-#[test]
-fn parse_option_alias() {
-    let combo = parse_key_combo("Option+Z").unwrap();
-    assert!(combo.modifiers.alt);
-    assert_eq!(combo.key, ParsedKey::Character('Z'));
-}
-
-#[test]
-fn parse_cmd_alias() {
-    let combo = parse_key_combo("Cmd+Z").unwrap();
-    assert!(combo.modifiers.super_key);
-}
-
-#[test]
-fn parse_command_alias() {
-    let combo = parse_key_combo("Command+Z").unwrap();
-    assert!(combo.modifiers.super_key);
-}
-
-#[test]
-fn parse_meta_alias() {
-    let combo = parse_key_combo("Meta+Z").unwrap();
-    assert!(combo.modifiers.super_key);
-}
-
-#[test]
-fn parse_win_alias() {
-    let combo = parse_key_combo("Win+Z").unwrap();
-    assert!(combo.modifiers.super_key);
+    for (combo_str, expected_modifiers) in &expected {
+        let combo =
+            parse_key_combo(combo_str).unwrap_or_else(|_| panic!("Failed to parse {}", combo_str));
+        assert_eq!(
+            combo.modifiers, *expected_modifiers,
+            "Wrong modifiers for {}",
+            combo_str
+        );
+        assert_eq!(
+            combo.key,
+            ParsedKey::Character('Z'),
+            "Wrong key for {}",
+            combo_str
+        );
+    }
 }
 
 // ---------------------------------------------------------------------------
 // Parser — key aliases
 // ---------------------------------------------------------------------------
 
+/// A bare key alias must resolve to its `NamedKey` with no modifiers implied.
 #[test]
-fn parse_return_as_enter() {
-    let combo = parse_key_combo("Return").unwrap();
-    assert_eq!(combo.key, ParsedKey::Named(NamedKey::Enter));
-}
+fn parse_all_key_aliases() {
+    let expected = [
+        ("Return", NamedKey::Enter),
+        ("Esc", NamedKey::Escape),
+        ("Del", NamedKey::Delete),
+        ("Ins", NamedKey::Insert),
+        ("PgUp", NamedKey::PageUp),
+        ("PgDn", NamedKey::PageDown),
+        ("Up", NamedKey::ArrowUp),
+        ("Down", NamedKey::ArrowDown),
+        ("Left", NamedKey::ArrowLeft),
+        ("Right", NamedKey::ArrowRight),
+    ];
 
-#[test]
-fn parse_esc_alias() {
-    let combo = parse_key_combo("Esc").unwrap();
-    assert_eq!(combo.key, ParsedKey::Named(NamedKey::Escape));
-}
-
-#[test]
-fn parse_del_alias() {
-    let combo = parse_key_combo("Del").unwrap();
-    assert_eq!(combo.key, ParsedKey::Named(NamedKey::Delete));
-}
-
-#[test]
-fn parse_ins_alias() {
-    let combo = parse_key_combo("Ins").unwrap();
-    assert_eq!(combo.key, ParsedKey::Named(NamedKey::Insert));
-}
-
-#[test]
-fn parse_pgup_alias() {
-    let combo = parse_key_combo("PgUp").unwrap();
-    assert_eq!(combo.key, ParsedKey::Named(NamedKey::PageUp));
-}
-
-#[test]
-fn parse_pgdn_alias() {
-    let combo = parse_key_combo("PgDn").unwrap();
-    assert_eq!(combo.key, ParsedKey::Named(NamedKey::PageDown));
-}
-
-#[test]
-fn parse_arrow_up_alias() {
-    let combo = parse_key_combo("Up").unwrap();
-    assert_eq!(combo.key, ParsedKey::Named(NamedKey::ArrowUp));
-}
-
-#[test]
-fn parse_arrow_down_alias() {
-    let combo = parse_key_combo("Down").unwrap();
-    assert_eq!(combo.key, ParsedKey::Named(NamedKey::ArrowDown));
-}
-
-#[test]
-fn parse_arrow_left_alias() {
-    let combo = parse_key_combo("Left").unwrap();
-    assert_eq!(combo.key, ParsedKey::Named(NamedKey::ArrowLeft));
-}
-
-#[test]
-fn parse_arrow_right_alias() {
-    let combo = parse_key_combo("Right").unwrap();
-    assert_eq!(combo.key, ParsedKey::Named(NamedKey::ArrowRight));
+    for (key_str, expected_named) in &expected {
+        let combo =
+            parse_key_combo(key_str).unwrap_or_else(|_| panic!("Failed to parse {}", key_str));
+        assert_eq!(
+            combo.key,
+            ParsedKey::Named(*expected_named),
+            "Failed for {}",
+            key_str
+        );
+        assert_eq!(
+            combo.modifiers,
+            Modifiers::default(),
+            "{} must not imply a modifier",
+            key_str
+        );
+    }
 }
 
 // ---------------------------------------------------------------------------

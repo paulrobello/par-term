@@ -684,9 +684,14 @@ fn test_snippet_custom_variables_roundtrip() {
     );
 }
 
+/// Models the duplicate-ID rule that snippet import applies. It does **not**
+/// exercise the importer: `par_term_settings_ui::snippets_tab::io::import_snippets`
+/// is `pub(super)` and opens an `rfd` file dialog, so it is unreachable from an
+/// integration test. Its keybinding-conflict clearing therefore has no coverage
+/// and needs a unit test inside `par-term-settings-ui`.
 #[test]
-fn test_snippet_import_duplicate_handling() {
-    // Simulate import: existing snippets + imported library
+fn test_snippet_import_duplicate_rule() {
+    // Existing snippets + an imported library sharing one ID
     let existing = vec![SnippetConfig::new(
         "existing".to_string(),
         "Existing".to_string(),

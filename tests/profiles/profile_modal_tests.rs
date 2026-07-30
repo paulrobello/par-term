@@ -116,24 +116,6 @@ fn test_profile_modal_get_working_profiles() {
 // ============================================================================
 
 #[test]
-fn test_profile_modal_action_none() {
-    let action = ProfileModalAction::None;
-    assert!(matches!(action, ProfileModalAction::None));
-}
-
-#[test]
-fn test_profile_modal_action_save() {
-    let action = ProfileModalAction::Save;
-    assert!(matches!(action, ProfileModalAction::Save));
-}
-
-#[test]
-fn test_profile_modal_action_cancel() {
-    let action = ProfileModalAction::Cancel;
-    assert!(matches!(action, ProfileModalAction::Cancel));
-}
-
-#[test]
 fn test_profile_modal_action_open_profile() {
     let profile_id = Uuid::new_v4();
     let action = ProfileModalAction::OpenProfile(profile_id);
@@ -180,22 +162,6 @@ fn test_profile_modal_actions_clone() {
     for action in actions {
         let cloned = action.clone();
         assert_eq!(action, cloned);
-    }
-}
-
-#[test]
-fn test_profile_modal_actions_debug() {
-    let id = Uuid::new_v4();
-    let actions = vec![
-        ProfileModalAction::None,
-        ProfileModalAction::Save,
-        ProfileModalAction::Cancel,
-        ProfileModalAction::OpenProfile(id),
-    ];
-
-    for action in actions {
-        let debug_str = format!("{:?}", action);
-        assert!(!debug_str.is_empty());
     }
 }
 
@@ -346,8 +312,13 @@ fn test_profile_display_label_with_emoji_icon() {
 // ProfileModalUI Delete Confirmation Tests
 // ============================================================================
 
+// `pending_delete` is `pub(super)` in par-term-settings-ui, so these integration
+// tests cannot observe the confirmation state itself. They are named for the
+// public state they do check; the pending-delete lifecycle needs a unit test
+// inside `par-term-settings-ui/src/profile_modal_ui/`.
+
 #[test]
-fn test_profile_modal_delete_confirmation_flow() {
+fn test_profile_modal_open_loads_profiles_without_deleting() {
     let mut modal = ProfileModalUI::new();
     let mut manager = ProfileManager::new();
 
@@ -356,11 +327,8 @@ fn test_profile_modal_delete_confirmation_flow() {
     manager.add(profile);
 
     modal.open(&manager);
-    assert_eq!(modal.get_working_profiles().len(), 1);
 
-    // Request deletion - should not delete immediately
-    // Note: We can't call request_delete directly as it's private,
-    // but we can test the public interface behavior
+    assert_eq!(modal.get_working_profiles().len(), 1);
     assert!(
         modal
             .get_working_profiles()
@@ -370,26 +338,23 @@ fn test_profile_modal_delete_confirmation_flow() {
 }
 
 #[test]
-fn test_profile_modal_pending_delete_cleared_on_open() {
+fn test_profile_modal_open_makes_modal_visible() {
     let mut modal = ProfileModalUI::new();
     let manager = ProfileManager::new();
 
-    // Open modal - pending_delete should be None (cleared)
     modal.open(&manager);
 
-    // Modal is visible and ready for use
     assert!(modal.visible);
 }
 
 #[test]
-fn test_profile_modal_pending_delete_cleared_on_close() {
+fn test_profile_modal_close_hides_modal_and_drops_working_profiles() {
     let mut modal = ProfileModalUI::new();
     let manager = ProfileManager::new();
 
     modal.open(&manager);
     modal.close();
 
-    // Modal is closed and state is cleared
     assert!(!modal.visible);
     assert!(modal.get_working_profiles().is_empty());
 }
@@ -710,6 +675,10 @@ fn test_profile_manager_default() {
 // Profile Action Exhaustiveness Tests
 // ============================================================================
 
+/// Compile-time guard, not a runtime assertion: the arms below are deliberately
+/// empty and the match deliberately has no `_`, so adding a `ProfileModalAction`
+/// variant fails this test to compile and forces the new case to be considered
+/// here and at the call sites.
 #[test]
 fn test_profile_modal_action_all_variants() {
     let actions = vec![
@@ -719,7 +688,6 @@ fn test_profile_modal_action_all_variants() {
         ProfileModalAction::OpenProfile(Uuid::new_v4()),
     ];
 
-    // Ensure all variants can be matched
     for action in actions {
         match action {
             ProfileModalAction::None => {}
