@@ -43,6 +43,13 @@ New to par-term? The [Getting Started Guide](docs/guides/GETTING_STARTED.md) wal
 
 ## What's New
 
+### 0.40.0
+
+Script restart policies now work for observer scripts. `restart_policy` and `restart_delay_ms` had been parsed and shown in the Settings UI since 0.38.0 but never enforced.
+
+- **Scripts honor `restart_policy` / `restart_delay_ms`** (`never`, `always`, `on_failure`) — a script that exits is restarted per its policy after the configured delay, matching how coprocesses already worked. `on_failure` tells a crash from a clean exit, and a crash-loop guard caps restarts at five within a five-second grace window. Closes #222.
+- **Dead scripts are reaped on exit** instead of lingering with their terminal observer still attached until the tab was closed.
+
 ### 0.39.0
 
 A maintenance release. No new features and no behavioural fixes, but it clears two high-severity security advisories and removes 18 crates from the dependency graph.

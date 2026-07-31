@@ -13,6 +13,22 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ---
 
+## [0.40.0] - 2026-07-31
+
+Script restart policies, parsed and displayed since 0.38.0 but never enforced, now actually work — `restart_policy` and `restart_delay_ms` are honored for observer scripts the same way they already were for coprocesses. Closes #222.
+
+Minor bump for the new feature. `par-term-scripting` is the only changed sub-crate, patch-level: 0.1.14 → 0.1.15 (new public surface — `ScriptStatus`, `poll_status`, and the `restart` supervisor module). No core-library change — `par-term-emu-core-rust` remains at 0.45.0.
+
+### Added
+
+- **Observer scripts honor `restart_policy` and `restart_delay_ms`.** A script that exits is restarted per its policy — `never` clears the slot, `always` and `on_failure` re-spawn after the configured delay via the existing `start_script_at` path (which re-registers the terminal observer and event forwarder). `on_failure` distinguishes a crash from a clean exit using the process exit status, which `ScriptProcess` had been discarding. A crash-loop guard caps restarts at five consecutive attempts within a five-second grace window: a run that survives past grace resets the counter, so a slow leak never exhausts the budget and only a tight loop is stopped.
+
+### Fixed
+
+- **A dead script no longer leaks its process and terminal observer.** A script that exited on its own was not noticed — `is_running` returned `false` but nothing removed the process or unregistered its observer, so the forwarder kept receiving every subscribed event (bounded by the 1024-event cap, but wasteful) until the tab was closed. Exits are now detected each frame and the slot is cleared or re-spawned.
+
+---
+
 ## [0.39.0] - 2026-07-30
 
 A maintenance release: the Rust toolchain moves to 1.97.1, every dependency is refreshed, and a feature that had been dead for three months is removed. No new functionality and no behavioural fixes — but it clears two high-severity advisories and drops 18 crates from the dependency graph, so it is worth taking.

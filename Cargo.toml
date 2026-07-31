@@ -98,7 +98,7 @@ serial_test = { version = "4.0.1", default-features = false }
 
 [package]
 name = "par-term"
-version = "0.39.0"
+version = "0.40.0"
 edition = "2024"
 rust-version = "1.97"
 authors = ["Paul Robello <probello@gmail.com>"]
@@ -155,7 +155,7 @@ par-term-input = { path = "par-term-input", version = "0.1.19" }
 par-term-keybindings = { path = "par-term-keybindings", version = "0.1.12" }
 
 # Scripting and observer system
-par-term-scripting = { path = "par-term-scripting", version = "0.1.14" }
+par-term-scripting = { path = "par-term-scripting", version = "0.1.15" }
 
 # SSH host management and discovery
 par-term-ssh = { path = "par-term-ssh", version = "0.2.1", default-features = false }
