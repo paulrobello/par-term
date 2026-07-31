@@ -12,6 +12,20 @@ use std::thread::JoinHandle;
 
 use super::protocol::{ScriptCommand, ScriptEvent};
 
+/// Liveness of a script process, polled each frame.
+///
+/// `Exited` is sticky: once the OS reports an exit, the outcome is remembered so
+/// the supervisor observes exactly one running→exited transition rather than a
+/// stream of identical exits every frame. [`ScriptProcess::poll_status`] reaps
+/// the child on the first `Exited` and records the outcome here.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScriptStatus {
+    /// Still alive.
+    Running,
+    /// Exited. `success` mirrors [`std::process::ExitStatus::success`].
+    Exited { success: bool },
+}
+
 /// Manages a single script subprocess with JSON-line communication.
 ///
 /// The subprocess receives [`ScriptEvent`] objects serialized as JSON lines on stdin,
@@ -30,6 +44,8 @@ pub struct ScriptProcess {
     _stdout_thread: Option<JoinHandle<()>>,
     /// Handle to the background thread reading stderr.
     _stderr_thread: Option<JoinHandle<()>>,
+    /// Sticky exit outcome. `None` while running or before the first poll.
+    exit: Option<ScriptStatus>,
 }
 
 impl ScriptProcess {
@@ -140,22 +156,52 @@ impl ScriptProcess {
             error_buffer,
             _stdout_thread: Some(stdout_thread),
             _stderr_thread: Some(stderr_thread),
+            exit: None,
         })
+    }
+
+    /// Poll the process liveness, classifying an exit as clean or failed.
+    ///
+    /// The first observed exit is sticky: [`ScriptStatus::Exited`] is recorded
+    /// and the child handle is dropped, so later calls are cheap and the
+    /// supervisor sees the transition exactly once. [`Self::is_running`] is
+    /// defined in terms of this.
+    pub fn poll_status(&mut self) -> ScriptStatus {
+        if let Some(status) = self.exit {
+            return status;
+        }
+        // Compute the outcome in a scope where `self.child` is borrowed, then
+        // release that borrow before mutating `self` below.
+        let polled = match self.child.as_mut() {
+            Some(child) => match child.try_wait() {
+                Ok(Some(s)) => Some(ScriptStatus::Exited {
+                    success: s.success(),
+                }),
+                Ok(None) => None,
+                Err(_) => Some(ScriptStatus::Exited { success: false }),
+            },
+            // No handle and no recorded exit: treat as a clean exit so a stray
+            // poll on an already-cleared slot does not loop.
+            None => Some(ScriptStatus::Exited { success: true }),
+        };
+        match polled {
+            Some(status) => {
+                // Drop stdin (signals EOF to the reader threads) and release the
+                // reaped child handle. The exit is now sticky in `self.exit`.
+                self.stdin_writer.take();
+                self.child.take();
+                self.exit = Some(status);
+                status
+            }
+            None => ScriptStatus::Running,
+        }
     }
 
     /// Check if the child process is still alive.
     ///
-    /// Uses `try_wait()` to check without blocking. Returns `false` if the process
-    /// has exited or if there is no child process.
+    /// Returns `false` once the process has exited (cleanly or otherwise).
     pub fn is_running(&mut self) -> bool {
-        match self.child.as_mut() {
-            Some(child) => match child.try_wait() {
-                Ok(Some(_status)) => false, // Process has exited
-                Ok(None) => true,           // Process still running
-                Err(_) => false,            // Error checking status
-            },
-            None => false,
-        }
+        matches!(self.poll_status(), ScriptStatus::Running)
     }
 
     /// Serialize a [`ScriptEvent`] to JSON and write it to the child's stdin as a line.
@@ -225,5 +271,46 @@ impl ScriptProcess {
 impl Drop for ScriptProcess {
     fn drop(&mut self) {
         self.stop();
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+    use std::time::Duration;
+
+    fn no_env() -> HashMap<String, String> {
+        HashMap::new()
+    }
+
+    #[test]
+    fn poll_status_running_for_live_process() {
+        let mut p = ScriptProcess::spawn("sleep", &["2"], &no_env()).expect("spawn sleep");
+        assert_eq!(p.poll_status(), ScriptStatus::Running);
+        p.stop();
+    }
+
+    #[test]
+    fn poll_status_exited_clean_for_exit_zero() {
+        let mut p = ScriptProcess::spawn("true", &[], &no_env()).expect("spawn true");
+        std::thread::sleep(Duration::from_millis(50));
+        assert_eq!(p.poll_status(), ScriptStatus::Exited { success: true });
+        // sticky: a second poll reports the same outcome without re-querying the OS
+        assert_eq!(p.poll_status(), ScriptStatus::Exited { success: true });
+    }
+
+    #[test]
+    fn poll_status_exited_failure_for_nonzero_exit() {
+        let mut p = ScriptProcess::spawn("false", &[], &no_env()).expect("spawn false");
+        std::thread::sleep(Duration::from_millis(50));
+        assert_eq!(p.poll_status(), ScriptStatus::Exited { success: false });
+    }
+
+    #[test]
+    fn is_running_false_after_exit() {
+        let mut p = ScriptProcess::spawn("true", &[], &no_env()).expect("spawn true");
+        std::thread::sleep(Duration::from_millis(50));
+        assert!(!p.is_running());
     }
 }

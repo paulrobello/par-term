@@ -5,7 +5,7 @@
 
 use std::collections::HashMap;
 
-use super::process::ScriptProcess;
+use super::process::{ScriptProcess, ScriptStatus};
 use super::protocol::{ScriptCommand, ScriptEvent};
 use par_term_config::ScriptConfig;
 
@@ -160,6 +160,18 @@ impl ScriptManager {
     /// Returns `false` if the script ID is unknown or the process has exited.
     pub fn is_running(&mut self, id: ScriptId) -> bool {
         self.processes.get_mut(&id).is_some_and(|p| p.is_running())
+    }
+
+    /// Poll the liveness of a script, classifying an exit as clean or failed.
+    ///
+    /// Returns [`ScriptStatus::Exited { success: true }`] for an unknown id —
+    /// that only happens for an already-cleared slot, which the orchestrator
+    /// never polls.
+    pub fn poll_status(&mut self, id: ScriptId) -> ScriptStatus {
+        match self.processes.get_mut(&id) {
+            Some(p) => p.poll_status(),
+            None => ScriptStatus::Exited { success: true },
+        }
     }
 
     /// Send a [`ScriptEvent`] to a specific script by ID.
