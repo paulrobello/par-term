@@ -3,8 +3,11 @@
 //! Groups all fields related to script execution, coprocess management,
 //! and trigger handling.
 
+use std::time::Instant;
+
 use par_term_config::ScriptConfig;
 use par_term_scripting::manager::ScriptId;
+use par_term_scripting::{RestartAction, ScriptRestartState};
 use par_term_terminal::TerminalManager;
 
 /// Scripting, coprocess, and trigger state for a terminal tab.
@@ -18,6 +21,10 @@ pub(crate) struct TabScriptingState {
     /// Event forwarders (shared with observer registration)
     pub(crate) script_forwarders:
         Vec<Option<std::sync::Arc<par_term_scripting::observer::ScriptEventForwarder>>>,
+    /// Per-config-index restart supervisor. Lazily populated; preserved across
+    /// automatic restarts so the attempt cap accumulates, and reset by the grace
+    /// window once a run survives long enough.
+    pub(crate) restart_state: Vec<Option<ScriptRestartState>>,
     /// Mapping from config index to coprocess ID (for UI tracking)
     pub(crate) coprocess_ids: Vec<Option<par_term_emu_core_rust::coprocess::CoprocessId>>,
     /// Trigger-generated scrollbar marks (from MarkLine actions)
@@ -90,6 +97,9 @@ impl TabScriptingState {
                 self.script_ids[config_index] = Some(script_id);
                 self.script_observer_ids[config_index] = Some(observer_id);
                 self.script_forwarders[config_index] = Some(forwarder);
+                // Begin a fresh grace window for the (re)started process.
+                self.restart_state_for(config_index, script_config)
+                    .on_started(Instant::now());
                 Ok(script_id)
             }
             Err(e) => {
@@ -123,6 +133,76 @@ impl TabScriptingState {
             *slot = None;
         }
     }
+
+    /// Drive restart supervision for one slot after its process exited.
+    ///
+    /// Call once per frame per slot whose [`ScriptStatus`] is `Exited`. The
+    /// supervisor decides whether to stop, wait out the delay, or re-spawn;
+    /// this method performs the side effects (clearing the slot or calling
+    /// [`start_script_at`], which re-registers the observer/forwarder).
+    ///
+    /// `now` is taken as a parameter so every slot in a sweep shares one frame
+    /// clock and the supervisor stays deterministic.
+    pub(crate) fn handle_script_exit(
+        &mut self,
+        terminal: &TerminalManager,
+        config_index: usize,
+        script_config: &ScriptConfig,
+        success: bool,
+        now: Instant,
+    ) {
+        let action = {
+            let rs = self.restart_state_for(config_index, script_config);
+            if rs.pending() {
+                rs.poll(now)
+            } else {
+                rs.on_exit(now, success)
+            }
+        };
+        match action {
+            RestartAction::Idle | RestartAction::Wait => {}
+            RestartAction::Stop => {
+                log::info!(
+                    "Script at index {} giving up after {} consecutive restart failures",
+                    config_index,
+                    self.restart_state_for(config_index, script_config)
+                        .consecutive_failures()
+                );
+                self.clear_script_at(terminal, config_index);
+            }
+            RestartAction::Restart => {
+                match self.start_script_at(terminal, config_index, script_config) {
+                    Ok(_) => log::info!("Restarted script at index {}", config_index),
+                    Err(e) => {
+                        log::warn!(
+                            "Restart of script at index {} failed: {}; will retry after delay",
+                            config_index,
+                            e
+                        );
+                        self.restart_state_for(config_index, script_config)
+                            .reschedule(now);
+                    }
+                }
+            }
+        }
+    }
+
+    /// Get or create the restart supervisor for `config_index`, syncing it to
+    /// the current config so edits to policy/delay take effect.
+    fn restart_state_for(
+        &mut self,
+        config_index: usize,
+        script_config: &ScriptConfig,
+    ) -> &mut ScriptRestartState {
+        if self.restart_state.len() <= config_index {
+            self.restart_state.resize(config_index + 1, None);
+        }
+        let slot = self.restart_state[config_index].get_or_insert_with(|| {
+            ScriptRestartState::new(script_config.restart_policy, script_config.restart_delay_ms)
+        });
+        slot.reconfigure(script_config.restart_policy, script_config.restart_delay_ms);
+        slot
+    }
 }
 
 impl Default for TabScriptingState {
@@ -132,6 +212,7 @@ impl Default for TabScriptingState {
             script_ids: Vec::new(),
             script_observer_ids: Vec::new(),
             script_forwarders: Vec::new(),
+            restart_state: Vec::new(),
             coprocess_ids: Vec::new(),
             trigger_marks: Vec::new(),
             trigger_prompt_before_run: std::collections::HashMap::new(),

@@ -15,7 +15,9 @@ mod scripting_lifecycle;
 mod write_text;
 
 use std::process::Stdio;
+use std::time::Instant;
 
+use par_term_scripting::ScriptStatus;
 use winit::window::WindowId;
 
 use config_change::{PendingScriptAction, tokenise_command};
@@ -53,6 +55,7 @@ impl WindowManager {
     /// and a tab that has no script attached.
     pub fn sync_script_running_state(&mut self) {
         let focused = self.get_focused_window_id();
+        let now = Instant::now();
 
         // Pass 1 — Service every tab that has a script attached.
         //
@@ -73,7 +76,8 @@ impl WindowManager {
         let mut pending_actions: Vec<TaggedAction> = Vec::new();
 
         for (window_id, ws) in self.windows.iter_mut() {
-            let script_count = ws.config.load().automation.scripts.len();
+            let scripts = ws.config.load().automation.scripts.clone();
+            let script_count = scripts.len();
             if script_count == 0 {
                 continue;
             }
@@ -111,7 +115,8 @@ impl WindowManager {
                     };
                     has_live_slot[i] = true;
 
-                    let is_running = tab.scripting.script_manager.is_running(script_id);
+                    let status = tab.scripting.script_manager.poll_status(script_id);
+                    let is_running = matches!(status, ScriptStatus::Running);
                     running_state[i] |= is_running;
 
                     // Drain events from forwarder and send to script.
@@ -226,6 +231,23 @@ impl WindowManager {
                     let errors = tab.scripting.script_manager.read_errors(script_id);
                     if !errors.is_empty() {
                         error_lines[i].extend(errors);
+                    }
+
+                    // Supervise restart after a death, once this slot's final
+                    // output has been drained. `handle_script_exit` may clear
+                    // the slot (policy/cap) or re-spawn via `start_script_at`,
+                    // flipping `script_ids[i]` — picked up next frame.
+                    if let ScriptStatus::Exited { success } = status {
+                        let terminal = tab.terminal.clone();
+                        if let Ok(terminal) = terminal.try_read() {
+                            tab.scripting.handle_script_exit(
+                                &terminal,
+                                i,
+                                &scripts[i],
+                                success,
+                                now,
+                            );
+                        }
                     }
                 }
             }

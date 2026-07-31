@@ -632,8 +632,8 @@ Each script definition supports:
 | `script_path` | string | Yes | -- | Path to the script executable |
 | `args` | array of strings | No | `[]` | Arguments to pass to the script |
 | `auto_start` | boolean | No | `false` | Start automatically when a tab is created (requires `enabled: true`) |
-| `restart_policy` | enum | No | `never` | ⚠️ Not yet implemented for scripts -- accepted and displayed, but no restart occurs |
-| `restart_delay_ms` | integer | No | `0` | ⚠️ Not yet implemented for scripts -- see `restart_policy` above |
+| `restart_policy` | enum | No | `never` | When to restart: `never`, `always`, or `on_failure` (see [Restart Policy](#restart-policy)) |
+| `restart_delay_ms` | integer | No | `0` | Delay in milliseconds before restarting |
 | `subscriptions` | array of strings | No | `[]` | Event types to receive (empty = all events) |
 | `env_vars` | object | No | `{}` | Additional environment variables for the script process |
 | `allow_write_text` | boolean | No | `false` | Allow `WriteText` command to inject text into PTY |
@@ -735,7 +735,7 @@ Events do not go straight to the script. Each running script gets its own event 
 
 **That buffer holds at most 1024 events.** Once it is full, each new event evicts the *oldest* one still queued rather than being dropped itself — a script acts on what just happened, so discarding the incoming event would hide the very thing still worth reacting to and leave the script a stale prefix.
 
-The cap exists because the buffer can genuinely grow without bound. A script that exits on its own — crashes, or simply returns — leaves its observer registered. Nothing notices the exit: the observer is unregistered only when the script is explicitly stopped, restarted, or its tab is closed, and `restart_policy` is not implemented for scripts (see [Script Lifecycle](#script-lifecycle)), so nothing restarts it either. Its forwarder therefore keeps receiving every subscribed event with nothing draining it. Without the cap that is an unbounded allocation driven by terminal output.
+The cap exists because the buffer can genuinely grow without bound. A script that exits on its own — crashes, or simply returns — is now detected on the next event-loop sweep: a `never` policy clears the slot (unregistering its observer that frame), and a restartable policy re-spawns it after `restart_delay_ms`. Until that restart fires, the old forwarder is still attached to the terminal and keeps receiving every subscribed event with nothing draining it — so the cap bounds the growth a crash-loop could otherwise drive during the delay window. (Before script restart was implemented the exit went unnoticed entirely, and this cap was the only bound on the leak.)
 
 Overflow is reported to the log **once per forwarder**, not once per discarded event, and the latch is never re-armed. A forwarder that overflows, gets drained, and overflows again stays quiet after the first report — draining does not mean the underlying problem was fixed, and re-arming would let it flood the log. The message names the cap and points at the likely cause:
 
@@ -762,7 +762,7 @@ Scripts follow the same lifecycle patterns as coprocesses:
 
 - **Auto-start**: Scripts with `auto_start: true` and `enabled: true` are started when a new tab is created. Setting `enabled: false` disables the script entirely, including auto-start. Scripts with `auto_start: false` are started only from the Settings UI (**F12 → Automation → Scripts → Start**).
 - **Per-tab isolation**: Each tab has its own set of running scripts
-- **Restart policies**: ⚠️ `restart_policy` and `restart_delay_ms` are **not yet implemented for scripts**. The fields are parsed and shown in the Settings UI, but a script that exits is not restarted. (Restart policies *are* implemented for coprocesses.)
+- **Restart policies**: `restart_policy` (`never` / `always` / `on_failure`) and `restart_delay_ms` are honored. A script that exits is restarted per its policy after the configured delay. To prevent crash-loops, restarts are capped at 5 consecutive attempts within a 5-second grace window — a run that survives past grace resets the counter, so a slow leak (e.g. crashes once an hour) never exhausts the budget, only a tight loop does.
 - **Tab close**: All scripts in a tab are stopped when the tab is closed
 - **Settings sync**: Changes to script configuration in the Settings UI are applied when saved
 
