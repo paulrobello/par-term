@@ -77,7 +77,7 @@ pub fn show(
     if section_matches(
         &query,
         "Poll Intervals",
-        &["poll", "interval", "system", "git", "refresh"],
+        &["poll", "interval", "system", "git", "refresh", "disk"],
     ) {
         poll_intervals::show_poll_intervals_section(ui, settings, changes_this_frame, collapsed);
     }
@@ -102,6 +102,10 @@ pub fn show(
             "right",
             "custom",
             "update",
+            "disk",
+            "free",
+            "space",
+            "storage",
         ],
     ) {
         widgets::show_widgets_section(ui, settings, changes_this_frame, collapsed);
@@ -138,6 +142,9 @@ pub fn keywords() -> &'static [&'static str] {
         "left",
         "center",
         "right",
+        "disk free",
+        "disk space",
+        "storage",
         // Position and size
         "position",
         "height",

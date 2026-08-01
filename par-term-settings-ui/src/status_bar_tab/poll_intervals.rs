@@ -58,6 +58,43 @@ pub fn show_poll_intervals_section(
                     *changes_this_frame = true;
                 }
             });
+
+            ui.horizontal(|ui| {
+                ui.label("Disk free space:");
+                if ui
+                    .add_sized(
+                        [SLIDER_WIDTH, SLIDER_HEIGHT],
+                        egui::Slider::new(
+                            &mut settings.config.status_bar.status_bar_disk_poll_interval,
+                            5.0..=600.0,
+                        )
+                        .suffix(" sec")
+                        .show_value(true),
+                    )
+                    .on_hover_text("How often to poll free disk space (default 60 sec)")
+                    .changed()
+                {
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+
+            ui.horizontal(|ui| {
+                if ui
+                    .checkbox(
+                        &mut settings.config.status_bar.status_bar_disk_follow_cwd,
+                        "Follow active tab's directory",
+                    )
+                    .on_hover_text(
+                        "Off (default): show the disk par-term launched from. \
+                         On: show the disk containing the active tab/pane's working directory.",
+                    )
+                    .changed()
+                {
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
         },
     );
 }
