@@ -36,6 +36,7 @@
 //! the central dispatch function. This is tracked as ARC-009 in AUDIT.md.
 
 pub mod git_poller;
+pub mod disk_monitor;
 pub mod system_monitor;
 pub mod widgets;
 
