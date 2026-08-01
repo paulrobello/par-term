@@ -67,6 +67,15 @@ pub struct StatusBarConfig {
     #[serde(default = "default_status_bar_git_poll_interval")]
     pub status_bar_git_poll_interval: f32,
 
+    /// Polling interval in seconds for disk free-space data
+    #[serde(default = "default_status_bar_disk_poll_interval")]
+    pub status_bar_disk_poll_interval: f32,
+
+    /// Whether the disk widget follows the active tab's CWD (true) or uses the
+    /// disk par-term was launched from (false, default).
+    #[serde(default = "default_status_bar_disk_follow_cwd")]
+    pub status_bar_disk_follow_cwd: bool,
+
     /// Time format string for the Clock widget (chrono strftime syntax)
     #[serde(default = "default_status_bar_time_format")]
     pub status_bar_time_format: String,
@@ -130,6 +139,14 @@ fn default_status_bar_git_poll_interval() -> f32 {
     5.0
 }
 
+fn default_status_bar_disk_poll_interval() -> f32 {
+    60.0
+}
+
+fn default_status_bar_disk_follow_cwd() -> bool {
+    false
+}
+
 fn default_status_bar_time_format() -> String {
     "%H:%M:%S".to_string()
 }
@@ -155,6 +172,8 @@ impl Default for StatusBarConfig {
             status_bar_mouse_inactive_timeout: default_status_bar_mouse_inactive_timeout(),
             status_bar_system_poll_interval: default_status_bar_system_poll_interval(),
             status_bar_git_poll_interval: default_status_bar_git_poll_interval(),
+            status_bar_disk_poll_interval: default_status_bar_disk_poll_interval(),
+            status_bar_disk_follow_cwd: default_status_bar_disk_follow_cwd(),
             status_bar_time_format: default_status_bar_time_format(),
             status_bar_git_show_status: default_status_bar_git_show_status(),
             status_bar_widgets: crate::status_bar::default_widgets(),

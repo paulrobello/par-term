@@ -45,6 +45,8 @@ pub enum WidgetId {
     MemoryUsage,
     /// Network throughput (rx/tx rates)
     NetworkStatus,
+    /// Free disk space (percent + bytes)
+    DiskFree,
     /// Bell indicator with count
     BellIndicator,
     /// Currently running command name
@@ -66,6 +68,7 @@ impl WidgetId {
             WidgetId::CpuUsage => "CPU Usage",
             WidgetId::MemoryUsage => "Memory Usage",
             WidgetId::NetworkStatus => "Network Status",
+            WidgetId::DiskFree => "Disk Free",
             WidgetId::BellIndicator => "Bell Indicator",
             WidgetId::CurrentCommand => "Current Command",
             WidgetId::UpdateAvailable => "Update Available",
@@ -83,6 +86,7 @@ impl WidgetId {
             WidgetId::CpuUsage => "\u{1f4bb}",         // laptop
             WidgetId::MemoryUsage => "\u{1f4be}",      // floppy disk
             WidgetId::NetworkStatus => "\u{1f310}",    // globe with meridians
+            WidgetId::DiskFree => "\u{1f4bf}",         // optical disk
             WidgetId::BellIndicator => "\u{1f514}",    // bell
             WidgetId::CurrentCommand => "\u{25b6}",    // play button
             WidgetId::UpdateAvailable => "\u{2b06}",   // upwards arrow
@@ -98,6 +102,11 @@ impl WidgetId {
         )
     }
 
+    /// Whether this widget requires the disk monitor to be running.
+    pub fn needs_disk_monitor(&self) -> bool {
+        matches!(self, WidgetId::DiskFree)
+    }
+
     /// Stable string key used for YAML serialization. Built-in widgets use their
     /// snake_case name; custom widgets are prefixed with `custom:`.
     fn as_key(&self) -> String {
@@ -109,6 +118,7 @@ impl WidgetId {
             WidgetId::CpuUsage => "cpu_usage".to_string(),
             WidgetId::MemoryUsage => "memory_usage".to_string(),
             WidgetId::NetworkStatus => "network_status".to_string(),
+            WidgetId::DiskFree => "disk_free".to_string(),
             WidgetId::BellIndicator => "bell_indicator".to_string(),
             WidgetId::CurrentCommand => "current_command".to_string(),
             WidgetId::UpdateAvailable => "update_available".to_string(),
@@ -130,6 +140,7 @@ impl WidgetId {
             "cpu_usage" => WidgetId::CpuUsage,
             "memory_usage" => WidgetId::MemoryUsage,
             "network_status" => WidgetId::NetworkStatus,
+            "disk_free" => WidgetId::DiskFree,
             "bell_indicator" => WidgetId::BellIndicator,
             "current_command" => WidgetId::CurrentCommand,
             "update_available" => WidgetId::UpdateAvailable,
@@ -238,24 +249,31 @@ pub fn default_widgets() -> Vec<StatusBarWidgetConfig> {
             format: None,
         },
         StatusBarWidgetConfig {
-            id: WidgetId::BellIndicator,
-            enabled: true,
+            id: WidgetId::DiskFree,
+            enabled: false,
             section: StatusBarSection::Right,
             order: 3,
             format: None,
         },
         StatusBarWidgetConfig {
-            id: WidgetId::Clock,
+            id: WidgetId::BellIndicator,
             enabled: true,
             section: StatusBarSection::Right,
             order: 4,
             format: None,
         },
         StatusBarWidgetConfig {
-            id: WidgetId::UpdateAvailable,
+            id: WidgetId::Clock,
             enabled: true,
             section: StatusBarSection::Right,
             order: 5,
+            format: None,
+        },
+        StatusBarWidgetConfig {
+            id: WidgetId::UpdateAvailable,
+            enabled: true,
+            section: StatusBarSection::Right,
+            order: 6,
             format: None,
         },
     ]
