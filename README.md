@@ -43,6 +43,12 @@ New to par-term? The [Getting Started Guide](docs/guides/GETTING_STARTED.md) wal
 
 ## What's New
 
+### 0.41.0
+
+A new **Disk Free** status-bar widget shows free disk space as `DISK  62% (250.0 GB free)`.
+
+- **Disk Free widget** (`status_bar: disk_free`) — free space as percent + bytes, cross-platform via `sysinfo`. Defaults to the disk par-term was launched from at a 60-second poll interval (`status_bar_disk_poll_interval`); enable `status_bar_disk_follow_cwd` to follow the active tab/pane's working directory instead. Adds `system.disk_free`, `system.disk_free_percent`, and `system.disk_total` interpolation variables for custom widgets. Disabled by default.
+
 ### 0.40.0
 
 Script restart policies now work for observer scripts. `restart_policy` and `restart_delay_ms` had been parsed and shown in the Settings UI since 0.38.0 but never enforced.

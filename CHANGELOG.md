@@ -11,6 +11,12 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ## [Unreleased]
 
+---
+
+## [0.41.0] - 2026-08-01
+
+A new Disk Free status-bar widget. Minor bump for the new feature. Two sub-crates changed, both patch-level for additive surface: `par-term-config` 0.14.1 → 0.14.2 (two new `StatusBarConfig` fields, the `DiskFree` widget id, and `needs_disk_monitor()`) and `par-term-settings-ui` 0.17.1 → 0.17.2 (a poll-interval slider and a follow-CWD checkbox). No core-library change — `par-term-emu-core-rust` remains at 0.45.0.
+
 ### Added
 
 - **Disk Free status-bar widget.** A new built-in widget shows free disk space as `DISK  62% (250.0 GB free)` — percent first, free bytes in parentheses. It polls on its own background thread (a `DiskMonitor` mirroring the existing system-monitor and git-branch pollers) via `sysinfo`'s cross-platform disk API, at a 60-second default interval (`status_bar_disk_poll_interval`, 5.0–600.0 s). By default it reports the disk par-term was launched from; enable `status_bar_disk_follow_cwd` to track the active tab/pane's working directory instead, resolving the path to its containing mount with a launch-disk fallback when the CWD's disk can't be determined. Disabled by default alongside CPU/Memory/Network. Adds `system.disk_free`, `system.disk_free_percent`, and `system.disk_total` interpolation variables for custom widgets. No new dependency — `sysinfo`'s `disk` feature was already enabled.
@@ -1764,7 +1770,9 @@ Audit remediation pass (Critical + High severity from the 2026-06-25 audit): 18 
 
 ---
 
-[Unreleased]: https://github.com/paulrobello/par-term/compare/v0.39.0...HEAD
+[Unreleased]: https://github.com/paulrobello/par-term/compare/v0.40.0...HEAD
+[0.41.0]: https://github.com/paulrobello/par-term/compare/v0.40.0...v0.41.0
+[0.40.0]: https://github.com/paulrobello/par-term/compare/v0.39.0...v0.40.0
 [0.39.0]: https://github.com/paulrobello/par-term/compare/v0.38.0...v0.39.0
 [0.38.0]: https://github.com/paulrobello/par-term/compare/v0.37.1...v0.38.0
 [0.37.1]: https://github.com/paulrobello/par-term/compare/v0.37.0...v0.37.1
