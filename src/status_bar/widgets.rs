@@ -97,6 +97,7 @@ pub fn widget_text(id: &WidgetId, ctx: &WidgetContext, format_override: Option<&
                 String::new()
             }
         }
+        WidgetId::DiskFree => String::new(),
         WidgetId::Custom(_) => String::new(),
     }
 }
