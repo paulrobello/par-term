@@ -281,17 +281,23 @@ mod tests {
 
     #[cfg(feature = "system-monitor")]
     #[test]
-    fn test_disk_for_path_longest_prefix() {
+    fn test_disk_for_path_returns_mount_prefix() {
         use sysinfo::Disks;
         let disks = Disks::new_with_refreshed_list();
         if disks.list().is_empty() {
             return; // no disks to assert against
         }
-        // A deeper path and its parent must resolve to disks whose mount points
-        // are prefixes of the path. Deeper should never pick a *shorter* mount
-        // than a path that only matches the shorter one.
-        let root_disk = disk_for_path(disks.list(), std::path::Path::new("/"));
-        assert!(root_disk.is_some(), "'/' must match the root mount");
+        // The temp dir lives on a real volume on every platform. The matched
+        // disk's mount point must be a path-component prefix of the target —
+        // the core invariant of disk_for_path. (Does not assume a Unix `/`
+        // root, which matches no drive-letter volume on Windows.)
+        let target = std::env::temp_dir();
+        let matched = disk_for_path(disks.list(), &target);
+        assert!(matched.is_some(), "no disk matched temp dir {target:?}");
+        assert!(
+            target.starts_with(matched.unwrap().mount_point()),
+            "matched mount point must be a prefix of the target path"
+        );
     }
 
     #[cfg(feature = "system-monitor")]
