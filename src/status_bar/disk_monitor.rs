@@ -5,7 +5,6 @@
 //! par-term's launch directory (default) or the disk containing the active
 //! tab/pane's working directory (when follow-cwd is enabled).
 
-use std::path::PathBuf;
 use std::time::Instant;
 
 /// Snapshot of free space on the monitored disk.
