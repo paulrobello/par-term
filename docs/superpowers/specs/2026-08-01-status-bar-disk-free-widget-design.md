@@ -98,10 +98,10 @@ Backed by `sysinfo::Disk::mount_point()`. Compares by path components so `/` is 
 - Extend `WidgetContext` with `disk_free_percent: f32`, `disk_free_bytes: u64`, `disk_total_bytes: u64`.
 - `widget_text()` arm:
   ```rust
-  WidgetId::DiskFree => format!("DISK {:>4.0}% ({}) free",
+  WidgetId::DiskFree => format!("DISK {:>3.0}% ({} free)",
        ctx.disk_free_percent, format_bytes(ctx.disk_free_bytes))
   ```
-  → e.g. `DISK  62% (250 GB free)`. Fixed-width percent and fixed-width bytes so the bar does not jump as values change.
+  → e.g. `DISK  62% (250.0 GB free)` — "free" inside the parens, percent right-aligned to width 3 (fixed-width across 0–100, 2-space look for 2-digit), bytes fixed-width via `format_bytes`. So the bar does not jump as values change.
 - New public formatter `pub fn format_bytes(u64) -> String` alongside `format_bytes_per_sec` / `format_memory` in `system_monitor.rs`; adds a **TB tier** (disks are large): `B / KB / MB / GB / TB`, fixed-width.
 - Interpolation variables in `resolve_variable()`:
   - `system.disk_free_percent` → `format!("{:.0}%", pct)`
