@@ -386,7 +386,10 @@ mod tests {
         assert_eq!(format_bytes(250 * 1_073_741_824), "250.0 GB");
         // Fixed width across magnitudes (so the bar doesn't jump)
         assert_eq!(format_bytes(0).len(), format_bytes(1024).len());
-        assert_eq!(format_bytes(1024).len(), format_bytes(1_099_511_627_776).len());
+        assert_eq!(
+            format_bytes(1024).len(),
+            format_bytes(1_099_511_627_776).len()
+        );
     }
 
     #[cfg(feature = "system-monitor")]

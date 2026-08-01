@@ -58,8 +58,7 @@ mod inner {
         /// par-term never chdir's its own process (the PTY child does), so
         /// `std::env::current_dir()` here is stable for the whole session.
         pub fn new() -> Self {
-            let launch_dir =
-                std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/"));
+            let launch_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/"));
             Self {
                 data: Arc::new(Mutex::new(DiskMonitorData::default())),
                 cwd: Arc::new(Mutex::new(None)),

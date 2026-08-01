@@ -166,7 +166,9 @@ fn resolve_variable(name: &str, ctx: &WidgetContext) -> String {
         "system.memory" => format_memory(ctx.system_data.memory_used, ctx.system_data.memory_total),
         "system.disk_free_percent" => format!("{:.0}%", ctx.disk_free_percent),
         "system.disk_free" => crate::status_bar::system_monitor::format_bytes(ctx.disk_free_bytes),
-        "system.disk_total" => crate::status_bar::system_monitor::format_bytes(ctx.disk_total_bytes),
+        "system.disk_total" => {
+            crate::status_bar::system_monitor::format_bytes(ctx.disk_total_bytes)
+        }
         _ => String::new(),
     }
 }
@@ -221,7 +223,7 @@ mod tests {
             time_format: "%H:%M:%S".to_string(),
             update_available_version: None,
             disk_free_percent: 38.0,
-            disk_free_bytes: 250 * 1_073_741_824, // 250 GB
+            disk_free_bytes: 250 * 1_073_741_824,  // 250 GB
             disk_total_bytes: 500 * 1_073_741_824, // 500 GB
         }
     }
