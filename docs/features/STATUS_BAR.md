@@ -63,7 +63,7 @@ par-term includes 11 built-in widgets plus custom widgets:
 | **CPU Usage** | `cpu_usage` | CPU usage percentage with fixed-width formatting (e.g., "CPU 42.5%") | Right | Disabled |
 | **Memory Usage** | `memory_usage` | Used/total memory with MEM prefix (e.g., "MEM 4.0 GB / 16.0 GB") | Right | Disabled |
 | **Network Status** | `network_status` | Receive/transmit rates with arrows (e.g., "↓ 1.0 KB/s ↑ 2.0 KB/s") | Right | Disabled |
-| **Disk Free** | `disk_free` | Free disk space as percent + bytes (e.g., "DISK 62% (250.0 GB free)") | Right | Disabled |
+| **Disk Free** | `disk_free` | Free disk space as percent + bytes (e.g., "DISK  62% (250.0 GB free)") | Right | Disabled |
 | **Bell Indicator** | `bell_indicator` | Bell emoji with count, shown when count > 0 (e.g., "🔔 3") | Right | Enabled |
 | **Update Available** | `update_available` | Yellow up-arrow with available version (e.g., "⬆ v0.20.0") | Right | Enabled |
 | **Current Command** | `current_command` | Currently executing shell command | Center | Enabled |
