@@ -295,6 +295,31 @@ pub fn format_memory(used: u64, total: u64) -> String {
     format!("{} / {}", human(used), human(total))
 }
 
+/// Format a byte count into a fixed-width human-readable string.
+///
+/// Adds a TB tier on top of [`format_memory`]'s helper because disks are
+/// large. Output is always 8 characters wide (e.g. `" 250.0 GB"`,
+/// `"  1.0 TB"`) so the status bar doesn't jump around when values change.
+pub fn format_bytes(bytes: u64) -> String {
+    const KB: u64 = 1024;
+    const MB: u64 = 1024 * 1024;
+    const GB: u64 = 1024 * 1024 * 1024;
+    const TB: u64 = 1024 * 1024 * 1024 * 1024;
+
+    if bytes >= TB {
+        format!("{:>5.1} TB", bytes as f64 / TB as f64)
+    } else if bytes >= GB {
+        format!("{:>5.1} GB", bytes as f64 / GB as f64)
+    } else if bytes >= MB {
+        format!("{:>5.1} MB", bytes as f64 / MB as f64)
+    } else if bytes >= KB {
+        format!("{:>5.1} KB", bytes as f64 / KB as f64)
+    } else {
+        // Extra space before "B" so width matches "KB", "MB", "GB", "TB"
+        format!("{:>5}  B", bytes)
+    }
+}
+
 // ============================================================================
 // Tests
 // ============================================================================
@@ -346,6 +371,22 @@ mod tests {
             format_memory(536_870_912, 1_073_741_824),
             "512.0 MB /   1.0 GB"
         );
+    }
+
+    #[test]
+    fn test_format_bytes() {
+        // B / KB / MB / GB / TB tiers
+        assert_eq!(format_bytes(0), "    0  B");
+        assert_eq!(format_bytes(512), "  512  B");
+        assert_eq!(format_bytes(1024), "  1.0 KB");
+        assert_eq!(format_bytes(1_048_576), "  1.0 MB");
+        assert_eq!(format_bytes(1_073_741_824), "  1.0 GB");
+        assert_eq!(format_bytes(1_099_511_627_776), "  1.0 TB");
+        // 250 GB free (the approved format example)
+        assert_eq!(format_bytes(250 * 1_073_741_824), "250.0 GB");
+        // Fixed width across magnitudes (so the bar doesn't jump)
+        assert_eq!(format_bytes(0).len(), format_bytes(1024).len());
+        assert_eq!(format_bytes(1024).len(), format_bytes(1_099_511_627_776).len());
     }
 
     #[cfg(feature = "system-monitor")]
