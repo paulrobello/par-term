@@ -104,7 +104,7 @@ pub fn widget_text(id: &WidgetId, ctx: &WidgetContext, format_override: Option<&
             }
         }
         WidgetId::DiskFree => format!(
-            "DISK {:>4.0}% ({}) free",
+            "DISK {:>3.0}% ({} free)",
             ctx.disk_free_percent,
             crate::status_bar::system_monitor::format_bytes(ctx.disk_free_bytes)
         ),
@@ -374,13 +374,13 @@ mod tests {
         let ctx = make_ctx();
         // make_ctx sets disk_free_percent=38.0, free=250GB, total=500GB.
         let text = widget_text(&WidgetId::DiskFree, &ctx, None);
-        assert_eq!(text, "DISK   38% (250.0 GB) free");
+        assert_eq!(text, "DISK  38% (250.0 GB free)");
         // Fixed width across magnitudes
         let mut ctx2 = make_ctx();
         ctx2.disk_free_bytes = 1_099_511_627_776; // 1.0 TB
         ctx2.disk_free_percent = 90.0;
         let text2 = widget_text(&WidgetId::DiskFree, &ctx2, None);
-        assert_eq!(text2, "DISK   90% (  1.0 TB) free");
+        assert_eq!(text2, "DISK  90% (  1.0 TB free)");
         assert_eq!(text.len(), text2.len());
     }
 
