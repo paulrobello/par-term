@@ -473,6 +473,7 @@ iTerm2 has a comprehensive status bar system for displaying session and system i
 | Status bar color | ✅ Per-profile | ✅ | ✅ | ⭐ | 🟢 | Custom colors |
 | Status bar font | ✅ `Status Bar Font` | ✅ | ✅ | ⭐ | 🟢 | Custom typography |
 | Git branch in status bar | ✅ Component | ✅ | ✅ | ⭐⭐ | 🟡 | Show current branch |
+| Disk space in status bar | ✅ Component | ✅ | ✅ | ⭐⭐ | 🟡 | Free disk % + bytes; launch disk or active tab's disk |
 | Network status | ✅ Component | ✅ | ✅ | ⭐ | 🟡 | Show network info |
 | CPU/memory usage | ✅ Component | ✅ | ✅ | ⭐ | 🟡 | System monitoring |
 | Username@hostname | ✅ Component | ✅ | ✅ | ⭐⭐ | 🟡 | Session info |

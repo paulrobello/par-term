@@ -527,6 +527,8 @@ Override shader settings per-file. Keys are shader filenames (without path).
 | `status_bar_git_poll_interval` | `f32` | `5.0` | Git branch detection polling interval in seconds |
 | `status_bar_time_format` | `string` | `"%H:%M:%S"` | Clock widget time format (chrono strftime) |
 | `status_bar_git_show_status` | `bool` | `true` | Show ahead/behind and dirty indicators in git widget |
+| `status_bar_disk_poll_interval` | `f32` | `60.0` | Disk free-space polling interval in seconds (5.0–600.0) |
+| `status_bar_disk_follow_cwd` | `bool` | `false` | Track the active tab's disk (`true`) vs the disk par-term launched from (`false`) |
 | `status_bar_widgets` | `array` | (built-in defaults) | Widget list with `{id, enabled, ...}` entries |
 
 ---

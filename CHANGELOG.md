@@ -11,6 +11,10 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ## [Unreleased]
 
+### Added
+
+- **Disk Free status-bar widget.** A new built-in widget shows free disk space as `DISK  62% (250.0 GB free)` — percent first, free bytes in parentheses. It polls on its own background thread (a `DiskMonitor` mirroring the existing system-monitor and git-branch pollers) via `sysinfo`'s cross-platform disk API, at a 60-second default interval (`status_bar_disk_poll_interval`, 5.0–600.0 s). By default it reports the disk par-term was launched from; enable `status_bar_disk_follow_cwd` to track the active tab/pane's working directory instead, resolving the path to its containing mount with a launch-disk fallback when the CWD's disk can't be determined. Disabled by default alongside CPU/Memory/Network. Adds `system.disk_free`, `system.disk_free_percent`, and `system.disk_total` interpolation variables for custom widgets. No new dependency — `sysinfo`'s `disk` feature was already enabled.
+
 ---
 
 ## [0.40.0] - 2026-07-31
