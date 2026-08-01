@@ -52,7 +52,7 @@ status_bar_enabled: true
 
 ## Built-in Widgets
 
-par-term includes 10 built-in widgets plus custom widgets:
+par-term includes 11 built-in widgets plus custom widgets:
 
 | Widget | YAML ID | Description | Default Section | Default State |
 |--------|---------|-------------|-----------------|---------------|
@@ -63,6 +63,7 @@ par-term includes 10 built-in widgets plus custom widgets:
 | **CPU Usage** | `cpu_usage` | CPU usage percentage with fixed-width formatting (e.g., "CPU 42.5%") | Right | Disabled |
 | **Memory Usage** | `memory_usage` | Used/total memory with MEM prefix (e.g., "MEM 4.0 GB / 16.0 GB") | Right | Disabled |
 | **Network Status** | `network_status` | Receive/transmit rates with arrows (e.g., "↓ 1.0 KB/s ↑ 2.0 KB/s") | Right | Disabled |
+| **Disk Free** | `disk_free` | Free disk space as percent + bytes (e.g., "DISK 62% (250.0 GB free)") | Right | Disabled |
 | **Bell Indicator** | `bell_indicator` | Bell emoji with count, shown when count > 0 (e.g., "🔔 3") | Right | Enabled |
 | **Update Available** | `update_available` | Yellow up-arrow with available version (e.g., "⬆ v0.20.0") | Right | Enabled |
 | **Current Command** | `current_command` | Currently executing shell command | Center | Enabled |
@@ -135,7 +136,7 @@ Widgets within each section are separated by a configurable separator character 
 |---------|-------------------|
 | **Left** | User@Hostname, Current Directory, Git Branch |
 | **Center** | Current Command |
-| **Right** | CPU (off), Memory (off), Network (off), Bell, Clock, Update Available |
+| **Right** | CPU (off), Memory (off), Network (off), Disk (off), Bell, Clock, Update Available |
 
 Widgets can be moved between sections and reordered via the Settings UI.
 
@@ -179,6 +180,9 @@ Custom widgets support these variables:
 | `\(git.dirty)` | Dirty state (bullet if dirty, empty if clean) | `●` |
 | `\(system.cpu)` | CPU usage percentage | `42.5%` |
 | `\(system.memory)` | Memory usage (used / total) | `4.0 GB / 16.0 GB` |
+| `\(system.disk_free_percent)` | Free disk percentage | `62%` |
+| `\(system.disk_free)` | Free disk bytes (human-readable) | `250.0 GB` |
+| `\(system.disk_total)` | Total disk bytes (human-readable) | `500.0 GB` |
 
 **Example format strings:**
 
@@ -213,7 +217,7 @@ status_bar_mouse_inactive_timeout: 3.0      # seconds, range: 1-30
 
 ## System Monitoring
 
-When CPU, Memory, or Network widgets are enabled, par-term runs a background monitoring thread.
+When CPU, Memory, Network, or Disk Free widgets are enabled, par-term runs a background monitoring thread.
 
 **Polling Interval:**
 
@@ -227,8 +231,20 @@ Lower values provide more responsive updates but use more CPU. The default of 2 
 - **CPU**: Global usage percentage (0-100%)
 - **Memory**: Used and total memory in human-readable units
 - **Network**: Receive and transmit rates calculated from deltas between polls
+- **Disk Free**: Free and total disk space for the selected disk, as a percentage and human-readable bytes
 
 > **📝 Note:** The first CPU and network readings after enabling show 0% as the monitor needs two samples to calculate rates.
+
+**Disk Free polling:**
+
+The Disk Free widget runs its own background thread alongside the CPU/Memory/Network monitor, polling on a separate (typically longer) interval:
+
+```yaml
+status_bar_disk_poll_interval: 60.0   # 5.0-600.0 sec (default 1 minute)
+status_bar_disk_follow_cwd: false     # false = disk par-term launched from; true = active tab's disk
+```
+
+Set `status_bar_disk_follow_cwd: true` to follow the active tab's working directory — useful when different tabs live on different mounts. When the active tab's path cannot be resolved, the widget falls back to the disk par-term was launched from.
 
 ## Git Integration
 
@@ -303,6 +319,8 @@ status_bar_time_format: "%H:%M:%S"
 status_bar_git_show_status: true
 status_bar_system_poll_interval: 2.0     # 0.5-30.0 sec
 status_bar_git_poll_interval: 5.0        # 1.0-60.0 sec
+status_bar_disk_poll_interval: 60.0      # 5.0-600.0 sec
+status_bar_disk_follow_cwd: false        # false = launch disk; true = active tab's disk
 
 # Widgets (array of widget configurations)
 # Widget IDs use snake_case format: clock, username_hostname, current_directory,
