@@ -44,6 +44,7 @@ use std::time::Instant;
 
 use crate::badge::SessionVariables;
 use crate::config::{Config, StatusBarPosition, StatusBarSection};
+use disk_monitor::DiskMonitor;
 use git_poller::GitBranchPoller;
 use system_monitor::SystemMonitor;
 use widgets::{WidgetContext, sorted_widgets_for_section, widget_text};
@@ -61,6 +62,8 @@ pub enum StatusBarAction {
 pub struct StatusBarUI {
     /// Background system resource monitor.
     system_monitor: SystemMonitor,
+    /// Background disk free-space monitor.
+    disk_monitor: DiskMonitor,
     /// Git branch poller.
     git_poller: GitBranchPoller,
     /// Timestamp of the last mouse activity (for auto-hide).
@@ -78,6 +81,7 @@ impl StatusBarUI {
     pub fn new() -> Self {
         Self {
             system_monitor: SystemMonitor::new(),
+            disk_monitor: DiskMonitor::new(),
             git_poller: GitBranchPoller::new(),
             last_mouse_activity: Instant::now(),
             visible: true,
@@ -90,6 +94,7 @@ impl StatusBarUI {
     /// Call early during shutdown so threads have time to notice before the Drop join.
     pub fn signal_shutdown(&self) {
         self.system_monitor.signal_stop();
+        self.disk_monitor.signal_stop();
         self.git_poller.signal_stop();
     }
 
@@ -133,6 +138,9 @@ impl StatusBarUI {
             if self.system_monitor.is_running() {
                 self.system_monitor.stop();
             }
+            if self.disk_monitor.is_running() {
+                self.disk_monitor.stop();
+            }
             if self.git_poller.is_running() {
                 self.git_poller.stop();
             }
@@ -151,6 +159,23 @@ impl StatusBarUI {
                 .start(config.status_bar.status_bar_system_poll_interval);
         } else if !needs_monitor && self.system_monitor.is_running() {
             self.system_monitor.stop();
+        }
+
+        // Disk free-space monitor
+        let needs_disk = config
+            .status_bar
+            .status_bar_widgets
+            .iter()
+            .any(|w| w.enabled && w.id.needs_disk_monitor());
+
+        self.disk_monitor
+            .set_follow_cwd(config.status_bar.status_bar_disk_follow_cwd);
+
+        if needs_disk && !self.disk_monitor.is_running() {
+            self.disk_monitor
+                .start(config.status_bar.status_bar_disk_poll_interval);
+        } else if !needs_disk && self.disk_monitor.is_running() {
+            self.disk_monitor.stop();
         }
 
         // Git branch poller
@@ -190,6 +215,7 @@ impl StatusBarUI {
             Some(session_vars.path.as_str())
         };
         self.git_poller.set_cwd(cwd);
+        self.disk_monitor.set_cwd(cwd);
 
         // Validate time format — update last-known-good on success, fall back on failure
         {
@@ -204,6 +230,7 @@ impl StatusBarUI {
 
         // Build widget context
         let git_status = self.git_poller.status();
+        let disk_data = self.disk_monitor.data();
         let widget_ctx = WidgetContext {
             session_vars: session_vars.clone(),
             system_data: self.system_monitor.data(),
@@ -214,6 +241,9 @@ impl StatusBarUI {
             git_show_status: config.status_bar.status_bar_git_show_status,
             time_format: self.last_valid_time_format.clone(),
             update_available_version: self.update_available_version.clone(),
+            disk_free_percent: disk_data.free_percent,
+            disk_free_bytes: disk_data.free_bytes,
+            disk_total_bytes: disk_data.total_bytes,
         };
 
         let bar_height = config.status_bar.status_bar_height;
@@ -384,5 +414,6 @@ impl Default for StatusBarUI {
 impl Drop for StatusBarUI {
     fn drop(&mut self) {
         self.system_monitor.stop();
+        self.disk_monitor.stop();
     }
 }

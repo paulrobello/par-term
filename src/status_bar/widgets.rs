@@ -29,6 +29,12 @@ pub struct WidgetContext {
     pub time_format: String,
     /// Available update version string (e.g., "0.20.0"), None if up-to-date
     pub update_available_version: Option<String>,
+    /// Free-space percentage on the monitored disk (0.0–100.0)
+    pub disk_free_percent: f32,
+    /// Free bytes on the monitored disk
+    pub disk_free_bytes: u64,
+    /// Total bytes on the monitored disk
+    pub disk_total_bytes: u64,
 }
 
 /// Generate display text for a single widget.
@@ -97,7 +103,11 @@ pub fn widget_text(id: &WidgetId, ctx: &WidgetContext, format_override: Option<&
                 String::new()
             }
         }
-        WidgetId::DiskFree => String::new(),
+        WidgetId::DiskFree => format!(
+            "DISK {:>4.0}% ({}) free",
+            ctx.disk_free_percent,
+            crate::status_bar::system_monitor::format_bytes(ctx.disk_free_bytes)
+        ),
         WidgetId::Custom(_) => String::new(),
     }
 }
@@ -154,6 +164,9 @@ fn resolve_variable(name: &str, ctx: &WidgetContext) -> String {
         "git.dirty" => if ctx.git_dirty { "\u{25cf}" } else { "" }.to_string(),
         "system.cpu" => format!("{:.1}%", ctx.system_data.cpu_usage),
         "system.memory" => format_memory(ctx.system_data.memory_used, ctx.system_data.memory_total),
+        "system.disk_free_percent" => format!("{:.0}%", ctx.disk_free_percent),
+        "system.disk_free" => crate::status_bar::system_monitor::format_bytes(ctx.disk_free_bytes),
+        "system.disk_total" => crate::status_bar::system_monitor::format_bytes(ctx.disk_total_bytes),
         _ => String::new(),
     }
 }
@@ -207,6 +220,9 @@ mod tests {
             git_show_status: true,
             time_format: "%H:%M:%S".to_string(),
             update_available_version: None,
+            disk_free_percent: 38.0,
+            disk_free_bytes: 250 * 1_073_741_824, // 250 GB
+            disk_total_bytes: 500 * 1_073_741_824, // 500 GB
         }
     }
 
@@ -351,6 +367,31 @@ mod tests {
             &ctx,
         );
         assert_eq!(result, "alice@dev-box [main]");
+    }
+
+    #[test]
+    fn test_widget_text_disk_free() {
+        let ctx = make_ctx();
+        // make_ctx sets disk_free_percent=38.0, free=250GB, total=500GB.
+        let text = widget_text(&WidgetId::DiskFree, &ctx, None);
+        assert_eq!(text, "DISK   38% (250.0 GB) free");
+        // Fixed width across magnitudes
+        let mut ctx2 = make_ctx();
+        ctx2.disk_free_bytes = 1_099_511_627_776; // 1.0 TB
+        ctx2.disk_free_percent = 90.0;
+        let text2 = widget_text(&WidgetId::DiskFree, &ctx2, None);
+        assert_eq!(text2, "DISK   90% (  1.0 TB) free");
+        assert_eq!(text.len(), text2.len());
+    }
+
+    #[test]
+    fn test_interpolate_disk_vars() {
+        let ctx = make_ctx();
+        let result = interpolate_format(
+            "free=\\(system.disk_free) pct=\\(system.disk_free_percent)",
+            &ctx,
+        );
+        assert_eq!(result, "free=250.0 GB pct=38%");
     }
 
     #[test]
