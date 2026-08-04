@@ -139,12 +139,11 @@ Scans shell history for previous `ssh` commands and extracts connection details 
 
 Discovers SSH hosts on the local network by browsing the `_ssh._tcp.local.` service type.
 
-**This feature is opt-in.** Enable it in Settings > Integrations > SSH > mDNS/Bonjour Discovery, or in config:
+**This feature is opt-in.** Enable it in Settings > Integrations > SSH > mDNS/Bonjour Discovery, or in config (top-level keys — `ssh` is a flattened sub-config):
 
 ```yaml
-ssh:
-  enable_mdns_discovery: true
-  mdns_scan_timeout_secs: 3  # Range: 1-10 seconds
+enable_mdns_discovery: true
+mdns_scan_timeout_secs: 3  # Range: 1-10 seconds
 ```
 
 When enabled, the Quick Connect dialog shows a spinner while scanning and displays discovered hosts in real time.
@@ -167,7 +166,7 @@ Profiles can act as SSH bookmarks by setting SSH-specific fields.
 | **SSH User** | SSH username | `deploy` |
 | **SSH Port** | Port number (blank = 22) | `2222` |
 | **SSH Identity File** | Path to private key | `~/.ssh/id_work` |
-| **SSH Extra Args** | Additional SSH flags | `-o StrictHostKeyChecking=no` |
+| **SSH Extra Args** | Additional SSH flags | `-o ServerAliveInterval=60` |
 
 6. Click **Save Profile**
 
@@ -249,18 +248,16 @@ See [Mouse Features](MOUSE_FEATURES.md#osc-52-clipboard-remote-copy) for the ful
 ## Configuration
 
 ```yaml
-ssh:
-  # mDNS/Bonjour discovery (opt-in)
-  enable_mdns_discovery: false       # default: false
-  mdns_scan_timeout_secs: 3          # range: 1-10, default: 3
+# SSH settings — top-level keys (the `ssh` sub-config is `#[serde(flatten)]`'d
+# into Config, so these write to the top of config.yaml, not under a `ssh:` block).
+enable_mdns_discovery: false              # default: false
+mdns_scan_timeout_secs: 3                 # range: 1-10, default: 3
+ssh_auto_profile_switch: true             # default: true
+ssh_revert_profile_on_disconnect: true    # default: true
 
-  # Automatic profile switching
-  ssh_auto_profile_switch: true      # default: true
-  ssh_revert_profile_on_disconnect: true  # default: true
-
-# Remote tab title format (top-level; requires shell integration on the remote host)
-remote_tab_title_format: user_at_host  # user_at_host | host | host_and_cwd
-remote_tab_title_osc_priority: true    # OSC titles take priority over format
+# Remote tab title format (also top-level; requires shell integration on the remote host)
+remote_tab_title_format: user_at_host     # user_at_host | host | host_and_cwd
+remote_tab_title_osc_priority: true       # OSC titles take priority over format
 ```
 
 **Profile SSH fields** (in `profiles.yaml`):

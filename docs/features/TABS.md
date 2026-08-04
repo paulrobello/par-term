@@ -198,7 +198,7 @@ restarted.
   (the operation would be a no-op) or when the source window is hosting a tmux
   gateway.
 - Right-click a tab → **Move Tab to Window →** opens a submenu listing every
-  other par-term window, labeled `Window N — <active tab title>`. Selecting a
+  other par-term window, labeled `Window N - <active tab title>`. Selecting a
   window transfers the tab there. If the source window becomes empty as a
   result, it closes. Disabled for tmux-gateway windows; hidden entirely when no
   other par-term windows exist.

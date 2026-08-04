@@ -60,9 +60,9 @@ par-term includes 11 built-in widgets plus custom widgets:
 | **User@Hostname** | `username_hostname` | Current user and machine name | Left | Enabled |
 | **Current Directory** | `current_directory` | Working directory of active tab | Left | Enabled |
 | **Git Branch** | `git_branch` | Branch name with ahead/behind/dirty indicators | Left | Enabled |
-| **CPU Usage** | `cpu_usage` | CPU usage percentage with fixed-width formatting (e.g., "CPU 42.5%") | Right | Disabled |
-| **Memory Usage** | `memory_usage` | Used/total memory with MEM prefix (e.g., "MEM 4.0 GB / 16.0 GB") | Right | Disabled |
-| **Network Status** | `network_status` | Receive/transmit rates with arrows (e.g., "↓ 1.0 KB/s ↑ 2.0 KB/s") | Right | Disabled |
+| **CPU Usage** | `cpu_usage` | CPU usage percentage with fixed-width formatting (e.g., "CPU  42.5%") | Right | Disabled |
+| **Memory Usage** | `memory_usage` | Used/total memory with MEM prefix (e.g., "MEM   4.0 GB /  16.0 GB") | Right | Disabled |
+| **Network Status** | `network_status` | Receive/transmit rates with arrows (e.g., "↓   1.0 KB/s ↑   2.0 KB/s") | Right | Disabled |
 | **Disk Free** | `disk_free` | Free disk space as percent + bytes (e.g., "DISK  62% (250.0 GB free)") | Right | Disabled |
 | **Bell Indicator** | `bell_indicator` | Bell emoji with count, shown when count > 0 (e.g., "🔔 3") | Right | Enabled |
 | **Update Available** | `update_available` | Yellow up-arrow with available version (e.g., "⬆ v0.20.0") | Right | Enabled |
@@ -357,18 +357,22 @@ status_bar_widgets:
     enabled: false
     section: right
     order: 2
+  - id: disk_free
+    enabled: false
+    section: right
+    order: 3
   - id: bell_indicator
     enabled: true
     section: right
-    order: 3
+    order: 4
   - id: clock
     enabled: true
     section: right
-    order: 4
+    order: 5
   - id: update_available
     enabled: true
     section: right
-    order: 5
+    order: 6
   # Example: built-in widget with a format override (replaces built-in formatting)
   - id: git_branch
     enabled: true
@@ -379,7 +383,7 @@ status_bar_widgets:
   - id: custom: Build Stats
     enabled: true
     section: right
-    order: 6
+    order: 7
     format: CPU \(system.cpu) · \(git.branch)
 ```
 
