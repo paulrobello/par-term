@@ -67,7 +67,7 @@ Shell integration enhances the terminal experience by enabling communication bet
 
 - **Directory Tracking (OSC 7)**: Tab titles automatically update to show the current working directory
 - **Command Exit Status (OSC 133)**: Last command's exit code is captured for display in the command history
-- **Prompt Navigation (OSC 133)**: Navigate between command prompts using keyboard shortcuts
+- **Command Marks (OSC 133)**: Visual marks on the scrollbar show command boundaries (requires `scrollbar_command_marks`)
 - **Current Working Directory Sync**: New tabs can inherit the current directory from the active tab
 
 ### Shell Installation
@@ -256,7 +256,7 @@ par-term tracks installed bundled shaders, cubemaps, and texture packs using a m
   "files": [
     {
       "path": "crt.glsl",
-      "sha256": "ca7bb2d0faeb09740206d3c2ede153f4...",
+      "sha256": "c70d2c9e6e023affc28eca536bc8c416...",
       "type": "shader",
       "category": "retro"
     },

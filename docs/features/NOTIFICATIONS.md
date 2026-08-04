@@ -21,14 +21,14 @@ Programs running in a pane can request a desktop notification directly:
 |----------|--------|------|
 | `OSC 9 ; <text> ST` | iTerm2-style | The whole payload is the notification text. |
 | `OSC 777 ; notify ; <title> ; <body> ST` | rxvt-style | Title and body are taken from the two `;`-separated fields. |
-| `OSC 99 ; <kvs> ST` | Kitty desktop-notification spec | Key/value metadata (see below). |
+| `OSC 99 ; <metadata> ; <payload> ST` | Kitty desktop-notification spec | `<metadata>` is zero or more `:`-separated `key=value` pairs (see below); `<payload>` is the chunk text. |
 
 Example, from a shell:
 
 ```bash
 printf '\e]9;Build finished\e\\'                 # OSC 9
 printf '\e]777;notify;Title;Body text\e\\'       # OSC 777
-printf '\e]99;i=42;u=critical;Build failed\e\\'  # OSC 99
+printf '\e]99;i=42:u=2;Build failed\e\\'         # OSC 99 (critical urgency)
 ```
 
 ## Kitty OSC 99 — full metadata support
@@ -39,8 +39,8 @@ par-term adopts the Kitty desktop-notification spec. The supported keys are:
 |-----|---------|-------------------|
 | `<text>` (payload) | Notification body (or title when `p=title`) | Shown as the notification text (or title when paired with a `p=body` chunk). |
 | `i=` | Identity | Notifications redelivered with the same `i=` **replace** the previous one instead of stacking. |
-| `u=` | Urgency (`low`/`normal`/`critical`) | `critical` is made sticky on Linux and given an audible cue on macOS; Linux also gets the freedesktop urgency hint and urgency-scaled timeouts. |
-| `a=` | Click action | `focus` (the default) or `report` — see [Click actions](#click-actions). |
+| `u=` | Urgency (`0` low / `1` normal default / `2` critical) | `critical` is made sticky on Linux and given an audible cue on macOS; Linux also gets the freedesktop urgency hint and urgency-scaled timeouts. |
+| `a=` | Click actions (comma-separated list) | `focus` (the default) and/or `report`; each may be negated with a leading `-` (so `-focus` opts out of the default). See [Click actions](#click-actions). |
 | `p=` | Payload type (`title` default, or `body`) | First chunk's text is the title; subsequent `p=body` chunks assemble the body. With no `p=body` chunk, the title text becomes the message (mirroring OSC 9/777). |
 | `d=` | Done (`0` = more chunks follow, `1` = last chunk, default `1`) | Enables multi-chunk assembly for long notifications; the notification is only delivered when `d=1` (or unset) is seen. |
 | `e=` | Encoding (`0` raw default, `1` base64) | Base64-decodes the payload before delivery, for binary-safe text. |
@@ -56,10 +56,10 @@ par-term adopts the Kitty desktop-notification spec. The supported keys are:
 
 ## Click actions
 
-Per the Kitty spec, `focus` is the default click action. When you click a notification:
+Per the Kitty spec, `focus` is the default click action — it stays active unless the application explicitly opts out with `a=-focus`. `report` is never implied; it must be requested explicitly (typically as `a=focus,report`). When you click a notification:
 
 - **`focus` (default)** — brings the par-term window to the front, activates the originating tab, and focuses the originating pane.
-- **`a=report`** — writes the spec activation reply `OSC 99 ; i=<id> ; ST` back to the application through the PTY (using `i=0` when the original notification had no `i=`), so the app can react to the click.
+- **`report`** — writes the spec activation reply `OSC 99 ; i=<id> ; ST` back to the application through the PTY (using `i=0` when the original notification had no `i=`), so the app can react to the click.
 
 The click registry is per-window, with a cross-window re-queue so a click is never lost if the originating window is not the focused one.
 

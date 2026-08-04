@@ -360,7 +360,7 @@ download_save_location: downloads
 
 **Symptom:** The save dialog opens to Downloads instead of the shell's current directory when `cwd` is selected.
 
-**Solution:** Install shell integration, which provides working directory tracking via OSC 7 / OSC 133. Without shell integration, par-term cannot determine the shell's current directory and falls back to the Downloads folder.
+**Solution:** Install shell integration, which provides working directory tracking via OSC 7. Without shell integration, par-term cannot determine the shell's current directory and falls back to the Downloads folder.
 
 ### Large file transfers are slow
 

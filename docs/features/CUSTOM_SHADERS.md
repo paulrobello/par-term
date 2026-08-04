@@ -398,7 +398,7 @@ Control shader behavior when the window loses focus:
 pause_shaders_on_blur: true
 
 # Reduce refresh rate when unfocused
-pause_refresh_on_blur: false
+pause_refresh_on_blur: true
 
 # Target FPS when unfocused (only if pause_refresh_on_blur=true)
 unfocused_fps: 30
@@ -407,7 +407,7 @@ unfocused_fps: 30
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `pause_shaders_on_blur` | `bool` | `true` | Pause shader animations when window loses focus |
-| `pause_refresh_on_blur` | `bool` | `false` | Reduce refresh rate when unfocused |
+| `pause_refresh_on_blur` | `bool` | `true` | Reduce refresh rate when unfocused |
 | `unfocused_fps` | `u32` | `30` | Target FPS when unfocused |
 
 ### Shader Hot Reload
@@ -487,9 +487,12 @@ Par-term provides comprehensive Shadertoy-compatible uniforms plus Ghostty-compa
 
 These are fully compatible with Shadertoy shaders:
 
+> **Note:** par-term splits Shadertoy's `vec3 iResolution` into `vec2 iResolution` (viewport pixels) plus a separate `float iResolutionZ` (pixel aspect ratio). Shaders ported from Shadertoy that read `iResolution.z` must use `iResolutionZ` instead.
+
 | Uniform | Type | Description |
 |---------|------|-------------|
-| `iResolution` | `vec3` | Viewport size: `xy` = pixels, `z` = pixel aspect ratio (usually 1.0) |
+| `iResolution` | `vec2` | Viewport size in pixels (`xy` = width, height) |
+| `iResolutionZ` | `float` | Pixel aspect ratio (usually 1.0). Companion to `iResolution`; replaces Shadertoy's `iResolution.z` |
 | `iTime` | `float` | Time in seconds since shader started (0.0 if animation disabled) |
 | `iTimeDelta` | `float` | Time elapsed since last frame in seconds |
 | `iFrame` | `float` | Frame counter (incremented each frame) |
@@ -904,7 +907,8 @@ Par-term is fully Shadertoy compatible. When adapting shaders:
 1. **Terminal content is on iChannel4**: Use `texture(iChannel4, uv)` to sample terminal content. iChannel0-3 are available for user textures (same as Shadertoy)
 2. **Y-axis matches Shadertoy**: No modifications needed - fragCoord.y=0 at bottom, same as Shadertoy
 3. **iMouse is vec4**: Full Shadertoy compatibility (xy=current position, zw=click position)
-4. **mat2(vec4) construction**: May need to expand to `mat2(v.x, v.y, v.z, v.w)` for GLSL 450 compatibility
+4. **`iResolution.z` is a separate uniform**: par-term declares `vec2 iResolution` plus `float iResolutionZ`. Replace any `iResolution.z` reads with `iResolutionZ`.
+5. **mat2(vec4) construction**: May need to expand to `mat2(v.x, v.y, v.z, v.w)` for GLSL 450 compatibility
 
 ---
 
