@@ -161,7 +161,7 @@ par-term-scripting = { path = "par-term-scripting", version = "0.1.15" }
 par-term-ssh = { path = "par-term-ssh", version = "0.2.1", default-features = false }
 
 # Self-update and update-check system
-par-term-update = { path = "par-term-update", version = "0.4.1" }
+par-term-update = { path = "par-term-update", version = "0.5.0" }
 
 # MCP (Model Context Protocol) stdio server
 par-term-mcp = { path = "par-term-mcp", version = "0.2.8" }

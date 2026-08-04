@@ -13,6 +13,7 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ### Changed
 - Bumped `par-term-emu-core-rust` from `0.45` to `0.46` (latest). In 0.46 the `pty_session` module (and `PtySession`) is feature-gated, so the workspace dependency now enables the `pty_session` feature; 0.46 also slimmed the core's default dependency tree.
+- Bumped `par-term-update` from `0.4.1` to `0.5.0`. The updater now prefers the Universal macOS build (`par-term-macos-universal.zip`) and falls back to the per-arch asset when the Universal binary is absent; per-arch asset names are unchanged, so older updaters keep working. Minor bump for the additive selection behavior (#223).
 
 ---
 
