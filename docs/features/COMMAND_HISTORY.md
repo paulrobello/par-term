@@ -90,7 +90,7 @@ The overlay also exposes **Insert Selected** and **Close** buttons beneath the r
 Each history entry displays:
 
 - **Command text** with fuzzy match highlighting
-- **Exit code indicator**: green circle for success (exit 0), red circle for failure (non-zero), gray circle for unknown
+- **Exit code indicator**: green circle for success (exit 0), red circle for failure (non-zero), gray question mark for unknown
 - **Relative timestamp**: how long ago the command was executed (e.g., "2m ago", "1h ago", "3d ago")
 
 Hover over an entry to see a tooltip with full details including command duration (when available).

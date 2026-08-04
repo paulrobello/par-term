@@ -172,7 +172,7 @@ Set bookmarks at positions in the buffer and jump back to them.
 | `m{a-z}` | Set mark (e.g., `ma` sets mark 'a') |
 | `'{a-z}` | Jump to mark (e.g., `'a` jumps to mark 'a') |
 
-Marks persist for the duration of the copy mode session and are cleared on exit.
+Marks persist across copy mode sessions for the lifetime of the window.
 
 ## Status Bar
 

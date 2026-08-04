@@ -221,13 +221,13 @@ Creates a colored mark on the scrollbar at the current line for easy navigation.
 ```yaml
 - type: mark_line
   label: "Build started"       # Optional label text
-  color: [255, 200, 0]        # Optional RGB color (default: cyan)
+  color: [255, 200, 0]        # Optional RGB color (default: falls back to shell-integration coloring)
 ```
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `label` | string | No | `null` | Text label shown in scrollbar tooltip on hover |
-| `color` | `[u8, u8, u8]` | No | `[0, 180, 255]` | RGB color for the scrollbar mark (cyan by default) |
+| `color` | `[u8, u8, u8]` | No | `null` | RGB color for the scrollbar mark. When omitted, the scrollbar renderer falls back to shell-integration coloring (see [Trigger Marks on Scrollbar](#trigger-marks-on-scrollbar)) |
 
 See [Trigger Marks on Scrollbar](#trigger-marks-on-scrollbar) for details on how marks are displayed.
 
