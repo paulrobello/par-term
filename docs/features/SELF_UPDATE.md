@@ -38,7 +38,7 @@ par-term can check for new releases and update itself in-place, eliminating the 
 The self-update system consists of two components that work together:
 
 1. **Update Checker** -- Periodically queries the GitHub Releases API to determine whether a newer version is available
-2. **Self-Updater** -- Downloads the appropriate platform binary and replaces the running installation in-place
+2. **Self-Updater** -- Downloads the appropriate platform binary and replaces the running installation in-place. On macOS it prefers the Universal build (covering both Apple Silicon and Intel) and falls back to the per-arch build on releases that predate it
 
 The behavior depends on how par-term was installed. Managed installations (Homebrew, cargo) receive upgrade instructions instead of an in-place update, while standalone binaries and macOS app bundles are updated directly.
 

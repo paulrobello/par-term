@@ -43,6 +43,14 @@ New to par-term? The [Getting Started Guide](docs/guides/GETTING_STARTED.md) wal
 
 ## What's New
 
+### 0.42.0
+
+Universal macOS binaries — one signed/notarized download runs natively on both Apple Silicon and Intel.
+
+- **Universal macOS binary** (`par-term-macos-universal.zip`) — a single build covering both aarch64 and x86_64, so an Apple-Silicon user who grabs the Intel build no longer runs under Rosetta or hits the "Support ending for Intel-based apps" prompt. The self-updater now prefers the Universal asset and falls back to per-arch on older releases; per-arch downloads still work. (#223)
+- **Command-history log is char-boundary-safe** — truncating the rendered line for the history overlay no longer panics on non-ASCII (CJK, emoji) text.
+- **`par-term-emu-core-rust` bumped to 0.46** (latest), with the `pty_session` feature now explicitly enabled.
+
 ### 0.41.0
 
 A new **Disk Free** status-bar widget shows free disk space as `DISK  62% (250.0 GB free)`.

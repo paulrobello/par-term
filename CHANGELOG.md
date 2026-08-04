@@ -11,9 +11,24 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ## [Unreleased]
 
+---
+
+## [0.42.0] - 2026-08-04
+
+Universal macOS binaries: the release now ships a single `par-term-macos-universal.zip` containing a fat (aarch64 + x86_64) binary, and the self-updater prefers it — falling back to the per-arch asset on releases that predate it. Minor bump for the new Universal asset; the root crate is the only workspace version change (`par-term-update` was already bumped to 0.5.0 for the updater selection behavior in #223; `par-term-emu-core-rust` remains external).
+
+### Added
+
+- **Universal macOS binary.** A new `build-macos-universal` release job `lipo`s the `aarch64-apple-darwin` and `x86_64-apple-darwin` builds into one fat binary and ships `par-term-macos-universal.zip` (signed, notarized, and stapled via the existing scripts). The self-updater now prefers the Universal asset and falls back to the per-arch build when it is absent; per-arch asset names are unchanged, so older updaters keep working. Apple-Silicon users who install the Intel build no longer run under Rosetta or hit the "Support ending for Intel-based apps" deprecation. (#223)
+
+### Fixed
+
+- **Command-history log no longer panics on non-ASCII.** Truncating the rendered line for the command-history overlay could split a multi-byte UTF-8 sequence, panicking on CJK/emoji text; truncation is now char-boundary-safe (`src/app/render_pipeline/post_render.rs`).
+
 ### Changed
+
 - Bumped `par-term-emu-core-rust` from `0.45` to `0.46` (latest). In 0.46 the `pty_session` module (and `PtySession`) is feature-gated, so the workspace dependency now enables the `pty_session` feature; 0.46 also slimmed the core's default dependency tree.
-- Bumped `par-term-update` from `0.4.1` to `0.5.0`. The updater now prefers the Universal macOS build (`par-term-macos-universal.zip`) and falls back to the per-arch asset when the Universal binary is absent; per-arch asset names are unchanged, so older updaters keep working. Minor bump for the additive selection behavior (#223).
+- Bumped `par-term-update` from `0.4.1` to `0.5.0` for the Universal-asset selection behavior (#223).
 
 ---
 
@@ -1774,7 +1789,8 @@ Audit remediation pass (Critical + High severity from the 2026-06-25 audit): 18 
 
 ---
 
-[Unreleased]: https://github.com/paulrobello/par-term/compare/v0.40.0...HEAD
+[Unreleased]: https://github.com/paulrobello/par-term/compare/v0.42.0...HEAD
+[0.42.0]: https://github.com/paulrobello/par-term/compare/v0.41.0...v0.42.0
 [0.41.0]: https://github.com/paulrobello/par-term/compare/v0.40.0...v0.41.0
 [0.40.0]: https://github.com/paulrobello/par-term/compare/v0.39.0...v0.40.0
 [0.39.0]: https://github.com/paulrobello/par-term/compare/v0.38.0...v0.39.0
