@@ -198,7 +198,7 @@ par-term install-shaders
 
 Once installed, enable a background shader in Settings under **Effects**, or toggle the active shader with `Cmd/Ctrl + Shift + B`.
 
-> **✅ Tip:** Lower the `custom_shader_brightness` setting (for example, 0.3-0.5) to keep shader backgrounds from overpowering your terminal text. You can also install both shell integration and shaders at once with `par-term install-integrations`.
+> **✅ Tip:** The `custom_shader_brightness` setting controls shader intensity (default 0.15 for readability; raise it to 0.3-0.5 for more vivid effects). You can also install both shell integration and shaders at once with `par-term install-integrations`.
 
 ## Customizing Your Terminal
 

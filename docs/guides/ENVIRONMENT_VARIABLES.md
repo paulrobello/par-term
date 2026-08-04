@@ -28,7 +28,7 @@ par-term reads environment variables at startup for two purposes:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DEBUG_LEVEL` | `0` (off) | Controls verbosity of par-term's custom debug macros. Accepts `0`–`4`: `0` = off, `1` = error, `2` = info, `3` = debug, `4` = trace. Logs are written to `$TMPDIR/par_term_debug.log`. |
-| `RUST_LOG` | unset | Controls verbosity of the standard `log` crate. Accepts `error`, `warn`, `info`, `debug`, `trace`, or module-level filters such as `par_term=debug`. When set, log output is also mirrored to stderr. |
+| `RUST_LOG` | unset | Controls verbosity of the standard `log` crate. Parsed as a single case-insensitive token: `off`, `error`, `warn`, `info`, `debug`, or `trace`. Anything else (including module-level filters such as `par_term=debug`) falls back to `info`. When set, log output is also mirrored to stderr. |
 
 ### Log File Location
 
