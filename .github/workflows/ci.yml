@@ -38,7 +38,6 @@ jobs:
       # To find the SHA: git ls-remote https://github.com/dtolnay/rust-toolchain refs/heads/master
       uses: dtolnay/rust-toolchain@46511b1c83438f0dd37c02d843619ece5a4abb5b
       with:
-        toolchain: 1.97.1
         components: rustfmt, clippy
 
     - name: Install Linux dependencies
