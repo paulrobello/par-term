@@ -159,11 +159,11 @@ The Settings UI also provides debug logging controls under **Settings > Advanced
 
 **Symptom:** macOS reports that par-term "is damaged and can't be opened" or shows an "unidentified developer" warning.
 
-**Cause:** macOS applies a quarantine attribute to binaries downloaded from the internet. Since par-term release binaries are not notarized with an Apple Developer ID, Gatekeeper blocks execution.
+**Cause:** Release assets are Developer ID signed, notarized, and stapled by the release workflow, so they pass Gatekeeper assessment out of the box. macOS still applies a quarantine attribute to binaries downloaded from the internet, which triggers the first-launch "downloaded from the internet" prompt. Clearing it is needed for scripted or MDM installs that must bypass that prompt, or in edge cases such as a broken staple or a download path that bypasses normal Gatekeeper verification.
 
 **Solution:**
 
-Remove the quarantine attribute:
+Clear the quarantine attribute:
 
 ```bash
 # For the release binary
