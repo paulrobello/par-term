@@ -15,6 +15,7 @@ use crate::remote_shell_install_ui::{RemoteShellInstallAction, RemoteShellInstal
 use crate::shader_install_ui::ShaderInstallResponse;
 use crate::ssh_connect_ui::SshConnectAction;
 use crate::tmux_session_picker_ui::SessionPickerAction;
+use par_term_config::text::truncate_chars;
 
 impl WindowState {
     /// Handle all actions collected during the render pass and finalize frame timing.
@@ -85,7 +86,7 @@ impl WindowState {
                 self.paste_text(&command);
                 log::info!(
                     "Inserted command from history: {}",
-                    &command[..command.len().min(60)]
+                    truncate_chars(&command, 60)
                 );
             }
             CommandHistoryAction::None => {}
