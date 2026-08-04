@@ -17,7 +17,7 @@ pub struct ProgressBarConfig {
 
     /// Progress bar visual style
     /// - bar: Simple thin bar (default)
-    /// - bar_with_text: Bar with percentage text and labels
+    /// - barwithtext: Bar with percentage text and labels
     #[serde(default)]
     pub progress_bar_style: ProgressBarStyle,
 
