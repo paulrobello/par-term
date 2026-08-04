@@ -71,7 +71,7 @@ The exported file contains all configuration values.
 ### Import from URL
 
 1. Open Settings > **Advanced** > **Import/Export Preferences**
-2. Enter the URL of a configuration file. It must start with `https://` -- there is no HTTP opt-in on this path, and every other scheme (`http:`, `file:`, `ftp:`, `data:`) is rejected with the reason shown in the status line
+2. Enter the URL of a configuration file. It must use the `https://` scheme (case-insensitive, so `HTTPS://` is accepted) -- there is no HTTP opt-in on this path, and every other scheme (`http:`, `file:`, `ftp:`, `data:`) is rejected with the reason shown in the status line
    - The response is capped at 1 MB and the request times out after 30 seconds. The fetch runs on the UI thread, so the window is unresponsive while it is in flight
 3. Click **Fetch & Replace** to completely replace your config, or **Fetch & Merge** to preserve existing customizations
 4. The configuration downloads and loads into the settings panel as unsaved changes

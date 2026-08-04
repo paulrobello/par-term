@@ -100,7 +100,7 @@ ESC ] 934 ; action ; id [ ; key=value ... ] ST
 **Parameters (key=value):**
 - `state` — Progress state: `normal`, `error`, `indeterminate`, `warning`, `hidden`
 - `percent` — Progress percentage (0-100)
-- `label` — Optional text label displayed in `bar_with_text` style
+- `label` — Optional text label displayed in `barwithtext` style
 
 **Examples:**
 
@@ -128,7 +128,7 @@ All progress bar settings are available in the Settings UI under the **Appearanc
 | Setting | Description | Default |
 |---------|-------------|---------|
 | `progress_bar_enabled` | Enable progress bar rendering | `true` |
-| `progress_bar_style` | Display style: `bar` or `bar_with_text` | `bar` |
+| `progress_bar_style` | Display style: `bar` or `barwithtext` (lowercased, no underscore) | `bar` |
 | `progress_bar_position` | Position: `top` or `bottom` | `top` |
 | `progress_bar_height` | Bar height in pixels | `4.0` |
 | `progress_bar_opacity` | Opacity (0.0-1.0) | `0.8` |
@@ -141,7 +141,7 @@ All progress bar settings are available in the Settings UI under the **Appearanc
 
 ```yaml
 progress_bar_enabled: true
-progress_bar_style: bar_with_text
+progress_bar_style: barwithtext
 progress_bar_position: bottom
 progress_bar_height: 4.0
 progress_bar_opacity: 0.9

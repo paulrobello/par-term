@@ -696,7 +696,7 @@ Profiles are stored in YAML format:
 - Order field controls display sequence
 - Changes save immediately when clicking **Save** in the modal
 
-**How the file is written:** profiles carry commands, SSH arguments and environment overrides, so `profiles.yaml` is written atomically and owner-only. The new contents are staged in a temporary file in the same directory at mode `0600`, flushed to disk, and then renamed over the target — so the final file is mode `0600` on Unix regardless of your umask, and an interrupted or failed save leaves the previous `profiles.yaml` byte-for-byte intact rather than truncated. That matters because a truncated profiles file parses as "no profiles" rather than as an error.
+**How the file is written:** profiles carry commands and SSH arguments, so `profiles.yaml` is written atomically and owner-only. The new contents are staged in a temporary file in the same directory at mode `0600`, flushed to disk, and then renamed over the target — so the final file is mode `0600` on Unix regardless of your umask, and an interrupted or failed save leaves the previous `profiles.yaml` byte-for-byte intact rather than truncated. That matters because a truncated profiles file parses as "no profiles" rather than as an error.
 
 ## Related Documentation
 
