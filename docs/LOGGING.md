@@ -231,6 +231,7 @@ Custom debug macros use category tags for selective filtering. The following cat
 | `APP` | Application-level render pipeline operations |
 | `ARRANGEMENT` | Window arrangement save/restore |
 | `CAT` | General-purpose catch-all |
+| `CLIPBOARD` | OSC 52 clipboard synchronization |
 | `CONFIG` | Configuration loading and propagation |
 | `CONCURRENCY` | `try_lock()` failure telemetry and lock contention reporting |
 | `COPY_MODE` | Copy/selection mode operations |
@@ -239,6 +240,7 @@ Custom debug macros use category tags for selective filtering. The following cat
 | `FILE_TRANSFER` | File transfer upload/download operations |
 | `FRAME_TIMING` | Frame timing and vsync measurements |
 | `GRAPHICS` | Graphics surface setup and adapter selection |
+| `INPUT` | Input dispatch and PTY write failures from input handlers |
 | `KEYBINDING` | Keybinding dispatch and rebinding |
 | `MOUSE` | Mouse event handling |
 | `PANE_CHECK` | Pane health and lifecycle checks |
@@ -267,7 +269,7 @@ Custom debug macros use category tags for selective filtering. The following cat
 | `TMUX_INPUT` | Tmux input forwarding |
 | `TRIGGER` | Automation trigger evaluation and firing |
 
-> **Note:** The bundled terminal-emulator core library (`par-term-emu-core-rust`) emits additional categories through the same custom macros, including `PTY` (PTY read errors), `PTY_SHUTDOWN` (reader-thread shutdown lifecycle), and `STREAMING` (session streaming server lifecycle). These appear in the same log file and can be filtered the same way.
+> **Note:** The bundled terminal-emulator core library (`par-term-emu-core-rust`) defines its own copy of these macros and emits additional categories, including `PTY` (PTY read errors), `PTY_SHUTDOWN` (reader-thread shutdown lifecycle), and `STREAMING` (session streaming server lifecycle). They honor the same `DEBUG_LEVEL` semantics but write to a **separate** file, `par_term_emu_core_rust_debug_rust.log`, in the same temp directory — not to `par_term_debug.log`.
 
 Filter by category using grep:
 ```bash

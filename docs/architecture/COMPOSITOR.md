@@ -265,7 +265,8 @@ Par-term provides a comprehensive set of Shadertoy-compatible uniforms:
 
 | Uniform | Type | Description |
 |---------|------|-------------|
-| `iResolution` | `vec3` | Viewport resolution: `xy` = pixels, `z` = pixel aspect ratio (usually 1.0) |
+| `iResolution` | `vec2` | Viewport resolution in pixels (`xy` = width, height). Note: par-term splits Shadertoy's `vec3` into `vec2 iResolution` plus a separate `iResolutionZ` uniform — shaders ported from Shadertoy that read `iResolution.z` must use `iResolutionZ` instead |
+| `iResolutionZ` | `float` | Pixel aspect ratio (usually 1.0). Companion to `iResolution`; replaces Shadertoy's `iResolution.z` |
 | `iTime` | `float` | Time in seconds since shader started (animated) |
 | `iTimeDelta` | `float` | Time since last frame in seconds |
 | `iFrame` | `float` | Frame counter (increments each frame) |

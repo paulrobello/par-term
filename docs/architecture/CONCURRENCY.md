@@ -61,7 +61,7 @@ graph TD
     EventLoop --> EguiUI
     PTYReader -- "tokio::sync::RwLock" --> TerminalManager
     InputSender -- "tokio::sync::RwLock" --> TerminalManager
-    EventLoop -- "try_read() / try_write() / blocking_write()" --> TerminalManager
+    EventLoop -- "try_read() / try_write() / blocking_read() / blocking_write()" --> TerminalManager
     SystemMonitor -- "parking_lot::Mutex" --> SystemMonitorData
     EventLoop -- "parking_lot::Mutex" --> SystemMonitorData
 
