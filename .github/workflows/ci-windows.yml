@@ -110,6 +110,7 @@ jobs:
           threads="-- --test-threads=$TEST_THREADS"
         fi
         echo "cargo test $TEST_ARGS $threads"
+        # shellcheck disable=SC2086  # TEST_ARGS/threads are intentional space-separated arg lists
         cargo test $TEST_ARGS $threads
 
     - name: Build release
