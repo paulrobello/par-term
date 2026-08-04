@@ -177,8 +177,10 @@ Use `try_read()` / `try_write()` for:
 ### `blocking_read()` / `blocking_write()` — Blocking wait
 
 ```rust
-// For infrequent user-initiated operations (coprocess start/stop, scripting setup)
-let mut term = tab.terminal.blocking_write();
+// For infrequent user-initiated operations (coprocess start/stop, scripting setup).
+// start_coprocess() takes &self, so a read lock is correct — see the anti-pattern
+// section below on why blocking_write() must be reserved for true &mut self methods.
+let term = tab.terminal.blocking_read();
 term.start_coprocess(...);
 ```
 
