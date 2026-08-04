@@ -211,7 +211,7 @@ Override shader settings per-file. Keys are shader filenames (without path).
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `left_option_key_mode` | `enum` | `esc` | Left Option/Alt key: `normal`, `meta`, `esc` |
-| `right_option_key_mode` | `enum` | `esc` | Right Option/Alt key: `normal`, `meta`, `esc` | |
+| `right_option_key_mode` | `enum` | `esc` | Right Option/Alt key: `normal`, `meta`, `esc` |
 | `modifier_remapping` | `object` | `{}` | Remap modifier keys: fields `left_ctrl`, `right_ctrl`, `left_alt`, `right_alt`, `left_super`, `right_super` |
 | `use_physical_keys` | `bool` | `false` | Use physical key positions for keybindings (layout-independent) |
 | `keybindings` | `array` | (built-in defaults) | Custom keybindings: `[{key: "CmdOrCtrl+B", action: "toggle_tab_bar"}]` |

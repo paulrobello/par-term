@@ -436,22 +436,27 @@ egui-based settings interface decoupled from the main terminal crate via traits.
 
 Observer-pattern scripting: launch Python or shell scripts that react to terminal events.
 
-The crate root declares its modules but re-exports nothing, so every type must be imported through its owning module.
+The crate root re-exports a small set of lifecycle types (`ScriptStatus`, `RestartAction`, `ScriptRestartState`); all other types are imported through their owning module.
 
 | Type | Description |
 |------|-------------|
 | `manager::ScriptManager` | Manages multiple `ScriptProcess` instances for a single tab. Handles start, stop, event broadcast, and panel state. |
 | `manager::ScriptId` | `u64` identifier for a managed script subprocess. |
 | `process::ScriptProcess` | A single script subprocess with JSON-line stdin/stdout communication. |
+| `process::ScriptStatus` | Lifecycle status of a script subprocess: `Running` or `Exited { success }`. Re-exported at the crate root. |
+| `restart::RestartAction` | Next action from the restart state machine: `Idle`, `Stop`, `Restart`, or `Wait`. Re-exported at the crate root. |
+| `restart::ScriptRestartState` | Pure per-slot restart supervisor; decides when to re-spawn a script after an exit. Re-exported at the crate root. |
 
 ### Public Modules
 
 | Module | Description |
 |--------|-------------|
 | `manager` | `ScriptManager` and `ScriptId` — per-tab script orchestrator. |
-| `process` | `ScriptProcess` — single subprocess lifecycle and JSON-line I/O. |
+| `process` | `ScriptProcess` and `ScriptStatus` — single subprocess lifecycle and JSON-line I/O. |
 | `observer` | Observer event forwarding from terminal core to script subprocesses. |
 | `protocol` | `ScriptEvent` and `ScriptCommand` types used by the JSON protocol. |
+| `confirm` | Confirmation gating for the script `WriteText` command (ids, prompt text). |
+| `restart` | Pure restart-decision state machine (`RestartAction`, `ScriptRestartState`) driven by the frontend event loop. |
 
 ---
 
@@ -499,6 +504,7 @@ Self-update and release tracking. Types are exported via submodule re-exports.
 | `binary_ops` | `DownloadUrls`, `get_asset_name()`, `get_download_urls()`, `cleanup_old_binary()` |
 | `install_methods` | `InstallationType`, `detect_installation()` |
 | `manifest` | Bundled asset tracking (`Manifest`, `ManifestFile`, `FileType`) |
+| `signature` | Detached minisign signature verification for downloaded releases (`verify_detached()`, `signing_key_configured()`) |
 | `http` | HTTP utilities (`download_file()`, `validate_update_url()`) |
 
 ### Key Types (via `self_updater` re-export)
@@ -587,6 +593,7 @@ SSH host discovery, config parsing, and known-hosts scanning.
 |------|-------------|
 | `SshHost` | A discovered SSH host with alias, hostname, user, port, identity file, and proxy jump. |
 | `SshHostSource` | Where the host was found: `Config`, `KnownHosts`, `History`, or `Mdns`. |
+| `UnsafeSshComponent` | A host component that cannot be safely placed on an SSH command line (reports the offending field name and value). |
 | `discover_local_hosts()` | Aggregate SSH hosts from all discovery sources into a deduplicated list. |
 
 ### Key `SshHost` Methods

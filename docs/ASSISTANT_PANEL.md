@@ -259,7 +259,7 @@ For shader debugging workflows, agents can use the `shader_diagnostics` MCP tool
 
 ### Reset Permission Approvals
 
-The **Reset approvals** button in the controls row disconnects and immediately reconnects the agent, creating a new ACP session. This revokes all session-scoped permission approvals (such as "Allow for session" grants) without losing the chat history. Prior conversation messages are re-injected into the new session via [Context Restore Across Reconnects](#context-restore-across-reconnects).
+The **Reset approvals** button in the connection bar (next to **Disconnect**) disconnects and immediately reconnects the agent, creating a new ACP session. This revokes all session-scoped permission approvals (such as "Allow for session" grants) without losing the chat history. Prior conversation messages are re-injected into the new session via [Context Restore Across Reconnects](#context-restore-across-reconnects).
 
 Use this when you want to tighten permissions mid-session without fully closing the panel or manually tracking which tools were approved.
 

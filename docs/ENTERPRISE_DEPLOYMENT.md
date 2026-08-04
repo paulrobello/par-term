@@ -114,7 +114,7 @@ cargo build --profile dev-release --locked
 #!/usr/bin/env bash
 set -euo pipefail
 
-PAR_TERM_VERSION="0.39.0"
+PAR_TERM_VERSION="0.41.0"
 INSTALL_DIR="/usr/local/bin"
 PLATFORM="macos-aarch64"   # adjust: macos-x86_64, linux-x86_64, linux-aarch64
 BINARY="par-term-${PLATFORM}.zip"
@@ -158,7 +158,7 @@ echo "par-term ${PAR_TERM_VERSION} installed successfully."
 
 ```powershell
 # deploy-par-term.ps1
-$Version  = "0.39.0"
+$Version  = "0.41.0"
 $Platform = "windows-x86_64"
 $InstDir  = "C:\Program Files\par-term"
 $Url      = "https://github.com/paulrobello/par-term/releases/download/v$Version/par-term-$Platform.exe"
@@ -270,7 +270,7 @@ Valid values: `hourly`, `daily`, `weekly`, `monthly`, `never`.
 |----------------|-------------|
 | Homebrew (cask) | Skip `brew upgrade --cask par-term` during upgrade windows (casks cannot be `brew pin`-ned) |
 | Standalone binary | Replace binary file only during planned maintenance windows |
-| Cargo | `cargo install --locked --version 0.39.0 par-term` |
+| Cargo | `cargo install --locked --version 0.41.0 par-term` |
 
 ### Managed Update Workflow
 
@@ -301,9 +301,9 @@ chmod 755 /tmp/par-term-pkg/usr/local/bin/par-term
 pkgbuild \
   --root /tmp/par-term-pkg \
   --identifier com.paulrobello.par-term \
-  --version 0.39.0 \
+  --version 0.41.0 \
   --install-location / \
-  par-term-0.39.0.pkg
+  par-term-0.41.0.pkg
 ```
 
 Upload the `.pkg` to Jamf Pro and deploy via a policy scoped to the target computer group.
@@ -315,11 +315,11 @@ Upload the `.pkg` to Jamf Pro and deploy via a policy scoped to the target compu
 
 ### Gatekeeper Considerations
 
-par-term is not currently notarized by Apple. For scripted MDM installs, remove the quarantine attribute immediately after copying:
+macOS release bundles are Developer ID signed, notarized, and stapled by the release workflow, so they pass Gatekeeper assessment out of the box. The first launch still presents the standard "downloaded from the internet" prompt; clear the quarantine attribute during provisioning to silence it for scripted or self-service installs:
 
 ```bash
 sudo xattr -rd com.apple.quarantine /Applications/par-term.app
-# or for the binary:
+# or for the standalone binary:
 sudo xattr -d com.apple.quarantine /usr/local/bin/par-term
 ```
 
