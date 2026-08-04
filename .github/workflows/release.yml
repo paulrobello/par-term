@@ -469,6 +469,116 @@ jobs:
           path: release-binaries/par-term-macos-aarch64.zip
           retention-days: 1
 
+  # Build a Universal (aarch64 + x86_64) macOS binary and .app (parallel).
+  #
+  # The per-arch jobs above ship single-slice .app bundles on purpose: both
+  # par-term-update's get_asset_name() and the Homebrew cask bake the
+  # arch-specific asset names into shipped/published artifacts, so those names
+  # can't change without breaking in-the-wild updaters. This job additionally
+  # produces ONE fat binary as par-term-macos-universal.zip so a manual download
+  # never has to (and cannot wrongly) pick an Intel-only build on Apple Silicon
+  # — the Rosetta "Support ending for Intel-based apps" path. The universal .app
+  # is signed, notarized, and stapled exactly like the per-arch ones.
+  #
+  # Tests are not re-run here: both per-arch macOS jobs (required by
+  # publish-crates and github-release below) already run `cargo test --workspace`,
+  # so the release stays gated on tests without a third pass.
+  build-macos-universal:
+    name: Build binary - macOS Universal
+    runs-on: macos-latest
+    timeout-minutes: 90
+    needs: [preflight-checks]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@46511b1c83438f0dd37c02d843619ece5a4abb5b
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Add Rust targets (ensure installed)
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+      - name: Get version
+        run: |
+          VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Build both architectures
+        run: |
+          cargo build --release --target aarch64-apple-darwin
+          cargo build --release --target x86_64-apple-darwin
+
+      - name: Create universal binary
+        run: |
+          mkdir -p target/universal-release
+          lipo -create \
+            target/aarch64-apple-darwin/release/par-term \
+            target/x86_64-apple-darwin/release/par-term \
+            -output target/universal-release/par-term
+          chmod +x target/universal-release/par-term
+          echo "Universal binary slices:"
+          lipo -info target/universal-release/par-term
+          file target/universal-release/par-term
+
+      - name: Create app bundle
+        run: |
+          mkdir -p par-term.app/Contents/MacOS
+          mkdir -p par-term.app/Contents/Resources
+
+          # Copy universal binary
+          cp target/universal-release/par-term par-term.app/Contents/MacOS/par-term
+          chmod +x par-term.app/Contents/MacOS/par-term
+
+          # Copy icon
+          cp assets/par-term.icns par-term.app/Contents/Resources/
+
+          # Create Info.plist
+          cat <<EOF > par-term.app/Contents/Info.plist
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleExecutable</key>
+              <string>par-term</string>
+              <key>CFBundleIconFile</key>
+              <string>par-term.icns</string>
+              <key>CFBundleIdentifier</key>
+              <string>com.paulrobello.par-term</string>
+              <key>CFBundleName</key>
+              <string>par-term</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+              <key>CFBundleShortVersionString</key>
+              <string>${VERSION}</string>
+              <key>CFBundleVersion</key>
+              <string>${VERSION}</string>
+              <key>LSMinimumSystemVersion</key>
+              <string>10.13</string>
+              <key>NSHighResolutionCapable</key>
+              <true/>
+          </dict>
+          </plist>
+          EOF
+
+      - name: Sign, notarize and staple
+        env:
+          MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+          APPLE_API_PRIVATE_KEY_BASE64: ${{ secrets.APPLE_API_PRIVATE_KEY_BASE64 }}
+        run: scripts/macos-sign-notarize.sh par-term.app release-binaries/par-term-macos-universal.zip
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: binary-universal-apple-darwin
+          path: release-binaries/par-term-macos-universal.zip
+          retention-days: 1
+
   # Publish to crates.io.
   #
   # Gated behind every binary build even though it needs none of their
@@ -489,6 +599,7 @@ jobs:
       - build-windows-x86_64
       - build-macos-x86_64
       - build-macos-arm64
+      - build-macos-universal
       - lint
     steps:
       - uses: actions/checkout@v7
@@ -632,6 +743,7 @@ jobs:
       - build-windows-x86_64
       - build-macos-x86_64
       - build-macos-arm64
+      - build-macos-universal
       - publish-crates
     permissions:
       contents: write
