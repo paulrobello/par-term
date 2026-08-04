@@ -239,7 +239,7 @@ Cmd/Ctrl+Click on `./src/main.rs:42:10` opens `src/main.rs` at line 42, column 1
 ```
   File "./app/handlers.py", line 15, in process
 ```
-Cmd/Ctrl+Click on `./app/handlers.py` opens `handlers.py` at line 15.
+Cmd/Ctrl+Click on `./app/handlers.py` opens `handlers.py`. The path is detected, but Python's `, line N` suffix is not one of the supported line-number formats (`:N`, `[N]`, `(N)`), so the file opens at line 1.
 
 **Build output with relative paths:**
 ```

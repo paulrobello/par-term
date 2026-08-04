@@ -66,7 +66,7 @@ graph TD
 ### Asciicast (Default)
 - asciinema v2 format
 - Supports timing-accurate playback
-- Records output, input, and resize events
+- Records terminal output events (input appears only as redaction markers when password prompts are detected)
 - Can be shared on asciinema.org
 
 ## Starting a Recording
