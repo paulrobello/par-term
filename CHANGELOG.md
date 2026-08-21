@@ -11,6 +11,10 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ## [Unreleased]
 
+### Fixed
+
+- **No longer aborts when a window exceeds the GPU's maximum texture size.** A full-screen window spanning two 5K displays (10240×2822 physical px) crashed the app: `Surface::configure` rejected the width against the 8192 default `max_texture_dimension_2d`, wgpu's default handling of uncaptured errors panicked, and because macOS delivers resize as an AppKit frame-change notification the panic could not unwind through the foreign frame, so the process aborted (SIGABRT). Devices now request the adapter's real maximum instead of wgpu's 8192 default (16384 on Apple Silicon Metal), surface extents are clamped to the device limit before every configure — an adapter that genuinely caps at 8192 renders a compositor-upscaled frame rather than crashing — and a non-fatal uncaptured-error handler logs wgpu errors (first, then every 1000th) instead of panicking. Applied to both the main renderer and the settings window's own device (`par-term-render/src/cell_renderer/surface.rs`, `layout.rs`, `mod.rs`, `src/settings_window/mod.rs`).
+
 ---
 
 ## [0.42.0] - 2026-08-04
