@@ -351,6 +351,7 @@ impl CellRenderer {
                 power_preference: power_preference.to_wgpu(),
                 compatible_surface: Some(&surface),
                 force_fallback_adapter: false,
+                apply_limit_buckets: false,
             })
             .await
             .context("Failed to find wgpu adapter")?;
@@ -441,6 +442,7 @@ impl CellRenderer {
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: surface_format,
+            color_space: wgpu::SurfaceColorSpace::Auto,
             width: surface_width,
             height: surface_height,
             present_mode,
@@ -780,9 +782,7 @@ impl CellRenderer {
         for cell in &mut self.cells {
             *cell = Cell::default();
         }
-        for dirty in &mut self.dirty_rows {
-            *dirty = true;
-        }
+        self.dirty_rows.fill(true);
     }
 
     pub fn update_graphics(

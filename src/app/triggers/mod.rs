@@ -143,11 +143,8 @@ impl WindowState {
         let mut approved_this_frame: std::collections::HashSet<u64> =
             std::collections::HashSet::new();
         if !self.trigger_state.approved_pending_actions.is_empty() {
-            let mut pre_approved: Vec<ActionResult> = self
-                .trigger_state
-                .approved_pending_actions
-                .drain(..)
-                .collect();
+            let mut pre_approved: Vec<ActionResult> =
+                std::mem::take(&mut self.trigger_state.approved_pending_actions);
             for action in &pre_approved {
                 let tid = match action {
                     ActionResult::RunCommand { trigger_id, .. }

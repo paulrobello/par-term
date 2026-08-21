@@ -513,7 +513,7 @@ mod tests {
         let mut content_height = 0.0;
 
         let ctx = egui::Context::default();
-        let _ = ctx.run_ui(Default::default(), |ctx| {
+        let mut out = ctx.run_ui(Default::default(), |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
                 ui.set_width(320.0);
                 let output = render_bounded_chat_text_edit(
@@ -528,6 +528,9 @@ mod tests {
                 content_height = output.content_size.y;
             });
         });
+        // Headless test: no renderer applies the font-atlas delta, and egui
+        // 0.36 panics on drop of unapplied deltas.
+        out.textures_delta.clear();
 
         assert!(
             viewport_height <= max_height + 1.0,

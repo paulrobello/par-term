@@ -597,7 +597,7 @@ impl Renderer {
         self.cell_renderer.render_opaque_alpha(&surface_texture)?;
 
         // Present the surface
-        surface_texture.present();
+        self.cell_renderer.queue().present(surface_texture);
 
         self.dirty = false;
         Ok(true)

@@ -41,22 +41,22 @@ arc-swap = "1"
 winit = "0.30"
 
 # GPU rendering
-wgpu = { version = "29", features = ["wgsl"] }
+wgpu = { version = "30", features = ["wgsl"] }
 bytemuck = { version = "1.25", features = ["derive"] }
-naga = { version = "29", features = ["glsl-in", "wgsl-out"] }
+naga = { version = "30", features = ["glsl-in", "wgsl-out"] }
 half = "2.7.1"
 
 # Font handling
 swash = "0.2.9"
-fontdb = "0.23"
+fontdb = "0.24"
 rustybuzz = "0.20.1"
 unicode-segmentation = "1.13"
 lru = "0.18.0"
 
 # GUI
-egui = "0.35.0"
-egui-wgpu = "0.35.0"
-egui-winit = "0.35.0"
+egui = "0.36.1"
+egui-wgpu = "0.36.1"
+egui-winit = "0.36.1"
 rfd = "0.17.2"
 
 # Image / media
@@ -70,7 +70,7 @@ open = "5.3.5"
 # Network / HTTP
 ureq = { version = "3.3.0", default-features = false, features = ["native-tls", "gzip"] }
 native-tls = "0.2.18"
-mdns-sd = "0.20"
+mdns-sd = "0.21"
 url = "2"
 
 # Date / time
@@ -85,7 +85,7 @@ sha2 = "0.11.0"
 zip = "8.6.0"
 
 # Misc utilities
-base64 = "0.22.1"
+base64 = "0.23.1"
 hostname = "0.4.2"
 sysinfo = "0.39"
 
@@ -100,7 +100,7 @@ serial_test = { version = "4.0.1", default-features = false }
 name = "par-term"
 version = "0.42.0"
 edition = "2024"
-rust-version = "1.97"
+rust-version = "1.98"
 authors = ["Paul Robello <probello@gmail.com>"]
 description = "Cross-platform GPU-accelerated terminal emulator with inline graphics support (Sixel, iTerm2, Kitty)"
 readme = "README.md"

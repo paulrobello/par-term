@@ -95,6 +95,7 @@ impl SettingsWindow {
                 power_preference: wgpu::PowerPreference::LowPower,
                 compatible_surface: Some(&surface),
                 force_fallback_adapter: false,
+                apply_limit_buckets: false,
             })
             .await
             .context("Failed to find suitable GPU adapter")?;
@@ -155,6 +156,7 @@ impl SettingsWindow {
         let surface_config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: surface_format,
+            color_space: wgpu::SurfaceColorSpace::Auto,
             width: surface_width,
             height: surface_height,
             present_mode: wgpu::PresentMode::AutoVsync,

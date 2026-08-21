@@ -36,7 +36,7 @@ jobs:
     - name: Install Rust toolchain
       # Pinned to a stable release tag; update SHA when bumping toolchain version.
       # To find the SHA: git ls-remote https://github.com/dtolnay/rust-toolchain refs/heads/master
-      uses: dtolnay/rust-toolchain@46511b1c83438f0dd37c02d843619ece5a4abb5b
+      uses: dtolnay/rust-toolchain@f8be11a05b1d4f3fcebe6410cc16743212b999b0
       with:
         components: rustfmt, clippy
 

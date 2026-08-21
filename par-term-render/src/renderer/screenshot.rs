@@ -163,7 +163,9 @@ impl Renderer {
         log::info!("take_screenshot: Buffer mapped successfully");
 
         // Read the data
-        let data = buffer_slice.get_mapped_range();
+        let data = buffer_slice.get_mapped_range().map_err(|e| {
+            crate::error::RenderError::ScreenshotMap(format!("Failed to get mapped range: {:?}", e))
+        })?;
         let mut pixels = Vec::with_capacity((width * height * 4) as usize);
 
         // Check if format is BGRA (needs swizzle) or RGBA (direct copy)

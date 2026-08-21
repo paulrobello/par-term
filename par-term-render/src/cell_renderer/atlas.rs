@@ -541,7 +541,7 @@ fn convert_subpixel_mask_to_rgba(image: &swash::scale::image::Image) -> Vec<u8> 
 
     match stride {
         3 => {
-            for chunk in image.data.chunks_exact(3) {
+            for chunk in image.data.as_chunks::<3>().0 {
                 let r = chunk[0];
                 let g = chunk[1];
                 let b = chunk[2];
@@ -550,7 +550,7 @@ fn convert_subpixel_mask_to_rgba(image: &swash::scale::image::Image) -> Vec<u8> 
             }
         }
         4 => {
-            for chunk in image.data.chunks_exact(4) {
+            for chunk in image.data.as_chunks::<4>().0 {
                 let r = chunk[0];
                 let g = chunk[1];
                 let b = chunk[2];
@@ -585,7 +585,7 @@ fn convert_color_to_alpha_mask(image: &swash::scale::image::Image) -> Vec<u8> {
 
     // Color emoji images are RGBA (4 bytes per pixel).
     // Use the original alpha channel directly to preserve the symbol shape.
-    for chunk in image.data.chunks_exact(4) {
+    for chunk in image.data.as_chunks::<4>().0 {
         let a = chunk[3];
         pixels.extend_from_slice(&[255, 255, 255, a]);
     }
@@ -630,7 +630,7 @@ mod tests {
 
         match stride {
             3 => {
-                for chunk in image.data.chunks_exact(3) {
+                for chunk in image.data.as_chunks::<3>().0 {
                     let r = chunk[0];
                     let g = chunk[1];
                     let b = chunk[2];
@@ -639,7 +639,7 @@ mod tests {
                 }
             }
             4 => {
-                for chunk in image.data.chunks_exact(4) {
+                for chunk in image.data.as_chunks::<4>().0 {
                     let r = chunk[0];
                     let g = chunk[1];
                     let b = chunk[2];

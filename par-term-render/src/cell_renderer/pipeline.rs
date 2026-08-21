@@ -81,16 +81,16 @@ pub fn create_bg_pipeline(device: &Device, surface_format: TextureFormat) -> Ren
             entry_point: Some("vs_main"),
             compilation_options: Default::default(),
             buffers: &[
-                VertexBufferLayout {
+                Some(VertexBufferLayout {
                     array_stride: std::mem::size_of::<Vertex>() as BufferAddress,
                     step_mode: VertexStepMode::Vertex,
                     attributes: &vertex_attr_array![0 => Float32x2, 1 => Float32x2],
-                },
-                VertexBufferLayout {
+                }),
+                Some(VertexBufferLayout {
                     array_stride: std::mem::size_of::<BackgroundInstance>() as BufferAddress,
                     step_mode: VertexStepMode::Instance,
                     attributes: &vertex_attr_array![2 => Float32x2, 3 => Float32x2, 4 => Float32x4],
-                },
+                }),
             ],
         },
         fragment: Some(FragmentState {
@@ -186,12 +186,12 @@ pub fn create_text_pipeline(
             entry_point: Some("vs_main"),
             compilation_options: Default::default(),
             buffers: &[
-                VertexBufferLayout {
+                Some(VertexBufferLayout {
                     array_stride: std::mem::size_of::<Vertex>() as BufferAddress,
                     step_mode: VertexStepMode::Vertex,
                     attributes: &vertex_attr_array![0 => Float32x2, 1 => Float32x2],
-                },
-                VertexBufferLayout {
+                }),
+                Some(VertexBufferLayout {
                     array_stride: std::mem::size_of::<TextInstance>() as BufferAddress,
                     step_mode: VertexStepMode::Instance,
                     attributes: &vertex_attr_array![
@@ -202,7 +202,7 @@ pub fn create_text_pipeline(
                         6 => Float32x4,
                         7 => Uint32
                     ],
-                },
+                }),
             ],
         },
         fragment: Some(FragmentState {
@@ -287,11 +287,11 @@ pub fn create_bg_image_pipeline(
             module: &bg_image_shader,
             entry_point: Some("vs_main"),
             compilation_options: Default::default(),
-            buffers: &[VertexBufferLayout {
+            buffers: &[Some(VertexBufferLayout {
                 array_stride: std::mem::size_of::<Vertex>() as BufferAddress,
                 step_mode: VertexStepMode::Vertex,
                 attributes: &vertex_attr_array![0 => Float32x2, 1 => Float32x2],
-            }],
+            })],
         },
         fragment: Some(FragmentState {
             module: &bg_image_shader,

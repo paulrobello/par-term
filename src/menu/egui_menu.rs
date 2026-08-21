@@ -285,11 +285,14 @@ mod tests {
         let mut menu = AppMenuUi::new();
 
         let frame = |menu: &mut AppMenuUi| {
-            let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
+            let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
                 egui::Panel::top("test_bar").show(ui, |ui| {
                     menu.show(ui, &profiles, 24.0);
                 });
             });
+            // Headless test: no renderer applies the font-atlas delta, and egui
+            // 0.36 panics on drop of unapplied deltas.
+            out.textures_delta.clear();
         };
 
         frame(&mut menu);
@@ -326,11 +329,14 @@ mod tests {
         let mut menu = AppMenuUi::new();
 
         let frame = |menu: &mut AppMenuUi| {
-            let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
+            let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
                 egui::Panel::top("test_bar").show(ui, |ui| {
                     menu.show(ui, &profiles, 24.0);
                 });
             });
+            // Headless test: no renderer applies the font-atlas delta, and egui
+            // 0.36 panics on drop of unapplied deltas.
+            out.textures_delta.clear();
         };
 
         bridge::request_toggle();

@@ -88,28 +88,32 @@ impl SettingsWindow {
             .egui_ctx
             .tessellate(egui_output.shapes, self.egui_ctx.pixels_per_point());
 
-        // Upload egui textures
-        for (id, delta) in &egui_output.textures_delta.set {
-            // egui 0.34 can deliver a partial font-atlas patch before this
-            // renderer has allocated the font texture (emilk/egui#8228);
-            // egui-wgpu panics on that, so pre-allocate the full atlas first.
-            if delta.pos.is_some() && self.egui_renderer.texture(id).is_none() {
-                let full_image = self
-                    .egui_ctx
-                    .fonts(|f| egui::epaint::ImageData::Color(std::sync::Arc::new(f.image())));
-                self.egui_renderer.update_texture(
-                    &self.device,
-                    &self.queue,
-                    *id,
-                    &egui::epaint::ImageDelta {
-                        pos: None,
-                        image: full_image,
-                        options: delta.options,
-                    },
-                );
+        // Upload egui textures. Since egui 0.36 each texture id carries a
+        // SmallVec of deltas (the font atlas can deliver several patches per
+        // frame), so apply them in order.
+        for (id, deltas) in &egui_output.textures_delta.set {
+            for delta in deltas {
+                // egui 0.34 can deliver a partial font-atlas patch before this
+                // renderer has allocated the font texture (emilk/egui#8228);
+                // egui-wgpu panics on that, so pre-allocate the full atlas first.
+                if delta.pos.is_some() && self.egui_renderer.texture(id).is_none() {
+                    let full_image = self
+                        .egui_ctx
+                        .fonts(|f| egui::epaint::ImageData::Color(std::sync::Arc::new(f.image())));
+                    self.egui_renderer.update_texture(
+                        &self.device,
+                        &self.queue,
+                        *id,
+                        &egui::epaint::ImageDelta {
+                            pos: None,
+                            image: full_image,
+                            options: delta.options,
+                        },
+                    );
+                }
+                self.egui_renderer
+                    .update_texture(&self.device, &self.queue, *id, delta);
             }
-            self.egui_renderer
-                .update_texture(&self.device, &self.queue, *id, delta);
         }
 
         // Create command encoder
@@ -167,7 +171,7 @@ impl SettingsWindow {
 
         // Submit
         self.queue.submit(std::iter::once(encoder.finish()));
-        output.present();
+        self.queue.present(output);
 
         // Free textures
         for id in &egui_output.textures_delta.free {

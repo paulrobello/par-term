@@ -203,7 +203,7 @@ impl GraphicsRenderer {
             vertex: VertexState {
                 module: &shader,
                 entry_point: Some("vs_main"),
-                buffers: &[VertexBufferLayout {
+                buffers: &[Some(VertexBufferLayout {
                     array_stride: std::mem::size_of::<SixelInstance>() as u64,
                     step_mode: VertexStepMode::Instance,
                     attributes: &vertex_attr_array![
@@ -212,7 +212,7 @@ impl GraphicsRenderer {
                         2 => Float32x2,  // size
                         3 => Float32,    // alpha
                     ],
-                }],
+                })],
                 compilation_options: Default::default(),
             },
             fragment: Some(FragmentState {

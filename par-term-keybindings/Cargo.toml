@@ -2,7 +2,7 @@
 name = "par-term-keybindings"
 version = "0.1.12"
 edition = "2024"
-rust-version = "1.97"
+rust-version = "1.98"
 authors = ["Paul Robello <probello@gmail.com>"]
 description = "Keybinding system for par-term terminal emulator"
 license = "MIT"
