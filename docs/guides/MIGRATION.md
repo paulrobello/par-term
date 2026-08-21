@@ -4,6 +4,7 @@ Upgrade notes for par-term covering breaking configuration changes, renamed fiel
 
 ## Table of Contents
 
+- [v0.43.0 — MSRV 1.98 and wgpu 30 for Library Consumers](#v0430--msrv-198-and-wgpu-30-for-library-consumers)
 - [v0.39.0 — MSRV 1.97 and the `mermaid` Feature Removed](#v0390--msrv-197-and-the-mermaid-feature-removed)
 - [v0.38.0 — Upgrading Requires a Manual Download](#v0380--upgrading-requires-a-manual-download)
 - [v0.38.0 — Preference Import Requires HTTPS](#v0380--preference-import-requires-https)
@@ -20,6 +21,28 @@ Upgrade notes for par-term covering breaking configuration changes, renamed fiel
 - [v0.25.0 — Pane Padding Defaults](#v0250--pane-padding-defaults)
 - [v0.20.0 — Default Changes](#v0200--default-changes)
 - [Related Documentation](#related-documentation)
+
+---
+
+## v0.43.0 — MSRV 1.98 and wgpu 30 for Library Consumers
+
+Both changes affect only projects that depend on par-term's crates as libraries. If you use the released binaries, there is nothing to do.
+
+**Minimum supported Rust version is now 1.98** (was 1.97). As with the v0.39.0 bump, cargo's MSRV-aware resolver will select an older version of these crates rather than failing your build — you silently stop receiving updates instead. Run `rustup update` to stay current.
+
+**`par-term-render` 0.10 sits on wgpu 30.** The crate's public API exposes wgpu types (`Surface`, `Queue`, `TextureFormat`, …), and wgpu 29 and 30 cannot be linked into one binary, so a project using `par-term-render` must depend on wgpu 30 itself:
+
+```toml
+# before
+par-term-render = "0.9"
+wgpu = "29"
+
+# after
+par-term-render = "0.10"
+wgpu = "30"
+```
+
+No par-term APIs were renamed — only the underlying wgpu types moved. Custom WGSL/GLSL shaders needed no changes in par-term itself, and the same held for its test suite.
 
 ---
 

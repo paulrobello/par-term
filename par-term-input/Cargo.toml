@@ -1,6 +1,6 @@
 [package]
 name = "par-term-input"
-version = "0.1.19"
+version = "0.1.20"
 edition = "2024"
 rust-version = "1.98"
 authors = ["Paul Robello <probello@gmail.com>"]
@@ -13,7 +13,7 @@ categories = ["command-line-utilities"]
 
 [dependencies]
 # Configuration types (OptionKeyMode)
-par-term-config = { path = "../par-term-config", version = "0.14.1" }
+par-term-config = { path = "../par-term-config", version = "0.14.3" }
 
 # Clipboard access
 arboard.workspace = true

@@ -43,6 +43,16 @@ New to par-term? The [Getting Started Guide](docs/guides/GETTING_STARTED.md) wal
 
 ## What's New
 
+### 0.43.0
+
+Rendering stack modernized to **wgpu 30 / egui 0.36**, plus a fix for a crash on very wide windows. No new features.
+
+- **No longer aborts on windows wider than the GPU's maximum texture size** — a full-screen window spanning two 5K displays (10240 px wide) crashed with SIGABRT during resize. The renderer now requests the adapter's real texture limit (16384 on Apple Silicon) and clamps surface extents to it, and wgpu errors are logged instead of panicking.
+- **wgpu 29 → 30, naga 29 → 30, egui 0.35 → 0.36.1** — the GPU stack moves to the current release train; custom shaders needed no changes.
+- **Rust 1.98.0**, with the minimum supported version raised to 1.98, and ~90 further dependencies refreshed (fontdb 0.24, mdns-sd 0.21, base64 0.23, …).
+
+> **Breaking for library consumers only:** the MSRV is now 1.98, and `par-term-render` 0.10's public API sits on wgpu 30 types. Users of the released binaries are unaffected.
+
 ### 0.42.0
 
 Universal macOS binaries — one signed/notarized download runs natively on both Apple Silicon and Intel.
@@ -215,7 +225,7 @@ This builds and installs the binary to `~/.cargo/bin/par-term`.
 
 ### From Source
 
-Requires Rust 1.97+ (stable, 2024 edition) and modern graphics drivers:
+Requires Rust 1.98+ (stable, 2024 edition) and modern graphics drivers:
 
 ```bash
 # Clone the repository

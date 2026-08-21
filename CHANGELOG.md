@@ -11,9 +11,24 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ## [Unreleased]
 
+---
+
+## [0.43.0] - 2026-08-21
+
+A maintenance release plus one crash fix: the rendering stack moves to wgpu 30 / naga 30 / egui 0.36, the Rust toolchain to 1.98.0, and a window wider than the GPU's maximum texture dimension no longer aborts the process. No new functionality.
+
+Minor bump because two changes are breaking for anyone consuming this as a library rather than a binary: the minimum supported Rust version rises to 1.98, and `par-term-render`'s public API now sits on wgpu 30 types (consumers must depend on wgpu 30 themselves — 29 and 30 cannot be linked together). Users of the released binaries are unaffected. Sub-crate bumps are patch-level for the MSRV manifest change — `par-term-acp` 0.5.2, `par-term-config` 0.14.3, `par-term-fonts` 0.3.2, `par-term-input` 0.1.20, `par-term-keybindings` 0.1.13, `par-term-mcp` 0.2.9, `par-term-scripting` 0.1.16, `par-term-settings-ui` 0.17.3, `par-term-ssh` 0.2.2, `par-term-terminal` 0.5.3, `par-term-tmux` 0.1.15, `par-term-update` 0.5.1 — except `par-term-render` 0.9.1 → 0.10.0 (minor, for the wgpu 30 migration and the surface-extent fix). No core-library change — `par-term-emu-core-rust` remains at 0.46.0.
+
 ### Fixed
 
 - **No longer aborts when a window exceeds the GPU's maximum texture size.** A full-screen window spanning two 5K displays (10240×2822 physical px) crashed the app: `Surface::configure` rejected the width against the 8192 default `max_texture_dimension_2d`, wgpu's default handling of uncaptured errors panicked, and because macOS delivers resize as an AppKit frame-change notification the panic could not unwind through the foreign frame, so the process aborted (SIGABRT). Devices now request the adapter's real maximum instead of wgpu's 8192 default (16384 on Apple Silicon Metal), surface extents are clamped to the device limit before every configure — an adapter that genuinely caps at 8192 renders a compositor-upscaled frame rather than crashing — and a non-fatal uncaptured-error handler logs wgpu errors (first, then every 1000th) instead of panicking. Applied to both the main renderer and the settings window's own device (`par-term-render/src/cell_renderer/surface.rs`, `layout.rs`, `mod.rs`, `src/settings_window/mod.rs`).
+
+### Changed
+
+- **Rendering stack modernized: wgpu 29 → 30, naga 29 → 30, egui/egui-wgpu/egui-winit 0.35 → 0.36.1.** The wgpu 30 API changes are absorbed inside `par-term-render` and the settings window: `RequestAdapterOptions.apply_limit_buckets` (set `false` to keep non-bucketed limits), `SurfaceConfiguration.color_space` (`Auto`), `VertexState.buffers` entries are now `Option`, presenting moved from `SurfaceTexture::present()` to `Queue::present()`, and `get_mapped_range()` returns a `Result`. On the egui side, `TexturesDelta.set` is now a map of `SmallVec<[ImageDelta; 1]>` per texture id (several font-atlas patches can arrive per frame and are applied in order), and egui debug-asserts when a delta is dropped unapplied — headless tests now clear the delta explicitly. Custom WGSL/GLSL shaders needed no changes; winit stays at 0.30.
+- **Minimum supported Rust version is now 1.98** (was 1.97), toolchain pinned to 1.98.0. As with 0.39.0's MSRV bump, this is breaking only for library consumers on an older compiler; cargo's MSRV-aware resolver selects an earlier version for them rather than failing.
+- **Refreshed ~90 further dependencies** beyond the stack moves above: `fontdb` 0.23 → 0.24, `mdns-sd` 0.20 → 0.21, `base64` 0.22 → 0.23, and lockfile refreshes (`ureq` 3.4, `zbus` 5.19, `clap` 4.6.6, `uuid` 1.24.1, wasm-bindgen 0.2.127, …). All within semver.
+- **New clippy lints introduced by 1.98 are fixed** (`chunks_exact` → `as_chunks`, a manual slice fill, a `drain(..).collect()` → `std::mem::take`). Behaviour-preserving; they matter because CI runs clippy with `-D warnings`.
 
 ---
 
