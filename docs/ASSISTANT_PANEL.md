@@ -148,8 +148,8 @@ The connection bar sits at the top of the panel and shows:
 
 ### Connector Installation Notes
 
-- **Claude Code ACP bridge**: Use `@zed-industries/claude-agent-acp` (binary: `claude-agent-acp`)
-- **Deprecated package**: `@zed-industries/claude-code-acp` has been renamed/deprecated upstream
+- **Claude Code ACP bridge**: Use `@agentclientprotocol/claude-agent-acp` (binary: `claude-agent-acp`; requires Node >= 22)
+- **Deprecated packages**: `@zed-industries/claude-code-acp` and `@zed-industries/claude-agent-acp` have been renamed/deprecated upstream
 - **From source builds**: `make install-acp` installs the Claude ACP bridge, and `make bundle-install` now installs the macOS app bundle, CLI binary, and ACP bridge together
 
 ### Chat Interface
@@ -370,8 +370,8 @@ par-term ships with 7 pre-configured ACP agent definitions embedded at compile t
 
 | Agent | Identity | Connector Command | Install Command |
 |-------|----------|-------------------|-----------------|
-| Claude Code | `claude.com` | `claude-agent-acp` | `npm install -g @zed-industries/claude-agent-acp` |
-| Codex CLI (OpenAI) | `openai.com` | `npx @zed-industries/codex-acp` | `npm install -g @zed-industries/codex-acp` |
+| Claude Code | `claude.com` | `claude-agent-acp` | `npm install -g @agentclientprotocol/claude-agent-acp` |
+| Codex CLI (OpenAI) | `openai.com` | `npx @agentclientprotocol/codex-acp` | `npm install -g @agentclientprotocol/codex-acp` |
 | Copilot | `copilot.github.com` | `copilot --acp` | - |
 | Amp (AmpCode) | `ampcode.com` | `npx -y amp-acp` | - |
 | Auggie (Augment Code) | `augmentcode.com` | `auggie --acp` | - |
@@ -494,7 +494,7 @@ You can use the Zed Claude ACP bridge with Ollama's Claude-compatible launch mod
 1. Install the ACP bridge used by par-term:
 
 ```bash
-npm install -g @zed-industries/claude-agent-acp
+npm install -g @agentclientprotocol/claude-agent-acp
 ```
 
 2. Start Ollama's Claude-compatible endpoint (replace the model if desired):
@@ -514,7 +514,7 @@ ai_inspector_custom_agents:
     type: "coding"
     run_command:
       "*": "claude-agent-acp"
-    install_command: "npm install -g @zed-industries/claude-agent-acp"
+    install_command: "npm install -g @agentclientprotocol/claude-agent-acp"
     env:
       ANTHROPIC_BASE_URL: "http://127.0.0.1:11434"
       ANTHROPIC_MODEL: "qwen3-coder:latest"

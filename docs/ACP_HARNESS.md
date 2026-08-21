@@ -53,7 +53,7 @@ Before using the harness, ensure the following are available:
 Typical local Claude+Ollama setup:
 
 ```bash
-npm install -g @zed-industries/claude-agent-acp
+npm install -g @agentclientprotocol/claude-agent-acp
 ollama run qwen3-coder:latest
 ```
 

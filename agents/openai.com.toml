@@ -5,4 +5,4 @@ protocol = "acp"
 type = "coding"
 
 [run_command]
-"*" = "npx @zed-industries/codex-acp"
+"*" = "npx @agentclientprotocol/codex-acp"

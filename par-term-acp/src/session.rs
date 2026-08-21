@@ -235,7 +235,7 @@ mod tests {
     fn codex_run_command_gets_writable_roots_config_and_disables_apply_patch() {
         let command = adapt_run_command_for_extra_roots(
             &agent("openai.com"),
-            "npx @zed-industries/codex-acp",
+            "npx @agentclientprotocol/codex-acp",
             &["/workspace/shared".to_string(), "/tmp/shaders".to_string()],
         );
 

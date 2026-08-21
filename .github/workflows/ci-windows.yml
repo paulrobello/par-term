@@ -48,7 +48,7 @@ jobs:
     - name: Install ACP bridge
       shell: pwsh
       run: |
-        npm install -g @zed-industries/claude-agent-acp
+        npm install -g @agentclientprotocol/claude-agent-acp
         Get-Command claude-agent-acp
 
     - name: Python diagnostics

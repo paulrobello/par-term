@@ -245,7 +245,7 @@ make build-full
 make install-acp
 ```
 
-> **Note:** The legacy package `@zed-industries/claude-code-acp` was renamed/deprecated upstream. Use `@zed-industries/claude-agent-acp` (`claude-agent-acp` binary).
+> **Note:** The packages `@zed-industries/claude-code-acp` and `@zed-industries/claude-agent-acp` were renamed/deprecated upstream. Use `@agentclientprotocol/claude-agent-acp` (same `claude-agent-acp` binary; requires Node >= 22).
 
 ### macOS Bundle
 

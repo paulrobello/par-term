@@ -241,7 +241,7 @@ name = "Claude Code"
 short_name = "claude"
 protocol = "acp"
 type = "coding"
-install_command = "npm install -g @zed-industries/claude-agent-acp"
+install_command = "npm install -g @agentclientprotocol/claude-agent-acp"
 
 [run_command]
 "*" = "claude-agent-acp"
@@ -252,10 +252,10 @@ name = "Codex CLI"
 short_name = "codex"
 protocol = "acp"
 type = "coding"
-install_command = "npm install -g @zed-industries/codex-acp"
+install_command = "npm install -g @agentclientprotocol/codex-acp"
 
 [run_command]
-"*" = "npx @zed-industries/codex-acp"
+"*" = "npx @agentclientprotocol/codex-acp"
 "#,
     r#"
 identity = "copilot.github.com"

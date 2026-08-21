@@ -91,7 +91,7 @@ jobs:
 
       - name: Install ACP bridge
         run: |
-          npm install -g @zed-industries/claude-agent-acp
+          npm install -g @agentclientprotocol/claude-agent-acp
           command -v claude-agent-acp
 
       - name: Verify par-term-emu-core-rust is not a path dependency
@@ -141,7 +141,7 @@ jobs:
 
       - name: Install ACP bridge
         run: |
-          npm install -g @zed-industries/claude-agent-acp
+          npm install -g @agentclientprotocol/claude-agent-acp
           command -v claude-agent-acp
 
       - name: Check formatting

@@ -11,6 +11,10 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ## [Unreleased]
 
+### Changed
+
+- **ACP connector packages migrated to the `@agentclientprotocol` npm scope.** `@zed-industries/claude-agent-acp` and `@zed-industries/codex-acp` are deprecated upstream (npm warns on every install and they no longer receive updates); `make install-acp`, the embedded agent definitions in `par-term-acp`, the shipped `agents/*.toml` files, and CI now use `@agentclientprotocol/claude-agent-acp` and `@agentclientprotocol/codex-acp`. Binary names are unchanged (`claude-agent-acp`, `codex-acp`), so agent detection and run commands keep working; the renamed packages require Node >= 22, which CI already pins.
+
 ---
 
 ## [0.43.0] - 2026-08-21

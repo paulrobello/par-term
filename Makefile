@@ -72,7 +72,7 @@ help:
 	@echo "Other:"
 	@echo "  make clean       - Clean build artifacts"
 	@echo "  make install     - Install the binary"
-	@echo "  make install-acp - Install Claude ACP bridge (@zed-industries/claude-agent-acp)"
+	@echo "  make install-acp - Install Claude ACP bridge (@agentclientprotocol/claude-agent-acp)"
 	@echo "  make acp-harness - Run ACP harness (set ARGS='...')"
 	@echo "  make acp-smoke   - Run Claude+Ollama ACP smoke test with transcript"
 	@echo "  make doc         - Generate rustdoc documentation (no-deps)"
@@ -243,9 +243,9 @@ install-shell-integration:
 
 # Install ACP bridge used by Claude custom agents
 install-acp:
-	@echo "Installing Claude ACP bridge (@zed-industries/claude-agent-acp)..."
+	@echo "Installing Claude ACP bridge (@agentclientprotocol/claude-agent-acp)..."
 	@command -v npm >/dev/null 2>&1 || { echo "❌ npm is required to install ACP bridge."; exit 1; }
-	@npm install -g @zed-industries/claude-agent-acp
+	@npm install -g @agentclientprotocol/claude-agent-acp
 	@echo "✅ ACP bridge installed: $$(command -v claude-agent-acp || echo 'not found in PATH')"
 
 # Run the ACP harness (pass additional args via ARGS)
