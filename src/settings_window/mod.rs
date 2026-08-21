@@ -101,8 +101,14 @@ impl SettingsWindow {
 
         // Request device
         let (device, queue) = adapter
-            .request_device(&wgpu::DeviceDescriptor::default())
+            .request_device(&wgpu::DeviceDescriptor {
+                required_limits: par_term_render::texture_limits(
+                    adapter.limits().max_texture_dimension_2d,
+                ),
+                ..Default::default()
+            })
             .await?;
+        par_term_render::install_nonfatal_error_handler(&device);
 
         let device = Arc::new(device);
         let queue = Arc::new(queue);
@@ -141,11 +147,16 @@ impl SettingsWindow {
                 .context("Surface reports no supported alpha modes")?
         };
 
+        let (surface_width, surface_height) = par_term_render::clamp_surface_extent(
+            size.width,
+            size.height,
+            device.limits().max_texture_dimension_2d,
+        );
         let surface_config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: surface_format,
-            width: size.width.max(1),
-            height: size.height.max(1),
+            width: surface_width,
+            height: surface_height,
             present_mode: wgpu::PresentMode::AutoVsync,
             alpha_mode,
             view_formats: vec![],
@@ -281,8 +292,13 @@ impl SettingsWindow {
 
             WindowEvent::Resized(new_size)
                 if new_size.width > 0 && new_size.height > 0 => {
-                    self.surface_config.width = new_size.width;
-                    self.surface_config.height = new_size.height;
+                    let (width, height) = par_term_render::clamp_surface_extent(
+                        new_size.width,
+                        new_size.height,
+                        self.device.limits().max_texture_dimension_2d,
+                    );
+                    self.surface_config.width = width;
+                    self.surface_config.height = height;
                     self.surface.configure(&self.device, &self.surface_config);
                     self.window.request_redraw();
                 }

@@ -40,6 +40,9 @@ pub mod shader_debug;
 pub mod wgpu_conversions;
 
 // Re-export main public types
+pub use cell_renderer::surface::{
+    clamp_surface_extent, install_nonfatal_error_handler, texture_limits,
+};
 pub use cell_renderer::{Cell, CellRenderer, PaneViewport};
 pub use custom_shader_renderer::CustomShaderRenderer;
 pub use error::RenderError;

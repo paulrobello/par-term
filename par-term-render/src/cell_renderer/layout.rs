@@ -104,6 +104,11 @@ impl CellRenderer {
         if width == 0 || height == 0 {
             return (self.grid.cols, self.grid.rows);
         }
+        let (width, height) = super::surface::clamp_surface_extent(
+            width,
+            height,
+            self.device.limits().max_texture_dimension_2d,
+        );
         self.config.width = width;
         self.config.height = height;
         self.surface.configure(&self.device, &self.config);

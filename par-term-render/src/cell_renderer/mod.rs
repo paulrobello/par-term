@@ -32,7 +32,7 @@ pub(crate) mod pane_render;
 pub mod pipeline;
 pub mod render;
 mod settings;
-mod surface;
+pub mod surface;
 mod text_instance_builder;
 pub mod types;
 // Re-export public types for external use
@@ -359,11 +359,12 @@ impl CellRenderer {
             .request_device(&wgpu::DeviceDescriptor {
                 label: Some("device"),
                 required_features: wgpu::Features::empty(),
-                required_limits: wgpu::Limits::default(),
+                required_limits: surface::texture_limits(adapter.limits().max_texture_dimension_2d),
                 memory_hints: wgpu::MemoryHints::default(),
                 ..Default::default()
             })
             .await?;
+        surface::install_nonfatal_error_handler(&device);
 
         let device = Arc::new(device);
         let queue = Arc::new(queue);
@@ -432,11 +433,16 @@ impl CellRenderer {
             surface_caps.alpha_modes
         );
 
+        let (surface_width, surface_height) = surface::clamp_surface_extent(
+            size.width,
+            size.height,
+            device.limits().max_texture_dimension_2d,
+        );
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: surface_format,
-            width: size.width.max(1),
-            height: size.height.max(1),
+            width: surface_width,
+            height: surface_height,
             present_mode,
             alpha_mode,
             view_formats: vec![],
