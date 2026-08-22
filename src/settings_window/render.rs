@@ -23,6 +23,10 @@ impl SettingsWindow {
             wgpu::CurrentSurfaceTexture::Success(o)
             | wgpu::CurrentSurfaceTexture::Suboptimal(o) => o,
             wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
+                // Logged loudly on purpose: a surface stuck Outdated reconfigures
+                // on every redraw, which stalls the shared GPU queue — visible
+                // as flicker in the main window. Silence here hides that storm.
+                log::warn!("Settings window surface outdated/lost — reconfiguring");
                 self.surface.configure(&self.device, &self.surface_config);
                 return SettingsWindowAction::None;
             }

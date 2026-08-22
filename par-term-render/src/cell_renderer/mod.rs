@@ -450,6 +450,16 @@ impl CellRenderer {
             view_formats: vec![],
             desired_maximum_frame_latency: SURFACE_FRAME_LATENCY,
         };
+        log::info!(
+            "Surface configured: {}x{} {:?} present={:?} alpha={:?} color_space={:?} frame_latency={}",
+            surface_width,
+            surface_height,
+            surface_format,
+            present_mode,
+            alpha_mode,
+            config.color_space,
+            SURFACE_FRAME_LATENCY
+        );
         surface.configure(&device, &config);
 
         let scale_factor = window.scale_factor() as f32;

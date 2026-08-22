@@ -109,9 +109,29 @@ impl CellRenderer {
             height,
             self.device.limits().max_texture_dimension_2d,
         );
-        self.config.width = width;
-        self.config.height = height;
-        self.surface.configure(&self.device, &self.config);
+        // `Surface::configure` is not idempotent: it drains the GPU queue,
+        // tears down the swapchain, and re-sets every CAMetalLayer property
+        // (colorspace included since wgpu 30). Inset-driven calls arrive with
+        // an unchanged extent, so configure only when it actually changed;
+        // forced recovery reconfigures go through `reconfigure_surface`.
+        if self.config.width != width || self.config.height != height {
+            log::info!(
+                "Configuring surface {}x{} (was {}x{})",
+                width,
+                height,
+                self.config.width,
+                self.config.height
+            );
+            self.config.width = width;
+            self.config.height = height;
+            self.surface.configure(&self.device, &self.config);
+        } else {
+            log::debug!(
+                "Surface extent unchanged ({}x{}), skipping configure",
+                width,
+                height
+            );
+        }
 
         // Match the pane render path formula (see `chrome_overhead` below),
         // which is always active. Width: no scrollbar deduction here — the pane
