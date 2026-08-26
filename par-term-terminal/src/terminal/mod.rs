@@ -63,6 +63,8 @@ pub struct TerminalManager {
     /// graphics via `adjust_for_scroll_up_with_scrollback()` and marks all
     /// rows dirty — those dirty rows must NOT trigger graphic invalidation.
     prev_scrollback_len: Mutex<usize>,
+    /// Cached soft-wrap flags for the most recently rendered viewport.
+    pub(crate) wrap_flags_cache: Mutex<Option<(usize, usize, Vec<bool>)>>,
 }
 
 impl TerminalManager {
@@ -104,6 +106,7 @@ impl TerminalManager {
             marker_tracker: marker_tracking::MarkerTracker::new(),
             known_graphic_times: Mutex::new(std::collections::HashMap::new()),
             prev_scrollback_len: Mutex::new(0),
+            wrap_flags_cache: Mutex::new(None),
         })
     }
 

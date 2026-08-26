@@ -17,6 +17,7 @@ pub(super) struct TabCellsParams {
     pub scroll_offset: usize,
     pub mouse_selection: Option<crate::selection::Selection>,
     pub cache_cells: Option<Arc<Vec<crate::config::Cell>>>,
+    pub cache_wrap_flags: Vec<bool>,
     pub cache_generation: u64,
     pub cache_scroll_offset: usize,
     pub cache_cursor_pos: Option<(usize, usize)>,
@@ -36,6 +37,8 @@ pub(super) struct TabCellsSnapshot {
     /// full-grid deep clone. Nothing downstream mutates it — the transient
     /// overlays are applied to a scratch buffer in `gpu_submit`.
     pub(super) cells: Arc<Vec<crate::config::Cell>>,
+    /// Soft-wrap continuation flags captured for the same cell viewport.
+    pub(super) wrap_flags: Vec<bool>,
     /// Actual terminal grid dimensions (cols, rows) at the time cells were generated.
     /// May differ from the renderer grid when split panes are active or a scrollbar
     /// inset reduces the column count.
@@ -83,6 +86,7 @@ impl WindowState {
             scroll_offset,
             mouse_selection,
             cache_cells,
+            cache_wrap_flags,
             cache_generation,
             cache_scroll_offset,
             cache_cursor_pos,
@@ -252,9 +256,17 @@ impl WindowState {
             self.debug.cell_gen_time = cell_gen_start.elapsed();
 
             let grid_dims = term.dimensions();
+            // Fresh cell extraction populates TerminalManager's matching wrap cache.
+            // Cache hits must use the flags captured with those cached cells.
+            let wrap_flags = if is_cache_hit {
+                cache_wrap_flags
+            } else {
+                term.viewport_wrap_flags(scroll_offset, grid_dims.1)
+            };
 
             Some(TabCellsSnapshot {
                 cells,
+                wrap_flags,
                 grid_dims,
                 cursor_pos: current_cursor_pos,
                 cursor_style,
@@ -269,6 +281,7 @@ impl WindowState {
             // proceed. With no cache there is nothing to draw, so skip the frame.
             cache_cells.map(|cached| TabCellsSnapshot {
                 cells: cached,
+                wrap_flags: cache_wrap_flags,
                 grid_dims: cache_grid_dims,
                 cursor_pos: cache_cursor_pos,
                 cursor_style: None,

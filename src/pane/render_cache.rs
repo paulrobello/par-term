@@ -17,6 +17,7 @@ pub struct RenderCache {
     pub(crate) pane_cells_scroll_offset: usize, // Scroll offset used when pane_cells was generated
     pub(crate) pane_cells_selection: Option<Selection>, // Selection used when pane_cells was generated
     pub(crate) pane_cells_grid_dims: (usize, usize), // Grid dimensions used when pane_cells was generated
+    pub(crate) pane_cells_wrap_flags: Vec<bool>,     // Wrap flags captured with pane_cells
     pub(crate) pane_scrollback_len: usize,           // Cached scrollback_len for pane rendering
 }
 
@@ -36,6 +37,7 @@ impl RenderCache {
             pane_cells_scroll_offset: 0,
             pane_cells_selection: None,
             pane_cells_grid_dims: (0, 0),
+            pane_cells_wrap_flags: Vec::new(),
             pane_scrollback_len: 0,
         }
     }

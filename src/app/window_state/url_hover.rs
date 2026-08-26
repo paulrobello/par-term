@@ -11,6 +11,7 @@ use super::WindowState;
 /// Pre-gathered data for URL detection, avoiding redundant cell generation.
 pub(crate) struct UrlDetectData<'a> {
     pub cells: &'a [Cell],
+    pub wrap_flags: &'a [bool],
     pub cols: usize,
     pub rows: usize,
     pub scroll_offset: usize,
@@ -26,6 +27,7 @@ impl WindowState {
     pub(crate) fn detect_urls(&mut self, data: UrlDetectData<'_>) {
         let UrlDetectData {
             cells: visible_cells,
+            wrap_flags,
             cols,
             rows,
             scroll_offset,
@@ -82,30 +84,7 @@ impl WindowState {
         // until the full list is ready so there is no intermediate empty-list frame.
         let mut new_urls: Vec<url_detection::DetectedUrl> = Vec::new();
 
-        // Per-visible-row soft-wrap continuation flags, so a URL that wraps
-        // across rows is detected as a single link instead of a truncated
-        // per-row fragment. `wrapped[r] == true` means visible row r is a
-        // soft-wrap continuation of r-1. On lock contention this is empty and
-        // detection falls back to per-row behaviour for this frame.
-        let wrapped = self
-            .tab_manager
-            .active_tab()
-            .and_then(|tab| {
-                tab.pane_manager
-                    .as_ref()
-                    .and_then(|pm| pm.focused_pane())
-                    .map(|p| std::sync::Arc::clone(&p.terminal))
-            })
-            .and_then(|pane_terminal| {
-                // Consume the read guard within this closure: only the owned
-                // Vec<bool> escapes, so nothing references `pane_terminal`.
-                pane_terminal
-                    .try_read()
-                    .ok()
-                    .map(|term| term.viewport_wrap_flags(scroll_offset, rows))
-            })
-            .unwrap_or_default();
-
+        let wrapped = wrap_flags;
         let mut row = 0usize;
         while row < rows {
             let start_idx = row * cols;

@@ -16,7 +16,7 @@ impl WindowState {
     /// Gather all data needed for this render frame.
     /// Returns None if rendering should be skipped (no renderer, no active tab, terminal locked, etc.)
     pub(super) fn gather_render_data(&mut self) -> Option<FrameRenderData> {
-        let (renderer_size, visible_lines, _grid_cols) = self.gather_viewport_sizing()?;
+        let (_renderer_size, visible_lines, _grid_cols) = self.gather_viewport_sizing()?;
 
         // Get active tab's terminal and immediate state snapshots (avoid long borrows)
         let (
@@ -24,6 +24,7 @@ impl WindowState {
             scroll_offset,
             mouse_selection,
             cache_cells,
+            cache_wrap_flags,
             cache_generation,
             cache_scroll_offset,
             cache_cursor_pos,
@@ -49,6 +50,7 @@ impl WindowState {
                 t.active_scroll_state().offset,
                 t.selection_mouse().selection,
                 t.active_cache().cells.clone(),
+                t.active_cache().pane_cells_wrap_flags.clone(),
                 t.active_cache().generation,
                 t.active_cache().scroll_offset,
                 t.active_cache().cursor_pos,
@@ -77,6 +79,7 @@ impl WindowState {
             scroll_offset,
             mouse_selection,
             cache_cells,
+            cache_wrap_flags,
             cache_generation,
             cache_scroll_offset,
             cache_cursor_pos,
@@ -87,6 +90,7 @@ impl WindowState {
         })?;
 
         let cells = snap.cells;
+        let wrap_flags = snap.wrap_flags;
         let current_cursor_pos = snap.cursor_pos;
         let cursor_style = snap.cursor_style;
         let shader_cursor_pos = snap.shader_cursor_pos;
@@ -127,6 +131,7 @@ impl WindowState {
             && let Some(pane) = pm.focused_pane_mut()
         {
             pane.cache.pane_cells = Some(std::sync::Arc::clone(&cells));
+            pane.cache.pane_cells_wrap_flags = wrap_flags.clone();
             pane.cache.pane_cells_generation = current_generation;
             pane.cache.pane_cells_scroll_offset = scroll_offset;
             pane.cache.pane_cells_selection = mouse_selection;
@@ -187,6 +192,8 @@ impl WindowState {
             self.copy_mode.update_dimensions(cols, rows, scrollback_len);
         }
 
+        // Total lines = visible lines + actual scrollback content
+        let total_lines = visible_lines + scrollback_len;
         let (scrollback_marks, marks_override_scrollbar) = self.collect_scrollback_marks(&terminal);
 
         // Keep scrollbar visible when mark indicators exist AND there is scrollback
@@ -199,17 +206,16 @@ impl WindowState {
         if marks_override_scrollbar && scrollback_len > 0 && !has_multiple_panes {
             show_scrollbar = true;
         }
+        if let Some(tab) = self.tab_manager.active_tab_mut() {
+            tab.active_cache_mut().pane_cells_wrap_flags = wrap_flags.clone();
+        }
 
         // Update window title if terminal has set one via OSC sequences.
         self.update_window_title_if_changed(&terminal_title, &cached_terminal_title, &hovered_url);
 
-        // Total lines = visible lines + actual scrollback content
-        let total_lines = visible_lines + scrollback_len;
-
-        // Detect URLs, apply underlines, and apply search highlights.
         let debug_url_detect_time = self.apply_url_and_search_highlights(
             &cells,
-            &renderer_size,
+            &wrap_flags,
             cell_grid_dims,
             scroll_offset,
             scrollback_len,

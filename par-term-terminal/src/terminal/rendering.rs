@@ -46,9 +46,21 @@ impl TerminalManager {
         let start_line = end_line.saturating_sub(rows);
 
         let mut cells = Vec::with_capacity(rows * cols);
+        let mut wrap_flags = Vec::with_capacity(rows);
 
         for line_idx in start_line..end_line {
             let screen_row = line_idx - start_line;
+            let is_continuation = if screen_row == 0 {
+                false
+            } else {
+                let prev_line = line_idx.saturating_sub(1);
+                if prev_line < scrollback_len {
+                    grid.is_scrollback_wrapped(prev_line)
+                } else {
+                    grid.is_line_wrapped(prev_line - scrollback_len)
+                }
+            };
+            wrap_flags.push(is_continuation);
 
             if line_idx < scrollback_len {
                 if let Some(line) = grid.scrollback_line(line_idx) {
@@ -83,6 +95,9 @@ impl TerminalManager {
                     },
                 );
             }
+        }
+        if let Some(mut cache) = self.wrap_flags_cache.try_lock() {
+            *cache = Some((scroll_offset, rows, wrap_flags));
         }
 
         // Apply trigger highlights on top of cell colors
@@ -119,11 +134,17 @@ impl TerminalManager {
     /// a URL split across a wrap is detected as one link rather than a truncated
     /// per-row fragment.
     ///
-    /// Mirrors the line iteration in [`Self::try_get_cells_with_scrollback`] so the
-    /// scrollback-vs-screen wrap resolution matches exactly. Non-blocking: on
-    /// lock contention returns an empty `Vec` (URL detection then falls back to
-    /// per-row behaviour for that frame).
+    /// Mirrors the line iteration in [`Self::try_get_cells_with_scrollback`] so
+    /// the scrollback-vs-screen wrap resolution matches exactly. Non-blocking:
+    /// on lock contention, returns the matching cached viewport flags.
     pub fn viewport_wrap_flags(&self, scroll_offset: usize, rows: usize) -> Vec<bool> {
+        // Prefer flags captured with the rendered cells. A second live-grid read
+        // could observe different content after cell extraction completed.
+        let cached = self.cached_wrap_flags(scroll_offset, rows);
+        if !cached.is_empty() || rows == 0 {
+            return cached;
+        }
+
         let Some(pty) = self.pty_session.try_lock() else {
             return Vec::new();
         };
@@ -157,7 +178,24 @@ impl TerminalManager {
             };
             wrapped.push(is_cont);
         }
+        if let Some(mut cache) = self.wrap_flags_cache.try_lock() {
+            *cache = Some((scroll_offset, rows, wrapped.clone()));
+        }
         wrapped
+    }
+
+    fn cached_wrap_flags(&self, scroll_offset: usize, rows: usize) -> Vec<bool> {
+        let Some(cache) = self.wrap_flags_cache.try_lock() else {
+            return Vec::new();
+        };
+        match cache.as_ref() {
+            Some((cached_offset, cached_rows, flags))
+                if *cached_offset == scroll_offset && *cached_rows == rows =>
+            {
+                flags.clone()
+            }
+            _ => Vec::new(),
+        }
     }
 
     /// Get terminal grid with scrollback offset as Cell array for CellRenderer
@@ -221,6 +259,23 @@ impl TerminalManager {
                     },
                 );
             }
+        }
+        let mut wrap_flags = Vec::with_capacity(rows);
+        for screen_row in 0..rows {
+            let is_continuation = if screen_row == 0 {
+                false
+            } else {
+                let prev_line = (start_line + screen_row).saturating_sub(1);
+                if prev_line < scrollback_len {
+                    grid.is_scrollback_wrapped(prev_line)
+                } else {
+                    grid.is_line_wrapped(prev_line - scrollback_len)
+                }
+            };
+            wrap_flags.push(is_continuation);
+        }
+        if let Some(mut cache) = self.wrap_flags_cache.try_lock() {
+            *cache = Some((scroll_offset, rows, wrap_flags));
         }
 
         // Apply trigger highlights on top of cell colors
@@ -499,5 +554,36 @@ impl TerminalManager {
             wide_char: term_cell.flags().wide_char(),
             wide_char_spacer: term_cell.flags().wide_char_spacer(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::TerminalManager;
+
+    #[test]
+    fn cell_extraction_captures_wrap_flags_for_nonblocking_path() {
+        let manager = TerminalManager::new_with_scrollback(8, 3, 16).unwrap();
+        manager.process_data(b"123456789");
+
+        let cells = manager
+            .try_get_cells_with_scrollback(0, None, false)
+            .unwrap();
+
+        assert_eq!(cells.len(), 24);
+        let _pty = manager.pty_session.lock();
+        assert_eq!(manager.viewport_wrap_flags(0, 3), vec![false, true, false]);
+    }
+
+    #[test]
+    fn cell_extraction_captures_wrap_flags_for_blocking_path() {
+        let manager = TerminalManager::new_with_scrollback(8, 3, 16).unwrap();
+        manager.process_data(b"123456789");
+
+        let cells = manager.get_cells_with_scrollback(0, None, false, None);
+
+        assert_eq!(cells.len(), 24);
+        let _pty = manager.pty_session.lock();
+        assert_eq!(manager.viewport_wrap_flags(0, 3), vec![false, true, false]);
     }
 }

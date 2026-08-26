@@ -10,7 +10,6 @@ use std::time::Instant;
 
 use par_term_config::ScrollbackMark;
 use par_term_terminal::TerminalManager;
-use winit::dpi::PhysicalSize;
 
 use crate::app::window_state::WindowState;
 use crate::config::Cell;
@@ -178,7 +177,7 @@ impl WindowState {
     pub(super) fn apply_url_and_search_highlights(
         &mut self,
         cells: &[Cell],
-        _renderer_size: &PhysicalSize<u32>,
+        wrap_flags: &[bool],
         cell_grid_dims: (usize, usize),
         scroll_offset: usize,
         _scrollback_len: usize,
@@ -194,6 +193,7 @@ impl WindowState {
             let (actual_cols, actual_rows) = cell_grid_dims;
             self.detect_urls(crate::app::window_state::url_hover::UrlDetectData {
                 cells,
+                wrap_flags,
                 cols: if actual_cols > 0 { actual_cols } else { 1 },
                 rows: if actual_rows > 0 {
                     actual_rows
