@@ -11,6 +11,14 @@ use anyhow::Result;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 use winit::event_loop::{ControlFlow, EventLoop};
+/// Events injected into the winit event loop by platform observers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum AppEvent {
+    /// The macOS display topology or parameters changed.
+    DisplayConfigurationChanged,
+}
+
+pub(crate) mod display_recovery;
 
 pub(crate) mod copy_mode;
 mod file_transfers;
@@ -68,10 +76,14 @@ impl App {
 
     /// Run the application
     pub fn run(self) -> Result<()> {
-        let event_loop = EventLoop::new()?;
+        let event_loop = EventLoop::<AppEvent>::with_user_event().build()?;
+
         // Use Wait for power-efficient event handling
         // Combined with WaitUntil in about_to_wait for precise timing
         event_loop.set_control_flow(ControlFlow::Wait);
+        #[cfg(target_os = "macos")]
+        let _display_observer =
+            display_recovery::register_display_change_observer(event_loop.create_proxy());
 
         let mut window_manager =
             WindowManager::new(self.config, self.runtime, self.runtime_options);

@@ -3,15 +3,33 @@
 //! Implements the winit `ApplicationHandler` trait: `resumed`, `window_event`,
 //! and the top-level `about_to_wait` coordinator for all windows.
 
+use crate::app::AppEvent;
+use crate::app::display_recovery::display_change_gate;
 use crate::app::handler::wake::{WakeRequest, apply_wake_decision, reduce_wake_requests};
 use crate::app::window_manager::WindowManager;
+
 use std::sync::Arc;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::ActiveEventLoop;
 use winit::window::WindowId;
 
-impl ApplicationHandler for WindowManager {
+impl ApplicationHandler<AppEvent> for WindowManager {
+    fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: AppEvent) {
+        match event {
+            AppEvent::DisplayConfigurationChanged => {
+                log::info!(
+                    "Display configuration changed; forcing surface reconfigure for {} window(s)",
+                    self.windows.len()
+                );
+                for window_state in self.windows.values_mut() {
+                    window_state.force_surface_reconfigure();
+                }
+                display_change_gate().clear();
+            }
+        }
+    }
+
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         // Create the first window on app resume (or if all windows were closed on some platforms)
         if self.windows.is_empty() {
