@@ -307,6 +307,16 @@ type = "coding"
 [run_command]
 "*" = "openhands acp"
 "#,
+    r#"
+identity = "omp.sh"
+name = "Oh My Pi"
+short_name = "omp"
+protocol = "acp"
+type = "coding"
+
+[run_command]
+"*" = "omp acp"
+"#,
 ];
 
 /// The set of built-in agent identities defined in [`EMBEDDED_AGENTS`].
@@ -321,6 +331,7 @@ const BUILT_IN_IDENTITIES: &[&str] = &[
     "augmentcode.com",
     "docker.com",
     "openhands.dev",
+    "omp.sh",
 ];
 
 pub fn discover_agents(user_config_dir: &Path) -> Vec<AgentConfig> {
@@ -509,6 +520,26 @@ short_name = "wc"
         assert!(
             identities.contains(&"openai.com"),
             "Missing openai.com (codex)"
+        );
+        assert!(identities.contains(&"omp.sh"), "Missing omp.sh (Oh My Pi)");
+    }
+
+    #[test]
+    fn test_embedded_omp_agent_matches_contract() {
+        let toml_str = EMBEDDED_AGENTS
+            .iter()
+            .find(|s| s.contains("identity = \"omp.sh\""))
+            .expect("omp.sh entry missing from EMBEDDED_AGENTS");
+        let config: AgentConfig = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.identity, "omp.sh");
+        assert_eq!(config.name, "Oh My Pi");
+        assert_eq!(config.short_name, "omp");
+        assert_eq!(config.protocol, "acp");
+        assert_eq!(config.r#type, "coding");
+        assert_eq!(config.run_command_for_platform(), Some("omp acp"));
+        assert!(
+            BUILT_IN_IDENTITIES.contains(&"omp.sh"),
+            "omp.sh missing from BUILT_IN_IDENTITIES"
         );
     }
 

@@ -1,0 +1,8 @@
+identity = "omp.sh"
+name = "Oh My Pi"
+short_name = "omp"
+protocol = "acp"
+type = "coding"
+
+[run_command]
+"*" = "omp acp"

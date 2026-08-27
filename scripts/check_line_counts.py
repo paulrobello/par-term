@@ -7,7 +7,7 @@ CLAUDE.md: "Keep files under 500 lines; refactor files exceeding 800 lines."
 Only production lines count. A `#[cfg(test)]` item -- module, function, `use`,
 or `impl` block -- is subtracted wherever it appears in the file, not just as a
 trailing test module. Cutting at the first `#[cfg(test)]` instead would report
-`par-term-acp/src/agents.rs` (663 lines, `#[cfg(test)] use` on line 3) as 2
+`par-term-acp/src/agents.rs` (a test-bearing file) as 2
 production lines and exempt it permanently, which is the failure mode that kills
 a check like this: a false negative nobody ever sees.
 

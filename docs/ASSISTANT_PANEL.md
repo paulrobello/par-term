@@ -366,7 +366,7 @@ The exported JSON contains:
 
 ## Bundled Agent Configurations
 
-par-term ships with 7 pre-configured ACP agent definitions embedded at compile time. These are always available regardless of installation method:
+par-term ships with 8 pre-configured ACP agent definitions embedded at compile time. These are always available regardless of installation method:
 
 | Agent | Identity | Connector Command | Install Command |
 |-------|----------|-------------------|-----------------|
@@ -377,6 +377,7 @@ par-term ships with 7 pre-configured ACP agent definitions embedded at compile t
 | Auggie (Augment Code) | `augmentcode.com` | `auggie --acp` | - |
 | Docker cagent | `docker.com` | `cagent acp` | - |
 | OpenHands | `openhands.dev` | `openhands acp` | - |
+| Oh My Pi | `omp.sh` | `omp acp` | - |
 
 During discovery, par-term checks whether each connector binary exists in `PATH` and marks agents whose connectors are not installed. The panel shows one-click install buttons for agents that have an `install_command` defined but whose binary is missing.
 
