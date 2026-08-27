@@ -56,7 +56,7 @@ cargo add par-term-render
 ## Usage
 
 ```rust
-use par_term_render::{Renderer, RendererParams, SplitPanesRenderParams};
+use par_term_render::{Renderer, RendererParams};
 
 let mut renderer = Renderer::new(params).await?;
 renderer.render_split_panes(split_params)?;
