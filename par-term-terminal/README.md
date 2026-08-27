@@ -40,27 +40,19 @@ Layer 2 in the dependency graph. Depends on `par-term-config` and
 
 ## Installation
 
-Add the crate to your `Cargo.toml`:
-
-```toml
-[dependencies]
-par-term-terminal = { version = "0.5.4" }
+```bash
+cargo add par-term-terminal
 ```
 
 ## Usage
 
 ```rust
 use par_term_terminal::TerminalManager;
-use par_term_config::Config;
 
-let config = Config::load()?;
-let mut terminal = TerminalManager::spawn(&config, None)?;
-
-// Write to the PTY
+let mut terminal = TerminalManager::new(80, 24)?;
+terminal.spawn_shell()?;
 terminal.write(b"echo hello\n")?;
-
-// Read terminal output
-let data = terminal.read()?;
+let text = terminal.content()?;
 ```
 
 ## Related Documentation

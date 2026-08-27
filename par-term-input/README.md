@@ -44,23 +44,17 @@ Used directly by the root `par-term` crate for event handling.
 
 ## Installation
 
-Add the crate to your `Cargo.toml`:
-
-```toml
-[dependencies]
-par-term-input = { version = "0.1.20" }
+```bash
+cargo add par-term-input
 ```
 
 ## Usage
 
 ```rust
 use par_term_input::InputHandler;
-use par_term_config::types::OptionKeyMode;
 
-let mut handler = InputHandler::new(OptionKeyMode::Esc);
-
-// Handle a key event from winit
-if let Some(bytes) = handler.handle_key_event(&key_event) {
+let mut handler = InputHandler::new();
+if let Some(bytes) = handler.handle_key_event(key_event) {
     pty.write_all(&bytes)?;
 }
 ```

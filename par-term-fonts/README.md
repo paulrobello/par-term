@@ -43,25 +43,23 @@ Used by `par-term-render` (Layer 3) for glyph rasterization.
 
 ## Installation
 
-Add the crate to your `Cargo.toml`:
-
-```toml
-[dependencies]
-par-term-fonts = { version = "0.3.2" }
+```bash
+cargo add par-term-fonts
 ```
 
 ## Usage
 
 ```rust
-use par_term_fonts::{FontManager, TextShaper, ShapingOptions};
+use par_term_fonts::{FontManager, ShapingOptions};
 
-// Create a font manager with the primary font
-let mut font_manager = FontManager::new();
-font_manager.set_primary_font("JetBrains Mono");
-
-// Shape text for rendering
-let shaper = TextShaper::new(font_manager);
-let glyphs = shaper.shape("Hello, world!", &ShapingOptions::default());
+let mut font_manager = FontManager::new(
+    Some("JetBrains Mono"),
+    None,
+    None,
+    None,
+    &[],
+)?;
+let glyphs = font_manager.shape_text("Hello, world!", false, false, ShapingOptions::default());
 ```
 
 ## Related Documentation

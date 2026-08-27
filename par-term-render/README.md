@@ -49,24 +49,17 @@ Layer 3 in the dependency graph. Depends on `par-term-config` (Layer 1) and
 
 ## Installation
 
-Add the crate to your `Cargo.toml`:
-
-```toml
-[dependencies]
-par-term-render = { version = "0.10.1" }
+```bash
+cargo add par-term-render
 ```
 
 ## Usage
 
 ```rust
-use par_term_render::{Renderer, RendererParams, RenderError};
+use par_term_render::{Renderer, RendererParams, SplitPanesRenderParams};
 
-// Create a renderer from a wgpu surface (requires wgpu setup)
-let renderer = Renderer::new(surface, device, queue, config)?;
-
-// Per-frame rendering
-let params = RendererParams { /* ... */ };
-renderer.render(&params)?;
+let mut renderer = Renderer::new(params).await?;
+renderer.render_split_panes(split_params)?;
 ```
 
 ## Related Documentation

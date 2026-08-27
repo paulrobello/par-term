@@ -39,32 +39,20 @@ String config values support `${VAR}` substitution. By default, only a safe allo
 
 ## Installation
 
-Add the crate to your `Cargo.toml`:
-
-```toml
-[dependencies]
-par-term-config = { version = "0.14.3" }
+```bash
+cargo add par-term-config
 ```
 
-Enable optional features as needed:
-
-```toml
-par-term-config = { version = "0.14.3", features = ["watcher"] }
-```
+The default feature set includes `watcher` (`notify`-based config hot reload). Disable it with `--no-default-features` if you only need the data types.
 
 ## Usage
 
 ```rust
 use par_term_config::Config;
 
-// Load configuration from the default platform-specific path
 let config = Config::load()?;
-
-// Access configuration values
 println!("Font: {} ({})", config.font_family, config.font_size);
-println!("Theme: {}", config.theme);
-
-// Save configuration
+println!("Theme: {}", config.theme_colors.theme);
 config.save()?;
 ```
 
