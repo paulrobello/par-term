@@ -109,10 +109,8 @@ impl WindowState {
                     let size = window.inner_size();
                     let (cols, rows) = renderer.handle_scale_factor_change(scale_factor, size);
 
-                    // Reconfigure surface after scale factor change
-                    // This is important when dragging between displays with different DPIs
-                    renderer.reconfigure_surface();
-
+                    // `handle_scale_factor_change` resizes and configures the surface.
+                    // Avoid a second configure, which tears down the swapchain again.
                     // Calculate pixel dimensions
                     let cell_width = renderer.cell_width();
                     let cell_height = renderer.cell_height();
