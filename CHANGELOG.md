@@ -11,6 +11,10 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ## [Unreleased]
 
+### Fixed
+
+- **macOS display changes now refresh terminal surfaces.** Global screen-parameter notifications are coalesced and routed through the event loop so CAMetalLayer and wgpu surfaces are reconfigured when a monitor is plugged in or removed without a window resize or DPI change.
+
 ---
 
 ## [0.44.0] - 2026-08-26
