@@ -36,7 +36,6 @@ String config values support `${VAR}` substitution. By default, only a safe allo
 | Flag | Description |
 |------|-------------|
 | `watcher` | Enables `notify`-based config file watching for hot reload |
-| `wgpu-types` | Re-exports wgpu color types for GPU rendering integration |
 
 ## Installation
 
@@ -44,13 +43,13 @@ Add the crate to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-par-term-config = { version = "0.10.1" }
+par-term-config = { version = "0.14.3" }
 ```
 
 Enable optional features as needed:
 
 ```toml
-par-term-config = { version = "0.10.1", features = ["watcher", "wgpu-types"] }
+par-term-config = { version = "0.14.3", features = ["watcher"] }
 ```
 
 ## Usage

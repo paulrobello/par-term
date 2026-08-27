@@ -1123,6 +1123,6 @@ The following features are blocked by or significantly dependent on architectura
 
 ---
 
-*Updated: 2026-08-26 (row-level verification against v0.43.0)*
+*Updated: 2026-08-26 (row-level verification against v0.44.0)*
 *iTerm2 Version: Latest (from source)*
-*par-term Version: 0.43.0*
+*par-term Version: 0.44.0*

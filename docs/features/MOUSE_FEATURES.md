@@ -312,6 +312,7 @@ The Input tab in Settings provides:
 ## Known Fixes
 
 The following mouse-related issues have been resolved:
+- **Soft-wrapped URL Cmd+click truncation** -- wrap-continuation flags are captured with the rendered cell snapshot, so a URL split across lines no longer opens only the first line when detection reacquires a terminal lock after cell extraction
 
 - **Text Selection in Mouse-Tracking Apps** -- Holding Shift while clicking or dragging now bypasses application mouse tracking to allow local text selection. This matches the standard behavior of iTerm2, Kitty, and Alacritty for apps like `less`, `vim`, and `htop` that enable mouse tracking on the alternate screen
 

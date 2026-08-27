@@ -44,7 +44,7 @@ Add the crate to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-par-term-terminal = { version = "0.2.6" }
+par-term-terminal = { version = "0.5.4" }
 ```
 
 ## Usage

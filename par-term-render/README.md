@@ -53,7 +53,7 @@ Add the crate to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-par-term-render = { version = "0.6.7" }
+par-term-render = { version = "0.10.1" }
 ```
 
 ## Usage

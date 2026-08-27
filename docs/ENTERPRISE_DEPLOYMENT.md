@@ -115,7 +115,7 @@ cargo build --profile dev-release --locked
 #!/usr/bin/env bash
 set -euo pipefail
 
-PAR_TERM_VERSION="0.43.0"
+PAR_TERM_VERSION="0.44.0"
 INSTALL_DIR="/usr/local/bin"
 PLATFORM="macos-aarch64"   # adjust: macos-universal, macos-x86_64, linux-x86_64, linux-aarch64
 BINARY="par-term-${PLATFORM}"
@@ -162,7 +162,7 @@ echo "par-term ${PAR_TERM_VERSION} installed successfully."
 
 ```powershell
 # deploy-par-term.ps1
-$Version  = "0.43.0"
+$Version  = "0.44.0"
 $Platform = "windows-x86_64"
 $InstDir  = "C:\Program Files\par-term"
 $Url      = "https://github.com/paulrobello/par-term/releases/download/v$Version/par-term-$Platform.exe"
@@ -274,7 +274,7 @@ Valid values: `hourly`, `daily`, `weekly`, `monthly`, `never`.
 |----------------|-------------|
 | Homebrew (cask) | Skip `brew upgrade --cask par-term` during upgrade windows (casks cannot be `brew pin`-ned) |
 | Standalone binary | Replace binary file only during planned maintenance windows |
-| Cargo | `cargo install --locked --version 0.43.0 par-term` |
+| Cargo | `cargo install --locked --version 0.44.0 par-term` |
 
 ### Managed Update Workflow
 
@@ -305,9 +305,9 @@ chmod 755 /tmp/par-term-pkg/usr/local/bin/par-term
 pkgbuild \
   --root /tmp/par-term-pkg \
   --identifier com.paulrobello.par-term \
-  --version 0.43.0 \
+  --version 0.44.0 \
   --install-location / \
-  par-term-0.43.0.pkg
+  par-term-0.44.0.pkg
 ```
 
 Upload the `.pkg` to Jamf Pro and deploy via a policy scoped to the target computer group.

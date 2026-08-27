@@ -11,9 +11,25 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ## [Unreleased]
 
+---
+
+## [0.44.0] - 2026-08-26
+
+Oh My Pi joins the bundled ACP agents, Claude/Codex connectors move to the `@agentclientprotocol` npm scope, and two bugs from 0.43.0 are fixed. Minor bump for the new agent. Sub-crate bumps: `par-term-acp` 0.5.2 → 0.6.0 (new bundled agent), `par-term-terminal` 0.5.3 → 0.5.4 (wrapped-URL metadata), `par-term-render` 0.10.0 → 0.10.1 (no-op surface configure). No core-library change — `par-term-emu-core-rust` remains at 0.46.0.
+
+### Added
+
+- **Oh My Pi (omp) is a bundled ACP agent.** Identity `omp.sh`, display name Oh My Pi, connector `omp acp`. Packaged as `agents/omp.sh.toml` and embedded in `par-term-acp`. Bundled agent count is 8 (Claude Code, Codex/OpenAI, Copilot, Amp, Auggie, Docker cagent, OpenHands, Oh My Pi). Install Oh My Pi separately; there is no npm `install_command`.
+
+### Fixed
+
+- **Soft-wrapped URL Cmd+click no longer truncates under lock contention.** URL detection could reacquire terminal locks after cell extraction and lose wrap-continuation flags, so a URL split across lines opened only the first line. Continuation flags are now captured with the rendered cell snapshot and propagated through render data.
+- **No-op surface configures no longer tear down the swapchain.** wgpu 30's `Surface::configure` is not idempotent: it drains the GPU queue and resets CAMetalLayer properties even when the extent is unchanged. `CellRenderer::resize` and the settings window's Outdated/Lost recovery now skip configure when the extent is unchanged, and remaining configures are logged.
+
 ### Changed
 
 - **ACP connector packages migrated to the `@agentclientprotocol` npm scope.** `@zed-industries/claude-agent-acp` and `@zed-industries/codex-acp` are deprecated upstream (npm warns on every install and they no longer receive updates); `make install-acp`, the embedded agent definitions in `par-term-acp`, the shipped `agents/*.toml` files, and CI now use `@agentclientprotocol/claude-agent-acp` and `@agentclientprotocol/codex-acp`. Binary names are unchanged (`claude-agent-acp`, `codex-acp`), so agent detection and run commands keep working; the renamed packages require Node >= 22, which CI already pins.
+- **Cargo.lock refreshed** to latest compatible versions of transitive dependencies. All within semver.
 
 ---
 
@@ -1812,7 +1828,9 @@ Audit remediation pass (Critical + High severity from the 2026-06-25 audit): 18 
 
 ---
 
-[Unreleased]: https://github.com/paulrobello/par-term/compare/v0.42.0...HEAD
+[Unreleased]: https://github.com/paulrobello/par-term/compare/v0.44.0...HEAD
+[0.44.0]: https://github.com/paulrobello/par-term/compare/v0.43.0...v0.44.0
+[0.43.0]: https://github.com/paulrobello/par-term/compare/v0.42.0...v0.43.0
 [0.42.0]: https://github.com/paulrobello/par-term/compare/v0.41.0...v0.42.0
 [0.41.0]: https://github.com/paulrobello/par-term/compare/v0.40.0...v0.41.0
 [0.40.0]: https://github.com/paulrobello/par-term/compare/v0.39.0...v0.40.0

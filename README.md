@@ -43,6 +43,15 @@ New to par-term? The [Getting Started Guide](docs/guides/GETTING_STARTED.md) wal
 
 ## What's New
 
+### 0.44.0
+
+Oh My Pi joins the bundled ACP agents, plus two bug fixes from 0.43.0.
+
+- **Oh My Pi (omp) is a bundled ACP agent** — identity `omp.sh`, connector `omp acp`. Eight bundled agents now (Claude Code, Codex/OpenAI, Copilot, Amp, Auggie, Docker cagent, OpenHands, Oh My Pi). Install omp separately.
+- **Soft-wrapped URL Cmd+click no longer truncates** when URL detection races a lock after cell extraction; wrap-continuation flags travel with the rendered snapshot.
+- **No-op GPU surface configures are skipped** so wgpu 30 no longer tears down the swapchain (and resets the macOS layer colorspace) on unchanged extents.
+- **Claude/Codex ACP connectors moved to `@agentclientprotocol/`** (`claude-agent-acp`, `codex-acp` binary names unchanged; Node >= 22).
+
 ### 0.43.0
 
 Rendering stack modernized to **wgpu 30 / egui 0.36**, plus a fix for a crash on very wide windows. No new features.

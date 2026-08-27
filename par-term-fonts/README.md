@@ -47,7 +47,7 @@ Add the crate to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-par-term-fonts = { version = "0.1.7" }
+par-term-fonts = { version = "0.3.2" }
 ```
 
 ## Usage
