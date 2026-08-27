@@ -27,6 +27,7 @@
 //! Non-macOS platforms compile this module (the gate and its tests) but never
 //! dispatch the event; the observer itself is `cfg(target_os = "macos")`.
 
+#[cfg(any(target_os = "macos", test))]
 use std::sync::atomic::{AtomicBool, Ordering};
 
 /// Edge-triggered coalescer for display-configuration notifications.
@@ -46,12 +47,14 @@ use std::sync::atomic::{AtomicBool, Ordering};
 ///
 /// This type is deliberately free of any platform dependency so its burst
 /// behavior is unit-testable on every platform (see the tests below).
+#[cfg(any(target_os = "macos", test))]
 #[derive(Debug, Default)]
 pub(crate) struct DisplayChangeGate {
     /// Whether a recovery event has been dispatched and not yet applied.
     pending: AtomicBool,
 }
 
+#[cfg(any(target_os = "macos", test))]
 impl DisplayChangeGate {
     pub(crate) const fn new() -> Self {
         Self {
@@ -63,13 +66,13 @@ impl DisplayChangeGate {
     ///
     /// Returns `true` when a recovery event should be dispatched (first
     /// notification of a burst), `false` when one is already outstanding.
-    #[allow(dead_code)]
     pub(crate) fn record(&self) -> bool {
         !self.pending.swap(true, Ordering::AcqRel)
     }
 
     /// Mark the outstanding recovery as applied and re-arm the gate so the
     /// next display change dispatches again.
+    #[cfg(any(target_os = "macos", test))]
     pub(crate) fn clear(&self) {
         self.pending.store(false, Ordering::Release);
     }
@@ -83,9 +86,11 @@ impl DisplayChangeGate {
 /// Process-wide display-change gate, shared between the macOS notification
 /// observer (AppKit main-thread callback) and the winit event loop
 /// (`ApplicationHandler::user_event`).
+#[cfg(target_os = "macos")]
 static DISPLAY_CHANGE_GATE: DisplayChangeGate = DisplayChangeGate::new();
 
 /// Access the shared display-change gate.
+#[cfg(target_os = "macos")]
 pub(crate) fn display_change_gate() -> &'static DisplayChangeGate {
     &DISPLAY_CHANGE_GATE
 }
