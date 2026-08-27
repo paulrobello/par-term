@@ -72,8 +72,8 @@ scrollback_lines: 10000
 
 | Action | Shortcut |
 |--------|----------|
-| Scroll up one line | Mouse wheel up |
-| Scroll down one line | Mouse wheel down |
+| Scroll up in scrollback | Mouse wheel up (`mouse_scroll_speed` lines per tick, default `3.0`) |
+| Scroll down in scrollback | Mouse wheel down (`mouse_scroll_speed` lines per tick, default `3.0`) |
 | Scroll up one page | `Shift+Page Up` |
 | Scroll down one page | `Shift+Page Down` |
 | Scroll to top | `Shift+Home` |
@@ -90,8 +90,9 @@ Command marks are visual indicators on the scrollbar showing where commands were
 When shell integration is installed, par-term tracks:
 
 1. **Prompt Start (OSC 133;A)** - Where each prompt begins
-2. **Command Executed (OSC 133;C)** - When command execution starts
-3. **Command Finished (OSC 133;D)** - When command completes with exit code
+2. **Command Start (OSC 133;B)** - Where command input starts
+3. **Command Executed (OSC 133;C)** - When command execution starts
+4. **Command Finished (OSC 133;D)** - When command completes with exit code
 
 This metadata is displayed as colored marks on the scrollbar.
 
@@ -103,6 +104,7 @@ sequenceDiagram
 
     Shell->>Terminal: OSC 133;A (Prompt Start)
     Note over Terminal: Record prompt line
+    Shell->>Terminal: OSC 133;B (Command Start)
     Shell->>Terminal: User types command
     Shell->>Terminal: OSC 133;C (Command Executed)
     Note over Terminal: Record start time
@@ -223,7 +225,7 @@ To install shell integration:
 
 1. Press `F12` to open Settings
 2. Navigate to the **Integrations** tab
-3. Click **Install Shell Integration**
+3. In the **Shell Integration** section, click **Install** (or **Reinstall** if already installed)
 
 Or via CLI:
 

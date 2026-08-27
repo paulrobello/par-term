@@ -667,7 +667,7 @@ Dynamic profile sources can be managed in **Settings > Profiles > Dynamic Profil
 - Add, edit, and remove remote source URLs
 - Configure per-source headers, refresh interval, and size limits
 - Set conflict resolution mode
-- View last fetch status and timestamp per source
+- Enable or disable individual sources without removing them
 
 ## Storage
 

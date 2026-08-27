@@ -6,6 +6,7 @@ par-term provides a multi-tab interface for managing multiple terminal sessions 
 - [Overview](#overview)
 - [Creating and Closing Tabs](#creating-and-closing-tabs)
   - [Profile Selection on New Tab](#profile-selection-on-new-tab)
+  - [New Tab Position](#new-tab-position)
 - [Reopening Closed Tabs](#reopening-closed-tabs)
 - [Switching Tabs](#switching-tabs)
 - [Reordering Tabs](#reordering-tabs)
@@ -135,7 +136,6 @@ For full details on session undo configuration and shell session preservation, s
 | Next tab | `Cmd+Shift+]` or `Ctrl+Tab` |
 | Previous tab | `Cmd+Shift+[` or `Ctrl+Shift+Tab` |
 | Go to tab 1-9 | `Cmd+1` through `Cmd+9` (macOS) / `Alt+1` through `Alt+9` |
-| Go to last tab | `Cmd+9` (macOS) / `Alt+9` |
 
 ## Reordering Tabs
 
@@ -172,7 +172,7 @@ Any tab can be duplicated via the context menu:
 
 1. **Right-click** on any tab in the tab bar to open the context menu and select **Duplicate Tab**
 
-Bound to `Cmd+Shift+J` (`Ctrl+Shift+J` on Linux and Windows) by default, and rebindable as the `duplicate_tab` action in Settings > Keybindings.
+Bound to `Cmd+Shift+J` (`Ctrl+Shift+J` on Linux and Windows) by default, and rebindable as the `duplicate_tab` action in Settings > Input > Keybindings.
 
 **Behavior:**
 - The duplicated tab inherits the working directory of the source tab
@@ -204,7 +204,7 @@ restarted.
   other par-term windows exist.
 
 **Keybinding:** Bind the `move_tab_to_new_window` action in
-Settings → Keybindings. There is no default chord. The keybinding only covers
+Settings → Input → Keybindings. There is no default chord. The keybinding only covers
 the "new window" case; the "move to existing window" case is menu-only because
 keybindings cannot parameterize on a specific target window.
 
@@ -237,8 +237,8 @@ The focused pane in the current tab is extracted and wrapped in a new tab. The n
 
 The current tab's entire pane tree is merged into another tab as new split panes. This is a multi-step pick-mode operation:
 
-1. **Pick target tab** — a toast shows "Click a tab to merge into." Click a different tab in the tab bar.
-2. **Pick target pane** — switches to the target tab. A toast shows "Click a pane to merge into." Click a pane within that tab.
+1. **Pick target tab** — a toast shows "Demote: Click a tab to merge into" (with an "Esc to cancel" hint). Click a different tab in the tab bar.
+2. **Pick target pane** — switches to the target tab. A hint shows "Click a pane to merge into (Esc to cancel)". Click a pane within that tab.
 3. **Choose direction** — an inline overlay appears near the clicked pane with **Horizontal** and **Vertical** buttons. Click to complete the merge.
 
 Press **Escape** or right-click at any step to cancel.
@@ -319,7 +319,7 @@ tab_bar_position: top
 tab_bar_width: 160.0
 ```
 
-**Settings UI:** Settings > Window > Tab Bar > "Tab Bar Position"
+**Settings UI:** Settings > Window > Tab Bar > "Position"
 
 Switching between positions takes effect immediately without restart.
 
@@ -355,7 +355,7 @@ par-term includes 6 built-in tab style presets that apply coordinated color, siz
 tab_style: dark  # dark, light, compact, minimal, high_contrast, automatic
 ```
 
-**Settings UI:** Settings > Window > Tab Bar > "Tab Style"
+**Settings UI:** Settings > Window > Tab Bar > "Tab style"
 
 Each preset adjusts the tab bar background, active/inactive colors, height, and spacing as a coordinated set. Individual settings can still be overridden after selecting a preset.
 
@@ -415,7 +415,7 @@ The `tab_inactive_outline_only` option renders inactive tabs with just a border 
 tab_inactive_outline_only: true  # default: true
 ```
 
-**Settings UI:** Settings > Window > Tab Bar > "Inactive tabs outline only"
+**Settings UI:** Settings > Window > Tab Bar Appearance > "Inactive tabs outline only"
 
 ```mermaid
 graph LR
@@ -494,7 +494,7 @@ User-set tab names and custom tab colors are preserved across:
 
 - **Session save/restore** -- closing and reopening par-term restores custom names and colors
 - **Window arrangements** -- saved layouts retain per-tab names and colors
-- **Tab duplication** -- duplicated tabs inherit the source tab's custom name and color
+- **Tab duplication** -- duplicated tabs inherit the source tab's custom color and icon, but not its custom name
 
 This persistence also applies to custom tab icons (see [Tab Icons](#tab-icons)).
 

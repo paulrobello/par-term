@@ -177,6 +177,7 @@ graph TD
     Keybind --> Config
     Scripting --> Config
     Tmux --> Config
+    Update --> Config
 
     style Main fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
     style ACP fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
@@ -215,7 +216,7 @@ graph TD
 
 ### Backward Compatibility
 
-All public types from workspace crates are re-exported from the main `par-term` crate. Existing code that imports from the top-level crate continues to work without modification.
+Key types from workspace crates are re-exported from the main `par-term` crate: the `par-term-config` surface through `src/config/mod.rs`, and whole-crate re-export aliases for `par-term-mcp`, `par-term-settings-ui`, and `par-term-tmux` in `src/lib.rs`. Much existing code that imports from the top-level crate continues to work without modification.
 
 ## Core Components
 
@@ -223,7 +224,7 @@ All public types from workspace crates are re-exported from the main `par-term` 
 
 *   **App (`src/app/mod.rs`)**: The entry point that initializes configuration and runs the event loop via `winit`.
 *   **WindowManager (`src/app/window_manager/`)**: Coordinates multiple terminal windows, handles native menu events, manages the standalone settings window, and applies configuration changes across all windows.
-*   **WindowState (`src/app/window_state/`)**: Per-window state module containing tab manager, renderer, input handler, keybinding registry, and shader metadata caches — decomposed into focused sub-modules including `agent_messages.rs`, and state components (AgentState, TmuxState, OverlayUiState). The render pipeline lives in `src/app/render_pipeline/`.
+*   **WindowState (`src/app/window_state/`)**: Per-window state module containing tab manager, renderer, input handler, keybinding registry, and shader metadata caches — decomposed into focused sub-modules including `agent_messages.rs`, and state components (AgentState, OverlayUiState; the TmuxState component lives in `src/app/tmux_handler/`). The render pipeline lives in `src/app/render_pipeline/`.
 
 *   **Input Handler (`par-term-input`)**: Translates OS window events (keyboard, mouse) into terminal input sequences or application commands (e.g., shortcuts for copy/paste).
 *   **Keybindings (`par-term-keybindings`)**: Configurable keyboard shortcut system with key combo parsing, platform-aware modifier handling (`CmdOrCtrl`), and action registry.
@@ -416,7 +417,7 @@ sequenceDiagram
     Core->>Core: Parse ESC sequences
     Core->>Grid: Update cells, cursor, scroll
 
-    loop Adaptive polling (16ms - 250ms)
+    loop Adaptive polling (inactive tabs, cap 250ms)
         Poll->>Grid: Check generation counter
         Grid-->>Poll: Changed? (dirty flag)
     end
@@ -470,7 +471,7 @@ graph TD
     subgraph "Input Path"
         PTY[PTY Output]
         Poll[Tab Refresh Task]
-        Backoff[Exponential Backoff<br>16ms to 250ms]
+        Backoff[Exponential Backoff<br>inactive tabs, cap 250ms]
     end
 
     subgraph "Dirty Tracking"
@@ -514,11 +515,11 @@ The renderer's `update_*` methods (`update_cells`, `update_cursor`, `clear_curso
 
 ### Fast Render Path
 
-When the renderer is not dirty and no custom shader animation is active, the `render_split_panes()` method uses a fast path that renders cells from cached GPU buffers plus the egui overlay. This skips expensive operations including shader passes, Sixel texture uploads, and cursor shader rendering. The fast path significantly reduces GPU workload during idle periods while still allowing the egui overlay (tab bar, search bar, status bar) to update independently.
+When the renderer is not dirty, no shader or cursor animation is running, and there is no egui overlay to draw, `render_split_panes()` returns early and skips the frame entirely — no surface acquisition, shader passes, inline graphics uploads, or presentation. Frames that only need an egui update still render, and `gather_pane_render_data` (`src/app/render_pipeline/pane_render.rs`) serves the focused pane's cells from its cross-frame cache so unchanged content is not regathered. This keeps GPU workload minimal during idle periods while still allowing the egui overlay (tab bar, search bar, status bar) to update independently.
 
 ### Adaptive Polling with Exponential Backoff
 
-Tab and pane refresh tasks use exponential backoff when the terminal is idle. Starting at 16ms, the polling interval doubles on each consecutive idle poll (16 -> 32 -> 64 -> 128 -> 250ms max). The interval resets to 16ms immediately when new data arrives from the PTY. This reduces idle wakeups from approximately 62.5/s to approximately 4/s, substantially lowering CPU usage for terminals sitting at a shell prompt.
+Tab and pane refresh tasks apply exponential backoff only to inactive tabs; the active tab polls at a constant `1000 / max_fps` (default 60 FPS). Inactive tabs start at `1000 / inactive_tab_fps` (default 2 FPS = 500ms), double the interval on each consecutive idle poll, and are bounded at 250ms. The idle streak resets when new data arrives from the PTY or the tab becomes active, substantially lowering CPU usage for background terminals sitting at a shell prompt.
 
 ### Event Loop Sleep on macOS
 
@@ -556,8 +557,8 @@ overflow is handled by evicting the least-recently-used glyphs.
 ### Inline Graphics Textures
 
 Sixel, iTerm2, and Kitty graphics are decoded to RGBA on the CPU and uploaded to GPU
-textures during the Graphics Pass. Textures are cached by their content hash. When a
-graphic scrolls off screen, its texture is evicted from the cache.
+textures during the Graphics Pass. Textures are cached by graphic id in an LRU cache
+capped at 100 entries; when the cache is full, the least-recently-used texture is evicted.
 
 ### Custom Shader Resources
 
@@ -570,9 +571,9 @@ released after the new one is successfully compiled.
 ### Frame Timing and FPS Overlay
 
 Frame timing is tracked via a rolling window of recent frame durations. The FPS overlay
-(enabled via the settings UI) reads from this rolling average each frame. Frame timing
-data is stored as a fixed-size circular buffer inside `WindowState`; it is not persisted
-and resets on window close.
+(toggled with F3) reads from this rolling average each frame. Frame timing data is
+stored as the last 60 frame durations in a circular buffer inside `WindowState`; it is
+not persisted and resets on window close.
 
 ## Related Documentation
 

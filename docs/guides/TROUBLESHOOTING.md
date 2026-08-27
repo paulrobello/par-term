@@ -173,7 +173,7 @@ xattr -cr target/release/par-term
 xattr -cr /Applications/par-term.app
 ```
 
-> **Note:** The Homebrew cask install (`brew install --cask paulrobello/tap/par-term`) handles this automatically.
+> **Note:** The Homebrew cask install (`brew install --cask paulrobello/par-term/par-term`) handles this automatically.
 
 ### Missing Linux Dependencies
 
@@ -436,11 +436,16 @@ Enable `shader_hot_reload: true` in your config for faster iteration during shad
    ls ~/.config/par-term/shell_integration.*
    ```
 
-4. Check that your shell RC file contains the source line:
+4. Check that your shell RC file contains the source block:
 
    ```bash
    # >>> par-term shell integration >>>
-   [ -f "$HOME/.config/par-term/shell_integration.bash" ] && source "$HOME/.config/par-term/shell_integration.bash"
+   if [ -d "$HOME/.config/par-term/bin" ]; then
+       export PATH="$HOME/.config/par-term/bin:$PATH"
+   fi
+   if [ -f "$HOME/.config/par-term/shell_integration.bash" ]; then
+       source "$HOME/.config/par-term/shell_integration.bash"
+   fi
    # <<< par-term shell integration <<<
    ```
 
@@ -604,7 +609,7 @@ URL underline positioning now correctly accounts for split pane offsets, scrollb
 
 1. Ensure `ssh_auto_profile_switch: true` in your config
 2. Verify the profile has `hostname_patterns` that match the remote hostname
-3. Install shell integration on the remote host for OSC 1337 hostname reporting (see [Shell Integration on Remote Hosts](#shell-integration-on-remote-hosts))
+3. Install shell integration on the remote host for OSC 7 hostname reporting (see [Shell Integration on Remote Hosts](#shell-integration-on-remote-hosts))
 
 ### mDNS Hosts Not Appearing
 
@@ -750,7 +755,7 @@ URL underline positioning now correctly accounts for split pane offsets, scrollb
 1. Check profile order in **Settings > Profiles** -- the first matching profile wins
 2. For directory-based switching, verify patterns use correct glob syntax:
    - Patterns support `~` for home directory expansion
-   - Pattern matching is case-sensitive
+   - Pattern matching is case-insensitive
 3. Directory switching requires shell integration for OSC 7 CWD tracking
 4. Profiles are stored in `~/.config/par-term/profiles.yaml`
 
@@ -838,7 +843,7 @@ cargo install par-term
 
 ### Platform Binary Not Found
 
-**Symptom:** Error: "Could not find par-term-<platform> in the latest release"
+**Symptom:** Error: "Could not find asset '<asset>' in the latest GitHub release."
 
 **Cause:** The latest GitHub release does not contain a binary for your OS and architecture.
 
@@ -848,7 +853,7 @@ Check the [releases page](https://github.com/paulrobello/par-term/releases) for 
 
 ### Update Failed Network Error
 
-**Symptom:** Error: "Failed to fetch release info"
+**Symptom:** Error: "Failed to fetch latest release info from GitHub: <error>."
 
 **Cause:** Network connectivity issue or GitHub API rate limit.
 

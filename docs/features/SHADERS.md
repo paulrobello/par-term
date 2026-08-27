@@ -87,7 +87,7 @@ Background shaders are full-screen post-processing effects applied to the termin
 
 ### CRT & Retro Effects
 
-These shaders typically use [`full_content: true`](CUSTOM_SHADERS.md#shader-modes) to manipulate terminal text.
+These shaders typically use [`custom_shader_full_content: true`](CUSTOM_SHADERS.md#shader-modes) to manipulate terminal text.
 
 | Shader | Description |
 |--------|-------------|

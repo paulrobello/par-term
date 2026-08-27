@@ -27,7 +27,7 @@ par-term has **two parallel logging systems** (with combined macros for bridging
 |--------|--------|---------|----------|
 | Custom debug | `crate::debug_info!("CAT", ...)`, `debug_error!()`, `debug_log!()`, `debug_trace!()` | `DEBUG_LEVEL=0-4` env var | High-frequency render/input events with category tags |
 | Combined | `debug_and_log_warn!("CAT", ...)`, `debug_and_log_error!("CAT", ...)` | Both systems | Emit to both custom debug log and `log` crate simultaneously |
-| Standard `log` crate | `log::info!()`, `log::warn!()`, `log::error!()`, etc. | `RUST_LOG` env var or `--log-level` CLI | Application lifecycle, startup/shutdown, config, I/O errors |
+| Standard `log` crate | `log::info!()`, `log::warn!()`, `log::error!()`, etc. | `RUST_LOG` env var, config file, or `--log-level` CLI | Application lifecycle, startup/shutdown, config, I/O errors |
 
 ```mermaid
 graph TD
@@ -235,6 +235,7 @@ Custom debug macros use category tags for selective filtering. The following cat
 | `CONFIG` | Configuration loading and propagation |
 | `CONCURRENCY` | `try_lock()` failure telemetry and lock contention reporting |
 | `COPY_MODE` | Copy/selection mode operations |
+| `cursor-shader` | Cursor shader configuration resolution snapshot |
 | `DYNAMIC_PROFILE` | Dynamic profile fetching, caching, and merging |
 | `EVENT_LOOP` | Event loop scheduling and wakeups |
 | `FILE_TRANSFER` | File transfer upload/download operations |
@@ -269,7 +270,7 @@ Custom debug macros use category tags for selective filtering. The following cat
 | `TMUX_INPUT` | Tmux input forwarding |
 | `TRIGGER` | Automation trigger evaluation and firing |
 
-> **Note:** The bundled terminal-emulator core library (`par-term-emu-core-rust`) defines its own copy of these macros and emits additional categories, including `PTY` (PTY read errors), `PTY_SHUTDOWN` (reader-thread shutdown lifecycle), and `STREAMING` (session streaming server lifecycle). They honor the same `DEBUG_LEVEL` semantics but write to a **separate** file, `par_term_emu_core_rust_debug_rust.log`, in the same temp directory — not to `par_term_debug.log`.
+> **Note:** The terminal-emulator core dependency (`par-term-emu-core-rust`) defines its own copy of these macros and emits additional categories, including `PTY` (PTY read errors), `PTY_SHUTDOWN` (reader-thread shutdown lifecycle), and `STREAMING` (session streaming server lifecycle). They honor the same `DEBUG_LEVEL` semantics but write to a **separate** file, `par_term_emu_core_rust_debug_rust.log`, in the same temp directory — not to `par_term_debug.log`.
 
 Filter by category using grep:
 ```bash

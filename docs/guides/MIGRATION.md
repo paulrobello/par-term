@@ -199,7 +199,7 @@ The ACP agent's automatic approval mode for file-write tools now always validate
 
 ## v0.25.0 — HTTP Profile URLs Blocked by Default
 
-Profiles fetched from remote URLs must use HTTPS. HTTP URLs are rejected at fetch time with a warning. Update any profile `url` fields to use `https://`.
+Profiles fetched from remote URLs must use HTTPS. HTTP URLs are rejected at fetch time with a warning, unless the global `allow_http_profiles` setting (default `false`) explicitly opts in to plaintext. Update any profile `url` fields to use `https://`.
 
 ---
 

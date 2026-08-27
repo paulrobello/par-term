@@ -91,7 +91,7 @@ These config options also affect text readability and visual accessibility:
 
 | Option | Description |
 |--------|-------------|
-| `font_antialias` | Toggle font smoothing for crisp text |
+| `font_antialias` | Toggle anti-aliased (smooth) font rendering |
 | `font_hinting` | Align glyphs to pixel boundaries for clarity |
 | `font_thin_strokes` | Control stroke weight on HiDPI displays |
 | `cursor_guide_enabled` | Horizontal line at cursor row for tracking |

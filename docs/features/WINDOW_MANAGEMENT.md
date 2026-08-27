@@ -214,7 +214,7 @@ pane_title_font: ""                       # Title font family (empty falls back 
 - Focused pane title renders at full opacity; unfocused panes are slightly dimmed
 - Configurable height (14-30px) via Settings UI
 
-**Settings UI:** Settings > Window > Split Panes > "Show pane titles"
+**Settings UI:** Settings > Window > Pane Appearance > "Show pane titles"
 
 ## Pane Divider Styles
 
@@ -321,7 +321,7 @@ Two keybinding actions are available for arrangements:
 
 | Action | Description |
 |--------|-------------|
-| `save_arrangement` | Open the save arrangement dialog |
+| `save_arrangement` | Open the Settings window's Arrangements section for saving |
 | `restore_arrangement:<name>` | Restore a specific arrangement by name |
 
 Example keybinding configuration:
@@ -395,7 +395,7 @@ auto_dark_mode: false
 light_theme: "Solarized Light"
 
 # Theme to use when system is in dark mode
-dark_theme: "par-dark"
+dark_theme: "dark-background"
 ```
 
 **Settings UI:** Settings > Appearance > "Auto Dark Mode"

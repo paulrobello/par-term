@@ -29,8 +29,8 @@ make run-release    # Run in full release mode
 make test           # Run all tests
 make test-one TEST=test_name  # Run specific test
 make all            # Format, lint, test, and build
-make pre-commit     # Run pre-commit checks (fmt-check, lint, test)
-make ci             # Full CI checks (fmt-check, lint-all, test, check-all)
+make pre-commit     # Run pre-commit checks (secret-scan, fmt-check, lint, test)
+make ci             # Full CI checks (fmt-check, lint-all, test, check-all, check-line-counts)
 make fmt            # Format code with rustfmt
 make lint           # Run clippy
 make typecheck      # Type-check entire workspace (cargo check --workspace)
@@ -65,7 +65,7 @@ Use these for high-frequency render/input logging: they cost nothing at the defa
 
 **Sub-crates must use `log::`.** `crate::debug_info!` resolves against the *calling* crate's root, so it does not exist anywhere under `par-term-*/src/`. In a sub-crate, `log::` is the only option — and it works.
 
-Common debug-macro categories: `TAB`, `TAB_BAR`, `TAB_ACTION`, `MOUSE`, `RENDER`, `SHADER`, `TERMINAL`, `APP`
+Common debug-macro categories: `TAB`, `TAB_ACTION`, `MOUSE`, `RENDER`, `SHADER`, `SCRIPT`, `TERMINAL`, `APP`
 
 **When testing, use the debug build window** (started via `cargo run`), not the app bundle. The app bundle won't have your code changes.
 
@@ -135,7 +135,7 @@ See `docs/architecture/ARCHITECTURE.md` for detailed architecture documentation.
 | **ACP / AI panel** | `src/acp_harness/`, `src/ai_inspector/`, `par-term-acp/` | `par-term-acp` |
 | **Font/text shaping** | `par-term-fonts/` | `par-term-fonts` |
 
-> **Watch for re-export shims.** Several modules in `src/` exist only to `pub use` from a sub-crate and contain no implementation: `src/config/mod.rs`, `src/keybindings/mod.rs`, `src/scripting/mod.rs`, `src/manifest.rs`, `src/shell_detection.rs`, `src/status_bar/config.rs`, and the inline `cell_renderer`, `profile_modal_ui`, `renderer`, `scrollback_metadata`, `self_updater`, `text_shaper` and `themes` modules in `src/lib.rs`. Edit the sub-crate named in the third column, not the shim.
+> **Watch for re-export shims.** A few modules in `src/` exist only to `pub use` from a sub-crate and contain no implementation: `src/config/mod.rs` and `src/atomic_save.rs`, plus the whole-crate re-export aliases in `src/lib.rs` (`mcp_server` → `par-term-mcp`, `settings_ui` → `par-term-settings-ui`, `tmux` → `par-term-tmux`). Edit the sub-crate named in the third column, not the shim.
 
 ## Code Organization Guidelines
 
@@ -199,13 +199,13 @@ Layer 4 — Root crate (bump last):
 ## Common Development Workflows
 
 ### Adding a New Configuration Option
-1. Add the field to the **sub-config for its area** — `par-term-config/src/config/config_struct/<area>_config.rs` (`TabConfig`, `PaneConfig`, `ShellConfig`, `TmuxConfig`, `BadgeConfig`, … ~30 of them) — with `#[serde(default = "default_my_option")]`. Do **not** add it to `Config` in `config_struct/mod.rs`; that root struct is deliberately drained and adding to it is what grew it to 1,529 lines. The sub-config is already a `#[serde(flatten)]` member of `Config`, so the YAML key stays top-level and the access path is `config.<member>.<field>`.
+1. Add the field to the **sub-config for its area** — `par-term-config/src/config/config_struct/<area>_config.rs` (`TabConfig`, `PaneConfig`, `ShellConfig`, `TmuxConfig`, `BadgeConfig`, … ~40 of them) — with `#[serde(default = "default_my_option")]`. Do **not** add it to `Config` in `config_struct/mod.rs`; that root struct is deliberately drained and adding to it is what grew it to 1,529 lines. The sub-config is already a `#[serde(flatten)]` member of `Config`, so the YAML key stays top-level and the access path is `config.<member>.<field>`.
 2. Update that sub-config's `Default` impl with the **same expression** the `#[serde(default = "…")]` names. Never swap a hand-written `Default` for `#[derive(Default)]` to add a field — most of these fields do not default to their type's default, and deriving resets them while compiling cleanly. `par-term-config/tests/config_yaml_compat.rs` fails if the two disagree.
 3. Use config value in relevant component
 4. **REQUIRED**: Add UI controls in the appropriate `par-term-settings-ui/src/<name>_tab/` module (most tabs are directories, not single files — scripts settings, for example, live in `scripts_tab/editor.rs`, rendered from `automation_tab/mod.rs`)
    - Set `settings.has_changes = true` and `*changes_this_frame = true` on change
 5. **REQUIRED**: Add search keywords to that tab module's own `keywords()` function. `tab_search_keywords()` lives in `par-term-settings-ui/src/search_keywords.rs` and only dispatches to them; `sidebar.rs` just calls it.
-6. If the field is on a struct with exhaustive literal construction sites (`ScriptConfig` has seven, none using `..Default::default()`), every one is a compile error until updated — `#[serde(default)]` covers deserialization only.
+6. If the field is on a struct with exhaustive literal construction sites (`ScriptConfig` has one — `par-term-settings-ui/src/scripts_tab/editor.rs` — and it does not use `..Default::default()`), every one is a compile error until updated — `#[serde(default)]` covers deserialization only.
 
 ### Adding a New Keyboard Shortcut
 1. Add key handling in `src/app/input_events/` (directory — `mod.rs` + `keybinding_actions.rs`)
@@ -236,20 +236,20 @@ See `docs/features/CUSTOM_SHADERS.md` for full shader documentation including un
 
 ### Debugging PTY Issues
 - Enable logging: `RUST_LOG=debug cargo run`
-- Check `TerminalManager::read()` and `write()` for I/O errors
+- Check `TerminalManager::write()` for I/O errors; the PTY read loop lives in `par-term-emu-core-rust`'s reader thread
 
 ## Testing Considerations
 
 - Some tests require active PTY sessions and are marked `#[ignore]`
 - Tests use `tempfile` for temporary configuration files
-- Integration tests in `tests/` directory test config, terminal, and input modules
+- Integration tests in `tests/` cover scripting, shaders, tabs, profiles, config, copy mode, automation, terminal, and input, grouped into per-area subdirectories
 
 ## Critical Gotchas
 
 - `tab.terminal` and `pane.terminal` are `Arc<tokio::sync::RwLock<TerminalManager>>` — **not** a `Mutex`. From the sync event loop use `try_read()` / `try_write()`; for user-initiated operations that must not be dropped (start/stop coprocess) use `blocking_read()` / `blocking_write()`. Prefer a **read** lock: most mutating methods (`write`, `paste`, `encode_mouse_event`) take `&self` and serialize internally. `try_lock()` and `blocking_lock()` do not exist on `tokio::sync::RwLock` and will not compile. See `docs/architecture/MUTEX_PATTERNS.md`.
 - **Both logging systems reach the debug log** — `log::info!()` etc. are routed to `<temp_dir>/par_term_debug.log` by `LogCrateBridge` (`src/debug.rs`, installed from `src/main.rs`, default level `Info`). They are not stdout-only. Prefer `crate::debug_info!()` for high-frequency root-crate logging because it is gated on `DEBUG_LEVEL` (default off); in sub-crates `log::` is the *only* option, since `crate::debug_info!` resolves to the sub-crate's own root
 - The core library (`par-term-emu-core-rust`) has a `CoprocessManager` wired into the PTY reader thread; don't create separate managers in the frontend
-- **Single rendering path (pane)**: All *live* rendering goes through `render_split_panes_with_data()` → `CellRenderer::build_pane_instance_buffers()` in `pane_render/mod.rs` — including when a custom or cursor shader is active. Per-cell overlays (search highlights, URL detection) are applied to `pane_data[].cells` AFTER `gather_pane_render_data()` in `gpu_submit.rs`. The only code outside that path is the **offscreen screenshot** chain, `Renderer::take_screenshot()` → `render_cells_to_target()`. On its shader-active branches that calls `render_to_texture()`, the sole caller of `build_instance_buffers()` in `instance_buffers.rs`; on the no-shader branch it calls `render_to_view()`, which deliberately rebuilds nothing and reuses the existing buffers. So `take_screenshot` is the only way to reach `build_instance_buffers` at all, and that builder reads the focused pane's `self.cells` rather than `pane_data[]`, so it does not see per-pane overlays. Do not treat it as a second live path.
+- **Single rendering path (pane)**: All *live* rendering goes through `render_split_panes_with_data()` → `CellRenderer::build_pane_instance_buffers()` in `pane_render/mod.rs` — including when a custom or cursor shader is active. Per-cell overlays (search highlights, URL detection) are applied to `pane_data[].cells` AFTER `gather_pane_render_data()` in `gpu_submit.rs`. The **offscreen screenshot** chain — `Renderer::take_screenshot()` → `composite_panes_offscreen()` → the same `composite_panes()` in `par-term-render/src/renderer/rendering.rs` that `render_split_panes()` drives — is the only other consumer of that path: it renders to an offscreen texture instead of the surface, ignores the `dirty` flag, and the egui overlay is absent from captures. Do not treat it as a second live path.
 - **Render 3-phase ordering**: Cursor overlays MUST render in phase 3 (after text), otherwise beam/underline cursors are hidden under text glyphs. All three callers use `emit_three_phase_draw_calls()` in `render.rs` — the single source of truth for draw call sequencing.
 
 ## Docs Reference

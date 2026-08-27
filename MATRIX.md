@@ -2,7 +2,7 @@
 
 This document compares features between iTerm2 and par-term, including assessment of usefulness and implementation effort for features par-term doesn't yet have.
 
-> **As of:** the last end-to-end review of this comparison was the v0.17.0 release (2026-02-17); individual rows have been updated since as features shipped. At over 1,100 rows this table drifts between reviews — treat a row as a starting point and confirm current behavior against [docs/CONFIG_REFERENCE.md](docs/CONFIG_REFERENCE.md) and [CHANGELOG.md](CHANGELOG.md) before relying on it. Re-stamp this line whenever the matrix is reviewed in full.
+> **As of:** the last end-to-end review of this comparison was the v0.17.0 release (2026-02-17); individual rows have been updated since as features shipped. At over 400 feature rows this table drifts between reviews — treat a row as a starting point and confirm current behavior against [docs/CONFIG_REFERENCE.md](docs/CONFIG_REFERENCE.md) and [CHANGELOG.md](CHANGELOG.md) before relying on it. Re-stamp this line whenever the matrix is reviewed in full.
 
 **Legend:**
 - **Status**: ✅ = Implemented | 🔶 = Partial | ❌ = Not Implemented
@@ -151,7 +151,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Max tabs limit | ❌ | ✅ `max_tabs` | ✅ | - | - | par-term exclusive |
 | Duplicate tab | ✅ | ✅ Context menu + `Cmd/Ctrl+Shift+D` | ✅ | - | - | Copies working directory and tab color |
 | Drag-and-drop tab reorder | ✅ | ✅ Drag tabs to reorder | ✅ | - | - | Visual ghost tab + insertion indicator |
-| Tab style (visual theme) | ✅ Light/Dark/Minimal/Compact | ✅ `tab_style` | ✅ | - | - | 5 presets: Dark/Light/Compact/Minimal/High Contrast |
+| Tab style (visual theme) | ✅ Light/Dark/Minimal/Compact | ✅ `tab_style` | ✅ | - | - | 6 presets: Automatic/Dark/Light/Compact/Minimal/High Contrast |
 | HTML tab titles | ✅ `HTML Tab Titles` | ✅ `tab_html_titles` | ✅ | ⭐ | 🟡 | Limited tags: <b>, <i>, <u>, <span style=\"color\"> |
 
 ---
@@ -191,7 +191,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Smart selection rules | ✅ Custom regex patterns | ✅ `smart_selection_rules` | ✅ | - | - | 11 default patterns with precision levels, Settings UI with enable/disable per rule |
 | Word boundary characters | ✅ `Characters Considered Part of Word` | ✅ `word_characters` | ✅ | - | - | Default: `/-+\~_.` (iTerm2 compatible), Settings UI |
 | Paste bracketing | ✅ `Allow Paste Bracketing` | ✅ | ✅ | - | - | - |
-| Paste special options | ✅ Many transformations | ✅ `Cmd/Ctrl+Shift+V` | ✅ | - | - | 26 transforms: shell escape, case, whitespace, encoding |
+| Paste special options | ✅ Many transformations | ✅ `Cmd/Ctrl+Shift+V` | ✅ | - | - | 29 transforms: shell escape, case, newline, whitespace, encoding |
 | Allow terminal clipboard access | ✅ `Allow Clipboard Access From Terminal` | ✅ OSC 52 | ✅ | - | - | Core v0.39.2 hardens empty OSC 52 clipboard writes (no-op instead of clearing clipboard state) |
 | Wrap filenames in quotes | ✅ | ✅ `dropped_file_quote_style` | ✅ | - | - | Auto-quote dropped files with configurable style |
 
@@ -291,7 +291,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Profile selection | ✅ GUI + keyboard | ✅ Drawer + Settings UI + tab bar split button | ✅ | - | - | Collapsible drawer, inline management in Settings Profiles tab, split `+`/`▾` button on tab bar |
 | Profile creation/editing | ✅ | ✅ Settings UI | ✅ | - | - | Full CRUD operations inline in Settings window Profiles tab |
 | Profile reordering | ✅ | ✅ Move up/down | ✅ | - | - | Drag-free reorder buttons |
-| Profile icon | ✅ Custom icons | ✅ Emoji icons + picker | ✅ | - | - | Emoji picker with ~70 curated icons in 9 categories; icon shown in tab bar |
+| Profile icon | ✅ Custom icons | ✅ Nerd Font icon picker | ✅ | - | - | ~200 curated Nerd Font glyphs in 14 categories; icon shown in tab bar |
 | Working directory | ✅ | ✅ Per-profile | ✅ | - | - | With directory browser |
 | Shell selection per profile | ✅ | ✅ `shell` + detection | ✅ | - | - | Platform-aware shell dropdown; priority: command > shell > global; per-profile `login_shell` override |
 | Custom command | ✅ | ✅ Per-profile | ✅ | - | - | Command + arguments |
@@ -350,7 +350,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
 |---------|--------|----------|--------|--------|--------|-------|
 | Regex triggers | ✅ Full trigger system | ✅ `TriggerConfig` | ✅ | - | - | Core `TriggerRegistry` + Settings UI for CRUD with regex validation |
-| Trigger actions | ✅ Many actions | ✅ 7 action types | ✅ | - | - | Highlight, Notify, MarkLine, SetVariable, RunCommand, PlaySound, SendText |
+| Trigger actions | ✅ Many actions | ✅ 8 action types | ✅ | - | - | Highlight, Notify, MarkLine, SetVariable, RunCommand, PlaySound, SendText, SplitPane |
 | Trigger highlight rendering | ✅ | ✅ Cell overlay | ✅ | - | - | Overlays fg/bg colors on matched cells with automatic expiry |
 | Trigger marks on scrollbar | ✅ | ✅ MarkLine marks | ✅ | - | - | Color-coded trigger marks with labels in scrollbar tooltips |
 | SetVariable → badge sync | ✅ | ✅ Custom variables | ✅ | - | - | Trigger-captured variables (e.g., git branch) displayed in badge overlay |
@@ -539,47 +539,47 @@ iTerm2 has a system for saved text snippets and custom actions.
 | Snippet shortcuts | ✅ | ✅ | ✅ | ⭐⭐ | 🟡 | Keyboard shortcuts for snippets |
 | Snippet variables | ✅ | ✅ | ✅ | ⭐ | 🟡 | Dynamic values in snippets (10 built-in variables) |
 | Snippet library | ✅ | ✅ | ✅ | ⭐⭐ | 🟡 | Organize snippets into folders, import/export YAML libraries |
-| Custom actions | ✅ | ✅ | ✅ | ⭐ | 🟡 | Shell commands, new-tab launchers, text insertion, split panes, and key sequence simulation |
+| Custom actions | ✅ | ✅ | ✅ | ⭐ | 🟡 | Shell commands, new-tab launchers, text insertion, split panes, key sequence simulation, and workflow actions (sequence/condition/repeat) |
 | Action key bindings | ✅ | ✅ | ✅ | ⭐ | 🟡 | Assign keys to actions via UI or config (auto-generated on load) |
 
 ### Implementation Details (v0.11.0+)
 
-**Data Structures** (`src/config/snippets.rs`):
+**Data Structures** (`par-term-config/src/snippets.rs`):
 - `SnippetConfig`: id, title, content, keybinding, folder, enabled, description, variables (HashMap)
-- `CustomActionConfig`: Tagged enum with ShellCommand, NewTab, InsertText, KeySequence, and SplitPane variants
+- `CustomActionConfig`: Tagged enum with ShellCommand, NewTab, InsertText, KeySequence, SplitPane, Sequence, Condition, and Repeat variants
 - `BuiltInVariable`: Enum for 10 built-in variables with runtime resolution
 
 **Variable Substitution** (`src/snippets/mod.rs`):
 - `VariableSubstitutor`: Regex engine matching `\(variable)` syntax
-- Built-in variable resolution (date, time, hostname, user, path, git_branch, git_commit, uuid, random)
+- Built-in variable resolution (date, time, datetime, hostname, user, path, git_branch, git_commit, uuid, random)
 - Custom variable support via HashMap
-- 15 unit tests, all passing
+- 10 unit tests
 
 **Settings UI**:
-- **Snippets tab** (`src/settings_ui/snippets_tab.rs`): CRUD operations, folder grouping, variables reference
-- **Actions tab** (`src/settings_ui/actions_tab.rs`): Type selector, form fields, CRUD operations
-- Both added to sidebar navigation with icons (📝 Snippets, 🚀 Actions)
+- **Snippets tab** (`par-term-settings-ui/src/snippets_tab/`): CRUD operations, folder grouping, variables reference
+- **Actions tab** (`par-term-settings-ui/src/actions_tab/`): Type selector, form fields, CRUD operations
+- Combined "Snippets & Actions" tab in the sidebar navigation (📝)
 - Right-anchored Edit/Delete buttons with auto-truncating content preview (prevents overflow)
 - Platform-specific keybinding display (shows `Cmd` on macOS, `Ctrl` on Linux/Windows instead of `CmdOrCtrl`)
 
-**Execution Engine** (`src/app/input_events.rs`):
+**Execution Engine** (`src/app/input_events/snippet_actions/`):
 - `execute_snippet()`: Variable substitution + terminal write
 - `execute_custom_action()`: Shell command execution, text insertion
 - Keybinding integration via "snippet:<id>" and "action:<id>" prefixes
 - Toast notifications for errors and success feedback
 
-**Configuration** (`src/config/mod.rs`):
+**Configuration** (`par-term-config/src/config/keybindings_methods.rs`):
 - `generate_snippet_action_keybindings()`: Auto-generate keybindings during config load
 - Added to Config: `snippets: Vec<SnippetConfig>`, `actions: Vec<CustomActionConfig>`
 - YAML persistence via serde
 
-**Testing** (`tests/snippets_actions_tests.rs`):
-- 50 integration tests covering all major functionality
+**Testing** (`tests/snippets_tests.rs`, `tests/actions_tests.rs`):
+- 52 integration tests covering all major functionality (33 snippets + 19 actions)
 - Config persistence, serialization, keybinding generation
 - Key sequence parsing, snippet library import/export, custom variables
-- All 67+ tests passing (50 integration + 17 parser unit)
+- 10 further unit tests in `src/snippets/mod.rs`
 
-**Documentation** (`docs/SNIPPETS.md`):
+**Documentation** (`docs/features/SNIPPETS.md`):
 - Comprehensive user guide with examples
 - Variable reference table
 - Action configuration guide
@@ -873,7 +873,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Badge font | ✅ `Badge Font` | ✅ `badge_font`, `badge_font_bold` | ✅ | - | - | Custom font family and bold toggle |
 | Badge position margins | ✅ Top/Right margins | ✅ `badge_top_margin`, `badge_right_margin` | ✅ | - | - | Default 10px each |
 | Badge max size | ✅ Width/Height fractions | ✅ `badge_max_width`, `badge_max_height` | ✅ | - | - | Default 50% width, 20% height |
-| Dynamic badge variables | ✅ `\(session.*)` syntax | ✅ 12 built-in + custom | ✅ | - | - | hostname, username, path, job, etc. |
+| Dynamic badge variables | ✅ `\(session.*)` syntax | ✅ 14 built-in + custom | ✅ | - | - | hostname, username, path, job, etc. |
 | Badge escape sequence | ✅ OSC 1337 SetBadgeFormat | ✅ Base64 decoding | ✅ | - | - | Update badge from shell with security checks |
 | Badge per-profile | ✅ Profile setting | ✅ Full badge config | ✅ | - | - | Per-profile badge text, color, alpha, font, bold, margins, and size |
 | Badge configuration UI | ✅ Visual drag-and-drop | ✅ Settings tab | ✅ | - | - | Full settings with sliders and color picker |
@@ -893,6 +893,8 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | `session.bell_count` | Number of bells | ✅ |
 | `session.selection` | Selected text | ✅ |
 | `session.tmux_pane_title` | tmux pane title | ✅ |
+| `session.exit_code` | Last command exit code | ✅ |
+| `session.current_command` | Currently running command | ✅ |
 | Custom variables | Via escape sequences | ✅ |
 
 ---
@@ -903,56 +905,55 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 
 | Category | Implemented | Partial | Not Implemented |
 |----------|-------------|---------|-----------------|
-| Window & Display | 14 | 0 | 2 |
+| Window & Display | 18 | 0 | 1 |
 | Typography & Fonts | 16 | 1 | 0 |
-| Cursor | 12 | 0 | 0 |
-| Background & Effects | 12 | 0 | 0 |
-| Colors & Themes | 16 | 0 | 1 |
-| Tab Bar | 18 | 0 | 2 |
+| Cursor | 14 | 0 | 0 |
+| Background & Effects | 11 | 0 | 0 |
+| Colors & Themes | 21 | 0 | 0 |
+| Tab Bar | 21 | 0 | 0 |
 | Scrollback & Scrollbar | 11 | 2 | 0 |
-| Selection & Clipboard | 12 | 0 | 0 |
+| Selection & Clipboard | 14 | 0 | 0 |
 | Mouse & Pointer | 9 | 0 | 1 |
-| Keyboard & Input | 9 | 0 | 2 |
-| Shell & Session | 14 | 0 | 1 |
-| Notifications & Bell | 12 | 0 | 0 |
+| Keyboard & Input | 6 | 0 | 3 |
+| Shell & Session | 16 | 0 | 0 |
+| Notifications & Bell | 10 | 0 | 0 |
 | Logging & Recording | 6 | 0 | 0 |
-| Profiles | 12 | 0 | 0 |
-| Split Panes | 9 | 1 | 0 |
+| Profiles | 15 | 0 | 0 |
+| Split Panes | 9 | 0 | 0 |
 | Inline Graphics | 5 | 0 | 0 |
 | Hyperlinks & URLs | 5 | 0 | 0 |
-| Triggers & Automation | 8 | 1 | 0 |
-| tmux Integration | 17 | 0 | 0 |
-| Performance & Power | 9 | 0 | 1 |
-| Accessibility | 2 | 0 | 1 |
-| AI Integration | 5 | 0 | 0 |
-| Status Bar | 10 | 0 | 0 |
+| Triggers & Automation | 9 | 0 | 0 |
+| tmux Integration | 16 | 0 | 0 |
+| Performance & Power | 8 | 0 | 1 |
+| Accessibility | 2 | 0 | 2 |
+| AI Integration | 6 | 0 | 0 |
+| Status Bar | 11 | 0 | 0 |
 | Toolbelt | 0 | 0 | 8 |
-| Composer & Auto-Complete | 2 | 0 | 3 |
+| Composer & Auto-Complete | 2 | 0 | 4 |
 | Copy Mode | 8 | 0 | 0 |
 | Snippets & Actions | 6 | 0 | 0 |
 | Window Arrangements & Placement | 2 | 0 | 8 |
-| Session Management & Quit Behavior | 5 | 0 | 1 |
+| Session Management & Quit Behavior | 7 | 0 | 0 |
 | Tab Styles & Appearance | 8 | 0 | 0 |
 | Pane & Split Customization | 9 | 0 | 0 |
 | Profile Switching & Dynamic Profiles | 8 | 0 | 0 |
-| Image Protocol Enhancements | 9 | 0 | 0 |
+| Image Protocol Enhancements | 11 | 0 | 0 |
 | Audio & Haptic Feedback | 3 | 0 | 2 |
-| Advanced GPU & Rendering Settings | 3 | 0 | 2 |
-| Advanced Configuration | 0 | 0 | 8 |
-| Unicode & Text Processing | 3 | 0 | 2 |
-| Browser Integration | 1 | 0 | 0 |
+| Advanced GPU & Rendering Settings | 5 | 0 | 1 |
+| Advanced Configuration | 8 | 0 | 0 |
+| Unicode & Text Processing | 5 | 0 | 1 |
+| Browser Integration | 1 | 0 | 3 |
 | Progress Bars | 5 | 0 | 0 |
-| Advanced Paste & Input | 6 | 0 | 0 |
-| Advanced Shell Integration | 7 | 1 | 1 |
+| Advanced Paste & Input | 7 | 0 | 0 |
+| Advanced Shell Integration | 9 | 1 | 0 |
 | Network & Discovery | 4 | 0 | 0 |
-| Miscellaneous | 12 | 0 | 5 |
+| Miscellaneous | 18 | 0 | 2 |
 | Badges | 9 | 0 | 0 |
-| Scripting & Automation | 0 | 0 | 4 |
-| **TOTAL** | **~316** | **~5** | **~96** |
+| **TOTAL** | **394** | **4** | **37** |
 
-**Overall Parity: ~76% of iTerm2 features implemented** (316 implemented out of ~417 total tracked features)
+**Overall Parity: ~91% of iTerm2 features implemented** (394 implemented out of 435 total tracked feature rows)
 
-**Note: This includes many low-priority features. Core terminal functionality parity is much higher (80%+).**
+**Note: This includes many low-priority features. "Not Implemented" counts include 8 rows that are explicitly won't-implement (🚫).**
 
 ### par-term Exclusive Features (Not in iTerm2)
 - 61 custom GLSL background shaders with hot reload
@@ -979,14 +980,14 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 - 17 built-in color themes
 - 13+ tab bar color customization options
 - Selection foreground color (separate from background)
-- Configurable update check frequency (never/daily/weekly/monthly)
-- Paste special with 26 transformations (shell escape, case, whitespace, encoding)
+- Configurable update check frequency (never/hourly/daily/weekly/monthly)
+- Paste special with 29 transformations (shell escape, case, newline, whitespace, encoding)
 - Edge-anchored window types (dropdown-style terminals)
 - Target monitor selection for multi-monitor setups
 - Native split panes with binary tree layout
 - tmux control mode integration with session picker
 - Broadcast input mode (type to all panes)
-- Badge system with 12 dynamic variables and Settings UI tab
+- Badge system with 14 dynamic variables and Settings UI tab
 - ACP agent integration with configurable auto-context feeding and yolo mode
 - AI shader assistant with context-triggered prompt injection and config file watcher
 - Per-side modifier remapping (left/right Ctrl, Alt, Super independently)
@@ -1009,7 +1010,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 |---------|------------|--------|-------|
 | Hotkey window (Quake-style) | ⭐⭐⭐ | 🔴 High | Dropdown terminal with global hotkey (needs platform hooks) |
 | ~~Copy Mode (vi-style navigation)~~ | ⭐⭐⭐ | 🟡 Medium | ✅ Complete (§26 - vi-style copy mode) |
-| ~~Status Bar~~ | ⭐⭐⭐ | 🔴 High | ✅ Complete (§23 - configurable status bar with 10 built-in widgets) |
+| ~~Status Bar~~ | ~~⭐⭐⭐~~ | ~~🔴 High~~ | ✅ Complete (§23 - configurable status bar with 11 built-in widgets) |
 | ~~Snippets system~~ | ⭐⭐⭐ | 🟡 Medium | ✅ Complete (§27 - snippets & actions) |
 | ~~Directory-based profile switching~~ | ⭐⭐⭐ | 🟡 Medium | ✅ Complete (§32 - `directory_patterns` on profiles) |
 | ~~Session undo timeout~~ | ⭐⭐ | 🟡 Medium | ✅ Complete (reopen closed tabs with Cmd+Z / Ctrl+Shift+Z) |
@@ -1051,16 +1052,6 @@ The following iTerm2 features were identified and added to the matrix in this up
 - ~~Python API for terminal automation~~ — ✅ Core `TerminalObserver` trait + C FFI + Python bindings (core v0.37+) + frontend `ScriptManager` with JSON protocol, Settings UI Scripts tab
 - ~~Scripting manager window and auto-launch~~ — ✅ Settings > Scripts tab with CRUD, start/stop, output viewer, auto-start support
 - ~~Custom UI panels for scripts~~ — ✅ Markdown-rendered panels via `SetPanel` command
-
-**Status Bar (10 features)** ✅ Complete
-- Status bar visibility, position, auto-hide
-- Configurable components (time, battery, network, git branch, etc.)
-- Custom colors and fonts
-
-**Toolbelt (8 features)**
-- Sidebar with notes, paste history, jobs, actions
-- Profile switcher and directory history
-- Command history search/autocomplete
 
 **Composer & Auto-Complete (3 remaining features)**
 - AI-style command completion UI
@@ -1132,6 +1123,6 @@ The following features are blocked by or significantly dependent on architectura
 
 ---
 
-*Updated: 2026-02-17 (v0.17.0 release — Assistant panel, ACP agents, workspace crate extraction, file transfers, scripting, per-pane backgrounds, dynamic profiles, auto dark mode)*
+*Updated: 2026-08-26 (row-level verification against v0.43.0)*
 *iTerm2 Version: Latest (from source)*
-*par-term Version: 0.17.0*
+*par-term Version: 0.43.0*

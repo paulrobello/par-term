@@ -174,7 +174,7 @@ par-term install-shell-integration
 
 1. Press `F12` to open Settings
 2. Navigate to the **Integrations** tab
-3. Click **Install Shell Integration**
+3. Click **Install** in the Shell Integration section
 
 After installation, restart your shell or source your RC file (for example, `source ~/.zshrc`) for the integration to take effect.
 
@@ -204,7 +204,7 @@ Once installed, enable a background shader in Settings under **Effects**, or tog
 
 ### Opening Settings
 
-Press `F12` (or `Cmd + ,` on macOS) to open the Settings window. Settings are organized into tabs with a searchable sidebar. Changes apply in real time -- there is no "Apply" button.
+Press `F12` (or `Cmd + ,` on macOS) to open the Settings window. Settings are organized into tabs with a searchable sidebar. Click **Save** to apply and persist changes -- an `* Unsaved changes` marker tracks pending edits. Font changes use the **Apply font changes** button in the Fonts section.
 
 ### Profiles
 

@@ -48,7 +48,7 @@ graph TD
 | Format | Extension | Description | Best For |
 |--------|-----------|-------------|----------|
 | **Plain Text** | `.txt` | Raw text, no formatting | Simple logs, grep-able output |
-| **HTML** | `.html` | Styled with colors | Browser viewing, sharing |
+| **HTML** | `.html` | Styled HTML page | Browser viewing, sharing |
 | **Asciicast** | `.cast` | asciinema-compatible | Playback, sharing online |
 
 ### Plain Text
@@ -58,7 +58,7 @@ graph TD
 - No color or styling information
 
 ### HTML
-- Preserves colors and styling
+- HTML-escaped text in a styled page (ANSI colors are not converted)
 - Viewable directly in browsers
 - Dark background with monospace font
 - Includes CSS styling
@@ -66,7 +66,7 @@ graph TD
 ### Asciicast (Default)
 - asciinema v2 format
 - Supports timing-accurate playback
-- Records terminal output events (input appears only as redaction markers when password prompts are detected)
+- Records terminal output events only; keyboard input is never captured
 - Can be shared on asciinema.org
 
 ## Starting a Recording
@@ -129,19 +129,19 @@ The Advanced tab in Settings provides:
 | Option | Description |
 |--------|-------------|
 | **Enable automatic session logging** | Auto-start logging for new tabs |
-| **Log format** | Dropdown: Plain Text, HTML, Asciicast |
+| **Log format** | Dropdown: Plain Text, HTML, Asciicast (asciinema) |
 | **Log directory** | Path to log storage directory |
 | **Archive session on tab close** | Ensure clean file write on close |
 | **Redact passwords in session logs** | Detect password prompts and replace input with redaction marker |
 
 ## Security: Sensitive Data Redaction
 
-Session logs capture raw terminal I/O, which may include passwords and other credentials. When `session_log_redact_passwords` is enabled (default), the logger applies two layers of heuristic protection:
+Session logs capture raw terminal output, which may include passwords and other credentials. Keyboard input is never recorded. When `session_log_redact_passwords` is enabled (default), the logger applies two layers of heuristic protection:
 
 ### Input Redaction (Password Prompts)
 
 - Monitors terminal output for common password prompt patterns
-- Replaces subsequent keyboard input with `[INPUT REDACTED - echo off]` until Enter is pressed
+- Replaces any input the logger receives during a detected prompt with `[INPUT REDACTED - echo off]` until Enter is pressed
 - Detects prompts like: `password:`, `[sudo]`, `passphrase:`, `enter pin:`, `api key:`, `token:`, etc.
 - Also supports MFA/2FA prompts, SSH/GPG passphrases, database credentials, and cloud/vault tokens
 
@@ -161,7 +161,7 @@ Detected output patterns include:
 - CI/CD and service tokens: `GITHUB_TOKEN=`, `HEROKU_API_KEY=`, `npm_token=`, `pypi_token=`, `gitlab_token=`, `circleci_token=`
 - Bearer token headers: `Bearer <token>`
 
-> **Note:** Log files include a header warning documenting known redaction limitations — not all credential formats can be detected.
+> **Note:** Plain-text logs begin with a header warning documenting known redaction limitations — not all credential formats can be detected.
 
 ### Limitations
 
@@ -247,7 +247,6 @@ The `.cast` files follow the asciinema v2 specification:
 **Event Lines:**
 ```json
 [0.0, "o", "$ "]
-[0.5, "i", "ls"]
 [0.7, "o", "\r\n"]
 [1.0, "o", "file1.txt  file2.txt\r\n"]
 ```
@@ -257,6 +256,8 @@ The `.cast` files follow the asciinema v2 specification:
 - `i` - Input (user -> terminal)
 - `r` - Resize (terminal dimensions changed)
 - `m` - Marker (annotation)
+
+par-term writes only `o` (output) events; the other event types are part of the asciinema v2 specification and are not currently produced.
 
 ## Related Documentation
 

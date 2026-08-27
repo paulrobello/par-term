@@ -11,6 +11,7 @@ For a list of all included shaders, see [SHADERS.md](SHADERS.md).
 - [Installing Shaders](#installing-shaders)
 - [Configuration](#configuration)
   - [Background Shader Settings](#background-shader-settings)
+  - [Shader Linting and Readability Scoring](#shader-linting-and-readability-scoring)
   - [Cursor Shader Settings](#cursor-shader-settings)
   - [Channel Textures](#channel-textures)
   - [Built-in Noise Textures](#built-in-noise-textures)
@@ -212,7 +213,7 @@ custom_shader_readability_brightness: 0.35
 
 ### Shader Linting and Readability Scoring
 
-Use `shader-lint` to validate a custom shader file before installing or sharing it. The same lint/readability report is also available from Settings > Effects > Custom Shaders by selecting a background shader and clicking **Run Lint**; use **Clear Lint** to clear the current result or error.
+Use `shader-lint` to validate a custom shader file before installing or sharing it. The same lint/readability report is also available from the **Effects** tab of the Settings UI by selecting a background shader and clicking **Run Lint**; use **Clear Lint** to clear the current result or error.
 
 ```bash
 par-term shader-lint ~/.config/par-term/shaders/my-shader.glsl

@@ -20,12 +20,14 @@ For the low-level mutex API details and anti-patterns, see
 
 ## Overview
 
-par-term runs two concurrent execution environments that share state:
+par-term runs two primary execution environments plus std background threads, all
+sharing state:
 
 | Environment | Driver | Mutex type |
 |---|---|---|
-| **Main thread** — OS event loop, rendering, UI | winit `EventLoop` | `parking_lot::Mutex` |
-| **Tokio runtime** — PTY I/O, timers, clipboard sync | `Arc<tokio::runtime::Runtime>` | `tokio::sync::Mutex` |
+| **Main thread** — OS event loop, rendering, UI, OSC 52 clipboard sync | winit `EventLoop` | `parking_lot::Mutex` |
+| **Tokio runtime** — PTY writes, timers, ACP agent tasks | `Arc<tokio::runtime::Runtime>` | `tokio::sync::Mutex` |
+| **std threads** — PTY reader (core `PtySession`), system/git/disk monitors, shader watcher, audio | `std::thread::spawn` | `parking_lot::Mutex` |
 
 The rule is simple: use `tokio::sync::Mutex` when a value is shared with any async task;
 use `parking_lot::Mutex` when all callers are sync threads.
@@ -42,16 +44,17 @@ graph TD
     end
 
     subgraph "Tokio Runtime Pool"
-        PTYReader[PTY Reader Task]
-        InputSender[Input Sender Task]
-        ResizeHandler[Resize Handler Task]
-        Timers[Cursor Blink / Bell Timers]
+        InputSender[Input Sender Tasks]
+        RefreshTasks[Tab / Pane Refresh Tasks]
+        Timers[Paste delay / profile refresh timers]
         AgentTask[ACP Agent Task]
     end
 
     subgraph "Std Background Threads"
+        PTYReader["PTY Reader Thread (core PtySession)"]
         SystemMonitor[System Monitor]
         GitCheck[Git Status Check]
+        DiskMonitor[Disk Monitor]
         ShaderWatcher[Shader File Watcher]
         AudioBell[Audio Bell Player]
     end
@@ -59,8 +62,9 @@ graph TD
     EventLoop --> Render
     EventLoop --> Input
     EventLoop --> EguiUI
-    PTYReader -- "tokio::sync::RwLock" --> TerminalManager
     InputSender -- "tokio::sync::RwLock" --> TerminalManager
+    RefreshTasks -- "tokio::sync::RwLock" --> TerminalManager
+    PTYReader -- "core-internal parking_lot locks" --> TerminalManager
     EventLoop -- "try_read() / try_write() / blocking_read() / blocking_write()" --> TerminalManager
     SystemMonitor -- "parking_lot::Mutex" --> SystemMonitorData
     EventLoop -- "parking_lot::Mutex" --> SystemMonitorData
@@ -72,9 +76,9 @@ graph TD
     classDef info fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
 
     class EventLoop primary
-    class PTYReader,InputSender,ResizeHandler,Timers active
+    class InputSender,RefreshTasks,Timers active
     class AgentTask external
-    class SystemMonitor,GitCheck,ShaderWatcher,AudioBell neutral
+    class PTYReader,SystemMonitor,GitCheck,DiskMonitor,ShaderWatcher,AudioBell neutral
     class Render,Input,EguiUI info
 ```
 
@@ -90,11 +94,11 @@ WindowManager                   ← owns all WindowState instances
        ├─ TabManager            ← owns all Tab instances (sync only)
        │    └─ Tab              ← per-tab state
        │         ├─ terminal: Arc<tokio::sync::RwLock<TerminalManager>>
-       │         │             ← shared with async PTY/input tasks; RwLock for concurrent reads. Most mutating methods (write, paste, mouse encoding) take &self — inner parking_lot::Mutex serializes PTY writes
+       │         │             ← shared with async input/refresh tasks and the sync event loop; RwLock for concurrent reads. Most mutating methods (write, paste, mouse encoding) take &self — inner parking_lot::Mutex serializes PTY writes
        │         └─ PaneManager ← sync only, owns all Pane instances
        │              └─ Pane
        │                   └─ terminal: Arc<tokio::sync::RwLock<TerminalManager>>
-       │                                ← shared with async PTY/input tasks
+       │                                ← shared with async input/refresh tasks and the sync event loop
        └─ AgentState
             └─ agent: Option<Arc<tokio::sync::Mutex<Agent>>>
                       ← shared with async ACP prompt tasks
@@ -106,8 +110,10 @@ WindowManager                   ← owns all WindowState instances
    from the main thread's sync event loop. They carry no mutex.
 
 2. `Tab.terminal` and `Pane.terminal` are `Arc<tokio::sync::RwLock<TerminalManager>>`
-   because the PTY reader task and input sender task share the same `TerminalManager`.
-   `RwLock` allows concurrent reads from multiple async tasks.
+   because par-term's async tasks (input senders, refresh pollers) and the sync event
+   loop share the same `TerminalManager`. `RwLock` allows concurrent reads from
+   multiple async tasks. The PTY reader is a std thread inside the core `PtySession`;
+   it updates terminal state through the core-internal locks, not this `RwLock`.
 
 3. `AgentState.agent` is `tokio::sync::Mutex<Agent>` because ACP prompt processing runs
    in a spawned async task.
@@ -128,7 +134,7 @@ WindowManager                   ← owns all WindowState instances
 
 | Location | Type | Reason |
 |---|---|---|
-| `Tab.terminal` | `Arc<tokio::sync::RwLock<TerminalManager>>` | PTY reader + input sender tasks; RwLock allows concurrent reads. Most mutating methods (`write`, `paste`, `encode_mouse_event`) take `&self` — inner `parking_lot::Mutex` serializes PTY writes, so use read locks even for these |
+| `Tab.terminal` | `Arc<tokio::sync::RwLock<TerminalManager>>` | Input sender + refresh polling tasks share it with the sync event loop; RwLock allows concurrent reads. Most mutating methods (`write`, `paste`, `encode_mouse_event`) take `&self` — inner `parking_lot::Mutex` serializes PTY writes, so use read locks even for these |
 | `Pane.terminal` | `Arc<tokio::sync::RwLock<TerminalManager>>` | Same — each pane has its own PTY |
 | `AgentState.agent` | `Option<Arc<tokio::sync::Mutex<Agent>>>` | ACP prompt tasks |
 
@@ -138,6 +144,7 @@ WindowManager                   ← owns all WindowState instances
 |---|---|---|
 | `SharedSessionLogger` (type alias) | `Arc<parking_lot::Mutex<Option<SessionLogger>>>` | Sync event loop + std output callback thread |
 | `SystemMonitor.data` | `Arc<parking_lot::Mutex<SystemMonitorData>>` | Background std thread writes, render thread reads |
+| `DiskMonitor.data` | `Arc<parking_lot::Mutex<DiskMonitorData>>` | Disk-free std thread writes, render thread reads |
 | `GitBranchPoller.status` | `Arc<parking_lot::Mutex<GitStatus>>` | Git-check std thread + render thread |
 | `DebugLogger` (static) | `OnceLock<parking_lot::Mutex<DebugLogger>>` | Any-thread log writes |
 | `AudioBell.sink` | `Option<Arc<parking_lot::Mutex<Player>>>` | Rodio std thread |
@@ -189,8 +196,8 @@ encoding methods take `&self`. The inner `parking_lot::Mutex<PtySession>` serial
 writes. Using `try_write()` / `write().await` for these operations is an anti-pattern that
 causes lock contention (see v0.30.11 keyboard stall and click-drop fixes).
 
-5. **Document the mutex choice** with an inline comment explaining which tasks share
-   the value, following the pattern in `Tab` and `Pane`.
+5. **Document the mutex choice** with an inline comment explaining which tasks share the
+   value, following the pattern in `Tab` and `Pane`.
 
 ## try_read/try_write Telemetry
 

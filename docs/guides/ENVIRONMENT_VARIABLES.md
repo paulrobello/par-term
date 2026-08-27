@@ -68,10 +68,10 @@ Use `make tail-log` (which resolves the path for you) or `tail -f "${TMPDIR:-/tm
 | `KITTY_PID` | (par-term's PID) | Set by the terminal core alongside `KITTY_WINDOW_ID`. |
 | `__PAR_TERM` | `1` | Set by par-term as an identity marker. Shell integration scripts use this to detect they are running inside par-term. |
 | `PATH` | — | System executable search path. Read at startup to locate the shell and other programs. par-term augments `PATH` with common tool directories (e.g., `/opt/homebrew/bin`, `~/.cargo/bin`) when launching child processes. |
-| `PATHEXT` | `.EXE;.BAT;.CMD;.COM` | **Windows only.** Read when resolving a bare command name on `PATH` — used to find ACP agent binaries and script interpreters that are installed as `.cmd`, `.bat`, or `.exe`. Falls back to the listed default if unset. |
+| `PATHEXT` | `.EXE;.BAT;.CMD;.COM` | **Windows only.** Read when resolving a bare command name on `PATH` — used to find ACP agent binaries and script interpreters that are installed as `.cmd`, `.bat`, or `.exe`. Falls back to a built-in default list if unset (`.EXE;.BAT;.CMD;.COM` for ACP agent lookup, `.EXE;.BAT;.CMD` for script lookup). |
 | `LANG` | `en_US.UTF-8` | Locale setting inherited from the parent environment and forwarded to the child shell. If no locale variables (`LANG`, `LC_ALL`, `LC_CTYPE`) are set in the parent environment (e.g., when launched from Finder/Dock), defaults to `en_US.UTF-8`. |
 
-> **Note:** `TERM` and `COLORTERM` are the only two variables in this table whose value from the parent environment is discarded rather than inherited. To change either one for child processes, set it under `shell_env` in `config.yaml` — user-configured `shell_env` entries are applied last and win over every default above.
+> **Note:** Every variable from `TERM` through `__PAR_TERM` in this table — including `KITTY_WINDOW_ID` and `KITTY_PID`, set by the terminal core — is written unconditionally into child processes, discarding any value inherited from the parent environment. `SHELL`, `PATH`, `PATHEXT` and the locale variables are inherited (`PATH` is augmented; `LANG` defaults to `en_US.UTF-8` when no locale variable is set). The terminal core also drops `COLUMNS`, `LINES`, `TMUX`, `TMUX_PANE`, `STY` and `WINDOW` from the child environment, because the child runs in a fresh PTY. To override a force-set variable, set it under `shell_env` in `config.yaml` — user-configured `shell_env` entries are applied after every built-in default and win, except `PATH`, which par-term recomputes from its own environment after the merge.
 
 ---
 
@@ -135,7 +135,7 @@ On Windows, `%APPDATA%\par-term` is used and the XDG variables are ignored entir
 
 ## MCP IPC (Internal)
 
-These variables are set by par-term itself when launching the MCP server subprocess. They configure the file-based IPC handshake between the MCP server and the GUI application. You do not normally need to set these manually.
+par-term supplies `PAR_TERM_CONFIG_UPDATE_PATH`, `PAR_TERM_SCREENSHOT_REQUEST_PATH` and `PAR_TERM_SCREENSHOT_RESPONSE_PATH` in the MCP server configuration it hands to agent hosts; the agent host launches the `par-term mcp-server` subprocess with them. The shader diagnostics variables are not set by par-term and use their defaults. These variables configure the file-based IPC handshake between the MCP server and the GUI application. You do not normally need to set these manually.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -188,7 +188,7 @@ By default, only the following variable categories are substituted. References t
 - Any variable prefixed with `PAR_TERM_`
 - Any variable prefixed with `LC_` (locale variables)
 
-> **Note:** `TERM_PROGRAM_VERSION`, `ITERM_SESSION_ID`, `__PAR_TERM`, `TTY`, `GIT_BRANCH`, and `GIT_COMMIT` are read by par-term at runtime but are **not** on the config-substitution allowlist. (`LC_TERMINAL` and `LC_TERMINAL_VERSION` are substituted via the `LC_` prefix rule above.)
+> **Note:** `TERM_PROGRAM_VERSION`, `ITERM_SESSION_ID`, `__PAR_TERM`, `KITTY_WINDOW_ID`, `KITTY_PID`, `TTY`, `GIT_BRANCH`, and `GIT_COMMIT` are set or read by par-term at runtime but are **not** on the config-substitution allowlist. (`LC_TERMINAL` and `LC_TERMINAL_VERSION` are substituted via the `LC_` prefix rule above.)
 
 To allow substitution of all environment variables (including secrets — use with caution):
 

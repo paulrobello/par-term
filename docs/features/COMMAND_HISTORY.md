@@ -63,7 +63,7 @@ The search uses the Skim fuzzy matching algorithm for ranked results:
 - Type any substring or abbreviation to filter commands
 - Results are ranked by match quality (best matches appear first)
 - Matching characters are highlighted in yellow with a yellow underline
-- The search is case-insensitive
+- Matching is smart-case: all-lowercase queries match case-insensitively, while queries containing uppercase require exact-case matches
 
 **Examples:**
 
@@ -90,7 +90,7 @@ The overlay also exposes **Insert Selected** and **Close** buttons beneath the r
 Each history entry displays:
 
 - **Command text** with fuzzy match highlighting
-- **Exit code indicator**: green circle for success (exit 0), red circle for failure (non-zero), gray question mark for unknown
+- **Exit code indicator**: green check-circle icon for success (exit 0), red times-circle icon for failure (non-zero), gray question mark for unknown
 - **Relative timestamp**: how long ago the command was executed (e.g., "2m ago", "1h ago", "3d ago")
 
 Hover over an entry to see a tooltip with full details including command duration (when available).

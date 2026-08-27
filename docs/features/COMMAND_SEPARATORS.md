@@ -131,8 +131,8 @@ When exit-code coloring is disabled, all separators use the configured custom co
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `command_separator_enabled` | boolean | `false` | Enable separator lines between commands |
-| `command_separator_thickness` | float | `1.0` | Line thickness in pixels (range: 0.5 - 5.0) |
-| `command_separator_opacity` | float | `0.4` | Line opacity (range: 0.0 - 1.0) |
+| `command_separator_thickness` | float | `1.0` | Line thickness in pixels (Settings UI slider range: 0.5 - 5.0; not clamped in config) |
+| `command_separator_opacity` | float | `0.4` | Line opacity (Settings UI slider range: 0.0 - 1.0; not clamped in config) |
 | `command_separator_exit_color` | boolean | `true` | Color lines by exit code (green/red/gray) |
 | `command_separator_color` | [R, G, B] | `[128, 128, 128]` | Custom color when exit-code coloring is disabled |
 

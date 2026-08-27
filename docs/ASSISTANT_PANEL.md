@@ -265,7 +265,7 @@ Use this when you want to tighten permissions mid-session without fully closing 
 
 ### Auto-Context Feeding
 
-When `ai_inspector_auto_context` is enabled, par-term automatically sends command completion results to the connected agent. Each time a command finishes in the terminal, the agent receives a notification containing the command text, exit code, and recent terminal output. This allows the agent to stay aware of what is happening in the terminal without requiring you to copy-paste results manually.
+When `ai_inspector_auto_context` is enabled, par-term automatically sends command completion metadata to the connected agent. Each time a command finishes in the terminal, the agent receives a notification containing the command text, exit code, duration, and working directory, with sensitive argument values redacted. This allows the agent to stay aware of what is happening in the terminal without requiring you to copy-paste results manually.
 
 ### YOLO Mode
 
@@ -652,7 +652,7 @@ The following configuration options are supported in `config.yaml`:
 | `ai_inspector_show_zones` | bool | `true` | Show zone boundaries in the capture view |
 | `ai_inspector_agent` | string | `"claude.com"` | Default agent identity for auto-launch and Connect button |
 | `ai_inspector_auto_launch` | bool | `false` | Auto-connect to the configured agent when panel opens |
-| `ai_inspector_auto_context` | bool | `false` | Auto-send command results to the connected agent |
+| `ai_inspector_auto_context` | bool | `false` | Auto-send command completion metadata to the connected agent |
 | `ai_inspector_context_max_lines` | int | `200` | Maximum output lines sent per auto-context update |
 | `ai_inspector_auto_approve` | bool | `false` | Auto-approve all agent permission requests (YOLO mode) |
 | `ai_inspector_agent_terminal_access` | bool | `false` | Allow the agent to write directly to the terminal |

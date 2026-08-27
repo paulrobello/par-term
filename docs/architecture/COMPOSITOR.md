@@ -165,7 +165,7 @@ sequenceDiagram
 
 The 3-phase draw ordering (`emit_three_phase_draw_calls`) ensures cursor overlays render on top of text:
 
-1. **Phase 1**: Cell backgrounds (0 to cursor_overlay_start)
+1. **Phase 1**: Cell backgrounds (up to cursor_overlay_start)
 2. **Phase 1b**: Separator/gutter overlays (if present)
 3. **Phase 2**: Text glyphs (all text instances)
 4. **Phase 3**: Cursor overlays (beam/underline bars, hollow outlines)
@@ -278,7 +278,7 @@ Par-term provides a comprehensive set of Shadertoy-compatible uniforms:
 | `iChannel2` | `sampler2D` | User texture channel 2 |
 | `iChannel3` | `sampler2D` | User texture channel 3 |
 | `iChannel4` | `sampler2D` | Terminal content texture (par-term specific) |
-| `iChannelResolution[0-4]` | `vec4` | Channel resolutions `[width, height, 1.0, 0.0]` (std140-aligned vec4) |
+| `iChannelResolution[0-4]` | `vec3` | Channel resolutions `[width, height, 1.0]` (backed by std140-aligned vec4 uniforms) |
 | `iCubemap` | `samplerCube` | Cubemap texture for environment mapping |
 | `iCubemapResolution` | `vec4` | Cubemap face size `[size, size, 1.0, 0.0]` |
 
@@ -323,6 +323,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 | `iCommand` | `vec4` | Command state: `x` = state (0=unknown, 1=running, 2=success, 3=failure), `y` = exit code, `z` = event time, `w` = running (0/1) |
 | `iFocusedPane` | `vec4` | Focused pane bounds: `xy` = position (pixels, GLSL bottom-left origin), `zw` = size |
 | `iScroll` | `vec4` | Scrollback context: `x` = offset, `y` = visible lines, `z` = scrollback lines, `w` = normalized depth |
+| `iReadability` | `vec4` | Auto-dim options: `x` = auto-dim enabled (0/1), `y` = auto-dim strength (0.0 - 1.0). Driven by `custom_shader_auto_dim_under_text` and `custom_shader_auto_dim_strength` |
+| `iBackgroundChannel` | `vec4` | Background-as-`iChannel0` options: `x` = blend mode. Also exposed as the `iBackgroundBlendMode` int define with `BACKGROUND_BLEND_*` constants |
 
 #### Cursor Uniforms (Ghostty-Compatible)
 

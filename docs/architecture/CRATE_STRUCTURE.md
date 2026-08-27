@@ -128,14 +128,14 @@ These eight crates each depend on `par-term-config` and implement a distinct fea
 
 | Crate | Responsibility |
 |-------|---------------|
-| `par-term-fonts` | Font discovery, loading, and fallback chain using `fontdb`. Text shaping via `rustybuzz` (HarfBuzz port). Glyph rasterization via `swash`. Provides `FontManager` and `TextShaper` to the render and terminal layers. |
+| `par-term-fonts` | Font discovery, loading, and fallback chain using `fontdb`. Text shaping via `rustybuzz` (HarfBuzz port). Glyph rasterization via `swash`. Provides `FontManager` and `TextShaper` to `par-term-render` and the root binary. |
 | `par-term-input` | Translates `winit` keyboard and mouse events into VT escape byte sequences. Handles modifier keys, function keys, mouse reporting modes, and clipboard paste sequences. |
 | `par-term-keybindings` | Parses keybinding definitions from config, matches key combos against incoming events, and maintains a named action registry. Supports platform-aware `CmdOrCtrl` modifier shorthand. |
 | `par-term-scripting` | Observer pattern implementation for event-driven automation. Integrates with `par-term-emu-core-rust`'s terminal event observer trait to trigger shell callbacks and automation scripts on terminal output events. |
 | `par-term-settings-ui` | 13 settings tabs: Appearance (includes Badge + Progress Bar), Window (includes Arrangements), Input, Terminal, Effects, Status Bar, Profiles, Notifications, Integrations (includes SSH), Automation (includes Scripts), Snippets & Actions, Assistant, Advanced. Sidebar navigation component and section search. Built on egui; depends only on `par-term-config`. |
 | `par-term-terminal` | `TerminalManager` — the thread-safe wrapper around `PtySession` from `par-term-emu-core-rust`. Manages the PTY process, scrollback extraction, clipboard OSC 52, hyperlink tracking, and inline graphics metadata. |
 | `par-term-tmux` | tmux control mode integration: session lifecycle, bidirectional state sync between par-term panes and tmux windows/panes, and control protocol command builders. Bridges the core library's control mode parser to par-term's pane system. |
-| `par-term-update` | Self-update system: fetches release manifests, compares semantic versions, downloads and verifies binary archives (SHA-256), and extracts updates in place. Tracks last-check timestamps against the configured `UpdateCheckFrequency`. |
+| `par-term-update` | Self-update system: fetches release manifests, compares semantic versions, downloads and verifies binary archives (SHA-256 and Ed25519 `.minisig` signatures), and extracts updates in place. Tracks last-check timestamps against the configured `UpdateCheckFrequency`. |
 
 ### Layer 3 — Rendering
 
@@ -149,7 +149,7 @@ One crate sits above Layer 2 because it depends on both `par-term-config` and `p
 
 | Crate | Responsibility |
 |-------|---------------|
-| `par-term` | Application entry point. Owns window management (`winit` event loop), the tab/pane tree, input routing, the native menu (`muda`), the standalone settings window, the AI inspector panel, session logging, search, profile management, and all cross-crate orchestration. Re-exports public types from all workspace crates for backward compatibility. |
+| `par-term` | Application entry point. Owns window management (`winit` event loop), the tab/pane tree, input routing, the native menu (`muda`), the standalone settings window, the AI inspector panel, session logging, search, profile management, and all cross-crate orchestration. Re-exports `par-term-config` types and whole-crate aliases for `par-term-mcp`, `par-term-settings-ui`, and `par-term-tmux` for backward compatibility. |
 
 ## Crate Reference
 

@@ -44,7 +44,7 @@ Snippets are saved text blocks that can be quickly inserted into the terminal. T
      - Click the **🎤 Record** button and press the desired key combination
      - Or type it manually (e.g., `Ctrl+Shift+D`)
      - Conflict warnings appear if the keybinding is already in use (⚠️)
-     - **Enable keybinding** checkbox: Uncheck to disable the keybinding without removing it (useful for temporary disable)
+     - **Enabled** checkbox (shown when a keybinding is set): Uncheck to disable the keybinding without removing it (useful for temporary disable)
    - **Folder** (optional): Group snippets into folders for organization (e.g., "Git", "Docker", "AWS")
    - **Description** (optional): Notes about what the snippet does
 
@@ -590,7 +590,7 @@ Folder: SSH
    - Captures modifier keys correctly (Ctrl, Shift, Alt, Super/Windows/Command)
    - Avoids typos from manual entry
    - Shows real-time feedback during recording (🔴)
-8. **Disable Keybindings Temporarily**: Use the "Enable keybinding" checkbox to temporarily disable a keybinding without removing it
+8. **Disable Keybindings Temporarily**: Use the "Enabled" checkbox next to the Keybinding field to temporarily disable a keybinding without removing it
    - Useful when you need to free up a keybinding for another use
    - The keybinding configuration is preserved but won't trigger
    - Re-enable the checkbox to restore the keybinding functionality
@@ -649,8 +649,10 @@ Workflow actions let you compose, branch, and repeat existing actions from withi
 > event loop thread. Steps with `delay_ms > 0` or `ShellCommand` steps with `capture_output:
 > true` will block the UI for their duration. To keep the terminal responsive, keep `delay_ms`
 > at `0` where possible, and prefer short-running commands inside `capture_output` steps.
-> Long-running captured commands (e.g. a full build) will freeze input, though only until
-> the step's `timeout_secs` deadline (default `30`), at which point the child is killed.
+> Total configured delay is capped at 5 seconds per Sequence or Repeat: once the cap is
+> reached, remaining Sequence steps are skipped and Repeat iterations are cut short.
+> Long-running captured commands (e.g. a full build) will freeze input, though only until the
+> step's `timeout_secs` deadline (default `30`), at which point the child is killed.
 
 ### Sequence
 

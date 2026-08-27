@@ -106,6 +106,7 @@ Insert dynamic values using the `\(session.*)` syntax:
 | `\(session.current_command)` | Currently running command name (via shell integration) | `cargo build` |
 
 > **📝 Note:** `session.exit_code` and `session.current_command` require shell integration (OSC 133) to be installed. See [Integrations](INTEGRATIONS.md) for setup instructions.
+> **📝 Note:** Scripts and trigger rules can define additional variables with the `SetVariable` action; reference them as `\(session.<name>)`. See [Automation](AUTOMATION.md) for details.
 
 **Example Formats:**
 
@@ -194,7 +195,7 @@ The core terminal library recognizes iTerm2's OSC 1337 `SetBadgeFormat` sequence
 printf "\033]1337;SetBadgeFormat=%s\007" "$(echo -n "My Badge" | base64)"
 ```
 
-**Security:** Decoded badge formats are validated before use. Shell command syntax — backticks, `$(`, `${`, arithmetic expansion, chaining (`&&`, `||`), pipes, redirections, and control bytes — is rejected.
+**Security:** Decoded badge formats are validated before use. Shell command syntax — backticks, `$(`, `${`, arithmetic expansion, chaining (`&&`, `||`), command separators (`;`), pipes, redirections, and control bytes — is rejected, as are decoded formats longer than 4096 bytes.
 
 > **Note:** The decoded format is exposed to the scripting/event system. To display it in the badge overlay, handle the `BadgeChanged` event from a trigger or set `badge_format` through the Settings UI or config file.
 
@@ -244,7 +245,7 @@ Profiles can override global badge settings for visual differentiation per envir
 
 ### Override Options
 
-All global badge settings can be overridden per profile:
+Every badge setting except `badge_enabled` can be overridden per profile:
 
 | Profile Setting | Overrides |
 |-----------------|-----------|

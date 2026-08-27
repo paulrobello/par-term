@@ -48,7 +48,7 @@ The status bar is disabled by default. Enable it in Settings or config:
 status_bar_enabled: true
 ```
 
-**Settings UI:** Settings > Status Bar > General > "Enable Status Bar"
+**Settings UI:** Settings > Status Bar > General > "Enable status bar"
 
 ## Built-in Widgets
 
@@ -85,7 +85,7 @@ Displays the current time using a configurable strftime format string.
 | `%a %H:%M` | `Mon 14:30` |
 | `%Y-%m-%d %H:%M` | `2026-02-13 14:30` |
 
-**Settings UI:** Settings > Status Bar > Widget Options > "Time Format"
+**Settings UI:** Settings > Status Bar > Widget Options > "Time format"
 
 ### Git Branch
 
@@ -141,16 +141,13 @@ Widgets within each section are separated by a configurable separator character 
 Widgets can be moved between sections and reordered via the Settings UI.
 
 ## Custom Widgets
-
-Create custom widgets with user-defined text and variable interpolation through the Settings UI.
-
 **Creating a Custom Widget:**
 
-1. Open Settings > Status Bar
-2. Scroll to the **Widgets** section
-3. Click **+ Add Custom Text Widget**
-4. Enter a format string using `\(variable)` placeholders
-5. Assign to a section (Left, Center, or Right)
+1. Open Settings > Status Bar.
+2. Scroll to the **Widgets** section.
+3. Click **+ Add Custom Text Widget**. This adds a `Custom N` widget to the **Left** section with the default `custom text` format.
+4. Edit the inline **Format:** field under the widget using `\(variable)` placeholders.
+5. Right-click the widget to move it to another section (Left, Center, or Right), reorder it, or delete it.
 
 > **Persistence:** Custom widgets persist to `config.yaml` under `status_bar_widgets` with the widget id `custom:<name>` (for example `id: custom: Build Stats`). They round-trip through the flattened status-bar config path on the next launch.
 
@@ -413,6 +410,8 @@ The Status Bar tab in Settings (`F12`) provides six sections:
 **Poll Intervals:**
 - System monitor interval slider
 - Git branch interval slider
+- Disk free-space interval slider
+- "Follow active tab's directory" toggle for the Disk Free widget
 
 **Widgets:**
 - Three-column layout showing Left, Center, and Right sections

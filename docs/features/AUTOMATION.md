@@ -51,7 +51,7 @@ The automation system consists of four integrated features:
 
 - **Triggers** match regex patterns against terminal output as it arrives. Each trigger carries one or more actions that fire when the pattern matches.
 - **Actions** define what happens when a trigger fires: highlighting matched text, sending desktop notifications, running external commands, playing sounds, sending text back to the terminal, and more.
-- **Coprocesses** are long-running external processes that receive a copy of terminal output on their stdin and can write data back to the terminal through their stdout.
+- **Coprocesses** are long-running external processes that receive a copy of terminal output on their stdin; their stdout is buffered and can be inspected in the Settings output viewer rather than being written back to the terminal.
 - **Scripts** are observer processes that receive structured JSON events from the terminal and can send JSON commands back. Scripts provide a higher-level protocol than coprocesses, with typed events, subscription filtering, and markdown panel support.
 
 Triggers, coprocesses, and scripts are defined in `config.yaml` and managed through the Settings UI. They are registered per-tab at tab creation time and re-synced whenever settings are saved.
@@ -544,8 +544,8 @@ coprocesses:
 
 When `auto_start` is set to `true`, the coprocess is started automatically each time a new tab is created. The startup sequence is:
 
-1. Tab creates a new `CoprocessManager` instance
-2. For each coprocess definition with `auto_start: true`, the manager calls `start()` with the coprocess configuration
+1. The tab's PTY session comes with a built-in core-side `CoprocessManager`
+2. For each coprocess definition with `auto_start: true`, the tab calls `start_coprocess()`, which delegates to the session's `CoprocessManager::start()`
 3. The coprocess is spawned as a child process with its stdin connected for receiving terminal output
 4. A coprocess ID is assigned and tracked in the tab's `coprocess_ids` array
 5. If the coprocess fails to start, a warning is logged and the tab continues without it
@@ -554,12 +554,12 @@ Coprocesses with `auto_start: false` appear in the configuration but are not sta
 
 ### Per-Tab Lifecycle
 
-Each tab maintains its own `CoprocessManager` and set of running coprocesses. This means:
+Each tab's PTY session owns its own `CoprocessManager` and set of running coprocesses. This means:
 
 - Opening a new tab starts a fresh set of auto-start coprocesses
 - Closing a tab stops all coprocesses running in that tab
 - Coprocesses in one tab do not interact with coprocesses in another tab
-- The coprocess manager drains buffered stdout from each running coprocess every frame
+- Coprocess stdout is buffered in the core (up to 10,000 lines per coprocess) and drained into the Settings output viewer while the settings window is open
 
 ```mermaid
 graph TD
@@ -570,7 +570,7 @@ graph TD
     Skip[Skip - manual start only]
     Running[Running in tab]
     Output[Terminal output piped to stdin]
-    Drain[Drain coprocess stdout each frame]
+    Drain[Stdout buffered for the output viewer]
     Close[Tab Closed]
     Stop[All coprocesses stopped]
 
@@ -605,9 +605,9 @@ Scripts are external observer processes that communicate with the terminal using
 | Feature | Coprocesses | Scripts |
 |---------|-------------|---------|
 | **Input format** | Raw terminal output (bytes) | Structured JSON events |
-| **Output format** | Raw text written to PTY | Typed JSON commands |
+| **Output format** | Buffered stdout (Settings output viewer) | Typed JSON commands |
 | **Event filtering** | None (receives all output) | Subscription-based (choose which events to receive) |
-| **Command capabilities** | Write to PTY only | Notify, set badge, set panel, log, write text, run command, change config |
+| **Command capabilities** | None (stdout is buffered, not injected) | Notify, set badge, set panel, log, write text, run command, change config |
 | **UI integration** | Output viewer | Markdown panels |
 | **Best for** | Filtering/logging terminal output | Reacting to terminal events, building dashboards |
 
@@ -686,6 +686,9 @@ The terminal sends events to the script's stdin. Each event has a `kind` field (
 | `zone_closed` | `ZoneEvent` | `zone_id`, `zone_type`, `event` | A semantic zone was closed |
 | `zone_scrolled_out` | `ZoneEvent` | `zone_id`, `zone_type`, `event` | A semantic zone scrolled out of the buffer |
 
+Other core events — `mode_changed`, `graphics_added`, `hyperlink_added`, `dirty_region`, `progress_bar_changed`, `remote_host_transition`, `sub_shell_detected`, `screen_cleared`, `upload_requested`, and the `file_transfer_started` / `file_transfer_progress` / `file_transfer_completed` / `file_transfer_failed` family — are also forwarded, with a `Generic` payload whose `fields.debug` string carries the core event's debug representation.
+
+#### Commands (stdout)
 #### Commands (stdout)
 
 Scripts write JSON commands to stdout to control the terminal. Each command has a `type` field that identifies the command:
@@ -754,7 +757,7 @@ Scripts can display rich content in the terminal UI using the `SetPanel` command
 {"type": "SetPanel", "title": "Build Status", "content": "## Latest Build\n- **Status**: Passed\n- **Duration**: 12.3s\n- **Tests**: 47/47"}
 ```
 
-Panels appear in the terminal UI and update in real time as the script sends new `SetPanel` commands. Use `ClearPanel` to remove the panel when it is no longer needed.
+Panels appear in the Scripts section of the Settings window and update in real time as the script sends new `SetPanel` commands. Use `ClearPanel` to remove the panel when it is no longer needed.
 
 ### Script Lifecycle
 
@@ -828,6 +831,8 @@ On macOS and Linux this resolves via XDG to `~/.config/par-term/sounds/`. On Win
 | `"alert.wav"` | Loads and plays `~/.config/par-term/sounds/alert.wav` |
 | Any other filename | Loaded from the sounds directory |
 
+Absolute paths (and paths starting with `~`) are used as-is instead of being resolved against the sounds directory.
+
 **Volume:** The `volume` field accepts an integer from 0 to 100. It is converted to a float ratio internally (`volume / 100.0`) and clamped to the 0.0-1.0 range. The default is 50.
 
 If the specified file does not exist, a warning is logged and no sound is played. File decoding errors are also logged without interrupting the terminal.
@@ -860,7 +865,7 @@ Changes are applied immediately when saved and synced to the core trigger regist
 
 The **Coprocesses** section provides:
 
-- **Coprocess list**: Each entry shows a status indicator, `[auto]` or `[manual]` badge, the name, and the full command (in monospace). If a restart policy is set, it appears as a badge (e.g., `[restart: Always, delay: 500ms]`).
+- **Coprocess list**: Each entry shows a status indicator (green dot when running; `[auto]` badge for a stopped auto-start coprocess, gray dot otherwise), the name, and the full command (in monospace). If a restart policy is set, it appears as a badge (e.g., `[restart: Always, delay: 500ms]`).
 - **Start/Stop buttons**: Start a stopped coprocess or stop a running one directly from the list
 - **Status indicator**: Green dot when running, gray dot when stopped
 - **Edit button**: Opens an inline edit form
@@ -875,7 +880,7 @@ The coprocess edit form includes:
 - **Auto-start checkbox**: Whether to start the coprocess automatically with new tabs
 - **Copy terminal output checkbox**: Whether to pipe terminal output to the coprocess stdin
 - **Restart policy dropdown**: Never, Always, or On Failure
-- **Restart delay slider**: Delay in milliseconds before restarting (shown when restart policy is not Never)
+- **Restart delay field**: Numeric input for the delay in milliseconds before restarting (shown when restart policy is not Never)
 
 If a coprocess fails to start, the error message is displayed inline in red below the coprocess entry.
 
@@ -887,9 +892,9 @@ Each coprocess has a collapsible output viewer that displays the coprocess's std
 - Output is displayed in a scrollable area (max 150px) in monospace font
 - The viewer auto-scrolls to the latest output
 - Click **"Clear"** to discard buffered output
-- Output accumulates in memory until cleared or the tab is closed
+- Output accumulates in memory (capped at 200 lines) until cleared or the tab is closed
 
-> **📝 Note:** The quick search bar in Settings supports the following keywords for the **Automation** tab (which now also includes Scripts): `trigger`, `regex`, `pattern`, `match`, `action`, `highlight`, `notify`, `coprocess`, `pipe`, `subprocess`, `auto start`, `restart`, `script`, `observer`, `event`, `panel`, `subscribe`.
+> **📝 Note:** The quick search bar in Settings supports the following keywords for the **Automation** tab (which now also includes Scripts): `trigger`, `regex`, `pattern`, `match`, `action`, `highlight`, `notify`, `coprocess`, `pipe`, `subprocess`, `auto start`, `restart`, `script`, `observer`, `event`, `panel`, `subscriptions`.
 
 ## Complete Configuration Examples
 

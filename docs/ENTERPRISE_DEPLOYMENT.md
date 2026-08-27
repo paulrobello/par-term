@@ -53,6 +53,7 @@ Supported platform suffixes:
 |----------|--------|
 | macOS (Apple Silicon) | `macos-aarch64.zip` |
 | macOS (Intel) | `macos-x86_64.zip` |
+| macOS (Universal, Apple Silicon + Intel) | `macos-universal.zip` |
 | Linux (x86_64) | `linux-x86_64` |
 | Linux (ARM64) | `linux-aarch64` |
 | Windows (x86_64) | `windows-x86_64.exe` |
@@ -73,7 +74,7 @@ Copy-Item par-term.exe "C:\Program Files\par-term\par-term.exe"
 
 ### macOS App Bundle
 
-The `.app` bundle is suitable for Jamf/MDM push. Download `par-term-macos-aarch64.zip` (or `par-term-macos-x86_64.zip`) from the GitHub release and extract to `/Applications`:
+The `.app` bundle is suitable for Jamf/MDM push. Download `par-term-macos-aarch64.zip`, `par-term-macos-universal.zip` (one asset for mixed Apple Silicon / Intel fleets), or `par-term-macos-x86_64.zip` from the GitHub release and extract to `/Applications`:
 
 ```bash
 sudo unzip par-term-macos-aarch64.zip -d /Applications
@@ -114,10 +115,13 @@ cargo build --profile dev-release --locked
 #!/usr/bin/env bash
 set -euo pipefail
 
-PAR_TERM_VERSION="0.41.0"
+PAR_TERM_VERSION="0.43.0"
 INSTALL_DIR="/usr/local/bin"
-PLATFORM="macos-aarch64"   # adjust: macos-x86_64, linux-x86_64, linux-aarch64
-BINARY="par-term-${PLATFORM}.zip"
+PLATFORM="macos-aarch64"   # adjust: macos-universal, macos-x86_64, linux-x86_64, linux-aarch64
+BINARY="par-term-${PLATFORM}"
+if [[ "${PLATFORM}" == macos-* ]]; then
+    BINARY="${BINARY}.zip"
+fi
 RELEASE_URL="https://github.com/paulrobello/par-term/releases/download/v${PAR_TERM_VERSION}/${BINARY}"
 
 echo "Downloading par-term ${PAR_TERM_VERSION}..."
@@ -158,7 +162,7 @@ echo "par-term ${PAR_TERM_VERSION} installed successfully."
 
 ```powershell
 # deploy-par-term.ps1
-$Version  = "0.41.0"
+$Version  = "0.43.0"
 $Platform = "windows-x86_64"
 $InstDir  = "C:\Program Files\par-term"
 $Url      = "https://github.com/paulrobello/par-term/releases/download/v$Version/par-term-$Platform.exe"
@@ -216,7 +220,7 @@ ln -sfn /etc/par-term/config ~/.config/par-term
 ```yaml
 font_family: "${PAR_TERM_FONT:-JetBrains Mono}"
 font_size: 14.0
-shell: "${SHELL}"
+custom_shell: "${SHELL}"
 window_title: "${USER}@${HOSTNAME}"
 ```
 
@@ -270,7 +274,7 @@ Valid values: `hourly`, `daily`, `weekly`, `monthly`, `never`.
 |----------------|-------------|
 | Homebrew (cask) | Skip `brew upgrade --cask par-term` during upgrade windows (casks cannot be `brew pin`-ned) |
 | Standalone binary | Replace binary file only during planned maintenance windows |
-| Cargo | `cargo install --locked --version 0.41.0 par-term` |
+| Cargo | `cargo install --locked --version 0.43.0 par-term` |
 
 ### Managed Update Workflow
 
@@ -301,9 +305,9 @@ chmod 755 /tmp/par-term-pkg/usr/local/bin/par-term
 pkgbuild \
   --root /tmp/par-term-pkg \
   --identifier com.paulrobello.par-term \
-  --version 0.41.0 \
+  --version 0.43.0 \
   --install-location / \
-  par-term-0.41.0.pkg
+  par-term-0.43.0.pkg
 ```
 
 Upload the `.pkg` to Jamf Pro and deploy via a policy scoped to the target computer group.
@@ -364,7 +368,7 @@ par-term's [Automation](features/AUTOMATION.md) system can execute shell command
 
 - `prompt_before_run` defaults to `true` — users must confirm before commands run.
 - Set `prompt_before_run: false` only for commands your org explicitly approves, and also set `i_accept_the_risk: true` on that trigger to acknowledge automated execution.
-- The Settings UI displays an amber warning banner when any trigger has `prompt_before_run: false`.
+- The Settings UI displays an amber warning banner when any trigger with dangerous actions has `prompt_before_run: false`.
 - The built-in command denylist blocks known dangerous commands but is bypassable via obfuscation. Do not rely on it as a security boundary.
 
 To disable automation entirely in managed deployments, deploy a config with empty `triggers`, `coprocesses`, and `scripts` lists.

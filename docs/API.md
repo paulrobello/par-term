@@ -9,7 +9,7 @@ This document provides an overview of the public types and functions exported by
 This index is maintained by hand and is **not** enforced by CI — it is a navigation aid, not a source of truth.
 
 - **Authoritative reference:** `make doc` (or `make doc-open`) generates the complete rustdoc site under `target/doc/`. When this index disagrees with the generated docs, the generated docs win.
-- **Existing gate:** `make doc-check` validates documentation *links* — it runs `lychee` over every Markdown file and fails on broken relative paths and broken `#anchor` fragments. CI runs the same check in the `docs` job.
+- **Existing gate:** `make doc-check` validates documentation *links* — it runs `lychee` over every Markdown file and fails on broken relative paths and broken `#anchor` fragments. The check is local-only; CI does not run it.
 - **Not yet gated:** nothing diffs this index against `cargo doc`'s public-item list, so a renamed or newly added public type will not be flagged. Reviewers should spot-check coverage when public types change.
 - **Stable coverage:** the foundational crates (`par-term-config`, `par-term-fonts`, `par-term-input`, `par-term-keybindings`, `par-term-terminal`, `par-term-tmux`, `par-term-update`, `par-term-acp`, `par-term-ssh`, `par-term-mcp`, `par-term-scripting`) are documented at the public-type level and are not pending reorganization.
 - **Intentionally non-exhaustive:** the `par-term-settings-ui` and `par-term-render` sections are deliberately left lighter. Both are blocked behind the ARC-001 (root-crate extraction) and ARC-002 (`WindowState` decomposition) migrations — their module layouts and public surfaces are expected to move. Rewriting these entries now would immediately drift. They will be (re)written once those refactor lands and the public surface settles.
@@ -164,9 +164,9 @@ Configuration loading, saving, and type definitions for the terminal emulator. T
 | `resolve_cursor_shader_config(config, cache)` | Resolve a cursor shader config. |
 | `parse_shader_controls(source)` | Parse `//@control` annotations from GLSL source. |
 | `parse_shader_metadata(source: &str)` | Parse the embedded YAML metadata block out of background shader source text. |
-| `parse_shader_metadata_from_file(path: &Path)` | Read a background shader file from disk and parse its embedded YAML metadata. |
+| `shader_metadata::parse_shader_metadata_from_file(path: &Path)` | Read a background shader file from disk and parse its embedded YAML metadata. Exported from the `shader_metadata` module. |
 | `parse_cursor_shader_metadata(source: &str)` | Parse the embedded YAML metadata block out of cursor shader source text. |
-| `parse_cursor_shader_metadata_from_file(path: &Path)` | Read a cursor shader file from disk and parse its embedded YAML metadata. |
+| `shader_metadata::parse_cursor_shader_metadata_from_file(path: &Path)` | Read a cursor shader file from disk and parse its embedded YAML metadata. Exported from the `shader_metadata` module. |
 
 ### Profiles
 
@@ -235,7 +235,7 @@ Configuration loading, saving, and type definitions for the terminal emulator. T
 | Type | Description |
 |------|-------------|
 | `AmbiguousWidth` | Width for ambiguous-width Unicode codepoints: `Narrow` or `Wide`. YAML: `narrow`, `wide`. |
-| `NormalizationForm` | Unicode normalization form: `Nfc`, `Nfd`, `Nfkc`, or `Nfkd`. |
+| `NormalizationForm` | Unicode normalization form: `None`, `NFC`, `NFD`, `NFKC`, or `NFKD`. |
 | `UnicodeVersion` | Unicode version for width tables. |
 
 ### Progress and Alerts
@@ -253,7 +253,7 @@ Configuration loading, saving, and type definitions for the terminal emulator. T
 |------|-------------|
 | `InstallPromptState` | Whether an install prompt has been dismissed. |
 | `IntegrationVersions` | Version tracking for shell integration scripts. |
-| `UpdateCheckFrequency` | How often to check for updates: `Daily`, `Weekly`, `Monthly`, or `Never`. |
+| `UpdateCheckFrequency` | How often to check for updates: `Hourly`, `Daily`, `Weekly`, `Monthly`, or `Never`. |
 | `ShaderInstallPrompt` | Whether the bundled shader install prompt was shown. |
 
 ### Prelude

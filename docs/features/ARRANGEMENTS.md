@@ -21,6 +21,7 @@ Save and restore complete window layouts, including window positions, sizes, tab
 - [Managing Arrangements](#managing-arrangements)
   - [Renaming](#renaming)
   - [Deleting](#deleting)
+  - [Replacing](#replacing)
   - [Reordering](#reordering)
 - [Configuration](#configuration)
   - [Config Options](#config-options)
@@ -115,7 +116,7 @@ keybindings:
     action: "save_arrangement"
 ```
 
-This opens the Settings window to the Window tab (Arrangements section) for naming and saving.
+This opens the Settings window; the save controls are in the **Window** tab (Arrangements section). Unlike the View menu item, the keybinding does not jump to that tab automatically.
 
 ### Duplicate Name Handling
 
@@ -123,7 +124,7 @@ When saving an arrangement with a name that already exists (matched case-insensi
 
 ## Restoring Arrangements
 
-Restoring an arrangement closes all current windows and recreates the saved layout. Each window is placed on the correct monitor with its saved position, size, tabs, and active tab index. Per-tab customizations -- user-set names, custom colors, and custom icons -- are faithfully reapplied to the correct tabs in each window.
+Restoring an arrangement closes all current windows and recreates the saved layout. Each window is placed on the correct monitor with its saved position, size, tabs, and active tab index. Per-tab customizations -- user-set names, custom colors, and custom icons -- are faithfully reapplied to the correct tabs in each window. Windows with a saved tmux session are the exception: their tab bar is repopulated by tmux itself (see [tmux Session Capture and Restore](#tmux-session-capture-and-restore)).
 
 In multi-window layouts, par-term uses the exact `WindowId` returned from each window creation to apply tab properties, ensuring that custom colors, icons, and user titles are never misapplied to the wrong window.
 
@@ -229,6 +230,10 @@ Click **Rename** next to an arrangement to change its name. Enter the new name a
 
 Click **Delete** next to an arrangement. A confirmation dialog prevents accidental deletion. Deletion is permanent and cannot be undone.
 
+### Replacing
+
+Click **Replace** next to an arrangement to overwrite its stored layout with the current one. A confirmation dialog appears; replacing preserves the arrangement's name, ID, and display order.
+
 ### Reordering
 
 Use the **up arrow** and **down arrow** buttons next to each arrangement to change the display order. The order is persisted to the arrangements file automatically.
@@ -252,7 +257,7 @@ Two keybinding actions are available for arrangements:
 
 | Action | Description |
 |--------|-------------|
-| `save_arrangement` | Opens the Settings Window tab (Arrangements section) for saving |
+| `save_arrangement` | Opens the Settings window; save from the **Window** tab (Arrangements section) |
 | `restore_arrangement:<name>` | Restores the named arrangement immediately |
 
 ```yaml
@@ -363,7 +368,7 @@ graph TD
 
 **Capture flow** (`src/arrangements/capture.rs`): Enumerates all monitors via the winit event loop, iterates over all open windows, determines each window's monitor, computes the position relative to the monitor origin, and collects tab CWDs, titles, and per-tab customizations (user-set names, custom colors, and custom icons).
 
-**Restore flow** (`src/arrangements/restore.rs`): Builds a monitor mapping from saved monitors to available monitors, converts relative positions back to absolute coordinates on the matched monitor, clamps positions to ensure visibility, and applies per-tab customizations using the exact `WindowId` from each created window to guarantee correct assignment in multi-window layouts.
+**Restore flow** (`src/arrangements/restore.rs`): Builds a monitor mapping from saved monitors to available monitors, converts relative positions back to absolute coordinates on the matched monitor, and clamps positions to ensure visibility. The window manager (`src/app/window_manager/arrangements.rs`) then creates each window and applies per-tab customizations using the exact `WindowId` from each created window to guarantee correct assignment in multi-window layouts.
 
 **Storage** (`src/arrangements/storage.rs`): Serializes and deserializes arrangements to/from YAML using serde. Handles missing files (returns empty manager), empty files, and corrupt files (returns error). Automatically creates parent directories on save.
 

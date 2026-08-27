@@ -18,6 +18,7 @@ par-term provides comprehensive SSH host management with automatic discovery, qu
   - [Command-Based Switching](#command-based-switching)
   - [Auto-Revert on Disconnect](#auto-revert-on-disconnect)
 - [Remote Tab Title Format](#remote-tab-title-format)
+- [Remote Clipboard (OSC 52)](#remote-clipboard-osc-52)
 - [Configuration](#configuration)
 - [Settings UI](#settings-ui)
 - [Troubleshooting](#troubleshooting)
@@ -154,7 +155,7 @@ Profiles can act as SSH bookmarks by setting SSH-specific fields.
 
 ### Creating SSH Profiles
 
-1. Open Settings (`F12` or `Cmd/Ctrl + ,`)
+1. Open Settings (`F12`; `Cmd+,` on macOS, `Ctrl+Shift+,` on Windows/Linux)
 2. Navigate to the **Profiles** tab
 3. Click **+ New Profile**
 4. Expand the **SSH Connection** section
@@ -199,11 +200,11 @@ When an SSH session is detected, par-term monitors terminal output for the remot
 - Profile icon appears in the tab bar
 - Tab title updates to the profile's tab name
 - Badge text and styling apply
-- Profile command executes (if configured)
+- Profile command runs after confirmation (if configured)
 
 ### Command-Based Switching
 
-par-term also detects when an `ssh` process is running in the terminal and triggers profile matching based on the SSH hostname extracted from the command.
+par-term also detects when an `ssh` process is running in the terminal. This marks the session as remote so it can revert on disconnect; the profile match itself still comes from the OSC 7 hostname (see [Hostname-Based Switching](#hostname-based-switching)).
 
 ### Auto-Revert on Disconnect
 
@@ -211,7 +212,7 @@ When an SSH session ends, par-term automatically reverts to the previous profile
 - Tab icon, title, and badge restore to pre-SSH state
 - The revert happens when the SSH process exits
 
-This behavior is controlled by the `ssh_revert_profile_on_disconnect` config option (default: `true`).
+Reversion happens automatically when the SSH process exits or the reported hostname returns to the local machine.
 
 ## Remote Tab Title Format
 

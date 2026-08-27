@@ -70,7 +70,7 @@ Every tab and pane is polled each frame for pending OSC 9/777/99 notifications, 
 ## Suppression and buffering
 
 - `suppress_notifications_when_focused` (default `true`) suppresses desktop notifications while the par-term window has focus.
-- `notification_max_buffer` (default `64`) caps how many OSC 9/777 notifications are retained. This cap is applied at terminal creation and on live config reload.
+- `notification_max_buffer` (default `64`) caps how many OSC 9/777/99 notifications are retained. This cap is applied at terminal creation and on live config reload.
 
 ## Payload size cap
 

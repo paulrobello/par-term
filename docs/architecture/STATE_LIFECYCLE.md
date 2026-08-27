@@ -103,13 +103,13 @@ When the last tab in a window is closed (or the window is closed directly),
 
 1. The last working directory is saved (if `startup_directory_mode` is `Previous`).
 2. The shutdown flag is set and all tab refresh tasks are aborted.
-3. The OS window is hidden for instant visual feedback.
 
-`WindowState` implements `Drop` for fast-path cleanup. The `Drop` implementation
-drains all tabs via `TabManager::drain_tabs()`, collects terminal `Arc`s and session
-loggers, pre-kills PTY processes, and spawns a background thread for the remaining
-cleanup (session log finalization, renderer teardown). This avoids blocking the event
-loop on slow shell teardowns during quit.
+`WindowState` implements `Drop` for fast-path cleanup. The `Drop` implementation hides
+the OS window for instant visual feedback, drains all tabs via
+`TabManager::drain_tabs()`, collects terminal `Arc`s and session loggers, pre-kills
+PTY processes, and spawns background threads for the remaining cleanup (session log
+finalization and terminal `Arc` drops, which release the PTY sessions). This avoids
+blocking the event loop on slow shell teardowns during quit.
 
 ## Tab Lifecycle
 
@@ -188,7 +188,8 @@ When a split is requested:
 
 1. A new `Pane` is created with its own `TerminalManager` (fresh PTY, own shell process).
 2. The `PaneManager` adds the pane to a tree structure (`PaneNode`) for layout.
-3. The split orientation (horizontal or vertical) determines the `PaneNode` variant.
+3. The split orientation (horizontal or vertical) is stored in the `direction` field
+   of the `PaneNode::Split` variant.
 4. Each `Pane` gets its own `ScrollState`, `MouseState`, `BellState`, `RenderCache`, and
    `SharedSessionLogger`.
 
@@ -290,8 +291,8 @@ The GPU renderer executes three passes per frame:
 3. **Overlay Pass** — renders the egui UI: tab bar, status bar, search bar, settings
    window, and any modal dialogs.
 
-Custom background shaders and cursor shaders are applied between the Cell Pass and the
-Overlay Pass.
+Custom background shaders run before the Cell Pass; cursor shaders run after the Cell
+Pass. Both run before the Overlay Pass.
 
 ## State Migration and Inheritance
 
@@ -302,12 +303,13 @@ directory. The CWD is read from the OSC 7 URI stored in `Tab.detected_cwd`.
 
 ### Profile Auto-Switch
 
-When an OSC 7 URI reveals a new hostname, `profile_tracking.rs` scans all profiles for
-SSH hostname matches. If a match is found:
+When an OSC 7 URI reveals a new hostname (detected in `profile_tracking.rs`),
+`check_auto_hostname_switch` in `src/app/tab_ops/profile_auto_switch.rs` scans all
+profiles for SSH hostname matches. If a match is found:
 
 1. The current tab title and profile ID are saved to `pre_profile_title` and
    `pre_ssh_switch_profile`.
-2. The new profile is applied to the tab (theme, title, badge override, icon).
+2. The new profile is applied to the tab (title, badge override, icon).
 3. On SSH disconnect (shell returns to original hostname), the pre-switch state is
    restored.
 

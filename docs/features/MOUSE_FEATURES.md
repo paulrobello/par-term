@@ -113,7 +113,7 @@ copy_trailing_newline: false  # Strip trailing newlines
 
 Programs can also push content *to* your clipboard with the OSC 52 escape sequence. This is how a remote application copies to your local clipboard over a plain SSH session — terminal multiplexers such as tmux and remote workspace managers use it so that a copy initiated on the remote host lands in your local clipboard rather than the remote shell's.
 
-par-term polls the focused pane's OSC 52 content each frame and, when it changes, writes it to the system clipboard via the same path local selection-copy uses. Writes are deduped against the last applied value so the clipboard is not rewritten every frame, and only the focused pane is polled (covering the single-PTY SSH case); a background pane's OSC 52 write syncs the next time that pane is focused.
+par-term polls the active tab's OSC 52 content each frame and, when it changes, writes it to the system clipboard via the same path local selection-copy uses. Writes are deduped against the last applied value so the clipboard is not rewritten every frame, and only the active tab's terminal is polled (covering the single-PTY SSH case); OSC 52 writes from other split panes are not applied.
 
 ```yaml
 osc52_clipboard: true  # Apply OSC 52 clipboard-set sequences to the system clipboard (default)

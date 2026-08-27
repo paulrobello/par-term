@@ -40,7 +40,7 @@ Complete reference for all par-term keyboard shortcuts.
 | New tab | `Cmd + T` | `Ctrl + Shift + T` |
 | Duplicate tab | `Cmd+Shift+J` | `Ctrl+Shift+J` |
 | Close tab/window | `Cmd + W` | `Ctrl + Shift + W` |
-| Quit application | `Cmd + Q` *(menu)* | `Ctrl + Shift + Q` *(menu)* |
+| Minimize window | `Cmd + M` *(menu)* | — |
 | Next tab | `Cmd + Shift + ]` | `Ctrl + Shift + ]` |
 | Previous tab | `Cmd + Shift + [` | `Ctrl + Shift + [` |
 | Next tab (alt) | `Ctrl + Tab` | `Ctrl + Tab` |
@@ -64,6 +64,8 @@ Complete reference for all par-term keyboard shortcuts.
 | `Shift + PageDown` | Scroll down one page in scrollback |
 | `Shift + Home` | Jump to top of scrollback |
 | `Shift + End` | Jump to bottom |
+| `Cmd/Super + Up` | Jump to previous command mark |
+| `Cmd/Super + Down` | Jump to next command mark |
 | `Mouse Wheel` | Scroll up/down |
 
 ### Modifier Keys With Special Keys
@@ -78,7 +80,7 @@ Modifier keys (`Shift`, `Ctrl`, `Alt`, and combinations) work with special keys 
 |--------|-------|---------------|
 | Copy selection | `Cmd + C` | `Ctrl + Shift + C` |
 | Paste | `Cmd + V` | `Ctrl + Shift + V` |
-| Paste (X11 fallback) | `Shift + Insert` | `Shift + Insert` |
+| Paste (X11 fallback) | — | `Shift + Insert` |
 | Paste Special | `Cmd + Shift + V` | `Ctrl + Alt + V` |
 | Clipboard history | `Cmd + Shift + H` | `Ctrl + Shift + H` |
 | Select all | `Cmd + A` *(menu)* | `Ctrl + Shift + A` *(menu)* |

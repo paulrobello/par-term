@@ -7,8 +7,9 @@ Fields are grouped by functional area. All fields are optional — omitting a
 field uses its documented default value.
 
 > **Environment variable substitution**: Use `${VAR}` in string values. Only
-> safe variables (HOME, USER, SHELL, XDG_*, PAR_TERM_*, LC_*) are substituted
-> by default. Set `allow_all_env_vars: true` to allow all variables.
+> allowlisted safe variables (e.g. HOME, USER, SHELL, TERM, LANG, PATH,
+> EDITOR, XDG_*, PAR_TERM_*, LC_*) are substituted by default. Set
+> `allow_all_env_vars: true` to allow all variables.
 
 ## Table of Contents
 - [Window / General](#window--general)
@@ -214,7 +215,7 @@ Override shader settings per-file. Keys are shader filenames (without path).
 | `right_option_key_mode` | `enum` | `esc` | Right Option/Alt key: `normal`, `meta`, `esc` |
 | `modifier_remapping` | `object` | `{}` | Remap modifier keys: fields `left_ctrl`, `right_ctrl`, `left_alt`, `right_alt`, `left_super`, `right_super` |
 | `use_physical_keys` | `bool` | `false` | Use physical key positions for keybindings (layout-independent) |
-| `keybindings` | `array` | (built-in defaults) | Custom keybindings: `[{key: "CmdOrCtrl+B", action: "toggle_tab_bar"}]` |
+| `keybindings` | `array` | (built-in defaults) | Custom keybindings: `[{key: "CmdOrCtrl+Shift+B", action: "toggle_background_shader"}]` |
 
 ---
 

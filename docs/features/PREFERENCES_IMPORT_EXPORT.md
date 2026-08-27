@@ -64,7 +64,7 @@ The exported file contains all configuration values.
 
 1. Open Settings > **Advanced** > **Import/Export Preferences**
 2. Click **Import & Replace** to completely replace your config, or **Import & Merge** to preserve existing customizations
-3. Select a `.yaml` configuration file in the native file dialog
+3. Select a `.yaml` or `.yml` configuration file in the native file dialog
 4. The configuration loads into the settings panel as unsaved changes (the panel shows "* Unsaved changes")
 5. Click **Save** to persist the configuration to disk and apply it to the running terminal
 

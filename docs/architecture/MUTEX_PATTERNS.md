@@ -35,8 +35,8 @@ par-term straddles two execution environments:
 A `tokio::sync::RwLock` allows multiple concurrent readers or a single exclusive writer.
 It can be held across `.await` points, which is essential for async tasks. However,
 locking it from a **non-async context** requires `blocking_read()` / `blocking_write()`,
-which parks the calling thread. Calling blocking methods from inside a Tokio worker thread
-will deadlock if all worker threads are occupied.
+which parks the calling thread. Calling blocking methods from inside a Tokio runtime
+panics with "Cannot block the current thread from within a runtime".
 
 Use `tokio::sync::RwLock` when:
 - The resource is shared with async tasks
@@ -191,8 +191,8 @@ Use `blocking_read()` / `blocking_write()` for:
 - Any operation that **must not** be skipped
 
 **WARNING**: Never call `blocking_read()` / `blocking_write()` from within a
-`runtime.spawn()`'d async task. If all Tokio worker threads are waiting on blocking
-methods, Tokio will deadlock.
+`runtime.spawn()`'d async task. Tokio detects this and panics with
+"Cannot block the current thread from within a runtime".
 
 ---
 
@@ -220,12 +220,12 @@ prefer `.read().await` / `.write().await` so the task yields instead of spinning
 
 ## Anti-Patterns to Avoid
 
-### Deadlock: `blocking_write` inside a Tokio task
+### Panic: `blocking_write` inside a Tokio task
 
 ```rust
 // BAD — never do this inside runtime.spawn()
 runtime.spawn(async move {
-    let term = terminal.blocking_write(); // may deadlock Tokio thread pool
+    let term = terminal.blocking_write(); // panics: cannot block inside the runtime
 });
 
 // GOOD
@@ -241,7 +241,7 @@ runtime.spawn(async move {
 let mu = Arc::new(parking_lot::Mutex::new(state));
 runtime.spawn(async move {
     let guard = mu.lock(); // guard held, then ...
-    some_async_fn().await; // ... held across await point: undefined behavior / panic
+    some_async_fn().await; // ... held across await point: can deadlock the executor
 });
 
 // GOOD

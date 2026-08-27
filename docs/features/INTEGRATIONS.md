@@ -76,7 +76,7 @@ Shell integration enhances the terminal experience by enabling communication bet
 
 1. Press `F12` to open Settings
 2. Navigate to the **Integrations** tab
-3. Click **Install Shell Integration**
+3. In the **Shell Integration** section, click **Install** (or **Reinstall** if already installed)
 
 **Method 2: CLI Command**
 
@@ -205,8 +205,8 @@ See [SHADERS.md](SHADERS.md) for the complete shader gallery.
 
 **Method 1: First-Run Dialog**
 
-On first launch, par-term offers to install the shader collection. Choose:
-- **Install Selected**: Downloads and installs immediately
+On first launch, par-term offers to install optional integrations. Select **Custom Shaders**, **Shell Integration**, or both, then choose:
+- **Install Selected**: Downloads and installs the selected integrations immediately
 - **Skip**: Dismiss for this session
 - **Never Ask**: Saves preference, never ask again
 
@@ -300,7 +300,7 @@ par-term uninstall-shaders --force
 
 **What gets preserved:**
 - User-created shaders (not in manifest)
-- Modified bundled shaders (different checksum)
+- Modified bundled shaders (different checksum; removed with `--force`)
 
 ## Settings UI
 

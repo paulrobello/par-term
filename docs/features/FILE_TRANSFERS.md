@@ -31,7 +31,7 @@ par-term implements the iTerm2 OSC 1337 File protocol for bidirectional file tra
 
 - **Native file dialogs** for save and open operations, matching OS conventions
 - **Real-time progress overlay** showing all active transfers with progress bars
-- **Desktop notifications** for transfer lifecycle events (start, complete, fail)
+- **Desktop notifications** for transfer lifecycle events (received, completed, failed)
 - **Shell utilities** (`pt-dl`, `pt-ul`, `pt-imgcat`) that work over SSH on any remote host
 
 ```mermaid
@@ -88,11 +88,11 @@ sequenceDiagram
     R->>T: OSC 1337 File=name=...;size=...;inline=0:base64data ST
     T->>P: Parse file transfer sequence
     P->>P: Show progress in overlay
-    P->>P: Desktop notification (transfer started)
+    P->>P: Desktop notification (download received)
     P->>D: Open native save dialog
     D-->>P: User selects save path
     P->>F: Write file to disk
-    P->>P: Desktop notification (transfer complete)
+    P->>P: Desktop notification (download saved)
     P->>P: Update last used directory
 ```
 
@@ -123,6 +123,7 @@ par-term sends desktop notifications for file transfer lifecycle events:
 
 - **Upload Requested** -- When a remote application requests a file upload
 - **Download Received** -- When download data has been fully received (before the save dialog)
+- **Download Rejected** -- When the remote-supplied filename is invalid
 - **Download Saved** -- After a file is successfully written to disk, including filename, path, and size
 - **Download Save Failed** -- If writing the file to disk fails
 - **Upload Complete** -- After upload data is successfully transmitted
@@ -150,7 +151,7 @@ sequenceDiagram
         F-->>P: File path
         P->>P: Read file from disk
         P->>T: Send base64-encoded data
-        P->>P: Desktop notification (upload sent)
+        P->>P: Desktop notification (upload complete)
     else User cancels
         F-->>P: Cancelled
         P->>T: Cancel upload
@@ -195,7 +196,7 @@ cat /var/log/syslog | pt-dl --name syslog.txt
 mysqldump mydb | pt-dl --name backup.sql
 ```
 
-**Dependencies:** `base64`, `wc`, `printf`, `cat`, `basename` (standard Unix utilities)
+**Dependencies:** `base64`, `wc`, `printf`, `tr`, `basename` (standard Unix utilities)
 
 ### pt-ul -- Upload Files
 
@@ -209,7 +210,7 @@ pt-ul
 pt-ul /tmp/uploads
 ```
 
-**Dependencies:** `base64`, `printf`, `cat`, `tar`, `stty`
+**Dependencies:** `base64`, `printf`, `mktemp`, `tar`, `stty`
 
 ### pt-imgcat -- Display Inline Images
 
@@ -239,7 +240,7 @@ pt-imgcat --no-preserve-aspect-ratio banner.png
 | `--preserve-aspect-ratio` | Maintain aspect ratio (default) |
 | `--no-preserve-aspect-ratio` | Allow stretching |
 
-**Dependencies:** `base64`, `wc`, `printf`, `cat`, `basename`
+**Dependencies:** `base64`, `wc`, `printf`, `tr`, `basename`
 
 ### Utility Installation
 
@@ -247,7 +248,7 @@ The utilities are installed automatically as part of shell integration. There ar
 
 **From par-term Settings:**
 
-Open Settings (F12) > Integrations > Install Shell Integration
+Open Settings (F12) > Integrations > Shell Integration > **Install**
 
 **Via curl on a remote host:**
 
@@ -306,18 +307,16 @@ You can also find this section by typing `download`, `upload`, `transfer`, or `s
 The following options can be set in `config.yaml`:
 
 ```yaml
-# Default save location for downloaded files
-# Options: downloads, last_used, cwd, or custom with a path
+# Options: downloads, last_used, cwd, or !custom with a path
 download_save_location: downloads
 
-# Example: custom directory
-# download_save_location:
-#   custom: "/Users/me/Transfers"
+# Example: custom directory (YAML tag syntax, not a mapping)
+# download_save_location: !custom "/Users/me/Transfers"
 ```
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `download_save_location` | enum | `downloads` | Where the save dialog opens by default |
+| `download_save_location` | enum | `downloads` | Where the save dialog opens by default: `downloads`, `last_used`, `cwd`, or `!custom /path/to/dir` |
 | `last_download_directory` | string | (none) | Automatically tracked; the directory from the most recent save (used when `last_used` is selected) |
 
 ## Troubleshooting
