@@ -243,10 +243,21 @@ install-shell-integration:
 
 # Install ACP bridge used by Claude custom agents
 install-acp:
-	@echo "Installing Claude ACP bridge (@agentclientprotocol/claude-agent-acp)..."
 	@command -v npm >/dev/null 2>&1 || { echo "❌ npm is required to install ACP bridge."; exit 1; }
-	@npm install -g @agentclientprotocol/claude-agent-acp
-	@echo "✅ ACP bridge installed: $$(command -v claude-agent-acp || echo 'not found in PATH')"
+	@if npm list -g --depth=0 @agentclientprotocol/claude-agent-acp >/dev/null 2>&1; then \
+		echo "✅ ACP bridge already installed: $$(command -v claude-agent-acp || echo 'not found in PATH')"; \
+	elif npm list -g --depth=0 @zed-industries/claude-agent-acp >/dev/null 2>&1; then \
+		echo "Migrating deprecated @zed-industries/claude-agent-acp package..."; \
+		npm uninstall -g @zed-industries/claude-agent-acp && \
+		npm install -g @agentclientprotocol/claude-agent-acp; \
+	elif command -v claude-agent-acp >/dev/null 2>&1; then \
+		echo "❌ claude-agent-acp already exists but is not owned by an ACP npm package: $$(command -v claude-agent-acp)"; \
+		echo "Remove or relocate that binary, then rerun make bundle-install."; \
+		exit 1; \
+	else \
+		npm install -g @agentclientprotocol/claude-agent-acp; \
+		echo "✅ ACP bridge installed: $$(command -v claude-agent-acp || echo 'not found in PATH')"; \
+	fi
 
 # Run the ACP harness (pass additional args via ARGS)
 acp-harness:
