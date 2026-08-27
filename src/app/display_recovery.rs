@@ -63,6 +63,7 @@ impl DisplayChangeGate {
     ///
     /// Returns `true` when a recovery event should be dispatched (first
     /// notification of a burst), `false` when one is already outstanding.
+    #[allow(dead_code)]
     pub(crate) fn record(&self) -> bool {
         !self.pending.swap(true, Ordering::AcqRel)
     }
