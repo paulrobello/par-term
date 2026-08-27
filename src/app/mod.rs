@@ -13,9 +13,9 @@ use tokio::runtime::Runtime;
 use winit::event_loop::{ControlFlow, EventLoop};
 /// Events injected into the winit event loop by platform observers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(dead_code)]
 pub(crate) enum AppEvent {
     /// The macOS display topology or parameters changed.
+    #[cfg(target_os = "macos")]
     DisplayConfigurationChanged,
 }
 

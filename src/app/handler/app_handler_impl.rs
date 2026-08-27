@@ -4,6 +4,7 @@
 //! and the top-level `about_to_wait` coordinator for all windows.
 
 use crate::app::AppEvent;
+#[cfg(target_os = "macos")]
 use crate::app::display_recovery::display_change_gate;
 use crate::app::handler::wake::{WakeRequest, apply_wake_decision, reduce_wake_requests};
 use crate::app::window_manager::WindowManager;
@@ -15,6 +16,7 @@ use winit::event_loop::ActiveEventLoop;
 use winit::window::WindowId;
 
 impl ApplicationHandler<AppEvent> for WindowManager {
+    #[cfg(target_os = "macos")]
     fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: AppEvent) {
         match event {
             AppEvent::DisplayConfigurationChanged => {
