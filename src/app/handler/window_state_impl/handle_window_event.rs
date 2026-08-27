@@ -109,8 +109,9 @@ impl WindowState {
                     let size = window.inner_size();
                     let (cols, rows) = renderer.handle_scale_factor_change(scale_factor, size);
 
-                    // `handle_scale_factor_change` resizes and configures the surface.
-                    // Avoid a second configure, which tears down the swapchain again.
+                    // Reconfigure surface after scale factor change.
+                    // This is important when the physical extent is unchanged.
+                    renderer.reconfigure_surface();
                     // Calculate pixel dimensions
                     let cell_width = renderer.cell_width();
                     let cell_height = renderer.cell_height();
