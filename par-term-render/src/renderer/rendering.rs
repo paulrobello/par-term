@@ -571,13 +571,18 @@ impl Renderer {
         let surface_texture = match self.cell_renderer.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(t)
             | wgpu::CurrentSurfaceTexture::Suboptimal(t) => t,
-            other => return Err(crate::error::RenderError::Surface(format!("{other:?}")).into()),
+            other => {
+                if let Some((mut output, _)) = egui_data {
+                    output.textures_delta.clear();
+                }
+                return Err(crate::error::RenderError::Surface(format!("{other:?}")).into());
+            }
         };
         let surface_view = surface_texture
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        self.composite_panes(
+        if let Err(error) = self.composite_panes(
             PaneCaptureParams {
                 panes,
                 dividers,
@@ -586,7 +591,12 @@ impl Renderer {
                 divider_settings,
             },
             &surface_view,
-        )?;
+        ) {
+            if let Some((mut output, _)) = egui_data {
+                output.textures_delta.clear();
+            }
+            return Err(error);
+        }
 
         // Render egui overlay if provided
         if let Some((egui_output, egui_ctx)) = egui_data {

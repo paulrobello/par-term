@@ -7,7 +7,7 @@ impl Renderer {
     pub(crate) fn render_egui(
         &mut self,
         surface_texture: &wgpu::SurfaceTexture,
-        egui_output: egui::FullOutput,
+        mut egui_output: egui::FullOutput,
         egui_ctx: &egui::Context,
         force_opaque: bool,
     ) -> Result<()> {
@@ -127,6 +127,8 @@ impl Renderer {
         for id in &egui_output.textures_delta.free {
             self.egui_renderer.free_texture(id);
         }
+        // epaint 0.36 panics if a consumed delta is dropped uncleared.
+        egui_output.textures_delta.clear();
 
         Ok(())
     }
