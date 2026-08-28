@@ -226,21 +226,23 @@ impl Renderer {
                 absolute_row as isize - view_start as isize
             };
 
-            log::debug!(
-                "[RENDERER] Graphics update: id={}, protocol={:?}, pos=({},{}), screen_row={}, scrollback_row={:?}, scroll_offset_rows={}, size={}x{}, pixels=({}), view=[{},{})",
-                id,
-                graphic.protocol,
-                col,
-                row,
-                screen_row,
-                graphic.scrollback_row,
-                graphic.scroll_offset_rows,
-                graphic.width,
-                graphic.height,
-                rgba_diag_summary(&graphic.pixels),
-                view_start,
-                view_end
-            );
+            if log::log_enabled!(log::Level::Debug) {
+                log::debug!(
+                    "[RENDERER] Graphics update: id={}, protocol={:?}, pos=({},{}), screen_row={}, scrollback_row={:?}, scroll_offset_rows={}, size={}x{}, pixels=({}), view=[{},{})",
+                    id,
+                    graphic.protocol,
+                    col,
+                    row,
+                    screen_row,
+                    graphic.scrollback_row,
+                    graphic.scroll_offset_rows,
+                    graphic.width,
+                    graphic.height,
+                    rgba_diag_summary(&graphic.pixels),
+                    view_start,
+                    view_end
+                );
+            }
 
             // Create or update texture in cache
             self.graphics_renderer.get_or_create_texture(
@@ -366,14 +368,16 @@ impl Renderer {
                 sr
             };
 
-            log::debug!(
-                "[PANE_GRAPHICS] texture upload: id={}, protocol={:?}, size={}x{}, {}",
-                id,
-                graphic.protocol,
-                graphic.width,
-                graphic.height,
-                rgba_diag_summary(&graphic.pixels)
-            );
+            if log::log_enabled!(log::Level::Debug) {
+                log::debug!(
+                    "[PANE_GRAPHICS] texture upload: id={}, protocol={:?}, size={}x{}, {}",
+                    id,
+                    graphic.protocol,
+                    graphic.width,
+                    graphic.height,
+                    rgba_diag_summary(&graphic.pixels)
+                );
+            }
             // Upload / refresh texture in the shared cache
             self.graphics_renderer.get_or_create_texture(
                 self.cell_renderer.device(),

@@ -2,24 +2,17 @@ use super::TerminalManager;
 use par_term_emu_core_rust::graphics::TerminalGraphic;
 use std::collections::HashSet;
 
-/// `buf_len`/`non_zero_alpha`/`first_rgba` summary of an RGBA pixel buffer,
-/// for inline-image diagnostics. Never includes the raw pixel payload; cheap
-/// to pass to `log::debug!` because log macros evaluate arguments lazily.
+/// O(1) summary for terminal-to-render inline-image diagnostics.
 fn rgba_diag_summary(pixels: &[u8]) -> String {
-    let (rgba_pixels, _) = pixels.as_chunks::<4>();
-    let non_zero_alpha = rgba_pixels.iter().filter(|px| px[3] != 0).count();
-    let first_rgba = if pixels.len() >= 4 {
-        format!(
-            "{:02x}{:02x}{:02x}{:02x}",
-            pixels[0], pixels[1], pixels[2], pixels[3]
-        )
-    } else {
-        "none".to_string()
-    };
+    let first_rgba = pixels
+        .get(..4)
+        .map(|px| format!("{:02x}{:02x}{:02x}{:02x}", px[0], px[1], px[2], px[3]))
+        .unwrap_or_else(|| "none".to_string());
+    let alpha_sample = pixels.get(3).copied().unwrap_or(0);
     format!(
-        "buf_len={}, non_zero_alpha={}, first_rgba={}",
+        "buf_len={}, alpha_sample={}, first_rgba={}",
         pixels.len(),
-        non_zero_alpha,
+        alpha_sample,
         first_rgba
     )
 }
@@ -331,15 +324,15 @@ mod rgba_diag_tests {
         let px: &[u8] = &[255, 0, 0, 255, 10, 20, 30, 0];
         assert_eq!(
             rgba_diag_summary(px),
-            "buf_len=8, non_zero_alpha=1, first_rgba=ff0000ff"
+            "buf_len=8, alpha_sample=255, first_rgba=ff0000ff"
         );
     }
 
     #[test]
-    fn all_zero_buffer_reports_zero_nonzero_alpha() {
+    fn all_zero_buffer_reports_zero_alpha_sample() {
         assert_eq!(
             rgba_diag_summary(&[0; 12]),
-            "buf_len=12, non_zero_alpha=0, first_rgba=00000000"
+            "buf_len=12, alpha_sample=0, first_rgba=00000000"
         );
     }
 
@@ -347,16 +340,16 @@ mod rgba_diag_tests {
     fn empty_short_and_trailing_partial_buffers_do_not_panic() {
         assert_eq!(
             rgba_diag_summary(&[]),
-            "buf_len=0, non_zero_alpha=0, first_rgba=none"
+            "buf_len=0, alpha_sample=0, first_rgba=none"
         );
         assert_eq!(
             rgba_diag_summary(&[1, 2, 3]),
-            "buf_len=3, non_zero_alpha=0, first_rgba=none"
+            "buf_len=3, alpha_sample=0, first_rgba=none"
         );
         // one full pixel plus two stray bytes: the partial pixel is ignored
         assert_eq!(
             rgba_diag_summary(&[0, 0, 0, 255, 9, 9]),
-            "buf_len=6, non_zero_alpha=1, first_rgba=000000ff"
+            "buf_len=6, alpha_sample=255, first_rgba=000000ff"
         );
     }
 }
