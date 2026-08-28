@@ -3923,15 +3923,16 @@ dependencies = [
 
 [[package]]
 name = "par-term-emu-core-rust"
-version = "0.46.0"
+version = "0.47.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a34c5df104bb63d7eb6904ecef0366b36042dcf05c74c3594ccd31c7cb410c5"
+checksum = "e0a815d995911e7ea2692c020bddc255b166791fdd15a06fa8f897e264cbbe35"
 dependencies = [
  "base64 0.22.1",
  "bitflags 2.13.1",
  "flate2",
  "image",
  "libc",
+ "log",
  "lru",
  "nix 0.31.3",
  "parking_lot",
@@ -3940,7 +3941,7 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
- "serde_yaml",
+ "serde_yaml_ng",
  "smallvec",
  "subtle",
  "swash",
@@ -5067,19 +5068,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6662b5879511e06e8999a8a235d848113e942c9124f211511b16466ee2995f26"
 dependencies = [
  "serde_core",
-]
-
-[[package]]
-name = "serde_yaml"
-version = "0.9.34+deprecated"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a8b1a1a2ebf674015cc02edccce75287f1a0130d394307b36743c2f5d504b47"
-dependencies = [
- "indexmap",
- "itoa",
- "ryu",
- "serde",
- "unsafe-libyaml",
 ]
 
 [[package]]
