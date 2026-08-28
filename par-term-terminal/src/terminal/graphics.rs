@@ -3,17 +3,32 @@ use par_term_emu_core_rust::graphics::TerminalGraphic;
 use std::collections::HashSet;
 
 /// O(1) summary for terminal-to-render inline-image diagnostics.
+///
+/// Reports the first, middle (`n/2`, floor), and last complete RGBA pixels so
+/// one log line localizes alpha anomalies across the buffer without scanning
+/// it. Buffers with no complete pixel report `none` for every sample;
+/// trailing partial pixels are ignored.
 fn rgba_diag_summary(pixels: &[u8]) -> String {
-    let first_rgba = pixels
-        .get(..4)
-        .map(|px| format!("{:02x}{:02x}{:02x}{:02x}", px[0], px[1], px[2], px[3]))
-        .unwrap_or_else(|| "none".to_string());
-    let alpha_sample = pixels.get(3).copied().unwrap_or(0);
+    let n_pixels = pixels.len() / 4;
+    let sample = |idx: usize| {
+        pixels
+            .get(idx * 4..idx * 4 + 4)
+            .map(|px| format!("{:02x}{:02x}{:02x}{:02x}", px[0], px[1], px[2], px[3]))
+            .unwrap_or_else(|| "none".to_string())
+    };
+    let first_rgba = sample(0);
+    let mid_rgba = sample(n_pixels / 2);
+    let last_rgba = if n_pixels == 0 {
+        "none".to_string()
+    } else {
+        sample(n_pixels - 1)
+    };
     format!(
-        "buf_len={}, alpha_sample={}, first_rgba={}",
+        "buf_len={}, first_rgba={}, mid_rgba={}, last_rgba={}",
         pixels.len(),
-        alpha_sample,
-        first_rgba
+        first_rgba,
+        mid_rgba,
+        last_rgba
     )
 }
 
@@ -324,15 +339,15 @@ mod rgba_diag_tests {
         let px: &[u8] = &[255, 0, 0, 255, 10, 20, 30, 0];
         assert_eq!(
             rgba_diag_summary(px),
-            "buf_len=8, alpha_sample=255, first_rgba=ff0000ff"
+            "buf_len=8, first_rgba=ff0000ff, mid_rgba=0a141e00, last_rgba=0a141e00"
         );
     }
 
     #[test]
-    fn all_zero_buffer_reports_zero_alpha_sample() {
+    fn all_zero_buffer_reports_zero_rgba_samples() {
         assert_eq!(
             rgba_diag_summary(&[0; 12]),
-            "buf_len=12, alpha_sample=0, first_rgba=00000000"
+            "buf_len=12, first_rgba=00000000, mid_rgba=00000000, last_rgba=00000000"
         );
     }
 
@@ -340,16 +355,16 @@ mod rgba_diag_tests {
     fn empty_short_and_trailing_partial_buffers_do_not_panic() {
         assert_eq!(
             rgba_diag_summary(&[]),
-            "buf_len=0, alpha_sample=0, first_rgba=none"
+            "buf_len=0, first_rgba=none, mid_rgba=none, last_rgba=none"
         );
         assert_eq!(
             rgba_diag_summary(&[1, 2, 3]),
-            "buf_len=3, alpha_sample=0, first_rgba=none"
+            "buf_len=3, first_rgba=none, mid_rgba=none, last_rgba=none"
         );
         // one full pixel plus two stray bytes: the partial pixel is ignored
         assert_eq!(
             rgba_diag_summary(&[0, 0, 0, 255, 9, 9]),
-            "buf_len=6, alpha_sample=255, first_rgba=000000ff"
+            "buf_len=6, first_rgba=000000ff, mid_rgba=000000ff, last_rgba=000000ff"
         );
     }
 }
