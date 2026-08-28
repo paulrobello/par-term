@@ -290,7 +290,7 @@ impl WindowState {
             // (a cheap Arc clone). The downstream render functions expect
             // Option<(FullOutput, &Context)>. We split the tuple so the Context lives in
             // a separate binding that outlives its borrow in the render call.
-            let (egui_output, egui_ctx_store) = match egui_data {
+            let (mut egui_output, egui_ctx_store) = match egui_data {
                 Some((output, ctx)) => (Some(output), Some(ctx)),
                 None => (None, None),
             };
@@ -449,10 +449,22 @@ impl WindowState {
                         "gather_pane_render_data returned None with pane_count={}",
                         pane_count
                     );
+                    // egui 0.36 panics on drop of a TexturesDelta with unapplied
+                    // deltas; this output never reaches the egui render pass, so
+                    // clear it before it is dropped (the render path applies it).
+                    if let Some(output) = &mut egui_output {
+                        output.textures_delta.clear();
+                    }
                     Ok(false)
                 }
             } else {
                 // No active tab — nothing to render.
+                // egui 0.36 panics on drop of a TexturesDelta with unapplied
+                // deltas; clear the unconsumed output before it is dropped
+                // (the render path applies the delta).
+                if let Some(output) = &mut egui_output {
+                    output.textures_delta.clear();
+                }
                 Ok(false)
             };
 
