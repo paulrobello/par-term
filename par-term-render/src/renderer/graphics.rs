@@ -18,6 +18,22 @@ fn virtual_placement_cache_id(image_id: u32, placement_id: u32) -> u64 {
     VIRTUAL_PLACEMENT_ID_FLAG | ((placement_id as u64) << 32) | image_id as u64
 }
 
+/// Compact RGBA buffer statistics for debug diagnostics.
+fn rgba_diag_summary(pixels: &[u8]) -> String {
+    let (rgba_pixels, _) = pixels.as_chunks::<4>();
+    let alpha = rgba_pixels.iter().filter(|px| px[3] != 0).count();
+    let first = pixels
+        .get(..4)
+        .map(|px| format!("{:02x}{:02x}{:02x}{:02x}", px[0], px[1], px[2], px[3]))
+        .unwrap_or_else(|| "none".to_string());
+    format!(
+        "buf_len={}, non_zero_alpha={}, first_rgba={}",
+        pixels.len(),
+        alpha,
+        first
+    )
+}
+
 /// Decode a Kitty Unicode-placeholder cell.
 ///
 /// Returns `(image_id, placement_id, row_idx, col_idx)` if the cell holds a
@@ -211,7 +227,7 @@ impl Renderer {
             };
 
             log::debug!(
-                "[RENDERER] Graphics update: id={}, protocol={:?}, pos=({},{}), screen_row={}, scrollback_row={:?}, scroll_offset_rows={}, size={}x{}, view=[{},{})",
+                "[RENDERER] Graphics update: id={}, protocol={:?}, pos=({},{}), screen_row={}, scrollback_row={:?}, scroll_offset_rows={}, size={}x{}, pixels=({}), view=[{},{})",
                 id,
                 graphic.protocol,
                 col,
@@ -221,6 +237,7 @@ impl Renderer {
                 graphic.scroll_offset_rows,
                 graphic.width,
                 graphic.height,
+                rgba_diag_summary(&graphic.pixels),
                 view_start,
                 view_end
             );
@@ -349,6 +366,14 @@ impl Renderer {
                 sr
             };
 
+            log::debug!(
+                "[PANE_GRAPHICS] texture upload: id={}, protocol={:?}, size={}x{}, {}",
+                id,
+                graphic.protocol,
+                graphic.width,
+                graphic.height,
+                rgba_diag_summary(&graphic.pixels)
+            );
             // Upload / refresh texture in the shared cache
             self.graphics_renderer.get_or_create_texture(
                 self.cell_renderer.device(),

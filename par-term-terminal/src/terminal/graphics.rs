@@ -2,6 +2,28 @@ use super::TerminalManager;
 use par_term_emu_core_rust::graphics::TerminalGraphic;
 use std::collections::HashSet;
 
+/// `buf_len`/`non_zero_alpha`/`first_rgba` summary of an RGBA pixel buffer,
+/// for inline-image diagnostics. Never includes the raw pixel payload; cheap
+/// to pass to `log::debug!` because log macros evaluate arguments lazily.
+fn rgba_diag_summary(pixels: &[u8]) -> String {
+    let (rgba_pixels, _) = pixels.as_chunks::<4>();
+    let non_zero_alpha = rgba_pixels.iter().filter(|px| px[3] != 0).count();
+    let first_rgba = if pixels.len() >= 4 {
+        format!(
+            "{:02x}{:02x}{:02x}{:02x}",
+            pixels[0], pixels[1], pixels[2], pixels[3]
+        )
+    } else {
+        "none".to_string()
+    };
+    format!(
+        "buf_len={}, non_zero_alpha={}, first_rgba={}",
+        pixels.len(),
+        non_zero_alpha,
+        first_rgba
+    )
+}
+
 impl TerminalManager {
     /// Get all graphics (Sixel, iTerm2, Kitty)
     /// Returns a vector of cloned TerminalGraphic objects for rendering
@@ -21,6 +43,15 @@ impl TerminalManager {
                     g.position.1,
                     g.width,
                     g.height
+                );
+                log::debug!(
+                    "get_graphics handoff: [{}] protocol={:?}, id={}, size={}x{}, {}",
+                    i,
+                    g.protocol,
+                    g.id,
+                    g.width,
+                    g.height,
+                    rgba_diag_summary(&g.pixels)
                 );
             }
         }
@@ -273,7 +304,59 @@ impl TerminalManager {
             graphics.push(graphic.clone());
         }
 
+        for (idx, graphic) in graphics.iter().enumerate() {
+            log::debug!(
+                "get_graphics_with_animations handoff: [{}] protocol={:?}, id={}, size={}x{}, {}",
+                idx,
+                graphic.protocol,
+                graphic.id,
+                graphic.width,
+                graphic.height,
+                rgba_diag_summary(&graphic.pixels)
+            );
+        }
+
         log::debug!("Returning {} graphics total", graphics.len());
         graphics
+    }
+}
+
+#[cfg(test)]
+mod rgba_diag_tests {
+    use super::rgba_diag_summary;
+
+    #[test]
+    fn summarizes_opaque_and_transparent_pixels() {
+        // 2x1: one opaque red, one fully transparent
+        let px: &[u8] = &[255, 0, 0, 255, 10, 20, 30, 0];
+        assert_eq!(
+            rgba_diag_summary(px),
+            "buf_len=8, non_zero_alpha=1, first_rgba=ff0000ff"
+        );
+    }
+
+    #[test]
+    fn all_zero_buffer_reports_zero_nonzero_alpha() {
+        assert_eq!(
+            rgba_diag_summary(&[0; 12]),
+            "buf_len=12, non_zero_alpha=0, first_rgba=00000000"
+        );
+    }
+
+    #[test]
+    fn empty_short_and_trailing_partial_buffers_do_not_panic() {
+        assert_eq!(
+            rgba_diag_summary(&[]),
+            "buf_len=0, non_zero_alpha=0, first_rgba=none"
+        );
+        assert_eq!(
+            rgba_diag_summary(&[1, 2, 3]),
+            "buf_len=3, non_zero_alpha=0, first_rgba=none"
+        );
+        // one full pixel plus two stray bytes: the partial pixel is ignored
+        assert_eq!(
+            rgba_diag_summary(&[0, 0, 0, 255, 9, 9]),
+            "buf_len=6, non_zero_alpha=1, first_rgba=000000ff"
+        );
     }
 }
