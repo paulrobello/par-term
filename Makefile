@@ -144,7 +144,7 @@ run-debug:
 	@echo ""
 	@echo "In another terminal, run: make tail-log"
 	@echo ""
-	RUST_LOG=debug DEBUG_LEVEL=3 $(RUN_BASE) 2>&1 | tee $(DEBUG_LOG)
+	RUST_LOG=debug DEBUG_LEVEL=3 $(RUN_BASE) -- --log-level debug 2>&1 | tee $(DEBUG_LOG)
 
 # Run with trace level logging (most verbose, uses custom DEBUG_LEVEL)
 run-trace:
@@ -153,7 +153,7 @@ run-trace:
 	@echo ""
 	@echo "In another terminal, run: make tail-log"
 	@echo ""
-	RUST_LOG=trace DEBUG_LEVEL=4 $(RUN_BASE) 2>&1 | tee $(DEBUG_LOG)
+	RUST_LOG=trace DEBUG_LEVEL=4 $(RUN_BASE) -- --log-level trace 2>&1 | tee $(DEBUG_LOG)
 
 # Run release build with debug logging
 run-release-debug: release
