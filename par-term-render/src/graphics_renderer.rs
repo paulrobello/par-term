@@ -91,9 +91,12 @@ fn compute_graphic_geometry(
     // - r-only: cell height × aspect-derived exact width.
     // - neither: natural source crop size (or full texture when
     //   preserve_aspect, else cell-derived fallback).
-    // Guard against empty crop intersection (crop at the texture edge
-    // yields sw/sh=0); treat it as no-crop so the full texture is drawn.
-    let aspect = if sw > 0.0 && sh > 0.0 { sw / sh } else { 1.0 };
+    // Empty crop intersection (crop at the texture edge yields sw/sh=0)
+    // produces nothing to draw; return zero size immediately.
+    if sw <= 0.0 || sh <= 0.0 {
+        return ([0.0, 0.0, 0.0, 0.0], [0.0, 0.0]);
+    }
+    let aspect = sw / sh;
     let (dest_w, dest_h) = if is_virtual || (has_cols && has_rows) {
         (width_cells as f32 * cell_w, height_cells as f32 * cell_h)
     } else if has_cols && !has_rows {
@@ -300,9 +303,10 @@ mod geometry_tests {
     }
 
     /// Crop at the texture edge (source_x=100 on 100px image) yields sw=0.
-    /// With c-only this must not produce NaN/infinite dest dimensions.
+    /// Zero-size intersection must return zero output, not a full-image
+    /// fallback or NaN from aspect division.
     #[test]
-    fn zero_size_crop_at_edge_does_not_produce_nan() {
+    fn zero_size_crop_at_edge_returns_zero_output() {
         let (uv, size) = compute_graphic_geometry(
             100.0,
             100.0,
@@ -319,13 +323,9 @@ mod geometry_tests {
             WW,
             WH,
         );
-        assert!(size[0].is_finite());
-        assert!(size[1].is_finite());
-        // aspect defaults to 1.0 so dest_h = 50px
-        assert!((size[1] - 50.0 / WH).abs() < 1e-5);
-        // UV falls back to full image
-        assert!((uv[0] - 0.0).abs() < 1e-5);
-        assert!((uv[2] - 1.0).abs() < 1e-5);
+        // Zero crop → zero UV and zero size
+        assert_eq!(uv, [0.0, 0.0, 0.0, 0.0]);
+        assert_eq!(size, [0.0, 0.0]);
     }
 }
 
