@@ -255,11 +255,10 @@ impl Renderer {
             )?;
 
             // Add to render list with position and dimensions
-            // Calculate size in cells (rounding up to cover all affected cells)
-            let width_cells =
-                ((graphic.width as f32 / self.cell_renderer.cell_width()).ceil() as usize).max(1);
-            let height_cells =
-                ((graphic.height as f32 / self.cell_renderer.cell_height()).ceil() as usize).max(1);
+            let (width_cells, height_cells) = graphic.cell_span(
+                self.cell_renderer.cell_width() as u32,
+                self.cell_renderer.cell_height() as u32,
+            );
 
             // Calculate effective clip rows based on screen position
             // If screen_row < 0, we need to clip that many rows from the top
@@ -278,6 +277,16 @@ impl Renderer {
                 height_cells,
                 alpha: 1.0,
                 scroll_offset_rows: effective_clip_rows,
+                destination_offset_x: graphic.placement.x_offset,
+                destination_offset_y: graphic.placement.y_offset,
+                source_crop: [
+                    graphic.placement.source_x,
+                    graphic.placement.source_y,
+                    graphic.placement.source_width,
+                    graphic.placement.source_height,
+                ],
+                has_cols: graphic.placement.columns.filter(|&v| v > 0).is_some(),
+                has_rows: graphic.placement.rows.filter(|&v| v > 0).is_some(),
             });
         }
 
@@ -388,10 +397,10 @@ impl Renderer {
                 graphic.height as u32,
             )?;
 
-            let width_cells =
-                ((graphic.width as f32 / self.cell_renderer.cell_width()).ceil() as usize).max(1);
-            let height_cells =
-                ((graphic.height as f32 / self.cell_renderer.cell_height()).ceil() as usize).max(1);
+            let (width_cells, height_cells) = graphic.cell_span(
+                self.cell_renderer.cell_width() as u32,
+                self.cell_renderer.cell_height() as u32,
+            );
 
             let effective_clip_rows = if screen_row < 0 {
                 (-screen_row) as usize
@@ -407,6 +416,16 @@ impl Renderer {
                 height_cells,
                 alpha: 1.0,
                 scroll_offset_rows: effective_clip_rows,
+                destination_offset_x: graphic.placement.x_offset,
+                destination_offset_y: graphic.placement.y_offset,
+                source_crop: [
+                    graphic.placement.source_x,
+                    graphic.placement.source_y,
+                    graphic.placement.source_width,
+                    graphic.placement.source_height,
+                ],
+                has_cols: graphic.placement.columns.filter(|&v| v > 0).is_some(),
+                has_rows: graphic.placement.rows.filter(|&v| v > 0).is_some(),
             });
         }
 
@@ -479,6 +498,11 @@ impl Renderer {
                 height_cells: hit.height_cells,
                 alpha: 1.0,
                 scroll_offset_rows: 0,
+                destination_offset_x: 0,
+                destination_offset_y: 0,
+                source_crop: [0; 4],
+                has_cols: true,
+                has_rows: true,
             });
         }
         Ok(out)
