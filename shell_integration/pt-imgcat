@@ -135,22 +135,26 @@ _pt_send_kitty() {
     _chunk_size=4096
     _first=1
 
-    printf '%s\n' "$_b64data" | fold -w "$_chunk_size" | while IFS= read -r _chunk; do
-        if [ "$_first" -eq 1 ]; then
+    printf '%s\n' "$_b64data" | fold -w "$_chunk_size" | \
+        awk -v sz="$_chunk_size" '
+            { buf[NR] = $0 }
+            END {
+                for (i = 1; i <= NR; i++) {
+                    if (i < NR) printf "%s\tm=1\t%s\n", (i==1 ? "first" : ""), buf[i]
+                    else printf "%s\tm=0\t%s\n", (i==1 ? "first" : ""), buf[i]
+                }
+            }
+        ' | while IFS='	' read -r _tag _m _chunk; do
+        if [ "$_tag" = "first" ]; then
             _pt_print_apc
-            printf '%s,m=1;%s' "$_kitty_control" "$_chunk"
+            printf '%s,%s;%s' "$_kitty_control" "$_m" "$_chunk"
             _pt_print_apc_st
-            _first=0
         else
             _pt_print_apc
-            printf 'm=1;%s' "$_chunk"
+            printf '%s;%s' "$_m" "$_chunk"
             _pt_print_apc_st
         fi
     done
-    # Always emit an empty m=0 terminator after all data chunks.
-    _pt_print_apc
-    printf 'm=0;'
-    _pt_print_apc_st
     printf '\n'
 }
 
@@ -248,6 +252,11 @@ while [ $# -gt 0 ]; do
             _file="${1:--}"
             break
             ;;
+        -)
+            _file="-"
+            shift
+            break
+            ;;
         -*)
             echo "Unknown option: $1" >&2
             echo "Usage: pt-imgcat [--format iterm2|kitty] [--width N] [--height N] <file|->" >&2
@@ -286,11 +295,14 @@ fi
 
 # Send the image
 if [ "$_format" = "kitty" ]; then
-    # --- Kitty graphics protocol (a=T, f=100 PNG) ---
 
-    # Spool input to base64 first (works for both file and stdin).
+    # Spool input to a temp file if reading from stdin (so conversion
+    # tools can re-read the source without consuming stdin twice).
+    _stdin_tmp=""
     if [ "$_from_stdin" -eq 1 ]; then
-        _b64data=$(base64 | tr -d '\n')
+        _stdin_tmp=$(mktemp /tmp/pt-imgcat-XXXXXX)
+        cat > "$_stdin_tmp"
+        _src_file="$_stdin_tmp"
     else
         if [ ! -f "$_file" ]; then
             echo "Error: '$_file' is not a regular file" >&2
@@ -300,49 +312,39 @@ if [ "$_format" = "kitty" ]; then
             echo "Error: '$_file' is not readable" >&2
             exit 1
         fi
-        _b64data=$(base64 < "$_file" | tr -d '\n')
+        _src_file="$_file"
     fi
+
+    _b64data=$(base64 < "$_src_file" | tr -d '\n')
 
     # Validate PNG (Kitty f=100 only supports PNG).
     # If not PNG, try converting with sips (macOS) or ImageMagick.
     if ! _pt_is_png_b64 "$_b64data"; then
         _converted=""
-        if command -v sips >/dev/null 2>&1 && [ "$_from_stdin" -eq 0 ]; then
-            _converted=$(mktemp /tmp/pt-imgcat-XXXXXX.png)
-            if sips -s format png "$_file" --out "$_converted" >/dev/null 2>&1; then
-                _b64data=$(base64 < "$_converted" | tr -d '\n')
-                rm -f "$_converted"
-            else
-                rm -f "$_converted"
-                _converted=""
+        _conv_tmp=$(mktemp /tmp/pt-imgcat-XXXXXX.png)
+        if command -v sips >/dev/null 2>&1; then
+            if sips -s format png "$_src_file" --out "$_conv_tmp" >/dev/null 2>&1; then
+                _b64data=$(base64 < "$_conv_tmp" | tr -d '\n')
+                _converted="1"
             fi
-        elif command -v convert >/dev/null 2>&1 && [ "$_from_stdin" -eq 0 ]; then
-            _converted=$(mktemp /tmp/pt-imgcat-XXXXXX.png)
-            if convert "$_file" "$_converted" 2>/dev/null; then
-                _b64data=$(base64 < "$_converted" | tr -d '\n')
-                rm -f "$_converted"
-            else
-                rm -f "$_converted"
-                _converted=""
-            fi
-        elif command -v convert >/dev/null 2>&1 && [ "$_from_stdin" -eq 1 ]; then
-            _converted=$(mktemp /tmp/pt-imgcat-XXXXXX.png)
-            if convert - "$_converted" 2>/dev/null; then
-                _b64data=$(base64 < "$_converted" | tr -d '\n')
-                rm -f "$_converted"
-            else
-                rm -f "$_converted"
-                _converted=""
+        elif command -v convert >/dev/null 2>&1; then
+            if convert "$_src_file" "$_conv_tmp" 2>/dev/null; then
+                _b64data=$(base64 < "$_conv_tmp" | tr -d '\n')
+                _converted="1"
             fi
         fi
+        rm -f "$_conv_tmp"
 
         if [ -z "$_converted" ] && ! _pt_is_png_b64 "$_b64data"; then
+            [ -n "$_stdin_tmp" ] && rm -f "$_stdin_tmp"
             echo "Error: --format kitty requires PNG input (got non-PNG data)" >&2
             echo "       Install sips (macOS) or ImageMagick for auto-conversion," >&2
             echo "       or use --format iterm2 for JPEG/GIF/WebP" >&2
             exit 1
         fi
     fi
+
+    [ -n "$_stdin_tmp" ] && rm -f "$_stdin_tmp"
 
     # Validate width/height: Kitty uses cell units (c=/r=), not pixels.
     _kitty_control="a=T,f=100,q=2"

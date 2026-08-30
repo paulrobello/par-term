@@ -16,6 +16,17 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 - **macOS display changes now refresh terminal surfaces.** Global screen-parameter notifications are coalesced and routed through the event loop so CAMetalLayer and wgpu surfaces are reconfigured when a monitor is plugged in or removed without a window resize or DPI change.
 - **`make bundle-install` now handles existing ACP bridges.** It recognizes an installed `@agentclientprotocol/claude-agent-acp`, migrates the deprecated `@zed-industries/claude-agent-acp` package, and reports unmanaged binary conflicts without overwriting them.
 
+
+### Added
+
+- **`pt-imgcat --format kitty` — Kitty graphics protocol support in the shell helper.** The `--format` flag selects the inline image protocol (default `iterm2`). The `kitty` format sends `a=T,f=100,q=2` APCs chunked at 4096 base64 characters with `m=1`/`m=0` continuation, validates PNG input (auto-converts JPEG/GIF/WebP via `sips` on macOS or ImageMagick `convert` when available), maps cell-unit `--width`/`--height` to Kitty `c=`/`r=` (pixel units rejected with a clear error), and wraps APCs in tmux DCS passthrough with correctly doubled ESC bytes. iTerm2 behavior is unchanged for all image formats.
+
+### Fixed (inline images)
+
+- **Kitty APCs now process in stream order with interleaved cursor movements** (core `par-term-emu-core-rust` `src/terminal/apc_filter.rs`, `src/terminal/mod.rs`). The APC pre-filter previously collected all completed Kitty payloads and processed them after the entire passthrough byte stream was fed to the VTE parser, so `CSI row;col H` cursor moves emitted by clients like Herdr before each `a=p` placement were applied only after all placements had already been built — stacking every image slice at a single terminal position. The filter now records the passthrough offset at each APC completion and advances each intervening passthrough slice before building that graphic, so slices land at their intended consecutive rows.
+- **Kitty placement geometry now honors the full graphics protocol contract** (core `par-term-emu-core-rust` `src/graphics/kitty.rs`, `src/graphics/mod.rs`). Source crop (`x=/y=/w=/h=`), destination pixel offsets (`X=/Y=`), and cell footprint (`c=/r=`) are parsed order-independently and preserved through `ImagePlacement` metadata. Omitted `c` or `r` axes are computed from the source-crop aspect ratio per the Kitty spec. Repeated `(image_id, placement_id)` pairs replace in place; retransmitting an existing image ID deletes all old placements (active, scrollback, virtual, animation) before storing new data.
+- **Renderer honors Kitty placement geometry** (`par-term-render/src/graphics_renderer.rs`, `par-term-render/src/renderer/graphics.rs`). Regular graphics now size by the Kitty `c/r` cell footprint with per-axis aspect-ratio derivation when only one axis is specified, apply `X/Y` destination pixel offsets, map `x/y/w/h` source crop to normalized UV coordinates, and compute scroll clipping in signed pixel space (not integer rows) so a `Y` offset that shifts the top to a non-row-aligned position produces a sub-row clip. Zero-size crop intersections return zero-size output rather than a full-image fallback. Virtual placements (`U=1`) retain the existing placeholder-cell sizing path unchanged.
+
 ---
 
 ## [0.44.0] - 2026-08-26
