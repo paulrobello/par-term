@@ -15,6 +15,7 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 - **macOS display changes now refresh terminal surfaces.** Global screen-parameter notifications are coalesced and routed through the event loop so CAMetalLayer and wgpu surfaces are reconfigured when a monitor is plugged in or removed without a window resize or DPI change.
 - **`make bundle-install` now handles existing ACP bridges.** It recognizes an installed `@agentclientprotocol/claude-agent-acp`, migrates the deprecated `@zed-industries/claude-agent-acp` package, and reports unmanaged binary conflicts without overwriting them.
+- **`pt-imgcat -` now works as stdin indicator.** A bare `-` previously matched the `-*` unknown-option pattern instead of being treated as the stdin file marker, producing "Unknown option: -". It now correctly reads from stdin.
 
 
 ### Added

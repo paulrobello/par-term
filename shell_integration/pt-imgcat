@@ -16,10 +16,12 @@
 #   --preserve-aspect-ratio        Maintain aspect ratio (default: yes)
 #   --no-preserve-aspect-ratio     Allow stretching
 #
-# Kitty format requires PNG input; use iterm2 for JPEG/GIF.
+# Kitty format prefers PNG; non-PNG (JPEG/GIF/WebP) is auto-converted
+# via sips (macOS) or ImageMagick convert when available.
 # Kitty format rejects pixel-unit width/height (cells only).
 #
-# Works over SSH on any remote host. Only requires: base64, wc, printf, cat, basename, head
+# Requirements: iterm2 mode needs base64, wc, printf, cat, basename.
+# kitty mode additionally uses fold, awk, tr, mktemp, and sips or convert.
 
 set -e
 
