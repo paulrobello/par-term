@@ -19,7 +19,7 @@ par-term renders images directly in the terminal through three inline graphics p
 
 ## Overview
 
-Programs that want to draw images inside the terminal emit escape sequences carrying the image data and placement instructions. par-term decodes all three protocols to RGBA on the CPU, uploads them to GPU textures, and composites them between the cell layer and the UI overlay. The texture cache is keyed by image id, so retransmitting an image does not re-upload its pixels.
+Programs that want to draw images inside the terminal emit escape sequences carrying the image data and placement instructions. par-term decodes all three protocols to RGBA on the CPU, uploads them to GPU textures, and composites them between the cell layer and the UI overlay. Textures are cached by image id and shared across placements; retransmitted pixel data updates the cached texture in place.
 
 par-term sets `KITTY_WINDOW_ID` in the environment so tools can detect Kitty graphics protocol support (see the [Environment Variables reference](../guides/ENVIRONMENT_VARIABLES.md)).
 
@@ -37,7 +37,7 @@ All three are enabled by default; there is no protocol toggle in config.
 
 ### Transmission
 
-par-term accepts direct transmission (`a=T`) of PNG payloads (`f=100`). Large payloads arrive as multiple APCs: every chunk except the last carries `m=1`, the final chunk carries `m=0`, and par-term assembles them in order. Responses are suppressed by emitters with `q=2`. zlib-compressed Kitty payloads (`f=32`) are decompressed transparently.
+par-term accepts direct transmission (`a=T`) with PNG (`f=100`), 32-bit RGBA (`f=32`), and 24-bit RGB (`f=24`) payloads. Large payloads arrive as multiple APCs: every chunk except the last carries `m=1`, the final chunk carries `m=0`, and par-term assembles them in order. Responses are suppressed by emitters with `q=2`. zlib-compressed payloads (`o=z`) are decompressed transparently.
 
 The easiest way to emit these sequences from a shell is `pt-imgcat --format kitty` (see [Displaying Images from the Shell](#displaying-images-from-the-shell)).
 
@@ -66,7 +66,7 @@ Placed images scroll with the terminal content. Clipping is computed with signed
 
 ### Retransmit and Delete Semantics
 
-Transmitting an image whose id already has placements **replaces** it: the old placements are deleted first, so retransmitting never leaves ghost copies at stale positions. Delete commands (`a=d`) resolve order-independently — a delete followed by a re-place in the same stream produces the same final state as the reverse order.
+Transmitting an image whose id already has placements **replaces** it: the old placements are deleted first, so retransmitting never leaves ghost copies at stale positions. Delete commands (`a=d`) take effect immediately in stream order — a delete followed by a re-place leaves the new placement, while the reverse order removes it. Key order within a single APC (including the components of a `d=` target) does not matter.
 
 ### Stream-Order Processing
 

@@ -32,7 +32,7 @@ This release affects only projects that depend on par-term's crates as libraries
 **`par-term-emu-core-rust` moves 0.46 → 0.48.** The core now parses and exposes full Kitty placement geometry: an order-independent `x`/`y`/`w`/`h` source crop, `X`/`Y` destination pixel offsets, and a `c`/`r` cell footprint where an omitted axis is derived from the image's aspect ratio per axis. Semantics you may observe as a consumer:
 
 - Retransmitting an existing image id deletes its previous placements first (replace, not stack).
-- Delete resolution is order-independent within a command stream.
+- Delete resolution is order-independent within a single command (key order inside one APC, including `d=` target components), while separate commands take effect in stream order.
 - A crop that resolves to zero area yields a zero-size placement instead of falling back to the full image.
 - APC commands are processed in stream order, with interleaved cursor moves honored at each APC completion.
 

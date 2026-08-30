@@ -9,6 +9,10 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ---
 
+## [Unreleased]
+
+---
+
 ## [0.45.0] - 2026-08-30
 
 Kitty graphics placement geometry ships end-to-end — the emulator core now honors the full crop/offset/footprint contract, the renderer sizes and clips placements by it, and `pt-imgcat --format kitty` sends native Kitty APCs — alongside recovery from macOS display changes (monitor plug/unplug without a window resize). Minor bump for the Kitty placement-geometry feature and the new `pt-imgcat` format. Sub-crate bumps: `par-term-render` 0.10.1 → 0.11.0 (Kitty placement geometry in the renderer), `par-term-terminal` 0.5.4 → 0.5.5 (inline-image payload diagnostics, patch). Core library `par-term-emu-core-rust` moves 0.46.0 → 0.48.0 (published on crates.io; brings stream-order APC processing, placement geometry, and order-independent delete resolution into the terminal).
@@ -29,7 +33,7 @@ Kitty graphics placement geometry ships end-to-end — the emulator core now hon
 - **Kitty placement geometry now honors the full graphics protocol contract** (core `par-term-emu-core-rust` `src/graphics/kitty.rs`, `src/graphics/mod.rs`). Source crop (`x=/y=/w=/h=`), destination pixel offsets (`X=/Y=`), and cell footprint (`c=/r=`) are parsed order-independently and preserved through `ImagePlacement` metadata. Omitted `c` or `r` axes are computed from the source-crop aspect ratio per the Kitty spec. Repeated `(image_id, placement_id)` pairs replace in place; retransmitting an existing image ID deletes all old placements (active, scrollback, virtual, animation) before storing new data.
 - **Renderer honors Kitty placement geometry** (`par-term-render/src/graphics_renderer.rs`, `par-term-render/src/renderer/graphics.rs`). Regular graphics now size by the Kitty `c/r` cell footprint with per-axis aspect-ratio derivation when only one axis is specified, apply `X/Y` destination pixel offsets, map `x/y/w/h` source crop to normalized UV coordinates, and compute scroll clipping in signed pixel space (not integer rows) so a `Y` offset that shifts the top to a non-row-aligned position produces a sub-row clip. Zero-size crop intersections return zero-size output rather than a full-image fallback. Virtual placements (`U=1`) retain the existing placeholder-cell sizing path unchanged.
 
-### Dependencies
+### Changed
 
 - **Emulator core upgraded to `par-term-emu-core-rust` 0.48.0** (published). Includes all Kitty graphics fixes above plus order-independent delete-target resolution and spec-compliant retransmit handling.
 - **`cargo update` lockfile refresh.** 8 transitive bumps: aes 0.9.3, chacha20 0.10.2, cpufeatures 0.3.1, flate2 1.1.10 (+ miniz_oxide 0.9.1), indexmap 2.14.1, libredox 0.1.21, lru 0.18.3.
