@@ -1,8 +1,8 @@
 #!/bin/sh
 # pt-imgcat — Display inline images in par-term
 #
-# Uses iTerm2 OSC 1337 File protocol with inline=1 to display images
-# directly in the terminal.
+# Uses iTerm2 OSC 1337 File protocol (default) or Kitty graphics protocol
+# to display images directly in the terminal.
 #
 # Usage:
 #   pt-imgcat [options] <file>
@@ -10,12 +10,16 @@
 #   cat image.png | pt-imgcat
 #
 # Options:
+#   --format <iterm2|kitty>        Graphics protocol (default: iterm2)
 #   --width <N>                    Width in cells or pixels (e.g., 80, 400px)
 #   --height <N>                   Height in cells or pixels
 #   --preserve-aspect-ratio        Maintain aspect ratio (default: yes)
 #   --no-preserve-aspect-ratio     Allow stretching
 #
-# Works over SSH on any remote host. Only requires: base64, wc, printf, cat, basename
+# Kitty format requires PNG input; use iterm2 for JPEG/GIF.
+# Kitty format rejects pixel-unit width/height (cells only).
+#
+# Works over SSH on any remote host. Only requires: base64, wc, printf, cat, basename, head
 
 set -e
 
@@ -91,6 +95,66 @@ _pt_tmux_advance_cursor() {
     done
 }
 
+
+# Check if base64 data starts with a PNG header.
+# PNG magic \x89PNG\r\n\x1a\n base64-encodes to iVBORw0KGgo...
+_pt_is_png_b64() {
+    _b="$1"
+    case "$_b" in
+        iVBORw0KGgo*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# Print APC start with optional tmux DCS passthrough.
+# tmux doubles every ESC inside the passthrough wrapper.
+_pt_print_apc() {
+    if _pt_is_tmux; then
+        printf '\033Ptmux;\033\033_G'
+    else
+        printf '\033_G'
+    fi
+}
+
+# Print APC ST with optional tmux DCS terminator.
+# Inside tmux: inner ST has its ESC doubled (ESC ESC \), then the
+# outer DCS wrapper closes with its own ESC \.
+_pt_print_apc_st() {
+    if _pt_is_tmux; then
+        printf '\033\033\\\033\\'
+    else
+        printf '\033\\'
+    fi
+}
+
+# Send image data using Kitty graphics protocol (a=T, f=100 PNG).
+# Splits base64 into chunks of at most 4096 characters with m=1/m=0.
+# Uses fold for linear chunk extraction. All control keys (including q=2)
+# are comma-separated in _kitty_control; only the first chunk carries them.
+_pt_send_kitty() {
+    _chunk_size=4096
+    _first=1
+
+    printf '%s\n' "$_b64data" | fold -w "$_chunk_size" | while IFS= read -r _chunk; do
+        if [ "$_first" -eq 1 ]; then
+            _pt_print_apc
+            printf '%s,m=1;%s' "$_kitty_control" "$_chunk"
+            _pt_print_apc_st
+            _first=0
+        else
+            _pt_print_apc
+            printf 'm=1;%s' "$_chunk"
+            _pt_print_apc_st
+        fi
+    done
+    # Always emit an empty m=0 terminator after all data chunks.
+    _pt_print_apc
+    printf 'm=0;'
+    _pt_print_apc_st
+    printf '\n'
+}
+
+
 # Estimate the number of terminal rows the image will occupy.
 # Uses explicit --height if in cell units, otherwise computes from
 # image pixel dimensions and estimated cell metrics.
@@ -154,10 +218,15 @@ _width=""
 _height=""
 _preserve_aspect="1"
 _file=""
+_format="iterm2"
 
 # Parse options
 while [ $# -gt 0 ]; do
     case "$1" in
+        --format)
+            _format="$2"
+            shift 2
+            ;;
         --width)
             _width="$2"
             shift 2
@@ -181,7 +250,7 @@ while [ $# -gt 0 ]; do
             ;;
         -*)
             echo "Unknown option: $1" >&2
-            echo "Usage: pt-imgcat [--width N] [--height N] [--no-preserve-aspect-ratio] <file|->" >&2
+            echo "Usage: pt-imgcat [--format iterm2|kitty] [--width N] [--height N] <file|->" >&2
             exit 1
             ;;
         *)
@@ -191,6 +260,15 @@ while [ $# -gt 0 ]; do
             ;;
     esac
 done
+
+# Validate format
+case "$_format" in
+    iterm2|kitty) ;;
+    *)
+        echo "Error: unknown format '$_format' (use iterm2 or kitty)" >&2
+        exit 1
+        ;;
+esac
 
 # Determine input source
 _from_stdin=0
@@ -206,60 +284,153 @@ elif [ "$_file" = "-" ]; then
     _from_stdin=1
 fi
 
-# Build OSC parameters
-_params="inline=1"
-
-if [ -n "$_width" ]; then
-    _params="${_params};width=${_width}"
-fi
-
-if [ -n "$_height" ]; then
-    _params="${_params};height=${_height}"
-fi
-
-if [ "$_preserve_aspect" = "0" ]; then
-    _params="${_params};preserveAspectRatio=0"
-fi
-
 # Send the image
-if [ "$_from_stdin" -eq 1 ]; then
-    _b64name=$(printf '%s' "image" | base64 | tr -d '\n')
-    _b64data=$(base64 | tr -d '\n')
-    _size=$(printf '%s' "$_b64data" | base64 -d 2>/dev/null | wc -c | tr -d ' ')
+if [ "$_format" = "kitty" ]; then
+    # --- Kitty graphics protocol (a=T, f=100 PNG) ---
 
-    _pt_print_osc
-    printf '1337;File=name=%s;size=%s;%s:' "$_b64name" "$_size" "$_params"
-    printf '%s' "$_b64data"
-    _pt_print_st
-    printf '\n'
-else
-    if [ ! -f "$_file" ]; then
-        echo "Error: '$_file' is not a regular file" >&2
-        exit 1
-    fi
-    if [ ! -r "$_file" ]; then
-        echo "Error: '$_file' is not readable" >&2
-        exit 1
+    # Spool input to base64 first (works for both file and stdin).
+    if [ "$_from_stdin" -eq 1 ]; then
+        _b64data=$(base64 | tr -d '\n')
+    else
+        if [ ! -f "$_file" ]; then
+            echo "Error: '$_file' is not a regular file" >&2
+            exit 1
+        fi
+        if [ ! -r "$_file" ]; then
+            echo "Error: '$_file' is not readable" >&2
+            exit 1
+        fi
+        _b64data=$(base64 < "$_file" | tr -d '\n')
     fi
 
-    _basename=$(basename "$_file")
-    _b64name=$(printf '%s' "$_basename" | base64 | tr -d '\n')
-    _b64data=$(base64 < "$_file" | tr -d '\n')
-    _size=$(printf '%s' "$_b64data" | base64 -d 2>/dev/null | wc -c | tr -d ' ')
+    # Validate PNG (Kitty f=100 only supports PNG).
+    # If not PNG, try converting with sips (macOS) or ImageMagick.
+    if ! _pt_is_png_b64 "$_b64data"; then
+        _converted=""
+        if command -v sips >/dev/null 2>&1 && [ "$_from_stdin" -eq 0 ]; then
+            _converted=$(mktemp /tmp/pt-imgcat-XXXXXX.png)
+            if sips -s format png "$_file" --out "$_converted" >/dev/null 2>&1; then
+                _b64data=$(base64 < "$_converted" | tr -d '\n')
+                rm -f "$_converted"
+            else
+                rm -f "$_converted"
+                _converted=""
+            fi
+        elif command -v convert >/dev/null 2>&1 && [ "$_from_stdin" -eq 0 ]; then
+            _converted=$(mktemp /tmp/pt-imgcat-XXXXXX.png)
+            if convert "$_file" "$_converted" 2>/dev/null; then
+                _b64data=$(base64 < "$_converted" | tr -d '\n')
+                rm -f "$_converted"
+            else
+                rm -f "$_converted"
+                _converted=""
+            fi
+        elif command -v convert >/dev/null 2>&1 && [ "$_from_stdin" -eq 1 ]; then
+            _converted=$(mktemp /tmp/pt-imgcat-XXXXXX.png)
+            if convert - "$_converted" 2>/dev/null; then
+                _b64data=$(base64 < "$_converted" | tr -d '\n')
+                rm -f "$_converted"
+            else
+                rm -f "$_converted"
+                _converted=""
+            fi
+        fi
 
-    _pt_print_osc
-    printf '1337;File=name=%s;size=%s;%s:' "$_b64name" "$_size" "$_params"
-    printf '%s' "$_b64data"
-    _pt_print_st
-    printf '\n'
+        if [ -z "$_converted" ] && ! _pt_is_png_b64 "$_b64data"; then
+            echo "Error: --format kitty requires PNG input (got non-PNG data)" >&2
+            echo "       Install sips (macOS) or ImageMagick for auto-conversion," >&2
+            echo "       or use --format iterm2 for JPEG/GIF/WebP" >&2
+            exit 1
+        fi
+    fi
 
-    # In tmux, advance the cursor so the prompt appears below the image.
-    # tmux's virtual terminal doesn't see passthrough content, so its
-    # cursor stays put without this.
+    # Validate width/height: Kitty uses cell units (c=/r=), not pixels.
+    _kitty_control="a=T,f=100,q=2"
+    if [ -n "$_width" ]; then
+        case "$_width" in
+            *px)
+                echo "Error: --format kitty does not support pixel-unit width (use cells)" >&2
+                exit 1
+                ;;
+            *) _kitty_control="${_kitty_control},c=${_width}" ;;
+        esac
+    fi
+    if [ -n "$_height" ]; then
+        case "$_height" in
+            *px)
+                echo "Error: --format kitty does not support pixel-unit height (use cells)" >&2
+                exit 1
+                ;;
+            *) _kitty_control="${_kitty_control},r=${_height}" ;;
+        esac
+    fi
+
+    _pt_send_kitty
+
+    # In tmux, advance the cursor.
     if _pt_is_tmux; then
         _est_rows=$(_pt_estimate_rows "$_file" "$_width" "$_height" "$_preserve_aspect")
         if [ -n "$_est_rows" ] && [ "$_est_rows" -gt 0 ] 2>/dev/null; then
             _pt_tmux_advance_cursor "$_est_rows"
+        fi
+    fi
+else
+    # --- iTerm2 OSC 1337 File protocol (existing behavior) ---
+
+    # Build OSC parameters
+    _params="inline=1"
+
+    if [ -n "$_width" ]; then
+        _params="${_params};width=${_width}"
+    fi
+
+    if [ -n "$_height" ]; then
+        _params="${_params};height=${_height}"
+    fi
+
+    if [ "$_preserve_aspect" = "0" ]; then
+        _params="${_params};preserveAspectRatio=0"
+    fi
+
+    if [ "$_from_stdin" -eq 1 ]; then
+        _b64name=$(printf '%s' "image" | base64 | tr -d '\n')
+        _b64data=$(base64 | tr -d '\n')
+        _size=$(printf '%s' "$_b64data" | base64 -d 2>/dev/null | wc -c | tr -d ' ')
+
+        _pt_print_osc
+        printf '1337;File=name=%s;size=%s;%s:' "$_b64name" "$_size" "$_params"
+        printf '%s' "$_b64data"
+        _pt_print_st
+        printf '\n'
+    else
+        if [ ! -f "$_file" ]; then
+            echo "Error: '$_file' is not a regular file" >&2
+            exit 1
+        fi
+        if [ ! -r "$_file" ]; then
+            echo "Error: '$_file' is not readable" >&2
+            exit 1
+        fi
+
+        _basename=$(basename "$_file")
+        _b64name=$(printf '%s' "$_basename" | base64 | tr -d '\n')
+        _b64data=$(base64 < "$_file" | tr -d '\n')
+        _size=$(printf '%s' "$_b64data" | base64 -d 2>/dev/null | wc -c | tr -d ' ')
+
+        _pt_print_osc
+        printf '1337;File=name=%s;size=%s;%s:' "$_b64name" "$_size" "$_params"
+        printf '%s' "$_b64data"
+        _pt_print_st
+        printf '\n'
+
+        # In tmux, advance the cursor so the prompt appears below the image.
+        # tmux's virtual terminal doesn't see passthrough content, so its
+        # cursor stays put without this.
+        if _pt_is_tmux; then
+            _est_rows=$(_pt_estimate_rows "$_file" "$_width" "$_height" "$_preserve_aspect")
+            if [ -n "$_est_rows" ] && [ "$_est_rows" -gt 0 ] 2>/dev/null; then
+                _pt_tmux_advance_cursor "$_est_rows"
+            fi
         fi
     fi
 fi
