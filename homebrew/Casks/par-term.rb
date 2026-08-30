@@ -1,9 +1,9 @@
 cask "par-term" do
   arch arm: "aarch64", intel: "x86_64"
 
-  version "0.44.0"
-  sha256 arm:   "1cc58e5bd0c932015d9fd009ca166c03fe6f11d24b21a11e77fc1316d7495da0",
-         intel: "eb05fb40b7875add5962af05820421a25f2e7268a3223ad4d5c2b0a9208f9199"
+  version "0.45.0"
+  sha256 arm:   "8411ac65d6e630f942a7684d6a4483985be0d5c27b119644a9530bad8d65ef7c",
+         intel: "7bdc6cb9feb5f31b0641ffd9265ed618d165aa74a0457a842a4b8ec5929d0648"
 
   url "https://github.com/paulrobello/par-term/releases/download/v#{version}/par-term-macos-#{arch}.zip"
   name "par-term"
