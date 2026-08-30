@@ -27,6 +27,7 @@ Navigation index for all par-term documentation. Start with the [Getting Started
 | [Snippets & Actions](features/SNIPPETS.md) | Saved text blocks, shell commands, and automated tasks via keyboard shortcuts |
 | [SSH Host Management](features/SSH.md) | SSH host discovery, quick connect, SSH profiles, and automatic profile switching |
 | [File Transfers](features/FILE_TRANSFERS.md) | Native file transfer support using the iTerm2 OSC 1337 protocol with progress overlay |
+| [Inline Graphics](features/INLINE_GRAPHICS.md) | Sixel, iTerm2, and Kitty inline images, including Kitty placement geometry |
 | [Semantic History](features/SEMANTIC_HISTORY.md) | Click file paths in terminal output to open them in your editor |
 | [Command Separators](features/COMMAND_SEPARATORS.md) | Visual separator lines between shell commands using shell integration |
 

@@ -368,7 +368,7 @@ GPU-accelerated rendering engine: cell renderer, inline graphics, and custom sha
 | `CellRenderer` | Renders terminal cells using an instanced GPU pipeline with a glyph atlas. |
 | `Cell` | Re-export of the cell type used by the renderer. |
 | `PaneViewport` | Pixel bounds and scroll state for a single pane, used to clip rendering. |
-| `GraphicsRenderer` | Renders Sixel, iTerm2, and Kitty inline graphics using RGBA texture caching. |
+| `GraphicsRenderer` | Renders Sixel, iTerm2, and Kitty inline graphics using RGBA texture caching, honoring Kitty placement geometry (source crop, destination offsets, cell footprint). |
 | `GraphicRenderInfo` | Metadata for a single inline graphic (position, size, texture ID). |
 | `CustomShaderRenderer` | Applies user-defined GLSL post-processing shaders via WGSL transpilation. |
 | `Scrollbar` | Renders the scrollbar and scrollback mark overlays for a pane. |

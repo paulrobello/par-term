@@ -130,6 +130,10 @@ par-term uses the system's monitor list and falls back to the primary monitor if
 
 Window positions and sizes are stored in DPI-independent logical coordinates. When restoring windows across monitors with different scale factors (e.g., Retina + standard), positions are correctly converted using each monitor's DPI. This also applies to arrangement and session restore.
 
+### Display Changes
+
+On macOS, plugging in or unplugging a monitor -- or changing a display's resolution -- no longer leaves windows blank or stale. par-term routes coalesced screen-parameter change notifications through the event loop and reconfigures its `CAMetalLayer` and wgpu surface without waiting for a window resize, so rendering continues across monitor changes.
+
 ## Window Behavior
 
 ### Always On Top

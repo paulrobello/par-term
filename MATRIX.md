@@ -327,7 +327,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 |---------|--------|----------|--------|--------|--------|-------|
 | Sixel graphics | ✅ | ✅ | ✅ | - | - | - |
 | iTerm2 inline images | ✅ | ✅ | ✅ | - | - | - |
-| Kitty graphics protocol | ✅ | ✅ | ✅ | - | - | - |
+| Kitty graphics protocol | ✅ | ✅ | ✅ | - | - | Full placement geometry honored: x/y/w/h crop, X/Y offsets, c/r cell footprint |
 | Kitty animations | ✅ | ✅ | ✅ | - | - | - |
 | GPU-accelerated rendering | ❌ | ✅ | ✅ | - | - | par-term uses wgpu |
 
@@ -701,11 +701,12 @@ iTerm2 has sophisticated window state management.
 |---------|--------|----------|--------|--------|--------|-------|
 | Sixel support | ✅ | ✅ | ✅ | - | - | Already implemented |
 | iTerm2 inline images | ✅ | ✅ | ✅ | - | - | Already implemented |
-| Kitty graphics protocol | ✅ | ✅ | ✅ | - | - | Already implemented |
+| Kitty graphics protocol | ✅ | ✅ | ✅ | - | - | Direct transmit, delete, and placement geometry via core 0.48 |
 | Kitty animations | ✅ | ✅ | ✅ | - | - | Already implemented |
 | Image compression | ✅ | ✅ | ✅ | - | - | Core handles zlib decompression for Kitty protocol transparently |
 | Image scaling quality | ✅ | ✅ `image_scaling_mode` | ✅ | - | - | Nearest (sharp/pixel art) and linear (smooth) filtering |
 | Image placement modes | ✅ | ✅ | ✅ | - | - | Core ImagePlacement with inline/download, requested dimensions (cells/pixels/percent), z-index, sub-cell offsets |
+| Kitty placement geometry | ❌ | ✅ | ✅ | - | - | Order-independent x/y/w/h source crop, X/Y pixel offsets, c/r cell footprint with per-axis aspect derivation; retransmit replaces prior placements; zero-size crop yields zero-size placement |
 | Preserve aspect ratio | ✅ | ✅ `image_preserve_aspect_ratio` | ✅ | - | - | Global config + per-image flag from core |
 | Image metadata in files | ✅ | ✅ | ✅ | - | - | Core SerializableGraphic/GraphicsSnapshot with export/import JSON, base64 or file-backed pixel data |
 | File transfer (download) | ✅ | ✅ | ✅ | ⭐⭐ | 🟢 | Core `FileTransferManager` + frontend native save dialog via `rfd`, configurable default save location, egui progress overlay, desktop notifications |

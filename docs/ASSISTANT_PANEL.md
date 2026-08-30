@@ -150,7 +150,7 @@ The connection bar sits at the top of the panel and shows:
 
 - **Claude Code ACP bridge**: Use `@agentclientprotocol/claude-agent-acp` (binary: `claude-agent-acp`; requires Node >= 22)
 - **Deprecated packages**: `@zed-industries/claude-code-acp` and `@zed-industries/claude-agent-acp` have been renamed/deprecated upstream
-- **From source builds**: `make install-acp` installs the Claude ACP bridge, and `make bundle-install` now installs the macOS app bundle, CLI binary, and ACP bridge together
+- **From source builds**: `make install-acp` installs the Claude ACP bridge, and `make bundle-install` installs the macOS app bundle, CLI binary, and ACP bridge together. The bridge install is idempotent: an existing `@agentclientprotocol/claude-agent-acp` install is left in place, a deprecated `@zed-industries/claude-agent-acp` install is migrated to the new scope (old package uninstalled, new one installed), and a `claude-agent-acp` binary that exists outside npm's control is reported as a conflict instead of being overwritten — remove or relocate that binary and rerun.
 
 ### Chat Interface
 

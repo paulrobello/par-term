@@ -42,6 +42,15 @@ New to par-term? The [Getting Started Guide](docs/guides/GETTING_STARTED.md) wal
 - **[Keyboard Shortcuts](docs/guides/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
 
 ## What's New
+### 0.45.0
+
+Kitty graphics placement geometry is now honored end-to-end, and macOS survives monitor plug/unplug without a resize. A minor bump for new renderer capability; `par-term-render` moves 0.10.1 → 0.11.0, `par-term-terminal` 0.5.4 → 0.5.5, and the core engine advances 0.46 → 0.48.
+
+- **Kitty placement geometry is honored** — `c`/`r` cell footprints, `X`/`Y` pixel offsets, and `x`/`y`/`w`/`h` source crops now size and clip inline images as the sending app intended; virtual `U=1` placements are unchanged.
+- **`pt-imgcat --format kitty`** — emits chunked Kitty APCs with PNG validation and auto-conversion, cell-unit `--width`/`--height`, tmux passthrough, and bare `-` for stdin.
+- **macOS recovers surfaces after display changes** — plugging or unplugging a monitor no longer requires a window resize; CAMetalLayer and wgpu surfaces are reconfigured behind coalesced screen notifications.
+- **`make bundle-install` manages the ACP bridge** — installs `@agentclientprotocol/claude-agent-acp`, migrates the deprecated `@zed-industries` package, and reports unmanaged binary conflicts.
+- **Inline-image payload diagnostics** (`par-term-terminal`) — bounded RGBA-sample logging at the upload boundary, behind `log::log_enabled!`.
 
 ### 0.44.0
 

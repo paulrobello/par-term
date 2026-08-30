@@ -286,6 +286,8 @@ Install the bridge and retry:
 make install-acp
 ```
 
+`make install-acp` (also run by `make bundle-install`) leaves an existing `@agentclientprotocol/claude-agent-acp` install untouched, migrates the deprecated `@zed-industries/claude-agent-acp` package to the new scope, and refuses with a conflict message if a `claude-agent-acp` binary exists that npm does not own.
+
 ### No Model Responses (Connected but Idle)
 
 Check that your local backend is running and the configured model is available:

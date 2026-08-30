@@ -558,7 +558,7 @@ overflow is handled by evicting the least-recently-used glyphs.
 
 Sixel, iTerm2, and Kitty graphics are decoded to RGBA on the CPU and uploaded to GPU
 textures during the Graphics Pass. Textures are cached by graphic id in an LRU cache
-capped at 100 entries; when the cache is full, the least-recently-used texture is evicted.
+capped at 100 entries; when the cache is full, the least-recently-used texture is evicted. Kitty images are composited at their placement geometry -- source crop, destination pixel offsets, and cell footprint -- with signed-pixel clipping while scrolling.
 
 ### Custom Shader Resources
 

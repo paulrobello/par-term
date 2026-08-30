@@ -3817,7 +3817,7 @@ dependencies = [
 
 [[package]]
 name = "par-term"
-version = "0.44.0"
+version = "0.45.0"
 dependencies = [
  "anyhow",
  "arboard",
@@ -4012,7 +4012,7 @@ dependencies = [
 
 [[package]]
 name = "par-term-render"
-version = "0.10.1"
+version = "0.11.0"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -4081,7 +4081,7 @@ dependencies = [
 
 [[package]]
 name = "par-term-terminal"
-version = "0.5.4"
+version = "0.5.5"
 dependencies = [
  "anyhow",
  "arboard",

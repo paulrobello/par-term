@@ -15,6 +15,7 @@ par-term provides configurable debug logging to help diagnose issues. Log output
 - [Settings UI](#settings-ui)
 - [Usage Examples](#usage-examples)
 - [Module Filtering](#module-filtering)
+  - [Inline-Image Payload Diagnostics](#inline-image-payload-diagnostics)
 - [Debug Categories](#debug-categories)
 - [Troubleshooting](#troubleshooting)
 - [Related Documentation](#related-documentation)
@@ -127,6 +128,8 @@ The effective `log` crate level is resolved during startup. The config setting i
 3. **`RUST_LOG` environment variable**
 4. **Default: `off`** (lowest priority; the config default is `LogLevel::Off`)
 
+Because the config setting beats `RUST_LOG`, `make run-debug` and `make run-trace` also pass the `--log-level` flag explicitly: with `RUST_LOG` alone, a config such as `log_level: error` would override the environment variable and silence the run.
+
 ## Log File Location
 
 | Platform | Current session | Previous session |
@@ -174,9 +177,10 @@ make tail-log
 # Standard log crate debugging
 par-term --log-level debug
 
-# Custom debug macros (high-frequency events)
-make run-debug    # DEBUG_LEVEL=3
-make run-trace    # DEBUG_LEVEL=4
+# Both logging systems together; the targets pass --log-level so a
+# config log_level setting cannot silence the run
+make run-debug    # RUST_LOG=debug + DEBUG_LEVEL=3 + --log-level debug
+make run-trace    # RUST_LOG=trace + DEBUG_LEVEL=4 + --log-level trace
 ```
 
 **Filtering by component:**
@@ -220,6 +224,10 @@ Certain noisy third-party crates are automatically filtered to reduce log volume
 | `cpal` | Error | Audio device enumeration |
 
 These filters ensure that par-term's own messages remain visible even at high verbosity levels.
+
+### Inline-Image Payload Diagnostics
+
+When the effective `log` crate level is `debug` or `trace`, the terminal layer logs bounded inline-image payload diagnostics at the texture-upload boundary: the first/middle/last RGBA samples and the nonzero-alpha count for each image. Emission is gated on `log::log_enabled!`, so runs at lower levels pay nothing. These samples distinguish a decode or transparency problem (wrong pixels, all-transparent payload) from a placement problem (correct pixels, wrong position) when images render blank or invisible.
 
 ## Debug Categories
 

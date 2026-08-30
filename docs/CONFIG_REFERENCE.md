@@ -683,7 +683,7 @@ dynamic_profile_sources:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `log_level` | `enum` | `off` | Debug log verbosity: `off`, `error`, `warn`, `info`, `debug`, `trace` |
+| `log_level` | `enum` | `off` | Debug log verbosity: `off`, `error`, `warn`, `info`, `debug`, `trace`. Overrides the RUST_LOG environment variable; overridden by the --log-level CLI flag |
 
 ---
 

@@ -14,6 +14,7 @@ Centralized guide for diagnosing and resolving common issues with par-term. Each
   - [Black Screen or No Output](#black-screen-or-no-output)
   - [Font Rendering Problems](#font-rendering-problems)
   - [HiDPI and Scaling Issues](#hidpi-and-scaling-issues)
+  - [Window Blank or Stale After a Display Change (macOS)](#window-blank-or-stale-after-a-display-change-macos)
   - [Inline Graphics Not Displaying](#inline-graphics-not-displaying)
 - [Shader Issues](#shader-issues)
   - [Shader Not Loading](#shader-not-loading)
@@ -90,10 +91,10 @@ par-term has two parallel logging systems that write to the same file: the stand
 The recommended way is to use the Makefile targets, which enable both systems together:
 
 ```bash
-# Recommended: enables RUST_LOG=debug + DEBUG_LEVEL=3
+# Recommended: enables both systems (RUST_LOG=debug + DEBUG_LEVEL=3 + --log-level debug)
 make run-debug
 
-# Most verbose: enables RUST_LOG=trace + DEBUG_LEVEL=4
+# Most verbose: enables both systems (RUST_LOG=trace + DEBUG_LEVEL=4 + --log-level trace)
 make run-trace
 ```
 
@@ -285,6 +286,14 @@ sudo pacman -S gtk3 libxkbcommon wayland libxcb alsa-lib
 2. par-term auto-detects the display scale factor. If text or UI elements appear incorrect, try adjusting the font size in **Settings > Appearance**.
 3. For multi-monitor setups with mixed DPI values, par-term stores window positions in logical pixels and applies per-monitor DPI conversion automatically. If positions seem off, save and restore a window arrangement to recalibrate.
 4. Scrollbar width and positioning scale with the display DPI factor and rescale dynamically when a window moves between monitors with different DPI values.
+
+### Window Blank or Stale After a Display Change (macOS)
+
+**Symptom:** After plugging in or unplugging a monitor -- or after a display's resolution changes -- one or more par-term windows go blank or stop updating until you resize them.
+
+**Cause:** The GPU surface became invalid when the display configuration changed. Older par-term versions only reconfigured the rendering surface on a window resize, so a monitor change without a resize left the surface stale.
+
+**Solution:** par-term 0.45.0 and later recover automatically: screen-parameter change notifications are coalesced and routed through the event loop, and the `CAMetalLayer` and wgpu surface are reconfigured without waiting for a resize. If you see this behavior, update par-term. As a workaround on older versions, briefly resize the affected window.
 
 ### Inline Graphics Not Displaying
 
@@ -902,7 +911,7 @@ Close and reopen par-term. A restart is required after every update to use the n
 If the solutions in this guide do not resolve your issue:
 
 1. **Collect diagnostic information:**
-   - Start par-term with `make run-trace` (enables both `RUST_LOG=trace` and `DEBUG_LEVEL=4`)
+   - Start par-term with `make run-trace` (enables `RUST_LOG=trace`, `DEBUG_LEVEL=4`, and `--log-level trace`)
    - Reproduce the issue
    - Copy the debug log for your bug report — `make tail-log` prints its path, or use `"${TMPDIR:-/tmp}"/par_term_debug.log`. For a crash you have already restarted from, take `"${TMPDIR:-/tmp}"/par_term_debug.log.1` instead
 

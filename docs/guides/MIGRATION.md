@@ -4,6 +4,7 @@ Upgrade notes for par-term covering breaking configuration changes, renamed fiel
 
 ## Table of Contents
 
+- [v0.45.0 — Core 0.48 and Kitty Placement Geometry (Library Consumers)](#v0450--core-048-and-kitty-placement-geometry-library-consumers)
 - [v0.43.0 — MSRV 1.98 and wgpu 30 for Library Consumers](#v0430--msrv-198-and-wgpu-30-for-library-consumers)
 - [v0.39.0 — MSRV 1.97 and the `mermaid` Feature Removed](#v0390--msrv-197-and-the-mermaid-feature-removed)
 - [v0.38.0 — Upgrading Requires a Manual Download](#v0380--upgrading-requires-a-manual-download)
@@ -21,6 +22,21 @@ Upgrade notes for par-term covering breaking configuration changes, renamed fiel
 - [v0.25.0 — Pane Padding Defaults](#v0250--pane-padding-defaults)
 - [v0.20.0 — Default Changes](#v0200--default-changes)
 - [Related Documentation](#related-documentation)
+
+---
+
+## v0.45.0 — Core 0.48 and Kitty Placement Geometry (Library Consumers)
+
+This release affects only projects that depend on par-term's crates as libraries. If you use the released binaries, there is nothing to do — no configuration fields changed.
+
+**`par-term-emu-core-rust` moves 0.46 → 0.48.** The core now parses and exposes full Kitty placement geometry: an order-independent `x`/`y`/`w`/`h` source crop, `X`/`Y` destination pixel offsets, and a `c`/`r` cell footprint where an omitted axis is derived from the image's aspect ratio per axis. Semantics you may observe as a consumer:
+
+- Retransmitting an existing image id deletes its previous placements first (replace, not stack).
+- Delete resolution is order-independent within a command stream.
+- A crop that resolves to zero area yields a zero-size placement instead of falling back to the full image.
+- APC commands are processed in stream order, with interleaved cursor moves honored at each APC completion.
+
+**`par-term-render` moves 0.10 → 0.11** to honor that geometry at draw time: UV-crop mapping, cell-footprint sizing, destination pixel offsets, and signed-pixel scroll clipping. Virtual placements (`U=1`) render unchanged.
 
 ---
 

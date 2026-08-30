@@ -214,10 +214,10 @@ pt-ul /tmp/uploads
 
 ### pt-imgcat -- Display Inline Images
 
-`pt-imgcat` encodes images and sends them via OSC 1337 `File` with `inline=1` for inline display directly in the terminal.
+`pt-imgcat` displays images inline in the terminal. By default it sends iTerm2 OSC 1337 `File` sequences with `inline=1`; `--format kitty` switches to the Kitty graphics protocol. See [Inline Graphics](INLINE_GRAPHICS.md) for the underlying protocols.
 
 ```bash
-# Display an image
+# Display an image (iTerm2 OSC 1337, the default)
 pt-imgcat photo.png
 
 # Display with size constraints (cells or pixels)
@@ -226,21 +226,33 @@ pt-imgcat --width 400px --height 300px image.jpg
 
 # Display from stdin
 cat screenshot.png | pt-imgcat
+pt-imgcat - < screenshot.png
 
 # Allow stretching (disable aspect ratio preservation)
 pt-imgcat --no-preserve-aspect-ratio banner.png
+
+# Kitty graphics protocol
+pt-imgcat --format kitty photo.png
+pt-imgcat --format kitty --width 80 --height 24 diagram.png
 ```
 
 **Options:**
 
 | Flag | Description |
 |------|-------------|
-| `--width <N>` | Width in cells or pixels (e.g., `80`, `400px`) |
-| `--height <N>` | Height in cells or pixels |
+| `--format <iterm2\|kitty>` | Graphics protocol: iTerm2 OSC 1337 (default) or Kitty APC |
+| `--width <N>` | Width in cells or pixels (e.g., `80`, `400px`). Kitty format accepts cells only |
+| `--height <N>` | Height in cells or pixels. Kitty format accepts cells only |
 | `--preserve-aspect-ratio` | Maintain aspect ratio (default) |
 | `--no-preserve-aspect-ratio` | Allow stretching |
 
-**Dependencies:** `base64`, `wc`, `printf`, `tr`, `basename`
+**Kitty format behavior:**
+
+- Sends `a=T,f=100,q=2` APC sequences, splitting the base64 payload into chunks of at most 4096 characters with `m=1`/`m=0` continuation markers.
+- Cell-unit `--width`/`--height` values become `c=`/`r=` placement keys; pixel-unit values are rejected with an error.
+- Input is validated as PNG (by magic bytes). JPEG, GIF, and WebP are auto-converted via `sips` (macOS) or ImageMagick `convert` when available; without a converter the script exits with guidance to install one or use `--format iterm2`.
+
+**Dependencies:** `base64`, `wc`, `printf`, `tr`, `basename`. Kitty format additionally uses `fold`, `awk`, `mktemp`, and `sips` or ImageMagick `convert` for non-PNG input.
 
 ### Utility Installation
 
@@ -287,6 +299,8 @@ The escape sequences travel through the SSH connection and are interpreted by pa
 ### tmux and screen Support
 
 The utilities automatically detect when running inside tmux or screen (by checking the `TERM` environment variable for `tmux*` or `screen*` prefixes) and wrap escape sequences in the appropriate passthrough format. No additional configuration is needed.
+
+Kitty-format output (`--format kitty`) is wrapped the same way, with every ESC inside the passthrough doubled. After displaying an image the script advances tmux's cursor by the estimated image height so the shell prompt lands below the image (tmux's virtual terminal does not see passthrough content).
 
 ## Configuration
 
@@ -372,3 +386,4 @@ download_save_location: downloads
 - [Integrations](INTEGRATIONS.md) - Shell integration installation and configuration
 - [Keyboard Shortcuts](../guides/KEYBOARD_SHORTCUTS.md) - All keyboard shortcuts including Settings access
 - [SSH](SSH.md) - SSH connection features and remote host management
+- [Inline Graphics](INLINE_GRAPHICS.md) - Sixel, iTerm2, and Kitty protocol details, including Kitty placement geometry
