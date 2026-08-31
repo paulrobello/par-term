@@ -19,7 +19,7 @@ par-term renders images directly in the terminal through three inline graphics p
 
 ## Overview
 
-Programs that want to draw images inside the terminal emit escape sequences carrying the image data and placement instructions. par-term decodes all three protocols to RGBA on the CPU, uploads them to GPU textures, and composites them between the cell layer and the UI overlay. Textures are cached by image id and shared across placements; retransmitted pixel data updates the cached texture in place.
+Programs that want to draw images inside the terminal emit escape sequences carrying the image data and placement instructions. par-term decodes all three protocols to RGBA on the CPU, uploads them to GPU textures, and composites them between the cell layer and the UI overlay. Each decoded graphic gets its own GPU texture, cached by the graphic's internal id and shared between its screen and scrollback appearances — placing the same Kitty image at several positions, or retransmitting it, creates separate graphics, each with its own texture.
 
 par-term sets `KITTY_WINDOW_ID` in the environment so tools can detect Kitty graphics protocol support (see the [Environment Variables reference](../guides/ENVIRONMENT_VARIABLES.md)).
 
