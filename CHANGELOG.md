@@ -13,6 +13,22 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ---
 
+## [0.45.1] - 2026-09-16
+
+Patch release: the macOS 27 titlebar is opaque again, plus dependency maintenance. No new features; no sub-crate changes and no core-library change — `par-term-emu-core-rust` remains at 0.48.
+
+### Fixed
+
+- **The macOS titlebar is no longer transparent on macOS 27.** macOS 27 paints the titlebar from the window's background color when the window is non-opaque, and par-term creates every window with winit's `with_transparent(true)` (required for runtime opacity changes), which sets that color to clear — so the titlebar rendered fully transparent. `macos_metal::set_window_background_for_translucency` now restores `NSColor.windowBackgroundColor` unless per-pixel translucency is active (window opacity below 1.0, or a semi-transparent background image), keeping the desktop visible through translucent content as before. Applied at window creation and on both runtime config-change paths.
+
+### Changed
+
+- **`muda` 0.19 → 0.20 and `dirs` 6 → 7** with API migrations. muda 0.20's `Accelerator::new` takes `Modifiers` directly (12 call sites migrated) and no longer normalizes `META` to `SUPER`, so accelerators keep `META` verbatim. dirs 7 moves Windows `config_dir()` to Roaming AppData — the pre-dirs-7 `%LOCALAPPDATA%\par-term` location is now in config migration's legacy roots so existing Windows installs migrate instead of silently resetting.
+- **Rust toolchain pinned to 1.98.1** (was 1.98.0); the minimum supported version stays at 1.98.
+- **`cargo update` lockfile refresh** — 60 transitive bumps (smallvec 1.16.1, syn 3.0.5, ureq 3.4.2, zstd 2.1.0, …).
+
+---
+
 ## [0.45.0] - 2026-08-30
 
 Kitty graphics placement geometry ships end-to-end — the emulator core now honors the full crop/offset/footprint contract, the renderer sizes and clips placements by it, and `pt-imgcat --format kitty` sends native Kitty APCs — alongside recovery from macOS display changes (monitor plug/unplug without a window resize). Minor bump for the Kitty placement-geometry feature and the new `pt-imgcat` format. Sub-crate bumps: `par-term-render` 0.10.1 → 0.11.0 (Kitty placement geometry in the renderer), `par-term-terminal` 0.5.4 → 0.5.5 (inline-image payload diagnostics, patch). Core library `par-term-emu-core-rust` moves 0.46.0 → 0.48.0 (published on crates.io; brings stream-order APC processing, placement geometry, and order-independent delete resolution into the terminal).

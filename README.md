@@ -42,6 +42,13 @@ New to par-term? The [Getting Started Guide](docs/guides/GETTING_STARTED.md) wal
 - **[Keyboard Shortcuts](docs/guides/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
 
 ## What's New
+### 0.45.1
+
+The macOS 27 titlebar is opaque again, plus dependency maintenance. No new features; no sub-crate or core-library changes.
+
+- **macOS 27 titlebar fix** — macOS 27 paints the titlebar from the window background color on non-opaque windows, which made par-term's titlebar fully transparent. It renders standard again unless per-pixel translucency is active (window opacity below 1.0 or a semi-transparent background image), in which case the desktop still shows through the content.
+- **Dependencies** — `muda` 0.20, `dirs` 7 (Windows config moves to Roaming AppData, with migration from the old location), Rust toolchain 1.98.1 (MSRV unchanged at 1.98), and a 60-package lockfile refresh.
+
 ### 0.45.0
 
 Kitty graphics placement geometry is now honored end-to-end, and macOS survives monitor plug/unplug without a resize. A minor bump for new renderer capability; `par-term-render` moves 0.10.1 → 0.11.0, `par-term-terminal` 0.5.4 → 0.5.5, and the core engine advances 0.46 → 0.48.
