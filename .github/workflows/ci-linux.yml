@@ -43,8 +43,8 @@ jobs:
 
     - name: Install Rust toolchain
       # Pinned to the 1.98.0 branch of the action, matching rust-toolchain.toml.
-      # To find the SHA: git ls-remote https://github.com/dtolnay/rust-toolchain refs/heads/1.98.0
-      uses: dtolnay/rust-toolchain@f8be11a05b1d4f3fcebe6410cc16743212b999b0
+      # To find the SHA: git ls-remote https://github.com/dtolnay/rust-toolchain refs/heads/1.98.1
+      uses: dtolnay/rust-toolchain@ce678459e9fc7500d337468f904b95f1b5c10b5e
 
     - name: Install Linux dependencies
       run: |
