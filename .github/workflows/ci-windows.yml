@@ -41,7 +41,7 @@ jobs:
         node-version: 22
 
     - name: Install Rust toolchain
-      # Pinned to the 1.98.0 branch of the action, matching rust-toolchain.toml.
+      # Pinned to the 1.98.1 branch of the action, matching rust-toolchain.toml.
       # To find the SHA: git ls-remote https://github.com/dtolnay/rust-toolchain refs/heads/1.98.1
       uses: dtolnay/rust-toolchain@ce678459e9fc7500d337468f904b95f1b5c10b5e
 
