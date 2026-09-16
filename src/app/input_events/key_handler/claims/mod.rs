@@ -369,8 +369,9 @@ fn accelerator_mods(accel: &Accelerator) -> Mods {
         m.contains(MudaModifiers::CONTROL),
         m.contains(MudaModifiers::ALT),
         m.contains(MudaModifiers::SHIFT),
-        // `Accelerator::new` normalises META to SUPER; accept either.
-        m.contains(MudaModifiers::SUPER) || m.contains(MudaModifiers::META),
+        // muda 0.20 stores META verbatim; SUPER is a separate legacy bit
+        // nothing produces any more.
+        m.contains(MudaModifiers::META),
     )
 }
 

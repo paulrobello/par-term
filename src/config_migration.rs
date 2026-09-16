@@ -40,7 +40,7 @@ pub fn migrate_legacy_config_dir() {
 
 /// Locations that may hold config from an earlier par-term, excluding `canonical`.
 ///
-/// Two roots can be stale, and which ones depends on the platform and on whether
+/// Three roots can be stale, and which ones depends on the platform and on whether
 /// `XDG_CONFIG_HOME` is set:
 ///
 /// - `dirs::config_dir()/par-term` — on macOS this is
@@ -48,13 +48,21 @@ pub fn migrate_legacy_config_dir() {
 ///   `dirs` already resolves `XDG_CONFIG_HOME`, so it usually equals `canonical`.
 /// - `~/.config/par-term` — the canonical location before par-term honoured
 ///   `XDG_CONFIG_HOME`. Stale only for users who set that variable to something else.
+/// - Windows only: `%LOCALAPPDATA%\par-term` — the canonical location for builds on
+///   `dirs` ≤ 6. dirs 7 switched `config_dir()` from Local to Roaming AppData, so
+///   existing installs must be migrated out of Local or they silently reset.
 ///
-/// Entries equal to `canonical`, and duplicates, are dropped — so on a plain Linux
-/// or Windows install this returns nothing and the migration is a no-op.
+/// Entries equal to `canonical`, and duplicates, are dropped. On a plain Linux
+/// or macOS install this returns nothing and the migration is a no-op.
 fn legacy_config_dirs(canonical: &Path) -> Vec<PathBuf> {
     let candidates = [
         dirs::config_dir().map(|dir| dir.join("par-term")),
         dirs::home_dir().map(|home| home.join(".config").join("par-term")),
+        // dirs 7 moved Windows config_dir() from Local to Roaming AppData; builds
+        // on dirs 6 wrote to the Local location, so it joins the legacy list or
+        // existing Windows installs silently reset.
+        #[cfg(target_os = "windows")]
+        std::env::var_os("LOCALAPPDATA").map(|root| PathBuf::from(root).join("par-term")),
     ];
     let mut out: Vec<PathBuf> = Vec::new();
     for candidate in candidates.into_iter().flatten() {
@@ -119,7 +127,7 @@ mod tests {
         );
     }
 
-    /// The reason `legacy_config_dirs` returns two roots rather than one: a user who
+    /// The reason `legacy_config_dirs` returns up to three roots rather than one: a user who
     /// sets `XDG_CONFIG_HOME` moves `canonical` away from `~/.config/par-term`, and
     /// their existing config there must still be picked up.
     #[test]
@@ -183,6 +191,22 @@ mod tests {
         let absent = legacy.path().join("does-not-exist");
         assert!(!absent.exists());
         assert_eq!(migrate_between(&absent, canonical.path()), 0);
+    }
+
+    /// dirs 7 moved Windows `config_dir()` to Roaming AppData; the pre-dirs-7
+    /// Local AppData location must stay a migration source on Windows builds,
+    /// or existing installs silently reset.
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn local_appdata_is_a_legacy_source_on_windows() {
+        let canonical = Config::config_dir(); // Roaming on dirs 7
+        let legacy = legacy_config_dirs(&canonical);
+        if let Some(local) = std::env::var_os("LOCALAPPDATA") {
+            assert!(
+                legacy.contains(&PathBuf::from(local).join("par-term")),
+                "%LOCALAPPDATA%\\par-term must be migrated into Roaming on Windows: {legacy:?}"
+            );
+        }
     }
 
     #[test]

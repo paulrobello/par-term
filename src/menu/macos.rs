@@ -44,7 +44,7 @@ pub fn build_app_menu(menu: &Menu, action_map: &mut HashMap<MenuId, MenuAction>)
         "settings_app",
         "Settings...",
         true,
-        Some(Accelerator::new(Some(Modifiers::META), Code::Comma)),
+        Some(Accelerator::new(Modifiers::META, Code::Comma)),
     );
     action_map.insert(settings_app.id().clone(), MenuAction::OpenSettings);
     app_menu.append(&settings_app)?;
@@ -70,7 +70,7 @@ pub fn build_app_menu(menu: &Menu, action_map: &mut HashMap<MenuId, MenuAction>)
         "quit_app",
         "Quit par-term",
         true,
-        Some(Accelerator::new(Some(Modifiers::META), Code::KeyQ)),
+        Some(Accelerator::new(Modifiers::META, Code::KeyQ)),
     );
     action_map.insert(quit_app.id().clone(), MenuAction::Quit);
     app_menu.append(&quit_app)?;
@@ -89,7 +89,7 @@ pub fn build_window_menu(menu: &Menu, action_map: &mut HashMap<MenuId, MenuActio
         "minimize",
         "Minimize",
         true,
-        Some(Accelerator::new(Some(Modifiers::META), Code::KeyM)),
+        Some(Accelerator::new(Modifiers::META, Code::KeyM)),
     );
     action_map.insert(minimize.id().clone(), MenuAction::Minimize);
     window_menu.append(&minimize)?;

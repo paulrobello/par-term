@@ -91,7 +91,7 @@ pub fn menu_model(has_native_app_menu: bool) -> Vec<MenuSection> {
     #[cfg(not(target_os = "macos"))]
     let tab_switch_mod = Modifiers::ALT;
 
-    let accel = |mods: Modifiers, code: Code| Some(Accelerator::new(Some(mods), code));
+    let accel = |mods: Modifiers, code: Code| Some(Accelerator::new(mods, code));
 
     let mut file = vec![
         item(
@@ -272,7 +272,7 @@ pub fn menu_model(has_native_app_menu: bool) -> Vec<MenuSection> {
                 item(
                     "toggle_fullscreen",
                     "Toggle Fullscreen",
-                    Some(Accelerator::new(None, Code::F11)),
+                    Some(Accelerator::new(Modifiers::empty(), Code::F11)),
                     MenuAction::ToggleFullscreen,
                 ),
                 item(
@@ -304,13 +304,13 @@ pub fn menu_model(has_native_app_menu: bool) -> Vec<MenuSection> {
                 item(
                     "fps_overlay",
                     "FPS Overlay",
-                    Some(Accelerator::new(None, Code::F3)),
+                    Some(Accelerator::new(Modifiers::empty(), Code::F3)),
                     MenuAction::ToggleFpsOverlay,
                 ),
                 item(
                     "settings",
                     "Settings...",
-                    Some(Accelerator::new(None, Code::F12)),
+                    Some(Accelerator::new(Modifiers::empty(), Code::F12)),
                     MenuAction::OpenSettings,
                 ),
                 MenuEntry::Separator,
@@ -337,7 +337,7 @@ pub fn menu_model(has_native_app_menu: bool) -> Vec<MenuSection> {
                 item(
                     "keyboard_shortcuts",
                     "Keyboard Shortcuts",
-                    Some(Accelerator::new(None, Code::F1)),
+                    Some(Accelerator::new(Modifiers::empty(), Code::F1)),
                     MenuAction::ShowHelp,
                 ),
                 MenuEntry::Separator,
@@ -408,14 +408,15 @@ pub fn profile_entries<'a>(
 /// in-app menu cannot advertise a shortcut the native menu does not have.
 pub fn accelerator_label(accelerator: &Accelerator) -> String {
     let mut label = String::new();
-    // `Accelerator::new` normalises META to SUPER, so only SUPER is ever set.
-    // macOS renders modifiers as adjacent symbols; everywhere else they are
-    // spelled out and joined with '+'.
+    // muda 0.20 stores META verbatim (the old META→SUPER normalisation is gone;
+    // SUPER is a separate legacy bit nothing produces any more), so the table
+    // keys on META. macOS renders modifiers as adjacent symbols; everywhere
+    // else they are spelled out and joined with '+'.
     let named: [(Modifiers, &str, &str); 4] = [
         (Modifiers::CONTROL, "⌃", "Ctrl"),
         (Modifiers::ALT, "⌥", "Alt"),
         (Modifiers::SHIFT, "⇧", "Shift"),
-        (Modifiers::SUPER, "⌘", "Super"),
+        (Modifiers::META, "⌘", "Super"),
     ];
     let mods = accelerator.modifiers();
     for (flag, symbol, word) in named {
@@ -720,19 +721,19 @@ mod tests {
 
     #[test]
     fn accelerator_labels_are_readable() {
-        let plain = Accelerator::new(None, Code::F11);
+        let plain = Accelerator::new(Modifiers::empty(), Code::F11);
         assert_eq!(accelerator_label(&plain), "F11");
 
-        let bracket = Accelerator::new(Some(Modifiers::SHIFT), Code::BracketRight);
+        let bracket = Accelerator::new(Modifiers::SHIFT, Code::BracketRight);
         let label = accelerator_label(&bracket);
         assert!(label.ends_with(']'), "unexpected label {label:?}");
 
-        let digit = Accelerator::new(Some(Modifiers::ALT), Code::Digit1);
+        let digit = Accelerator::new(Modifiers::ALT, Code::Digit1);
         assert!(accelerator_label(&digit).ends_with('1'));
 
         // The arrow keys reach the label through `code_label`'s fallback unless
         // they are named, which would print "ArrowLeft" in the in-app menu.
-        let arrow = Accelerator::new(Some(Modifiers::SHIFT), Code::ArrowLeft);
+        let arrow = Accelerator::new(Modifiers::SHIFT, Code::ArrowLeft);
         assert!(
             accelerator_label(&arrow).ends_with("Left"),
             "unexpected label {:?}",

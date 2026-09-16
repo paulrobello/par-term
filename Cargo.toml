@@ -31,7 +31,7 @@ thiserror = "2"
 log = "0.4.33"
 
 # Platform-specific directories
-dirs = "6.0"
+dirs = "7"
 
 # Concurrency
 parking_lot = "0.12.5"
@@ -240,7 +240,7 @@ half.workspace = true
 naga.workspace = true
 
 # Native window menus
-muda = "0.19"
+muda = "0.20"
 libc = "0.2.186"
 clap = { version = "4.6.1", features = ["derive"] }
 ureq.workspace = true
@@ -259,10 +259,10 @@ fuzzy-matcher = "0.3.7"        # Fuzzy string matching for command history searc
 sysinfo = { workspace = true, features = ["system"], optional = true }  # Cross-platform CPU/memory/network monitoring for status bar (feature-gated: `system-monitor`)
 mdns-sd = { workspace = true, optional = true }       # mDNS/Bonjour service discovery for SSH host auto-detection (feature-gated: `mdns`)
 
-# Linux-specific: GTK for native menus (muda requires gtk feature on Linux)
+# Linux-specific: GTK for native menus (muda requires the gtk3 feature on Linux)
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))'.dependencies.muda]
-version = "0.19"
-features = ["gtk"]
+version = "0.20"
+features = ["gtk3"]
 
 # macOS-specific: Access CAMetalLayer for performance optimization
 [target.'cfg(target_os = "macos")'.dependencies]
