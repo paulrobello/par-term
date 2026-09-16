@@ -166,4 +166,79 @@ pub fn set_layer_opacity(window: &winit::window::Window, opacity: f32) -> Result
     Ok(())
 }
 
+/// Sync the NSWindow background color with the per-pixel translucency setting.
+///
+/// macOS 27 paints the titlebar from the NSWindow background color when the
+/// window is non-opaque. winit's `with_transparent(true)` (required for the
+/// runtime opacity feature) sets that color to clear, which turned the
+/// titlebar see-through. Setting a real background color restores the standard
+/// titlebar; it must stay clear only while translucency is actually in effect
+/// so the desktop remains visible through semi-transparent pixels. The content
+/// area is covered by the CAMetalLayer, so at full opacity the background
+/// color is never visible there.
+pub fn set_window_background_for_translucency(
+    window: &winit::window::Window,
+    translucent: bool,
+) -> Result<()> {
+    #[cfg(target_os = "macos")]
+    {
+        use objc2::rc::Retained;
+        use objc2::runtime::AnyObject;
+        use objc2_app_kit::NSView;
+        use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+
+        let window_handle = window.window_handle()?;
+        let ns_view_ptr = match window_handle.as_raw() {
+            RawWindowHandle::AppKit(handle) => handle.ns_view.as_ptr(),
+            _ => anyhow::bail!("Not a macOS AppKit window"),
+        };
+
+        if ns_view_ptr.is_null() {
+            anyhow::bail!("NSView pointer is null");
+        }
+
+        // SAFETY: ns_view_ptr is a non-null NSView pointer obtained from winit's AppKit
+        // window handle. winit guarantees it is valid for the lifetime of the window.
+        // We are on the main thread (required by AppKit/winit), so Objective-C message
+        // sends are safe. The window obtained via `msg_send![ns_view, window]` is
+        // retained by the returned Retained and valid for this block; the null check
+        // covers a view not yet installed in a window.
+        unsafe {
+            let ns_view = ns_view_ptr as *mut NSView;
+            let ns_window: Retained<AnyObject> = objc2::msg_send![ns_view, window];
+            let ns_window_ptr = Retained::as_ptr(&ns_window);
+
+            if ns_window_ptr.is_null() {
+                anyhow::bail!("NSView is not installed in an NSWindow");
+            }
+
+            let ns_color_class: *const objc2::runtime::AnyClass = objc2::class!(NSColor);
+            let color: Retained<AnyObject> = if translucent {
+                objc2::msg_send![ns_color_class, clearColor]
+            } else {
+                objc2::msg_send![ns_color_class, windowBackgroundColor]
+            };
+
+            let _: () = objc2::msg_send![ns_window_ptr, setBackgroundColor: &*color];
+
+            log::debug!(
+                "NSWindow background set to {} (translucent: {})",
+                if translucent {
+                    "clear"
+                } else {
+                    "windowBackgroundColor"
+                },
+                translucent
+            );
+        }
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (window, translucent);
+    }
+
+    Ok(())
+}
+
 // (Layer opacity remains fixed at 1.0; per-pixel transparency handled in renderer.)
