@@ -449,21 +449,23 @@ impl WindowState {
                         "gather_pane_render_data returned None with pane_count={}",
                         pane_count
                     );
-                    // egui 0.36 panics on drop of a TexturesDelta with unapplied
-                    // deltas; this output never reaches the egui render pass, so
-                    // clear it before it is dropped (the render path applies it).
-                    if let Some(output) = &mut egui_output {
-                        output.textures_delta.clear();
+                    // Keep the GPU font atlas in sync even though this frame
+                    // is not presented. Clearing without applying drops atlas
+                    // reallocations and later chrome text samples the old atlas.
+                    if let (Some(output), Some(ctx)) =
+                        (egui_output.as_mut(), egui_ctx_store.as_ref())
+                    {
+                        renderer.apply_egui_texture_deltas(output, ctx);
                     }
                     Ok(false)
                 }
             } else {
                 // No active tab — nothing to render.
-                // egui 0.36 panics on drop of a TexturesDelta with unapplied
-                // deltas; clear the unconsumed output before it is dropped
-                // (the render path applies the delta).
-                if let Some(output) = &mut egui_output {
-                    output.textures_delta.clear();
+                // Keep the GPU font atlas in sync even though this frame
+                // is not presented. Clearing without applying drops atlas
+                // reallocations and later chrome text samples the old atlas.
+                if let (Some(output), Some(ctx)) = (egui_output.as_mut(), egui_ctx_store.as_ref()) {
+                    renderer.apply_egui_texture_deltas(output, ctx);
                 }
                 Ok(false)
             };

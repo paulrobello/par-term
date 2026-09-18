@@ -572,8 +572,8 @@ impl Renderer {
             wgpu::CurrentSurfaceTexture::Success(t)
             | wgpu::CurrentSurfaceTexture::Suboptimal(t) => t,
             other => {
-                if let Some((mut output, _)) = egui_data {
-                    output.textures_delta.clear();
+                if let Some((mut output, ctx)) = egui_data {
+                    self.apply_egui_texture_deltas(&mut output, ctx);
                 }
                 return Err(crate::error::RenderError::Surface(format!("{other:?}")).into());
             }
@@ -592,8 +592,8 @@ impl Renderer {
             },
             &surface_view,
         ) {
-            if let Some((mut output, _)) = egui_data {
-                output.textures_delta.clear();
+            if let Some((mut output, ctx)) = egui_data {
+                self.apply_egui_texture_deltas(&mut output, ctx);
             }
             return Err(error);
         }

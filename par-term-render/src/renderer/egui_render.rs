@@ -3,6 +3,61 @@ use anyhow::Result;
 use super::Renderer;
 
 impl Renderer {
+    /// Upload and free egui texture deltas, then clear them so epaint 0.36
+    /// does not panic on drop.
+    ///
+    /// Must run even when the overlay is not drawn (occluded/lost surface,
+    /// skipped pane gather). Clearing without applying drops font-atlas
+    /// reallocations (`pos = None`); later frames tessellate against a new
+    /// atlas while the GPU still holds the old one, which draws garbage
+    /// chrome text.
+    pub fn apply_egui_texture_deltas(
+        &mut self,
+        egui_output: &mut egui::FullOutput,
+        egui_ctx: &egui::Context,
+    ) {
+        // Since egui 0.36 each texture id carries a SmallVec of deltas (the
+        // font atlas can deliver several patches per frame), so apply them in
+        // order.
+        for (id, image_deltas) in &egui_output.textures_delta.set {
+            for image_delta in image_deltas {
+                // egui 0.34 can deliver a partial font-atlas patch before this
+                // renderer has allocated the font texture — e.g. when an earlier
+                // frame ran egui but skipped the GPU render, dropping the full
+                // (pos = None) font upload. egui-wgpu panics on a partial update
+                // of an unallocated texture (emilk/egui#8228), so pre-allocate
+                // it with the complete current font atlas before applying the
+                // patch.
+                if image_delta.pos.is_some() && self.egui_renderer.texture(id).is_none() {
+                    let full_image = egui_ctx
+                        .fonts(|f| egui::epaint::ImageData::Color(std::sync::Arc::new(f.image())));
+                    self.egui_renderer.update_texture(
+                        self.cell_renderer.device(),
+                        self.cell_renderer.queue(),
+                        *id,
+                        &egui::epaint::ImageDelta {
+                            pos: None,
+                            image: full_image,
+                            options: image_delta.options,
+                        },
+                    );
+                }
+                self.egui_renderer.update_texture(
+                    self.cell_renderer.device(),
+                    self.cell_renderer.queue(),
+                    *id,
+                    image_delta,
+                );
+            }
+        }
+
+        for id in &egui_output.textures_delta.free {
+            self.egui_renderer.free_texture(id);
+        }
+        // epaint 0.36 panics if a consumed delta is dropped uncleared.
+        egui_output.textures_delta.clear();
+    }
+
     /// Render egui overlay on top of the terminal
     pub(crate) fn render_egui(
         &mut self,
@@ -32,39 +87,7 @@ impl Renderer {
             pixels_per_point: egui_output.pixels_per_point,
         };
 
-        // Update egui textures. Since egui 0.36 each texture id carries a
-        // SmallVec of deltas (the font atlas can deliver several patches per
-        // frame), so apply them in order.
-        for (id, image_deltas) in &egui_output.textures_delta.set {
-            for image_delta in image_deltas {
-                // egui 0.34 can deliver a partial font-atlas patch before this
-                // renderer has allocated the font texture — e.g. when an earlier
-                // frame ran egui but skipped the GPU render, dropping the full
-                // (pos = None) font upload. egui-wgpu panics on a partial update of
-                // an unallocated texture (emilk/egui#8228), so pre-allocate it with
-                // the complete current font atlas before applying the patch.
-                if image_delta.pos.is_some() && self.egui_renderer.texture(id).is_none() {
-                    let full_image = egui_ctx
-                        .fonts(|f| egui::epaint::ImageData::Color(std::sync::Arc::new(f.image())));
-                    self.egui_renderer.update_texture(
-                        self.cell_renderer.device(),
-                        self.cell_renderer.queue(),
-                        *id,
-                        &egui::epaint::ImageDelta {
-                            pos: None,
-                            image: full_image,
-                            options: image_delta.options,
-                        },
-                    );
-                }
-                self.egui_renderer.update_texture(
-                    self.cell_renderer.device(),
-                    self.cell_renderer.queue(),
-                    *id,
-                    image_delta,
-                );
-            }
-        }
+        self.apply_egui_texture_deltas(&mut egui_output, egui_ctx);
 
         // Tessellate egui shapes into paint jobs
         let mut paint_jobs = egui_ctx.tessellate(egui_output.shapes, egui_output.pixels_per_point);
@@ -122,13 +145,6 @@ impl Renderer {
         self.cell_renderer
             .queue()
             .submit(std::iter::once(encoder.finish()));
-
-        // Free egui textures
-        for id in &egui_output.textures_delta.free {
-            self.egui_renderer.free_texture(id);
-        }
-        // epaint 0.36 panics if a consumed delta is dropped uncleared.
-        egui_output.textures_delta.clear();
 
         Ok(())
     }
