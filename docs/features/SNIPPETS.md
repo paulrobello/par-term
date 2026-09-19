@@ -160,11 +160,12 @@ Custom actions allow you to execute shell commands, open a new tab with an optio
 Custom actions can also use a two-stroke prefix trigger:
 
 - Set a global **Prefix key** in Settings -> **Snippets & Actions** -> **Custom Actions** (for example `Ctrl+B`)
-- Give an action a single-character **Prefix char** (for example `g` or `%`)
+- Give an action a single-character **Prefix char** (for example `g` or `%`), or a single-character **Keybinding** with no modifiers (for example `1`)
 - Press the prefix key, release it, then press the action's prefix char to run it
 - A prefix toast stays visible while prefix mode is armed; press `Esc` to cancel it
 
-This works alongside the existing per-action keybinding, so an action can have either trigger style or both.
+This works alongside the existing per-action keybinding, so an action can have either trigger style or both. If `prefix_char` is unset, a single-character `keybinding` is also the prefix follow-up.
+
 
 ### Action Types
 
@@ -322,7 +323,8 @@ Actions are triggered via keyboard shortcuts. You can assign keybindings in two 
 1. Open Settings -> **Snippets & Actions** -> **Custom Actions**
 2. Set the section-level **Prefix key** once (for example `Ctrl+B`)
    Use the **🎤 Record** button if you want par-term to capture the combo for you
-3. Give one or more actions a **Prefix char**
+3. Give one or more actions a **Prefix char**, or a single-character **Keybinding** with no modifiers
+
 4. Press the prefix key, release it, then press the action character to execute it
 5. If you change your mind, press `Esc` to cancel prefix mode before the follow-up key
 

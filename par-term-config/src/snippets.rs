@@ -851,6 +851,31 @@ impl CustomActionConfig {
         self.prefix_char().map(normalize_action_prefix_char)
     }
 
+    /// Character that triggers this action after the global custom-action prefix key.
+    ///
+    /// Prefers an explicit `prefix_char`. If none is set and the action's keybinding is
+    /// enabled and is a single character with no modifiers, that character is used so a
+    /// configured prefix key still works when the follow-up was stored as `keybinding`.
+    pub fn prefix_follow_up_char(&self) -> Option<char> {
+        if let Some(ch) = self.normalized_prefix_char() {
+            return Some(ch);
+        }
+        self.single_char_keybinding_follow_up()
+    }
+
+    fn single_char_keybinding_follow_up(&self) -> Option<char> {
+        if !self.keybinding_enabled() {
+            return None;
+        }
+        let key = self.keybinding()?.trim();
+        let mut chars = key.chars();
+        let ch = chars.next()?;
+        if chars.next().is_some() {
+            return None;
+        }
+        Some(normalize_action_prefix_char(ch))
+    }
+
     /// Check if the keybinding is enabled.
     pub fn keybinding_enabled(&self) -> bool {
         match self {
@@ -1208,6 +1233,64 @@ mod tests {
         assert!(!action.is_split_pane());
         assert_eq!(action.prefix_char(), Some('G'));
         assert_eq!(action.normalized_prefix_char(), Some('g'));
+    }
+
+    #[test]
+    fn prefix_follow_up_char_uses_single_char_keybinding_when_prefix_char_absent() {
+        let action = CustomActionConfig::NewTab {
+            id: "lenny1".to_string(),
+            title: "lenny1".to_string(),
+            command: Some("ssh root@lenny1".to_string()),
+            keybinding: Some("1".to_string()),
+            prefix_char: None,
+            keybinding_enabled: true,
+            description: None,
+        };
+
+        assert_eq!(action.prefix_follow_up_char(), Some('1'));
+    }
+
+    #[test]
+    fn prefix_follow_up_char_prefers_explicit_prefix_char() {
+        let action = CustomActionConfig::InsertText {
+            id: "both".to_string(),
+            title: "Both".to_string(),
+            text: "x".to_string(),
+            variables: HashMap::new(),
+            keybinding: Some("1".to_string()),
+            prefix_char: Some('G'),
+            keybinding_enabled: true,
+            description: None,
+        };
+
+        assert_eq!(action.prefix_follow_up_char(), Some('g'));
+    }
+
+    #[test]
+    fn prefix_follow_up_char_ignores_chord_and_disabled_keybindings() {
+        let chord = CustomActionConfig::InsertText {
+            id: "chord".to_string(),
+            title: "Chord".to_string(),
+            text: "x".to_string(),
+            variables: HashMap::new(),
+            keybinding: Some("Ctrl+1".to_string()),
+            prefix_char: None,
+            keybinding_enabled: true,
+            description: None,
+        };
+        let disabled = CustomActionConfig::InsertText {
+            id: "disabled".to_string(),
+            title: "Disabled".to_string(),
+            text: "x".to_string(),
+            variables: HashMap::new(),
+            keybinding: Some("1".to_string()),
+            prefix_char: None,
+            keybinding_enabled: false,
+            description: None,
+        };
+
+        assert_eq!(chord.prefix_follow_up_char(), None);
+        assert_eq!(disabled.prefix_follow_up_char(), None);
     }
 
     #[test]

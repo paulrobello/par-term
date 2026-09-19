@@ -53,6 +53,96 @@ fn prefix_action_matching_keeps_symbol_bindings_exact() {
 }
 
 #[test]
+fn prefix_action_matching_uses_single_char_keybinding_when_prefix_char_absent() {
+    use super::prefix_action_for_char;
+
+    let actions = vec![CustomActionConfig::InsertText {
+        id: "lenny1".to_string(),
+        title: "lenny1".to_string(),
+        text: "ssh root@lenny1".to_string(),
+        variables: HashMap::new(),
+        keybinding: Some("1".to_string()),
+        prefix_char: None,
+        keybinding_enabled: true,
+        description: None,
+    }];
+
+    assert_eq!(
+        prefix_action_for_char(&actions, '1'),
+        Some("lenny1".to_string())
+    );
+}
+
+#[test]
+fn prefix_action_matching_prefers_explicit_prefix_char_over_keybinding() {
+    use super::prefix_action_for_char;
+
+    let actions = vec![
+        CustomActionConfig::InsertText {
+            id: "from-keybinding".to_string(),
+            title: "From Keybinding".to_string(),
+            text: "a".to_string(),
+            variables: HashMap::new(),
+            keybinding: Some("g".to_string()),
+            prefix_char: None,
+            keybinding_enabled: true,
+            description: None,
+        },
+        CustomActionConfig::InsertText {
+            id: "from-prefix".to_string(),
+            title: "From Prefix".to_string(),
+            text: "b".to_string(),
+            variables: HashMap::new(),
+            keybinding: None,
+            prefix_char: Some('g'),
+            keybinding_enabled: true,
+            description: None,
+        },
+    ];
+
+    assert_eq!(
+        prefix_action_for_char(&actions, 'g'),
+        Some("from-prefix".to_string())
+    );
+}
+
+#[test]
+fn prefix_action_matching_ignores_disabled_single_char_keybinding() {
+    use super::prefix_action_for_char;
+
+    let actions = vec![CustomActionConfig::InsertText {
+        id: "disabled".to_string(),
+        title: "Disabled".to_string(),
+        text: "nope".to_string(),
+        variables: HashMap::new(),
+        keybinding: Some("1".to_string()),
+        prefix_char: None,
+        keybinding_enabled: false,
+        description: None,
+    }];
+
+    assert_eq!(prefix_action_for_char(&actions, '1'), None);
+}
+
+#[test]
+fn prefix_action_matching_ignores_chord_keybindings() {
+    use super::prefix_action_for_char;
+
+    let actions = vec![CustomActionConfig::InsertText {
+        id: "chord".to_string(),
+        title: "Chord".to_string(),
+        text: "nope".to_string(),
+        variables: HashMap::new(),
+        keybinding: Some("Ctrl+1".to_string()),
+        prefix_char: None,
+        keybinding_enabled: true,
+        description: None,
+    }];
+
+    assert_eq!(prefix_action_for_char(&actions, '1'), None);
+}
+
+#[test]
 fn extract_prefix_action_char_prefers_event_text() {
     assert_eq!(
         extract_prefix_action_char(

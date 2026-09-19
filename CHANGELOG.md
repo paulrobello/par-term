@@ -11,7 +11,12 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ## [Unreleased]
 
+### Fixed
+
+- **Custom-action prefix key now arms when follow-ups are stored as single-character keybindings.** Prefix mode previously required an explicit `prefix_char` on at least one action, so a configured `custom_action_prefix_key` (for example `CmdOrCtrl+Alt+Z`) did nothing when the follow-up lived in `keybinding: "1"`. The prefix now treats an enabled single-character keybinding as the follow-up when `prefix_char` is unset; explicit `prefix_char` still wins, and chord keybindings are unchanged.
+
 ---
+
 
 ## [0.45.1] - 2026-09-16
 

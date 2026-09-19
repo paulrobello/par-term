@@ -35,6 +35,12 @@ fn prefix_action_for_char(actions: &[CustomActionConfig], input_char: char) -> O
     actions
         .iter()
         .find(|action| action.normalized_prefix_char() == Some(normalized_input))
+        .or_else(|| {
+            actions.iter().find(|action| {
+                action.normalized_prefix_char().is_none()
+                    && action.prefix_follow_up_char() == Some(normalized_input)
+            })
+        })
         .map(|action| action.id().to_string())
 }
 
@@ -118,11 +124,11 @@ impl WindowState {
             .load()
             .actions
             .iter()
-            .any(|action| action.prefix_char().is_some())
+            .any(|action| action.prefix_follow_up_char().is_some())
         {
             crate::debug_log!(
                 "PREFIX_ACTION",
-                "No actions with prefix_char configured, skipping"
+                "No actions with a prefix follow-up configured, skipping"
             );
             return false;
         }
