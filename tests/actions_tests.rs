@@ -537,6 +537,29 @@ fn generate_keeps_chord_action_keybinding_when_prefix_key_is_set() {
     assert_eq!(config.keybindings.last().unwrap().key, "Ctrl+Shift+R");
 }
 
+#[test]
+fn generate_keeps_single_char_keybinding_when_prefix_char_is_explicit() {
+    let mut config = Config::default();
+    config.custom_action_prefix_key = "CmdOrCtrl+Alt+Z".to_string();
+    let initial_count = config.keybindings.len();
+
+    config.actions.push(CustomActionConfig::NewTab {
+        id: "lenny1".to_string(),
+        title: "lenny1".to_string(),
+        command: Some("ssh root@lenny1".to_string()),
+        keybinding: Some("1".to_string()),
+        prefix_char: Some('g'),
+        keybinding_enabled: true,
+        description: None,
+    });
+
+    config.generate_snippet_action_keybindings();
+
+    assert_eq!(config.keybindings.len(), initial_count + 1);
+    assert_eq!(config.keybindings.last().unwrap().key, "1");
+    assert_eq!(config.keybindings.last().unwrap().action, "action:lenny1");
+}
+
 // ============================================================================
 // Config Persistence for Actions Tests
 // ============================================================================

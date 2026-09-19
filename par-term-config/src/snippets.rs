@@ -863,7 +863,7 @@ impl CustomActionConfig {
         self.single_char_keybinding_follow_up()
     }
 
-    fn single_char_keybinding_follow_up(&self) -> Option<char> {
+    pub(crate) fn single_char_keybinding_follow_up(&self) -> Option<char> {
         if !self.keybinding_enabled() {
             return None;
         }

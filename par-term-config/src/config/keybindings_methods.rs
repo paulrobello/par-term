@@ -145,7 +145,8 @@ impl Config {
                 let action = format!("action:{}", action_config.id());
                 let prefix_only = !self.custom_action_prefix_key.trim().is_empty()
                     && action_config.prefix_char().is_none()
-                    && action_config.prefix_follow_up_char().is_some();
+                    && action_config.single_char_keybinding_follow_up().is_some();
+
                 if prefix_only {
                     log::info!(
                         "Skipping global keybinding for action '{}': {} is a prefix follow-up",
