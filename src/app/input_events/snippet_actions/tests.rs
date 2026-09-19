@@ -143,6 +143,42 @@ fn prefix_action_matching_ignores_chord_keybindings() {
 }
 
 #[test]
+fn prefix_mode_arms_when_only_single_char_keybinding_exists() {
+    use super::actions_have_prefix_follow_up;
+
+    let actions = vec![CustomActionConfig::InsertText {
+        id: "lenny1".to_string(),
+        title: "lenny1".to_string(),
+        text: "ssh root@lenny1".to_string(),
+        variables: HashMap::new(),
+        keybinding: Some("1".to_string()),
+        prefix_char: None,
+        keybinding_enabled: true,
+        description: None,
+    }];
+
+    assert!(actions_have_prefix_follow_up(&actions));
+}
+
+#[test]
+fn prefix_mode_does_not_arm_for_chord_only_keybindings() {
+    use super::actions_have_prefix_follow_up;
+
+    let actions = vec![CustomActionConfig::InsertText {
+        id: "chord".to_string(),
+        title: "Chord".to_string(),
+        text: "nope".to_string(),
+        variables: HashMap::new(),
+        keybinding: Some("Ctrl+1".to_string()),
+        prefix_char: None,
+        keybinding_enabled: true,
+        description: None,
+    }];
+
+    assert!(!actions_have_prefix_follow_up(&actions));
+}
+
+#[test]
 fn extract_prefix_action_char_prefers_event_text() {
     assert_eq!(
         extract_prefix_action_char(

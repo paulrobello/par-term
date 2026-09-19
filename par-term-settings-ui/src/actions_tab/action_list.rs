@@ -186,7 +186,11 @@ pub fn show_actions_section(
                                                     .monospace()
                                                     .color(egui::Color32::from_rgb(150, 150, 200)),
                                             );
-                                            if let Some(ch) = action.prefix_char() {
+                                            if let Some(ch) = action
+                                                .prefix_char()
+                                                .or_else(|| action.prefix_follow_up_char())
+                                            {
+
                                                 ui.label(
                                                     egui::RichText::new(format!("pre:{}", ch))
                                                         .monospace()

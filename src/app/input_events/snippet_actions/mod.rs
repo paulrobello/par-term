@@ -44,6 +44,12 @@ fn prefix_action_for_char(actions: &[CustomActionConfig], input_char: char) -> O
         .map(|action| action.id().to_string())
 }
 
+fn actions_have_prefix_follow_up(actions: &[CustomActionConfig]) -> bool {
+    actions
+        .iter()
+        .any(|action| action.prefix_follow_up_char().is_some())
+}
+
 impl WindowState {
     fn show_custom_action_prefix_toast(&mut self) {
         self.overlay_state.toast_message = Some(CUSTOM_ACTION_PREFIX_TOAST.to_string());
@@ -119,13 +125,7 @@ impl WindowState {
             return false;
         };
 
-        if !self
-            .config
-            .load()
-            .actions
-            .iter()
-            .any(|action| action.prefix_follow_up_char().is_some())
-        {
+        if !actions_have_prefix_follow_up(&self.config.load().actions) {
             crate::debug_log!(
                 "PREFIX_ACTION",
                 "No actions with a prefix follow-up configured, skipping"

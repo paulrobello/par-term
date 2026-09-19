@@ -164,7 +164,8 @@ Custom actions can also use a two-stroke prefix trigger:
 - Press the prefix key, release it, then press the action's prefix char to run it
 - A prefix toast stays visible while prefix mode is armed; press `Esc` to cancel it
 
-This works alongside the existing per-action keybinding, so an action can have either trigger style or both. If `prefix_char` is unset, a single-character `keybinding` is also the prefix follow-up.
+This works alongside the existing per-action keybinding, so an action can have either trigger style or both. If `prefix_char` is unset, a single-character `keybinding` is also the prefix follow-up. When a global prefix key is set, that single-character keybinding is not registered as a global shortcut.
+
 
 
 ### Action Types

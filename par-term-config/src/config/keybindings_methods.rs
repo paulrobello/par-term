@@ -143,6 +143,17 @@ impl Config {
         for action_config in &self.actions {
             if let Some(key) = action_config.keybinding() {
                 let action = format!("action:{}", action_config.id());
+                let prefix_only = !self.custom_action_prefix_key.trim().is_empty()
+                    && action_config.prefix_char().is_none()
+                    && action_config.prefix_follow_up_char().is_some();
+                if prefix_only {
+                    log::info!(
+                        "Skipping global keybinding for action '{}': {} is a prefix follow-up",
+                        action_config.title(),
+                        key
+                    );
+                    continue;
+                }
                 seen_actions.insert(action.clone());
 
                 if !key.is_empty() && action_config.keybinding_enabled() {

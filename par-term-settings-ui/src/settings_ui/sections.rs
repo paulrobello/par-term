@@ -164,11 +164,60 @@ impl SettingsUI {
                 continue;
             }
 
-            if action.normalized_prefix_char() == Some(normalized_prefix_char) {
+            if action.prefix_follow_up_char() == Some(normalized_prefix_char) {
                 return Some(format!("Already used by action: {}", action.title()));
             }
         }
 
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use par_term_config::Config;
+    use par_term_config::snippets::CustomActionConfig;
+    use std::collections::HashMap;
+
+    fn insert_text(
+        id: &str,
+        title: &str,
+        keybinding: Option<&str>,
+        prefix_char: Option<char>,
+    ) -> CustomActionConfig {
+        CustomActionConfig::InsertText {
+            id: id.to_string(),
+            title: title.to_string(),
+            text: "x".to_string(),
+            variables: HashMap::new(),
+            keybinding: keybinding.map(str::to_string),
+            prefix_char,
+            keybinding_enabled: true,
+            description: None,
+        }
+    }
+
+    #[test]
+    fn prefix_char_conflicts_with_single_char_keybinding_on_another_action() {
+        let mut config = Config::default();
+        config
+            .actions
+            .push(insert_text("lenny1", "lenny1", Some("1"), None));
+        let settings = SettingsUI::new_for_tests(config);
+
+        let conflict = settings.check_action_prefix_char_conflict('1', None);
+        assert_eq!(conflict.as_deref(), Some("Already used by action: lenny1"));
+    }
+
+    #[test]
+    fn prefix_char_does_not_conflict_with_chord_keybinding() {
+        let mut config = Config::default();
+        config
+            .actions
+            .push(insert_text("run", "Run", Some("Ctrl+1"), None));
+        let settings = SettingsUI::new_for_tests(config);
+
+        assert_eq!(settings.check_action_prefix_char_conflict('1', None), None);
     }
 }

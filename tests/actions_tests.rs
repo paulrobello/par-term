@@ -6,7 +6,8 @@
 
 mod common;
 
-use par_term::config::{Config, CustomActionConfig};
+use par_term::config::{Config, CustomActionConfig, KeyBinding};
+
 use par_term_keybindings::parser::parse_key_sequence;
 use std::collections::HashMap;
 use std::fs;
@@ -426,6 +427,114 @@ fn test_generate_action_keybindings_remove_when_cleared() {
             .iter()
             .any(|kb| kb.action == "action:run_tests")
     );
+}
+
+#[test]
+fn generate_skips_single_char_action_keybinding_when_prefix_key_is_set() {
+    let mut config = Config::default();
+    config.custom_action_prefix_key = "CmdOrCtrl+Alt+Z".to_string();
+    let initial_count = config.keybindings.len();
+
+    config.actions.push(CustomActionConfig::NewTab {
+        id: "lenny1".to_string(),
+        title: "lenny1".to_string(),
+        command: Some("ssh root@lenny1".to_string()),
+        keybinding: Some("1".to_string()),
+        prefix_char: None,
+        keybinding_enabled: true,
+        description: None,
+    });
+
+    config.generate_snippet_action_keybindings();
+
+    assert_eq!(config.keybindings.len(), initial_count);
+    assert!(
+        !config
+            .keybindings
+            .iter()
+            .any(|kb| kb.action == "action:lenny1" || kb.key == "1")
+    );
+}
+
+#[test]
+fn generate_removes_stale_single_char_binding_when_prefix_key_is_set() {
+    let mut config = Config::default();
+    config.custom_action_prefix_key = "CmdOrCtrl+Alt+Z".to_string();
+    config.keybindings.push(KeyBinding {
+        key: "1".to_string(),
+        action: "action:lenny1".to_string(),
+    });
+
+    let with_stale = config.keybindings.len();
+
+    config.actions.push(CustomActionConfig::NewTab {
+        id: "lenny1".to_string(),
+        title: "lenny1".to_string(),
+        command: Some("ssh root@lenny1".to_string()),
+        keybinding: Some("1".to_string()),
+        prefix_char: None,
+        keybinding_enabled: true,
+        description: None,
+    });
+
+    config.generate_snippet_action_keybindings();
+
+    assert_eq!(config.keybindings.len(), with_stale - 1);
+    assert!(
+        !config
+            .keybindings
+            .iter()
+            .any(|kb| kb.action == "action:lenny1")
+    );
+}
+
+#[test]
+fn generate_keeps_single_char_action_keybinding_when_prefix_key_is_empty() {
+    let mut config = Config::default();
+    config.custom_action_prefix_key.clear();
+    let initial_count = config.keybindings.len();
+
+    config.actions.push(CustomActionConfig::NewTab {
+        id: "lenny1".to_string(),
+        title: "lenny1".to_string(),
+        command: Some("ssh root@lenny1".to_string()),
+        keybinding: Some("1".to_string()),
+        prefix_char: None,
+        keybinding_enabled: true,
+        description: None,
+    });
+
+    config.generate_snippet_action_keybindings();
+
+    assert_eq!(config.keybindings.len(), initial_count + 1);
+    assert_eq!(config.keybindings.last().unwrap().key, "1");
+    assert_eq!(config.keybindings.last().unwrap().action, "action:lenny1");
+}
+
+#[test]
+fn generate_keeps_chord_action_keybinding_when_prefix_key_is_set() {
+    let mut config = Config::default();
+    config.custom_action_prefix_key = "CmdOrCtrl+Alt+Z".to_string();
+    let initial_count = config.keybindings.len();
+
+    config.actions.push(CustomActionConfig::ShellCommand {
+        id: "run_tests".to_string(),
+        title: "Run Tests".to_string(),
+        command: "cargo".to_string(),
+        args: vec!["test".to_string()],
+        notify_on_success: false,
+        timeout_secs: 30,
+        capture_output: false,
+        keybinding: Some("Ctrl+Shift+R".to_string()),
+        prefix_char: None,
+        keybinding_enabled: true,
+        description: None,
+    });
+
+    config.generate_snippet_action_keybindings();
+
+    assert_eq!(config.keybindings.len(), initial_count + 1);
+    assert_eq!(config.keybindings.last().unwrap().key, "Ctrl+Shift+R");
 }
 
 // ============================================================================
