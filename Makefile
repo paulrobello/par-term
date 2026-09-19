@@ -208,7 +208,7 @@ fmt-check:
 # Run clippy linter
 lint:
 	@echo "Running clippy..."
-	cargo clippy -- -D warnings
+	cargo clippy --all-targets --all-features -- -D warnings
 
 # Run clippy on all targets
 lint-all:

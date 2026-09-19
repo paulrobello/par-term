@@ -431,8 +431,10 @@ fn test_generate_action_keybindings_remove_when_cleared() {
 
 #[test]
 fn generate_skips_single_char_action_keybinding_when_prefix_key_is_set() {
-    let mut config = Config::default();
-    config.custom_action_prefix_key = "CmdOrCtrl+Alt+Z".to_string();
+    let mut config = Config {
+        custom_action_prefix_key: "CmdOrCtrl+Alt+Z".to_string(),
+        ..Default::default()
+    };
     let initial_count = config.keybindings.len();
 
     config.actions.push(CustomActionConfig::NewTab {
@@ -458,8 +460,10 @@ fn generate_skips_single_char_action_keybinding_when_prefix_key_is_set() {
 
 #[test]
 fn generate_removes_stale_single_char_binding_when_prefix_key_is_set() {
-    let mut config = Config::default();
-    config.custom_action_prefix_key = "CmdOrCtrl+Alt+Z".to_string();
+    let mut config = Config {
+        custom_action_prefix_key: "CmdOrCtrl+Alt+Z".to_string(),
+        ..Default::default()
+    };
     config.keybindings.push(KeyBinding {
         key: "1".to_string(),
         action: "action:lenny1".to_string(),
@@ -513,8 +517,10 @@ fn generate_keeps_single_char_action_keybinding_when_prefix_key_is_empty() {
 
 #[test]
 fn generate_keeps_chord_action_keybinding_when_prefix_key_is_set() {
-    let mut config = Config::default();
-    config.custom_action_prefix_key = "CmdOrCtrl+Alt+Z".to_string();
+    let mut config = Config {
+        custom_action_prefix_key: "CmdOrCtrl+Alt+Z".to_string(),
+        ..Default::default()
+    };
     let initial_count = config.keybindings.len();
 
     config.actions.push(CustomActionConfig::ShellCommand {
@@ -539,8 +545,10 @@ fn generate_keeps_chord_action_keybinding_when_prefix_key_is_set() {
 
 #[test]
 fn generate_keeps_single_char_keybinding_when_prefix_char_is_explicit() {
-    let mut config = Config::default();
-    config.custom_action_prefix_key = "CmdOrCtrl+Alt+Z".to_string();
+    let mut config = Config {
+        custom_action_prefix_key: "CmdOrCtrl+Alt+Z".to_string(),
+        ..Default::default()
+    };
     let initial_count = config.keybindings.len();
 
     config.actions.push(CustomActionConfig::NewTab {
