@@ -11,9 +11,16 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ## [Unreleased]
 
+---
+
+## [0.45.2] - 2026-09-19
+
+Patch release: custom-action prefix keys now work when the follow-up is stored as a single-character keybinding, and occluded or skipped frames no longer corrupt egui chrome text. No new features. Sub-crate bumps: `par-term-config` 0.14.3 → 0.14.4, `par-term-settings-ui` 0.17.3 → 0.17.4 (actions tab), `par-term-render` 0.11.0 → 0.11.1 (egui texture deltas). No core-library change — `par-term-emu-core-rust` remains at 0.48.
+
 ### Fixed
 
-- **Custom-action prefix key now arms when follow-ups are stored as single-character keybindings.** Prefix mode previously required an explicit `prefix_char` on at least one action, so a configured `custom_action_prefix_key` (for example `CmdOrCtrl+Alt+Z`) did nothing when the follow-up lived in `keybinding: "1"`. The prefix now treats an enabled single-character keybinding as the follow-up when `prefix_char` is unset; explicit `prefix_char` still wins, and chord keybindings are unchanged. When a prefix key is set, that single-character keybinding is not registered as a global shortcut, so it no longer steals the character from the shell. Prefix-char conflict checks and the actions-list badge also treat that keybinding as a prefix follow-up.
+- **Custom-action prefix key now arms when follow-ups are stored as single-character keybindings.** Prefix mode previously required an explicit `prefix_char` on at least one action, so a configured `custom_action_prefix_key` (for example `CmdOrCtrl+Alt+Z`) did nothing when the follow-up lived in `keybinding: "1"`. The prefix now treats an enabled single-character keybinding as the follow-up when `prefix_char` is unset; explicit `prefix_char` still wins, and chord keybindings are unchanged. When a prefix key is set, that single-character keybinding is not registered as a global shortcut, so it no longer steals the character from the shell. Prefix-char conflict checks and the actions-list badge also treat that keybinding as a prefix follow-up, and a persisted bare-key entry for it is dropped on load so the skip survives config round-trips.
+- **Skipped frames no longer draw garbage tab and status-bar glyphs.** When a frame was occluded or the pane gather was skipped, the egui `TexturesDelta` was cleared without being applied, dropping font-atlas reallocations; later frames then tessellated with new atlas UVs against the old GPU texture. The overlay now applies set/free deltas on those paths before clearing (`Renderer::apply_egui_texture_deltas` in `par-term-render`).
 
 
 ---
@@ -1877,7 +1884,9 @@ Audit remediation pass (Critical + High severity from the 2026-06-25 audit): 18 
 
 ---
 
-[Unreleased]: https://github.com/paulrobello/par-term/compare/v0.45.0...HEAD
+[Unreleased]: https://github.com/paulrobello/par-term/compare/v0.45.2...HEAD
+[0.45.2]: https://github.com/paulrobello/par-term/releases/tag/v0.45.2
+[0.45.1]: https://github.com/paulrobello/par-term/releases/tag/v0.45.1
 [0.45.0]: https://github.com/paulrobello/par-term/releases/tag/v0.45.0
 [0.44.0]: https://github.com/paulrobello/par-term/compare/v0.43.0...v0.44.0
 [0.43.0]: https://github.com/paulrobello/par-term/compare/v0.42.0...v0.43.0

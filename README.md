@@ -42,6 +42,13 @@ New to par-term? The [Getting Started Guide](docs/guides/GETTING_STARTED.md) wal
 - **[Keyboard Shortcuts](docs/guides/KEYBOARD_SHORTCUTS.md)** — Complete keyboard shortcut reference
 
 ## What's New
+### 0.45.2
+
+Custom-action prefix keys work with single-character follow-up keybindings, and occluded frames no longer corrupt egui chrome text. Patch release; no core-library change (`par-term-emu-core-rust` remains at 0.48).
+
+- **Custom-action prefix keys now arm from single-character keybindings** — a configured `custom_action_prefix_key` (for example `CmdOrCtrl+Alt+Z`) previously did nothing when the follow-up was stored as `keybinding: "1"`. While a prefix key is set, that single character is no longer stolen from the shell, and conflict checks and the actions-list badge treat it as the prefix follow-up.
+- **Occluded frames no longer draw garbage tab and status-bar glyphs** — egui font-atlas updates are now applied even on frames whose overlay render is skipped.
+
 ### 0.45.1
 
 The macOS 27 titlebar is opaque again, plus dependency maintenance. No new features; no sub-crate or core-library changes.
