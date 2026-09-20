@@ -104,6 +104,8 @@ pub(crate) struct WindowManager {
     pub(crate) auto_restore_done: bool,
     /// Dynamic profile manager for fetching remote profiles
     pub(crate) dynamic_profile_manager: crate::profile::DynamicProfileManager,
+    /// Scripted `--ui-test` run state: per-step records + report destination.
+    pub(crate) ui_test: crate::app::ui_test::UiTestRun,
 }
 
 impl WindowManager {
@@ -133,6 +135,9 @@ impl WindowManager {
         // main thread (see `check_for_updates`).
         let (update_check_tx, update_check_rx) = mpsc::channel();
 
+        // Captured before `runtime_options` moves into the struct below.
+        let ui_test_report_path = runtime_options.ui_test_report.clone();
+
         Self {
             windows: HashMap::new(),
             menu: None,
@@ -153,6 +158,12 @@ impl WindowManager {
             arrangement_manager,
             auto_restore_done: false,
             dynamic_profile_manager,
+            ui_test: crate::app::ui_test::UiTestRun {
+                report_path: ui_test_report_path,
+                records: Vec::new(),
+                failed: 0,
+                passed: 0,
+            },
         }
     }
 

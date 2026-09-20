@@ -16,9 +16,9 @@ use winit::event_loop::ActiveEventLoop;
 use winit::window::WindowId;
 
 impl ApplicationHandler<AppEvent> for WindowManager {
-    #[cfg(target_os = "macos")]
-    fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: AppEvent) {
+    fn user_event(&mut self, event_loop: &ActiveEventLoop, event: AppEvent) {
         match event {
+            #[cfg(target_os = "macos")]
             AppEvent::DisplayConfigurationChanged => {
                 log::info!(
                     "Display configuration changed; forcing surface reconfigure for {} window(s)",
@@ -29,6 +29,8 @@ impl ApplicationHandler<AppEvent> for WindowManager {
                 }
                 display_change_gate().clear();
             }
+            AppEvent::UiTestStep(step) => self.run_ui_test_step(&step),
+            AppEvent::UiTestFinish => self.ui_test_finish(event_loop),
         }
     }
 

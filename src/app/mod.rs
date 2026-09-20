@@ -11,12 +11,17 @@ use anyhow::Result;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 use winit::event_loop::{ControlFlow, EventLoop};
-/// Events injected into the winit event loop by platform observers.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Events injected into the winit event loop by platform observers and the
+/// UI-test driver.
+#[derive(Debug, Clone)]
 pub(crate) enum AppEvent {
     /// The macOS display topology or parameters changed.
     #[cfg(target_os = "macos")]
     DisplayConfigurationChanged,
+    /// One scripted `--ui-test` step, ready to execute.
+    UiTestStep(ui_test::UiTestStep),
+    /// The script ran out; write the report and exit.
+    UiTestFinish,
 }
 
 pub(crate) mod display_recovery;
@@ -30,6 +35,7 @@ pub(crate) mod render_pipeline;
 pub mod tab_ops;
 mod tmux_handler;
 mod triggers;
+pub(crate) mod ui_test;
 pub mod window_manager;
 pub mod window_state;
 
@@ -85,6 +91,31 @@ impl App {
         #[cfg(target_os = "macos")]
         let _display_observer =
             display_recovery::register_display_change_observer(event_loop.create_proxy());
+
+        // Scripted UI testing: parse eagerly so a bad script fails before any
+        // window opens, then drive the app through the event-loop proxy — the
+        // one injection route that needs no host (TCC) permission.
+        let ui_test_script = self
+            .runtime_options
+            .ui_test
+            .as_deref()
+            .map(ui_test::load_script)
+            .transpose()?;
+        if let Some(script) = ui_test_script {
+            let proxy = event_loop.create_proxy();
+            std::thread::spawn(move || {
+                for step in script.steps {
+                    std::thread::sleep(std::time::Duration::from_millis(step.wait_ms));
+                    if proxy.send_event(AppEvent::UiTestStep(step)).is_err() {
+                        return; // Event loop gone; nothing to drive.
+                    }
+                }
+                // Settle: let the final step's redraw + any async dispatch land
+                // before the report is written.
+                std::thread::sleep(std::time::Duration::from_millis(600));
+                let _ = proxy.send_event(AppEvent::UiTestFinish);
+            });
+        }
 
         let mut window_manager =
             WindowManager::new(self.config, self.runtime, self.runtime_options);

@@ -51,6 +51,15 @@ pub struct Cli {
     #[arg(long, value_name = "COMMAND")]
     pub command_to_send: Option<String>,
 
+    /// Run a scripted UI test (JSON script; see
+    /// docs/guides/AGENT_UI_VERIFICATION.md), then write a report and exit
+    #[arg(long, value_name = "SCRIPT")]
+    pub ui_test: Option<PathBuf>,
+
+    /// Where the --ui-test JSON report is written (default: beside the script)
+    #[arg(long, value_name = "PATH", requires = "ui_test")]
+    pub ui_test_report: Option<PathBuf>,
+
     /// Enable session logging (overrides config setting)
     #[arg(long)]
     pub log_session: bool,
@@ -162,6 +171,10 @@ pub struct RuntimeOptions {
     pub screenshot: Option<PathBuf>,
     /// Command to send to shell after delay
     pub command_to_send: Option<String>,
+    /// Scripted UI test to run (see docs/guides/AGENT_UI_VERIFICATION.md)
+    pub ui_test: Option<PathBuf>,
+    /// Where the --ui-test JSON report is written
+    pub ui_test_report: Option<PathBuf>,
     /// Enable session logging (overrides config)
     pub log_session: bool,
     /// Log level override from CLI
@@ -231,6 +244,8 @@ pub fn process_cli() -> CliResult {
                 exit_after: cli.exit_after,
                 screenshot: cli.screenshot,
                 command_to_send: cli.command_to_send,
+                ui_test: cli.ui_test,
+                ui_test_report: cli.ui_test_report,
                 log_session: cli.log_session,
                 log_level: cli.log_level.map(|l| l.to_level_filter()),
             };
