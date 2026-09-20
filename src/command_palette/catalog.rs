@@ -117,6 +117,19 @@ mod tests {
     }
 
     #[test]
+    fn palette_action_has_a_curated_label() {
+        let catalog = build_catalog();
+        let entry = catalog
+            .iter()
+            .find(|e| e.action_id == "toggle_command_palette")
+            .expect("toggle_command_palette is dispatchable");
+        assert_eq!(
+            entry.label, "Open Command Palette",
+            "the palette's own action needs a curated label, not the humanize() fallback"
+        );
+    }
+
+    #[test]
     fn curated_entry_carries_its_default_chord() {
         let catalog = build_catalog();
         let entry = catalog

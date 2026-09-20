@@ -192,6 +192,7 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     ),
     ("toggle_copy_mode", "Toggle Copy Mode", Some("Cmd+Shift+C")),
     ("enter_copy_mode", "Enter Copy Mode", None),
+    ("toggle_command_palette", "Open Command Palette", None),
 ];
 
 #[cfg(not(target_os = "macos"))]
@@ -375,4 +376,5 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
         Some("Ctrl+Shift+Space"),
     ),
     ("enter_copy_mode", "Enter Copy Mode", None),
+    ("toggle_command_palette", "Open Command Palette", None),
 ];

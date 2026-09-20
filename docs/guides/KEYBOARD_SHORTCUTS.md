@@ -257,6 +257,19 @@ the only direct keyboard route. Bind `toggle_menu` if you run with
 `tab_bar_mode: never` — the tab bar is what normally holds the `☰` button, so
 without a binding there is no way to open the in-app menu.
 
+**Command Palette:**
+- `toggle_command_palette` - Open the fuzzy action launcher over every bindable action
+
+This ships with no default chord. Every obvious candidate is already claimed by a
+higher-precedence key layer, so bind it yourself in Settings > Input >
+Keybindings, or in `config.yaml`:
+
+```yaml
+keybindings:
+  - key: "CmdOrCtrl+Alt+K"
+    action: "toggle_command_palette"
+```
+
 **Tab Management:**
 - `new_tab`, `close_tab`, `duplicate_tab`, `next_tab`, `prev_tab`
 - `move_tab_left`, `move_tab_right`
