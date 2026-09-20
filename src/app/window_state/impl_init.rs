@@ -300,14 +300,10 @@ impl WindowState {
                 }
                 // macOS 27 draws the titlebar from the NSWindow background color
                 // when the window is non-opaque; winit's transparent(true) set it
-                // to clear at creation. Restore a real background color unless
-                // per-pixel translucency is active.
-                let translucent = cfg.window.window_opacity < 1.0
-                    || (cfg.background.background_image_enabled
-                        && cfg.background.background_image_opacity < 1.0);
-                if let Err(e) =
-                    crate::macos_metal::set_window_background_for_translucency(&window, translucent)
-                {
+                // to clear at creation. Restore an opaque background so the
+                // titlebar stays native regardless of content opacity — the
+                // titlebar and content area are disjoint AppKit regions.
+                if let Err(e) = crate::macos_metal::restore_opaque_titlebar(&window) {
                     log::warn!("Failed to set initial window background: {}", e);
                 }
             }
