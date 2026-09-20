@@ -118,6 +118,8 @@ pub(super) enum DemoteSnapshot {
 pub(super) struct PostRenderActions {
     pub(super) clipboard: ClipboardHistoryAction,
     pub(super) command_history: CommandHistoryAction,
+    /// Action id chosen from the command palette this frame, if any.
+    pub(super) command_palette: Option<String>,
     pub(super) paste_special: PasteSpecialAction,
     pub(super) session_picker: SessionPickerAction,
     pub(super) tab_action: TabBarAction,
@@ -141,6 +143,7 @@ impl Default for PostRenderActions {
         Self {
             clipboard: ClipboardHistoryAction::None,
             command_history: CommandHistoryAction::None,
+            command_palette: None,
             paste_special: PasteSpecialAction::None,
             session_picker: SessionPickerAction::None,
             tab_action: TabBarAction::None,

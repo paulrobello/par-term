@@ -383,6 +383,9 @@ impl WindowState {
                             .search_ui
                             .show(ctx, visible_lines, scrollback_len);
 
+                    // Show command palette and collect the chosen action
+                    actions.command_palette = self.overlay_ui.command_palette.show(ctx);
+
                     // Show AI Inspector panel and collect action
                     actions.inspector = self
                         .overlay_ui

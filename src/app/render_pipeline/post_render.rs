@@ -23,6 +23,7 @@ impl WindowState {
         let PostRenderActions {
             clipboard,
             command_history,
+            command_palette,
             paste_special,
             session_picker,
             tab_action,
@@ -55,6 +56,13 @@ impl WindowState {
                 self.execute_demote(source_tab_id, target_tab_id, target_pane_id, direction);
             }
             super::types::DemoteAction::None => {}
+        }
+
+        // Invoke a palette selection through the one dispatch entry point, so
+        // it takes the same miss-path (display table, then snippet:/action:/
+        // restore_arrangement: prefixes) that a keybinding would.
+        if let Some(action_id) = command_palette {
+            self.execute_keybinding_action(&action_id);
         }
 
         // Sync AI Inspector panel width after the render pass.
