@@ -43,6 +43,11 @@ settings.local.json.bak
 .worktrees/
 .claude/worktrees/
 
+# Grind loop (make grind-*, ~/Repos/par-grind); .grind.local.json is covered
+# by the *.local.* rule below
+.grind-logs/
+.exit-grind
+
 # Claude local settings — may contain API tokens (SEC-001)
 .claude/settings.local.json
 settings.local.json
