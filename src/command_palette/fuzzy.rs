@@ -59,11 +59,16 @@ pub(crate) fn score(query: &str, candidate: &str) -> Option<u32> {
 /// name only — the id is machine-facing and its underscores would make almost
 /// any query match something. Ties keep input order, so a catalog ordered
 /// deliberately stays that way under an empty query.
+///
+/// The element lifetime is deliberately decoupled from the slice borrow: a
+/// caller matching over a short-lived scratch vec of `&'static` ids keeps
+/// `'static` on the returned ids instead of inheriting the scratch vec's
+/// scope.
 #[cfg_attr(not(test), allow(dead_code))]
-pub(crate) fn rank<'a>(
+pub(crate) fn rank<'items, 'entry>(
     query: &str,
-    items: &'a [(&'a str, &'a str)],
-) -> Vec<&'a (&'a str, &'a str)> {
+    items: &'items [(&'entry str, &'entry str)],
+) -> Vec<&'items (&'entry str, &'entry str)> {
     let mut scored: Vec<(u32, usize, &(&str, &str))> = items
         .iter()
         .enumerate()
