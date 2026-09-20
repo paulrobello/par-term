@@ -12,7 +12,7 @@
 ///    - Zero overhead when `DEBUG_LEVEL=0` (the default)
 ///
 /// 2. **Standard `log` crate** (`log::info!()`, `log::warn!()`, etc.)
-///    - Controlled by `RUST_LOG` environment variable
+///    - Level set by `--log-level` CLI flag, config `log_level`, or `RUST_LOG`
 ///    - Used by application lifecycle code (startup, config load, errors)
 ///    - Required for third-party crates (wgpu, tokio, etc.) that emit via `log`
 ///
@@ -371,7 +371,9 @@ pub fn try_logf(level: DebugLevel, category: &str, args: fmt::Arguments) -> bool
 /// output to the par-term debug log file. Optionally mirrors to stderr
 /// when `RUST_LOG` is set (for terminal debugging).
 struct LogCrateBridge {
-    /// Maximum level to accept (parsed from RUST_LOG, default: Info)
+    /// Install-time level derivation (parsed from RUST_LOG, default: Info). The
+    /// live acceptance level is [`BRIDGE_MAX_LEVEL`]; this field only feeds
+    /// [`init_log_bridge`]'s override decision.
     max_level: log::LevelFilter,
     /// Whether to also write to stderr (true when RUST_LOG is explicitly set)
     mirror_stderr: bool,
@@ -421,7 +423,7 @@ impl LogCrateBridge {
                 return *filter;
             }
         }
-        self.max_level
+        bridge_max_level()
     }
 }
 
@@ -454,6 +456,37 @@ impl log::Log for LogCrateBridge {
     fn flush(&self) {}
 }
 
+/// The bridge's live acceptance level. A process-wide atomic rather than a
+/// field because the bridge is boxed into the global logger on install, while
+/// `set_log_level` (settings UI, config application) must still be able to move
+/// the level afterwards. `log::set_max_level` only gates the macros; every
+/// record that passes it is re-checked against this value, so the two must move
+/// together or raised records are silently dropped at the bridge.
+static BRIDGE_MAX_LEVEL: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(3);
+
+fn store_bridge_max_level(level: log::LevelFilter) {
+    let code = match level {
+        log::LevelFilter::Off => 0,
+        log::LevelFilter::Error => 1,
+        log::LevelFilter::Warn => 2,
+        log::LevelFilter::Info => 3,
+        log::LevelFilter::Debug => 4,
+        log::LevelFilter::Trace => 5,
+    };
+    BRIDGE_MAX_LEVEL.store(code, std::sync::atomic::Ordering::Relaxed);
+}
+
+fn bridge_max_level() -> log::LevelFilter {
+    match BRIDGE_MAX_LEVEL.load(std::sync::atomic::Ordering::Relaxed) {
+        0 => log::LevelFilter::Off,
+        1 => log::LevelFilter::Error,
+        2 => log::LevelFilter::Warn,
+        3 => log::LevelFilter::Info,
+        4 => log::LevelFilter::Debug,
+        _ => log::LevelFilter::Trace,
+    }
+}
+
 /// Initialize the `log` crate bridge. Call this once from main() instead of env_logger::init().
 /// Routes all `log::info!()` etc. calls to the par-term debug log file.
 /// When `RUST_LOG` is set, also mirrors to stderr for terminal debugging.
@@ -465,8 +498,13 @@ pub fn init_log_bridge(level_override: Option<log::LevelFilter>) {
     let _ = get_logger();
 
     let bridge = LogCrateBridge::new();
-    // CLI/config override takes precedence, then RUST_LOG, then default
+    // CLI/config override takes precedence, then RUST_LOG, then default. The
+    // override must reach the bridge's own gate as well: set_max_level below
+    // only gates the macros, and the bridge re-checks every record against
+    // BRIDGE_MAX_LEVEL — left at the RUST_LOG-derived level (Info when RUST_LOG
+    // is unset), it silently drops what the override let through.
     let max_level = level_override.unwrap_or(bridge.max_level);
+    store_bridge_max_level(max_level);
 
     // Install as the global logger
     if log::set_boxed_logger(Box::new(bridge)).is_ok() {
@@ -475,9 +513,11 @@ pub fn init_log_bridge(level_override: Option<log::LevelFilter>) {
 }
 
 /// Update the log level at runtime (e.g., from settings UI).
-/// This only changes `log::max_level()` — the bridge itself always writes
-/// whatever passes the filter.
+/// Moves both the macros' global gate and the bridge's per-record gate —
+/// raising only `log::max_level()` would be undone at the bridge's own
+/// `enabled()` check.
 pub fn set_log_level(level: log::LevelFilter) {
+    store_bridge_max_level(level);
     log::set_max_level(level);
 }
 
@@ -843,6 +883,56 @@ mod tests {
         assert!(
             finished,
             "the panic hook's report step blocked on the logger mutex"
+        );
+    }
+
+    /// Card 01a0c0aef20e7442bf26171b8bc1c7b2: a `--log-level debug` override
+    /// raised only `log::set_max_level` while the bridge kept accepting at its
+    /// RUST_LOG-derived level, so DEBUG records passed the macro gate and were
+    /// then dropped by the bridge's own `enabled()` check. Every level source —
+    /// the init-time override and runtime `set_log_level` — must reach
+    /// `BRIDGE_MAX_LEVEL`, not just the global gate.
+    ///
+    /// Exercises the composition `init_log_bridge` uses, minus the two steps a
+    /// test must not take: installing the global logger and initializing the
+    /// file logger (which truncates the developer's real debug log).
+    #[test]
+    fn level_overrides_reach_the_bridge_gate() {
+        fn meta<'a>(level: log::Level, target: &'a str) -> log::Metadata<'a> {
+            log::Metadata::builder().level(level).target(target).build()
+        }
+
+        // What init_log_bridge computes for a Debug CLI override: the derived
+        // RUST_LOG level replaced by the override.
+        let bridge = LogCrateBridge::new();
+        store_bridge_max_level(log::LevelFilter::Debug);
+
+        assert_eq!(bridge_max_level(), log::LevelFilter::Debug);
+        assert!(
+            log::Log::enabled(&bridge, &meta(log::Level::Debug, "par_term::app")),
+            "--log-level debug must let log::debug! records through the bridge"
+        );
+
+        // The runtime path (settings UI, config application at app start) moves
+        // the same gate, in both directions.
+        set_log_level(log::LevelFilter::Warn);
+        assert!(!log::Log::enabled(
+            &bridge,
+            &meta(log::Level::Debug, "par_term::app")
+        ));
+        assert!(!log::Log::enabled(
+            &bridge,
+            &meta(log::Level::Info, "par_term::app")
+        ));
+        assert!(log::Log::enabled(
+            &bridge,
+            &meta(log::Level::Warn, "par_term::app")
+        ));
+
+        // Noisy-crate caps are independent of the level and must survive it.
+        assert!(
+            !log::Log::enabled(&bridge, &meta(log::Level::Info, "wgpu_core::device")),
+            "module caps must still clamp wgpu_core below the acceptance level"
         );
     }
 }
