@@ -43,6 +43,8 @@ pub(crate) use types::{BackgroundInstance, GlyphInfo, RowCacheEntry, TextInstanc
 // Re-export instance buffer constants so mod.rs can reference them
 pub(crate) use instance_buffers::{CURSOR_OVERLAY_SLOTS, TEXT_INSTANCES_PER_CELL};
 // Re-export extracted sub-module types for use within this module
+pub(crate) use atlas::GlyphAtlas;
+pub(crate) use background::BackgroundImageState;
 pub(crate) use cursor::CursorState;
 pub(crate) use font::FontState;
 pub(crate) use layout::GridLayout;
@@ -128,50 +130,6 @@ pub(crate) struct GpuBuffers {
     /// Set once after an instance-buffer over-run has been reported, so the error
     /// is logged once per buffer allocation rather than once per frame.
     pub(crate) overflow_reported: bool,
-}
-
-/// Glyph atlas texture, cache, and LRU eviction state.
-pub(crate) struct GlyphAtlas {
-    pub(crate) atlas_texture: wgpu::Texture,
-    #[allow(dead_code)] // GPU lifetime: must outlive text_bind_group which references this view
-    pub(crate) atlas_view: wgpu::TextureView,
-    pub(crate) glyph_cache: HashMap<u64, GlyphInfo>,
-    pub(crate) lru_head: Option<u64>,
-    pub(crate) lru_tail: Option<u64>,
-    pub(crate) atlas_next_x: u32,
-    pub(crate) atlas_next_y: u32,
-    pub(crate) atlas_row_height: u32,
-    /// Actual atlas size (may be smaller than preferred on devices with low texture limits)
-    pub(crate) atlas_size: u32,
-    /// Solid white pixel offset in atlas for geometric block rendering
-    pub(crate) solid_pixel_offset: (u32, u32),
-}
-
-/// Background image/solid-color texture state and per-pane cache.
-pub(crate) struct BackgroundImageState {
-    pub(crate) bg_image_texture: Option<wgpu::Texture>,
-    pub(crate) bg_image_mode: par_term_config::BackgroundImageMode,
-    pub(crate) bg_image_opacity: f32,
-    pub(crate) bg_image_width: u32,
-    pub(crate) bg_image_height: u32,
-    /// When true, current background is a solid color (not an image).
-    /// Solid colors should be rendered via clear color to respect window_opacity,
-    /// not via bg_image_pipeline which would cover the transparent background.
-    pub(crate) bg_is_solid_color: bool,
-    /// The solid background color [R, G, B] as floats (0.0-1.0).
-    /// Only used when bg_is_solid_color is true.
-    pub(crate) solid_bg_color: [f32; 3],
-    /// Cache of per-pane background textures keyed by image path
-    pub(crate) pane_bg_cache: HashMap<String, background::PaneBackgroundEntry>,
-    /// Cache of per-pane uniform buffers and bind groups keyed by **pane index**.
-    /// Reused across frames via `queue.write_buffer()` to avoid per-frame GPU allocations.
-    ///
-    /// ARC-004: this was keyed by image path, but the uniform carries the pane's
-    /// position and size, so two panes sharing one background image aliased onto a
-    /// single buffer — previously masked by the `queue.submit` between panes, and
-    /// fatal once they are batched. The entry records its path so the bind group
-    /// can be rebuilt when a pane's image changes.
-    pub(crate) pane_bg_uniform_cache: HashMap<usize, background::PaneBgUniformEntry>,
 }
 
 /// Command separator line settings and visible marks.

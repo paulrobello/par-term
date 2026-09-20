@@ -10,6 +10,7 @@ use super::CellRenderer;
 use crate::custom_shader_renderer::textures::ChannelTexture;
 use crate::error::RenderError;
 use par_term_config::color_u8_to_f32;
+use std::collections::HashMap;
 
 /// Parameters for preparing a per-pane background GPU bind group.
 pub(crate) struct PaneBgBindGroupParams {
@@ -42,6 +43,33 @@ pub(crate) struct PaneBgUniformEntry {
     pub(crate) path: String,
     pub(crate) uniform_buffer: wgpu::Buffer,
     pub(crate) bind_group: wgpu::BindGroup,
+}
+
+/// Background image/solid-color texture state and per-pane cache.
+pub(crate) struct BackgroundImageState {
+    pub(crate) bg_image_texture: Option<wgpu::Texture>,
+    pub(crate) bg_image_mode: par_term_config::BackgroundImageMode,
+    pub(crate) bg_image_opacity: f32,
+    pub(crate) bg_image_width: u32,
+    pub(crate) bg_image_height: u32,
+    /// When true, current background is a solid color (not an image).
+    /// Solid colors should be rendered via clear color to respect window_opacity,
+    /// not via bg_image_pipeline which would cover the transparent background.
+    pub(crate) bg_is_solid_color: bool,
+    /// The solid background color [R, G, B] as floats (0.0-1.0).
+    /// Only used when bg_is_solid_color is true.
+    pub(crate) solid_bg_color: [f32; 3],
+    /// Cache of per-pane background textures keyed by image path
+    pub(crate) pane_bg_cache: HashMap<String, PaneBackgroundEntry>,
+    /// Cache of per-pane uniform buffers and bind groups keyed by **pane index**.
+    /// Reused across frames via `queue.write_buffer()` to avoid per-frame GPU allocations.
+    ///
+    /// ARC-004: this was keyed by image path, but the uniform carries the pane's
+    /// position and size, so two panes sharing one background image aliased onto a
+    /// single buffer — previously masked by the `queue.submit` between panes, and
+    /// fatal once they are batched. The entry records its path so the bind group
+    /// can be rebuilt when a pane's image changes.
+    pub(crate) pane_bg_uniform_cache: HashMap<usize, PaneBgUniformEntry>,
 }
 
 impl CellRenderer {

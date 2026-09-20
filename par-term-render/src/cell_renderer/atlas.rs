@@ -1,4 +1,5 @@
 use super::{CellRenderer, GlyphInfo};
+use std::collections::HashMap;
 
 pub(crate) struct RasterizedGlyph {
     pub width: u32,
@@ -7,6 +8,23 @@ pub(crate) struct RasterizedGlyph {
     pub bearing_y: f32,
     pub pixels: Vec<u8>,
     pub is_colored: bool,
+}
+
+/// Glyph atlas texture, cache, and LRU eviction state.
+pub(crate) struct GlyphAtlas {
+    pub(crate) atlas_texture: wgpu::Texture,
+    #[allow(dead_code)] // GPU lifetime: must outlive text_bind_group which references this view
+    pub(crate) atlas_view: wgpu::TextureView,
+    pub(crate) glyph_cache: HashMap<u64, GlyphInfo>,
+    pub(crate) lru_head: Option<u64>,
+    pub(crate) lru_tail: Option<u64>,
+    pub(crate) atlas_next_x: u32,
+    pub(crate) atlas_next_y: u32,
+    pub(crate) atlas_row_height: u32,
+    /// Actual atlas size (may be smaller than preferred on devices with low texture limits)
+    pub(crate) atlas_size: u32,
+    /// Solid white pixel offset in atlas for geometric block rendering
+    pub(crate) solid_pixel_offset: (u32, u32),
 }
 
 /// Unicode ranges for symbols that should render monochromatically.
