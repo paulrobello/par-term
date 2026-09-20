@@ -136,6 +136,33 @@ pub(crate) struct Observation {
     /// Top-ranked palette action id for the current query, if the palette
     /// is open.
     top_action: Option<String>,
+    /// Names of every modal overlay currently visible — the modal_guard
+    /// breakdown, so a surprise guard=true names its cause.
+    modals: Vec<String>,
+}
+
+/// Names of the modal overlays `any_modal_ui_visible()` sums over, in its
+/// declaration order — one string per visible overlay.
+fn visible_modal_names(ws: &WindowState) -> Vec<String> {
+    let o = &ws.overlay_ui;
+    let mut names = Vec::new();
+    let mut push = |visible: bool, name: &str| {
+        if visible {
+            names.push(name.to_string());
+        }
+    };
+    push(o.help_ui.visible, "help_ui");
+    push(o.clipboard_history_ui.visible, "clipboard_history_ui");
+    push(o.command_history_ui.visible, "command_history_ui");
+    push(o.search_ui.visible, "search_ui");
+    push(o.command_palette.visible, "command_palette");
+    push(o.tmux_session_picker_ui.visible, "tmux_session_picker_ui");
+    push(o.shader_install_ui.visible, "shader_install_ui");
+    push(o.integrations_ui.visible, "integrations_ui");
+    push(o.ssh_connect_ui.is_visible(), "ssh_connect_ui");
+    push(o.remote_shell_install_ui.is_visible(), "remote_shell_install_ui");
+    push(o.quit_confirmation_ui.is_visible(), "quit_confirmation_ui");
+    names
 }
 
 /// Convert a chord string into the (logical key, physical key, modifiers)
@@ -510,6 +537,7 @@ impl WindowManager {
             top_action: ws
                 .and_then(|w| w.overlay_ui.command_palette.top_action())
                 .map(str::to_string),
+            modals: ws.map(visible_modal_names).unwrap_or_default(),
         }
     }
 

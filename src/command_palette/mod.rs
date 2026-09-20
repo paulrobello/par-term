@@ -112,9 +112,16 @@ impl CommandPalette {
 
         let mut chosen: Option<String> = None;
 
-        // Escape is claimed by the handle_command_palette_keys key layer, not
-        // here — handling it in both places would double-close the palette the
-        // frame the layer already consumed the key.
+        // Escape closes the palette here, on the egui side, because with the
+        // text field focused `is_egui_using_keyboard()` returns early in
+        // handle_key_event and the handle_command_palette_keys layer never
+        // sees the key. That layer remains the backstop for the unfocused
+        // case, and close() is idempotent, so both paths are safe together.
+        // consume_key keeps the Escape from also reaching other egui widgets.
+        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Escape)) {
+            self.close();
+        }
+
         if ctx.input(|i| i.key_pressed(Key::ArrowDown)) && !matches.is_empty() {
             self.selected = (self.selected + 1).min(matches.len() - 1);
         }
@@ -227,17 +234,41 @@ mod tests {
     }
 
     #[test]
-    fn show_does_not_handle_escape_itself() {
-        // Escape is owned by the key layer (handle_command_palette_keys), not
-        // by show(). A palette that also closed itself on egui's Escape would
-        // double-handle the key the frame the layer already consumed it.
+    fn show_holds_the_focused_escape_close() {
+        // With the palette's text field focused, is_egui_using_keyboard()
+        // returns early in handle_key_event, so the handle_command_palette_keys
+        // layer never sees Escape — show() is the only close path while
+        // typing. The layer stays as the unfocused backstop; close() is
+        // idempotent, so the two paths coexist safely. Measured pre-fix:
+        // Escape with the field focused left the palette open forever.
         let source = include_str!("mod.rs");
         // Assembled at runtime: a literal needle would appear in this test's
         // own source and the scan would always find itself.
-        let needle = ["Key", "Escape"].join("::");
+        let needle = ["consume", "_key"].join("");
+        let input_call = ["input", "_mut"].join("");
         assert!(
-            !source.contains(&needle),
-            "Escape handling belongs in key_handler/command_palette.rs, not in show()"
+            source.contains(&needle) && source.contains(&input_call),
+            "show() must close the palette on the egui-side Escape while \
+             typing; without it the palette cannot be dismissed while typing"
+        );
+    }
+
+    #[test]
+    fn palette_is_registered_as_modal() {
+        // The palette must be in any_modal_ui_visible(): that sum drives the
+        // modal guard keeping keystrokes off the PTY while an overlay is
+        // open. Unregistered, typed characters filtered the palette AND
+        // leaked to the shell (measured 2026-09-20, --ui-test pre-fix run).
+        let source = include_str!("../app/window_state/ui_query_helpers.rs");
+        let body = source
+            .split("fn any_modal_ui_visible")
+            .nth(1)
+            .expect("any_modal_ui_visible present in ui_query_helpers.rs");
+        let body = body.split('}').next().unwrap_or_default();
+        assert!(
+            body.contains("command_palette.visible"),
+            "command_palette missing from any_modal_ui_visible — typing in \
+             the palette leaks to the PTY"
         );
     }
 
