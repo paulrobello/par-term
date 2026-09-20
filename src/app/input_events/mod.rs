@@ -22,7 +22,7 @@
 #[cfg(test)]
 mod dispatch_tests;
 mod key_handler;
-mod keybinding_actions;
-mod keybinding_display_actions;
+pub(crate) mod keybinding_actions;
+pub(crate) mod keybinding_display_actions;
 mod keybinding_helpers;
 mod snippet_actions;

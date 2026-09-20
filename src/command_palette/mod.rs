@@ -4,4 +4,5 @@
 //! Ranking lives in [`fuzzy`] as pure functions so it can be tested without
 //! standing up an egui context or a `WindowState`.
 
+pub(crate) mod catalog;
 pub(crate) mod fuzzy;

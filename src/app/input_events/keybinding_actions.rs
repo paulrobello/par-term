@@ -31,7 +31,7 @@ use crate::app::window_state::WindowState;
 /// Every entry in [`ACTION_HANDLERS`] returns `true`; the `bool` exists so the
 /// signature matches `execute_keybinding_action`'s contract, where a name that
 /// no handler claims returns `false`.
-pub(super) type ActionHandler = fn(&mut WindowState) -> bool;
+pub(crate) type ActionHandler = fn(&mut WindowState) -> bool;
 
 /// Exact-match dispatch table for named keybinding actions.
 ///
@@ -42,7 +42,7 @@ pub(super) type ActionHandler = fn(&mut WindowState) -> bool;
 /// Names not found here fall through to `execute_display_keybinding_action`
 /// and then to the `snippet:` / `action:` / `restore_arrangement:` prefix
 /// forms; see `execute_keybinding_action`.
-pub(super) static ACTION_HANDLERS: &[(&str, ActionHandler)] = &[
+pub(crate) static ACTION_HANDLERS: &[(&str, ActionHandler)] = &[
     ("toggle_background_shader", |s: &mut WindowState| {
         s.toggle_background_shader();
         true

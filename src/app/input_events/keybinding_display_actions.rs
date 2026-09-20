@@ -25,7 +25,7 @@ use crate::app::window_state::WindowState;
 /// `execute_display_keybinding_action`: `true` when handled, `false` when the
 /// name is claimed but no-op'd. A name absent from the table yields `None` so
 /// the caller continues to the next handler.
-pub(super) type DisplayActionHandler = fn(&mut WindowState) -> bool;
+pub(crate) type DisplayActionHandler = fn(&mut WindowState) -> bool;
 
 /// Exact-match dispatch table for display/navigation keybinding actions.
 ///
@@ -33,7 +33,7 @@ pub(super) type DisplayActionHandler = fn(&mut WindowState) -> bool;
 /// by equality — but keys must stay unique and must not collide with
 /// `keybinding_actions::ACTION_HANDLERS`, which would shadow them silently.
 /// Both properties are asserted in `dispatch_tests`.
-pub(super) static DISPLAY_ACTION_HANDLERS: &[(&str, DisplayActionHandler)] = &[
+pub(crate) static DISPLAY_ACTION_HANDLERS: &[(&str, DisplayActionHandler)] = &[
     ("increase_font_size", |s: &mut WindowState| {
         s.config.rcu(|old| {
             let mut new = (**old).clone();
