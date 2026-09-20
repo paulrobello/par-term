@@ -87,6 +87,14 @@ impl CommandPalette {
         self.selected = self.selected.min(len.saturating_sub(1));
     }
 
+    /// Action id of the top-ranked row for the current query.
+    ///
+    /// Harness read: `--ui-test` scripts assert the ranking without standing
+    /// up an egui context (ranking is pure `fuzzy::rank` over the query).
+    pub(crate) fn top_action(&self) -> Option<&str> {
+        self.filtered_ids(&self.query).first().copied()
+    }
+
     /// Draw the palette. Returns the chosen action id when a row is activated.
     pub(crate) fn show(&mut self, ctx: &Context) -> Option<String> {
         if !self.visible {
