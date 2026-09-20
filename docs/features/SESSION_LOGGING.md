@@ -257,7 +257,7 @@ The `.cast` files follow the asciinema v2 specification:
 - `r` - Resize (terminal dimensions changed)
 - `m` - Marker (annotation)
 
-par-term writes only `o` (output) events; the other event types are part of the asciinema v2 specification and are not currently produced.
+par-term writes `o` (output), `i` (input — subject to password/echo redaction), and `r` (resize) events. `m` (marker) is part of the asciinema v2 specification and is handled by the writer, but par-term never constructs one today.
 
 ## Related Documentation
 

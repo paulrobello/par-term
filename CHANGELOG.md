@@ -11,6 +11,10 @@ Recent releases use the six Keep a Changelog categories — Added, Changed, Depr
 
 ## [Unreleased]
 
+### Changed
+
+- `par-term-emu-core-rust` 0.48.0 → 0.49.0: DECSDM sixel display mode (`CSI ? 80 h/l`), numbered XTPUSHCOLORS/XTPOPCOLORS color-stack slots (`CSI Pi # P/Q`), and Kitty graphics placement cursor advance (with `C=1` suppression) now work correctly — all internal to the core library's parser, no par-term code changes required. Verified visually against a live debug build (sixel + Kitty default/`C=1` placements). Also corrected the session-logging docs' stale claim that only `o` (output) events are written; `i` (input) and `r` (resize) events are produced too.
+
 ---
 
 ## [0.45.2] - 2026-09-19
