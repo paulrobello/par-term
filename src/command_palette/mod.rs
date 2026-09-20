@@ -104,10 +104,9 @@ impl CommandPalette {
 
         let mut chosen: Option<String> = None;
 
-        if ctx.input(|i| i.key_pressed(Key::Escape)) {
-            self.close();
-            return None;
-        }
+        // Escape is claimed by the handle_command_palette_keys key layer, not
+        // here — handling it in both places would double-close the palette the
+        // frame the layer already consumed the key.
         if ctx.input(|i| i.key_pressed(Key::ArrowDown)) && !matches.is_empty() {
             self.selected = (self.selected + 1).min(matches.len() - 1);
         }
@@ -217,6 +216,21 @@ mod tests {
             "a specific query must narrow the list"
         );
         assert!(narrowed.contains(&"toggle_fullscreen"));
+    }
+
+    #[test]
+    fn show_does_not_handle_escape_itself() {
+        // Escape is owned by the key layer (handle_command_palette_keys), not
+        // by show(). A palette that also closed itself on egui's Escape would
+        // double-handle the key the frame the layer already consumed it.
+        let source = include_str!("mod.rs");
+        // Assembled at runtime: a literal needle would appear in this test's
+        // own source and the scan would always find itself.
+        let needle = ["Key", "Escape"].join("::");
+        assert!(
+            !source.contains(&needle),
+            "Escape handling belongs in key_handler/command_palette.rs, not in show()"
+        );
     }
 
     #[test]

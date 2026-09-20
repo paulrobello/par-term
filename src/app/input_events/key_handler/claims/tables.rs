@@ -75,6 +75,11 @@ const COMMAND_HISTORY: &[Claim] = &[];
 /// `clipboard.rs`, paste-special branch: state-conditional only.
 const PASTE_SPECIAL_UI: &[Claim] = &[];
 
+/// `command_palette.rs` claims no chord at all — it is opened by the configured
+/// `toggle_command_palette` keybinding, and its only in-panel key (Escape) is
+/// state-conditional.
+const COMMAND_PALETTE: &[Claim] = &[];
+
 /// `search.rs`, open branch only. Drives the handler.
 pub(crate) const SEARCH: &[Claim] = &[Claim {
     action: "toggle_search",
@@ -424,6 +429,7 @@ pub(crate) const LAYER_CLAIMS: &[(&str, &[Claim])] = &[
     ("clipboard_history", CLIPBOARD_HISTORY),
     ("command_history", COMMAND_HISTORY),
     ("paste_special", PASTE_SPECIAL_UI),
+    ("command_palette", COMMAND_PALETTE),
     ("search", SEARCH),
     ("ai_inspector_toggle", AI_INSPECTOR),
     ("fullscreen_toggle", FULLSCREEN_TOGGLE),
@@ -439,4 +445,4 @@ pub(crate) const LAYER_CLAIMS: &[(&str, &[Claim])] = &[
 ];
 
 /// Number of [`LAYER_CLAIMS`] entries that correspond to [`super::KEY_LAYERS`].
-pub(crate) const UNIFORM_LAYER_COUNT: usize = 14;
+pub(crate) const UNIFORM_LAYER_COUNT: usize = 15;

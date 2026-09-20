@@ -6,6 +6,7 @@
 //! - `config_reload`: F5 config reload + `reload_config`
 //! - `clipboard`: clipboard history, paste special, `paste_text`
 //! - `command_history`: Cmd/Ctrl+R command history UI
+//! - `command_palette`: Escape ownership for the command palette overlay
 //! - `search`: Cmd/Ctrl+F search UI
 //! - `ui_toggles`: AI inspector (Assistant panel) toggle
 //! - `utility`: font size, clear scrollback, cursor style
@@ -15,6 +16,7 @@
 pub(crate) mod claims;
 mod clipboard;
 mod command_history;
+mod command_palette;
 mod config_reload;
 mod profiles;
 mod scroll;
@@ -65,6 +67,8 @@ pub(super) static KEY_LAYERS: &[(&str, KeyLayer)] = &[
     ("command_history", WindowState::handle_command_history_keys),
     // Paste special UI
     ("paste_special", WindowState::handle_paste_special_keys),
+    // Command palette (Escape-only; opened by the toggle_command_palette action)
+    ("command_palette", WindowState::handle_command_palette_keys),
     // Search (Cmd/Ctrl+F)
     ("search", WindowState::handle_search_keys),
     // Assistant panel toggle (Cmd+I / Ctrl+Shift+I)

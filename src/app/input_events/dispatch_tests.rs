@@ -107,6 +107,7 @@ const FROZEN_LAYER_ORDER: &[&str] = &[
     "clipboard_history",
     "command_history",
     "paste_special",
+    "command_palette",
     "search",
     "ai_inspector_toggle",
     "fullscreen_toggle",
