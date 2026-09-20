@@ -9,6 +9,7 @@ use crate::clipboard_history_ui::ClipboardHistoryUI;
 use crate::close_confirmation_ui::CloseConfirmationUI;
 use crate::command_history::CommandHistory;
 use crate::command_history_ui::CommandHistoryUI;
+use crate::command_palette::CommandPalette;
 use crate::config::Config;
 use crate::help_ui::HelpUI;
 use crate::integrations_ui::IntegrationsUI;
@@ -43,6 +44,7 @@ pub(crate) struct OverlayUiState {
     pub(crate) tmux_session_picker_ui: TmuxSessionPickerUI,
     pub(crate) tmux_status_bar_ui: TmuxStatusBarUI,
     pub(crate) search_ui: SearchUI,
+    pub(crate) command_palette: CommandPalette,
     pub(crate) ai_inspector: AIInspectorPanel,
     /// Last known AI Inspector panel consumed width (logical pixels).
     pub(crate) last_inspector_width: f32,
@@ -98,6 +100,7 @@ impl OverlayUiState {
             tmux_session_picker_ui: TmuxSessionPickerUI::new(),
             tmux_status_bar_ui: TmuxStatusBarUI::new(),
             search_ui: SearchUI::new(),
+            command_palette: CommandPalette::new(),
             ai_inspector: AIInspectorPanel::new(config),
             last_inspector_width: 0.0,
             shader_install_ui: ShaderInstallUI::new(),

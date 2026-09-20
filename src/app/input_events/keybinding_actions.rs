@@ -102,6 +102,20 @@ pub(crate) static ACTION_HANDLERS: &[(&str, ActionHandler)] = &[
         true
     }),
     ("toggle_search", toggle_search),
+    ("toggle_command_palette", |s: &mut WindowState| {
+        s.overlay_ui.command_palette.toggle();
+        s.focus_state.needs_redraw = true;
+        s.request_redraw();
+        log::info!(
+            "Command palette toggled via keybinding: {}",
+            if s.overlay_ui.command_palette.visible {
+                "visible"
+            } else {
+                "hidden"
+            }
+        );
+        true
+    }),
     ("toggle_ai_inspector", toggle_ai_inspector),
     ("new_tab", |s: &mut WindowState| {
         s.new_tab_or_show_profiles();

@@ -79,6 +79,7 @@ const FROZEN_ACTION_INVENTORY: &[&str] = &[
     "toggle_background_shader",
     "toggle_broadcast_input",
     "toggle_clipboard_history",
+    "toggle_command_palette",
     "toggle_command_history",
     "toggle_copy_mode",
     "toggle_cursor_shader",
