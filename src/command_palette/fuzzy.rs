@@ -13,7 +13,6 @@
 /// four unrelated words collects a boundary bonus per letter, and only a
 /// heavier contiguity weight keeps a typed prefix like "togg" ranked above
 /// that (measured: at parity weights the prefix scored 24 against 36).
-#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn score(query: &str, candidate: &str) -> Option<u32> {
     const BOUNDARY_BONUS: u32 = 8;
     const CONTIGUOUS_BONUS: u32 = 10;
@@ -64,7 +63,6 @@ pub(crate) fn score(query: &str, candidate: &str) -> Option<u32> {
 /// caller matching over a short-lived scratch vec of `&'static` ids keeps
 /// `'static` on the returned ids instead of inheriting the scratch vec's
 /// scope.
-#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn rank<'items, 'entry>(
     query: &str,
     items: &'items [(&'entry str, &'entry str)],

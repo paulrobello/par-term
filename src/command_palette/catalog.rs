@@ -13,7 +13,6 @@ use crate::app::input_events::keybinding_display_actions::DISPLAY_ACTION_HANDLER
 use par_term_settings_ui::input_tab::actions_table::AVAILABLE_ACTIONS;
 
 /// One invocable row in the palette.
-#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) struct PaletteEntry {
     /// The string `execute_keybinding_action` dispatches on.
     pub(crate) action_id: &'static str,
@@ -28,7 +27,6 @@ pub(crate) struct PaletteEntry {
 /// Used only for actions with no `AVAILABLE_ACTIONS` entry. Underscores become
 /// spaces and each word is title-cased, so `toggle_foo_bar` reads
 /// `Toggle Foo Bar`.
-#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn humanize(action_id: &str) -> String {
     action_id
         .split('_')
@@ -44,7 +42,6 @@ pub(crate) fn humanize(action_id: &str) -> String {
 }
 
 /// Build the full catalog of invocable actions, label-ordered.
-#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn build_catalog() -> Vec<PaletteEntry> {
     let mut entries: Vec<PaletteEntry> = ACTION_HANDLERS
         .iter()

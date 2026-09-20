@@ -6,13 +6,6 @@
 //! [`catalog`]. This module owns only the overlay's state machine and its
 //! egui presentation, mirroring `crate::search::SearchUI`.
 
-// Nothing constructs a CommandPalette until Task 4 wires it into the window
-// state, and show() itself has no unit-test coverage (egui rendering is not
-// unit-tested, matching SearchUI) — so the plain allow, not the
-// not(test)-gated form, is what keeps -D warnings green here. Remove when
-// Task 4's egui_submit wiring becomes this module's first consumer.
-#![allow(dead_code)]
-
 pub(crate) mod catalog;
 pub(crate) mod fuzzy;
 
