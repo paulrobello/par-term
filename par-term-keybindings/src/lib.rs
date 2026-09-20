@@ -130,6 +130,44 @@ impl KeybindingRegistry {
         None
     }
 
+    /// Look up an action for a synthetic key described by public fields.
+    ///
+    /// The injection seam for in-app UI testing: winit's `KeyEvent` has
+    /// private fields and cannot be constructed outside winit, so chord
+    /// injection enters the same matcher + registry loop through the key
+    /// fields instead. With fields matching a real event, the result is
+    /// identical to [`Self::lookup_with_options`].
+    ///
+    /// # Arguments
+    /// * `logical_key` - The logical key (e.g. `Key::Character("p".into())`)
+    /// * `physical_key` - The physical key code
+    /// * `modifiers` - Current modifier state
+    /// * `remapping` - Modifier key remapping configuration
+    /// * `use_physical_keys` - If true, match by physical key position
+    pub fn lookup_with_key_fields(
+        &self,
+        logical_key: &winit::keyboard::Key,
+        physical_key: winit::keyboard::PhysicalKey,
+        modifiers: &winit::event::Modifiers,
+        remapping: &ModifierRemapping,
+        use_physical_keys: bool,
+    ) -> Option<&str> {
+        let matcher = KeybindingMatcher::from_key_fields_with_remapping(
+            logical_key,
+            physical_key,
+            modifiers,
+            remapping,
+        );
+
+        for (combo, action) in &self.bindings {
+            if matcher.matches_with_physical_preference(combo, use_physical_keys) {
+                return Some(action.as_str());
+            }
+        }
+
+        None
+    }
+
     /// Check if the registry has any bindings.
     pub fn is_empty(&self) -> bool {
         self.bindings.is_empty()

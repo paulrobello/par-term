@@ -30,6 +30,20 @@ enum MatchKey {
 impl KeybindingMatcher {
     /// Create a matcher from a winit key event.
     pub fn from_event(event: &KeyEvent, modifiers: &WinitModifiers) -> Self {
+        Self::from_key_fields(&event.logical_key, event.physical_key, modifiers)
+    }
+
+    /// Create a matcher from public key fields, mirroring [`Self::from_event`].
+    ///
+    /// winit's `KeyEvent` has private fields and no public constructor, so a
+    /// synthetic key (in-app UI-test chord injection, tests) cannot be built
+    /// as an event. This constructor takes exactly the fields `from_event`
+    /// reads from one.
+    pub fn from_key_fields(
+        logical_key: &Key,
+        physical_key: PhysicalKey,
+        modifiers: &WinitModifiers,
+    ) -> Self {
         let mods = Modifiers {
             ctrl: modifiers.state().control_key(),
             alt: modifiers.state().alt_key(),
@@ -38,7 +52,7 @@ impl KeybindingMatcher {
             cmd_or_ctrl: false, // Resolved during matching
         };
 
-        let key = match &event.logical_key {
+        let key = match logical_key {
             Key::Character(c) => {
                 // Get the first character, uppercased for case-insensitive matching
                 c.chars()
@@ -50,7 +64,7 @@ impl KeybindingMatcher {
         };
 
         // Extract physical key code
-        let physical_key = match event.physical_key {
+        let physical_key = match physical_key {
             PhysicalKey::Code(code) => Some(code),
             PhysicalKey::Unidentified(_) => None,
         };
@@ -68,6 +82,22 @@ impl KeybindingMatcher {
     /// which physical keys act as which modifiers.
     pub fn from_event_with_remapping(
         event: &KeyEvent,
+        modifiers: &WinitModifiers,
+        remapping: &par_term_config::ModifierRemapping,
+    ) -> Self {
+        Self::from_key_fields_with_remapping(
+            &event.logical_key,
+            event.physical_key,
+            modifiers,
+            remapping,
+        )
+    }
+
+    /// Create a matcher from public key fields with remapped modifiers —
+    /// the synthetic-key seam; see [`Self::from_key_fields`].
+    pub fn from_key_fields_with_remapping(
+        logical_key: &Key,
+        physical_key: PhysicalKey,
         modifiers: &WinitModifiers,
         remapping: &par_term_config::ModifierRemapping,
     ) -> Self {
@@ -112,7 +142,7 @@ impl KeybindingMatcher {
         if has_remapping {
             // Get the physical key to determine which specific modifier was pressed.
             // We only proceed if we have a known physical key code.
-            if let PhysicalKey::Code(_code) = event.physical_key {
+            if let PhysicalKey::Code(_code) = physical_key {
                 // Use winit's per-side modifier state to determine which specific modifier
                 // keys are currently held. ModifiersKeyState::Pressed means that side is
                 // held; ModifiersKeyState::Unknown means the platform cannot distinguish
@@ -273,7 +303,7 @@ impl KeybindingMatcher {
             cmd_or_ctrl: false,
         };
 
-        let key = match &event.logical_key {
+        let key = match logical_key {
             Key::Character(c) => c
                 .chars()
                 .next()
@@ -282,7 +312,7 @@ impl KeybindingMatcher {
             _ => None,
         };
 
-        let physical_key = match event.physical_key {
+        let physical_key = match physical_key {
             PhysicalKey::Code(code) => Some(code),
             PhysicalKey::Unidentified(_) => None,
         };
@@ -378,6 +408,42 @@ impl KeybindingMatcher {
 mod tests {
     use super::*;
     use crate::parser::parse_key_combo;
+
+    /// The from_key_fields seam (used by in-app chord injection) matches the
+    /// same combos from_event would, from public types only — winit KeyEvent
+    /// cannot be constructed outside winit.
+    #[test]
+    fn test_from_key_fields_matches_combo() {
+        use winit::keyboard::ModifiersState;
+
+        let combo = parse_key_combo("Ctrl+Alt+Cmd+P").unwrap();
+        let mods =
+            WinitModifiers::from(ModifiersState::CONTROL | ModifiersState::ALT | ModifiersState::SUPER);
+
+        let matcher = KeybindingMatcher::from_key_fields(
+            &Key::Character("p".into()),
+            PhysicalKey::Code(KeyCode::KeyP),
+            &mods,
+        );
+        assert!(matcher.matches(&combo));
+
+        // Missing modifiers must not match.
+        let bare = KeybindingMatcher::from_key_fields(
+            &Key::Character("p".into()),
+            PhysicalKey::Code(KeyCode::KeyP),
+            &WinitModifiers::from(ModifiersState::CONTROL),
+        );
+        assert!(!bare.matches(&combo));
+
+        // Named keys via the seam.
+        let f12 = parse_key_combo("F12").unwrap();
+        let matcher_f12 = KeybindingMatcher::from_key_fields(
+            &Key::Named(NamedKey::F12),
+            PhysicalKey::Code(KeyCode::F12),
+            &WinitModifiers::default(),
+        );
+        assert!(matcher_f12.matches(&f12));
+    }
 
     /// Test that Modifiers comparison works correctly for CmdOrCtrl
     #[test]
