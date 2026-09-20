@@ -280,6 +280,7 @@ Everything below lives under `docs/` except where the path says otherwise.
 | Quick start: fonts | `docs/guides/QUICK_START_FONTS.md` |
 | Public API index | `docs/API.md` |
 | Environment variables | `docs/guides/ENVIRONMENT_VARIABLES.md` |
+| Agent UI verification (`--ui-test`) | `docs/guides/AGENT_UI_VERIFICATION.md` |
 | Enterprise deployment | `docs/ENTERPRISE_DEPLOYMENT.md` |
 | Automation (triggers, coprocesses) | `docs/features/AUTOMATION.md` |
 | Assistant panel / ACP agents | `docs/ASSISTANT_PANEL.md` |
