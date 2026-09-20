@@ -35,13 +35,18 @@ pub(super) fn apply_renderer_config(
     renderer.update_opacity(config.window.window_opacity);
 
     // macOS 27 renders the titlebar from the NSWindow background color when
-    // the window is non-opaque; re-assert an opaque titlebar background on
-    // every config apply (see macos_metal::restore_opaque_titlebar).
+    // the window is non-opaque; keep that color in sync with the translucency
+    // setting (see macos_metal::set_window_background_for_translucency).
     #[cfg(target_os = "macos")]
-    if let Some(window) = &window_state.window
-        && let Err(e) = crate::macos_metal::restore_opaque_titlebar(window)
-    {
-        log::warn!("Failed to update window background for translucency: {}", e);
+    if let Some(window) = &window_state.window {
+        let translucent = config.window.window_opacity < 1.0
+            || (config.background.background_image_enabled
+                && config.background.background_image_opacity < 1.0);
+        if let Err(e) =
+            crate::macos_metal::set_window_background_for_translucency(window, translucent)
+        {
+            log::warn!("Failed to update window background for translucency: {}", e);
+        }
     }
 
     // Update transparency mode if changed

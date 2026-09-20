@@ -166,19 +166,20 @@ pub fn set_layer_opacity(window: &winit::window::Window, opacity: f32) -> Result
     Ok(())
 }
 
-/// Restore a native, opaque NSWindow background color.
+/// Sync the NSWindow background color with the per-pixel translucency setting.
 ///
 /// macOS 27 paints the titlebar from the NSWindow background color when the
 /// window is non-opaque. winit's `with_transparent(true)` (required for the
-/// runtime content-opacity feature) sets that color to clear, which turned
-/// the titlebar see-through below 100% opacity — the titlebar and the
-/// terminal content area are disjoint AppKit regions (no full-size content
-/// view / `titlebarAppearsTransparent` is used here), so keeping the
-/// titlebar always opaque does not affect content translucency at all: that
-/// is driven entirely by the CAMetalLayer's per-pixel alpha in the renderer.
-/// A partially-translucent titlebar was considered and rejected — see
-/// docs/architecture (or the par-term backlog) for the visual comparison.
-pub fn restore_opaque_titlebar(window: &winit::window::Window) -> Result<()> {
+/// runtime opacity feature) sets that color to clear, which turned the
+/// titlebar see-through. Setting a real background color restores the standard
+/// titlebar; it must stay clear only while translucency is actually in effect
+/// so the desktop remains visible through semi-transparent pixels. The content
+/// area is covered by the CAMetalLayer, so at full opacity the background
+/// color is never visible there.
+pub fn set_window_background_for_translucency(
+    window: &winit::window::Window,
+    translucent: bool,
+) -> Result<()> {
     #[cfg(target_os = "macos")]
     {
         use objc2::rc::Retained;
@@ -212,18 +213,29 @@ pub fn restore_opaque_titlebar(window: &winit::window::Window) -> Result<()> {
             }
 
             let ns_color_class: *const objc2::runtime::AnyClass = objc2::class!(NSColor);
-            let color: Retained<AnyObject> =
-                objc2::msg_send![ns_color_class, windowBackgroundColor];
+            let color: Retained<AnyObject> = if translucent {
+                objc2::msg_send![ns_color_class, clearColor]
+            } else {
+                objc2::msg_send![ns_color_class, windowBackgroundColor]
+            };
 
             let _: () = objc2::msg_send![ns_window_ptr, setBackgroundColor: &*color];
 
-            log::debug!("NSWindow background restored to windowBackgroundColor");
+            log::debug!(
+                "NSWindow background set to {} (translucent: {})",
+                if translucent {
+                    "clear"
+                } else {
+                    "windowBackgroundColor"
+                },
+                translucent
+            );
         }
     }
 
     #[cfg(not(target_os = "macos"))]
     {
-        let _ = window;
+        let _ = (window, translucent);
     }
 
     Ok(())
