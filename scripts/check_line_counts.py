@@ -29,7 +29,7 @@ EXEMPT_FILE = REPO_ROOT / ".line-count-exempt"
 FAIL_THRESHOLD = 800
 WARN_THRESHOLD = 500
 
-SKIP_DIRS = {".git", "target", "node_modules", "tests", "benches", "examples"}
+SKIP_DIRS = {".git", "target", "node_modules", "tests", "benches", "examples", ".claude"}
 
 CFG_TEST_RE = re.compile(r"#\[cfg\((?![^)]*\bnot\(test\))[^)]*\btest\b")
 
