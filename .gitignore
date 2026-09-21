@@ -60,3 +60,4 @@ ideas.md
 
 # `make package` output
 dist/
+__pycache__/
