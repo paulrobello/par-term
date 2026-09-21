@@ -28,6 +28,8 @@
 //! - `Notify`: Show a desktop notification
 //! - `SetBadge`: Set the tab badge text
 //! - `SetVariable`: Set a user variable
+//! - `SetWidget`: Plugin-only status-bar text; a tab *script* sending it gets
+//!   an error line (see the variant docs below)
 //!
 //! ### Restricted Commands (require permission flags)
 //! These commands require explicit opt-in via `ScriptConfig` permission fields:
@@ -235,6 +237,18 @@ pub enum ScriptCommand {
 
     /// Clear the markdown panel.
     ClearPanel {},
+
+    /// Set the text of a plugin-provided status-bar widget.
+    ///
+    /// Display-only and plugin-sourced: no permission flag exists for it
+    /// because a widget's text is strictly less powerful than `SetBadge`
+    /// (which scripts already send unrestricted). A tab *script* emitting
+    /// this command gets an error line in its output pane — the plugin host
+    /// is the only consumer.
+    SetWidget {
+        /// Widget text to display (last write wins; empty text hides the widget).
+        text: String,
+    },
 }
 
 /// Strip VT/ANSI escape sequences from text before PTY injection.
@@ -372,6 +386,31 @@ impl ScriptCommand {
             ScriptCommand::Log { .. } => "Log",
             ScriptCommand::SetPanel { .. } => "SetPanel",
             ScriptCommand::ClearPanel {} => "ClearPanel",
+            ScriptCommand::SetWidget { .. } => "SetWidget",
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn set_widget_round_trips_through_serde() {
+        let line = r#"{"type":"SetWidget","text":"🕒 14:32"}"#;
+        let cmd: ScriptCommand = serde_json::from_str(line).expect("parse SetWidget line");
+        assert_eq!(cmd, ScriptCommand::SetWidget { text: "🕒 14:32".into() });
+        let re = serde_json::to_string(&cmd).expect("serialize SetWidget");
+        let back: ScriptCommand = serde_json::from_str(&re).expect("round-trip");
+        assert_eq!(back, cmd);
+    }
+
+    #[test]
+    fn set_widget_requires_no_permission_and_is_not_rate_limited() {
+        let cmd = ScriptCommand::SetWidget { text: String::new() };
+        assert!(!cmd.requires_permission());
+        assert!(cmd.permission_flag_name().is_none());
+        assert!(!cmd.is_rate_limited());
+        assert_eq!(cmd.command_name(), "SetWidget");
     }
 }

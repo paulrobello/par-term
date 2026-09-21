@@ -159,6 +159,12 @@ impl WindowManager {
                                 tab.scripting.script_manager.clear_panel(script_id);
                                 panel_val = None;
                             }
+                            // P4: SetWidget is plugin-only — a tab script has no
+                            // widget; surface the refusal instead of executing it.
+                            par_term_scripting::protocol::ScriptCommand::SetWidget { .. } => {
+                                new_output[i]
+                                    .push("[error] SetWidget is a plugin command; ignored".into());
+                            }
                             // Safe display-only commands — defer to Pass 2 so they can
                             // call `WindowState` methods without borrow conflicts.
                             par_term_scripting::protocol::ScriptCommand::Notify { title, body } => {
