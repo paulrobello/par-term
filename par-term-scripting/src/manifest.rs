@@ -274,7 +274,7 @@ pub fn discover_plugins(root: &Path) -> (Vec<DiscoveredPlugin>, Vec<DiscoveryWar
 }
 
 /// Parse and fully validate one candidate plugin directory.
-fn validate_plugin_dir(dir: &Path) -> Result<DiscoveredPlugin, String> {
+pub(crate) fn validate_plugin_dir(dir: &Path) -> Result<DiscoveredPlugin, String> {
     let manifest_path = dir.join("manifest.json");
     let raw = std::fs::read_to_string(&manifest_path)
         .map_err(|e| format!("missing or unreadable manifest.json: {e}"))?;

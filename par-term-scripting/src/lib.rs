@@ -9,6 +9,7 @@ pub mod confirm;
 pub mod manager;
 pub mod manifest;
 pub mod observer;
+pub mod plugin_git;
 pub mod plugin_manager;
 pub mod process;
 pub mod protocol;
