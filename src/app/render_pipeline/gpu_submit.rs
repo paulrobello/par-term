@@ -485,7 +485,9 @@ impl WindowState {
                             log::warn!("Surface error detected ({}), reconfiguring...", msg);
                             self.force_surface_reconfigure();
                         } else if lower.contains("timeout") || lower.contains("occluded") {
-                            log::warn!("Surface {}, will retry next frame", msg);
+                            // Per-frame while the window is occluded; occlusion is
+                            // normal OS behavior, not a fault (cf. ARC-004 note above).
+                            crate::debug_log!("RENDER", "Surface {}, will retry next frame", msg);
                             self.request_redraw();
                         } else {
                             log::error!("Surface error: {}", msg);

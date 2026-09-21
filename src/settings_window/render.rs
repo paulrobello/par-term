@@ -31,7 +31,9 @@ impl SettingsWindow {
                 return SettingsWindowAction::None;
             }
             wgpu::CurrentSurfaceTexture::Timeout | wgpu::CurrentSurfaceTexture::Occluded => {
-                log::warn!("Settings window surface timeout/occluded");
+                // Per-frame while occluded — retry, not a fault (unlike the
+                // outdated/lost storm above, which is loud on purpose).
+                crate::debug_log!("RENDER", "Settings window surface timeout/occluded");
                 return SettingsWindowAction::None;
             }
             wgpu::CurrentSurfaceTexture::Validation => {
