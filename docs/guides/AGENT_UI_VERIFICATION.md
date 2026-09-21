@@ -23,7 +23,11 @@ The app starts normally (real window, real PTY, real config), executes the
 script, writes a JSON report, and exits. The report's `all_passed` field is
 the verdict; every step also carries an `observation` snapshot of overlay
 state regardless of assertions, so a failing run shows the UI's actual state
-at each point.
+at each point. A step that cannot execute at all — an unknown press/chord
+name, or an action before any terminal window exists — counts as a failure
+and flips `all_passed`, the same as a false assert; a chord deliberately
+blocked by the modal guard is recorded (`chord … blocked by modal guard`) but
+stays verdict-neutral, since the block mirrors the real key path.
 
 ## Script format
 

@@ -114,7 +114,8 @@ pub(crate) struct StepRecord {
     wait_ms: u64,
     /// Human-readable description of the action.
     action: String,
-    /// `Some(ok)` for assertions, `None` for non-asserting steps.
+    /// `Some(ok)` for verdict-bearing steps (assertions, and action steps
+    /// that could not execute); `None` for performed non-verdict steps.
     ok: Option<bool>,
     /// Outcome detail (matched action, assert value, errors).
     detail: String,
@@ -290,19 +291,29 @@ fn press_to_egui_key(name: &str) -> Option<egui::Key> {
     })
 }
 
+/// Fold a step outcome into (action description, verdict, detail).
+///
+/// `Failed` must carry `Some(false)` — a step that could not execute
+/// (unknown press/chord name, no terminal window yet) has to fail the run,
+/// or a typo'd script reports `all_passed: true`. `Performed` carries no
+/// verdict, including a chord deliberately blocked by the modal guard.
+fn step_verdict(outcome: StepOutcome) -> (String, Option<bool>, String) {
+    match outcome {
+        StepOutcome::Performed(desc) => (desc, None, String::new()),
+        StepOutcome::Asserted {
+            desc,
+            passed,
+            detail,
+        } => (desc, Some(passed), detail),
+        StepOutcome::Failed(desc) => (desc.clone(), Some(false), desc),
+    }
+}
+
 impl WindowManager {
     /// Execute one scripted step against the first terminal window.
     pub(crate) fn run_ui_test_step(&mut self, step: &UiTestStep) {
         let index = self.ui_test.records.len() + 1;
-        let (action_desc, ok, detail) = match self.ui_test_step_inner(step) {
-            StepOutcome::Performed(desc) => (desc, None, String::new()),
-            StepOutcome::Asserted {
-                desc,
-                passed,
-                detail,
-            } => (desc, Some(passed), detail),
-            StepOutcome::Failed(desc) => (desc.clone(), None, desc),
-        };
+        let (action_desc, ok, detail) = step_verdict(self.ui_test_step_inner(step));
         let observation = self.ui_test_observe();
         if ok == Some(false) {
             self.ui_test.failed += 1;
@@ -654,5 +665,25 @@ mod tests {
         assert_eq!(press_to_egui_key("H"), Some(egui::Key::H));
         assert_eq!(press_to_egui_key("rr"), None);
         assert_eq!(press_to_egui_key("1"), None);
+    }
+
+    #[test]
+    fn failed_steps_carry_a_verdict() {
+        // An undrivable step (unknown press name, no terminal window yet)
+        // must fail the run: ok=Some(false) feeds the failed counter and
+        // all_passed, so a typo'd script cannot report a pass.
+        let (_, ok, _) = step_verdict(StepOutcome::Failed("press: unknown key name 'x'".into()));
+        assert_eq!(ok, Some(false));
+    }
+
+    #[test]
+    fn performed_steps_stay_verdict_neutral() {
+        // Includes chords deliberately blocked by the modal guard: the
+        // injection happened as scripted, the block is the documented
+        // behavior, so it must not fail the run.
+        let (_, ok, _) = step_verdict(StepOutcome::Performed(
+            "chord Ctrl+P -> blocked by modal guard (overlay open)".into(),
+        ));
+        assert_eq!(ok, None);
     }
 }
