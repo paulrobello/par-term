@@ -11,7 +11,7 @@
 //! itself — a newly dropped-in plugin cannot run until the Settings layer
 //! says so.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::time::Instant;
 
@@ -50,6 +50,38 @@ fn widget_entry_args(plugin: &DiscoveredPlugin) -> &[String] {
         .unwrap_or_default()
 }
 
+/// Deduplicates a repeating fault warning to once per condition episode.
+///
+/// [`PluginHost::apply_enabled`] runs every render frame, so an ungated
+/// steady-state fault (an enabled plugin that is not discovered) emits the
+/// same warn ~60×/s — measured at ~480 identical warns in one 8 s run.
+/// `should_warn` returns `true` only on the first call per key; `clear`
+/// re-arms the key when the condition resolves (successful spawn, teardown)
+/// so a recurrence warns again.
+#[derive(Debug, Default)]
+pub struct WarnOnce {
+    warned: HashSet<String>,
+}
+
+impl WarnOnce {
+    /// Whether the caller should emit the warn: `true` the first time `key`
+    /// is seen, `false` while the same key persists.
+    pub fn should_warn(&mut self, key: &str) -> bool {
+        self.warned.insert(key.to_string())
+    }
+
+    /// Re-arm `key` so a later recurrence warns again.
+    pub fn clear(&mut self, key: &str) {
+        self.warned.remove(key);
+    }
+
+    /// Re-arm every key except those in `keep` — call when the monitored
+    /// set shrinks, so an entry that left and later returns warns again.
+    pub fn clear_except(&mut self, keep: &HashSet<String>) {
+        self.warned.retain(|key| keep.contains(key));
+    }
+}
+
 /// Window-scoped plugin host: discovery cache, running processes, restart
 /// supervision, and the last `SetWidget` text per plugin.
 #[derive(Default)]
@@ -71,6 +103,10 @@ pub struct PluginHost {
     settings_json: HashMap<String, String>,
     /// Commands refused because v1 plugins may only send `SetWidget`.
     ignored_lines: Vec<String>,
+    /// Per-fault warn gates: steady faults warn once per episode, not per
+    /// frame (see [`WarnOnce`]).
+    warned_not_discovered: WarnOnce,
+    warned_spawn_failed: WarnOnce,
 }
 
 impl PluginHost {
@@ -119,6 +155,12 @@ impl PluginHost {
             self.teardown(id);
         }
 
+        // A plugin leaving the enabled set ends its fault episodes, so a
+        // disable/enable cycle of a still-missing plugin warns again.
+        let enabled_ids: HashSet<String> = enabled.iter().map(|e| e.id.clone()).collect();
+        self.warned_not_discovered.clear_except(&enabled_ids);
+        self.warned_spawn_failed.clear_except(&enabled_ids);
+
         for plugin in enabled {
             if self.running.contains_key(&plugin.id) {
                 continue; // already up
@@ -131,10 +173,12 @@ impl PluginHost {
                 continue; // the supervisor owns this slot right now
             }
             let Some(found) = self.discovered.iter().find(|d| d.manifest.id == plugin.id) else {
-                log::warn!(
-                    "plugin '{}' is enabled but not discovered; not spawned",
-                    plugin.id
-                );
+                if self.warned_not_discovered.should_warn(&plugin.id) {
+                    log::warn!(
+                        "plugin '{}' is enabled but not discovered; not spawned",
+                        plugin.id
+                    );
+                }
                 continue;
             };
             let entry_path = found.entry_path.clone();
@@ -158,9 +202,14 @@ impl PluginHost {
                             )
                         })
                         .on_started(now);
+                    // A successful spawn resolves both fault episodes.
+                    self.warned_not_discovered.clear(&plugin.id);
+                    self.warned_spawn_failed.clear(&plugin.id);
                 }
                 Err(error) => {
-                    log::warn!("failed to spawn plugin '{}': {}", plugin.id, error);
+                    if self.warned_spawn_failed.should_warn(&plugin.id) {
+                        log::warn!("failed to spawn plugin '{}': {}", plugin.id, error);
+                    }
                 }
             }
         }
@@ -251,6 +300,8 @@ impl PluginHost {
         self.restart.clear();
         self.widget_texts.clear();
         self.settings_json.clear();
+        self.warned_not_discovered = WarnOnce::default();
+        self.warned_spawn_failed = WarnOnce::default();
     }
 
     /// Stop one plugin and forget its supervision and widget state.
@@ -261,6 +312,10 @@ impl PluginHost {
         self.restart.remove(id);
         self.widget_texts.remove(id);
         self.settings_json.remove(id);
+        // Disarming the fault gates here makes a disable/enable cycle warn
+        // again — a fresh user action deserves a fresh diagnostic.
+        self.warned_not_discovered.clear(id);
+        self.warned_spawn_failed.clear(id);
     }
 
     /// Re-spawn a plugin after a supervised restart, reusing its settings.
@@ -521,5 +576,117 @@ while True:
         assert!(host.running_plugin_ids().is_empty());
         assert!(host.widget_texts().is_empty());
         host.poll(); // no panic after a full drain
+    }
+
+    /// Records every `log::warn!` this test binary emits so tests can assert
+    /// on warn *frequency*, not just occurrence. Installed once per process;
+    /// this crate's tests never install a file logger, so capturing here
+    /// changes nothing for the other tests.
+    static WARNED: std::sync::LazyLock<std::sync::Mutex<Vec<String>>> =
+        std::sync::LazyLock::new(|| std::sync::Mutex::new(Vec::new()));
+
+    struct CountingLogger;
+
+    impl log::Log for CountingLogger {
+        fn enabled(&self, _metadata: &log::Metadata) -> bool {
+            true
+        }
+
+        fn log(&self, record: &log::Record) {
+            if record.level() == log::Level::Warn {
+                WARNED.lock().unwrap().push(record.args().to_string());
+            }
+        }
+
+        fn flush(&self) {}
+    }
+
+    fn install_counting_logger() {
+        static INSTALL: std::sync::Once = std::sync::Once::new();
+        static COUNTING_LOGGER: CountingLogger = CountingLogger;
+        INSTALL.call_once(|| {
+            // An error here would mean another logger is already installed;
+            // capture works regardless.
+            let _ = log::set_logger(&COUNTING_LOGGER);
+            log::set_max_level(log::LevelFilter::Warn);
+        });
+    }
+
+    fn warns_containing(fragment: &str) -> usize {
+        WARNED
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|msg| msg.contains(fragment))
+            .count()
+    }
+
+    // Both dedup tests run in parallel against the shared warn capture, so
+    // each filters on its own plugin id, not the shared phrase.
+    #[test]
+    fn fault_warns_fire_once_per_transition_not_per_frame() {
+        install_counting_logger();
+        let fragment = "'com.test.missing' is enabled but not discovered";
+        let mut host = PluginHost::new();
+        // An empty root: the enabled plugin is never discovered.
+        let root = tempfile::tempdir().unwrap();
+        host.refresh_discovery(root.path());
+
+        for _ in 0..5 {
+            host.apply_enabled(&[enabled("com.test.missing")]);
+        }
+        let warns = warns_containing(fragment);
+        assert_eq!(
+            warns, 1,
+            "5 frames of one steady fault must produce exactly 1 warn, got {warns}"
+        );
+
+        // Disabling re-arms the warn: re-enabling the same fault warns again
+        // rather than staying silent forever.
+        host.apply_enabled(&[]);
+        for _ in 0..2 {
+            host.apply_enabled(&[enabled("com.test.missing")]);
+        }
+        let warns = warns_containing(fragment);
+        assert_eq!(
+            warns, 2,
+            "warn must re-arm after a disable/enable, got {warns}"
+        );
+    }
+
+    #[test]
+    fn fault_warn_rearms_after_recovery() {
+        if skip_without_interpreter() {
+            return;
+        }
+        install_counting_logger();
+        let empty = tempfile::tempdir().unwrap();
+        let populated = tempfile::tempdir().unwrap();
+        write_plugin(populated.path(), "com.test.flapping", WIDGET_SCRIPT);
+
+        let mut host = PluginHost::new();
+        // Fault: enabled but not discovered.
+        let fragment = "'com.test.flapping' is enabled but not discovered";
+        host.refresh_discovery(empty.path());
+        host.apply_enabled(&[enabled("com.test.flapping")]);
+        assert_eq!(warns_containing(fragment), 1);
+
+        // Recovery: the plugin appears and spawns, which re-arms the warn.
+        host.refresh_discovery(populated.path());
+        host.apply_enabled(&[enabled("com.test.flapping")]);
+        assert!(wait_until(&mut host, |h| h
+            .widget_text("com.test.flapping")
+            .is_some()));
+
+        // The plugin is disabled, disappears, and is enabled again: the same
+        // fault must warn a second time.
+        host.apply_enabled(&[]);
+        host.refresh_discovery(empty.path());
+        host.apply_enabled(&[enabled("com.test.flapping")]);
+        assert_eq!(
+            warns_containing(fragment),
+            2,
+            "a recovered-then-failed-again plugin must warn again"
+        );
     }
 }

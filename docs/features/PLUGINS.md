@@ -12,6 +12,7 @@ widget. v1 ships exactly one plugin kind: `status-bar-widget`.
 - [The SetWidget contract](#the-setwidget-contract)
 - [Settings](#settings)
 - [Lifecycle and restarts](#lifecycle-and-restarts)
+- [Diagnostics](#diagnostics)
 - [v1 limits](#v1-limits)
 - [The example clock plugin](#the-example-clock-plugin)
 
@@ -141,6 +142,27 @@ A plugin that exits successfully stays stopped. A plugin that crashes is
 restarted after 250 ms under an on-failure policy with a crash-loop cap
 (5 attempts in 5 s); the cap exists so a broken plugin cannot spin the CPU.
 Restarts re-use the spawn-time settings argv.
+
+## Diagnostics
+
+Plugin faults (a directory skipped by discovery, an enabled plugin that is
+not discovered, a failed spawn, invalid persisted settings) are reported as
+`log::warn!` records in the debug log — once per episode, not per frame, so
+a steady fault does not flood the log. They are **not visible by default**:
+the config `log_level` defaults to `off` and is applied right after startup,
+silencing all `log::` records from that point (a `Config log level: …` line
+in the debug log records the level actually applied).
+
+To see plugin diagnostics, run with the level raised:
+
+```bash
+par-term --log-level warn        # CLI flag beats the config setting
+```
+
+or set `log_level: warn` in the config (Settings → Advanced → System). Note
+the config setting overrides `RUST_LOG`; only the CLI flag beats it. The
+Settings → Automation → Plugins section also shows not-discovered plugins as
+rows regardless of the log level.
 
 ## v1 limits
 

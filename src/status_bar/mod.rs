@@ -49,7 +49,7 @@ use crate::badge::SessionVariables;
 use crate::config::{Config, StatusBarPosition, StatusBarSection};
 use disk_monitor::DiskMonitor;
 use git_poller::GitBranchPoller;
-use par_term_scripting::plugin_manager::PluginHost;
+use par_term_scripting::plugin_manager::{PluginHost, WarnOnce};
 use system_monitor::SystemMonitor;
 use widgets::{WidgetContext, sorted_widgets_for_section, widget_text};
 
@@ -95,6 +95,9 @@ pub struct StatusBarUI {
     /// When the plugins root was last scanned; `None` until the first
     /// [`update_plugins`](StatusBarUI::update_plugins) call performs it.
     plugins_last_discovery: Option<Instant>,
+    /// Warn-once gate for per-frame invalid-settings warnings (upkeep runs
+    /// every render frame; a steady fault must not warn per frame).
+    plugin_settings_warned: WarnOnce,
 }
 
 impl StatusBarUI {
@@ -112,6 +115,7 @@ impl StatusBarUI {
             usage_update: UpdateRunner::new(),
             plugins: PluginHost::new(),
             plugins_last_discovery: None,
+            plugin_settings_warned: WarnOnce::default(),
         }
     }
 

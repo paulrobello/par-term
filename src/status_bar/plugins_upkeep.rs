@@ -4,7 +4,7 @@
 //! that file near the 500-line warn line: discovery refresh, the enabled-set
 //! reconcile, and process polling form one self-contained unit.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
 
 use par_term_scripting::manifest::{SettingSchemaEntry, validate_settings};
@@ -46,16 +46,20 @@ impl StatusBarUI {
                 settings_json: self.validated_settings_json(state),
             })
             .collect();
+        // A plugin leaving the enabled set ends its invalid-settings episode,
+        // so re-enabling it warns again instead of staying silent forever.
+        let enabled_ids: HashSet<String> = enabled.iter().map(|e| e.id.clone()).collect();
+        self.plugin_settings_warned.clear_except(&enabled_ids);
         self.plugins.apply_enabled(&enabled);
         self.plugins.poll();
     }
 
     /// Persisted settings serialized as the one argv JSON string, validated
     /// against the discovered manifest's schema. Invalid persisted values
-    /// warn and fall back to the schema defaults rather than blocking the
-    /// plugin; an undiscovered plugin's settings pass through untouched (the
-    /// host warns on apply).
-    fn validated_settings_json(&self, state: &crate::config::PluginStateConfig) -> String {
+    /// warn (once per episode — this runs every frame) and fall back to the
+    /// schema defaults rather than blocking the plugin; an undiscovered
+    /// plugin's settings pass through untouched (the host warns on apply).
+    fn validated_settings_json(&mut self, state: &crate::config::PluginStateConfig) -> String {
         let schema: &[SettingSchemaEntry] = self
             .plugins
             .discovered(&state.id)
@@ -63,13 +67,18 @@ impl StatusBarUI {
             .map(|widget| widget.schema.as_slice())
             .unwrap_or(&[]);
         let settings = match validate_settings(schema, &state.settings) {
-            Ok(valid) => valid,
+            Ok(valid) => {
+                self.plugin_settings_warned.clear(&state.id);
+                valid
+            }
             Err(reason) => {
-                log::warn!(
-                    "plugin '{}' has invalid persisted settings ({}); using schema defaults",
-                    state.id,
-                    reason
-                );
+                if self.plugin_settings_warned.should_warn(&state.id) {
+                    log::warn!(
+                        "plugin '{}' has invalid persisted settings ({}); using schema defaults",
+                        state.id,
+                        reason
+                    );
+                }
                 validate_settings(schema, &HashMap::new()).unwrap_or_default()
             }
         };
