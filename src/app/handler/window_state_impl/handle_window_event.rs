@@ -185,6 +185,13 @@ impl WindowState {
             }
 
             WindowEvent::Resized(physical_size) => {
+                // Fullscreen transitions (keyboard, menu, green button) all emit
+                // Resized — sync the macOS titlebar backing bar's visibility here
+                // so no transition path is missed. No-op when translucency is off.
+                if let Some(window) = &self.window {
+                    let _ = crate::macos_metal::sync_titlebar_backing_bar_visibility(window);
+                }
+
                 if let Some(renderer) = &mut self.renderer {
                     let (cols, rows) = renderer.resize(physical_size);
 
