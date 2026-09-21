@@ -4,16 +4,17 @@
 //! license, and the exact entry command *above* the enable toggle, so the
 //! user reads what runs before allowing it to run. The section never spawns
 //! anything itself — it only writes `plugins:` state entries (and, on first
-//! enable, a status-bar widget row) into the edited config; the host's
-//! per-frame reconcile picks the change up after save.
+//! enable of a widget-kind plugin, a status-bar widget row) into the edited
+//! config; the host's per-frame reconcile picks the change up after save.
 
 use crate::SettingsUI;
 use crate::section::{collapsing_section, section_matches};
 use par_term_config::PluginStateConfig;
 use par_term_config::status_bar::{StatusBarSection, StatusBarWidgetConfig, WidgetId};
 use par_term_scripting::manifest::{
-    DiscoveredPlugin, ENTRY_POINT_STATUS_BAR_WIDGET, SettingSchemaEntry, SettingType,
-    discover_plugins,
+    ActionContribution, DiscoveredPlugin, ENTRY_POINT_ACTION_CONTRIBUTOR,
+    ENTRY_POINT_STATUS_BAR_WIDGET, KIND_ACTION_CONTRIBUTOR, KIND_STATUS_BAR_WIDGET,
+    PluginEntryPoint, PluginManifest, SettingSchemaEntry, SettingType, discover_plugins,
 };
 use std::collections::HashSet;
 
@@ -34,6 +35,8 @@ pub(super) fn show_plugins_section(
             "manifest",
             "widget",
             "extensions",
+            "plugin action",
+            "palette actions",
         ],
     ) {
         show_plugins_collapsing(ui, settings, changes_this_frame, collapsed);
@@ -47,7 +50,9 @@ fn show_plugins_collapsing(
     collapsed: &mut HashSet<String>,
 ) {
     collapsing_section(ui, "Plugins", "automation_plugins", true, collapsed, |ui| {
-        ui.label("Local plugins run as subprocesses and publish status-bar widgets.");
+        ui.label(
+            "Local plugins run as subprocesses and publish status-bar widgets or contribute command-palette actions.",
+        );
         ui.label("Plugins are disabled until enabled here; install means copying a directory into the plugins folder.");
         ui.add_space(4.0);
 
@@ -166,13 +171,14 @@ fn show_plugin_row(
     if let Some(description) = &manifest.description {
         ui.label(egui::RichText::new(description).small());
     }
-    if let Some(entry) = manifest.entry_points.get(ENTRY_POINT_STATUS_BAR_WIDGET) {
-        let mut command = format!("./{}", entry.command);
-        for arg in &entry.args {
-            command.push(' ');
-            command.push_str(arg);
+    for line in runs_lines(manifest) {
+        ui.label(egui::RichText::new(line).small());
+    }
+    if manifest.kinds.iter().any(|k| k == KIND_ACTION_CONTRIBUTOR) {
+        let summary = action_summary(&manifest.actions);
+        if !summary.is_empty() {
+            ui.label(egui::RichText::new(summary).small());
         }
-        ui.label(egui::RichText::new(format!("Runs: {command}")).small());
     }
 
     // Schema-driven settings editor, bound to the persisted settings map.
@@ -346,6 +352,51 @@ fn clamp_f64(value: f64, min: Option<f64>, max: Option<f64>) -> f64 {
     value
 }
 
+/// One-line trust-surface summary of a plugin's contributed palette
+/// actions, e.g. `contributes 2 actions: Greet, Stamp`. Empty input
+/// renders nothing (widget-kind plugins' rows stay unchanged).
+fn action_summary(actions: &[ActionContribution]) -> String {
+    match actions.len() {
+        0 => String::new(),
+        1 => format!("contributes 1 action: {}", actions[0].label),
+        n => {
+            let labels: Vec<&str> = actions.iter().map(|a| a.label.as_str()).collect();
+            format!("contributes {n} actions: {}", labels.join(", "))
+        }
+    }
+}
+
+/// `./command arg arg` form of one entry point, as the trust surface
+/// shows it.
+fn entry_command(entry: &PluginEntryPoint) -> String {
+    let mut command = format!("./{}", entry.command);
+    for arg in &entry.args {
+        command.push(' ');
+        command.push_str(arg);
+    }
+    command
+}
+
+/// The trust surface's entry-command lines: one line per declared kind's
+/// entry point — a bare `Runs: ./x` while only one kind is declared, one
+/// kind-labeled line per executable when both are, so the user can tell
+/// which command serves which kind. An undeclared kind's stray entry point
+/// earns no line: the host never runs it.
+fn runs_lines(manifest: &PluginManifest) -> Vec<String> {
+    let has_widget = manifest.kinds.iter().any(|k| k == KIND_STATUS_BAR_WIDGET);
+    let has_action = manifest.kinds.iter().any(|k| k == KIND_ACTION_CONTRIBUTOR);
+    let mut lines = Vec::new();
+    if has_widget && let Some(entry) = manifest.entry_points.get(ENTRY_POINT_STATUS_BAR_WIDGET) {
+        let label = if has_action { "Runs widget:" } else { "Runs:" };
+        lines.push(format!("{label} {}", entry_command(entry)));
+    }
+    if has_action && let Some(entry) = manifest.entry_points.get(ENTRY_POINT_ACTION_CONTRIBUTOR) {
+        let label = if has_widget { "Runs actions:" } else { "Runs:" };
+        lines.push(format!("{label} {}", entry_command(entry)));
+    }
+    lines
+}
+
 /// Ids with a persisted `plugins:` entry but no discovered manifest.
 fn missing_state_ids(
     config: &par_term_config::Config,
@@ -361,10 +412,11 @@ fn missing_state_ids(
 }
 
 /// Flip a plugin's enabled bit, creating the state entry on first enable
-/// (settings seeded from the manifest defaults). Enabling also ensures the
-/// plugin has a status-bar widget row; disabling only flips the bit — the
-/// row self-hides while the plugin publishes no text, and comes back with
-/// its placement intact on re-enable.
+/// (settings seeded from the manifest defaults). Enabling a widget-kind
+/// plugin also ensures it has a status-bar widget row; an action-only
+/// plugin gets no row. Disabling only flips the bit — the row self-hides
+/// while the plugin publishes no text, and comes back with its placement
+/// intact on re-enable.
 fn set_plugin_enabled(
     config: &mut par_term_config::Config,
     plugin: &DiscoveredPlugin,
@@ -401,9 +453,19 @@ fn set_plugin_enabled(
     }
 }
 
-/// Add the plugin's widget row if absent. Placement prefers a persisted
+/// Add the plugin's widget row if absent and the plugin declares the
+/// status-bar-widget kind — an action-only plugin has nothing to place in
+/// the bar and must not get a phantom row. Placement prefers a persisted
 /// section override, then the manifest default, then the right section.
 fn ensure_widget_row(config: &mut par_term_config::Config, plugin: &DiscoveredPlugin) {
+    if !plugin
+        .manifest
+        .kinds
+        .iter()
+        .any(|k| k == KIND_STATUS_BAR_WIDGET)
+    {
+        return;
+    }
     let id = WidgetId::Plugin(plugin.manifest.id.clone());
     if config
         .status_bar
@@ -533,6 +595,97 @@ mod tests {
             manifest,
             dir: "/plugins/com.example.fixture".into(),
             entry_path: "/plugins/com.example.fixture/fixture.sh".into(),
+            action_entry_path: None,
+        }
+    }
+
+    const ACTION_ONLY_MANIFEST: &str = r#"{
+        "schemaVersion": 1,
+        "id": "com.example.actions",
+        "name": "Actions Fixture",
+        "version": "0.1.0",
+        "author": "test",
+        "license": "MIT",
+        "kinds": ["action-contributor"],
+        "activation": "manual",
+        "entryPoints": { "actionContributor": { "command": "actions.sh", "args": [] } },
+        "actions": [
+            { "id": "greet", "label": "Greet" },
+            { "id": "stamp", "label": "Stamp" }
+        ]
+    }"#;
+
+    fn action_only_plugin() -> DiscoveredPlugin {
+        let manifest: par_term_scripting::manifest::PluginManifest =
+            serde_json::from_str(ACTION_ONLY_MANIFEST).expect("fixture manifest parses");
+        DiscoveredPlugin {
+            manifest,
+            dir: "/plugins/com.example.actions".into(),
+            entry_path: "/plugins/com.example.actions/actions.sh".into(),
+            action_entry_path: Some("/plugins/com.example.actions/actions.sh".into()),
+        }
+    }
+
+    const BOTH_KINDS_MANIFEST: &str = r#"{
+        "schemaVersion": 1,
+        "id": "com.example.both",
+        "name": "Both Fixture",
+        "version": "0.1.0",
+        "author": "test",
+        "license": "MIT",
+        "kinds": ["status-bar-widget", "action-contributor"],
+        "activation": "manual",
+        "entryPoints": {
+            "statusBarWidget": { "command": "widget.sh", "args": [] },
+            "actionContributor": { "command": "actions.sh", "args": ["--demo"] }
+        },
+        "statusBarWidget": {
+            "displayName": "Both",
+            "section": "right",
+            "defaults": { "format24h": true },
+            "schema": [
+                { "key": "format24h", "type": "boolean", "label": "24-hour",
+                  "defaultValue": true }
+            ]
+        },
+        "actions": [ { "id": "greet", "label": "Greet" } ]
+    }"#;
+
+    fn both_kinds_plugin() -> DiscoveredPlugin {
+        let manifest: par_term_scripting::manifest::PluginManifest =
+            serde_json::from_str(BOTH_KINDS_MANIFEST).expect("fixture manifest parses");
+        DiscoveredPlugin {
+            manifest,
+            dir: "/plugins/com.example.both".into(),
+            entry_path: "/plugins/com.example.both/widget.sh".into(),
+            action_entry_path: Some("/plugins/com.example.both/actions.sh".into()),
+        }
+    }
+
+    const STRAY_WIDGET_ENTRY_MANIFEST: &str = r#"{
+        "schemaVersion": 1,
+        "id": "com.example.stray",
+        "name": "Stray Widget Entry Fixture",
+        "version": "0.1.0",
+        "author": "test",
+        "license": "MIT",
+        "kinds": ["action-contributor"],
+        "activation": "manual",
+        "entryPoints": {
+            "statusBarWidget": { "command": "stray.sh", "args": [] },
+            "actionContributor": { "command": "actions.sh", "args": [] }
+        },
+        "actions": [ { "id": "greet", "label": "Greet" } ]
+    }"#;
+
+    fn stray_widget_entry_plugin() -> DiscoveredPlugin {
+        let manifest: par_term_scripting::manifest::PluginManifest =
+            serde_json::from_str(STRAY_WIDGET_ENTRY_MANIFEST).expect("fixture manifest parses");
+        DiscoveredPlugin {
+            manifest,
+            dir: "/plugins/com.example.stray".into(),
+            entry_path: "/plugins/com.example.stray/actions.sh".into(),
+            action_entry_path: Some("/plugins/com.example.stray/actions.sh".into()),
         }
     }
 
@@ -663,11 +816,115 @@ mod tests {
         );
     }
 
+    fn action(id: &str, label: &str) -> par_term_scripting::manifest::ActionContribution {
+        par_term_scripting::manifest::ActionContribution {
+            id: id.into(),
+            label: label.into(),
+            description: None,
+        }
+    }
+
+    #[test]
+    fn action_summary_plural_lists_labels() {
+        let actions = [action("greet", "Greet"), action("stamp", "Stamp")];
+        assert_eq!(
+            action_summary(&actions),
+            "contributes 2 actions: Greet, Stamp"
+        );
+    }
+
+    #[test]
+    fn action_summary_singular_uses_singular_noun() {
+        let actions = [action("greet", "Greet")];
+        assert_eq!(action_summary(&actions), "contributes 1 action: Greet");
+    }
+
+    #[test]
+    fn action_summary_empty_renders_nothing() {
+        assert_eq!(action_summary(&[]), "");
+    }
+
+    #[test]
+    fn runs_lines_widget_only_keeps_bare_runs_line() {
+        assert_eq!(
+            runs_lines(&fixture_plugin().manifest),
+            ["Runs: ./fixture.sh".to_string()]
+        );
+    }
+
+    #[test]
+    fn runs_lines_action_only_shows_action_entry_command() {
+        assert_eq!(
+            runs_lines(&action_only_plugin().manifest),
+            ["Runs: ./actions.sh".to_string()]
+        );
+    }
+
+    #[test]
+    fn runs_lines_both_kinds_labels_each_entry() {
+        assert_eq!(
+            runs_lines(&both_kinds_plugin().manifest),
+            [
+                "Runs widget: ./widget.sh".to_string(),
+                "Runs actions: ./actions.sh --demo".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn runs_lines_ignores_stray_widget_entry_of_action_plugin() {
+        // Forward-compat posture: an undeclared kind's entry point may sit in
+        // the map; only declared kinds earn a Runs line at the consent toggle.
+        assert_eq!(
+            runs_lines(&stray_widget_entry_plugin().manifest),
+            ["Runs: ./actions.sh".to_string()]
+        );
+    }
+
+    #[test]
+    fn enable_action_only_plugin_adds_no_widget_row() {
+        let mut config = par_term_config::Config::default();
+        set_plugin_enabled(&mut config, &action_only_plugin(), true);
+        let state = &config.automation.plugins[0];
+        assert_eq!(state.id, "com.example.actions");
+        assert!(state.enabled, "state entry still created — actions run");
+        assert!(
+            !config
+                .status_bar
+                .status_bar_widgets
+                .iter()
+                .any(|w| w.id == WidgetId::Plugin("com.example.actions".into())),
+            "an action-only plugin must not gain a phantom widget row"
+        );
+    }
+
+    #[test]
+    fn enable_both_kinds_plugin_keeps_widget_row() {
+        let mut config = par_term_config::Config::default();
+        set_plugin_enabled(&mut config, &both_kinds_plugin(), true);
+        assert!(
+            config
+                .status_bar
+                .status_bar_widgets
+                .iter()
+                .any(|w| w.id == WidgetId::Plugin("com.example.both".into())),
+            "a both-kinds plugin keeps its widget row"
+        );
+    }
+
     #[test]
     fn automation_tab_matches_plugin_search() {
         // The criterion-3 path: settings search must find the section via
         // the tab keywords, through the sidebar's real matching function.
-        for query in ["plugin", "plugins", "manifest", "widget", "extensions"] {
+        for query in [
+            "plugin",
+            "plugins",
+            "manifest",
+            "widget",
+            "extensions",
+            "plugin action",
+            "palette actions",
+        ] {
             assert!(
                 crate::sidebar::tab_matches_search(crate::sidebar::SettingsTab::Automation, query),
                 "search '{query}' should match the Automation tab"

@@ -13,7 +13,9 @@
 
 use super::key_handler::KEY_LAYERS;
 use super::keybinding_actions::ACTION_HANDLERS;
+use super::keybinding_actions::parse_plugin_action_id;
 use super::keybinding_display_actions::DISPLAY_ACTION_HANDLERS;
+use crate::app::window_state::WindowState;
 
 /// Every action name `execute_keybinding_action` resolved by exact match
 /// before ENH-004 converted the two `match` ladders into dispatch tables.
@@ -211,9 +213,14 @@ fn every_default_keybinding_resolves_to_a_handler() {
     live.extend(display_keys());
 
     // Prefix forms are resolved at runtime against the user's snippets,
-    // actions, and arrangements, so they are dispatchable without a table
-    // entry. No shipped default uses one today.
-    const PREFIXES: &[&str] = &["snippet:", "action:", "restore_arrangement:"];
+    // actions, arrangements, and plugins, so they are dispatchable without a
+    // table entry. No shipped default uses one today.
+    const PREFIXES: &[&str] = &[
+        "snippet:",
+        "action:",
+        "restore_arrangement:",
+        "plugin-action:",
+    ];
 
     let defaults = crate::config::Config::default().keybindings;
     assert!(
@@ -247,4 +254,66 @@ fn key_layer_precedence_is_unchanged() {
          for the same chord, so update FROZEN_LAYER_ORDER only alongside a \
          deliberate precedence change"
     );
+}
+
+// --- plugin-action: dispatch (O2 action contributors) ---
+
+/// A `WindowState` with no window, renderer, tabs, or discovered plugins —
+/// the same seam `pane_transfer`'s tests use. Enough state for the
+/// miss-path: the dispatch reaches `status_bar_ui`'s empty plugin host and
+/// must return `false` without touching anything else.
+fn test_window_state() -> WindowState {
+    let runtime = std::sync::Arc::new(
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("build test runtime"),
+    );
+    WindowState::new(crate::config::Config::default(), runtime)
+}
+
+#[test]
+fn plugin_action_id_parses_into_plugin_and_action_halves() {
+    assert_eq!(
+        parse_plugin_action_id("plugin-action:com.example.greeter:greet"),
+        Some(("com.example.greeter", "greet"))
+    );
+}
+
+#[test]
+fn plugin_action_id_without_the_prefix_is_rejected() {
+    assert_eq!(parse_plugin_action_id("greet"), None);
+}
+
+#[test]
+fn plugin_action_id_with_no_second_colon_is_rejected() {
+    assert_eq!(parse_plugin_action_id("plugin-action:only-plugin"), None);
+}
+
+#[test]
+fn plugin_action_id_with_an_empty_half_is_rejected() {
+    assert_eq!(parse_plugin_action_id("plugin-action:p:"), None);
+    assert_eq!(parse_plugin_action_id("plugin-action::greet"), None);
+}
+
+#[test]
+fn plugin_action_id_splits_once_leaving_later_colons_to_manifest_lookup() {
+    // Split-once: whether an action id containing colons exists is the
+    // manifest lookup's call, not the parser's.
+    assert_eq!(
+        parse_plugin_action_id("plugin-action:com.example.greeter:greet:extra"),
+        Some(("com.example.greeter", "greet:extra"))
+    );
+}
+
+#[test]
+fn plugin_action_dispatch_for_an_undiscovered_plugin_returns_false() {
+    let mut state = test_window_state();
+    assert!(!state.execute_keybinding_action("plugin-action:nosuch:noop"));
+}
+
+#[test]
+fn plugin_action_dispatch_for_a_malformed_id_returns_false() {
+    let mut state = test_window_state();
+    assert!(!state.execute_keybinding_action("plugin-action:only-plugin"));
 }

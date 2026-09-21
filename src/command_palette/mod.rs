@@ -23,7 +23,11 @@ pub(crate) struct CommandPalette {
     query: String,
     /// Index into the *filtered* list, not the catalog.
     selected: usize,
-    /// Built once at construction — the action set is static for the process.
+    /// Latest plugin snapshot, replaced by every `open()`.
+    plugin_entries: Vec<PaletteEntry>,
+    /// Built-ins plus the current plugin snapshot, label-sorted. Rebuilt on
+    /// every `open()` so the merged view tracks the live plugin set; the
+    /// built-in action set itself is static for the process.
     entries: Vec<PaletteEntry>,
     /// Whether the text field should grab focus on the next frame.
     request_focus: bool,
@@ -42,13 +46,24 @@ impl CommandPalette {
             visible: false,
             query: String::new(),
             selected: 0,
+            plugin_entries: Vec::new(),
             entries: build_catalog(),
             request_focus: false,
         }
     }
 
-    /// Show the palette, clearing any state from the previous summon.
-    pub(crate) fn open(&mut self) {
+    /// Show the palette with a fresh plugin snapshot, clearing any state from
+    /// the previous summon.
+    ///
+    /// The merged view (built-ins + plugin rows) is rebuilt here, not at
+    /// construction, because the plugin set can change between summons; the
+    /// caller passes the snapshot it just read from the host.
+    pub(crate) fn open(&mut self, plugin_rows: Vec<PaletteEntry>) {
+        self.plugin_entries = plugin_rows;
+        let mut merged = build_catalog();
+        merged.extend(self.plugin_entries.iter().cloned());
+        merged.sort_by(|a, b| a.label.cmp(&b.label));
+        self.entries = merged;
         self.visible = true;
         self.query.clear();
         self.selected = 0;
@@ -61,11 +76,11 @@ impl CommandPalette {
     }
 
     /// Flip visibility, resetting state when opening.
-    pub(crate) fn toggle(&mut self) {
+    pub(crate) fn toggle(&mut self, plugin_rows: Vec<PaletteEntry>) {
         if self.visible {
             self.close();
         } else {
-            self.open();
+            self.open(plugin_rows);
         }
     }
 
@@ -74,7 +89,7 @@ impl CommandPalette {
         let pairs: Vec<(&str, &str)> = self
             .entries
             .iter()
-            .map(|e| (e.action_id, e.label.as_str()))
+            .map(|e| (e.action_id.as_str(), e.label.as_str()))
             .collect();
         fuzzy::rank(query, &pairs)
             .into_iter()
@@ -164,7 +179,7 @@ impl CommandPalette {
                             RichText::new(&entry.label)
                         };
                         if ui.selectable_label(selected, label).clicked() {
-                            chosen = Some(entry.action_id.to_string());
+                            chosen = Some(entry.action_id.clone());
                         }
                         if let Some(chord) = entry.chord {
                             ui.with_layout(
@@ -190,6 +205,8 @@ impl CommandPalette {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use catalog::plugin_palette_entries;
+    use par_term_scripting::plugin_manager::PluginActionRow;
 
     #[test]
     fn starts_hidden() {
@@ -199,25 +216,75 @@ mod tests {
     #[test]
     fn toggle_flips_visibility() {
         let mut palette = CommandPalette::new();
-        palette.toggle();
+        palette.toggle(Vec::new());
         assert!(palette.visible);
-        palette.toggle();
+        palette.toggle(Vec::new());
         assert!(!palette.visible);
     }
 
     #[test]
     fn opening_resets_query_and_selection() {
         let mut palette = CommandPalette::new();
-        palette.open();
+        palette.open(Vec::new());
         palette.query = "stale".to_string();
         palette.selected = 7;
         palette.close();
-        palette.open();
+        palette.open(Vec::new());
         assert_eq!(
             palette.query, "",
             "a reopened palette must not show the last query"
         );
         assert_eq!(palette.selected, 0);
+    }
+
+    #[test]
+    fn open_merges_plugin_rows_into_a_label_sorted_view() {
+        let plugin_row = PluginActionRow {
+            wire_id: "plugin-action:com.example.demo:aaaa".to_string(),
+            label: "Aaaa First Plugin Action · Demo".to_string(),
+        };
+        let mut palette = CommandPalette::new();
+        palette.open(plugin_palette_entries(&[plugin_row]));
+        let labels: Vec<&str> = palette.entries.iter().map(|e| e.label.as_str()).collect();
+        let mut sorted = labels.clone();
+        sorted.sort_unstable();
+        assert_eq!(
+            labels, sorted,
+            "the merged view must be label-ordered so the empty-query view \
+             stays stable"
+        );
+        assert!(
+            palette
+                .entries
+                .iter()
+                .any(|e| e.action_id == "plugin-action:com.example.demo:aaaa"),
+            "the plugin row must be present alongside the built-ins"
+        );
+    }
+
+    #[test]
+    fn reopening_with_a_fresh_snapshot_replaces_stale_plugin_rows() {
+        let snapshot_a = plugin_palette_entries(&[PluginActionRow {
+            wire_id: "plugin-action:com.old:act".to_string(),
+            label: "Old Action · Old Plugin".to_string(),
+        }]);
+        let snapshot_b = plugin_palette_entries(&[PluginActionRow {
+            wire_id: "plugin-action:com.new:act".to_string(),
+            label: "New Action · New Plugin".to_string(),
+        }]);
+        let mut palette = CommandPalette::new();
+        palette.open(snapshot_a);
+        palette.close();
+        palette.open(snapshot_b);
+        let ids = palette.filtered_ids("");
+        assert!(
+            ids.contains(&"plugin-action:com.new:act"),
+            "the fresh snapshot's rows must be in the filtered view"
+        );
+        assert!(
+            !ids.contains(&"plugin-action:com.old:act"),
+            "a stale plugin row must not survive a reopen with a fresh snapshot"
+        );
     }
 
     #[test]

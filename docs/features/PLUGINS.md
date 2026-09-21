@@ -1,7 +1,8 @@
 # Plugins
 
 Plugins are local, user-installed subprocesses that can publish a status-bar
-widget. v1 ships exactly one plugin kind: `status-bar-widget`.
+widget and contribute actions to the command palette. v1 ships two plugin
+kinds: `status-bar-widget` and `action-contributor`.
 
 ## Table of Contents
 
@@ -10,6 +11,7 @@ widget. v1 ships exactly one plugin kind: `status-bar-widget`.
 - [The manifest](#the-manifest)
 - [Security model](#security-model)
 - [The SetWidget contract](#the-setwidget-contract)
+- [Contributing palette actions](#contributing-palette-actions)
 - [Settings](#settings)
 - [Lifecycle and restarts](#lifecycle-and-restarts)
 - [Diagnostics](#diagnostics)
@@ -63,10 +65,11 @@ back restores the plugin with its settings and placement intact.
 | `author` | string? | Author, shown at the enable toggle. |
 | `license` | string? | License, shown at the enable toggle. |
 | `description` | string? | What the plugin does, shown in Settings. |
-| `kinds` | string[] | Kinds provided; each must be known to the host (v1: `status-bar-widget`). A manifest naming an unknown kind is not loaded. |
+| `kinds` | string[] | Kinds provided; each must be known to the host (v1: `status-bar-widget`, `action-contributor`). A manifest naming an unknown kind is not loaded. |
 | `activation` | string? | `manual` (default; enabled in Settings) or `on_startup`. Either way nothing runs before the enable toggle. |
-| `entryPoints` | object | Map of kind → executable. For v1: `statusBarWidget` → `{ "command": "...", "args": [...] }`. |
+| `entryPoints` | object | Map of kind → executable: `statusBarWidget` and/or `actionContributor` → `{ "command": "...", "args": [...] }`. |
 | `statusBarWidget` | object? | Required when `kinds` includes `status-bar-widget`; see below. |
+| `actions` | array? | Required when `kinds` includes `action-contributor`; see [Contributing palette actions](#contributing-palette-actions). |
 
 The `statusBarWidget` block:
 
@@ -116,6 +119,94 @@ nothing.
 
 par-term closes the plugin's stdin when the plugin is stopped; a
 well-behaved plugin treats stdin EOF as its shutdown signal and exits.
+
+## Contributing palette actions
+
+The second plugin kind, `action-contributor`, declares named actions that
+appear in the command palette and can be bound to keybindings —
+extensibility without recompiling par-term. A manifest declaring the kind
+needs an `actionContributor` entry point and an `actions` block; the
+repository's example greeter is the reference shape:
+
+```json
+{
+  "schemaVersion": 1,
+  "id": "com.example.greeter",
+  "name": "Greeter",
+  "version": "0.1.0",
+  "author": "par-term example",
+  "license": "MIT",
+  "description": "Example action-contributor plugin. Contributes one palette action; each invocation appends a timestamped greeting to stamps.txt next to the script.",
+  "kinds": ["action-contributor"],
+  "activation": "manual",
+  "entryPoints": { "actionContributor": { "command": "greeter.py", "args": [] } },
+  "actions": [
+    { "id": "greet", "label": "Greet", "description": "Append a timestamped greeting to stamps.txt" }
+  ]
+}
+```
+
+Each `actions` entry has an `id`, a `label`, and an optional `description`.
+The `id` must match `[a-zA-Z0-9_-]+` — colons are rejected because the wire
+id is colon-delimited — be unique in the manifest, and carry a non-empty
+`label`. As with every manifest fault, an invalid `actions` block skips the
+whole plugin with a warning, never loads it half-valid.
+
+A plugin may declare both kinds in one manifest; each kind's entry point
+validates and runs independently (one supervised process per kind, sharing
+the plugin's settings).
+
+**The wire id.** Every contributed action is addressable as
+`plugin-action:<plugin-id>:<action-id>` — for the greeter,
+`plugin-action:com.example.greeter:greet`. Enabled plugins' actions appear
+in the palette when it opens, labeled `<manifest label> · <plugin name>`
+(e.g. `Greet · Greeter`). A config keybinding can target the wire id
+directly:
+
+```yaml
+keybindings:
+  - key: "Ctrl+Alt+G"
+    action: "plugin-action:com.example.greeter:greet"
+```
+
+There is deliberately no action-name allowlist at config load: the binding
+is inert until the plugin is installed and enabled. A binding to an absent
+or disabled plugin (or an unknown action) warns once and does nothing —
+the same contract as a binding to a deleted snippet.
+
+**Dispatch semantics.** Activating the palette row or pressing the bound
+chord writes one line to the plugin's running action process on stdin:
+
+```json
+{"kind": "plugin_action_invoked", "data": {"data_type": "PluginActionInvoked", "action": "greet"}}
+```
+
+`true` back to the keybinding layer means **delivered**, not executed:
+par-term does not wait for, parse, or require a response. A plugin whose
+process is between restarts or crash-capped simply does not get the
+invocation (warned once in the log). And the plugin's effects are its own
+process's, by design — an action that wants something done does it itself
+from that event (the greeter appends to `stamps.txt` beside its script);
+plugins cannot ask the host to run commands or write to the terminal in
+v1. That is the whole capability model of an action: a user-enabled
+process running as the user.
+
+**v2 seams (explicitly not in v1).** Two extensions are deliberately
+deferred and recorded here so later phases find them:
+
+- **Action arguments.** v1 actions invoke argumentless. When arguments
+  appear, a schema entry (the same typed schema widgets use) will define
+  palette prompting per argument.
+- **Host-mediated effect commands.** The restricted `ScriptCommand` tier
+  tab scripts use (flags, confirm dialogs, rate limits, denylists) stays
+  scripts-only in v1. Bridging a restricted command set to plugins would
+  reuse that machinery behind per-plugin permission config in the
+  `plugins:` state — deliberately not shipped before any plugin needs it.
+
+The example greeter plugin (`scripts/examples/plugins/com.example.greeter/`)
+is the reference for the kind: copy it under `~/.config/par-term/plugins/`
+and enable it like any plugin. It writes nothing to stdout — its effect is
+a line in its own `stamps.txt` per invocation, and stdin EOF exits cleanly.
 
 ## Settings
 
@@ -169,10 +260,12 @@ plugins as rows regardless of the log level.
 
 ## v1 limits
 
-- **Self-scheduled only.** Plugins receive no terminal events in v1; a
+- **Self-scheduled only.** Widgets receive no terminal events in v1; a
   widget decides for itself when to refresh (the clock sleeps one second).
-  The manifest `subscriptions` field is reserved for a future phase.
-- **One kind**: `status-bar-widget`. `action-contributor`, `panel`, and
+  An action-contributor's process hears about its own invocations and
+  nothing else. The manifest `subscriptions` field is reserved for a
+  future phase.
+- **Two kinds**: `status-bar-widget` and `action-contributor`. `panel` and
   `overlay` kinds are deliberately deferred.
 - **Restart policy is fixed** (on-failure); manifests carry no restart field.
 - **One widget per plugin.**
@@ -197,9 +290,11 @@ for the manifest shape, the settings argv, and the `SetWidget` loop.
 ## Agent ui-test recipe
 
 The `--ui-test` harness ([AGENT_UI_VERIFICATION.md](../guides/AGENT_UI_VERIFICATION.md))
-exposes two plugin operands: `plugins_loaded` (the host's last discovery scan
-found ≥1 valid plugin) and `plugin_widget_set` (some plugin published
-non-empty widget text). This recipe runs both end-to-end from a clean XDG
+exposes three plugin operands: `plugins_loaded` (the host's last discovery
+scan found ≥1 valid plugin), `plugin_widget_set` (some plugin published
+non-empty widget text), and `plugin_action_dispatched` (≥1 plugin action
+invocation was successfully delivered to a running action process this
+session). The clock recipe runs the first two end-to-end from a clean XDG
 root — no user config is touched, and the final `file_empty` assert proves
 nothing leaked to the PTY:
 
@@ -242,6 +337,63 @@ and no keystroke reached the shell. The example plugin needs `python3` (or
 `python`) on `PATH` — on legs with no interpreter the first two asserts fail
 with a not-discovered / not-publishing reading; that is the documented skip,
 not a host defect.
+
+### Actions variant (greeter)
+
+The same harness drives the action kind. This variant installs the greeter,
+binds its wire id to a chord in the test config, presses the chord through
+the real keybinding layer, and asserts the delivery operand:
+
+```bash
+ROOT=/tmp/pt-plugin-action-ui-test
+rm -rf "$ROOT"; mkdir -p "$ROOT/cfg/par-term/plugins"
+cp -r scripts/examples/plugins/com.example.greeter "$ROOT/cfg/par-term/plugins/"
+cat > "$ROOT/cfg/par-term/config.yaml" <<'EOF'
+custom_shell: /bin/sh
+shell_args:
+  - -c
+  - cat > /tmp/pt-plugin-action-ui-test/pty-capture.txt
+shader_install_prompt: never
+shell_integration_state: never
+plugins:
+  - id: com.example.greeter
+    enabled: true
+keybindings:
+  - key: "Ctrl+Alt+G"
+    action: "plugin-action:com.example.greeter:greet"
+EOF
+cat > "$ROOT/script.json" <<'EOF'
+{
+  "steps": [
+    {"wait_ms": 2500, "assert": "plugins_loaded"},
+    {"wait_ms": 1500, "chord": "Ctrl+Alt+G"},
+    {"wait_ms": 500, "assert": "plugin_action_dispatched"},
+    {"assert_not": "modal_guard"},
+    {"assert_eq": ["file_empty", "/tmp/pt-plugin-action-ui-test/pty-capture.txt"]}
+  ]
+}
+EOF
+make build
+XDG_CONFIG_HOME="$ROOT/cfg" ./target/dev-release/par-term \
+  --ui-test "$ROOT/script.json" --ui-test-report "$ROOT/report.json"
+```
+
+The harness has no file-not-empty assert (only `file_empty`), so the recipe
+checks the greeter's side effect — the `stamps.txt` line the invocation
+appended in the plugin's installed directory — from the shell after
+par-term exits:
+
+```bash
+[ -s "$ROOT/cfg/par-term/plugins/com.example.greeter/stamps.txt" ] \
+  && echo "greeter stamped" || echo "MISSING stamps.txt"
+```
+
+`all_passed: true` plus the shell check means the greeter was discovered
+and spawned under the isolated root, the chord reached the keybinding
+registry, dispatch was delivered to the running action process
+(`plugin_action_dispatched = true`), the plugin observed the event and
+wrote its stamp, and nothing leaked to the PTY. As with the clock, the
+interpreter is the environmental dependency.
 
 ## See also
 

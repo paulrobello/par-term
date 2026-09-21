@@ -8,7 +8,7 @@ use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
 
 use par_term_scripting::manifest::{SettingSchemaEntry, validate_settings};
-use par_term_scripting::plugin_manager::EnabledPlugin;
+use par_term_scripting::plugin_manager::{EnabledPlugin, PluginHost};
 
 use crate::config::Config;
 
@@ -63,6 +63,25 @@ impl StatusBarUI {
     /// `plugin_widget_set` ui-test operand.
     pub(crate) fn any_plugin_widget_text(&self) -> bool {
         self.plugins.widget_texts().values().any(|t| !t.is_empty())
+    }
+
+    /// Whether any plugin action invocation was successfully delivered
+    /// this session, for the `plugin_action_dispatched` ui-test operand.
+    pub(crate) fn any_plugin_action_dispatched(&self) -> bool {
+        self.plugins.actions_dispatched_count() >= 1
+    }
+
+    /// Mutable access to the plugin host, for keybinding dispatch of
+    /// plugin-contributed palette actions
+    /// (`plugin-action:<plugin_id>:<action_id>`).
+    pub(crate) fn plugin_host_mut(&mut self) -> &mut PluginHost {
+        &mut self.plugins
+    }
+
+    /// Read-only access to the plugin host, for enumerating plugin-contributed
+    /// palette actions when the command palette opens.
+    pub(crate) fn plugin_host(&self) -> &PluginHost {
+        &self.plugins
     }
 
     /// Persisted settings serialized as the one argv JSON string, validated

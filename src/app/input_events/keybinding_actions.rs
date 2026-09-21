@@ -25,6 +25,7 @@
 //! of which the `match` form could express at all.
 
 use crate::app::window_state::WindowState;
+use crate::command_palette::catalog::plugin_palette_entries;
 
 /// Handler for one named keybinding action.
 ///
@@ -40,8 +41,8 @@ pub(crate) type ActionHandler = fn(&mut WindowState) -> bool;
 /// `dispatch_tests::action_table_has_no_duplicate_keys` enforces.
 ///
 /// Names not found here fall through to `execute_display_keybinding_action`
-/// and then to the `snippet:` / `action:` / `restore_arrangement:` prefix
-/// forms; see `execute_keybinding_action`.
+/// and then to the `snippet:` / `action:` / `restore_arrangement:` /
+/// `plugin-action:` prefix forms; see `execute_keybinding_action`.
 pub(crate) static ACTION_HANDLERS: &[(&str, ActionHandler)] = &[
     ("toggle_background_shader", |s: &mut WindowState| {
         s.toggle_background_shader();
@@ -103,7 +104,8 @@ pub(crate) static ACTION_HANDLERS: &[(&str, ActionHandler)] = &[
     }),
     ("toggle_search", toggle_search),
     ("toggle_command_palette", |s: &mut WindowState| {
-        s.overlay_ui.command_palette.toggle();
+        let plugin_rows = plugin_palette_entries(&s.status_bar_ui.plugin_host().palette_actions());
+        s.overlay_ui.command_palette.toggle(plugin_rows);
         s.focus_state.needs_redraw = true;
         s.request_redraw();
         log::info!(
@@ -476,6 +478,21 @@ fn clear_scrollback(s: &mut WindowState) -> bool {
     true
 }
 
+/// Parse a `plugin-action:<plugin_id>:<action_id>` keybinding action name.
+///
+/// Pure core of the `plugin-action:` miss-path branch: strips the prefix,
+/// splits on the first remaining colon, and rejects empty halves. An action
+/// half containing a further colon parses (split-once) — whether such an id
+/// exists is the manifest lookup's call, not the parser's.
+pub(crate) fn parse_plugin_action_id(action: &str) -> Option<(&str, &str)> {
+    let remainder = action.strip_prefix("plugin-action:")?;
+    let (plugin_id, action_id) = remainder.split_once(':')?;
+    if plugin_id.is_empty() || action_id.is_empty() {
+        return None;
+    }
+    Some((plugin_id, action_id))
+}
+
 impl WindowState {
     /// Execute a keybinding action by name.
     ///
@@ -504,9 +521,35 @@ impl WindowState {
                 arrangement_name
             );
             true
+        } else if action.starts_with("plugin-action:") {
+            match parse_plugin_action_id(action) {
+                Some((plugin_id, action_id)) => self.dispatch_plugin_action(plugin_id, action_id),
+                None => {
+                    // Fires once per keypress, not per frame, so a plain warn
+                    // cannot flood the log the way a render-path warn could.
+                    log::warn!(
+                        "Malformed plugin-action keybinding '{}' (expected \
+                         plugin-action:<plugin_id>:<action_id>)",
+                        action
+                    );
+                    false
+                }
+            }
         } else {
             log::warn!("Unknown keybinding action: {}", action);
             false
         }
+    }
+
+    /// Dispatch a plugin-contributed palette action through the status bar's
+    /// plugin host.
+    ///
+    /// `true` means delivered to the plugin's running action process, not
+    /// executed — the plugin acknowledges (or doesn't) through its next
+    /// output. Every miss returns `false` behind the host's warn-once gates.
+    pub(crate) fn dispatch_plugin_action(&mut self, plugin_id: &str, action_id: &str) -> bool {
+        self.status_bar_ui
+            .plugin_host_mut()
+            .invoke_action(plugin_id, action_id)
     }
 }

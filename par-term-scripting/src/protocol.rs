@@ -71,6 +71,10 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// Event kind for [`ScriptEventData::PluginActionInvoked`]: a user invoked a
+/// plugin-contributed palette action.
+pub const PLUGIN_ACTION_INVOKED_KIND: &str = "plugin_action_invoked";
+
 /// An event sent from the terminal to a script subprocess (via stdin).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ScriptEvent {
@@ -162,6 +166,17 @@ pub enum ScriptEventData {
         zone_type: String,
         /// Event type (e.g., "enter", "exit").
         event: String,
+    },
+
+    /// A plugin-contributed palette action was invoked.
+    ///
+    /// Tab scripts never receive this variant: it is written directly to the
+    /// contributing plugin process's stdin when the host invokes one of its
+    /// actions, and is never routed through the observer fan-out that
+    /// carries other events to scripts.
+    PluginActionInvoked {
+        /// Manifest id of the invoked action.
+        action: String,
     },
 
     /// Fallback for unmapped events. Carries arbitrary key-value fields.
@@ -419,5 +434,31 @@ mod tests {
         assert!(cmd.permission_flag_name().is_none());
         assert!(!cmd.is_rate_limited());
         assert_eq!(cmd.command_name(), "SetWidget");
+    }
+
+    #[test]
+    fn plugin_action_invoked_round_trips_through_serde() {
+        let data = ScriptEventData::PluginActionInvoked {
+            action: "greet".to_string(),
+        };
+        let json = serde_json::to_string(&data).expect("serialize event data");
+        assert_eq!(
+            json, r#"{"data_type":"PluginActionInvoked","action":"greet"}"#,
+            "the wire shape plugin processes parse must stay exact"
+        );
+        let back: ScriptEventData = serde_json::from_str(&json).expect("parse event data back");
+        assert_eq!(back, data);
+
+        let event = ScriptEvent {
+            kind: PLUGIN_ACTION_INVOKED_KIND.to_string(),
+            data,
+        };
+        let line = serde_json::to_string(&event).expect("serialize event");
+        assert_eq!(
+            line,
+            r#"{"kind":"plugin_action_invoked","data":{"data_type":"PluginActionInvoked","action":"greet"}}"#
+        );
+        let parsed: ScriptEvent = serde_json::from_str(&line).expect("parse event line back");
+        assert_eq!(parsed, event);
     }
 }

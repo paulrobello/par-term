@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "com.example.greeter",
+  "name": "Greeter",
+  "version": "0.1.0",
+  "author": "par-term example",
+  "license": "MIT",
+  "description": "Example action-contributor plugin. Contributes one palette action; each invocation appends a timestamped greeting to stamps.txt next to the script.",
+  "kinds": ["action-contributor"],
+  "activation": "manual",
+  "entryPoints": { "actionContributor": { "command": "greeter.py", "args": [] } },
+  "actions": [
+    { "id": "greet", "label": "Greet", "description": "Append a timestamped greeting to stamps.txt" }
+  ]
+}

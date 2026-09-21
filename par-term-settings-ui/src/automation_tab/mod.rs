@@ -116,5 +116,8 @@ pub fn keywords() -> &'static [&'static str] {
         "manifest",
         "widget",
         "extensions",
+        // Plugin actions
+        "plugin action",
+        "palette actions",
     ]
 }

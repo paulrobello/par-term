@@ -10,12 +10,17 @@
 
 use crate::app::input_events::keybinding_actions::ACTION_HANDLERS;
 use crate::app::input_events::keybinding_display_actions::DISPLAY_ACTION_HANDLERS;
+use par_term_scripting::plugin_manager::PluginActionRow;
 use par_term_settings_ui::input_tab::actions_table::AVAILABLE_ACTIONS;
 
 /// One invocable row in the palette.
+///
+/// Owned id so the same row shape carries both built-ins (static ids) and
+/// plugin contributions whose wire ids exist only at runtime.
+#[derive(Clone)]
 pub(crate) struct PaletteEntry {
     /// The string `execute_keybinding_action` dispatches on.
-    pub(crate) action_id: &'static str,
+    pub(crate) action_id: String,
     /// Human-readable name — curated where one exists, derived otherwise.
     pub(crate) label: String,
     /// Default chord advertised for this action, shown right-aligned.
@@ -51,12 +56,12 @@ pub(crate) fn build_catalog() -> Vec<PaletteEntry> {
             let curated = AVAILABLE_ACTIONS.iter().find(|(id, _, _)| *id == action_id);
             match curated {
                 Some((_, display_name, chord)) => PaletteEntry {
-                    action_id,
+                    action_id: action_id.to_string(),
                     label: (*display_name).to_string(),
                     chord: *chord,
                 },
                 None => PaletteEntry {
-                    action_id,
+                    action_id: action_id.to_string(),
                     label: humanize(action_id),
                     chord: None,
                 },
@@ -65,6 +70,25 @@ pub(crate) fn build_catalog() -> Vec<PaletteEntry> {
         .collect();
 
     entries.sort_by(|a, b| a.label.cmp(&b.label));
+    entries
+}
+
+/// Palette entries for plugin-contributed actions, ordered by wire id.
+///
+/// The label arrives from the host already suffixed ` · <plugin name>` and is
+/// passed through untouched; plugin actions have no default chord. Wire-id
+/// order (not label order) makes the snapshot deterministic regardless of the
+/// host's discovery order — the merged view re-sorts by label on open anyway.
+pub(crate) fn plugin_palette_entries(rows: &[PluginActionRow]) -> Vec<PaletteEntry> {
+    let mut entries: Vec<PaletteEntry> = rows
+        .iter()
+        .map(|row| PaletteEntry {
+            action_id: row.wire_id.clone(),
+            label: row.label.clone(),
+            chord: None,
+        })
+        .collect();
+    entries.sort_by(|a, b| a.action_id.cmp(&b.action_id));
     entries
 }
 
@@ -90,7 +114,7 @@ mod tests {
     #[test]
     fn catalog_has_no_duplicate_action_ids() {
         let catalog = build_catalog();
-        let mut ids: Vec<&str> = catalog.iter().map(|e| e.action_id).collect();
+        let mut ids: Vec<&str> = catalog.iter().map(|e| e.action_id.as_str()).collect();
         let total = ids.len();
         ids.sort_unstable();
         ids.dedup();
@@ -151,6 +175,73 @@ mod tests {
         assert_eq!(
             labels, sorted,
             "catalog must be label-ordered for a stable empty-query view"
+        );
+    }
+
+    #[test]
+    fn plugin_palette_entries_maps_host_rows_untouched() {
+        let rows = [PluginActionRow {
+            wire_id: "plugin-action:com.example.demo:say-hello".to_string(),
+            label: "Say Hello · Demo Plugin".to_string(),
+        }];
+        let entries = plugin_palette_entries(&rows);
+        assert_eq!(entries.len(), 1);
+        assert_eq!(
+            entries[0].action_id, "plugin-action:com.example.demo:say-hello",
+            "the wire id is what execute_keybinding_action dispatches on — it \
+             must survive the mapping byte for byte"
+        );
+        assert_eq!(
+            entries[0].label, "Say Hello · Demo Plugin",
+            "the host already suffixed the plugin name; the builder must not \
+             add or strip anything"
+        );
+        assert!(
+            entries[0].chord.is_none(),
+            "plugin actions have no configured default chord"
+        );
+    }
+
+    #[test]
+    fn plugin_palette_entries_are_ordered_by_wire_id() {
+        let rows = [
+            PluginActionRow {
+                wire_id: "plugin-action:com.zzz:act".to_string(),
+                label: "Zeta · Z".to_string(),
+            },
+            PluginActionRow {
+                wire_id: "plugin-action:com.aaa:act".to_string(),
+                label: "Alpha · A".to_string(),
+            },
+        ];
+        let entries = plugin_palette_entries(&rows);
+        let ids: Vec<&str> = entries.iter().map(|e| e.action_id.as_str()).collect();
+        assert_eq!(
+            ids,
+            ["plugin-action:com.aaa:act", "plugin-action:com.zzz:act"],
+            "wire-id order makes the snapshot deterministic regardless of \
+             discovery order"
+        );
+    }
+
+    #[test]
+    fn identically_labelled_plugins_yield_distinct_rows() {
+        let rows = [
+            PluginActionRow {
+                wire_id: "plugin-action:com.a:go".to_string(),
+                label: "Go · Same Name".to_string(),
+            },
+            PluginActionRow {
+                wire_id: "plugin-action:com.b:go".to_string(),
+                label: "Go · Same Name".to_string(),
+            },
+        ];
+        let entries = plugin_palette_entries(&rows);
+        assert_eq!(entries.len(), 2, "both rows must survive the mapping");
+        assert_ne!(
+            entries[0].action_id, entries[1].action_id,
+            "identical labels must not collapse into one row — the wire id is \
+             the only dispatch key"
         );
     }
 

@@ -7,18 +7,25 @@
 //! never spawned as a side effect of discovery — the host spawns only what the
 //! enabled set names, which is what makes "lands disabled" structural.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use par_term_config::StatusBarSection;
 use serde::{Deserialize, Serialize};
 
-/// The only plugin kind v1 understands. Unknown kinds in a manifest skip the
+/// The status-bar-widget plugin kind. Unknown kinds in a manifest skip the
 /// whole plugin with a visible warning rather than loading partially.
 pub const KIND_STATUS_BAR_WIDGET: &str = "status-bar-widget";
 
+/// The action-contributor plugin kind: the plugin contributes entries to
+/// the command palette.
+pub const KIND_ACTION_CONTRIBUTOR: &str = "action-contributor";
+
 /// Entry-point map key for the [`KIND_STATUS_BAR_WIDGET`] kind.
 pub const ENTRY_POINT_STATUS_BAR_WIDGET: &str = "statusBarWidget";
+
+/// Entry-point map key for the [`KIND_ACTION_CONTRIBUTOR`] kind.
+pub const ENTRY_POINT_ACTION_CONTRIBUTOR: &str = "actionContributor";
 
 /// Activation policy declared by the manifest.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -103,6 +110,21 @@ fn default_widget_section() -> StatusBarSection {
     StatusBarSection::Right
 }
 
+/// One action a plugin contributes to the command palette when it declares
+/// the [`KIND_ACTION_CONTRIBUTOR`] kind.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActionContribution {
+    /// Action id; must match `[a-zA-Z0-9_-]+` and be unique within the
+    /// manifest.
+    pub id: String,
+    /// Text shown in the palette entry.
+    pub label: String,
+    /// Longer explanation shown alongside the label.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
 /// One named executable entry point. `command` is relative to the plugin
 /// directory only — never a PATH lookup, never allowed to escape the
 /// directory (enforced by [`discover_plugins`]).
@@ -149,6 +171,10 @@ pub struct PluginManifest {
     /// Required iff `kinds` contains [`KIND_STATUS_BAR_WIDGET`].
     #[serde(default)]
     pub status_bar_widget: Option<StatusBarWidgetKind>,
+    /// Actions contributed to the command palette; required non-empty iff
+    /// `kinds` contains [`KIND_ACTION_CONTRIBUTOR`], ignored otherwise.
+    #[serde(default)]
+    pub actions: Vec<ActionContribution>,
 }
 
 /// A plugin that passed validation, with confinement-checked paths.
@@ -158,8 +184,14 @@ pub struct DiscoveredPlugin {
     pub manifest: PluginManifest,
     /// Canonicalized plugin directory.
     pub dir: PathBuf,
-    /// Canonicalized, confinement-checked entry executable for the widget kind.
+    /// Canonicalized, confinement-checked entry executable for the widget
+    /// kind. A plugin declaring only the action-contributor kind has no
+    /// widget entry and carries its action entry here.
     pub entry_path: PathBuf,
+    /// Canonicalized, confinement-checked entry executable for the
+    /// action-contributor kind; `None` when the plugin does not declare
+    /// that kind.
+    pub action_entry_path: Option<PathBuf>,
 }
 
 /// Why a candidate plugin directory was skipped.
@@ -234,76 +266,145 @@ fn validate_plugin_dir(dir: &Path) -> Result<DiscoveredPlugin, String> {
     if manifest.kinds.is_empty() {
         return Err("no kinds declared".to_string());
     }
+    let known_kinds = [KIND_STATUS_BAR_WIDGET, KIND_ACTION_CONTRIBUTOR];
     let unknown: Vec<&str> = manifest
         .kinds
         .iter()
         .map(String::as_str)
-        .filter(|k| *k != KIND_STATUS_BAR_WIDGET)
+        .filter(|k| !known_kinds.contains(k))
         .collect();
     if !unknown.is_empty() {
         return Err(format!(
-            "unknown kinds: {} (known: {KIND_STATUS_BAR_WIDGET})",
-            unknown.join(", ")
+            "unknown kinds: {} (known: {})",
+            unknown.join(", "),
+            known_kinds.join(", ")
         ));
     }
+    let has_widget = manifest.kinds.iter().any(|k| k == KIND_STATUS_BAR_WIDGET);
+    let has_action = manifest.kinds.iter().any(|k| k == KIND_ACTION_CONTRIBUTOR);
 
-    let widget = manifest
-        .status_bar_widget
-        .as_ref()
-        .ok_or_else(|| format!("{KIND_STATUS_BAR_WIDGET} kind requires a statusBarWidget block"))?;
-    if widget.schema.is_empty() {
-        return Err("statusBarWidget.schema must declare at least one setting".to_string());
-    }
-    if widget.schema.iter().any(|e| e.key.is_empty()) {
-        return Err("statusBarWidget.schema entries must have non-empty keys".to_string());
+    // Each declared kind's requirements run only when that kind is present:
+    // a both-kinds manifest must satisfy both pairs, an action-only manifest
+    // owes no widget block, and vice versa.
+    if has_widget {
+        let widget = manifest.status_bar_widget.as_ref().ok_or_else(|| {
+            format!("{KIND_STATUS_BAR_WIDGET} kind requires a statusBarWidget block")
+        })?;
+        if widget.schema.is_empty() {
+            return Err("statusBarWidget.schema must declare at least one setting".to_string());
+        }
+        if widget.schema.iter().any(|e| e.key.is_empty()) {
+            return Err("statusBarWidget.schema entries must have non-empty keys".to_string());
+        }
     }
 
-    let entry = manifest
-        .entry_points
-        .get(ENTRY_POINT_STATUS_BAR_WIDGET)
-        .ok_or_else(|| {
+    if has_action {
+        if manifest.actions.is_empty() {
+            return Err(format!(
+                "{KIND_ACTION_CONTRIBUTOR} kind requires at least one action in `actions`"
+            ));
+        }
+        let mut seen: HashSet<&str> = HashSet::new();
+        for action in &manifest.actions {
+            // A colon would collide with the wire format's id separator
+            // (design D1); ids stay `[a-zA-Z0-9_-]+`.
+            if action.id.is_empty()
+                || !action
+                    .id
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+            {
+                return Err(format!(
+                    "action id `{}` must match [a-zA-Z0-9_-]+",
+                    action.id
+                ));
+            }
+            if !seen.insert(action.id.as_str()) {
+                return Err(format!("duplicate action id `{}`", action.id));
+            }
+            if action.label.is_empty() {
+                return Err(format!(
+                    "action `{}` must have a non-empty label",
+                    action.id
+                ));
+            }
+        }
+    }
+
+    // The security line: each declared kind's entry command resolves inside
+    // the plugin directory only — canonicalize both sides and require
+    // containment, so a `..` or symlink escape cannot point execution
+    // outside the plugin.
+    let dir_canon =
+        std::fs::canonicalize(dir).map_err(|e| format!("cannot read plugin dir: {e}"))?;
+    let widget_entry = if has_widget {
+        let entry = manifest.entry_points.get(ENTRY_POINT_STATUS_BAR_WIDGET).ok_or_else(|| {
             format!(
                 "{KIND_STATUS_BAR_WIDGET} kind requires entryPoints.{ENTRY_POINT_STATUS_BAR_WIDGET}"
             )
         })?;
+        Some(confinement_check(&dir_canon, &entry.command)?)
+    } else {
+        None
+    };
+    let action_entry = if has_action {
+        let entry = manifest.entry_points.get(ENTRY_POINT_ACTION_CONTRIBUTOR).ok_or_else(|| {
+            format!(
+                "{KIND_ACTION_CONTRIBUTOR} kind requires entryPoints.{ENTRY_POINT_ACTION_CONTRIBUTOR}"
+            )
+        })?;
+        Some(confinement_check(&dir_canon, &entry.command)?)
+    } else {
+        None
+    };
 
-    // The security line: the entry command resolves inside the plugin
-    // directory only — canonicalize both sides and require containment, so a
-    // `..` or symlink escape cannot point execution outside the plugin.
-    let dir_canon =
-        std::fs::canonicalize(dir).map_err(|e| format!("cannot read plugin dir: {e}"))?;
-    let entry_path = dir_canon.join(&entry.command);
+    // `kinds` is non-empty and every kind is known, so at least one entry
+    // resolved; the widget entry is the primary entry when both kinds are
+    // declared.
+    let entry_path = widget_entry
+        .or(action_entry.clone())
+        .expect("a validated manifest resolves at least one entry point");
+
+    Ok(DiscoveredPlugin {
+        manifest,
+        dir: dir_canon,
+        entry_path,
+        action_entry_path: action_entry,
+    })
+}
+
+/// Canonicalize one entry command and enforce the confinement rules every
+/// kind's entry shares: the resolved path must stay inside the plugin
+/// directory (no `..` or symlink escape) and, on Unix, carry the exec bit
+/// unless it is a `.py` entry.
+///
+/// `.py` entries run through the resolved Python interpreter (the same
+/// `spawn_command` routing), so the file itself never needs the exec bit —
+/// requiring it would silently reject every non-chmodded script plugin on
+/// Unix while Windows (no exec bit) accepts it.
+fn confinement_check(dir_canon: &Path, command: &str) -> Result<PathBuf, String> {
+    let entry_path = dir_canon.join(command);
     let entry_canon = std::fs::canonicalize(&entry_path)
-        .map_err(|_| format!("entry point `{}` not found", entry.command))?;
-    if !entry_canon.starts_with(&dir_canon) {
+        .map_err(|_| format!("entry point `{command}` not found"))?;
+    if !entry_canon.starts_with(dir_canon) {
         return Err(format!(
-            "entry point `{}` escapes the plugin directory",
-            entry.command
+            "entry point `{command}` escapes the plugin directory"
         ));
     }
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        // `.py` entries run through the resolved Python interpreter (the
-        // same `spawn_command` routing), so the file itself never needs the
-        // exec bit — requiring it would silently reject every non-chmodded
-        // script plugin on Unix while Windows (no exec bit) accepts it.
-        if !entry.command.ends_with(".py") {
+        if !command.ends_with(".py") {
             let mode = std::fs::metadata(&entry_canon)
                 .map_err(|e| format!("entry point unreadable: {e}"))?
                 .permissions()
                 .mode();
             if mode & 0o111 == 0 {
-                return Err(format!("entry point `{}` is not executable", entry.command));
+                return Err(format!("entry point `{command}` is not executable"));
             }
         }
     }
-
-    Ok(DiscoveredPlugin {
-        manifest,
-        dir: dir_canon,
-        entry_path: entry_canon,
-    })
+    Ok(entry_canon)
 }
 
 /// Validate persisted settings against a manifest schema.
@@ -418,6 +519,42 @@ mod tests {
         }
     }"#;
 
+    /// Minimal valid action-contributor manifest, the action-kind counterpart
+    /// of [`MINIMAL_MANIFEST`]. `{id}` is replaced by [`write_plugin`].
+    const MINIMAL_ACTION_MANIFEST: &str = r#"{
+        "schemaVersion": 1,
+        "id": "{id}",
+        "name": "Test Actions",
+        "version": "0.1.0",
+        "kinds": ["action-contributor"],
+        "entryPoints": { "actionContributor": { "command": "actions.py", "args": [] } },
+        "actions": [ { "id": "say-hello", "label": "Say hello" } ]
+    }"#;
+
+    /// Both-kinds manifest: one plugin contributing a widget and an action.
+    /// `{id}` is replaced by [`write_plugin`].
+    const BOTH_KINDS_MANIFEST: &str = r#"{
+        "schemaVersion": 1,
+        "id": "{id}",
+        "name": "Test Both",
+        "version": "0.1.0",
+        "kinds": ["status-bar-widget", "action-contributor"],
+        "entryPoints": {
+            "statusBarWidget": { "command": "widget.py", "args": [] },
+            "actionContributor": { "command": "actions.py", "args": [] }
+        },
+        "actions": [ { "id": "ping", "label": "Ping" } ],
+        "statusBarWidget": {
+            "displayName": "Test",
+            "section": "right",
+            "defaults": {},
+            "schema": [
+                { "key": "format24h", "type": "boolean", "label": "24-hour clock",
+                  "defaultValue": true }
+            ]
+        }
+    }"#;
+
     /// Write a plugin directory: manifest plus an executable entry file.
     /// `manifest` may use `{id}` placeholders for the directory name so tests
     /// can keep manifest id and dir name in sync.
@@ -427,15 +564,19 @@ mod tests {
         let manifest = manifest.replace("{id}", dir_name);
         fs::write(dir.join("manifest.json"), manifest).expect("write manifest");
         if let Some(entry_name) = entry {
-            let path = dir.join(entry_name);
-            fs::write(&path, "#!/bin/sh\nsleep 30\n").expect("write entry");
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt;
-                let mut perms = fs::metadata(&path).expect("entry metadata").permissions();
-                perms.set_mode(0o755);
-                fs::set_permissions(&path, perms).expect("chmod entry");
-            }
+            write_exec_file(&dir.join(entry_name));
+        }
+    }
+
+    /// Write one executable entry file, with the exec bit on Unix.
+    fn write_exec_file(path: &Path) {
+        fs::write(path, "#!/bin/sh\nsleep 30\n").expect("write entry");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = fs::metadata(path).expect("entry metadata").permissions();
+            perms.set_mode(0o755);
+            fs::set_permissions(path, perms).expect("chmod entry");
         }
     }
 
@@ -524,7 +665,7 @@ mod tests {
     #[test]
     fn unknown_kind_skips_the_plugin_with_a_warning() {
         let tmp = TempDir::new().unwrap();
-        let manifest = MINIMAL_MANIFEST.replace("status-bar-widget", "action-contributor");
+        let manifest = MINIMAL_MANIFEST.replace("status-bar-widget", "some-future-kind");
         write_plugin(tmp.path(), "com.example.test", &manifest, Some("widget.py"));
         let (plugins, warnings) = discover_plugins(tmp.path());
         assert!(plugins.is_empty());
@@ -532,7 +673,7 @@ mod tests {
         assert!(
             warnings[0]
                 .reason
-                .contains("unknown kinds: action-contributor")
+                .contains("unknown kinds: some-future-kind")
         );
     }
 
@@ -648,6 +789,163 @@ mod tests {
             warnings[0]
                 .reason
                 .contains("requires entryPoints.statusBarWidget")
+        );
+    }
+
+    #[test]
+    fn action_kind_manifest_discovers_with_action_entry_path() {
+        let tmp = TempDir::new().unwrap();
+        write_plugin(
+            tmp.path(),
+            "com.example.actions",
+            MINIMAL_ACTION_MANIFEST,
+            Some("actions.py"),
+        );
+        let (plugins, warnings) = discover_plugins(tmp.path());
+        assert!(warnings.is_empty(), "unexpected warnings: {warnings:?}");
+        assert_eq!(plugins.len(), 1);
+        let p = &plugins[0];
+        let action_entry = p.action_entry_path.as_ref().expect("action entry set");
+        assert!(
+            action_entry.starts_with(&p.dir),
+            "must stay inside the plugin dir"
+        );
+        assert!(action_entry.ends_with("actions.py"));
+        assert_eq!(p.manifest.actions.len(), 1);
+        assert_eq!(p.manifest.actions[0].id, "say-hello");
+        assert_eq!(p.manifest.actions[0].label, "Say hello");
+        assert_eq!(p.manifest.actions[0].description, None);
+    }
+
+    #[test]
+    fn both_kinds_manifest_discovers_with_both_entry_paths() {
+        let tmp = TempDir::new().unwrap();
+        write_plugin(
+            tmp.path(),
+            "com.example.both",
+            BOTH_KINDS_MANIFEST,
+            Some("widget.py"),
+        );
+        write_exec_file(&tmp.path().join("com.example.both/actions.py"));
+        let (plugins, warnings) = discover_plugins(tmp.path());
+        assert!(warnings.is_empty(), "unexpected warnings: {warnings:?}");
+        assert_eq!(plugins.len(), 1);
+        let p = &plugins[0];
+        assert!(
+            p.entry_path.ends_with("widget.py"),
+            "widget entry stays the primary entry"
+        );
+        let action_entry = p.action_entry_path.as_ref().expect("action entry set");
+        assert!(
+            action_entry.starts_with(&p.dir),
+            "must stay inside the plugin dir"
+        );
+        assert!(action_entry.ends_with("actions.py"));
+        assert_eq!(
+            p.manifest.kinds,
+            vec![
+                KIND_STATUS_BAR_WIDGET.to_string(),
+                KIND_ACTION_CONTRIBUTOR.to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn action_kind_with_empty_actions_is_skipped() {
+        let tmp = TempDir::new().unwrap();
+        let manifest = MINIMAL_ACTION_MANIFEST
+            .replace(r#"[ { "id": "say-hello", "label": "Say hello" } ]"#, "[]");
+        write_plugin(
+            tmp.path(),
+            "com.example.actions",
+            &manifest,
+            Some("actions.py"),
+        );
+        let (plugins, warnings) = discover_plugins(tmp.path());
+        assert!(plugins.is_empty());
+        assert!(
+            warnings[0]
+                .reason
+                .contains("action-contributor kind requires")
+        );
+    }
+
+    #[test]
+    fn action_id_with_a_colon_is_skipped() {
+        let tmp = TempDir::new().unwrap();
+        // A colon in an action id would collide with the wire format's id
+        // separator (design D1), so the manifest is skipped outright.
+        let manifest = MINIMAL_ACTION_MANIFEST.replace("\"say-hello\"", "\"say:hello\"");
+        write_plugin(
+            tmp.path(),
+            "com.example.actions",
+            &manifest,
+            Some("actions.py"),
+        );
+        let (plugins, warnings) = discover_plugins(tmp.path());
+        assert!(plugins.is_empty());
+        assert!(warnings[0].reason.contains("action id `say:hello`"));
+    }
+
+    #[test]
+    fn duplicate_action_ids_are_skipped() {
+        let tmp = TempDir::new().unwrap();
+        let manifest = MINIMAL_ACTION_MANIFEST.replace(
+            r#"{ "id": "say-hello", "label": "Say hello" }"#,
+            r#"{ "id": "say-hello", "label": "First" }, { "id": "say-hello", "label": "Second" }"#,
+        );
+        write_plugin(
+            tmp.path(),
+            "com.example.actions",
+            &manifest,
+            Some("actions.py"),
+        );
+        let (plugins, warnings) = discover_plugins(tmp.path());
+        assert!(plugins.is_empty());
+        assert!(
+            warnings[0]
+                .reason
+                .contains("duplicate action id `say-hello`")
+        );
+    }
+
+    #[test]
+    fn action_with_empty_label_is_skipped() {
+        let tmp = TempDir::new().unwrap();
+        let manifest =
+            MINIMAL_ACTION_MANIFEST.replace("\"label\": \"Say hello\"", "\"label\": \"\"");
+        write_plugin(
+            tmp.path(),
+            "com.example.actions",
+            &manifest,
+            Some("actions.py"),
+        );
+        let (plugins, warnings) = discover_plugins(tmp.path());
+        assert!(plugins.is_empty());
+        assert!(warnings[0].reason.contains("non-empty label"));
+    }
+
+    #[test]
+    fn actions_without_the_action_kind_are_valid_and_ignored() {
+        let tmp = TempDir::new().unwrap();
+        // Forward compat: a newer host's action plugin must still discover
+        // here as a plain widget plugin; the inert `actions` block is not a
+        // reason to skip.
+        let manifest = MINIMAL_MANIFEST.replacen(
+            "\"kinds\": [\"status-bar-widget\"],",
+            concat!(
+                "\"kinds\": [\"status-bar-widget\"], ",
+                "\"actions\": [ { \"id\": \"orphan\", \"label\": \"Orphan\" } ],"
+            ),
+            1,
+        );
+        write_plugin(tmp.path(), "com.example.test", &manifest, Some("widget.py"));
+        let (plugins, warnings) = discover_plugins(tmp.path());
+        assert!(warnings.is_empty(), "unexpected warnings: {warnings:?}");
+        assert_eq!(plugins.len(), 1);
+        assert!(
+            plugins[0].action_entry_path.is_none(),
+            "no action kind declared, so no action entry is required or resolved"
         );
     }
 

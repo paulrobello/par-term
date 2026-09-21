@@ -492,6 +492,7 @@ impl WindowManager {
                     "agent_usage_ready" => !ws.status_bar_ui.usage_snapshot().records.is_empty(),
                     "plugins_loaded" => ws.status_bar_ui.plugins_discovered_count() >= 1,
                     "plugin_widget_set" => ws.status_bar_ui.any_plugin_widget_text(),
+                    "plugin_action_dispatched" => ws.status_bar_ui.any_plugin_action_dispatched(),
                     "modal_guard" => ws.any_modal_ui_visible(),
                     "egui_keyboard" => ws.is_egui_using_keyboard(),
                     "fullscreen" => ws.window.as_ref().is_some_and(|w| w.fullscreen().is_some()),
