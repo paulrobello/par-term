@@ -332,14 +332,17 @@ fn titlebar_strip(
 /// view (the content view's superview), covering exactly the titlebar strip.
 /// On macOS 27 the titlebar's own paint comes from the clear window
 /// background, so this bar is what the user sees behind the traffic lights
-/// and title text (both of which AppKit keeps above frame-view subviews).
+/// and title text (subviews of the titlebar container; the bar is inserted
+/// BELOW that container, never stacked on top of it).
 /// A plain NSView without a mouseDown override answers
 /// `mouseDownCanMoveWindow` YES, so dragging/double-clicking the titlebar
 /// keeps working through it.
 #[cfg(target_os = "macos")]
 fn ensure_titlebar_backing_bar(ns_window: &objc2_app_kit::NSWindow) -> Result<()> {
     use objc2::MainThreadMarker;
-    use objc2_app_kit::{NSAutoresizingMaskOptions, NSBox, NSBoxType, NSTitlePosition};
+    use objc2_app_kit::{
+        NSAutoresizingMaskOptions, NSBox, NSBoxType, NSTitlePosition, NSWindowOrderingMode,
+    };
     use objc2_foundation::NSString;
 
     let Some(frame_view) = ns_window
@@ -388,9 +391,33 @@ fn ensure_titlebar_backing_bar(ns_window: &objc2_app_kit::NSWindow) -> Result<()
     bar.setAutoresizingMask(
         NSAutoresizingMaskOptions::ViewWidthSizable | NSAutoresizingMaskOptions::ViewMinYMargin,
     );
-    frame_view.addSubview(&bar);
+    // Insert ABOVE the content view but BELOW the titlebar container (the
+    // sibling holding the traffic lights and title text). A plain
+    // `addSubview:` stacks the bar on top of the whole frame view and covers
+    // them (user-observed 2026-09-21: buttons and title vanish below 100%
+    // opacity); anchoring to the content view backs the strip against
+    // translucent content while every system titlebar subview stays above.
+    frame_view.addSubview_positioned_relativeTo(
+        &bar,
+        NSWindowOrderingMode::Above,
+        ns_window.contentView().as_deref(),
+    );
 
-    log::debug!("Installed opaque titlebar backing bar ({TITLEBAR_BACKING_BAR_ID})");
+    // Read back the z-position: this bug class (bar geometry/order) has twice
+    // only been caught by introspecting the live hierarchy.
+    // SAFETY: subviews/count/indexOfObject: are standard AppKit/Foundation
+    // messages on live objects owned by the frame view.
+    let (z_index, subview_count) = unsafe {
+        let subs: objc2::rc::Retained<objc2::runtime::AnyObject> =
+            objc2::msg_send![&frame_view, subviews];
+        let count: usize = objc2::msg_send![&*subs, count];
+        let idx: usize = objc2::msg_send![&*subs, indexOfObject: &*bar];
+        (idx, count)
+    };
+    log::debug!(
+        "Installed opaque titlebar backing bar ({TITLEBAR_BACKING_BAR_ID}) \
+         at z-index {z_index} of {subview_count} frame-view subviews"
+    );
     Ok(())
 }
 
