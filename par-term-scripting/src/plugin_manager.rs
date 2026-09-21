@@ -381,17 +381,19 @@ impl PluginHost {
     ) {
         let Some((entry_path, entry_args)) = entry else {
             if self.warned_spawn_failed.should_warn(id) {
-                log::warn!("plugin '{id}' has no {} entry point; not spawned", slot.as_str());
+                log::warn!(
+                    "plugin '{id}' has no {} entry point; not spawned",
+                    slot.as_str()
+                );
             }
             return;
         };
-        if !self.running_map(slot).contains_key(id)
-            && !self.delayed_by_backoff(id, slot, now)
-        {
+        if !self.running_map(slot).contains_key(id) && !self.delayed_by_backoff(id, slot, now) {
             match Self::spawn_entry(&mut self.manager, &entry_path, &entry_args, settings_json) {
                 Ok(sid) => {
                     self.running_map(slot).insert(id.to_string(), sid);
-                    self.settings_json.insert(id.to_string(), settings_json.to_string());
+                    self.settings_json
+                        .insert(id.to_string(), settings_json.to_string());
                     self.restart_map(slot)
                         .entry(id.to_string())
                         .or_insert_with(|| {

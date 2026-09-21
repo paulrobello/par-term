@@ -414,9 +414,10 @@ fn validate_plugin_dir(dir: &Path) -> Result<DiscoveredPlugin, String> {
     // The panel kind owes no manifest block beyond its entry point — the
     // pushed content is entirely the process's decision at runtime.
     let panel_entry = if has_panel {
-        let entry = manifest.entry_points.get(ENTRY_POINT_PANEL).ok_or_else(|| {
-            format!("{KIND_PANEL} kind requires entryPoints.{ENTRY_POINT_PANEL}")
-        })?;
+        let entry = manifest
+            .entry_points
+            .get(ENTRY_POINT_PANEL)
+            .ok_or_else(|| format!("{KIND_PANEL} kind requires entryPoints.{ENTRY_POINT_PANEL}"))?;
         Some(confinement_check(&dir_canon, &entry.command)?)
     } else {
         None
