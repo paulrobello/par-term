@@ -203,3 +203,10 @@ allow_all_env_vars: true
 - [Configuration Reference](../CONFIG_REFERENCE.md) — All configuration options
 - [Getting Started](GETTING_STARTED.md) — Installation and first-launch walkthrough
 - [Debug Logging](../LOGGING.md) — Detailed logging documentation
+
+## `PAR_TERM_AGENT_USAGE_RECORDS_DIR`
+
+Overrides the agent-usage records directory (default
+`~/.local/state/par-term/agents/usage/` on Linux/macOS,
+`%LOCALAPPDATA%\par-term\agents\usage\` on Windows). Used for hermetic
+`--ui-test` runs and debugging; see [Agent Usage](../features/AGENT_USAGE.md).

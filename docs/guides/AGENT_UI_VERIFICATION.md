@@ -50,13 +50,15 @@ A JSON object with a `steps` array. Each step is one object with an optional
 |---|---|
 | `{"chord": "Ctrl+Alt+Cmd+P"}` | Inject a chord through the **real keybinding layer**: config registry lookup → `execute_keybinding_action`. Mirrors `handle_key_event`'s modal guard, so chords are blocked while a modal overlay is open, exactly as real keys are. |
 | `{"type_text": "fullscr"}` | Deliver text to the focused egui widget (the same synthetic-input channel macOS menu accelerators use). |
-| `{"press": "Enter"}` | Press a named key on the egui side. Names: `Enter`, `Escape`, `Tab`, `Backspace`, `Delete`, arrows, `Home`, `End`, `PageUp`, `PageDown`, `F1`–`F12`. |
+| `{"press": "Enter"}` | Press a named key on the egui side. Names: `Enter`, `Escape`, `Tab`, `Backspace`, `Delete`, arrows, `Home`, `End`, `PageUp`, `PageDown`, `F1`–`F12`, and single letters `a`–`z` (for overlays with letter-driven keys, e.g. the agent-usage panel's `r`). |
 | `{"assert": "X"}` / `{"assert_not": "X"}` | Boolean conditions, below. |
 | `{"assert_eq": ["what", "expected"]}` | Keyed values, below. |
 
 ### Boolean operands
 
 - `palette_open` / `search_open` — overlay visible
+- `agent_usage_panel_open` — the agent-usage popup panel is visible
+- `agent_usage_ready` — the usage store has ≥1 displayable record
 - `settings_window_open` — the standalone settings window is open
 - `modal_guard` — `any_modal_ui_visible()`: the guard that blocks keys from the PTY
 - `egui_keyboard` — egui owns keyboard focus (a text field is focused)

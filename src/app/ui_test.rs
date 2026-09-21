@@ -128,6 +128,8 @@ pub(crate) struct StepRecord {
 pub(crate) struct Observation {
     /// Command palette overlay visible.
     palette_open: bool,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    agent_usage_panel_open: bool,
     /// Search overlay visible.
     search_open: bool,
     /// Standalone settings window open.
@@ -465,12 +467,14 @@ impl WindowManager {
     fn ui_test_bool(&self, name: &str) -> Option<bool> {
         Some(match name {
             "palette_open" => self.ui_test_palette_open(),
+            "agent_usage_panel_open" => self.ui_test_agent_usage_panel_open(),
             "settings_window_open" => self.settings_window.is_some(),
             // Manager-level fallbacks when no terminal window exists yet.
             _ => {
                 let ws = self.ui_test_window_state()?;
                 match name {
                     "search_open" => ws.overlay_ui.search_ui.visible,
+                    "agent_usage_ready" => !ws.status_bar_ui.usage_snapshot().records.is_empty(),
                     "modal_guard" => ws.any_modal_ui_visible(),
                     "egui_keyboard" => ws.is_egui_using_keyboard(),
                     "fullscreen" => ws.window.as_ref().is_some_and(|w| w.fullscreen().is_some()),
@@ -516,6 +520,12 @@ impl WindowManager {
             .is_some_and(|ws| ws.overlay_ui.command_palette.visible)
     }
 
+    /// Agent-usage panel visibility, same window-level probing contract.
+    fn ui_test_agent_usage_panel_open(&self) -> bool {
+        self.ui_test_window_state()
+            .is_some_and(|ws| ws.overlay_ui.agent_usage_panel.visible)
+    }
+
     /// The first non-settings terminal window's state, if one exists.
     fn ui_test_window_state(&self) -> Option<&WindowState> {
         self.windows
@@ -529,6 +539,7 @@ impl WindowManager {
         let ws = self.ui_test_window_state();
         Observation {
             palette_open: ws.is_some_and(|w| w.overlay_ui.command_palette.visible),
+            agent_usage_panel_open: ws.is_some_and(|w| w.overlay_ui.agent_usage_panel.visible),
             search_open: ws.is_some_and(|w| w.overlay_ui.search_ui.visible),
             settings_window_open: self.settings_window.is_some(),
             modal_guard: ws.is_some_and(|w| w.any_modal_ui_visible()),

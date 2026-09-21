@@ -295,6 +295,7 @@ Everything below lives under `docs/` except where the path says otherwise.
 | Copy mode | `docs/features/COPY_MODE.md` |
 | Search | `docs/features/SEARCH.md` |
 | Status bar | `docs/features/STATUS_BAR.md` |
+| Agent usage panel | `docs/features/AGENT_USAGE.md` |
 | Badges | `docs/features/BADGES.md` |
 | Integrations | `docs/features/INTEGRATIONS.md` |
 | Command history | `docs/features/COMMAND_HISTORY.md` |

@@ -52,7 +52,7 @@ status_bar_enabled: true
 
 ## Built-in Widgets
 
-par-term includes 11 built-in widgets plus custom widgets:
+par-term includes 12 built-in widgets plus custom widgets:
 
 | Widget | YAML ID | Description | Default Section | Default State |
 |--------|---------|-------------|-----------------|---------------|
@@ -67,6 +67,7 @@ par-term includes 11 built-in widgets plus custom widgets:
 | **Bell Indicator** | `bell_indicator` | Bell emoji with count, shown when count > 0 (e.g., "🔔 3") | Right | Enabled |
 | **Update Available** | `update_available` | Yellow up-arrow with available version (e.g., "⬆ v0.20.0") | Right | Enabled |
 | **Current Command** | `current_command` | Currently executing shell command | Center | Enabled |
+| **Agent Usage** | `agent_usage` | Tightest subscription limit across agents (e.g. "◆ 71%"); self-hides | Right | Disabled |
 | **Custom Text** | `custom:<name>` | User-defined text with variable interpolation | Configurable | User-created |
 
 ### Clock
@@ -136,7 +137,7 @@ Widgets within each section are separated by a configurable separator character 
 |---------|-------------------|
 | **Left** | User@Hostname, Current Directory, Git Branch |
 | **Center** | Current Command |
-| **Right** | CPU (off), Memory (off), Network (off), Disk (off), Bell, Clock, Update Available |
+| **Right** | CPU (off), Memory (off), Network (off), Disk (off), Agent Usage (off), Bell, Clock, Update Available |
 
 Widgets can be moved between sections and reordered via the Settings UI.
 
@@ -421,6 +422,7 @@ The Status Bar tab in Settings (`F12`) provides six sections:
 
 ## Related Documentation
 
+- [Agent Usage](AGENT_USAGE.md) - the records-directory usage panel the `agent_usage` widget summarizes
 - [Window Management](WINDOW_MANAGEMENT.md) - Status bar positioning in the window layout
 - [Profiles](PROFILES.md) - Session variables used by widgets
 - [Keyboard Shortcuts](../guides/KEYBOARD_SHORTCUTS.md) - Complete shortcut reference
