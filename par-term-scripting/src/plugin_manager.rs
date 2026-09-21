@@ -122,7 +122,11 @@ pub struct PluginHost {
     action_running: HashMap<String, ScriptId>,
     /// The host's own script registry; never shared with tab scripts.
     manager: ScriptManager,
-    /// Last `SetWidget` text per plugin id (last write wins).
+    /// Last `SetWidget` text per plugin id (last write wins). Either kind's
+    /// process writes through the same shared key; stopping the action kind
+    /// leaves its last text latched until the widget kind stops or teardown
+    /// clears it (documented asymmetry, consistent with the shared-key
+    /// contract).
     widget_texts: HashMap<String, String>,
     /// Successful [`Self::invoke_action`] stdin writes this session — the
     /// `plugin_action_dispatched` ui-test operand's source. Monotonic for
@@ -213,6 +217,7 @@ impl PluginHost {
         self.enabled_ids = enabled_ids.clone();
         self.warned_not_discovered.clear_except(&enabled_ids);
         self.warned_spawn_failed.clear_except(&enabled_ids);
+        self.warned_action_not_running.clear_except(&enabled_ids);
 
         for plugin in enabled {
             let Some(found) = self.discovered.iter().find(|d| d.manifest.id == plugin.id) else {
@@ -352,11 +357,7 @@ impl PluginHost {
     /// polled here — without this gate, a persistently-failing entry
     /// re-executes once per render frame.
     fn delayed_by_backoff(&mut self, id: &str, action: bool, now: Instant) -> bool {
-        let state = if action {
-            self.action_restart.get_mut(id)
-        } else {
-            self.restart.get_mut(id)
-        };
+        let state = self.restart_map(action).get_mut(id);
         match state {
             Some(state) if state.pending() => state.poll(now) != RestartAction::Restart,
             _ => false,
@@ -369,22 +370,16 @@ impl PluginHost {
     /// the crash-loop path gets via [`Self::stop_kind`].
     fn arm_backoff(&mut self, id: &str, action: bool, now: Instant) {
         let gave_up = {
-            let state = if action {
-                self.action_restart.entry(id.to_string())
-            } else {
-                self.restart.entry(id.to_string())
-            }
-            .or_insert_with(|| {
-                ScriptRestartState::new(RestartPolicy::OnFailure, PLUGIN_RESTART_DELAY_MS)
-            });
+            let state = self
+                .restart_map(action)
+                .entry(id.to_string())
+                .or_insert_with(|| {
+                    ScriptRestartState::new(RestartPolicy::OnFailure, PLUGIN_RESTART_DELAY_MS)
+                });
             state.reschedule(now) == RestartAction::Stop
         };
         if gave_up {
-            if action {
-                self.action_restart.remove(id);
-            } else {
-                self.restart.remove(id);
-            }
+            self.restart_map(action).remove(id);
         }
     }
 
@@ -411,11 +406,7 @@ impl PluginHost {
     /// entry): drain commands, observe an exit, and act on the supervisor's
     /// decision. Shared by both kinds so their supervision is identical.
     fn poll_one(&mut self, id: &str, action: bool, now: Instant) {
-        let Some(&sid) = (if action {
-            self.action_running.get(id)
-        } else {
-            self.running.get(id)
-        }) else {
+        let Some(&sid) = self.running_map(action).get(id) else {
             return;
         };
 
@@ -439,11 +430,7 @@ impl PluginHost {
         }
 
         if let ScriptStatus::Exited { success } = self.manager.poll_status(sid) {
-            let decision = match if action {
-                self.action_restart.get_mut(id)
-            } else {
-                self.restart.get_mut(id)
-            } {
+            let decision = match self.restart_map(action).get_mut(id) {
                 Some(state) if !state.pending() => state.on_exit(now, success),
                 Some(state) => state.poll(now),
                 None => RestartAction::Stop,
@@ -458,11 +445,7 @@ impl PluginHost {
                             if action { "action" } else { "widget" },
                             error
                         );
-                        if let Some(state) = if action {
-                            self.action_restart.get_mut(id)
-                        } else {
-                            self.restart.get_mut(id)
-                        } {
+                        if let Some(state) = self.restart_map(action).get_mut(id) {
                             state.reschedule(now);
                         }
                     }
@@ -636,30 +619,40 @@ impl PluginHost {
         self.stop_kind(id, true);
     }
 
+    /// The running-process map for one kind (`action_running` vs `running`).
+    /// Every per-kind code path selects its pair through this so the two maps
+    /// cannot drift apart; `!action` selects the other kind's map.
+    fn running_map(&mut self, action: bool) -> &mut HashMap<String, ScriptId> {
+        if action {
+            &mut self.action_running
+        } else {
+            &mut self.running
+        }
+    }
+
+    /// The restart-supervisor map for one kind — see [`Self::running_map`].
+    fn restart_map(&mut self, action: bool) -> &mut HashMap<String, ScriptRestartState> {
+        if action {
+            &mut self.action_restart
+        } else {
+            &mut self.restart
+        }
+    }
+
     /// Stop one kind's process and drop its supervision. Shared per-plugin
     /// state (settings argv, warn gates) survives while the other kind still
     /// runs, so a crash-looping action entry never tears down a healthy
     /// widget entry of the same plugin (design D5).
     fn stop_kind(&mut self, id: &str, action: bool) {
-        let slot = if action {
-            self.action_running.remove(id)
-        } else {
-            self.running.remove(id)
-        };
+        let slot = self.running_map(action).remove(id);
         if let Some(sid) = slot {
             self.manager.stop_script(sid);
         }
-        if action {
-            self.action_restart.remove(id);
-        } else {
-            self.restart.remove(id);
+        self.restart_map(action).remove(id);
+        if !action {
             self.widget_texts.remove(id);
         }
-        let other_running = if action {
-            self.running.contains_key(id)
-        } else {
-            self.action_running.contains_key(id)
-        };
+        let other_running = self.running_map(!action).contains_key(id);
         if !other_running {
             self.settings_json.remove(id);
             // Disarming the fault gates here makes a disable/enable cycle
@@ -697,19 +690,11 @@ impl PluginHost {
             (found.entry_path.clone(), widget_entry_args(found).to_vec())
         };
         let new_sid = Self::spawn_entry(&mut self.manager, &entry_path, &entry_args, &settings)?;
-        let old = if action {
-            self.action_running.insert(id.to_string(), new_sid)
-        } else {
-            self.running.insert(id.to_string(), new_sid)
-        };
+        let old = self.running_map(action).insert(id.to_string(), new_sid);
         if let Some(old_sid) = old {
             self.manager.stop_script(old_sid);
         }
-        if let Some(state) = if action {
-            self.action_restart.get_mut(id)
-        } else {
-            self.restart.get_mut(id)
-        } {
+        if let Some(state) = self.restart_map(action).get_mut(id) {
             state.on_started(now);
         }
         Ok(new_sid)
@@ -1235,6 +1220,27 @@ for line in iter(sys.stdin.readline, ""):
             warns_containing(fragment),
             1,
             "5 invokes of one steady miss must produce exactly 1 warn"
+        );
+    }
+
+    #[test]
+    fn disable_enable_cycle_rearms_the_action_warn_gate() {
+        // A discovered+enabled plugin whose action entry never spawned holds a
+        // set action warn gate; disabling must prune it (apply_enabled's
+        // clear_except) so a re-enable warns again instead of staying
+        // stale-silent across the cycle. Arms the gate directly — the same
+        // seam every invoke miss-path uses.
+        let mut host = PluginHost::new();
+        assert!(host.warned_action_not_running.should_warn("com.test.gate"));
+        assert!(
+            !host.warned_action_not_running.should_warn("com.test.gate"),
+            "second call in the same episode must be silent"
+        );
+
+        host.apply_enabled(&[]);
+        assert!(
+            host.warned_action_not_running.should_warn("com.test.gate"),
+            "a disable/enable cycle must re-arm the action warn gate"
         );
     }
 
