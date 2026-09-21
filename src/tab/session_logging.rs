@@ -2,7 +2,7 @@
 //!
 //! Provides methods for toggling session logging on/off and querying its state.
 
-use crate::config::Config;
+use crate::config::{Config, SessionLogFormat};
 use crate::session_logger::SessionLogger;
 use crate::tab::Tab;
 use std::sync::Arc;
@@ -63,6 +63,18 @@ impl Tab {
             )?;
 
             logger.set_redact_passwords(config.session_log.session_log_redact_passwords);
+
+            // v3 logs get the graphics-aware exporter: it ferries the recording
+            // to the core lib's export through the terminal at stop() time.
+            if config.session_log.session_log_format == SessionLogFormat::AsciicastV3 {
+                let tm = Arc::clone(&self.terminal);
+                logger.set_v3_exporter(Box::new(move |session| {
+                    tm.try_read()
+                        .ok()
+                        .map(|tm| tm.export_session_asciicast_v3(session))
+                }));
+            }
+
             logger.start()?;
 
             // SEC-002: Emit a prominent one-time warning when session logging is enabled.

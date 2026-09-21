@@ -229,15 +229,20 @@ fn test_session_log_format_enum() {
         SessionLogFormat::Asciicast.display_name(),
         "Asciicast (asciinema)"
     );
+    assert_eq!(
+        SessionLogFormat::AsciicastV3.display_name(),
+        "Asciicast v3 (graphics)"
+    );
 
     // Test file extensions
     assert_eq!(SessionLogFormat::Plain.extension(), "txt");
     assert_eq!(SessionLogFormat::Html.extension(), "html");
     assert_eq!(SessionLogFormat::Asciicast.extension(), "cast");
+    assert_eq!(SessionLogFormat::AsciicastV3.extension(), "cast");
 
     // Test all() method
     let all_formats = SessionLogFormat::all();
-    assert_eq!(all_formats.len(), 3);
+    assert_eq!(all_formats.len(), 4);
 }
 
 #[test]

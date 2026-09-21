@@ -162,6 +162,78 @@ impl SessionLogger {
         }
         Ok(())
     }
+
+    /// Write the recording as asciicast v3.
+    ///
+    /// When a v3 exporter is wired (see `SessionLogger::set_v3_exporter`),
+    /// the core lib's graphics-aware export serializes the session: its `g`
+    /// events carry base64 pixel data and derive graphic times from unix-ms
+    /// `added_at` stamps minus the recording's epoch start, which `start()`
+    /// re-anchors to the monotonic timeline's origin. Without an exporter the
+    /// recording serializes text-only, which is still a valid v3 stream.
+    pub(super) fn write_asciicast_v3(&mut self) -> Result<()> {
+        use std::io::Write;
+
+        if let (Some(exporter), Some(recording)) = (&self.v3_exporter, &self.recording)
+            && let Some(output) = exporter(recording)
+        {
+            if let Some(ref mut writer) = self.writer {
+                writer.write_all(output.as_bytes()).with_context(|| {
+                    format!("Failed to write asciicast v3 to {:?}", self.output_path)
+                })?;
+            }
+            return Ok(());
+        }
+
+        // Text-only fallback for loggers without a wired exporter.
+        if let (Some(recording), Some(writer)) = (&self.recording, &mut self.writer) {
+            let header = serde_json::json!({
+                "version": 3,
+                "term": {
+                    "cols": recording.initial_size.0,
+                    "rows": recording.initial_size.1,
+                },
+                "timestamp": recording.created_at / 1000,
+                "title": &recording.title,
+                "env": recording.env,
+            });
+            writeln!(writer, "{}", header).with_context(|| {
+                format!(
+                    "Failed to write asciicast v3 header to {:?}",
+                    self.output_path
+                )
+            })?;
+
+            // Text events with v3's relative intervals; graphics markers
+            // cannot be conveyed without a terminal, so markers/metadata
+            // events are dropped as in the core lib's own text mapping.
+            let mut prev_ms: u64 = 0;
+            for event in &recording.events {
+                let t_ms = event.timestamp;
+                let mut line = match event.event_type {
+                    RecordingEventType::Output => {
+                        serde_json::json!([0.0, "o", String::from_utf8_lossy(&event.data)])
+                    }
+                    RecordingEventType::Input => {
+                        serde_json::json!([0.0, "i", String::from_utf8_lossy(&event.data)])
+                    }
+                    RecordingEventType::Resize => {
+                        if let Some((cols, rows)) = event.metadata {
+                            serde_json::json!([0.0, "r", format!("{}x{}", cols, rows)])
+                        } else {
+                            continue;
+                        }
+                    }
+                    _ => continue,
+                };
+                let interval = t_ms.saturating_sub(prev_ms) as f64 / 1_000.0;
+                line[0] = serde_json::json!(interval);
+                writeln!(writer, "{}", line)?;
+                prev_ms = t_ms;
+            }
+        }
+        Ok(())
+    }
 }
 
 /// Helper used by `SessionLogger::stop()` to dispatch the right finalization method.
@@ -170,5 +242,6 @@ pub(super) fn finalize_format(logger: &mut SessionLogger) -> Result<()> {
         SessionLogFormat::Plain => Ok(()),
         SessionLogFormat::Html => logger.write_html_footer(),
         SessionLogFormat::Asciicast => logger.write_asciicast(),
+        SessionLogFormat::AsciicastV3 => logger.write_asciicast_v3(),
     }
 }

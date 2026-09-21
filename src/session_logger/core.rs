@@ -20,6 +20,11 @@ use std::sync::Arc;
 /// Marker text written to the log when input is redacted during a password prompt.
 pub(super) const REDACTION_MARKER: &str = "[INPUT REDACTED - echo off]";
 
+/// Serializes a recording through the terminal's graphics-aware v3 export;
+/// `None` when the terminal is unavailable, which finalization treats as
+/// text-only v3.
+pub(super) type V3Exporter = Box<dyn Fn(&RecordingSession) -> Option<String> + Send>;
+
 /// Common password prompt patterns (case-insensitive matching).
 ///
 /// These patterns are matched against terminal output (after stripping ANSI
@@ -260,6 +265,11 @@ pub struct SessionLogger {
     /// Whether a redaction marker has already been emitted for the current
     /// suppression period (to avoid flooding the log with repeated markers).
     pub(super) redaction_marker_emitted: bool,
+    /// Graphics-aware v3 exporter wired by the owning Tab: serializes the
+    /// recording through the terminal (whose graphics store is crate-internal
+    /// to emu-core); returns None when the terminal is unavailable, which
+    /// finalization treats as text-only v3.
+    pub(super) v3_exporter: Option<V3Exporter>,
 }
 
 impl SessionLogger {
@@ -302,8 +312,11 @@ impl SessionLogger {
             .with_context(|| format!("Failed to create session log file: {:?}", output_path))?;
         let writer = BufWriter::with_capacity(8192, file); // 8KB buffer
 
-        // Initialize recording session for asciicast format
-        let recording = if format == SessionLogFormat::Asciicast {
+        // Initialize recording session for asciicast formats
+        let recording = if matches!(
+            format,
+            SessionLogFormat::Asciicast | SessionLogFormat::AsciicastV3
+        ) {
             let mut env = std::collections::HashMap::new();
             env.insert("TERM".to_string(), "xterm-256color".to_string());
             env.insert("COLS".to_string(), dimensions.0.to_string());
@@ -338,6 +351,7 @@ impl SessionLogger {
             password_prompt_active: false,
             echo_suppressed: false,
             redaction_marker_emitted: false,
+            v3_exporter: None,
         })
     }
 
@@ -357,6 +371,14 @@ impl SessionLogger {
         self.active = true;
         self.start_time = std::time::Instant::now();
 
+        // Re-anchor the recording's epoch start to the same moment the
+        // monotonic event timeline starts: the v3 exporter derives graphic
+        // times as added_at - created_at, so keeping the construction stamp
+        // would offset every graphic by the construct-to-start gap.
+        if let Some(ref mut recording) = self.recording {
+            recording.created_at = Utc::now().timestamp_millis() as u64;
+        }
+
         // Write format-specific header / startup comment.
         match self.format {
             SessionLogFormat::Html => {
@@ -368,8 +390,8 @@ impl SessionLogger {
                 // top of every plain-text session log.
                 self.write_plain_redaction_warning()?;
             }
-            SessionLogFormat::Asciicast => {
-                // Asciicast format: the header is written during finalization.
+            SessionLogFormat::Asciicast | SessionLogFormat::AsciicastV3 => {
+                // Asciicast formats: the header is written during finalization.
                 // No startup banner is added here; warnings are in the log file
                 // at the application level via log::warn!.
             }
@@ -413,6 +435,14 @@ impl SessionLogger {
     /// Check whether password redaction is enabled.
     pub fn redact_passwords(&self) -> bool {
         self.redact_passwords
+    }
+
+    /// Wire the graphics-aware v3 exporter used at finalization (see
+    /// `write_asciicast_v3`). Harmless to set on non-v3 formats: the exporter
+    /// is only consulted when a v3 recording is serialized. Returning None
+    /// from the exporter falls back to text-only v3.
+    pub fn set_v3_exporter(&mut self, exporter: V3Exporter) {
+        self.v3_exporter = Some(exporter);
     }
 
     /// Externally signal that echo is suppressed (e.g., PTY echo off).
@@ -474,8 +504,8 @@ impl SessionLogger {
                 let escaped = html_escape(&text);
                 self.write_bytes(escaped.as_bytes());
             }
-            SessionLogFormat::Asciicast => {
-                // Add event to recording
+            SessionLogFormat::Asciicast | SessionLogFormat::AsciicastV3 => {
+                // Asciicast formats buffer events; written during finalization.
                 if let Some(ref mut recording) = self.recording {
                     recording.events.push(RecordingEvent {
                         timestamp: elapsed,
@@ -522,7 +552,10 @@ impl SessionLogger {
         }
 
         // Only asciicast records input
-        if self.format == SessionLogFormat::Asciicast {
+        if matches!(
+            self.format,
+            SessionLogFormat::Asciicast | SessionLogFormat::AsciicastV3
+        ) {
             let elapsed = self.start_time.elapsed().as_millis() as u64;
             if let Some(ref mut recording) = self.recording {
                 recording.events.push(RecordingEvent {
@@ -545,7 +578,10 @@ impl SessionLogger {
         self.dimensions = (cols, rows);
 
         // Only asciicast records resize events
-        if self.format == SessionLogFormat::Asciicast {
+        if matches!(
+            self.format,
+            SessionLogFormat::Asciicast | SessionLogFormat::AsciicastV3
+        ) {
             let elapsed = self.start_time.elapsed().as_millis() as u64;
             if let Some(ref mut recording) = self.recording {
                 recording.events.push(RecordingEvent {
@@ -695,7 +731,10 @@ impl SessionLogger {
 
     /// Emit a redaction marker into the recording/log.
     fn emit_redaction_marker(&mut self) {
-        if self.format == SessionLogFormat::Asciicast {
+        if matches!(
+            self.format,
+            SessionLogFormat::Asciicast | SessionLogFormat::AsciicastV3
+        ) {
             let elapsed = self.start_time.elapsed().as_millis() as u64;
             if let Some(ref mut recording) = self.recording {
                 recording.events.push(RecordingEvent {

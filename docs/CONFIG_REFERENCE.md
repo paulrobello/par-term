@@ -490,7 +490,7 @@ Override shader settings per-file. Keys are shader filenames (without path).
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `auto_log_sessions` | `bool` | `false` | Automatically record all terminal sessions |
-| `session_log_format` | `enum` | `asciicast` | Log format: `plain`, `html`, `asciicast` |
+| `session_log_format` | `enum` | `asciicast` | Log format: `plain`, `html`, `asciicast`, `asciicast_v3` |
 | `session_log_directory` | `string` | `"~/.local/share/par-term/logs/"` | Directory for session log files |
 | `archive_on_close` | `bool` | `true` | Flush session log when tab closes |
 | `session_log_redact_passwords` | `bool` | `true` | Redact password prompt input in session logs |

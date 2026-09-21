@@ -50,6 +50,7 @@ graph TD
 | **Plain Text** | `.txt` | Raw text, no formatting | Simple logs, grep-able output |
 | **HTML** | `.html` | Styled HTML page | Browser viewing, sharing |
 | **Asciicast** | `.cast` | asciinema-compatible | Playback, sharing online |
+| **Asciicast v3** | `.cast` | v3 with inline graphics as base64 `g` events | Recordings with images (Sixel/iTerm2/Kitty) |
 
 ### Plain Text
 - Strips all ANSI escape sequences
@@ -68,6 +69,17 @@ graph TD
 - Supports timing-accurate playback
 - Records terminal output events only; keyboard input is never captured
 - Can be shared on asciinema.org
+
+### Asciicast v3 (Opt-in)
+- Everything v2 records, plus a `g` (graphics) event per inline image
+  (Sixel/iTerm2/Kitty) with base64 pixel data and placement metadata
+- Opt-in only: set `session_log_format: asciicast_v3` in config.yaml or pick
+  "Asciicast v3 (graphics)" in Settings → Advanced → Logging
+- **Security:** `g`-event pixel data bypasses every credential-redaction layer
+  (see [Security](#security-sensitive-data-redaction)) — a credential rendered
+  as an image is captured verbatim. Only enable where that is acceptable.
+- Text-only fallback: if the terminal is unavailable at finalization, the log
+  serializes without `g` events and stays a valid v3 file
 
 ## Starting a Recording
 
@@ -109,7 +121,7 @@ Add these options to `~/.config/par-term/config.yaml`:
 # Enable/disable automatic logging for all sessions
 auto_log_sessions: false
 
-# Log format: plain, html, or asciicast (default)
+# Log format: plain, html, asciicast (default), or asciicast_v3
 session_log_format: asciicast
 
 # Custom log directory (default: ~/.local/share/par-term/logs/)
@@ -172,6 +184,10 @@ Detected output patterns include:
 > - Applications that suppress echo without emitting a matching prompt string
 > - Base64-encoded or obfuscated secrets
 > - Values printed without recognizable key names
+> - **Asciicast v3 `g` events:** embedded image pixels are opaque to every
+>   redaction layer — a credential rendered as an image (QR code, TUI
+>   screenshot) is captured verbatim. This gap applies to the
+>   `asciicast_v3` format only.
 
 **Recommendation:** If you regularly work with sensitive credentials, disable session logging for those sessions. Do not rely solely on redaction as a security control.
 
@@ -258,6 +274,8 @@ The `.cast` files follow the asciinema v2 specification:
 - `m` - Marker (annotation)
 
 par-term writes `o` (output), `i` (input — subject to password/echo redaction), and `r` (resize) events. `m` (marker) is part of the asciinema v2 specification and is handled by the writer, but par-term never constructs one today.
+
+In **asciicast v3**, event times become per-event relative intervals, resize payloads become `"COLSxROWS"` strings, and the `g` event carries a JSON object per inline graphic (protocol, placement, dimensions, base64 `data`). `g` events are keyed to the moment each image entered the terminal's graphics store, re-anchored to the recording start so they stay aligned with the text stream.
 
 ## Related Documentation
 

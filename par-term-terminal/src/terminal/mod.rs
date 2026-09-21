@@ -349,12 +349,27 @@ impl TerminalManager {
 
         let content = match format.to_lowercase().as_str() {
             "json" => term.export_json(session),
+            "asciicast-v3" => term.export_asciicast_v3(session),
             _ => term.export_asciicast(session),
         };
 
         std::fs::write(path, content)?;
         log::info!("Recording exported successfully");
         Ok(())
+    }
+
+    /// Serialize a recording session as asciicast v3 via this manager's
+    /// terminal. The core lib's graphics store is crate-internal there, so
+    /// this is the public route callers outside `par-term-terminal` use to
+    /// reach the graphics-aware v3 export.
+    pub fn export_session_asciicast_v3(
+        &self,
+        session: &par_term_emu_core_rust::terminal::RecordingSession,
+    ) -> String {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let term = terminal.write();
+        term.export_asciicast_v3(session)
     }
 
     /// Get current working directory from shell integration (OSC 7)

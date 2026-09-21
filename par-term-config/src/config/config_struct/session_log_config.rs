@@ -19,6 +19,8 @@ pub struct SessionLogConfig {
     /// - plain: Simple text output without escape sequences
     /// - html: Rendered output with colors preserved
     /// - asciicast: asciinema-compatible format for replay/sharing (default)
+    /// - asciicast_v3: like asciicast plus inline graphics as base64 events.
+    ///   WARNING: embedded image pixels bypass all credential-redaction layers.
     #[serde(default)]
     pub session_log_format: SessionLogFormat,
 

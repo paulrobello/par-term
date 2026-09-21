@@ -147,6 +147,13 @@ pub enum SessionLogFormat {
     /// Asciicast v2 - asciinema-compatible format for replay/sharing
     #[default]
     Asciicast,
+    /// Asciicast v3 - like v2 plus inline graphics as base64 `g` events.
+    ///
+    /// WARNING: embedded pixel data bypasses every session-log credential
+    /// redaction layer (SEC-004/006/009) — a credential rendered as an image
+    /// is captured verbatim. Documented in docs/features/SESSION_LOGGING.md.
+    #[serde(rename = "asciicast_v3")]
+    AsciicastV3,
 }
 
 impl SessionLogFormat {
@@ -156,6 +163,7 @@ impl SessionLogFormat {
             SessionLogFormat::Plain => "Plain Text",
             SessionLogFormat::Html => "HTML",
             SessionLogFormat::Asciicast => "Asciicast (asciinema)",
+            SessionLogFormat::AsciicastV3 => "Asciicast v3 (graphics)",
         }
     }
 
@@ -165,6 +173,7 @@ impl SessionLogFormat {
             SessionLogFormat::Plain,
             SessionLogFormat::Html,
             SessionLogFormat::Asciicast,
+            SessionLogFormat::AsciicastV3,
         ]
     }
 
@@ -173,7 +182,7 @@ impl SessionLogFormat {
         match self {
             SessionLogFormat::Plain => "txt",
             SessionLogFormat::Html => "html",
-            SessionLogFormat::Asciicast => "cast",
+            SessionLogFormat::Asciicast | SessionLogFormat::AsciicastV3 => "cast",
         }
     }
 }

@@ -5,6 +5,7 @@
 
 use super::{Tab, TabInitParams};
 use crate::config::Config;
+use crate::config::SessionLogFormat;
 use crate::pane::{Pane, PaneManager};
 use crate::profile::Profile;
 use crate::session_logger::{SessionLogger, create_shared_logger};
@@ -184,6 +185,20 @@ impl Tab {
         }
 
         let terminal = Arc::new(RwLock::new(terminal));
+
+        // v3 session logs need the graphics store at finalization; hand the
+        // logger a handle to the terminal so stop() can run the core lib's
+        // graphics-aware export (the store is crate-internal to emu-core).
+        if config.session_log.session_log_format == SessionLogFormat::AsciicastV3
+            && let Some(ref mut logger) = *session_logger.lock()
+        {
+            let tm = Arc::clone(&terminal);
+            logger.set_v3_exporter(Box::new(move |session| {
+                tm.try_read()
+                    .ok()
+                    .map(|tm| tm.export_session_asciicast_v3(session))
+            }));
+        }
 
         // Send initial text after optional delay (only when a runtime is provided)
         if let Some(runtime) = params.runtime

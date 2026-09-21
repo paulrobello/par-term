@@ -70,6 +70,9 @@ pub(super) fn show_logging_section(
                     }
                     SessionLogFormat::Html => "HTML with colors preserved - viewable in browser",
                     SessionLogFormat::Asciicast => "asciinema format - can be replayed or shared",
+                    SessionLogFormat::AsciicastV3 => {
+                        "asciinema v3 - adds inline graphics; image pixels bypass credential redaction"
+                    }
                 })
                 .weak(),
             );

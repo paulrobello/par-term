@@ -110,6 +110,82 @@ fn test_session_logger_asciicast() {
 }
 
 #[test]
+fn test_session_logger_asciicast_v3_fallback() {
+    let temp_dir = TempDir::new().unwrap();
+    let mut logger = SessionLogger::new(
+        SessionLogFormat::AsciicastV3,
+        temp_dir.path(),
+        (80, 24),
+        Some("Test Session".to_string()),
+    )
+    .unwrap();
+
+    logger.start().unwrap();
+    logger.record_output(b"Hello\n");
+    std::thread::sleep(std::time::Duration::from_millis(10));
+    logger.record_output(b"World\n");
+    let path = logger.stop().unwrap();
+
+    let content = std::fs::read_to_string(&path).unwrap();
+    let lines: Vec<&str> = content.lines().collect();
+
+    // v3 header: nested term object, no width/height keys
+    assert!(lines[0].contains("\"version\":3"));
+    assert!(lines[0].contains("\"term\""));
+    assert!(lines[0].contains("\"cols\":80"));
+    assert!(lines[0].contains("\"rows\":24"));
+
+    // Text events survived; no graphics events without a terminal
+    assert!(
+        lines
+            .iter()
+            .any(|l| l.contains("\"o\"") && l.contains("Hello"))
+    );
+    assert!(
+        lines
+            .iter()
+            .any(|l| l.contains("\"o\"") && l.contains("World"))
+    );
+    assert!(!content.contains("\"g\""));
+}
+
+#[test]
+fn test_session_logger_asciicast_v3_exporter() {
+    let temp_dir = TempDir::new().unwrap();
+    let mut logger = SessionLogger::new(
+        SessionLogFormat::AsciicastV3,
+        temp_dir.path(),
+        (80, 24),
+        Some("Test Session".to_string()),
+    )
+    .unwrap();
+
+    logger.set_v3_exporter(Box::new(|_session| {
+        Some(
+            serde_json::json!({
+                "version": 3,
+                "term": {"cols": 80, "rows": 24},
+                "timestamp": 1,
+                "title": "stub",
+                "env": {}
+            })
+            .to_string()
+                + "\n"
+                + r#"[0.0, "g", {"protocol":"kitty"}]"#,
+        )
+    }));
+
+    logger.start().unwrap();
+    logger.record_output(b"Hello\n");
+    let path = logger.stop().unwrap();
+
+    let content = std::fs::read_to_string(&path).unwrap();
+    // The exporter's output is authoritative — written verbatim
+    assert!(content.contains("\"g\""));
+    assert!(content.contains("stub"));
+}
+
+#[test]
 fn test_password_prompt_detection() {
     assert!(contains_password_prompt("Password:"));
     assert!(contains_password_prompt("[sudo] password for user:"));
