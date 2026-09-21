@@ -15,6 +15,9 @@ categories = ["gui"]
 # Configuration system (internal)
 par-term-config = { path = "../par-term-config", version = "0.14.4" }
 
+# Plugin manifest types (Automation > Plugins section)
+par-term-scripting = { path = "../par-term-scripting", version = "0.1.16" }
+
 # egui for UI
 egui.workspace = true
 

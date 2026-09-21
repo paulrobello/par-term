@@ -174,13 +174,13 @@ Layer 2 — Depend on par-term-config (bump after Layer 1):
   par-term-input        → par-term-config
   par-term-keybindings  → par-term-config
   par-term-scripting    → par-term-config  [+ emu-core]
-  par-term-settings-ui  → par-term-config
   par-term-terminal     → par-term-config  [+ emu-core]
   par-term-tmux         → par-term-config  [+ emu-core]
   par-term-update       → par-term-config
 
 Layer 3 — Depend on Layer 2 crates (bump after Layer 2):
   par-term-render       → par-term-config, par-term-fonts  [+ emu-core]
+  par-term-settings-ui  → par-term-config, par-term-scripting
 
 Layer 4 — Root crate (bump last):
   par-term              → all of the above  [+ emu-core]

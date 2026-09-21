@@ -4,6 +4,7 @@
 //! - Trigger definitions (regex patterns with actions)
 //! - Coprocess definitions (external processes piped to terminal)
 //! - External observer scripts (absorbed from scripts_tab)
+//! - Local plugins (trust surface, enable toggle, schema editor)
 //!
 //! ## Sub-module layout
 //!
@@ -12,11 +13,13 @@
 //! | `mod.rs` (this file) | `show()` dispatcher and `keywords()` |
 //! | `triggers_section.rs` | Trigger list, edit form, action field rendering |
 //! | `coprocesses_section.rs` | Coprocess list, edit form, output viewer |
+//! | `plugins_section.rs` | Plugin list, trust surface, enable toggle, schema editor |
 
 use crate::SettingsUI;
 use std::collections::HashSet;
 
 mod coprocesses_section;
+mod plugins_section;
 mod state;
 mod triggers_section;
 
@@ -33,6 +36,7 @@ pub fn show(
     coprocesses_section::show_coprocesses_section(ui, settings, changes_this_frame, collapsed);
     // Scripts section (absorbed from scripts_tab)
     crate::scripts_tab::show(ui, settings, changes_this_frame, collapsed);
+    plugins_section::show_plugins_section(ui, settings, changes_this_frame, collapsed);
 }
 
 /// Search keywords for the Automation settings tab.
@@ -105,5 +109,12 @@ pub fn keywords() -> &'static [&'static str] {
         "confirm before write text",
         "write text confirmation",
         "inject text",
+        // Plugins
+        "plugin",
+        "plugins",
+        "status bar widget",
+        "manifest",
+        "widget",
+        "extensions",
     ]
 }

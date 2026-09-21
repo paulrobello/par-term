@@ -43,6 +43,14 @@ pub struct AutomationTabState {
     pub adding_new_coprocess: bool,
     /// Flag to request trigger resync after save
     pub trigger_resync_requested: bool,
+    /// Plugin discovery cache for the Plugins section: `None` until the
+    /// section first renders, refreshed by its Rescan button. Holds the
+    /// valid plugins plus the skip warnings so both survive the frame
+    /// that ran the scan.
+    pub plugin_scan: Option<(
+        Vec<par_term_scripting::manifest::DiscoveredPlugin>,
+        Vec<par_term_scripting::manifest::DiscoveryWarning>,
+    )>,
 }
 
 impl Default for AutomationTabState {
@@ -65,6 +73,7 @@ impl Default for AutomationTabState {
             temp_coprocess_restart_delay_ms: 0,
             adding_new_coprocess: false,
             trigger_resync_requested: false,
+            plugin_scan: None,
         }
     }
 }
