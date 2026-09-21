@@ -13,6 +13,7 @@
 //! - `tabs`: new/close/navigate/move/number-switch tab shortcuts
 //! - `profiles`: per-profile hotkeys and shortcut string building
 
+mod agent_usage_panel;
 pub(crate) mod claims;
 mod clipboard;
 mod command_history;
@@ -67,6 +68,12 @@ pub(super) static KEY_LAYERS: &[(&str, KeyLayer)] = &[
     ("command_history", WindowState::handle_command_history_keys),
     // Paste special UI
     ("paste_special", WindowState::handle_paste_special_keys),
+    // Agent usage panel (Esc/h/l while open; opened by widget click or the
+    // toggle_agent_usage_panel action)
+    (
+        "agent_usage_panel",
+        WindowState::handle_agent_usage_panel_keys,
+    ),
     // Command palette (Escape-only; opened by the toggle_command_palette action)
     ("command_palette", WindowState::handle_command_palette_keys),
     // Search (Cmd/Ctrl+F)

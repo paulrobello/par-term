@@ -80,6 +80,11 @@ const PASTE_SPECIAL_UI: &[Claim] = &[];
 /// state-conditional.
 const COMMAND_PALETTE: &[Claim] = &[];
 
+/// `agent_usage_panel.rs`. State-conditional (Esc/h/l while the panel is
+/// visible); it opens from a widget click or the `toggle_agent_usage_panel`
+/// action, never a chord of its own.
+const AGENT_USAGE_PANEL: &[Claim] = &[];
+
 /// `search.rs`, open branch only. Drives the handler.
 pub(crate) const SEARCH: &[Claim] = &[Claim {
     action: "toggle_search",
@@ -429,6 +434,7 @@ pub(crate) const LAYER_CLAIMS: &[(&str, &[Claim])] = &[
     ("clipboard_history", CLIPBOARD_HISTORY),
     ("command_history", COMMAND_HISTORY),
     ("paste_special", PASTE_SPECIAL_UI),
+    ("agent_usage_panel", AGENT_USAGE_PANEL),
     ("command_palette", COMMAND_PALETTE),
     ("search", SEARCH),
     ("ai_inspector_toggle", AI_INSPECTOR),
@@ -445,4 +451,4 @@ pub(crate) const LAYER_CLAIMS: &[(&str, &[Claim])] = &[
 ];
 
 /// Number of [`LAYER_CLAIMS`] entries that correspond to [`super::KEY_LAYERS`].
-pub(crate) const UNIFORM_LAYER_COUNT: usize = 15;
+pub(crate) const UNIFORM_LAYER_COUNT: usize = 16;

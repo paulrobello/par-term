@@ -59,8 +59,6 @@ impl AgentUsagePanel {
     }
 
     /// Flip visibility, resetting the agent selection when opening.
-    // Consumed by the toggle_agent_usage_panel action (Task 4 Batch B).
-    #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn toggle(&mut self) {
         if self.visible {
             self.close();
@@ -72,8 +70,6 @@ impl AgentUsagePanel {
     /// Move the agent selection within `agent_count` records. Called by the
     /// key layer (which owns `h`/`l`), so switching works whether or not
     /// egui happens to hold focus.
-    // Consumed by the agent_usage_panel key layer (Task 4 Batch B).
-    #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn cycle_agent(&mut self, forward: bool, agent_count: usize) {
         if agent_count == 0 {
             self.selected_agent = 0;

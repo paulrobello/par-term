@@ -116,6 +116,12 @@ pub(crate) static ACTION_HANDLERS: &[(&str, ActionHandler)] = &[
         );
         true
     }),
+    ("toggle_agent_usage_panel", |s: &mut WindowState| {
+        s.overlay_ui.agent_usage_panel.toggle();
+        s.focus_state.needs_redraw = true;
+        s.request_redraw();
+        true
+    }),
     ("toggle_ai_inspector", toggle_ai_inspector),
     ("new_tab", |s: &mut WindowState| {
         s.new_tab_or_show_profiles();
