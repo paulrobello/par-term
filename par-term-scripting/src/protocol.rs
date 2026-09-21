@@ -399,7 +399,12 @@ mod tests {
     fn set_widget_round_trips_through_serde() {
         let line = r#"{"type":"SetWidget","text":"🕒 14:32"}"#;
         let cmd: ScriptCommand = serde_json::from_str(line).expect("parse SetWidget line");
-        assert_eq!(cmd, ScriptCommand::SetWidget { text: "🕒 14:32".into() });
+        assert_eq!(
+            cmd,
+            ScriptCommand::SetWidget {
+                text: "🕒 14:32".into()
+            }
+        );
         let re = serde_json::to_string(&cmd).expect("serialize SetWidget");
         let back: ScriptCommand = serde_json::from_str(&re).expect("round-trip");
         assert_eq!(back, cmd);
@@ -407,7 +412,9 @@ mod tests {
 
     #[test]
     fn set_widget_requires_no_permission_and_is_not_rate_limited() {
-        let cmd = ScriptCommand::SetWidget { text: String::new() };
+        let cmd = ScriptCommand::SetWidget {
+            text: String::new(),
+        };
         assert!(!cmd.requires_permission());
         assert!(cmd.permission_flag_name().is_none());
         assert!(!cmd.is_rate_limited());
