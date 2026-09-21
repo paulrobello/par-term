@@ -37,6 +37,7 @@
 
 pub mod disk_monitor;
 pub mod git_poller;
+pub mod plugins_upkeep;
 pub mod system_monitor;
 pub mod widgets;
 
@@ -48,6 +49,7 @@ use crate::badge::SessionVariables;
 use crate::config::{Config, StatusBarPosition, StatusBarSection};
 use disk_monitor::DiskMonitor;
 use git_poller::GitBranchPoller;
+use par_term_scripting::plugin_manager::PluginHost;
 use system_monitor::SystemMonitor;
 use widgets::{WidgetContext, sorted_widgets_for_section, widget_text};
 
@@ -87,6 +89,12 @@ pub struct StatusBarUI {
     usage: UsageStore,
     /// Optional agent-usage update command, run on the refresh interval.
     usage_update: UpdateRunner,
+    /// Window-scoped plugin host: discovery cache, supervised processes,
+    /// and the last `SetWidget` text per plugin (v1 plugins are bar widgets).
+    plugins: PluginHost,
+    /// When the plugins root was last scanned; `None` until the first
+    /// [`update_plugins`](StatusBarUI::update_plugins) call performs it.
+    plugins_last_discovery: Option<Instant>,
 }
 
 impl StatusBarUI {
@@ -102,6 +110,8 @@ impl StatusBarUI {
             update_available_version: None,
             usage: UsageStore::new(crate::agent_usage::default_records_dir()),
             usage_update: UpdateRunner::new(),
+            plugins: PluginHost::new(),
+            plugins_last_discovery: None,
         }
     }
 
@@ -301,6 +311,7 @@ impl StatusBarUI {
             disk_free_bytes: disk_data.free_bytes,
             disk_total_bytes: disk_data.total_bytes,
             agent_usage_summary: self.usage.summary_line(),
+            plugin_texts: self.plugins.widget_texts().clone(),
         };
 
         let bar_height = config.status_bar.status_bar_height;

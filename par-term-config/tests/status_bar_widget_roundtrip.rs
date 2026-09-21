@@ -60,3 +60,24 @@ fn custom_widget_roundtrips_through_config_yaml() {
         "Custom widget did not round-trip through config.yaml"
     );
 }
+
+#[test]
+fn plugin_widget_roundtrips_through_config_yaml() {
+    let mut cfg = Config::default();
+    cfg.status_bar.status_bar_widgets = vec![StatusBarWidgetConfig {
+        id: WidgetId::Plugin("com.example.clock".to_string()),
+        enabled: true,
+        section: StatusBarSection::Right,
+        order: 8,
+        format: None,
+    }];
+
+    let yaml = serde_yaml_ng::to_string(&cfg).expect("serialize Config");
+    let back: Config = serde_yaml_ng::from_str(&yaml).expect("deserialize Config");
+    assert_eq!(
+        back.status_bar.status_bar_widgets, cfg.status_bar.status_bar_widgets,
+        "plugin widget did not round-trip through config.yaml"
+    );
+    // The serialized form is the plain `plugin:<id>` key.
+    assert!(yaml.contains("plugin:com.example.clock"));
+}

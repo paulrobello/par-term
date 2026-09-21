@@ -73,6 +73,11 @@ impl WindowState {
         // same store.
         self.status_bar_ui.update_agent_usage(&self.config.load());
 
+        // Plugin upkeep runs every frame regardless of the status bar's
+        // visibility — plugin output must keep flowing while the bar is
+        // hidden (same rule as agent usage above).
+        self.status_bar_ui.update_plugins(&self.config.load());
+
         // Capture session variables for status bar rendering (skip if bar is hidden)
         let status_bar_session_vars = if self.config.load().status_bar.status_bar_enabled
             && !self

@@ -38,6 +38,9 @@ pub struct WidgetContext {
     /// Agent-usage summary line; `None` when nothing is displayable, which
     /// self-hides the widget (empty text is skipped by the section loops)
     pub agent_usage_summary: Option<String>,
+    /// Last `SetWidget` text per plugin id; absent or empty entries
+    /// self-hide in the section loops, so a stopped plugin renders nothing.
+    pub plugin_texts: std::collections::HashMap<String, String>,
 }
 
 /// Generate display text for a single widget.
@@ -112,6 +115,7 @@ pub fn widget_text(id: &WidgetId, ctx: &WidgetContext, format_override: Option<&
             crate::status_bar::system_monitor::format_bytes(ctx.disk_free_bytes)
         ),
         WidgetId::AgentUsage => ctx.agent_usage_summary.clone().unwrap_or_default(),
+        WidgetId::Plugin(id) => ctx.plugin_texts.get(id).cloned().unwrap_or_default(),
         WidgetId::Custom(_) => String::new(),
     }
 }
@@ -230,6 +234,7 @@ mod tests {
             disk_free_bytes: 250 * 1_073_741_824,  // 250 GB
             disk_total_bytes: 500 * 1_073_741_824, // 500 GB
             agent_usage_summary: None,
+            plugin_texts: std::collections::HashMap::new(),
         }
     }
 
@@ -413,6 +418,25 @@ mod tests {
             widget_text(&WidgetId::AgentUsage, &ctx, None),
             "\u{25c6} 42%"
         );
+    }
+
+    #[test]
+    fn test_widget_text_plugin() {
+        let mut ctx = make_ctx();
+        let id = WidgetId::Plugin("com.example.clock".to_string());
+        // No published text (plugin stopped or never started) -> empty ->
+        // self-hides in the section loops.
+        assert_eq!(widget_text(&id, &ctx, None), "");
+
+        ctx.plugin_texts.insert(
+            "com.example.clock".to_string(),
+            "\u{1f9e9} 14:32".to_string(),
+        );
+        assert_eq!(widget_text(&id, &ctx, None), "\u{1f9e9} 14:32");
+
+        // Another plugin's entry does not leak into this widget.
+        let other = WidgetId::Plugin("com.example.other".to_string());
+        assert_eq!(widget_text(&other, &ctx, None), "");
     }
 
     #[test]

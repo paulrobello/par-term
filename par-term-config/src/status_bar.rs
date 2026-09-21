@@ -25,7 +25,8 @@ pub enum StatusBarSection {
 /// Serialized as a single plain string (`as_key`/`from_key`) so it round-trips
 /// through `config.yaml`, which embeds the status bar via `#[serde(flatten)]`.
 /// Built-in widgets use their snake_case name (e.g. `git_branch`); custom
-/// widgets use `custom:<name>`. serde's flatten path cannot deserialize the
+/// widgets use `custom:<name>`; plugin widgets use `plugin:<id>`. serde's
+/// flatten path cannot deserialize the
 /// externally-tagged `Custom(String)` map form (`"untagged and internally tagged
 /// enums do not support enum input"`), so a manual scalar representation is
 /// used instead of the derived one.
@@ -57,6 +58,8 @@ pub enum WidgetId {
     AgentUsage,
     /// Custom widget (user-defined via format string)
     Custom(String),
+    /// Plugin-provided status bar widget (`plugin:<id>` key)
+    Plugin(String),
 }
 
 impl WidgetId {
@@ -76,6 +79,7 @@ impl WidgetId {
             WidgetId::UpdateAvailable => "Update Available",
             WidgetId::AgentUsage => "Agent Usage",
             WidgetId::Custom(name) => name.as_str(),
+            WidgetId::Plugin(id) => id.as_str(),
         }
     }
 
@@ -95,6 +99,7 @@ impl WidgetId {
             WidgetId::UpdateAvailable => "\u{2b06}",   // upwards arrow
             WidgetId::AgentUsage => "\u{25c6}",        // diamond (matches the summary glyph)
             WidgetId::Custom(_) => "\u{2699}",         // gear
+            WidgetId::Plugin(_) => "\u{1f9e9}",        // puzzle piece
         }
     }
 
@@ -128,6 +133,7 @@ impl WidgetId {
             WidgetId::UpdateAvailable => "update_available".to_string(),
             WidgetId::AgentUsage => "agent_usage".to_string(),
             WidgetId::Custom(name) => format!("custom:{name}"),
+            WidgetId::Plugin(id) => format!("plugin:{id}"),
         }
     }
 
@@ -136,6 +142,9 @@ impl WidgetId {
     fn from_key(key: &str) -> Option<WidgetId> {
         if let Some(name) = key.strip_prefix("custom:") {
             return Some(WidgetId::Custom(name.to_string()));
+        }
+        if let Some(id) = key.strip_prefix("plugin:") {
+            return Some(WidgetId::Plugin(id.to_string()));
         }
         Some(match key {
             "clock" => WidgetId::Clock,
