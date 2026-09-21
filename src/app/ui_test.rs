@@ -282,6 +282,10 @@ fn press_to_egui_key(name: &str) -> Option<egui::Key> {
         "f10" => egui::Key::F10,
         "f11" => egui::Key::F11,
         "f12" => egui::Key::F12,
+        // Single letters a–z are documented press names
+        // (AGENT_UI_VERIFICATION.md) for letter-keyed overlays such as the
+        // agent-usage panel's `r` refresh; anything else is unknown.
+        s if s.len() == 1 && s.as_bytes()[0].is_ascii_alphabetic() => egui::Key::from_name(s)?,
         _ => return None,
     })
 }
@@ -641,5 +645,14 @@ mod tests {
         assert_eq!(press_to_egui_key("Enter"), Some(egui::Key::Enter));
         assert_eq!(press_to_egui_key("escape"), Some(egui::Key::Escape));
         assert_eq!(press_to_egui_key("Nope"), None);
+    }
+
+    #[test]
+    fn single_letters_map_to_egui() {
+        // The agent-usage panel's `r` refresh drives through this mapping.
+        assert_eq!(press_to_egui_key("r"), Some(egui::Key::R));
+        assert_eq!(press_to_egui_key("H"), Some(egui::Key::H));
+        assert_eq!(press_to_egui_key("rr"), None);
+        assert_eq!(press_to_egui_key("1"), None);
     }
 }

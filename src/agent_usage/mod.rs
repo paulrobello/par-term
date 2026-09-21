@@ -2,7 +2,7 @@
 //! records written by external collectors.
 //!
 //! The file contract is omarchy's (ported verbatim — see
-//! `docs/features/AGENT_USAGE.md` once Task 6 lands): one `<agent-id>.json`
+//! `docs/features/AGENT_USAGE.md`): one `<agent-id>.json`
 //! per agent under the records directory, parsed by [`records`], watched and
 //! snapshotted by [`store`], and rendered by the status-bar widget and the
 //! [`panel`] popup. par-term itself ships no collectors.

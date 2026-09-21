@@ -38,6 +38,7 @@ field uses its documented default value.
 - [Session Logging](#session-logging)
 - [Search](#search)
 - [Status Bar](#status-bar)
+- [Agent Usage](#agent-usage)
 - [Progress Bar](#progress-bar)
 - [Badge (Session Label)](#badge-session-label)
 - [Automation & Scripting](#automation--scripting)
@@ -531,6 +532,21 @@ Override shader settings per-file. Keys are shader filenames (without path).
 | `status_bar_disk_poll_interval` | `f32` | `60.0` | Disk free-space polling interval in seconds (5.0–600.0) |
 | `status_bar_disk_follow_cwd` | `bool` | `false` | Track the active tab's disk (`true`) vs the disk par-term launched from (`false`) |
 | `status_bar_widgets` | `array` | (built-in defaults) | Widget list with `{id, enabled, ...}` entries |
+
+---
+
+## Agent Usage
+
+Agent subscription usage display (widget + popup panel) over a records
+directory written by external collectors — see
+[Agent Usage](features/AGENT_USAGE.md) for the record contract.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `agent_usage_enabled` | `bool` | `true` | Enable the agent-usage subsystem (directory watch + panel) |
+| `agent_usage_update_command` | `string` | (none) | Optional command run through `sh -c` on the refresh interval and manual refresh, expected to rewrite the records directory; absent = pure watch mode |
+| `agent_usage_refresh_interval_sec` | `u64` | `300` | Seconds between periodic rescans (clamped to a 30 s floor) |
+| `agent_usage_hidden_agents` | `array` | `[]` | Agent ids to hide from the widget and panel |
 
 ---
 
