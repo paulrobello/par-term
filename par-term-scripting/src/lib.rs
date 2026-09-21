@@ -5,6 +5,7 @@
 
 pub mod confirm;
 pub mod manager;
+pub mod manifest;
 pub mod observer;
 pub mod process;
 pub mod protocol;

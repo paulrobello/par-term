@@ -24,3 +24,6 @@ serde_json.workspace = true
 
 # Logging
 log.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
