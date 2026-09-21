@@ -32,6 +32,17 @@ impl Renderer {
         self.dirty = true;
     }
 
+    /// Reconfigure the surface after a display-configuration change (monitor
+    /// attach/detach/move): re-derives the config from fresh capabilities and
+    /// cycles the present mode, healing the strobe state a plain reconfigure
+    /// leaves in place. `width`/`height` are the window's current physical
+    /// extent.
+    pub fn reconfigure_after_display_change(&mut self, width: u32, height: u32) {
+        self.cell_renderer
+            .reconfigure_after_display_change(width, height);
+        self.dirty = true;
+    }
+
     /// Check if a vsync mode is supported
     pub fn is_vsync_mode_supported(&self, mode: par_term_config::VsyncMode) -> bool {
         self.cell_renderer.is_vsync_mode_supported(mode)

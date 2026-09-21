@@ -121,8 +121,14 @@ impl WindowState {
         log::info!("Force surface reconfigure triggered");
 
         if let Some(renderer) = &mut self.renderer {
-            // Reconfigure the surface
-            renderer.reconfigure_surface();
+            // A same-config reconfigure does not heal the post-display-change
+            // brightness strobe (a vsync toggle — a present-mode change — does),
+            // so re-derive the config from fresh capabilities and cycle the
+            // present mode instead of configuring with the stale one.
+            match self.window.as_deref().map(|w| w.inner_size()) {
+                Some(size) => renderer.reconfigure_after_display_change(size.width, size.height),
+                None => renderer.reconfigure_surface(),
+            }
 
             // Clear glyph cache to force re-rasterization at correct DPI
             renderer.clear_glyph_cache();

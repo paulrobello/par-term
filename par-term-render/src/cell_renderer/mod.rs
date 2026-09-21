@@ -152,6 +152,10 @@ pub struct CellRenderer {
     // Core wgpu state
     pub(crate) device: Arc<wgpu::Device>,
     pub(crate) queue: Arc<wgpu::Queue>,
+    /// Adapter the surface/device were created against; kept so surface
+    /// capabilities can be re-queried after a display-topology change
+    /// ([`CellRenderer::reconfigure_after_display_change`]).
+    pub(crate) adapter: wgpu::Adapter,
     pub(crate) surface: wgpu::Surface<'static>,
     pub(crate) config: wgpu::SurfaceConfiguration,
     /// Supported present modes for this surface (for vsync mode validation)
@@ -504,6 +508,7 @@ impl CellRenderer {
         let mut renderer = Self {
             device,
             queue,
+            adapter,
             surface,
             config,
             supported_present_modes,
