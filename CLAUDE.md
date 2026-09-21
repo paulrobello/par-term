@@ -196,6 +196,20 @@ Layer 4 — Root crate (bump last):
 5. Update all version refs in root `Cargo.toml`
 6. Run `cargo check --workspace` to verify
 
+### Vendoring the core from the local checkout (instead of waiting for a publish)
+
+Core cards go `done` in `~/Repos/par-term-emu-core-rust` long before crates.io catches up, so a card blocked on "the core needs to publish" can unblock itself by building against the local sibling checkout. In the **root** `Cargo.toml`, add:
+
+```toml
+[patch.crates-io]
+par-term-emu-core-rust = { path = "../par-term-emu-core-rust" }
+```
+
+- The local core's `version` must satisfy this repo's `[workspace.dependencies]` pin (`version = "0.49"`); if the local tree has bumped past the pin, raise the pin to match, or cargo rejects the patch.
+- **Never commit the patch** — CI checks out only this repo, so `../par-term-emu-core-rust` does not exist there and every build leg fails. Revert `Cargo.toml`/`Cargo.lock` before committing anything else.
+- `cargo check --workspace` re-resolves the lockfile on the first run after applying.
+- The core repo is itself a live grind target, so its tree moves under you mid-iteration. When the core publishes the needed version, drop the patch and raise the pin to the published version.
+
 ## Common Development Workflows
 
 ### Adding a New Configuration Option
