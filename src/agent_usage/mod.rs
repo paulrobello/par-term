@@ -4,9 +4,10 @@
 //! The file contract is omarchy's (ported verbatim — see
 //! `docs/features/AGENT_USAGE.md` once Task 6 lands): one `<agent-id>.json`
 //! per agent under the records directory, parsed by [`records`], watched and
-//! snapshotted by [`store`], and rendered by the status-bar widget and popup
-//! panel (Tasks 3–4). par-term itself ships no collectors.
+//! snapshotted by [`store`], and rendered by the status-bar widget and the
+//! [`panel`] popup. par-term itself ships no collectors.
 
+pub(crate) mod panel;
 pub(crate) mod records;
 pub(crate) mod store;
 

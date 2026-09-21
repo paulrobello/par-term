@@ -11,11 +11,6 @@
 //! picked up on the next refresh tick, and a garbage `.json` file becomes an
 //! entry in `snapshot.errors` while every other file still parses.
 
-// The popup panel (Task 4) reads snapshot errors and record detail beyond
-// summary_line; until it lands, non-test builds see those as unread. Remove
-// this attribute when the panel ships.
-#![cfg_attr(not(test), allow(dead_code))]
-
 use crate::agent_usage::records::{self, AgentUsageRecord};
 use notify::{Config as NotifyConfig, Event, PollWatcher, RecursiveMode, Watcher};
 use parking_lot::Mutex;
@@ -160,6 +155,7 @@ impl UsageStore {
     }
 
     /// Replace the hidden-agent set (Task 5 wiring) and refilter.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn set_hidden(&mut self, hidden: HashSet<String>) {
         self.hidden = hidden;
         self.rescan();

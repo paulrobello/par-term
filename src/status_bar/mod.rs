@@ -102,12 +102,14 @@ impl StatusBarUI {
         }
     }
 
-    /// Read access to the agent-usage snapshot for the popup panel (Task 4).
-    // Unused in BOTH targets until the panel lands — not cfg-gated, because
-    // the lib-test target sees it dead too. Remove with the Task 4 panel.
-    #[allow(dead_code)]
+    /// Read access to the agent-usage snapshot for the popup panel.
     pub(crate) fn usage_snapshot(&self) -> &crate::agent_usage::store::UsageSnapshot {
         self.usage.snapshot()
+    }
+
+    /// Rescan the usage records directory now (panel `r`).
+    pub(crate) fn refresh_usage_now(&mut self) {
+        self.usage.refresh_now();
     }
 
     /// Signal all background threads to stop without waiting.

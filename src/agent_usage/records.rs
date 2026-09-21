@@ -12,9 +12,10 @@
 //! panel down. `parse_record` returns `None` for anything that does not
 //! parse at all.
 
-// The popup panel (Task 4) is the next consumer of the display fields
-// (labels, reset times, daily/model rows); until it lands, non-test builds
-// see them as unread. Remove this attribute when the panel ships.
+// The v1 panel reads the display fields (limits, balance, daily and model
+// rows, hero stats); the rest of the contract — today_* aggregates,
+// active_dates (v2 merge input), auth-help fields surfaced only on
+// not-ready records — is parsed but not yet rendered in non-test builds.
 #![cfg_attr(not(test), allow(dead_code))]
 
 use serde::Deserialize;

@@ -4,6 +4,7 @@
 //! This reduces WindowState's field count and localises all panel visibility
 //! logic to one struct.
 
+use crate::agent_usage::panel::AgentUsagePanel;
 use crate::ai_inspector::panel::AIInspectorPanel;
 use crate::clipboard_history_ui::ClipboardHistoryUI;
 use crate::close_confirmation_ui::CloseConfirmationUI;
@@ -45,6 +46,9 @@ pub(crate) struct OverlayUiState {
     pub(crate) tmux_status_bar_ui: TmuxStatusBarUI,
     pub(crate) search_ui: SearchUI,
     pub(crate) command_palette: CommandPalette,
+    /// Agent-usage popup panel (opened from the status-bar widget or the
+    /// `toggle_agent_usage_panel` action).
+    pub(crate) agent_usage_panel: AgentUsagePanel,
     pub(crate) ai_inspector: AIInspectorPanel,
     /// Last known AI Inspector panel consumed width (logical pixels).
     pub(crate) last_inspector_width: f32,
@@ -101,6 +105,7 @@ impl OverlayUiState {
             tmux_status_bar_ui: TmuxStatusBarUI::new(),
             search_ui: SearchUI::new(),
             command_palette: CommandPalette::new(),
+            agent_usage_panel: AgentUsagePanel::new(),
             ai_inspector: AIInspectorPanel::new(config),
             last_inspector_width: 0.0,
             shader_install_ui: ShaderInstallUI::new(),

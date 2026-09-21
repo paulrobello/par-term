@@ -363,6 +363,11 @@ impl WindowState {
                         {
                             self.update_state.show_dialog = true;
                         }
+                        if status_bar_action
+                            == Some(crate::status_bar::StatusBarAction::OpenAgentUsagePanel)
+                        {
+                            self.overlay_ui.agent_usage_panel.open();
+                        }
                     }
 
                     // Show help UI
@@ -385,6 +390,15 @@ impl WindowState {
 
                     // Show command palette and collect the chosen action
                     actions.command_palette = self.overlay_ui.command_palette.show(ctx);
+
+                    // Show agent-usage panel; `r` inside it requests a rescan
+                    if let Some(crate::agent_usage::panel::PanelAction::RefreshRequested) = self
+                        .overlay_ui
+                        .agent_usage_panel
+                        .show(ctx, self.status_bar_ui.usage_snapshot())
+                    {
+                        self.status_bar_ui.refresh_usage_now();
+                    }
 
                     // Show AI Inspector panel and collect action
                     actions.inspector = self

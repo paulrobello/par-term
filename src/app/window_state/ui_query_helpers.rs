@@ -47,6 +47,7 @@ impl WindowState {
             || self.overlay_ui.command_history_ui.visible
             || self.overlay_ui.search_ui.visible
             || self.overlay_ui.command_palette.visible
+            || self.overlay_ui.agent_usage_panel.visible
             || self.overlay_ui.tmux_session_picker_ui.visible
             || self.overlay_ui.shader_install_ui.visible
             || self.overlay_ui.integrations_ui.visible
