@@ -21,11 +21,19 @@ pub const KIND_STATUS_BAR_WIDGET: &str = "status-bar-widget";
 /// the command palette.
 pub const KIND_ACTION_CONTRIBUTOR: &str = "action-contributor";
 
+/// The panel plugin kind: the plugin pushes markdown panel content through
+/// the `SetPanel`/`ClearPanel` protocol commands (the same surface a tab
+/// script's `SetPanel` drives), rendered in the Settings plugins section.
+pub const KIND_PANEL: &str = "panel";
+
 /// Entry-point map key for the [`KIND_STATUS_BAR_WIDGET`] kind.
 pub const ENTRY_POINT_STATUS_BAR_WIDGET: &str = "statusBarWidget";
 
 /// Entry-point map key for the [`KIND_ACTION_CONTRIBUTOR`] kind.
 pub const ENTRY_POINT_ACTION_CONTRIBUTOR: &str = "actionContributor";
+
+/// Entry-point map key for the [`KIND_PANEL`] kind.
+pub const ENTRY_POINT_PANEL: &str = "panel";
 
 /// Activation policy declared by the manifest.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -217,6 +225,9 @@ pub struct DiscoveredPlugin {
     /// action-contributor kind; `None` when the plugin does not declare
     /// that kind.
     pub action_entry_path: Option<PathBuf>,
+    /// Canonicalized, confinement-checked entry executable for the panel
+    /// kind; `None` when the plugin does not declare that kind.
+    pub panel_entry_path: Option<PathBuf>,
 }
 
 /// Why a candidate plugin directory was skipped.
@@ -291,7 +302,7 @@ fn validate_plugin_dir(dir: &Path) -> Result<DiscoveredPlugin, String> {
     if manifest.kinds.is_empty() {
         return Err("no kinds declared".to_string());
     }
-    let known_kinds = [KIND_STATUS_BAR_WIDGET, KIND_ACTION_CONTRIBUTOR];
+    let known_kinds = [KIND_STATUS_BAR_WIDGET, KIND_ACTION_CONTRIBUTOR, KIND_PANEL];
     let unknown: Vec<&str> = manifest
         .kinds
         .iter()
@@ -307,6 +318,7 @@ fn validate_plugin_dir(dir: &Path) -> Result<DiscoveredPlugin, String> {
     }
     let has_widget = manifest.kinds.iter().any(|k| k == KIND_STATUS_BAR_WIDGET);
     let has_action = manifest.kinds.iter().any(|k| k == KIND_ACTION_CONTRIBUTOR);
+    let has_panel = manifest.kinds.iter().any(|k| k == KIND_PANEL);
 
     // A subscription naming a kind the forwarder can never produce would sit
     // inert for the plugin's whole life, so it is rejected at discovery like
@@ -399,12 +411,23 @@ fn validate_plugin_dir(dir: &Path) -> Result<DiscoveredPlugin, String> {
     } else {
         None
     };
+    // The panel kind owes no manifest block beyond its entry point — the
+    // pushed content is entirely the process's decision at runtime.
+    let panel_entry = if has_panel {
+        let entry = manifest.entry_points.get(ENTRY_POINT_PANEL).ok_or_else(|| {
+            format!("{KIND_PANEL} kind requires entryPoints.{ENTRY_POINT_PANEL}")
+        })?;
+        Some(confinement_check(&dir_canon, &entry.command)?)
+    } else {
+        None
+    };
 
     // `kinds` is non-empty and every kind is known, so at least one entry
-    // resolved; the widget entry is the primary entry when both kinds are
-    // declared.
+    // resolved; the widget entry is the primary entry when several kinds
+    // are declared.
     let entry_path = widget_entry
         .or(action_entry.clone())
+        .or(panel_entry.clone())
         .expect("a validated manifest resolves at least one entry point");
 
     Ok(DiscoveredPlugin {
@@ -412,6 +435,7 @@ fn validate_plugin_dir(dir: &Path) -> Result<DiscoveredPlugin, String> {
         dir: dir_canon,
         entry_path,
         action_entry_path: action_entry,
+        panel_entry_path: panel_entry,
     })
 }
 
@@ -571,6 +595,17 @@ mod tests {
         "kinds": ["action-contributor"],
         "entryPoints": { "actionContributor": { "command": "actions.py", "args": [] } },
         "actions": [ { "id": "say-hello", "label": "Say hello" } ]
+    }"#;
+
+    /// Minimal valid panel manifest: the kind owes no block beyond its entry
+    /// point. `{id}` is replaced by [`write_plugin`].
+    const MINIMAL_PANEL_MANIFEST: &str = r#"{
+        "schemaVersion": 1,
+        "id": "{id}",
+        "name": "Test Panel",
+        "version": "0.1.0",
+        "kinds": ["panel"],
+        "entryPoints": { "panel": { "command": "panel.py", "args": [] } }
     }"#;
 
     /// Both-kinds manifest: one plugin contributing a widget and an action.
@@ -857,6 +892,51 @@ mod tests {
         assert_eq!(p.manifest.actions[0].id, "say-hello");
         assert_eq!(p.manifest.actions[0].label, "Say hello");
         assert_eq!(p.manifest.actions[0].description, None);
+        assert!(p.panel_entry_path.is_none());
+    }
+
+    #[test]
+    fn panel_kind_manifest_discovers_with_panel_entry_path() {
+        let tmp = TempDir::new().unwrap();
+        write_plugin(
+            tmp.path(),
+            "com.example.panel",
+            MINIMAL_PANEL_MANIFEST,
+            Some("panel.py"),
+        );
+        let (plugins, warnings) = discover_plugins(tmp.path());
+        assert!(warnings.is_empty(), "unexpected warnings: {warnings:?}");
+        assert_eq!(plugins.len(), 1);
+        let p = &plugins[0];
+        let panel_entry = p.panel_entry_path.as_ref().expect("panel entry set");
+        assert!(
+            panel_entry.starts_with(&p.dir),
+            "must stay inside the plugin dir"
+        );
+        assert!(panel_entry.ends_with("panel.py"));
+        // A panel-only manifest has no widget block and no actions, and the
+        // panel entry is the plugin's primary entry.
+        assert!(p.manifest.status_bar_widget.is_none());
+        assert!(p.manifest.actions.is_empty());
+        assert!(p.entry_path.ends_with("panel.py"));
+        assert!(p.action_entry_path.is_none());
+    }
+
+    #[test]
+    fn panel_kind_without_entry_point_is_skipped() {
+        let tmp = TempDir::new().unwrap();
+        let manifest = MINIMAL_PANEL_MANIFEST.replace(
+            "\"entryPoints\": { \"panel\": { \"command\": \"panel.py\", \"args\": [] } }",
+            "\"entryPoints\": {}",
+        );
+        write_plugin(tmp.path(), "com.example.panel", &manifest, Some("panel.py"));
+        let (plugins, warnings) = discover_plugins(tmp.path());
+        assert!(plugins.is_empty());
+        assert!(
+            warnings[0].reason.contains("requires entryPoints.panel"),
+            "got: {}",
+            warnings[0].reason
+        );
     }
 
     #[test]

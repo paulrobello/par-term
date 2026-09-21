@@ -22,8 +22,9 @@ use par_term_config::RestartPolicy;
 
 use super::manager::{ScriptId, ScriptManager};
 use super::manifest::{
-    DiscoveredPlugin, ENTRY_POINT_ACTION_CONTRIBUTOR, ENTRY_POINT_STATUS_BAR_WIDGET,
-    KIND_ACTION_CONTRIBUTOR, KIND_STATUS_BAR_WIDGET, discover_plugins,
+    DiscoveredPlugin, ENTRY_POINT_ACTION_CONTRIBUTOR, ENTRY_POINT_PANEL,
+    ENTRY_POINT_STATUS_BAR_WIDGET, KIND_ACTION_CONTRIBUTOR, KIND_PANEL, KIND_STATUS_BAR_WIDGET,
+    discover_plugins,
 };
 use super::observer::ScriptEventForwarder;
 use super::process::ScriptStatus;
@@ -78,6 +79,40 @@ fn action_entry_args(plugin: &DiscoveredPlugin) -> &[String] {
         .unwrap_or_default()
 }
 
+/// Extra argv the panel kind's entry point declares before the settings.
+fn panel_entry_args(plugin: &DiscoveredPlugin) -> &[String] {
+    plugin
+        .manifest
+        .entry_points
+        .get(ENTRY_POINT_PANEL)
+        .map(|entry| entry.args.as_slice())
+        .unwrap_or_default()
+}
+
+/// One declared plugin kind's supervision slot. Every per-kind map pair is
+/// selected through this so the three kinds cannot drift apart — the same
+/// role the `action: bool` toggle played for two kinds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum KindSlot {
+    /// `status-bar-widget` — owns the shared `SetWidget` text map.
+    Widget,
+    /// `action-contributor` — palette actions; also writes `SetWidget`.
+    Action,
+    /// `panel` — owns the `SetPanel`/`ClearPanel` content map.
+    Panel,
+}
+
+impl KindSlot {
+    /// Kind name used in log lines.
+    fn as_str(self) -> &'static str {
+        match self {
+            KindSlot::Widget => "widget",
+            KindSlot::Action => "action",
+            KindSlot::Panel => "panel",
+        }
+    }
+}
+
 /// Deduplicates a repeating fault warning to once per condition episode.
 ///
 /// [`PluginHost::apply_enabled`] runs every render frame, so an ungated
@@ -124,6 +159,8 @@ pub struct PluginHost {
     /// supervised process per (plugin, kind), so a both-kinds manifest runs
     /// both entry points independently (design D5).
     action_running: HashMap<String, ScriptId>,
+    /// Running (or supervised) panel-kind plugin id → process id.
+    panel_running: HashMap<String, ScriptId>,
     /// The host's own script registry; never shared with tab scripts.
     manager: ScriptManager,
     /// Last `SetWidget` text per plugin id (last write wins). Either kind's
@@ -132,6 +169,10 @@ pub struct PluginHost {
     /// clears it (documented asymmetry, consistent with the shared-key
     /// contract).
     widget_texts: HashMap<String, String>,
+    /// Last `SetPanel` (title, content) per plugin id (last write wins).
+    /// Panel-kind processes only; a `ClearPanel` (or teardown — no orphaned
+    /// surface) removes the key.
+    panel_contents: HashMap<String, (String, String)>,
     /// Successful [`Self::invoke_action`] stdin writes this session — the
     /// `plugin_action_dispatched` ui-test operand's source. Monotonic for
     /// the session; never reset.
@@ -141,6 +182,9 @@ pub struct PluginHost {
     /// Per-plugin action-kind restart supervisor, driven identically to
     /// [`Self::restart`] but independently per kind.
     action_restart: HashMap<String, ScriptRestartState>,
+    /// Per-plugin panel-kind restart supervisor, driven identically to the
+    /// other kinds.
+    panel_restart: HashMap<String, ScriptRestartState>,
     /// Settings argv each running plugin was spawned with, kept so a
     /// supervisor restart re-spawns with the same settings. Shared by both
     /// kinds of one plugin (same settings argv, design D2).
@@ -210,9 +254,9 @@ impl PluginHost {
     ///
     /// Land-disabled is structural: only ids present in `enabled` AND in the
     /// discovery cache are spawned, so dropping a plugin directory into the
-    /// root does nothing until the Settings layer enables it. A both-kinds
-    /// manifest spawns both entry points in this one pass, with the same
-    /// settings argv and one supervision slot per kind (design D5).
+    /// root does nothing until the Settings layer enables it. A multi-kind
+    /// manifest spawns every declared kind's entry in this one pass, with
+    /// the same settings argv and one supervision slot per kind (design D5).
     pub fn apply_enabled(&mut self, enabled: &[EnabledPlugin]) {
         let now = Instant::now();
 
@@ -220,6 +264,7 @@ impl PluginHost {
             .running
             .keys()
             .chain(self.action_running.keys())
+            .chain(self.panel_running.keys())
             .filter(|id| !enabled.iter().any(|e| e.id == **id))
             .cloned()
             .collect();
@@ -256,117 +301,124 @@ impl PluginHost {
                 .kinds
                 .iter()
                 .any(|k| k == KIND_ACTION_CONTRIBUTOR);
+            let has_panel = found.manifest.kinds.iter().any(|k| k == KIND_PANEL);
 
-            // Extract both kinds' spawn descriptors up front so the
+            // Extract every declared kind's spawn descriptor up front so the
             // discovery borrow ends before the supervisor/spawn calls below.
+            // The action and panel kinds route through their own
+            // confinement-checked entries — never `entry_path`, which belongs
+            // to the widget kind.
             let widget_entry =
                 has_widget.then(|| (found.entry_path.clone(), widget_entry_args(found).to_vec()));
-            // The action kind routes through its own confinement-checked
-            // entry — never `entry_path`, which belongs to the widget kind.
-            let action_entry = if has_action {
-                found
-                    .action_entry_path
-                    .clone()
-                    .map(|path| (path, action_entry_args(found).to_vec()))
-            } else {
-                None
-            };
-            // Unreachable for a validated manifest (the action kind requires
-            // an action entry point); guarded so a host bug neither spawns
-            // the widget entry in its place nor silently skips.
-            let missing_action_entry = has_action && action_entry.is_none();
+            let action_entry = found
+                .action_entry_path
+                .clone()
+                .filter(|_| has_action)
+                .map(|path| (path, action_entry_args(found).to_vec()));
+            let panel_entry = found
+                .panel_entry_path
+                .clone()
+                .filter(|_| has_panel)
+                .map(|path| (path, panel_entry_args(found).to_vec()));
             // Plugin-level, kind-independent: whichever kind spawns first
             // creates the shared event forwarder.
             let subscriptions = found.manifest.subscriptions.clone();
-            // Restart mode is plugin-level too (both kind slots supervise
+            // Restart mode is plugin-level too (every kind slot supervises
             // under the same manifest policy; the delay and cap stay
             // host-owned).
             let restart_policy = found.manifest.restart;
 
-            // Widget leg (the kind gate keeps an action-only manifest out of
-            // the widget slot).
-            if let Some((entry_path, entry_args)) = widget_entry
-                && !self.running.contains_key(&plugin.id)
-                && !self.delayed_by_backoff(&plugin.id, false, now)
-            {
-                match Self::spawn_entry(
-                    &mut self.manager,
-                    &entry_path,
-                    &entry_args,
-                    &plugin.settings_json,
-                ) {
-                    Ok(sid) => {
-                        self.running.insert(plugin.id.clone(), sid);
-                        self.settings_json
-                            .insert(plugin.id.clone(), plugin.settings_json.clone());
-                        self.restart
-                            .entry(plugin.id.clone())
-                            .or_insert_with(|| {
-                                ScriptRestartState::new(restart_policy, PLUGIN_RESTART_DELAY_MS)
-                            })
-                            .on_started(now);
-                        self.ensure_subscription_forwarder(&plugin.id, &subscriptions);
-                        // A successful spawn resolves both fault episodes.
-                        self.warned_not_discovered.clear(&plugin.id);
-                        self.warned_spawn_failed.clear(&plugin.id);
-                        self.warned_event_delivery.clear(&plugin.id);
-                    }
-                    Err(error) => {
-                        if self.warned_spawn_failed.should_warn(&plugin.id) {
-                            log::warn!("failed to spawn plugin '{}': {}", plugin.id, error);
-                        }
-                        self.arm_backoff(&plugin.id, false, restart_policy, now);
-                    }
-                }
-            }
+            self.spawn_kind_leg(
+                &plugin.id,
+                KindSlot::Widget,
+                widget_entry,
+                &plugin.settings_json,
+                &subscriptions,
+                restart_policy,
+                now,
+            );
+            self.spawn_kind_leg(
+                &plugin.id,
+                KindSlot::Action,
+                action_entry,
+                &plugin.settings_json,
+                &subscriptions,
+                restart_policy,
+                now,
+            );
+            self.spawn_kind_leg(
+                &plugin.id,
+                KindSlot::Panel,
+                panel_entry,
+                &plugin.settings_json,
+                &subscriptions,
+                restart_policy,
+                now,
+            );
+        }
+    }
 
-            // Action leg: same pass, same settings argv, its own supervision
-            // slot.
-            if missing_action_entry {
-                if self.warned_spawn_failed.should_warn(&plugin.id) {
-                    log::warn!(
-                        "plugin '{}' has no action entry point; not spawned",
-                        plugin.id
-                    );
-                }
-            } else if let Some((entry_path, entry_args)) = action_entry
-                && !self.action_running.contains_key(&plugin.id)
-                && !self.delayed_by_backoff(&plugin.id, true, now)
-            {
-                match Self::spawn_entry(
-                    &mut self.manager,
-                    &entry_path,
-                    &entry_args,
-                    &plugin.settings_json,
-                ) {
-                    Ok(sid) => {
-                        self.action_running.insert(plugin.id.clone(), sid);
-                        self.settings_json
-                            .insert(plugin.id.clone(), plugin.settings_json.clone());
-                        self.action_restart
-                            .entry(plugin.id.clone())
-                            .or_insert_with(|| {
-                                ScriptRestartState::new(restart_policy, PLUGIN_RESTART_DELAY_MS)
-                            })
-                            .on_started(now);
-                        self.ensure_subscription_forwarder(&plugin.id, &subscriptions);
-                        self.warned_not_discovered.clear(&plugin.id);
-                        self.warned_spawn_failed.clear(&plugin.id);
+    /// Spawn one declared kind's entry unless it is already running or
+    /// backed off. Shared by all three kind legs in
+    /// [`Self::apply_enabled`] so their supervision cannot drift apart —
+    /// the per-kind differences (which map, which warn gates) hang off
+    /// `slot` alone.
+    ///
+    /// `entry` is `None` in exactly two cases: the kind is not declared
+    /// (nothing owed — return), or it is declared but its entry point did
+    /// not resolve, which is unreachable for a validated manifest and is
+    /// warned, never spawned in its place.
+    #[allow(clippy::too_many_arguments)]
+    fn spawn_kind_leg(
+        &mut self,
+        id: &str,
+        slot: KindSlot,
+        entry: Option<(std::path::PathBuf, Vec<String>)>,
+        settings_json: &str,
+        subscriptions: &[String],
+        restart_policy: RestartPolicy,
+        now: Instant,
+    ) {
+        let Some((entry_path, entry_args)) = entry else {
+            if self.warned_spawn_failed.should_warn(id) {
+                log::warn!("plugin '{id}' has no {} entry point; not spawned", slot.as_str());
+            }
+            return;
+        };
+        if !self.running_map(slot).contains_key(id)
+            && !self.delayed_by_backoff(id, slot, now)
+        {
+            match Self::spawn_entry(&mut self.manager, &entry_path, &entry_args, settings_json) {
+                Ok(sid) => {
+                    self.running_map(slot).insert(id.to_string(), sid);
+                    self.settings_json.insert(id.to_string(), settings_json.to_string());
+                    self.restart_map(slot)
+                        .entry(id.to_string())
+                        .or_insert_with(|| {
+                            ScriptRestartState::new(restart_policy, PLUGIN_RESTART_DELAY_MS)
+                        })
+                        .on_started(now);
+                    self.ensure_subscription_forwarder(id, subscriptions);
+                    // A successful spawn resolves the fault episodes.
+                    self.warned_not_discovered.clear(id);
+                    self.warned_spawn_failed.clear(id);
+                    if slot == KindSlot::Action {
                         // A running action process starts a fresh invoke
                         // episode.
-                        self.warned_action_not_running.clear(&plugin.id);
-                        self.warned_event_delivery.clear(&plugin.id);
+                        self.warned_action_not_running.clear(id);
                     }
-                    Err(error) => {
-                        if self.warned_spawn_failed.should_warn(&plugin.id) {
-                            log::warn!(
-                                "failed to spawn action entry for plugin '{}': {}",
-                                plugin.id,
-                                error
-                            );
-                        }
-                        self.arm_backoff(&plugin.id, true, restart_policy, now);
+                    self.warned_event_delivery.clear(id);
+                }
+                Err(error) => {
+                    if self.warned_spawn_failed.should_warn(id) {
+                        log::warn!(
+                            "failed to spawn {} entry for plugin '{}': {}",
+                            slot.as_str(),
+                            id,
+                            error
+                        );
                     }
+                    self.arm_backoff(id, slot, restart_policy, now);
                 }
             }
         }
@@ -378,8 +430,8 @@ impl PluginHost {
     /// process for [`Self::poll`] to drive, so its backoff deadline is
     /// polled here — without this gate, a persistently-failing entry
     /// re-executes once per render frame.
-    fn delayed_by_backoff(&mut self, id: &str, action: bool, now: Instant) -> bool {
-        let state = self.restart_map(action).get_mut(id);
+    fn delayed_by_backoff(&mut self, id: &str, slot: KindSlot, now: Instant) -> bool {
+        let state = self.restart_map(slot).get_mut(id);
         match state {
             Some(state) if state.pending() => state.poll(now) != RestartAction::Restart,
             _ => false,
@@ -390,56 +442,73 @@ impl PluginHost {
     /// as a failed restart). When the attempt cap is reached the state is
     /// dropped so the next attempt starts a fresh capped round — the reset
     /// the crash-loop path gets via [`Self::stop_kind`].
-    fn arm_backoff(&mut self, id: &str, action: bool, policy: RestartPolicy, now: Instant) {
+    fn arm_backoff(&mut self, id: &str, slot: KindSlot, policy: RestartPolicy, now: Instant) {
         let gave_up = {
             let state = self
-                .restart_map(action)
+                .restart_map(slot)
                 .entry(id.to_string())
                 .or_insert_with(|| ScriptRestartState::new(policy, PLUGIN_RESTART_DELAY_MS));
             state.reschedule(now) == RestartAction::Stop
         };
         if gave_up {
-            self.restart_map(action).remove(id);
+            self.restart_map(slot).remove(id);
         }
     }
 
     /// Advance supervision one frame: drain each running plugin process's
-    /// commands (both kinds), observe exits, and drive each kind's restart
+    /// commands (every kind), observe exits, and drive each kind's restart
     /// supervisor (manifest-declared mode, capped) — one frame advance
-    /// covers the widget and action maps identically.
+    /// covers the widget, action, and panel maps identically.
     ///
     /// Commands are drained before exit handling so a plugin's final
-    /// `SetWidget` before a crash still lands.
+    /// output before a crash still lands.
     pub fn poll(&mut self) {
         let now = Instant::now();
         let widget_ids: Vec<String> = self.running.keys().cloned().collect();
         for id in widget_ids {
-            self.poll_one(&id, false, now);
+            self.poll_one(&id, KindSlot::Widget, now);
         }
         let action_ids: Vec<String> = self.action_running.keys().cloned().collect();
         for id in action_ids {
-            self.poll_one(&id, true, now);
+            self.poll_one(&id, KindSlot::Action, now);
+        }
+        let panel_ids: Vec<String> = self.panel_running.keys().cloned().collect();
+        for id in panel_ids {
+            self.poll_one(&id, KindSlot::Panel, now);
         }
     }
 
-    /// Advance one plugin's supervision for one kind (widget or action
-    /// entry): drain commands, observe an exit, and act on the supervisor's
-    /// decision. Shared by both kinds so their supervision is identical.
-    fn poll_one(&mut self, id: &str, action: bool, now: Instant) {
-        let Some(&sid) = self.running_map(action).get(id) else {
+    /// Advance one plugin's supervision for one kind: drain commands,
+    /// observe an exit, and act on the supervisor's decision. Shared by all
+    /// kinds so their supervision is identical; only the accepted command
+    /// set differs per kind (v1 plugins are display-only, design D2).
+    fn poll_one(&mut self, id: &str, slot: KindSlot, now: Instant) {
+        let Some(&sid) = self.running_map(slot).get(id) else {
             return;
         };
 
         for cmd in self.manager.read_commands(sid) {
             match cmd {
-                ScriptCommand::SetWidget { text } => {
+                ScriptCommand::SetWidget { text } if slot != KindSlot::Panel => {
                     self.widget_texts.insert(id.to_string(), text);
+                }
+                ScriptCommand::SetPanel { title, content } if slot == KindSlot::Panel => {
+                    self.panel_contents.insert(id.to_string(), (title, content));
+                }
+                ScriptCommand::ClearPanel {} if slot == KindSlot::Panel => {
+                    self.panel_contents.remove(id);
                 }
                 other => {
                     // v1 plugins are display-only (design D2); anything
-                    // else is refused with an error-style line.
+                    // outside the kind's accepted set is refused with an
+                    // error-style line.
+                    let accepted = if slot == KindSlot::Panel {
+                        "only SetPanel/ClearPanel are accepted from a panel plugin in v1"
+                    } else {
+                        "only SetWidget is accepted from plugins in v1"
+                    };
                     let line = format!(
-                        "[error] plugin '{}' sent {}; only SetWidget is accepted from plugins in v1 — ignored",
+                        "[error] plugin '{}' sent {}; {accepted} — ignored",
                         id,
                         other.command_name()
                     );
@@ -450,22 +519,22 @@ impl PluginHost {
         }
 
         if let ScriptStatus::Exited { success } = self.manager.poll_status(sid) {
-            let decision = match self.restart_map(action).get_mut(id) {
+            let decision = match self.restart_map(slot).get_mut(id) {
                 Some(state) if !state.pending() => state.on_exit(now, success),
                 Some(state) => state.poll(now),
                 None => RestartAction::Stop,
             };
             match decision {
-                RestartAction::Stop => self.stop_kind(id, action),
+                RestartAction::Stop => self.stop_kind(id, slot),
                 RestartAction::Restart => {
-                    if let Err(error) = self.respawn(id, action, now) {
+                    if let Err(error) = self.respawn(id, slot, now) {
                         log::warn!(
                             "plugin '{}' failed to restart its {} entry: {}",
                             id,
-                            if action { "action" } else { "widget" },
+                            slot.as_str(),
                             error
                         );
-                        if let Some(state) = self.restart_map(action).get_mut(id) {
+                        if let Some(state) = self.restart_map(slot).get_mut(id) {
                             state.reschedule(now);
                         }
                     }
@@ -480,6 +549,11 @@ impl PluginHost {
         self.widget_texts.get(plugin_id).map(String::as_str)
     }
 
+    /// Last `SetPanel` (title, content) recorded for a panel plugin, if any.
+    pub fn panel_content(&self, plugin_id: &str) -> Option<&(String, String)> {
+        self.panel_contents.get(plugin_id)
+    }
+
     /// Live per-plugin event forwarders (plugin id → forwarder), for the
     /// window layer's observer registration and per-sweep drain — the pump
     /// in `StatusBarUI::pump_plugin_events`.
@@ -487,9 +561,9 @@ impl PluginHost {
         &self.subscription_forwarders
     }
 
-    /// Deliver drained events to one plugin's running processes (widget and
-    /// action kind alike — the manifest's subscriptions are plugin-level, so
-    /// every running process of the plugin hears them).
+    /// Deliver drained events to one plugin's running processes (every kind
+    /// alike — the manifest's subscriptions are plugin-level, so every
+    /// running process of the plugin hears them).
     ///
     /// A plugin with no running process this sweep silently drops the events:
     /// they are moments in time, not state, and its supervisor restarts it
@@ -501,6 +575,7 @@ impl PluginHost {
             .get(plugin_id)
             .into_iter()
             .chain(self.action_running.get(plugin_id))
+            .chain(self.panel_running.get(plugin_id))
             .copied()
             .collect();
         if targets.is_empty() {
@@ -532,6 +607,12 @@ impl PluginHost {
         &self.widget_texts
     }
 
+    /// All recorded panel contents (plugin id → (title, content)), for the
+    /// settings plugins section.
+    pub fn panel_contents(&self) -> &HashMap<String, (String, String)> {
+        &self.panel_contents
+    }
+
     /// Successful [`Self::invoke_action`] stdin writes this session.
     /// Monotonic for the session and never reset — delivered-means-true
     /// dispatch has no undo, so the count only grows.
@@ -539,12 +620,13 @@ impl PluginHost {
         self.actions_dispatched
     }
 
-    /// Ids of plugins with any running or supervised process, of either
-    /// kind. A both-kinds plugin appears once.
+    /// Ids of plugins with any running or supervised process, of any
+    /// kind. A multi-kind plugin appears once.
     pub fn running_plugin_ids(&self) -> Vec<String> {
         self.running
             .keys()
             .chain(self.action_running.keys())
+            .chain(self.panel_running.keys())
             .cloned()
             .collect()
     }
@@ -670,9 +752,12 @@ impl PluginHost {
         self.manager.stop_all();
         self.running.clear();
         self.action_running.clear();
+        self.panel_running.clear();
         self.restart.clear();
         self.action_restart.clear();
+        self.panel_restart.clear();
         self.widget_texts.clear();
+        self.panel_contents.clear();
         self.settings_json.clear();
         self.enabled_ids.clear();
         self.subscription_forwarders.clear();
@@ -682,48 +767,58 @@ impl PluginHost {
         self.warned_event_delivery = WarnOnce::default();
     }
 
-    /// Stop one plugin entirely: both kind slots plus all shared state.
+    /// Stop one plugin entirely: every kind slot plus all shared state.
     fn teardown(&mut self, id: &str) {
-        self.stop_kind(id, false);
-        self.stop_kind(id, true);
+        self.stop_kind(id, KindSlot::Widget);
+        self.stop_kind(id, KindSlot::Action);
+        self.stop_kind(id, KindSlot::Panel);
         self.subscription_forwarders.remove(id);
         self.warned_event_delivery.clear(id);
     }
 
-    /// The running-process map for one kind (`action_running` vs `running`).
-    /// Every per-kind code path selects its pair through this so the two maps
-    /// cannot drift apart; `!action` selects the other kind's map.
-    fn running_map(&mut self, action: bool) -> &mut HashMap<String, ScriptId> {
-        if action {
-            &mut self.action_running
-        } else {
-            &mut self.running
+    /// The running-process map for one kind. Every per-kind code path
+    /// selects its pair through this so the three maps cannot drift apart.
+    fn running_map(&mut self, slot: KindSlot) -> &mut HashMap<String, ScriptId> {
+        match slot {
+            KindSlot::Widget => &mut self.running,
+            KindSlot::Action => &mut self.action_running,
+            KindSlot::Panel => &mut self.panel_running,
         }
     }
 
     /// The restart-supervisor map for one kind — see [`Self::running_map`].
-    fn restart_map(&mut self, action: bool) -> &mut HashMap<String, ScriptRestartState> {
-        if action {
-            &mut self.action_restart
-        } else {
-            &mut self.restart
+    fn restart_map(&mut self, slot: KindSlot) -> &mut HashMap<String, ScriptRestartState> {
+        match slot {
+            KindSlot::Widget => &mut self.restart,
+            KindSlot::Action => &mut self.action_restart,
+            KindSlot::Panel => &mut self.panel_restart,
         }
     }
 
     /// Stop one kind's process and drop its supervision. Shared per-plugin
-    /// state (settings argv, warn gates) survives while the other kind still
+    /// state (settings argv, warn gates) survives while another kind still
     /// runs, so a crash-looping action entry never tears down a healthy
-    /// widget entry of the same plugin (design D5).
-    fn stop_kind(&mut self, id: &str, action: bool) {
-        let slot = self.running_map(action).remove(id);
-        if let Some(sid) = slot {
+    /// widget entry of the same plugin (design D5). Stopping the widget or
+    /// panel kind also drops its display state (widget text / panel
+    /// content) so a disabled plugin leaves no orphaned surface.
+    fn stop_kind(&mut self, id: &str, slot: KindSlot) {
+        let stopped = self.running_map(slot).remove(id);
+        if let Some(sid) = stopped {
             self.manager.stop_script(sid);
         }
-        self.restart_map(action).remove(id);
-        if !action {
-            self.widget_texts.remove(id);
+        self.restart_map(slot).remove(id);
+        match slot {
+            KindSlot::Widget => {
+                self.widget_texts.remove(id);
+            }
+            KindSlot::Panel => {
+                self.panel_contents.remove(id);
+            }
+            KindSlot::Action => {}
         }
-        let other_running = self.running_map(!action).contains_key(id);
+        let other_running = [KindSlot::Widget, KindSlot::Action, KindSlot::Panel]
+            .iter()
+            .any(|s| self.running_map(*s).contains_key(id));
         if !other_running {
             self.settings_json.remove(id);
             // Disarming the fault gates here makes a disable/enable cycle
@@ -740,7 +835,7 @@ impl PluginHost {
     /// The exited process slot stays mapped until the new spawn succeeds —
     /// removing it first would orphan the supervisor (a pending restart
     /// nothing polls).
-    fn respawn(&mut self, id: &str, action: bool, now: Instant) -> Result<ScriptId, String> {
+    fn respawn(&mut self, id: &str, slot: KindSlot, now: Instant) -> Result<ScriptId, String> {
         let settings = self
             .settings_json
             .get(id)
@@ -749,23 +844,33 @@ impl PluginHost {
         let Some(found) = self.discovered.iter().find(|d| d.manifest.id == id) else {
             return Err(format!("plugin '{}' is no longer discovered", id));
         };
-        let (entry_path, entry_args) = if action {
-            let Some(path) = found.action_entry_path.clone() else {
-                return Err(format!(
-                    "plugin '{}' no longer resolves an action entry point",
-                    id
-                ));
-            };
-            (path, action_entry_args(found).to_vec())
-        } else {
-            (found.entry_path.clone(), widget_entry_args(found).to_vec())
+        let (entry_path, entry_args) = match slot {
+            KindSlot::Action => {
+                let Some(path) = found.action_entry_path.clone() else {
+                    return Err(format!(
+                        "plugin '{}' no longer resolves an action entry point",
+                        id
+                    ));
+                };
+                (path, action_entry_args(found).to_vec())
+            }
+            KindSlot::Panel => {
+                let Some(path) = found.panel_entry_path.clone() else {
+                    return Err(format!(
+                        "plugin '{}' no longer resolves a panel entry point",
+                        id
+                    ));
+                };
+                (path, panel_entry_args(found).to_vec())
+            }
+            KindSlot::Widget => (found.entry_path.clone(), widget_entry_args(found).to_vec()),
         };
         let new_sid = Self::spawn_entry(&mut self.manager, &entry_path, &entry_args, &settings)?;
-        let old = self.running_map(action).insert(id.to_string(), new_sid);
+        let old = self.running_map(slot).insert(id.to_string(), new_sid);
         if let Some(old_sid) = old {
             self.manager.stop_script(old_sid);
         }
-        if let Some(state) = self.restart_map(action).get_mut(id) {
+        if let Some(state) = self.restart_map(slot).get_mut(id) {
             state.on_started(now);
         }
         Ok(new_sid)
@@ -1327,6 +1432,38 @@ for line in iter(sys.stdin.readline, ""):
         )
     }
 
+    fn panel_manifest_json(id: &str) -> String {
+        format!(
+            "{{\"schemaVersion\":1,\"id\":\"{id}\",\"name\":\"Test Panel\",\"version\":\"0.1.0\",\
+\"kinds\":[\"panel\"],\"activation\":\"manual\",\
+\"entryPoints\":{{\"panel\":{{\"command\":\"panel.py\",\"args\":[]}}}}}}"
+        )
+    }
+
+    /// A panel plugin that emits a `SetWidget` line (refused for the panel
+    /// kind) and then a `SetPanel`, then stays alive.
+    const PANEL_SCRIPT: &str = r##"
+import json, time
+def emit(obj):
+    print(json.dumps(obj), flush=True)
+emit({"type": "SetWidget", "text": "nope"})
+emit({"type": "SetPanel", "title": "Notes", "content": "# hello\nworld"})
+while True:
+    time.sleep(0.2)
+"##;
+
+    /// A panel plugin that pushes a panel and then clears it.
+    const PANEL_CLEAR_SCRIPT: &str = r#"
+import json, time
+def emit(obj):
+    print(json.dumps(obj), flush=True)
+emit({"type": "SetPanel", "title": "T", "content": "c"})
+time.sleep(0.3)
+emit({"type": "ClearPanel"})
+while True:
+    time.sleep(0.2)
+"#;
+
     /// Write one plugin directory with a manifest plus named entry files,
     /// executable on unix so discovery's permissions check accepts them.
     fn write_plugin_files(root: &Path, id: &str, manifest: &str, files: &[(&str, &str)]) {
@@ -1351,6 +1488,76 @@ for line in iter(sys.stdin.readline, ""):
             &action_manifest_json(id),
             &[("actions.py", script)],
         );
+    }
+
+    fn write_panel_plugin(root: &Path, id: &str, script: &str) {
+        write_plugin_files(root, id, &panel_manifest_json(id), &[("panel.py", script)]);
+    }
+
+    #[test]
+    fn panel_plugin_pushes_content_and_refuses_set_widget() {
+        if skip_without_interpreter() {
+            return;
+        }
+        let root = tempfile::tempdir().unwrap();
+        write_panel_plugin(root.path(), "com.test.panel", PANEL_SCRIPT);
+
+        let mut host = PluginHost::new();
+        assert_eq!(host.refresh_discovery(root.path()).len(), 1);
+        host.apply_enabled(&[enabled("com.test.panel")]);
+        let settled = wait_until(&mut host, |h| h.panel_content("com.test.panel").is_some());
+        assert!(settled, "fixture's SetPanel never arrived");
+        assert_eq!(
+            host.panel_content("com.test.panel"),
+            Some(&("Notes".to_string(), "# hello\nworld".to_string()))
+        );
+        // The panel kind's allowlist refused the fixture's SetWidget line
+        // with the panel-specific message.
+        let ignored = host.drain_ignored().join("\n");
+        assert!(ignored.contains("SetWidget"), "got: {ignored}");
+        assert!(ignored.contains("SetPanel/ClearPanel"), "got: {ignored}");
+        host.stop_all();
+    }
+
+    #[test]
+    fn clear_panel_from_a_panel_process_removes_the_panel() {
+        if skip_without_interpreter() {
+            return;
+        }
+        let root = tempfile::tempdir().unwrap();
+        write_panel_plugin(root.path(), "com.test.panel", PANEL_CLEAR_SCRIPT);
+
+        let mut host = PluginHost::new();
+        host.refresh_discovery(root.path());
+        host.apply_enabled(&[enabled("com.test.panel")]);
+        let pushed = wait_until(&mut host, |h| h.panel_content("com.test.panel").is_some());
+        assert!(pushed, "fixture's SetPanel never arrived");
+        let cleared = wait_until(&mut host, |h| h.panel_content("com.test.panel").is_none());
+        assert!(cleared, "fixture's ClearPanel never landed");
+        host.stop_all();
+    }
+
+    #[test]
+    fn disabling_a_panel_plugin_stops_the_process_and_clears_the_panel() {
+        if skip_without_interpreter() {
+            return;
+        }
+        let root = tempfile::tempdir().unwrap();
+        write_panel_plugin(root.path(), "com.test.panel", PANEL_SCRIPT);
+
+        let mut host = PluginHost::new();
+        host.refresh_discovery(root.path());
+        host.apply_enabled(&[enabled("com.test.panel")]);
+        let settled = wait_until(&mut host, |h| h.panel_content("com.test.panel").is_some());
+        assert!(settled, "fixture's SetPanel never arrived");
+        assert!(plugin_running(&host, "com.test.panel"));
+
+        // Leaving the enabled set tears the plugin down: process stopped AND
+        // the pushed panel dropped — no orphaned surface.
+        host.apply_enabled(&[]);
+        assert!(!plugin_running(&host, "com.test.panel"));
+        assert_eq!(host.panel_content("com.test.panel"), None);
+        host.stop_all();
     }
 
     #[test]
