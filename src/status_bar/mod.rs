@@ -41,6 +41,7 @@ pub mod plugins_upkeep;
 pub mod system_monitor;
 pub mod widgets;
 
+use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 use crate::agent_usage::store::UsageStore;
@@ -98,6 +99,13 @@ pub struct StatusBarUI {
     /// Warn-once gate for per-frame invalid-settings warnings (upkeep runs
     /// every render frame; a steady fault must not warn per frame).
     plugin_settings_warned: WarnOnce,
+    /// Terminal-observer registrations for plugin event forwarders, keyed by
+    /// (plugin id, tab id). Reconciled every sweep by
+    /// [`StatusBarUI::pump_plugin_events`]; an entry for a closed tab is
+    /// dropped with the map entry alone — its terminal, and the observer
+    /// registry inside it, is gone with the tab.
+    plugin_observer_ids:
+        HashMap<(String, crate::tab::TabId), par_term_emu_core_rust::observer::ObserverId>,
 }
 
 impl StatusBarUI {
@@ -116,6 +124,7 @@ impl StatusBarUI {
             plugins: PluginHost::new(),
             plugins_last_discovery: None,
             plugin_settings_warned: WarnOnce::default(),
+            plugin_observer_ids: HashMap::new(),
         }
     }
 

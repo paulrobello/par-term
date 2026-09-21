@@ -12,6 +12,7 @@ kinds: `status-bar-widget` and `action-contributor`.
 - [Security model](#security-model)
 - [The SetWidget contract](#the-setwidget-contract)
 - [Contributing palette actions](#contributing-palette-actions)
+- [Event subscriptions](#event-subscriptions)
 - [Settings](#settings)
 - [Lifecycle and restarts](#lifecycle-and-restarts)
 - [Diagnostics](#diagnostics)
@@ -70,6 +71,7 @@ back restores the plugin with its settings and placement intact.
 | `entryPoints` | object | Map of kind → executable: `statusBarWidget` and/or `actionContributor` → `{ "command": "...", "args": [...] }`. |
 | `statusBarWidget` | object? | Required when `kinds` includes `status-bar-widget`; see below. |
 | `actions` | array? | Required when `kinds` includes `action-contributor`; see [Contributing palette actions](#contributing-palette-actions). |
+| `subscriptions` | string[]? | Terminal event kinds delivered to the plugin's stdin; empty or absent means none (self-scheduled). Each name must be a known event kind — see [Event subscriptions](#event-subscriptions). |
 
 The `statusBarWidget` block:
 
@@ -136,10 +138,11 @@ repository's example greeter is the reference shape:
   "version": "0.1.0",
   "author": "par-term example",
   "license": "MIT",
-  "description": "Example action-contributor plugin. Contributes one palette action; each invocation appends a timestamped greeting to stamps.txt next to the script.",
+  "description": "Example action-contributor plugin. Contributes one palette action; each invocation appends a timestamped greeting to stamps.txt next to the script. Also subscribes to bell_rang to demonstrate event subscriptions.",
   "kinds": ["action-contributor"],
   "activation": "manual",
   "entryPoints": { "actionContributor": { "command": "greeter.py", "args": [] } },
+  "subscriptions": ["bell_rang"],
   "actions": [
     { "id": "greet", "label": "Greet", "description": "Append a timestamped greeting to stamps.txt" }
   ]
@@ -207,6 +210,72 @@ The example greeter plugin (`scripts/examples/plugins/com.example.greeter/`)
 is the reference for the kind: copy it under `~/.config/par-term/plugins/`
 and enable it like any plugin. It writes nothing to stdout — its effect is
 a line in its own `stamps.txt` per invocation, and stdin EOF exits cleanly.
+It also declares `subscriptions: ["bell_rang"]`, making it the reference
+for [event subscriptions](#event-subscriptions): every bell in the window's
+tabs appends a `bell` line to the same `stamps.txt`.
+
+## Event subscriptions
+
+A plugin that wants to react to the terminal declares the events it wants
+in its manifest:
+
+```json
+"subscriptions": ["bell_rang", "cwd_changed", "command_complete"]
+```
+
+Each listed kind is delivered to the plugin's stdin as one NDJSON line, in
+the same event shape tab scripts receive (payload details per kind in
+[AUTOMATION.md](AUTOMATION.md#events-stdin)):
+
+```json
+{"kind": "cwd_changed", "data": {"data_type": "CwdChanged", "cwd": "/home/user/project"}}
+```
+
+**The vocabulary** is the script event vocabulary, validated at discovery —
+a subscription naming an unknown or duplicate kind skips the whole plugin
+with a warning, so a typo'd subscription can never silently never-fire:
+
+`bell_rang` · `title_changed` · `size_changed` · `mode_changed` ·
+`graphics_added` · `hyperlink_added` · `dirty_region` · `cwd_changed` ·
+`trigger_matched` · `user_var_changed` · `progress_bar_changed` ·
+`badge_changed` · `command_complete` · `zone_opened` · `zone_closed` ·
+`zone_scrolled_out` · `environment_changed` · `remote_host_transition` ·
+`sub_shell_detected` · `file_transfer_started` · `file_transfer_progress` ·
+`file_transfer_completed` · `file_transfer_failed` · `upload_requested` ·
+`screen_cleared`
+
+Semantics worth knowing before declaring one:
+
+- **Empty or absent means self-scheduled.** A plugin with no subscriptions
+  receives no terminal events — the clock's model. This is deliberately the
+  opposite of tab scripts, where an empty subscription list means *all*
+  events; the difference keeps every pre-subscriptions plugin behaving
+  exactly as it did.
+- **Delivery is window-wide.** Events from every tab of the plugin's window
+  are delivered; each event originates at exactly one terminal, so nothing
+  is duplicated, but events carry no tab attribution in v1 — a plugin
+  cannot tell which tab rang the bell.
+- **Both kind processes hear them.** Subscriptions are plugin-level: a
+  both-kinds manifest delivers to the widget process and the action
+  process alike.
+- **Backpressure is the script policy.** Each subscribed plugin gets its
+  own event forwarder carrying its own kind filter — the same machinery
+  tab scripts use: at most 1024 events buffered per plugin, evicting the
+  oldest when full, with one overflow warning per forwarder. The per-plugin
+  filter is what keeps a subscription reliable under load (a chatty
+  terminal's `dirty_region` flood never enters a forwarder filtered to
+  `bell_rang`). A plugin that subscribes but never reads its stdin will
+  eventually fill its pipe and lose events — read what you subscribe to.
+- **No secrets, no gate.** The vocabulary carries no raw terminal output —
+  there is no event kind for pane bytes — so subscriptions need no
+  permission flag in v1. The kinds that do carry terminal-derived text
+  (`command_complete`, `trigger_matched`) already reach tab scripts
+  ungated, and a plugin remains strictly narrower than a script: outbound
+  it may still only send `SetWidget`. Adding a raw-output event kind is
+  the point where a permission gate becomes mandatory; that seam is
+  deliberate and unforged.
+
+## Settings
 
 ## Settings
 
@@ -260,11 +329,11 @@ plugins as rows regardless of the log level.
 
 ## v1 limits
 
-- **Self-scheduled only.** Widgets receive no terminal events in v1; a
-  widget decides for itself when to refresh (the clock sleeps one second).
-  An action-contributor's process hears about its own invocations and
-  nothing else. The manifest `subscriptions` field is reserved for a
-  future phase.
+- **Event subscriptions are kind-only.** A plugin may declare which event
+  kinds it wants (see [Event subscriptions](#event-subscriptions)); there is
+  no filter or regex form in v1. A plugin with no subscriptions stays
+  self-scheduled (the clock sleeps one second), and an action-contributor's
+  process hears its own invocations plus whatever it subscribes to.
 - **Two kinds**: `status-bar-widget` and `action-contributor`. `panel` and
   `overlay` kinds are deliberately deferred.
 - **Restart policy is fixed** (on-failure); manifests carry no restart field.
@@ -394,6 +463,51 @@ registry, dispatch was delivered to the running action process
 (`plugin_action_dispatched = true`), the plugin observed the event and
 wrote its stamp, and nothing leaked to the PTY. As with the clock, the
 interpreter is the environmental dependency.
+
+### Subscriptions variant (greeter bell)
+
+The greeter's manifest declares `subscriptions: ["bell_rang"]`, and this
+variant proves the delivery chain end to end: the test shell itself rings
+the terminal bell — after a delay, so the plugin is spawned and subscribed
+first — and the greeter's `stamps.txt` must carry the `bell` line:
+
+```bash
+ROOT=/tmp/pt-plugin-sub-ui-test
+rm -rf "$ROOT"; mkdir -p "$ROOT/cfg/par-term/plugins"
+cp -r scripts/examples/plugins/com.example.greeter "$ROOT/cfg/par-term/plugins/"
+cat > "$ROOT/cfg/par-term/config.yaml" <<'EOF'
+custom_shell: /bin/sh
+shell_args:
+  - -c
+  - sleep 3; printf '\a' > /dev/tty; exec cat > /tmp/pt-plugin-sub-ui-test/pty-capture.txt
+shader_install_prompt: never
+shell_integration_state: never
+plugins:
+  - id: com.example.greeter
+    enabled: true
+EOF
+cat > "$ROOT/script.json" <<'EOF'
+{
+  "steps": [
+    {"wait_ms": 2500, "assert": "plugins_loaded"},
+    {"wait_ms": 3000, "assert_not": "modal_guard"},
+    {"assert_eq": ["file_empty", "/tmp/pt-plugin-sub-ui-test/pty-capture.txt"]}
+  ]
+}
+EOF
+make build
+XDG_CONFIG_HOME="$ROOT/cfg" ./target/dev-release/par-term \
+  --ui-test "$ROOT/script.json" --ui-test-report "$ROOT/report.json"
+grep -q bell "$ROOT/cfg/par-term/plugins/com.example.greeter/stamps.txt" \
+  && echo "subscription delivered" || echo "MISSING bell stamp"
+```
+
+The `sleep 3` rings the bell only after the plugin's process is up and
+subscribed; `\a` is written to `/dev/tty` (the terminal's output side), so
+it never reaches the capture file. `all_passed: true` plus
+"subscription delivered" is the full chain: bell byte → terminal event →
+the plugin's forwarder → plugin stdin → `stamps.txt`. The interpreter
+remains the environmental dependency.
 
 ## See also
 

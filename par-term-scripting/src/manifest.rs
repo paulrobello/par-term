@@ -175,6 +175,15 @@ pub struct PluginManifest {
     /// `kinds` contains [`KIND_ACTION_CONTRIBUTOR`], ignored otherwise.
     #[serde(default)]
     pub actions: Vec<ActionContribution>,
+    /// Terminal event kinds the plugin wants delivered to its stdin. Empty or
+    /// absent means self-scheduled: the plugin receives no terminal events
+    /// (unlike tab scripts, where an empty subscription list means all
+    /// events). Each name must be one of
+    /// [`crate::observer::EVENT_KINDS`]; an unknown or duplicate name skips
+    /// the plugin at discovery so a typo'd subscription can never silently
+    /// never-fire.
+    #[serde(default)]
+    pub subscriptions: Vec<String>,
 }
 
 /// A plugin that passed validation, with confinement-checked paths.
@@ -282,6 +291,23 @@ fn validate_plugin_dir(dir: &Path) -> Result<DiscoveredPlugin, String> {
     }
     let has_widget = manifest.kinds.iter().any(|k| k == KIND_STATUS_BAR_WIDGET);
     let has_action = manifest.kinds.iter().any(|k| k == KIND_ACTION_CONTRIBUTOR);
+
+    // A subscription naming a kind the forwarder can never produce would sit
+    // inert for the plugin's whole life, so it is rejected at discovery like
+    // every other manifest fault. Duplicates are rejected for the same
+    // reason as duplicate action ids: an authoring error, not a filter.
+    let mut seen_subscriptions: HashSet<&str> = HashSet::new();
+    for kind in &manifest.subscriptions {
+        if !super::observer::EVENT_KINDS.contains(&kind.as_str()) {
+            return Err(format!(
+                "unknown subscription kind `{kind}` (valid kinds are the script event \
+                 vocabulary, e.g. bell_rang, cwd_changed, command_complete)"
+            ));
+        }
+        if !seen_subscriptions.insert(kind.as_str()) {
+            return Err(format!("duplicate subscription kind `{kind}`"));
+        }
+    }
 
     // Each declared kind's requirements run only when that kind is present:
     // a both-kinds manifest must satisfy both pairs, an action-only manifest
@@ -946,6 +972,91 @@ mod tests {
         assert!(
             plugins[0].action_entry_path.is_none(),
             "no action kind declared, so no action entry is required or resolved"
+        );
+    }
+
+    #[test]
+    fn subscriptions_parse_and_survive_discovery() {
+        let tmp = TempDir::new().unwrap();
+        let manifest = MINIMAL_MANIFEST.replacen(
+            "\"kinds\": [\"status-bar-widget\"],",
+            concat!(
+                "\"kinds\": [\"status-bar-widget\"], ",
+                "\"subscriptions\": [\"bell_rang\", \"command_complete\"],"
+            ),
+            1,
+        );
+        write_plugin(tmp.path(), "com.example.test", &manifest, Some("widget.py"));
+        let (plugins, warnings) = discover_plugins(tmp.path());
+        assert!(warnings.is_empty(), "unexpected warnings: {warnings:?}");
+        assert_eq!(plugins.len(), 1);
+        assert_eq!(
+            plugins[0].manifest.subscriptions,
+            vec!["bell_rang".to_string(), "command_complete".to_string()]
+        );
+    }
+
+    #[test]
+    fn manifest_without_subscriptions_defaults_to_empty() {
+        // The self-scheduled contract: an absent subscriptions block must
+        // parse to an empty list, never a delivery of every event.
+        let tmp = TempDir::new().unwrap();
+        write_plugin(
+            tmp.path(),
+            "com.example.test",
+            MINIMAL_MANIFEST,
+            Some("widget.py"),
+        );
+        let (plugins, warnings) = discover_plugins(tmp.path());
+        assert!(warnings.is_empty(), "unexpected warnings: {warnings:?}");
+        assert_eq!(plugins.len(), 1);
+        assert!(plugins[0].manifest.subscriptions.is_empty());
+    }
+
+    #[test]
+    fn unknown_subscription_kind_skips_the_plugin() {
+        let tmp = TempDir::new().unwrap();
+        let manifest = MINIMAL_MANIFEST.replacen(
+            "\"kinds\": [\"status-bar-widget\"],",
+            concat!(
+                "\"kinds\": [\"status-bar-widget\"], ",
+                "\"subscriptions\": [\"bell_rang\", \"not_an_event\"],"
+            ),
+            1,
+        );
+        write_plugin(tmp.path(), "com.example.test", &manifest, Some("widget.py"));
+        let (plugins, warnings) = discover_plugins(tmp.path());
+        assert!(plugins.is_empty());
+        assert_eq!(warnings.len(), 1);
+        assert!(
+            warnings[0]
+                .reason
+                .contains("unknown subscription kind `not_an_event`"),
+            "got: {}",
+            warnings[0].reason
+        );
+    }
+
+    #[test]
+    fn duplicate_subscription_kind_is_skipped() {
+        let tmp = TempDir::new().unwrap();
+        let manifest = MINIMAL_MANIFEST.replacen(
+            "\"kinds\": [\"status-bar-widget\"],",
+            concat!(
+                "\"kinds\": [\"status-bar-widget\"], ",
+                "\"subscriptions\": [\"bell_rang\", \"bell_rang\"],"
+            ),
+            1,
+        );
+        write_plugin(tmp.path(), "com.example.test", &manifest, Some("widget.py"));
+        let (plugins, warnings) = discover_plugins(tmp.path());
+        assert!(plugins.is_empty());
+        assert!(
+            warnings[0]
+                .reason
+                .contains("duplicate subscription kind `bell_rang`"),
+            "got: {}",
+            warnings[0].reason
         );
     }
 

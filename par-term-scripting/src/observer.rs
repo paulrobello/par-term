@@ -22,6 +22,42 @@ use super::protocol::{ScriptEvent, ScriptEventData};
 /// and this cap is the only thing bounding it.
 const MAX_BUFFERED_EVENTS: usize = 1024;
 
+/// The complete subscribable event-kind vocabulary: every snake_case kind
+/// name [`ScriptEventForwarder::event_kind_name`] can produce.
+///
+/// The authority for validating a plugin manifest's `subscriptions` — a
+/// subscription naming anything outside this list can never fire, so
+/// discovery rejects it rather than letting it sit inert. Keep in sync with
+/// `event_kind_name`'s match: a new `TerminalEvent` arm must add its kind
+/// here in the same change.
+pub const EVENT_KINDS: &[&str] = &[
+    "bell_rang",
+    "title_changed",
+    "size_changed",
+    "mode_changed",
+    "graphics_added",
+    "hyperlink_added",
+    "dirty_region",
+    "cwd_changed",
+    "trigger_matched",
+    "user_var_changed",
+    "progress_bar_changed",
+    "badge_changed",
+    "command_complete",
+    "zone_opened",
+    "zone_closed",
+    "zone_scrolled_out",
+    "environment_changed",
+    "remote_host_transition",
+    "sub_shell_detected",
+    "file_transfer_started",
+    "file_transfer_progress",
+    "file_transfer_completed",
+    "file_transfer_failed",
+    "upload_requested",
+    "screen_cleared",
+];
+
 /// The buffered events plus the once-only overflow latch, behind one lock.
 struct EventBuffer {
     events: VecDeque<ScriptEvent>,
@@ -296,6 +332,26 @@ mod tests {
                 rows: 40,
             }
         );
+    }
+
+    #[test]
+    fn event_kinds_has_no_duplicates_and_names_representative_kinds() {
+        let mut sorted = EVENT_KINDS.to_vec();
+        sorted.sort_unstable();
+        let count = sorted.len();
+        sorted.dedup();
+        assert_eq!(sorted.len(), count, "EVENT_KINDS must not repeat a kind");
+        for kind in [
+            "bell_rang",
+            "command_complete",
+            "screen_cleared",
+            "file_transfer_failed",
+        ] {
+            assert!(
+                EVENT_KINDS.contains(&kind),
+                "{kind} missing from EVENT_KINDS"
+            );
+        }
     }
 
     #[test]

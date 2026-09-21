@@ -526,6 +526,11 @@ impl ApplicationHandler<AppEvent> for WindowManager {
         // for the UI when no settings window exists.
         self.sync_script_running_state();
 
+        // Plugin event subscriptions ride the same wake: reconcile each
+        // window's plugin forwarders onto its tab terminals and deliver
+        // drained events to the running plugin processes.
+        self.sync_plugin_events();
+
         // Coprocess state, by contrast, is purely a settings-window mirror:
         // its reads *drain* the core's stdout/stderr line buffers, which are
         // bounded and self-trimming, so draining them with nothing to display

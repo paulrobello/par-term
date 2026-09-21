@@ -14,6 +14,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
+use std::sync::Arc;
 use std::time::Instant;
 
 use par_term_config::RestartPolicy;
@@ -23,6 +24,7 @@ use super::manifest::{
     DiscoveredPlugin, ENTRY_POINT_ACTION_CONTRIBUTOR, ENTRY_POINT_STATUS_BAR_WIDGET,
     KIND_ACTION_CONTRIBUTOR, KIND_STATUS_BAR_WIDGET, discover_plugins,
 };
+use super::observer::ScriptEventForwarder;
 use super::process::ScriptStatus;
 use super::protocol::{PLUGIN_ACTION_INVOKED_KIND, ScriptCommand, ScriptEvent, ScriptEventData};
 use super::restart::{RestartAction, ScriptRestartState};
@@ -147,6 +149,18 @@ pub struct PluginHost {
     enabled_ids: HashSet<String>,
     /// Commands refused because v1 plugins may only send `SetWidget`.
     ignored_lines: Vec<String>,
+    /// Per-plugin event forwarders for plugins whose manifest declares
+    /// subscriptions. Created on the plugin's first successful spawn, dropped
+    /// on teardown — the window layer registers each forwarder as an observer
+    /// on the window's tab terminals, drains it per sweep, and delivers via
+    /// [`Self::deliver_events`] (the same forwarder machinery per-tab scripts
+    /// use; per-plugin filtering at the forwarder level is what keeps a
+    /// subscription reliable under event floods).
+    subscription_forwarders: HashMap<String, Arc<ScriptEventForwarder>>,
+    /// Gate for event-delivery write failures (a process exiting
+    /// mid-delivery) — the sweep retries delivery every wake, so a dead
+    /// process must not warn per frame.
+    warned_event_delivery: WarnOnce,
     /// Per-fault warn gates: steady faults warn once per episode, not per
     /// frame (see [`WarnOnce`]).
     warned_not_discovered: WarnOnce,
@@ -218,6 +232,7 @@ impl PluginHost {
         self.warned_not_discovered.clear_except(&enabled_ids);
         self.warned_spawn_failed.clear_except(&enabled_ids);
         self.warned_action_not_running.clear_except(&enabled_ids);
+        self.warned_event_delivery.clear_except(&enabled_ids);
 
         for plugin in enabled {
             let Some(found) = self.discovered.iter().find(|d| d.manifest.id == plugin.id) else {
@@ -258,6 +273,9 @@ impl PluginHost {
             // an action entry point); guarded so a host bug neither spawns
             // the widget entry in its place nor silently skips.
             let missing_action_entry = has_action && action_entry.is_none();
+            // Plugin-level, kind-independent: whichever kind spawns first
+            // creates the shared event forwarder.
+            let subscriptions = found.manifest.subscriptions.clone();
 
             // Widget leg (the kind gate keeps an action-only manifest out of
             // the widget slot).
@@ -284,9 +302,11 @@ impl PluginHost {
                                 )
                             })
                             .on_started(now);
+                        self.ensure_subscription_forwarder(&plugin.id, &subscriptions);
                         // A successful spawn resolves both fault episodes.
                         self.warned_not_discovered.clear(&plugin.id);
                         self.warned_spawn_failed.clear(&plugin.id);
+                        self.warned_event_delivery.clear(&plugin.id);
                     }
                     Err(error) => {
                         if self.warned_spawn_failed.should_warn(&plugin.id) {
@@ -329,11 +349,13 @@ impl PluginHost {
                                 )
                             })
                             .on_started(now);
+                        self.ensure_subscription_forwarder(&plugin.id, &subscriptions);
                         self.warned_not_discovered.clear(&plugin.id);
                         self.warned_spawn_failed.clear(&plugin.id);
                         // A running action process starts a fresh invoke
                         // episode.
                         self.warned_action_not_running.clear(&plugin.id);
+                        self.warned_event_delivery.clear(&plugin.id);
                     }
                     Err(error) => {
                         if self.warned_spawn_failed.should_warn(&plugin.id) {
@@ -458,6 +480,53 @@ impl PluginHost {
     /// Last `SetWidget` text recorded for a plugin, if any.
     pub fn widget_text(&self, plugin_id: &str) -> Option<&str> {
         self.widget_texts.get(plugin_id).map(String::as_str)
+    }
+
+    /// Live per-plugin event forwarders (plugin id → forwarder), for the
+    /// window layer's observer registration and per-sweep drain — the pump
+    /// in `StatusBarUI::pump_plugin_events`.
+    pub fn subscription_forwarders(&self) -> &HashMap<String, Arc<ScriptEventForwarder>> {
+        &self.subscription_forwarders
+    }
+
+    /// Deliver drained events to one plugin's running processes (widget and
+    /// action kind alike — the manifest's subscriptions are plugin-level, so
+    /// every running process of the plugin hears them).
+    ///
+    /// A plugin with no running process this sweep silently drops the events:
+    /// they are moments in time, not state, and its supervisor restarts it
+    /// for the next ones. Write failures (a process exiting mid-delivery)
+    /// warn once per episode.
+    pub fn deliver_events(&mut self, plugin_id: &str, events: &[ScriptEvent]) {
+        let targets: Vec<ScriptId> = self
+            .running
+            .get(plugin_id)
+            .into_iter()
+            .chain(self.action_running.get(plugin_id))
+            .copied()
+            .collect();
+        if targets.is_empty() {
+            return;
+        }
+        let mut write_failed = false;
+        for event in events {
+            for &sid in &targets {
+                if let Err(error) = self.manager.send_event(sid, event) {
+                    write_failed = true;
+                    if self.warned_event_delivery.should_warn(plugin_id) {
+                        log::warn!(
+                            "failed to deliver a {} event to plugin '{}': {}",
+                            event.kind,
+                            plugin_id,
+                            error
+                        );
+                    }
+                }
+            }
+        }
+        if !write_failed {
+            self.warned_event_delivery.clear(plugin_id);
+        }
     }
 
     /// All recorded widget texts (plugin id → text), for the status bar.
@@ -608,15 +677,19 @@ impl PluginHost {
         self.widget_texts.clear();
         self.settings_json.clear();
         self.enabled_ids.clear();
+        self.subscription_forwarders.clear();
         self.warned_not_discovered = WarnOnce::default();
         self.warned_spawn_failed = WarnOnce::default();
         self.warned_action_not_running = WarnOnce::default();
+        self.warned_event_delivery = WarnOnce::default();
     }
 
     /// Stop one plugin entirely: both kind slots plus all shared state.
     fn teardown(&mut self, id: &str) {
         self.stop_kind(id, false);
         self.stop_kind(id, true);
+        self.subscription_forwarders.remove(id);
+        self.warned_event_delivery.clear(id);
     }
 
     /// The running-process map for one kind (`action_running` vs `running`).
@@ -702,8 +775,9 @@ impl PluginHost {
 
     /// Spawn one plugin entry point: the manifest's entry args, then the
     /// settings marker and the settings JSON as a single argv string (design
-    /// D2 — stdin stays pure NDJSON). Empty env: v1 plugins receive no
-    /// events (pin P1), so there is nothing tab-bound to inject.
+    /// D2 — stdin stays pure NDJSON). Empty env: the event stream reaches
+    /// plugin stdin through the per-plugin forwarder
+    /// ([`Self::subscription_forwarders`]), not the environment.
     fn spawn_entry(
         manager: &mut ScriptManager,
         entry_path: &Path,
@@ -714,6 +788,23 @@ impl PluginHost {
         argv.push(SETTINGS_ARG.to_string());
         argv.push(settings_json.to_string());
         manager.spawn_command(&entry_path.to_string_lossy(), &argv, &HashMap::new())
+    }
+
+    /// Create the plugin's event forwarder on its first successful spawn
+    /// when its manifest declares subscriptions. Idempotent per plugin id:
+    /// the second kind's spawn finds the first kind's forwarder already in
+    /// place, and a supervised respawn reuses it (registration on terminals
+    /// is by `Arc`, so the process id changing underneath changes nothing).
+    fn ensure_subscription_forwarder(&mut self, id: &str, subscriptions: &[String]) {
+        if subscriptions.is_empty() {
+            return;
+        }
+        self.subscription_forwarders
+            .entry(id.to_string())
+            .or_insert_with(|| {
+                let filter = subscriptions.iter().cloned().collect();
+                Arc::new(ScriptEventForwarder::new(Some(filter)))
+            });
     }
 }
 
@@ -1356,5 +1447,267 @@ for line in iter(sys.stdin.readline, ""):
             assert_eq!(host.actions_dispatched_count(), expected);
         }
         host.stop_all();
+    }
+
+    /// A plugin that echoes every stdin event's kind back as a `SetWidget`
+    /// line prefixed with `tag` — the observable seam for event delivery
+    /// (same pattern as `ACTION_SCRIPT` for invokes). `tag` distinguishes
+    /// the two kind processes of a both-kinds plugin, which share the
+    /// widget-text key.
+    fn echo_script(tag: &str) -> String {
+        format!(
+            r#"
+import json, sys
+def emit(text):
+    print(json.dumps({{"type": "SetWidget", "text": text}}), flush=True)
+for line in iter(sys.stdin.readline, ""):
+    line = line.strip()
+    if not line:
+        continue
+    try:
+        event = json.loads(line)
+    except ValueError:
+        continue
+    emit("{tag}:" + str(event.get("kind", "?")))
+"#
+        )
+    }
+
+    /// A widget-kind manifest declaring `subscriptions_json` (raw JSON array
+    /// body, e.g. `"bell_rang"`).
+    fn subscribed_manifest_json(id: &str, subscriptions_json: &str) -> String {
+        manifest_json(id).replacen(
+            r#""kinds":["status-bar-widget"],"#,
+            &format!(r#""kinds":["status-bar-widget"],"subscriptions":[{subscriptions_json}],"#),
+            1,
+        )
+    }
+
+    /// A both-kinds manifest declaring `subscriptions_json`.
+    fn subscribed_both_kinds_manifest_json(id: &str, subscriptions_json: &str) -> String {
+        both_kinds_manifest_json(id).replacen(
+            r#""kinds":["status-bar-widget","action-contributor"],"#,
+            &format!(
+                r#""kinds":["status-bar-widget","action-contributor"],"subscriptions":[{subscriptions_json}],"#
+            ),
+            1,
+        )
+    }
+
+    #[test]
+    fn subscribed_plugin_gets_a_kind_filtered_forwarder_on_spawn() {
+        if skip_without_interpreter() {
+            return;
+        }
+        let root = tempfile::tempdir().unwrap();
+        write_plugin_files(
+            root.path(),
+            "com.test.sub",
+            &subscribed_manifest_json("com.test.sub", r#""bell_rang""#),
+            &[("widget.py", WIDGET_SCRIPT)],
+        );
+
+        let mut host = PluginHost::new();
+        host.refresh_discovery(root.path());
+        host.apply_enabled(&[enabled("com.test.sub")]);
+
+        let forwarder = host
+            .subscription_forwarders()
+            .get("com.test.sub")
+            .cloned()
+            .expect("a subscribed plugin gets a forwarder on spawn");
+
+        // The forwarder carries the plugin's kind filter: a bell buffers, a
+        // title change (not subscribed) never enters the buffer.
+        use par_term_emu_core_rust::observer::TerminalObserver;
+        use par_term_emu_core_rust::terminal::{BellEvent, TerminalEvent};
+        forwarder.on_event(&TerminalEvent::BellRang(BellEvent::VisualBell));
+        forwarder.on_event(&TerminalEvent::TitleChanged("nope".to_string()));
+        let drained = forwarder.drain_events();
+        assert_eq!(drained.len(), 1, "unsubscribed kinds must not buffer");
+        assert_eq!(drained[0].kind, "bell_rang");
+        host.stop_all();
+    }
+
+    #[test]
+    fn unsubscribed_plugin_gets_no_forwarder() {
+        if skip_without_interpreter() {
+            return;
+        }
+        // The self-scheduled contract: a plugin with no subscriptions block
+        // must not gain event delivery (or its buffering machinery).
+        let root = tempfile::tempdir().unwrap();
+        write_plugin(root.path(), "com.test.plain", WIDGET_SCRIPT);
+
+        let mut host = PluginHost::new();
+        host.refresh_discovery(root.path());
+        host.apply_enabled(&[enabled("com.test.plain")]);
+        assert!(wait_until(&mut host, |h| !h.running.is_empty()));
+        assert!(
+            host.subscription_forwarders().is_empty(),
+            "no subscriptions declared — no forwarder may exist"
+        );
+        host.stop_all();
+    }
+
+    #[test]
+    fn teardown_drops_the_forwarder_when_the_plugin_leaves_the_enabled_set() {
+        if skip_without_interpreter() {
+            return;
+        }
+        let root = tempfile::tempdir().unwrap();
+        write_plugin_files(
+            root.path(),
+            "com.test.leave",
+            &subscribed_manifest_json("com.test.leave", r#""bell_rang""#),
+            &[("widget.py", WIDGET_SCRIPT)],
+        );
+
+        let mut host = PluginHost::new();
+        host.refresh_discovery(root.path());
+        host.apply_enabled(&[enabled("com.test.leave")]);
+        assert!(
+            host.subscription_forwarders()
+                .contains_key("com.test.leave")
+        );
+
+        host.apply_enabled(&[]);
+        assert!(
+            host.subscription_forwarders().is_empty(),
+            "teardown must drop the forwarder so its observer is unregistered"
+        );
+    }
+
+    #[test]
+    fn delivered_events_reach_the_running_process() {
+        if skip_without_interpreter() {
+            return;
+        }
+        let root = tempfile::tempdir().unwrap();
+        write_plugin_files(
+            root.path(),
+            "com.test.echo",
+            &subscribed_manifest_json("com.test.echo", r#""bell_rang""#),
+            &[("widget.py", &echo_script("event"))],
+        );
+
+        let mut host = PluginHost::new();
+        host.refresh_discovery(root.path());
+        host.apply_enabled(&[enabled("com.test.echo")]);
+
+        // Simulate the window pump: the forwarder observes a terminal event,
+        // is drained, and the drained events are delivered to the plugin.
+        let forwarder = host
+            .subscription_forwarders()
+            .get("com.test.echo")
+            .cloned()
+            .expect("forwarder exists for a subscribed plugin");
+        use par_term_emu_core_rust::observer::TerminalObserver;
+        use par_term_emu_core_rust::terminal::{BellEvent, TerminalEvent};
+        forwarder.on_event(&TerminalEvent::BellRang(BellEvent::VisualBell));
+        let events = forwarder.drain_events();
+        assert_eq!(events.len(), 1);
+        host.deliver_events("com.test.echo", &events);
+
+        // The fixture echoes the event kind back as its widget text, so the
+        // round-trip through plugin stdin is observable at the same seam the
+        // crate's SetWidget tests use.
+        let landed = wait_until(&mut host, |h| {
+            h.widget_text("com.test.echo") == Some("event:bell_rang")
+        });
+        assert!(
+            landed,
+            "the bell event never reached the plugin's stdin; widget text: {:?}",
+            host.widget_text("com.test.echo")
+        );
+        host.stop_all();
+    }
+
+    /// Widget-kind echo that delays its reply. Both kind processes of a
+    /// plugin share one last-write-wins widget-text key, so when one poll
+    /// drains both echoes the second masks the first before any observer can
+    /// sample it — the delay spaces the two writes so each is seen.
+    const WIDGET_ECHO_DELAYED_SCRIPT: &str = r#"
+import json, sys, time
+def emit(text):
+    print(json.dumps({"type": "SetWidget", "text": text}), flush=True)
+for line in iter(sys.stdin.readline, ""):
+    line = line.strip()
+    if not line:
+        continue
+    try:
+        event = json.loads(line)
+    except ValueError:
+        continue
+    time.sleep(0.3)
+    emit("w:" + str(event.get("kind", "?")))
+"#;
+
+    #[test]
+    fn both_kinds_processes_receive_subscribed_events() {
+        if skip_without_interpreter() {
+            return;
+        }
+        let root = tempfile::tempdir().unwrap();
+        write_plugin_files(
+            root.path(),
+            "com.test.both-echo",
+            &subscribed_both_kinds_manifest_json("com.test.both-echo", r#""bell_rang""#),
+            &[
+                ("widget.py", WIDGET_ECHO_DELAYED_SCRIPT),
+                ("actions.py", &echo_script("a")),
+            ],
+        );
+
+        let mut host = PluginHost::new();
+        host.refresh_discovery(root.path());
+        host.apply_enabled(&[enabled("com.test.both-echo")]);
+        assert!(wait_until(&mut host, |h| h.running.len() == 1
+            && h.action_running.len() == 1));
+
+        let forwarder = host
+            .subscription_forwarders()
+            .get("com.test.both-echo")
+            .cloned()
+            .expect("forwarder exists for a subscribed plugin");
+        use par_term_emu_core_rust::observer::TerminalObserver;
+        use par_term_emu_core_rust::terminal::{BellEvent, TerminalEvent};
+        forwarder.on_event(&TerminalEvent::BellRang(BellEvent::VisualBell));
+        let events = forwarder.drain_events();
+        host.deliver_events("com.test.both-echo", &events);
+
+        // Both kind processes echo with their own tag into the shared
+        // widget-text key (last write wins), so the proof is having SEEN
+        // each tag at some point during polling.
+        let mut seen_widget = false;
+        let mut seen_action = false;
+        let both_seen = wait_until(&mut host, |h| {
+            if h.widget_text("com.test.both-echo") == Some("w:bell_rang") {
+                seen_widget = true;
+            }
+            if h.widget_text("com.test.both-echo") == Some("a:bell_rang") {
+                seen_action = true;
+            }
+            seen_widget && seen_action
+        });
+        assert!(
+            both_seen,
+            "both kind processes must receive the event (w seen: {seen_widget}, a seen: {seen_action})"
+        );
+        host.stop_all();
+    }
+
+    #[test]
+    fn deliver_events_is_silent_with_no_running_process() {
+        // A plugin between restarts must not warn or panic when the sweep
+        // delivers events nobody is running to receive.
+        install_counting_logger();
+        let mut host = PluginHost::new();
+        let event = ScriptEvent {
+            kind: "bell_rang".to_string(),
+            data: ScriptEventData::Empty {},
+        };
+        host.deliver_events("com.test.nobody", &[event.clone()]);
+        assert_eq!(warns_containing("com.test.nobody"), 0);
     }
 }

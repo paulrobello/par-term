@@ -39,6 +39,20 @@ impl WindowManager {
     /// Maximum number of output lines kept per script in the UI.
     const SCRIPT_OUTPUT_MAX_LINES: usize = 200;
 
+    /// Pump plugin event subscriptions: reconcile each window's plugin
+    /// forwarders onto its tab terminals, drain them, and deliver the events
+    /// to the running plugin processes.
+    ///
+    /// Runs beside [`Self::sync_script_running_state`] on every event-loop
+    /// wake. Like that sweep it is not gated on the settings window — event
+    /// delivery is the plugin's input side, not a UI mirror. A window with
+    /// no subscribed plugins exits on the pump's first check.
+    pub fn sync_plugin_events(&mut self) {
+        for ws in self.windows.values_mut() {
+            ws.status_bar_ui.pump_plugin_events(&ws.tab_manager);
+        }
+    }
+
     /// Sync script running state to the settings window.
     ///
     /// Drains events from forwarders, sends them to scripts, reads commands

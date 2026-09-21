@@ -9,6 +9,14 @@ next to this script; events naming any other action id are ignored (the
 routing pattern a multi-action plugin copies). par-term closes the plugin's
 stdin on stop; EOF exits cleanly (PLUGINS.md's shutdown contract).
 
+The manifest also declares ``subscriptions: ["bell_rang"]``, making this the
+reference for plugin event subscriptions: every terminal bell in any tab of
+the window arrives on stdin as
+``{"kind": "bell_rang", "data": {"data_type": "Empty"}}`` and appends
+``<iso-timestamp> bell`` to ``stamps.txt``. Trigger one with
+``printf '\\a'``. An empty or absent ``subscriptions`` would mean
+self-scheduled — no terminal events at all.
+
 The plugin writes nothing to stdout: its effects are its own process's, by
 design — an action that wants something done does it itself rather than
 asking the host to (design D4).
@@ -33,6 +41,13 @@ import sys
 STAMPS = pathlib.Path(__file__).resolve().parent / "stamps.txt"
 
 
+def stamp(kind: str) -> None:
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    with STAMPS.open("a", encoding="utf-8") as stamps:
+        stamps.write(f"{now} {kind}\n")
+        stamps.flush()
+
+
 def main() -> None:
     for line in iter(sys.stdin.readline, ""):
         line = line.strip()
@@ -47,10 +62,9 @@ def main() -> None:
             data.get("data_type") == "PluginActionInvoked"
             and data.get("action") == "greet"
         ):
-            stamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
-            with STAMPS.open("a", encoding="utf-8") as stamps:
-                stamps.write(f"{stamp} greeting\n")
-                stamps.flush()
+            stamp("greeting")
+        elif event.get("kind") == "bell_rang":
+            stamp("bell")
 
 
 if __name__ == "__main__":

@@ -8,9 +8,11 @@ use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
 
 use par_term_scripting::manifest::{SettingSchemaEntry, validate_settings};
+use par_term_scripting::observer::ScriptEventForwarder;
 use par_term_scripting::plugin_manager::{EnabledPlugin, PluginHost};
 
 use crate::config::Config;
+use crate::tab::{TabId, TabManager};
 
 use super::StatusBarUI;
 
@@ -52,6 +54,90 @@ impl StatusBarUI {
         self.plugin_settings_warned.clear_except(&enabled_ids);
         self.plugins.apply_enabled(&enabled);
         self.plugins.poll();
+    }
+
+    /// Reconcile plugin-event observer registrations against the window's
+    /// tabs and pump drained events into the running plugins.
+    ///
+    /// Called once per event-loop wake beside the tab-script sweep — NOT
+    /// from [`StatusBarUI::update_plugins`], which runs on the render path
+    /// and never sees the tab list. Each subscribed plugin's forwarder is
+    /// registered as an observer on every tab terminal of this window:
+    /// delivery is window-wide (each event originates at exactly one
+    /// terminal, so nothing is duplicated; events carry no tab attribution
+    /// in v1). A registration that misses on a contended terminal lock
+    /// retries on the next wake.
+    pub(crate) fn pump_plugin_events(&mut self, tabs: &TabManager) {
+        // The common case — no subscribed plugins, nothing registered —
+        // exits before touching the tab list.
+        if self.plugins.subscription_forwarders().is_empty() && self.plugin_observer_ids.is_empty()
+        {
+            return;
+        }
+
+        // Pass A — the desired registration set: every live forwarder on
+        // every live tab.
+        let tab_ids: Vec<TabId> = tabs.tabs().iter().map(|tab| tab.id).collect();
+        let mut desired: HashSet<(String, TabId)> = HashSet::new();
+        for plugin_id in self.plugins.subscription_forwarders().keys() {
+            for tab_id in &tab_ids {
+                desired.insert((plugin_id.clone(), *tab_id));
+            }
+        }
+
+        // Register anything desired but missing.
+        for key in &desired {
+            if self.plugin_observer_ids.contains_key(key) {
+                continue;
+            }
+            let Some(tab) = tabs.tabs().iter().find(|tab| tab.id == key.1) else {
+                continue;
+            };
+            let Some(forwarder) = self.plugins.subscription_forwarders().get(&key.0) else {
+                continue;
+            };
+            let Ok(terminal) = tab.terminal.try_read() else {
+                continue;
+            };
+            let observer_id = terminal.add_observer(forwarder.clone());
+            self.plugin_observer_ids.insert(key.clone(), observer_id);
+        }
+
+        // Unregister anything registered but no longer desired.
+        let stale: Vec<(String, TabId)> = self
+            .plugin_observer_ids
+            .keys()
+            .filter(|key| !desired.contains(*key))
+            .cloned()
+            .collect();
+        for key in stale {
+            if let Some(observer_id) = self.plugin_observer_ids.remove(&key) {
+                // A closed tab's terminal (and the observer registry inside
+                // it) is gone with the tab — dropping the map entry is the
+                // whole cleanup there. Only a live tab needs an explicit
+                // unregister.
+                if let Some(tab) = tabs.tabs().iter().find(|tab| tab.id == key.1)
+                    && let Ok(terminal) = tab.terminal.try_read()
+                {
+                    terminal.remove_observer(observer_id);
+                }
+            }
+        }
+
+        // Pass B — drain each forwarder and deliver to its plugin. The Arc
+        // clones release the host borrow before delivery mutates it.
+        let to_drain: Vec<(String, std::sync::Arc<ScriptEventForwarder>)> = self
+            .plugins
+            .subscription_forwarders()
+            .iter()
+            .map(|(id, forwarder)| (id.clone(), std::sync::Arc::clone(forwarder)))
+            .collect();
+        for (plugin_id, forwarder) in &to_drain {
+            let events = forwarder.drain_events();
+            if !events.is_empty() {
+                self.plugins.deliver_events(plugin_id, &events);
+            }
+        }
     }
 
     /// Discovery-cache size for the `plugins_loaded` ui-test operand.
