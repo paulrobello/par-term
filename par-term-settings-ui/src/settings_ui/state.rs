@@ -234,6 +234,7 @@ impl SettingsUI {
             script_output: Vec::new(),
             script_output_expanded: Vec::new(),
             script_panels: Vec::new(),
+            plugin_panels: std::collections::HashMap::new(),
             open_log_requested: false,
             identify_panes_requested: false,
             update_install_requested: false,

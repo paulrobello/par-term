@@ -12,8 +12,8 @@ use crate::section::{collapsing_section, section_matches};
 use par_term_config::PluginStateConfig;
 use par_term_config::status_bar::{StatusBarSection, StatusBarWidgetConfig, WidgetId};
 use par_term_scripting::manifest::{
-    ActionContribution, DiscoveredPlugin, ENTRY_POINT_ACTION_CONTRIBUTOR,
-    ENTRY_POINT_STATUS_BAR_WIDGET, KIND_ACTION_CONTRIBUTOR, KIND_STATUS_BAR_WIDGET,
+    ActionContribution, DiscoveredPlugin, ENTRY_POINT_ACTION_CONTRIBUTOR, ENTRY_POINT_PANEL,
+    ENTRY_POINT_STATUS_BAR_WIDGET, KIND_ACTION_CONTRIBUTOR, KIND_PANEL, KIND_STATUS_BAR_WIDGET,
     PluginEntryPoint, PluginManifest, SettingSchemaEntry, SettingType, discover_plugins,
 };
 use std::collections::HashSet;
@@ -51,7 +51,7 @@ fn show_plugins_collapsing(
 ) {
     collapsing_section(ui, "Plugins", "automation_plugins", true, collapsed, |ui| {
         ui.label(
-            "Local plugins run as subprocesses and publish status-bar widgets or contribute command-palette actions.",
+            "Local plugins run as subprocesses and publish status-bar widgets, contribute command-palette actions, or push panel content.",
         );
         ui.label("Plugins are disabled until enabled here; install means copying a directory into the plugins folder.");
         ui.add_space(4.0);
@@ -121,7 +121,8 @@ fn show_plugins_collapsing(
 }
 
 /// One discovered plugin: trust surface, enable toggle, schema-driven
-/// settings editor, and section placement.
+/// settings editor, section placement, and — for the panel kind — the live
+/// pushed panel viewer.
 fn show_plugin_row(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
@@ -178,6 +179,42 @@ fn show_plugin_row(
         let summary = action_summary(&manifest.actions);
         if !summary.is_empty() {
             ui.label(egui::RichText::new(summary).small());
+        }
+    }
+
+    // Live panel viewer for the panel kind: the plugin's pushed SetPanel
+    // content, mirrored from the focused window's host. A plain
+    // CollapsingHeader id-salted per plugin — the section's shared
+    // `collapsed` set cannot be borrowed inside this row (it already backs
+    // the enclosing section), and per-plugin state belongs in egui memory
+    // anyway.
+    if manifest.kinds.iter().any(|k| k == KIND_PANEL) {
+        if let Some((title, content)) = settings.plugin_panels.get(&manifest.id) {
+            let panel_title = format!("Panel: {title}");
+            let panel_id = format!("plugin_panel_{}", manifest.id);
+            let panel_scroll_id = format!("plugin_panel_scroll_{}", manifest.id);
+            egui::CollapsingHeader::new(&panel_title)
+                .id_salt(&panel_id)
+                .default_open(true)
+                .show(ui, |ui| {
+                    egui::ScrollArea::vertical()
+                        .id_salt(&panel_scroll_id)
+                        .max_height(200.0)
+                        .show(ui, |ui| {
+                            ui.label(
+                                egui::RichText::new(content)
+                                    .monospace()
+                                    .small()
+                                    .color(egui::Color32::from_rgb(200, 200, 200)),
+                            );
+                        });
+                });
+        } else if is_enabled {
+            ui.label(
+                egui::RichText::new("Panel: no content pushed yet")
+                    .small()
+                    .color(egui::Color32::GRAY),
+            );
         }
     }
 
@@ -385,13 +422,30 @@ fn entry_command(entry: &PluginEntryPoint) -> String {
 fn runs_lines(manifest: &PluginManifest) -> Vec<String> {
     let has_widget = manifest.kinds.iter().any(|k| k == KIND_STATUS_BAR_WIDGET);
     let has_action = manifest.kinds.iter().any(|k| k == KIND_ACTION_CONTRIBUTOR);
+    let has_panel = manifest.kinds.iter().any(|k| k == KIND_PANEL);
     let mut lines = Vec::new();
     if has_widget && let Some(entry) = manifest.entry_points.get(ENTRY_POINT_STATUS_BAR_WIDGET) {
-        let label = if has_action { "Runs widget:" } else { "Runs:" };
+        let label = if has_action || has_panel {
+            "Runs widget:"
+        } else {
+            "Runs:"
+        };
         lines.push(format!("{label} {}", entry_command(entry)));
     }
     if has_action && let Some(entry) = manifest.entry_points.get(ENTRY_POINT_ACTION_CONTRIBUTOR) {
-        let label = if has_widget { "Runs actions:" } else { "Runs:" };
+        let label = if has_widget || has_panel {
+            "Runs actions:"
+        } else {
+            "Runs:"
+        };
+        lines.push(format!("{label} {}", entry_command(entry)));
+    }
+    if has_panel && let Some(entry) = manifest.entry_points.get(ENTRY_POINT_PANEL) {
+        let label = if has_widget || has_action {
+            "Runs panel:"
+        } else {
+            "Runs:"
+        };
         lines.push(format!("{label} {}", entry_command(entry)));
     }
     lines

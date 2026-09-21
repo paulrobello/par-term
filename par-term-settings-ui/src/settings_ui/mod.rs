@@ -248,6 +248,10 @@ pub struct SettingsUI {
     pub script_output_expanded: Vec<bool>,
     /// Panel state per script: (title, content) from SetPanel commands
     pub script_panels: Vec<Option<(String, String)>>,
+    /// Live panel content per enabled panel plugin (plugin id → (title,
+    /// content)), pushed via SetPanel and mirrored from the focused
+    /// window's plugin host each sweep.
+    pub plugin_panels: std::collections::HashMap<String, (String, String)>,
 
     /// Flag to request opening the debug log file
     pub open_log_requested: bool,

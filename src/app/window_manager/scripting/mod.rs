@@ -51,6 +51,22 @@ impl WindowManager {
         for ws in self.windows.values_mut() {
             ws.status_bar_ui.pump_plugin_events(&ws.tab_manager);
         }
+        // Mirror the focused window's plugin panel contents into the settings
+        // window: the plugins section's live panel viewer reads this map.
+        // Panel state is host-side per window, and every window's host runs
+        // the same enabled plugins, so the focused window's copy is
+        // authoritative in the same way the focused tab is for script panels.
+        let focused = self.get_focused_window_id();
+        let panels = focused
+            .and_then(|id| self.windows.get(&id))
+            .map(|ws| ws.status_bar_ui.plugin_host().panel_contents().clone())
+            .unwrap_or_default();
+        if let Some(sw) = &mut self.settings_window
+            && sw.settings_ui.plugin_panels != panels
+        {
+            sw.settings_ui.plugin_panels = panels;
+            sw.request_redraw();
+        }
     }
 
     /// Sync script running state to the settings window.
