@@ -82,8 +82,13 @@ pub(crate) fn load_script(path: &Path) -> anyhow::Result<UiTestScript> {
     struct RawScript {
         steps: Vec<UiTestStep>,
     }
-    let raw: RawScript = serde_json::from_str(&raw)
-        .map_err(|e| anyhow::anyhow!("--ui-test: invalid script JSON in {}: {}", path.display(), e))?;
+    let raw: RawScript = serde_json::from_str(&raw).map_err(|e| {
+        anyhow::anyhow!(
+            "--ui-test: invalid script JSON in {}: {}",
+            path.display(),
+            e
+        )
+    })?;
     Ok(UiTestScript { steps: raw.steps })
 }
 
@@ -160,20 +165,20 @@ fn visible_modal_names(ws: &WindowState) -> Vec<String> {
     push(o.shader_install_ui.visible, "shader_install_ui");
     push(o.integrations_ui.visible, "integrations_ui");
     push(o.ssh_connect_ui.is_visible(), "ssh_connect_ui");
-    push(o.remote_shell_install_ui.is_visible(), "remote_shell_install_ui");
+    push(
+        o.remote_shell_install_ui.is_visible(),
+        "remote_shell_install_ui",
+    );
     push(o.quit_confirmation_ui.is_visible(), "quit_confirmation_ui");
     names
 }
 
 /// Convert a chord string into the (logical key, physical key, modifiers)
 /// triple the keybinding seam consumes.
-fn chord_to_fields(
-    chord: &str,
-) -> Result<(Key, PhysicalKey, winit::event::Modifiers), String> {
+fn chord_to_fields(chord: &str) -> Result<(Key, PhysicalKey, winit::event::Modifiers), String> {
     use par_term_keybindings::parser::{ParsedKey, parse_key_combo};
 
-    let combo =
-        parse_key_combo(chord).map_err(|e| format!("cannot parse chord '{chord}': {e}"))?;
+    let combo = parse_key_combo(chord).map_err(|e| format!("cannot parse chord '{chord}': {e}"))?;
     let m = &combo.modifiers;
 
     let mut state = ModifiersState::empty();
@@ -205,11 +210,7 @@ fn chord_to_fields(
                 modifiers,
             ))
         }
-        ParsedKey::Named(named) => Ok((
-            Key::Named(named),
-            named_physical_code(&named),
-            modifiers,
-        )),
+        ParsedKey::Named(named) => Ok((Key::Named(named), named_physical_code(&named), modifiers)),
         ParsedKey::Physical(code) => {
             // Physical bindings name a KeyCode, not a logical key; matching
             // goes by scan code, so the logical slot carries a placeholder.
@@ -289,7 +290,11 @@ impl WindowManager {
         let index = self.ui_test.records.len() + 1;
         let (action_desc, ok, detail) = match self.ui_test_step_inner(step) {
             StepOutcome::Performed(desc) => (desc, None, String::new()),
-            StepOutcome::Asserted { desc, passed, detail } => (desc, Some(passed), detail),
+            StepOutcome::Asserted {
+                desc,
+                passed,
+                detail,
+            } => (desc, Some(passed), detail),
             StepOutcome::Failed(desc) => (desc.clone(), None, desc),
         };
         let observation = self.ui_test_observe();
@@ -331,7 +336,9 @@ impl WindowManager {
                     return StepOutcome::Failed("type_text: no terminal window yet".into());
                 };
                 let ws = self.windows.get_mut(&id).expect("id from keys()");
-                ws.egui.pending_events.push(egui::Event::Text(type_text.clone()));
+                ws.egui
+                    .pending_events
+                    .push(egui::Event::Text(type_text.clone()));
                 ws.request_redraw();
                 StepOutcome::Performed(format!("type_text \"{type_text}\" (egui)"))
             }
@@ -417,12 +424,7 @@ impl WindowManager {
         if ws.any_modal_ui_visible()
             && !matches!(
                 logical,
-                Key::Named(
-                    NamedKey::F1
-                        | NamedKey::F2
-                        | NamedKey::F3
-                        | NamedKey::Escape
-                )
+                Key::Named(NamedKey::F1 | NamedKey::F2 | NamedKey::F3 | NamedKey::Escape)
             )
         {
             return StepOutcome::Performed(format!(
@@ -532,7 +534,9 @@ impl WindowManager {
             modal_guard: ws.is_some_and(|w| w.any_modal_ui_visible()),
             egui_keyboard: ws.is_some_and(|w| w.is_egui_using_keyboard()),
             fullscreen: ws.is_some_and(|w| {
-                w.window.as_ref().is_some_and(|win| win.fullscreen().is_some())
+                w.window
+                    .as_ref()
+                    .is_some_and(|win| win.fullscreen().is_some())
             }),
             top_action: ws
                 .and_then(|w| w.overlay_ui.command_palette.top_action())
@@ -573,7 +577,11 @@ impl WindowManager {
             "UI TEST finished: {} passed, {} failed — {}",
             self.ui_test.passed,
             self.ui_test.failed,
-            if all_passed { "ALL PASSED" } else { "FAILURES PRESENT" }
+            if all_passed {
+                "ALL PASSED"
+            } else {
+                "FAILURES PRESENT"
+            }
         );
         event_loop.exit();
     }
@@ -584,7 +592,11 @@ enum StepOutcome {
     /// Non-asserting step; carried description.
     Performed(String),
     /// Assertion with its verdict.
-    Asserted { desc: String, passed: bool, detail: String },
+    Asserted {
+        desc: String,
+        passed: bool,
+        detail: String,
+    },
     /// Step could not run (bad operand, no window); recorded as a failure.
     Failed(String),
 }
@@ -595,8 +607,7 @@ mod tests {
 
     #[test]
     fn chord_to_fields_maps_modifiers() {
-        let (logical, physical, modifiers) =
-            chord_to_fields("Ctrl+Alt+Cmd+P").expect("parses");
+        let (logical, physical, modifiers) = chord_to_fields("Ctrl+Alt+Cmd+P").expect("parses");
         assert!(matches!(logical, Key::Character(ref c) if c.as_str() == "P"));
         // Character chords match logically; the physical slot is a documented
         // placeholder (physical-preference configs would need real codes).

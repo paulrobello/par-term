@@ -417,8 +417,9 @@ mod tests {
         use winit::keyboard::ModifiersState;
 
         let combo = parse_key_combo("Ctrl+Alt+Cmd+P").unwrap();
-        let mods =
-            WinitModifiers::from(ModifiersState::CONTROL | ModifiersState::ALT | ModifiersState::SUPER);
+        let mods = WinitModifiers::from(
+            ModifiersState::CONTROL | ModifiersState::ALT | ModifiersState::SUPER,
+        );
 
         let matcher = KeybindingMatcher::from_key_fields(
             &Key::Character("p".into()),
