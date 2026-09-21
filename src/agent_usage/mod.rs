@@ -10,6 +10,7 @@
 pub(crate) mod panel;
 pub(crate) mod records;
 pub(crate) mod store;
+pub(crate) mod update;
 
 use std::path::PathBuf;
 

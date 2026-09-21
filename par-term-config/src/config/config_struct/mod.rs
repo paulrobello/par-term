@@ -34,6 +34,7 @@
 //! pair, keybindings and snippets) plus the two `#[serde(skip)]` runtime
 //! security lists, which are computed state rather than configuration.
 
+mod agent_usage_config;
 mod ai_inspector_config;
 mod automation_config;
 mod background_config;
@@ -77,6 +78,7 @@ mod window_config;
 mod window_placement_config;
 mod word_selection_config;
 
+pub use agent_usage_config::AgentUsageConfig;
 pub use ai_inspector_config::{AiInspectorConfig, AssistantInputHistoryMode};
 pub use automation_config::AutomationConfig;
 pub use background_config::BackgroundConfig;
@@ -628,6 +630,15 @@ pub struct Config {
     /// All `status_bar_*` fields are flattened here for YAML backward-compatibility.
     #[serde(flatten)]
     pub status_bar: StatusBarConfig,
+
+    // ========================================================================
+    // Agent Usage Settings
+    // ========================================================================
+    /// Agent usage panel settings (see [`AgentUsageConfig`]).
+    ///
+    /// All `agent_usage_*` fields are flattened here for YAML backward-compatibility.
+    #[serde(flatten)]
+    pub agent_usage: AgentUsageConfig,
 
     // ========================================================================
     // Progress Bar Settings (OSC 9;4 and OSC 934)

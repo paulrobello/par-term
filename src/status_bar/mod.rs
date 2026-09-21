@@ -43,6 +43,7 @@ pub mod widgets;
 use std::time::{Duration, Instant};
 
 use crate::agent_usage::store::UsageStore;
+use crate::agent_usage::update::UpdateRunner;
 use crate::badge::SessionVariables;
 use crate::config::{Config, StatusBarPosition, StatusBarSection};
 use disk_monitor::DiskMonitor;
@@ -52,9 +53,8 @@ use widgets::{WidgetContext, sorted_widgets_for_section, widget_text};
 
 pub use git_poller::GitStatus;
 
-/// How often the agent-usage store rescans when no watcher event arrives.
-/// Task 5 makes this configurable (`agent_usage_refresh_interval_sec`).
-const AGENT_USAGE_REFRESH_INTERVAL: Duration = Duration::from_secs(300);
+/// Floor for the configured agent-usage refresh interval.
+const AGENT_USAGE_MIN_REFRESH: Duration = Duration::from_secs(30);
 
 /// Actions that the status bar can request from the window.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -85,6 +85,8 @@ pub struct StatusBarUI {
     /// with the other background-data pollers; the popup panel reads it via
     /// [`StatusBarUI::usage_snapshot`].
     usage: UsageStore,
+    /// Optional agent-usage update command, run on the refresh interval.
+    usage_update: UpdateRunner,
 }
 
 impl StatusBarUI {
@@ -99,6 +101,7 @@ impl StatusBarUI {
             last_valid_time_format: "%H:%M:%S".to_string(),
             update_available_version: None,
             usage: UsageStore::new(crate::agent_usage::default_records_dir()),
+            usage_update: UpdateRunner::new(),
         }
     }
 
@@ -107,9 +110,11 @@ impl StatusBarUI {
         self.usage.snapshot()
     }
 
-    /// Rescan the usage records directory now (panel `r`).
+    /// Rescan the usage records directory now (panel `r`), and give the
+    /// optional update command its manual-refresh turn.
     pub(crate) fn refresh_usage_now(&mut self) {
         self.usage.refresh_now();
+        self.usage_update.trigger_if_idle();
     }
 
     /// Signal all background threads to stop without waiting.
@@ -229,8 +234,23 @@ impl StatusBarUI {
         // Keep the usage snapshot fresh even when the bar itself is hidden:
         // the popup panel reads the same store, and a watcher event arriving
         // while disabled should not wait for the bar to come back.
-        self.usage.poll();
-        self.usage.tick(AGENT_USAGE_REFRESH_INTERVAL);
+        if config.agent_usage.agent_usage_enabled {
+            self.usage.poll();
+            self.usage.set_hidden(config.agent_usage.hidden_set());
+            self.usage_update
+                .configure(config.agent_usage.agent_usage_update_command.clone());
+            let interval = Duration::from_secs(
+                config
+                    .agent_usage
+                    .agent_usage_refresh_interval_sec
+                    .max(AGENT_USAGE_MIN_REFRESH.as_secs()),
+            );
+            if self.usage.tick(interval) {
+                // The refresh interval elapsed: give the optional update
+                // command its turn alongside the rescan.
+                self.usage_update.trigger_if_idle();
+            }
+        }
 
         if !config.status_bar.status_bar_enabled || self.should_hide(config, is_fullscreen) {
             return (0.0, None);

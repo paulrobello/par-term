@@ -6,10 +6,10 @@
 use crate::types::LogLevel;
 
 use super::{
-    AiInspectorConfig, AutomationConfig, BackgroundConfig, BadgeConfig, ClipboardConfig,
-    CommandSeparatorConfig, Config, CopyModeConfig, CursorConfig, FontRenderingConfig,
-    GlobalShaderConfig, ImageConfig, InputConfig, IntegrationConfig, MouseConfig,
-    NotificationConfig, PaneConfig, PowerConfig, ProgressBarConfig, RenderingConfig,
+    AgentUsageConfig, AiInspectorConfig, AutomationConfig, BackgroundConfig, BadgeConfig,
+    ClipboardConfig, CommandSeparatorConfig, Config, CopyModeConfig, CursorConfig,
+    FontRenderingConfig, GlobalShaderConfig, ImageConfig, InputConfig, IntegrationConfig,
+    MouseConfig, NotificationConfig, PaneConfig, PowerConfig, ProgressBarConfig, RenderingConfig,
     ScrollbackConfig, ScrollbarConfig, SearchConfig, SecurityConfig, SelectionConfig,
     SemanticHistoryConfig, SessionLogConfig, SessionRestoreConfig, ShaderOverridesConfig,
     ShaderWatchConfig, ShellConfig, SshConfig, StatusBarConfig, TabBarColorsConfig, TabConfig,
@@ -80,6 +80,7 @@ impl Default for Config {
             log_level: LogLevel::default(),
             badge: BadgeConfig::default(),
             status_bar: StatusBarConfig::default(),
+            agent_usage: AgentUsageConfig::default(),
             progress_bar: ProgressBarConfig::default(),
             automation: AutomationConfig::default(),
             snippets: Vec::new(),

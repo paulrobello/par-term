@@ -154,9 +154,14 @@ impl UsageStore {
         None
     }
 
-    /// Replace the hidden-agent set (Task 5 wiring) and refilter.
-    #[cfg_attr(not(test), allow(dead_code))]
+    /// Replace the hidden-agent set and refilter. Called every frame from
+    /// the status-bar render with the config's set, so an unchanged set is a
+    /// no-op — an unconditional rescan here would re-read the records
+    /// directory sixty times a second.
     pub(crate) fn set_hidden(&mut self, hidden: HashSet<String>) {
+        if self.hidden == hidden {
+            return;
+        }
         self.hidden = hidden;
         self.rescan();
     }

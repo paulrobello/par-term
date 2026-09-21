@@ -8,6 +8,7 @@
 //! - `poll_intervals`: System monitor and git branch poll rates
 //! - `widgets`: Three-column widget layout with toggle/reorder/move controls
 
+mod agent_usage;
 mod auto_hide;
 mod general;
 mod poll_intervals;
@@ -71,6 +72,25 @@ pub fn show(
         ],
     ) {
         widget_options::show_widget_options_section(ui, settings, changes_this_frame, collapsed);
+    }
+
+    // Agent Usage section
+    if section_matches(
+        &query,
+        "Agent Usage",
+        &[
+            "agent",
+            "usage",
+            "subscription",
+            "limits",
+            "claude",
+            "codex",
+            "update command",
+            "collector",
+            "tokens",
+        ],
+    ) {
+        agent_usage::show_agent_usage_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Poll Intervals section
@@ -162,6 +182,14 @@ pub fn keywords() -> &'static [&'static str] {
         // Custom widgets
         "custom text",
         "custom widget",
+        // Agent usage
+        "agent usage",
+        "subscription",
+        "limits",
+        "claude",
+        "codex",
+        "collector",
+        "update command",
         // Time format
         "strftime",
     ]
