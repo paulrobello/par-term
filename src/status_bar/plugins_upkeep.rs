@@ -151,6 +151,12 @@ impl StatusBarUI {
         self.plugins.widget_texts().values().any(|t| !t.is_empty())
     }
 
+    /// Whether any panel plugin has pushed a panel, for the
+    /// `plugin_panel_set` ui-test operand.
+    pub(crate) fn any_plugin_panel_pushed(&self) -> bool {
+        !self.plugins.panel_contents().is_empty()
+    }
+
     /// Whether any plugin action invocation was successfully delivered
     /// this session, for the `plugin_action_dispatched` ui-test operand.
     pub(crate) fn any_plugin_action_dispatched(&self) -> bool {

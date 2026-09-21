@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "com.example.session-notes",
+  "name": "Session Notes",
+  "version": "0.1.0",
+  "author": "par-term example",
+  "license": "MIT",
+  "description": "Example panel plugin. Pushes a notes panel that renders in Settings > Automation > Plugins; updates it once a minute and whenever the bell rings. Clearing the notes file clears the panel.",
+  "kinds": ["panel"],
+  "activation": "manual",
+  "entryPoints": { "panel": { "command": "notes_panel.py", "args": [] } },
+  "subscriptions": ["bell_rang"]
+}

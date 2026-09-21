@@ -650,6 +650,7 @@ mod tests {
             dir: "/plugins/com.example.fixture".into(),
             entry_path: "/plugins/com.example.fixture/fixture.sh".into(),
             action_entry_path: None,
+            panel_entry_path: None,
         }
     }
 
@@ -677,6 +678,7 @@ mod tests {
             dir: "/plugins/com.example.actions".into(),
             entry_path: "/plugins/com.example.actions/actions.sh".into(),
             action_entry_path: Some("/plugins/com.example.actions/actions.sh".into()),
+            panel_entry_path: None,
         }
     }
 
@@ -713,6 +715,7 @@ mod tests {
             dir: "/plugins/com.example.both".into(),
             entry_path: "/plugins/com.example.both/widget.sh".into(),
             action_entry_path: Some("/plugins/com.example.both/actions.sh".into()),
+            panel_entry_path: None,
         }
     }
 
@@ -740,7 +743,37 @@ mod tests {
             dir: "/plugins/com.example.stray".into(),
             entry_path: "/plugins/com.example.stray/actions.sh".into(),
             action_entry_path: Some("/plugins/com.example.stray/actions.sh".into()),
+            panel_entry_path: None,
         }
+    }
+
+    const PANEL_ONLY_MANIFEST: &str = r#"{
+        "schemaVersion": 1,
+        "id": "com.example.panel",
+        "name": "Panel Fixture",
+        "version": "0.1.0",
+        "kinds": ["panel"],
+        "entryPoints": { "panel": { "command": "notes.py", "args": [] } }
+    }"#;
+
+    fn panel_only_plugin() -> DiscoveredPlugin {
+        let manifest: par_term_scripting::manifest::PluginManifest =
+            serde_json::from_str(PANEL_ONLY_MANIFEST).expect("fixture manifest parses");
+        DiscoveredPlugin {
+            manifest,
+            dir: "/plugins/com.example.panel".into(),
+            entry_path: "/plugins/com.example.panel/notes.py".into(),
+            action_entry_path: None,
+            panel_entry_path: Some("/plugins/com.example.panel/notes.py".into()),
+        }
+    }
+
+    #[test]
+    fn runs_lines_panel_only_keeps_bare_runs_line() {
+        assert_eq!(
+            runs_lines(&panel_only_plugin().manifest),
+            ["Runs: ./notes.py".to_string()]
+        );
     }
 
     #[test]

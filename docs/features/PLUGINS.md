@@ -1,8 +1,9 @@
 # Plugins
 
 Plugins are local, user-installed subprocesses that can publish a status-bar
-widget and contribute actions to the command palette. v1 ships two plugin
-kinds: `status-bar-widget` and `action-contributor`.
+widget, contribute actions to the command palette, or push panel content.
+v1 ships three plugin kinds: `status-bar-widget`, `action-contributor`, and
+`panel`.
 
 ## Table of Contents
 
@@ -12,6 +13,7 @@ kinds: `status-bar-widget` and `action-contributor`.
 - [Security model](#security-model)
 - [The SetWidget contract](#the-setwidget-contract)
 - [Contributing palette actions](#contributing-palette-actions)
+- [Pushing panel content](#pushing-panel-content)
 - [Event subscriptions](#event-subscriptions)
 - [Settings](#settings)
 - [Lifecycle and restarts](#lifecycle-and-restarts)
@@ -66,9 +68,9 @@ back restores the plugin with its settings and placement intact.
 | `author` | string? | Author, shown at the enable toggle. |
 | `license` | string? | License, shown at the enable toggle. |
 | `description` | string? | What the plugin does, shown in Settings. |
-| `kinds` | string[] | Kinds provided; each must be known to the host (v1: `status-bar-widget`, `action-contributor`). A manifest naming an unknown kind is not loaded. |
+| `kinds` | string[] | Kinds provided; each must be known to the host (v1: `status-bar-widget`, `action-contributor`, `panel`). A manifest naming an unknown kind is not loaded. |
 | `activation` | string? | `manual` (default; enabled in Settings) or `on_startup`. Either way nothing runs before the enable toggle. |
-| `entryPoints` | object | Map of kind → executable: `statusBarWidget` and/or `actionContributor` → `{ "command": "...", "args": [...] }`. |
+| `entryPoints` | object | Map of kind → executable: `statusBarWidget`, `actionContributor`, and/or `panel` → `{ "command": "...", "args": [...] }`. |
 | `statusBarWidget` | object? | Required when `kinds` includes `status-bar-widget`; see below. |
 | `actions` | array? | Required when `kinds` includes `action-contributor`; see [Contributing palette actions](#contributing-palette-actions). |
 | `subscriptions` | string[]? | Terminal event kinds delivered to the plugin's stdin; empty or absent means none (self-scheduled). Each name must be a known event kind — see [Event subscriptions](#event-subscriptions). |
@@ -215,6 +217,53 @@ It also declares `subscriptions: ["bell_rang"]`, making it the reference
 for [event subscriptions](#event-subscriptions): every bell in the window's
 tabs appends a `bell` line to the same `stamps.txt`.
 
+## Pushing panel content
+
+The third plugin kind, `panel`, pushes markdown content that renders in the
+plugin's own row in Settings > Automation > Plugins — the same surface a
+tab script's `SetPanel` command drives. The model is **push-based**: the
+panel kind does not own a persistent window surface (that model belongs to
+the still-deferred `overlay` kind); the plugin's process decides what to
+show and when, with two commands:
+
+- `{"type": "SetPanel", "title": "...", "content": "..."}` — show (or
+  replace) the plugin's panel. Last write wins; one panel per plugin.
+- `{"type": "ClearPanel"}` — dismiss the plugin's panel.
+
+A manifest declaring the kind needs a `panel` entry point and nothing else
+— there is no panel block in the manifest, because the pushed content is
+entirely the process's runtime decision:
+
+```json
+{
+  "schemaVersion": 1,
+  "id": "com.example.session-notes",
+  "name": "Session Notes",
+  "version": "0.1.0",
+  "kinds": ["panel"],
+  "entryPoints": { "panel": { "command": "notes_panel.py", "args": [] } }
+}
+```
+
+Lifecycle is identical to the other kinds: the process spawns on enable,
+supervises under the manifest's `restart` policy, and stops on disable —
+which also drops its panel, so a disabled plugin leaves no orphaned
+surface. Command dispatch is kind-pure: a panel process's `SetWidget` is
+refused just as a widget process's `SetPanel` is.
+
+**Summoning in v1 needs no new mechanism.** The panel is visible wherever
+its surface renders (open Settings > Automation > Plugins). A plugin that
+wants palette-driven behavior declares *both* `panel` and
+`action-contributor`: the palette action's invocation event reaches the
+action process through the normal delivery, and the panel process's pushed
+content renders regardless.
+
+The example notes plugin (`scripts/examples/plugins/com.example.session-notes/`)
+is the reference for the kind: it reads `~/.config/par-term/notes.md`,
+pushes it as a panel, refreshes once a minute and on every `bell_rang`
+(subscriptions work for the panel kind exactly as for the others), and
+clears the panel when the notes file is empty.
+
 ## Event subscriptions
 
 A plugin that wants to react to the terminal declares the events it wants
@@ -256,9 +305,9 @@ Semantics worth knowing before declaring one:
   are delivered; each event originates at exactly one terminal, so nothing
   is duplicated, but events carry no tab attribution in v1 — a plugin
   cannot tell which tab rang the bell.
-- **Both kind processes hear them.** Subscriptions are plugin-level: a
-  both-kinds manifest delivers to the widget process and the action
-  process alike.
+- **Every kind's process hears them.** Subscriptions are plugin-level: a
+  multi-kind manifest delivers to the widget, action, and panel processes
+  alike.
 - **Backpressure is the script policy.** Each subscribed plugin gets its
   own event forwarder carrying its own kind filter — the same machinery
   tab scripts use: at most 1024 events buffered per plugin, evicting the
@@ -272,7 +321,9 @@ Semantics worth knowing before declaring one:
   permission flag in v1. The kinds that do carry terminal-derived text
   (`command_complete`, `trigger_matched`) already reach tab scripts
   ungated, and a plugin remains strictly narrower than a script: outbound
-  it may still only send `SetWidget`. Adding a raw-output event kind is
+  it may only send its kind's display commands — `SetWidget` for the
+  widget and action kinds, `SetPanel`/`ClearPanel` for the panel kind.
+  Adding a raw-output event kind is
   the point where a permission gate becomes mandatory; that seam is
   deliberate and unforged.
 
@@ -346,8 +397,9 @@ plugins as rows regardless of the log level.
   no filter or regex form in v1. A plugin with no subscriptions stays
   self-scheduled (the clock sleeps one second), and an action-contributor's
   process hears its own invocations plus whatever it subscribes to.
-- **Two kinds**: `status-bar-widget` and `action-contributor`. `panel` and
-  `overlay` kinds are deliberately deferred.
+- **Three kinds**: `status-bar-widget`, `action-contributor`, and `panel`.
+  The `overlay` kind (a plugin-owned surface over the terminal) is
+  deliberately deferred.
 - **Restart policy is manifest-declared but mode-only** (`on_failure`
   default, `never`, `always`); backoff parameters (delay, crash-loop cap)
   stay host-owned.
@@ -373,9 +425,10 @@ for the manifest shape, the settings argv, and the `SetWidget` loop.
 ## Agent ui-test recipe
 
 The `--ui-test` harness ([AGENT_UI_VERIFICATION.md](../guides/AGENT_UI_VERIFICATION.md))
-exposes three plugin operands: `plugins_loaded` (the host's last discovery
+exposes four plugin operands: `plugins_loaded` (the host's last discovery
 scan found ≥1 valid plugin), `plugin_widget_set` (some plugin published
-non-empty widget text), and `plugin_action_dispatched` (≥1 plugin action
+non-empty widget text), `plugin_panel_set` (some panel plugin pushed a
+`SetPanel`), and `plugin_action_dispatched` (≥1 plugin action
 invocation was successfully delivered to a running action process this
 session). The clock recipe runs the first two end-to-end from a clean XDG
 root — no user config is touched, and the final `file_empty` assert proves
@@ -522,6 +575,48 @@ it never reaches the capture file. `all_passed: true` plus
 "subscription delivered" is the full chain: bell byte → terminal event →
 the plugin's forwarder → plugin stdin → `stamps.txt`. The interpreter
 remains the environmental dependency.
+
+### Panel variant (session notes)
+
+The panel kind's recipe installs the session-notes example with a notes
+file and asserts the `plugin_panel_set` operand — the pushed `SetPanel`
+landed in the host (the same map the Settings plugins section mirrors):
+
+```bash
+ROOT=/tmp/pt-plugin-panel-ui-test
+rm -rf "$ROOT"; mkdir -p "$ROOT/cfg/par-term/plugins"
+cp -r scripts/examples/plugins/com.example.session-notes "$ROOT/cfg/par-term/plugins/"
+echo '# remember the milk' > "$ROOT/cfg/par-term/notes.md"
+cat > "$ROOT/cfg/par-term/config.yaml" <<'EOF'
+custom_shell: /bin/sh
+shell_args:
+  - -c
+  - cat > /tmp/pt-plugin-panel-ui-test/pty-capture.txt
+shader_install_prompt: never
+shell_integration_state: never
+plugins:
+  - id: com.example.session-notes
+    enabled: true
+EOF
+cat > "$ROOT/script.json" <<'EOF'
+{
+  "steps": [
+    {"wait_ms": 2500, "assert": "plugins_loaded"},
+    {"wait_ms": 2000, "assert": "plugin_panel_set"},
+    {"assert_not": "modal_guard"},
+    {"assert_eq": ["file_empty", "/tmp/pt-plugin-panel-ui-test/pty-capture.txt"]}
+  ]
+}
+EOF
+make build
+XDG_CONFIG_HOME="$ROOT/cfg" ./target/dev-release/par-term \
+  --ui-test "$ROOT/script.json" --ui-test-report "$ROOT/report.json"
+```
+
+`all_passed: true` means the notes plugin was discovered, spawned, read
+the notes file, and pushed `SetPanel` into the host's panel map — the
+exact state the Settings > Automation > Plugins viewer renders. As with
+the clock, `python3` on `PATH` is the environmental dependency.
 
 ## See also
 
