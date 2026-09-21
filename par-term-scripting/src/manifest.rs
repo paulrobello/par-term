@@ -284,12 +284,18 @@ fn validate_plugin_dir(dir: &Path) -> Result<DiscoveredPlugin, String> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let mode = std::fs::metadata(&entry_canon)
-            .map_err(|e| format!("entry point unreadable: {e}"))?
-            .permissions()
-            .mode();
-        if mode & 0o111 == 0 {
-            return Err(format!("entry point `{}` is not executable", entry.command));
+        // `.py` entries run through the resolved Python interpreter (the
+        // same `spawn_command` routing), so the file itself never needs the
+        // exec bit — requiring it would silently reject every non-chmodded
+        // script plugin on Unix while Windows (no exec bit) accepts it.
+        if !entry.command.ends_with(".py") {
+            let mode = std::fs::metadata(&entry_canon)
+                .map_err(|e| format!("entry point unreadable: {e}"))?
+                .permissions()
+                .mode();
+            if mode & 0o111 == 0 {
+                return Err(format!("entry point `{}` is not executable", entry.command));
+            }
         }
     }
 
@@ -468,6 +474,24 @@ mod tests {
         assert!(p.entry_path.ends_with("agent-widget"));
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn py_entry_without_exec_bit_is_discovered() {
+        // `.py` entries run via the resolved Python interpreter, so
+        // validation must not require the exec bit. Regression: a plugin
+        // copied in without the bit (fresh `cp -r` of a script plugin) was
+        // silently undiscoverable on Unix while Windows accepted it.
+        let tmp = TempDir::new().unwrap();
+        write_plugin(tmp.path(), "com.example.py-noexec", MINIMAL_MANIFEST, None);
+        let entry = tmp.path().join("com.example.py-noexec/widget.py");
+        fs::write(&entry, "#!/usr/bin/env python3\n").expect("write entry");
+        // Deliberately no chmod: the interpreter routing makes it runnable.
+        let (plugins, warnings) = discover_plugins(tmp.path());
+        assert!(warnings.is_empty(), "unexpected warnings: {warnings:?}");
+        assert_eq!(plugins.len(), 1);
+        assert!(plugins[0].entry_path.ends_with("widget.py"));
+    }
+
     #[test]
     fn unknown_extra_keys_parse_for_forward_compatibility() {
         let tmp = TempDir::new().unwrap();
@@ -548,13 +572,12 @@ mod tests {
     fn non_executable_entry_is_skipped_with_a_warning() {
         use std::os::unix::fs::PermissionsExt;
         let tmp = TempDir::new().unwrap();
-        write_plugin(
-            tmp.path(),
-            "com.example.test",
-            MINIMAL_MANIFEST,
-            Some("widget.py"),
-        );
-        let entry = tmp.path().join("com.example.test/widget.py");
+        // Non-`.py` entries exec directly, so they must carry the bit;
+        // `.py` entries are interpreter-routed (see
+        // `py_entry_without_exec_bit_is_discovered`).
+        let manifest = MINIMAL_MANIFEST.replace("widget.py", "widget.sh");
+        write_plugin(tmp.path(), "com.example.test", &manifest, Some("widget.sh"));
+        let entry = tmp.path().join("com.example.test/widget.sh");
         let mut perms = fs::metadata(&entry).unwrap().permissions();
         perms.set_mode(0o644);
         fs::set_permissions(&entry, perms).unwrap();
