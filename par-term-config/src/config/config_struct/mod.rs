@@ -80,7 +80,7 @@ mod word_selection_config;
 
 pub use agent_usage_config::AgentUsageConfig;
 pub use ai_inspector_config::{AiInspectorConfig, AssistantInputHistoryMode};
-pub use automation_config::AutomationConfig;
+pub use automation_config::{AutomationConfig, PluginStateConfig};
 pub use background_config::BackgroundConfig;
 pub use badge_config::BadgeConfig;
 pub use clipboard_config::ClipboardConfig;

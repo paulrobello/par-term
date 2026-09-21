@@ -729,3 +729,74 @@ fn optional_keys_are_written_once_set() {
         );
     }
 }
+
+#[test]
+fn plugins_default_to_empty_vec() {
+    let cfg = parse("");
+    assert!(
+        cfg.automation.plugins.is_empty(),
+        "absent plugins: key must default to an empty list"
+    );
+    assert_eq!(
+        Config::default().automation.plugins.len(),
+        0,
+        "Config::default() and an empty document must agree (class-3 check)"
+    );
+}
+
+#[test]
+fn plugin_entry_round_trips_settings_and_section() {
+    let yaml = r#"
+plugins:
+  - id: com.example.clock
+    enabled: true
+    settings:
+      format: "HH:MM"
+      showSeconds: true
+    section: right
+"#;
+    let cfg = parse(yaml);
+    assert_eq!(cfg.automation.plugins.len(), 1);
+    let plugin = &cfg.automation.plugins[0];
+    assert_eq!(plugin.id, "com.example.clock");
+    assert!(plugin.enabled);
+    assert_eq!(
+        plugin.settings.get("format"),
+        Some(&serde_json::json!("HH:MM"))
+    );
+    assert_eq!(
+        plugin.settings.get("showSeconds"),
+        Some(&serde_json::json!(true))
+    );
+    assert_eq!(
+        plugin.section,
+        Some(par_term_config::status_bar::StatusBarSection::Right)
+    );
+
+    let out = serde_yaml_ng::to_string(&cfg).expect("Config serialises");
+    let back: Config = serde_yaml_ng::from_str(&out).expect("Config re-parses");
+    assert_eq!(back.automation.plugins.len(), 1);
+    let plugin = &back.automation.plugins[0];
+    assert_eq!(plugin.id, "com.example.clock");
+    assert!(plugin.enabled);
+    assert_eq!(plugin.settings.len(), 2);
+    assert_eq!(
+        plugin.section,
+        Some(par_term_config::status_bar::StatusBarSection::Right)
+    );
+}
+
+#[test]
+fn plugins_entry_without_enabled_key_parses_to_false() {
+    let yaml = "plugins:\n  - id: com.example.clock\n";
+    let cfg = parse(yaml);
+    assert_eq!(
+        cfg.automation.plugins.len(),
+        1,
+        "an entry with only id: must parse"
+    );
+    assert_eq!(
+        cfg.automation.plugins[0].enabled, false,
+        "land-disabled: an entry with no enabled: key must parse disabled"
+    );
+}
