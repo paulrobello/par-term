@@ -175,7 +175,17 @@ impl PluginHost {
                 .get(&plugin.id)
                 .is_some_and(|state| state.pending())
             {
-                continue; // the supervisor owns this slot right now
+                // The supervisor owns this slot right now. A never-started
+                // plugin has no running process for `poll` to drive, so its
+                // backoff deadline is polled here: attempt a re-spawn only
+                // once the restart delay has elapsed, not every frame.
+                if self
+                    .restart
+                    .get_mut(&plugin.id)
+                    .is_none_or(|state| state.poll(now) != RestartAction::Restart)
+                {
+                    continue;
+                }
             }
             let Some(found) = self.discovered.iter().find(|d| d.manifest.id == plugin.id) else {
                 if self.warned_not_discovered.should_warn(&plugin.id) {
@@ -214,6 +224,25 @@ impl PluginHost {
                 Err(error) => {
                     if self.warned_spawn_failed.should_warn(&plugin.id) {
                         log::warn!("failed to spawn plugin '{}': {}", plugin.id, error);
+                    }
+                    // A failed spawn arms the supervisor's capped backoff
+                    // (same policy as a failed restart): apply_enabled runs
+                    // every render frame, and without a pending deadline a
+                    // persistently-failing entry re-execs once per frame.
+                    let gave_up = {
+                        let state = self.restart.entry(plugin.id.clone()).or_insert_with(|| {
+                            ScriptRestartState::new(
+                                RestartPolicy::OnFailure,
+                                PLUGIN_RESTART_DELAY_MS,
+                            )
+                        });
+                        state.reschedule(now) == RestartAction::Stop
+                    };
+                    if gave_up {
+                        // Attempt cap reached. Drop the state so the next
+                        // attempt starts a fresh capped round — the reset
+                        // the crash-loop path gets via teardown.
+                        self.restart.remove(&plugin.id);
                     }
                 }
             }
@@ -561,6 +590,72 @@ while True:
         );
         assert!(refused.iter().all(|line| line.starts_with("[error]")));
         host.stop_all();
+    }
+
+    #[test]
+    fn failing_spawn_retries_at_the_restart_delay_not_per_frame() {
+        let root = tempfile::tempdir().unwrap();
+        // An executable non-.py entry with a broken interpreter line:
+        // discovery accepts it, direct exec fails — a persistently
+        // failing spawn. (.py entries bypass the shebang via the
+        // interpreter route in `spawn_command`, so the entry must not be
+        // python.)
+        let dir = root.path().join("com.test.broken");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(
+            dir.join("manifest.json"),
+            manifest_json("com.test.broken").replace("widget.py", "widget.sh"),
+        )
+        .unwrap();
+        fs::write(
+            dir.join("widget.sh"),
+            "#!/nonexistent/par-term-test-interpreter\n",
+        )
+        .unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(dir.join("widget.sh"), fs::Permissions::from_mode(0o755)).unwrap();
+        }
+
+        let mut host = PluginHost::new();
+        host.refresh_discovery(root.path());
+        assert_eq!(host.discovered_count(), 1, "fixture must be discovered");
+
+        // First reconcile: one spawn attempt, it fails, the supervisor's
+        // backoff arms.
+        host.apply_enabled(&[enabled("com.test.broken")]);
+        assert!(!plugin_running(&host, "com.test.broken"));
+        let after_first = host
+            .restart
+            .get("com.test.broken")
+            .expect("supervisor state armed by a failed spawn")
+            .consecutive_failures();
+        assert_eq!(after_first, 1);
+
+        // Reconcile again immediately (well inside the 250 ms delay): no
+        // re-attempt — a second exec would have pushed the failure count.
+        host.apply_enabled(&[enabled("com.test.broken")]);
+        assert_eq!(
+            host.restart
+                .get("com.test.broken")
+                .unwrap()
+                .consecutive_failures(),
+            after_first,
+            "spawn must not be retried inside the restart delay"
+        );
+
+        // Once the delay has elapsed: exactly one retry.
+        thread::sleep(Duration::from_millis(300));
+        host.apply_enabled(&[enabled("com.test.broken")]);
+        assert_eq!(
+            host.restart
+                .get("com.test.broken")
+                .unwrap()
+                .consecutive_failures(),
+            after_first + 1,
+            "exactly one retry after the delay elapses"
+        );
     }
 
     #[test]

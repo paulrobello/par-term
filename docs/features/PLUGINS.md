@@ -142,7 +142,10 @@ restarts).
 A plugin that exits successfully stays stopped. A plugin that crashes is
 restarted after 250 ms under an on-failure policy with a crash-loop cap
 (5 attempts in 5 s); the cap exists so a broken plugin cannot spin the CPU.
-Restarts re-use the spawn-time settings argv.
+Restarts re-use the spawn-time settings argv. A spawn that fails outright
+(missing interpreter, exec format error) is backed off through the same
+supervisor — retried after the 250 ms delay under the same cap, not
+re-attempted every frame.
 
 ## Diagnostics
 
