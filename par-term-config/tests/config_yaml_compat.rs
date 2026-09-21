@@ -800,3 +800,16 @@ fn plugins_entry_without_enabled_key_parses_to_false() {
         "land-disabled: an entry with no enabled: key must parse disabled"
     );
 }
+
+/// `log_level`'s default is a deliberate product decision (2026-09-20), not a
+/// type-default accident: fault warns (plugin spawn failures, discovery
+/// skips) must be visible without the user first knowing to raise the level.
+/// See docs/LOGGING.md "Precedence".
+#[test]
+fn log_level_defaults_to_warn() {
+    use par_term_config::LogLevel;
+
+    assert_eq!(Config::default().log_level, LogLevel::Warn);
+    assert_eq!(parse("{}").log_level, LogLevel::Warn);
+    assert_eq!(LogLevel::default(), LogLevel::Warn);
+}

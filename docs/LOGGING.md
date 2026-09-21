@@ -67,9 +67,9 @@ graph TD
 
 | Level | Description | Use Case |
 |-------|-------------|----------|
-| **Off** | No logging (default) | Normal operation |
+| **Off** | No logging (log file not created) | Silencing all `log` output |
 | **Error** | Errors only | Diagnosing crashes or failures |
-| **Warn** | Warnings and errors | Identifying potential issues |
+| **Warn** | Warnings and errors (default) | Identifying potential issues |
 | **Info** | Informational messages | General debugging |
 | **Debug** | Detailed debug output | Investigating specific behavior |
 | **Trace** | Most verbose | Deep investigation of code paths |
@@ -91,7 +91,7 @@ graph TD
 Set the log level in `~/.config/par-term/config.yaml`:
 
 ```yaml
-log_level: off  # Options: off, error, warn, info, debug, trace
+log_level: warn  # Default. Options: off, error, warn, info, debug, trace
 ```
 
 ### CLI Flag
@@ -126,7 +126,7 @@ The effective `log` crate level is resolved during startup. The config setting i
 1. **`--log-level` CLI flag** (highest priority)
 2. **`log_level` config file setting** (applied at app startup; overrides `RUST_LOG` when no CLI flag is set)
 3. **`RUST_LOG` environment variable**
-4. **Default: `off`** (lowest priority; the config default is `LogLevel::Off`)
+4. **Default: `warn`** (lowest priority; the config default is `LogLevel::Warn`, so fault warns are visible without any config. Set `log_level: off` to silence them)
 
 Because the config setting beats `RUST_LOG`, `make run-debug` and `make run-trace` also pass the `--log-level` flag explicitly: with `RUST_LOG` alone, a config such as `log_level: error` would override the environment variable and silence the run.
 

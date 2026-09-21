@@ -149,21 +149,20 @@ Restarts re-use the spawn-time settings argv.
 Plugin faults (a directory skipped by discovery, an enabled plugin that is
 not discovered, a failed spawn, invalid persisted settings) are reported as
 `log::warn!` records in the debug log — once per episode, not per frame, so
-a steady fault does not flood the log. They are **not visible by default**:
-the config `log_level` defaults to `off` and is applied right after startup,
-silencing all `log::` records from that point (a `Config log level: …` line
-in the debug log records the level actually applied).
+a steady fault does not flood the log. They are visible by default: the
+config `log_level` defaults to `warn` (a `Config log level: …` line in the
+debug log records the level actually applied).
 
-To see plugin diagnostics, run with the level raised:
+If the level has been lowered, raise it to see plugin diagnostics:
 
 ```bash
 par-term --log-level warn        # CLI flag beats the config setting
 ```
 
-or set `log_level: warn` in the config (Settings → Advanced → System). Note
-the config setting overrides `RUST_LOG`; only the CLI flag beats it. The
-Settings → Automation → Plugins section also shows not-discovered plugins as
-rows regardless of the log level.
+or restore `log_level: warn` in the config (Settings → Advanced → System).
+Note the config setting overrides `RUST_LOG`; only the CLI flag beats it.
+The Settings → Automation → Plugins section also shows not-discovered
+plugins as rows regardless of the log level.
 
 ## v1 limits
 

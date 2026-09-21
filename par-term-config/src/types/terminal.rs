@@ -186,11 +186,12 @@ impl SessionLogFormat {
 #[serde(rename_all = "lowercase")]
 pub enum LogLevel {
     /// No logging (log file not created)
-    #[default]
     Off,
     /// Errors only
     Error,
-    /// Warnings and errors
+    /// Warnings and errors (default: fault warns are visible without
+    /// config — see docs/LOGGING.md "Precedence")
+    #[default]
     Warn,
     /// Informational messages
     Info,
