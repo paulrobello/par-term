@@ -115,38 +115,49 @@ impl ScriptManager {
 
     /// Start a script subprocess from the given configuration.
     ///
-    /// If `script_path` ends with `.py`, it is run with the Python interpreter
-    /// resolved by [`python_interpreter`] (the script path is prepended to the
-    /// args). Otherwise, `script_path` is used as the command directly.
-    ///
-    /// Returns the assigned [`ScriptId`] on success.
+    /// Delegates to [`Self::spawn_command`] with the config's path, args,
+    /// and environment.
     ///
     /// # Errors
     /// Returns an error string if no Python interpreter is installed (for `.py`
     /// scripts) or if the subprocess cannot be spawned.
     pub fn start_script(&mut self, config: &ScriptConfig) -> Result<ScriptId, String> {
-        let (command, args) = if config.script_path.ends_with(".py") {
+        self.spawn_command(&config.script_path, &config.args, &config.env_vars)
+    }
+
+    /// Spawn a subprocess by path, resolving the Python interpreter for
+    /// `.py` files (see [`python_interpreter`]).
+    ///
+    /// Shared by tab scripts ([`Self::start_script`]) and the plugin host so
+    /// interpreter resolution has exactly one home. The spawned process is
+    /// registered under a fresh [`ScriptId`].
+    ///
+    /// # Errors
+    /// Returns an error string if no Python interpreter is installed (for
+    /// `.py` paths) or if the subprocess cannot be spawned.
+    pub fn spawn_command(
+        &mut self,
+        script_path: &str,
+        args: &[String],
+        env_vars: &HashMap<String, String>,
+    ) -> Result<ScriptId, String> {
+        let (command, args) = if script_path.ends_with(".py") {
             let interpreter = python_interpreter().ok_or_else(|| {
                 format!(
                     "no Python interpreter found on PATH (tried {}) to run '{}'",
                     PYTHON_CANDIDATES.join(", "),
-                    config.script_path
+                    script_path
                 )
             })?;
-            let mut full_args = vec![config.script_path.as_str()];
-            let arg_refs: Vec<&str> = config.args.iter().map(String::as_str).collect();
-            full_args.extend(arg_refs);
-            (
-                interpreter.to_string(),
-                full_args.into_iter().map(String::from).collect::<Vec<_>>(),
-            )
+            let mut full_args = vec![script_path.to_string()];
+            full_args.extend(args.iter().cloned());
+            (interpreter.to_string(), full_args)
         } else {
-            let arg_refs: Vec<String> = config.args.to_vec();
-            (config.script_path.clone(), arg_refs)
+            (script_path.to_string(), args.to_vec())
         };
 
         let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let process = ScriptProcess::spawn(&command, &arg_strs, &config.env_vars)?;
+        let process = ScriptProcess::spawn(&command, &arg_strs, env_vars)?;
 
         let id = self.next_id;
         self.next_id += 1;

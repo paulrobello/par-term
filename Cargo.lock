@@ -4066,6 +4066,7 @@ dependencies = [
  "par-term-emu-core-rust",
  "serde",
  "serde_json",
+ "tempfile",
 ]
 
 [[package]]
