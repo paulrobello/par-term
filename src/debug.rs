@@ -46,6 +46,8 @@
 /// The log file is created with 0600 permissions on Unix (set at creation, not chmod'ed
 /// afterwards) and symlink-checked to prevent attacks. If the path already exists and is
 /// owned by another user, logging is disabled rather than writing where they can read it.
+/// If the file cannot be created at all (missing or unwritable temp dir), a one-time note
+/// on stderr names the path and the error — stderr is the only channel left then.
 ///
 /// When `RUST_LOG` is set, `log` crate output is also mirrored to stderr for terminal debugging.
 use parking_lot::Mutex;
@@ -135,6 +137,21 @@ fn rotate_log_file(log_path: &std::path::Path) {
     let _ = std::fs::rename(log_path, std::path::PathBuf::from(rolled));
 }
 
+/// Report on stderr that the debug log could not be opened.
+///
+/// stderr is the only channel left when the log file cannot exist, and
+/// `open_log_file` runs once per process at logger init, so this fires at most
+/// once — a broken log path must be explained, not silently dropped with every
+/// record.
+fn report_unopenable_log(log_path: &std::path::Path, err: &std::io::Error) {
+    eprintln!(
+        "par-term: cannot open the debug log at {} — {}. Debug file logging is \
+         disabled for this session.",
+        log_path.display(),
+        err
+    );
+}
+
 /// Open (creating or truncating) the debug log with owner-only permissions.
 ///
 /// The previous session's log is first rolled aside by [`rotate_log_file`], so
@@ -168,15 +185,15 @@ fn open_log_file(log_path: &std::path::Path) -> Option<std::fs::File> {
         use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
         // O_NOFOLLOW (0x20000 on Linux / 0x100 on macOS) causes open() to fail with
         // ELOOP if the final path component is a symlink, regardless of who created it.
-        OpenOptions::new()
+        match OpenOptions::new()
             .write(true)
             .truncate(true)
             .create(true)
             .mode(0o600)
             .custom_flags(libc::O_NOFOLLOW)
             .open(log_path)
-            .ok()
-            .filter(|f| {
+        {
+            Ok(file) => Some(file).filter(|f| {
                 // The creation mode above only applies to a file *this* process
                 // creates. If the path was pre-created mode 0666 by another user, the
                 // open still succeeds and they keep read access to everything written
@@ -198,17 +215,28 @@ fn open_log_file(log_path: &std::path::Path) -> Option<std::fs::File> {
                     }
                     Err(_) => false,
                 }
-            })
+            }),
+            Err(err) => {
+                report_unopenable_log(log_path, &err);
+                None
+            }
+        }
     }
 
     #[cfg(not(unix))]
     {
-        OpenOptions::new()
+        match OpenOptions::new()
             .write(true)
             .truncate(true)
             .create(true)
             .open(log_path)
-            .ok()
+        {
+            Ok(file) => Some(file),
+            Err(err) => {
+                report_unopenable_log(log_path, &err);
+                None
+            }
+        }
     }
 }
 
@@ -788,6 +816,48 @@ mod tests {
             std::fs::read_to_string(&rolled).expect("read rolled log"),
             "the log worth keeping",
             "an empty log must not overwrite the previous rotation"
+        );
+    }
+
+    /// A log path that cannot be created must not fail silently — every record
+    /// would be dropped with no explanation anywhere. The failure is reported
+    /// once on stderr (the only channel that survives a broken log file),
+    /// naming the path and the error. Verified in a child process because
+    /// stderr cannot be captured in-process, and with `--nocapture` so the
+    /// child's eprintln is not swallowed by libtest's stream capture.
+    #[test]
+    fn unopenable_log_path_is_reported_on_stderr() {
+        // `--exact` matches the fully-qualified path, so the filter must carry
+        // the module prefix or the child runs zero tests.
+        const TEST_PATH: &str = "debug::tests::unopenable_log_path_is_reported_on_stderr";
+        let bad_path = std::env::temp_dir()
+            .join("par_term_no_such_dir_9f2c")
+            .join("par_term_debug.log");
+
+        if std::env::var("PAR_TERM_CHILD_OPEN_LOG").is_ok() {
+            let _ = open_log_file(&bad_path);
+            return;
+        }
+
+        let out = std::process::Command::new(std::env::current_exe().expect("test binary"))
+            .args(["--exact", "--nocapture", TEST_PATH])
+            .env("PAR_TERM_CHILD_OPEN_LOG", "1")
+            .output()
+            .expect("re-exec the test binary");
+
+        // Positive control: if the child did not run this test (filter
+        // mismatch, bad args), the stderr assertion below would pass or fail
+        // vacuously.
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        assert!(
+            stdout.contains("1 passed"),
+            "child re-exec did not run the test; stdout: {stdout}"
+        );
+
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert!(
+            stderr.contains("cannot open the debug log at"),
+            "an unopenable log path must be explained on stderr, got: {stderr}"
         );
     }
 
