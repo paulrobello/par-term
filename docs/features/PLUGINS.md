@@ -15,6 +15,7 @@ widget. v1 ships exactly one plugin kind: `status-bar-widget`.
 - [Diagnostics](#diagnostics)
 - [v1 limits](#v1-limits)
 - [The example clock plugin](#the-example-clock-plugin)
+- [Agent ui-test recipe](#agent-ui-test-recipe)
 
 ## What a plugin is
 
@@ -190,6 +191,55 @@ time once per second and exits cleanly when par-term stops it.
 
 The source (`scripts/examples/plugins/com.example.clock/`) is the reference
 for the manifest shape, the settings argv, and the `SetWidget` loop.
+
+## Agent ui-test recipe
+
+The `--ui-test` harness ([AGENT_UI_VERIFICATION.md](../guides/AGENT_UI_VERIFICATION.md))
+exposes two plugin operands: `plugins_loaded` (the host's last discovery scan
+found ≥1 valid plugin) and `plugin_widget_set` (some plugin published
+non-empty widget text). This recipe runs both end-to-end from a clean XDG
+root — no user config is touched, and the final `file_empty` assert proves
+nothing leaked to the PTY:
+
+```bash
+ROOT=/tmp/pt-plugin-ui-test
+rm -rf "$ROOT"; mkdir -p "$ROOT/cfg/par-term/plugins"
+cp -r scripts/examples/plugins/com.example.clock "$ROOT/cfg/par-term/plugins/"
+cat > "$ROOT/cfg/par-term/config.yaml" <<'EOF'
+custom_shell: /bin/sh
+shell_args:
+  - -c
+  - cat > /tmp/pt-plugin-ui-test/pty-capture.txt
+shader_install_prompt: never
+shell_integration_state: never
+plugins:
+  - id: com.example.clock
+    enabled: true
+status_bar_widgets:
+  - id: plugin:com.example.clock
+    section: right
+EOF
+cat > "$ROOT/script.json" <<'EOF'
+{
+  "steps": [
+    {"wait_ms": 2500, "assert": "plugins_loaded"},
+    {"wait_ms": 2000, "assert": "plugin_widget_set"},
+    {"assert_not": "modal_guard"},
+    {"assert_eq": ["file_empty", "/tmp/pt-plugin-ui-test/pty-capture.txt"]}
+  ]
+}
+EOF
+make build
+XDG_CONFIG_HOME="$ROOT/cfg" ./target/dev-release/par-term \
+  --ui-test "$ROOT/script.json" --ui-test-report "$ROOT/report.json"
+```
+
+`all_passed: true` means the clock was discovered under the isolated root,
+spawned, published its `🕒 …` text into the bar, no modal guard interfered,
+and no keystroke reached the shell. The example plugin needs `python3` (or
+`python`) on `PATH` — on legs with no interpreter the first two asserts fail
+with a not-discovered / not-publishing reading; that is the documented skip,
+not a host defect.
 
 ## See also
 

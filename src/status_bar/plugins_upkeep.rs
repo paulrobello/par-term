@@ -54,6 +54,17 @@ impl StatusBarUI {
         self.plugins.poll();
     }
 
+    /// Discovery-cache size for the `plugins_loaded` ui-test operand.
+    pub(crate) fn plugins_discovered_count(&self) -> usize {
+        self.plugins.discovered_count()
+    }
+
+    /// Whether any plugin has published a non-empty widget text, for the
+    /// `plugin_widget_set` ui-test operand.
+    pub(crate) fn any_plugin_widget_text(&self) -> bool {
+        self.plugins.widget_texts().values().any(|t| !t.is_empty())
+    }
+
     /// Persisted settings serialized as the one argv JSON string, validated
     /// against the discovered manifest's schema. Invalid persisted values
     /// warn (once per episode — this runs every frame) and fall back to the

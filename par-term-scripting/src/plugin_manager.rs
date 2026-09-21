@@ -137,6 +137,11 @@ impl PluginHost {
         self.discovered.iter().find(|d| d.manifest.id == id)
     }
 
+    /// Number of plugins the last discovery scan accepted.
+    pub fn discovered_count(&self) -> usize {
+        self.discovered.len()
+    }
+
     /// Reconcile running plugins with the enabled set (diff → spawn/stop).
     ///
     /// Land-disabled is structural: only ids present in `enabled` AND in the
