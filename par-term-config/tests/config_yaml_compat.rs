@@ -795,8 +795,8 @@ fn plugins_entry_without_enabled_key_parses_to_false() {
         1,
         "an entry with only id: must parse"
     );
-    assert_eq!(
-        cfg.automation.plugins[0].enabled, false,
+    assert!(
+        !cfg.automation.plugins[0].enabled,
         "land-disabled: an entry with no enabled: key must parse disabled"
     );
 }

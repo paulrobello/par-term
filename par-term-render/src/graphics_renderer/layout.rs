@@ -177,7 +177,7 @@ mod geometry_tests {
     /// row=-1, Y=5: clip 15px, UV reflects 15/60 scrolled fraction.
     #[test]
     fn y_offset_produces_sub_row_clip() {
-        let top_px = -1.0 * CH + 5.0;
+        let top_px = -CH + 5.0;
         let clip_px = (-top_px).max(0.0);
         assert_eq!(clip_px, 15.0);
 
