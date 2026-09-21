@@ -38,22 +38,83 @@ terminal down — at worst its process dies, and the host restarts it.
 
 ## Installing a plugin
 
-The host never fetches anything from the network. Installing is copying a
-directory:
+There are two install paths, managed and unmanaged, and the difference is
+deliberate: the git operations only ever touch plugins they installed.
+
+### From a git URL (managed)
+
+```bash
+par-term plugin add https://github.com/owner/par-term-plugin-xyz.git
+```
+
+`add` warns before it clones and refuses if a plugin with the same id is
+already installed, naming the directory in its way. The plugin lands
+**disabled** — nothing runs until you enable it (see below).
+
+Updates show a diff before anything is applied, and fast-forward only:
+
+```bash
+par-term plugin update              # every git-installed plugin
+par-term plugin update <plugin-id>  # just one
+```
+
+If upstream rewrote history (a fast-forward is impossible), `update`
+refuses and leaves the installed code untouched; remove and re-add the
+plugin to take the rewritten version. par-term never resets plugin code,
+because the trust model is "read the code before you enable it" — a
+reset would silently discard exactly the code you were invited to read.
+
+Removal only ever deletes plugins that `plugin add` installed — a
+directory with a `.git` folder and an `origin` remote:
+
+```bash
+par-term plugin remove <plugin-id>
+```
+
+All three operations are also in **Settings → Automation → Plugins**: an
+"Add from git URL" field at the top of the section, and Check for
+updates / Remove buttons on git-installed plugin rows.
+
+### By copying a directory (unmanaged)
 
 ```bash
 cp -r <plugin-dir> ~/.config/par-term/plugins/<plugin-id>
 ```
 
-The directory name must equal the manifest's `id`. After copying, open
-**Settings → Automation → Plugins** (search: "plugin"), read the trust
-surface — author, version, license, and the exact command that will run —
-and flip the **Enabled** toggle. The toggle is the consent step: a freshly
-copied plugin does nothing until it is flipped.
+The directory name must equal the manifest's `id`. This path involves no
+network and leaves no git metadata, so `plugin update` and `plugin
+remove` refuse to touch it — copy it in, delete it out. `add` takes git
+URLs only for the same reason: a hand-extracted archive is
+indistinguishable from a plugin you wrote yourself, so the URL check is
+a statement about provenance, not a sandbox.
+
+### After installing, either way
+
+Open **Settings → Automation → Plugins** (search: "plugin"), read the
+trust surface — author, version, license, and the exact command that
+will run — and flip the **Enabled** toggle. The toggle is the consent
+step: a freshly installed plugin does nothing until it is flipped.
 
 Removing a plugin directory does not lose its configuration: the Settings
 section shows a gray "not found — state kept" row, and putting the directory
 back restores the plugin with its settings and placement intact.
+
+### Why the git operations are shaped this way
+
+- **Warn, then land disabled.** Cloning arbitrary code should never be a
+  silent act: `add` says what it is about to fetch, and the plugin still
+  does nothing until the enable toggle is flipped.
+- **Refuse, never overwrite.** An existing target directory is named and
+  refused; nothing merges into it. (Two plugins cannot collide on an id:
+  the manifest id must equal the directory name, and directory names are
+  unique by filesystem.)
+- **Fast-forward only, never reset.** A rewritten upstream is refused
+  with the remedy spelled out. The user's path to rewritten code is
+  remove-and-re-add, in the open.
+- **No prompt can hang the terminal.** Every git invocation runs with
+  `GIT_TERMINAL_PROMPT=0` under a hard deadline, so a private-repo URL
+  or a passphrase-protected key fails as a clean error instead of
+  blocking the GPU process on an auth prompt that has no terminal.
 
 ## The manifest
 
@@ -105,8 +166,10 @@ be executable by that name relative to the plugin directory.
   toggle writes that bit.
 - **Display-only commands** — a v1 plugin may only send `SetWidget`.
   Anything else on its stdout is refused with an error line and ignored.
-- **Local installs only** — the host never fetches plugin code; what runs is
-  what the user copied onto the disk.
+- **Installs are explicit** — plugin code reaches the disk only through an
+  action the user took: `plugin add` cloning a URL they named, or a
+  directory they copied in. Discovery and the running host never fetch
+  anything; what runs is what is on the disk.
 
 ## The SetWidget contract
 

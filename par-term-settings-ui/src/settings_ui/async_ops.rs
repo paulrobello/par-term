@@ -1,8 +1,9 @@
 //! Async background operations for SettingsUI.
 //!
-//! Contains: shader install, shader install polling, self-update, self-update polling.
+//! Contains: shader install, shader install polling, self-update, self-update
+//! polling, plugin add/update/remove, plugin operation polling.
 
-use crate::{ShaderInstallResult, UpdateResult};
+use crate::{PluginGitOutcome, ShaderInstallResult, UpdateResult};
 
 use super::SettingsUI;
 
@@ -116,5 +117,57 @@ impl SettingsUI {
             }
             self.update_result = Some(result);
         }
+    }
+
+    /// Begin a plugin git operation (add / update fetch / apply / remove)
+    /// on a background thread. The git layer enforces the prompt-free
+    /// environment and a per-invocation timeout; one operation runs at a
+    /// time.
+    pub fn start_plugin_git_op<F>(&mut self, status: &str, op_fn: F)
+    where
+        F: FnOnce() -> Result<PluginGitOutcome, String> + Send + 'static,
+    {
+        use std::sync::mpsc;
+
+        if self.automation_tab.plugin_git_busy {
+            return;
+        }
+
+        self.automation_tab.plugin_git_busy = true;
+        self.automation_tab.plugin_git_message = Some(status.to_string());
+
+        let (tx, rx) = mpsc::channel();
+        self.automation_tab.plugin_git_receiver = Some(rx);
+
+        std::thread::spawn(move || {
+            let _ = tx.send(op_fn());
+        });
+    }
+
+    /// Poll the in-flight plugin git operation; returns true when one
+    /// completed this frame (the Plugins section rescans its directories
+    /// then, so the change is reflected immediately).
+    pub fn poll_plugin_git_op(&mut self) -> bool {
+        if let Some(receiver) = &self.automation_tab.plugin_git_receiver
+            && let Ok(result) = receiver.try_recv()
+        {
+            self.automation_tab.plugin_git_busy = false;
+            self.automation_tab.plugin_git_receiver = None;
+            match result {
+                Ok(PluginGitOutcome::Done(message)) => {
+                    self.automation_tab.plugin_git_message = Some(message);
+                }
+                Ok(PluginGitOutcome::UpdateReady { id, preview }) => {
+                    self.automation_tab.plugin_git_message =
+                        Some(format!("Update fetched for {id} — review the diff below."));
+                    self.automation_tab.plugin_update_preview = Some((id, preview));
+                }
+                Err(e) => {
+                    self.automation_tab.plugin_git_message = Some(format!("Error: {e}"));
+                }
+            }
+            return true;
+        }
+        false
     }
 }

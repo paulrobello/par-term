@@ -51,6 +51,23 @@ pub struct AutomationTabState {
         Vec<par_term_scripting::manifest::DiscoveredPlugin>,
         Vec<par_term_scripting::manifest::DiscoveryWarning>,
     )>,
+    /// Git URL text input for the Plugins section's Add field.
+    pub plugin_git_url: String,
+    /// True while a plugin add/update/remove runs on its background thread.
+    pub plugin_git_busy: bool,
+    /// Last status or error line from a plugin git operation.
+    pub plugin_git_message: Option<String>,
+    /// Receiver for the in-flight plugin git operation, if any.
+    pub plugin_git_receiver:
+        Option<std::sync::mpsc::Receiver<Result<crate::PluginGitOutcome, String>>>,
+    /// A fetched update awaiting the user's Apply, with its plugin id.
+    pub plugin_update_preview: Option<(String, par_term_scripting::plugin_git::UpdatePreview)>,
+    /// Plugin id whose Remove button is armed for a second-click confirm.
+    pub plugin_remove_pending: Option<String>,
+    /// Cached ids of git-installed plugins, refreshed together with
+    /// [`Self::plugin_scan`] — the `.git` + origin probe spawns a git
+    /// process per plugin, so it runs on rescan, never per frame.
+    pub plugin_git_ids: Option<std::collections::HashSet<String>>,
 }
 
 impl Default for AutomationTabState {
@@ -74,6 +91,13 @@ impl Default for AutomationTabState {
             adding_new_coprocess: false,
             trigger_resync_requested: false,
             plugin_scan: None,
+            plugin_git_url: String::new(),
+            plugin_git_busy: false,
+            plugin_git_message: None,
+            plugin_git_receiver: None,
+            plugin_update_preview: None,
+            plugin_remove_pending: None,
+            plugin_git_ids: None,
         }
     }
 }

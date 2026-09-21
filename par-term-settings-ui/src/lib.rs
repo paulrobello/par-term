@@ -183,6 +183,22 @@ pub struct ArrangementInfo {
     pub window_count: usize,
 }
 
+/// Result of a plugin git operation (add / update fetch / apply / remove),
+/// produced on the background thread and polled by the Plugins section.
+#[derive(Debug, Clone)]
+pub enum PluginGitOutcome {
+    /// Operation finished; the line is shown in the Plugins section.
+    Done(String),
+    /// A fetched update awaiting review: the section shows the diff and an
+    /// Apply button before anything fast-forwards.
+    UpdateReady {
+        /// Plugin id the preview belongs to.
+        id: String,
+        /// Fetched head, current head, and the diff between them.
+        preview: par_term_scripting::plugin_git::UpdatePreview,
+    },
+}
+
 /// Result of a shader installation operation.
 #[derive(Debug, Clone)]
 pub struct ShaderInstallResult {

@@ -14,11 +14,13 @@
 //! | `triggers_section.rs` | Trigger list, edit form, action field rendering |
 //! | `coprocesses_section.rs` | Coprocess list, edit form, output viewer |
 //! | `plugins_section.rs` | Plugin list, trust surface, enable toggle, schema editor |
+//! | `plugin_git_ui.rs` | Plugin git distribution: add from URL, update review, remove |
 
 use crate::SettingsUI;
 use std::collections::HashSet;
 
 mod coprocesses_section;
+mod plugin_git_ui;
 mod plugins_section;
 mod state;
 mod triggers_section;
@@ -119,5 +121,11 @@ pub fn keywords() -> &'static [&'static str] {
         // Plugin actions
         "plugin action",
         "palette actions",
+        // Plugin git distribution
+        "git",
+        "add plugin",
+        "remove plugin",
+        "update plugin",
+        "install plugin",
     ]
 }

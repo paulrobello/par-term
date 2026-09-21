@@ -16,7 +16,10 @@ use par_term_scripting::manifest::{
     ENTRY_POINT_STATUS_BAR_WIDGET, KIND_ACTION_CONTRIBUTOR, KIND_PANEL, KIND_STATUS_BAR_WIDGET,
     PluginEntryPoint, PluginManifest, SettingSchemaEntry, SettingType, discover_plugins,
 };
+use par_term_scripting::plugin_git;
 use std::collections::HashSet;
+
+use super::plugin_git_ui::{show_plugin_git_actions, show_plugin_git_bar};
 
 /// Show the Plugins section, filtered by the settings search query.
 pub(super) fn show_plugins_section(
@@ -37,6 +40,11 @@ pub(super) fn show_plugins_section(
             "extensions",
             "plugin action",
             "palette actions",
+            "git",
+            "add plugin",
+            "remove plugin",
+            "update plugin",
+            "install plugin",
         ],
     ) {
         show_plugins_collapsing(ui, settings, changes_this_frame, collapsed);
@@ -53,8 +61,17 @@ fn show_plugins_collapsing(
         ui.label(
             "Local plugins run as subprocesses and publish status-bar widgets, contribute command-palette actions, or push panel content.",
         );
-        ui.label("Plugins are disabled until enabled here; install means copying a directory into the plugins folder.");
+        ui.label("Plugins are disabled until enabled here. Install from a git URL below, or copy a plugin directory into the plugins folder by hand.");
         ui.add_space(4.0);
+
+        // Poll any in-flight git operation (add / fetch / apply / remove);
+        // a completed op rescans below so the change shows immediately. The
+        // poll runs only while the section is open — the same trade the
+        // integrations tab's install poll makes.
+        if settings.poll_plugin_git_op() {
+            settings.automation_tab.plugin_scan = None;
+        }
+        show_plugin_git_bar(ui, settings);
 
         // The scan runs once (and on Rescan): a per-frame directory walk
         // would be wasted work for a list that only changes on disk.
@@ -63,7 +80,22 @@ fn show_plugins_collapsing(
         }
         if settings.automation_tab.plugin_scan.is_none() {
             let root = par_term_config::Config::config_dir().join("plugins");
-            settings.automation_tab.plugin_scan = Some(discover_plugins(&root));
+            let scan = discover_plugins(&root);
+            // The .git + origin probe spawns a git process per plugin, so it
+            // runs on rescan, never per frame.
+            let git_ids: HashSet<String> = scan
+                .0
+                .iter()
+                .map(|plugin| plugin.manifest.id.clone())
+                .filter(|id| plugin_git::is_git_installed(&root.join(id)))
+                .collect();
+            if let Some(pending) = settings.automation_tab.plugin_remove_pending.clone()
+                && !git_ids.contains(&pending)
+            {
+                settings.automation_tab.plugin_remove_pending = None;
+            }
+            settings.automation_tab.plugin_git_ids = Some(git_ids);
+            settings.automation_tab.plugin_scan = Some(scan);
         }
         // Clone out of the tab state so the loop below can freely mutate
         // `settings.config` (discovery order is deterministic by id).
@@ -187,6 +219,19 @@ fn show_plugin_row(
         if !summary.is_empty() {
             ui.label(egui::RichText::new(summary).small());
         }
+    }
+
+    // Git lifecycle controls for plugins installed by `plugin add` —
+    // hand-copied plugins get none; their directory is the user's own.
+    if settings
+        .automation_tab
+        .plugin_git_ids
+        .as_ref()
+        .is_some_and(|ids| ids.contains(&manifest.id))
+    {
+        ui.push_id(format!("plugin_git_{}", manifest.id), |ui| {
+            show_plugin_git_actions(ui, settings, &manifest.id);
+        });
     }
 
     // Live panel viewer for the panel kind: the plugin's pushed SetPanel
