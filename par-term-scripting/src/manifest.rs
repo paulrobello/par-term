@@ -10,7 +10,7 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
-use par_term_config::StatusBarSection;
+use par_term_config::{RestartPolicy, StatusBarSection};
 use serde::{Deserialize, Serialize};
 
 /// The status-bar-widget plugin kind. Unknown kinds in a manifest skip the
@@ -184,6 +184,22 @@ pub struct PluginManifest {
     /// never-fire.
     #[serde(default)]
     pub subscriptions: Vec<String>,
+    /// When the host restarts the plugin's exited process: `on_failure`
+    /// (the default and the only behaviour before the field existed),
+    /// `never`, or `always` — the same policy enum tab scripts configure.
+    /// Mode-only by design: backoff parameters (restart delay, crash-loop
+    /// cap) are host-owned safety policy a manifest cannot tune its way
+    /// out of (parsight decision 95).
+    #[serde(default = "default_plugin_restart")]
+    pub restart: RestartPolicy,
+}
+
+/// The manifest default for [`PluginManifest::restart`] — today's
+/// hardcoded behaviour, NOT the config enum's derived default (`Never` is
+/// the scripts-config default; a plugin without the field must keep
+/// restarting on failure exactly as it always has).
+fn default_plugin_restart() -> RestartPolicy {
+    RestartPolicy::OnFailure
 }
 
 /// A plugin that passed validation, with confinement-checked paths.
@@ -1055,6 +1071,62 @@ mod tests {
             warnings[0]
                 .reason
                 .contains("duplicate subscription kind `bell_rang`"),
+            "got: {}",
+            warnings[0].reason
+        );
+    }
+
+    #[test]
+    fn manifest_without_restart_defaults_to_on_failure() {
+        // Today's behaviour is the default: a manifest without the field
+        // must keep restarting on failure (the config enum's own default,
+        // Never, must NOT leak into plugins).
+        let tmp = TempDir::new().unwrap();
+        write_plugin(
+            tmp.path(),
+            "com.example.test",
+            MINIMAL_MANIFEST,
+            Some("widget.py"),
+        );
+        let (plugins, warnings) = discover_plugins(tmp.path());
+        assert!(warnings.is_empty(), "unexpected warnings: {warnings:?}");
+        assert_eq!(
+            plugins[0].manifest.restart,
+            par_term_config::RestartPolicy::OnFailure
+        );
+    }
+
+    #[test]
+    fn explicit_restart_never_parses() {
+        let tmp = TempDir::new().unwrap();
+        let manifest = MINIMAL_MANIFEST.replace(
+            "\"kinds\": [\"status-bar-widget\"],",
+            "\"kinds\": [\"status-bar-widget\"], \"restart\": \"never\",",
+        );
+        write_plugin(tmp.path(), "com.example.test", &manifest, Some("widget.py"));
+        let (plugins, warnings) = discover_plugins(tmp.path());
+        assert!(warnings.is_empty(), "unexpected warnings: {warnings:?}");
+        assert_eq!(plugins.len(), 1);
+        assert_eq!(
+            plugins[0].manifest.restart,
+            par_term_config::RestartPolicy::Never
+        );
+    }
+
+    #[test]
+    fn unknown_restart_mode_is_skipped() {
+        // The enum parse rejects unknown strings at manifest parse time;
+        // the skip reason must name the restart value, not just "invalid".
+        let tmp = TempDir::new().unwrap();
+        let manifest = MINIMAL_MANIFEST.replace(
+            "\"kinds\": [\"status-bar-widget\"],",
+            "\"kinds\": [\"status-bar-widget\"], \"restart\": \"sometimes\",",
+        );
+        write_plugin(tmp.path(), "com.example.test", &manifest, Some("widget.py"));
+        let (plugins, warnings) = discover_plugins(tmp.path());
+        assert!(plugins.is_empty());
+        assert!(
+            warnings[0].reason.contains("sometimes"),
             "got: {}",
             warnings[0].reason
         );

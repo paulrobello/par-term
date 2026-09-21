@@ -4,8 +4,9 @@
 //! type the per-tab script system uses, kept entirely separate so a plugin
 //! can never be confused with a tab script. Discovery, per-kind process
 //! lifecycle (one supervised process per declared kind, design D5), restart
-//! supervision (pin P3: hardcoded on-failure with the existing crash-loop
-//! cap), action invocation, and the `SetWidget` text map all live here.
+//! supervision (manifest-declared mode — `on_failure` default, `never`,
+//! `always` — under the host-owned delay and crash-loop cap), action
+//! invocation, and the `SetWidget` text map all live here.
 //!
 //! Land-disabled is structural (design D3): [`PluginHost::apply_enabled`]
 //! receives only the enabled set, and discovery never spawns anything by
@@ -29,8 +30,9 @@ use super::process::ScriptStatus;
 use super::protocol::{PLUGIN_ACTION_INVOKED_KIND, ScriptCommand, ScriptEvent, ScriptEventData};
 use super::restart::{RestartAction, ScriptRestartState};
 
-/// Restart delay for a failed plugin (pin P3: the policy itself is hardcoded
-/// on-failure; manifests carry no restart field in v1).
+/// Restart delay for a plugin process, host-owned alongside the crash-loop
+/// cap (the manifest declares the restart *mode* only — parsight decision
+/// 95: a manifest must not be able to tune its way out of the cap).
 const PLUGIN_RESTART_DELAY_MS: u64 = 250;
 
 /// Settings argv marker passed to every plugin entry point (design D2).
@@ -276,6 +278,10 @@ impl PluginHost {
             // Plugin-level, kind-independent: whichever kind spawns first
             // creates the shared event forwarder.
             let subscriptions = found.manifest.subscriptions.clone();
+            // Restart mode is plugin-level too (both kind slots supervise
+            // under the same manifest policy; the delay and cap stay
+            // host-owned).
+            let restart_policy = found.manifest.restart;
 
             // Widget leg (the kind gate keeps an action-only manifest out of
             // the widget slot).
@@ -296,10 +302,7 @@ impl PluginHost {
                         self.restart
                             .entry(plugin.id.clone())
                             .or_insert_with(|| {
-                                ScriptRestartState::new(
-                                    RestartPolicy::OnFailure,
-                                    PLUGIN_RESTART_DELAY_MS,
-                                )
+                                ScriptRestartState::new(restart_policy, PLUGIN_RESTART_DELAY_MS)
                             })
                             .on_started(now);
                         self.ensure_subscription_forwarder(&plugin.id, &subscriptions);
@@ -312,7 +315,7 @@ impl PluginHost {
                         if self.warned_spawn_failed.should_warn(&plugin.id) {
                             log::warn!("failed to spawn plugin '{}': {}", plugin.id, error);
                         }
-                        self.arm_backoff(&plugin.id, false, now);
+                        self.arm_backoff(&plugin.id, false, restart_policy, now);
                     }
                 }
             }
@@ -343,10 +346,7 @@ impl PluginHost {
                         self.action_restart
                             .entry(plugin.id.clone())
                             .or_insert_with(|| {
-                                ScriptRestartState::new(
-                                    RestartPolicy::OnFailure,
-                                    PLUGIN_RESTART_DELAY_MS,
-                                )
+                                ScriptRestartState::new(restart_policy, PLUGIN_RESTART_DELAY_MS)
                             })
                             .on_started(now);
                         self.ensure_subscription_forwarder(&plugin.id, &subscriptions);
@@ -365,7 +365,7 @@ impl PluginHost {
                                 error
                             );
                         }
-                        self.arm_backoff(&plugin.id, true, now);
+                        self.arm_backoff(&plugin.id, true, restart_policy, now);
                     }
                 }
             }
@@ -390,14 +390,12 @@ impl PluginHost {
     /// as a failed restart). When the attempt cap is reached the state is
     /// dropped so the next attempt starts a fresh capped round — the reset
     /// the crash-loop path gets via [`Self::stop_kind`].
-    fn arm_backoff(&mut self, id: &str, action: bool, now: Instant) {
+    fn arm_backoff(&mut self, id: &str, action: bool, policy: RestartPolicy, now: Instant) {
         let gave_up = {
             let state = self
                 .restart_map(action)
                 .entry(id.to_string())
-                .or_insert_with(|| {
-                    ScriptRestartState::new(RestartPolicy::OnFailure, PLUGIN_RESTART_DELAY_MS)
-                });
+                .or_insert_with(|| ScriptRestartState::new(policy, PLUGIN_RESTART_DELAY_MS));
             state.reschedule(now) == RestartAction::Stop
         };
         if gave_up {
@@ -407,8 +405,8 @@ impl PluginHost {
 
     /// Advance supervision one frame: drain each running plugin process's
     /// commands (both kinds), observe exits, and drive each kind's restart
-    /// supervisor (on-failure, capped) — one frame advance covers the widget
-    /// and action maps identically.
+    /// supervisor (manifest-declared mode, capped) — one frame advance
+    /// covers the widget and action maps identically.
     ///
     /// Commands are drained before exit handling so a plugin's final
     /// `SetWidget` before a crash still lands.
@@ -976,6 +974,93 @@ while True:
         // Polling a given-up slot stays a no-op.
         host.poll();
         assert!(host.running_plugin_ids().is_empty());
+    }
+
+    /// A one-shot plugin: emits one widget line and exits 0.
+    const ONE_SHOT_SCRIPT: &str = r#"
+import json
+print(json.dumps({"type": "SetWidget", "text": "once"}), flush=True)
+"#;
+
+    /// A widget manifest declaring a restart `mode` (never / always).
+    fn restart_manifest_json(id: &str, mode: &str) -> String {
+        manifest_json(id).replacen(
+            "\"activation\":\"manual\",",
+            &format!("\"activation\":\"manual\",\"restart\":\"{mode}\","),
+            1,
+        )
+    }
+
+    #[test]
+    fn never_policy_plugin_is_not_restarted_after_a_crash() {
+        if skip_without_interpreter() {
+            return;
+        }
+        let root = tempfile::tempdir().unwrap();
+        write_plugin_files(
+            root.path(),
+            "com.test.never",
+            &restart_manifest_json("com.test.never", "never"),
+            &[("widget.py", CRASH_SCRIPT)],
+        );
+
+        let mut host = PluginHost::new();
+        host.refresh_discovery(root.path());
+        host.apply_enabled(&[enabled("com.test.never")]);
+
+        // The crash exits once and `never` stops it there — no capped round
+        // of retries, no supervision state left behind.
+        let stopped = wait_until(&mut host, |h| !plugin_running(h, "com.test.never"));
+        assert!(stopped, "plugin never stopped");
+        assert!(
+            !host.restart.contains_key("com.test.never"),
+            "stop_kind must drop the supervision state"
+        );
+
+        // Well past the 250 ms restart delay: no respawn may appear.
+        thread::sleep(Duration::from_millis(700));
+        host.poll();
+        assert!(
+            !plugin_running(&host, "com.test.never"),
+            "`never` must not respawn a crashed plugin"
+        );
+    }
+
+    #[test]
+    fn always_policy_plugin_restarts_after_a_clean_exit() {
+        if skip_without_interpreter() {
+            return;
+        }
+        let root = tempfile::tempdir().unwrap();
+        write_plugin_files(
+            root.path(),
+            "com.test.always",
+            &restart_manifest_json("com.test.always", "always"),
+            &[("widget.py", ONE_SHOT_SCRIPT)],
+        );
+
+        let mut host = PluginHost::new();
+        host.refresh_discovery(root.path());
+        host.apply_enabled(&[enabled("com.test.always")]);
+
+        // Under `always` even a clean (exit 0) one-shot is restarted: the
+        // first exit schedules attempt 1, the respawn's exit attempt 2, so
+        // two consecutive failures prove at least one clean-exit restart
+        // fired (on_failure, today's behaviour, would have stopped at the
+        // first exit).
+        let restarted = wait_until(&mut host, |h| {
+            h.restart
+                .get("com.test.always")
+                .is_some_and(|s| s.consecutive_failures() >= 2)
+        });
+        assert!(
+            restarted,
+            "clean exit was never restarted; failures: {:?}",
+            host.restart
+                .get("com.test.always")
+                .map(|s| s.consecutive_failures())
+        );
+        host.stop_all();
     }
 
     #[test]

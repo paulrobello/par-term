@@ -72,6 +72,7 @@ back restores the plugin with its settings and placement intact.
 | `statusBarWidget` | object? | Required when `kinds` includes `status-bar-widget`; see below. |
 | `actions` | array? | Required when `kinds` includes `action-contributor`; see [Contributing palette actions](#contributing-palette-actions). |
 | `subscriptions` | string[]? | Terminal event kinds delivered to the plugin's stdin; empty or absent means none (self-scheduled). Each name must be a known event kind — see [Event subscriptions](#event-subscriptions). |
+| `restart` | string? | When the host restarts an exited process: `on_failure` (default), `never`, or `always`. Mode-only — backoff stays host-owned; see [Lifecycle and restarts](#lifecycle-and-restarts). |
 
 The `statusBarWidget` block:
 
@@ -299,13 +300,24 @@ restarts).
 
 ## Lifecycle and restarts
 
-A plugin that exits successfully stays stopped. A plugin that crashes is
-restarted after 250 ms under an on-failure policy with a crash-loop cap
-(5 attempts in 5 s); the cap exists so a broken plugin cannot spin the CPU.
-Restarts re-use the spawn-time settings argv. A spawn that fails outright
-(missing interpreter, exec format error) is backed off through the same
-supervisor — retried after the 250 ms delay under the same cap, not
-re-attempted every frame.
+A plugin declares when the host should restart its exited process with the
+manifest's `restart` field:
+
+| Mode | Behaviour |
+|---|---|
+| `on_failure` (default) | Restart after a crash (non-zero exit) — a plugin that exits successfully stays stopped. |
+| `never` | Never restart: a one-shot plugin that does its work and exits is done, and a failing one is not retried. |
+| `always` | Keep the process up across even clean exits — for a plugin whose job is to be running. |
+
+All modes share the host-owned backoff: 250 ms restart delay and a
+crash-loop cap of 5 attempts in 5 s (a process that survives past the grace
+window resets the counter). The cap exists so a broken plugin cannot spin
+the CPU, which is exactly why the mode is the only thing the manifest can
+declare — backoff parameters stay host-owned, and a manifest that could
+tune them could configure itself out of the protection. Restarts re-use the
+spawn-time settings argv. A spawn that fails outright (missing interpreter,
+exec format error) is backed off through the same supervisor — retried
+after the 250 ms delay under the same cap, not re-attempted every frame.
 
 ## Diagnostics
 
@@ -336,7 +348,9 @@ plugins as rows regardless of the log level.
   process hears its own invocations plus whatever it subscribes to.
 - **Two kinds**: `status-bar-widget` and `action-contributor`. `panel` and
   `overlay` kinds are deliberately deferred.
-- **Restart policy is fixed** (on-failure); manifests carry no restart field.
+- **Restart policy is manifest-declared but mode-only** (`on_failure`
+  default, `never`, `always`); backoff parameters (delay, crash-loop cap)
+  stay host-owned.
 - **One widget per plugin.**
 
 ## The example clock plugin
