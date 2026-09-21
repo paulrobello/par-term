@@ -1,9 +1,11 @@
 //! Command-line interface for par-term.
 //!
 //! This module handles CLI argument parsing and subcommands like shader installation.
-//! Install/uninstall procedure implementations live in the [`install`] submodule.
+//! Install/uninstall procedure implementations live in the [`install`] submodule;
+//! plugin add/update/remove in [`plugin`].
 
 pub mod install;
+pub mod plugin;
 
 use crate::config::ShellType;
 use clap::{Parser, Subcommand};
@@ -156,6 +158,12 @@ pub enum Commands {
         yes: bool,
     },
 
+    /// Manage plugins: install from a git URL, update, remove
+    Plugin {
+        #[command(subcommand)]
+        command: plugin::PluginCommands,
+    },
+
     /// Run as an MCP server (used by ACP agents for config updates)
     McpServer,
 }
@@ -230,6 +238,15 @@ pub fn process_cli() -> CliResult {
         }
         Some(Commands::SelfUpdate { yes }) => {
             let result = self_update_cli(yes);
+            CliResult::Exit(if result.is_ok() { 0 } else { 1 })
+        }
+        Some(Commands::Plugin { command }) => {
+            use plugin::PluginCommands;
+            let result = match command {
+                PluginCommands::Add { url, yes } => plugin::plugin_add_cli(&url, yes),
+                PluginCommands::Update { id, yes } => plugin::plugin_update_cli(id.as_deref(), yes),
+                PluginCommands::Remove { id, yes } => plugin::plugin_remove_cli(&id, yes),
+            };
             CliResult::Exit(if result.is_ok() { 0 } else { 1 })
         }
         Some(Commands::McpServer) => {

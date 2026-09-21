@@ -2,8 +2,8 @@
 //!
 //! These functions are invoked by [`super::process_cli`] when the user runs
 //! install/uninstall/self-update subcommands. Each follows a
-//! prompt-confirm-execute-report pattern and is the only place in the codebase
-//! that uses blocking stdin reads.
+//! prompt-confirm-execute-report pattern; this module and [`super::plugin`]
+//! are the only places in the codebase that use blocking stdin reads.
 
 use std::io::{self, Write};
 
