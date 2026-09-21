@@ -326,6 +326,11 @@ Semantics worth knowing before declaring one:
   Adding a raw-output event kind is
   the point where a permission gate becomes mandatory; that seam is
   deliberate and unforged.
+- **The manifest declaration is the disclosure.** A plugin's declared
+  subscriptions render as a bracketed list in its Settings row (the trust
+  surface above the Enable checkbox), the same treatment tab scripts get.
+  A plugin with no subscriptions renders no subscription line at all — the
+  no-gate decision above rests on the user reading this before enabling.
 
 ## Settings
 

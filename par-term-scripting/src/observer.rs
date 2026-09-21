@@ -255,16 +255,22 @@ impl TerminalObserver for ScriptEventForwarder {
         let mut buf = self.event_buffer.lock().expect("event_buffer poisoned");
 
         if buf.events.len() >= MAX_BUFFERED_EVENTS {
-            // Drop the oldest rather than the newest. A script acts on what just
-            // happened, so discarding the incoming event would hide the very
-            // thing that is still worth reacting to and leave a stale prefix.
+            // Drop the oldest rather than the newest. A subscriber acts on
+            // what just happened, so discarding the incoming event would
+            // hide the very thing that is still worth reacting to and leave
+            // a stale prefix.
             buf.events.pop_front();
             if !buf.overflow_reported {
                 buf.overflow_reported = true;
+                // This forwarder backs both tab scripts and plugin
+                // subscriptions (`plugin_manager::supervision`), so the
+                // wording stays owner-neutral rather than naming "script"
+                // for what may be a plugin's process.
                 log::warn!(
-                    "Script event buffer reached its {} event cap; discarding oldest \
+                    "Event buffer reached its {} event cap; discarding oldest \
                      events from here on. Nothing is draining this forwarder — the \
-                     script most likely exited while its observer stayed registered.",
+                     subscribing process most likely exited while its observer \
+                     stayed registered.",
                     MAX_BUFFERED_EVENTS
                 );
             }

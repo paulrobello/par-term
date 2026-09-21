@@ -175,6 +175,13 @@ fn show_plugin_row(
     for line in runs_lines(manifest) {
         ui.label(egui::RichText::new(line).small());
     }
+    if let Some(line) = subscription_line(&manifest.subscriptions) {
+        ui.label(
+            egui::RichText::new(line)
+                .small()
+                .color(egui::Color32::from_rgb(140, 180, 220)),
+        );
+    }
     if manifest.kinds.iter().any(|k| k == KIND_ACTION_CONTRIBUTOR) {
         let summary = action_summary(&manifest.actions);
         if !summary.is_empty() {
@@ -387,6 +394,21 @@ fn clamp_f64(value: f64, min: Option<f64>, max: Option<f64>) -> f64 {
         value = value.min(max);
     }
     value
+}
+
+/// One-line trust-surface disclosure of a plugin's declared terminal-event
+/// subscriptions, e.g. `[bell_rang, command_complete]`, mirroring the
+/// scripts-tab treatment (`scripts_tab/list.rs`). `None` for an
+/// unsubscribed (self-scheduled) plugin — the caller renders nothing
+/// rather than an empty-brackets or "none" line (parsight decision 94:
+/// the manifest declaration is the whole disclosure surface, so a plugin
+/// that asked for nothing should show nothing).
+fn subscription_line(subscriptions: &[String]) -> Option<String> {
+    if subscriptions.is_empty() {
+        None
+    } else {
+        Some(format!("[{}]", subscriptions.join(", ")))
+    }
 }
 
 /// One-line trust-surface summary of a plugin's contributed palette
@@ -909,6 +931,20 @@ mod tests {
             label: label.into(),
             description: None,
         }
+    }
+
+    #[test]
+    fn subscription_line_lists_declared_kinds() {
+        let subscriptions = ["bell_rang".to_string(), "command_complete".to_string()];
+        assert_eq!(
+            subscription_line(&subscriptions),
+            Some("[bell_rang, command_complete]".to_string())
+        );
+    }
+
+    #[test]
+    fn subscription_line_empty_renders_nothing() {
+        assert_eq!(subscription_line(&[]), None);
     }
 
     #[test]
