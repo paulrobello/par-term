@@ -20,8 +20,6 @@ use std::path::PathBuf;
 /// `Config::state_file_path`'s cfg split: `~/.local/state/par-term/agents/usage`
 /// on Linux/macOS (the design's XDG-state contract) and
 /// `%LOCALAPPDATA%\par-term\agents\usage` on Windows.
-// Task 3's status-bar wiring is the first caller.
-#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn default_records_dir() -> PathBuf {
     if let Some(dir) = std::env::var_os("PAR_TERM_AGENT_USAGE_RECORDS_DIR") {
         return PathBuf::from(dir);

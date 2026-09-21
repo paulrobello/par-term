@@ -19,6 +19,13 @@ fn custom_widget_roundtrips_through_config_yaml() {
             format: None,
         },
         StatusBarWidgetConfig {
+            id: WidgetId::AgentUsage,
+            enabled: false,
+            section: StatusBarSection::Right,
+            order: 7,
+            format: None,
+        },
+        StatusBarWidgetConfig {
             id: WidgetId::Custom("my-widget".to_string()),
             enabled: true,
             section: StatusBarSection::Right,

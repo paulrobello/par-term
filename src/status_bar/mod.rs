@@ -40,8 +40,9 @@ pub mod git_poller;
 pub mod system_monitor;
 pub mod widgets;
 
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
+use crate::agent_usage::store::UsageStore;
 use crate::badge::SessionVariables;
 use crate::config::{Config, StatusBarPosition, StatusBarSection};
 use disk_monitor::DiskMonitor;
@@ -51,11 +52,17 @@ use widgets::{WidgetContext, sorted_widgets_for_section, widget_text};
 
 pub use git_poller::GitStatus;
 
+/// How often the agent-usage store rescans when no watcher event arrives.
+/// Task 5 makes this configurable (`agent_usage_refresh_interval_sec`).
+const AGENT_USAGE_REFRESH_INTERVAL: Duration = Duration::from_secs(300);
+
 /// Actions that the status bar can request from the window.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StatusBarAction {
     /// User clicked the update-available widget.
     ShowUpdateDialog,
+    /// User clicked the agent-usage widget.
+    OpenAgentUsagePanel,
 }
 
 /// Status bar UI state and renderer.
@@ -74,6 +81,10 @@ pub struct StatusBarUI {
     last_valid_time_format: String,
     /// Available update version (set by WindowManager when update is detected)
     pub update_available_version: Option<String>,
+    /// Agent-usage records store (watched directory + snapshot). Lives here
+    /// with the other background-data pollers; the popup panel reads it via
+    /// [`StatusBarUI::usage_snapshot`].
+    usage: UsageStore,
 }
 
 impl StatusBarUI {
@@ -87,7 +98,16 @@ impl StatusBarUI {
             visible: true,
             last_valid_time_format: "%H:%M:%S".to_string(),
             update_available_version: None,
+            usage: UsageStore::new(crate::agent_usage::default_records_dir()),
         }
+    }
+
+    /// Read access to the agent-usage snapshot for the popup panel (Task 4).
+    // Unused in BOTH targets until the panel lands — not cfg-gated, because
+    // the lib-test target sees it dead too. Remove with the Task 4 panel.
+    #[allow(dead_code)]
+    pub(crate) fn usage_snapshot(&self) -> &crate::agent_usage::store::UsageSnapshot {
+        self.usage.snapshot()
     }
 
     /// Signal all background threads to stop without waiting.
@@ -204,6 +224,12 @@ impl StatusBarUI {
         session_vars: &SessionVariables,
         is_fullscreen: bool,
     ) -> (f32, Option<StatusBarAction>) {
+        // Keep the usage snapshot fresh even when the bar itself is hidden:
+        // the popup panel reads the same store, and a watcher event arriving
+        // while disabled should not wait for the bar to come back.
+        self.usage.poll();
+        self.usage.tick(AGENT_USAGE_REFRESH_INTERVAL);
+
         if !config.status_bar.status_bar_enabled || self.should_hide(config, is_fullscreen) {
             return (0.0, None);
         }
@@ -244,6 +270,7 @@ impl StatusBarUI {
             disk_free_percent: disk_data.free_percent,
             disk_free_bytes: disk_data.free_bytes,
             disk_total_bytes: disk_data.total_bytes,
+            agent_usage_summary: self.usage.summary_line(),
         };
 
         let bar_height = config.status_bar.status_bar_height;
@@ -389,6 +416,22 @@ impl StatusBarUI {
                                                 .clicked()
                                             {
                                                 action = Some(StatusBarAction::ShowUpdateDialog);
+                                            }
+                                        } else if w.id == crate::config::WidgetId::AgentUsage {
+                                            // Same clickable treatment as the update widget;
+                                            // v1 is right-section-only (documented limitation).
+                                            let usage_text = egui::RichText::new(&text)
+                                                .color(fg_color)
+                                                .size(font_size)
+                                                .monospace();
+                                            if ui
+                                                .add(
+                                                    egui::Label::new(usage_text)
+                                                        .sense(egui::Sense::click()),
+                                                )
+                                                .clicked()
+                                            {
+                                                action = Some(StatusBarAction::OpenAgentUsagePanel);
                                             }
                                         } else {
                                             ui.label(make_rich_text(&text));

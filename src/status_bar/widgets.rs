@@ -35,6 +35,9 @@ pub struct WidgetContext {
     pub disk_free_bytes: u64,
     /// Total bytes on the monitored disk
     pub disk_total_bytes: u64,
+    /// Agent-usage summary line; `None` when nothing is displayable, which
+    /// self-hides the widget (empty text is skipped by the section loops)
+    pub agent_usage_summary: Option<String>,
 }
 
 /// Generate display text for a single widget.
@@ -108,6 +111,7 @@ pub fn widget_text(id: &WidgetId, ctx: &WidgetContext, format_override: Option<&
             ctx.disk_free_percent,
             crate::status_bar::system_monitor::format_bytes(ctx.disk_free_bytes)
         ),
+        WidgetId::AgentUsage => ctx.agent_usage_summary.clone().unwrap_or_default(),
         WidgetId::Custom(_) => String::new(),
     }
 }
@@ -225,6 +229,7 @@ mod tests {
             disk_free_percent: 38.0,
             disk_free_bytes: 250 * 1_073_741_824,  // 250 GB
             disk_total_bytes: 500 * 1_073_741_824, // 500 GB
+            agent_usage_summary: None,
         }
     }
 
@@ -394,6 +399,20 @@ mod tests {
             &ctx,
         );
         assert_eq!(result, "free=250.0 GB pct=38%");
+    }
+
+    #[test]
+    fn test_widget_text_agent_usage() {
+        let mut ctx = make_ctx();
+        // No displayable records -> empty text -> the render loop skips the
+        // widget entirely (self-hiding).
+        assert_eq!(widget_text(&WidgetId::AgentUsage, &ctx, None), "");
+
+        ctx.agent_usage_summary = Some("\u{25c6} 42%".to_string());
+        assert_eq!(
+            widget_text(&WidgetId::AgentUsage, &ctx, None),
+            "\u{25c6} 42%"
+        );
     }
 
     #[test]

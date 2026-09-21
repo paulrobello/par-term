@@ -53,6 +53,8 @@ pub enum WidgetId {
     CurrentCommand,
     /// Update available notification
     UpdateAvailable,
+    /// Agent subscription usage summary (self-hiding; click opens the usage panel)
+    AgentUsage,
     /// Custom widget (user-defined via format string)
     Custom(String),
 }
@@ -72,6 +74,7 @@ impl WidgetId {
             WidgetId::BellIndicator => "Bell Indicator",
             WidgetId::CurrentCommand => "Current Command",
             WidgetId::UpdateAvailable => "Update Available",
+            WidgetId::AgentUsage => "Agent Usage",
             WidgetId::Custom(name) => name.as_str(),
         }
     }
@@ -90,6 +93,7 @@ impl WidgetId {
             WidgetId::BellIndicator => "\u{1f514}",    // bell
             WidgetId::CurrentCommand => "\u{25b6}",    // play button
             WidgetId::UpdateAvailable => "\u{2b06}",   // upwards arrow
+            WidgetId::AgentUsage => "\u{25c6}",        // diamond (matches the summary glyph)
             WidgetId::Custom(_) => "\u{2699}",         // gear
         }
     }
@@ -122,6 +126,7 @@ impl WidgetId {
             WidgetId::BellIndicator => "bell_indicator".to_string(),
             WidgetId::CurrentCommand => "current_command".to_string(),
             WidgetId::UpdateAvailable => "update_available".to_string(),
+            WidgetId::AgentUsage => "agent_usage".to_string(),
             WidgetId::Custom(name) => format!("custom:{name}"),
         }
     }
@@ -144,6 +149,7 @@ impl WidgetId {
             "bell_indicator" => WidgetId::BellIndicator,
             "current_command" => WidgetId::CurrentCommand,
             "update_available" => WidgetId::UpdateAvailable,
+            "agent_usage" => WidgetId::AgentUsage,
             _ => return None,
         })
     }
@@ -274,6 +280,13 @@ pub fn default_widgets() -> Vec<StatusBarWidgetConfig> {
             enabled: true,
             section: StatusBarSection::Right,
             order: 6,
+            format: None,
+        },
+        StatusBarWidgetConfig {
+            id: WidgetId::AgentUsage,
+            enabled: false,
+            section: StatusBarSection::Right,
+            order: 7,
             format: None,
         },
     ]

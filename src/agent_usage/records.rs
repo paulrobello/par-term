@@ -12,9 +12,9 @@
 //! panel down. `parse_record` returns `None` for anything that does not
 //! parse at all.
 
-// Nothing outside the tests constructs these types until Task 2's store
-// lands; remove this attribute when `store` starts consuming the module
-// (precedent: src/app/mouse_events/coords.rs).
+// The popup panel (Task 4) is the next consumer of the display fields
+// (labels, reset times, daily/model rows); until it lands, non-test builds
+// see them as unread. Remove this attribute when the panel ships.
 #![cfg_attr(not(test), allow(dead_code))]
 
 use serde::Deserialize;
@@ -186,6 +186,7 @@ pub(crate) fn should_display(record: &AgentUsageRecord, hidden: &HashSet<String>
 /// date lists, then take the widest of that union and either side's bare
 /// count — a source that only knows a count still bounds the answer from
 /// below, exactly as omarchy's `merge_stats` does.
+/// Reserved for v2 cross-device sync (design §2); no caller until then.
 pub(crate) fn union_active_days(a: &AgentUsageRecord, b: &AgentUsageRecord) -> u64 {
     let mut dates: HashSet<&str> = a.active_dates.iter().map(String::as_str).collect();
     dates.extend(b.active_dates.iter().map(String::as_str));

@@ -11,8 +11,9 @@
 //! picked up on the next refresh tick, and a garbage `.json` file becomes an
 //! entry in `snapshot.errors` while every other file still parses.
 
-// Nothing outside the tests constructs a store until Task 3's status-bar
-// wiring lands; remove this attribute then.
+// The popup panel (Task 4) reads snapshot errors and record detail beyond
+// summary_line; until it lands, non-test builds see those as unread. Remove
+// this attribute when the panel ships.
 #![cfg_attr(not(test), allow(dead_code))]
 
 use crate::agent_usage::records::{self, AgentUsageRecord};
