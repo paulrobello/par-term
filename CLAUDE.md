@@ -283,6 +283,7 @@ Everything below lives under `docs/` except where the path says otherwise.
 | Agent UI verification (`--ui-test`) | `docs/guides/AGENT_UI_VERIFICATION.md` |
 | Enterprise deployment | `docs/ENTERPRISE_DEPLOYMENT.md` |
 | Automation (triggers, coprocesses) | `docs/features/AUTOMATION.md` |
+| Plugins | `docs/features/PLUGINS.md` |
 | Assistant panel / ACP agents | `docs/ASSISTANT_PANEL.md` |
 | Split tabs | `docs/features/TABS.md` |
 | Window management | `docs/features/WINDOW_MANAGEMENT.md` |

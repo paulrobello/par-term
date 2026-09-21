@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "com.example.clock",
+  "name": "Clock",
+  "version": "0.1.0",
+  "author": "par-term example",
+  "license": "MIT",
+  "description": "Example status-bar clock widget. Self-scheduled: emits the current time once per second.",
+  "kinds": ["status-bar-widget"],
+  "activation": "manual",
+  "entryPoints": { "statusBarWidget": { "command": "clock_widget.py", "args": [] } },
+  "statusBarWidget": {
+    "displayName": "Clock",
+    "section": "right",
+    "defaults": { "format24h": true },
+    "schema": [
+      { "key": "format24h", "type": "boolean", "label": "24-hour clock", "defaultValue": true }
+    ]
+  }
+}

@@ -37,6 +37,7 @@ Par Terminal provides an automation system that lets you react to terminal outpu
   - [Markdown Panels](#markdown-panels)
   - [Script Lifecycle](#script-lifecycle)
   - [Example Script](#example-script)
+- [Plugins](#plugins)
 - [Sound Files](#sound-files)
 - [Settings UI](#settings-ui)
   - [Managing Triggers](#managing-triggers)
@@ -809,6 +810,16 @@ scripts:
     auto_start: true
     subscriptions: ["bell_rang", "cwd_changed", "command_complete"]
 ```
+
+## Plugins
+
+Plugins are local subprocesses that publish status-bar widgets — a separate
+mechanism from scripts (scripts observe a tab's events; plugins are
+window-scoped and self-scheduled). They are configured in
+**Settings → Automation → Plugins**, not in `config.yaml` by hand.
+
+See [PLUGINS.md](PLUGINS.md) for the manifest reference, the security model,
+and the example clock plugin.
 
 ## Sound Files
 

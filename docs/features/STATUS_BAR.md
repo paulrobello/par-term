@@ -11,6 +11,7 @@ par-term provides a configurable status bar with a widget system for displaying 
   - [Default Widget Placement](#default-widget-placement)
 - [Custom Widgets](#custom-widgets)
   - [Variable Interpolation](#variable-interpolation)
+  - [Plugin Widgets](#plugin-widgets)
 - [Auto-Hide Behavior](#auto-hide-behavior)
 - [System Monitoring](#system-monitoring)
 - [Git Integration](#git-integration)
@@ -191,6 +192,22 @@ Profile: \(session.profile_name) TTY: \(session.tty)
 ```
 
 > **Note:** The `format` field on any widget configuration (not only custom widgets) accepts the same `\(variable)` placeholders and overrides the widget's built-in formatting. The Settings UI only exposes this editor for custom widgets; for built-in widgets, set `format:` directly in `config.yaml`.
+
+### Plugin Widgets
+
+Plugins (local subprocesses, configured in **Settings → Automation →
+Plugins**) can publish a widget of their own. A plugin widget is a *source*
+of widget text — the plugin process computes the text and sends
+`SetWidget`; the bar renders it like any other widget, with no variable
+interpolation.
+
+- Enabling a plugin in Settings creates its `plugin:<id>` row in
+  `status_bar_widgets` (default section from the plugin's manifest); the
+  same move/reorder controls apply as for built-ins.
+- While the plugin publishes nothing (stopped, disabled, or never started),
+  the widget self-hides.
+- The example clock plugin renders `🕒 14:32` — see
+  [PLUGINS.md](PLUGINS.md).
 
 ## Auto-Hide Behavior
 
