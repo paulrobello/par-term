@@ -125,6 +125,35 @@ impl StatusBarUI {
         self.git_poller.signal_stop();
     }
 
+    /// Per-frame agent-usage upkeep: watcher events, config wiring, refresh
+    /// tick, and the optional update command.
+    ///
+    /// Called unconditionally from the render pipeline every frame — NOT from
+    /// [`StatusBarUI::render`], which the caller only reaches while the status
+    /// bar is enabled. The usage panel must stay live with the bar off (it is
+    /// opened by its own action), and a watcher event arriving while the bar
+    /// is hidden must not wait for the bar to come back.
+    pub(crate) fn update_agent_usage(&mut self, config: &Config) {
+        if !config.agent_usage.agent_usage_enabled {
+            return;
+        }
+        self.usage.poll();
+        self.usage.set_hidden(config.agent_usage.hidden_set());
+        self.usage_update
+            .configure(config.agent_usage.agent_usage_update_command.clone());
+        let interval = Duration::from_secs(
+            config
+                .agent_usage
+                .agent_usage_refresh_interval_sec
+                .max(AGENT_USAGE_MIN_REFRESH.as_secs()),
+        );
+        if self.usage.tick(interval) {
+            // The refresh interval elapsed: give the optional update
+            // command its turn alongside the rescan.
+            self.usage_update.trigger_if_idle();
+        }
+    }
+
     /// Compute the effective height consumed by the status bar.
     ///
     /// Returns 0 if the status bar is hidden or disabled.
@@ -231,27 +260,6 @@ impl StatusBarUI {
         session_vars: &SessionVariables,
         is_fullscreen: bool,
     ) -> (f32, Option<StatusBarAction>) {
-        // Keep the usage snapshot fresh even when the bar itself is hidden:
-        // the popup panel reads the same store, and a watcher event arriving
-        // while disabled should not wait for the bar to come back.
-        if config.agent_usage.agent_usage_enabled {
-            self.usage.poll();
-            self.usage.set_hidden(config.agent_usage.hidden_set());
-            self.usage_update
-                .configure(config.agent_usage.agent_usage_update_command.clone());
-            let interval = Duration::from_secs(
-                config
-                    .agent_usage
-                    .agent_usage_refresh_interval_sec
-                    .max(AGENT_USAGE_MIN_REFRESH.as_secs()),
-            );
-            if self.usage.tick(interval) {
-                // The refresh interval elapsed: give the optional update
-                // command its turn alongside the rescan.
-                self.usage_update.trigger_if_idle();
-            }
-        }
-
         if !config.status_bar.status_bar_enabled || self.should_hide(config, is_fullscreen) {
             return (0.0, None);
         }

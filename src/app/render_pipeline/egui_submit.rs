@@ -68,6 +68,11 @@ impl WindowState {
             None
         };
 
+        // Agent-usage upkeep runs every frame regardless of the status bar's
+        // visibility — the popup panel opens by its own action and reads the
+        // same store.
+        self.status_bar_ui.update_agent_usage(&self.config.load());
+
         // Capture session variables for status bar rendering (skip if bar is hidden)
         let status_bar_session_vars = if self.config.load().status_bar.status_bar_enabled
             && !self
