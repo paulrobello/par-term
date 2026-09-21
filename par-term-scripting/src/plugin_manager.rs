@@ -96,6 +96,11 @@ impl PluginHost {
         &self.discovered
     }
 
+    /// The discovery-cache entry for a plugin id, if the last scan found it.
+    pub fn discovered(&self, id: &str) -> Option<&DiscoveredPlugin> {
+        self.discovered.iter().find(|d| d.manifest.id == id)
+    }
+
     /// Reconcile running plugins with the enabled set (diff → spawn/stop).
     ///
     /// Land-disabled is structural: only ids present in `enabled` AND in the
