@@ -226,6 +226,42 @@ pub(crate) struct MuxAttachPending {
 }
 
 impl WindowState {
+    /// Split the focused par-mux pane daemon-side: targeted `split-window`
+    /// via the transport (the command the tmux gateway writes to its PTY),
+    /// then let the %layout-change consumer create the native pane and
+    /// mapping — the same flow the gateway split path relies on. Returns
+    /// false when no transport is attached or the command fails, so
+    /// callers fall through rather than leaving a daemon/local mismatch.
+    /// On success the reply's new pane id becomes the focused pane, so
+    /// subsequent input lands in the freshly split pane.
+    pub(crate) fn split_pane_via_mux(&mut self, vertical: bool) -> bool {
+        let Some(transport) = &self.tmux_state.transport else {
+            return false;
+        };
+        // tmux's -h is a side-by-side split (par-term "vertical"); -v stacks.
+        let flag = if vertical { "-h" } else { "-v" };
+        let cmd = match self.tmux_state.mux_focused_pane {
+            Some(pane) => format!("split-window {flag} -t %{pane}"),
+            None => format!("split-window {flag}"),
+        };
+        match transport.send_command(&cmd) {
+            Ok(reply) => {
+                if let Some(id) = reply
+                    .iter()
+                    .find_map(|line| line.trim().strip_prefix('%').and_then(|s| s.parse().ok()))
+                {
+                    self.tmux_state.mux_focused_pane = Some(id);
+                }
+                true
+            }
+            Err(e) => {
+                log::error!("par-mux split-window failed: {e}");
+                self.show_toast(format!("par-mux: split failed — {e}"));
+                false
+            }
+        }
+    }
+
     /// Begin the profile-open attach for `name` WITHOUT blocking the event
     /// loop: the daemon connect/spawn runs on a worker thread and
     /// [`Self::poll_mux_attach`] finishes the attach on the main thread. A
@@ -995,6 +1031,55 @@ mod tests {
             .create_or_attach("ParMux-Test")
             .expect("reattach with a wire-safe name");
         assert!(matches!(attached, AttachOutcome::Attached(_)));
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// With a transport attached, the split keybinding must split
+    /// DAEMON-side: the daemon grows to two panes, the reply's new pane id
+    /// becomes the focused pane, and NO native pane is created (a native
+    /// split here produces a local shell the mux input router then
+    /// starves — measured live 2026-09-22: keystrokes executed in the
+    /// daemon's %0 pane while the split-local pane froze at its seed).
+    #[test]
+    fn split_pane_via_mux_splits_daemon_side_and_moves_focus() {
+        let path = socket_path("mux-split");
+        spawn_daemon(&path);
+
+        // Attach through the app's own install path (poll arm).
+        let core_client = par_term_emu_core_rust::mux::MuxClient::connect(&path).expect("connect");
+        let (tx, rx) = std::sync::mpsc::channel();
+        tx.send(Ok(core_client)).unwrap();
+        drop(tx);
+        let mut ws = manners_state();
+        ws.tmux_state.mux_attach_pending = Some(MuxAttachPending {
+            name: "splitme".to_string(),
+            rx,
+        });
+        ws.poll_mux_attach();
+        assert!(ws.tmux_state.transport.is_some(), "attach must install");
+        ws.tmux_state.mux_focused_pane = Some(0);
+
+        assert!(
+            ws.split_pane_via_mux(true),
+            "daemon-side split must succeed"
+        );
+
+        // The daemon grew to two panes — the split went over the wire.
+        let mut probe = par_term_mux::MuxSessionClient::connect(&path).expect("probe client");
+        let panes = probe.list_panes().expect("list panes");
+        assert_eq!(
+            panes.len(),
+            2,
+            "the daemon must gain the split pane, got {panes:?}"
+        );
+
+        // Focus followed the reply's new pane id so input lands there.
+        assert_eq!(
+            ws.tmux_state.mux_focused_pane,
+            Some(1),
+            "focus must move to the reply's new pane id"
+        );
 
         let _ = std::fs::remove_file(&path);
     }

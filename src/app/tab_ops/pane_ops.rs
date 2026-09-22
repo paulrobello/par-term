@@ -138,6 +138,13 @@ impl WindowState {
 
     /// Split the current pane horizontally (panes stacked top/bottom)
     pub fn split_pane_horizontal(&mut self) {
+        // par-mux transport: split daemon-side — the daemon pane is the
+        // real one; a native split here would create a local pane whose
+        // input the mux router then starves.
+        #[cfg(feature = "mux")]
+        if self.split_pane_via_mux(false) {
+            return;
+        }
         // In tmux mode, send split command to tmux instead
         if self.is_tmux_connected() && self.split_pane_via_tmux(false) {
             crate::debug_info!("TMUX", "Sent horizontal split command to tmux");
@@ -149,6 +156,13 @@ impl WindowState {
 
     /// Split the current pane vertically (panes side by side)
     pub fn split_pane_vertical(&mut self) {
+        // par-mux transport: split daemon-side — the daemon pane is the
+        // real one; a native split here would create a local pane whose
+        // input the mux router then starves.
+        #[cfg(feature = "mux")]
+        if self.split_pane_via_mux(true) {
+            return;
+        }
         // In tmux mode, send split command to tmux instead
         if self.is_tmux_connected() && self.split_pane_via_tmux(true) {
             crate::debug_info!("TMUX", "Sent vertical split command to tmux");

@@ -43,4 +43,4 @@ log.workspace = true
 # [features] dep-forwarding eagerly. Run via scripts/with-local-core.sh
 # (or make with-local-core), which extends this locally to
 # ["par-term-emu-core-rust/mux"] and auto-reverts on exit.
-layout-conformance = []
+layout-conformance = ["par-term-emu-core-rust/mux"]
