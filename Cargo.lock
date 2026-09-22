@@ -3883,6 +3883,7 @@ dependencies = [
  "par-term-input",
  "par-term-keybindings",
  "par-term-mcp",
+ "par-term-mux",
  "par-term-render",
  "par-term-scripting",
  "par-term-settings-ui",

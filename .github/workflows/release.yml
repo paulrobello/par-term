@@ -148,12 +148,13 @@ jobs:
         run: cargo fmt -- --check
 
       - name: Run clippy
-        # Two passes: workspace tests/bins at default features + root all-features.
-        # Workspace-wide --all-features waits for the core >=0.50 pin raise
-        # (card 01a0c723f7b070239ecc5f6fce02f4fc).
+        # Two passes: workspace tests/bins at default features + root with all
+        # features except the empty `mux` gate (compiles only against the
+        # vendored local core; cards 01a0c723f7b070239ecc5f6fce02f4fc,
+        # 01a0c74bfdaf78f0b5b4463033ab5291).
         run: |
           cargo clippy --workspace --all-targets -- -D warnings
-          cargo clippy -p par-term --all-targets --all-features -- -D warnings
+          cargo clippy -p par-term --all-targets --features dev-tools -- -D warnings
 
   # Build Linux ARM64 natively on a GitHub ARM64 runner (parallel)
   build-linux-arm64:

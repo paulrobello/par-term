@@ -35,11 +35,14 @@ ROOT_MANIFEST="$REPO_ROOT/Cargo.toml"
 LOCKFILE="$REPO_ROOT/Cargo.lock"
 PATCH_LINE_PREFIX='par-term-emu-core-rust = { path ='
 # Crates whose committed-empty features forward the core's `mux` feature for
-# local runs, as "<manifest>|<feature>" pairs. Bash 3 (macOS ships it) has no
+# local runs, as "<manifest>|<feature>|<forwarded feature list>" triples — the
+# root manifest forwards through par-term-mux (the dep that owns the core
+# feature) instead of straight to the core. Bash 3 (macOS ships it) has no
 # associative arrays, so the pipe form is the map.
 FORWARD_FEATURE_MANIFESTS=(
-  "$REPO_ROOT/par-term-tmux/Cargo.toml|layout-conformance"
-  "$REPO_ROOT/par-term-mux/Cargo.toml|mux"
+  "$REPO_ROOT/par-term-tmux/Cargo.toml|layout-conformance|par-term-emu-core-rust/mux"
+  "$REPO_ROOT/par-term-mux/Cargo.toml|mux|par-term-emu-core-rust/mux"
+  "$REPO_ROOT/Cargo.toml|mux|par-term-mux/mux"
 )
 
 die() { echo "with-local-core: $*" >&2; exit 1; }
@@ -135,9 +138,11 @@ fi
 
 for entry in "${FORWARD_FEATURE_MANIFESTS[@]}"; do
   manifest="${entry%%|*}"
-  feature="${entry##*|}"
+  rest="${entry#*|}"
+  feature="${rest%%|*}"
+  forward_target="${rest##*|}"
   empty="$feature = []"
-  forwarded="$feature = [\"par-term-emu-core-rust/mux\"]"
+  forwarded="$feature = [\"$forward_target\"]"
   if ! grep -qF "$forwarded" "$manifest"; then
     grep -qxF "$empty" "$manifest" ||
       die "expected \"$empty\" in $manifest — the committed feature shape changed; update scripts/with-local-core.sh"
