@@ -5,7 +5,10 @@
 //! accepted report comes back from the daemon as an `%agent-state-changed`
 //! broadcast — proving asset and hook endpoint agree on the wire — and
 //! reads back through the `list-agents` roster query with its provenance
-//! (the A2b task 1 fill path, live).
+//! (the A2b task 1 fill path, live). The wait requires TWO broadcasts:
+//! the state report's own push, then the REBROADCAST only an accepted
+//! session report produces — the assets send theirs path-only with a
+//! `session_resume_argv`, the shape the id-or-path contract exists for.
 //!
 //! Gated on `mux` (compiled empty without it) and run through
 //! `make with-local-core` per the vendored-core standing policy:
@@ -141,9 +144,16 @@ fn installed_extension_drives_the_daemon(
     );
 
     let deadline = Instant::now() + Duration::from_secs(10);
+    // TWO broadcasts are the acceptance proof: the first is the state
+    // report's own push; the second can only be the REBROADCAST an
+    // ACCEPTED session report produces (the asset fires one on
+    // session_start and another on agent_start, the latter after the
+    // state landed). An error-replied session report — the id-required
+    // contract the pi/omp path-only shape used to hit — sends nothing.
+    let mut broadcasts = 0usize;
     while Instant::now() < deadline {
         let (notes, _) = client.drain_core_notifications();
-        let hit = notes.iter().any(|note| {
+        broadcasts += notes.iter().filter(|note| {
             matches!(
                 note,
                 par_term_emu_core_rust::tmux_control::TmuxNotification::AgentStateChanged {
@@ -156,8 +166,8 @@ fn installed_extension_drives_the_daemon(
                     && state == "working"
                     && source == "hook"
             )
-        });
-        if hit {
+        }).count();
+        if broadcasts >= 2 {
             // A2b task 1 live leg: the report the broadcast announced must
             // also read back through the roster query, with the hook
             // provenance the endpoint records.
@@ -177,7 +187,10 @@ fn installed_extension_drives_the_daemon(
         }
         std::thread::sleep(Duration::from_millis(50));
     }
-    panic!("{agent} extension report never arrived as an accepted broadcast");
+    panic!(
+        "{agent} extension: expected the state broadcast AND the session-report \
+         rebroadcast, saw {broadcasts} in 10s"
+    );
 }
 
 #[test]

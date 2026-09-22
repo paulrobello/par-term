@@ -113,11 +113,23 @@ function currentSessionRef(): Record<string, unknown> | undefined {
   return undefined;
 }
 
+// The agent's own resume invocation, reported so par-mux never needs a
+// per-agent table entry for pi: `pi --session <ref>` takes a path or an id,
+// and the same preference currentSessionRef applies picks the ref.
+function resumeArgv(): string[] | undefined {
+  const ref = currentAgentSessionPath ?? currentAgentSessionId;
+  if (!ref) {
+    return undefined;
+  }
+  return ["pi", "--session", ref];
+}
+
 function reportSession(sessionStartSource?: string): Promise<void> {
   const sessionRef = currentSessionRef();
   if (!sessionRef) {
     return Promise.resolve();
   }
+  const argv = resumeArgv();
 
   return sendRequest({
     id: `${source}:session:${Date.now()}:${Math.random().toString(36).slice(2)}`,
@@ -129,6 +141,7 @@ function reportSession(sessionStartSource?: string): Promise<void> {
       seq: nextReportSeq(),
       session_start_source: sessionStartSource,
       ...sessionRef,
+      ...(argv ? { session_resume_argv: argv } : {}),
     },
   });
 }

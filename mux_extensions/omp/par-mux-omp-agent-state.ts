@@ -146,11 +146,24 @@ function currentSessionRef(): Record<string, unknown> | undefined {
   return undefined;
 }
 
+// The agent's own resume invocation, reported so par-mux never needs a
+// per-agent table entry for omp: omp has no `--session` flag — its resume
+// form is the =-joined `omp --resume=<ref>` (path or id, same preference
+// currentSessionRef applies).
+function resumeArgv(): string[] | undefined {
+  const ref = currentAgentSessionPath ?? currentAgentSessionId;
+  if (!ref) {
+    return undefined;
+  }
+  return ["omp", `--resume=${ref}`];
+}
+
 function reportSession(sessionStartSource = "startup"): Promise<void> {
   const sessionRef = currentSessionRef();
   if (!sessionRef) {
     return Promise.resolve();
   }
+  const argv = resumeArgv();
 
   return sendRequest({
     id: `${source}:session:${Date.now()}:${Math.random().toString(36).slice(2)}`,
@@ -162,6 +175,7 @@ function reportSession(sessionStartSource = "startup"): Promise<void> {
       seq: nextReportSeq(),
       session_start_source: sessionStartSource,
       ...sessionRef,
+      ...(argv ? { session_resume_argv: argv } : {}),
     },
   });
 }
