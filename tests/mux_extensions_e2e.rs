@@ -153,20 +153,23 @@ fn installed_extension_drives_the_daemon(
     let mut broadcasts = 0usize;
     while Instant::now() < deadline {
         let (notes, _) = client.drain_core_notifications();
-        broadcasts += notes.iter().filter(|note| {
-            matches!(
-                note,
-                par_term_emu_core_rust::tmux_control::TmuxNotification::AgentStateChanged {
-                    pane_id,
-                    agent: reported_agent,
-                    state,
-                    source,
-                } if pane_id == "%0"
-                    && reported_agent == agent
-                    && state == "working"
-                    && source == "hook"
-            )
-        }).count();
+        broadcasts += notes
+            .iter()
+            .filter(|note| {
+                matches!(
+                    note,
+                    par_term_emu_core_rust::tmux_control::TmuxNotification::AgentStateChanged {
+                        pane_id,
+                        agent: reported_agent,
+                        state,
+                        source,
+                    } if pane_id == "%0"
+                        && reported_agent == agent
+                        && state == "working"
+                        && source == "hook"
+                )
+            })
+            .count();
         if broadcasts >= 2 {
             // A2b task 1 live leg: the report the broadcast announced must
             // also read back through the roster query, with the hook
