@@ -10,12 +10,34 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use super::{
-    home_dir, hook_asset_path as asset_path_for, merge_session_start, remove_marked_file,
-    save_settings, shell_single_quote, unmerge_session_start, write_hook_asset,
+    home_dir, hook_asset_path as asset_path_for, hook_command_with_action, merge_session_start,
+    remove_marked_file, save_settings, unmerge_session_start, write_hook_asset,
 };
 
-const CODEX_HOOK_INSTALL_NAME: &str = "par-mux-codex-session-hook.sh";
-const CODEX_HOOK_ASSET: &str = include_str!("../../mux_hooks/par-mux-codex-session-hook.sh");
+const CODEX_HOOK_ASSET_POSIX: &str = include_str!("../../mux_hooks/par-mux-codex-session-hook.sh");
+const CODEX_HOOK_ASSET_WINDOWS: &str =
+    include_str!("../../mux_hooks/par-mux-codex-session-hook.ps1");
+
+/// The asset file name for the current platform — the `.ps1` port on
+/// Windows, the `.sh` reporter elsewhere. Runtime-selected (not cfg-split)
+/// so both arms compile on every platform and the selection is assertable
+/// in tests instead of invisible to the non-Windows build.
+fn codex_hook_install_name() -> &'static str {
+    if cfg!(windows) {
+        "par-mux-codex-session-hook.ps1"
+    } else {
+        "par-mux-codex-session-hook.sh"
+    }
+}
+
+/// The hook asset contents for the current platform.
+fn codex_hook_asset() -> &'static str {
+    if cfg!(windows) {
+        CODEX_HOOK_ASSET_WINDOWS
+    } else {
+        CODEX_HOOK_ASSET_POSIX
+    }
+}
 
 /// Marker identifying the installed codex script as ours.
 pub const CODEX_HOOK_MARKER: &str = "PAR_MUX_INTEGRATION_ID=codex";
@@ -62,7 +84,7 @@ pub fn codex_config_dir() -> io::Result<PathBuf> {
 /// Where the hook script asset lives: par-term's own config directory, the
 /// same tree the other hook scripts are written to.
 fn hook_asset_path() -> PathBuf {
-    asset_path_for(CODEX_HOOK_INSTALL_NAME)
+    asset_path_for(codex_hook_install_name())
 }
 
 /// Install the codex session hook: write the script asset, merge the
@@ -91,7 +113,7 @@ pub fn install_codex_hook_into(codex_dir: &Path, hook_path: &Path) -> io::Result
     let merged = merge_session_start(&hooks_content, &hooks_path, &command, None)?;
     let config_updated = ensure_features_hooks_true(&config_content, &config_path)?;
 
-    write_hook_asset(hook_path, CODEX_HOOK_ASSET)?;
+    write_hook_asset(hook_path, codex_hook_asset())?;
 
     if let Some(updated) = &merged {
         save_settings(&hooks_path, updated)?;
@@ -146,13 +168,11 @@ pub fn uninstall_codex_hook_into(
     })
 }
 
-/// The hooks.json command: `sh <script> session`, path always quoted (the
-/// grok-arm form).
+/// The hooks.json command: `sh <script> session` on POSIX, herdr's
+/// powershell -File form on Windows — both always quote the path (the
+/// grok-arm heritage).
 fn codex_hook_command(hook_path: &Path) -> String {
-    format!(
-        "sh {} session",
-        shell_single_quote(&hook_path.display().to_string())
-    )
+    hook_command_with_action(hook_path, "session")
 }
 
 fn read_or_default(path: &Path, default: &str) -> io::Result<String> {
@@ -422,7 +442,7 @@ args = ["mcp", "serve"]
         fs::create_dir_all(&codex_dir).unwrap();
         fs::write(codex_dir.join("config.toml"), REAL_WORLD_CONFIG).unwrap();
         fs::write(codex_dir.join("hooks.json"), REAL_WORLD_HOOKS).unwrap();
-        let hook = root.path().join(CODEX_HOOK_INSTALL_NAME);
+        let hook = root.path().join(codex_hook_install_name());
 
         let result = install_codex_hook_into(&codex_dir, &hook).unwrap();
 
@@ -487,7 +507,7 @@ args = ["mcp", "serve"]
         assert!(ours.get("matcher").is_none());
 
         let asset = fs::read_to_string(&hook).unwrap();
-        assert_eq!(asset, CODEX_HOOK_ASSET);
+        assert_eq!(asset, codex_hook_asset());
         assert!(asset.contains(CODEX_HOOK_MARKER));
         assert!(asset.contains("CODEX_THREAD_ID"));
         assert!(asset.contains(r#""codex", "resume", session_id"#));
@@ -510,7 +530,7 @@ args = ["mcp", "serve"]
             "[features]\nhooks = false # keep me\n",
         )
         .unwrap();
-        let hook = root.path().join(CODEX_HOOK_INSTALL_NAME);
+        let hook = root.path().join(codex_hook_install_name());
 
         install_codex_hook_into(&codex_dir, &hook).unwrap();
 
@@ -524,7 +544,7 @@ args = ["mcp", "serve"]
         let codex_dir = root.path().join("codex");
         fs::create_dir_all(&codex_dir).unwrap();
         fs::write(codex_dir.join("config.toml"), "model = \"gpt-5\"\n").unwrap();
-        let hook = root.path().join(CODEX_HOOK_INSTALL_NAME);
+        let hook = root.path().join(codex_hook_install_name());
 
         install_codex_hook_into(&codex_dir, &hook).unwrap();
 
@@ -538,7 +558,7 @@ args = ["mcp", "serve"]
         let root = temp_root();
         let codex_dir = root.path().join("codex");
         fs::create_dir_all(&codex_dir).unwrap();
-        let hook = root.path().join(CODEX_HOOK_INSTALL_NAME);
+        let hook = root.path().join(codex_hook_install_name());
 
         let result = install_codex_hook_into(&codex_dir, &hook).unwrap();
 
@@ -556,7 +576,7 @@ args = ["mcp", "serve"]
         fs::create_dir_all(&codex_dir).unwrap();
         fs::write(codex_dir.join("config.toml"), REAL_WORLD_CONFIG).unwrap();
         fs::write(codex_dir.join("hooks.json"), REAL_WORLD_HOOKS).unwrap();
-        let hook = root.path().join(CODEX_HOOK_INSTALL_NAME);
+        let hook = root.path().join(codex_hook_install_name());
 
         install_codex_hook_into(&codex_dir, &hook).unwrap();
         let config_once = fs::read_to_string(codex_dir.join("config.toml")).unwrap();
@@ -591,7 +611,7 @@ args = ["mcp", "serve"]
         .unwrap();
         let original_hooks = "{}\n";
         fs::write(codex_dir.join("hooks.json"), original_hooks).unwrap();
-        let hook = root.path().join(CODEX_HOOK_INSTALL_NAME);
+        let hook = root.path().join(codex_hook_install_name());
 
         let err = install_codex_hook_into(&codex_dir, &hook)
             .unwrap_err()
@@ -619,7 +639,7 @@ args = ["mcp", "serve"]
         fs::create_dir_all(&codex_dir).unwrap();
         let original_config = "model = \n";
         fs::write(codex_dir.join("config.toml"), original_config).unwrap();
-        let hook = root.path().join(CODEX_HOOK_INSTALL_NAME);
+        let hook = root.path().join(codex_hook_install_name());
 
         let err = install_codex_hook_into(&codex_dir, &hook)
             .unwrap_err()
@@ -644,7 +664,7 @@ args = ["mcp", "serve"]
         fs::write(codex_dir.join("config.toml"), "model = \"gpt-5\"\n").unwrap();
         let original_hooks = "{oops";
         fs::write(codex_dir.join("hooks.json"), original_hooks).unwrap();
-        let hook = root.path().join(CODEX_HOOK_INSTALL_NAME);
+        let hook = root.path().join(codex_hook_install_name());
 
         let err = install_codex_hook_into(&codex_dir, &hook)
             .unwrap_err()
@@ -669,7 +689,7 @@ args = ["mcp", "serve"]
     #[test]
     fn missing_codex_directory_is_an_actionable_error() {
         let root = temp_root();
-        let hook = root.path().join(CODEX_HOOK_INSTALL_NAME);
+        let hook = root.path().join(codex_hook_install_name());
 
         let err = install_codex_hook_into(&root.path().join("never"), &hook)
             .unwrap_err()
@@ -692,7 +712,7 @@ args = ["mcp", "serve"]
         fs::create_dir_all(&codex_dir).unwrap();
         fs::write(codex_dir.join("config.toml"), REAL_WORLD_CONFIG).unwrap();
         fs::write(codex_dir.join("hooks.json"), REAL_WORLD_HOOKS).unwrap();
-        let hook = root.path().join(CODEX_HOOK_INSTALL_NAME);
+        let hook = root.path().join(codex_hook_install_name());
         install_codex_hook_into(&codex_dir, &hook).unwrap();
 
         let result = uninstall_codex_hook_into(&codex_dir, &hook).unwrap();
@@ -717,13 +737,13 @@ args = ["mcp", "serve"]
         let root = temp_root();
         let codex_dir = root.path().join("codex");
         fs::create_dir_all(&codex_dir).unwrap();
-        let command = installed_command(&root.path().join(CODEX_HOOK_INSTALL_NAME));
+        let command = installed_command(&root.path().join(codex_hook_install_name()));
         // A group the user built that carries BOTH their command and ours.
         let mixed = format!(
             r#"{{"hooks":{{"SessionStart":[{{"hooks":[{{"type":"command","command":"/usr/local/bin/codex-motd"}},{{"type":"command","command":"{command}"}}]}}]}}}}"#
         );
         fs::write(codex_dir.join("hooks.json"), mixed).unwrap();
-        let hook = root.path().join(CODEX_HOOK_INSTALL_NAME);
+        let hook = root.path().join(codex_hook_install_name());
 
         uninstall_codex_hook_into(&codex_dir, &hook).unwrap();
 
@@ -742,7 +762,7 @@ args = ["mcp", "serve"]
         fs::create_dir_all(&codex_dir).unwrap();
         fs::write(codex_dir.join("hooks.json"), REAL_WORLD_HOOKS).unwrap();
         // A same-named asset that is NOT ours.
-        let hook = root.path().join(CODEX_HOOK_INSTALL_NAME);
+        let hook = root.path().join(codex_hook_install_name());
         fs::write(&hook, "// user's own script, no marker\n").unwrap();
 
         let result = uninstall_codex_hook_into(&codex_dir, &hook).unwrap();
@@ -782,7 +802,7 @@ args = ["mcp", "serve"]
                 fs::Permissions::from_mode(0o600),
             )
             .unwrap();
-            let hook = root.path().join(CODEX_HOOK_INSTALL_NAME);
+            let hook = root.path().join(codex_hook_install_name());
 
             install_codex_hook_into(&codex_dir, &hook).unwrap();
 
@@ -799,5 +819,23 @@ args = ["mcp", "serve"]
             assert_eq!(config_mode, 0o600, "the atomic rewrite preserves the mode");
             assert_eq!(hooks_mode, 0o600, "the atomic rewrite preserves the mode");
         }
+    }
+
+    #[test]
+    fn the_windows_ps1_asset_is_a_marked_reporter_port() {
+        // The uninstall marker and the reporter contract, checked against the
+        // asset contents directly so the .ps1 variant cannot drift from the
+        // .sh reporter shape it ports (the file is never installed on this
+        // platform, so nothing else would catch it).
+        assert!(CODEX_HOOK_ASSET_WINDOWS.contains(CODEX_HOOK_MARKER));
+        assert!(
+            CODEX_HOOK_ASSET_WINDOWS.contains("pane.report_agent_session"),
+            "speaks the same control-socket method"
+        );
+        assert!(CODEX_HOOK_ASSET_WINDOWS.contains("par-mux:codex"));
+        assert!(CODEX_HOOK_ASSET_WINDOWS.contains("session_resume_argv"));
+        // The codex-specific guards survive the port.
+        assert!(CODEX_HOOK_ASSET_WINDOWS.contains("CODEX_THREAD_ID"));
+        assert!(CODEX_HOOK_ASSET_WINDOWS.contains("SessionStart"));
     }
 }

@@ -77,6 +77,12 @@ pub(crate) fn hook_command_for(hook_path: &Path) -> String {
     platform_hook_command(hook_path, None, cfg!(windows))
 }
 
+/// The settings entry's command string with a trailing action argument (the
+/// codex/grok arms' `… session` form).
+pub(crate) fn hook_command_with_action(hook_path: &Path, action: &str) -> String {
+    platform_hook_command(hook_path, Some(action), cfg!(windows))
+}
+
 /// Platform core (test seam — `windows` is injected so both arms compile and
 /// are asserted on every platform, leaving no cfg(windows) blind spot):
 ///
