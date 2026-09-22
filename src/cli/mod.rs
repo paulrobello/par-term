@@ -126,6 +126,16 @@ pub enum Commands {
         force: bool,
     },
 
+    /// Install par-mux agent-state extensions for pi and omp
+    InstallMuxExtensions {
+        /// Skip confirmation prompt
+        #[arg(short = 'y', long)]
+        yes: bool,
+    },
+
+    /// Uninstall par-mux agent-state extensions
+    UninstallMuxExtensions,
+
     /// Lint a custom background shader file
     ShaderLint {
         /// Path to the .glsl shader file to lint
@@ -200,8 +210,9 @@ pub enum CliResult {
 /// Process CLI arguments and handle subcommands
 pub fn process_cli() -> CliResult {
     use install::{
-        install_integrations_cli, install_shaders_cli, install_shell_integration_cli,
-        self_update_cli, uninstall_shaders_cli, uninstall_shell_integration_cli,
+        install_integrations_cli, install_mux_extensions_cli, install_shaders_cli,
+        install_shell_integration_cli, self_update_cli, uninstall_mux_extensions_cli,
+        uninstall_shaders_cli, uninstall_shell_integration_cli,
     };
 
     let cli = Cli::parse();
@@ -221,6 +232,14 @@ pub fn process_cli() -> CliResult {
         }
         Some(Commands::UninstallShaders { force }) => {
             let result = uninstall_shaders_cli(force);
+            CliResult::Exit(if result.is_ok() { 0 } else { 1 })
+        }
+        Some(Commands::InstallMuxExtensions { yes }) => {
+            let result = install_mux_extensions_cli(yes);
+            CliResult::Exit(if result.is_ok() { 0 } else { 1 })
+        }
+        Some(Commands::UninstallMuxExtensions) => {
+            let result = uninstall_mux_extensions_cli();
             CliResult::Exit(if result.is_ok() { 0 } else { 1 })
         }
         Some(Commands::ShaderLint {

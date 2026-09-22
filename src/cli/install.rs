@@ -466,3 +466,105 @@ pub fn install_integrations_cli(skip_prompt: bool) -> anyhow::Result<()> {
         Err(anyhow::anyhow!("Both installations failed"))
     }
 }
+
+/// Install the par-mux agent-state extensions for pi and omp (CLI version)
+pub fn install_mux_extensions_cli(skip_prompt: bool) -> anyhow::Result<()> {
+    use crate::mux_extension_installer;
+
+    println!("=============================================");
+    println!("  par-term par-mux Extension Installer");
+    println!("=============================================");
+    println!();
+    println!("This installs the par-mux agent-state extension into each");
+    println!("installed agent's extension directory:");
+    println!(
+        "  pi:  {}",
+        dir_display(mux_extension_installer::pi_extension_dir())
+    );
+    println!(
+        "  omp: {}",
+        dir_display(mux_extension_installer::omp_extension_dir())
+    );
+    println!();
+    println!("An agent that is not installed is reported and skipped.");
+
+    if !skip_prompt {
+        println!();
+        print!("Do you want to continue? [y/N] ");
+        io::stdout().flush()?;
+
+        let mut response = String::new();
+        io::stdin().read_line(&mut response)?;
+        let response = response.trim().to_lowercase();
+
+        if response != "y" && response != "yes" {
+            println!("Installation cancelled.");
+            return Ok(());
+        }
+    }
+    println!();
+
+    let pi_result = mux_extension_installer::install_pi_extension();
+    report_install("pi", &pi_result);
+    let omp_result = mux_extension_installer::install_omp_extension();
+    report_install("omp", &omp_result);
+
+    if pi_result.is_ok() || omp_result.is_ok() {
+        println!();
+        println!("At least one extension installed successfully.");
+        Ok(())
+    } else {
+        println!();
+        Err(anyhow::anyhow!("No extension installed (see errors above)"))
+    }
+}
+
+/// Uninstall the par-mux agent-state extensions (CLI version)
+pub fn uninstall_mux_extensions_cli() -> anyhow::Result<()> {
+    use crate::mux_extension_installer;
+
+    println!("=============================================");
+    println!("  par-term par-mux Extension Uninstaller");
+    println!("=============================================");
+    println!();
+
+    let pi_result = mux_extension_installer::uninstall_pi_extension();
+    report_removal("pi", &pi_result);
+    let omp_result = mux_extension_installer::uninstall_omp_extension();
+    report_removal("omp", &omp_result);
+
+    println!();
+    println!("Done.");
+    Ok(())
+}
+
+fn dir_display(dir: std::io::Result<std::path::PathBuf>) -> String {
+    match dir {
+        Ok(path) => path.display().to_string(),
+        Err(err) => format!("<unresolved: {err}>"),
+    }
+}
+
+fn report_install(agent: &str, result: &std::io::Result<std::path::PathBuf>) {
+    match result {
+        Ok(path) => println!("{agent}: installed at {}", path.display()),
+        Err(err) => println!("{agent}: FAILED — {err}"),
+    }
+}
+
+fn report_removal(
+    agent: &str,
+    result: &std::io::Result<crate::mux_extension_installer::ExtensionRemoval>,
+) {
+    match result {
+        Ok(removal) if removal.removed => {
+            println!("{agent}: removed {}", removal.path.display());
+        }
+        Ok(removal) if removal.path.is_file() => println!(
+            "{agent}: {} exists but is not par-term's (left untouched)",
+            removal.path.display()
+        ),
+        Ok(_) => println!("{agent}: not installed"),
+        Err(err) => println!("{agent}: FAILED — {err}"),
+    }
+}
