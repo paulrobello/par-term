@@ -958,6 +958,47 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
+    /// A session name the daemon's whitespace-split wire grammar cannot
+    /// carry (spaces, quotes, backslash) must be rejected CLIENT-SIDE with
+    /// a clear error and must NOT create a mangled session on the daemon —
+    /// `Par Mux Test` used to arrive as `-s Par` and create `Par`.
+    #[test]
+    fn create_or_attach_rejects_names_the_wire_grammar_cannot_carry() {
+        let path = socket_path("spaced-name");
+        spawn_daemon(&path);
+
+        let mut client = par_term_mux::MuxSessionClient::connect_or_spawn_at(&path)
+            .expect("connect to test daemon");
+        let err = client
+            .create_or_attach("Par Mux Test")
+            .expect_err("a spaced name must be rejected before the wire");
+        assert!(
+            err.to_string().contains("cannot contain spaces"),
+            "the error must tell the user the naming rule, got: {err}"
+        );
+
+        // No garbage on the daemon: neither the full name nor its first
+        // word may exist as a session.
+        let sessions = client.list_sessions().expect("list sessions");
+        assert!(
+            sessions.iter().all(|s| s.name != "Par"),
+            "the whitespace split must not have created a truncated session"
+        );
+
+        // A name the grammar CAN carry still round-trips create → attach.
+        let created = client
+            .create_or_attach("ParMux-Test")
+            .expect("create with a wire-safe name");
+        assert!(matches!(created, AttachOutcome::Created(_)));
+        let mut second = par_term_mux::MuxSessionClient::connect(&path).expect("second client");
+        let attached = second
+            .create_or_attach("ParMux-Test")
+            .expect("reattach with a wire-safe name");
+        assert!(matches!(attached, AttachOutcome::Attached(_)));
+
+        let _ = std::fs::remove_file(&path);
+    }
+
     #[test]
     fn mux_palette_rows_track_the_attached_transport() {
         let mut ws = manners_state();

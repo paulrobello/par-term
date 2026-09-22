@@ -78,7 +78,25 @@ impl MuxSessionClient {
 
     /// Attach to `name`, creating the session when it does not exist —
     /// par-mux's client-side analogue of `new-session -A`.
+    ///
+    /// The daemon's command grammar is a documented whitespace split (no
+    /// quoting outside `send-keys` payloads — core mux command.rs: "tmux's
+    /// real argument grammar ... is not a goal"), so a name that cannot
+    /// survive that split is rejected here instead of silently creating a
+    /// mangled session: `Par Mux Test` would arrive as `-s Par` and create
+    /// a session named `Par`.
     pub fn create_or_attach(&mut self, name: &str) -> io::Result<AttachOutcome> {
+        if name.is_empty()
+            || name
+                .chars()
+                .any(|c| c.is_whitespace() || matches!(c, '\'' | '"' | '\\'))
+        {
+            return Err(io::Error::new(
+                ErrorKind::InvalidData,
+                "session name must be non-empty and cannot contain spaces, quotes, \
+                 or backslashes (the daemon command grammar does not support quoting)",
+            ));
+        }
         let existing = self.list_sessions()?.into_iter().find(|s| s.name == name);
         match existing {
             Some(session) => Ok(AttachOutcome::Attached(session)),
