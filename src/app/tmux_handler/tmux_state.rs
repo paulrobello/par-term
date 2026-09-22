@@ -63,6 +63,13 @@ pub(crate) struct TmuxState {
     /// its types live in the feature-gated client crate.
     #[cfg(feature = "mux")]
     pub(crate) agent_roster: super::notifications::agent_roster::AgentRoster,
+    /// In-flight profile-open attach: a worker thread runs the daemon
+    /// connect/spawn (the core retries the socket for up to 10s — far too
+    /// long to block the event loop), and `poll_mux_attach` completes the
+    /// attach on the main thread each frame. Exists only under the `mux`
+    /// feature like the transport types it carries.
+    #[cfg(feature = "mux")]
+    pub(crate) mux_attach_pending: Option<super::notifications::mux::MuxAttachPending>,
     /// Mapping from tmux pane IDs to native pane IDs for output routing
     pub(crate) tmux_pane_to_native_pane: std::collections::HashMap<TmuxPaneId, PaneId>,
     /// Reverse mapping from native pane IDs to tmux pane IDs for input routing
@@ -83,6 +90,8 @@ impl TmuxState {
             mux_screen_seeds: std::collections::HashMap::new(),
             #[cfg(feature = "mux")]
             agent_roster: super::notifications::agent_roster::AgentRoster::new(),
+            #[cfg(feature = "mux")]
+            mux_attach_pending: None,
             tmux_pane_to_native_pane: std::collections::HashMap::new(),
             native_pane_to_tmux_pane: std::collections::HashMap::new(),
         }

@@ -21,7 +21,7 @@ use crate::tmux::{ParserBridge, TmuxNotification, escape_keys_for_tmux};
 use par_term_mux::{AgentEntry, AttachOutcome, MuxSessionClient};
 use par_term_tmux::{TmuxPaneId, TmuxWindowId};
 use std::cell::{RefCell, RefMut};
-use std::io::{self, ErrorKind};
+use std::io;
 
 /// The daemon transport: a par-mux client behind the [`TmuxTransport`]
 /// seam. Interior mutability because the routing hooks that reach it
@@ -31,15 +31,6 @@ pub(crate) struct MuxTransport {
 }
 
 impl MuxTransport {
-    /// Connect to the daemon serving `name`, spawning one when none is
-    /// running — the transparency entry point, and the app's first real
-    /// exercise of the daemon binary walk.
-    pub(crate) fn connect_or_spawn(name: &str) -> io::Result<Self> {
-        Ok(Self {
-            client: RefCell::new(MuxSessionClient::connect_or_spawn(name)?),
-        })
-    }
-
     /// Connect to a daemon at `path`, spawning one when no live server
     /// owns it (losing the spawn race talks to the winner's daemon).
     /// Test entry: the app runtime reaches the daemon through
@@ -225,19 +216,91 @@ impl TmuxState {
     }
 }
 
+/// An in-flight profile-open attach: a worker thread owns the daemon
+/// connect/spawn (the core retries the daemon socket for up to 10s — far
+/// too long to hold the event loop), reports the outcome over the channel,
+/// and [`WindowState::poll_mux_attach`] consumes it on the main thread.
+pub(crate) struct MuxAttachPending {
+    name: String,
+    rx: std::sync::mpsc::Receiver<io::Result<par_term_emu_core_rust::mux::MuxClient>>,
+}
+
 impl WindowState {
-    /// Attach to (or create) the par-mux session `name` and install the
-    /// transport. The `mux_session_name` profile path calls this at
-    /// startup. The gateway machinery is untouched — no gateway tab, no
-    /// `set-option`; the daemon owns the sessions.
-    pub(crate) fn start_mux_session(&mut self, name: &str) -> io::Result<AttachOutcome> {
-        if self.tmux_state.transport.is_some() {
-            return Err(io::Error::new(
-                ErrorKind::AlreadyExists,
-                "a par-mux transport is already attached",
-            ));
+    /// Begin the profile-open attach for `name` WITHOUT blocking the event
+    /// loop: the daemon connect/spawn runs on a worker thread and
+    /// [`Self::poll_mux_attach`] finishes the attach on the main thread. A
+    /// second request while one is already in flight is ignored.
+    pub(crate) fn begin_mux_session_attach(&mut self, name: &str) {
+        if self.tmux_state.transport.is_some() || self.tmux_state.mux_attach_pending.is_some() {
+            return;
         }
-        let transport = MuxTransport::connect_or_spawn(name)?;
+        let (tx, rx) = std::sync::mpsc::channel();
+        let worker_name = name.to_string();
+        match std::thread::Builder::new()
+            .name("mux-attach".into())
+            .spawn(move || {
+                let client = par_term_emu_core_rust::mux::MuxClient::connect_or_spawn(&worker_name);
+                let _ = tx.send(client);
+            }) {
+            Ok(_handle) => {
+                self.tmux_state.mux_attach_pending = Some(MuxAttachPending {
+                    name: name.to_string(),
+                    rx,
+                });
+            }
+            Err(e) => {
+                log::error!("mux attach worker could not start: {e}");
+                self.show_toast("par-mux: attach failed (worker thread unavailable)");
+            }
+        }
+    }
+
+    /// Finish an in-flight profile-open attach on the main thread. The
+    /// still-connecting case restores the pending state for later frames;
+    /// failure toasts visibly — the old path only wrote a DEBUG_LEVEL-gated
+    /// log line, so a failed attach looked like nothing happened.
+    pub(crate) fn poll_mux_attach(&mut self) {
+        let Some(pending) = self.tmux_state.mux_attach_pending.take() else {
+            return;
+        };
+        match pending.rx.try_recv() {
+            Err(std::sync::mpsc::TryRecvError::Empty) => {
+                self.tmux_state.mux_attach_pending = Some(pending);
+            }
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                log::error!("mux attach worker died without reporting a result");
+                self.show_toast("par-mux: attach failed (worker died)");
+            }
+            Ok(Err(e)) => {
+                log::error!("par-mux attach to '{}' failed: {e}", pending.name);
+                self.show_toast(format!(
+                    "par-mux: attach to '{}' failed — {e}",
+                    pending.name
+                ));
+            }
+            Ok(Ok(client)) => {
+                let transport = MuxTransport {
+                    client: RefCell::new(MuxSessionClient::from_core(client)),
+                };
+                if let Err(e) = self.install_mux_transport(&pending.name, transport) {
+                    log::error!("par-mux attach to '{}' failed: {e}", pending.name);
+                    self.show_toast(format!(
+                        "par-mux: attach to '{}' failed — {e}",
+                        pending.name
+                    ));
+                }
+            }
+        }
+    }
+
+    /// The attach tail shared by the sync and worker-thread entry points:
+    /// run the attach sequence against a connected transport, install it,
+    /// and give the user the toast + window-title feedback.
+    fn install_mux_transport(
+        &mut self,
+        name: &str,
+        transport: MuxTransport,
+    ) -> io::Result<AttachOutcome> {
         // Run the attach sequence with the concrete local so
         // `handle_tmux_window_add` can borrow the window state freely;
         // boxing into tmux_state happens only once attached.
@@ -727,8 +790,8 @@ mod tests {
 
         // Reattach through the app's attach sequence: the transport, the
         // create-or-attach, the window list, the client size report, and
-        // the per-pane screen replay — everything `start_mux_session` runs
-        // short of tab allocation. The size differs from the daemon's
+        // the per-pane screen replay — everything a profile-open attach
+        // runs short of tab allocation. The size differs from the daemon's
         // 80x24 default so the `-C` refit genuinely broadcasts a layout.
         let transport = connect(&path);
         let attach =
@@ -797,6 +860,104 @@ mod tests {
 
     /// The detach affordance's row gating: the palette row exists only while
     /// a transport is installed, and its label names the attached session.
+    /// A failed worker attach must surface as a visible toast (the old
+    /// path only wrote a DEBUG_LEVEL-gated log line) and clear the pending
+    /// attach so a later profile open can try again.
+    #[test]
+    fn mux_attach_failure_toasts_and_clears_pending() {
+        let mut ws = manners_state();
+        let (tx, rx) = std::sync::mpsc::channel();
+        tx.send(Err(io::Error::other("daemon unreachable")))
+            .unwrap();
+        drop(tx);
+
+        ws.tmux_state.mux_attach_pending = Some(MuxAttachPending {
+            name: "test".to_string(),
+            rx,
+        });
+        ws.poll_mux_attach();
+
+        assert!(
+            ws.tmux_state.mux_attach_pending.is_none(),
+            "a reported failure must clear the pending attach"
+        );
+        assert!(ws.tmux_state.transport.is_none());
+        assert!(
+            ws.tmux_state.tmux_session_name.is_none(),
+            "a failed attach must not claim a session name"
+        );
+        let toast = ws
+            .overlay_state
+            .toast_message
+            .as_deref()
+            .unwrap_or_default();
+        assert!(
+            toast.contains("attach to 'test' failed"),
+            "the toast must name the failure, got: {toast}"
+        );
+    }
+
+    /// While the worker is still connecting, the pending attach must stay
+    /// queued (no toast, no state change) for later frames to re-poll.
+    #[test]
+    fn mux_attach_pending_waits_for_the_worker() {
+        let mut ws = manners_state();
+        let (_tx, rx) =
+            std::sync::mpsc::channel::<io::Result<par_term_emu_core_rust::mux::MuxClient>>();
+
+        ws.tmux_state.mux_attach_pending = Some(MuxAttachPending {
+            name: "slow".to_string(),
+            rx,
+        });
+        ws.poll_mux_attach();
+
+        assert!(
+            ws.tmux_state.mux_attach_pending.is_some(),
+            "no worker result yet — the pending attach must stay queued"
+        );
+        assert!(ws.overlay_state.toast_message.is_none());
+    }
+
+    /// The success arm: a connected core client delivered over the channel
+    /// installs the transport, sets the session name, and toasts with the
+    /// created/attached verb — everything the profile-open eye-check
+    /// expects to see.
+    #[test]
+    fn mux_attach_success_installs_transport_and_toasts() {
+        let path = socket_path("attach-poll");
+        spawn_daemon(&path);
+
+        let core_client = par_term_emu_core_rust::mux::MuxClient::connect(&path).expect("connect");
+        let (tx, rx) = std::sync::mpsc::channel();
+        tx.send(Ok(core_client)).unwrap();
+        drop(tx);
+
+        let mut ws = manners_state();
+        ws.tmux_state.mux_attach_pending = Some(MuxAttachPending {
+            name: "pollme".to_string(),
+            rx,
+        });
+        ws.poll_mux_attach();
+
+        assert!(
+            ws.tmux_state.transport.is_some(),
+            "the transport must be installed on success"
+        );
+        assert_eq!(ws.tmux_state.tmux_session_name.as_deref(), Some("pollme"));
+        let toast = ws
+            .overlay_state
+            .toast_message
+            .as_deref()
+            .unwrap_or_default();
+        assert!(
+            toast.contains("attached to session 'pollme'")
+                || toast.contains("created session 'pollme'"),
+            "the toast must announce the attach, got: {toast}"
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
     #[test]
     fn mux_palette_rows_track_the_attached_transport() {
         let mut ws = manners_state();

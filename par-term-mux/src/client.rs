@@ -54,6 +54,17 @@ impl MuxSessionClient {
         })
     }
 
+    /// Wrap an already-connected core client. The async attach path uses
+    /// this: a worker thread connects/spawns off the event loop and hands
+    /// over the plain `MuxClient`; the main thread wraps and installs it.
+    pub fn from_core(client: MuxClient) -> Self {
+        Self {
+            client,
+            sync: enabled_sync(),
+            session_ended_emitted: false,
+        }
+    }
+
     /// Drain raw core notifications and report channel death.
     ///
     /// The app wiring uses this (not [`Self::poll_actions`]) so the

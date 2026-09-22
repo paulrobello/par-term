@@ -46,6 +46,10 @@ impl WindowState {
         // on tmux_enabled — the daemon owns the sessions, not tmux.
         #[cfg(feature = "mux")]
         {
+            // Profile-open attaches complete here (worker-thread connect,
+            // main-thread finish) — must run even while no transport is
+            // attached, or an in-flight attach would never be observed.
+            self.poll_mux_attach();
             if self.tmux_state.transport.is_some() {
                 return self.check_mux_notifications();
             }
