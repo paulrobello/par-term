@@ -268,11 +268,16 @@ fn find_titlebar_backing_bar(
     use objc2_app_kit::NSView;
     use objc2_foundation::NSString;
 
-    let wanted = NSString::from_str(TITLEBAR_BACKING_BAR_ID);
-    // SAFETY: subviews/identifier/isEqual are standard AppKit/Foundation
-    // messages on live objects owned by the frame view, which the caller
-    // keeps alive. objectAtIndex: returns a borrowed reference, so the match
-    // is retained before being returned.
+    // SAFETY: subviews/identifier are standard AppKit/Foundation messages on
+    // live objects owned by the frame view, which the caller keeps alive.
+    // objectAtIndex: returns a borrowed reference, so the match is retained
+    // before being returned.
+    //
+    // The comparison is done on a Rust copy, never via isEqualToString: —
+    // on macOS 26+ some system subviews carry Swift-backed identifiers
+    // (Swift.__StringStorage) whose isEqualToString: registers a legacy 'c'
+    // return encoding, and objc4's checked msg_send (debug builds) aborts on
+    // objc2's bool/'B' declaration (measured: startup abort 2026-09-22).
     unsafe {
         let subs: Retained<AnyObject> = objc2::msg_send![frame_view, subviews];
         let count: usize = objc2::msg_send![&*subs, count];
@@ -282,8 +287,7 @@ fn find_titlebar_backing_bar(
             if ident.is_null() {
                 continue;
             }
-            let eq: bool = objc2::msg_send![ident, isEqualToString: &*wanted];
-            if eq {
+            if (&*(ident as *const NSString)).to_string() == TITLEBAR_BACKING_BAR_ID {
                 return Retained::retain(sub as *mut NSView);
             }
         }
