@@ -54,14 +54,20 @@ impl MuxSessionClient {
         })
     }
 
-    /// Drain pushed notifications and convert them to app actions.
+    /// Drain raw core notifications and report channel death.
     ///
-    /// Core notifications flow through `ParserBridge` and `TmuxSync`
-    /// exactly as the tmux gateway path does — that unmodified reuse is
-    /// what the protocol-compatibility claim rests on. A notification
-    /// channel that died without `%exit` (daemon killed abruptly) surfaces
-    /// as `SessionEnded` once.
-    pub fn poll_actions(&mut self) -> Vec<SyncAction> {
+    /// The app wiring uses this (not [`Self::poll_actions`]) so the
+    /// app-level `TmuxSync` stays the single window→tab / pane→native
+    /// mapping owner — the same shape the tmux gateway path has, where
+    /// polling.rs drains raw notifications and runs the sync itself.
+    /// `disconnected` means the notification channel died without `%exit`
+    /// (daemon killed abruptly); callers surface that as `SessionEnded`.
+    pub fn drain_core_notifications(
+        &mut self,
+    ) -> (
+        Vec<par_term_emu_core_rust::tmux_control::TmuxNotification>,
+        bool,
+    ) {
         let mut core_notes = Vec::new();
         let mut disconnected = false;
         loop {
@@ -74,6 +80,18 @@ impl MuxSessionClient {
                 }
             }
         }
+        (core_notes, disconnected)
+    }
+
+    /// Drain pushed notifications and convert them to app actions.
+    ///
+    /// Core notifications flow through `ParserBridge` and `TmuxSync`
+    /// exactly as the tmux gateway path does — that unmodified reuse is
+    /// what the protocol-compatibility claim rests on. A notification
+    /// channel that died without `%exit` (daemon killed abruptly) surfaces
+    /// as `SessionEnded` once.
+    pub fn poll_actions(&mut self) -> Vec<SyncAction> {
+        let (core_notes, disconnected) = self.drain_core_notifications();
         let frontend_notes = ParserBridge::convert_all(core_notes);
         let mut actions = self.sync.process_notifications(&frontend_notes);
         if disconnected && !self.session_ended_emitted {
