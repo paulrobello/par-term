@@ -27,6 +27,8 @@
 //! - `output`:         Output routing to native pane terminals.
 //! - `flow_control`:   Pane focus, error, pause/continue, and sync-action dispatch.
 
+#[cfg(feature = "mux")]
+pub(crate) mod agent_roster;
 mod flow_control;
 mod layout;
 mod layout_apply;

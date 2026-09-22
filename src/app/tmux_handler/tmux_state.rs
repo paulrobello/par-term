@@ -56,6 +56,13 @@ pub(crate) struct TmuxState {
     /// create the panes)
     #[cfg_attr(not(feature = "mux"), allow(dead_code))]
     pub(crate) mux_screen_seeds: std::collections::HashMap<TmuxPaneId, Vec<u8>>,
+    /// Cached par-mux agent roster (A2b task 1): the single owner of
+    /// agent state on the app side — filled by `list-agents` on
+    /// attach/reattach, updated by `%agent-state-changed` pushes, read by
+    /// every roster surface. Exists only under the `mux` feature because
+    /// its types live in the feature-gated client crate.
+    #[cfg(feature = "mux")]
+    pub(crate) agent_roster: super::notifications::agent_roster::AgentRoster,
     /// Mapping from tmux pane IDs to native pane IDs for output routing
     pub(crate) tmux_pane_to_native_pane: std::collections::HashMap<TmuxPaneId, PaneId>,
     /// Reverse mapping from native pane IDs to tmux pane IDs for input routing
@@ -74,6 +81,8 @@ impl TmuxState {
             tmux_prefix_state: PrefixState::new(),
             mux_focused_pane: None,
             mux_screen_seeds: std::collections::HashMap::new(),
+            #[cfg(feature = "mux")]
+            agent_roster: super::notifications::agent_roster::AgentRoster::new(),
             tmux_pane_to_native_pane: std::collections::HashMap::new(),
             native_pane_to_tmux_pane: std::collections::HashMap::new(),
         }

@@ -18,7 +18,7 @@
 use crate::app::tmux_handler::tmux_state::TmuxTransport;
 use crate::app::window_state::WindowState;
 use crate::tmux::{ParserBridge, TmuxNotification, escape_keys_for_tmux};
-use par_term_mux::{AttachOutcome, MuxSessionClient};
+use par_term_mux::{AgentEntry, AttachOutcome, MuxSessionClient};
 use par_term_tmux::{TmuxPaneId, TmuxWindowId};
 use std::cell::{RefCell, RefMut};
 use std::io::{self, ErrorKind};
@@ -144,14 +144,16 @@ pub(crate) fn route_literal_bytes(
 /// `WindowState`: create-or-attach, report existing windows (the caller
 /// allocates tabs for them — a created session gets its tab from the
 /// `%window-add` push), push the client size (the first pane names the
-/// window the server resizes), and collect each pane's replayed screen
-/// for seeding — `refresh-client -t` replies carry the screen; they are
-/// NOT `%output` pushes.
+/// window the server resizes), collect each pane's replayed screen for
+/// seeding (`refresh-client -t` replies carry the screen; they are NOT
+/// `%output` pushes), and read the agent roster for the initial fill
+/// (A2b task 1: `list-agents` on attach and reattach — the single call
+/// site of the roster query in app code).
 pub(crate) fn attach_sequence(
     transport: &MuxTransport,
     name: &str,
     size: Option<(u16, u16)>,
-) -> io::Result<(AttachOutcome, Vec<TmuxWindowId>, Vec<(TmuxPaneId, Vec<u8>)>)> {
+) -> io::Result<AttachSequence> {
     let outcome = transport.client().create_or_attach(name)?;
     let mut existing_windows = Vec::new();
     if matches!(outcome, AttachOutcome::Attached(_)) {
@@ -170,7 +172,30 @@ pub(crate) fn attach_sequence(
         let reply = transport.client().refresh_pane(pane)?;
         screens.push((pane, reply.join("\n").into_bytes()));
     }
-    Ok((outcome, existing_windows, screens))
+    // The roster fill degrades to empty rather than failing the attach: a
+    // query that cannot run leaves the panes absent from the roster (they
+    // render as nothing), which is the honest reading — a failed attach
+    // would drop the whole session.
+    let agents = transport.client().list_agents().unwrap_or_else(|e| {
+        crate::debug_error!("MUX", "list-agents roster fill failed: {e}");
+        Vec::new()
+    });
+    Ok(AttachSequence {
+        outcome,
+        existing_windows,
+        screens,
+        agents,
+    })
+}
+
+/// What [`attach_sequence`] learned — the tuple it returned, named: the
+/// attach outcome, windows needing tabs, per-pane replayed screens, and
+/// the roster fill.
+pub(crate) struct AttachSequence {
+    pub(crate) outcome: AttachOutcome,
+    pub(crate) existing_windows: Vec<TmuxWindowId>,
+    pub(crate) screens: Vec<(TmuxPaneId, Vec<u8>)>,
+    pub(crate) agents: Vec<AgentEntry>,
 }
 
 impl WindowState {
@@ -193,19 +218,27 @@ impl WindowState {
             let (cols, rows) = r.grid_size();
             (cols as u16, rows as u16)
         });
-        let attach = attach_sequence(&transport, name, size).map(|(outcome, existing, screens)| {
-            for window_id in existing {
-                if self.tmux_state.tmux_sync.get_tab(window_id).is_none() {
-                    self.handle_tmux_window_add(window_id);
+        let attach = attach_sequence(&transport, name, size).map(
+            |AttachSequence {
+                 outcome,
+                 existing_windows,
+                 screens,
+                 agents,
+             }| {
+                for window_id in existing_windows {
+                    if self.tmux_state.tmux_sync.get_tab(window_id).is_none() {
+                        self.handle_tmux_window_add(window_id);
+                    }
                 }
-            }
-            // Screens land once the layout consumers create the panes
-            // (checked each poll in check_mux_notifications).
-            self.tmux_state.mux_screen_seeds = screens
-                .into_iter()
-                .collect::<std::collections::HashMap<_, _>>();
-            outcome
-        });
+                // Screens land once the layout consumers create the panes
+                // (checked each poll in check_mux_notifications).
+                self.tmux_state.mux_screen_seeds = screens
+                    .into_iter()
+                    .collect::<std::collections::HashMap<_, _>>();
+                self.tmux_state.agent_roster.fill_from_list(agents);
+                outcome
+            },
+        );
         match attach {
             Ok(outcome) => {
                 self.tmux_state.transport = Some(Box::new(transport));
@@ -281,6 +314,18 @@ impl WindowState {
             return false;
         }
 
+        // The roster push is a core variant the ParserBridge deliberately
+        // drops (a named arm there cannot compile against the published
+        // pin), so partition it out here — the roster cache is its
+        // consumer. This destructure is the single push call site.
+        let (agent_pushes, core_notifications): (Vec<_>, Vec<_>) =
+            core_notifications.into_iter().partition(|n| {
+                matches!(
+                    n,
+                    par_term_emu_core_rust::tmux_control::TmuxNotification::AgentStateChanged { .. }
+                )
+            });
+
         let mut notifications = ParserBridge::convert_all(core_notifications);
         if disconnected
             && !notifications
@@ -290,9 +335,55 @@ impl WindowState {
             notifications.push(TmuxNotification::SessionEnded);
         }
 
+        // The roster must not outlive its daemon: clear it on an abrupt
+        // death (the flag) or a graceful end (the notification), before
+        // any surface reads a ghost.
+        if disconnected
+            || notifications
+                .iter()
+                .any(|n| matches!(n, TmuxNotification::SessionEnded))
+        {
+            self.tmux_state.agent_roster.clear();
+        }
+
         crate::debug_info!("MUX", "Processing {} notifications", notifications.len());
 
         let mut needs_redraw = false;
+
+        for push in agent_pushes {
+            if let par_term_emu_core_rust::tmux_control::TmuxNotification::AgentStateChanged {
+                pane_id,
+                agent,
+                state,
+                source,
+            } = push
+            {
+                match AgentEntry::from_push(&pane_id, &agent, &state, &source) {
+                    Some(entry) => {
+                        // Explicit field reads (reason included) keep the
+                        // entry honest in the log while the wire cannot
+                        // carry a reason yet.
+                        crate::debug_info!(
+                            "MUX",
+                            "agent roster push: %{} {} {} source={:?} reason={:?}",
+                            entry.pane,
+                            entry.agent,
+                            entry.state,
+                            entry.source,
+                            entry.reason
+                        );
+                        self.tmux_state.agent_roster.apply_push(entry);
+                        // Roster surfaces (A2b tasks 2/3) render from this
+                        // cache, so a push is a potential visual change.
+                        needs_redraw = true;
+                    }
+                    None => crate::debug_log!(
+                        "MUX",
+                        "dropped unattributed agent push: {pane_id} {agent} {state}"
+                    ),
+                }
+            }
+        }
 
         // Same bucket split as polling.rs — direct handlers TmuxSync cannot
         // translate, then the sync groups in dependency order.
@@ -570,24 +661,31 @@ mod tests {
         // short of tab allocation. The size differs from the daemon's
         // 80x24 default so the `-C` refit genuinely broadcasts a layout.
         let transport = connect(&path);
-        let (outcome, existing, screens) =
+        let attach =
             attach_sequence(&transport, "wiring", Some((120, 40))).expect("attach_sequence");
         assert!(
-            matches!(outcome, AttachOutcome::Attached(ref s) if s.name == "wiring"),
-            "reattached to the persisted session: {outcome:?}"
+            matches!(attach.outcome, AttachOutcome::Attached(ref s) if s.name == "wiring"),
+            "reattached to the persisted session: {:?}",
+            attach.outcome
         );
-        assert_eq!(existing.len(), 1, "the surviving window is reported");
+        assert_eq!(
+            attach.existing_windows.len(),
+            1,
+            "the surviving window is reported"
+        );
         assert!(
-            screens
+            attach
+                .screens
                 .iter()
                 .any(|(_, data)| String::from_utf8_lossy(data).contains(MARKER)),
-            "the screen replay carries the pre-detach marker: {screens:?}"
+            "the screen replay carries the pre-detach marker: {:?}",
+            attach.screens
         );
 
         // The app-side contract: allocate a tab for the window and map it.
         let mut sync = TmuxSync::new();
         sync.enable();
-        sync.map_window(existing[0], 100);
+        sync.map_window(attach.existing_windows[0], 100);
         adopt_panes(&transport, &mut sync);
 
         // The `-C` refit broadcast arrives as an UpdateLayout action — the
@@ -606,22 +704,40 @@ mod tests {
 
         {
             let transport = connect(&path);
-            let (outcome, _, _) =
-                attach_sequence(&transport, "keep", Some((80, 24))).expect("attach");
-            assert!(matches!(outcome, AttachOutcome::Created(_)));
+            let attach = attach_sequence(&transport, "keep", Some((80, 24))).expect("attach");
+            assert!(matches!(attach.outcome, AttachOutcome::Created(_)));
             // Dropping the transport drops the socket — detach, D5.
         }
 
         let second = connect(&path);
-        let (outcome, _, _) = attach_sequence(&second, "keep", None).expect("reattach");
+        let attach = attach_sequence(&second, "keep", None).expect("reattach");
         assert!(
-            matches!(outcome, AttachOutcome::Attached(ref s) if s.name == "keep"),
-            "the daemon and session survived the dropped socket: {outcome:?}"
+            matches!(attach.outcome, AttachOutcome::Attached(ref s) if s.name == "keep"),
+            "the daemon and session survived the dropped socket: {:?}",
+            attach.outcome
         );
         assert_eq!(
             second.client().list_panes().expect("list-panes").len(),
             1,
             "the surviving window still holds its pane"
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn a_fresh_daemon_yields_an_empty_roster() {
+        let path = socket_path("roster");
+        spawn_daemon(&path);
+
+        let transport = connect(&path);
+        let attach = attach_sequence(&transport, "roster", Some((80, 24))).expect("attach");
+        // Absent means absent: a daemon whose panes have no agent reports
+        // rostered nothing — the fill is empty, not idle-populated.
+        assert!(
+            attach.agents.is_empty(),
+            "no hook has reported, so no pane is rostered: {:?}",
+            attach.agents
         );
 
         let _ = std::fs::remove_file(&path);
