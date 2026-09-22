@@ -205,10 +205,11 @@ Core cards go `done` in `~/Repos/par-term-emu-core-rust` long before crates.io c
 par-term-emu-core-rust = { path = "../par-term-emu-core-rust" }
 ```
 
-- The local core's `version` must satisfy this repo's `[workspace.dependencies]` pin (`version = "0.49"`); if the local tree has bumped past the pin, raise the pin to match, or cargo rejects the patch.
+- The local core's `version` must satisfy this repo's `[workspace.dependencies]` pin (`version = "0.49"`); if the local tree has bumped past the pin, raise the pin to match, or cargo rejects the patch. The pin bump is **local-only too** — CI must stay buildable against the published crates.io version, so never commit a pin raise the published registry cannot satisfy.
 - **Never commit the patch** — CI checks out only this repo, so `../par-term-emu-core-rust` does not exist there and every build leg fails. Revert `Cargo.toml`/`Cargo.lock` before committing anything else.
 - `cargo check --workspace` re-resolves the lockfile on the first run after applying.
 - The core repo is itself a live grind target, so its tree moves under you mid-iteration. When the core publishes the needed version, drop the patch and raise the pin to the published version.
+- **Standing policy (2026-09-21, user): do not publish the core and do not wait for a publish.** Until the par-term × core stack works end to end locally, all verification runs against the vendored local checkout. A test that needs the unpublished core API lands behind a default-off cargo feature so CI never compiles it; plain `#[ignore]` is not enough because `cargo test`/clippy still compile the module.
 
 ## Common Development Workflows
 
