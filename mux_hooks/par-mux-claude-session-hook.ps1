@@ -10,6 +10,32 @@ if ($env:PAR_MUX_ENV -ne "1") { exit 0 }
 if ([string]::IsNullOrWhiteSpace($env:PAR_MUX_SOCKET)) { exit 0 }
 if ([string]::IsNullOrWhiteSpace($env:PAR_MUX_PANE_ID)) { exit 0 }
 
+# Unix-domain socket endpoint: UnixDomainSocketEndPoint on pwsh 7 (.NET
+# Core); Windows PowerShell 5.1's .NET Framework lacks the type, but AF_UNIX
+# CLIENT connect works there with a hand-rolled sockaddr_un endpoint (the
+# classic Mono UnixEndPoint shape — connect-only, which is all a hook needs).
+function Get-MuxSocketEndpoint([string]$Path) {
+    try { return [System.Net.Sockets.UnixDomainSocketEndPoint]::new($Path) } catch {}
+    if (-not ('UnixEndPoint' -as [type])) {
+        Add-Type -TypeDefinition @'
+using System; using System.Net; using System.Net.Sockets; using System.Text;
+public class UnixEndPoint : EndPoint {
+    private string path;
+    public UnixEndPoint(string path) { this.path = path; }
+    public override AddressFamily AddressFamily { get { return AddressFamily.Unix; } }
+    public override SocketAddress Serialize() {
+        byte[] bytes = Encoding.UTF8.GetBytes(path);
+        SocketAddress sa = new SocketAddress(AddressFamily.Unix, bytes.Length + 3);
+        for (int i = 0; i < bytes.Length; i++) sa[2 + i] = bytes[i];
+        return sa;
+    }
+    public override EndPoint Create(SocketAddress socketAddress) { throw new NotImplementedException(); }
+}
+'@
+    }
+    [UnixEndPoint]::new($Path)
+}
+
 $inputText = [Console]::In.ReadToEnd()
 try {
     $payload = if ([string]::IsNullOrWhiteSpace($inputText)) { $null } else { $inputText | ConvertFrom-Json }
@@ -50,7 +76,7 @@ try {
         [System.Net.Sockets.ProtocolType]::Unspecified)
     $socket.SendTimeout = 500
     $socket.ReceiveTimeout = 500
-    $socket.Connect([System.Net.Sockets.UnixDomainSocketEndPoint]::new($env:PAR_MUX_SOCKET))
+    $socket.Connect((Get-MuxSocketEndpoint $env:PAR_MUX_SOCKET))
     $bytes = [System.Text.Encoding]::UTF8.GetBytes($request + "`n")
     $null = $socket.Send($bytes)
     $buffer = New-Object byte[] 4096
