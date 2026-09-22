@@ -10,8 +10,31 @@ use super::{
     remove_marked_file, save_settings, unmerge_session_start, write_hook_asset,
 };
 
-const CLAUDE_HOOK_INSTALL_NAME: &str = "par-mux-claude-session-hook.sh";
-const CLAUDE_HOOK_ASSET: &str = include_str!("../../mux_hooks/par-mux-claude-session-hook.sh");
+const CLAUDE_HOOK_ASSET_POSIX: &str =
+    include_str!("../../mux_hooks/par-mux-claude-session-hook.sh");
+const CLAUDE_HOOK_ASSET_WINDOWS: &str =
+    include_str!("../../mux_hooks/par-mux-claude-session-hook.ps1");
+
+/// The asset file name for the current platform — the `.ps1` port on
+/// Windows, the `.sh` reporter elsewhere. Runtime-selected (not cfg-split)
+/// so both arms compile on every platform and the selection is assertable
+/// in tests instead of invisible to the non-Windows build.
+fn claude_hook_install_name() -> &'static str {
+    if cfg!(windows) {
+        "par-mux-claude-session-hook.ps1"
+    } else {
+        "par-mux-claude-session-hook.sh"
+    }
+}
+
+/// The hook asset contents for the current platform.
+fn claude_hook_asset() -> &'static str {
+    if cfg!(windows) {
+        CLAUDE_HOOK_ASSET_WINDOWS
+    } else {
+        CLAUDE_HOOK_ASSET_POSIX
+    }
+}
 
 /// Marker identifying the installed script as ours regardless of which build
 /// wrote it — the uninstall path refuses to remove a same-named file without
@@ -58,7 +81,7 @@ pub fn claude_settings_path() -> io::Result<PathBuf> {
 /// Where the hook script asset lives: par-term's own config directory, the
 /// same tree the shell integration scripts are written to.
 fn hook_asset_path() -> PathBuf {
-    asset_path_for(CLAUDE_HOOK_INSTALL_NAME)
+    asset_path_for(claude_hook_install_name())
 }
 
 /// Install the claude session hook: write the script asset and merge the
@@ -103,7 +126,7 @@ pub fn install_claude_hook_into(
         Some(SESSION_START_MATCHER),
     )?;
 
-    write_hook_asset(hook_path, CLAUDE_HOOK_ASSET)?;
+    write_hook_asset(hook_path, claude_hook_asset())?;
 
     if let Some(updated) = &merged {
         save_settings(settings_path, updated)?;
@@ -234,7 +257,7 @@ mod tests {
     fn install_into_a_fresh_directory_creates_settings_and_asset() {
         let root = temp_root();
         let settings = root.path().join("settings.json");
-        let hook = root.path().join("hooks").join(CLAUDE_HOOK_INSTALL_NAME);
+        let hook = root.path().join("hooks").join(claude_hook_install_name());
 
         let result = install_claude_hook_into(&settings, &hook).unwrap();
 
@@ -244,7 +267,7 @@ mod tests {
         assert_eq!(commands, vec![installed_command(&hook)]);
 
         let asset = fs::read_to_string(&hook).unwrap();
-        assert_eq!(asset, CLAUDE_HOOK_ASSET);
+        assert_eq!(asset, claude_hook_asset());
         assert!(asset.contains(CLAUDE_HOOK_MARKER));
         assert!(asset.contains("pane.report_agent_session"));
         assert!(!asset.contains("HERDR_"), "fully env-renamed port");
@@ -475,7 +498,10 @@ mod tests {
     fn a_hook_path_with_spaces_is_shell_quoted() {
         let root = temp_root();
         let settings = root.path().join("settings.json");
-        let hook = root.path().join("my hooks").join(CLAUDE_HOOK_INSTALL_NAME);
+        let hook = root
+            .path()
+            .join("my hooks")
+            .join(claude_hook_install_name());
 
         install_claude_hook_into(&settings, &hook).unwrap();
 
@@ -489,5 +515,61 @@ mod tests {
         );
         // The quoted command still parses back out of the JSON intact.
         assert!(commands[0].contains("my hooks"));
+    }
+
+    #[test]
+    fn windows_command_uses_herdrs_powershell_file_shape() {
+        let hook = Path::new(
+            "C:\\Users\\me\\AppData\\Roaming\\par-term\\hooks\\par-mux-claude-session-hook.ps1",
+        );
+        assert_eq!(
+            super::super::platform_hook_command(hook, None, true),
+            "powershell -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\me\\AppData\\\
+             Roaming\\par-term\\hooks\\par-mux-claude-session-hook.ps1\"",
+            "herdr's exact shape: powershell, no profile, bypassed execution \
+             policy, double-quoted -File path"
+        );
+        // Spaced paths stay inside the one double-quoted argument.
+        let spaced = Path::new("C:\\Users\\My Name\\hooks\\par-mux-claude-session-hook.ps1");
+        let command = super::super::platform_hook_command(spaced, None, true);
+        assert!(
+            command.contains("\"C:\\Users\\My Name\\hooks\\"),
+            "the quoted argument spans the space: {command}"
+        );
+    }
+
+    #[test]
+    fn windows_action_command_appends_the_action_after_the_quoted_path() {
+        let hook = Path::new("C:\\hooks\\par-mux-codex-session-hook.ps1");
+        assert_eq!(
+            super::super::platform_hook_command(hook, Some("session"), true),
+            "powershell -NoProfile -ExecutionPolicy Bypass -File \
+             \"C:\\hooks\\par-mux-codex-session-hook.ps1\" session",
+            "the action follows the quoted path, unquoted"
+        );
+        // The POSIX action form is byte-identical to the shipped codex/grok
+        // command (`sh '<path>' session`, always quoted).
+        assert_eq!(
+            super::super::platform_hook_command(hook, Some("session"), false),
+            format!("sh '{}' session", hook.display()),
+            "the POSIX action form must not drift from the shipped command"
+        );
+    }
+
+    #[test]
+    fn the_windows_ps1_asset_is_a_marked_reporter_port() {
+        // The uninstall marker and the reporter contract, checked against the
+        // asset contents directly so the .ps1 variant cannot drift from the
+        // .sh reporter shape it ports (the file is never installed on this
+        // platform, so nothing else would catch it).
+        assert!(CLAUDE_HOOK_ASSET_WINDOWS.contains(CLAUDE_HOOK_MARKER));
+        assert!(
+            CLAUDE_HOOK_ASSET_WINDOWS.contains("pane.report_agent_session"),
+            "speaks the same control-socket method"
+        );
+        assert!(CLAUDE_HOOK_ASSET_WINDOWS.contains("par-mux:claude"));
+        assert!(CLAUDE_HOOK_ASSET_WINDOWS.contains("session_resume_argv"));
+        assert!(CLAUDE_HOOK_ASSET_WINDOWS.contains("PAR_MUX_PANE_ID"));
+        assert!(CLAUDE_HOOK_ASSET_WINDOWS.contains("PAR_MUX_SOCKET"));
     }
 }

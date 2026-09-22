@@ -71,19 +71,53 @@ pub(crate) fn hook_asset_path(install_name: &str) -> PathBuf {
     Config::config_dir().join("hooks").join(install_name)
 }
 
-/// The settings entry's command string. The path is shell-quoted only when it
-/// needs it, so the common case stays the readable bare path.
+/// The settings entry's command string for the current platform (no action
+/// argument — the claude arm's form).
 pub(crate) fn hook_command_for(hook_path: &Path) -> String {
+    platform_hook_command(hook_path, None, cfg!(windows))
+}
+
+/// Platform core (test seam — `windows` is injected so both arms compile and
+/// are asserted on every platform, leaving no cfg(windows) blind spot):
+///
+/// - POSIX runs the `.sh` asset. The claude form leaves the path bare when
+///   it needs no quoting so the common case stays readable; the action form
+///   (`sh '<path>' session`) always quotes, the grok-arm heritage.
+/// - Windows runs the `.ps1` asset through herdr's command shape —
+///   `powershell -NoProfile -ExecutionPolicy Bypass -File "<path>"` — with
+///   the path always double-quoted (spaces are the common case under
+///   `%APPDATA%`) and embedded quotes backslash-escaped.
+pub(crate) fn platform_hook_command(
+    hook_path: &Path,
+    action: Option<&str>,
+    windows: bool,
+) -> String {
     let text = hook_path.display().to_string();
-    let safe = !text.is_empty()
-        && text
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || "-_/.:=@%+".contains(c));
-    if safe {
-        text
+    let mut command = if windows {
+        format!(
+            "powershell -NoProfile -ExecutionPolicy Bypass -File \"{}\"",
+            text.replace('"', "\\\"")
+        )
+    } else if let Some(action) = action {
+        format!("sh {} {action}", shell_single_quote(&text))
     } else {
-        shell_single_quote(&text)
+        let safe = !text.is_empty()
+            && text
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || "-_/.:=@%+".contains(c));
+        if safe {
+            text
+        } else {
+            shell_single_quote(&text)
+        }
+    };
+    if let Some(action) = action
+        && windows
+    {
+        command.push(' ');
+        command.push_str(action);
     }
+    command
 }
 
 pub(crate) fn shell_single_quote(text: &str) -> String {
