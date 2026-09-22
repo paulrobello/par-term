@@ -360,6 +360,21 @@ impl ProfileModalUI {
                             );
                         });
                         ui.end_row();
+
+                        ui.label("par-mux Session:");
+                        ui.horizontal(|ui| {
+                            ui.text_edit_singleline(&mut self.temp_mux_session_name).on_hover_text(
+                                "Create-or-attach a par-mux daemon session when this profile \
+                                 opens (mux build). Detaching keeps the session running in the \
+                                 daemon.",
+                            );
+                            ui.label(
+                                egui::RichText::new("(empty = disabled)")
+                                    .small()
+                                    .color(egui::Color32::GRAY),
+                            );
+                        });
+                        ui.end_row();
                     });
             },
         );

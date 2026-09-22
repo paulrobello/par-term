@@ -97,6 +97,12 @@ pub struct Profile {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tmux_session_name: Option<String>,
 
+    /// par-mux session to create-or-attach when this profile is opened
+    /// (par-mux daemon client, `mux` feature). Detaching drops the socket;
+    /// the session keeps running in the daemon.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mux_session_name: Option<String>,
+
     /// How to connect: control mode (full integration) or normal (plain tmux in PTY).
     #[serde(default, skip_serializing_if = "TmuxConnectionMode::is_control_mode")]
     pub tmux_connection_mode: TmuxConnectionMode,
@@ -371,6 +377,7 @@ impl Profile {
             hostname_patterns: Vec::new(),
             tmux_session_patterns: Vec::new(),
             tmux_session_name: None,
+            mux_session_name: None,
             tmux_connection_mode: TmuxConnectionMode::default(),
             directory_patterns: Vec::new(),
             badge_text: None,
@@ -415,6 +422,7 @@ impl Profile {
             hostname_patterns: Vec::new(),
             tmux_session_patterns: Vec::new(),
             tmux_session_name: None,
+            mux_session_name: None,
             tmux_connection_mode: TmuxConnectionMode::default(),
             directory_patterns: Vec::new(),
             badge_text: None,
@@ -521,6 +529,12 @@ impl Profile {
     /// Builder method to set tmux session name for auto-connect
     pub fn tmux_session_name(mut self, name: impl Into<String>) -> Self {
         self.tmux_session_name = Some(name.into());
+        self
+    }
+
+    /// Builder method to set the par-mux session name for create-or-attach
+    pub fn mux_session_name(mut self, name: impl Into<String>) -> Self {
+        self.mux_session_name = Some(name.into());
         self
     }
 

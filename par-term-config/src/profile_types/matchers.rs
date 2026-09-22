@@ -380,6 +380,10 @@ impl ProfileManager {
                 .tmux_session_name
                 .clone()
                 .or(resolved_parent.tmux_session_name),
+            mux_session_name: profile
+                .mux_session_name
+                .clone()
+                .or(resolved_parent.mux_session_name),
             tmux_connection_mode: if profile.tmux_session_name.is_some() {
                 profile.tmux_connection_mode
             } else {

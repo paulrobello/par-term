@@ -131,5 +131,9 @@ pub fn keywords() -> &'static [&'static str] {
         "tmux",
         "tmux session",
         "auto-connect",
+        // par-mux create-or-attach
+        "mux",
+        "par-mux",
+        "mux session",
     ]
 }
