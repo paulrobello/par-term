@@ -6,11 +6,11 @@ rustflags = ["-C", "link-arg=-fuse-ld=lld"]
 [target.x86_64-pc-windows-msvc]
 rustflags = ["-C", "target-feature=+crt-static"]
 
-[target.x86_64-apple-darwin]
-rustflags = ["-C", "link-arg=-Wl,-rpath,@executable_path"]
-
-[target.aarch64-apple-darwin]
-rustflags = ["-C", "link-arg=-Wl,-rpath,@executable_path"]
+# No apple-darwin rustflags: binaries load only absolute system paths
+# (verified via otool -L — zero @rpath consumers), so an rpath flag adds
+# nothing here, and any rustflag in this file is applied TWICE inside
+# .claude/worktrees/* checkouts (cargo merges the nested config copies),
+# tripping ld's duplicate-rpath warning on every worktree build.
 
 # Build settings — let Cargo use all available cores
 # (previously jobs = 4, which underutilizes Apple Silicon)
