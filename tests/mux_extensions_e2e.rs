@@ -3,7 +3,9 @@
 //! temp agent directory by [`par_term::mux_extension_installer`], a bun
 //! driver loads THAT FILE and fires the agent's lifecycle events, and the
 //! accepted report comes back from the daemon as an `%agent-state-changed`
-//! broadcast — proving asset and hook endpoint agree on the wire.
+//! broadcast — proving asset and hook endpoint agree on the wire — and
+//! reads back through the `list-agents` roster query with its provenance
+//! (the A2b task 1 fill path, live).
 //!
 //! Gated on `mux` (compiled empty without it) and run through
 //! `make with-local-core` per the vendored-core standing policy:
@@ -148,10 +150,28 @@ fn installed_extension_drives_the_daemon(
                     pane_id,
                     agent: reported_agent,
                     state,
-                } if pane_id == "%0" && reported_agent == agent && state == "working"
+                    source,
+                } if pane_id == "%0"
+                    && reported_agent == agent
+                    && state == "working"
+                    && source == "hook"
             )
         });
         if hit {
+            // A2b task 1 live leg: the report the broadcast announced must
+            // also read back through the roster query, with the hook
+            // provenance the endpoint records.
+            let roster = client.list_agents().expect("list-agents");
+            let found = roster
+                .iter()
+                .find(|entry| entry.pane == 0)
+                .expect("the reported pane is rostered");
+            assert_eq!(
+                (found.agent.as_str(), found.state.as_str()),
+                (agent, "working"),
+                "roster entry matches the report: {found:?}"
+            );
+            assert_eq!(found.source, par_term_mux::AgentSource::Hook);
             let _ = std::fs::remove_file(&socket);
             return;
         }

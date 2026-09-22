@@ -19,6 +19,8 @@
 //!   `-l`, hex `-H`, absolute `resize-pane -x/-y`, `refresh-client -C`)
 //! - `resync.rs`: reattach queries over the command tier —
 //!   list-sessions/windows/panes, create-or-attach, per-pane screen seeding
+//! - `agents.rs`: the agent roster wire tier — the `list-agents` query and
+//!   the `%agent-state-changed` push payload as one entry shape
 //!
 //! ## Feature gate
 //!
@@ -30,8 +32,10 @@
 
 #![cfg(feature = "mux")]
 
+mod agents;
 mod client;
 mod resync;
 
+pub use agents::{AgentEntry, AgentSource};
 pub use client::MuxSessionClient;
 pub use resync::{AttachOutcome, SessionSummary, WindowSummary};
