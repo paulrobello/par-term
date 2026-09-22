@@ -479,6 +479,10 @@ impl SettingsUI {
     pub fn take_profile_save_request(&mut self) -> Option<Vec<Profile>> {
         if self.profile_save_requested {
             self.profile_save_requested = false;
+            // The consumer persists what we hand over, so the editor's
+            // working set is now in sync — clear the unsaved-changes marker
+            // (it is otherwise only reset by open()/load_profiles()).
+            self.profile_modal_ui.mark_saved();
             Some(self.profile_modal_ui.get_working_profiles().to_vec())
         } else {
             None
@@ -502,6 +506,27 @@ impl SettingsUI {
 mod grouped_state_tests {
     use super::*;
     use par_term_config::Config;
+
+    /// The unsaved-changes marker must clear when the working set is handed
+    /// to the consumer (which persists it) — otherwise the list footer shows
+    /// "* Unsaved changes" forever, even after the footer Save click.
+    #[test]
+    fn profile_save_clears_unsaved_marker() {
+        let mut s = SettingsUI::new_for_tests(Config::default());
+        s.profile_save_requested = true;
+        s.profile_modal_ui.has_changes = true;
+
+        let profiles = s.take_profile_save_request();
+        assert!(profiles.is_some(), "save request should deliver profiles");
+        assert!(
+            !s.profile_modal_ui.has_changes,
+            "take_profile_save_request must clear the unsaved-changes marker"
+        );
+        assert!(
+            s.take_profile_save_request().is_none(),
+            "flag must be consumed"
+        );
+    }
 
     /// Guards the per-tab state groups against a `#[derive(Default)]` rewrite.
     ///

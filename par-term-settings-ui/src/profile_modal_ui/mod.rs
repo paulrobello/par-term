@@ -210,6 +210,12 @@ impl ProfileModalUI {
         &self.working_profiles
     }
 
+    /// Mark the working set as delivered to the consumer (which persists it),
+    /// clearing the list footer's "* Unsaved changes" marker.
+    pub fn mark_saved(&mut self) {
+        self.has_changes = false;
+    }
+
     // =========================================================================
     // Public UI Entry Points (modal window + inline embed)
     // =========================================================================
