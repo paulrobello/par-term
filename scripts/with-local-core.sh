@@ -18,7 +18,10 @@
 #      — cargo validates [features] dep-forwarding eagerly, so the real
 #      entries cannot be committed while the pin is on the published
 #      crates.io line.
-#   5. Runs the command, then restores root Cargo.toml, every forwarded
+#   5. Stages the core's par-mux daemon binary next to every built par-term
+#      binary (the core's spawn looks next to current_exe), refreshing the
+#      copy every run.
+#   6. Runs the command, then restores root Cargo.toml, every forwarded
 #      feature manifest, and Cargo.lock from pre-run backups. NEVER commit
 #      the patched state: CI checks out only this repo, so a committed
 #      patch fails every build leg.
@@ -151,8 +154,30 @@ for entry in "${FORWARD_FEATURE_MANIFESTS[@]}"; do
   fi
 done
 
-# --- run ------------------------------------------------------------------------
-cd "$REPO_ROOT"
+# --- stage the par-mux daemon next to the app binary -----------------------------
+# The core's spawn looks for `par-mux` next to the RUNNING executable (walking
+# out of deps/), so a vendored run must stage the daemon from the core's own
+# target dir or every mux attach fails with the daemon binary missing. The
+# copy refreshes every run; a missing core binary is a warning, not a failure
+# — the attach surfaces its own error.
+DAEMON_SRC="$CORE_DIR/target/debug/par-mux"
+if [ ! -x "$DAEMON_SRC" ]; then
+  echo "with-local-core: WARNING — $DAEMON_SRC missing; build the core's par-mux bin or mux attach will fail" >&2
+else
+  staged=no
+  for dir in "$REPO_ROOT"/target/*/; do
+    [ -x "${dir}par-term" ] || continue
+    cp -f "$DAEMON_SRC" "${dir}par-mux"
+    staged=yes
+  done
+  if [ "$staged" = no ]; then
+    mkdir -p "$REPO_ROOT/target/debug"
+    cp -f "$DAEMON_SRC" "$REPO_ROOT/target/debug/par-mux"
+  fi
+  echo "with-local-core: staged par-mux daemon from $DAEMON_SRC next to the app binary"
+fi
+
+# --- run ------------------------------------------------------------------------cd "$REPO_ROOT"
 if [ "$#" -gt 0 ]; then
   "$@"
 else
