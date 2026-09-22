@@ -1,11 +1,11 @@
 //! par-mux session-hook installer for config-entry agents.
 //!
 //! pi and omp load extensions from a directory ([`crate::mux_extension_installer`]
-//! drops a file in). claude and grok have no extension directory: their hooks
-//! are ENTRIES inside config files the user owns and edits, so installing means
-//! MERGING into those files without disturbing anything par-term did not add —
-//! the user's entries, comments, and formatting survive, proven by round-trip
-//! tests in the arm modules.
+//! drops a file in). claude, codex and grok have no extension directory: their
+//! hooks are ENTRIES inside config files the user owns and edits, so
+//! installing means MERGING into those files without disturbing anything
+//! par-term did not add — the user's entries, comments, and formatting
+//! survive, proven by round-trip tests in the arm modules.
 //!
 //! Merge discipline (herdr's claude integration is the proven precedent):
 //! - parse before touching anything; a file that fails the strict parse
@@ -34,12 +34,17 @@
 //! variant is follow-up work — the merge machinery here is platform-neutral.
 
 mod claude;
+mod codex;
 mod grok;
 
 pub use claude::{
     CLAUDE_HOOK_MARKER, ClaudeHookInstall, ClaudeHookUninstall, claude_settings_path,
     install_claude_hook, install_claude_hook_into, uninstall_claude_hook,
     uninstall_claude_hook_into,
+};
+pub use codex::{
+    CODEX_HOOK_MARKER, CodexHookInstall, CodexHookUninstall, codex_config_dir, install_codex_hook,
+    install_codex_hook_into, uninstall_codex_hook, uninstall_codex_hook_into,
 };
 pub use grok::{
     GROK_HOOK_MARKER, GrokHookInstall, GrokHookUninstall, grok_config_dir, install_grok_hook,

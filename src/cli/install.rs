@@ -559,6 +559,10 @@ pub fn install_mux_hooks_cli(skip_prompt: bool) -> anyhow::Result<()> {
         dir_display(mux_hook_installer::claude_settings_path())
     );
     println!(
+        "  codex:  {}",
+        dir_display(mux_hook_installer::codex_config_dir())
+    );
+    println!(
         "  grok:  {}",
         dir_display(mux_hook_installer::grok_config_dir().map(|dir| dir.join("hooks")))
     );
@@ -598,6 +602,38 @@ pub fn install_mux_hooks_cli(skip_prompt: bool) -> anyhow::Result<()> {
         Err(err) => println!("claude: FAILED — {err}"),
     }
 
+    // codex reads claude-format hooks from hooks.json gated by a
+    // `[features] hooks = true` flag in config.toml.
+    let codex_result = mux_hook_installer::install_codex_hook();
+    match &codex_result {
+        Ok(result) => {
+            let summary = match (result.hooks_changed, result.config_changed) {
+                (true, true) => format!(
+                    "hook entry added to {} and features.hooks enabled in {} (script at {})",
+                    result.hooks_path.display(),
+                    result.config_path.display(),
+                    result.hook_path.display()
+                ),
+                (true, false) => format!(
+                    "hook entry added to {} (features.hooks already enabled; script at {})",
+                    result.hooks_path.display(),
+                    result.hook_path.display()
+                ),
+                (false, true) => format!(
+                    "features.hooks enabled in {} (hook entry already present; script at {})",
+                    result.config_path.display(),
+                    result.hook_path.display()
+                ),
+                (false, false) => format!(
+                    "already installed ({} unchanged, script refreshed)",
+                    result.hooks_path.display()
+                ),
+            };
+            println!("codex:  {summary}");
+        }
+        Err(err) => println!("codex:  FAILED — {err}"),
+    }
+
     // grok merges every <config>/hooks/*.json, so its arm writes an owned
     // config file instead of merging.
     let grok_result = mux_hook_installer::install_grok_hook();
@@ -610,7 +646,7 @@ pub fn install_mux_hooks_cli(skip_prompt: bool) -> anyhow::Result<()> {
         Err(err) => println!("grok:  FAILED — {err}"),
     }
 
-    if claude_result.is_ok() || grok_result.is_ok() {
+    if claude_result.is_ok() || codex_result.is_ok() || grok_result.is_ok() {
         println!();
         println!("At least one hook installed successfully.");
         Ok(())
@@ -653,6 +689,38 @@ pub fn uninstall_mux_hooks_cli() -> anyhow::Result<()> {
             }
         }
         Err(err) => println!("claude: FAILED — {err}"),
+    }
+
+    let codex_result = mux_hook_installer::uninstall_codex_hook();
+    match &codex_result {
+        Ok(result) => {
+            if result.hooks_changed {
+                println!(
+                    "codex:  entries removed from {}",
+                    result.hooks_path.display()
+                );
+            }
+            if result.hook_removed {
+                println!("codex:  removed {}", result.hook_path.display());
+            }
+            if !result.hooks_changed && !result.hook_removed {
+                if result.hook_path.is_file() {
+                    println!(
+                        "codex:  {} exists but is not par-term's (left untouched)",
+                        result.hook_path.display()
+                    );
+                } else {
+                    println!("codex:  not installed");
+                }
+            }
+            if result.hooks_changed || result.hook_removed {
+                println!(
+                    "codex:  note: [features] hooks = true left in {} — inert while no hooks remain; remove it manually if unwanted",
+                    result.config_path.display()
+                );
+            }
+        }
+        Err(err) => println!("codex:  FAILED — {err}"),
     }
 
     let grok_result = mux_hook_installer::uninstall_grok_hook();
