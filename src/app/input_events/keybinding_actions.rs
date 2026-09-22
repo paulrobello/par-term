@@ -112,6 +112,10 @@ pub(crate) static ACTION_HANDLERS: &[(&str, ActionHandler)] = &[
         // rows are runtime data from the cache, like the plugin rows.
         #[cfg(feature = "mux")]
         plugin_rows.extend(s.tmux_state.agent_roster.palette_rows());
+        // The attached par-mux session's detach row joins the same way —
+        // a runtime row, present only while a transport is installed.
+        #[cfg(feature = "mux")]
+        plugin_rows.extend(s.tmux_state.mux_palette_rows());
         s.overlay_ui.command_palette.toggle(plugin_rows);
         s.focus_state.needs_redraw = true;
         s.request_redraw();
@@ -566,6 +570,19 @@ impl WindowState {
                 );
                 false
             }
+        } else if action == "mux-detach" {
+            // The palette offers this row only while a transport is attached
+            // (mux feature); a hand-bound keybinding on a build without the
+            // feature, or after the session ended, lands here and no-ops.
+            #[cfg(feature = "mux")]
+            {
+                if self.detach_mux_session() {
+                    log::info!("Detached from par-mux session via palette");
+                    return true;
+                }
+            }
+            log::warn!("par-mux detach requested but no transport is attached");
+            false
         } else {
             log::warn!("Unknown keybinding action: {}", action);
             false

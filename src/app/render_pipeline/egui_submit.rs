@@ -410,6 +410,10 @@ impl WindowState {
                                 );
                             #[cfg(feature = "mux")]
                             plugin_rows.extend(self.tmux_state.agent_roster.palette_rows());
+                            // The attached par-mux session's detach row —
+                            // same runtime-rows pattern as the roster.
+                            #[cfg(feature = "mux")]
+                            plugin_rows.extend(self.tmux_state.mux_palette_rows());
                             self.overlay_ui.command_palette.open(plugin_rows);
                         }
                     }

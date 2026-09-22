@@ -15,7 +15,7 @@
 //! `mux` module is unpublished); `scripts/with-local-core.sh` extends the
 //! feature for local runs.
 
-use crate::app::tmux_handler::tmux_state::TmuxTransport;
+use crate::app::tmux_handler::tmux_state::{TmuxState, TmuxTransport};
 use crate::app::window_state::WindowState;
 use crate::tmux::{ParserBridge, TmuxNotification, escape_keys_for_tmux};
 use par_term_mux::{AgentEntry, AttachOutcome, MuxSessionClient};
@@ -198,6 +198,33 @@ pub(crate) struct AttachSequence {
     pub(crate) agents: Vec<AgentEntry>,
 }
 
+impl TmuxState {
+    /// Runtime palette rows for the attached par-mux session — the explicit
+    /// detach affordance, present only while a transport is installed so
+    /// the palette never offers a dead action (the roster-picker pattern:
+    /// runtime rows joined at open time, not dispatch-table built-ins).
+    ///
+    /// Lives on `TmuxState` (like the roster's `palette_rows`) rather than
+    /// `WindowState` so the egui open path's closure captures only this
+    /// field — a `&self` method call on the whole `WindowState` would
+    /// capture `*self` and collide with the render closure's mutable use.
+    pub(crate) fn mux_palette_rows(&self) -> Vec<crate::command_palette::catalog::PaletteEntry> {
+        if self.transport.is_none() {
+            return Vec::new();
+        }
+        let label = match &self.tmux_session_name {
+            Some(name) => format!("Detach par-mux Session '{name}' (keeps running)"),
+            None => "Detach par-mux Session (keeps running)".to_string(),
+        };
+        vec![crate::command_palette::catalog::PaletteEntry {
+            action_id: "mux-detach".to_string(),
+            label,
+            chord: None,
+            priority: 0,
+        }]
+    }
+}
+
 impl WindowState {
     /// Attach to (or create) the par-mux session `name` and install the
     /// transport. The `mux_session_name` profile path calls this at
@@ -257,6 +284,32 @@ impl WindowState {
             }
             Err(e) => Err(e),
         }
+    }
+
+    /// Detach from the par-mux session explicitly: drop the transport (the
+    /// socket drop IS the detach — the daemon and its sessions keep
+    /// running, the D5 promise), then run the shared session-ended cleanup
+    /// so the display tabs, pane mappings, sync state, and window title
+    /// tear down exactly as they do when the daemon dies. Returns `false`
+    /// when no transport is attached.
+    ///
+    /// The palette's runtime `mux-detach` row dispatches here; closing the
+    /// window remains the implicit detach path.
+    pub(crate) fn detach_mux_session(&mut self) -> bool {
+        if self.tmux_state.transport.take().is_none() {
+            return false;
+        }
+        // Mux-only state the shared cleanup below does not know about.
+        self.tmux_state.mux_focused_pane = None;
+        self.tmux_state.mux_screen_seeds.clear();
+        self.tmux_state.agent_roster.clear();
+        self.handle_tmux_session_ended();
+        // Overwrite the shared cleanup's "tmux: Session ended" toast: the
+        // session did not end, it survives in the daemon.
+        self.show_toast("par-mux: detached (session keeps running in the daemon)");
+        self.focus_state.needs_redraw = true;
+        self.request_redraw();
+        true
     }
 
     /// The adapted session-started wiring: no gateway tab to retitle and
@@ -737,6 +790,98 @@ mod tests {
             second.client().list_panes().expect("list-panes").len(),
             1,
             "the surviving window still holds its pane"
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// The detach affordance's row gating: the palette row exists only while
+    /// a transport is installed, and its label names the attached session.
+    #[test]
+    fn mux_palette_rows_track_the_attached_transport() {
+        let mut ws = manners_state();
+        assert!(
+            ws.tmux_state.mux_palette_rows().is_empty(),
+            "no transport installed — the palette must not offer a dead detach row"
+        );
+
+        let path = socket_path("palette-row");
+        spawn_daemon(&path);
+        let transport = connect(&path);
+        let attach = attach_sequence(&transport, "rows", Some((80, 24))).expect("attach");
+        assert!(matches!(attach.outcome, AttachOutcome::Created(_)));
+        ws.tmux_state.transport = Some(Box::new(transport));
+        ws.tmux_state.tmux_session_name = Some("rows".to_string());
+
+        let rows = ws.tmux_state.mux_palette_rows();
+        assert_eq!(rows.len(), 1, "exactly one detach row while attached");
+        assert_eq!(rows[0].action_id, "mux-detach");
+        assert!(
+            rows[0].label.contains("rows"),
+            "the label names the attached session: {}",
+            rows[0].label
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// The explicit detach: local mux state tears down through the shared
+    /// session-ended cleanup, the toast says "detached" (not "Session
+    /// ended"), and — the D5 promise, exercised through the app's own
+    /// detach path this time — the daemon and session survive the dropped
+    /// socket for a fresh client to reattach.
+    #[test]
+    fn detach_mux_session_tears_down_local_state_and_the_daemon_survives() {
+        let path = socket_path("detach");
+        spawn_daemon(&path);
+
+        let mut ws = manners_state();
+        // Detach with nothing attached is a no-op, not a crash.
+        assert!(!ws.detach_mux_session());
+        assert!(
+            ws.overlay_state.toast_message.is_none(),
+            "a no-op detach must not toast"
+        );
+
+        let transport = connect(&path);
+        let attach = attach_sequence(&transport, "det", Some((80, 24))).expect("attach");
+        assert!(matches!(attach.outcome, AttachOutcome::Created(_)));
+        ws.tmux_state.transport = Some(Box::new(transport));
+        ws.tmux_state.tmux_session_name = Some("det".to_string());
+        ws.tmux_state.mux_focused_pane = Some(0);
+        ws.tmux_state.mux_screen_seeds.insert(0, b"seed".to_vec());
+        ws.tmux_state.agent_roster.fill_from_list(vec![AgentEntry {
+            pane: 0,
+            agent: "claude".to_string(),
+            state: "idle".to_string(),
+            source: par_term_mux::AgentSource::Hook,
+            reason: None,
+        }]);
+
+        assert!(ws.detach_mux_session());
+        assert!(
+            ws.tmux_state.transport.is_none(),
+            "the socket is dropped — that drop IS the detach"
+        );
+        assert_eq!(ws.tmux_state.mux_focused_pane, None);
+        assert!(ws.tmux_state.mux_screen_seeds.is_empty());
+        assert_eq!(ws.tmux_state.agent_roster.iter().count(), 0);
+        assert_eq!(ws.tmux_state.tmux_session_name, None);
+        assert!(ws.tmux_state.tmux_pane_to_native_pane.is_empty());
+        assert_eq!(
+            ws.overlay_state.toast_message.as_deref(),
+            Some("par-mux: detached (session keeps running in the daemon)"),
+            "the detach toast must replace the shared cleanup's 'Session ended'"
+        );
+
+        // D5 through the app's own detach: the daemon outlives the dropped
+        // socket and a fresh client reattaches to the same session.
+        let second = connect(&path);
+        let reattach = attach_sequence(&second, "det", None).expect("reattach");
+        assert!(
+            matches!(reattach.outcome, AttachOutcome::Attached(ref s) if s.name == "det"),
+            "the daemon survived the explicit detach: {:?}",
+            reattach.outcome
         );
 
         let _ = std::fs::remove_file(&path);
