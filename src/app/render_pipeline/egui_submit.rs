@@ -398,12 +398,18 @@ impl WindowState {
                             == Some(crate::status_bar::StatusBarAction::OpenAgentPalette)
                         {
                             // The palette is the roster's list surface (A2b
-                            // task 3 adds the agent rows); opened the same way
-                            // the toggle_command_palette keybinding opens it.
-                            let plugin_rows =
+                            // task 3); opened the same way the
+                            // toggle_command_palette keybinding opens it, with
+                            // the rostered agents joined as runtime rows —
+                            // blocked agents lead the empty-query view.
+                            // The `mut` serves only the mux arm's extend below.
+                            #[cfg_attr(not(feature = "mux"), allow(unused_mut))]
+                            let mut plugin_rows =
                                 crate::command_palette::catalog::plugin_palette_entries(
                                     &self.status_bar_ui.plugin_host().palette_actions(),
                                 );
+                            #[cfg(feature = "mux")]
+                            plugin_rows.extend(self.tmux_state.agent_roster.palette_rows());
                             self.overlay_ui.command_palette.open(plugin_rows);
                         }
                     }

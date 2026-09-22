@@ -62,7 +62,14 @@ impl CommandPalette {
         self.plugin_entries = plugin_rows;
         let mut merged = build_catalog();
         merged.extend(self.plugin_entries.iter().cloned());
-        merged.sort_by(|a, b| a.label.cmp(&b.label));
+        // Priority first, then label: runtime rows carrying a boost (the
+        // agent-roster picker's blocked agents) lead the empty-query view,
+        // while the all-zero default set keeps today's label order exactly.
+        merged.sort_by(|a, b| {
+            b.priority
+                .cmp(&a.priority)
+                .then_with(|| a.label.cmp(&b.label))
+        });
         self.entries = merged;
         self.visible = true;
         self.query.clear();
@@ -259,6 +266,46 @@ mod tests {
                 .iter()
                 .any(|e| e.action_id == "plugin-action:com.example.demo:aaaa"),
             "the plugin row must be present alongside the built-ins"
+        );
+    }
+
+    #[test]
+    fn open_places_priority_rows_ahead_of_the_label_sort() {
+        // The agent-roster picker (A2b task 3) leads its blocked rows with
+        // priority 2; everything else is priority 0 and must keep the
+        // label-ordered view among themselves.
+        let runtime_rows = vec![
+            PaletteEntry {
+                action_id: "agent-roster-focus:7".to_string(),
+                label: "kimi: working".to_string(),
+                chord: None,
+                priority: 1,
+            },
+            PaletteEntry {
+                action_id: "agent-roster-focus:3".to_string(),
+                label: "claude: blocked".to_string(),
+                chord: None,
+                priority: 2,
+            },
+        ];
+        let mut palette = CommandPalette::new();
+        palette.open(runtime_rows);
+        assert_eq!(
+            palette.entries.first().map(|e| e.action_id.as_str()),
+            Some("agent-roster-focus:3"),
+            "the blocked agent row leads the empty-query view"
+        );
+        let zero_tier: Vec<&str> = palette
+            .entries
+            .iter()
+            .filter(|e| e.priority == 0)
+            .map(|e| e.label.as_str())
+            .collect();
+        let mut sorted = zero_tier.clone();
+        sorted.sort_unstable();
+        assert_eq!(
+            zero_tier, sorted,
+            "priority-0 rows stay label-ordered among themselves"
         );
     }
 

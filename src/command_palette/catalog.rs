@@ -25,6 +25,12 @@ pub(crate) struct PaletteEntry {
     pub(crate) label: String,
     /// Default chord advertised for this action, shown right-aligned.
     pub(crate) chord: Option<&'static str>,
+    /// Ordering boost: higher sorts first (ahead of the label sort), so
+    /// runtime rows can lead the empty-query view. 0 is the default for
+    /// built-ins and plugin rows; the agent-roster picker uses 1 for agent
+    /// rows and 2 for blocked ones — the palette exists to answer "who is
+    /// waiting", so blocked agents outrank everything.
+    pub(crate) priority: u8,
 }
 
 /// Derive a display label from an action id.
@@ -59,11 +65,13 @@ pub(crate) fn build_catalog() -> Vec<PaletteEntry> {
                     action_id: action_id.to_string(),
                     label: (*display_name).to_string(),
                     chord: *chord,
+                    priority: 0,
                 },
                 None => PaletteEntry {
                     action_id: action_id.to_string(),
                     label: humanize(action_id),
                     chord: None,
+                    priority: 0,
                 },
             }
         })
@@ -86,6 +94,7 @@ pub(crate) fn plugin_palette_entries(rows: &[PluginActionRow]) -> Vec<PaletteEnt
             action_id: row.wire_id.clone(),
             label: row.label.clone(),
             chord: None,
+            priority: 0,
         })
         .collect();
     entries.sort_by(|a, b| a.action_id.cmp(&b.action_id));

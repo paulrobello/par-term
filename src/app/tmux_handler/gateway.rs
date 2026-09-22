@@ -281,6 +281,37 @@ impl WindowState {
         }
     }
 
+    /// Focus the native pane backing a tmux/par-mux pane id — the target of
+    /// the agent-roster palette picker's `agent-roster-focus:<pane>` rows
+    /// (A2b task 3). Returns `false` when no native pane currently maps to
+    /// the id (session ended, layout mid-rebuild) or the owning tab is gone;
+    /// the caller logs and no-ops.
+    pub(crate) fn focus_agent_roster_pane(&mut self, tmux_pane_id: u64) -> bool {
+        let Some(&native_pane_id) = self.tmux_state.tmux_pane_to_native_pane.get(&tmux_pane_id)
+        else {
+            return false;
+        };
+        let owning_tab_index = self.tab_manager.tabs().iter().position(|tab| {
+            tab.pane_manager()
+                .is_some_and(|pm| pm.get_pane(native_pane_id).is_some())
+        });
+        let Some(tab_index) = owning_tab_index else {
+            return false;
+        };
+        self.switch_to_tab_index(tab_index);
+        if let Some(tab) = self.tab_manager.active_tab_mut()
+            && let Some(pm) = tab.pane_manager_mut()
+        {
+            pm.focus_pane(native_pane_id);
+        }
+        // Sync the tmux/mux side so input routes to the newly focused pane.
+        self.set_tmux_focused_pane_from_native(native_pane_id);
+        self.set_scroll_target(0);
+        self.focus_state.needs_redraw = true;
+        self.request_redraw();
+        true
+    }
+
     // =========================================================================
     // Gateway Mode Input Routing
     // =========================================================================

@@ -104,7 +104,14 @@ pub(crate) static ACTION_HANDLERS: &[(&str, ActionHandler)] = &[
     }),
     ("toggle_search", toggle_search),
     ("toggle_command_palette", |s: &mut WindowState| {
-        let plugin_rows = plugin_palette_entries(&s.status_bar_ui.plugin_host().palette_actions());
+        // The `mut` serves only the mux arm's extend below.
+        #[cfg_attr(not(feature = "mux"), allow(unused_mut))]
+        let mut plugin_rows =
+            plugin_palette_entries(&s.status_bar_ui.plugin_host().palette_actions());
+        // Rostered agents join the palette at open time (A2b task 3): the
+        // rows are runtime data from the cache, like the plugin rows.
+        #[cfg(feature = "mux")]
+        plugin_rows.extend(s.tmux_state.agent_roster.palette_rows());
         s.overlay_ui.command_palette.toggle(plugin_rows);
         s.focus_state.needs_redraw = true;
         s.request_redraw();
@@ -493,6 +500,18 @@ pub(crate) fn parse_plugin_action_id(action: &str) -> Option<(&str, &str)> {
     Some((plugin_id, action_id))
 }
 
+/// Parse an `agent-roster-focus:<pane_id>` keybinding action name (A2b
+/// task 3's palette picker rows). Pure core, mirroring
+/// [`parse_plugin_action_id`]: strips the prefix and parses the pane id,
+/// rejecting empty or non-numeric remainders.
+pub(crate) fn parse_agent_roster_focus_id(action: &str) -> Option<u64> {
+    let remainder = action.strip_prefix("agent-roster-focus:")?;
+    if remainder.is_empty() {
+        return None;
+    }
+    remainder.parse().ok()
+}
+
 impl WindowState {
     /// Execute a keybinding action by name.
     ///
@@ -534,6 +553,18 @@ impl WindowState {
                     );
                     false
                 }
+            }
+        } else if let Some(pane_id) = parse_agent_roster_focus_id(action) {
+            if self.focus_agent_roster_pane(pane_id) {
+                log::info!("Focused agent roster pane {} via palette", pane_id);
+                true
+            } else {
+                log::warn!(
+                    "Agent roster pane {} has no native pane to focus (session ended \
+                     or layout rebuilding)",
+                    pane_id
+                );
+                false
             }
         } else {
             log::warn!("Unknown keybinding action: {}", action);

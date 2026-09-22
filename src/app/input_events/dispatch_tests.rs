@@ -13,7 +13,7 @@
 
 use super::key_handler::KEY_LAYERS;
 use super::keybinding_actions::ACTION_HANDLERS;
-use super::keybinding_actions::parse_plugin_action_id;
+use super::keybinding_actions::{parse_agent_roster_focus_id, parse_plugin_action_id};
 use super::keybinding_display_actions::DISPLAY_ACTION_HANDLERS;
 use crate::app::window_state::WindowState;
 
@@ -278,6 +278,23 @@ fn plugin_action_id_parses_into_plugin_and_action_halves() {
         parse_plugin_action_id("plugin-action:com.example.greeter:greet"),
         Some(("com.example.greeter", "greet"))
     );
+}
+
+#[test]
+fn agent_roster_focus_id_parses_the_pane() {
+    assert_eq!(
+        parse_agent_roster_focus_id("agent-roster-focus:42"),
+        Some(42)
+    );
+    assert_eq!(parse_agent_roster_focus_id("agent-roster-focus:0"), Some(0));
+}
+
+#[test]
+fn agent_roster_focus_id_rejects_malformed_ids() {
+    assert_eq!(parse_agent_roster_focus_id("agent-roster-focus:"), None);
+    assert_eq!(parse_agent_roster_focus_id("agent-roster-focus:abc"), None);
+    assert_eq!(parse_agent_roster_focus_id("agent-roster-focus:4:2"), None);
+    assert_eq!(parse_agent_roster_focus_id("toggle_search"), None);
 }
 
 #[test]

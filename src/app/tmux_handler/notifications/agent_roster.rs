@@ -128,6 +128,49 @@ impl AgentRoster {
             .collect();
         Some(lines.join("\n"))
     }
+
+    /// Palette rows for rostered agents (A2b task 3): one runtime
+    /// [`PaletteEntry`] per agent, following `plugin_palette_entries`'s
+    /// runtime-rows shape rather than the static dispatch tables.
+    ///
+    /// - label — `agent: state`, `~`-suffixed when scrape-detected (the same
+    ///   marker convention as the status widget), plus ` — reason` when the
+    ///   wire carries one (absent degrades cleanly — claude/codex/grok send
+    ///   no message at all).
+    /// - action_id — `agent-roster-focus:<pane>`, dispatched by the
+    ///   miss-path in `execute_keybinding_action` to focus that pane.
+    /// - priority — 2 for blocked agents, 1 for the rest, so the picker
+    ///   answers "who is waiting" first; pane order is preserved within
+    ///   each tier (stable sort over the pane-ordered cache).
+    pub(crate) fn palette_rows(&self) -> Vec<crate::command_palette::catalog::PaletteEntry> {
+        let mut rows: Vec<crate::command_palette::catalog::PaletteEntry> = self
+            .iter()
+            .map(|entry| {
+                let mut state = entry.state.clone();
+                if matches!(entry.source, AgentSource::Scrape) {
+                    state.push('~');
+                }
+                let mut label = format!("{}: {}", entry.agent, state);
+                if let Some(reason) = entry.reason.as_ref() {
+                    label.push_str(&format!(" — {reason}"));
+                }
+                crate::command_palette::catalog::PaletteEntry {
+                    action_id: format!("agent-roster-focus:{}", entry.pane),
+                    label,
+                    chord: None,
+                    priority: if entry.state.eq_ignore_ascii_case("blocked") {
+                        2
+                    } else {
+                        1
+                    },
+                }
+            })
+            .collect();
+        // Stable: blocked rows rise to the front, everything else keeps the
+        // cache's pane order.
+        rows.sort_by_key(|r| std::cmp::Reverse(r.priority));
+        rows
+    }
 }
 
 #[cfg(test)]
@@ -254,5 +297,52 @@ mod tests {
                 "kimi · working · reported (pane 0)\npi · blocked · detected (pane 4) — waiting on approval"
             )
         );
+    }
+
+    #[test]
+    fn palette_rows_empty_roster_yields_none() {
+        assert!(AgentRoster::new().palette_rows().is_empty());
+    }
+
+    #[test]
+    fn palette_rows_blocked_first_then_pane_order() {
+        let mut roster = AgentRoster::new();
+        roster.fill_from_list(vec![
+            entry(0, "kimi", "working", AgentSource::Hook),
+            entry(1, "claude", "blocked", AgentSource::Hook),
+            entry(2, "omp", "idle", AgentSource::Hook),
+            entry(3, "grok", "blocked", AgentSource::Hook),
+        ]);
+        let rows = roster.palette_rows();
+        let ids: Vec<&str> = rows.iter().map(|r| r.action_id.as_str()).collect();
+        assert_eq!(
+            ids,
+            [
+                "agent-roster-focus:1",
+                "agent-roster-focus:3",
+                "agent-roster-focus:0",
+                "agent-roster-focus:2"
+            ],
+            "blocked agents lead; working/idle keep pane order behind them"
+        );
+    }
+
+    #[test]
+    fn palette_rows_label_carries_marker_and_reason() {
+        let mut roster = AgentRoster::new();
+        roster.apply_push(entry(0, "kimi", "working", AgentSource::Hook));
+        roster.apply_push(AgentEntry {
+            pane: 4,
+            agent: "pi".to_string(),
+            state: "blocked".to_string(),
+            source: AgentSource::Scrape,
+            reason: Some("waiting on approval".to_string()),
+        });
+        let rows = roster.palette_rows();
+        // Blocked row leads; scrape marker and reason both render; hook rows
+        // and reason-less rows degrade cleanly to the plain label.
+        assert_eq!(rows[0].label, "pi: blocked~ — waiting on approval");
+        assert_eq!(rows[1].label, "kimi: working");
+        assert!(rows.iter().all(|r| r.chord.is_none()));
     }
 }
