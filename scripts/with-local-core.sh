@@ -13,13 +13,15 @@
 #      a prerelease).
 #   3. Adds [patch.crates-io] par-term-emu-core-rust = { path = <core> } to the
 #      root Cargo.toml (skipped if already present).
-#   4. Extends the committed-empty layout-conformance feature in
-#      par-term-tmux/Cargo.toml to forward the core's `mux` feature — cargo
-#      validates [features] dep-forwarding eagerly, so the real entry cannot be
-#      committed while the pin is on the published crates.io line.
-#   5. Runs the command, then restores root Cargo.toml, par-term-tmux/Cargo.toml,
-#      and Cargo.lock from pre-run backups. NEVER commit the patched state: CI
-#      checks out only this repo, so a committed patch fails every build leg.
+#   4. Extends each committed-empty local-run feature to forward the core's
+#      `mux` feature (par-term-tmux's layout-conformance, par-term-mux's mux)
+#      — cargo validates [features] dep-forwarding eagerly, so the real
+#      entries cannot be committed while the pin is on the published
+#      crates.io line.
+#   5. Runs the command, then restores root Cargo.toml, every forwarded
+#      feature manifest, and Cargo.lock from pre-run backups. NEVER commit
+#      the patched state: CI checks out only this repo, so a committed
+#      patch fails every build leg.
 #
 # Usage:
 #   scripts/with-local-core.sh                    # layout-conformance suite
@@ -30,11 +32,15 @@ set -euo pipefail
 
 REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)
 ROOT_MANIFEST="$REPO_ROOT/Cargo.toml"
-TMUX_MANIFEST="$REPO_ROOT/par-term-tmux/Cargo.toml"
 LOCKFILE="$REPO_ROOT/Cargo.lock"
 PATCH_LINE_PREFIX='par-term-emu-core-rust = { path ='
-FEATURE_EMPTY='layout-conformance = []'
-FEATURE_FORWARDED='layout-conformance = ["par-term-emu-core-rust/mux"]'
+# Crates whose committed-empty features forward the core's `mux` feature for
+# local runs, as "<manifest>|<feature>" pairs. Bash 3 (macOS ships it) has no
+# associative arrays, so the pipe form is the map.
+FORWARD_FEATURE_MANIFESTS=(
+  "$REPO_ROOT/par-term-tmux/Cargo.toml|layout-conformance"
+  "$REPO_ROOT/par-term-mux/Cargo.toml|mux"
+)
 
 die() { echo "with-local-core: $*" >&2; exit 1; }
 
@@ -67,22 +73,34 @@ esac
 # --- backups + restore trap -----------------------------------------------------
 BACKUP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/with-local-core.XXXXXX")
 cp "$ROOT_MANIFEST" "$BACKUP_DIR/root.toml"
-cp "$TMUX_MANIFEST" "$BACKUP_DIR/tmux.toml"
+for entry in "${FORWARD_FEATURE_MANIFESTS[@]}"; do
+  manifest="${entry%%|*}"
+  crate=$(basename "$(dirname "$manifest")")
+  cp "$manifest" "$BACKUP_DIR/$crate.toml"
+done
 had_lock=no
 if [ -f "$LOCKFILE" ]; then cp "$LOCKFILE" "$BACKUP_DIR/Cargo.lock"; had_lock=yes; fi
 
 restore() {
   cp "$BACKUP_DIR/root.toml" "$ROOT_MANIFEST"
-  cp "$BACKUP_DIR/tmux.toml" "$TMUX_MANIFEST"
+  for entry in "${FORWARD_FEATURE_MANIFESTS[@]}"; do
+    manifest="${entry%%|*}"
+    crate=$(basename "$(dirname "$manifest")")
+    cp "$BACKUP_DIR/$crate.toml" "$manifest"
+  done
   if [ "$had_lock" = yes ]; then cp "$BACKUP_DIR/Cargo.lock" "$LOCKFILE"; fi
   rm -rf "$BACKUP_DIR"
-  echo "with-local-core: restored root Cargo.toml, par-term-tmux/Cargo.toml, Cargo.lock"
+  echo "with-local-core: restored root Cargo.toml, forwarded-feature manifests, Cargo.lock"
 }
 trap restore EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-if ! git -C "$REPO_ROOT" diff --quiet -- Cargo.toml par-term-tmux/Cargo.toml Cargo.lock 2>/dev/null; then
+dirty_paths="Cargo.toml Cargo.lock"
+for entry in "${FORWARD_FEATURE_MANIFESTS[@]}"; do
+  dirty_paths="$dirty_paths ${entry%%|*}"
+done
+if ! git -C "$REPO_ROOT" diff --quiet -- $dirty_paths 2>/dev/null; then
   echo "with-local-core: note — manifests were already dirty before the run; the pre-run state (not HEAD) is restored"
 fi
 
@@ -115,12 +133,18 @@ else
   echo "with-local-core: patched $ROOT_MANIFEST -> $patch_line"
 fi
 
-if ! grep -qF "$FEATURE_FORWARDED" "$TMUX_MANIFEST"; then
-  grep -qxF "$FEATURE_EMPTY" "$TMUX_MANIFEST" ||
-    die "expected \"$FEATURE_EMPTY\" in par-term-tmux/Cargo.toml — the committed feature shape changed; update scripts/with-local-core.sh"
-  replace_line "$TMUX_MANIFEST" "$FEATURE_EMPTY" "$FEATURE_FORWARDED"
-  echo "with-local-core: extended par-term-tmux layout-conformance feature -> $FEATURE_FORWARDED"
-fi
+for entry in "${FORWARD_FEATURE_MANIFESTS[@]}"; do
+  manifest="${entry%%|*}"
+  feature="${entry##*|}"
+  empty="$feature = []"
+  forwarded="$feature = [\"par-term-emu-core-rust/mux\"]"
+  if ! grep -qF "$forwarded" "$manifest"; then
+    grep -qxF "$empty" "$manifest" ||
+      die "expected \"$empty\" in $manifest — the committed feature shape changed; update scripts/with-local-core.sh"
+    replace_line "$manifest" "$empty" "$forwarded"
+    echo "with-local-core: extended $feature in $(basename "$manifest") -> $forwarded"
+  fi
+done
 
 # --- run ------------------------------------------------------------------------
 cd "$REPO_ROOT"

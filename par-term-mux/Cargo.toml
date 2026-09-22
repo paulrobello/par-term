@@ -1,0 +1,34 @@
+[package]
+name = "par-term-mux"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98"
+authors = ["Paul Robello <probello@gmail.com>"]
+description = "par-mux control-mode client for par-term terminal emulator"
+license = "MIT"
+repository = "https://github.com/paulrobello/par-term"
+homepage = "https://github.com/paulrobello/par-term"
+keywords = ["terminal", "mux", "control-mode", "multiplexer"]
+categories = ["command-line-utilities"]
+
+[dependencies]
+# Sync layer, parser bridge, types, and key translation — reused in place
+par-term-tmux = { path = "../par-term-tmux", version = "0.1.15" }
+
+# Tab/pane id types for the sync mappings
+par-term-config = { path = "../par-term-config", version = "0.14.4" }
+
+# Terminal emulator core (MuxClient transport)
+par-term-emu-core-rust.workspace = true
+
+# Logging
+log.workspace = true
+
+[features]
+# Client for the core's par-mux daemon. Declared empty here: forwarding the
+# core's `mux` feature (core >= 0.50 only, unpublished) breaks cargo
+# resolution against crates.io 0.49 even with this feature disabled —
+# cargo validates [features] dep-forwarding eagerly. Run via
+# scripts/with-local-core.sh (or make with-local-core), which extends this
+# locally to ["par-term-emu-core-rust/mux"] and auto-reverts on exit.
+mux = []

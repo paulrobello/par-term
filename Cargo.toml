@@ -1,5 +1,5 @@
 [workspace]
-members = ["par-term-acp", "par-term-config", "par-term-fonts", "par-term-input", "par-term-keybindings", "par-term-mcp", "par-term-render", "par-term-scripting", "par-term-settings-ui", "par-term-ssh", "par-term-terminal", "par-term-tmux", "par-term-update"]
+members = ["par-term-acp", "par-term-config", "par-term-fonts", "par-term-input", "par-term-keybindings", "par-term-mcp", "par-term-mux", "par-term-render", "par-term-scripting", "par-term-settings-ui", "par-term-ssh", "par-term-terminal", "par-term-tmux", "par-term-update"]
 
 # ---------------------------------------------------------------------------
 # Workspace-level dependency declarations (ARC-001)

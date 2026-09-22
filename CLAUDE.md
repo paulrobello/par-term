@@ -132,6 +132,7 @@ See `docs/architecture/ARCHITECTURE.md` for detailed architecture documentation.
 | **Custom shaders** | `src/shader_installer.rs`, `shaders/` dir, `par-term-render/src/` | `par-term-render` |
 | **SSH** | `par-term-ssh/src/` (all implementation), `src/ssh_connect_ui.rs` | `par-term-ssh` |
 | **Tmux integration** | `src/app/tmux_handler/`, `src/pane/manager/tmux_layout.rs`, `src/tmux_session_picker_ui.rs`, `par-term-tmux/` | `par-term-tmux` |
+| **par-mux client** | `par-term-mux/src/` (feature-gated: `mux`, compiled empty except under `make with-local-core` while core >= 0.50 is unpublished) | `par-term-mux` |
 | **ACP / AI panel** | `src/acp_harness/`, `src/ai_inspector/`, `par-term-acp/` | `par-term-acp` |
 | **Font/text shaping** | `par-term-fonts/` | `par-term-fonts` |
 
@@ -179,6 +180,7 @@ Layer 2 — Depend on par-term-config (bump after Layer 1):
   par-term-update       → par-term-config
 
 Layer 3 — Depend on Layer 2 crates (bump after Layer 2):
+  par-term-mux          → par-term-config, par-term-tmux   [+ emu-core]
   par-term-render       → par-term-config, par-term-fonts  [+ emu-core]
   par-term-settings-ui  → par-term-config, par-term-scripting
 

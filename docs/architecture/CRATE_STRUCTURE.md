@@ -139,10 +139,11 @@ These eight crates each depend on `par-term-config` and implement a distinct fea
 
 ### Layer 3 — Rendering
 
-One crate sits above Layer 2 because it depends on both `par-term-config` and `par-term-fonts`.
+Two crates sit above Layer 2: `par-term-render` depends on both `par-term-config` and `par-term-fonts`; `par-term-mux` depends on `par-term-config` and `par-term-tmux`.
 
 | Crate | Responsibility |
 |-------|---------------|
+| `par-term-mux` | Client for the core's par-mux daemon, speaking tmux control mode over a local socket. Reuses `par-term-tmux`'s sync layer (`ParserBridge`, `TmuxSync`, `SyncAction`) unmodified — the reuse is the protocol-compatibility proof. Compiles empty unless its `mux` feature is enabled (core >= 0.50, unpublished; run via `make with-local-core` / `scripts/with-local-core.sh`). |
 | `par-term-render` | GPU rendering engine built on `wgpu`. Owns the cell renderer (glyph atlas, instanced draw calls, WGSL shaders), the graphics renderer (Sixel/iTerm2/Kitty texture cache), the custom shader renderer (GLSL-to-WGSL via `naga`, iChannel textures), and the egui overlay integration. |
 
 ### Layer 4 — Root Binary
@@ -163,6 +164,7 @@ Quick lookup table with each crate's primary public types and where they are con
 | `par-term-input` | `InputHandler` | `par-term` |
 | `par-term-keybindings` | `KeybindingRegistry`, `KeyCombo` | `par-term` |
 | `par-term-mcp` | `tools`, `jsonrpc`, `ipc`, `TerminalScreenshotRequest` | `par-term` |
+| `par-term-mux` | `MuxSessionClient`, `AttachOutcome`, `SessionSummary`, `WindowSummary` | `par-term` (app wiring, T4.4) |
 | `par-term-render` | `Renderer`, `CellRenderer`, `GraphicsRenderer`, `CustomShaderRenderer` | `par-term` |
 | `par-term-scripting` | `ScriptManager`, `ScriptEventForwarder` | `par-term` |
 | `par-term-settings-ui` | `SettingsUI`, `SettingsTab`, all tab structs | `par-term` (settings window) |
