@@ -5,17 +5,21 @@
 //!
 //! Note: This only works on macOS. On other platforms, the functions are no-ops.
 //!
-//! TODO(QA-011): The unsafe FFI blocks in this module lack automated test coverage.
-//! Testing requires a macOS display server (CI runners may not have one).
-//! Consider adding: (1) compile-time signature validation via `bindgen` for the
-//! private CGS functions, (2) a manual test script that verifies blur is applied
-//! at each supported macOS version, (3) dlsym-null-return defensive tests.
+//! QA-011 coverage (2026-09-21): the dlopen/dlsym load path (including the
+//! null-return defensive case), the version gate, and version parsing have
+//! in-module unit tests plus a shared test in `macos_ffi`. NOT automated,
+//! by design: the `msg_send!` chain through a live NSView/NSWindow and the
+//! `CGSSetWindowBackgroundBlurRadius` call itself need a real window on a
+//! display server. Manual check for those: `make run` with a nonzero
+//! `blur_radius` in the window config (applied at window creation and on
+//! config propagation) and confirm the translucency visually.
 
 #[cfg(not(target_os = "macos"))]
 use anyhow::Result;
 
 #[cfg(target_os = "macos")]
 mod inner {
+    use crate::macos_ffi::dlsym_checked;
     use anyhow::Result;
     use objc2_app_kit::NSView;
     use raw_window_handle::{HasWindowHandle, RawWindowHandle};
@@ -103,19 +107,15 @@ mod inner {
                 return None;
             }
 
-            let blur_sym = libc::dlsym(handle, c"CGSSetWindowBackgroundBlurRadius".as_ptr());
-            if blur_sym.is_null() {
+            let blur_fn: Option<CGSSetWindowBackgroundBlurRadiusFn> =
+                dlsym_checked(handle, c"CGSSetWindowBackgroundBlurRadius");
+            if blur_fn.is_none() {
                 log::warn!(
                     "CGSSetWindowBackgroundBlurRadius not found in ApplicationServices — \
                      blur API unavailable"
                 );
-                return None;
             }
-
-            Some(std::mem::transmute::<
-                *mut libc::c_void,
-                CGSSetWindowBackgroundBlurRadiusFn,
-            >(blur_sym))
+            blur_fn
         });
 
         CONN_FN.get_or_init(|| unsafe {
@@ -132,19 +132,15 @@ mod inner {
                 return None;
             }
 
-            let conn_sym = libc::dlsym(handle, c"CGSDefaultConnectionForThread".as_ptr());
-            if conn_sym.is_null() {
+            let conn_fn: Option<CGSDefaultConnectionForThreadFn> =
+                dlsym_checked(handle, c"CGSDefaultConnectionForThread");
+            if conn_fn.is_none() {
                 log::warn!(
                     "CGSDefaultConnectionForThread not found in ApplicationServices — \
                      blur API unavailable"
                 );
-                return None;
             }
-
-            Some(std::mem::transmute::<
-                *mut libc::c_void,
-                CGSDefaultConnectionForThreadFn,
-            >(conn_sym))
+            conn_fn
         });
     }
 
@@ -214,6 +210,59 @@ mod inner {
 
         log::info!("Window blur set to radius {}", radius);
         Ok(())
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn macos_version_detection_returns_a_real_version() {
+            // sw_vers exists on every macOS install; 0 is the closure's
+            // parse-failure sentinel, so a real major >= 13 proves the
+            // Command/parse pipeline works end to end.
+            assert!(
+                macos_major_version() >= MIN_SUPPORTED_MACOS_MAJOR,
+                "sw_vers parse pipeline must yield a real major version"
+            );
+        }
+
+        #[test]
+        fn cgs_symbols_load_on_supported_macos() {
+            // Real dlopen/dlsym round trip for both private CGS symbols:
+            // dlopen needs no display server, so this runs anywhere macOS
+            // can run tests, CI included.
+            load_functions();
+            assert!(
+                BLUR_FN.get().is_some_and(|f| f.is_some()),
+                "CGSSetWindowBackgroundBlurRadius must resolve from ApplicationServices"
+            );
+            assert!(
+                CONN_FN.get().is_some_and(|f| f.is_some()),
+                "CGSDefaultConnectionForThread must resolve from ApplicationServices"
+            );
+        }
+
+        #[test]
+        fn absent_cgs_symbol_yields_none_not_a_transmuted_null() {
+            // The loader's defensive path against a missing symbol. If
+            // dlsym_checked ever returned a transmuted null instead of None,
+            // this is the UB-as-a-callable-pointer case.
+            unsafe {
+                let handle = libc::dlopen(
+                    c"/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices"
+                        .as_ptr(),
+                    libc::RTLD_LAZY,
+                );
+                assert!(!handle.is_null(), "ApplicationServices must dlopen");
+                let missing: Option<CGSSetWindowBackgroundBlurRadiusFn> =
+                    dlsym_checked(handle, c"ParTermNotASymbol_qa011");
+                assert!(missing.is_none());
+                let present: Option<CGSDefaultConnectionForThreadFn> =
+                    dlsym_checked(handle, c"CGSDefaultConnectionForThread");
+                assert!(present.is_some());
+            }
+        }
     }
 }
 

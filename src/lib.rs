@@ -72,6 +72,8 @@ pub mod help_ui;
 pub mod http;
 pub mod integrations_ui;
 pub mod macos_blur; // macOS window blur using private CGS API
+#[cfg(target_os = "macos")]
+pub mod macos_ffi; // shared dlsym helpers for the private-API modules (QA-011)
 pub mod macos_metal; // macOS-specific CAMetalLayer configuration
 pub mod macos_space; // macOS Space (virtual desktop) targeting using private SLS API
 /// MCP server — whole-crate re-export of `par-term-mcp`.

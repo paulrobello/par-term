@@ -8,17 +8,20 @@
 //!
 //! Note: This only works on macOS. On other platforms, the function is a no-op.
 //!
-//! TODO(QA-011): The unsafe FFI blocks in this module lack automated test coverage.
-//! Testing requires a macOS display server (CI runners may not have one).
-//! Consider adding: (1) compile-time signature validation via `bindgen` for the
-//! private SLS functions, (2) a manual test script for Space management on each
-//! supported macOS version, (3) dlsym-null-return defensive tests.
+//! QA-011 coverage (2026-09-21): dlopen/dlsym loading (including the
+//! null-return defensive case), the version gate, and the 14.5 compat-ID
+//! boundary have in-module unit tests plus a shared test in `macos_ffi`.
+//! NOT automated, by design: Space enumeration and both move paths need a
+//! live window-server session and a real Space transition. Manual check for
+//! those: `make run` and use the window-arrangement action that assigns the
+//! window to a Space (window_lifecycle), watching Mission Control.
 
 #[cfg(not(target_os = "macos"))]
 use anyhow::Result;
 
 #[cfg(target_os = "macos")]
 mod inner {
+    use crate::macos_ffi::dlsym_checked;
     use anyhow::Result;
     use objc2_app_kit::NSView;
     use raw_window_handle::{HasWindowHandle, RawWindowHandle};
@@ -108,15 +111,16 @@ mod inner {
 
                 macro_rules! load_sym {
                     ($name:expr, $ty:ty) => {{
-                        let sym = libc::dlsym(handle, $name.as_ptr());
-                        if sym.is_null() {
-                            log::warn!(
-                                "SLS function {} not found",
-                                String::from_utf8_lossy($name.to_bytes())
-                            );
-                            return None;
+                        match dlsym_checked::<$ty>(handle, $name) {
+                            Some(f) => f,
+                            None => {
+                                log::warn!(
+                                    "SLS function {} not found",
+                                    String::from_utf8_lossy($name.to_bytes())
+                                );
+                                return None;
+                            }
                         }
-                        std::mem::transmute::<*mut c_void, $ty>(sym)
                     }};
                 }
 
@@ -175,6 +179,20 @@ mod inner {
 
     static IS_14_5_OR_NEWER: OnceLock<bool> = OnceLock::new();
 
+    /// Whether an `sw_vers -productVersion` string is macOS 14.5+ — the
+    /// generation that needs the compat-ID Space API. Unparseable input
+    /// keeps the modern-API default, matching the original inline closure.
+    fn version_is_14_5_or_newer(version: &str) -> bool {
+        let parts: Vec<&str> = version.trim().split('.').collect();
+        match (
+            parts.first().and_then(|s| s.parse::<u32>().ok()),
+            parts.get(1).and_then(|s| s.parse::<u32>().ok()),
+        ) {
+            (Some(major), Some(minor)) => major > 14 || (major == 14 && minor >= 5),
+            _ => true,
+        }
+    }
+
     fn is_macos_14_5_or_newer() -> bool {
         *IS_14_5_OR_NEWER.get_or_init(|| {
             // Use sw_vers to detect macOS version
@@ -184,28 +202,17 @@ mod inner {
             {
                 Ok(output) => {
                     let version_str = String::from_utf8_lossy(&output.stdout);
-                    let parts: Vec<&str> = version_str.trim().split('.').collect();
-                    match (
-                        parts.first().and_then(|s| s.parse::<u32>().ok()),
-                        parts.get(1).and_then(|s| s.parse::<u32>().ok()),
-                    ) {
-                        (Some(major), Some(minor)) => {
-                            log::info!(
-                                "macOS version {} — using {} Space API",
-                                version_str.trim(),
-                                if major > 14 || (major == 14 && minor >= 5) {
-                                    "modern (compat ID)"
-                                } else {
-                                    "legacy"
-                                }
-                            );
-                            major > 14 || (major == 14 && minor >= 5)
+                    let modern = version_is_14_5_or_newer(&version_str);
+                    log::info!(
+                        "macOS version {} — using {} Space API",
+                        version_str.trim(),
+                        if modern {
+                            "modern (compat ID)"
+                        } else {
+                            "legacy"
                         }
-                        _ => {
-                            log::warn!("Could not parse macOS version, defaulting to modern API");
-                            true
-                        }
-                    }
+                    );
+                    modern
                 }
                 Err(e) => {
                     log::warn!("Failed to run sw_vers: {}, defaulting to modern API", e);
@@ -474,6 +481,63 @@ mod inner {
         }
 
         Ok(())
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn version_boundary_for_compat_id_api() {
+            // The modern-vs-legacy API choice hinges on exactly this parse.
+            assert!(!version_is_14_5_or_newer("13.9"));
+            assert!(!version_is_14_5_or_newer("14.0"));
+            assert!(!version_is_14_5_or_newer("14.4"));
+            assert!(version_is_14_5_or_newer("14.5"));
+            assert!(version_is_14_5_or_newer("14.6"));
+            assert!(version_is_14_5_or_newer("15.0"));
+            assert!(version_is_14_5_or_newer("27.1"));
+            assert!(
+                version_is_14_5_or_newer("not-a-version"),
+                "unparseable input keeps the modern-API default"
+            );
+        }
+
+        #[test]
+        fn macos_version_detection_returns_a_real_version() {
+            assert!(
+                macos_major_version() >= MIN_SUPPORTED_MACOS_MAJOR,
+                "sw_vers parse pipeline must yield a real major version"
+            );
+        }
+
+        #[test]
+        fn sls_symbols_load_on_supported_macos() {
+            // Real dlopen/dlsym round trip: opening the private SkyLight
+            // framework and resolving all five SLS symbols needs no display
+            // server, so this runs in CI too.
+            assert!(
+                load_sls_functions().is_some(),
+                "SkyLight and all five SLS symbols must resolve"
+            );
+        }
+
+        #[test]
+        fn absent_sls_symbol_yields_none_not_a_transmuted_null() {
+            unsafe {
+                let handle = libc::dlopen(
+                    c"/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight".as_ptr(),
+                    libc::RTLD_LAZY,
+                );
+                assert!(!handle.is_null(), "SkyLight must dlopen");
+                let missing: Option<SLSMainConnectionIDFn> =
+                    dlsym_checked(handle, c"ParTermNotASymbol_qa011");
+                assert!(missing.is_none());
+                let present: Option<SLSMainConnectionIDFn> =
+                    dlsym_checked(handle, c"SLSMainConnectionID");
+                assert!(present.is_some());
+            }
+        }
     }
 }
 
