@@ -202,7 +202,7 @@ Layer 4 — Root crate (bump last):
 
 Core cards go `done` in `~/Repos/par-term-emu-core-rust` long before crates.io catches up, so a card blocked on "the core needs to publish" can unblock itself by building against the local sibling checkout.
 
-**Use `make with-local-core` (or `scripts/with-local-core.sh [cargo args…]`)** — it applies the whole recipe below (patch, pin raise, feature forwarding), runs the command (default: `cargo test -p par-term-tmux --features layout-conformance`), and restores `Cargo.toml`, `par-term-tmux/Cargo.toml`, and `Cargo.lock` on exit, success or failure. The manual steps it automates — in the **root** `Cargo.toml`, add:
+**Use `make with-local-core` (or `scripts/with-local-core.sh <full cargo command>` — the script executes its arguments verbatim, so include the `cargo` word: `scripts/with-local-core.sh cargo test …`)** — it applies the whole recipe below (patch, pin raise, feature forwarding), runs the command (default: `cargo test -p par-term-tmux --features layout-conformance`), and restores `Cargo.toml`, `par-term-tmux/Cargo.toml`, and `Cargo.lock` on exit, success or failure. The manual steps it automates — in the **root** `Cargo.toml`, add:
 
 ```toml
 [patch.crates-io]
