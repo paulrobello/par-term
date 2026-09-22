@@ -61,7 +61,7 @@ impl SettingsWindow {
         }
         raw_input.events.append(&mut self.pending_events);
 
-        let egui_output = self.egui_ctx.run_ui(raw_input, |ctx| {
+        let mut egui_output = self.egui_ctx.run_ui(raw_input, |ctx| {
             // Show the settings UI as a panel (not a nested window) and capture results
             let (save, live, shader, cursor_shader) = self.settings_ui.show_as_panel(ctx);
             config_to_save = save;
@@ -183,6 +183,9 @@ impl SettingsWindow {
         for id in &egui_output.textures_delta.free {
             self.egui_renderer.free_texture(id);
         }
+        // epaint 0.36 panics if a consumed delta is dropped uncleared (same
+        // rule as Renderer::apply_egui_texture_deltas in the main window).
+        egui_output.textures_delta.clear();
 
         // Check for test notification request
         if self.settings_ui.take_test_notification_request() {
