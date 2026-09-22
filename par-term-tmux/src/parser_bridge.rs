@@ -186,6 +186,18 @@ impl ParserBridge {
                 );
                 None
             }
+
+            // Core variants this bridge predates (AgentStateChanged arrived
+            // with the local 0.50 line) and any future ones: not gateway
+            // concerns. A named arm per variant would fail compilation
+            // against the published 0.49 pin, and a plain wildcard is
+            // unreachable there (an error under -D warnings) — so the arm
+            // carries the allow, the one form valid on both versions.
+            #[allow(unreachable_patterns)]
+            _ => {
+                log::trace!("[TMUX] Unhandled core notification variant");
+                None
+            }
         }
     }
 
