@@ -56,6 +56,9 @@ pub enum WidgetId {
     UpdateAvailable,
     /// Agent subscription usage summary (self-hiding; click opens the usage panel)
     AgentUsage,
+    /// par-mux agent roster summary (self-hiding; click opens the command
+    /// palette). Empty without an attached mux session.
+    AgentRoster,
     /// Custom widget (user-defined via format string)
     Custom(String),
     /// Plugin-provided status bar widget (`plugin:<id>` key)
@@ -78,6 +81,7 @@ impl WidgetId {
             WidgetId::CurrentCommand => "Current Command",
             WidgetId::UpdateAvailable => "Update Available",
             WidgetId::AgentUsage => "Agent Usage",
+            WidgetId::AgentRoster => "Agent Roster",
             WidgetId::Custom(name) => name.as_str(),
             WidgetId::Plugin(id) => id.as_str(),
         }
@@ -98,6 +102,7 @@ impl WidgetId {
             WidgetId::CurrentCommand => "\u{25b6}",    // play button
             WidgetId::UpdateAvailable => "\u{2b06}",   // upwards arrow
             WidgetId::AgentUsage => "\u{25c6}",        // diamond (matches the summary glyph)
+            WidgetId::AgentRoster => "\u{1f465}",      // busts in silhouette (a roster of agents)
             WidgetId::Custom(_) => "\u{2699}",         // gear
             WidgetId::Plugin(_) => "\u{1f9e9}",        // puzzle piece
         }
@@ -132,6 +137,7 @@ impl WidgetId {
             WidgetId::CurrentCommand => "current_command".to_string(),
             WidgetId::UpdateAvailable => "update_available".to_string(),
             WidgetId::AgentUsage => "agent_usage".to_string(),
+            WidgetId::AgentRoster => "agent_roster".to_string(),
             WidgetId::Custom(name) => format!("custom:{name}"),
             WidgetId::Plugin(id) => format!("plugin:{id}"),
         }
@@ -159,6 +165,7 @@ impl WidgetId {
             "current_command" => WidgetId::CurrentCommand,
             "update_available" => WidgetId::UpdateAvailable,
             "agent_usage" => WidgetId::AgentUsage,
+            "agent_roster" => WidgetId::AgentRoster,
             _ => return None,
         })
     }
@@ -296,6 +303,13 @@ pub fn default_widgets() -> Vec<StatusBarWidgetConfig> {
             enabled: false,
             section: StatusBarSection::Right,
             order: 7,
+            format: None,
+        },
+        StatusBarWidgetConfig {
+            id: WidgetId::AgentRoster,
+            enabled: false,
+            section: StatusBarSection::Right,
+            order: 8,
             format: None,
         },
     ]

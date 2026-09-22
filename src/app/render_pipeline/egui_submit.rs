@@ -89,6 +89,22 @@ impl WindowState {
             None
         };
 
+        // Refresh the agent-roster widget lines from the mux roster cache
+        // (A2b task 2) before the egui closure uniquely borrows `*self`.
+        // Without the mux feature there is no cache and no widget content —
+        // the widget self-hides.
+        #[cfg(feature = "mux")]
+        {
+            let roster = &self.tmux_state.agent_roster;
+            self.status_bar_ui.agent_roster_summary = roster.summary_line();
+            self.status_bar_ui.agent_roster_tooltip = roster.tooltip_text();
+        }
+        #[cfg(not(feature = "mux"))]
+        {
+            self.status_bar_ui.agent_roster_summary = None;
+            self.status_bar_ui.agent_roster_tooltip = None;
+        }
+
         // Capture values for badge insets (before egui borrow to avoid method-call borrows)
         let badge_is_tmux = self.is_tmux_connected();
         let badge_tmux_sb_height =
@@ -377,6 +393,18 @@ impl WindowState {
                             == Some(crate::status_bar::StatusBarAction::OpenAgentUsagePanel)
                         {
                             self.overlay_ui.agent_usage_panel.open();
+                        }
+                        if status_bar_action
+                            == Some(crate::status_bar::StatusBarAction::OpenAgentPalette)
+                        {
+                            // The palette is the roster's list surface (A2b
+                            // task 3 adds the agent rows); opened the same way
+                            // the toggle_command_palette keybinding opens it.
+                            let plugin_rows =
+                                crate::command_palette::catalog::plugin_palette_entries(
+                                    &self.status_bar_ui.plugin_host().palette_actions(),
+                                );
+                            self.overlay_ui.command_palette.open(plugin_rows);
                         }
                     }
 

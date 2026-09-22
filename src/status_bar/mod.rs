@@ -66,6 +66,9 @@ pub enum StatusBarAction {
     ShowUpdateDialog,
     /// User clicked the agent-usage widget.
     OpenAgentUsagePanel,
+    /// User clicked the agent-roster widget; opens the command palette (the
+    /// roster's list surface, per the A2b design — not a separate panel).
+    OpenAgentPalette,
 }
 
 /// Status bar UI state and renderer.
@@ -84,6 +87,13 @@ pub struct StatusBarUI {
     last_valid_time_format: String,
     /// Available update version (set by WindowManager when update is detected)
     pub update_available_version: Option<String>,
+    /// Agent-roster summary line for the status-bar widget (A2b task 2),
+    /// refreshed by the render pipeline from the mux roster cache before the
+    /// egui borrow. `None` (no mux session / empty roster) self-hides the
+    /// widget.
+    pub agent_roster_summary: Option<String>,
+    /// Hover text for the agent-roster widget; `None` hides the tooltip.
+    pub agent_roster_tooltip: Option<String>,
     /// Agent-usage records store (watched directory + snapshot). Lives here
     /// with the other background-data pollers; the popup panel reads it via
     /// [`StatusBarUI::usage_snapshot`].
@@ -119,6 +129,8 @@ impl StatusBarUI {
             visible: true,
             last_valid_time_format: "%H:%M:%S".to_string(),
             update_available_version: None,
+            agent_roster_summary: None,
+            agent_roster_tooltip: None,
             usage: UsageStore::new(crate::agent_usage::default_records_dir()),
             usage_update: UpdateRunner::new(),
             plugins: PluginHost::new(),
@@ -324,6 +336,8 @@ impl StatusBarUI {
             disk_free_bytes: disk_data.free_bytes,
             disk_total_bytes: disk_data.total_bytes,
             agent_usage_summary: self.usage.summary_line(),
+            agent_roster_summary: self.agent_roster_summary.clone(),
+            agent_roster_tooltip: self.agent_roster_tooltip.clone(),
             plugin_texts: self.plugins.widget_texts().clone(),
         };
 
@@ -486,6 +500,29 @@ impl StatusBarUI {
                                                 .clicked()
                                             {
                                                 action = Some(StatusBarAction::OpenAgentUsagePanel);
+                                            }
+                                        } else if w.id == crate::config::WidgetId::AgentRoster {
+                                            // Same clickable treatment as the
+                                            // usage widget; hover carries the
+                                            // per-agent provenance detail the
+                                            // bar text cannot fit.
+                                            let roster_text = egui::RichText::new(&text)
+                                                .color(fg_color)
+                                                .size(font_size)
+                                                .monospace();
+                                            let response = ui.add(
+                                                egui::Label::new(roster_text)
+                                                    .sense(egui::Sense::click()),
+                                            );
+                                            let response =
+                                                match self.agent_roster_tooltip.as_deref() {
+                                                    Some(tooltip) if !tooltip.is_empty() => {
+                                                        response.on_hover_text(tooltip)
+                                                    }
+                                                    _ => response,
+                                                };
+                                            if response.clicked() {
+                                                action = Some(StatusBarAction::OpenAgentPalette);
                                             }
                                         } else {
                                             ui.label(make_rich_text(&text));

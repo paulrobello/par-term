@@ -38,6 +38,13 @@ pub struct WidgetContext {
     /// Agent-usage summary line; `None` when nothing is displayable, which
     /// self-hides the widget (empty text is skipped by the section loops)
     pub agent_usage_summary: Option<String>,
+    /// par-mux agent-roster summary line (status-bar widget); `None` without
+    /// an attached mux session, which self-hides the widget. Populated by the
+    /// render pipeline from the roster cache before the egui borrow.
+    pub agent_roster_summary: Option<String>,
+    /// Hover text for the agent-roster widget (per-agent lines with
+    /// reported/detected provenance); `None` hides the tooltip.
+    pub agent_roster_tooltip: Option<String>,
     /// Last `SetWidget` text per plugin id; absent or empty entries
     /// self-hide in the section loops, so a stopped plugin renders nothing.
     pub plugin_texts: std::collections::HashMap<String, String>,
@@ -115,6 +122,7 @@ pub fn widget_text(id: &WidgetId, ctx: &WidgetContext, format_override: Option<&
             crate::status_bar::system_monitor::format_bytes(ctx.disk_free_bytes)
         ),
         WidgetId::AgentUsage => ctx.agent_usage_summary.clone().unwrap_or_default(),
+        WidgetId::AgentRoster => ctx.agent_roster_summary.clone().unwrap_or_default(),
         WidgetId::Plugin(id) => ctx.plugin_texts.get(id).cloned().unwrap_or_default(),
         WidgetId::Custom(_) => String::new(),
     }
@@ -234,6 +242,8 @@ mod tests {
             disk_free_bytes: 250 * 1_073_741_824,  // 250 GB
             disk_total_bytes: 500 * 1_073_741_824, // 500 GB
             agent_usage_summary: None,
+            agent_roster_summary: None,
+            agent_roster_tooltip: None,
             plugin_texts: std::collections::HashMap::new(),
         }
     }
@@ -417,6 +427,20 @@ mod tests {
         assert_eq!(
             widget_text(&WidgetId::AgentUsage, &ctx, None),
             "\u{25c6} 42%"
+        );
+    }
+
+    #[test]
+    fn test_widget_text_agent_roster() {
+        let mut ctx = make_ctx();
+        // No mux session -> no summary -> empty text -> the render loop skips
+        // the widget entirely (self-hiding).
+        assert_eq!(widget_text(&WidgetId::AgentRoster, &ctx, None), "");
+
+        ctx.agent_roster_summary = Some("\u{1f465} 2 blocked, 1~ working".to_string());
+        assert_eq!(
+            widget_text(&WidgetId::AgentRoster, &ctx, None),
+            "\u{1f465} 2 blocked, 1~ working"
         );
     }
 

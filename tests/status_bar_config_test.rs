@@ -16,7 +16,7 @@ fn test_default_config_has_status_bar_fields() {
 #[test]
 fn test_default_widgets_complete() {
     let widgets = default_widgets();
-    assert_eq!(widgets.len(), 12);
+    assert_eq!(widgets.len(), 13);
     let ids: Vec<&WidgetId> = widgets.iter().map(|w| &w.id).collect();
     assert!(ids.contains(&&WidgetId::Clock));
     assert!(ids.contains(&&WidgetId::UsernameHostname));
@@ -30,6 +30,7 @@ fn test_default_widgets_complete() {
     assert!(ids.contains(&&WidgetId::CurrentCommand));
     assert!(ids.contains(&&WidgetId::UpdateAvailable));
     assert!(ids.contains(&&WidgetId::AgentUsage));
+    assert!(ids.contains(&&WidgetId::AgentRoster));
 }
 
 #[test]

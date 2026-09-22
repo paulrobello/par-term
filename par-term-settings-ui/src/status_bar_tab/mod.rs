@@ -126,6 +126,9 @@ pub fn show(
             "free",
             "space",
             "storage",
+            "agent roster",
+            "roster",
+            "mux",
         ],
     ) {
         widgets::show_widgets_section(ui, settings, changes_this_frame, collapsed);
@@ -165,6 +168,9 @@ pub fn keywords() -> &'static [&'static str] {
         "disk free",
         "disk space",
         "storage",
+        // Agent roster widget
+        "agent roster",
+        "roster",
         // Position and size
         "position",
         "height",
