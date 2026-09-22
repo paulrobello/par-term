@@ -7,12 +7,33 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use super::{
-    HOOK_TIMEOUT_SECS, home_dir, remove_marked_file, shell_single_quote, write_hook_asset,
+    HOOK_TIMEOUT_SECS, home_dir, hook_command_with_action, remove_marked_file, write_hook_asset,
 };
 
-const GROK_HOOK_INSTALL_NAME: &str = "par-mux-grok-session-hook.sh";
 const GROK_HOOK_CONFIG_INSTALL_NAME: &str = "par-mux-grok-hooks.json";
-const GROK_HOOK_ASSET: &str = include_str!("../../mux_hooks/par-mux-grok-session-hook.sh");
+const GROK_HOOK_ASSET_POSIX: &str = include_str!("../../mux_hooks/par-mux-grok-session-hook.sh");
+const GROK_HOOK_ASSET_WINDOWS: &str = include_str!("../../mux_hooks/par-mux-grok-session-hook.ps1");
+
+/// The asset file name for the current platform — the `.ps1` port on
+/// Windows, the `.sh` reporter elsewhere. Runtime-selected (not cfg-split)
+/// so both arms compile on every platform and the selection is assertable
+/// in tests instead of invisible to the non-Windows build.
+fn grok_hook_install_name() -> &'static str {
+    if cfg!(windows) {
+        "par-mux-grok-session-hook.ps1"
+    } else {
+        "par-mux-grok-session-hook.sh"
+    }
+}
+
+/// The hook asset contents for the current platform.
+fn grok_hook_asset() -> &'static str {
+    if cfg!(windows) {
+        GROK_HOOK_ASSET_WINDOWS
+    } else {
+        GROK_HOOK_ASSET_POSIX
+    }
+}
 
 /// Marker identifying the installed grok script as ours.
 pub const GROK_HOOK_MARKER: &str = "PAR_MUX_INTEGRATION_ID=grok";
@@ -62,8 +83,8 @@ pub fn install_grok_hook_into(dir: &Path) -> io::Result<GrokHookInstall> {
     // proven model). The hook script and its config live side by side.
     let hooks_dir = dir.join("hooks");
     fs::create_dir_all(&hooks_dir)?;
-    let hook_path = hooks_dir.join(GROK_HOOK_INSTALL_NAME);
-    write_hook_asset(&hook_path, GROK_HOOK_ASSET)?;
+    let hook_path = hooks_dir.join(grok_hook_install_name());
+    write_hook_asset(&hook_path, grok_hook_asset())?;
     let config_path = hooks_dir.join(GROK_HOOK_CONFIG_INSTALL_NAME);
     fs::write(&config_path, grok_hook_config(&hook_path))?;
     Ok(GrokHookInstall {
@@ -80,7 +101,7 @@ pub fn uninstall_grok_hook() -> io::Result<GrokHookUninstall> {
 /// Uninstall with an explicit config directory (test/install seam).
 pub fn uninstall_grok_hook_into(dir: &Path) -> io::Result<GrokHookUninstall> {
     let hooks_dir = dir.join("hooks");
-    let hook_path = hooks_dir.join(GROK_HOOK_INSTALL_NAME);
+    let hook_path = hooks_dir.join(grok_hook_install_name());
     let config_path = hooks_dir.join(GROK_HOOK_CONFIG_INSTALL_NAME);
 
     // The config name is par-mux-prefixed, so it is ours by name; the script
@@ -105,10 +126,7 @@ pub fn uninstall_grok_hook_into(dir: &Path) -> io::Result<GrokHookUninstall> {
 /// new/load sources sit outside claude's matcher space) whose script
 /// self-filters on hook_event_name and GROK_SESSION_ID.
 fn grok_hook_config(hook_path: &Path) -> String {
-    let command = format!(
-        "sh {} session",
-        shell_single_quote(&hook_path.display().to_string())
-    );
+    let command = hook_command_with_action(hook_path, "session");
     serde_json::to_string_pretty(&serde_json::json!({
         "hooks": {
             "SessionStart": [
@@ -146,7 +164,7 @@ mod tests {
         let result = install_grok_hook_into(&grok_home).unwrap();
 
         let script = fs::read_to_string(&result.hook_path).unwrap();
-        assert_eq!(script, GROK_HOOK_ASSET);
+        assert_eq!(script, grok_hook_asset());
         assert!(script.contains(GROK_HOOK_MARKER));
         assert!(script.contains("pane.report_agent_session"));
         assert!(script.contains("GROK_SESSION_ID"), "grok's own env is kept");
@@ -170,7 +188,7 @@ mod tests {
         assert_eq!(entry["timeout"], HOOK_TIMEOUT_SECS);
         let command = entry["command"].as_str().unwrap();
         assert!(command.starts_with("sh ") && command.ends_with(" session"));
-        assert!(command.contains(GROK_HOOK_INSTALL_NAME));
+        assert!(command.contains(grok_hook_install_name()));
         assert!(
             config["hooks"]["SessionStart"][0].get("matcher").is_none(),
             "grok's entry is matcher-less: new/load sit outside claude's space"
@@ -206,7 +224,7 @@ mod tests {
 
         assert_eq!(
             fs::read_to_string(&second.hook_path).unwrap(),
-            GROK_HOOK_ASSET
+            grok_hook_asset()
         );
         assert_eq!(
             fs::read_to_string(&second.config_path).unwrap(),
@@ -242,7 +260,7 @@ mod tests {
         // Our config name (removed by name) but a foreign script (no marker).
         fs::write(hooks_dir.join(GROK_HOOK_CONFIG_INSTALL_NAME), "{}").unwrap();
         fs::write(
-            hooks_dir.join(GROK_HOOK_INSTALL_NAME),
+            hooks_dir.join(grok_hook_install_name()),
             "# user's own script, no marker\n",
         )
         .unwrap();
@@ -273,5 +291,23 @@ mod tests {
             err.contains("install grok cli first"),
             "error must say what to do: {err}"
         );
+    }
+
+    #[test]
+    fn the_windows_ps1_asset_is_a_marked_reporter_port() {
+        // The uninstall marker and the reporter contract, checked against the
+        // asset contents directly so the .ps1 variant cannot drift from the
+        // .sh reporter shape it ports (the file is never installed on this
+        // platform, so nothing else would catch it).
+        assert!(GROK_HOOK_ASSET_WINDOWS.contains(GROK_HOOK_MARKER));
+        assert!(
+            GROK_HOOK_ASSET_WINDOWS.contains("pane.report_agent_session"),
+            "speaks the same control-socket method"
+        );
+        assert!(GROK_HOOK_ASSET_WINDOWS.contains("par-mux:grok"));
+        // The grok-specific guards survive the port: the event-name
+        // tolerance and the injected session env.
+        assert!(GROK_HOOK_ASSET_WINDOWS.contains("session_start"));
+        assert!(GROK_HOOK_ASSET_WINDOWS.contains("GROK_SESSION_ID"));
     }
 }

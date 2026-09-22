@@ -30,8 +30,11 @@
 //! every failure.
 //!
 //! The engine is deliberately core-free (plain fs + jsonc parsing), so it
-//! builds and lints without the `mux` feature. The Windows `.ps1` asset
-//! variant is follow-up work — the merge machinery here is platform-neutral.
+//! builds and lints without the `mux` feature. Each arm installs a
+//! platform-selected asset — the `.sh` reporter on POSIX, a native
+//! PowerShell `.ps1` port on Windows (herdr's `powershell -File` command
+//! shape) — through the runtime-selected seam here, so both variants
+//! compile and are asserted on every platform.
 
 mod claude;
 mod codex;
