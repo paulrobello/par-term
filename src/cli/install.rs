@@ -538,6 +538,112 @@ pub fn uninstall_mux_extensions_cli() -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Install the par-mux session hooks for config-entry agents (CLI version)
+pub fn install_mux_hooks_cli(skip_prompt: bool) -> anyhow::Result<()> {
+    use crate::mux_hook_installer;
+
+    println!("=============================================");
+    println!("  par-term par-mux Hook Installer");
+    println!("=============================================");
+    println!();
+    println!("This installs the par-mux session hooks. Unlike the pi/omp");
+    println!("extensions (a file drop into the agent's directory), these agents");
+    println!("have no extension directory: the hook is an ENTRY inside your");
+    println!("existing agent config, merged without touching your other settings,");
+    println!("comments, or formatting. Reinstalling is a no-op; uninstalling");
+    println!("removes only par-term's entries.");
+    println!();
+    println!("Agents:");
+    println!(
+        "  claude: {}",
+        dir_display(mux_hook_installer::claude_settings_path())
+    );
+    println!();
+
+    if !skip_prompt {
+        println!();
+        print!("Do you want to continue? [y/N] ");
+        io::stdout().flush()?;
+
+        let mut response = String::new();
+        io::stdin().read_line(&mut response)?;
+        let response = response.trim().to_lowercase();
+
+        if response != "y" && response != "yes" {
+            println!("Installation cancelled.");
+            return Ok(());
+        }
+    }
+    println!();
+
+    let claude_result = mux_hook_installer::install_claude_hook();
+    match &claude_result {
+        Ok(result) if result.settings_changed => {
+            println!(
+                "claude: hook entry added to {} (script at {})",
+                result.settings_path.display(),
+                result.hook_path.display()
+            );
+        }
+        Ok(result) => {
+            println!(
+                "claude: already installed ({} unchanged, script refreshed)",
+                result.settings_path.display()
+            );
+        }
+        Err(err) => println!("claude: FAILED — {err}"),
+    }
+
+    if claude_result.is_ok() {
+        println!();
+        println!("At least one hook installed successfully.");
+        Ok(())
+    } else {
+        println!();
+        Err(anyhow::anyhow!("No hook installed (see errors above)"))
+    }
+}
+
+/// Uninstall the par-mux session hooks (CLI version)
+pub fn uninstall_mux_hooks_cli() -> anyhow::Result<()> {
+    use crate::mux_hook_installer;
+
+    println!("=============================================");
+    println!("  par-term par-mux Hook Uninstaller");
+    println!("=============================================");
+    println!();
+
+    let claude_result = mux_hook_installer::uninstall_claude_hook();
+    match &claude_result {
+        Ok(result) => {
+            if result.settings_changed {
+                println!(
+                    "claude: entries removed from {}",
+                    result.settings_path.display()
+                );
+            }
+            if result.hook_removed {
+                println!("claude: removed {}", result.hook_path.display());
+            }
+            if !result.settings_changed && !result.hook_removed {
+                if result.hook_path.is_file() {
+                    println!(
+                        "claude: {} exists but is not par-term's (left untouched)",
+                        result.hook_path.display()
+                    );
+                } else {
+                    println!("claude: not installed");
+                }
+            }
+        }
+        Err(err) => println!("claude: FAILED — {err}"),
+    }
+
+    println!();
+    println!("Done.");
+    Ok(())
+}
+
 fn dir_display(dir: std::io::Result<std::path::PathBuf>) -> String {
     match dir {
         Ok(path) => path.display().to_string(),
