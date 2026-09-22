@@ -259,19 +259,25 @@ impl WindowState {
     /// This should be called when the user clicks on a pane to ensure
     /// input is routed to the correct tmux pane.
     pub fn set_tmux_focused_pane_from_native(&mut self, native_pane_id: crate::pane::PaneId) {
-        if let Some(tmux_pane_id) = self
+        let Some(tmux_pane_id) = self
             .tmux_state
             .native_pane_to_tmux_pane
             .get(&native_pane_id)
-            && let Some(session) = &mut self.tmux_state.tmux_session
-        {
-            crate::debug_info!(
-                "TMUX",
-                "Setting focused pane: native {} -> tmux %{}",
-                native_pane_id,
-                tmux_pane_id
-            );
-            session.set_focused_pane(Some(*tmux_pane_id));
+            .copied()
+        else {
+            return;
+        };
+        crate::debug_info!(
+            "TMUX",
+            "Setting focused pane: native {} -> tmux %{}",
+            native_pane_id,
+            tmux_pane_id
+        );
+        if let Some(session) = &mut self.tmux_state.tmux_session {
+            session.set_focused_pane(Some(tmux_pane_id));
+        } else if self.tmux_state.transport.is_some() {
+            // par-mux transport: remember the focused pane for input routing.
+            self.tmux_state.mux_focused_pane = Some(tmux_pane_id);
         }
     }
 

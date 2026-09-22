@@ -157,10 +157,18 @@ impl MuxSessionClient {
         self.send(&command)
     }
 
-    /// Push the client's grid size; the daemon re-fits the window and
-    /// broadcasts `%layout-change` carrying the new geometry.
-    pub fn set_client_size(&mut self, cols: u16, rows: u16) -> io::Result<Vec<String>> {
-        self.send(&format!("refresh-client -C {cols}x{rows}"))
+    /// Push the client's grid size for the window holding `pane`; the
+    /// daemon re-fits that window and broadcasts `%layout-change` carrying
+    /// the new geometry. The `-t` target is required by the server — the
+    /// pane names the window whose size is being reported (latest report
+    /// wins, core T4.C).
+    pub fn set_client_size(
+        &mut self,
+        pane: TmuxPaneId,
+        cols: u16,
+        rows: u16,
+    ) -> io::Result<Vec<String>> {
+        self.send(&format!("refresh-client -t %{pane} -C {cols}x{rows}"))
     }
 
     /// The sync state, for window/pane ↔ tab/pane mapping on the app side.

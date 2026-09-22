@@ -31,6 +31,8 @@ mod flow_control;
 mod layout;
 mod layout_apply;
 mod layout_new_tab;
+#[cfg(feature = "mux")]
+pub(crate) mod mux;
 mod output;
 mod polling;
 mod session;

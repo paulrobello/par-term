@@ -42,6 +42,15 @@ impl WindowState {
     ///
     /// Returns true if any notifications were processed (triggers redraw).
     pub(crate) fn check_tmux_notifications(&mut self) -> bool {
+        // par-mux transport: an independent notification source, not gated
+        // on tmux_enabled — the daemon owns the sessions, not tmux.
+        #[cfg(feature = "mux")]
+        {
+            if self.tmux_state.transport.is_some() {
+                return self.check_mux_notifications();
+            }
+        }
+
         // Early exit if tmux integration is disabled
         if !self.config.load().tmux.tmux_enabled {
             return false;

@@ -100,9 +100,10 @@ impl MuxSessionClient {
     }
 
     /// Ask the daemon to replay a pane's visible screen — the per-pane
-    /// seeding step of reattach. (`refresh-client -t` without `-C` is a
-    /// plain replay; size-driven refits go through
-    /// [`MuxSessionClient::set_client_size`].)
+    /// seeding step of reattach. The replay arrives as the COMMAND REPLY
+    /// (the pane's screen content), not a `%output` push, so callers feed
+    /// the returned lines to their pane terminal. Size-driven refits go
+    /// through [`MuxSessionClient::set_client_size`].
     pub fn refresh_pane(&mut self, pane: TmuxPaneId) -> io::Result<Vec<String>> {
         self.send(&format!("refresh-client -t %{pane}"))
     }

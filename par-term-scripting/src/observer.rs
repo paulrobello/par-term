@@ -132,6 +132,16 @@ impl ScriptEventForwarder {
             TerminalEvent::FileTransferFailed { .. } => "file_transfer_failed".to_string(),
             TerminalEvent::UploadRequested { .. } => "upload_requested".to_string(),
             TerminalEvent::ScreenCleared { .. } => "screen_cleared".to_string(),
+
+            // Core variants this mapping predates (InlineImageDropped
+            // arrived with the local 0.50 line) and any future ones. A
+            // named arm per variant would fail compilation against the
+            // published 0.49 pin, and a plain wildcard is unreachable
+            // there (an error under -D warnings) — so the arm carries the
+            // allow, the one form valid on both versions (same shape as
+            // the ParserBridge tolerance, 67211ee3).
+            #[allow(unreachable_patterns)]
+            _ => "unknown".to_string(),
         }
     }
 

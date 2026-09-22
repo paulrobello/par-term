@@ -10,6 +10,18 @@ impl WindowState {
     ///
     /// Returns true if input was handled via tmux, false if it should go to PTY directly.
     pub fn send_input_via_tmux(&self, data: &[u8]) -> bool {
+        // par-mux transport routes input through the daemon client.
+        #[cfg(feature = "mux")]
+        {
+            if let Some(transport) = &self.tmux_state.transport {
+                return super::notifications::mux::route_input(
+                    &**transport,
+                    self.tmux_state.mux_focused_pane,
+                    data,
+                );
+            }
+        }
+
         // Check if tmux is enabled and connected
         if !self.config.load().tmux.tmux_enabled || !self.is_tmux_connected() {
             crate::debug_trace!(
@@ -84,6 +96,18 @@ impl WindowState {
         let session = match &self.tmux_state.tmux_session {
             Some(s) => s,
             None => {
+                // par-mux transport: the literal form routes through the
+                // daemon client too (send-keys -H).
+                #[cfg(feature = "mux")]
+                {
+                    if let Some(transport) = &self.tmux_state.transport {
+                        return super::notifications::mux::route_literal_bytes(
+                            &**transport,
+                            self.tmux_state.mux_focused_pane,
+                            bytes,
+                        );
+                    }
+                }
                 crate::debug_info!("SHIFTENTER", "send_literal_bytes_via_tmux: no tmux_session");
                 return false;
             }

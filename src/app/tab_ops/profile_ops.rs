@@ -151,6 +151,18 @@ impl WindowState {
                         }
                     }
                 }
+
+                // Auto-attach a par-mux session (create-or-attach) when the
+                // profile names one; the tmux block above owns the window
+                // when a gateway session is active.
+                #[cfg(feature = "mux")]
+                if let Some(ref mux_name) = profile.mux_session_name
+                    && self.tmux_state.transport.is_none()
+                    && !self.is_gateway_active()
+                    && let Err(e) = self.start_mux_session(mux_name)
+                {
+                    crate::debug_error!("MUX", "Profile mux auto-attach failed: {e}");
+                }
             }
             Err(e) => {
                 log::error!("Failed to open profile '{}': {}", profile.name, e);
