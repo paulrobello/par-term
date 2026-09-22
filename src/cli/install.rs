@@ -558,6 +558,10 @@ pub fn install_mux_hooks_cli(skip_prompt: bool) -> anyhow::Result<()> {
         "  claude: {}",
         dir_display(mux_hook_installer::claude_settings_path())
     );
+    println!(
+        "  grok:  {}",
+        dir_display(mux_hook_installer::grok_config_dir().map(|dir| dir.join("hooks")))
+    );
     println!();
 
     if !skip_prompt {
@@ -594,7 +598,19 @@ pub fn install_mux_hooks_cli(skip_prompt: bool) -> anyhow::Result<()> {
         Err(err) => println!("claude: FAILED — {err}"),
     }
 
-    if claude_result.is_ok() {
+    // grok merges every <config>/hooks/*.json, so its arm writes an owned
+    // config file instead of merging.
+    let grok_result = mux_hook_installer::install_grok_hook();
+    match &grok_result {
+        Ok(result) => println!(
+            "grok:  hook config written to {} (script at {})",
+            result.config_path.display(),
+            result.hook_path.display()
+        ),
+        Err(err) => println!("grok:  FAILED — {err}"),
+    }
+
+    if claude_result.is_ok() || grok_result.is_ok() {
         println!();
         println!("At least one hook installed successfully.");
         Ok(())
@@ -637,6 +653,29 @@ pub fn uninstall_mux_hooks_cli() -> anyhow::Result<()> {
             }
         }
         Err(err) => println!("claude: FAILED — {err}"),
+    }
+
+    let grok_result = mux_hook_installer::uninstall_grok_hook();
+    match &grok_result {
+        Ok(result) => {
+            if result.config_removed {
+                println!("grok:  removed {}", result.config_path.display());
+            }
+            if result.hook_removed {
+                println!("grok:  removed {}", result.hook_path.display());
+            }
+            if !result.config_removed && !result.hook_removed {
+                if result.hook_path.is_file() {
+                    println!(
+                        "grok:  {} exists but is not par-term's (left untouched)",
+                        result.hook_path.display()
+                    );
+                } else {
+                    println!("grok:  not installed");
+                }
+            }
+        }
+        Err(err) => println!("grok:  FAILED — {err}"),
     }
 
     println!();
