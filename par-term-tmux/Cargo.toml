@@ -34,3 +34,7 @@ hostname.workspace = true
 log.workspace = true
 
 [dev-dependencies]
+# Conformance test against the core's mux layout emitter
+# (tests/layout_conformance.rs). A dev-dependency so the shipped library does
+# not enable the core's mux (server) feature.
+par-term-emu-core-rust = { workspace = true, features = ["mux"] }
