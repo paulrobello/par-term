@@ -52,7 +52,12 @@ jobs:
       run: cargo fmt -- --check
 
     - name: Run clippy
-      run: cargo clippy --all-targets --all-features -- -D warnings
+      # Two passes: workspace tests/bins at default features + root all-features.
+      # Workspace-wide --all-features waits for the core >=0.50 pin raise
+      # (card 01a0c723f7b070239ecc5f6fce02f4fc).
+      run: |
+        cargo clippy --workspace --all-targets -- -D warnings
+        cargo clippy -p par-term --all-targets --all-features -- -D warnings
 
     - name: Install cargo-deny
       # Pinned: new cargo-deny releases can change the deny.toml schema and

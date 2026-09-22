@@ -211,15 +211,20 @@ fmt-check:
 	@echo "Checking code formatting..."
 	cargo fmt -- --check
 
-# Run clippy linter
+# Run clippy linter. Two passes: the whole workspace's tests/bins at default
+# features, plus the root crate with all features (dev-tools bins, mdns, ...).
+# A workspace-wide --all-features pass must wait for the core >=0.50 pin raise —
+# layout-conformance only compiles against the vendored local core
+# (card 01a0c723f7b070239ecc5f6fce02f4fc).
 lint:
 	@echo "Running clippy..."
-	cargo clippy --all-targets --all-features -- -D warnings
+	cargo clippy --workspace --all-targets -- -D warnings
+	cargo clippy -p par-term --all-targets --all-features -- -D warnings
 
-# Run clippy on all targets
-lint-all:
-	@echo "Running clippy on all targets..."
-	cargo clippy --all-targets --all-features -- -D warnings
+# Run clippy on all targets (currently identical to lint; the extra pass —
+# workspace-wide --all-features — lands with the core >=0.50 pin raise)
+lint-all: lint
+	@echo "Clippy all targets passed."
 
 # Run all quality checks (format-check, lint, typecheck, test) — does NOT mutate files
 checkall: fmt-check lint typecheck test

@@ -1692,7 +1692,7 @@ for line in iter(sys.stdin.readline, ""):
             kind: "bell_rang".to_string(),
             data: ScriptEventData::Empty {},
         };
-        host.deliver_events("com.test.nobody", &[event.clone()]);
+        host.deliver_events("com.test.nobody", std::slice::from_ref(&event));
         assert_eq!(warns_containing("com.test.nobody"), 0);
     }
 }
