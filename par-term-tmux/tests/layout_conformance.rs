@@ -14,13 +14,16 @@
 //! feature, first present in core >= 0.50 and not yet on crates.io, breaks
 //! cargo resolution against crates.io 0.49 even with the feature disabled,
 //! because cargo validates `[features]` dep-forwarding eagerly. Local run:
-//! apply the vendoring recipe from the repo CLAUDE.md (patch + pin raise),
-//! extend the feature locally to `["par-term-emu-core-rust/mux"]`, then
-//! `cargo test -p par-term-tmux --features layout-conformance`. Once the
-//! core publishes >= 0.50, the forwarding entry and pin can be committed
-//! and this runs in CI.
+//! `make with-local-core` — scripts/with-local-core.sh applies the vendoring
+//! recipe from the repo CLAUDE.md (patch, pin raise, feature forwarding) and
+//! auto-reverts the manifests on exit. Once the core publishes >= 0.50, the
+//! forwarding entry and pin can be committed and this runs in CI.
 
-use par_term_emu_core_rust::mux::{LayoutTree, PaneId, SplitDirection};
+use par_term_emu_core_rust::mux::layout::ResizeDirection;
+use par_term_emu_core_rust::mux::{
+    LayoutTree, MuxError, MuxPane, MuxTree, PaneFactory, PaneId, SessionId, ShellPaneFactory,
+    SplitDirection, WindowId,
+};
 use par_term_tmux::{LayoutNode, TmuxLayout};
 
 type PaneRow = (u64, usize, usize, usize, usize);
@@ -212,5 +215,193 @@ fn pinned_wire_format_example_matches_tmux_grammar() {
     assert_eq!(
         tree.render(0, 0, 89, 24),
         "0000,89x24,0,0{45x24,0,0,0,44x24,45,0,1}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Phase 2: layouts that RESULT from the pane-command surface, driven through
+// the core's MuxTree API (split-window / resize-pane / swap-pane /
+// select-pane) rather than hand-constructed LayoutTree values, so the cases
+// track real mutation behavior.
+// ---------------------------------------------------------------------------
+
+/// Panes that stay silent for the test's lifetime — the same shape the
+/// core's own server tests use (`sleep 30`) so no shell-prompt race can
+/// leak into anything. Layout conformance never reads pane output; the
+/// child exists only because `PaneFactory` must return a real `MuxPane`.
+struct QuietFactory;
+
+impl PaneFactory for QuietFactory {
+    fn create_pane(
+        &self,
+        id: PaneId,
+        cols: u16,
+        rows: u16,
+        _command: Option<&str>,
+    ) -> Result<MuxPane, MuxError> {
+        ShellPaneFactory::default().create_pane(id, cols, rows, Some("sleep 30"))
+    }
+}
+
+/// The (only) window of a freshly created session.
+fn sole_window(tree: &MuxTree, session: SessionId) -> WindowId {
+    tree.session(session).expect("session exists").windows[0]
+}
+
+/// Wire-order pane rows for a layout rendered then parsed by the REAL
+/// parser (unsorted — leaf order on the wire is the thing under test).
+fn wire_panes(tree: &LayoutTree, x: usize, y: usize, width: usize, height: usize) -> Vec<PaneRow> {
+    let rendered = tree.render(x, y, width, height);
+    let layout = TmuxLayout::parse(&rendered)
+        .unwrap_or_else(|| panic!("real parser rejected render() output: {rendered}"));
+    let mut panes = Vec::new();
+    collect_panes(&layout.root, &mut panes);
+    panes
+}
+
+#[test]
+fn split_window_growth_through_mux_tree_round_trips() {
+    let mut tree = MuxTree::new(Box::new(QuietFactory));
+    let session = tree.new_session("conformance", 80, 24).expect("session");
+    let window_id = sole_window(&tree, session);
+
+    // split-window twice through the command-tier API: vertical on the
+    // initial pane, then horizontal on the pane the first split made active.
+    let first = tree.window(window_id).expect("window").active;
+    let second = tree
+        .split_pane(first, SplitDirection::Vertical, 0.5, None)
+        .expect("first split");
+    let third = tree
+        .split_pane(second, SplitDirection::Horizontal, 0.5, None)
+        .expect("second split");
+
+    let window = tree.window(window_id).expect("window");
+    assert_eq!(
+        window.active, third,
+        "split-window makes the new pane active"
+    );
+    assert_eq!(window.panes().len(), 3);
+
+    let layout = assert_round_trips(&window.layout, 0, 0, 80, 24);
+    match &layout.root {
+        LayoutNode::VerticalSplit { children, .. } => {
+            assert!(
+                matches!(children[1], LayoutNode::HorizontalSplit { .. }),
+                "the second split must live inside the second child, got {:?}",
+                children[1]
+            );
+        }
+        other => panic!("expected VerticalSplit root, got {other:?}"),
+    }
+}
+
+#[test]
+fn resize_pane_moves_the_divider_and_round_trips() {
+    let mut tree = MuxTree::new(Box::new(QuietFactory));
+    let session = tree.new_session("conformance", 80, 24).expect("session");
+    let window_id = sole_window(&tree, session);
+
+    let left = tree.window(window_id).expect("window").active;
+    let right = tree
+        .split_pane(left, SplitDirection::Vertical, 0.5, None)
+        .expect("split");
+
+    // resize-pane -R 8 on the LEFT pane: the divider moves 8 columns right.
+    tree.resize_pane(left, ResizeDirection::Right, 8)
+        .expect("resize");
+
+    let window = tree.window(window_id).expect("window");
+    assert_round_trips(&window.layout, 0, 0, 80, 24);
+    let panes = wire_panes(&window.layout, 0, 0, 80, 24);
+    assert_eq!(
+        panes[0],
+        (left.0 as u64, 0, 0, 48, 24),
+        "the resized pane grows by the delta"
+    );
+    assert_eq!(
+        panes[1],
+        (right.0 as u64, 48, 0, 32, 24),
+        "the neighbor cedes the same delta"
+    );
+}
+
+#[test]
+fn swap_panes_permutes_ids_over_unchanged_slots() {
+    let mut tree = MuxTree::new(Box::new(QuietFactory));
+    let session = tree.new_session("conformance", 90, 24).expect("session");
+    let window_id = sole_window(&tree, session);
+
+    let a = tree.window(window_id).expect("window").active;
+    let b = tree
+        .split_pane(a, SplitDirection::Vertical, 0.5, None)
+        .expect("split 1");
+    let c = tree
+        .split_pane(b, SplitDirection::Vertical, 0.5, None)
+        .expect("split 2");
+
+    let before = wire_panes(
+        &tree.window(window_id).expect("window").layout,
+        0,
+        0,
+        90,
+        24,
+    );
+    let before_ids: Vec<u64> = before.iter().map(|p| p.0).collect();
+    assert_eq!(before_ids, vec![a.0 as u64, b.0 as u64, c.0 as u64]);
+
+    tree.swap_panes(a, c).expect("swap");
+
+    let window = tree.window(window_id).expect("window");
+    assert_round_trips(&window.layout, 0, 0, 90, 24);
+    let after = wire_panes(&window.layout, 0, 0, 90, 24);
+    let after_ids: Vec<u64> = after.iter().map(|p| p.0).collect();
+    assert_eq!(
+        after_ids,
+        vec![c.0 as u64, b.0 as u64, a.0 as u64],
+        "the swapped ids exchange wire positions"
+    );
+    for (slot, (was, now)) in before.iter().zip(after.iter()).enumerate() {
+        assert_eq!(
+            (now.1, now.2, now.3, now.4),
+            (was.1, was.2, was.3, was.4),
+            "slot {slot} geometry must be unchanged by the swap"
+        );
+    }
+}
+
+#[test]
+fn select_pane_changes_active_but_not_the_wire() {
+    // tmux's layout string carries no focus field, so select-pane must leave
+    // the rendered layout byte-identical while the window's active pane
+    // moves. This pins that the wire contract is geometry only — if the
+    // emitter ever starts encoding focus, this is the test that says so.
+    let mut tree = MuxTree::new(Box::new(QuietFactory));
+    let session = tree.new_session("conformance", 80, 24).expect("session");
+    let window_id = sole_window(&tree, session);
+
+    let original = tree.window(window_id).expect("window").active;
+    let spawned = tree
+        .split_pane(original, SplitDirection::Vertical, 0.5, None)
+        .expect("split");
+    assert_eq!(
+        tree.window(window_id).expect("window").active,
+        spawned,
+        "split-window makes the new pane active"
+    );
+
+    let before = tree
+        .window(window_id)
+        .expect("window")
+        .layout
+        .render(0, 0, 80, 24);
+
+    tree.select_pane(original).expect("select");
+
+    let window = tree.window(window_id).expect("window");
+    assert_eq!(window.active, original, "select-pane moves focus");
+    assert_eq!(
+        window.layout.render(0, 0, 80, 24),
+        before,
+        "the wire layout must not encode focus"
     );
 }
