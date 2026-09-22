@@ -293,6 +293,58 @@ impl WindowState {
         self.with_window(|w| w.set_title(&formatted));
     }
 
+    /// Apply `%agent-state-changed` pushes to the roster cache. Returns
+    /// whether any push landed (a roster surface may need to re-render).
+    ///
+    /// Extracted from [`Self::check_mux_notifications`] so the manners rule
+    /// (REPORT.md E3: an agent needing attention joins a list and the
+    /// indicator glows — it never steals focus) is testable without a live
+    /// daemon. Everything this does beyond `AgentRoster::apply_push` is
+    /// return the redraw flag; introducing a focus call, window raise,
+    /// notification, or palette open here is the interruption E3 forbids,
+    /// and the test below is the alarm.
+    pub(super) fn apply_agent_pushes(
+        &mut self,
+        pushes: Vec<par_term_emu_core_rust::tmux_control::TmuxNotification>,
+    ) -> bool {
+        let mut needs_redraw = false;
+        for push in pushes {
+            if let par_term_emu_core_rust::tmux_control::TmuxNotification::AgentStateChanged {
+                pane_id,
+                agent,
+                state,
+                source,
+            } = push
+            {
+                match AgentEntry::from_push(&pane_id, &agent, &state, &source) {
+                    Some(entry) => {
+                        // Explicit field reads (reason included) keep the
+                        // entry honest in the log while the wire cannot
+                        // carry a reason yet.
+                        crate::debug_info!(
+                            "MUX",
+                            "agent roster push: %{} {} {} source={:?} reason={:?}",
+                            entry.pane,
+                            entry.agent,
+                            entry.state,
+                            entry.source,
+                            entry.reason
+                        );
+                        self.tmux_state.agent_roster.apply_push(entry);
+                        // Roster surfaces (A2b tasks 2/3) render from this
+                        // cache, so a push is a potential visual change.
+                        needs_redraw = true;
+                    }
+                    None => crate::debug_log!(
+                        "MUX",
+                        "dropped unattributed agent push: {pane_id} {agent} {state}"
+                    ),
+                }
+            }
+        }
+        needs_redraw
+    }
+
     /// Drain the par-mux transport and dispatch through the same grouped
     /// consumer path as `check_tmux_notifications`: session/window
     /// structure before layout before output. Called from the shared poll
@@ -348,42 +400,7 @@ impl WindowState {
 
         crate::debug_info!("MUX", "Processing {} notifications", notifications.len());
 
-        let mut needs_redraw = false;
-
-        for push in agent_pushes {
-            if let par_term_emu_core_rust::tmux_control::TmuxNotification::AgentStateChanged {
-                pane_id,
-                agent,
-                state,
-                source,
-            } = push
-            {
-                match AgentEntry::from_push(&pane_id, &agent, &state, &source) {
-                    Some(entry) => {
-                        // Explicit field reads (reason included) keep the
-                        // entry honest in the log while the wire cannot
-                        // carry a reason yet.
-                        crate::debug_info!(
-                            "MUX",
-                            "agent roster push: %{} {} {} source={:?} reason={:?}",
-                            entry.pane,
-                            entry.agent,
-                            entry.state,
-                            entry.source,
-                            entry.reason
-                        );
-                        self.tmux_state.agent_roster.apply_push(entry);
-                        // Roster surfaces (A2b tasks 2/3) render from this
-                        // cache, so a push is a potential visual change.
-                        needs_redraw = true;
-                    }
-                    None => crate::debug_log!(
-                        "MUX",
-                        "dropped unattributed agent push: {pane_id} {agent} {state}"
-                    ),
-                }
-            }
-        }
+        let mut needs_redraw = self.apply_agent_pushes(agent_pushes);
 
         // Same bucket split as polling.rs — direct handlers TmuxSync cannot
         // translate, then the sync groups in dependency order.
@@ -741,5 +758,96 @@ mod tests {
         );
 
         let _ = std::fs::remove_file(&path);
+    }
+
+    /// A `WindowState` with no window, renderer, or tabs — the same seam
+    /// `dispatch_tests::test_window_state` uses — so the manners test can
+    /// hold the real `apply_agent_pushes` receiver without a live daemon.
+    fn manners_state() -> crate::app::window_state::WindowState {
+        let runtime = std::sync::Arc::new(
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("build test runtime"),
+        );
+        crate::app::window_state::WindowState::new(crate::config::Config::default(), runtime)
+    }
+
+    fn push(
+        pane: &str,
+        agent: &str,
+        state: &str,
+        source: &str,
+    ) -> par_term_emu_core_rust::tmux_control::TmuxNotification {
+        par_term_emu_core_rust::tmux_control::TmuxNotification::AgentStateChanged {
+            pane_id: pane.to_string(),
+            agent: agent.to_string(),
+            state: state.to_string(),
+            source: source.to_string(),
+        }
+    }
+
+    /// REPORT.md E3, pinned (A2b task 4): an agent needing attention joins
+    /// a list and the indicator glows — it never steals focus. The roster
+    /// update path may set the redraw flag (that is the glow) and may
+    /// change what the status widget and a user-opened palette RENDER; it
+    /// must not itself focus a pane, raise the window, notify, or open or
+    /// pre-select the palette. Assertions are on the absence of those
+    /// calls' effects, not on rendered output — a snapshot would pass
+    /// while a focus call fired beside it.
+    ///
+    /// This test failing is the intended alarm, not an obstacle to route
+    /// around: a future change that genuinely needs to interrupt is an
+    /// owner decision and a change to E3.
+    #[test]
+    fn roster_updates_never_steal_focus_raise_notify_or_open_the_palette() {
+        let mut ws = manners_state();
+        // Baseline: palette closed, nothing queued, no tab focused.
+        assert!(!ws.overlay_ui.command_palette.visible);
+        assert!(ws.overlay_state.toast_message.is_none());
+        assert!(ws.tab_manager.active_tab_id().is_none());
+        assert!(ws.focus_state.pending_focus_tab_switch.is_none());
+
+        // Both arrivals the rule names at once: a NEW agent entering the
+        // roster (a spawn is not an interruption) and a state transition
+        // to blocked on an existing pane (waiting is not an interruption
+        // either).
+        let redraw = ws.apply_agent_pushes(vec![
+            push("%0", "kimi", "idle", "hook"),
+            push("%2", "claude", "blocked", "hook"),
+        ]);
+
+        // The glow half of E3 is intact: the roster took both arrivals
+        // and the redraw flag is set.
+        assert!(redraw, "a roster change is a potential visual change");
+        let rosterd: Vec<(u64, &str)> = ws
+            .tmux_state
+            .agent_roster
+            .iter()
+            .map(|e| (e.pane, e.state.as_str()))
+            .collect();
+        assert_eq!(
+            rosterd,
+            vec![(0, "idle"), (2, "blocked")],
+            "both arrivals must land in the cache the surfaces read"
+        );
+
+        // The manners half: none of the interruption channels moved.
+        assert!(
+            !ws.overlay_ui.command_palette.visible,
+            "a roster update must not open the palette"
+        );
+        assert!(
+            ws.overlay_state.toast_message.is_none(),
+            "a roster update must not notify"
+        );
+        assert!(
+            ws.tab_manager.active_tab_id().is_none(),
+            "a roster update must not focus a pane or switch tabs"
+        );
+        assert!(
+            ws.focus_state.pending_focus_tab_switch.is_none(),
+            "a roster update must not queue a tab switch"
+        );
     }
 }
