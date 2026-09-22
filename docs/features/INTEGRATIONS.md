@@ -11,6 +11,7 @@ par-term provides optional integrations to enhance your terminal experience, inc
   - [How It Works](#how-it-works)
   - [Troubleshooting](#troubleshooting-shell)
 - [Remote Shell Integration](#remote-shell-integration)
+- [par-mux Agent Extensions](#par-mux-agent-extensions)
 - [Shader Installation](#shader-installation)
   - [Included Shaders](#included-shaders)
   - [Installation Methods](#shader-installation-methods)
@@ -175,6 +176,26 @@ curl -sSL https://paulrobello.github.io/par-term/install-shell-integration.sh | 
 
 > **📝 Note:** The install script auto-detects the remote shell (bash, zsh, or fish) and installs the appropriate integration script. Restart the remote shell after installation for changes to take effect.
 
+## par-mux Agent Extensions
+
+When you run agents (pi or omp) inside panes of a par-mux session, par-term can install an agent-state extension into each agent's extension directory. The extension reports the agent's state (working / blocked / idle, plus session identity) over the session's control socket, so the roster reflects what the agent itself says rather than screen scraping.
+
+**Installation:**
+```bash
+par-term install-mux-extensions [-y|--yes]
+par-term uninstall-mux-extensions
+```
+
+Targets:
+- **pi**: `$PI_CODING_AGENT_DIR` or `~/.pi/agent`, under `extensions`
+- **omp**: `$PI_CODING_AGENT_DIR` (omp is a pi fork and honors it) or `$PI_CONFIG_DIR`/`~/.omp`, under `agent/extensions`
+
+Behavior notes:
+- An agent that is not installed is reported and skipped — the install names the missing directory.
+- Because both agents honor `PI_CODING_AGENT_DIR`, setting it makes both targets resolve to the same directory; the installer refuses rather than letting one agent's file shadow the other's.
+- The extension is inert outside par-mux panes: it only reports when `PAR_MUX_ENV=1` and the pane's `PAR_MUX_SOCKET`/`PAR_MUX_PANE_ID` are set, which only happens inside a par-mux session.
+- Uninstall removes only par-term's own file (identified by its `PAR_MUX_INTEGRATION_ID` header marker); a same-named file without the marker is left untouched.
+
 ## Shader Installation
 
 par-term includes a collection of 73 ready-to-use GLSL shaders (61 background + 12 cursor), cubemap environments, and texture packs.
@@ -336,6 +357,12 @@ par-term uninstall-shaders [-f|--force]
 **Combined:**
 ```bash
 par-term install-integrations [-y|--yes]
+```
+
+**par-mux Agent Extensions:**
+```bash
+par-term install-mux-extensions [-y|--yes]
+par-term uninstall-mux-extensions
 ```
 
 ## Related Documentation
