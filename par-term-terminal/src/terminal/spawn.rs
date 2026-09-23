@@ -204,6 +204,11 @@ impl TerminalManager {
         let terminal = pty.terminal();
         let mut term = terminal.write();
         term.process(data);
+        // A mux pane has no PTY reader thread to bump the generation, and
+        // the app's render cache is keyed on it — without this bump the
+        // cache serves stale cells forever (panes only redrawn on focus).
+        drop(term);
+        pty.mark_updated();
     }
 
     /// Paste text to the terminal with proper bracketed paste handling.
