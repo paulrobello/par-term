@@ -10,7 +10,10 @@ impl WindowState {
     ///
     /// Returns true if input was handled via tmux, false if it should go to PTY directly.
     pub fn send_input_via_tmux(&self, data: &[u8]) -> bool {
-        // par-mux transport routes input through the daemon client.
+        // par-mux transport routes input through the daemon client — but
+        // only when the user is focused on a MUX pane. A local tab's input
+        // must fall through to its own PTY; consuming it here starves every
+        // non-mux tab the moment a transport is attached.
         #[cfg(feature = "mux")]
         {
             if let Some(transport) = &self.tmux_state.transport {
@@ -23,7 +26,13 @@ impl WindowState {
                     .tmux_state
                     .mux_focused_pane
                     .or_else(|| self.focused_mux_pane_from_native());
-                return super::notifications::mux::route_input(&**transport, focused, data);
+                return match focused {
+                    Some(focused) => {
+                        super::notifications::mux::route_input(&**transport, Some(focused), data)
+                    }
+                    // Not on a mux pane: let the caller write to the local PTY.
+                    None => false,
+                };
             }
         }
 
@@ -110,11 +119,15 @@ impl WindowState {
                             .tmux_state
                             .mux_focused_pane
                             .or_else(|| self.focused_mux_pane_from_native());
-                        return super::notifications::mux::route_literal_bytes(
-                            &**transport,
-                            focused,
-                            bytes,
-                        );
+                        return match focused {
+                            Some(focused) => super::notifications::mux::route_literal_bytes(
+                                &**transport,
+                                Some(focused),
+                                bytes,
+                            ),
+                            // Not on a mux pane: local PTY input.
+                            None => false,
+                        };
                     }
                 }
                 crate::debug_info!("SHIFTENTER", "send_literal_bytes_via_tmux: no tmux_session");

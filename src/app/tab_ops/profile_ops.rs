@@ -46,161 +46,172 @@ impl WindowState {
 
         let prior_active_idx = self.tab_manager.active_tab_index();
 
-        match self.tab_manager.new_tab_from_profile(
-            &self.config.load(),
-            Arc::clone(&self.runtime),
-            &profile,
-            grid_size,
-        ) {
-            Ok(tab_id) => {
-                if self.config.load().tabs.new_tab_position
-                    == crate::config::NewTabPosition::AfterActive
-                    && let Some(idx) = prior_active_idx
-                {
-                    self.tab_manager.move_tab_to_index(tab_id, idx + 1);
-                }
+        // Auto-attach a par-mux session (create-or-attach) when the
+        // profile names one; the tmux block further down owns the window
+        // when a gateway session is active. The daemon connect/spawn runs
+        // off the event loop (begin/poll pair). This runs BEFORE the
+        // profile-tab decision: a mux-only profile opens no local tab —
+        // its tab arrives from the daemon's %window-add.
+        #[cfg(feature = "mux")]
+        let mux_only = {
+            let mux_only = profile.mux_session_name.is_some()
+                && profile.command.is_none()
+                && profile.tmux_session_name.is_none();
+            if let Some(ref mux_name) = profile.mux_session_name
+                && self.tmux_state.transport.is_none()
+                && !self.is_gateway_active()
+            {
+                self.begin_mux_session_attach(mux_name);
+            }
+            mux_only
+        };
+        #[cfg(not(feature = "mux"))]
+        let mux_only = false;
 
-                // Set profile icon on the new tab
-                if let Some(tab) = self.tab_manager.get_tab_mut(tab_id) {
-                    tab.profile.profile_icon = profile.icon.clone();
-                }
-
-                // Start refresh task for the new tab and resize to match window
-                if let Some(window) = &self.window
-                    && let Some(tab) = self.tab_manager.get_tab_mut(tab_id)
-                {
-                    tab.start_refresh_task(
-                        Arc::clone(&self.runtime),
-                        Arc::clone(window),
-                        self.config.load().rendering.max_fps,
-                        self.config.load().power.inactive_tab_fps,
-                    );
-
-                    // Resize terminal to match current renderer dimensions
-                    // try_lock: intentional — duplicate tab initialization in sync event loop.
-                    // On miss: duplicate tab starts with default dimensions; corrected on next
-                    // Resized event.
-                    if let Some(renderer) = &self.renderer
-                        && let Ok(mut term) = tab.terminal.try_write()
+        if !mux_only {
+            match self.tab_manager.new_tab_from_profile(
+                &self.config.load(),
+                Arc::clone(&self.runtime),
+                &profile,
+                grid_size,
+            ) {
+                Ok(tab_id) => {
+                    if self.config.load().tabs.new_tab_position
+                        == crate::config::NewTabPosition::AfterActive
+                        && let Some(idx) = prior_active_idx
                     {
-                        let (cols, rows) = renderer.grid_size();
-                        let size = renderer.size();
-                        let width_px = size.width as usize;
-                        let height_px = size.height as usize;
-
-                        term.set_cell_dimensions(
-                            renderer.cell_width() as u32,
-                            renderer.cell_height() as u32,
-                        );
-                        if let Err(e) = term.resize_with_pixels(cols, rows, width_px, height_px) {
-                            crate::debug_error!(
-                                "TERMINAL",
-                                "resize_with_pixels failed (open_profile): {e}"
-                            );
-                        }
-                        log::info!(
-                            "Opened profile '{}' in tab {} ({}x{} at {}x{} px)",
-                            profile.name,
-                            tab_id,
-                            cols,
-                            rows,
-                            width_px,
-                            height_px
-                        );
+                        self.tab_manager.move_tab_to_index(tab_id, idx + 1);
                     }
-                }
 
-                // Update badge and shader settings with profile information
-                self.apply_profile_badge(&profile);
-                self.apply_profile_shader_settings(&profile);
+                    // Set profile icon on the new tab
+                    if let Some(tab) = self.tab_manager.get_tab_mut(tab_id) {
+                        tab.profile.profile_icon = profile.icon.clone();
+                    }
 
-                self.focus_state.needs_redraw = true;
-                self.request_redraw();
+                    // Start refresh task for the new tab and resize to match window
+                    if let Some(window) = &self.window
+                        && let Some(tab) = self.tab_manager.get_tab_mut(tab_id)
+                    {
+                        tab.start_refresh_task(
+                            Arc::clone(&self.runtime),
+                            Arc::clone(window),
+                            self.config.load().rendering.max_fps,
+                            self.config.load().power.inactive_tab_fps,
+                        );
 
-                // Auto-connect tmux session if profile has one configured
-                if let Some(ref session_name) = profile.tmux_session_name
-                    && self.config.load().tmux.tmux_enabled
-                    && !self.is_gateway_active()
-                {
-                    match profile.tmux_connection_mode {
-                        par_term_config::TmuxConnectionMode::ControlMode => {
-                            if let Err(e) = self.initiate_tmux_gateway(Some(session_name)) {
-                                crate::debug_error!(
-                                    "TMUX",
-                                    "Profile tmux auto-connect failed: {}",
-                                    e
-                                );
-                            }
-                        }
-                        par_term_config::TmuxConnectionMode::Normal => {
-                            // Write plain tmux command directly to the PTY
-                            let cmd = format!(
-                                "{} new-session -A -s '{}'\n",
-                                self.config.load().tmux.tmux_path,
-                                session_name.replace('\'', "'\\''")
+                        // Resize terminal to match current renderer dimensions
+                        // try_lock: intentional — duplicate tab initialization in sync event loop.
+                        // On miss: duplicate tab starts with default dimensions; corrected on next
+                        // Resized event.
+                        if let Some(renderer) = &self.renderer
+                            && let Ok(mut term) = tab.terminal.try_write()
+                        {
+                            let (cols, rows) = renderer.grid_size();
+                            let size = renderer.size();
+                            let width_px = size.width as usize;
+                            let height_px = size.height as usize;
+
+                            term.set_cell_dimensions(
+                                renderer.cell_width() as u32,
+                                renderer.cell_height() as u32,
                             );
-                            if let Some(tab) = self.tab_manager.active_tab_mut()
-                                && let Ok(term) = tab.terminal.try_read()
-                                && let Err(e) = term.write(cmd.as_bytes())
+                            if let Err(e) = term.resize_with_pixels(cols, rows, width_px, height_px)
                             {
                                 crate::debug_error!(
-                                    "TAB_ACTION",
-                                    "PTY write failed (tmux profile attach): {e}"
+                                    "TERMINAL",
+                                    "resize_with_pixels failed (open_profile): {e}"
                                 );
+                            }
+                            log::info!(
+                                "Opened profile '{}' in tab {} ({}x{} at {}x{} px)",
+                                profile.name,
+                                tab_id,
+                                cols,
+                                rows,
+                                width_px,
+                                height_px
+                            );
+                        }
+                    }
+
+                    // Update badge and shader settings with profile information
+                    self.apply_profile_badge(&profile);
+                    self.apply_profile_shader_settings(&profile);
+
+                    self.focus_state.needs_redraw = true;
+                    self.request_redraw();
+
+                    // Auto-connect tmux session if profile has one configured
+                    if let Some(ref session_name) = profile.tmux_session_name
+                        && self.config.load().tmux.tmux_enabled
+                        && !self.is_gateway_active()
+                    {
+                        match profile.tmux_connection_mode {
+                            par_term_config::TmuxConnectionMode::ControlMode => {
+                                if let Err(e) = self.initiate_tmux_gateway(Some(session_name)) {
+                                    crate::debug_error!(
+                                        "TMUX",
+                                        "Profile tmux auto-connect failed: {}",
+                                        e
+                                    );
+                                }
+                            }
+                            par_term_config::TmuxConnectionMode::Normal => {
+                                // Write plain tmux command directly to the PTY
+                                let cmd = format!(
+                                    "{} new-session -A -s '{}'\n",
+                                    self.config.load().tmux.tmux_path,
+                                    session_name.replace('\'', "'\\''")
+                                );
+                                if let Some(tab) = self.tab_manager.active_tab_mut()
+                                    && let Ok(term) = tab.terminal.try_read()
+                                    && let Err(e) = term.write(cmd.as_bytes())
+                                {
+                                    crate::debug_error!(
+                                        "TAB_ACTION",
+                                        "PTY write failed (tmux profile attach): {e}"
+                                    );
+                                }
                             }
                         }
                     }
                 }
+                Err(e) => {
+                    log::error!("Failed to open profile '{}': {}", profile.name, e);
 
-                // Auto-attach a par-mux session (create-or-attach) when the
-                // profile names one; the tmux block above owns the window
-                // when a gateway session is active. The daemon connect/spawn
-                // runs off the event loop (begin/poll pair) — it can take
-                // seconds and used to beach-ball the UI, with failures
-                // visible only as DEBUG_LEVEL-gated log lines.
-                #[cfg(feature = "mux")]
-                if let Some(ref mux_name) = profile.mux_session_name
-                    && self.tmux_state.transport.is_none()
-                    && !self.is_gateway_active()
-                {
-                    self.begin_mux_session_attach(mux_name);
+                    // Show user-friendly error notification
+                    let error_msg = e.to_string();
+                    let (title, message) = if error_msg.contains("Unable to spawn")
+                        || error_msg.contains("No viable candidates")
+                    {
+                        // Extract the command name from the error if possible
+                        let cmd = profile
+                            .command
+                            .as_deref()
+                            .unwrap_or("the configured command");
+                        (
+                            format!("Profile '{}' Failed", profile.name),
+                            format!(
+                                "Command '{}' not found. Check that it's installed and in your PATH.",
+                                cmd
+                            ),
+                        )
+                    } else if error_msg.contains("No such file or directory") {
+                        (
+                            format!("Profile '{}' Failed", profile.name),
+                            format!(
+                                "Working directory not found: {}",
+                                profile.working_directory.as_deref().unwrap_or("(unknown)")
+                            ),
+                        )
+                    } else {
+                        (
+                            format!("Profile '{}' Failed", profile.name),
+                            format!("Failed to start: {}", error_msg),
+                        )
+                    };
+                    self.deliver_notification(&title, &message);
                 }
-            }
-            Err(e) => {
-                log::error!("Failed to open profile '{}': {}", profile.name, e);
-
-                // Show user-friendly error notification
-                let error_msg = e.to_string();
-                let (title, message) = if error_msg.contains("Unable to spawn")
-                    || error_msg.contains("No viable candidates")
-                {
-                    // Extract the command name from the error if possible
-                    let cmd = profile
-                        .command
-                        .as_deref()
-                        .unwrap_or("the configured command");
-                    (
-                        format!("Profile '{}' Failed", profile.name),
-                        format!(
-                            "Command '{}' not found. Check that it's installed and in your PATH.",
-                            cmd
-                        ),
-                    )
-                } else if error_msg.contains("No such file or directory") {
-                    (
-                        format!("Profile '{}' Failed", profile.name),
-                        format!(
-                            "Working directory not found: {}",
-                            profile.working_directory.as_deref().unwrap_or("(unknown)")
-                        ),
-                    )
-                } else {
-                    (
-                        format!("Profile '{}' Failed", profile.name),
-                        format!("Failed to start: {}", error_msg),
-                    )
-                };
-                self.deliver_notification(&title, &message);
             }
         }
     }
