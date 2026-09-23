@@ -482,8 +482,17 @@ impl WindowState {
     /// * `is_horizontal_divider` - true if dragging a horizontal divider (changes heights),
     ///   false if dragging a vertical divider (changes widths)
     pub fn sync_pane_resize_to_tmux(&self, is_horizontal_divider: bool) {
-        // Only sync if tmux gateway is active
-        if !self.is_gateway_active() {
+        // par-mux transport: the same absolute resize-pane form, sent
+        // through the daemon client. Without it a divider drag resized only
+        // the native panes — the daemon PTYs kept their old size and never
+        // sent SIGWINCH, so htop and friends never reflowed.
+        #[cfg(feature = "mux")]
+        let mux_transport = self.tmux_state.transport.as_ref();
+        #[cfg(not(feature = "mux"))]
+        let mux_transport: Option<&Box<dyn super::tmux_state::TmuxTransport>> = None;
+
+        // Only sync if tmux gateway is active (or a mux transport is)
+        if !self.is_gateway_active() && mux_transport.is_none() {
             return;
         }
 
@@ -522,7 +531,17 @@ impl WindowState {
             } else {
                 format!("resize-pane -t %{} -x {}\n", tmux_pane_id, cols)
             };
-            if self.write_to_gateway(&cmd) {
+            let sent = match mux_transport {
+                Some(transport) => match transport.send_command(cmd.trim_end()) {
+                    Ok(_) => true,
+                    Err(e) => {
+                        crate::debug_error!("MUX", "resize-pane failed: {e}");
+                        false
+                    }
+                },
+                None => self.write_to_gateway(&cmd),
+            };
+            if sent {
                 crate::debug_info!(
                     "TMUX",
                     "Synced pane %{} {} resize to {}",
