@@ -161,7 +161,13 @@ pub(crate) fn attach_sequence(
     let mut screens = Vec::new();
     for pane in panes {
         let reply = transport.client().refresh_pane(pane)?;
-        screens.push((pane, reply.join("\n").into_bytes()));
+        // The clear is part of the seed: the client pane may already hold
+        // stale content (bytes that arrived between the daemon's snapshot
+        // and delivery), and the replay must define the baseline rather
+        // than paint over it.
+        let mut bytes = b"\x1b[H\x1b[2J".to_vec();
+        bytes.extend_from_slice(&reply.join("\n").into_bytes());
+        screens.push((pane, bytes));
     }
     // The roster fill degrades to empty rather than failing the attach: a
     // query that cannot run leaves the panes absent from the roster (they
@@ -677,35 +683,41 @@ impl WindowState {
         if self.tmux_state.mux_screen_seeds.is_empty() {
             return;
         }
-        let ready: Vec<TmuxPaneId> = self
-            .tmux_state
-            .mux_screen_seeds
-            .keys()
-            .filter(|pane| self.tmux_state.tmux_sync.get_native_pane(**pane).is_some())
-            .copied()
-            .collect();
-        let mut delivered = Vec::new();
+        let ready: Vec<TmuxPaneId> = self.tmux_state.mux_screen_seeds.keys().copied().collect();
         for pane in ready {
-            let Some(native) = self.tmux_state.tmux_sync.get_native_pane(pane) else {
-                continue;
-            };
-            // try_lock: intentional — same delivery discipline as the
-            // PaneOutput consumer.
-            for tab in self.tab_manager.tabs_mut() {
-                if let Some(pane_manager) = tab.pane_manager_mut()
-                    && let Some(pane_obj) = pane_manager.get_pane_mut(native)
-                    && let Some(data) = self.tmux_state.mux_screen_seeds.get(&pane)
-                    && let Ok(term) = pane_obj.terminal.try_read()
-                {
-                    term.process_data(data);
-                    delivered.push(pane);
-                    break;
-                }
+            self.deliver_pending_mux_seed(pane);
+        }
+    }
+
+    /// Feed one pane's pending reattach seed to its mapped native pane —
+    /// the single delivery site, called from the end-of-poll sweep
+    /// ([`Self::apply_pending_mux_screen_seeds`]) and, before newer live
+    /// output, from `handle_tmux_output`. A seed is consumed only once
+    /// delivered; a locked terminal retries on the next attempt (the same
+    /// try_lock discipline as the PaneOutput consumer).
+    pub(super) fn deliver_pending_mux_seed(&mut self, tmux_pane: TmuxPaneId) -> bool {
+        let Some(data) = self.tmux_state.mux_screen_seeds.get(&tmux_pane).cloned() else {
+            return false;
+        };
+        let Some(native) = self.tmux_state.tmux_sync.get_native_pane(tmux_pane) else {
+            return false;
+        };
+        for tab in self.tab_manager.tabs_mut() {
+            if let Some(pane_manager) = tab.pane_manager_mut()
+                && let Some(pane_obj) = pane_manager.get_pane_mut(native)
+                && let Ok(term) = pane_obj.terminal.try_read()
+            {
+                term.process_data(&data);
+                self.tmux_state.mux_screen_seeds.remove(&tmux_pane);
+                crate::debug_info!(
+                    "MUX",
+                    "delivered pending mux seed before live output for %{}",
+                    tmux_pane
+                );
+                return true;
             }
         }
-        for pane in delivered {
-            self.tmux_state.mux_screen_seeds.remove(&pane);
-        }
+        false
     }
 }
 
@@ -1187,6 +1199,139 @@ mod tests {
             attach.agents.is_empty(),
             "no hook has reported, so no pane is rostered: {:?}",
             attach.agents
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// A full-screen TUI's reattach seed and live redraws must both render
+    /// the real screen in a client emulator fed exactly as the app feeds
+    /// its pane terminals: the seed through `process_data` at the pane's
+    /// size, live `%output` payloads through `process` on the same
+    /// terminal.
+    ///
+    /// Root-cause probe for the blank/partial TUI render card: the emitter
+    /// alt-screens, paints a bordered grid, then pushes cursor-addressed
+    /// incremental updates. If this fails, the transport or the seed is
+    /// dropping real screen content, not the app renderer.
+    #[test]
+    fn tui_replay_and_live_output_render_in_a_client_emulator() {
+        let path = socket_path("tui-live");
+        spawn_daemon(&path);
+
+        // Client A creates the session and starts a TUI emitter in its pane.
+        {
+            let mut first = MuxSessionClient::connect(&path).expect("first client");
+            first.create_or_attach("tui").expect("create");
+            std::thread::sleep(Duration::from_millis(300));
+
+            // Alt-screen, bordered grid, then cursor-addressed single-cell
+            // updates. Plain ANSI, no terminfo dependency.
+            let script_path =
+                std::env::temp_dir().join(format!("par-term-tui-probe-{}.py", std::process::id()));
+            std::fs::write(
+                &script_path,
+                r##"import sys, time
+out = sys.stdout
+out.write("\x1b[?1049h\x1b[2J\x1b[H")
+out.flush()
+out.write("\x1b[41m")
+out.flush()
+for r in range(24):
+    line = "".join("#" if r in (0, 23) or c in (0, 79) else "o" for c in range(80))
+    out.write("\x1b[%d;1H%s" % (r + 1, line))
+out.write("\x1b[0m")
+out.flush()
+for i in range(40):
+    time.sleep(0.15)
+    out.write("\x1b[12;40H%d" % (i % 10))
+    out.flush()
+out.write("\x1b[?1049l")
+out.flush()
+"##,
+            )
+            .expect("write emitter script");
+            first
+                .send_keys_literal(0, &format!("python3 {}", script_path.display()))
+                .expect("send command");
+            first.send_keys(0, b"\r").expect("send enter");
+
+            // Let the TUI paint before the probe attaches.
+            std::thread::sleep(Duration::from_millis(800));
+        } // client A drops — detach; the TUI keeps running daemon-side
+
+        // The app's exact attach: create-or-attach, size push, per-pane replay.
+        let transport = connect(&path);
+        let attach = attach_sequence(&transport, "tui", Some((80, 24))).expect("attach_sequence");
+
+        let seed = attach
+            .screens
+            .iter()
+            .find(|(pane, _)| *pane == 0)
+            .map(|(_, data)| data.clone())
+            .expect("seed for %0");
+
+        // The replay must carry the TUI's alt-screen grid — frame and fill.
+        let seed_text = String::from_utf8_lossy(&seed);
+        assert!(
+            seed_text.contains("####"),
+            "the seed carries the TUI frame: {seed_text:?}"
+        );
+        assert!(
+            seed_text.contains("ooo"),
+            "the seed carries the TUI fill: {seed_text:?}"
+        );
+
+        // The client emulator: fresh core Terminal at the pane's size, fed
+        // the seed exactly as `apply_pending_mux_screen_seeds` feeds it.
+        let mut term = par_term_emu_core_rust::terminal::Terminal::with_scrollback(80, 24, 1000);
+        term.process(&seed);
+
+        let after_seed = term.content();
+        assert!(
+            after_seed.contains("####") && after_seed.contains("ooo"),
+            "the seed renders the TUI screen after emulator processing: {after_seed:?}"
+        );
+
+        // Attribute fidelity: the fill was painted on a red background;
+        // the styled replay must restore it (the old plain-text seed
+        // dropped every color — the "partial restore" symptom).
+        let fill_bg = term.active_grid().get(40, 5).map(|c| c.bg());
+        assert!(
+            fill_bg
+                == Some(par_term_emu_core_rust::color::Color::Named(
+                    par_term_emu_core_rust::color::NamedColor::Red,
+                )),
+            "the replayed seed must restore the fill's background color: {fill_bg:?}"
+        );
+
+        // Live output drains into the same terminal — cursor-addressed
+        // incremental updates must land on the seeded screen without a
+        // full redraw.
+        let deadline = Instant::now() + Duration::from_secs(3);
+        let mut saw_update = false;
+        while Instant::now() < deadline && !saw_update {
+            let (notes, _) = transport.drain();
+            for note in notes {
+                if let par_term_emu_core_rust::tmux_control::TmuxNotification::Output {
+                    pane_id,
+                    data,
+                } = note
+                    && pane_id == "%0"
+                {
+                    term.process(&data);
+                }
+            }
+            saw_update = term
+                .content()
+                .lines()
+                .any(|line| line.as_bytes().get(39).is_some_and(|b| b.is_ascii_digit()));
+            std::thread::sleep(Duration::from_millis(25));
+        }
+        assert!(
+            saw_update,
+            "an incremental TUI update must land on the seeded baseline: {:?}",
+            term.content()
         );
 
         let _ = std::fs::remove_file(&path);

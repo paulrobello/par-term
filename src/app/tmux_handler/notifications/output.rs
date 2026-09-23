@@ -61,6 +61,13 @@ impl WindowState {
             .or_else(|| self.tmux_state.tmux_sync.get_native_pane(pane_id));
 
         if let Some(native_pane_id) = native_pane_id {
+            // Seed-before-live causality (the blank/partial mux render): a
+            // pending reattach seed is OLDER than this chunk, so it must
+            // land first — cursor-addressed TUI updates arriving after
+            // delivery land on the seeded baseline instead of atop a stale
+            // full-screen paste over them. No-op without the mux feature.
+            #[cfg(feature = "mux")]
+            self.deliver_pending_mux_seed(pane_id);
             // Find the pane across all tabs and route output to it
             for tab in self.tab_manager.tabs_mut() {
                 // try_lock: intentional — output routing is called from the sync event loop.
