@@ -351,6 +351,10 @@ impl ProfileModalUI {
                 ui.add_space(8.0);
                 self.render_tmux_section(ui, collapsed);
 
+                // par-mux auto-attach section (separate from tmux)
+                ui.add_space(8.0);
+                self.render_mux_section(ui, collapsed);
+
                 // SSH Connection section
                 ui.add_space(8.0);
                 self.render_ssh_section(ui, collapsed);

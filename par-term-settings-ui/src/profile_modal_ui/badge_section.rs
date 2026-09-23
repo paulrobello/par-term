@@ -360,14 +360,47 @@ impl ProfileModalUI {
                             );
                         });
                         ui.end_row();
+                    });
+            },
+        );
+    }
 
-                        ui.label("par-mux Session:");
+    /// Render the par-mux auto-attach collapsing section — separate from
+    /// tmux: par-mux is par-term's own session daemon, not a tmux session,
+    /// and the two restore through different paths.
+    pub(super) fn render_mux_section(
+        &mut self,
+        ui: &mut egui::Ui,
+        collapsed: &mut HashSet<String>,
+    ) {
+        collapsing_section(
+            ui,
+            "par-mux Auto-Attach",
+            "profile_mux",
+            false,
+            collapsed,
+            |ui| {
+                ui.label(
+                    egui::RichText::new(
+                        "Create or attach a par-mux daemon session when this profile opens. \
+                         Sessions keep running in the daemon after par-term closes.",
+                    )
+                    .small()
+                    .color(egui::Color32::GRAY),
+                );
+                ui.add_space(6.0);
+
+                egui::Grid::new("profile_mux_form")
+                    .num_columns(2)
+                    .spacing([10.0, 8.0])
+                    .show(ui, |ui| {
+                        ui.label("Session Name:");
                         ui.horizontal(|ui| {
-                            ui.text_edit_singleline(&mut self.temp_mux_session_name).on_hover_text(
-                                "Create-or-attach a par-mux daemon session when this profile \
-                                 opens (mux build). Detaching keeps the session running in the \
-                                 daemon.",
-                            );
+                            ui.text_edit_singleline(&mut self.temp_mux_session_name)
+                                .on_hover_text(
+                                    "No spaces, quotes, or backslashes (the daemon command \
+                                 grammar has no quoting).",
+                                );
                             ui.label(
                                 egui::RichText::new("(empty = disabled)")
                                     .small()
