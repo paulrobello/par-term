@@ -163,7 +163,7 @@ impl WindowState {
     /// is where the user's keystrokes visually land, so it is always the
     /// semantically correct target.
     #[cfg(feature = "mux")]
-    fn focused_mux_pane_from_native(&self) -> Option<u64> {
+    pub(crate) fn focused_mux_pane_from_native(&self) -> Option<u64> {
         let tab = self.tab_manager.active_tab()?;
         let pane = tab.pane_manager()?.focused_pane()?;
         self.tmux_state

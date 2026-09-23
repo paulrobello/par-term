@@ -247,12 +247,22 @@ impl WindowState {
         let Some(transport) = &self.tmux_state.transport else {
             return false;
         };
+        // The daemon REQUIRES -t on split-window (untargeted is a wire
+        // error), and mux_focused_pane is unset after a fresh attach until
+        // a click or focus push — fall back to the focused native pane,
+        // exactly as input routing does. No mux pane focused (a local tab)
+        // returns false so the caller proceeds with a local split.
+        let Some(target) = self
+            .tmux_state
+            .mux_focused_pane
+            .or_else(|| self.focused_mux_pane_from_native())
+        else {
+            crate::debug_trace!("MUX", "split skipped — no mux pane focused (local tab?)");
+            return false;
+        };
         // tmux's -h is a side-by-side split (par-term "vertical"); -v stacks.
         let flag = if vertical { "-h" } else { "-v" };
-        let cmd = match self.tmux_state.mux_focused_pane {
-            Some(pane) => format!("split-window {flag} -t %{pane}"),
-            None => format!("split-window {flag}"),
-        };
+        let cmd = format!("split-window {flag} -t %{target}");
         match transport.send_command(&cmd) {
             Ok(reply) => {
                 if let Some(id) = reply
@@ -260,8 +270,17 @@ impl WindowState {
                     .find_map(|line| line.trim().strip_prefix('%').and_then(|s| s.parse().ok()))
                 {
                     self.tmux_state.mux_focused_pane = Some(id);
+                    true
+                } else {
+                    // The daemon rejects bad splits with an %error block,
+                    // which arrives as an Ok reply body — a missing pane id
+                    // IS the failure signal. Consume (a daemon pane was the
+                    // target; a local split would strand it) and surface it.
+                    let body = reply.join("\n");
+                    log::error!("par-mux split-window rejected: {body}");
+                    self.show_toast(format!("par-mux: split failed — {body}"));
+                    true
                 }
-                true
             }
             Err(e) => {
                 log::error!("par-mux split-window failed: {e}");
@@ -1535,6 +1554,26 @@ out.flush()
             "input through the real path must reach the daemon and its output \
              land on the seeded native pane: {:?}",
             pane_state(&ws)
+        );
+
+        // Split through the real action with mux_focused_pane STILL unset —
+        // the fresh-attach silent-no-split scenario: the daemon requires -t
+        // on split-window, and the untargeted form used to be sent and its
+        // %error reply silently counted as success.
+        ws.split_pane_vertical();
+        let mut split_landed = false;
+        while Instant::now() < deadline && !split_landed {
+            ws.check_mux_notifications();
+            split_landed = ws.tmux_state.tmux_pane_to_native_pane.contains_key(&1);
+            if !split_landed {
+                std::thread::sleep(Duration::from_millis(25));
+            }
+        }
+        assert!(
+            split_landed,
+            "the daemon-side split must create the second native pane via \
+             %layout-change: map = {:?}",
+            ws.tmux_state.tmux_pane_to_native_pane
         );
 
         let _ = std::fs::remove_file(&path);
