@@ -90,6 +90,9 @@ pub(super) fn gather_pane_render_data(
         - sizing.status_bar_height;
 
     let tab_scroll_offset = tab.active_scroll_state().offset;
+    // A tmux/par-mux display tab (tmux_pane_id set by the layout
+    // consumers): its panes' sizes belong to the daemon layout.
+    let tab_is_daemon_driven = tab.tmux.tmux_pane_id.is_some();
 
     let pm = tab.pane_manager.as_mut()?;
 
@@ -163,8 +166,13 @@ pub(super) fn gather_pane_render_data(
         let content_w =
             (bounds.width - physical_pane_padding * 2.0 - sb_inset).max(sizing.cell_width);
         let content_h = (viewport_height - physical_pane_padding * 2.0).max(sizing.cell_height);
-        let cols = ((content_w / sizing.cell_width).floor() as usize).max(1);
-        let rows = ((content_h / sizing.cell_height).floor() as usize).max(1);
+        let mut cols = ((content_w / sizing.cell_width).floor() as usize).max(1);
+        let mut rows = ((content_h / sizing.cell_height).floor() as usize).max(1);
+        // A daemon-driven pane keeps the size its layout gave it (see the
+        // skipped resize below), so the grid it is drawn with is that size.
+        if tab_is_daemon_driven && let Ok(term) = pane.terminal.try_read() {
+            (cols, rows) = term.dimensions();
+        }
 
         // Center the cell grid within the content area by distributing
         // remainder pixels evenly on both sides (like Alacritty/Kitty).
@@ -176,12 +184,24 @@ pub(super) fn gather_pane_render_data(
         let center_offset_x = ((content_w - actual_content_w) / 2.0).floor();
         let center_offset_y = ((content_h - actual_content_h) / 2.0).floor();
 
-        pane.resize_terminal_with_cell_dims(
-            cols,
-            rows,
-            sizing.cell_width as u32,
-            sizing.cell_height as u32,
-        );
+        // Panes in a tmux/par-mux display tab are sized by the daemon's
+        // layout (the layout consumers resize them from their bounds). This
+        // per-frame resize subtracts the divider padding and scrollbar
+        // inset, which is right for a local PTY but for a daemon-backed
+        // pane only shrinks the local emulator: the daemon PTY stays at the
+        // layout width, htop draws for that width, and the non-reflowing
+        // alt screen then drops its right-most columns (every meter lost
+        // its closing bracket) — and each layout change and this resize
+        // fought, flipping 104<->107 (measured). Content may draw a few
+        // pixels under the divider padding or scrollbar; that is the cost.
+        if !tab_is_daemon_driven {
+            pane.resize_terminal_with_cell_dims(
+                cols,
+                rows,
+                sizing.cell_width as u32,
+                sizing.cell_height as u32,
+            );
+        }
 
         let mut viewport = PaneViewport::with_padding(
             bounds.x,
