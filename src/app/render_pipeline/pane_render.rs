@@ -181,8 +181,20 @@ pub(super) fn gather_pane_render_data(
         // adjacent differently-colored cells due to GPU FP rasterization.
         let actual_content_w = cols as f32 * sizing.cell_width;
         let actual_content_h = rows as f32 * sizing.cell_height;
-        let center_offset_x = ((content_w - actual_content_w) / 2.0).floor();
-        let center_offset_y = ((content_h - actual_content_h) / 2.0).floor();
+        let mut center_offset_x = ((content_w - actual_content_w) / 2.0).floor();
+        let mut center_offset_y = ((content_h - actual_content_h) / 2.0).floor();
+        // A daemon-driven grid is sized by its layout, not this content
+        // area, and can be wider than it: a negative centering offset then
+        // shifts column 0 out of the pane (the left column went missing).
+        // Anchor it at the pane's top-left instead.
+        let mut viewport_padding = physical_pane_padding;
+        if tab_is_daemon_driven {
+            center_offset_x = center_offset_x.max(0.0);
+            center_offset_y = center_offset_y.max(0.0);
+            if actual_content_w > content_w {
+                viewport_padding = 0.0;
+            }
+        }
 
         // Panes in a tmux/par-mux display tab are sized by the daemon's
         // layout (the layout consumers resize them from their bounds). This
@@ -214,7 +226,7 @@ pub(super) fn gather_pane_render_data(
             } else {
                 pane_bg_opacity * inactive_opacity
             },
-            physical_pane_padding,
+            viewport_padding,
         );
         viewport.content_offset_x = center_offset_x;
         viewport.content_offset_y = center_offset_y;
