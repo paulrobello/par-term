@@ -196,7 +196,7 @@ impl WindowState {
                     // On miss: mouse motion encoding is skipped this frame.
                     if !suppress_drag && let Ok(term) = terminal_arc.try_read() {
                         let encoded = term.encode_mouse_event(button, col, row, true, 0);
-                        if !encoded.is_empty() {
+                        if !encoded.is_empty() && !self.route_mouse_report_to_mux(&encoded) {
                             let terminal_clone = Arc::clone(&terminal_arc);
                             let runtime = Arc::clone(&self.runtime);
                             runtime.spawn(async move {

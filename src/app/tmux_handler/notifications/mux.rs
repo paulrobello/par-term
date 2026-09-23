@@ -1673,6 +1673,32 @@ out.flush()
             ws.tmux_state.tmux_pane_to_native_pane
         );
 
+        // Mouse reports for a focused mux pane go to the DAEMON pane — the
+        // local mirror has no PTY, so a local write dropped every click and
+        // wheel event (mouse-aware TUIs ignored the mouse entirely). The
+        // bytes land in the pane's input, so a shell echoes a raw marker.
+        assert!(
+            ws.route_mouse_report_to_mux(b"MOUSE-ROUTE-OK"),
+            "a focused mux pane must take the mouse report"
+        );
+        let deadline = Instant::now() + Duration::from_secs(10);
+        let mut daemon_view = String::new();
+        while Instant::now() < deadline && !daemon_view.contains("MOUSE-ROUTE-OK") {
+            daemon_view = ws
+                .tmux_state
+                .transport
+                .as_ref()
+                .expect("transport")
+                .send_command("capture-pane -t %1 -p")
+                .expect("capture")
+                .join("|");
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        assert!(
+            daemon_view.contains("MOUSE-ROUTE-OK"),
+            "the mouse report must reach the daemon pane: {daemon_view:?}"
+        );
+
         let _ = std::fs::remove_file(&path);
     }
 

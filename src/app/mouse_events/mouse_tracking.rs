@@ -63,6 +63,10 @@ impl WindowState {
             drop(term);
 
             if !encoded.is_empty() {
+                // par-mux pane: the daemon PTY is the real one.
+                if self.route_mouse_report_to_mux(&encoded) {
+                    return true;
+                }
                 // For tmux display panes: route via the gateway so the TUI app running
                 // inside the real tmux pane actually receives the mouse event.  Writing
                 // to the local virtual terminal (no PTY) silently drops the bytes.

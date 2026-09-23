@@ -181,6 +181,30 @@ impl WindowState {
             .copied()
     }
 
+    /// Route an encoded mouse report to the focused par-mux pane's daemon
+    /// PTY. Returns `true` when it was sent that way; `false` means the
+    /// focused pane is not a mux pane and the caller writes locally.
+    ///
+    /// A mux pane's local terminal has no PTY — it only mirrors the daemon
+    /// — so a local write silently dropped every click, drag, and wheel
+    /// event (mouse-aware TUIs in mux panes ignored the mouse entirely).
+    /// The raw bytes go as `send-keys -H` so key-name translation cannot
+    /// mangle the escape sequence.
+    #[cfg_attr(not(feature = "mux"), allow(unused_variables))]
+    pub(crate) fn route_mouse_report_to_mux(&self, encoded: &[u8]) -> bool {
+        #[cfg(feature = "mux")]
+        if let Some(transport) = &self.tmux_state.transport
+            && let Some(pane) = self.focused_mux_pane_from_native()
+        {
+            return super::notifications::mux::route_literal_bytes(
+                &**transport,
+                Some(pane),
+                encoded,
+            );
+        }
+        false
+    }
+
     /// Format send-keys command for a specific window (if mapping exists)
     fn format_send_keys_for_window(&self, data: &[u8]) -> Option<String> {
         let active_tab_id = self.tab_manager.active_tab_id()?;

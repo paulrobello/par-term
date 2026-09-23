@@ -122,8 +122,9 @@ impl WindowState {
                 }
             }
 
-            // Send all encoded events to terminal
-            if !all_encoded.is_empty() {
+            // Send all encoded events to terminal (the daemon PTY for a
+            // par-mux pane).
+            if !all_encoded.is_empty() && !self.route_mouse_report_to_mux(&all_encoded) {
                 let terminal_clone = Arc::clone(&terminal_arc);
                 let runtime = Arc::clone(&self.runtime);
                 runtime.spawn(async move {
