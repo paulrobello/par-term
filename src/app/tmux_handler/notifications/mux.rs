@@ -695,11 +695,24 @@ impl WindowState {
     /// output, from `handle_tmux_output`. A seed is consumed only once
     /// delivered; a locked terminal retries on the next attempt (the same
     /// try_lock discipline as the PaneOutput consumer).
+    ///
+    /// The native pane resolves through the SAME lookup output routing
+    /// uses — app map first, sync map as fallback. The layout consumers
+    /// populate only `tmux_pane_to_native_pane`; resolving through
+    /// `tmux_sync.get_native_pane` alone (an earlier form) always missed in
+    /// production because nothing in the app populates the sync map, so
+    /// every seed sat pending forever and panes reattached blank.
     pub(super) fn deliver_pending_mux_seed(&mut self, tmux_pane: TmuxPaneId) -> bool {
         let Some(data) = self.tmux_state.mux_screen_seeds.get(&tmux_pane).cloned() else {
             return false;
         };
-        let Some(native) = self.tmux_state.tmux_sync.get_native_pane(tmux_pane) else {
+        let Some(native) = self
+            .tmux_state
+            .tmux_pane_to_native_pane
+            .get(&tmux_pane)
+            .copied()
+            .or_else(|| self.tmux_state.tmux_sync.get_native_pane(tmux_pane))
+        else {
             return false;
         };
         for tab in self.tab_manager.tabs_mut() {
@@ -1332,6 +1345,187 @@ out.flush()
             saw_update,
             "an incremental TUI update must land on the seeded baseline: {:?}",
             term.content()
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// The app-layer reattach repro: a running TUI, a detach, then a
+    /// reattach driven through the REAL `WindowState` path — tab creation
+    /// (`handle_tmux_window_add`), the `%layout-change` consumer creating
+    /// native panes, `check_mux_notifications` routing, seed delivery, and
+    /// live `%output` landing on the seeded pane. The transport-level
+    /// wiring tests bypass all of that; this is the path the GUI runs, and
+    /// the one that was green twice at transport level while panes still
+    /// rendered blank live.
+    ///
+    /// The TUI gates its second frame on `read` (the core seed-state
+    /// pattern): frame 1 must arrive via the SEED, frame 2 via LIVE
+    /// `%output` after the reattached side releases it — so the test
+    /// cannot pass on either path alone.
+    #[test]
+    fn reattach_renders_and_updates_a_tui_through_the_window_state_path() {
+        let path = socket_path("ws-tui");
+        spawn_daemon(&path);
+
+        let tui = "printf \"\\033[?1049h\\033[2;3H\\033[1;44m\"; echo SEED | tr A-Z a-z; \
+                   printf \"\\033[0m\\033[?25l\"; read -r x; \
+                   printf \"\\033[4;5H\\033[1;42m\"; echo LATE | tr A-Z a-z; \
+                   printf \"\\033[0m\"; sleep 60";
+
+        // First client: create the session, start the TUI, wait for its
+        // first frame, then drop the connection (detach, D5).
+        {
+            let mut first = MuxSessionClient::connect(&path).expect("first client");
+            first.create_or_attach("wstui").expect("create");
+            let deadline = Instant::now() + Duration::from_secs(10);
+            let mut created = false;
+            while Instant::now() < deadline && !created {
+                created = first
+                    .poll_actions()
+                    .iter()
+                    .any(|a| matches!(a, SyncAction::CreateTab { .. }));
+                if !created {
+                    std::thread::sleep(Duration::from_millis(25));
+                }
+            }
+            assert!(created, "first client never saw the session's window");
+            // PaneOutput actions only flow for MAPPED panes (sync.rs), so
+            // adopt the daemon's panes before waiting on frame 1 — the
+            // adopt_panes pattern from the reattach wiring test.
+            for pane in first.list_panes().expect("list-panes") {
+                first.sync().map_pane(pane, 10_000 + pane);
+            }
+            first
+                .send(&format!("send-keys -t %0 '{tui}' Enter"))
+                .expect("start the TUI");
+            let mut framed = false;
+            while Instant::now() < deadline && !framed {
+                framed = first.poll_actions().iter().any(|a| {
+                    matches!(a, SyncAction::PaneOutput { data, .. }
+                        if String::from_utf8_lossy(data).contains("seed"))
+                });
+                if !framed {
+                    std::thread::sleep(Duration::from_millis(25));
+                }
+            }
+            assert!(framed, "TUI frame 1 never reached the first client");
+        }
+
+        // The app attach: the real sequence, then manual installation into
+        // a real (renderer-less) WindowState — the same steps
+        // `install_mux_transport` performs minus the renderer-derived size.
+        let transport = connect(&path);
+        let attach = attach_sequence(&transport, "wstui", Some((80, 24))).expect("attach_sequence");
+        assert!(
+            attach
+                .screens
+                .iter()
+                .any(|(_, data)| String::from_utf8_lossy(data).contains("seed")),
+            "the reattach seed carries the TUI's first frame: {:?}",
+            attach.screens
+        );
+
+        let mut ws = manners_state();
+        for window_id in &attach.existing_windows {
+            ws.handle_tmux_window_add(*window_id);
+        }
+        ws.tmux_state.mux_screen_seeds = attach.screens.into_iter().collect();
+        ws.tmux_state.transport = Some(Box::new(transport));
+        ws.tmux_state.tmux_session_name = Some("wstui".to_string());
+        ws.tmux_state.tmux_sync.enable();
+
+        // Pump the app's own notification loop — the layout consumer must
+        // create the native pane, the seed must render in it, and both must
+        // happen through the production dispatch path.
+        let mut existing_windows = attach.existing_windows.clone();
+        if existing_windows.is_empty() {
+            // A created session reports its window via %window-add instead.
+            existing_windows = vec![0];
+        }
+        let deadline = Instant::now() + Duration::from_secs(10);
+        let native_of = |ws: &crate::app::window_state::WindowState| {
+            ws.tmux_state
+                .tmux_pane_to_native_pane
+                .get(&0)
+                .copied()
+                .or_else(|| ws.tmux_state.tmux_sync.get_native_pane(0))
+        };
+        let native = loop {
+            ws.check_mux_notifications();
+            if let Some(native) = native_of(&ws) {
+                break native;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "the layout consumer never created the native pane\n\
+                 window→tab: {:?}\n\
+                 pane map: {:?}\n\
+                 tab count: {}",
+                existing_windows
+                    .iter()
+                    .map(|w| (*w, ws.tmux_state.tmux_sync.get_tab(*w)))
+                    .collect::<Vec<_>>(),
+                ws.tmux_state.tmux_pane_to_native_pane,
+                ws.tab_manager.tab_count()
+            );
+            std::thread::sleep(Duration::from_millis(25));
+        };
+
+        let pane_state = |ws: &WindowState| -> Option<(bool, String)> {
+            for tab in ws.tab_manager.tabs() {
+                let Some(pm) = tab.pane_manager() else {
+                    continue;
+                };
+                let Some(pane) = pm.get_pane(native) else {
+                    continue;
+                };
+                let Ok(term) = pane.terminal.try_read() else {
+                    continue;
+                };
+                return Some((
+                    term.is_alt_screen_active(),
+                    term.content().unwrap_or_default(),
+                ));
+            }
+            None
+        };
+
+        let mut seeded = false;
+        while Instant::now() < deadline && !seeded {
+            ws.check_mux_notifications();
+            seeded = matches!(pane_state(&ws), Some((alt, text)) if alt && text.contains("seed"));
+            if !seeded {
+                std::thread::sleep(Duration::from_millis(25));
+            }
+        }
+        assert!(
+            seeded,
+            "the seed must render the TUI frame on the native pane's ALT screen: \
+             {:?}",
+            pane_state(&ws)
+        );
+
+        // Release the TUI's second frame through the installed transport
+        // and keep pumping — live output must land on the seeded pane.
+        ws.tmux_state
+            .transport
+            .as_ref()
+            .expect("transport installed")
+            .send_command("send-keys -t %0 g Enter")
+            .expect("release frame 2");
+        let mut updated = false;
+        while Instant::now() < deadline && !updated {
+            ws.check_mux_notifications();
+            updated = matches!(pane_state(&ws), Some((_, text)) if text.contains("late"));
+            if !updated {
+                std::thread::sleep(Duration::from_millis(25));
+            }
+        }
+        assert!(
+            updated,
+            "live TUI output must land on the seeded native pane: {:?}",
+            pane_state(&ws)
         );
 
         let _ = std::fs::remove_file(&path);
