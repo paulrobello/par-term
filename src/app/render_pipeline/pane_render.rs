@@ -142,7 +142,13 @@ pub(super) fn gather_pane_render_data(
         content_height,
     );
     pm.set_bounds(bounds);
-    let layout_right_edge = bounds.x + bounds.width;
+    // The pane(s) whose right edge is right-most border the reserved strip.
+    let layout_right_edge = pm
+        .all_panes()
+        .iter()
+        .map(|p| p.bounds.x + p.bounds.width)
+        .fold(bounds.x, f32::max);
+    let content_right_edge = bounds.x + content_width;
 
     // Terminal resize is done per-pane in the loop below so each pane
     // subtracts `scrollbar_inset` from its column calculation.
@@ -254,10 +260,23 @@ pub(super) fn gather_pane_render_data(
             );
         }
 
+        // The scrollbar is drawn at the viewport's right edge. The
+        // right-most pane of a par-mux tab extends its viewport over the
+        // strip reserved for it (layout_width < content_width), so the
+        // scrollbar lands in the strip instead of over the pane's own last
+        // columns. The grid itself still starts at bounds.x with its layout
+        // width, so no cell moves.
+        let viewport_width = if mux_tab
+            && (bounds.x + bounds.width) >= layout_right_edge - sizing.cell_width / 2.0
+        {
+            (content_right_edge - bounds.x).max(bounds.width)
+        } else {
+            bounds.width
+        };
         let mut viewport = PaneViewport::with_padding(
             bounds.x,
             viewport_y,
-            bounds.width,
+            viewport_width,
             viewport_height,
             is_focused,
             if is_focused {
