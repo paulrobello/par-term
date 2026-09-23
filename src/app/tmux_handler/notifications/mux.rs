@@ -450,7 +450,7 @@ impl WindowState {
             let (cols, rows) = renderer.grid_size();
             push_client_size(
                 &**transport,
-                self.tmux_state.mux_focused_pane,
+                self.focused_mux_pane_from_native(),
                 cols as u16,
                 rows as u16,
             );
@@ -614,6 +614,12 @@ impl WindowState {
         }
 
         // --- Direct dispatch (notifications TmuxSync does not handle) ---
+        // Focus pushes are deferred until after the layout groups: a split's
+        // `%window-pane-changed` for the NEW pane arrives in the same batch
+        // as the `%layout-change` that creates it, so applying it here (the
+        // pane not yet mapped) lost it, and native focus — the only routing
+        // source of truth — stayed on the old pane.
+        let mut deferred_focus: Option<TmuxPaneId> = None;
         for notification in direct_notifications {
             match notification {
                 TmuxNotification::SessionStarted(session_name) => {
@@ -625,10 +631,7 @@ impl WindowState {
                     needs_redraw = true;
                 }
                 TmuxNotification::PaneFocusChanged { pane_id } => {
-                    // The daemon pushes focus changes; remember the pane for
-                    // input routing before the shared focus handler runs.
-                    self.tmux_state.mux_focused_pane = Some(pane_id);
-                    self.handle_tmux_pane_focus_changed(pane_id);
+                    deferred_focus = Some(pane_id);
                     needs_redraw = true;
                 }
                 TmuxNotification::Error(msg) => {
@@ -663,6 +666,12 @@ impl WindowState {
                 self.handle_tmux_layout_change(*window_id, layout);
                 needs_redraw = true;
             }
+        }
+
+        // Deferred focus push: every pane this batch created is mapped now.
+        if let Some(pane_id) = deferred_focus {
+            self.tmux_state.mux_focused_pane = Some(pane_id);
+            self.handle_tmux_pane_focus_changed(pane_id);
         }
 
         // --- TmuxSync dispatch: group 3 — pane output ---
@@ -1607,6 +1616,60 @@ out.flush()
             split_landed,
             "the daemon-side split must create the second native pane via \
              %layout-change: map = {:?}",
+            ws.tmux_state.tmux_pane_to_native_pane
+        );
+
+        // The daemon's focus push for the new pane must move NATIVE focus
+        // (the only source of truth for routing). It arrives in the same
+        // batch as the layout that creates the pane, so it must be applied
+        // after the layout consumer, or the new pane is not yet mapped and
+        // the push is lost (reported live: split did not focus the new pane).
+        let new_native = ws.tmux_state.tmux_pane_to_native_pane[&1];
+        assert_eq!(
+            ws.tmux_state.native_pane_to_tmux_pane.get(&new_native),
+            Some(&1),
+            "the reverse map routes the new pane's input"
+        );
+        let focused_native = || {
+            ws.tab_manager
+                .active_tab()
+                .and_then(|t| t.pane_manager())
+                .and_then(|pm| pm.focused_pane())
+                .map(|p| p.id)
+        };
+        assert_eq!(
+            focused_native(),
+            Some(new_native),
+            "native focus must move to the split's new pane"
+        );
+
+        // Input now targets the new pane and its output lands there.
+        assert!(ws.send_input_via_tmux(b"echo SPLIT-OK | tr A-Z a-z\r"));
+        let deadline = Instant::now() + Duration::from_secs(10);
+        let mut new_pane_text = String::new();
+        while Instant::now() < deadline && !new_pane_text.contains("split-ok") {
+            ws.check_mux_notifications();
+            for tab in ws.tab_manager.tabs() {
+                if let Some(pane) = tab.pane_manager().and_then(|pm| pm.get_pane(new_native))
+                    && let Ok(term) = pane.terminal.try_read()
+                {
+                    new_pane_text = term.content().unwrap_or_default();
+                }
+            }
+            std::thread::sleep(Duration::from_millis(25));
+        }
+        let daemon_view = ws
+            .tmux_state
+            .transport
+            .as_ref()
+            .expect("transport")
+            .send_command("capture-pane -t %1 -p")
+            .expect("capture")
+            .join("|");
+        assert!(
+            new_pane_text.contains("split-ok"),
+            "the new pane must render its own output: app={new_pane_text:?} daemon={daemon_view:?} \
+             map={:?}",
             ws.tmux_state.tmux_pane_to_native_pane
         );
 
