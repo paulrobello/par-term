@@ -91,17 +91,20 @@ pub(crate) fn push_client_size(
 /// `escape_keys_for_tmux` form the gateway sends, targeted at the focused
 /// pane when known. Always consumes once a transport is attached: the
 /// panes live in the daemon, so falling through to a PTY write would go
-/// nowhere.
+/// nowhere. An unknown target DROPS the input with a visible error — the
+/// daemon rejects untargeted `send-keys` (`send-keys requires -t`), so
+/// sending it would fail invisibly anyway.
 pub(crate) fn route_input(
     transport: &dyn TmuxTransport,
     focused: Option<TmuxPaneId>,
     data: &[u8],
 ) -> bool {
-    let escaped = escape_keys_for_tmux(data);
-    let command = match focused {
-        Some(pane) => format!("send-keys -t %{pane} {escaped}"),
-        None => format!("send-keys {escaped}"),
+    let Some(pane) = focused else {
+        crate::debug_error!("MUX", "input dropped — no focused pane to target");
+        return true;
     };
+    let escaped = escape_keys_for_tmux(data);
+    let command = format!("send-keys -t %{pane} {escaped}");
     if let Err(e) = transport.send_command(&command) {
         crate::debug_error!("MUX", "send-keys failed: {e}");
     }
@@ -1506,14 +1509,19 @@ out.flush()
             pane_state(&ws)
         );
 
-        // Release the TUI's second frame through the installed transport
-        // and keep pumping — live output must land on the seeded pane.
-        ws.tmux_state
-            .transport
-            .as_ref()
-            .expect("transport installed")
-            .send_command("send-keys -t %0 g Enter")
-            .expect("release frame 2");
+        // Release the TUI's second frame through the REAL input path with
+        // mux_focused_pane unset — the fresh-attach frozen-panes scenario:
+        // keystrokes must resolve their target from the focused native pane
+        // (the daemon rejects untargeted send-keys, and nothing sets
+        // mux_focused_pane until a click or a daemon focus push).
+        assert!(
+            ws.tmux_state.mux_focused_pane.is_none(),
+            "the scenario needs no tracked focus — fresh attach state"
+        );
+        assert!(
+            ws.send_input_via_tmux(b"g\r"),
+            "the mux transport must consume input"
+        );
         let mut updated = false;
         while Instant::now() < deadline && !updated {
             ws.check_mux_notifications();
@@ -1524,7 +1532,8 @@ out.flush()
         }
         assert!(
             updated,
-            "live TUI output must land on the seeded native pane: {:?}",
+            "input through the real path must reach the daemon and its output \
+             land on the seeded native pane: {:?}",
             pane_state(&ws)
         );
 

@@ -14,11 +14,16 @@ impl WindowState {
         #[cfg(feature = "mux")]
         {
             if let Some(transport) = &self.tmux_state.transport {
-                return super::notifications::mux::route_input(
-                    &**transport,
-                    self.tmux_state.mux_focused_pane,
-                    data,
-                );
+                // The daemon REQUIRES -t (untargeted send-keys is an error),
+                // and nothing sets mux_focused_pane until a pane click or a
+                // daemon focus push — so a fresh attach with keyboard focus
+                // only must fall back to the pane the user is actually
+                // focused on, via the native→tmux reverse map.
+                let focused = self
+                    .tmux_state
+                    .mux_focused_pane
+                    .or_else(|| self.focused_mux_pane_from_native());
+                return super::notifications::mux::route_input(&**transport, focused, data);
             }
         }
 
@@ -101,9 +106,13 @@ impl WindowState {
                 #[cfg(feature = "mux")]
                 {
                     if let Some(transport) = &self.tmux_state.transport {
+                        let focused = self
+                            .tmux_state
+                            .mux_focused_pane
+                            .or_else(|| self.focused_mux_pane_from_native());
                         return super::notifications::mux::route_literal_bytes(
                             &**transport,
-                            self.tmux_state.mux_focused_pane,
+                            focused,
                             bytes,
                         );
                     }
@@ -146,6 +155,21 @@ impl WindowState {
 
         crate::debug_info!("SHIFTENTER", "write_to_gateway failed");
         false
+    }
+
+    /// The tmux pane id of the currently focused native pane — the fallback
+    /// input target for the par-mux transport when `mux_focused_pane` is
+    /// unset (fresh attach, keyboard focus only, no focus push yet). This
+    /// is where the user's keystrokes visually land, so it is always the
+    /// semantically correct target.
+    #[cfg(feature = "mux")]
+    fn focused_mux_pane_from_native(&self) -> Option<u64> {
+        let tab = self.tab_manager.active_tab()?;
+        let pane = tab.pane_manager()?.focused_pane()?;
+        self.tmux_state
+            .native_pane_to_tmux_pane
+            .get(&pane.id)
+            .copied()
     }
 
     /// Format send-keys command for a specific window (if mapping exists)
