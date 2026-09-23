@@ -252,11 +252,7 @@ impl WindowState {
         // a click or focus push — fall back to the focused native pane,
         // exactly as input routing does. No mux pane focused (a local tab)
         // returns false so the caller proceeds with a local split.
-        let Some(target) = self
-            .tmux_state
-            .mux_focused_pane
-            .or_else(|| self.focused_mux_pane_from_native())
-        else {
+        let Some(target) = self.focused_mux_pane_from_native() else {
             crate::debug_trace!("MUX", "split skipped — no mux pane focused (local tab?)");
             return false;
         };
@@ -1105,7 +1101,30 @@ mod tests {
         });
         ws.poll_mux_attach();
         assert!(ws.tmux_state.transport.is_some(), "attach must install");
-        ws.tmux_state.mux_focused_pane = Some(0);
+        // Focus comes from the focused NATIVE pane (the authoritative
+        // source): create the window's tab and map the daemon pane as the
+        // layout consumer does — a created session's %window-add fired
+        // before the transport existed, so pumping would never map it.
+        ws.handle_tmux_window_add(0);
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !ws.tmux_state.tmux_pane_to_native_pane.contains_key(&0) {
+            if Instant::now() >= deadline {
+                // Push a layout for window @0 so the consumer maps %0.
+                break;
+            }
+            ws.tmux_state
+                .transport
+                .as_ref()
+                .expect("transport")
+                .send_command("refresh-client -t %0 -C 80x24")
+                .expect("size push broadcasts %layout-change");
+            ws.check_mux_notifications();
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        assert!(
+            ws.tmux_state.tmux_pane_to_native_pane.contains_key(&0),
+            "the layout consumer never mapped %0"
+        );
 
         assert!(
             ws.split_pane_via_mux(true),
@@ -1291,8 +1310,23 @@ out.flush()
                 .expect("send command");
             first.send_keys(0, b"\r").expect("send enter");
 
-            // Let the TUI paint before the probe attaches.
-            std::thread::sleep(Duration::from_millis(800));
+            // Wait for the TUI to actually paint (a fixed sleep raced shell
+            // startup under load: the seed caught only the typed command).
+            let deadline = Instant::now() + Duration::from_secs(15);
+            loop {
+                let screen = first
+                    .send("capture-pane -t %0 -p")
+                    .expect("capture-pane")
+                    .join("\n");
+                if screen.contains("####") {
+                    break;
+                }
+                assert!(
+                    Instant::now() < deadline,
+                    "the TUI never painted: {screen:?}"
+                );
+                std::thread::sleep(Duration::from_millis(50));
+            }
         } // client A drops — detach; the TUI keeps running daemon-side
 
         // The app's exact attach: create-or-attach, size push, per-pane replay.
@@ -1599,6 +1633,40 @@ out.flush()
             ws.tmux_state.persisted_session_names(),
             (None, Some("kind".to_string())),
             "a transport-attached name is a mux name"
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// A stale tracked focus must not capture a local tab's input. Before
+    /// the fix, `mux_focused_pane` won over the focused native pane and
+    /// outlived its tab: after the mux tab closed, every keystroke in the
+    /// remaining local tab was sent to a daemon pane that no longer existed
+    /// (reported live: "closed the par-mux panes, but the original native
+    /// tab is unresponsive").
+    #[test]
+    fn a_stale_mux_focus_does_not_capture_local_tab_input() {
+        let path = socket_path("stale-focus");
+        spawn_daemon(&path);
+        let transport = connect(&path);
+        attach_sequence(&transport, "stale", None).expect("attach");
+
+        let mut ws = manners_state();
+        ws.tmux_state.transport = Some(Box::new(transport));
+        // The mux tab is gone; only the tracked id survives.
+        ws.tmux_state.mux_focused_pane = Some(0);
+        assert!(
+            ws.tmux_state.native_pane_to_tmux_pane.is_empty(),
+            "no mux pane is mapped — the user is not on a mux pane"
+        );
+
+        assert!(
+            !ws.send_input_via_tmux(b"x"),
+            "input must fall through to the local PTY, not the daemon"
+        );
+        assert!(
+            !ws.send_literal_bytes_via_tmux(b"\n"),
+            "the literal-bytes path must fall through too"
         );
 
         let _ = std::fs::remove_file(&path);

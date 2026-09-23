@@ -22,10 +22,7 @@ impl WindowState {
                 // daemon focus push — so a fresh attach with keyboard focus
                 // only must fall back to the pane the user is actually
                 // focused on, via the native→tmux reverse map.
-                let focused = self
-                    .tmux_state
-                    .mux_focused_pane
-                    .or_else(|| self.focused_mux_pane_from_native());
+                let focused = self.focused_mux_pane_from_native();
                 return match focused {
                     Some(focused) => {
                         super::notifications::mux::route_input(&**transport, Some(focused), data)
@@ -115,10 +112,7 @@ impl WindowState {
                 #[cfg(feature = "mux")]
                 {
                     if let Some(transport) = &self.tmux_state.transport {
-                        let focused = self
-                            .tmux_state
-                            .mux_focused_pane
-                            .or_else(|| self.focused_mux_pane_from_native());
+                        let focused = self.focused_mux_pane_from_native();
                         return match focused {
                             Some(focused) => super::notifications::mux::route_literal_bytes(
                                 &**transport,
@@ -170,11 +164,13 @@ impl WindowState {
         false
     }
 
-    /// The tmux pane id of the currently focused native pane — the fallback
-    /// input target for the par-mux transport when `mux_focused_pane` is
-    /// unset (fresh attach, keyboard focus only, no focus push yet). This
-    /// is where the user's keystrokes visually land, so it is always the
-    /// semantically correct target.
+    /// The mux pane that input, splits, and size pushes target: the
+    /// focused native pane's tmux id, or `None` when the user is on a LOCAL
+    /// pane (the caller then writes to the local PTY). The focused native
+    /// pane is authoritative. The tracked `mux_focused_pane` used to win,
+    /// and it outlived its tab: closing the mux tab left it set, so every
+    /// keystroke in the remaining local tab went to a daemon pane that no
+    /// longer existed.
     #[cfg(feature = "mux")]
     pub(crate) fn focused_mux_pane_from_native(&self) -> Option<u64> {
         let tab = self.tab_manager.active_tab()?;
