@@ -150,7 +150,12 @@ impl WindowManager {
             // will be re-created by the tmux session on reconnect.  Pass only a single
             // empty tab CWD so create_window_with_overrides spawns just the gateway
             // shell; the real tmux tabs arrive via layout-change notifications.
-            let tab_cwds: Vec<Option<String>> = if session_window.tmux_session_name.is_some() {
+            // A par-mux window is the same shape: its tabs arrive from the
+            // daemon's %window-add, so restore must not spawn local shells
+            // for them (they would sit beside the daemon tab, dead).
+            let tab_cwds: Vec<Option<String>> = if session_window.tmux_session_name.is_some()
+                || session_window.mux_session_name.is_some()
+            {
                 vec![None]
             } else {
                 session_window
@@ -171,8 +176,21 @@ impl WindowManager {
             if let Some(window_id) = created_window_id
                 && let Some(window_state) = self.windows.get_mut(&window_id)
             {
-                // Auto-reconnect tmux session if one was active at save time
-                if let Some(ref session_name) = session_window.tmux_session_name
+                // Reattach a par-mux session if one was attached at save time.
+                // Checked BEFORE the tmux branch and never routed through it:
+                // a mux name handed to the tmux gateway spawns a real
+                // `tmux -CC` session of the same name.
+                if let Some(ref mux_name) = session_window.mux_session_name
+                    && !mux_name.is_empty()
+                {
+                    #[cfg(feature = "mux")]
+                    window_state.begin_mux_session_attach(mux_name);
+                    #[cfg(not(feature = "mux"))]
+                    log::warn!(
+                        "Session restore: par-mux session '{mux_name}' skipped — \
+                         this build has no mux support"
+                    );
+                } else if let Some(ref session_name) = session_window.tmux_session_name
                     && window_state.config.load().tmux.tmux_enabled
                     && !session_name.is_empty()
                 {

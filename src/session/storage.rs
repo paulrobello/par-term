@@ -114,6 +114,7 @@ mod tests {
                 }],
                 active_tab_index: 0,
                 tmux_session_name: None,
+                mux_session_name: None,
             }],
         }
     }
@@ -208,6 +209,7 @@ mod tests {
                 ],
                 active_tab_index: 1,
                 tmux_session_name: None,
+                mux_session_name: None,
             }],
         };
 
@@ -298,6 +300,7 @@ mod tests {
                 }],
                 active_tab_index: 0,
                 tmux_session_name: None,
+                mux_session_name: None,
             }],
         };
 

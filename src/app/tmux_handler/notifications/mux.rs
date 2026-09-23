@@ -1579,6 +1579,31 @@ out.flush()
         let _ = std::fs::remove_file(&path);
     }
 
+    /// A window attached to a par-mux daemon must persist its session name
+    /// as a MUX name, never a tmux one: the next launch restored a
+    /// tmux-tagged name through the tmux gateway, which spawned a real
+    /// `tmux -CC new-session -A` of the same name (measured live
+    /// 2026-09-23: single pane, then a blank window, on successive
+    /// reopens).
+    #[test]
+    fn an_attached_mux_session_persists_as_mux_not_tmux() {
+        let path = socket_path("persist-kind");
+        spawn_daemon(&path);
+        let transport = connect(&path);
+        attach_sequence(&transport, "kind", None).expect("attach");
+
+        let mut ws = manners_state();
+        ws.tmux_state.transport = Some(Box::new(transport));
+        ws.tmux_state.tmux_session_name = Some("kind".to_string());
+        assert_eq!(
+            ws.tmux_state.persisted_session_names(),
+            (None, Some("kind".to_string())),
+            "a transport-attached name is a mux name"
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
     /// A `WindowState` with no window, renderer, or tabs — the same seam
     /// `dispatch_tests::test_window_state` uses — so the manners test can
     /// hold the real `apply_agent_pushes` receiver without a live daemon.

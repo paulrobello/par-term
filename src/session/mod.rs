@@ -70,6 +70,12 @@ pub struct SessionWindow {
     /// tmux session name to auto-reconnect on restore (if any)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tmux_session_name: Option<String>,
+    /// par-mux session name to reattach on restore (if any). Distinct from
+    /// `tmux_session_name`: restoring a mux name through the tmux gateway
+    /// spawns a real `tmux -CC` session of the same name instead of
+    /// reattaching to the daemon.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mux_session_name: Option<String>,
 }
 
 /// A single tab in a saved session.

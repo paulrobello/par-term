@@ -68,6 +68,8 @@ pub fn capture_session(windows: &HashMap<WindowId, WindowState>) -> SessionState
             .and_then(|id| visible_tabs.iter().position(|t| t.id == id))
             .unwrap_or(0);
 
+        let (tmux_session_name, mux_session_name) =
+            window_state.tmux_state.persisted_session_names();
         session_windows.push(SessionWindow {
             position: (
                 (window_pos.x as f64 / scale) as i32,
@@ -79,7 +81,8 @@ pub fn capture_session(windows: &HashMap<WindowId, WindowState>) -> SessionState
             ),
             tabs,
             active_tab_index,
-            tmux_session_name: window_state.tmux_state.tmux_session_name.clone(),
+            tmux_session_name,
+            mux_session_name,
         });
     }
 

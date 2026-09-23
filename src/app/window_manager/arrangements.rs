@@ -124,7 +124,10 @@ impl WindowManager {
             // will be re-created by the tmux session on reconnect.  Pass only a single
             // empty tab CWD so create_window_with_overrides spawns just the gateway
             // shell; the real tmux tabs arrive via layout-change notifications.
-            let tab_cwds: Vec<Option<String>> = if window_snapshot.tmux_session_name.is_some() {
+            // A par-mux window is the same shape (tabs arrive via %window-add).
+            let tab_cwds: Vec<Option<String>> = if window_snapshot.tmux_session_name.is_some()
+                || window_snapshot.mux_session_name.is_some()
+            {
                 vec![None]
             } else {
                 crate::arrangements::restore::tab_cwds(&arrangement, i)
@@ -141,8 +144,20 @@ impl WindowManager {
             if let Some(window_id) = created_window_id
                 && let Some(window_state) = self.windows.get_mut(&window_id)
             {
-                // Auto-connect tmux session if this window had one saved
-                if let Some(ref session_name) = window_snapshot.tmux_session_name
+                // Reattach a par-mux session saved with this window — never
+                // through the tmux branch, which would spawn a real
+                // `tmux -CC` session of the same name.
+                if let Some(ref mux_name) = window_snapshot.mux_session_name
+                    && !mux_name.is_empty()
+                {
+                    #[cfg(feature = "mux")]
+                    window_state.begin_mux_session_attach(mux_name);
+                    #[cfg(not(feature = "mux"))]
+                    log::warn!(
+                        "Arrangement restore: par-mux session '{mux_name}' skipped — \
+                         this build has no mux support"
+                    );
+                } else if let Some(ref session_name) = window_snapshot.tmux_session_name
                     && window_state.config.load().tmux.tmux_enabled
                     && !session_name.is_empty()
                 {

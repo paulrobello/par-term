@@ -77,6 +77,13 @@ pub struct WindowSnapshot {
     /// On restore, the window will auto-connect to this session (control mode only).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tmux_session_name: Option<String>,
+
+    /// par-mux session name that was attached when this window was saved.
+    /// Distinct from `tmux_session_name`: restoring a mux name through the
+    /// tmux gateway spawns a real `tmux -CC` session of the same name
+    /// instead of reattaching to the daemon.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mux_session_name: Option<String>,
 }
 
 /// A saved window arrangement
@@ -346,6 +353,7 @@ mod tests {
                 }],
                 active_tab_index: 0,
                 tmux_session_name: None,
+                mux_session_name: None,
             }],
             created_at: "2024-01-01T00:00:00Z".to_string(),
             order: 0,

@@ -96,4 +96,36 @@ impl TmuxState {
             native_pane_to_tmux_pane: std::collections::HashMap::new(),
         }
     }
+
+    /// The attached session name for persistence, split by kind:
+    /// `(tmux_session_name, mux_session_name)`. Only the par-mux attach
+    /// installs a `transport`, so a set transport means the name belongs to
+    /// the daemon — persisting it as a tmux name made the next launch
+    /// restore it through the tmux gateway, spawning a real `tmux -CC`
+    /// session of the same name instead of reattaching to the daemon.
+    pub(crate) fn persisted_session_names(&self) -> (Option<String>, Option<String>) {
+        match (&self.tmux_session_name, self.transport.is_some()) {
+            (Some(name), true) => (None, Some(name.clone())),
+            (name, false) => (name.clone(), None),
+            (None, true) => (None, None),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Without a mux transport the attached name is a tmux gateway session
+    /// and persists as one — the real-tmux restore path is unchanged.
+    #[test]
+    fn a_gateway_session_name_persists_as_tmux() {
+        let mut state = TmuxState::new(None);
+        assert_eq!(state.persisted_session_names(), (None, None));
+        state.tmux_session_name = Some("work".to_string());
+        assert_eq!(
+            state.persisted_session_names(),
+            (Some("work".to_string()), None)
+        );
+    }
 }
