@@ -45,7 +45,12 @@ PATCH_LINE_PREFIX='par-term-emu-core-rust = { path ='
 FORWARD_FEATURE_MANIFESTS=(
   "$REPO_ROOT/par-term-tmux/Cargo.toml|layout-conformance|par-term-emu-core-rust/mux"
   "$REPO_ROOT/par-term-mux/Cargo.toml|mux|par-term-emu-core-rust/mux"
-  "$REPO_ROOT/Cargo.toml|mux|par-term-mux/mux"
+  # The quote-joined target is deliberate: the root mux feature must enable
+  # BOTH the mux wiring and par-term-terminal's generation bump (whose
+  # mark_updated call compiles only against the local core). The mechanism
+  # writes `mux = ["<target>"]`, so embedding `", "` yields the two-element
+  # array. Committed manifests keep `mux = []`; CI never sees this line.
+  "$REPO_ROOT/Cargo.toml|mux|par-term-mux/mux\", \"par-term-terminal/mux"
 )
 
 die() { echo "with-local-core: $*" >&2; exit 1; }

@@ -354,6 +354,9 @@ impl WindowState {
         match profile_drawer {
             ProfileDrawerAction::OpenProfile(id) => {
                 self.open_profile(id);
+                // Opening a profile is a navigation — collapse the drawer so
+                // the new tab is not hidden behind it.
+                self.overlay_ui.profile_drawer_ui.expanded = false;
             }
             ProfileDrawerAction::ManageProfiles => {
                 // Open settings window to Profiles tab instead of terminal-embedded modal

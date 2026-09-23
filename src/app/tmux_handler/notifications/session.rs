@@ -91,12 +91,15 @@ impl WindowState {
             && let Some(renderer) = &self.renderer
         {
             let (cols, rows) = renderer.grid_size();
-            super::mux::push_client_size(
-                &**transport,
-                self.tmux_state.mux_focused_pane,
-                cols as u16,
-                rows as u16,
-            );
+            // mux_focused_pane is unset after a fresh attach until a click
+            // or focus push — resolve the focused pane the same way input
+            // routing does, or every resize is silently skipped and daemon
+            // panes keep the old geometry (broken wrapping after resize).
+            let focused = self
+                .tmux_state
+                .mux_focused_pane
+                .or_else(|| self.focused_mux_pane_from_native());
+            super::mux::push_client_size(&**transport, focused, cols as u16, rows as u16);
             return;
         }
 
