@@ -102,6 +102,17 @@ impl WindowState {
                                     .collect();
                                 self.tmux_state.tmux_pane_to_native_pane = pane_mappings;
 
+                                // Size every new pane terminal to its layout
+                                // cell. Panes are created at the config
+                                // default (80x24); without this the reattach
+                                // seed and all live output reflow at the
+                                // wrong width (broken wrapping on reconnect)
+                                // until some later resize happens to fire.
+                                if let Some((_, _, _, _, cell_width, cell_height, _)) = bounds_info
+                                {
+                                    pm.resize_all_terminals(cell_width, cell_height);
+                                }
+
                                 if !pane_ids.is_empty() {
                                     tab.tmux.tmux_pane_id = Some(pane_ids[0]);
                                 }
