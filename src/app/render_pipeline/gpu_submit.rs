@@ -298,6 +298,7 @@ impl WindowState {
             let actual_render_start = std::time::Instant::now();
             let render_result = if pane_count > 0 {
                 // Gather all per-pane render data.
+                let mux_attached = self.tmux_state.transport.is_some();
                 let pane_render_data = self.tab_manager.active_tab_mut().and_then(|tab| {
                     pane_render::gather_pane_render_data(
                         tab,
@@ -309,7 +310,10 @@ impl WindowState {
                         // Always pass scrollbar width in split-pane mode so all
                         // panes have a stable column count regardless of focus or
                         // scrollback state — prevents layout reflow on pane click.
-                        sizing.scrollbar_width,
+                        pane_render::PaneLayoutOptions {
+                            scrollbar_inset: sizing.scrollbar_width,
+                            mux_attached,
+                        },
                     )
                 });
 

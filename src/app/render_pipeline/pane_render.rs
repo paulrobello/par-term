@@ -41,6 +41,23 @@ pub(super) struct PaneRenderData {
     pub(super) graphics: Vec<par_term_emu_core_rust::graphics::TerminalGraphic>,
     /// Kitty virtual placements (U=1) used for Unicode placeholder rendering.
     pub(super) virtual_placements: Vec<par_term_emu_core_rust::graphics::TerminalGraphic>,
+    /// Suppress this pane's scrollbar: an inner par-mux pane has no strip
+    /// reserved for one (only the window's right edge does), so drawing it
+    /// would cover the pane's own last columns — tmux has no per-pane
+    /// scrollbars either.
+    pub(super) suppress_scrollbar: bool,
+}
+
+/// Width reservations for `gather_pane_render_data`.
+#[derive(Clone, Copy)]
+pub(super) struct PaneLayoutOptions {
+    /// Physical pixels subtracted from each pane's content width for the
+    /// scrollbar (applied to all panes so column counts stay stable across
+    /// focus changes).
+    pub(super) scrollbar_inset: f32,
+    /// A par-mux transport is attached: daemon-driven tabs reserve the
+    /// scrollbar strip at the window edge (see `mux_scrollbar_reserved_cols`).
+    pub(super) mux_attached: bool,
 }
 
 /// Result of `gather_pane_render_data`.
@@ -71,8 +88,12 @@ pub(super) fn gather_pane_render_data(
     effective_pane_padding: f32,
     cursor_opacity: f32,
     pane_count: usize,
-    scrollbar_inset: f32,
+    layout: PaneLayoutOptions,
 ) -> PaneRenderDataResult {
+    let PaneLayoutOptions {
+        scrollbar_inset,
+        mux_attached,
+    } = layout;
     let effective_padding = if pane_count > 1 && config.window.hide_window_padding_on_split {
         0.0
     } else {
@@ -96,14 +117,32 @@ pub(super) fn gather_pane_render_data(
 
     let pm = tab.pane_manager.as_mut()?;
 
+    // A par-mux tab's layout was sized to the grid minus the scrollbar strip
+    // (mux_client_grid); lay the panes out over that same reduced width so
+    // native positions match the daemon's cells and the strip at the right
+    // edge stays free for the scrollbar. The tmux gateway pushes the full
+    // width, so its tabs keep the full content area.
+    let mux_tab = mux_attached && tab_is_daemon_driven;
+    let layout_width = if mux_tab {
+        let reserved = crate::app::tmux_handler::mux_scrollbar_reserved_cols(
+            scrollbar_inset,
+            sizing.cell_width,
+        );
+        let full_cols = (content_width / sizing.cell_width).floor() as usize;
+        (full_cols.saturating_sub(reserved).max(1) as f32 * sizing.cell_width).min(content_width)
+    } else {
+        content_width
+    };
+
     // Update pane bounds
     let bounds = crate::pane::PaneBounds::new(
         effective_padding + sizing.content_offset_x,
         sizing.content_offset_y,
-        content_width,
+        layout_width,
         content_height,
     );
     pm.set_bounds(bounds);
+    let layout_right_edge = bounds.x + bounds.width;
 
     // Terminal resize is done per-pane in the loop below so each pane
     // subtracts `scrollbar_inset` from its column calculation.
@@ -460,6 +499,9 @@ pub(super) fn gather_pane_render_data(
             background: pane_background,
             graphics: pane_graphics,
             virtual_placements: pane_virtual_placements,
+            // Only the right-most pane borders the reserved strip.
+            suppress_scrollbar: mux_tab
+                && (bounds.x + bounds.width) < layout_right_edge - sizing.cell_width / 2.0,
         });
     }
 
@@ -543,7 +585,9 @@ fn with_pane_capture_params<R>(
             // Focused pane: respect autohide via show_scrollbar flag.
             // Unfocused panes: always show scrollbar when they have scrollback
             // content, so the scrollbar doesn't disappear on focus loss.
-            show_scrollbar: if focused {
+            show_scrollbar: if pane.suppress_scrollbar {
+                false
+            } else if focused {
                 show_scrollbar && pane.scrollback_len > 0
             } else {
                 pane.scrollback_len > 0
@@ -672,6 +716,7 @@ impl crate::app::window_state::WindowState {
             .tab_manager
             .active_tab()
             .and_then(|t| t.active_mouse().hovered_divider_index);
+        let mux_attached = self.tmux_state.transport.is_some();
         // Mirrors `submit_gpu_frame`: no divider padding when no divider is drawn.
         let effective_pane_padding = if is_tmux_gateway || pane_count <= 1 {
             0.0
@@ -709,7 +754,10 @@ impl crate::app::window_state::WindowState {
                     effective_pane_padding,
                     cursor_opacity,
                     pane_count,
-                    sizing.scrollbar_width,
+                    PaneLayoutOptions {
+                        scrollbar_inset: sizing.scrollbar_width,
+                        mux_attached,
+                    },
                 )
             })
         else {

@@ -66,6 +66,17 @@ impl TmuxTransport for MuxTransport {
     }
 }
 
+/// The grid size pushed to the daemon for a par-mux tab: the renderer's
+/// grid minus the scrollbar strip (see `mux_scrollbar_reserved_cols`).
+pub(crate) fn mux_client_grid(renderer: &par_term_render::renderer::Renderer) -> (u16, u16) {
+    let (cols, rows) = renderer.grid_size();
+    let reserved = crate::app::tmux_handler::mux_scrollbar_reserved_cols(
+        renderer.scrollbar_width(),
+        renderer.cell_width(),
+    );
+    (cols.saturating_sub(reserved).max(1) as u16, rows as u16)
+}
+
 /// Push the renderer's grid size so the daemon re-fits the window holding
 /// `pane` — `refresh-client -t %N -C` broadcasts `%layout-change` with the
 /// new geometry (core T4.C; the `-t` target is required by the server).
@@ -364,10 +375,7 @@ impl WindowState {
         // Run the attach sequence with the concrete local so
         // `handle_tmux_window_add` can borrow the window state freely;
         // boxing into tmux_state happens only once attached.
-        let size = self.renderer.as_ref().map(|r| -> (u16, u16) {
-            let (cols, rows) = r.grid_size();
-            (cols as u16, rows as u16)
-        });
+        let size = self.renderer.as_ref().map(mux_client_grid);
         let attach = attach_sequence(&transport, name, size).map(
             |AttachSequence {
                  outcome,
@@ -447,12 +455,12 @@ impl WindowState {
         if let Some(renderer) = &self.renderer
             && let Some(transport) = &self.tmux_state.transport
         {
-            let (cols, rows) = renderer.grid_size();
+            let (cols, rows) = mux_client_grid(renderer);
             push_client_size(
                 &**transport,
                 self.focused_mux_pane_from_native(),
-                cols as u16,
-                rows as u16,
+                cols,
+                rows,
             );
         }
     }
