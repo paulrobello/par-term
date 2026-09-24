@@ -97,7 +97,10 @@ impl WindowState {
 
     /// Resolve the armed mode against a typed character (lowercase matched;
     /// `None` = non-character key such as Escape — always a cancel).
-    fn resolve_pane_hint_select(&mut self, typed: Option<char>) -> bool {
+    /// `pub(crate)` so the ui-test chord injector can drive the mode's
+    /// resolution the way a real key event would (winit `KeyEvent`s cannot
+    /// be fabricated in tests).
+    pub(crate) fn resolve_pane_hint_select(&mut self, typed: Option<char>) -> bool {
         let PaneHintSelectState::Selecting {
             tab_id,
             assignments,

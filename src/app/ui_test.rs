@@ -449,6 +449,28 @@ impl WindowManager {
             ));
         }
 
+        // Mirror the real event path: an armed pane-hint mode captures every
+        // key press (any press resolves it — mode-stack contract); a focused
+        // plugin overlay swallows everything except Escape. Both checks sit
+        // ahead of the keybinding layer in handle_key_event, so the injector
+        // must sit them here too or a chord bypasses them.
+        if ws.pane_hint_select.is_active() {
+            let typed = match &logical {
+                Key::Character(ch) => ch.chars().next(),
+                _ => None,
+            };
+            ws.resolve_pane_hint_select(typed);
+            return StepOutcome::Performed(format!("chord {chord} -> resolved pane-hint mode"));
+        }
+        if ws.status_bar_ui.plugin_host().focused_overlay().is_some() {
+            let is_escape = matches!(&logical, Key::Named(NamedKey::Escape));
+            ws.resolve_focused_overlay_key(is_escape);
+            return StepOutcome::Performed(format!(
+                "chord {chord} -> swallowed by focused overlay{}",
+                if is_escape { " (unfocused)" } else { "" }
+            ));
+        }
+
         // Mirror the real event path: modifier state is updated before the
         // key press is looked up.
         ws.input_handler.update_modifiers(modifiers);

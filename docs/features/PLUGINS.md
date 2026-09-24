@@ -821,6 +821,57 @@ XDG_CONFIG_HOME="$ROOT/cfg" ./target/dev-release/par-term \
   --ui-test "$ROOT/script.json" --ui-test-report "$ROOT/report.json"
 ```
 
+### Interactive variant (deploy console + pane-hint mode stack)
+
+The interactive overlay's recipe installs the deploy-console example and
+exercises the phase 2 invariants end to end: the overlay lands with its
+interactive flag intact (manifest capability accepted), focus is never
+stolen on appear, and the built-in pane-hint mode both arms over a pushed
+overlay and resolves without disturbing it (mode-stack contract — modal
+chrome trumps plugin surfaces):
+
+```bash
+ROOT=/tmp/pt-panehint-overlay-ui-test
+rm -rf "$ROOT"; mkdir -p "$ROOT/cfg/par-term/plugins"
+cp -r scripts/examples/plugins/com.example.deploy-console "$ROOT/cfg/par-term/plugins/"
+cat > "$ROOT/cfg/par-term/config.yaml" <<'EOF'
+custom_shell: /bin/sh
+shell_args:
+  - -c
+  - cat > /tmp/pt-panehint-overlay-ui-test/pty-capture.txt
+shader_install_prompt: never
+shell_integration_state: never
+plugins:
+  - id: com.example.deploy-console
+    enabled: true
+EOF
+cat > "$ROOT/script.json" <<'EOF'
+{
+  "steps": [
+    {"wait_ms": 2500, "assert": "plugins_loaded"},
+    {"wait_ms": 2000, "assert": "plugin_overlay_interactive"},
+    {"assert_not": "plugin_overlay_focused"},
+    {"chord": "CmdOrCtrl+D"},
+    {"wait_ms": 500, "chord": "CmdOrCtrl+Alt+P"},
+    {"wait_ms": 500, "assert": "pane_hint_mode_active"},
+    {"assert": "plugin_overlay_set"},
+    {"chord": "CmdOrCtrl+Alt+P"},
+    {"wait_ms": 500, "assert_not": "pane_hint_mode_active"},
+    {"assert": "plugin_overlay_set"},
+    {"assert_eq": ["file_empty", "/tmp/pt-panehint-overlay-ui-test/pty-capture.txt"]}
+  ]
+}
+EOF
+make build
+XDG_CONFIG_HOME="$ROOT/cfg" ./target/dev-release/par-term \
+  --ui-test "$ROOT/script.json" --ui-test-report "$ROOT/report.json"
+```
+
+Every step must report `ok` in the report (chord steps report the action
+they performed; assert steps report the boolean). While the pane-hint mode
+is armed, an injected chord resolves the mode instead of reaching the
+keybinding layer — the injector mirrors the real event path's mode capture.
+
 ## See also
 
 - [AUTOMATION.md](AUTOMATION.md) — triggers, coprocesses, and observer
