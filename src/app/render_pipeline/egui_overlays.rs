@@ -451,3 +451,148 @@ pub(super) fn render_pane_identify_overlay(
             });
     }
 }
+
+/// First-run confirmation dialog for an agent-authored script command (D4b).
+///
+/// Shows the full command body and offers Run / Cancel. Run persists the
+/// approved body hash to the confirmation ledger (later runs of the same
+/// body need no dialog) and hands the file back for execution; Cancel drops
+/// it. The flicker guard (`confirm_dialog_activated_frame`) follows the
+/// `render_trigger_prompt_dialog` pattern so the keypress that opened the
+/// palette row cannot also click a button on this same frame.
+pub(super) fn render_agent_command_confirm_dialog(
+    ctx: &egui::Context,
+    store: &mut crate::agent_commands_store::AgentCommandStore,
+) -> Option<par_term_config::agent_commands::AgentCommandFile> {
+    if store.pending_confirmations.is_empty() {
+        store.confirm_dialog_activated_frame = None;
+        return None;
+    }
+
+    if store.confirm_dialog_activated_frame.is_none() {
+        store.confirm_dialog_activated_frame = Some(ctx.cumulative_frame_nr());
+    }
+    let activated_frame = store.confirm_dialog_activated_frame.unwrap_or(0);
+    let current_frame = ctx.cumulative_frame_nr();
+
+    // Display info extracted before the egui closure to avoid re-borrowing.
+    let head = &store.pending_confirmations[0];
+    let title = head.file.title().to_string();
+    let id = head.file.id().to_string();
+    let source_line = match &head.file.source_agent {
+        Some(agent) => format!("Agent command from {agent}"),
+        None => "Agent command".to_string(),
+    };
+    // The script body shown for approval: command plus args, monospaced.
+    let body = match &head.file.action {
+        par_term_config::CustomActionConfig::ShellCommand { command, args, .. } => {
+            let mut s = command.clone();
+            for a in args {
+                s.push(' ');
+                s.push_str(a);
+            }
+            s
+        }
+        // Unreachable: only script commands are queued.
+        _ => String::new(),
+    };
+    let queued_count = store.pending_confirmations.len();
+
+    let mut approved = false;
+    let mut denied = false;
+
+    egui::Window::new("Agent Command Confirmation")
+        .id(egui::Id::new("agent_command_confirm_dialog"))
+        .collapsible(false)
+        .resizable(false)
+        .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
+        .show(ctx, |ui| {
+            ui.set_min_width(380.0);
+            ui.set_max_width(520.0);
+
+            ui.add_space(4.0);
+            ui.label(
+                egui::RichText::new(format!("Run agent command \u{201c}{title}\u{201d}?"))
+                    .strong()
+                    .size(15.0),
+            );
+            ui.add_space(8.0);
+            ui.label(egui::RichText::new(&source_line).weak().small());
+            ui.label(
+                egui::RichText::new(format!("id: {id}"))
+                    .weak()
+                    .small()
+                    .monospace(),
+            );
+            ui.add_space(6.0);
+
+            egui::Frame::NONE
+                .fill(egui::Color32::from_rgba_unmultiplied(0, 0, 0, 40))
+                .inner_margin(egui::Margin::same(8))
+                .corner_radius(4.0)
+                .show(ui, |ui| {
+                    ui.label(egui::RichText::new(&body).monospace());
+                });
+
+            ui.add_space(4.0);
+            ui.label(
+                egui::RichText::new(
+                    "First run of this command body. Approving remembers it until the \
+                     command changes.",
+                )
+                .weak()
+                .small(),
+            );
+
+            ui.add_space(12.0);
+            ui.separator();
+            ui.add_space(8.0);
+
+            ui.horizontal(|ui| {
+                if ui
+                    .button(
+                        egui::RichText::new("Cancel").color(egui::Color32::from_rgb(220, 60, 60)),
+                    )
+                    .clicked()
+                    && current_frame > activated_frame
+                {
+                    denied = true;
+                }
+                ui.add_space(4.0);
+                if ui
+                    .button(egui::RichText::new("Run").color(egui::Color32::from_rgb(80, 180, 80)))
+                    .clicked()
+                    && current_frame > activated_frame
+                {
+                    approved = true;
+                }
+            });
+
+            if queued_count > 1 {
+                ui.add_space(4.0);
+                ui.label(
+                    egui::RichText::new(format!("({} more queued commands)", queued_count - 1))
+                        .weak()
+                        .small(),
+                );
+            }
+        });
+
+    if approved {
+        let file = store.approve_head();
+        if store.pending_confirmations.is_empty() {
+            store.confirm_dialog_activated_frame = None;
+        } else {
+            store.confirm_dialog_activated_frame = Some(ctx.cumulative_frame_nr());
+        }
+        file
+    } else {
+        if denied {
+            store.cancel_head();
+        }
+        if store.pending_confirmations.is_empty() {
+            store.confirm_dialog_activated_frame = None;
+        }
+        None
+    }
+}

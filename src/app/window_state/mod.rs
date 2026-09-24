@@ -216,6 +216,10 @@ pub struct WindowState {
     pub(crate) watcher_state: WatcherState,
     /// State for terminal triggers and their spawned processes
     pub(crate) trigger_state: TriggerState,
+    /// Agent-authored command store: commands dir snapshot, watcher, and
+    /// first-run confirmation queue (design 2026-09-24, card
+    /// 01a0d1cbcb3276c19983cdc9d7bc097c)
+    pub(crate) agent_commands: crate::agent_commands_store::AgentCommandStore,
     /// Pending OSC 99 notification click-to-action registry (per-window; see
     /// `notifications::NotificationClickState` docs for why)
     pub(crate) notification_click_state: NotificationClickState,

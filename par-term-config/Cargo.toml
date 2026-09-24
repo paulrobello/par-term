@@ -53,6 +53,9 @@ parking_lot.workspace = true
 # Hostname detection for snippet variables
 hostname.workspace = true
 
+# SHA-256 of agent-command bodies for the confirmation ledger
+sha2.workspace = true
+
 # NOTE(ARC-003): The optional `wgpu` dependency and `wgpu-types` feature were
 # removed — wgpu conversion helpers now live in `par-term-render` where they
 # belong. A pure-data Layer-1 crate must not carry Layer-3 GPU types.

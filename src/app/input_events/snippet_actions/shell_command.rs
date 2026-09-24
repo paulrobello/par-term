@@ -21,6 +21,34 @@ impl WindowState {
         title: String,
         capture_output: bool,
     ) -> bool {
+        self.execute_shell_command_action_with_env(
+            command,
+            args,
+            notify_on_success,
+            timeout_secs,
+            title,
+            capture_output,
+            Vec::new(),
+        )
+    }
+
+    /// [`Self::execute_shell_command_action`] with extra environment
+    /// variables layered onto the inherited environment. Agent-command
+    /// dispatch uses this to set `PAR_TERM_COMMAND_ID` and
+    /// `PAR_TERM_COMMAND_SOURCE_AGENT` (design 2026-09-24, run-time inputs).
+    /// The arg list mirrors the wrapped function plus `extra_env`; a params
+    /// struct here would fork the shape the `action:` executor owns.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn execute_shell_command_action_with_env(
+        &mut self,
+        command: String,
+        args: Vec<String>,
+        notify_on_success: bool,
+        timeout_secs: u64,
+        title: String,
+        capture_output: bool,
+        extra_env: Vec<(String, String)>,
+    ) -> bool {
         let ctx_arc = Arc::clone(&self.last_workflow_context);
 
         log::info!(
@@ -62,6 +90,7 @@ impl WindowState {
                 // `timeout_secs` the fire-and-forget branch below honors.
                 let mut cmd = std::process::Command::new(&command);
                 cmd.args(&args);
+                cmd.envs(extra_env.iter().cloned());
                 let output_result = crate::process_timeout::output_with_timeout(&mut cmd, timeout);
 
                 match output_result {
@@ -106,7 +135,10 @@ impl WindowState {
                 }
             } else {
                 // Use spawn to run the command and wait with timeout
-                let child_result = std::process::Command::new(&command).args(&args).spawn();
+                let child_result = std::process::Command::new(&command)
+                    .args(&args)
+                    .envs(extra_env.iter().cloned())
+                    .spawn();
 
                 match child_result {
                     Ok(mut child) => {

@@ -410,6 +410,9 @@ impl WindowState {
                                 );
                             #[cfg(feature = "mux")]
                             plugin_rows.extend(self.tmux_state.agent_roster.palette_rows());
+                            // Agent-authored commands join the palette the
+                            // same way (runtime rows from the store).
+                            plugin_rows.extend(self.agent_commands.palette_rows());
                             // The attached par-mux session's detach row —
                             // same runtime-rows pattern as the roster.
                             #[cfg(feature = "mux")]
@@ -601,6 +604,15 @@ impl WindowState {
                         ctx,
                         &mut self.trigger_state,
                         pending_action_target_note.as_deref(),
+                    );
+
+                    // Agent-command first-run confirmation (D4b). Approvals
+                    // land in the store's execution queue, drained from
+                    // `about_to_wait` — the egui closure cannot run
+                    // `&mut self` executors.
+                    egui_overlays::render_agent_command_confirm_dialog(
+                        ctx,
+                        &mut self.agent_commands,
                     );
 
                     // Render file transfer progress overlay (bottom-right corner)

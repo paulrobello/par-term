@@ -112,6 +112,16 @@ impl WindowState {
         // Check for MCP shader diagnostics requests (.shader-diagnostics-request.json)
         self.check_shader_diagnostics_request_file();
 
+        // Reload agent-authored commands when the commands dir changed
+        // (MCP command_create/command_delete write there atomically).
+        if self.agent_commands.poll() {
+            self.focus_state.needs_redraw = true;
+        }
+
+        // Execute agent commands the confirmation dialog approved this frame
+        // (drained here — the egui closure cannot run &mut self executors).
+        crate::agent_commands_store::run_approved_agent_commands(self);
+
         // Check for tmux control mode notifications
         if self.check_tmux_notifications() {
             self.focus_state.needs_redraw = true;

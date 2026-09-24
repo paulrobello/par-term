@@ -334,3 +334,23 @@ fn plugin_action_dispatch_for_a_malformed_id_returns_false() {
     let mut state = test_window_state();
     assert!(!state.execute_keybinding_action("plugin-action:only-plugin"));
 }
+
+// --- agent-cmd: dispatch (agent-authored commands) ---
+
+#[test]
+fn agent_cmd_dispatch_for_an_unknown_command_returns_false() {
+    // The store loads the real commands dir; an id this implausible is not
+    // on disk, so dispatch hits the miss-path (log + false) the same way a
+    // stale palette row after a delete does.
+    let mut state = test_window_state();
+    assert!(!state.execute_keybinding_action("agent-cmd:definitely-not-a-real-command-id-xyz"));
+}
+
+#[test]
+fn agent_cmd_prefix_is_routed_not_logged_as_unknown() {
+    // The branch sits ahead of the unknown-action fallthrough; even a
+    // malformed id (empty) is consumed by the agent-cmd arm rather than
+    // reaching the generic warn path.
+    let mut state = test_window_state();
+    assert!(!state.execute_keybinding_action("agent-cmd:"));
+}

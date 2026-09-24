@@ -108,6 +108,9 @@ pub(crate) static ACTION_HANDLERS: &[(&str, ActionHandler)] = &[
         #[cfg_attr(not(feature = "mux"), allow(unused_mut))]
         let mut plugin_rows =
             plugin_palette_entries(&s.status_bar_ui.plugin_host().palette_actions());
+        // Agent-authored commands join as runtime rows, hot-reloaded by the
+        // commands-dir watcher (design 2026-09-24).
+        plugin_rows.extend(s.agent_commands.palette_rows());
         // Rostered agents join the palette at open time (A2b task 3): the
         // rows are runtime data from the cache, like the plugin rows.
         #[cfg(feature = "mux")]
@@ -489,6 +492,19 @@ fn clear_scrollback(s: &mut WindowState) -> bool {
     true
 }
 
+/// Extra environment variables an agent-command script receives: always
+/// `PAR_TERM_COMMAND_ID`, plus `PAR_TERM_COMMAND_SOURCE_AGENT` for
+/// agent-created commands (design 2026-09-24, owner decision 6).
+pub(crate) fn agent_command_env(
+    file: &par_term_config::agent_commands::AgentCommandFile,
+) -> Vec<(String, String)> {
+    let mut env = vec![("PAR_TERM_COMMAND_ID".to_string(), file.id().to_string())];
+    if let Some(agent) = &file.source_agent {
+        env.push(("PAR_TERM_COMMAND_SOURCE_AGENT".to_string(), agent.clone()));
+    }
+    env
+}
+
 /// Parse a `plugin-action:<plugin_id>:<action_id>` keybinding action name.
 ///
 /// Pure core of the `plugin-action:` miss-path branch: strips the prefix,
@@ -558,6 +574,8 @@ impl WindowState {
                     false
                 }
             }
+        } else if let Some(cmd_id) = action.strip_prefix("agent-cmd:") {
+            self.execute_agent_command(cmd_id, &[])
         } else if let Some(pane_id) = parse_agent_roster_focus_id(action) {
             if self.focus_agent_roster_pane(pane_id) {
                 log::info!("Focused agent roster pane {} via palette", pane_id);
@@ -586,6 +604,62 @@ impl WindowState {
         } else {
             log::warn!("Unknown keybinding action: {}", action);
             false
+        }
+    }
+
+    /// Execute an agent-authored command by id (`agent-cmd:<id>` dispatch).
+    ///
+    /// Macros replay through the existing custom-action executor; scripts
+    /// check the confirmation ledger first — an unconfirmed body is queued
+    /// for the first-run dialog instead of executing. `extra_args` come from
+    /// the CLI fallthrough (`par-term <id> a b c`) and append to the stored
+    /// args of a script command.
+    pub(crate) fn execute_agent_command(&mut self, cmd_id: &str, extra_args: &[String]) -> bool {
+        let file = match self.agent_commands.get(cmd_id) {
+            Some(c) => c.file.clone(),
+            None => {
+                // The palette snapshot can lag a delete by one watcher poll;
+                // a hand-bound chord on a deleted command lands here too.
+                log::warn!("agent-cmd {:?} not found (deleted or invalid)", cmd_id);
+                return false;
+            }
+        };
+
+        match file.action.clone() {
+            par_term_config::CustomActionConfig::ShellCommand {
+                command,
+                args,
+                notify_on_success,
+                timeout_secs,
+                title,
+                capture_output,
+                ..
+            } => {
+                if !self.agent_commands.is_confirmed(&file) {
+                    log::info!(
+                        "agent-cmd {:?} body unconfirmed — queuing first-run dialog",
+                        cmd_id
+                    );
+                    self.agent_commands.request_confirmation(file);
+                    self.request_redraw();
+                    return true;
+                }
+                let mut full_args = args;
+                full_args.extend(extra_args.iter().cloned());
+                let env = agent_command_env(&file);
+                self.execute_shell_command_action_with_env(
+                    command,
+                    full_args,
+                    notify_on_success,
+                    timeout_secs,
+                    title,
+                    capture_output,
+                    env,
+                )
+            }
+            // Macros and Sequences replay through the same executor path the
+            // `action:` prefix uses; they take no runtime input.
+            action => self.execute_custom_action_payload(&action),
         }
     }
 

@@ -124,6 +124,8 @@ impl WindowState {
 
             trigger_state: TriggerState::default(),
 
+            agent_commands: crate::agent_commands_store::AgentCommandStore::new(),
+
             notification_click_state: super::NotificationClickState::default(),
 
             pending_snap_size: None,

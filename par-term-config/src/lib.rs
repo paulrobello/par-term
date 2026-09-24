@@ -27,6 +27,7 @@
 //! - [`prelude::unicode`] — Unicode width, normalization, and version types
 //! - [`prelude::color`] — Color conversion helper functions
 
+pub mod agent_commands;
 pub mod assistant_input_history;
 pub mod assistant_prompts;
 pub mod atomic_save;

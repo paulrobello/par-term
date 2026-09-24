@@ -3,6 +3,7 @@
 //! This module owns the tool registry: it builds the `tools/list` response and
 //! dispatches `tools/call` requests to the appropriate per-tool handler.
 
+pub mod agent_commands;
 pub mod config_update;
 pub mod diagnostics;
 pub mod screenshot;
@@ -10,6 +11,7 @@ pub mod screenshot;
 use serde_json::Value;
 
 // Re-export per-tool handlers for use in lib.rs dispatch
+pub use agent_commands::{handle_command_create, handle_command_delete, handle_command_list};
 pub use config_update::handle_config_update;
 pub use diagnostics::handle_shader_diagnostics;
 pub use screenshot::handle_terminal_screenshot;
@@ -79,6 +81,93 @@ fn shader_diagnostics_tool() -> Value {
 // Dispatch
 // ---------------------------------------------------------------------------
 
+/// Input schema for the `command_create` tool.
+fn command_create_input_schema() -> Value {
+    serde_json::json!({
+        "type": "object",
+        "properties": {
+            "created_by": {
+                "type": "string",
+                "enum": ["agent"],
+                "description": "Provenance tag; command_create writes agent commands only"
+            },
+            "source_agent": {
+                "type": "string",
+                "description": "The authoring agent's name (e.g. claude-code)"
+            },
+            "created_at": {
+                "type": "string",
+                "description": "RFC 3339 timestamp (optional, informational)"
+            },
+            "action": {
+                "type": "object",
+                "description": "One CustomActionConfig variant, serde-tagged by 'type': \
+                                shell_command (script kind) or new_tab | insert_text | \
+                                split_pane | key_sequence | sequence (macro kinds). Each \
+                                embeds required 'id' ([a-z0-9-]+, == filename) and 'title'."
+            }
+        },
+        "required": ["created_by", "source_agent", "action"]
+    })
+}
+
+/// Build the tool descriptor for `command_create`.
+fn command_create_tool() -> Value {
+    serde_json::json!({
+        "name": "command_create",
+        "description": "Create (or update) an agent-authored par-term command: a palette + \
+                        CLI command usable immediately with no restart. Script commands \
+                        (action.type=shell_command) run a shell command and require the \
+                        user's one-time confirmation of the exact body; macros replay \
+                        built-in actions (new tab, insert text, split pane, key sequence, \
+                        sequences). Commands appear as 'agent-cmd:<id>' palette rows and \
+                        run as 'par-term <id>' on the CLI.",
+        "inputSchema": command_create_input_schema()
+    })
+}
+
+/// Input schema for the `command_list` tool.
+fn command_list_input_schema() -> Value {
+    serde_json::json!({
+        "type": "object",
+        "properties": {}
+    })
+}
+
+/// Build the tool descriptor for `command_list`.
+fn command_list_tool() -> Value {
+    serde_json::json!({
+        "name": "command_list",
+        "description": "List every par-term command in the commands directory with id, \
+                        title, kind (script|macro), created_by, and source_agent.",
+        "inputSchema": command_list_input_schema()
+    })
+}
+
+/// Input schema for the `command_delete` tool.
+fn command_delete_input_schema() -> Value {
+    serde_json::json!({
+        "type": "object",
+        "properties": {
+            "id": {
+                "type": "string",
+                "description": "The command id (filename stem) to delete"
+            }
+        },
+        "required": ["id"]
+    })
+}
+
+/// Build the tool descriptor for `command_delete`.
+fn command_delete_tool() -> Value {
+    serde_json::json!({
+        "name": "command_delete",
+        "description": "Delete an agent-authored par-term command by id. User-authored \
+                        commands are refused; the user deletes those by hand.",
+        "inputSchema": command_delete_input_schema()
+    })
+}
+
 /// Handle the `tools/list` request.
 pub fn handle_tools_list() -> Value {
     serde_json::json!({
@@ -86,6 +175,9 @@ pub fn handle_tools_list() -> Value {
             config_update_tool(),
             terminal_screenshot_tool(),
             shader_diagnostics_tool(),
+            command_create_tool(),
+            command_list_tool(),
+            command_delete_tool(),
         ]
     })
 }
@@ -105,6 +197,9 @@ pub fn handle_tools_call(params: Option<Value>) -> Value {
         "config_update" => handle_config_update(&params),
         "terminal_screenshot" => handle_terminal_screenshot(&params),
         "shader_diagnostics" => handle_shader_diagnostics(&params),
+        "command_create" => handle_command_create(&params),
+        "command_list" => handle_command_list(&params),
+        "command_delete" => handle_command_delete(&params),
         _ => tool_error(&format!("Unknown tool: {name}")),
     }
 }

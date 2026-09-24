@@ -552,11 +552,14 @@ mod tests {
     fn test_handle_tools_list() {
         let result = handle_tools_list();
         let tools = result["tools"].as_array().unwrap();
-        assert_eq!(tools.len(), 3);
+        assert_eq!(tools.len(), 6);
         let names: Vec<_> = tools.iter().filter_map(|t| t["name"].as_str()).collect();
         assert!(names.contains(&"config_update"));
         assert!(names.contains(&"terminal_screenshot"));
         assert!(names.contains(&"shader_diagnostics"));
+        assert!(names.contains(&"command_create"));
+        assert!(names.contains(&"command_list"));
+        assert!(names.contains(&"command_delete"));
         for tool in tools {
             assert!(tool["inputSchema"].is_object());
         }

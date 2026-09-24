@@ -16,6 +16,9 @@ categories = ["command-line-utilities"]
 serde.workspace = true
 serde_json.workspace = true
 
+# Agent-command file format (command_create/list/delete write these files)
+par-term-config = { path = "../par-term-config", version = "0.14.4" }
+
 # Logging
 log.workspace = true
 

@@ -251,7 +251,16 @@ impl WindowState {
             }
         };
 
-        match action {
+        self.execute_custom_action_payload(&action)
+    }
+
+    /// Execute an already-loaded `CustomActionConfig` payload.
+    ///
+    /// The lookup-free core of [`Self::execute_custom_action`], shared with
+    /// agent-command dispatch (`agent-cmd:<id>`), whose payloads come from
+    /// the commands directory rather than `config.yaml`.
+    pub(crate) fn execute_custom_action_payload(&mut self, action: &CustomActionConfig) -> bool {
+        match action.clone() {
             CustomActionConfig::ShellCommand {
                 command,
                 args,

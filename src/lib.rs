@@ -51,6 +51,7 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub mod debug;
 
 pub mod acp_harness;
+pub mod agent_commands_store;
 pub mod agent_usage;
 pub mod ai_inspector;
 pub mod app;

@@ -164,13 +164,13 @@ When bumping sub-crate versions for crates.io publishing, bump in dependency ord
 Layer 0 — No internal deps (bump in any order):
   par-term-acp
   par-term-ssh
-  par-term-mcp
 
 Layer 1 — Foundation (bump before anything that depends on it):
   par-term-config
     └── depends on: (none — pure-data crate; Unicode types defined locally in src/types/)
 
 Layer 2 — Depend on par-term-config (bump after Layer 1):
+  par-term-mcp          → par-term-config  (agent-command file format)
   par-term-fonts        → par-term-config
   par-term-input        → par-term-config
   par-term-keybindings  → par-term-config
@@ -298,6 +298,7 @@ Everything below lives under `docs/` except where the path says otherwise.
 | Enterprise deployment | `docs/ENTERPRISE_DEPLOYMENT.md` |
 | Automation (triggers, coprocesses) | `docs/features/AUTOMATION.md` |
 | Plugins | `docs/features/PLUGINS.md` |
+| Agent-authored commands | `docs/features/AGENT_COMMANDS.md` |
 | Assistant panel / ACP agents | `docs/ASSISTANT_PANEL.md` |
 | Split tabs | `docs/features/TABS.md` |
 | Window management | `docs/features/WINDOW_MANAGEMENT.md` |
