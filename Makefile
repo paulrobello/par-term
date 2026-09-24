@@ -212,21 +212,18 @@ fmt-check:
 	cargo fmt -- --check
 
 # Run clippy linter. Two passes: the whole workspace's tests/bins at default
-# features (which now include `mux`), plus the root crate with every feature
-# (--all-features covers the gated mux wiring and layout conformance, which
-# compile against the published core >= 0.50 — cards
+# features (which include `mux`), then the whole workspace with every
+# feature — the second covers the gated mux wiring and layout conformance
+# in every member crate against the published core >= 0.50 (cards
 # 01a0c723f7b070239ecc5f6fce02f4fc and 01a0c74bfdaf78f0b5b4463033ab5291).
 lint:
 	@echo "Running clippy..."
 	cargo clippy --workspace --all-targets -- -D warnings
-	cargo clippy -p par-term --all-targets --all-features -- -D warnings
-
-# Run clippy on all targets, and additionally the whole workspace with
-# every feature combination (the pass deferred until the core >=0.50 pin
-# raise, card 01a0c723).
-lint-all: lint
-	@echo "Clippy all features (workspace)..."
 	cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+# Currently identical to lint: the workspace-wide --all-features pass
+# (deferred until the core >=0.50 pin raise, card 01a0c723) is part of lint.
+lint-all: lint
 	@echo "Clippy all targets passed."
 
 # Run all quality checks (format-check, lint, typecheck, test) — does NOT mutate files
