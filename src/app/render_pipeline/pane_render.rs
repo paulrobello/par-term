@@ -41,11 +41,6 @@ pub(super) struct PaneRenderData {
     pub(super) graphics: Vec<par_term_emu_core_rust::graphics::TerminalGraphic>,
     /// Kitty virtual placements (U=1) used for Unicode placeholder rendering.
     pub(super) virtual_placements: Vec<par_term_emu_core_rust::graphics::TerminalGraphic>,
-    /// Suppress this pane's scrollbar: an inner par-mux pane has no strip
-    /// reserved for one (only the window's right edge does), so drawing it
-    /// would cover the pane's own last columns — tmux has no per-pane
-    /// scrollbars either.
-    pub(super) suppress_scrollbar: bool,
 }
 
 /// Width reservations for `gather_pane_render_data`.
@@ -518,9 +513,6 @@ pub(super) fn gather_pane_render_data(
             background: pane_background,
             graphics: pane_graphics,
             virtual_placements: pane_virtual_placements,
-            // Only the right-most pane borders the reserved strip.
-            suppress_scrollbar: mux_tab
-                && (bounds.x + bounds.width) < layout_right_edge - sizing.cell_width / 2.0,
         });
     }
 
@@ -604,9 +596,7 @@ fn with_pane_capture_params<R>(
             // Focused pane: respect autohide via show_scrollbar flag.
             // Unfocused panes: always show scrollbar when they have scrollback
             // content, so the scrollbar doesn't disappear on focus loss.
-            show_scrollbar: if pane.suppress_scrollbar {
-                false
-            } else if focused {
+            show_scrollbar: if focused {
                 show_scrollbar && pane.scrollback_len > 0
             } else {
                 pane.scrollback_len > 0
