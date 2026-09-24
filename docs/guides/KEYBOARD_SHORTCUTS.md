@@ -185,8 +185,11 @@ Vi-style keyboard-driven text selection. See [Copy Mode](../features/COPY_MODE.m
 | Resize pane down | `Cmd + Alt + Shift + Down` | `Ctrl + Alt + Shift + Down` |
 | Promote pane to tab | *(unbound)* | *(unbound)* |
 | Demote tab to pane | *(unbound)* | *(unbound)* |
+| Select pane by letter | `Cmd + Alt + P` | `Ctrl + Alt + P` |
 
 > **📝 Note:** Promote and demote actions have no default keybinding. Bind them in Settings → Input → Keybindings or via config YAML using the `promote_pane_to_tab` and `demote_tab_to_pane` action names. See [Tabs](../features/TABS.md#promoting-and-demoting-panes) for details.
+
+> **📝 Note:** **Select pane by letter** (`select_pane_hint`, tmux `display-panes` style) draws a letter badge centered in every pane of the focused tab; type a pane's letter to focus it. Any other key, including `Escape`, cancels without changing focus. See [Tabs](../features/TABS.md#selecting-a-pane-by-letter) for details.
 
 ## Advanced Features
 
@@ -285,6 +288,7 @@ keybindings:
 - `split_horizontal`, `split_vertical`, `close_pane`
 - `navigate_pane_left`, `navigate_pane_right`
 - `navigate_pane_up`, `navigate_pane_down`
+- `select_pane_hint`
 - `resize_pane_left`, `resize_pane_right`
 - `resize_pane_up`, `resize_pane_down`
 - `promote_pane_to_tab`, `demote_tab_to_pane`

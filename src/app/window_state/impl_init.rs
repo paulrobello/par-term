@@ -113,6 +113,7 @@ impl WindowState {
 
             broadcast_input: false,
             pane_transfer_state: Default::default(),
+            pane_hint_select: Default::default(),
 
             badge_state,
 

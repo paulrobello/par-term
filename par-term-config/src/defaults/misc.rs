@@ -84,6 +84,11 @@ pub fn keybindings() -> Vec<crate::types::KeyBinding> {
             key: "CmdOrCtrl+Alt+Down".to_string(),
             action: "navigate_pane_down".to_string(),
         },
+        // tmux display-panes style: letter badges, type a letter to focus
+        crate::types::KeyBinding {
+            key: "CmdOrCtrl+Alt+P".to_string(),
+            action: "select_pane_hint".to_string(),
+        },
         // Pane resize shortcuts
         crate::types::KeyBinding {
             key: "CmdOrCtrl+Alt+Shift+Left".to_string(),
@@ -205,6 +210,11 @@ pub fn keybindings() -> Vec<crate::types::KeyBinding> {
         crate::types::KeyBinding {
             key: "Ctrl+Alt+Down".to_string(),
             action: "navigate_pane_down".to_string(),
+        },
+        // tmux display-panes style: letter badges, type a letter to focus
+        crate::types::KeyBinding {
+            key: "Ctrl+Alt+P".to_string(),
+            action: "select_pane_hint".to_string(),
         },
         // Pane resize shortcuts
         crate::types::KeyBinding {

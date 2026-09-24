@@ -237,6 +237,8 @@ pub struct WindowState {
     pub(crate) broadcast_input: bool,
     /// State machine for promote/demote pane-tab operations
     pub(crate) pane_transfer_state: crate::app::tab_ops::pane_transfer::PaneTransferState,
+    /// State machine for the built-in pane-hint selection mode
+    pub(crate) pane_hint_select: crate::app::pane_hint_select::PaneHintSelectState,
     /// Badge state for session information display
     pub(crate) badge_state: BadgeState,
     /// Copy mode state machine

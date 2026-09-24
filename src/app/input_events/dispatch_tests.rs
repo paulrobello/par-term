@@ -65,6 +65,7 @@ const FROZEN_ACTION_INVENTORY: &[&str] = &[
     "resize_pane_up",
     "save_arrangement",
     "select_all",
+    "select_pane_hint",
     "split_horizontal",
     "split_vertical",
     "ssh_quick_connect",

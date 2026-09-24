@@ -150,6 +150,16 @@ impl WindowState {
             return;
         }
 
+        // Pane-hint selection is a modal mode above every plugin overlay
+        // (mode-stack contract, docs/plans/2026-09-24-overlay-plugin-design.md):
+        // while armed it captures the next key press regardless of focus.
+        if self.pane_hint_select.is_active() {
+            if event.state == ElementState::Pressed {
+                self.handle_pane_hint_select_key(&event);
+            }
+            return;
+        }
+
         // Check if active tab's shell has exited.
         // Must check pane_manager panes (not tab.terminal) because after split pane
         // session restore, tab.terminal may be orphaned/dead while restored panes

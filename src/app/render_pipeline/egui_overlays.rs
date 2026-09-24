@@ -452,6 +452,47 @@ pub(super) fn render_pane_identify_overlay(
     }
 }
 
+/// Badge entries for the pane-hint selection mode: (letter, pane bounds).
+pub(super) struct PaneHintBadge {
+    pub(super) letter: char,
+    pub(super) bounds: crate::pane::PaneBounds,
+}
+
+/// Pane-hint selection badges (tmux `display-panes` style): one letter on a
+/// circle background, centered in each pane. A modal mode per the mode-stack
+/// contract — this draws above every plugin overlay and the mode owns the
+/// key stream while armed.
+pub(super) fn render_pane_hint_overlay(ctx: &egui::Context, badges: &[PaneHintBadge]) {
+    for badge in badges {
+        let center_x = badge.bounds.x + badge.bounds.width / 2.0;
+        let center_y = badge.bounds.y + badge.bounds.height / 2.0;
+        // Circle body: 56px diameter, accent fill, thin dark outline.
+        let radius = 28.0;
+        let center = egui::pos2(center_x, center_y);
+        let painter = ctx.layer_painter(egui::LayerId::new(
+            egui::Order::Foreground,
+            egui::Id::new("pane_hint_badges"),
+        ));
+        painter.circle_filled(
+            center,
+            radius,
+            egui::Color32::from_rgba_unmultiplied(0, 0, 0, 200),
+        );
+        painter.circle_stroke(
+            center,
+            radius,
+            egui::Stroke::new(2.0, egui::Color32::from_rgb(100, 200, 255)),
+        );
+        painter.text(
+            center,
+            egui::Align2::CENTER_CENTER,
+            badge.letter.to_string(),
+            egui::FontId::monospace(32.0),
+            egui::Color32::from_rgb(100, 200, 255),
+        );
+    }
+}
+
 /// First-run confirmation dialog for an agent-authored script command (D4b).
 ///
 /// Shows the full command body and offers Run / Cancel. Run persists the

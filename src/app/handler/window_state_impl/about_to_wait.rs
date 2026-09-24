@@ -413,6 +413,10 @@ impl WindowState {
             }
         }
 
+        // 5c-2. Pane-hint selection mode: cancel when its tab is no longer
+        // active (switched or closed) — the badges describe that tab only.
+        self.cancel_pane_hint_select_if_stale();
+
         // 5b. Session undo expiry: prune closed tab metadata that has timed out
         if !self.overlay_state.closed_tabs.is_empty()
             && self.config.load().session_restore.session_undo_timeout_secs > 0

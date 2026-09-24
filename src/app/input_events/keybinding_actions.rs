@@ -196,6 +196,10 @@ pub(crate) static ACTION_HANDLERS: &[(&str, ActionHandler)] = &[
         s.navigate_pane(crate::pane::NavigationDirection::Down);
         true
     }),
+    ("select_pane_hint", |s: &mut WindowState| {
+        s.enter_pane_hint_select();
+        true
+    }),
     ("resize_pane_left", |s: &mut WindowState| {
         s.resize_pane(crate::pane::NavigationDirection::Left);
         true

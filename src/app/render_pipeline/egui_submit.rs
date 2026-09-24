@@ -149,6 +149,40 @@ impl WindowState {
                 Vec::new()
             };
 
+        // Pane-hint selection badges (before egui borrow). Letter → pane-id
+        // assignments are captured at arm time; bounds resolve live each frame
+        // so the badges track resize/split changes while the mode is armed.
+        let pane_hint_badges: Vec<egui_overlays::PaneHintBadge> =
+            if let crate::app::pane_hint_select::PaneHintSelectState::Selecting {
+                assignments,
+                ..
+            } = &self.pane_hint_select
+            {
+                let badges = self
+                    .tab_manager
+                    .active_tab()
+                    .and_then(|tab| tab.pane_manager())
+                    .map(|pm| {
+                        let all = pm.all_panes();
+                        assignments
+                            .iter()
+                            .filter_map(|(letter, pane_id)| {
+                                let pane = all.iter().find(|p| p.id == *pane_id)?;
+                                Some(egui_overlays::PaneHintBadge {
+                                    letter: *letter,
+                                    bounds: pane.bounds,
+                                })
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                // Badges resolve from live pane state each frame: a layout
+                // change that removed assigned panes simply drops their badges.
+                badges
+            } else {
+                Vec::new()
+            };
+
         // Capture demote state snapshot for overlay rendering inside the egui closure.
         // This must happen before the closure borrows `*self`.
         let demote_snapshot: super::types::DemoteSnapshot = match &self.pane_transfer_state {
@@ -598,6 +632,10 @@ impl WindowState {
 
                     // Pane identify overlay (large index numbers centered on each pane)
                     egui_overlays::render_pane_identify_overlay(ctx, &pane_identify_bounds);
+
+                    // Pane-hint selection badges — modal-mode chrome, drawn
+                    // above every plugin overlay (mode-stack contract).
+                    egui_overlays::render_pane_hint_overlay(ctx, &pane_hint_badges);
 
                     // Trigger action confirmation dialog (center modal, shown when pending_trigger_actions is non-empty)
                     egui_overlays::render_trigger_prompt_dialog(

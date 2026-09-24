@@ -15,6 +15,7 @@ par-term provides a multi-tab interface for managing multiple terminal sessions 
 - [Duplicating Tabs](#duplicating-tabs)
 - [Moving tabs between windows](#moving-tabs-between-windows)
 - [Promoting and Demoting Panes](#promoting-and-demoting-panes)
+- [Selecting a Pane by Letter](#selecting-a-pane-by-letter)
 - [Tab Icons](#tab-icons)
 - [Tab Bar](#tab-bar)
   - [Tab Bar Position](#tab-bar-position)
@@ -252,6 +253,20 @@ Press **Escape** or right-click at any step to cancel.
 - The source tab is removed after the merge
 - All `is_active` flags on transplanted panes are updated to match the target tab's state
 - The merge is rejected if it would exceed the configured `max_panes` limit
+
+## Selecting a Pane by Letter
+
+A tmux `display-panes` style pick mode for quickly focusing a pane in a split tab.
+
+**Keybinding:** `Cmd + Alt + P` (macOS) / `Ctrl + Alt + P` (Linux/Windows), action name `select_pane_hint`.
+
+**Behavior:**
+- Invoking the binding draws a letter badge (a letter on a circle background) centered in every pane of the focused tab; the letters come from a home-row set assigned in pane-tree order, so the same layout always yields the same letters
+- Typing a pane's letter focuses that pane and exits the mode; letters match case-insensitively
+- Any other key, including `Escape`, cancels the mode without changing focus
+- Switching tabs or closing the pane-hint tab cancels the mode
+- Tabs with a single pane do not arm the mode — there is nothing to choose
+- While active the mode sits at the top of the mode stack: badges render above all plugin overlays and the mode owns the key stream regardless of overlay focus (see the [overlay plugin design](../plans/2026-09-24-overlay-plugin-design.md) mode-stack contract)
 
 ## Tab Icons
 

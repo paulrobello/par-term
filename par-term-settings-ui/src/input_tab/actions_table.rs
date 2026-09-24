@@ -123,6 +123,11 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
         Some("Cmd+Alt+Down"),
     ),
     (
+        "select_pane_hint",
+        "Select Pane by Letter",
+        Some("Cmd+Alt+P"),
+    ),
+    (
         "resize_pane_left",
         "Resize Pane Left",
         Some("Cmd+Alt+Shift+Left"),
@@ -303,6 +308,11 @@ pub const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
         "navigate_pane_down",
         "Navigate Pane Down",
         Some("Ctrl+Alt+Down"),
+    ),
+    (
+        "select_pane_hint",
+        "Select Pane by Letter",
+        Some("Ctrl+Alt+P"),
     ),
     (
         "resize_pane_left",
