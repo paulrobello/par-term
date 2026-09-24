@@ -165,6 +165,13 @@ The result of a full security, architecture, quality and documentation audit —
 - **Visual Bell**: Flash-based alerts for terminal bell events.
 - **Dynamic Themes**: Support for iTerm2-style color schemes (Dracula, Monokai, Solarized, etc.).
 - **Standalone Settings**: Dedicated settings window (F12) for live configuration editing.
+- **Command Palette**: Fuzzy launcher over every bindable action with ranked matching and keyboard navigation (bind `toggle_command_palette`; [guide](docs/guides/KEYBOARD_SHORTCUTS.md)).
+
+### Extensibility & Agents
+- **Plugins**: Status-bar widgets, custom actions, and Settings panels contributed by user scripts, with event subscriptions, restart policy, and git-URL distribution (`par-term plugin add|update|remove`; [PLUGINS.md](docs/features/PLUGINS.md)).
+- **Agent Usage Panel**: Status-bar widget and popup summarizing coding-agent token/cost usage ([AGENT_USAGE.md](docs/features/AGENT_USAGE.md)).
+- **Agent Roster**: See at a glance which coding agents are working or blocked across a par-mux session, with a picker to jump to any agent's pane.
+- **par-mux Sessions**: Attach tabs to daemon-owned par-mux sessions that survive closing the tab, the window, or par-term itself; reattach anywhere ([MUX.md](docs/features/MUX.md)).
 
 ### Typography & Fonts
 - **Styled Font Variants**: Explicit support for separate Bold, Italic, and Bold-Italic font families.
@@ -219,6 +226,10 @@ The result of a full security, architecture, quality and documentation audit —
 - **[SSH Host Management](docs/features/SSH.md)** - SSH quick connect, host discovery, and SSH profiles.
 - **[Status Bar](docs/features/STATUS_BAR.md)** - Configurable status bar with widgets and system monitoring.
 - **[Tabs](docs/features/TABS.md)** - Tab management, duplicate tab, and tab behavior.
+- **[Command Palette](docs/guides/KEYBOARD_SHORTCUTS.md)** - Fuzzy action launcher with keyboard navigation.
+- **[Plugins](docs/features/PLUGINS.md)** - Status-bar widgets, custom actions, and Settings panels from user scripts.
+- **[Agent Usage](docs/features/AGENT_USAGE.md)** - Coding-agent token/cost usage panel.
+- **[par-mux Sessions](docs/features/MUX.md)** - Daemon-owned sessions with detach/reattach and an agent roster.
 - **[Assistant Panel](docs/ASSISTANT_PANEL.md)** - ACP agent chat, custom agents (UI/TOML/YAML), shader assistant, and Claude+Ollama setup/troubleshooting.
 - **[File Transfers](docs/features/FILE_TRANSFERS.md)** - OSC 1337 file transfers with shell utilities.
 - **[Self-Update](docs/features/SELF_UPDATE.md)** - In-place update capability via CLI and Settings UI.

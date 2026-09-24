@@ -39,6 +39,7 @@ Navigation index for all par-term documentation. Start with the [Getting Started
 | [Window Arrangements](features/ARRANGEMENTS.md) | Save and restore complete window layouts including positions, sizes, and tabs |
 | [Session Management](features/SESSION_MANAGEMENT.md) | Reopen closed tabs and restore complete session state on startup |
 | [Session Logging](features/SESSION_LOGGING.md) | Record terminal output for review, sharing, or playback |
+| [par-mux Sessions](features/MUX.md) | Daemon-owned sessions with detach/reattach, seeding, and an agent roster |
 
 ## Visual Customization
 
@@ -66,6 +67,9 @@ Navigation index for all par-term documentation. Start with the [Getting Started
 | [Automation](features/AUTOMATION.md) | Triggers, actions, coprocesses, and observer scripts for terminal automation |
 | [Assistant Panel](ASSISTANT_PANEL.md) | DevTools-style panel for terminal inspection and ACP agent chat (Claude, Ollama) |
 | [Notifications](features/NOTIFICATIONS.md) | Desktop notifications for the bell, session activity/silence, and OSC 9/777/99 escape sequences |
+| [Plugins](features/PLUGINS.md) | Status-bar widgets, custom actions, and Settings panels contributed by user scripts |
+| [Agent Usage](features/AGENT_USAGE.md) | Coding-agent token/cost usage panel driven by snapshot files in a watched directory |
+| [par-mux Hooks & Extensions](features/INTEGRATIONS.md#par-mux-agent-extensions) | Session hooks (Claude/Codex/Grok) and pi/omp agent-state extensions that feed the agent roster |
 
 ## Architecture & Development
 

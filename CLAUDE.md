@@ -319,6 +319,7 @@ Everything below lives under `docs/` except where the path says otherwise.
 | Agent usage panel | `docs/features/AGENT_USAGE.md` |
 | Badges | `docs/features/BADGES.md` |
 | Integrations | `docs/features/INTEGRATIONS.md` |
+| par-mux sessions & roster | `docs/features/MUX.md` |
 | Command history | `docs/features/COMMAND_HISTORY.md` |
 | Command separators | `docs/features/COMMAND_SEPARATORS.md` |
 | File transfers | `docs/features/FILE_TRANSFERS.md` |
