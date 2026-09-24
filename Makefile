@@ -635,8 +635,8 @@ GRIND_SH := $(HOME)/Repos/par-grind/grind.sh
 grind-start: ## Run the grind loop against this repo (foreground; z.ai backend, effort high)
 	GRIND_BACKEND=zai GRIND_EFFORT=high bash $(GRIND_SH) "$(CURDIR)"
 
-grind-start-anthropic: ## Run the grind loop against the Anthropic backend (foreground; model sonnet[1m])
-	GRIND_BACKEND=anthropic GRIND_MODEL=sonnet[1m] bash $(GRIND_SH) "$(CURDIR)"
+grind-start-anthropic: ## Run the grind loop against the Anthropic backend (foreground; model opus[1m], effort high)
+	GRIND_BACKEND=anthropic GRIND_MODEL=opus[1m] GRIND_EFFORT=high bash $(GRIND_SH) "$(CURDIR)"
 
 grind-start-zai: ## Run the grind loop against the z.ai backend (foreground; needs ZAI_API_KEY)
 	GRIND_BACKEND=zai bash $(GRIND_SH) "$(CURDIR)"
