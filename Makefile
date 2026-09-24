@@ -241,7 +241,8 @@ clean:
 install: release
 	@echo "Installing par-term to ~/.cargo/bin/..."
 	@cp target/release/par-term "$${HOME}/.cargo/bin/par-term"
-	@echo "Installed to ~/.cargo/bin/par-term"
+	@scripts/build-par-mux.sh "$${HOME}/.cargo/bin/par-mux"
+	@echo "Installed to ~/.cargo/bin/par-term (and par-mux daemon)"
 
 # Install shell integration scripts to ~/.config/par-term/
 install-shell-integration:
@@ -405,6 +406,7 @@ ifeq ($(shell uname),Darwin)
 	@mkdir -p target/release/bundle/par-term.app/Contents/MacOS
 	@mkdir -p target/release/bundle/par-term.app/Contents/Resources
 	@cp target/release/par-term target/release/bundle/par-term.app/Contents/MacOS/
+	@scripts/build-par-mux.sh target/release/bundle/par-term.app/Contents/MacOS/par-mux
 	@cp assets/par-term.icns target/release/bundle/par-term.app/Contents/Resources/
 	@sed 's/{{VERSION}}/$(VERSION)/g' assets/Info.plist.template > target/release/bundle/par-term.app/Contents/Info.plist
 	@echo "Bundle created at: target/release/bundle/par-term.app (version $(VERSION))"

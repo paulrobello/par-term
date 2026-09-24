@@ -30,7 +30,7 @@ A par-mux session is the direct analogue of a tmux session: the daemon is the co
 ## Requirements
 
 - **The `mux` feature** — on by default in every par-term build since the core library's 0.50 release.
-- The **par-mux daemon binary** (`par-mux`) next to the par-term executable. Bundling the daemon into release packages is still pending (tracked on the backlog); for a from-source run, build it from the core checkout and copy it next to `target/debug/par-term` (see `CLAUDE.md`, "par-mux daemon for local runs"). The attach surfaces a visible error when it is missing or stale.
+- The **par-mux daemon binary** (`par-mux`), looked up next to the par-term executable first, then on `PATH`. Release packages bundle it (inside the macOS `.app`, and in the `par-term-bundle-*` archives on Linux and Windows); for a from-source run, `scripts/build-par-mux.sh target/dev-release/par-mux` stages it (see `CLAUDE.md`, "par-mux daemon for local runs"). The attach surfaces a visible error when it is missing or stale.
 - Agents reporting into the roster is optional and needs the installers under [Agent roster](#agent-roster).
 
 ## Setup
@@ -100,6 +100,6 @@ While attached, par-term shows what agents are running in the session:
 | Symptom | Fix |
 |---|---|
 | Attach reports a stale daemon | An old daemon from before an upgrade is still running. Quit it and reattach. |
-| Attach fails with a visible error | Check the daemon binary next to the par-term executable; for a from-source build see `CLAUDE.md`, "par-mux daemon for local runs". |
+| Attach fails with a visible error | Check the daemon binary next to the par-term executable and on `PATH`; for a from-source build see `CLAUDE.md`, "par-mux daemon for local runs". |
 | Roster is empty | Install the hook/extension installers (see [Agent roster](#agent-roster)); roster entries only exist for agents reporting through par-mux. |
 | Pane looks frozen | The daemon owns the pane; unfocused panes redraw as data arrives. If a pane stops updating, reattach to force a reseed. |

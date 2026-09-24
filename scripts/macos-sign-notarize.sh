@@ -93,6 +93,13 @@ echo "==> Signing $APP_NAME"
 codesign --force --timestamp --options runtime \
   --keychain "$KEYCHAIN_PATH" --sign "$MACOS_SIGNING_IDENTITY" \
   "$APP_ABS/Contents/MacOS/par-term"
+# The bundled par-mux daemon sits next to the app binary and must carry the
+# same signature or Gatekeeper refuses to launch it on first spawn.
+if [ -f "$APP_ABS/Contents/MacOS/par-mux" ]; then
+  codesign --force --timestamp --options runtime \
+    --keychain "$KEYCHAIN_PATH" --sign "$MACOS_SIGNING_IDENTITY" \
+    "$APP_ABS/Contents/MacOS/par-mux"
+fi
 codesign --force --timestamp --options runtime \
   --keychain "$KEYCHAIN_PATH" --sign "$MACOS_SIGNING_IDENTITY" \
   "$APP_ABS"

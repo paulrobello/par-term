@@ -202,14 +202,13 @@ Layer 4 — Root crate (bump last):
 
 The pin is on the published crates.io line (`0.50`), `mux` is a default root feature, and every manifest forwards the core's `mux` feature normally — no vendoring machinery exists anymore (card 01a0d1cbc649 retired `scripts/with-local-core.sh` and its Makefile target; never pin a core version that is not on crates.io).
 
-The crates.io release ships the **library only** — the `par-mux` daemon binary must be built from the core checkout and staged next to the par-term binary (the core's spawn logic looks next to `current_exe()`, walking out of `deps/`):
+The crates.io release ships the **library only** — the `par-mux` daemon binary must be staged next to the par-term binary. `scripts/build-par-mux.sh` builds it pinned to the Cargo.lock core version (so client and daemon stamps match) and copies it wherever asked:
 
 ```bash
-(cd ../par-term-emu-core-rust && cargo build --no-default-features --features mux --bin par-mux)
-cp ../par-term-emu-core-rust/target/debug/par-mux target/debug/
+scripts/build-par-mux.sh target/dev-release/par-mux
 ```
 
-Bundling the daemon into releases is tracked on its own backlog card.
+The core's spawn resolution looks next to `current_exe()` first (walking out of `deps/`), then on `PATH`. Release packaging bundles the daemon: `make bundle` puts it in the .app next to par-term, `make install` puts it in `~/.cargo/bin`, and the release workflow ships `par-term-bundle-*` archives (tar.gz on Linux, zip on Windows) alongside the bare par-term binaries the self-updater consumes.
 
 ## Common Development Workflows
 
