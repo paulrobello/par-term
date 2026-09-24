@@ -704,12 +704,24 @@ pub(super) fn render_plugin_overlays(
         let border =
             egui::Color32::from_rgba_unmultiplied(120, 140, 190, (200.0 * overlay.opacity) as u8);
         painter.rect_filled(rect, 6.0, panel);
-        painter.rect_stroke(rect, 6.0, egui::Stroke::new(1.0, border), egui::StrokeKind::Middle);
+        painter.rect_stroke(
+            rect,
+            6.0,
+            egui::Stroke::new(1.0, border),
+            egui::StrokeKind::Middle,
+        );
 
         // Inset the scene and lay it out top-down.
         let inner = rect.shrink(8.0);
         let mut layout_y = inner.top();
-        render_scene(&painter, inner, &overlay.content, inner.left(), &mut layout_y, overlay.opacity);
+        render_scene(
+            &painter,
+            inner,
+            &overlay.content,
+            inner.left(),
+            &mut layout_y,
+            overlay.opacity,
+        );
     }
 }
 
@@ -729,8 +741,7 @@ fn render_scene(
             let font = egui::FontId::monospace(13.0);
             let color =
                 egui::Color32::from_rgba_unmultiplied(220, 220, 230, (255.0 * opacity) as u8);
-            let galley =
-                painter.layout(text.clone(), font, color, inner.width());
+            let galley = painter.layout(text.clone(), font, color, inner.width());
             painter.galley(egui::pos2(cursor_x, *layout_y), galley, color);
             *layout_y += 18.0;
         }

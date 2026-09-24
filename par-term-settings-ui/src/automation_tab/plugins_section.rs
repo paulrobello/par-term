@@ -760,6 +760,7 @@ mod tests {
             entry_path: "/plugins/com.example.fixture/fixture.sh".into(),
             action_entry_path: None,
             panel_entry_path: None,
+            overlay_entry_path: None,
         }
     }
 
@@ -788,6 +789,7 @@ mod tests {
             entry_path: "/plugins/com.example.actions/actions.sh".into(),
             action_entry_path: Some("/plugins/com.example.actions/actions.sh".into()),
             panel_entry_path: None,
+            overlay_entry_path: None,
         }
     }
 
@@ -825,6 +827,7 @@ mod tests {
             entry_path: "/plugins/com.example.both/widget.sh".into(),
             action_entry_path: Some("/plugins/com.example.both/actions.sh".into()),
             panel_entry_path: None,
+            overlay_entry_path: None,
         }
     }
 
@@ -853,6 +856,7 @@ mod tests {
             entry_path: "/plugins/com.example.stray/actions.sh".into(),
             action_entry_path: Some("/plugins/com.example.stray/actions.sh".into()),
             panel_entry_path: None,
+            overlay_entry_path: None,
         }
     }
 
@@ -874,6 +878,7 @@ mod tests {
             entry_path: "/plugins/com.example.panel/notes.py".into(),
             action_entry_path: None,
             panel_entry_path: Some("/plugins/com.example.panel/notes.py".into()),
+            overlay_entry_path: None,
         }
     }
 

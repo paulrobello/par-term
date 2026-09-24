@@ -198,9 +198,12 @@ impl WindowManager {
                             // Overlay commands are plugin-host-only too — the
                             // tab-script surface refuses them identically.
                             par_term_scripting::protocol::ScriptCommand::SetOverlay { .. }
-                            | par_term_scripting::protocol::ScriptCommand::ClearOverlay { .. } => {
-                                new_output[i]
-                                    .push("[error] overlay commands are plugin-only; ignored".into());
+                            | par_term_scripting::protocol::ScriptCommand::ClearOverlay {
+                                ..
+                            } => {
+                                new_output[i].push(
+                                    "[error] overlay commands are plugin-only; ignored".into(),
+                                );
                             }
                             // Safe display-only commands — defer to Pass 2 so they can
                             // call `WindowState` methods without borrow conflicts.
