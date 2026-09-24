@@ -270,6 +270,23 @@ impl WindowState {
     ///
     /// Uses send-keys -l for literal text to handle special characters properly.
     pub fn paste_via_tmux(&self, text: &str) -> bool {
+        // par-mux transport: the panes live in the daemon and the local
+        // mirror has no PTY, so falling through to a local paste would be
+        // dropped. Route the bytes daemon-side in the same literal
+        // `send-keys -H` form the mouse-report fix uses — the caller
+        // (Cmd+V, option-click, middle-click) has already sanitized the
+        // text, and hex form cannot mangle multi-line or special content.
+        #[cfg(feature = "mux")]
+        if let Some(transport) = &self.tmux_state.transport
+            && let Some(pane) = self.focused_mux_pane_from_native()
+        {
+            return super::notifications::mux::route_literal_bytes(
+                &**transport,
+                Some(pane),
+                text.as_bytes(),
+            );
+        }
+
         if !self.config.load().tmux.tmux_enabled || !self.is_tmux_connected() {
             return false;
         }

@@ -175,6 +175,33 @@ impl WindowState {
                                 )
                             };
 
+                            // A focused mux pane takes BOTH the synthesized
+                            // focus click and the paste daemon-side — its
+                            // local terminal has no PTY, so the async local
+                            // path below would silently drop both (the
+                            // paste itself routes through the shared
+                            // mux-aware `paste_via_tmux` entry).
+                            #[cfg(feature = "mux")]
+                            if self.tmux_state.transport.is_some() {
+                                if let Ok(term) = terminal_clone.try_read() {
+                                    if term.is_mouse_tracking_enabled()
+                                        && let Some((col, row)) = click_cell
+                                    {
+                                        let press = term.encode_mouse_event(0, col, row, true, 0);
+                                        let release =
+                                            term.encode_mouse_event(0, col, row, false, 0);
+                                        if !press.is_empty() {
+                                            self.route_mouse_report_to_mux(&press);
+                                        }
+                                        if !release.is_empty() {
+                                            self.route_mouse_report_to_mux(&release);
+                                        }
+                                    }
+                                }
+                                self.paste_via_tmux(&text);
+                                return;
+                            }
+
                             self.runtime.spawn(async move {
                                 let term = terminal_clone.read().await;
 

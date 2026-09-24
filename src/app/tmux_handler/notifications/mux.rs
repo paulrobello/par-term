@@ -1913,6 +1913,79 @@ out.flush()
         let _ = std::fs::remove_file(&path);
     }
 
+    /// Paste is the one input stream that never got a mux branch: keyboard
+    /// input goes through `send_input_via_tmux`'s transport check, mouse
+    /// reports through `route_mouse_report_to_mux`, but the shared paste
+    /// entry (`paste_via_tmux`, used by Cmd+V, option-click paths, and
+    /// middle-click) only knew the real-tmux gateway — for a mux pane it
+    /// returned false and the local fallback wrote into a PTY-less mirror,
+    /// dropping the paste (card 01a0d099b83e7dc0a5725390a8c5e20c).
+    #[test]
+    fn paste_via_tmux_routes_to_the_daemon_pane() {
+        let path = socket_path("ws-paste");
+        spawn_daemon(&path);
+
+        // Attach + install into a renderer-less WindowState — the same
+        // steps `install_mux_transport` performs (the reattach pattern).
+        let transport = connect(&path);
+        let attach =
+            attach_sequence(&transport, "wspaste", Some((80, 24))).expect("attach_sequence");
+        let mut ws = manners_state();
+        let mut existing_windows = attach.existing_windows.clone();
+        if existing_windows.is_empty() {
+            existing_windows = vec![0];
+        }
+        for window_id in &existing_windows {
+            ws.handle_tmux_window_add(*window_id);
+        }
+        ws.tmux_state.mux_screen_seeds = attach.screens.into_iter().collect();
+        ws.tmux_state.transport = Some(Box::new(transport));
+        ws.tmux_state.tmux_session_name = Some("wspaste".to_string());
+        ws.tmux_state.tmux_sync.enable();
+
+        // Pump until the layout consumer creates the native pane — the
+        // paste router resolves its target from the focused native pane.
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            ws.check_mux_notifications();
+            if ws.tmux_state.tmux_pane_to_native_pane.contains_key(&0)
+                || ws.tmux_state.tmux_sync.get_native_pane(0).is_some()
+            {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "the layout consumer never created the pane"
+            );
+            std::thread::sleep(Duration::from_millis(25));
+        }
+
+        // The shared paste entry must CONSUME for a focused mux pane (the
+        // shell echoes the bytes, so capture-pane sees the marker).
+        assert!(
+            ws.paste_via_tmux("PASTE-ROUTE-OK"),
+            "a focused mux pane must take the paste through the shared entry"
+        );
+        let mut daemon_view = String::new();
+        while Instant::now() < deadline && !daemon_view.contains("PASTE-ROUTE-OK") {
+            daemon_view = ws
+                .tmux_state
+                .transport
+                .as_ref()
+                .expect("transport")
+                .send_command("capture-pane -t %0 -p")
+                .expect("capture")
+                .join("|");
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        assert!(
+            daemon_view.contains("PASTE-ROUTE-OK"),
+            "the paste must reach the daemon pane: {daemon_view:?}"
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
     /// A window attached to a par-mux daemon must persist its session name
     /// as a MUX name, never a tmux one: the next launch restored a
     /// tmux-tagged name through the tmux gateway, which spawned a real
