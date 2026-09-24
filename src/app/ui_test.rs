@@ -495,6 +495,7 @@ impl WindowManager {
                     "plugin_panel_set" => ws.status_bar_ui.any_plugin_panel_pushed(),
                     "plugin_action_dispatched" => ws.status_bar_ui.any_plugin_action_dispatched(),
                     "modal_guard" => ws.any_modal_ui_visible(),
+                    "pane_hint_mode_active" => ws.pane_hint_select.is_active(),
                     "egui_keyboard" => ws.is_egui_using_keyboard(),
                     "fullscreen" => ws.window.as_ref().is_some_and(|w| w.fullscreen().is_some()),
                     _ => return None,

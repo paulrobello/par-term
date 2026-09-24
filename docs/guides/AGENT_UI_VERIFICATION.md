@@ -68,6 +68,7 @@ A JSON object with a `steps` array. Each step is one object with an optional
 - `plugin_panel_set` — some panel plugin has pushed a `SetPanel` (runnable recipe in [PLUGINS.md](../features/PLUGINS.md))
 - `settings_window_open` — the standalone settings window is open
 - `modal_guard` — `any_modal_ui_visible()`: the guard that blocks keys from the PTY. Covers in-window overlays only: the standalone settings window is a separate OS window with its own focus, so `settings_window_open` with `modal_guard=false` is the expected reading (terminal-window keys keep flowing while it floats), not a leak.
+- `pane_hint_mode_active` — the built-in pane-hint selection mode is armed (`select_pane_hint` chord on a multi-pane tab)
 - `egui_keyboard` — egui owns keyboard focus (a text field is focused)
 - `fullscreen` — window is fullscreen
 
