@@ -16,7 +16,9 @@
 //! - `client.rs`: `MuxSessionClient` — connection lifecycle, the
 //!   notification → `ParserBridge` → `TmuxSync` pipeline, and the command
 //!   forms par-term sends (key names from `escape_keys_for_tmux`, literal
-//!   `-l`, hex `-H`, absolute `resize-pane -x/-y`, `refresh-client -C`)
+//!   `-l`, hex `-H`, absolute `resize-pane -x/-y`, `refresh-client -C`),
+//!   plus the daemon `version` query and stamp comparison
+//!   (`check_daemon_version`) that surfaces a stale daemon on attach
 //! - `resync.rs`: reattach queries over the command tier —
 //!   list-sessions/windows/panes, create-or-attach, per-pane screen seeding
 //! - `agents.rs`: the agent roster wire tier — the `list-agents` query and
@@ -37,5 +39,5 @@ mod client;
 mod resync;
 
 pub use agents::{AgentEntry, AgentSource};
-pub use client::MuxSessionClient;
+pub use client::{MuxSessionClient, VersionCheck, check_daemon_version};
 pub use resync::{AttachOutcome, SessionSummary, WindowSummary};

@@ -193,10 +193,140 @@ impl MuxSessionClient {
     pub fn kill_spawned_daemon(&mut self) -> io::Result<()> {
         self.client.kill_spawned_daemon()
     }
+
+    /// Ask the daemon for its build stamp — the `version` command's one
+    /// body line (`<version>+<sha>`). The raw reply is returned unvalidated;
+    /// [`check_daemon_version`] decides what it means, because a daemon
+    /// predating the command answers an error block rather than a stamp.
+    pub fn daemon_version(&mut self) -> io::Result<String> {
+        let body = self.send("version")?;
+        Ok(body.into_iter().next().unwrap_or_default())
+    }
+}
+
+/// What comparing the daemon's `version` reply against the client's linked
+/// core stamp proved.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum VersionCheck {
+    /// The daemon's build is the client's build.
+    Match,
+    /// The daemon's build differs from the client's — both display forms
+    /// carried for the toast/log ("restart the daemon" is the remedy).
+    Mismatch { daemon: String, client: String },
+    /// Unprovable either way: the versions are equal but at least one side
+    /// was built outside a repository (sha `unknown`), so a same-version
+    /// difference cannot be distinguished from a match.
+    Unknown,
+}
+
+/// Compare a daemon's `version` reply (`daemon_reply`, the raw first body
+/// line from [`MuxSessionClient::daemon_version`]) against `client_stamp`
+/// (the linked core's `mux::build_stamp()`).
+///
+/// The daemon outlives its clients, so a stale daemon serving a newer
+/// client is the normal failure this exists to catch: daemon-side fixes
+/// read as "didn't work" until the daemon is restarted. A reply that is
+/// not stamp-shaped is a daemon from before the `version` command existed —
+/// older than any client that can ask, which is itself the mismatch.
+pub fn check_daemon_version(daemon_reply: &str, client_stamp: &str) -> VersionCheck {
+    let shape = |s: &str| {
+        s.split_once('+')
+            .is_some_and(|(version, sha)| !version.is_empty() && !sha.is_empty())
+    };
+    if !shape(daemon_reply) {
+        return VersionCheck::Mismatch {
+            daemon: format!("{daemon_reply:?} (predates the version command)"),
+            client: client_stamp.to_string(),
+        };
+    }
+    let (daemon_version, daemon_sha) = daemon_reply.split_once('+').expect("shape checked");
+    let (client_version, client_sha) = client_stamp.split_once('+').expect("shape checked");
+    if daemon_version != client_version {
+        return VersionCheck::Mismatch {
+            daemon: daemon_reply.to_string(),
+            client: client_stamp.to_string(),
+        };
+    }
+    match (daemon_sha == "unknown", client_sha == "unknown") {
+        // Both shas known: the commit-level comparison the stamps exist for.
+        (false, false) if daemon_sha != client_sha => VersionCheck::Mismatch {
+            daemon: daemon_reply.to_string(),
+            client: client_stamp.to_string(),
+        },
+        (false, false) => VersionCheck::Match,
+        // Either sha unknown: equal versions are all the evidence there is.
+        _ => VersionCheck::Unknown,
+    }
 }
 
 fn enabled_sync() -> TmuxSync {
     let mut sync = TmuxSync::new();
     sync.enable();
     sync
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn same_stamp_matches_and_unknown_sha_pairs_are_inconclusive() {
+        assert_eq!(
+            check_daemon_version("0.50.0+abc1234", "0.50.0+abc1234"),
+            VersionCheck::Match
+        );
+        // Published-core builds carry no sha: equal versions cannot prove
+        // anything either way, and crying wolf on every such attach would
+        // teach users to dismiss the toast.
+        assert_eq!(
+            check_daemon_version("0.50.0+unknown", "0.50.0+unknown"),
+            VersionCheck::Unknown
+        );
+        assert_eq!(
+            check_daemon_version("0.50.0+abc1234", "0.50.0+unknown"),
+            VersionCheck::Unknown
+        );
+    }
+
+    #[test]
+    fn differing_version_or_sha_is_a_mismatch() {
+        assert_eq!(
+            check_daemon_version("0.49.0+abc1234", "0.50.0+abc1234"),
+            VersionCheck::Mismatch {
+                daemon: "0.49.0+abc1234".into(),
+                client: "0.50.0+abc1234".into()
+            }
+        );
+        // The incident this exists for: same crate version, different
+        // commit — a daemon spawned before a daemon-side fix.
+        assert_eq!(
+            check_daemon_version("0.50.0+abc1234", "0.50.0+def5678"),
+            VersionCheck::Mismatch {
+                daemon: "0.50.0+abc1234".into(),
+                client: "0.50.0+def5678".into()
+            }
+        );
+    }
+
+    #[test]
+    fn a_pre_version_daemon_is_itself_the_mismatch() {
+        // A daemon built before the command answers an error block body
+        // ("unknown command: version") — older than every client that can
+        // ask, so it must never read as healthy.
+        assert_eq!(
+            check_daemon_version("unknown command: version", "0.50.0+abc1234"),
+            VersionCheck::Mismatch {
+                daemon: "\"unknown command: version\" (predates the version command)".into(),
+                client: "0.50.0+abc1234".into()
+            }
+        );
+        // An empty body (defensive) is just as unstamp-shaped.
+        assert_eq!(
+            check_daemon_version("", "0.50.0+abc1234"),
+            VersionCheck::Mismatch {
+                daemon: "\"\" (predates the version command)".into(),
+                client: "0.50.0+abc1234".into()
+            }
+        );
+    }
 }

@@ -18,7 +18,9 @@
 use crate::app::tmux_handler::tmux_state::{TmuxState, TmuxTransport};
 use crate::app::window_state::WindowState;
 use crate::tmux::{ParserBridge, TmuxNotification, escape_keys_for_tmux};
-use par_term_mux::{AgentEntry, AttachOutcome, MuxSessionClient};
+use par_term_mux::{
+    AgentEntry, AttachOutcome, MuxSessionClient, VersionCheck, check_daemon_version,
+};
 use par_term_tmux::{TmuxPaneId, TmuxWindowId};
 use std::cell::{RefCell, RefMut};
 use std::io;
@@ -146,19 +148,25 @@ pub(crate) fn route_literal_bytes(
 
 /// The attach sequence minus tab allocation, as a free function so the
 /// wiring test can drive it against a live daemon without a
-/// `WindowState`: create-or-attach, report existing windows (the caller
-/// allocates tabs for them — a created session gets its tab from the
-/// `%window-add` push), push the client size (the first pane names the
-/// window the server resizes), collect each pane's replayed screen for
-/// seeding (`refresh-client -t` replies carry the screen; they are NOT
-/// `%output` pushes), and read the agent roster for the initial fill
-/// (A2b task 1: `list-agents` on attach and reattach — the single call
-/// site of the roster query in app code).
+/// `WindowState`: query the daemon's build (the stale-daemon check —
+/// first, because a daemon that predates the client is the cheapest
+/// explanation for everything downstream misbehaving), create-or-attach,
+/// report existing windows (the caller allocates tabs for them — a created
+/// session gets its tab from the `%window-add` push), push the client size
+/// (the first pane names the window the server resizes), collect each
+/// pane's replayed screen for seeding (`refresh-client -t` replies carry
+/// the screen; they are NOT `%output` pushes), and read the agent roster
+/// for the initial fill (A2b task 1: `list-agents` on attach and
+/// reattach — the single call site of the roster query in app code).
 pub(crate) fn attach_sequence(
     transport: &MuxTransport,
     name: &str,
     size: Option<(u16, u16)>,
 ) -> io::Result<AttachSequence> {
+    // Degrade to None rather than failing the attach: the version query is
+    // diagnostic, and a daemon that cannot answer it is handled by the
+    // mismatch check, not by refusing to attach.
+    let daemon_version = transport.client().daemon_version().ok();
     let outcome = transport.client().create_or_attach(name)?;
     let mut existing_windows = Vec::new();
     if matches!(outcome, AttachOutcome::Attached(_)) {
@@ -192,6 +200,7 @@ pub(crate) fn attach_sequence(
         Vec::new()
     });
     Ok(AttachSequence {
+        daemon_version,
         outcome,
         existing_windows,
         screens,
@@ -200,9 +209,11 @@ pub(crate) fn attach_sequence(
 }
 
 /// What [`attach_sequence`] learned — the tuple it returned, named: the
-/// attach outcome, windows needing tabs, per-pane replayed screens, and
-/// the roster fill.
+/// daemon's `version` reply (raw; `None` only when the query itself failed
+/// at transport level), the attach outcome, windows needing tabs,
+/// per-pane replayed screens, and the roster fill.
 pub(crate) struct AttachSequence {
+    pub(crate) daemon_version: Option<String>,
     pub(crate) outcome: AttachOutcome,
     pub(crate) existing_windows: Vec<TmuxWindowId>,
     pub(crate) screens: Vec<(TmuxPaneId, Vec<u8>)>,
@@ -378,11 +389,32 @@ impl WindowState {
         let size = self.renderer.as_ref().map(mux_client_grid);
         let attach = attach_sequence(&transport, name, size).map(
             |AttachSequence {
+                 daemon_version,
                  outcome,
                  existing_windows,
                  screens,
                  agents,
              }| {
+                // The stale-daemon check: the daemon outlives clients, so
+                // this attach may have landed on one built before the
+                // client's core — every daemon-side fix would then read as
+                // "didn't work". Surfaced, never silent; a daemon so old it
+                // cannot answer `version` is itself the mismatch.
+                let client_stamp = par_term_emu_core_rust::mux::build_stamp();
+                match check_daemon_version(daemon_version.as_deref().unwrap_or(""), client_stamp) {
+                    VersionCheck::Match | VersionCheck::Unknown => {}
+                    VersionCheck::Mismatch { daemon, client } => {
+                        log::warn!(
+                            "par-mux daemon older than the client — daemon {daemon}, \
+                             client {client}; daemon-side fixes are missing until the \
+                             daemon is restarted (pkill -f par-mux)"
+                        );
+                        self.show_toast(format!(
+                            "par-mux: daemon older than this client ({daemon} vs {client}) \
+                             — restart it (pkill -f par-mux) to pick up daemon fixes"
+                        ));
+                    }
+                }
                 for window_id in existing_windows {
                     if self.tmux_state.tmux_sync.get_tab(window_id).is_none() {
                         self.handle_tmux_window_add(window_id);
@@ -922,6 +954,31 @@ mod tests {
         wait_for(&transport, &mut sync, |a| {
             matches!(a, SyncAction::UpdateLayout { tab_id: 100, .. })
         });
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// The stale-daemon check's live wiring: attach queries the daemon's
+    /// `version`, and against an in-process daemon (the same crate build on
+    /// both sides of the socket) the comparison must land on `Match` — the
+    /// positive control for the toast path, which fires only on `Mismatch`.
+    #[test]
+    fn attach_reads_the_daemon_version_and_a_current_daemon_matches() {
+        let path = socket_path("version");
+        spawn_daemon(&path);
+
+        let transport = connect(&path);
+        let attach = attach_sequence(&transport, "version-check", Some((80, 24))).expect("attach");
+        let daemon_reply = attach
+            .daemon_version
+            .expect("the daemon answered `version` during the attach sequence");
+        let client_stamp = par_term_emu_core_rust::mux::build_stamp();
+        assert_eq!(
+            check_daemon_version(&daemon_reply, client_stamp),
+            VersionCheck::Match,
+            "same-build daemon/client must compare clean: daemon replied \
+             {daemon_reply:?}, client stamp {client_stamp:?}"
+        );
 
         let _ = std::fs::remove_file(&path);
     }

@@ -165,6 +165,17 @@ done
 # target dir or every mux attach fails with the daemon binary missing. The
 # copy refreshes every run; a missing core binary is a warning, not a failure
 # — the attach surfaces its own error.
+#
+# A daemon ALREADY RUNNING owns its sockets regardless of what is staged
+# here: attaches go to the socket owner, so a daemon left over from an
+# older build silently serves this run's daemon-side fixes as absent (the
+# stale-daemon trap). Surface it — the app's attach now toasts a version
+# mismatch too, but the operator should know before launching.
+# ps + grep with the [p] bracket trick rather than pgrep: pgrep
+# false-negatives on macOS for path-shaped patterns.
+if ps -ax -o command= 2>/dev/null | grep -q '[/]par-mux --socket'; then
+  echo "with-local-core: WARNING — a par-mux daemon is already running; it owns the mux sockets, so the freshly staged daemon will NOT be used (daemon-side changes will read as unfixed). Kill it first: pkill -f par-mux" >&2
+fi
 DAEMON_SRC="$CORE_DIR/target/debug/par-mux"
 if [ ! -x "$DAEMON_SRC" ]; then
   echo "with-local-core: WARNING — $DAEMON_SRC missing; build the core's par-mux bin or mux attach will fail" >&2
