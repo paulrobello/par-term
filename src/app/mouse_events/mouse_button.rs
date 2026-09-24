@@ -183,19 +183,17 @@ impl WindowState {
                             // mux-aware `paste_via_tmux` entry).
                             #[cfg(feature = "mux")]
                             if self.tmux_state.transport.is_some() {
-                                if let Ok(term) = terminal_clone.try_read() {
-                                    if term.is_mouse_tracking_enabled()
-                                        && let Some((col, row)) = click_cell
-                                    {
-                                        let press = term.encode_mouse_event(0, col, row, true, 0);
-                                        let release =
-                                            term.encode_mouse_event(0, col, row, false, 0);
-                                        if !press.is_empty() {
-                                            self.route_mouse_report_to_mux(&press);
-                                        }
-                                        if !release.is_empty() {
-                                            self.route_mouse_report_to_mux(&release);
-                                        }
+                                if let Ok(term) = terminal_clone.try_read()
+                                    && term.is_mouse_tracking_enabled()
+                                    && let Some((col, row)) = click_cell
+                                {
+                                    let press = term.encode_mouse_event(0, col, row, true, 0);
+                                    let release = term.encode_mouse_event(0, col, row, false, 0);
+                                    if !press.is_empty() {
+                                        self.route_mouse_report_to_mux(&press);
+                                    }
+                                    if !release.is_empty() {
+                                        self.route_mouse_report_to_mux(&release);
                                     }
                                 }
                                 self.paste_via_tmux(&text);

@@ -3,7 +3,7 @@
 //!
 //! Filled wholesale by `list-agents` on attach/reattach, updated
 //! incrementally by each `%agent-state-changed` push (intercepted in
-//! [`super::mux::check_mux_notifications`] before the `ParserBridge`
+//! [`super::mux_drain`]'s `check_mux_notifications` before the `ParserBridge`
 //! drop), and cleared when the transport dies or the session ends. Every
 //! roster surface — the status-bar widget, the palette picker — reads
 //! this cache; none queries the daemon directly, because three surfaces
