@@ -1,7 +1,7 @@
 # Agent-Authored Commands — Design Document
 
 **Date**: 2026-09-24
-**Status**: Draft — for owner review
+**Status**: Approved — 2026-09-24 (owner accepted all recommendations; decisions recorded below)
 **Board card**: `01a0d1cbcb3276c19983cdc9d7bc097c` (par-term, high)
 **Prior decisions**: D4, D4a, D4b, D4c (2026-09-23, recorded on the card)
 
@@ -135,6 +135,31 @@ command prints the body and exits non-zero unless `--yes` is passed.
 Collision behavior is clap-native: real subcommands (`install-shaders`,
 `plugin`, ...) always win over the fallthrough.
 
+## Inputs at run time
+
+What a command receives when invoked (palette, keybinding, or CLI):
+
+**Script commands** (`shell_command`):
+
+- **Args** — the file's stored `args` array, plus any extra CLI arguments
+  from `par-term <id> a b c` appended after them (positional `$1`, `$2`,
+  ...). Palette and keybinding runs pass stored args only.
+- **Environment** — inherits the par-term process environment, identical to
+  today's custom `shell_command` actions. par-term additionally sets
+  `PAR_TERM_COMMAND_ID` and, for agent commands,
+  `PAR_TERM_COMMAND_SOURCE_AGENT` so a script can tell who invoked it.
+  Scripts driving par-term use the documented IPC paths under `config_dir`
+  (`.config-update.json` and siblings), which are deterministic locations —
+  no discovery step.
+- **stdin** — none. **stdout/stderr** — with `capture_output: true` they are
+  stored into the workflow context (`last_exit_code`, `last_output`) for
+  later `Sequence` steps (capped, like the existing executor); otherwise
+  discarded, with an optional `notify_on_success` toast.
+
+**Macro commands** — no runtime input: a fixed replay of the stored steps.
+`insert_text` steps support `{{variable}}` substitution from the user's
+custom variables, exactly as config actions do today.
+
 ## MCP tools (`par-term-mcp`)
 
 Four tools, following the `config_update` precedent (atomic write,
@@ -183,17 +208,16 @@ dialog storm.
 - Per-project (non-global) command scope — global per D4c
 - command_run MCP tool
 
-## Open questions for owner
+## Decisions (owner, 2026-09-24 — all recommendations accepted)
 
-1. **YAML vs JSON** for command files — YAML proposed (matches config.yaml).
-2. **User commands in the same directory** — proposed: yes, `created_by:
-   user`, hand-edited; config.yaml actions stay legacy. Alternative: the
-   directory is agent-only and user commands stay in config.yaml.
-3. **CLI args pass-through** — proposed: remaining args become script
-   positional args (`$1..`); macros ignore them.
-4. **Palette priority** — agent commands at priority 0 mixed in by label,
-   or slightly boosted (like agent-roster rows) so new commands are easy to
-   spot? Proposed: 0 (palette is not a notification surface).
-5. **Confirmation UI copy** — two buttons (Run / Cancel) with the full body
-   shown, or three (Run / Always for this version / Cancel)? The ledger
-   already makes Run persistent for that body, so two buttons suffice.
+1. Command files are **YAML** (matches `config.yaml`).
+2. **User commands share the same directory** (`created_by: user`,
+   hand-edited); `config.yaml` `actions` stays legacy.
+3. **CLI args pass through**: `par-term <id> a b c` appends `a b c` to the
+   script's positional args; macros ignore them.
+4. Agent commands sort at **palette priority 0**, mixed in by label.
+5. Confirmation UI is **two buttons** (Run / Cancel); Run persists per body
+   version via the ledger.
+6. Scripts receive `PAR_TERM_COMMAND_ID` /
+   `PAR_TERM_COMMAND_SOURCE_AGENT` in their environment (added while
+   answering the run-time input contract).
