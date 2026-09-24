@@ -25,7 +25,7 @@ use crate::restart::{RestartAction, ScriptRestartState};
 
 use super::{
     KindSlot, PLUGIN_RESTART_DELAY_MS, PluginHost, SETTINGS_ARG, action_entry_args,
-    panel_entry_args, widget_entry_args,
+    overlay_entry_args, panel_entry_args, widget_entry_args,
 };
 
 impl PluginHost {
@@ -148,14 +148,50 @@ impl PluginHost {
                 ScriptCommand::ClearPanel {} if slot == KindSlot::Panel => {
                     self.panel_contents.remove(id);
                 }
+                ScriptCommand::SetOverlay {
+                    id: overlay_id,
+                    position,
+                    size,
+                    opacity,
+                    content,
+                    ..
+                } if slot == KindSlot::Overlay => {
+                    // Phase 1 is display-only: the interactive flag is
+                    // dropped here, pending the manifest capability + focus
+                    // work (design phasing).
+                    self.overlays.insert(
+                        id.to_string(),
+                        crate::protocol::PluginOverlay {
+                            id: overlay_id,
+                            position,
+                            size,
+                            opacity: opacity.clamp(0.0, 1.0),
+                            content,
+                        },
+                    );
+                }
+                ScriptCommand::ClearOverlay { id: overlay_id } if slot == KindSlot::Overlay => {
+                    let plugin_id = id;
+                    if self
+                        .overlays
+                        .get(plugin_id)
+                        .is_some_and(|live| live.id == overlay_id)
+                    {
+                        self.overlays.remove(plugin_id);
+                    }
+                }
                 other => {
                     // v1 plugins are display-only (design D2); anything
                     // outside the kind's accepted set is refused with an
                     // error-style line.
-                    let accepted = if slot == KindSlot::Panel {
-                        "only SetPanel/ClearPanel are accepted from a panel plugin in v1"
-                    } else {
-                        "only SetWidget is accepted from plugins in v1"
+                    let accepted = match slot {
+                        KindSlot::Panel => {
+                            "only SetPanel/ClearPanel are accepted from a panel plugin in v1"
+                        }
+                        KindSlot::Overlay => {
+                            "only SetOverlay/ClearOverlay are accepted from an overlay plugin in v1"
+                        }
+                        _ => "only SetWidget is accepted from plugins in v1",
                     };
                     let line = format!(
                         "[error] plugin '{}' sent {}; {accepted} — ignored",
@@ -210,6 +246,7 @@ impl PluginHost {
             KindSlot::Widget => &mut self.running,
             KindSlot::Action => &mut self.action_running,
             KindSlot::Panel => &mut self.panel_running,
+            KindSlot::Overlay => &mut self.overlay_running,
         }
     }
 
@@ -219,6 +256,7 @@ impl PluginHost {
             KindSlot::Widget => &mut self.restart,
             KindSlot::Action => &mut self.action_restart,
             KindSlot::Panel => &mut self.panel_restart,
+            KindSlot::Overlay => &mut self.overlay_restart,
         }
     }
 
@@ -241,11 +279,19 @@ impl PluginHost {
             KindSlot::Panel => {
                 self.panel_contents.remove(id);
             }
+            KindSlot::Overlay => {
+                self.overlays.remove(id);
+            }
             KindSlot::Action => {}
         }
-        let other_running = [KindSlot::Widget, KindSlot::Action, KindSlot::Panel]
-            .iter()
-            .any(|s| self.running_map(*s).contains_key(id));
+        let other_running = [
+            KindSlot::Widget,
+            KindSlot::Action,
+            KindSlot::Panel,
+            KindSlot::Overlay,
+        ]
+        .iter()
+        .any(|s| self.running_map(*s).contains_key(id));
         if !other_running {
             self.settings_json.remove(id);
             // Disarming the fault gates here makes a disable/enable cycle
@@ -289,6 +335,15 @@ impl PluginHost {
                     ));
                 };
                 (path, panel_entry_args(found).to_vec())
+            }
+            KindSlot::Overlay => {
+                let Some(path) = found.overlay_entry_path.clone() else {
+                    return Err(format!(
+                        "plugin '{}' no longer resolves an overlay entry point",
+                        id
+                    ));
+                };
+                (path, overlay_entry_args(found).to_vec())
             }
             KindSlot::Widget => (found.entry_path.clone(), widget_entry_args(found).to_vec()),
         };

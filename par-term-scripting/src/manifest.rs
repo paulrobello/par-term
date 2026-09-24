@@ -26,6 +26,13 @@ pub const KIND_ACTION_CONTRIBUTOR: &str = "action-contributor";
 /// script's `SetPanel` drives), rendered in the Settings plugins section.
 pub const KIND_PANEL: &str = "panel";
 
+/// The overlay plugin kind: the plugin owns a persistent surface drawn over
+/// the terminal through the `SetOverlay`/`ClearOverlay` protocol commands
+/// (design: docs/plans/2026-09-24-overlay-plugin-design.md). Phase 1 is
+/// display-only; `interactive` requires the `overlay.interactive` capability
+/// and is forced off without it.
+pub const KIND_OVERLAY: &str = "overlay";
+
 /// Entry-point map key for the [`KIND_STATUS_BAR_WIDGET`] kind.
 pub const ENTRY_POINT_STATUS_BAR_WIDGET: &str = "statusBarWidget";
 
@@ -34,6 +41,9 @@ pub const ENTRY_POINT_ACTION_CONTRIBUTOR: &str = "actionContributor";
 
 /// Entry-point map key for the [`KIND_PANEL`] kind.
 pub const ENTRY_POINT_PANEL: &str = "panel";
+
+/// Entry-point map key for the [`KIND_OVERLAY`] kind.
+pub const ENTRY_POINT_OVERLAY: &str = "overlay";
 
 /// Activation policy declared by the manifest.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -228,6 +238,9 @@ pub struct DiscoveredPlugin {
     /// Canonicalized, confinement-checked entry executable for the panel
     /// kind; `None` when the plugin does not declare that kind.
     pub panel_entry_path: Option<PathBuf>,
+    /// Canonicalized, confinement-checked entry executable for the overlay
+    /// kind; `None` when the plugin does not declare that kind.
+    pub overlay_entry_path: Option<PathBuf>,
 }
 
 /// Why a candidate plugin directory was skipped.
@@ -302,7 +315,12 @@ pub(crate) fn validate_plugin_dir(dir: &Path) -> Result<DiscoveredPlugin, String
     if manifest.kinds.is_empty() {
         return Err("no kinds declared".to_string());
     }
-    let known_kinds = [KIND_STATUS_BAR_WIDGET, KIND_ACTION_CONTRIBUTOR, KIND_PANEL];
+    let known_kinds = [
+        KIND_STATUS_BAR_WIDGET,
+        KIND_ACTION_CONTRIBUTOR,
+        KIND_PANEL,
+        KIND_OVERLAY,
+    ];
     let unknown: Vec<&str> = manifest
         .kinds
         .iter()
@@ -319,6 +337,7 @@ pub(crate) fn validate_plugin_dir(dir: &Path) -> Result<DiscoveredPlugin, String
     let has_widget = manifest.kinds.iter().any(|k| k == KIND_STATUS_BAR_WIDGET);
     let has_action = manifest.kinds.iter().any(|k| k == KIND_ACTION_CONTRIBUTOR);
     let has_panel = manifest.kinds.iter().any(|k| k == KIND_PANEL);
+    let has_overlay = manifest.kinds.iter().any(|k| k == KIND_OVERLAY);
 
     // A subscription naming a kind the forwarder can never produce would sit
     // inert for the plugin's whole life, so it is rejected at discovery like
@@ -422,6 +441,20 @@ pub(crate) fn validate_plugin_dir(dir: &Path) -> Result<DiscoveredPlugin, String
     } else {
         None
     };
+    // The overlay kind owes no manifest block beyond its entry point — the
+    // pushed scene is entirely the process's decision at runtime (same
+    // shape as the panel kind).
+    let overlay_entry = if has_overlay {
+        let entry = manifest
+            .entry_points
+            .get(ENTRY_POINT_OVERLAY)
+            .ok_or_else(|| {
+                format!("{KIND_OVERLAY} kind requires entryPoints.{ENTRY_POINT_OVERLAY}")
+            })?;
+        Some(confinement_check(&dir_canon, &entry.command)?)
+    } else {
+        None
+    };
 
     // `kinds` is non-empty and every kind is known, so at least one entry
     // resolved; the widget entry is the primary entry when several kinds
@@ -429,6 +462,7 @@ pub(crate) fn validate_plugin_dir(dir: &Path) -> Result<DiscoveredPlugin, String
     let entry_path = widget_entry
         .or(action_entry.clone())
         .or(panel_entry.clone())
+        .or(overlay_entry.clone())
         .expect("a validated manifest resolves at least one entry point");
 
     Ok(DiscoveredPlugin {
@@ -437,6 +471,7 @@ pub(crate) fn validate_plugin_dir(dir: &Path) -> Result<DiscoveredPlugin, String
         entry_path,
         action_entry_path: action_entry,
         panel_entry_path: panel_entry,
+        overlay_entry_path: overlay_entry,
     })
 }
 

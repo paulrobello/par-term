@@ -20,9 +20,9 @@ use std::time::Instant;
 
 use super::manager::{ScriptId, ScriptManager};
 use super::manifest::{
-    DiscoveredPlugin, ENTRY_POINT_ACTION_CONTRIBUTOR, ENTRY_POINT_PANEL,
-    ENTRY_POINT_STATUS_BAR_WIDGET, KIND_ACTION_CONTRIBUTOR, KIND_PANEL, KIND_STATUS_BAR_WIDGET,
-    discover_plugins,
+    DiscoveredPlugin, ENTRY_POINT_ACTION_CONTRIBUTOR, ENTRY_POINT_OVERLAY, ENTRY_POINT_PANEL,
+    ENTRY_POINT_STATUS_BAR_WIDGET, KIND_ACTION_CONTRIBUTOR, KIND_OVERLAY, KIND_PANEL,
+    KIND_STATUS_BAR_WIDGET, discover_plugins,
 };
 use super::observer::ScriptEventForwarder;
 use super::protocol::{PLUGIN_ACTION_INVOKED_KIND, ScriptEvent, ScriptEventData};
@@ -88,6 +88,16 @@ fn panel_entry_args(plugin: &DiscoveredPlugin) -> &[String] {
         .unwrap_or_default()
 }
 
+/// Extra argv the overlay kind's entry point declares before the settings.
+fn overlay_entry_args(plugin: &DiscoveredPlugin) -> &[String] {
+    plugin
+        .manifest
+        .entry_points
+        .get(ENTRY_POINT_OVERLAY)
+        .map(|entry| entry.args.as_slice())
+        .unwrap_or_default()
+}
+
 /// One declared plugin kind's supervision slot. Every per-kind map pair is
 /// selected through this so the three kinds cannot drift apart — the same
 /// role the `action: bool` toggle played for two kinds.
@@ -99,6 +109,8 @@ enum KindSlot {
     Action,
     /// `panel` — owns the `SetPanel`/`ClearPanel` content map.
     Panel,
+    /// `overlay` — owns the `SetOverlay`/`ClearOverlay` map.
+    Overlay,
 }
 
 impl KindSlot {
@@ -108,6 +120,7 @@ impl KindSlot {
             KindSlot::Widget => "widget",
             KindSlot::Action => "action",
             KindSlot::Panel => "panel",
+            KindSlot::Overlay => "overlay",
         }
     }
 }
@@ -160,6 +173,8 @@ pub struct PluginHost {
     action_running: HashMap<String, ScriptId>,
     /// Running (or supervised) panel-kind plugin id → process id.
     panel_running: HashMap<String, ScriptId>,
+    /// Running (or supervised) overlay-kind plugin id → process id.
+    overlay_running: HashMap<String, ScriptId>,
     /// The host's own script registry; never shared with tab scripts.
     manager: ScriptManager,
     /// Last `SetWidget` text per plugin id (last write wins). Either kind's
@@ -172,6 +187,10 @@ pub struct PluginHost {
     /// Panel-kind processes only; a `ClearPanel` (or teardown — no orphaned
     /// surface) removes the key.
     panel_contents: HashMap<String, (String, String)>,
+    /// Live overlays per plugin id (overlay kind, one per plugin by design):
+    /// the last upsert scene per overlay id. `ClearOverlay` (or teardown)
+    /// removes the key — a stopped plugin leaves no orphaned surface.
+    overlays: HashMap<String, crate::protocol::PluginOverlay>,
     /// Successful [`Self::invoke_action`] stdin writes this session — the
     /// `plugin_action_dispatched` ui-test operand's source. Monotonic for
     /// the session; never reset.
@@ -184,6 +203,9 @@ pub struct PluginHost {
     /// Per-plugin panel-kind restart supervisor, driven identically to the
     /// other kinds.
     panel_restart: HashMap<String, ScriptRestartState>,
+    /// Per-plugin overlay-kind restart supervisor, driven identically to the
+    /// other kinds.
+    overlay_restart: HashMap<String, ScriptRestartState>,
     /// Settings argv each running plugin was spawned with, kept so a
     /// supervisor restart re-spawns with the same settings. Shared by both
     /// kinds of one plugin (same settings argv, design D2).
@@ -264,6 +286,7 @@ impl PluginHost {
             .keys()
             .chain(self.action_running.keys())
             .chain(self.panel_running.keys())
+            .chain(self.overlay_running.keys())
             .filter(|id| !enabled.iter().any(|e| e.id == **id))
             .cloned()
             .collect();
@@ -301,6 +324,7 @@ impl PluginHost {
                 .iter()
                 .any(|k| k == KIND_ACTION_CONTRIBUTOR);
             let has_panel = found.manifest.kinds.iter().any(|k| k == KIND_PANEL);
+            let has_overlay = found.manifest.kinds.iter().any(|k| k == KIND_OVERLAY);
 
             // Extract every declared kind's spawn descriptor up front so the
             // discovery borrow ends before the supervisor/spawn calls below.
@@ -319,6 +343,11 @@ impl PluginHost {
                 .clone()
                 .filter(|_| has_panel)
                 .map(|path| (path, panel_entry_args(found).to_vec()));
+            let overlay_entry = found
+                .overlay_entry_path
+                .clone()
+                .filter(|_| has_overlay)
+                .map(|path| (path, overlay_entry_args(found).to_vec()));
             // Plugin-level, kind-independent: whichever kind spawns first
             // creates the shared event forwarder.
             let subscriptions = found.manifest.subscriptions.clone();
@@ -354,6 +383,15 @@ impl PluginHost {
                 restart_policy,
                 now,
             );
+            self.spawn_kind_leg(
+                &plugin.id,
+                KindSlot::Overlay,
+                overlay_entry,
+                &plugin.settings_json,
+                &subscriptions,
+                restart_policy,
+                now,
+            );
         }
     }
 
@@ -377,6 +415,10 @@ impl PluginHost {
         let panel_ids: Vec<String> = self.panel_running.keys().cloned().collect();
         for id in panel_ids {
             self.poll_one(&id, KindSlot::Panel, now);
+        }
+        let overlay_ids: Vec<String> = self.overlay_running.keys().cloned().collect();
+        for id in overlay_ids {
+            self.poll_one(&id, KindSlot::Overlay, now);
         }
     }
 
@@ -447,6 +489,11 @@ impl PluginHost {
     /// settings plugins section.
     pub fn panel_contents(&self) -> &HashMap<String, (String, String)> {
         &self.panel_contents
+    }
+
+    /// Live plugin overlays (plugin id → overlay), for the render layer.
+    pub fn overlays(&self) -> &HashMap<String, crate::protocol::PluginOverlay> {
+        &self.overlays
     }
 
     /// Successful [`Self::invoke_action`] stdin writes this session.
@@ -589,11 +636,14 @@ impl PluginHost {
         self.running.clear();
         self.action_running.clear();
         self.panel_running.clear();
+        self.overlay_running.clear();
         self.restart.clear();
         self.action_restart.clear();
         self.panel_restart.clear();
+        self.overlay_restart.clear();
         self.widget_texts.clear();
         self.panel_contents.clear();
+        self.overlays.clear();
         self.settings_json.clear();
         self.enabled_ids.clear();
         self.subscription_forwarders.clear();

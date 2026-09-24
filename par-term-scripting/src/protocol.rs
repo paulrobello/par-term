@@ -253,6 +253,32 @@ pub enum ScriptCommand {
     /// Clear the markdown panel.
     ClearPanel {},
 
+    /// Upsert a plugin-owned overlay surface (overlay kind only). Idempotent
+    /// by id: same id replaces the whole overlay. Phase 1 is display-only —
+    /// the host forces `interactive` off pending the manifest capability.
+    SetOverlay {
+        /// Overlay id; unique within the plugin.
+        id: String,
+        /// Position: a named anchor or a free rect (fractions of window).
+        position: OverlayPosition,
+        /// Size as fractions of the window (0.0–1.0).
+        size: OverlaySize,
+        /// Opacity (0.0–1.0, default 1.0).
+        #[serde(default = "overlay_default_opacity")]
+        opacity: f32,
+        /// Interactive request; forced off without the manifest capability.
+        #[serde(default)]
+        interactive: bool,
+        /// Scene to render (declarative tree).
+        content: OverlayScene,
+    },
+
+    /// Clear a plugin-owned overlay by id (overlay kind only).
+    ClearOverlay {
+        /// Overlay id to remove.
+        id: String,
+    },
+
     /// Set the text of a plugin-provided status-bar widget.
     ///
     /// Display-only and plugin-sourced: no permission flag exists for it
@@ -264,6 +290,90 @@ pub enum ScriptCommand {
         /// Widget text to display (last write wins; empty text hides the widget).
         text: String,
     },
+}
+
+fn overlay_default_opacity() -> f32 {
+    1.0
+}
+
+/// Where a plugin overlay sits: a named anchor or a free rect as window
+/// fractions. Free rects are clamped on-screen by the host.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case", untagged)]
+pub enum OverlayPosition {
+    /// One of nine named positions (corners, edge midpoints, center) or an
+    /// edge strip (`top-strip`, `bottom-strip`, `left-strip`, `right-strip`).
+    Anchor(OverlayAnchor),
+    /// Free rect: x/y/width/height as fractions of the window (0.0–1.0).
+    Free {
+        #[serde(default)]
+        x: f32,
+        #[serde(default)]
+        y: f32,
+    },
+}
+
+/// Named overlay anchors (kebab-case on the wire).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum OverlayAnchor {
+    TopLeft,
+    Top,
+    TopRight,
+    Left,
+    Center,
+    Right,
+    BottomLeft,
+    Bottom,
+    BottomRight,
+    /// Top edge strip spanning the window width.
+    TopStrip,
+    /// Bottom edge strip spanning the window width.
+    BottomStrip,
+    /// Left edge strip spanning the window height.
+    LeftStrip,
+    /// Right edge strip spanning the window height.
+    RightStrip,
+}
+
+/// Overlay size as fractions of the window, clamped by the host (half the
+/// window per axis).
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct OverlaySize {
+    /// Width fraction (0.0–1.0).
+    pub w: f32,
+    /// Height fraction (0.0–1.0).
+    pub h: f32,
+}
+
+/// A declarative scene tree the host renders through egui. Phase 1
+/// vocabulary: text, row, markdown. No images (deferred by design).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "type")]
+pub enum OverlayScene {
+    /// Plain text.
+    Text { text: String },
+    /// Children laid out horizontally.
+    Row { children: Vec<OverlayScene> },
+    /// Markdown block.
+    Markdown { text: String },
+}
+
+/// The host-side stored form of a live overlay: everything a `SetOverlay`
+/// carried, minus `interactive` (Phase 1 is display-only; the flag is forced
+/// off at ingest pending the manifest capability).
+#[derive(Debug, Clone, PartialEq)]
+pub struct PluginOverlay {
+    /// Overlay id (unique within the plugin).
+    pub id: String,
+    /// Anchor or free-rect position.
+    pub position: OverlayPosition,
+    /// Size as window fractions.
+    pub size: OverlaySize,
+    /// Opacity (0.0–1.0).
+    pub opacity: f32,
+    /// Scene to render.
+    pub content: OverlayScene,
 }
 
 /// Strip VT/ANSI escape sequences from text before PTY injection.
@@ -401,6 +511,8 @@ impl ScriptCommand {
             ScriptCommand::Log { .. } => "Log",
             ScriptCommand::SetPanel { .. } => "SetPanel",
             ScriptCommand::ClearPanel {} => "ClearPanel",
+            ScriptCommand::SetOverlay { .. } => "SetOverlay",
+            ScriptCommand::ClearOverlay { .. } => "ClearOverlay",
             ScriptCommand::SetWidget { .. } => "SetWidget",
         }
     }
