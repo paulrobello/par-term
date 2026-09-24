@@ -14,6 +14,7 @@ v1 ships three plugin kinds: `status-bar-widget`, `action-contributor`, and
 - [The SetWidget contract](#the-setwidget-contract)
 - [Contributing palette actions](#contributing-palette-actions)
 - [Pushing panel content](#pushing-panel-content)
+- [Drawing an overlay](#drawing-an-overlay)
 - [Event subscriptions](#event-subscriptions)
 - [Settings](#settings)
 - [Lifecycle and restarts](#lifecycle-and-restarts)
@@ -286,7 +287,7 @@ The third plugin kind, `panel`, pushes markdown content that renders in the
 plugin's own row in Settings > Automation > Plugins — the same surface a
 tab script's `SetPanel` command drives. The model is **push-based**: the
 panel kind does not own a persistent window surface (that model belongs to
-the still-deferred `overlay` kind); the plugin's process decides what to
+the `overlay` kind, next section); the plugin's process decides what to
 show and when, with two commands:
 
 - `{"type": "SetPanel", "title": "...", "content": "..."}` — show (or
@@ -326,6 +327,54 @@ is the reference for the kind: it reads `~/.config/par-term/notes.md`,
 pushes it as a panel, refreshes once a minute and on every `bell_rang`
 (subscriptions work for the panel kind exactly as for the others), and
 clears the panel when the notes file is empty.
+
+## Drawing an overlay
+
+The fourth plugin kind, `overlay`, owns a persistent surface drawn **over
+the terminal** — a HUD, dashboard, sticky note, or timer (design:
+[overlay plugin design](../plans/2026-09-24-overlay-plugin-design.md), phase
+1 display-only). Two commands, kind-pure to the overlay kind:
+
+```json
+{"type": "SetOverlay", "id": "hud", "position": "top-right", "size": {"w": 0.2, "h": 0.1}, "opacity": 0.9, "content": {"type": "markdown", "text": "## Build\nPASSING"}}
+{"type": "ClearOverlay", "id": "hud"}
+```
+
+- **Position** is a named anchor (`top-left`, `top`, `top-right`, `left`,
+  `center`, `right`, `bottom-left`, `bottom`, `bottom-right`) or an edge
+  strip (`top-strip`, `bottom-strip`, `left-strip`, `right-strip`), or a
+  free rect `{"x": 0.1, "y": 0.2}` in window fractions. The host clamps
+  every overlay on-screen and caps its size at half the window per axis.
+- **Size** is `{"w": ..., "h": ...}` in window fractions.
+- **Opacity** (0.0–1.0, default 1.0).
+- **Content** is a declarative scene tree — `text`, `row` (horizontal
+  layout of children), or `markdown`. Full-scene replace on every upsert;
+  the host renders through egui. Phase 1 is display-only: overlays are
+  non-interactive by construction (no widgets, pointer events pass
+  through), `interactive` requests are ignored, and images are deferred.
+- **Clearing is guaranteed**: plugin stop or disable drops its overlay —
+  a disabled plugin leaves no orphaned surface. Overlay commands sent by
+  any other kind (or by a tab script) are refused like any other
+  kind-impure command.
+
+A manifest declaring the kind needs an `overlay` entry point and nothing
+else:
+
+```json
+{
+  "schemaVersion": 1,
+  "id": "com.example.build-hud",
+  "name": "Build HUD",
+  "version": "0.1.0",
+  "kinds": ["overlay"],
+  "entryPoints": { "overlay": { "command": "build_hud.py", "args": [] } }
+}
+```
+
+The example HUD plugin
+(`scripts/examples/plugins/com.example.build-hud/`) pushes a ticking
+top-right overlay once per second; delete its marker file
+(`/tmp/par-term-build-hud`) to see `ClearOverlay` land.
 
 ## Event subscriptions
 
@@ -465,9 +514,10 @@ plugins as rows regardless of the log level.
   no filter or regex form in v1. A plugin with no subscriptions stays
   self-scheduled (the clock sleeps one second), and an action-contributor's
   process hears its own invocations plus whatever it subscribes to.
-- **Three kinds**: `status-bar-widget`, `action-contributor`, and `panel`.
-  The `overlay` kind (a plugin-owned surface over the terminal) is
-  deliberately deferred.
+- **Four kinds**: `status-bar-widget`, `action-contributor`, `panel`, and
+  `overlay` (phase 1 display-only; interactive overlays behind a manifest
+  `overlay` capability remain future work — see the
+  [overlay design](../plans/2026-09-24-overlay-plugin-design.md)).
 - **Restart policy is manifest-declared but mode-only** (`on_failure`
   default, `never`, `always`); backoff parameters (delay, crash-loop cap)
   stay host-owned.
@@ -493,10 +543,11 @@ for the manifest shape, the settings argv, and the `SetWidget` loop.
 ## Agent ui-test recipe
 
 The `--ui-test` harness ([AGENT_UI_VERIFICATION.md](../guides/AGENT_UI_VERIFICATION.md))
-exposes four plugin operands: `plugins_loaded` (the host's last discovery
+exposes five plugin operands: `plugins_loaded` (the host's last discovery
 scan found ≥1 valid plugin), `plugin_widget_set` (some plugin published
 non-empty widget text), `plugin_panel_set` (some panel plugin pushed a
-`SetPanel`), and `plugin_action_dispatched` (≥1 plugin action
+`SetPanel`), `plugin_overlay_set` (some overlay plugin pushed a
+`SetOverlay`), and `plugin_action_dispatched` (≥1 plugin action
 invocation was successfully delivered to a running action process this
 session). The clock recipe runs the first two end-to-end from a clean XDG
 root — no user config is touched, and the final `file_empty` assert proves
@@ -685,6 +736,42 @@ XDG_CONFIG_HOME="$ROOT/cfg" ./target/dev-release/par-term \
 the notes file, and pushed `SetPanel` into the host's panel map — the
 exact state the Settings > Automation > Plugins viewer renders. As with
 the clock, `python3` on `PATH` is the environmental dependency.
+
+### Overlay variant (build HUD)
+
+The overlay kind's recipe installs the build-hud example and asserts the
+`plugin_overlay_set` operand — the pushed `SetOverlay` landed in the
+host's overlay map (the same map the render layer draws):
+
+```bash
+ROOT=/tmp/pt-plugin-overlay-ui-test
+rm -rf "$ROOT"; mkdir -p "$ROOT/cfg/par-term/plugins"
+cp -r scripts/examples/plugins/com.example.build-hud "$ROOT/cfg/par-term/plugins/"
+cat > "$ROOT/cfg/par-term/config.yaml" <<'EOF'
+custom_shell: /bin/sh
+shell_args:
+  - -c
+  - cat > /tmp/pt-plugin-overlay-ui-test/pty-capture.txt
+shader_install_prompt: never
+shell_integration_state: never
+plugins:
+  - id: com.example.build-hud
+    enabled: true
+EOF
+cat > "$ROOT/script.json" <<'EOF'
+{
+  "steps": [
+    {"wait_ms": 2500, "assert": "plugins_loaded"},
+    {"wait_ms": 2000, "assert": "plugin_overlay_set"},
+    {"assert_not": "modal_guard"},
+    {"assert_eq": ["file_empty", "/tmp/pt-plugin-overlay-ui-test/pty-capture.txt"]}
+  ]
+}
+EOF
+make build
+XDG_CONFIG_HOME="$ROOT/cfg" ./target/dev-release/par-term \
+  --ui-test "$ROOT/script.json" --ui-test-report "$ROOT/report.json"
+```
 
 ## See also
 

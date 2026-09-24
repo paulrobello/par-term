@@ -66,6 +66,7 @@ A JSON object with a `steps` array. Each step is one object with an optional
 - `plugins_loaded` — the plugin host's last discovery scan found ≥1 valid plugin
 - `plugin_widget_set` — some plugin has published a non-empty widget text (runnable recipe in [PLUGINS.md](../features/PLUGINS.md))
 - `plugin_panel_set` — some panel plugin has pushed a `SetPanel` (runnable recipe in [PLUGINS.md](../features/PLUGINS.md))
+- `plugin_overlay_set` — some overlay plugin has pushed a `SetOverlay` (runnable recipe in [PLUGINS.md](../features/PLUGINS.md))
 - `settings_window_open` — the standalone settings window is open
 - `modal_guard` — `any_modal_ui_visible()`: the guard that blocks keys from the PTY. Covers in-window overlays only: the standalone settings window is a separate OS window with its own focus, so `settings_window_open` with `modal_guard=false` is the expected reading (terminal-window keys keep flowing while it floats), not a leak.
 - `pane_hint_mode_active` — the built-in pane-hint selection mode is armed (`select_pane_hint` chord on a multi-pane tab)

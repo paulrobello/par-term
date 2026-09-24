@@ -2,11 +2,11 @@
 """Example par-term overlay plugin: a ticking build HUD.
 
 Pushes a ``SetOverlay`` once per second — a small panel anchored
-top-right showing a status line and an elapsed counter. When the
-marker file named by ``--par-term-hud-marker`` (default
-``/tmp/par-term-build-hud``) disappears, the plugin sends
-``ClearOverlay`` and exits, so a scripted run can verify the
-clearing-on-disable invariant by deleting the file.
+top-right showing a status line and an elapsed counter. If the marker
+file named by the ``marker`` setting (default
+``/tmp/par-term-build-hud``) existed at startup and later disappears,
+the plugin sends ``ClearOverlay`` and exits — create the file before
+enabling the plugin, then delete it to watch the clearing path land.
 
 par-term closes the plugin's stdin on stop, which is the shutdown
 signal for the stdin watcher thread.
@@ -60,18 +60,23 @@ def main() -> None:
             pass
         stop.set()
 
-    threading.Thread(target=watch_stdin, daemon=True).start()
+    # Non-daemon: a daemon thread still inside buffered stdin at interpreter
+    # shutdown aborts the process (_enter_buffered_busy). The main loop's
+    # stop.wait() bound keeps exit latency at the poll interval.
+    watcher = threading.Thread(target=watch_stdin)
+    watcher.start()
 
     started = time.monotonic()
+    # The marker only arms the exit path when it existed at startup: a
+    # default run (no marker) keeps the HUD up until par-term stops it.
+    import pathlib
+
+    marker_armed = pathlib.Path(marker).exists()
     try:
         while not stop.is_set():
             elapsed = int(time.monotonic() - started)
             stamp = datetime.datetime.now().strftime("%H:%M:%S")
-            try:
-                marker_alive = __import__("pathlib").Path(marker).exists()
-            except OSError:
-                marker_alive = True
-            if not marker_alive:
+            if marker_armed and not pathlib.Path(marker).exists():
                 emit({"type": "ClearOverlay", "id": "hud"})
                 return
             emit(
@@ -91,6 +96,8 @@ def main() -> None:
     except BrokenPipeError:
         # stdout closed under us — par-term is tearing down; just exit.
         pass
+    finally:
+        watcher.join(timeout=2.0)
 
 
 if __name__ == "__main__":
