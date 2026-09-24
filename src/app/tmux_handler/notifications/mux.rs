@@ -308,6 +308,54 @@ impl WindowState {
         }
     }
 
+    /// Close the focused par-mux pane daemon-side — the mirror of
+    /// [`Self::split_pane_via_mux`]: targeted `kill-pane` via the
+    /// transport, then the daemon's `%layout-change` broadcast drives the
+    /// layout consumer's removal path (`handle_pane_removal`) exactly as
+    /// the gateway close flow does. Returns true when the close was
+    /// consumed here (a daemon pane was the target — a native close would
+    /// delete the local pane and dangle the tmux→native mapping while the
+    /// daemon pane lives on); false when no transport is attached or no
+    /// mux pane is focused, so the caller falls through to the local
+    /// close.
+    ///
+    /// Unlike the split path, a TRANSPORT-level failure still consumes: a
+    /// resolved daemon mapping means the pane's identity is owned
+    /// daemon-side, so locally closing it on a dead connection races the
+    /// SessionEnded teardown and can strand the mapping either way.
+    pub(crate) fn close_pane_via_mux(&mut self) -> bool {
+        let Some(transport) = &self.tmux_state.transport else {
+            return false;
+        };
+        // Same resolution as input routing and the split path: mux focus
+        // when set, else the focused native pane's mapping.
+        let Some(target) = self.focused_mux_pane_from_native() else {
+            crate::debug_trace!("MUX", "close skipped — no mux pane focused (local tab?)");
+            return false;
+        };
+        let cmd = format!("kill-pane -t %{target}");
+        let result = transport.send_command(&cmd);
+        let ok = result.as_ref().map(|body| body.is_empty()).unwrap_or(false);
+        match result {
+            // kill-pane's success reply is an empty body; the daemon
+            // rejects bad targets (a window's last pane) with an %error
+            // block, which also arrives as an Ok body — non-empty IS the
+            // failure signal, same shape as the split path.
+            Ok(body) if !ok => {
+                let text = body.join("\n");
+                log::error!("par-mux kill-pane rejected: {text}");
+                self.show_toast(format!("par-mux: close failed — {text}"));
+                true
+            }
+            Ok(_) => true,
+            Err(e) => {
+                log::error!("par-mux kill-pane failed: {e}");
+                self.show_toast(format!("par-mux: close failed — {e}"));
+                true
+            }
+        }
+    }
+
     /// Begin the profile-open attach for `name` WITHOUT blocking the event
     /// loop: the daemon connect/spawn runs on a worker thread and
     /// [`Self::poll_mux_attach`] finishes the attach on the main thread. A
@@ -1219,6 +1267,104 @@ mod tests {
             ws.tmux_state.mux_focused_pane,
             Some(1),
             "focus must move to the reply's new pane id"
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// Closing a focused mux pane goes daemon-side (`kill-pane -t %N`): the
+    /// daemon's pane count drops, the killed pane's tmux→native mapping is
+    /// removed by the %layout-change reconciliation (no dangling mapping),
+    /// and with no transport attached the close falls through untouched.
+    #[test]
+    fn close_pane_via_mux_kills_daemon_side_and_reconciles_the_mapping() {
+        // No transport: the arm must decline so the native close path is
+        // reached unchanged.
+        let mut bare = manners_state();
+        assert!(
+            !bare.close_pane_via_mux(),
+            "no transport attached — close_pane_via_mux must fall through"
+        );
+
+        let path = socket_path("mux-close");
+        spawn_daemon(&path);
+
+        // Attach through the app's install path and map %0 (the split
+        // test's ladder: %window-add, then size pushes until mapped).
+        let core_client = par_term_emu_core_rust::mux::MuxClient::connect(&path).expect("connect");
+        let (tx, rx) = std::sync::mpsc::channel();
+        tx.send(Ok(core_client)).unwrap();
+        drop(tx);
+        let mut ws = manners_state();
+        ws.tmux_state.mux_attach_pending = Some(MuxAttachPending {
+            name: "closeme".to_string(),
+            rx,
+        });
+        ws.poll_mux_attach();
+        assert!(ws.tmux_state.transport.is_some(), "attach must install");
+        ws.handle_tmux_window_add(0);
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !ws.tmux_state.tmux_pane_to_native_pane.contains_key(&0) {
+            assert!(
+                Instant::now() < deadline,
+                "the layout consumer never mapped %0"
+            );
+            ws.tmux_state
+                .transport
+                .as_ref()
+                .expect("transport")
+                .send_command("refresh-client -t %0 -C 80x24")
+                .expect("size push broadcasts %layout-change");
+            ws.check_mux_notifications();
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        assert!(
+            ws.split_pane_via_mux(true),
+            "split gives the window a second pane to close"
+        );
+        // The split pane's mapping arrives with the %layout-change push,
+        // not the command reply — pump until the consumer has mapped %1.
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !ws.tmux_state.tmux_pane_to_native_pane.contains_key(&1) {
+            assert!(
+                Instant::now() < deadline,
+                "the layout consumer never mapped the split pane %1: {:?}",
+                ws.tmux_state.tmux_pane_to_native_pane
+            );
+            ws.check_mux_notifications();
+            std::thread::sleep(Duration::from_millis(50));
+        }
+
+        // Close the focused pane (%1, the split's new pane) daemon-side.
+        assert!(
+            ws.close_pane_via_mux(),
+            "a focused mux pane close must be consumed daemon-side"
+        );
+
+        // The daemon's pane count dropped — the kill went over the wire.
+        let mut probe = par_term_mux::MuxSessionClient::connect(&path).expect("probe client");
+        let panes = probe.list_panes().expect("list panes");
+        assert_eq!(
+            panes.len(),
+            1,
+            "the daemon must have dropped the killed pane, got {panes:?}"
+        );
+
+        // The %layout-change reconciliation removed the killed pane's
+        // mapping — no dangling tmux→native entry for a dead daemon pane.
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while ws.tmux_state.tmux_pane_to_native_pane.contains_key(&1) {
+            assert!(
+                Instant::now() < deadline,
+                "the killed pane's mapping was never reconciled away: {:?}",
+                ws.tmux_state.tmux_pane_to_native_pane
+            );
+            ws.check_mux_notifications();
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        assert!(
+            ws.tmux_state.tmux_pane_to_native_pane.contains_key(&0),
+            "the surviving pane's mapping must remain"
         );
 
         let _ = std::fs::remove_file(&path);

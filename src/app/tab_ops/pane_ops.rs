@@ -177,6 +177,15 @@ impl WindowState {
     /// If this is the last pane, the tab is closed.
     /// Returns true if the window should close (last tab was closed).
     pub fn close_focused_pane(&mut self) -> bool {
+        // par-mux transport: close daemon-side — the daemon pane is the
+        // real one; a native close here would delete the local pane and
+        // dangle the tmux→native mapping while the daemon pane lives on.
+        #[cfg(feature = "mux")]
+        if self.close_pane_via_mux() {
+            // Consumed: the daemon's %layout-change drives the local
+            // removal, so the window-close answer is "not yet".
+            return false;
+        }
         if self.is_tmux_connected() {
             // Display tabs show tmux window content but are not the gateway.  Closing
             // a pane via par-term's UI on a display tab should close the display tab
