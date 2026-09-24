@@ -332,8 +332,8 @@ clears the panel when the notes file is empty.
 
 The fourth plugin kind, `overlay`, owns a persistent surface drawn **over
 the terminal** — a HUD, dashboard, sticky note, or timer (design:
-[overlay plugin design](../plans/2026-09-24-overlay-plugin-design.md), phase
-1 display-only). Two commands, kind-pure to the overlay kind:
+[overlay plugin design](../plans/2026-09-24-overlay-plugin-design.md)). Two
+commands, kind-pure to the overlay kind:
 
 ```json
 {"type": "SetOverlay", "id": "hud", "position": "top-right", "size": {"w": 0.2, "h": 0.1}, "opacity": 0.9, "content": {"type": "markdown", "text": "## Build\nPASSING"}}
@@ -348,10 +348,11 @@ the terminal** — a HUD, dashboard, sticky note, or timer (design:
 - **Size** is `{"w": ..., "h": ...}` in window fractions.
 - **Opacity** (0.0–1.0, default 1.0).
 - **Content** is a declarative scene tree — `text`, `row` (horizontal
-  layout of children), or `markdown`. Full-scene replace on every upsert;
-  the host renders through egui. Phase 1 is display-only: overlays are
-  non-interactive by construction (no widgets, pointer events pass
-  through), `interactive` requests are ignored, and images are deferred.
+  layout of children), `markdown`, and (in interactive overlays) `button`,
+  `text_input`, `list`. Full-scene replace on every upsert; the host
+  renders through egui. Updates are clamped to ~30 per second per plugin
+  (excess dropped with a warning) so a runaway plugin cannot spin the
+  renderer. Images are deferred.
 - **Clearing is guaranteed**: plugin stop or disable drops its overlay —
   a disabled plugin leaves no orphaned surface. Overlay commands sent by
   any other kind (or by a tab script) are refused like any other
@@ -375,6 +376,51 @@ The example HUD plugin
 (`scripts/examples/plugins/com.example.build-hud/`) pushes a ticking
 top-right overlay once per second; delete its marker file
 (`/tmp/par-term-build-hud`) to see `ClearOverlay` land.
+
+### Interactive overlays
+
+Overlays are non-interactive by default — they render, pointer events pass
+through to the terminal beneath, and an `interactive: true` request is
+forced off at ingest. Interactivity needs the manifest capability:
+
+```json
+"overlay": { "interactive": true }
+```
+
+With the capability, a `SetOverlay` may set `"interactive": true` and use
+the interactive scene vocabulary:
+
+```json
+{"type": "SetOverlay", "id": "hud", "position": "top-right",
+ "size": {"w": 0.25, "h": 0.3}, "interactive": true,
+ "content": {"type": "row", "children": [
+    {"type": "button", "id": "deploy", "label": "Deploy"},
+    {"type": "text_input", "id": "filter", "value": "", "placeholder": "filter…"},
+    {"type": "list", "id": "jobs", "items": ["build", "test"], "selected": 0}
+ ]}}
+```
+
+Focus and input follow the mode stack:
+
+- **Never on appear** — an overlay gains focus only when you click one of
+  its widgets; at most one overlay is focused at a time (the focused
+  overlay draws a brighter border).
+- **Escape** returns focus to the terminal.
+- **While focused, the plugin receives semantic events only** over its
+  stdin — one NDJSON line per widget interaction, never raw keys:
+
+```json
+{"kind": "overlay_event", "data": {"data_type": "OverlayEvent", "overlay": "hud", "widget": "deploy", "event": {"type": "Click"}}}
+{"kind": "overlay_event", "data": {"data_type": "OverlayEvent", "overlay": "hud", "widget": "filter", "event": {"type": "TextChanged", "value": "par"}}}
+{"kind": "overlay_event", "data": {"data_type": "OverlayEvent", "overlay": "hud", "widget": "jobs", "event": {"type": "Select", "index": 1}}}
+```
+
+The plugin owns state: react to events by pushing a new full scene (the
+`text_input` reports `text_changed` and the host renders whatever value
+the scene carries). Focused overlays sit below the built-in pane-hint
+selection mode — that modal mode always owns the keys and draws above
+every overlay. A plugin without the capability, or an upsert that drops
+`interactive`, loses focus immediately.
 
 ## Event subscriptions
 
@@ -515,9 +561,8 @@ plugins as rows regardless of the log level.
   self-scheduled (the clock sleeps one second), and an action-contributor's
   process hears its own invocations plus whatever it subscribes to.
 - **Four kinds**: `status-bar-widget`, `action-contributor`, `panel`, and
-  `overlay` (phase 1 display-only; interactive overlays behind a manifest
-  `overlay` capability remain future work — see the
-  [overlay design](../plans/2026-09-24-overlay-plugin-design.md)).
+  `overlay` (interactive overlays need the manifest `overlay.interactive`
+  capability — see [Drawing an overlay](#drawing-an-overlay)).
 - **Restart policy is manifest-declared but mode-only** (`on_failure`
   default, `never`, `always`); backoff parameters (delay, crash-loop cap)
   stay host-owned.
@@ -543,15 +588,18 @@ for the manifest shape, the settings argv, and the `SetWidget` loop.
 ## Agent ui-test recipe
 
 The `--ui-test` harness ([AGENT_UI_VERIFICATION.md](../guides/AGENT_UI_VERIFICATION.md))
-exposes five plugin operands: `plugins_loaded` (the host's last discovery
+exposes eight plugin operands: `plugins_loaded` (the host's last discovery
 scan found ≥1 valid plugin), `plugin_widget_set` (some plugin published
 non-empty widget text), `plugin_panel_set` (some panel plugin pushed a
 `SetPanel`), `plugin_overlay_set` (some overlay plugin pushed a
-`SetOverlay`), and `plugin_action_dispatched` (≥1 plugin action
-invocation was successfully delivered to a running action process this
-session). The clock recipe runs the first two end-to-end from a clean XDG
-root — no user config is touched, and the final `file_empty` assert proves
-nothing leaked to the PTY:
+`SetOverlay`), `plugin_overlay_interactive` (some overlay is interactive),
+`plugin_overlay_focused` (an overlay currently holds focus),
+`plugin_overlay_event` (≥1 overlay event was delivered to a running
+overlay process this session), and `plugin_action_dispatched` (≥1 plugin
+action invocation was successfully delivered to a running action process
+this session). The clock recipe runs the first two end-to-end from a clean
+XDG root — no user config is touched, and the final `file_empty` assert
+proves nothing leaked to the PTY:
 
 ```bash
 ROOT=/tmp/pt-plugin-ui-test
