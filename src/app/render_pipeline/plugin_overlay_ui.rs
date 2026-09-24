@@ -87,16 +87,7 @@ pub(super) fn render_interactive_overlay(
                     },
                 ));
             frame.show(ui, |ui| {
-                // Clicking anywhere on the overlay's own surface (not the
-                // widgets — those report their own interactions) focuses
-                // it. Applied after the closure; never on appear (O4).
-                let click_on_panel = ui.response().clicked();
                 render_widget_scene(ui, plugin_id, &overlay.content, interactions, focused);
-                if focused && click_on_panel {
-                    // Panel clicks on the focused overlay are still panel
-                    // clicks — keep focus (no-op) but do not swallow.
-                }
-                click_on_panel
             })
         });
 
