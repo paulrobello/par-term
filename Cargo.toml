@@ -9,7 +9,7 @@ members = ["par-term-acp", "par-term-config", "par-term-fonts", "par-term-input"
 # ---------------------------------------------------------------------------
 [workspace.dependencies]
 # Terminal emulator core
-par-term-emu-core-rust = { version = "0.49", default-features = false, features = ["rust-only", "pty_session"] }
+par-term-emu-core-rust = { version = "0.50", default-features = false, features = ["rust-only", "pty_session"] }
 
 # Async runtime
 tokio = { version = "1.52", features = ["full"] }
@@ -320,19 +320,16 @@ name = "par-term"
 path = "src/main.rs"
 
 [features]
-default = ["audio", "system-monitor", "mdns"]
+default = ["audio", "system-monitor", "mdns", "mux"]
 audio = ["dep:rodio"]
 system-monitor = ["dep:sysinfo"]
 mdns = ["dep:mdns-sd", "par-term-ssh/mdns"]
 dev-tools = []  # Enable to build test-cr and test-grid utilities
-# par-mux app wiring (T4.4/T4.5). Declared empty: the real entry would
-# forward par-term-mux/mux, which reaches the core's unpublished `mux`
-# feature and cannot resolve against crates.io 0.49. Local runs extend it
-# via scripts/with-local-core.sh. Compiling the gated wiring on a clean
-# tree fails (par-term-mux is empty there), so the root lint pass names
-# features explicitly with `mux` excluded until the core >=0.50 pin raise
-# (card 01a0c723f7b070239ecc5f6fce02f4fc).
-mux = []
+# par-mux client (card 01a0d1cbc649): on by default (owner decision D2).
+# Forwards through par-term-mux — the dep that owns the core's `mux`
+# feature — and through par-term-terminal/mux, whose generation bump calls
+# PtySession::mark_updated from the core's mux surface.
+mux = ["par-term-mux/mux", "par-term-terminal/mux"]
 
 [[bin]]
 name = "test-cr"

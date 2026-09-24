@@ -37,10 +37,6 @@ log.workspace = true
 
 [features]
 # Conformance test against the core's mux layout emitter
-# (tests/layout_conformance.rs). Declared empty here: forwarding the core's
-# `mux` feature (core >= 0.50 only, unpublished) breaks cargo resolution
-# against crates.io 0.49 even with this feature disabled — cargo validates
-# [features] dep-forwarding eagerly. Run via scripts/with-local-core.sh
-# (or make with-local-core), which extends this locally to
-# ["par-term-emu-core-rust/mux"] and auto-reverts on exit.
-layout-conformance = []
+# (tests/layout_conformance.rs), which needs the core's `mux` feature
+# (core >= 0.50).
+layout-conformance = ["par-term-emu-core-rust/mux"]

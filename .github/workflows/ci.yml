@@ -52,13 +52,13 @@ jobs:
       run: cargo fmt -- --check
 
     - name: Run clippy
-      # Two passes: workspace tests/bins at default features + root with all
-      # features except the empty `mux` gate (compiles only against the
-      # vendored local core; cards 01a0c723f7b070239ecc5f6fce02f4fc,
-      # 01a0c74bfdaf78f0b5b4463033ab5291).
+      # Two passes: workspace tests/bins at default features (which include
+      # `mux`) + root with every feature (covers the gated mux wiring and
+      # layout conformance against the published core >= 0.50; cards
+      # 01a0c723f7b070239ecc5f6fce02f4fc, 01a0c74bfdaf78f0b5b4463033ab5291).
       run: |
         cargo clippy --workspace --all-targets -- -D warnings
-        cargo clippy -p par-term --all-targets --features dev-tools -- -D warnings
+        cargo clippy -p par-term --all-targets --all-features -- -D warnings
 
     - name: Install cargo-deny
       # Pinned: new cargo-deny releases can change the deny.toml schema and

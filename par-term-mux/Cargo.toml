@@ -25,10 +25,6 @@ par-term-emu-core-rust.workspace = true
 log.workspace = true
 
 [features]
-# Client for the core's par-mux daemon. Declared empty here: forwarding the
-# core's `mux` feature (core >= 0.50 only, unpublished) breaks cargo
-# resolution against crates.io 0.49 even with this feature disabled —
-# cargo validates [features] dep-forwarding eagerly. Run via
-# scripts/with-local-core.sh (or make with-local-core), which extends this
-# locally to ["par-term-emu-core-rust/mux"] and auto-reverts on exit.
-mux = []
+# Client for the core's par-mux daemon (core >= 0.50 ships the `mux`
+# feature; the pin was raised in card 01a0d1cbc649).
+mux = ["par-term-emu-core-rust/mux"]

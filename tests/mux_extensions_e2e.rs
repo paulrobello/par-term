@@ -10,12 +10,10 @@
 //! session report produces — the assets send theirs path-only with a
 //! `session_resume_argv`, the shape the id-or-path contract exists for.
 //!
-//! Gated on `mux` (compiled empty without it) and run through
-//! `make with-local-core` per the vendored-core standing policy:
+//! Gated on `mux`, which is on by default. Run directly:
 //!
 //! ```sh
-//! scripts/with-local-core.sh \
-//!   cargo test -p par-term --features mux --test mux_extensions_e2e -- --nocapture
+//! cargo test -p par-term --test mux_extensions_e2e -- --nocapture
 //! ```
 //!
 //! Skips (passing, with a note) where bun is absent — the asset is a

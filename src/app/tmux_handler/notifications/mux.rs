@@ -11,9 +11,8 @@
 //! leaves the daemon and its sessions running (the D5 promise, made
 //! user-visible in the toasts and window title).
 //!
-//! Compiled only under the `mux` feature (declared empty while the core's
-//! `mux` module is unpublished); `scripts/with-local-core.sh` extends the
-//! feature for local runs.
+//! Compiled only under the `mux` feature (default-on; forwards the core's
+//! `mux` module, first shipped in core 0.50).
 
 use crate::app::tmux_handler::tmux_state::{TmuxState, TmuxTransport};
 use crate::app::window_state::WindowState;
@@ -716,9 +715,12 @@ mod tests {
     }
 
     /// The stale-daemon check's live wiring: attach queries the daemon's
-    /// `version`, and against an in-process daemon (the same crate build on
-    /// both sides of the socket) the comparison must land on `Match` — the
-    /// positive control for the toast path, which fires only on `Mismatch`.
+    /// `version`, and against an in-process daemon at the client's own
+    /// version the comparison must never claim `Mismatch` — the positive
+    /// control for the toast path, which fires only on `Mismatch`. A core
+    /// built from crates.io stamps `+unknown`, so the honest classification
+    /// is `Unknown` there; `Match` itself is covered by client.rs's unit
+    /// tests with known shas.
     #[test]
     fn attach_reads_the_daemon_version_and_a_current_daemon_matches() {
         let path = socket_path("version");
@@ -730,11 +732,11 @@ mod tests {
             .daemon_version
             .expect("the daemon answered `version` during the attach sequence");
         let client_stamp = par_term_emu_core_rust::mux::build_stamp();
-        assert_eq!(
-            check_daemon_version(&daemon_reply, client_stamp),
-            VersionCheck::Match,
-            "same-build daemon/client must compare clean: daemon replied \
-             {daemon_reply:?}, client stamp {client_stamp:?}"
+        let verdict = check_daemon_version(&daemon_reply, client_stamp);
+        assert!(
+            !matches!(verdict, VersionCheck::Mismatch { .. }),
+            "same-version daemon/client must not read stale: daemon replied \
+             {daemon_reply:?}, client stamp {client_stamp:?}, verdict {verdict:?}"
         );
 
         let _ = std::fs::remove_file(&path);

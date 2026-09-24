@@ -143,7 +143,7 @@ Two crates sit above Layer 2: `par-term-render` depends on both `par-term-config
 
 | Crate | Responsibility |
 |-------|---------------|
-| `par-term-mux` | Client for the core's par-mux daemon, speaking tmux control mode over a local socket. Reuses `par-term-tmux`'s sync layer (`ParserBridge`, `TmuxSync`, `SyncAction`) unmodified — the reuse is the protocol-compatibility proof. Compiles empty unless its `mux` feature is enabled (core >= 0.50, unpublished; run via `make with-local-core` / `scripts/with-local-core.sh`). |
+| `par-term-mux` | Client for the core's par-mux daemon, speaking tmux control mode over a local socket. Reuses `par-term-tmux`'s sync layer (`ParserBridge`, `TmuxSync`, `SyncAction`) unmodified — the reuse is the protocol-compatibility proof. Gated on its `mux` feature, which is on by default (forwards the core's `mux` feature, shipped in core 0.50). |
 | `par-term-render` | GPU rendering engine built on `wgpu`. Owns the cell renderer (glyph atlas, instanced draw calls, WGSL shaders), the graphics renderer (Sixel/iTerm2/Kitty texture cache), the custom shader renderer (GLSL-to-WGSL via `naga`, iChannel textures), and the egui overlay integration. |
 
 ### Layer 4 — Root Binary

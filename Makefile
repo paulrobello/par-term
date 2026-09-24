@@ -1,7 +1,7 @@
 # Makefile for par-term
 # Cross-platform terminal emulator frontend
 
-.PHONY: help build build-debug run run-release run-error run-warn run-info run-debug run-trace release test check typecheck clean fmt lint checkall with-local-core secret-scan install install-shell-integration install-acp acp-harness acp-smoke doc doc-open doc-check check-line-counts coverage test-fonts benchmark-shaping test-text-shaping bundle bundle-install run-bundle deploy grind-start grind-start-anthropic grind-start-zai grind-start-grok grind-start-codex grind-start-omp grind-stop grind-clean-logs
+.PHONY: help build build-debug run run-release run-error run-warn run-info run-debug run-trace release test check typecheck clean fmt lint checkall secret-scan install install-shell-integration install-acp acp-harness acp-smoke doc doc-open doc-check check-line-counts coverage test-fonts benchmark-shaping test-text-shaping bundle bundle-install run-bundle deploy grind-start grind-start-anthropic grind-start-zai grind-start-grok grind-start-codex grind-start-omp grind-stop grind-clean-logs
 
 ACP_AGENT ?= claude-ollama.local
 ACP_TIMEOUT ?= 45
@@ -212,32 +212,26 @@ fmt-check:
 	cargo fmt -- --check
 
 # Run clippy linter. Two passes: the whole workspace's tests/bins at default
-# features, plus the root crate with every feature except `mux` (dev-tools
-# bins, mdns, ...). `mux` is declared empty until the core >=0.50 pin raise
-# and its gated wiring only compiles against the vendored local core — cards
-# 01a0c723f7b070239ecc5f6fce02f4fc (the deferred --all-features passes) and
-# 01a0c74bfdaf78f0b5b4463033ab5291 (the mux wiring). When a new root feature
-# lands, add it to the explicit list (or restore --all-features once the pin
-# is >=0.50 and the forwarding is committable).
+# features (which now include `mux`), plus the root crate with every feature
+# (--all-features covers the gated mux wiring and layout conformance, which
+# compile against the published core >= 0.50 — cards
+# 01a0c723f7b070239ecc5f6fce02f4fc and 01a0c74bfdaf78f0b5b4463033ab5291).
 lint:
 	@echo "Running clippy..."
 	cargo clippy --workspace --all-targets -- -D warnings
-	cargo clippy -p par-term --all-targets --features dev-tools -- -D warnings
+	cargo clippy -p par-term --all-targets --all-features -- -D warnings
 
-# Run clippy on all targets (currently identical to lint; the extra pass —
-# workspace-wide --all-features — lands with the core >=0.50 pin raise)
+# Run clippy on all targets, and additionally the whole workspace with
+# every feature combination (the pass deferred until the core >=0.50 pin
+# raise, card 01a0c723).
 lint-all: lint
+	@echo "Clippy all features (workspace)..."
+	cargo clippy --workspace --all-targets --all-features -- -D warnings
 	@echo "Clippy all targets passed."
 
 # Run all quality checks (format-check, lint, typecheck, test) — does NOT mutate files
 checkall: fmt-check lint typecheck test
 	@echo "All quality checks passed!"
-
-# Run a cargo command against the local ../par-term-emu-core-rust checkout,
-# auto-reverting the manifests it patches (default: the layout-conformance suite)
-with-local-core:
-	@echo "Running against vendored local core (manifests auto-revert on exit)..."
-	scripts/with-local-core.sh $(CMD)
 
 # Clean build artifacts and project-root log files
 clean:

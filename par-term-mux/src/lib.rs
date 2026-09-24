@@ -26,11 +26,10 @@
 //!
 //! ## Feature gate
 //!
-//! The core's `mux` module exists only in core >= 0.50 (unpublished), so
-//! everything here compiles only under this crate's `mux` feature. The
-//! feature is declared empty in the committed manifest; local runs extend
-//! it via `scripts/with-local-core.sh`, which forwards the core feature
-//! and auto-reverts the manifest afterwards.
+//! The core's `mux` module exists only in core >= 0.50, so everything here
+//! compiles only under this crate's `mux` feature, which forwards
+//! `par-term-emu-core-rust/mux`. The root crate enables it by default
+//! (owner decision D2, card 01a0d1cbc649).
 
 #![cfg(feature = "mux")]
 

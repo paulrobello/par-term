@@ -40,9 +40,6 @@ arboard.workspace = true
 tempfile.workspace = true
 
 [features]
-# Extended (and enabled from the root `mux` feature) only by
-# scripts/with-local-core.sh runs: the generation bump in process_data
-# calls PtySession::mark_updated, which exists only in the unpublished
-# local core. Declared empty here so default builds — and CI against the
-# published core — compile without it.
-mux = []
+# Enabled from the root `mux` feature: the generation bump in process_data
+# calls PtySession::mark_updated from the core's mux surface (core >= 0.50).
+mux = ["par-term-emu-core-rust/mux"]

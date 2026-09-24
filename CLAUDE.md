@@ -132,7 +132,7 @@ See `docs/architecture/ARCHITECTURE.md` for detailed architecture documentation.
 | **Custom shaders** | `src/shader_installer.rs`, `shaders/` dir, `par-term-render/src/` | `par-term-render` |
 | **SSH** | `par-term-ssh/src/` (all implementation), `src/ssh_connect_ui.rs` | `par-term-ssh` |
 | **Tmux integration** | `src/app/tmux_handler/`, `src/pane/manager/tmux_layout.rs`, `src/tmux_session_picker_ui.rs`, `par-term-tmux/` | `par-term-tmux` |
-| **par-mux client** | `par-term-mux/src/` (feature-gated: `mux`, compiled empty except under `make with-local-core` while core >= 0.50 is unpublished) | `par-term-mux` |
+| **par-mux client** | `par-term-mux/src/` (feature-gated: `mux`, on by default) | `par-term-mux` |
 | **ACP / AI panel** | `src/acp_harness/`, `src/ai_inspector/`, `par-term-acp/` | `par-term-acp` |
 | **Font/text shaping** | `par-term-fonts/` | `par-term-fonts` |
 
@@ -198,23 +198,18 @@ Layer 4 — Root crate (bump last):
 5. Update all version refs in root `Cargo.toml`
 6. Run `cargo check --workspace` to verify
 
-### Vendoring the core from the local checkout (instead of waiting for a publish)
+### par-mux daemon for local runs
 
-Core cards go `done` in `~/Repos/par-term-emu-core-rust` long before crates.io catches up, so a card blocked on "the core needs to publish" can unblock itself by building against the local sibling checkout.
+The pin is on the published crates.io line (`0.50`), `mux` is a default root feature, and every manifest forwards the core's `mux` feature normally — no vendoring machinery exists anymore (card 01a0d1cbc649 retired `scripts/with-local-core.sh` and its Makefile target; never pin a core version that is not on crates.io).
 
-**Use `make with-local-core` (or `scripts/with-local-core.sh <full cargo command>` — the script executes its arguments verbatim, so include the `cargo` word: `scripts/with-local-core.sh cargo test …`)** — it applies the whole recipe below (patch, pin raise, feature forwarding), runs the command (default: `cargo test -p par-term-tmux --features layout-conformance`), and restores `Cargo.toml`, `par-term-tmux/Cargo.toml`, and `Cargo.lock` on exit, success or failure. The manual steps it automates — in the **root** `Cargo.toml`, add:
+The crates.io release ships the **library only** — the `par-mux` daemon binary must be built from the core checkout and staged next to the par-term binary (the core's spawn logic looks next to `current_exe()`, walking out of `deps/`):
 
-```toml
-[patch.crates-io]
-par-term-emu-core-rust = { path = "../par-term-emu-core-rust" }
+```bash
+(cd ../par-term-emu-core-rust && cargo build --no-default-features --features mux --bin par-mux)
+cp ../par-term-emu-core-rust/target/debug/par-mux target/debug/
 ```
 
-- The local core's `version` must satisfy this repo's `[workspace.dependencies]` pin (`version = "0.49"`); if the local tree has bumped past the pin, raise the pin to match, or cargo rejects the patch. The script detects this and raises the pin for the run with a notice; done by hand it is **local-only too** — CI must stay buildable against the published crates.io version, so never commit a pin raise the published registry cannot satisfy.
-- **Never commit the patch** — CI checks out only this repo, so `../par-term-emu-core-rust` does not exist there and every build leg fails. Revert `Cargo.toml`/`Cargo.lock` before committing anything else.
-- `cargo check --workspace` re-resolves the lockfile on the first run after applying.
-- The script also **stages the core's `par-mux` daemon binary** next to every built par-term binary (the core's `spawn_daemon` looks next to `current_exe()`, walking out of `deps/`); the copy refreshes every run, and a missing core binary is a warning — the attach surfaces its own error.
-- The core repo is itself a live grind target, so its tree moves under you mid-iteration. When the core publishes the needed version, drop the patch and raise the pin to the published version.
-- **Standing policy (2026-09-21, user): do not publish the core and do not wait for a publish.** Until the par-term × core stack works end to end locally, all verification runs against the vendored local checkout. A test that needs the unpublished core API lands behind a `#![cfg(feature = "...")]` gate so CI never compiles the module; plain `#[ignore]` is not enough because `cargo test`/clippy still compile the module. Commit the feature DECLARED EMPTY and keep the dep-feature forwarding local with the patch: cargo validates `[features]` dep-feature forwarding eagerly, even with the feature disabled, so a committed `feature = ["par-term-emu-core-rust/mux"]` line breaks resolution against the published core (proven 2026-09-21 landing the layout-conformance test in par-term-tmux). Note also: a *scoped* `cargo clippy/test -p <crate> --all-features` compiles the gated module with the feature on and fails against the published core on a clean tree — run scoped `--all-features` work through `make with-local-core`. The lint gate covers sub-crate test targets (workspace-wide `--all-targets` at default features, plus a root-only `--all-features` pass); the workspace-wide `--all-features` pass itself is deferred until the core pin reaches >=0.50 (card 01a0c723f7b070239ecc5f6fce02f4fc).
+Bundling the daemon into releases is tracked on its own backlog card.
 
 ## Common Development Workflows
 

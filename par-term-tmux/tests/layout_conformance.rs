@@ -9,15 +9,9 @@
 //! sides, so it is the test that actually fails when the emitter and parser
 //! grammars diverge.
 //!
-//! Gated on the `layout-conformance` feature (declared EMPTY in this
-//! crate's Cargo.toml — see its comment): forwarding the core's `mux`
-//! feature, first present in core >= 0.50 and not yet on crates.io, breaks
-//! cargo resolution against crates.io 0.49 even with the feature disabled,
-//! because cargo validates `[features]` dep-forwarding eagerly. Local run:
-//! `make with-local-core` — scripts/with-local-core.sh applies the vendoring
-//! recipe from the repo CLAUDE.md (patch, pin raise, feature forwarding) and
-//! auto-reverts the manifests on exit. Once the core publishes >= 0.50, the
-//! forwarding entry and pin can be committed and this runs in CI.
+//! Gated on the `layout-conformance` feature, which forwards the core's
+//! `mux` feature (first shipped in core 0.50). Run directly:
+//! `cargo test -p par-term-tmux --features layout-conformance`.
 
 use par_term_emu_core_rust::mux::layout::ResizeDirection;
 use par_term_emu_core_rust::mux::{
