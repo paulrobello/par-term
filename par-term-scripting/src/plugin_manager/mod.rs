@@ -191,10 +191,23 @@ pub struct PluginHost {
     /// the last upsert scene per overlay id. `ClearOverlay` (or teardown)
     /// removes the key — a stopped plugin leaves no orphaned surface.
     overlays: HashMap<String, crate::protocol::PluginOverlay>,
+    /// The one focused overlay's plugin id, if any (design: at most one
+    /// overlay is focused at a time). Focus never lands automatically —
+    /// only a click on the overlay's widgets or an explicit host API sets
+    /// it (O4) — and it drops when the overlay is cleared, replaced by a
+    /// display-only upsert, or its plugin stops.
+    focused_overlay: Option<String>,
+    /// SetOverlay upsert timestamps per plugin id, for the update-rate
+    /// clamp (design: ~30/sec with a warning; a runaway plugin must not
+    /// spin the renderer).
+    overlay_update_times: HashMap<String, Vec<std::time::Instant>>,
     /// Successful [`Self::invoke_action`] stdin writes this session — the
     /// `plugin_action_dispatched` ui-test operand's source. Monotonic for
     /// the session; never reset.
     actions_dispatched: u64,
+    /// Successful [`Self::send_overlay_event`] stdin writes this session —
+    /// the `plugin_overlay_event` ui-test operand's source. Monotonic.
+    overlay_events_dispatched: u64,
     /// Per-plugin widget-kind restart supervisor (pin P3).
     restart: HashMap<String, ScriptRestartState>,
     /// Per-plugin action-kind restart supervisor, driven identically to
@@ -494,6 +507,116 @@ impl PluginHost {
     /// Live plugin overlays (plugin id → overlay), for the render layer.
     pub fn overlays(&self) -> &HashMap<String, crate::protocol::PluginOverlay> {
         &self.overlays
+    }
+
+    /// The focused overlay's plugin id, if any — the render layer's
+    /// click-to-focus target check and the key router's focus check.
+    pub fn focused_overlay(&self) -> Option<&str> {
+        self.focused_overlay.as_deref()
+    }
+
+    /// Focus one plugin's overlay (the render layer's click path). Only an
+    /// overlay that is live AND interactive can take focus — everything
+    /// else clears focus, so the call doubles as the unfocus path.
+    pub fn focus_overlay(&mut self, plugin_id: &str) {
+        self.focused_overlay = self
+            .overlays
+            .get(plugin_id)
+            .filter(|o| o.interactive)
+            .map(|_| plugin_id.to_string());
+    }
+
+    /// Drop overlay focus entirely (Escape path; also called when the
+    /// focused overlay stops being focusable).
+    pub fn unfocus_overlay(&mut self) {
+        self.focused_overlay = None;
+    }
+
+    /// Clear focus when it names this plugin's overlay (the upsert and
+    /// teardown paths) — other plugins' focus is untouched.
+    pub(super) fn clear_focus_if(&mut self, plugin_id: &str) {
+        if self.focused_overlay.as_deref() == Some(plugin_id) {
+            self.focused_overlay = None;
+        }
+    }
+
+    /// Deliver one semantic overlay-widget event to a plugin's running
+    /// overlay process (the renderer's interaction sink). Returns false
+    /// without warning when there is nothing to deliver to — the renderer
+    /// only calls this for a focused overlay it just drew, so a miss means
+    /// the process raced an exit, which the supervisor reports.
+    pub fn send_overlay_event(
+        &mut self,
+        plugin_id: &str,
+        widget_id: &str,
+        event: crate::protocol::OverlayWidgetEvent,
+    ) -> bool {
+        let Some(&sid) = self.overlay_running.get(plugin_id) else {
+            return false;
+        };
+        let Some(overlay) = self.overlays.get(plugin_id) else {
+            return false;
+        };
+        let script_event = ScriptEvent {
+            kind: crate::protocol::OVERLAY_EVENT_KIND.to_string(),
+            data: ScriptEventData::OverlayEvent {
+                overlay: overlay.id.clone(),
+                widget: widget_id.to_string(),
+                event,
+            },
+        };
+        match self.manager.send_event(sid, &script_event) {
+            Ok(()) => {
+                self.overlay_events_dispatched += 1;
+                true
+            }
+            Err(error) => {
+                if self.warned_event_delivery.should_warn(plugin_id) {
+                    log::warn!(
+                        "failed to deliver overlay event to plugin '{}': {}",
+                        plugin_id,
+                        error
+                    );
+                }
+                false
+            }
+        }
+    }
+
+    /// Successful overlay-event stdin writes this session — the
+    /// `plugin_overlay_event` ui-test operand's source. Monotonic.
+    pub fn overlay_events_dispatched_count(&self) -> u64 {
+        self.overlay_events_dispatched
+    }
+
+    /// The SetOverlay rate clamp's budget: accepted upserts per sliding
+    /// second (design names ~30/sec with a warning).
+    const OVERLAY_UPDATE_WINDOW_SECS: u64 = 1;
+    const OVERLAY_UPDATE_MAX_PER_WINDOW: usize = 30;
+
+    /// Whether one more `SetOverlay` from this plugin lands inside the
+    /// update-rate budget; records the attempt either way. Over-budget
+    /// upserts are dropped after the first, which warns once per episode
+    /// (the episode resets after a full quiet second, so a plugin that
+    /// bursts, stops, and bursts again warns once per burst).
+    pub(super) fn overlay_update_permitted(&mut self, id: &str, now: Instant) -> bool {
+        let times = self.overlay_update_times.entry(id.to_string()).or_default();
+        times.retain(|t| now.duration_since(*t).as_secs() < Self::OVERLAY_UPDATE_WINDOW_SECS);
+        if times.len() >= Self::OVERLAY_UPDATE_MAX_PER_WINDOW {
+            if self
+                .warned_event_delivery
+                .should_warn(&format!("{id}/overlay-rate"))
+            {
+                log::warn!(
+                    "plugin '{id}' is pushing SetOverlay faster than {} per second; \
+                     dropping the excess (update-rate clamp)",
+                    Self::OVERLAY_UPDATE_MAX_PER_WINDOW
+                );
+            }
+            return false;
+        }
+        times.push(now);
+        true
     }
 
     /// Successful [`Self::invoke_action`] stdin writes this session.
@@ -1453,6 +1576,188 @@ while True:
         assert!(refused, "fixture's SetOverlay refusal never landed");
         assert!(host.overlays().is_empty(), "no overlay may exist");
         host.stop_all();
+    }
+
+    fn overlay_interactive_manifest_json(id: &str) -> String {
+        format!(
+            "{{\"schemaVersion\":1,\"id\":\"{id}\",\"name\":\"Test Overlay\",\"version\":\"0.1.0\",\
+\"kinds\":[\"overlay\"],\"activation\":\"manual\",\
+\"overlay\":{{\"interactive\":true}},\
+\"entryPoints\":{{\"overlay\":{{\"command\":\"overlay.py\",\"args\":[]}}}}}}"
+        )
+    }
+
+    fn write_overlay_plugin_with_manifest(root: &Path, id: &str, manifest: &str, script: &str) {
+        write_plugin_files(root, id, manifest, &[("overlay.py", script)]);
+    }
+
+    /// An overlay plugin that requests interactivity and then idles. The
+    /// capability comes from the manifest the test pairs it with.
+    const OVERLAY_INTERACTIVE_SCRIPT: &str = r##"
+import json, time
+def emit(obj):
+    print(json.dumps(obj), flush=True)
+emit({"type": "SetOverlay", "id": "hud", "position": "top-right",
+      "size": {"w": 0.3, "h": 0.2}, "opacity": 0.9, "interactive": True,
+      "content": {"type": "button", "id": "deploy", "label": "Deploy"}})
+while True:
+    time.sleep(0.2)
+"##;
+
+    /// An overlay plugin that pushes an interactive overlay and then echoes
+    /// every stdin event back by re-pushing the overlay with the event named
+    /// in its text — the observable seam for overlay-event writes (the
+    /// overlay kind cannot send SetWidget, so the scene text is the echo).
+    const OVERLAY_ECHO_SCRIPT: &str = r#"
+import json, sys, time
+def emit(obj):
+    print(json.dumps(obj), flush=True)
+emit({"type": "SetOverlay", "id": "hud", "position": "top-right",
+      "size": {"w": 0.3, "h": 0.2}, "interactive": True,
+      "content": {"type": "button", "id": "deploy", "label": "Deploy"}})
+for line in iter(sys.stdin.readline, ""):
+    line = line.strip()
+    if not line:
+        continue
+    try:
+        event = json.loads(line)
+    except ValueError:
+        continue
+    emit({"type": "SetOverlay", "id": "hud", "position": "top-right",
+          "size": {"w": 0.3, "h": 0.2}, "interactive": True,
+          "content": {"type": "text", "text": "event:" + str(event.get("kind", "?")) + ":" + str(event.get("data", {}).get("widget", "?"))}})
+"#;
+
+    #[test]
+    fn interactive_requires_the_manifest_capability() {
+        if skip_without_interpreter() {
+            return;
+        }
+        let root = tempfile::tempdir().unwrap();
+        // No capability block: the request is forced off at ingest.
+        write_overlay_plugin(root.path(), "com.test.no-cap", OVERLAY_INTERACTIVE_SCRIPT);
+
+        let mut host = PluginHost::new();
+        assert_eq!(host.refresh_discovery(root.path()).len(), 1);
+        host.apply_enabled(&[enabled("com.test.no-cap")]);
+        let settled = wait_until(&mut host, |h| h.overlays().contains_key("com.test.no-cap"));
+        assert!(settled, "fixture's SetOverlay never arrived");
+        let overlay = &host.overlays()["com.test.no-cap"];
+        assert!(!overlay.interactive, "no capability → forced display-only");
+
+        // Focus on a display-only overlay never lands.
+        host.focus_overlay("com.test.no-cap");
+        assert_eq!(host.focused_overlay(), None);
+        host.stop_all();
+    }
+
+    #[test]
+    fn interactive_capability_allows_focus_and_clearing_drops_it() {
+        if skip_without_interpreter() {
+            return;
+        }
+        let root = tempfile::tempdir().unwrap();
+        write_overlay_plugin_with_manifest(
+            root.path(),
+            "com.test.cap",
+            &overlay_interactive_manifest_json("com.test.cap"),
+            OVERLAY_INTERACTIVE_SCRIPT,
+        );
+
+        let mut host = PluginHost::new();
+        assert_eq!(host.refresh_discovery(root.path()).len(), 1);
+        host.apply_enabled(&[enabled("com.test.cap")]);
+        let settled = wait_until(&mut host, |h| {
+            h.overlays()
+                .get("com.test.cap")
+                .is_some_and(|o| o.interactive)
+        });
+        assert!(settled, "fixture's interactive SetOverlay never arrived");
+
+        // Click-to-focus lands; a second focus call re-points (still the
+        // only focused overlay — at most one by construction, but assert).
+        host.focus_overlay("com.test.cap");
+        assert_eq!(host.focused_overlay(), Some("com.test.cap"));
+
+        // Escape path.
+        host.unfocus_overlay();
+        assert_eq!(host.focused_overlay(), None);
+
+        // Disable clears overlay AND focus — no orphaned focus.
+        host.focus_overlay("com.test.cap");
+        host.apply_enabled(&[]);
+        assert!(host.overlays().is_empty());
+        assert_eq!(host.focused_overlay(), None);
+        host.stop_all();
+    }
+
+    #[test]
+    fn overlay_events_reach_the_running_process() {
+        if skip_without_interpreter() {
+            return;
+        }
+        let root = tempfile::tempdir().unwrap();
+        write_overlay_plugin_with_manifest(
+            root.path(),
+            "com.test.echo",
+            &overlay_interactive_manifest_json("com.test.echo"),
+            OVERLAY_ECHO_SCRIPT,
+        );
+
+        let mut host = PluginHost::new();
+        host.refresh_discovery(root.path());
+        host.apply_enabled(&[enabled("com.test.echo")]);
+        // Wait for the overlay to be live (the renderer's precondition for
+        // sending events) and the process up.
+        let up = wait_until(&mut host, |h| {
+            h.overlays()
+                .get("com.test.echo")
+                .is_some_and(|o| o.interactive)
+        });
+        assert!(up, "fixture never pushed its overlay");
+
+        let delivered = host.send_overlay_event(
+            "com.test.echo",
+            "deploy",
+            crate::protocol::OverlayWidgetEvent::Click {},
+        );
+        assert!(delivered, "send_overlay_event reported failure");
+        assert_eq!(host.overlay_events_dispatched_count(), 1);
+
+        // The echo fixture re-pushes its overlay with the event named in
+        // the scene text — proof the process parsed the event.
+        let echoed = wait_until(&mut host, |h| {
+            h.overlays().get("com.test.echo").is_some_and(|o| {
+                matches!(
+                    &o.content,
+                    crate::protocol::OverlayScene::Text { text }
+                        if text.contains("overlay_event") && text.contains("deploy")
+                )
+            })
+        });
+        assert!(echoed, "the overlay process never echoed the event");
+        host.stop_all();
+    }
+
+    #[test]
+    fn overlay_update_rate_clamp_drops_excess_upserts() {
+        // Pure host-side test: no interpreter needed — drive the clamp
+        // bookkeeping directly through overlay_update_permitted.
+        let mut host = PluginHost::new();
+        let t0 = Instant::now();
+        // 30 land inside the first sliding second…
+        for _ in 0..30 {
+            assert!(host.overlay_update_permitted("p", t0));
+        }
+        // …and the 31st is refused while the window is saturated.
+        assert!(
+            !host.overlay_update_permitted("p", t0),
+            "clamp must refuse past the budget"
+        );
+        // After the window slides fully past every recorded timestamp,
+        // upserts are permitted again.
+        let after = t0 + Duration::from_secs(2);
+        assert!(host.overlay_update_permitted("p", after));
     }
 
     #[test]

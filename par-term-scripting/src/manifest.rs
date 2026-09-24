@@ -210,6 +210,23 @@ pub struct PluginManifest {
     /// out of (parsight decision 95).
     #[serde(default = "default_plugin_restart")]
     pub restart: RestartPolicy,
+    /// Overlay-kind capability block (phase 2). Absent means display-only:
+    /// `interactive: true` requests are forced off at ingest. Present with
+    /// `interactive: true` is required before an overlay may focus and
+    /// render interactive widgets.
+    #[serde(default)]
+    pub overlay: Option<OverlayCapability>,
+}
+
+/// Capabilities an `overlay`-kind manifest may claim.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OverlayCapability {
+    /// Whether the plugin's overlays may request interactivity (focus,
+    /// semantic events). Defaults to false — a manifest that declares the
+    /// block without the flag still gets display-only overlays.
+    #[serde(default)]
+    pub interactive: bool,
 }
 
 /// The manifest default for [`PluginManifest::restart`] — today's
@@ -1209,6 +1226,61 @@ mod tests {
         assert_eq!(
             plugins[0].manifest.restart,
             par_term_config::RestartPolicy::OnFailure
+        );
+    }
+
+    #[test]
+    fn overlay_capability_block_parses_and_defaults_to_display_only() {
+        let tmp = TempDir::new().unwrap();
+        let display_only = MINIMAL_PANEL_MANIFEST.replace(
+            "\"kinds\": [\"panel\"],\n        \"entryPoints\": { \"panel\":",
+            "\"kinds\": [\"overlay\"],\n        \"entryPoints\": { \"overlay\":",
+        );
+        write_plugin(
+            tmp.path(),
+            "com.example.test",
+            &display_only,
+            Some("panel.py"),
+        );
+        let (plugins, warnings) = discover_plugins(tmp.path());
+        assert!(warnings.is_empty(), "unexpected warnings: {warnings:?}");
+        // No overlay block at all: display-only.
+        assert_eq!(plugins[0].manifest.overlay, None);
+
+        let interactive = display_only.replace(
+            "\"kinds\": [\"overlay\"],",
+            "\"kinds\": [\"overlay\"], \"overlay\": { \"interactive\": true },",
+        );
+        let tmp2 = TempDir::new().unwrap();
+        write_plugin(
+            tmp2.path(),
+            "com.example.test",
+            &interactive,
+            Some("panel.py"),
+        );
+        let (plugins, _warnings) = discover_plugins(tmp2.path());
+        assert_eq!(
+            plugins[0].manifest.overlay,
+            Some(OverlayCapability { interactive: true })
+        );
+
+        // The block without the flag defaults the flag off — claiming the
+        // block alone grants nothing.
+        let block_only = display_only.replace(
+            "\"kinds\": [\"overlay\"],",
+            "\"kinds\": [\"overlay\"], \"overlay\": {},",
+        );
+        let tmp3 = TempDir::new().unwrap();
+        write_plugin(
+            tmp3.path(),
+            "com.example.test",
+            &block_only,
+            Some("panel.py"),
+        );
+        let (plugins, _warnings) = discover_plugins(tmp3.path());
+        assert_eq!(
+            plugins[0].manifest.overlay,
+            Some(OverlayCapability { interactive: false })
         );
     }
 

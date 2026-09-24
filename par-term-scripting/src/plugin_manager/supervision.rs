@@ -155,12 +155,31 @@ impl PluginHost {
                     position,
                     size,
                     opacity,
+                    interactive,
                     content,
-                    ..
                 } if slot == KindSlot::Overlay => {
-                    // Phase 1 is display-only: the interactive flag is
-                    // dropped here, pending the manifest capability + focus
-                    // work (design phasing).
+                    // Update-rate clamp (design: ~30/sec with a warning —
+                    // a runaway plugin must not spin the renderer). The
+                    // window slides on `now`; over-budget upserts are
+                    // dropped after the first (warned once per episode).
+                    if !self.overlay_update_permitted(id, now) {
+                        continue;
+                    }
+                    // The manifest capability gates interactivity (design,
+                    // Permissions): `interactive: true` survives only for a
+                    // plugin whose manifest carries `overlay.interactive`.
+                    // Any other plugin is forced display-only here.
+                    let interactive = interactive
+                        && self
+                            .discovered
+                            .iter()
+                            .find(|d| d.manifest.id == id)
+                            .is_some_and(|d| {
+                                d.manifest
+                                    .overlay
+                                    .as_ref()
+                                    .is_some_and(|cap| cap.interactive)
+                            });
                     self.overlays.insert(
                         id.to_string(),
                         crate::protocol::PluginOverlay {
@@ -168,9 +187,15 @@ impl PluginHost {
                             position,
                             size,
                             opacity: opacity.clamp(0.0, 1.0),
+                            interactive,
                             content,
                         },
                     );
+                    // A replaced overlay that no longer qualifies drops any
+                    // focus it held — a display-only overlay never keeps it.
+                    if !interactive {
+                        self.clear_focus_if(id);
+                    }
                 }
                 ScriptCommand::ClearOverlay { id: overlay_id } if slot == KindSlot::Overlay => {
                     let plugin_id = id;
@@ -180,6 +205,8 @@ impl PluginHost {
                         .is_some_and(|live| live.id == overlay_id)
                     {
                         self.overlays.remove(plugin_id);
+                        // A cleared overlay cannot keep focus.
+                        self.clear_focus_if(plugin_id);
                     }
                 }
                 other => {
@@ -284,6 +311,8 @@ impl PluginHost {
             }
             KindSlot::Overlay => {
                 self.overlays.remove(id);
+                self.overlay_update_times.remove(id);
+                self.clear_focus_if(id);
             }
             KindSlot::Action => {}
         }

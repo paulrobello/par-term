@@ -75,6 +75,10 @@ use std::collections::HashMap;
 /// plugin-contributed palette action.
 pub const PLUGIN_ACTION_INVOKED_KIND: &str = "plugin_action_invoked";
 
+/// Event kind for [`ScriptEventData::OverlayEvent`]: a focused overlay's
+/// widget reported a semantic interaction (click / text_changed / select).
+pub const OVERLAY_EVENT_KIND: &str = "overlay_event";
+
 /// An event sent from the terminal to a script subprocess (via stdin).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ScriptEvent {
@@ -183,6 +187,37 @@ pub enum ScriptEventData {
     Generic {
         /// Arbitrary event fields.
         fields: HashMap<String, serde_json::Value>,
+    },
+
+    /// A semantic event from a focused interactive overlay's own widget
+    /// (overlay kind only). Written directly to the overlay process's
+    /// stdin when the host's renderer reports a widget interaction —
+    /// never raw keys (design: input & focus routing).
+    OverlayEvent {
+        /// Overlay id the widget belongs to.
+        overlay: String,
+        /// The widget's scene id.
+        widget: String,
+        /// What happened on the widget.
+        event: OverlayWidgetEvent,
+    },
+}
+
+/// What a focused overlay widget reports to the plugin process.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum OverlayWidgetEvent {
+    /// A button was clicked.
+    Click {},
+    /// A text input's value changed.
+    TextChanged {
+        /// Current value of the input.
+        value: String,
+    },
+    /// A list row was selected.
+    Select {
+        /// Index of the selected row.
+        index: usize,
     },
 }
 
@@ -347,7 +382,10 @@ pub struct OverlaySize {
 }
 
 /// A declarative scene tree the host renders through egui. Phase 1
-/// vocabulary: text, row, markdown. No images (deferred by design).
+/// vocabulary: text, row, markdown; phase 2 adds the interactive
+/// button / text_input / list (rendered only while the overlay may
+/// focus — see `PluginOverlay::interactive`). No images (deferred by
+/// design).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "type")]
 pub enum OverlayScene {
@@ -357,11 +395,40 @@ pub enum OverlayScene {
     Row { children: Vec<OverlayScene> },
     /// Markdown block.
     Markdown { text: String },
+    /// Clickable button (interactive vocabulary, O3).
+    Button {
+        /// Scene-unique widget id the click event names.
+        id: String,
+        /// Button label.
+        label: String,
+    },
+    /// Single-line text input (interactive vocabulary, O3).
+    TextInput {
+        /// Scene-unique widget id events name.
+        id: String,
+        /// Current value; full-scene replace semantics (the plugin owns
+        /// state).
+        value: String,
+        /// Placeholder shown when empty.
+        #[serde(default)]
+        placeholder: String,
+    },
+    /// Selectable row list (interactive vocabulary, O3).
+    List {
+        /// Scene-unique widget id events name.
+        id: String,
+        /// Row labels.
+        items: Vec<String>,
+        /// Currently selected row index, if any.
+        #[serde(default)]
+        selected: Option<usize>,
+    },
 }
 
-/// The host-side stored form of a live overlay: everything a `SetOverlay`
-/// carried, minus `interactive` (Phase 1 is display-only; the flag is forced
-/// off at ingest pending the manifest capability).
+/// The host-side stored form of a live overlay. `interactive` is true only
+/// when the request asked for it AND the plugin's manifest carries the
+/// `overlay.interactive` capability (phase 2) — the ingest path forces it
+/// off otherwise.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PluginOverlay {
     /// Overlay id (unique within the plugin).
@@ -372,6 +439,8 @@ pub struct PluginOverlay {
     pub size: OverlaySize,
     /// Opacity (0.0–1.0).
     pub opacity: f32,
+    /// Whether the overlay may take focus and render interactive widgets.
+    pub interactive: bool,
     /// Scene to render.
     pub content: OverlayScene,
 }
@@ -602,6 +671,85 @@ mod tests {
         assert!(cmd.permission_flag_name().is_none());
         assert!(!cmd.is_rate_limited());
         assert_eq!(cmd.command_name(), "SetWidget");
+    }
+
+    #[test]
+    fn interactive_scene_nodes_round_trip_through_serde() {
+        let scene = OverlayScene::Row {
+            children: vec![
+                OverlayScene::Button {
+                    id: "deploy".to_string(),
+                    label: "Deploy".to_string(),
+                },
+                OverlayScene::TextInput {
+                    id: "filter".to_string(),
+                    value: "par".to_string(),
+                    placeholder: "filter…".to_string(),
+                },
+                OverlayScene::List {
+                    id: "jobs".to_string(),
+                    items: vec!["one".to_string(), "two".to_string()],
+                    selected: Some(1),
+                },
+            ],
+        };
+        let json = serde_json::to_string(&scene).expect("serialize scene");
+        let back: OverlayScene = serde_json::from_str(&json).expect("parse scene back");
+        assert_eq!(back, scene);
+
+        // Wire shapes stay snake_case with placeholder/selected optional.
+        assert!(json.contains(r#""type":"button""#), "got: {json}");
+        assert!(json.contains(r#""type":"text_input""#), "got: {json}");
+        assert!(json.contains(r#""type":"list""#), "got: {json}");
+        let no_optional: OverlayScene =
+            serde_json::from_str(r#"{"type":"text_input","id":"f","value":""}"#)
+                .expect("optional fields default");
+        assert_eq!(
+            no_optional,
+            OverlayScene::TextInput {
+                id: "f".to_string(),
+                value: String::new(),
+                placeholder: String::new(),
+            }
+        );
+    }
+
+    #[test]
+    fn overlay_event_round_trips_through_serde() {
+        for data in [
+            ScriptEventData::OverlayEvent {
+                overlay: "hud".to_string(),
+                widget: "deploy".to_string(),
+                event: OverlayWidgetEvent::Click {},
+            },
+            ScriptEventData::OverlayEvent {
+                overlay: "hud".to_string(),
+                widget: "filter".to_string(),
+                event: OverlayWidgetEvent::TextChanged {
+                    value: "par".to_string(),
+                },
+            },
+            ScriptEventData::OverlayEvent {
+                overlay: "hud".to_string(),
+                widget: "jobs".to_string(),
+                event: OverlayWidgetEvent::Select { index: 2 },
+            },
+        ] {
+            let json = serde_json::to_string(&data).expect("serialize event data");
+            let back: ScriptEventData = serde_json::from_str(&json).expect("parse back");
+            assert_eq!(back, data);
+        }
+        // One exact wire shape: nested tag + flat fields, plugin-parseable.
+        let json = serde_json::to_string(&ScriptEventData::OverlayEvent {
+            overlay: "hud".to_string(),
+            widget: "deploy".to_string(),
+            event: OverlayWidgetEvent::Click {},
+        })
+        .expect("serialize");
+        assert_eq!(
+            json,
+            r#"{"data_type":"OverlayEvent","overlay":"hud","widget":"deploy","event":{"type":"Click"}}"#
+        );
     }
 
     #[test]
