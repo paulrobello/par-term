@@ -355,3 +355,25 @@ fn agent_cmd_prefix_is_routed_not_logged_as_unknown() {
     let mut state = test_window_state();
     assert!(!state.execute_keybinding_action("agent-cmd:"));
 }
+
+// --- focused plugin overlay: key routing (overlay phase 2) ---
+
+#[test]
+fn focus_never_lands_without_a_live_interactive_overlay_and_escape_resolves() {
+    // Without a live overlay in the host's (private) map, focus calls are
+    // no-ops — the gate itself is the testable seam here. The full
+    // ingest → focus → escape lifecycle against a real process is covered
+    // in par-term-scripting's plugin_manager tests.
+    let mut state = test_window_state();
+    state
+        .status_bar_ui
+        .plugin_host_mut()
+        .focus_overlay("com.test.hud");
+    assert_eq!(state.status_bar_ui.plugin_host().focused_overlay(), None);
+
+    // With no focus, the resolution is inert both ways (no panic, no
+    // state change).
+    state.resolve_focused_overlay_key(false);
+    state.resolve_focused_overlay_key(true);
+    assert_eq!(state.status_bar_ui.plugin_host().focused_overlay(), None);
+}

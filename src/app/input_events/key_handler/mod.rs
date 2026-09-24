@@ -166,10 +166,9 @@ impl WindowState {
         // terminal. Above terminal input, below modal modes (checked
         // above).
         if self.status_bar_ui.plugin_host().focused_overlay().is_some() {
-            if event.state == ElementState::Pressed
-                && event.logical_key == Key::Named(NamedKey::Escape)
-            {
-                self.status_bar_ui.plugin_host_mut().unfocus_overlay();
+            let is_escape = matches!(&event.logical_key, Key::Named(NamedKey::Escape));
+            if event.state == ElementState::Pressed {
+                self.resolve_focused_overlay_key(is_escape);
             }
             return;
         }
@@ -673,6 +672,20 @@ impl WindowState {
                     }
                 });
             }
+        }
+    }
+
+    /// Resolve a key press while a plugin overlay holds focus (mode stack
+    /// consumer 2): only Escape acts — it returns focus to the terminal.
+    /// Every other key is swallowed (the caller returns before terminal
+    /// input); a focused overlay never receives raw keys (design
+    /// constitutional). Split out of `handle_key_event` so tests can drive
+    /// the resolution without fabricating a winit `KeyEvent`.
+    pub(crate) fn resolve_focused_overlay_key(&mut self, is_escape: bool) {
+        if is_escape {
+            self.status_bar_ui.plugin_host_mut().unfocus_overlay();
+            self.focus_state.needs_redraw = true;
+            self.request_redraw();
         }
     }
 }
