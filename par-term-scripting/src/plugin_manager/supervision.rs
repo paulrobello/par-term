@@ -139,7 +139,9 @@ impl PluginHost {
 
         for cmd in self.manager.read_commands(sid) {
             match cmd {
-                ScriptCommand::SetWidget { text } if slot != KindSlot::Panel => {
+                ScriptCommand::SetWidget { text }
+                    if slot == KindSlot::Widget || slot == KindSlot::Action =>
+                {
                     self.widget_texts.insert(id.to_string(), text);
                 }
                 ScriptCommand::SetPanel { title, content } if slot == KindSlot::Panel => {
@@ -235,6 +237,7 @@ impl PluginHost {
         self.stop_kind(id, KindSlot::Widget);
         self.stop_kind(id, KindSlot::Action);
         self.stop_kind(id, KindSlot::Panel);
+        self.stop_kind(id, KindSlot::Overlay);
         self.subscription_forwarders.remove(id);
         self.warned_event_delivery.clear(id);
     }

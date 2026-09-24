@@ -510,6 +510,7 @@ impl PluginHost {
             .keys()
             .chain(self.action_running.keys())
             .chain(self.panel_running.keys())
+            .chain(self.overlay_running.keys())
             .cloned()
             .collect()
     }
@@ -1300,6 +1301,157 @@ while True:
         host.apply_enabled(&[]);
         assert!(!plugin_running(&host, "com.test.panel"));
         assert_eq!(host.panel_content("com.test.panel"), None);
+        host.stop_all();
+    }
+
+    fn overlay_manifest_json(id: &str) -> String {
+        format!(
+            "{{\"schemaVersion\":1,\"id\":\"{id}\",\"name\":\"Test Overlay\",\"version\":\"0.1.0\",\
+\"kinds\":[\"overlay\"],\"activation\":\"manual\",\
+\"entryPoints\":{{\"overlay\":{{\"command\":\"overlay.py\",\"args\":[]}}}}}}"
+        )
+    }
+
+    /// An overlay plugin that emits a `SetWidget` line (refused for the
+    /// overlay kind) and then a `SetOverlay`, then stays alive.
+    const OVERLAY_SCRIPT: &str = r##"
+import json, time
+def emit(obj):
+    print(json.dumps(obj), flush=True)
+emit({"type": "SetWidget", "text": "nope"})
+emit({"type": "SetOverlay", "id": "hud", "position": "top-right",
+      "size": {"w": 0.2, "h": 0.1}, "opacity": 0.8,
+      "content": {"type": "markdown", "text": "# hello"}})
+while True:
+    time.sleep(0.2)
+"##;
+
+    /// An overlay plugin that pushes an overlay and then clears it.
+    const OVERLAY_CLEAR_SCRIPT: &str = r#"
+import json, time
+def emit(obj):
+    print(json.dumps(obj), flush=True)
+emit({"type": "SetOverlay", "id": "hud", "position": "center",
+      "size": {"w": 0.2, "h": 0.1},
+      "content": {"type": "text", "text": "hi"}})
+time.sleep(0.3)
+emit({"type": "ClearOverlay", "id": "hud"})
+while True:
+    time.sleep(0.2)
+"#;
+
+    fn write_overlay_plugin(root: &Path, id: &str, script: &str) {
+        write_plugin_files(
+            root,
+            id,
+            &overlay_manifest_json(id),
+            &[("overlay.py", script)],
+        );
+    }
+
+    #[test]
+    fn overlay_plugin_pushes_scene_and_refuses_set_widget() {
+        if skip_without_interpreter() {
+            return;
+        }
+        let root = tempfile::tempdir().unwrap();
+        write_overlay_plugin(root.path(), "com.test.overlay", OVERLAY_SCRIPT);
+
+        let mut host = PluginHost::new();
+        assert_eq!(host.refresh_discovery(root.path()).len(), 1);
+        host.apply_enabled(&[enabled("com.test.overlay")]);
+        let settled = wait_until(&mut host, |h| {
+            // Both lines are typically drained by one poll; waiting on the
+            // overlay alone could assert the refusal before it lands, so
+            // wait until the SetWidget refusal is recorded too.
+            h.overlays().contains_key("com.test.overlay")
+                && h.drain_ignored().iter().any(|l| l.contains("SetWidget"))
+        });
+        assert!(settled, "fixture's SetOverlay never arrived");
+
+        let overlay = &host.overlays()["com.test.overlay"];
+        assert_eq!(overlay.id, "hud");
+        assert_eq!(overlay.opacity, 0.8);
+        assert_eq!(
+            overlay.position,
+            crate::protocol::OverlayPosition::Anchor(crate::protocol::OverlayAnchor::TopRight)
+        );
+        assert_eq!(
+            overlay.content,
+            crate::protocol::OverlayScene::Markdown {
+                text: "# hello".to_string()
+            }
+        );
+
+        // The overlay kind's allowlist refused the fixture's SetWidget line
+        // with the overlay-specific message (drained inside the wait; the
+        // remaining lines here are just belt-and-braces).
+        let ignored = host.drain_ignored().join("\n");
+        assert!(ignored.contains("SetOverlay/ClearOverlay") || ignored.is_empty());
+        host.stop_all();
+    }
+
+    #[test]
+    fn clear_overlay_from_an_overlay_process_removes_it() {
+        if skip_without_interpreter() {
+            return;
+        }
+        let root = tempfile::tempdir().unwrap();
+        write_overlay_plugin(root.path(), "com.test.overlay", OVERLAY_CLEAR_SCRIPT);
+
+        let mut host = PluginHost::new();
+        host.refresh_discovery(root.path());
+        host.apply_enabled(&[enabled("com.test.overlay")]);
+        let pushed = wait_until(&mut host, |h| h.overlays().contains_key("com.test.overlay"));
+        assert!(pushed, "fixture's SetOverlay never arrived");
+        let cleared = wait_until(&mut host, |h| h.overlays().is_empty());
+        assert!(cleared, "fixture's ClearOverlay never landed");
+        host.stop_all();
+    }
+
+    #[test]
+    fn disabling_an_overlay_plugin_stops_the_process_and_clears_the_overlay() {
+        if skip_without_interpreter() {
+            return;
+        }
+        let root = tempfile::tempdir().unwrap();
+        write_overlay_plugin(root.path(), "com.test.overlay", OVERLAY_SCRIPT);
+
+        let mut host = PluginHost::new();
+        host.refresh_discovery(root.path());
+        host.apply_enabled(&[enabled("com.test.overlay")]);
+        let settled = wait_until(&mut host, |h| h.overlays().contains_key("com.test.overlay"));
+        assert!(settled, "fixture's SetOverlay never arrived");
+        assert!(plugin_running(&host, "com.test.overlay"));
+
+        // Leaving the enabled set tears the plugin down: process stopped AND
+        // the pushed overlay dropped — no orphaned surface.
+        host.apply_enabled(&[]);
+        assert!(!plugin_running(&host, "com.test.overlay"));
+        assert!(host.overlays().is_empty());
+        host.stop_all();
+    }
+
+    #[test]
+    fn a_widget_plugin_cannot_send_overlay_commands() {
+        if skip_without_interpreter() {
+            return;
+        }
+        let root = tempfile::tempdir().unwrap();
+        write_plugin(root.path(), "com.test.widget", OVERLAY_SCRIPT);
+
+        let mut host = PluginHost::new();
+        host.refresh_discovery(root.path());
+        host.apply_enabled(&[enabled("com.test.widget")]);
+        // Kind purity: the fixture's SetOverlay is refused with an
+        // error-style line, and no overlay ever exists.
+        let mut saw_refusal = false;
+        let refused = wait_until(&mut host, |h| {
+            saw_refusal = h.drain_ignored().iter().any(|l| l.contains("SetOverlay"));
+            saw_refusal
+        });
+        assert!(refused, "fixture's SetOverlay refusal never landed");
+        assert!(host.overlays().is_empty(), "no overlay may exist");
         host.stop_all();
     }
 

@@ -149,6 +149,16 @@ impl WindowState {
                 Vec::new()
             };
 
+        // Live plugin overlays (overlay kind, phase 1 display-only), cloned
+        // before the egui borrow — plugin id + last upserted scene each.
+        let plugin_overlays: Vec<(String, par_term_scripting::protocol::PluginOverlay)> = self
+            .status_bar_ui
+            .plugin_host()
+            .overlays()
+            .iter()
+            .map(|(id, overlay)| (id.clone(), overlay.clone()))
+            .collect();
+
         // Pane-hint selection badges (before egui borrow). Letter → pane-id
         // assignments are captured at arm time; bounds resolve live each frame
         // so the badges track resize/split changes while the mode is armed.
@@ -632,6 +642,11 @@ impl WindowState {
 
                     // Pane identify overlay (large index numbers centered on each pane)
                     egui_overlays::render_pane_identify_overlay(ctx, &pane_identify_bounds);
+
+                    // Plugin overlays (overlay kind) sit above terminal
+                    // content but below modal-mode chrome (mode-stack
+                    // contract, docs/plans/2026-09-24-overlay-plugin-design.md).
+                    egui_overlays::render_plugin_overlays(ctx, &plugin_overlays);
 
                     // Pane-hint selection badges — modal-mode chrome, drawn
                     // above every plugin overlay (mode-stack contract).

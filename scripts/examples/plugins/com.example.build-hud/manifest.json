@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "com.example.build-hud",
+  "name": "Build HUD",
+  "version": "0.1.0",
+  "author": "par-term example",
+  "license": "MIT",
+  "description": "Example overlay plugin. Pushes a small HUD in the top-right corner that ticks once per second; deleting the marker file clears the overlay.",
+  "kinds": ["overlay"],
+  "activation": "manual",
+  "entryPoints": { "overlay": { "command": "build_hud.py", "args": [] } }
+}

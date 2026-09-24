@@ -523,6 +523,62 @@ mod tests {
     use super::*;
 
     #[test]
+    fn set_overlay_round_trips_through_serde() {
+        let line = r##"{"type":"SetOverlay","id":"hud","position":"top-right","size":{"w":0.2,"h":0.1},"opacity":0.8,"content":{"type":"markdown","text":"# hello"}}"##;
+        let cmd: ScriptCommand = serde_json::from_str(line).expect("parse SetOverlay line");
+        match &cmd {
+            ScriptCommand::SetOverlay {
+                id,
+                position,
+                size,
+                opacity,
+                interactive,
+                content,
+            } => {
+                assert_eq!(id, "hud");
+                assert_eq!(position, &OverlayPosition::Anchor(OverlayAnchor::TopRight));
+                assert_eq!((size.w, size.h), (0.2, 0.1));
+                assert_eq!(*opacity, 0.8);
+                assert!(!interactive, "interactive defaults off");
+                assert_eq!(
+                    content,
+                    &OverlayScene::Markdown {
+                        text: "# hello".to_string()
+                    }
+                );
+            }
+            other => panic!("wrong variant: {other:?}"),
+        }
+        let re = serde_json::to_string(&cmd).expect("serialize SetOverlay");
+        let back: ScriptCommand = serde_json::from_str(&re).expect("round-trip");
+        assert_eq!(back, cmd);
+    }
+
+    #[test]
+    fn clear_overlay_parses() {
+        let line = r#"{"type":"ClearOverlay","id":"hud"}"#;
+        let cmd: ScriptCommand = serde_json::from_str(line).expect("parse ClearOverlay line");
+        assert_eq!(
+            cmd,
+            ScriptCommand::ClearOverlay {
+                id: "hud".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn set_overlay_free_rect_position_parses() {
+        let line = r#"{"type":"SetOverlay","id":"f","position":{"x":0.1,"y":0.2},"size":{"w":0.3,"h":0.3},"content":{"type":"text","text":"t"}}"#;
+        let cmd: ScriptCommand = serde_json::from_str(line).expect("parse free-rect SetOverlay");
+        match cmd {
+            ScriptCommand::SetOverlay { position, .. } => {
+                assert_eq!(position, OverlayPosition::Free { x: 0.1, y: 0.2 });
+            }
+            other => panic!("wrong variant: {other:?}"),
+        }
+    }
+
+    #[test]
     fn set_widget_round_trips_through_serde() {
         let line = r#"{"type":"SetWidget","text":"🕒 14:32"}"#;
         let cmd: ScriptCommand = serde_json::from_str(line).expect("parse SetWidget line");
