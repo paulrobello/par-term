@@ -40,7 +40,9 @@
 /// This is a non-trivial migration touching ~500 call sites. Do not attempt without
 /// a dedicated effort. Until then, the dual system is the accepted state.
 ///
-/// Both write to `<temp_dir>/par_term_debug.log` (respects `$TMPDIR` on Unix, `%TEMP%` on Windows).
+/// Both write to `<temp_dir>/par_term_debug.log` (respects `$TMPDIR` on Unix, `%TEMP%` on Windows);
+/// `cfg(test)` builds divert to a pid-suffixed path so the test binary never truncates the
+/// developer's real log (see [`log_path`]).
 /// The log file is always created so that errors are captured even in GUI-only contexts
 /// (macOS app bundles, Windows GUI apps) where stderr is invisible.
 /// The log file is created with 0600 permissions on Unix (set at creation, not chmod'ed
@@ -327,8 +329,18 @@ fn get_timestamp() -> String {
 }
 
 /// Get the path to the debug log file.
+///
+/// The debug macros initialize the file logger through [`get_logger`] even
+/// at `DEBUG_LEVEL=Off` (`is_enabled` locks the logger before the level
+/// check), and the file is opened with `truncate(true)` — so in `cfg(test)`
+/// builds the path is pid-suffixed to keep the test binary from destroying
+/// the developer's real debug log.
 pub fn log_path() -> std::path::PathBuf {
-    std::env::temp_dir().join("par_term_debug.log")
+    if cfg!(test) {
+        std::env::temp_dir().join(format!("par_term_debug_test_{}.log", std::process::id()))
+    } else {
+        std::env::temp_dir().join("par_term_debug.log")
+    }
 }
 
 /// Check if debugging is enabled at given level (for custom debug macros)
@@ -778,6 +790,22 @@ mod tests {
         assert_eq!(std::fs::read_to_string(&path).expect("read log"), "");
     }
 
+    /// The debug macros initialize the shared file logger through
+    /// `get_logger()` even at `DEBUG_LEVEL=Off` — `is_enabled` locks the
+    /// logger before the level check — and the file is opened with
+    /// `truncate(true)`. Without the test-build path diversion in
+    /// [`log_path`], any test whose code path contains a `debug_*!` macro
+    /// would destroy the developer's real debug log (observed 2026-09-23: a
+    /// gate run erased a live session's close-path evidence).
+    #[test]
+    fn test_builds_never_touch_the_real_debug_log_path() {
+        assert_ne!(
+            log_path(),
+            std::env::temp_dir().join("par_term_debug.log"),
+            "cfg(test) builds must divert log_path() away from the real debug log"
+        );
+    }
+
     /// The previous session's log — which after a crash holds the panic report —
     /// must survive the next launch's truncation.
     #[test]
@@ -906,10 +934,11 @@ mod tests {
     ///
     /// The contended half only bites once some earlier test has initialized
     /// `LOGGER`, and nothing here forces that, because initializing it rotates
-    /// and truncates the developer's real debug log. The watchdog turns a
-    /// reintroduced blocking call — a `log::error!` in that path reaches this
-    /// same mutex through [`LogCrateBridge`] — into a failure rather than a run
-    /// that hangs forever.
+    /// and truncates a log file ([`log_path`] pins that to a test-only path in
+    /// `cfg(test)` builds, but it is still an unconditional file open). The
+    /// watchdog turns a reintroduced blocking call — a `log::error!` in that
+    /// path reaches this same mutex through [`LogCrateBridge`] — into a
+    /// failure rather than a run that hangs forever.
     #[test]
     fn the_panic_report_never_blocks_on_the_logger() {
         use crate::session::crash_guard::{PanicReport, SaveOutcome, report_fields};
@@ -965,7 +994,8 @@ mod tests {
     ///
     /// Exercises the composition `init_log_bridge` uses, minus the two steps a
     /// test must not take: installing the global logger and initializing the
-    /// file logger (which truncates the developer's real debug log).
+    /// file logger (an unconditional truncate-open, pinned to a test-only path
+    /// by [`log_path`] in `cfg(test)` builds).
     #[test]
     fn level_overrides_reach_the_bridge_gate() {
         fn meta<'a>(level: log::Level, target: &'a str) -> log::Metadata<'a> {
