@@ -8,6 +8,7 @@
 //! - `post_render`: `update_post_render_state` — dispatch post-render action queue
 //! - `pane_render`: `gather_pane_render_data` + `render_split_panes_with_data` + `PaneRenderData`
 //! - `egui_overlays`: standalone egui overlay renderers (FPS, resize, toast, tooltip, pane-id)
+//! - `plugin_overlay_ui`: interactive plugin-overlay widgets (overlay kind, phase 2)
 //! - `types`: shared data-transfer types (`RendererSizing`, `FrameRenderData`, `PostRenderActions`)
 
 mod egui_overlays;
@@ -18,6 +19,7 @@ mod gather_phases;
 mod gpu_submit;
 mod overlay_cells;
 mod pane_render;
+mod plugin_overlay_ui;
 mod post_render;
 mod renderer_ops;
 mod tab_snapshot;

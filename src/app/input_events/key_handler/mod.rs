@@ -160,6 +160,20 @@ impl WindowState {
             return;
         }
 
+        // A focused plugin overlay is focus consumer 2 in the mode stack:
+        // it swallows every key (the plugin owns no raw keys — design
+        // constitutional) except Escape, which returns focus to the
+        // terminal. Above terminal input, below modal modes (checked
+        // above).
+        if self.status_bar_ui.plugin_host().focused_overlay().is_some() {
+            if event.state == ElementState::Pressed
+                && event.logical_key == Key::Named(NamedKey::Escape)
+            {
+                self.status_bar_ui.plugin_host_mut().unfocus_overlay();
+            }
+            return;
+        }
+
         // Check if active tab's shell has exited.
         // Must check pane_manager panes (not tab.terminal) because after split pane
         // session restore, tab.terminal may be orphaned/dead while restored panes

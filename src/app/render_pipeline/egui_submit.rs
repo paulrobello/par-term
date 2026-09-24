@@ -149,8 +149,9 @@ impl WindowState {
                 Vec::new()
             };
 
-        // Live plugin overlays (overlay kind, phase 1 display-only), cloned
-        // before the egui borrow — plugin id + last upserted scene each.
+        // Live plugin overlays (overlay kind), cloned before the egui
+        // borrow — plugin id + last upserted scene each — plus the focused
+        // overlay's plugin id for the interactive renderer.
         let plugin_overlays: Vec<(String, par_term_scripting::protocol::PluginOverlay)> = self
             .status_bar_ui
             .plugin_host()
@@ -158,6 +159,15 @@ impl WindowState {
             .iter()
             .map(|(id, overlay)| (id.clone(), overlay.clone()))
             .collect();
+        let focused_overlay_plugin = self
+            .status_bar_ui
+            .plugin_host()
+            .focused_overlay()
+            .map(str::to_string);
+        // Widget interactions collected inside the closure; applied after it
+        // through PostRenderActions (the closure cannot run host code).
+        let mut overlay_interactions: Vec<super::plugin_overlay_ui::OverlayInteraction> =
+            Vec::new();
 
         // Pane-hint selection badges (before egui borrow). Letter → pane-id
         // assignments are captured at arm time; bounds resolve live each frame
@@ -646,7 +656,12 @@ impl WindowState {
                     // Plugin overlays (overlay kind) sit above terminal
                     // content but below modal-mode chrome (mode-stack
                     // contract, docs/plans/2026-09-24-overlay-plugin-design.md).
-                    egui_overlays::render_plugin_overlays(ctx, &plugin_overlays);
+                    egui_overlays::render_plugin_overlays(
+                        ctx,
+                        &plugin_overlays,
+                        &mut overlay_interactions,
+                        focused_overlay_plugin.as_deref(),
+                    );
 
                     // Pane-hint selection badges — modal-mode chrome, drawn
                     // above every plugin overlay (mode-stack contract).
@@ -726,6 +741,25 @@ impl WindowState {
         // Mark egui as initialized after first ctx.run_ui() - makes is_using_pointer() reliable
         if !self.egui.initialized && result.is_some() {
             self.egui.initialized = true;
+        }
+
+        // Apply the interactions the interactive overlays collected: focus
+        // requests first (so a click both focuses and reports), then the
+        // semantic events. Done outside the egui closure — these run host
+        // code (focus bookkeeping, plugin stdin writes).
+        for interaction in overlay_interactions {
+            if interaction.focus_request {
+                self.status_bar_ui
+                    .plugin_host_mut()
+                    .focus_overlay(&interaction.plugin_id);
+            }
+            if !interaction.widget_id.is_empty() {
+                self.status_bar_ui.plugin_host_mut().send_overlay_event(
+                    &interaction.plugin_id,
+                    &interaction.widget_id,
+                    interaction.event,
+                );
+            }
         }
 
         let debug_egui_time = egui_start.elapsed();

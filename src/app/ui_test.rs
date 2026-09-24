@@ -494,6 +494,21 @@ impl WindowManager {
                     "plugin_widget_set" => ws.status_bar_ui.any_plugin_widget_text(),
                     "plugin_panel_set" => ws.status_bar_ui.any_plugin_panel_pushed(),
                     "plugin_overlay_set" => !ws.status_bar_ui.plugin_host().overlays().is_empty(),
+                    "plugin_overlay_interactive" => ws
+                        .status_bar_ui
+                        .plugin_host()
+                        .overlays()
+                        .values()
+                        .any(|o| o.interactive),
+                    "plugin_overlay_focused" => {
+                        ws.status_bar_ui.plugin_host().focused_overlay().is_some()
+                    }
+                    "plugin_overlay_event" => {
+                        ws.status_bar_ui
+                            .plugin_host()
+                            .overlay_events_dispatched_count()
+                            > 0
+                    }
                     "plugin_action_dispatched" => ws.status_bar_ui.any_plugin_action_dispatched(),
                     "modal_guard" => ws.any_modal_ui_visible(),
                     "pane_hint_mode_active" => ws.pane_hint_select.is_active(),

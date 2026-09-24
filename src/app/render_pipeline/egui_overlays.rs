@@ -638,23 +638,28 @@ pub(super) fn render_agent_command_confirm_dialog(
     }
 }
 
-/// Draw the live plugin overlays (overlay plugin kind, phase 1 display-only).
+/// Draw the live plugin overlays (overlay plugin kind).
 ///
 /// Anchors and free rects resolve against the current screen rect; sizes are
 /// window fractions clamped to half the screen per axis (design content
 /// clamps). Drawn at `Order::Middle` — above terminal content, below the
 /// modal chrome (`Order::Foreground`) so built-in modal modes (pane-hint
-/// select) cover plugin overlays per the mode-stack contract. Non-interactive
-/// by construction: painted shapes only, no widgets, so pointer events pass
-/// through to the terminal beneath.
+/// select) cover plugin overlays per the mode-stack contract.
+///
+/// Display-only overlays are painted shapes only (pointer events pass
+/// through). Interactive overlays (manifest capability + `interactive: true`)
+/// render through [`super::plugin_overlay_ui::render_interactive_overlays`]
+/// instead — widgets, click-to-focus, semantic events.
 pub(super) fn render_plugin_overlays(
     ctx: &egui::Context,
     overlays: &[(String, par_term_scripting::protocol::PluginOverlay)],
+    interactions: &mut Vec<super::plugin_overlay_ui::OverlayInteraction>,
+    focused_plugin_id: Option<&str>,
 ) {
     use par_term_scripting::protocol::{OverlayAnchor, OverlayPosition};
 
     let screen = ctx.content_rect();
-    for (_plugin_id, overlay) in overlays {
+    for (plugin_id, overlay) in overlays {
         let max_w = screen.width() * 0.5;
         let max_h = screen.height() * 0.5;
         let w = (overlay.size.w * screen.width()).clamp(60.0, max_w);
@@ -694,6 +699,18 @@ pub(super) fn render_plugin_overlays(
             }
         };
 
+        if overlay.interactive {
+            super::plugin_overlay_ui::render_interactive_overlay(
+                ctx,
+                plugin_id,
+                overlay,
+                rect,
+                interactions,
+                focused_plugin_id == Some(plugin_id.as_str()),
+            );
+            continue;
+        }
+
         let painter = ctx.layer_painter(egui::LayerId::new(
             egui::Order::Middle,
             egui::Id::new("plugin_overlay"),
@@ -726,7 +743,10 @@ pub(super) fn render_plugin_overlays(
 }
 
 /// Render one scene node into the overlay's inner rect, top-down and
-/// left-to-right. Phase 1 vocabulary: text, row, markdown.
+/// left-to-right. Display-only vocabulary: text, row, markdown — the
+/// interactive variants are unreachable here (they route through
+/// [`super::plugin_overlay_ui`] before this function is called) and render
+/// as plain text so a misrouted scene degrades instead of vanishing.
 fn render_scene(
     painter: &egui::Painter,
     inner: egui::Rect,
@@ -763,6 +783,36 @@ fn render_scene(
             let height = galley.size().y;
             painter.galley(egui::pos2(inner.left(), *layout_y), galley, color);
             *layout_y += height + 4.0;
+        }
+        OverlayScene::Button { label, .. } => {
+            let font = egui::FontId::monospace(13.0);
+            let color =
+                egui::Color32::from_rgba_unmultiplied(200, 200, 210, (255.0 * opacity) as u8);
+            let galley = painter.layout(format!("[{label}]"), font, color, inner.width());
+            painter.galley(egui::pos2(cursor_x, *layout_y), galley, color);
+            *layout_y += 20.0;
+        }
+        OverlayScene::TextInput { placeholder, .. } => {
+            let font = egui::FontId::monospace(13.0);
+            let color =
+                egui::Color32::from_rgba_unmultiplied(200, 200, 210, (255.0 * opacity) as u8);
+            let galley = painter.layout(placeholder.clone(), font, color, inner.width());
+            painter.galley(egui::pos2(cursor_x, *layout_y), galley, color);
+            *layout_y += 20.0;
+        }
+        OverlayScene::List { items, .. } => {
+            let color =
+                egui::Color32::from_rgba_unmultiplied(220, 220, 230, (255.0 * opacity) as u8);
+            for item in items {
+                let galley = painter.layout(
+                    item.clone(),
+                    egui::FontId::monospace(13.0),
+                    color,
+                    inner.width(),
+                );
+                painter.galley(egui::pos2(cursor_x, *layout_y), galley, color);
+                *layout_y += 18.0;
+            }
         }
     }
 }
