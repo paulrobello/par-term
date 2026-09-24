@@ -43,6 +43,7 @@ pub(super) fn show_plugins_section(
             "git",
             "add plugin",
             "remove plugin",
+            "forget plugin",
             "update plugin",
             "install plugin",
         ],
@@ -142,11 +143,36 @@ fn show_plugins_collapsing(
                     .iter()
                     .any(|state| state.id == id && state.enabled);
                 let suffix = if enabled { " (enabled)" } else { "" };
-                ui.label(
-                    egui::RichText::new(format!("{id} — not found — state kept{suffix}"))
-                        .small()
-                        .color(egui::Color32::GRAY),
-                );
+                ui.horizontal(|ui| {
+                    ui.label(
+                        egui::RichText::new(format!("{id} — not found — state kept{suffix}"))
+                            .small()
+                            .color(egui::Color32::GRAY),
+                    );
+                    // Destructive: arm on the first click, act on the second.
+                    let armed =
+                        settings.automation_tab.plugin_forget_pending.as_deref() == Some(&id);
+                    let label = if armed { "Really forget?" } else { "Forget…" };
+                    if ui
+                        .small_button(label)
+                        .on_hover_text(
+                            "Clear this plugin's saved settings and status-bar placement",
+                        )
+                        .clicked()
+                    {
+                        if armed {
+                            settings.automation_tab.plugin_forget_pending = None;
+                            forget_plugin_state(&mut settings.config, &id);
+                            settings.has_changes = true;
+                            *changes_this_frame = true;
+                        } else {
+                            settings.automation_tab.plugin_forget_pending = Some(id.clone());
+                        }
+                    }
+                    if armed && ui.small_button("Keep").clicked() {
+                        settings.automation_tab.plugin_forget_pending = None;
+                    }
+                });
             }
         }
     });
@@ -530,6 +556,22 @@ fn missing_state_ids(
         .filter(|state| !discovered.iter().any(|p| p.manifest.id == state.id))
         .map(|state| state.id.clone())
         .collect()
+}
+
+/// Drop everything the config holds for a plugin: its state entry
+/// (enabled bit, settings, section override) and its status-bar widget row.
+/// Used only for plugins whose directory is gone, so no running process is
+/// affected.
+fn forget_plugin_state(config: &mut par_term_config::Config, plugin_id: &str) {
+    config
+        .automation
+        .plugins
+        .retain(|state| state.id != plugin_id);
+    let widget = WidgetId::Plugin(plugin_id.to_string());
+    config
+        .status_bar
+        .status_bar_widgets
+        .retain(|w| w.id != widget);
 }
 
 /// Flip a plugin's enabled bit, creating the state entry on first enable
@@ -968,6 +1010,52 @@ mod tests {
             missing_state_ids(&config, &discovered),
             vec!["com.example.gone".to_string()]
         );
+    }
+
+    #[test]
+    fn forget_plugin_state_drops_state_and_widget_row_only_for_that_id() {
+        let mut config = par_term_config::Config::default();
+        for id in ["com.example.gone", "com.example.kept"] {
+            config.automation.plugins.push(PluginStateConfig {
+                id: id.into(),
+                enabled: true,
+                settings: Default::default(),
+                section: None,
+            });
+            config
+                .status_bar
+                .status_bar_widgets
+                .push(StatusBarWidgetConfig {
+                    id: WidgetId::Plugin(id.into()),
+                    enabled: true,
+                    section: StatusBarSection::Right,
+                    order: 99,
+                    format: None,
+                });
+        }
+        let builtin_rows = config.status_bar.status_bar_widgets.len() - 2;
+
+        forget_plugin_state(&mut config, "com.example.gone");
+
+        let ids: Vec<&str> = config
+            .automation
+            .plugins
+            .iter()
+            .map(|s| s.id.as_str())
+            .collect();
+        assert_eq!(ids, vec!["com.example.kept"]);
+        let widgets = &config.status_bar.status_bar_widgets;
+        assert!(
+            !widgets
+                .iter()
+                .any(|w| w.id == WidgetId::Plugin("com.example.gone".into()))
+        );
+        assert!(
+            widgets
+                .iter()
+                .any(|w| w.id == WidgetId::Plugin("com.example.kept".into()))
+        );
+        assert_eq!(widgets.len(), builtin_rows + 1);
     }
 
     fn action(id: &str, label: &str) -> par_term_scripting::manifest::ActionContribution {

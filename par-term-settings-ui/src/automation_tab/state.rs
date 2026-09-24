@@ -64,6 +64,8 @@ pub struct AutomationTabState {
     pub plugin_update_preview: Option<(String, par_term_scripting::plugin_git::UpdatePreview)>,
     /// Plugin id whose Remove button is armed for a second-click confirm.
     pub plugin_remove_pending: Option<String>,
+    /// Missing-plugin id whose Forget button is armed for a second-click confirm.
+    pub plugin_forget_pending: Option<String>,
     /// Cached ids of git-installed plugins, refreshed together with
     /// [`Self::plugin_scan`] — the `.git` + origin probe spawns a git
     /// process per plugin, so it runs on rescan, never per frame.
@@ -97,6 +99,7 @@ impl Default for AutomationTabState {
             plugin_git_receiver: None,
             plugin_update_preview: None,
             plugin_remove_pending: None,
+            plugin_forget_pending: None,
             plugin_git_ids: None,
         }
     }

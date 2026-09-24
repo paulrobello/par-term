@@ -125,6 +125,7 @@ pub fn keywords() -> &'static [&'static str] {
         "git",
         "add plugin",
         "remove plugin",
+        "forget plugin",
         "update plugin",
         "install plugin",
     ]
