@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "com.example.deploy-console",
+  "name": "Deploy Console",
+  "version": "0.1.0",
+  "author": "par-term example",
+  "license": "MIT",
+  "description": "Example interactive overlay plugin. A small deploy console: filter box, environment list, and a Deploy button; clicks and edits flow back as overlay events and the scene re-renders.",
+  "kinds": ["overlay"],
+  "activation": "manual",
+  "overlay": { "interactive": true },
+  "entryPoints": { "overlay": { "command": "deploy_console.py", "args": [] } }
+}
