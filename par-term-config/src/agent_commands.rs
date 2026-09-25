@@ -307,6 +307,40 @@ pub fn delete_command_file(id: &str, dir: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Replace one existing command file's YAML with the user's authority — the
+/// Settings UI edit path. Provenance is preserved: the saved file keeps the
+/// existing `created_by` / `source_agent` whatever the edited text says
+/// (owner decision D2), and the id cannot change (it is the filename).
+/// A changed script body gets a new hash, so it asks for confirmation again.
+pub fn update_command_yaml_as_user(id: &str, yaml: &str, dir: &Path) -> Result<PathBuf> {
+    if !is_valid_command_id(id) {
+        bail!("invalid command id {id:?}");
+    }
+    let path = dir.join(format!("{id}.yaml"));
+    let existing = load_command_file(&path)?;
+    let mut edited: AgentCommandFile =
+        serde_yaml_ng::from_str(yaml).context("parsing edited command")?;
+    if edited.id() != id {
+        bail!(
+            "the command id cannot change (was {id:?}, now {:?})",
+            edited.id()
+        );
+    }
+    edited.created_by = existing.created_by;
+    edited.source_agent = existing.source_agent;
+    validate_command(&edited, id)?;
+    let bytes = command_to_yaml(&edited)?;
+    if bytes.len() > MAX_COMMAND_FILE_BYTES {
+        bail!(
+            "serialized command is {} bytes; cap is {}",
+            bytes.len(),
+            MAX_COMMAND_FILE_BYTES
+        );
+    }
+    save_bytes_atomic(&path, &bytes).with_context(|| format!("writing {}", path.display()))?;
+    Ok(path)
+}
+
 /// Delete one command file with the user's authority — the Settings UI path.
 /// Unlike [`delete_command_file`] (the MCP path) this removes user-authored
 /// files too: provenance gates what an *agent* may do, not the user. The
@@ -446,6 +480,32 @@ mod tests {
 
         let err = delete_command_file("mine", dir.path()).unwrap_err();
         assert!(err.to_string().contains("user-authored"));
+    }
+
+    #[test]
+    fn user_update_keeps_provenance_and_refuses_id_change() {
+        let dir = tempfile::tempdir().unwrap();
+        let original = script_file("deploy");
+        save_command_file(&original, dir.path()).unwrap();
+
+        // The edit tries to claim the file for the user and changes the body.
+        let edited = "created_by: user\naction:\n  type: shell_command\n  id: deploy\n  \
+                      title: Deploy v2\n  command: echo\n  args: [\"bye\"]\n";
+        update_command_yaml_as_user("deploy", edited, dir.path()).unwrap();
+        let saved = load_command_file(&dir.path().join("deploy.yaml")).unwrap();
+        assert_eq!(saved.title(), "Deploy v2");
+        assert_eq!(saved.created_by, CommandAuthor::Agent);
+        assert_eq!(saved.source_agent.as_deref(), Some("claude-code"));
+        assert_ne!(saved.body_hash(), original.body_hash());
+
+        let renamed = edited.replace("id: deploy", "id: other");
+        let err = update_command_yaml_as_user("deploy", &renamed, dir.path()).unwrap_err();
+        assert!(err.to_string().contains("cannot change"), "{err}");
+        assert!(update_command_yaml_as_user("deploy", "not: [valid", dir.path()).is_err());
+        assert!(update_command_yaml_as_user("missing", edited, dir.path()).is_err());
+        // Failed edits left the file untouched.
+        let still = load_command_file(&dir.path().join("deploy.yaml")).unwrap();
+        assert_eq!(still, saved);
     }
 
     #[test]
