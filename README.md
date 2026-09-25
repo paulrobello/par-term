@@ -186,7 +186,7 @@ The result of a full security, architecture, quality and documentation audit —
 - **Plugins**: Status-bar widgets, custom actions, and Settings panels contributed by user scripts, with event subscriptions, restart policy, and git-URL distribution (`par-term plugin add|update|remove`; [PLUGINS.md](docs/features/PLUGINS.md)).
 - **Agent Usage Panel**: Status-bar widget and popup summarizing coding-agent token/cost usage ([AGENT_USAGE.md](docs/features/AGENT_USAGE.md)).
 - **Agent Roster**: See at a glance which coding agents are working or blocked across a par-mux session, with a picker to jump to any agent's pane.
-- **par-mux Sessions**: Attach tabs to daemon-owned par-mux sessions that survive closing the tab, the window, or par-term itself; reattach anywhere ([MUX.md](docs/features/MUX.md)).
+- **par-mux Sessions**: Attach a window to a daemon-owned par-mux session (one tab per session window); sessions survive closing the tab, the window, or par-term itself; reattach anywhere ([MUX.md](docs/features/MUX.md)).
 
 ### Typography & Fonts
 - **Styled Font Variants**: Explicit support for separate Bold, Italic, and Bold-Italic font families.

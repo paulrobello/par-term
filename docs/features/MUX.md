@@ -1,12 +1,13 @@
 # par-mux Integration
 
-par-term can attach to [par-mux](https://github.com/paulrobello/par-mux) sessions: a par-term tab becomes a client of a session owned by the par-mux daemon, so your windows, panes, and running programs keep running when you close the tab, the window, or par-term itself. Reattach later — even after a crash — and every pane is reseeded with its live screen before new output arrives.
+par-term can attach to [par-mux](https://github.com/paulrobello/par-mux) sessions: a par-term window becomes a client of a session owned by the par-mux daemon, with one tab per session window, so your windows, panes, and running programs keep running when you close the tab, the window, or par-term itself. Reattach later — even after a crash — and every pane is reseeded with its live screen before new output arrives.
 
 On top of sessions, par-mux carries an **agent roster**: what coding agents (Claude Code, Codex, Grok, pi, omp, …) are running inside the session's panes and whether each is working, blocked, or idle. par-term surfaces that roster in a status-bar widget and a command-palette picker.
 
 ## Table of Contents
 
 - [What par-mux gives you](#what-par-mux-gives-you)
+  - [How par-mux maps onto par-term](#how-par-mux-maps-onto-par-term)
 - [Requirements](#requirements)
 - [Setup](#setup)
 - [Attaching](#attaching)
@@ -26,6 +27,21 @@ On top of sessions, par-mux carries an **agent roster**: what coding agents (Cla
 | Agent roster (who is running, blocked vs working) | Yes | No |
 
 A par-mux session is the direct analogue of a tmux session: the daemon is the counterpart of the tmux server, and the integration reuses par-term's tmux control-mode sync layer. If you know tmux sessions, you know the model.
+
+### How par-mux maps onto par-term
+
+par-mux has three levels, session → window → pane (tmux's model, with ids `$N`, `@N`, `%N`). par-term maps them the same way as its tmux integration:
+
+| par-mux | par-term |
+|---|---|
+| daemon (one per socket name) | nothing — it runs outside par-term and outlives it |
+| session `$N` | one par-term **window** (the connection lives on the window) |
+| window `@N` | a **tab** in that window |
+| pane `%N` | a split pane in that tab |
+
+Opening a profile with `mux_session_name` in a window starts the attach; every window in the session then gets its own tab in that par-term window, and new session windows arrive as new tabs.
+
+A par-term window holds one par-mux session at a time. Opening a second mux profile in a window that is already attached (or still attaching) does nothing; open it in a new par-term window instead. There is no workspace or tab level above the session — to keep separate groups of sessions apart, run separate daemons (`par-mux <name>` gives each its own socket).
 
 ## Requirements
 
