@@ -141,7 +141,11 @@ fn installed_extension_drives_the_daemon(
         String::from_utf8_lossy(&run.stderr)
     );
 
-    let deadline = Instant::now() + Duration::from_secs(10);
+    // 20s, not 10s: under full-`cargo test --workspace` load the daemon
+    // spawn + bun driver + report can outlive a 10s budget outright (saw 0
+    // broadcasts in 10s, 5/5 green in isolation — the same flake class the
+    // agent-usage watcher tolerance was widened for at f36db8a9).
+    let deadline = Instant::now() + Duration::from_secs(20);
     // TWO broadcasts are the acceptance proof: the first is the state
     // report's own push; the second can only be the REBROADCAST an
     // ACCEPTED session report produces (the asset fires one on
@@ -190,7 +194,7 @@ fn installed_extension_drives_the_daemon(
     }
     panic!(
         "{agent} extension: expected the state broadcast AND the session-report \
-         rebroadcast, saw {broadcasts} in 10s"
+         rebroadcast, saw {broadcasts} in 20s"
     );
 }
 
