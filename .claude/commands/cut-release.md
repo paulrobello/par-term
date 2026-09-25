@@ -15,24 +15,25 @@ Before committing, check if any workspace subcrates have changes since their las
 Layer 0 — No internal deps (bump in any order):
   par-term-acp
   par-term-ssh
-  par-term-mcp
 
 Layer 1 — Foundation (bump before anything that depends on it):
   par-term-config
     └── depends on: (none, only external par-term-emu-core-rust)
 
-Layer 2 — Depend on par-term-config only (bump after Layer 1):
+Layer 2 — Depend on par-term-config (bump after Layer 1):
+  par-term-mcp          → par-term-config
   par-term-fonts        → par-term-config
   par-term-input        → par-term-config
   par-term-keybindings  → par-term-config
   par-term-scripting    → par-term-config
-  par-term-settings-ui  → par-term-config
   par-term-terminal     → par-term-config
   par-term-tmux         → par-term-config
   par-term-update       → par-term-config
 
 Layer 3 — Depend on Layer 2 crates (bump after Layer 2):
   par-term-render       → par-term-config, par-term-fonts
+  par-term-settings-ui  → par-term-config, par-term-scripting
+  par-term-mux          → par-term-config, par-term-tmux
 
 Layer 4 — Root crate (bump last):
   par-term              → all of the above
@@ -50,6 +51,8 @@ Layer 4 — Root crate (bump last):
    - Internal workspace crate references (par-term-config, par-term-fonts, etc.) are still path deps with explicit version fields — these DO need updating per step 3
 
 5. Run `cargo check --workspace` to verify all version references are correct
+6. Run `cargo publish --workspace --dry-run --allow-dirty` before deploying. It packages and compiles every crate in dependency order against a local overlay, so a never-published internal crate, a stale version requirement, or a file outside a crate's directory fails here instead of mid-publish. A crates.io publish cannot be undone.
+7. A new sub-crate must also be added to the `publish_if_needed` list in `.github/workflows/release.yml`, in its layer. The workflow does not discover crates on its own.
 
 This ensures crates.io publishes have the correct versions with all changes, preventing build failures like missing type exports.
 
