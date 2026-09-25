@@ -434,7 +434,9 @@ impl WindowState {
 
     /// Sync clipboard content to tmux paste buffer.
     ///
-    /// Writes set-buffer command to the gateway PTY.
+    /// Writes set-buffer command to the gateway PTY, or to the par-mux
+    /// daemon when a mux transport is attached (the panes live daemon-side
+    /// and there is no gateway tab to write to).
     ///
     /// Returns true if the command was sent successfully.
     pub fn sync_clipboard_to_tmux(&self, content: &str) -> bool {
@@ -443,21 +445,39 @@ impl WindowState {
             return false;
         }
 
-        if !self.config.load().tmux.tmux_enabled || !self.is_tmux_connected() {
-            return false;
-        }
-
         // Don't sync empty content
         if content.is_empty() {
             return false;
         }
 
-        // Format the set-buffer command
-        let escaped = content.replace('\'', "'\\''");
-        let cmd = format!("set-buffer '{}'\n", escaped);
+        let cmd = crate::tmux::set_buffer_command(content);
+
+        // par-mux transport: set-buffer is session-wide (the daemon's
+        // single default buffer), so the command needs no pane target.
+        #[cfg(feature = "mux")]
+        if let Some(transport) = self.tmux_state.transport.as_ref() {
+            return match transport.send_command(&cmd) {
+                Ok(_) => {
+                    crate::debug_trace!(
+                        "MUX",
+                        "Synced {} chars to daemon paste buffer",
+                        content.len()
+                    );
+                    true
+                }
+                Err(e) => {
+                    crate::debug_error!("MUX", "set-buffer failed: {e}");
+                    false
+                }
+            };
+        }
+
+        if !self.config.load().tmux.tmux_enabled || !self.is_tmux_connected() {
+            return false;
+        }
 
         // Write to gateway tab
-        if self.write_to_gateway(&cmd) {
+        if self.write_to_gateway(&format!("{cmd}\n")) {
             crate::debug_trace!(
                 "TMUX",
                 "Synced {} chars to tmux paste buffer",

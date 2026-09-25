@@ -403,6 +403,27 @@ impl Drop for TmuxSession {
     }
 }
 
+/// Format a `set-buffer` command line for the clipboard sync.
+///
+/// Both consumers parse the payload with POSIX single-quoting, so embedded
+/// quotes use the close-escape-reopen idiom and everything else survives
+/// verbatim inside the quotes — except newlines: the control wire is
+/// line-delimited, so content containing one rides the hex form instead
+/// (the same `send-keys -H` idiom the daemon already speaks).
+pub fn set_buffer_command(content: &str) -> String {
+    if content.contains('\n') || content.contains('\r') {
+        let hex = content
+            .as_bytes()
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect::<Vec<_>>()
+            .join(" ");
+        return format!("set-buffer -H {hex}");
+    }
+    let escaped = content.replace('\'', "'\\''");
+    format!("set-buffer '{}'", escaped)
+}
+
 /// Escape a byte sequence for tmux send-keys command.
 ///
 /// This handles special characters that need escaping for tmux.
@@ -542,5 +563,14 @@ mod tests {
     fn test_escape_keys_escape() {
         let escaped = escape_keys_for_tmux(&[0x1b]);
         assert_eq!(escaped, "Escape");
+    }
+
+    #[test]
+    fn test_set_buffer_command_quotes_and_newlines() {
+        assert_eq!(set_buffer_command("plain"), "set-buffer 'plain'");
+        assert_eq!(set_buffer_command("it's"), "set-buffer 'it'\\''s'",);
+        // A newline cannot ride the line-delimited wire — hex form.
+        assert_eq!(set_buffer_command("a\nb"), "set-buffer -H 61 0a 62",);
+        assert_eq!(set_buffer_command("cr\r"), "set-buffer -H 63 72 0d");
     }
 }
