@@ -6,8 +6,8 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use super::{
-    home_dir, hook_asset_path as asset_path_for, hook_command_for, merge_session_start,
-    remove_marked_file, save_settings, unmerge_session_start, write_hook_asset,
+    home_dir, hook_asset_path as asset_path_for, hook_command_for, hook_command_with_action,
+    merge_hook_event, remove_marked_file, save_settings, unmerge_hook_entries, write_hook_asset,
 };
 
 const CLAUDE_HOOK_ASSET_POSIX: &str =
@@ -117,25 +117,38 @@ pub fn install_claude_hook_into(
     };
 
     // Merge and verify BEFORE writing anything: a malformed user config must
-    // fail with the file — and the asset — untouched.
+    // fail with the file — and the asset — untouched. Both events merge
+    // against the sequentially updated text so a fresh install splices the
+    // SessionStart entry and the SessionEnd entry in one write.
     let command = hook_command_for(hook_path);
-    let merged = merge_session_start(
+    let release_command = hook_command_with_action(hook_path, "release");
+    let start_merged = merge_hook_event(
         &content,
         settings_path,
         &command,
         Some(SESSION_START_MATCHER),
+        "SessionStart",
     )?;
+    let after_start: &str = start_merged.as_deref().unwrap_or(&content);
+    // SessionEnd runs the release arm matcher-less: every end reason
+    // (clear/logout/exit/restart/boom) means this agent process is gone.
+    let end_merged =
+        merge_hook_event(after_start, settings_path, &release_command, None, "SessionEnd")?;
+    let settings_changed = start_merged.is_some() || end_merged.is_some();
 
     write_hook_asset(hook_path, claude_hook_asset())?;
 
-    if let Some(updated) = &merged {
-        save_settings(settings_path, updated)?;
+    if settings_changed {
+        save_settings(
+            settings_path,
+            end_merged.as_deref().unwrap_or(after_start),
+        )?;
     }
 
     Ok(ClaudeHookInstall {
         settings_path: settings_path.to_path_buf(),
         hook_path: hook_path.to_path_buf(),
-        settings_changed: merged.is_some(),
+        settings_changed,
     })
 }
 
@@ -154,7 +167,12 @@ pub fn uninstall_claude_hook_into(
     if settings_path.is_file() {
         let content = fs::read_to_string(settings_path)?;
         let command = hook_command_for(hook_path);
-        if let Some(updated) = unmerge_session_start(&content, settings_path, &command)? {
+        let release_command = hook_command_with_action(hook_path, "release");
+        if let Some(updated) = unmerge_hook_entries(
+            &content,
+            settings_path,
+            &[("SessionStart", command.as_str()), ("SessionEnd", release_command.as_str())],
+        )? {
             save_settings(settings_path, &updated)?;
             settings_changed = true;
         }
@@ -451,6 +469,139 @@ mod tests {
             session_start_commands(&after),
             vec!["/usr/local/bin/motd".to_string()],
             "the user's entry survives, ours is gone"
+        );
+    }
+
+    #[test]
+    fn install_registers_the_session_end_release_entry() {
+        let root = temp_root();
+        let settings = root.path().join("settings.json");
+        let hook = root.path().join("par-mux-claude-session-hook.sh");
+        fs::write(&settings, REAL_WORLD_SETTINGS).unwrap();
+
+        install_claude_hook_into(&settings, &hook).unwrap();
+
+        let updated = fs::read_to_string(&settings).unwrap();
+        let value: JsonValue = parse_serde(&updated, Path::new("<test>")).unwrap();
+        let session_end = value
+            .get("hooks")
+            .and_then(|hooks| hooks.get("SessionEnd"))
+            .and_then(JsonValue::as_array)
+            .expect("SessionEnd array installed");
+        let release_command = hook_command_with_action(&hook, "release");
+        let our_group = session_end
+            .iter()
+            .find(|group| {
+                group
+                    .get("hooks")
+                    .and_then(JsonValue::as_array)
+                    .is_some_and(|entries| {
+                        entries
+                            .iter()
+                            .any(|entry| entry.get("command").and_then(JsonValue::as_str)
+                                == Some(release_command.as_str()))
+                    })
+            })
+            .expect("our release entry is registered under SessionEnd");
+        assert!(
+            our_group.get("matcher").is_none(),
+            "SessionEnd matches every end reason: {our_group}"
+        );
+    }
+
+    #[test]
+    fn uninstall_cleans_a_legacy_install_that_predates_session_end() {
+        let root = temp_root();
+        let settings = root.path().join("settings.json");
+        let hook = root.path().join("par-mux-claude-session-hook.sh");
+
+        // The installed base from the previous version: a SessionStart
+        // entry and no SessionEnd entry.
+        let legacy_command = hook_command_for(&hook);
+        let legacy = format!(
+            r#"{{"hooks":{{"SessionStart":[{{"matcher":"{SESSION_START_MATCHER}","hooks":[{{"type":"command","command":{command}}}]}}]}}}}"#,
+            command = serde_json::to_string(&legacy_command).unwrap()
+        );
+        fs::write(&settings, &legacy).unwrap();
+
+        // The upgrade path: install adds only the SessionEnd entry beside
+        // the legacy one (the SessionStart merge no-ops on presence).
+        let upgrade = install_claude_hook_into(&settings, &hook).unwrap();
+        assert!(
+            upgrade.settings_changed,
+            "the SessionEnd entry is new for a legacy install"
+        );
+
+        uninstall_claude_hook_into(&settings, &hook).unwrap();
+        let after = fs::read_to_string(&settings).unwrap();
+        assert_eq!(
+            after, "{}",
+            "the legacy entry is ours too — uninstall removes it with the \
+             SessionEnd one and prunes the emptied hooks object"
+        );
+        assert!(!after.contains("SessionStart") && !after.contains("SessionEnd"));
+    }
+
+    #[test]
+    fn install_preserves_a_user_session_end_group() {
+        let root = temp_root();
+        let settings = root.path().join("settings.json");
+        let hook = root.path().join("par-mux-claude-session-hook.sh");
+        // The user already hooks SessionEnd themselves.
+        fs::write(
+            &settings,
+            r#"{
+  "hooks": {
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/local/bin/cleanup"
+          }
+        ]
+      }
+    ]
+  }
+}
+"#,
+        )
+        .unwrap();
+
+        install_claude_hook_into(&settings, &hook).unwrap();
+        let installed = fs::read_to_string(&settings).unwrap();
+        let value: JsonValue = parse_serde(&installed, Path::new("<test>")).unwrap();
+        let commands: Vec<&str> = value
+            .get("hooks")
+            .and_then(|hooks| hooks.get("SessionEnd"))
+            .and_then(JsonValue::as_array)
+            .expect("SessionEnd array")
+            .iter()
+            .flat_map(|group| {
+                group
+                    .get("hooks")
+                    .and_then(JsonValue::as_array)
+                    .map(|entries| {
+                        entries
+                            .iter()
+                            .filter_map(|e| e.get("command").and_then(JsonValue::as_str))
+                            .collect::<Vec<_>>()
+                    })
+                    .unwrap_or_default()
+            })
+            .collect();
+        let release_command = hook_command_with_action(&hook, "release");
+        assert_eq!(
+            commands,
+            vec!["/usr/local/bin/cleanup", release_command.as_str()],
+            "our release entry joins the user's group"
+        );
+
+        uninstall_claude_hook_into(&settings, &hook).unwrap();
+        let after = fs::read_to_string(&settings).unwrap();
+        assert!(
+            after.contains("/usr/local/bin/cleanup") && !after.contains(release_command.as_str()),
+            "the user's SessionEnd hook survives, ours is gone: {after}"
         );
     }
 

@@ -10,8 +10,8 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use super::{
-    home_dir, hook_asset_path as asset_path_for, hook_command_with_action, merge_session_start,
-    remove_marked_file, save_settings, unmerge_session_start, write_hook_asset,
+    home_dir, hook_asset_path as asset_path_for, hook_command_with_action, merge_hook_event,
+    remove_marked_file, save_settings, unmerge_hook_entries, write_hook_asset,
 };
 
 const CODEX_HOOK_ASSET_POSIX: &str = include_str!("../../mux_hooks/par-mux-codex-session-hook.sh");
@@ -110,7 +110,7 @@ pub fn install_codex_hook_into(codex_dir: &Path, hook_path: &Path) -> io::Result
     // Merge and verify BOTH files before writing anything: a malformed user
     // config must fail with every file — and the asset — untouched.
     let command = codex_hook_command(hook_path);
-    let merged = merge_session_start(&hooks_content, &hooks_path, &command, None)?;
+    let merged = merge_hook_event(&hooks_content, &hooks_path, &command, None, "SessionStart")?;
     let config_updated = ensure_features_hooks_true(&config_content, &config_path)?;
 
     write_hook_asset(hook_path, codex_hook_asset())?;
@@ -151,7 +151,11 @@ pub fn uninstall_codex_hook_into(
     if hooks_path.is_file() {
         let content = fs::read_to_string(&hooks_path)?;
         let command = codex_hook_command(hook_path);
-        if let Some(updated) = unmerge_session_start(&content, &hooks_path, &command)? {
+        if let Some(updated) = unmerge_hook_entries(
+            &content,
+            &hooks_path,
+            &[("SessionStart", command.as_str())],
+        )? {
             save_settings(&hooks_path, &updated)?;
             hooks_changed = true;
         }

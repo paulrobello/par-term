@@ -291,11 +291,16 @@ pub(crate) fn canonical_entry_value(matcher: Option<&str>, command: &str) -> Jso
 }
 
 /// Whether any SessionStart group already carries our exact command.
-pub(crate) fn has_command(content: &str, settings_path: &Path, command: &str) -> io::Result<bool> {
+pub(crate) fn has_command(
+    content: &str,
+    settings_path: &Path,
+    command: &str,
+    event: &str,
+) -> io::Result<bool> {
     let value = parse_serde(content, settings_path)?;
     Ok(value
         .get("hooks")
-        .and_then(|hooks| hooks.get("SessionStart"))
+        .and_then(|hooks| hooks.get(event))
         .and_then(JsonValue::as_array)
         .is_some_and(|groups| {
             groups.iter().any(|group| {
@@ -311,33 +316,32 @@ pub(crate) fn has_command(content: &str, settings_path: &Path, command: &str) ->
         }))
 }
 
-/// Merge our SessionStart entry into `content`. `Ok(None)` = already present,
+/// Merge our entry for `event` into `content`. `Ok(None)` = already present,
 /// byte-exact no-op.
-pub(crate) fn merge_session_start(
+pub(crate) fn merge_hook_event(
     content: &str,
     settings_path: &Path,
     command: &str,
     matcher: Option<&str>,
+    event: &str,
 ) -> io::Result<Option<String>> {
     let root = parse_root_object(content, settings_path)?;
     reject_duplicate_keys(&root, settings_path)?;
-    if has_command(content, settings_path, command)? {
+    if has_command(content, settings_path, command, event)? {
         return Ok(None);
     }
 
     let canonical = canonical_entry_json(matcher, command);
     let updated = match root.get_object("hooks") {
-        Some(hooks) => match hooks.get_array("SessionStart") {
-            Some(session_start) => append_array_element(content, session_start, &canonical),
-            None => {
-                append_object_property(content, hooks, "SessionStart", &format!("[{canonical}]"))
-            }
+        Some(hooks) => match hooks.get_array(event) {
+            Some(event_array) => append_array_element(content, event_array, &canonical),
+            None => append_object_property(content, hooks, event, &format!("[{canonical}]")),
         },
         None => append_object_property(
             content,
             &root,
             "hooks",
-            &format!("{{\"SessionStart\":[{canonical}]}}"),
+            &format!("{{\"{event}\":[{canonical}]}}"),
         ),
     };
 
@@ -347,7 +351,7 @@ pub(crate) fn merge_session_start(
     let mut desired = parse_serde(content, settings_path)?;
     match desired
         .get_mut("hooks")
-        .and_then(|hooks| hooks.get_mut("SessionStart"))
+        .and_then(|hooks| hooks.get_mut(event))
         .and_then(JsonValue::as_array_mut)
     {
         Some(entries) => entries.push(canonical_entry_value(matcher, command)),
@@ -367,15 +371,15 @@ pub(crate) fn merge_session_start(
                         )));
                     };
                     hooks_object.insert(
-                        "SessionStart".to_string(),
+                        event.to_string(),
                         json!([canonical_entry_value(matcher, command)]),
                     );
                 }
                 None => {
-                    root_object.insert(
-                        "hooks".to_string(),
-                        json!({"SessionStart": [canonical_entry_value(matcher, command)]}),
-                    );
+                    let mut fresh_hooks = serde_json::Map::new();
+                    fresh_hooks
+                        .insert(event.to_string(), json!([canonical_entry_value(matcher, command)]));
+                    root_object.insert("hooks".to_string(), JsonValue::Object(fresh_hooks));
                 }
             }
         }
@@ -383,22 +387,27 @@ pub(crate) fn merge_session_start(
     verify_update(updated, settings_path, &desired).map(Some)
 }
 
-/// Remove our command entries from `content`. `Ok(None)` = nothing to remove.
-pub(crate) fn unmerge_session_start(
+/// Remove our command entries from `content`. Each entry pairs the hook
+/// event its command lives under with the command string; only those
+/// events' arrays are touched, so a user's own hooks — including empty
+/// arrays under events we never install — survive byte-exact.
+/// `Ok(None)` = nothing to remove.
+pub(crate) fn unmerge_hook_entries(
     content: &str,
     settings_path: &Path,
-    command: &str,
+    entries: &[(&str, &str)],
 ) -> io::Result<Option<String>> {
     let root = parse_root_object(content, settings_path)?;
     reject_duplicate_keys(&root, settings_path)?;
     let original = parse_serde(content, settings_path)?;
+    let events: Vec<&str> = entries.iter().map(|(event, _)| *event).collect();
 
     let mut updated = content.to_string();
     let mut changed = false;
 
     // One cut per pass, re-parsing between cuts so every span is computed
     // against the text it is applied to. Settings files are small.
-    while let Some(cut) = find_next_our_cut(&updated, settings_path, command)? {
+    while let Some(cut) = find_next_our_cut(&updated, settings_path, entries)? {
         let mut next = String::with_capacity(updated.len());
         next.push_str(&updated[..cut.start]);
         next.push_str(&updated[cut.end..]);
@@ -410,16 +419,17 @@ pub(crate) fn unmerge_session_start(
         return Ok(None);
     }
 
-    // Prune containers our removals emptied: SessionStart, then hooks. Each
-    // prune is its own re-parsed pass for the same span-safety reason.
-    while let Some(cut) = find_next_empty_container_cut(&updated, settings_path)? {
+    // Prune containers our removals emptied: the events we cut from, then
+    // hooks. Each prune is its own re-parsed pass for the same span-safety
+    // reason.
+    while let Some(cut) = find_next_empty_container_cut(&updated, settings_path, &events)? {
         let mut next = String::with_capacity(updated.len());
         next.push_str(&updated[..cut.start]);
         next.push_str(&updated[cut.end..]);
         updated = next;
     }
 
-    let desired = desired_after_removal(original, command);
+    let desired = desired_after_removal(original, entries);
     verify_update(updated, settings_path, &desired).map(Some)
 }
 
@@ -428,76 +438,83 @@ pub(crate) fn unmerge_session_start(
 fn find_next_our_cut(
     content: &str,
     settings_path: &Path,
-    command: &str,
+    entries: &[(&str, &str)],
 ) -> io::Result<Option<Range>> {
     let root = parse_root_object(content, settings_path)?;
     let Some(hooks) = root.get_object("hooks") else {
         return Ok(None);
     };
-    let Some(session_start) = hooks.get_array("SessionStart") else {
-        return Ok(None);
-    };
 
-    for (group_index, group) in session_start.elements.iter().enumerate() {
-        let AstValue::Object(group_object) = group else {
+    for (event, command) in entries {
+        let Some(event_array) = hooks.get_array(event) else {
             continue;
         };
-        let Some(group_hooks) = group_object.get_array("hooks") else {
-            continue;
-        };
-        let Some(first_our_entry) = group_hooks
-            .elements
-            .iter()
-            .position(|entry| entry_is_our_command(entry, command))
-        else {
-            continue;
-        };
-        if group_hooks
-            .elements
-            .iter()
-            .all(|entry| entry_is_our_command(entry, command))
-        {
-            let group_range = group.range();
+        for (group_index, group) in event_array.elements.iter().enumerate() {
+            let AstValue::Object(group_object) = group else {
+                continue;
+            };
+            let Some(group_hooks) = group_object.get_array("hooks") else {
+                continue;
+            };
+            let Some(first_our_entry) = group_hooks
+                .elements
+                .iter()
+                .position(|entry| entry_is_our_command(entry, command))
+            else {
+                continue;
+            };
+            if group_hooks
+                .elements
+                .iter()
+                .all(|entry| entry_is_our_command(entry, command))
+            {
+                let group_range = group.range();
+                let cut = member_cut(
+                    group_index
+                        .checked_sub(1)
+                        .and_then(|prev| event_array.elements.get(prev))
+                        .map(Ranged::range)
+                        .map(|range| range.end),
+                    group_range.start,
+                    group_range.end,
+                    event_array
+                        .elements
+                        .get(group_index + 1)
+                        .map(Ranged::range)
+                        .map(|range| range.start),
+                );
+                return Ok(Some(cut));
+            }
+            let entry_range = group_hooks.elements[first_our_entry].range();
             let cut = member_cut(
-                group_index
+                first_our_entry
                     .checked_sub(1)
-                    .and_then(|prev| session_start.elements.get(prev))
+                    .and_then(|prev| group_hooks.elements.get(prev))
                     .map(Ranged::range)
                     .map(|range| range.end),
-                group_range.start,
-                group_range.end,
-                session_start
+                entry_range.start,
+                entry_range.end,
+                group_hooks
                     .elements
-                    .get(group_index + 1)
+                    .get(first_our_entry + 1)
                     .map(Ranged::range)
                     .map(|range| range.start),
             );
             return Ok(Some(cut));
         }
-        let entry_range = group_hooks.elements[first_our_entry].range();
-        let cut = member_cut(
-            first_our_entry
-                .checked_sub(1)
-                .and_then(|prev| group_hooks.elements.get(prev))
-                .map(Ranged::range)
-                .map(|range| range.end),
-            entry_range.start,
-            entry_range.end,
-            group_hooks
-                .elements
-                .get(first_our_entry + 1)
-                .map(Ranged::range)
-                .map(|range| range.start),
-        );
-        return Ok(Some(cut));
     }
     Ok(None)
 }
 
-/// The next empty-container prune: a SessionStart array with no elements
-/// (drop the property from hooks), or a hooks object with no properties
-/// (drop the property from root).
-fn find_next_empty_container_cut(content: &str, settings_path: &Path) -> io::Result<Option<Range>> {
+/// The next empty-container prune: an event array we cut from with no
+/// elements left (drop the property from hooks), or a hooks object with no
+/// properties (drop the property from root). Events we never touched are
+/// not candidates — a user's pre-existing empty array survives uninstall.
+fn find_next_empty_container_cut(
+    content: &str,
+    settings_path: &Path,
+    events: &[&str],
+) -> io::Result<Option<Range>> {
     let root = parse_root_object(content, settings_path)?;
     let Some(hooks) = root.get_object("hooks") else {
         return Ok(None);
@@ -505,13 +522,14 @@ fn find_next_empty_container_cut(content: &str, settings_path: &Path) -> io::Res
     if hooks.properties.is_empty() {
         return Ok(Some(property_cut(&root.properties, "hooks")));
     }
-    let Some(session_start) = hooks.get_array("SessionStart") else {
-        return Ok(None);
-    };
-    if !session_start.elements.is_empty() {
-        return Ok(None);
+    for event in events {
+        if let Some(event_array) = hooks.get_array(event)
+            && event_array.elements.is_empty()
+        {
+            return Ok(Some(property_cut(&hooks.properties, event)));
+        }
     }
-    Ok(Some(property_cut(&hooks.properties, "SessionStart")))
+    Ok(None)
 }
 
 /// The cut span for the named property, including one adjacent separator
@@ -562,25 +580,28 @@ fn entry_is_our_command(entry: &AstValue, command: &str) -> bool {
 }
 
 /// The value the file must parse back to after uninstall: our commands gone,
-/// emptied containers pruned.
-fn desired_after_removal(mut value: JsonValue, command: &str) -> JsonValue {
+/// emptied containers pruned. Only the events our entries were installed
+/// under are pruned, and only when removing ours emptied them — a user's
+/// pre-existing empty array under any event survives.
+fn desired_after_removal(mut value: JsonValue, entries: &[(&str, &str)]) -> JsonValue {
     let Some(root) = value.as_object_mut() else {
         return value;
     };
     let Some(hooks) = root.get_mut("hooks").and_then(JsonValue::as_object_mut) else {
         return value;
     };
-    if let Some(session_start) = hooks
-        .get_mut("SessionStart")
-        .and_then(JsonValue::as_array_mut)
-    {
-        let mut kept_groups = Vec::with_capacity(session_start.len());
-        for group in session_start.drain(..) {
+    for (event, command) in entries {
+        let Some(event_array) = hooks.get_mut(*event).and_then(JsonValue::as_array_mut) else {
+            continue;
+        };
+        let had_groups = !event_array.is_empty();
+        let mut kept_groups = Vec::with_capacity(event_array.len());
+        for group in event_array.drain(..) {
             let mut group = group;
             let pruned_empty = match group.get_mut("hooks").and_then(JsonValue::as_array_mut) {
                 Some(entries) => {
                     entries.retain(|entry| {
-                        entry.get("command").and_then(JsonValue::as_str) != Some(command)
+                        entry.get("command").and_then(JsonValue::as_str) != Some(*command)
                     });
                     entries.is_empty()
                 }
@@ -590,9 +611,9 @@ fn desired_after_removal(mut value: JsonValue, command: &str) -> JsonValue {
                 kept_groups.push(group);
             }
         }
-        *session_start = kept_groups;
-        if session_start.is_empty() {
-            hooks.remove("SessionStart");
+        *event_array = kept_groups;
+        if had_groups && event_array.is_empty() {
+            hooks.remove(*event);
         }
     }
     if hooks.is_empty() {
