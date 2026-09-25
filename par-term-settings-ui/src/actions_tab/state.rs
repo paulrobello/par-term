@@ -86,8 +86,10 @@ pub struct ActionsTabState {
     pub agent_commands: Option<Vec<par_term_config::agent_commands::LoadedCommand>>,
     /// Command id awaiting the second (confirm) click of a delete
     pub agent_command_pending_delete: Option<String>,
-    /// Last agent-command delete error, shown until the next attempt
+    /// Last agent-command delete/save error, shown until the next attempt
     pub agent_command_error: Option<String>,
+    /// Open command editor: (command id, YAML text being edited)
+    pub agent_command_editing: Option<(String, String)>,
 }
 
 impl Default for ActionsTabState {
@@ -134,6 +136,7 @@ impl Default for ActionsTabState {
             agent_commands: None,
             agent_command_pending_delete: None,
             agent_command_error: None,
+            agent_command_editing: None,
         }
     }
 }
