@@ -4000,9 +4000,9 @@ dependencies = [
 
 [[package]]
 name = "par-term-emu-core-rust"
-version = "0.50.0"
+version = "0.51.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "38e247aa529a50c8cda0e3d0be6f59e6d1c15fa09c9b37db8aac8b2bb1373c2e"
+checksum = "e3dec674d40e4a9c721af240bb7e2aa7778f7c3d56d6628951bf07ad23c4da43"
 dependencies = [
  "base64 0.22.1",
  "bitflags 2.13.2",

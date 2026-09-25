@@ -200,7 +200,7 @@ Layer 4 — Root crate (bump last):
 
 ### par-mux daemon for local runs
 
-The pin is on the published crates.io line (`0.50`), `mux` is a default root feature, and every manifest forwards the core's `mux` feature normally — no vendoring machinery exists anymore (card 01a0d1cbc649 retired `scripts/with-local-core.sh` and its Makefile target; never pin a core version that is not on crates.io).
+The pin is on the published crates.io line (`0.51`), `mux` is a default root feature, and every manifest forwards the core's `mux` feature normally — no vendoring machinery exists anymore (card 01a0d1cbc649 retired `scripts/with-local-core.sh` and its Makefile target; never pin a core version that is not on crates.io).
 
 The crates.io release ships the **library only** — the `par-mux` daemon binary must be staged next to the par-term binary. `scripts/build-par-mux.sh` builds it pinned to the Cargo.lock core version (so client and daemon stamps match) and copies it wherever asked:
 
