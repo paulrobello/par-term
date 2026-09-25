@@ -546,27 +546,7 @@ impl WindowState {
             // only. Mux-guarded so gateway-tmux tabs keep their existing
             // ordering (their broadcast branch never ran; the send-keys
             // claim below owns the key there).
-            if self.broadcast_input
-                && self.tmux_state.transport.is_some()
-                && let Some(tab) = self.tab_manager.active_tab()
-                && let Some(pm) = tab.pane_manager()
-                && pm.has_multiple_panes()
-            {
-                // Daemon panes get the bytes through the transport; local
-                // panes (a split created inside the mux tab) keep the
-                // spawned write the non-mux broadcast branch uses.
-                for pane in pm.all_panes() {
-                    if !self.route_mux_pane_write(tab.id, pane.id, &bytes) {
-                        let terminal_clone = Arc::clone(&pane.terminal);
-                        let bytes_clone = bytes.clone();
-                        self.runtime.spawn(async move {
-                            let term = terminal_clone.read().await;
-                            if let Err(e) = term.write(&bytes_clone) {
-                                crate::debug_error!("INPUT", "PTY write failed (broadcast): {e}");
-                            }
-                        });
-                    }
-                }
+            if self.broadcast_input && self.broadcast_bytes_to_mux_tab_panes(&bytes) {
                 if let Some(tab) = self.tab_manager.active_tab_mut() {
                     tab.activity.anti_idle_last_activity = std::time::Instant::now();
                 }

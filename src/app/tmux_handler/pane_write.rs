@@ -58,6 +58,38 @@ impl WindowState {
         };
         self.route_mux_pane_write(tab.id, pane.id, data)
     }
+
+    /// Broadcast `bytes` to every pane of the active tab when it is a
+    /// multi-pane mux tab. Returns `false` (nothing consumed) for local
+    /// tabs, gateway-tmux tabs, and single-pane tabs, so the caller falls
+    /// through to its normal single-target routing.
+    #[cfg_attr(not(feature = "mux"), allow(unused_variables))]
+    pub(crate) fn broadcast_bytes_to_mux_tab_panes(&self, bytes: &[u8]) -> bool {
+        #[cfg(feature = "mux")]
+        if self.tmux_state.transport.is_some()
+            && let Some(tab) = self.tab_manager.active_tab()
+            && let Some(pm) = tab.pane_manager()
+            && pm.has_multiple_panes()
+        {
+            // Daemon panes get the bytes through the transport; local
+            // panes (a split created inside the mux tab) keep the spawned
+            // write the non-mux broadcast branch uses.
+            for pane in pm.all_panes() {
+                if !self.route_mux_pane_write(tab.id, pane.id, bytes) {
+                    let terminal_clone = std::sync::Arc::clone(&pane.terminal);
+                    let bytes_owned = bytes.to_vec();
+                    self.runtime.spawn(async move {
+                        let term = terminal_clone.read().await;
+                        if let Err(e) = term.write(&bytes_owned) {
+                            crate::debug_error!("INPUT", "PTY write failed (broadcast): {e}");
+                        }
+                    });
+                }
+            }
+            return true;
+        }
+        false
+    }
 }
 
 #[cfg(all(test, feature = "mux"))]
@@ -242,6 +274,78 @@ pub(crate) mod tests {
             *sent.lock().unwrap(),
             vec![format!("send-keys -t %0 -H {}", hex_of("insert-needle"))],
             "InsertText must reach the daemon pane, not the hidden shell"
+        );
+    }
+
+    #[test]
+    fn broadcast_reaches_every_daemon_pane_in_a_split_mux_tab() {
+        let path = mux_tests::socket_path("pane-write-broadcast");
+        mux_tests::spawn_daemon(&path);
+
+        let core_client = par_term_emu_core_rust::mux::MuxClient::connect(&path).expect("connect");
+        let (tx, rx) = std::sync::mpsc::channel();
+        tx.send(Ok(core_client)).unwrap();
+        drop(tx);
+        let mut ws = WindowState::new(Config::default(), test_runtime());
+        ws.tmux_state.mux_attach_pending = Some(MuxAttachPending {
+            name: "broadcasttest".to_string(),
+            rx,
+        });
+        ws.poll_mux_attach();
+        assert!(ws.tmux_state.transport.is_some(), "attach must install");
+
+        ws.handle_tmux_window_add(0);
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !ws.tmux_state.tmux_pane_owners.contains_key(&0) {
+            assert!(
+                Instant::now() < deadline,
+                "window @0 never got a mapped pane"
+            );
+            ws.tmux_state
+                .transport
+                .as_ref()
+                .expect("transport")
+                .send_command("refresh-client -t %0 -C 80x24")
+                .expect("size push broadcasts %layout-change");
+            ws.check_mux_notifications();
+            std::thread::sleep(Duration::from_millis(50));
+        }
+
+        // Split the daemon pane so the tab shows two mirror panes.
+        ws.tmux_state
+            .transport
+            .as_ref()
+            .expect("transport")
+            .send_command("split-window -h -t %0")
+            .expect("daemon-side split");
+        let tab_id = ws.tmux_state.tmux_pane_owners[&0].0;
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while ws.tmux_state.tab_tmux_pane_ids(tab_id).len() < 2 {
+            assert!(
+                Instant::now() < deadline,
+                "the daemon split never produced a second mirror pane"
+            );
+            ws.check_mux_notifications();
+            std::thread::sleep(Duration::from_millis(50));
+        }
+
+        let (transport, sent) = RecordingTransport::new();
+        ws.tmux_state.transport = Some(Box::new(transport));
+        ws.broadcast_input = true;
+
+        assert!(
+            ws.broadcast_bytes_to_mux_tab_panes(b"z"),
+            "a split mux tab with broadcast on must consume the bytes"
+        );
+        let mut routed: Vec<String> = sent.lock().unwrap().clone();
+        routed.sort();
+        assert_eq!(
+            routed,
+            vec![
+                "send-keys -t %0 -H 7a".to_string(),
+                "send-keys -t %1 -H 7a".to_string(),
+            ],
+            "broadcast must reach both daemon panes"
         );
     }
 
