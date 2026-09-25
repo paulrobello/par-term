@@ -104,27 +104,13 @@ mod inner {
                             launch_dir.lock().clone()
                         };
 
-                        // Resolve target → disk; if following CWD but no disk
-                        // matched (e.g. removable since removed), fall back to
-                        // the launch dir's disk.
-                        let mut disk = disk_for_path(disks.list(), &target);
-                        if disk.is_none() && use_cwd {
-                            disk = disk_for_path(disks.list(), &launch_dir.lock());
-                        }
-
-                        if let Some(d) = disk {
-                            let total = d.total_space();
-                            let free = d.available_space();
-                            let pct = if total > 0 {
-                                (free as f64 / total as f64 * 100.0) as f32
-                            } else {
-                                0.0
-                            };
-                            let mut dat = data.lock();
-                            dat.free_bytes = free;
-                            dat.total_bytes = total;
-                            dat.free_percent = pct;
-                            dat.last_update = Some(Instant::now());
+                        // If following CWD but no disk matched (e.g. removable
+                        // since removed), fall back to the launch dir's disk.
+                        let fallback = use_cwd.then(|| launch_dir.lock().clone());
+                        if let Some(snapshot) =
+                            snapshot_for(disks.list(), &target, fallback.as_deref())
+                        {
+                            *data.lock() = snapshot;
                         }
 
                         let deadline = Instant::now() + interval;
@@ -195,6 +181,29 @@ mod inner {
         }
     }
 
+    /// One poll's result: the free-space snapshot for the disk holding
+    /// `target` (or `fallback` when nothing matches `target`), stamped now.
+    pub fn snapshot_for(
+        disks: &[Disk],
+        target: &Path,
+        fallback: Option<&Path>,
+    ) -> Option<DiskMonitorData> {
+        let disk = disk_for_path(disks, target).or_else(|| disk_for_path(disks, fallback?))?;
+        let total = disk.total_space();
+        let free = disk.available_space();
+        let free_percent = if total > 0 {
+            (free as f64 / total as f64 * 100.0) as f32
+        } else {
+            0.0
+        };
+        Some(DiskMonitorData {
+            free_bytes: free,
+            total_bytes: total,
+            free_percent,
+            last_update: Some(Instant::now()),
+        })
+    }
+
     /// Return the disk whose mount point is the longest path-prefix of `target`.
     ///
     /// `Path::starts_with` compares by component, so `/` matches every absolute
@@ -208,7 +217,7 @@ mod inner {
 }
 
 #[cfg(feature = "system-monitor")]
-pub use inner::{DiskMonitor, disk_for_path};
+pub use inner::{DiskMonitor, disk_for_path, snapshot_for};
 
 // ============================================================================
 // Stub implementation (feature disabled)
@@ -302,26 +311,34 @@ mod tests {
 
     #[cfg(feature = "system-monitor")]
     #[test]
+    fn test_snapshot_for_target_and_fallback() {
+        use sysinfo::Disks;
+        let disks = Disks::new_with_refreshed_list();
+        let tmp = std::env::temp_dir();
+
+        let s = snapshot_for(disks.list(), &tmp, None).expect("temp dir resolves to a disk");
+        assert!(s.total_bytes > 0 && s.free_bytes <= s.total_bytes);
+        assert!(s.free_percent >= 0.0 && s.free_percent <= 100.0);
+        assert!(s.last_update.is_some());
+
+        // Mount points are absolute, so a relative target matches no disk —
+        // the follow-cwd fallback path.
+        let unmatched = std::path::Path::new("relative/nowhere");
+        assert!(snapshot_for(disks.list(), unmatched, None).is_none());
+        assert!(snapshot_for(disks.list(), unmatched, Some(&tmp)).is_some());
+    }
+
+    /// Lifecycle only: the poll result is covered by
+    /// `test_snapshot_for_target_and_fallback`. Waiting here for the thread's
+    /// first poll put a wall-clock deadline on mount enumeration, which a
+    /// loaded host stalled past (card 01a0d5fb99df77b3be1f30ddd50f862c).
+    #[cfg(feature = "system-monitor")]
+    #[test]
     fn test_disk_monitor_start_stop() {
-        use std::time::Duration;
         let monitor = DiskMonitor::new();
         assert!(!monitor.is_running());
         monitor.start(5.0);
         assert!(monitor.is_running());
-        // Wait for the first poll (mirrors system_monitor's flake-free approach).
-        let deadline = std::time::Instant::now() + Duration::from_secs(10);
-        let mut polled = false;
-        while std::time::Instant::now() < deadline {
-            if monitor.data().last_update.is_some() {
-                polled = true;
-                break;
-            }
-            std::thread::sleep(Duration::from_millis(50));
-        }
-        assert!(polled, "disk monitor recorded no initial poll within 10s");
-        // free percent is sane
-        let d = monitor.data();
-        assert!(d.free_percent >= 0.0 && d.free_percent <= 100.0);
         monitor.stop();
         assert!(!monitor.is_running());
     }
