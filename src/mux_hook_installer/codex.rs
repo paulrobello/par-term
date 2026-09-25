@@ -151,11 +151,9 @@ pub fn uninstall_codex_hook_into(
     if hooks_path.is_file() {
         let content = fs::read_to_string(&hooks_path)?;
         let command = codex_hook_command(hook_path);
-        if let Some(updated) = unmerge_hook_entries(
-            &content,
-            &hooks_path,
-            &[("SessionStart", command.as_str())],
-        )? {
+        if let Some(updated) =
+            unmerge_hook_entries(&content, &hooks_path, &[("SessionStart", command.as_str())])?
+        {
             save_settings(&hooks_path, &updated)?;
             hooks_changed = true;
         }

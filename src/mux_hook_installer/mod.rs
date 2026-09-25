@@ -377,8 +377,10 @@ pub(crate) fn merge_hook_event(
                 }
                 None => {
                     let mut fresh_hooks = serde_json::Map::new();
-                    fresh_hooks
-                        .insert(event.to_string(), json!([canonical_entry_value(matcher, command)]));
+                    fresh_hooks.insert(
+                        event.to_string(),
+                        json!([canonical_entry_value(matcher, command)]),
+                    );
                     root_object.insert("hooks".to_string(), JsonValue::Object(fresh_hooks));
                 }
             }

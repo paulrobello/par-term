@@ -132,17 +132,19 @@ pub fn install_claude_hook_into(
     let after_start: &str = start_merged.as_deref().unwrap_or(&content);
     // SessionEnd runs the release arm matcher-less: every end reason
     // (clear/logout/exit/restart/boom) means this agent process is gone.
-    let end_merged =
-        merge_hook_event(after_start, settings_path, &release_command, None, "SessionEnd")?;
+    let end_merged = merge_hook_event(
+        after_start,
+        settings_path,
+        &release_command,
+        None,
+        "SessionEnd",
+    )?;
     let settings_changed = start_merged.is_some() || end_merged.is_some();
 
     write_hook_asset(hook_path, claude_hook_asset())?;
 
     if settings_changed {
-        save_settings(
-            settings_path,
-            end_merged.as_deref().unwrap_or(after_start),
-        )?;
+        save_settings(settings_path, end_merged.as_deref().unwrap_or(after_start))?;
     }
 
     Ok(ClaudeHookInstall {
@@ -171,7 +173,10 @@ pub fn uninstall_claude_hook_into(
         if let Some(updated) = unmerge_hook_entries(
             &content,
             settings_path,
-            &[("SessionStart", command.as_str()), ("SessionEnd", release_command.as_str())],
+            &[
+                ("SessionStart", command.as_str()),
+                ("SessionEnd", release_command.as_str()),
+            ],
         )? {
             save_settings(settings_path, &updated)?;
             settings_changed = true;
@@ -496,10 +501,10 @@ mod tests {
                     .get("hooks")
                     .and_then(JsonValue::as_array)
                     .is_some_and(|entries| {
-                        entries
-                            .iter()
-                            .any(|entry| entry.get("command").and_then(JsonValue::as_str)
-                                == Some(release_command.as_str()))
+                        entries.iter().any(|entry| {
+                            entry.get("command").and_then(JsonValue::as_str)
+                                == Some(release_command.as_str())
+                        })
                     })
             })
             .expect("our release entry is registered under SessionEnd");
