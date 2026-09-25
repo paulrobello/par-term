@@ -198,19 +198,30 @@ impl WindowState {
             }
         };
 
+        // Append newline if auto_execute is enabled
+        let content_to_write = if snippet.auto_execute {
+            format!("{}\n", substituted_content)
+        } else {
+            substituted_content.clone()
+        };
+
         // Write to the active terminal
-        if let Some(tab) = self.tab_manager.active_tab_mut() {
+        if let Some(tab) = self.tab_manager.active_tab() {
+            // A mux tab's `tab.terminal` is a hidden login shell — route
+            // daemon panes first; only a local target falls through.
+            if self.route_mux_tab_write(tab, content_to_write.as_bytes()) {
+                log::info!(
+                    "Executed snippet '{}' (auto_execute={})",
+                    snippet.title,
+                    snippet.auto_execute
+                );
+                return true;
+            }
+
             // try_lock: intentional -- execute_snippet called from keybinding handler in
             // sync event loop. On miss: the snippet is not sent to the terminal this
             // invocation. The user can trigger the keybinding again.
             if let Ok(terminal) = tab.terminal.try_read() {
-                // Append newline if auto_execute is enabled
-                let content_to_write = if snippet.auto_execute {
-                    format!("{}\n", substituted_content)
-                } else {
-                    substituted_content.clone()
-                };
-
                 if let Err(e) = terminal.write(content_to_write.as_bytes()) {
                     log::error!("Failed to write snippet to terminal: {}", e);
                     return false;

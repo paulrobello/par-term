@@ -24,7 +24,14 @@ impl WindowState {
             };
 
         // Write to the active terminal
-        if let Some(tab) = self.tab_manager.active_tab_mut() {
+        if let Some(tab) = self.tab_manager.active_tab() {
+            // A mux tab's `tab.terminal` is a hidden login shell — route
+            // daemon panes first; only a local target falls through.
+            if self.route_mux_tab_write(tab, substituted_text.as_bytes()) {
+                log::info!("Executed insert text action");
+                return true;
+            }
+
             // try_lock: intentional -- execute_custom_action runs from keybinding
             // handler in sync event loop. On miss: the action text is not written.
             // Logged as an error so the user is aware; they can retry the keybinding.

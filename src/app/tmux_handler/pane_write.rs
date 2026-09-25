@@ -172,6 +172,51 @@ mod tests {
     }
 
     #[test]
+    fn snippet_write_routes_to_the_daemon_pane() {
+        let mut config = Config::default();
+        config.snippets.push(
+            serde_yaml_ng::from_str::<crate::config::snippets::SnippetConfig>(
+                "id: snip\ntitle: Snip\ncontent: mux-write-needle",
+            )
+            .expect("snippet config"),
+        );
+        let (mut ws, sent, tab_id, pane) = mux_state_with_recorder("pane-write-snippet", config);
+        let _ = (tab_id, pane);
+
+        assert!(ws.execute_snippet("snip"), "snippet must execute");
+        assert_eq!(
+            *sent.lock().unwrap(),
+            vec![format!("send-keys -t %0 -H {}", hex_of("mux-write-needle"))],
+            "the snippet must reach the daemon pane, not the hidden shell"
+        );
+    }
+
+    #[test]
+    fn insert_text_action_routes_to_the_daemon_pane() {
+        use crate::config::snippets::CustomActionConfig;
+        let mut config = Config::default();
+        config.actions.push(CustomActionConfig::InsertText {
+            id: "act".to_string(),
+            title: "Act".to_string(),
+            text: "insert-needle".to_string(),
+            variables: Default::default(),
+            keybinding: None,
+            prefix_char: None,
+            keybinding_enabled: true,
+            description: None,
+        });
+        let (mut ws, sent, tab_id, pane) = mux_state_with_recorder("pane-write-insert", config);
+        let _ = (tab_id, pane);
+
+        assert!(ws.execute_custom_action("act"), "action must execute");
+        assert_eq!(
+            *sent.lock().unwrap(),
+            vec![format!("send-keys -t %0 -H {}", hex_of("insert-needle"))],
+            "InsertText must reach the daemon pane, not the hidden shell"
+        );
+    }
+
+    #[test]
     fn local_tab_writes_do_not_route() {
         let mut ws = WindowState::new(Config::default(), test_runtime());
         ws.tab_manager

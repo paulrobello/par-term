@@ -21,21 +21,36 @@ impl WindowState {
         };
 
         // Write all key sequences to the terminal
-        let write_error = if let Some(tab) = self.tab_manager.active_tab_mut() {
-            // try_lock: intentional -- send_keys action in sync event loop.
-            // On miss: the key sequences are not written. User can retry.
-            if let Ok(terminal) = tab.terminal.try_read() {
-                let mut err: Option<String> = None;
-                for bytes in &byte_sequences {
-                    if let Err(e) = terminal.write(bytes) {
-                        err = Some(format!("{}", e));
-                        break;
+        let write_error = if let Some(tab) = self.tab_manager.active_tab() {
+            // A mux tab's `tab.terminal` is a hidden login shell — route
+            // daemon panes first (one send-keys for the whole stream, the
+            // byte-stream equivalent of the per-sequence writes below);
+            // only a local target falls through.
+            let mut all_bytes = Vec::new();
+            for bytes in &byte_sequences {
+                all_bytes.extend_from_slice(bytes);
+            }
+            if self.route_mux_tab_write(tab, &all_bytes) {
+                None
+            } else {
+                // try_lock: intentional -- send_keys action in sync event loop.
+                // On miss: the key sequences are not written. User can retry.
+                match tab.terminal.try_read() {
+                    Ok(terminal) => {
+                        let mut err: Option<String> = None;
+                        for bytes in &byte_sequences {
+                            if let Err(e) = terminal.write(bytes) {
+                                err = Some(format!("{}", e));
+                                break;
+                            }
+                        }
+                        err
+                    }
+                    Err(_) => {
+                        log::error!("Failed to lock terminal for key sequence execution");
+                        return false;
                     }
                 }
-                err
-            } else {
-                log::error!("Failed to lock terminal for key sequence execution");
-                return false;
             }
         } else {
             return false;
