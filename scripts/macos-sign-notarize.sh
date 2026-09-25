@@ -90,16 +90,18 @@ if ! security find-identity -v -p codesigning "$KEYCHAIN_PATH" | grep -qF "$MACO
 fi
 
 echo "==> Signing $APP_NAME"
-codesign --force --timestamp --options runtime \
-  --keychain "$KEYCHAIN_PATH" --sign "$MACOS_SIGNING_IDENTITY" \
-  "$APP_ABS/Contents/MacOS/par-term"
-# The bundled par-mux daemon sits next to the app binary and must carry the
-# same signature or Gatekeeper refuses to launch it on first spawn.
+# The bundled par-mux daemon must carry the same signature or Gatekeeper
+# refuses to launch it on first spawn. Sign it before par-term: codesign
+# treats par-term as the bundle's main executable and refuses it while any
+# sibling in Contents/MacOS is unsigned ("In subcomponent: …/par-mux").
 if [ -f "$APP_ABS/Contents/MacOS/par-mux" ]; then
   codesign --force --timestamp --options runtime \
     --keychain "$KEYCHAIN_PATH" --sign "$MACOS_SIGNING_IDENTITY" \
     "$APP_ABS/Contents/MacOS/par-mux"
 fi
+codesign --force --timestamp --options runtime \
+  --keychain "$KEYCHAIN_PATH" --sign "$MACOS_SIGNING_IDENTITY" \
+  "$APP_ABS/Contents/MacOS/par-term"
 codesign --force --timestamp --options runtime \
   --keychain "$KEYCHAIN_PATH" --sign "$MACOS_SIGNING_IDENTITY" \
   "$APP_ABS"
@@ -108,6 +110,11 @@ codesign --verify --deep --strict --verbose=2 "$APP_ABS"
 if ! codesign -dv --verbose=4 "$APP_ABS" 2>&1 | grep -qF "TeamIdentifier=$APPLE_TEAM_ID"; then
   echo "::error::signed bundle does not report TeamIdentifier=$APPLE_TEAM_ID (ad-hoc signature?)." >&2
   codesign -dv --verbose=4 "$APP_ABS" >&2 2>&1 || true
+  exit 1
+fi
+if [ -f "$APP_ABS/Contents/MacOS/par-mux" ] \
+  && ! codesign -dv --verbose=4 "$APP_ABS/Contents/MacOS/par-mux" 2>&1 | grep -qF "TeamIdentifier=$APPLE_TEAM_ID"; then
+  echo "::error::bundled par-mux does not report TeamIdentifier=$APPLE_TEAM_ID." >&2
   exit 1
 fi
 
