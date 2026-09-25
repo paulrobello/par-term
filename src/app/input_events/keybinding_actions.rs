@@ -112,9 +112,17 @@ pub(crate) static ACTION_HANDLERS: &[(&str, ActionHandler)] = &[
         // commands-dir watcher (design 2026-09-24).
         plugin_rows.extend(s.agent_commands.palette_rows());
         // Rostered agents join the palette at open time (A2b task 3): the
-        // rows are runtime data from the cache, like the plugin rows.
+        // rows are runtime data from the cache, like the plugin rows —
+        // scoped to panes the app maps, so every offered row is focusable.
         #[cfg(feature = "mux")]
-        plugin_rows.extend(s.tmux_state.agent_roster.palette_rows());
+        {
+            let map = &s.tmux_state.tmux_pane_to_native_pane;
+            plugin_rows.extend(
+                s.tmux_state
+                    .agent_roster
+                    .palette_rows(&|pane| map.contains_key(&pane)),
+            );
+        }
         // The attached par-mux session's detach row joins the same way —
         // a runtime row, present only while a transport is installed.
         #[cfg(feature = "mux")]

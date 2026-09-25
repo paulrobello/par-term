@@ -114,6 +114,12 @@ impl WindowState {
             }
         }
 
+        // The daemon sends no agent-roster removal push, so this
+        // reconciliation is the close signal for the cache too — without
+        // it, a closed pane's entry lingers until the next attach fill.
+        #[cfg(feature = "mux")]
+        self.tmux_state.agent_roster.remove_panes(panes_to_remove);
+
         if focused_pane_removed && let Some(new_focus) = panes_to_keep.iter().next().copied() {
             crate::debug_info!(
                 "TMUX",

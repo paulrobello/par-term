@@ -15,6 +15,16 @@
 //! pane that stops reporting drops out at the next fill), states are kept
 //! verbatim with nothing inferred, and each entry keeps the provenance
 //! (`hook` claim vs `scrape` guess) the daemon recorded.
+//!
+//! The cache mirrors the daemon, and the daemon is cross-session: its
+//! `list-agents` and `%agent-state-changed` pushes cover every session it
+//! owns, not just the attached one. The SURFACES are scoped instead — every
+//! render method takes a `visible` predicate, and the call sites pass "the
+//! app currently maps this pane to a native pane". A mapped pane is by
+//! construction a pane of the attached session, so other sessions' agents
+//! never render, and a closed pane drops out the moment the layout
+//! reconciliation drops its mapping. `remove_panes` keeps the cache itself
+//! honest for the close signal the app does receive.
 
 use par_term_mux::{AgentEntry, AgentSource};
 use par_term_tmux::TmuxPaneId;
@@ -44,10 +54,22 @@ impl AgentRoster {
 
     /// Apply one `%agent-state-changed` push: an upsert, because the push
     /// is per pane and a later push replaces the earlier state. There is
-    /// no removal push — a pane leaves the roster at the next fill or
-    /// when the roster clears.
+    /// no removal push — a pane leaves the roster at the next fill, at
+    /// the layout reconciliation's close signal ([`Self::remove_panes`]),
+    /// or when the roster clears.
     pub(crate) fn apply_push(&mut self, entry: AgentEntry) {
         self.entries.insert(entry.pane, entry);
+    }
+
+    /// Drop the entries for closed panes — the daemon sends no removal
+    /// push, so the layout reconciliation's `panes_to_remove` is the app's
+    /// only close signal. Without this, a closed pane's entry lingers in
+    /// the cache until the next attach fill (its surface row hides with
+    /// the mapping gone, but the cache would be lying about the daemon).
+    pub(crate) fn remove_panes(&mut self, panes: &[TmuxPaneId]) {
+        for pane in panes {
+            self.entries.remove(pane);
+        }
     }
 
     /// Drop every entry — the transport died or the session ended, and a
@@ -67,14 +89,13 @@ impl AgentRoster {
     /// inferred), ordered by count desc then state asc for determinism. A `~`
     /// marks scrape-sourced counts (detected, not reported) — one character
     /// per affected group; mixed groups split as `2+1~`. `None` hides the
-    /// widget (empty roster / no mux session).
-    pub(crate) fn summary_line(&self) -> Option<String> {
-        if self.entries.is_empty() {
-            return None;
-        }
+    /// widget (empty roster / no mux session). `visible` scopes the count to
+    /// the attached session (see the module doc: the cache is cross-session,
+    /// the surfaces are not).
+    pub(crate) fn summary_line(&self, visible: &dyn Fn(TmuxPaneId) -> bool) -> Option<String> {
         let mut groups: std::collections::BTreeMap<&str, (u32, u32)> =
             std::collections::BTreeMap::new();
-        for entry in self.iter() {
+        for entry in self.iter().filter(|e| visible(e.pane)) {
             let counts = groups.entry(entry.state.as_str()).or_insert((0, 0));
             match entry.source {
                 AgentSource::Hook => counts.0 += 1,
@@ -93,6 +114,11 @@ impl AgentRoster {
             })
             .collect();
         parts.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(b.1)));
+        if parts.is_empty() {
+            // Every entry is out of scope (other sessions / unmapped panes):
+            // same hiding as an empty roster, not a bare glyph with no count.
+            return None;
+        }
         let breakdown = parts
             .into_iter()
             .map(|(_, state, count_text)| format!("{count_text} {state}"))
@@ -104,13 +130,12 @@ impl AgentRoster {
     /// Multi-line hover text for the status-bar widget: one line per agent
     /// with pane, state, and provenance ("reported" = hook claim, "detected"
     /// = scrape guess), plus the reason when the wire carries one. `None`
-    /// hides the tooltip.
-    pub(crate) fn tooltip_text(&self) -> Option<String> {
-        if self.entries.is_empty() {
-            return None;
-        }
+    /// hides the tooltip. `visible` scopes the lines to the attached
+    /// session, like [`Self::summary_line`].
+    pub(crate) fn tooltip_text(&self, visible: &dyn Fn(TmuxPaneId) -> bool) -> Option<String> {
         let lines: Vec<String> = self
             .iter()
+            .filter(|e| visible(e.pane))
             .map(|entry| {
                 let source = match entry.source {
                     AgentSource::Hook => "reported",
@@ -126,6 +151,9 @@ impl AgentRoster {
                 line
             })
             .collect();
+        if lines.is_empty() {
+            return None;
+        }
         Some(lines.join("\n"))
     }
 
@@ -142,9 +170,18 @@ impl AgentRoster {
     /// - priority — 2 for blocked agents, 1 for the rest, so the picker
     ///   answers "who is waiting" first; pane order is preserved within
     ///   each tier (stable sort over the pane-ordered cache).
-    pub(crate) fn palette_rows(&self) -> Vec<crate::command_palette::catalog::PaletteEntry> {
+    ///
+    /// `visible` scopes the rows to the attached session (the module doc's
+    /// rule): a row the picker offers must be a pane `focus_agent_roster_pane`
+    /// can actually focus, and an unmapped pane — another session's agent, a
+    /// closed pane mid-reconciliation — is not focusable.
+    pub(crate) fn palette_rows(
+        &self,
+        visible: &dyn Fn(TmuxPaneId) -> bool,
+    ) -> Vec<crate::command_palette::catalog::PaletteEntry> {
         let mut rows: Vec<crate::command_palette::catalog::PaletteEntry> = self
             .iter()
+            .filter(|e| visible(e.pane))
             .map(|entry| {
                 let mut state = entry.state.clone();
                 if matches!(entry.source, AgentSource::Scrape) {
@@ -186,6 +223,12 @@ mod tests {
             source,
             reason: None,
         }
+    }
+
+    /// The `visible` every pre-scoping test used implicitly: all panes in
+    /// scope. The scoping behavior itself has its own tests below.
+    fn all_panes(_: TmuxPaneId) -> bool {
+        true
     }
 
     #[test]
@@ -236,8 +279,8 @@ mod tests {
     #[test]
     fn summary_and_tooltip_hide_when_empty() {
         let roster = AgentRoster::new();
-        assert_eq!(roster.summary_line(), None);
-        assert_eq!(roster.tooltip_text(), None);
+        assert_eq!(roster.summary_line(&all_panes), None);
+        assert_eq!(roster.tooltip_text(&all_panes), None);
     }
 
     #[test]
@@ -252,7 +295,7 @@ mod tests {
         // Largest group first; `~` marks the scrape-sourced count within a
         // group without doubling the widget's width.
         assert_eq!(
-            roster.summary_line().as_deref(),
+            roster.summary_line(&all_panes).as_deref(),
             Some("\u{1f465} 2 blocked, 1+1~ working")
         );
     }
@@ -262,7 +305,7 @@ mod tests {
         let mut roster = AgentRoster::new();
         roster.apply_push(entry(5, "grok", "waiting", AgentSource::Scrape));
         assert_eq!(
-            roster.summary_line().as_deref(),
+            roster.summary_line(&all_panes).as_deref(),
             Some("\u{1f465} 1~ waiting")
         );
     }
@@ -275,7 +318,7 @@ mod tests {
             entry(1, "claude", "blocked", AgentSource::Hook),
         ]);
         assert_eq!(
-            roster.summary_line().as_deref(),
+            roster.summary_line(&all_panes).as_deref(),
             Some("\u{1f465} 1 blocked, 1 working")
         );
     }
@@ -292,7 +335,7 @@ mod tests {
             reason: Some("waiting on approval".to_string()),
         });
         assert_eq!(
-            roster.tooltip_text().as_deref(),
+            roster.tooltip_text(&all_panes).as_deref(),
             Some(
                 "kimi · working · reported (pane 0)\npi · blocked · detected (pane 4) — waiting on approval"
             )
@@ -301,7 +344,7 @@ mod tests {
 
     #[test]
     fn palette_rows_empty_roster_yields_none() {
-        assert!(AgentRoster::new().palette_rows().is_empty());
+        assert!(AgentRoster::new().palette_rows(&all_panes).is_empty());
     }
 
     #[test]
@@ -313,7 +356,7 @@ mod tests {
             entry(2, "omp", "idle", AgentSource::Hook),
             entry(3, "grok", "blocked", AgentSource::Hook),
         ]);
-        let rows = roster.palette_rows();
+        let rows = roster.palette_rows(&all_panes);
         let ids: Vec<&str> = rows.iter().map(|r| r.action_id.as_str()).collect();
         assert_eq!(
             ids,
@@ -338,11 +381,65 @@ mod tests {
             source: AgentSource::Scrape,
             reason: Some("waiting on approval".to_string()),
         });
-        let rows = roster.palette_rows();
+        let rows = roster.palette_rows(&all_panes);
         // Blocked row leads; scrape marker and reason both render; hook rows
         // and reason-less rows degrade cleanly to the plain label.
         assert_eq!(rows[0].label, "pi: blocked~ — waiting on approval");
         assert_eq!(rows[1].label, "kimi: working");
         assert!(rows.iter().all(|r| r.chord.is_none()));
+    }
+
+    #[test]
+    fn remove_panes_drops_only_the_listed() {
+        let mut roster = AgentRoster::new();
+        roster.fill_from_list(vec![
+            entry(0, "kimi", "working", AgentSource::Hook),
+            entry(1, "claude", "blocked", AgentSource::Hook),
+            entry(2, "omp", "idle", AgentSource::Scrape),
+        ]);
+        roster.remove_panes(&[1]);
+        let panes: Vec<_> = roster.iter().map(|e| e.pane).collect();
+        assert_eq!(
+            panes,
+            vec![0, 2],
+            "the closed pane's entry dies with it; survivors keep theirs"
+        );
+        // A pane that re-reports later re-enters normally (upsert).
+        roster.apply_push(entry(1, "claude", "working", AgentSource::Hook));
+        assert_eq!(roster.iter().count(), 3);
+    }
+
+    /// AC of the stale-entries card: the daemon's roster is cross-session
+    /// and its pushes have no removal, so the SURFACES must scope to what
+    /// the app can see and focus. Pane 5 is unmapped (another session's
+    /// agent, or a pane closed before reconciliation) — it must not count,
+    /// hover, or offer a focus row; pane 0 must render exactly as before.
+    #[test]
+    fn surfaces_scope_to_panes_the_app_maps() {
+        let mut roster = AgentRoster::new();
+        roster.fill_from_list(vec![
+            entry(0, "kimi", "working", AgentSource::Hook),
+            entry(5, "claude", "blocked", AgentSource::Hook),
+        ]);
+        let visible = |pane: TmuxPaneId| pane == 0;
+        assert_eq!(
+            roster.summary_line(&visible).as_deref(),
+            Some("\u{1f465} 1 working"),
+            "the unmapped pane must not count even when blocked"
+        );
+        assert_eq!(
+            roster.tooltip_text(&visible).as_deref(),
+            Some("kimi · working · reported (pane 0)")
+        );
+        let rows = roster.palette_rows(&visible);
+        let ids: Vec<&str> = rows.iter().map(|r| r.action_id.as_str()).collect();
+        assert_eq!(ids, ["agent-roster-focus:0"]);
+
+        // Nothing in scope hides the widget/tooltip like an empty roster
+        // — a bare glyph with no count would be a lie, not a scope.
+        let none_visible = |_: TmuxPaneId| false;
+        assert_eq!(roster.summary_line(&none_visible), None);
+        assert_eq!(roster.tooltip_text(&none_visible), None);
+        assert!(roster.palette_rows(&none_visible).is_empty());
     }
 }

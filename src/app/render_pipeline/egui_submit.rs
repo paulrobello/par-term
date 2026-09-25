@@ -96,9 +96,16 @@ impl WindowState {
         // the widget self-hides.
         #[cfg(feature = "mux")]
         {
-            let roster = &self.tmux_state.agent_roster;
-            self.status_bar_ui.agent_roster_summary = roster.summary_line();
-            self.status_bar_ui.agent_roster_tooltip = roster.tooltip_text();
+            let tmux_state = &self.tmux_state;
+            let roster = &tmux_state.agent_roster;
+            // Scope the widget to the attached session: a mapped pane is by
+            // construction one of this session's panes, so other sessions'
+            // agents and closed-but-unreconciled panes never render.
+            let visible = |pane: par_term_tmux::TmuxPaneId| {
+                tmux_state.tmux_pane_to_native_pane.contains_key(&pane)
+            };
+            self.status_bar_ui.agent_roster_summary = roster.summary_line(&visible);
+            self.status_bar_ui.agent_roster_tooltip = roster.tooltip_text(&visible);
         }
         #[cfg(not(feature = "mux"))]
         {
@@ -465,7 +472,14 @@ impl WindowState {
                                     &self.status_bar_ui.plugin_host().palette_actions(),
                                 );
                             #[cfg(feature = "mux")]
-                            plugin_rows.extend(self.tmux_state.agent_roster.palette_rows());
+                            {
+                                let map = &self.tmux_state.tmux_pane_to_native_pane;
+                                plugin_rows.extend(
+                                    self.tmux_state
+                                        .agent_roster
+                                        .palette_rows(&|pane| map.contains_key(&pane)),
+                                );
+                            }
                             // Agent-authored commands join the palette the
                             // same way (runtime rows from the store).
                             plugin_rows.extend(self.agent_commands.palette_rows());

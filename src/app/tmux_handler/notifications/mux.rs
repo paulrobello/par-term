@@ -1201,6 +1201,112 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
+    /// Card 01a0d9b3903a: closing a pane removes its roster entry. The
+    /// daemon sends no removal push, so the %layout-change reconciliation
+    /// (`handle_pane_removal`) is the close signal for the cache — before
+    /// it, the status widget kept counting a closed pane's agent as
+    /// blocked and the picker offered a row focus could not land on.
+    #[test]
+    fn closing_a_pane_removes_its_roster_entry() {
+        let path = socket_path("roster-close");
+        spawn_daemon(&path);
+
+        // Attach + map %0 (the close test's ladder).
+        let core_client = par_term_emu_core_rust::mux::MuxClient::connect(&path).expect("connect");
+        let (tx, rx) = std::sync::mpsc::channel();
+        tx.send(Ok(core_client)).unwrap();
+        drop(tx);
+        let mut ws = manners_state();
+        ws.tmux_state.mux_attach_pending = Some(MuxAttachPending {
+            name: "rosterclose".to_string(),
+            rx,
+        });
+        ws.poll_mux_attach();
+        assert!(ws.tmux_state.transport.is_some(), "attach must install");
+        ws.handle_tmux_window_add(0);
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !ws.tmux_state.tmux_pane_to_native_pane.contains_key(&0) {
+            assert!(
+                Instant::now() < deadline,
+                "the layout consumer never mapped %0"
+            );
+            ws.tmux_state
+                .transport
+                .as_ref()
+                .expect("transport")
+                .send_command("refresh-client -t %0 -C 80x24")
+                .expect("size push broadcasts %layout-change");
+            ws.check_mux_notifications();
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        assert!(ws.split_pane_via_mux(true), "split gives %1 to close");
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !ws.tmux_state.tmux_pane_to_native_pane.contains_key(&1) {
+            assert!(
+                Instant::now() < deadline,
+                "the layout consumer never mapped the split pane %1"
+            );
+            ws.check_mux_notifications();
+            std::thread::sleep(Duration::from_millis(50));
+        }
+
+        // Both panes report: the widget counts both, scoped to mapped panes
+        // exactly as the egui refresh site scopes them.
+        ws.apply_agent_pushes(vec![
+            push("%0", "kimi", "working", "hook"),
+            push("%1", "claude", "blocked", "hook"),
+        ]);
+        let scoped_summary = |ws: &WindowState| {
+            let map = &ws.tmux_state.tmux_pane_to_native_pane;
+            ws.tmux_state
+                .agent_roster
+                .summary_line(&|pane| map.contains_key(&pane))
+        };
+        assert_eq!(
+            scoped_summary(&ws).as_deref(),
+            Some("\u{1f465} 1 blocked, 1 working")
+        );
+
+        // Close %1 (the split's new pane holds focus) and let the layout
+        // reconciliation deliver the close signal.
+        assert!(
+            ws.close_pane_via_mux(),
+            "close must be consumed daemon-side"
+        );
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while ws.tmux_state.tmux_pane_to_native_pane.contains_key(&1) {
+            assert!(
+                Instant::now() < deadline,
+                "the killed pane's mapping was never reconciled away"
+            );
+            ws.check_mux_notifications();
+            std::thread::sleep(Duration::from_millis(50));
+        }
+
+        // The cache dropped the closed pane's entry (not just its surface
+        // row), and the survivor still counts.
+        let rosterd: Vec<u64> = ws.tmux_state.agent_roster.iter().map(|e| e.pane).collect();
+        assert_eq!(rosterd, vec![0], "the closed pane's entry must be gone");
+        assert_eq!(
+            scoped_summary(&ws).as_deref(),
+            Some("\u{1f465} 1 working"),
+            "the widget must stop counting the closed pane's agent"
+        );
+        let map = &ws.tmux_state.tmux_pane_to_native_pane;
+        let rows = ws
+            .tmux_state
+            .agent_roster
+            .palette_rows(&|pane| map.contains_key(&pane));
+        let ids: Vec<&str> = rows.iter().map(|r| r.action_id.as_str()).collect();
+        assert_eq!(
+            ids,
+            ["agent-roster-focus:0"],
+            "the picker must not offer the closed pane"
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
     #[test]
     fn mux_palette_rows_track_the_attached_transport() {
         let mut ws = manners_state();
