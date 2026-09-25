@@ -44,6 +44,8 @@ Opening a profile with `mux_session_name` in a window starts the attach; every w
 
 A par-term window holds one par-mux session at a time. Opening a second mux profile in a window that is already attached (or still attaching) does nothing; open it in a new par-term window instead. There is no workspace or tab level above the session — to keep separate groups of sessions apart, run separate daemons (`par-mux <name>` gives each its own socket).
 
+A par-term launched **from inside a par-mux pane** refuses to attach to the session that owns that pane (it would render the session inside itself — a display feedback loop); the refusal surfaces as a toast. Attaching to a *different* daemon from inside a pane is allowed when that daemon is already running; starting one there follows the core's nesting rule (`PAR_MUX_ALLOW_NESTED=1` overrides, same as for the daemon itself).
+
 ## Requirements
 
 - **The `mux` feature** — on by default in every par-term build since the core library's 0.50 release.

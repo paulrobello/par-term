@@ -213,6 +213,32 @@ pub(crate) fn attach_sequence(
     })
 }
 
+/// Why attaching to `target_socket` would render this window inside
+/// itself: par-term launched from a par-mux pane inherits the pane's
+/// identity (`PAR_MUX_ENV=1` + `PAR_MUX_SOCKET`, the pane env contract in
+/// core `mux::pane`), so attaching to the daemon that owns that pane
+/// mirrors the owning session into the pane that owns it — a display
+/// feedback loop. `None` when the attach is fine: not inside a pane, or
+/// targeting a different daemon.
+///
+/// Attaching to a DIFFERENT daemon from inside a pane stays the core
+/// nesting rule's case: connecting to a live server is allowed, and
+/// auto-spawning one is refused by core `nested_daemon_refusal` (override
+/// `PAR_MUX_ALLOW_NESTED=1`) inside `MuxClient::connect_or_spawn_at` —
+/// the worker in [`WindowState::begin_mux_session_attach`] surfaces that
+/// refusal through its error toast unchanged.
+pub(crate) fn mux_attach_refusal(target_socket: &std::path::Path) -> Option<&'static str> {
+    std::env::var_os("PAR_MUX_ENV")?;
+    let outer = std::env::var_os("PAR_MUX_SOCKET")?;
+    if std::path::Path::new(&outer) == target_socket {
+        return Some(
+            "this par-term already runs inside that par-mux session — attaching \
+             would render the session inside itself",
+        );
+    }
+    None
+}
+
 /// Give the next pane spawned in session `$session` its own
 /// `ITERM_SESSION_ID`. The variable lives in the shared session
 /// environment, so par-term restamps it before every pane it asks the
@@ -388,6 +414,15 @@ impl WindowState {
     /// second request while one is already in flight is ignored.
     pub(crate) fn begin_mux_session_attach(&mut self, name: &str) {
         if self.tmux_state.transport.is_some() || self.tmux_state.mux_attach_pending.is_some() {
+            return;
+        }
+        // The self-attach guard runs before the worker spawns so a refusal
+        // leaves no pending state and no transport behind.
+        if let Some(reason) =
+            mux_attach_refusal(&par_term_emu_core_rust::mux::ipc::default_socket_path(name))
+        {
+            log::error!("par-mux attach to '{name}' refused: {reason}");
+            self.show_toast(format!("par-mux: attach to '{name}' refused — {reason}"));
             return;
         }
         let (tx, rx) = std::sync::mpsc::channel();
@@ -2108,6 +2143,106 @@ out.flush()
         assert!(
             ws.focus_state.pending_focus_tab_switch.is_none(),
             "a roster update must not queue a tab switch"
+        );
+    }
+
+    /// Run `f` with the pane-identity env a par-mux pane exports (core
+    /// `mux::pane`'s contract), restoring whatever the test process had
+    /// before — the agent_usage env-test containment: sole writer of these
+    /// keys, restored before returning.
+    fn with_pane_env<T>(socket: &Path, f: impl FnOnce() -> T) -> T {
+        let saved_env = std::env::var_os("PAR_MUX_ENV");
+        let saved_socket = std::env::var_os("PAR_MUX_SOCKET");
+        // SAFETY: sole writer of both keys for the duration of `f`.
+        unsafe {
+            std::env::set_var("PAR_MUX_ENV", "1");
+            std::env::set_var("PAR_MUX_SOCKET", socket);
+        }
+        let out = f();
+        // SAFETY: restoring the sole-writer keys.
+        unsafe {
+            match saved_env {
+                Some(v) => std::env::set_var("PAR_MUX_ENV", v),
+                None => std::env::remove_var("PAR_MUX_ENV"),
+            }
+            match saved_socket {
+                Some(v) => std::env::set_var("PAR_MUX_SOCKET", v),
+                None => std::env::remove_var("PAR_MUX_SOCKET"),
+            }
+        }
+        out
+    }
+
+    /// Run `f` with the pane-identity env removed — the launched-outside-
+    /// any-pane case. The test process may itself run inside a mux pane,
+    /// so absence cannot be assumed, only imposed.
+    fn without_pane_env<T>(f: impl FnOnce() -> T) -> T {
+        let saved_env = std::env::var_os("PAR_MUX_ENV");
+        let saved_socket = std::env::var_os("PAR_MUX_SOCKET");
+        // SAFETY: sole writer of both keys for the duration of `f`.
+        unsafe {
+            std::env::remove_var("PAR_MUX_ENV");
+            std::env::remove_var("PAR_MUX_SOCKET");
+        }
+        let out = f();
+        // SAFETY: restoring the sole-writer keys.
+        unsafe {
+            match saved_env {
+                Some(v) => std::env::set_var("PAR_MUX_ENV", v),
+                None => std::env::remove_var("PAR_MUX_ENV"),
+            }
+            match saved_socket {
+                Some(v) => std::env::set_var("PAR_MUX_SOCKET", v),
+                None => std::env::remove_var("PAR_MUX_SOCKET"),
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn self_attach_guard_refuses_only_the_owning_socket() {
+        let same = socket_path("guard");
+        let other = socket_path("guard-other");
+
+        let (refused, other_allowed) = with_pane_env(&same, || {
+            (mux_attach_refusal(&same), mux_attach_refusal(&other))
+        });
+        let reason = refused.expect("attaching to the owning socket must be refused");
+        assert!(
+            reason.contains("inside"),
+            "the refusal must name why: {reason}"
+        );
+        assert_eq!(
+            other_allowed, None,
+            "a different daemon is the core nesting case, not a self-attach"
+        );
+
+        let outer_allowed = without_pane_env(|| mux_attach_refusal(&same));
+        assert_eq!(
+            outer_allowed, None,
+            "outside any pane the attach must proceed exactly as before"
+        );
+    }
+
+    #[test]
+    fn begin_attach_to_the_owning_session_creates_no_transport() {
+        let name = "self-attach-guard";
+        let target = par_term_emu_core_rust::mux::ipc::default_socket_path(name);
+        let mut ws = manners_state();
+        with_pane_env(&target, || {
+            ws.begin_mux_session_attach(name);
+        });
+        assert!(
+            ws.tmux_state.transport.is_none() && ws.tmux_state.mux_attach_pending.is_none(),
+            "a refused attach must leave no transport and no pending worker behind"
+        );
+        assert!(
+            ws.overlay_state
+                .toast_message
+                .as_deref()
+                .is_some_and(|t| t.contains("refused")),
+            "the refusal must toast, got {:?}",
+            ws.overlay_state.toast_message
         );
     }
 }
