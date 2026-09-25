@@ -334,15 +334,12 @@ impl WindowState {
 
             if is_paste {
                 if let Some(text) = self.input_handler.paste_from_clipboard() {
-                    let text = crate::paste_transform::sanitize_paste_content(&text);
                     log::debug!("Paste: got {} chars of text from clipboard", text.len());
-                    if let Some(tab) = self.tab_manager.active_tab() {
-                        let terminal_clone = Arc::clone(&tab.terminal);
-                        self.runtime.spawn(async move {
-                            let term = terminal_clone.read().await;
-                            let _ = term.paste(&text);
-                        });
-                    }
+                    // paste_text sanitizes and routes: daemon pane in a mux
+                    // tab, focused pane's terminal locally. The old inline
+                    // paste wrote tab.terminal — the hidden shell in a mux
+                    // tab.
+                    self.paste_text(&text);
                 } else if self.input_handler.clipboard_has_image() {
                     // Clipboard has an image but no text — forward as Ctrl+V (0x16) so
                     // image-aware child processes (e.g., Claude Code) can handle image paste
@@ -350,13 +347,20 @@ impl WindowState {
                         "Paste: clipboard has image but no text, forwarding Ctrl+V to terminal"
                     );
                     if let Some(tab) = self.tab_manager.active_tab() {
-                        let terminal_clone = Arc::clone(&tab.terminal);
-                        self.runtime.spawn(async move {
-                            let term = terminal_clone.read().await;
-                            if let Err(e) = term.write(b"\x16") {
-                                crate::debug_error!("INPUT", "PTY write failed (image paste): {e}");
-                            }
-                        });
+                        // A mux tab's `tab.terminal` is a hidden login shell —
+                        // route the daemon pane first.
+                        if !self.route_mux_tab_write(tab, b"\x16") {
+                            let terminal_clone = Arc::clone(&tab.terminal);
+                            self.runtime.spawn(async move {
+                                let term = terminal_clone.read().await;
+                                if let Err(e) = term.write(b"\x16") {
+                                    crate::debug_error!(
+                                        "INPUT",
+                                        "PTY write failed (image paste): {e}"
+                                    );
+                                }
+                            });
+                        }
                     }
                 } else {
                     log::debug!("Paste: clipboard has neither text nor image");
@@ -535,6 +539,38 @@ impl WindowState {
                 if send_csi_u {
                     bytes = b"\x1b[13;2u".to_vec();
                 }
+            }
+
+            // Broadcast claims the key before single-pane routing: further
+            // down, send_input_via_tmux would route it to the focused pane
+            // only. Mux-guarded so gateway-tmux tabs keep their existing
+            // ordering (their broadcast branch never ran; the send-keys
+            // claim below owns the key there).
+            if self.broadcast_input
+                && self.tmux_state.transport.is_some()
+                && let Some(tab) = self.tab_manager.active_tab()
+                && let Some(pm) = tab.pane_manager()
+                && pm.has_multiple_panes()
+            {
+                // Daemon panes get the bytes through the transport; local
+                // panes (a split created inside the mux tab) keep the
+                // spawned write the non-mux broadcast branch uses.
+                for pane in pm.all_panes() {
+                    if !self.route_mux_pane_write(tab.id, pane.id, &bytes) {
+                        let terminal_clone = Arc::clone(&pane.terminal);
+                        let bytes_clone = bytes.clone();
+                        self.runtime.spawn(async move {
+                            let term = terminal_clone.read().await;
+                            if let Err(e) = term.write(&bytes_clone) {
+                                crate::debug_error!("INPUT", "PTY write failed (broadcast): {e}");
+                            }
+                        });
+                    }
+                }
+                if let Some(tab) = self.tab_manager.active_tab_mut() {
+                    tab.activity.anti_idle_last_activity = std::time::Instant::now();
+                }
+                return;
             }
 
             // Try to send via tmux if connected (check before borrowing tab)

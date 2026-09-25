@@ -322,9 +322,12 @@ impl WindowState {
             self.focus_state.needs_redraw = true;
         }
 
-        // In tmux gateway mode, route through send-keys so the text reaches
-        // the (now-focused) tmux pane instead of the gateway PTY.
-        if self.is_tmux_connected() && self.paste_via_tmux(&quoted_path) {
+        // Route through send-keys when attached to tmux OR par-mux so the
+        // text reaches the focused daemon/gateway pane instead of the
+        // gateway PTY — or, for a mux mirror (no PTY), nowhere at all.
+        // paste_via_tmux's mux branch does not depend on is_tmux_connected,
+        // which is false for mux tabs.
+        if self.paste_via_tmux(&quoted_path) {
             self.request_redraw();
             return;
         }

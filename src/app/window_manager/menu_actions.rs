@@ -181,16 +181,20 @@ impl WindowManager {
                         // Clipboard has an image but no text — forward as Ctrl+V (0x16) so
                         // image-aware child processes (e.g., Claude Code) can handle image paste
                         if let Some(tab) = window_state.tab_manager.active_tab() {
-                            let terminal_clone = Arc::clone(&tab.terminal);
-                            window_state.runtime.spawn(async move {
-                                let term = terminal_clone.read().await;
-                                if let Err(e) = term.write(b"\x16") {
-                                    crate::debug_error!(
-                                        "INPUT",
-                                        "PTY write failed (menu image paste): {e}"
-                                    );
-                                }
-                            });
+                            // A mux tab's `tab.terminal` is a hidden login
+                            // shell — route the daemon pane first.
+                            if !window_state.route_mux_tab_write(tab, b"\x16") {
+                                let terminal_clone = Arc::clone(&tab.terminal);
+                                window_state.runtime.spawn(async move {
+                                    let term = terminal_clone.read().await;
+                                    if let Err(e) = term.write(b"\x16") {
+                                        crate::debug_error!(
+                                            "INPUT",
+                                            "PTY write failed (menu image paste): {e}"
+                                        );
+                                    }
+                                });
+                            }
                         }
                     }
                 }

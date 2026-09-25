@@ -176,9 +176,13 @@ impl WindowState {
                 match host.ssh_command_line() {
                     Ok(ssh_cmd) => {
                         // The trailing newline is what submits the command.
+                        // A mux tab's `tab.terminal` is a hidden login shell —
+                        // route the daemon pane first.
+                        let cmd_bytes = format!("{ssh_cmd}\n");
                         if let Some(tab) = self.tab_manager.active_tab()
+                            && !self.route_mux_tab_write(tab, cmd_bytes.as_bytes())
                             && let Ok(term) = tab.terminal.try_read()
-                            && let Err(e) = term.write_str(&format!("{}\n", ssh_cmd))
+                            && let Err(e) = term.write_str(&cmd_bytes)
                         {
                             crate::debug_error!(
                                 "TAB_ACTION",
