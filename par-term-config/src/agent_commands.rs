@@ -307,6 +307,27 @@ pub fn delete_command_file(id: &str, dir: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Delete one command file with the user's authority — the Settings UI path.
+/// Unlike [`delete_command_file`] (the MCP path) this removes user-authored
+/// files too: provenance gates what an *agent* may do, not the user. The
+/// id's ledger entry is pruned here as well, so a later command recreated
+/// under the same id with the same body asks for confirmation again.
+pub fn delete_command_file_as_user(id: &str, dir: &Path) -> Result<()> {
+    if !is_valid_command_id(id) {
+        bail!("invalid command id {id:?}");
+    }
+    let path = dir.join(format!("{id}.yaml"));
+    if !path.exists() {
+        bail!("no such command: {id}");
+    }
+    fs::remove_file(&path).with_context(|| format!("deleting {}", path.display()))?;
+    let mut ledger = load_confirmation_ledger(dir);
+    if ledger.remove(id).is_some() {
+        save_confirmation_ledger(&ledger, dir)?;
+    }
+    Ok(())
+}
+
 /// The confirmation ledger: command id → approved body hash.
 pub type ConfirmationLedger = BTreeMap<String, String>;
 
@@ -425,6 +446,31 @@ mod tests {
 
         let err = delete_command_file("mine", dir.path()).unwrap_err();
         assert!(err.to_string().contains("user-authored"));
+    }
+
+    #[test]
+    fn user_delete_removes_user_file_and_prunes_ledger() {
+        let dir = tempfile::tempdir().unwrap();
+        save_command_file(&macro_file("mine"), dir.path()).unwrap();
+        save_command_file(&script_file("theirs"), dir.path()).unwrap();
+        let mut ledger = ConfirmationLedger::new();
+        ledger.insert("theirs".to_string(), "hash".to_string());
+        ledger.insert("other".to_string(), "hash-o".to_string());
+        save_confirmation_ledger(&ledger, dir.path()).unwrap();
+
+        // The MCP path still refuses the user-authored file.
+        assert!(delete_command_file("mine", dir.path()).is_err());
+        delete_command_file_as_user("mine", dir.path()).unwrap();
+        assert!(!dir.path().join("mine.yaml").exists());
+
+        delete_command_file_as_user("theirs", dir.path()).unwrap();
+        assert!(load_all_commands(dir.path()).is_empty());
+        let after = load_confirmation_ledger(dir.path());
+        assert!(!after.contains_key("theirs"));
+        assert_eq!(after.get("other").map(String::as_str), Some("hash-o"));
+
+        assert!(delete_command_file_as_user("mine", dir.path()).is_err());
+        assert!(delete_command_file_as_user("../escape", dir.path()).is_err());
     }
 
     #[test]
