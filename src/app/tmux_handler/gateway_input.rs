@@ -175,10 +175,7 @@ impl WindowState {
     pub(crate) fn focused_mux_pane_from_native(&self) -> Option<u64> {
         let tab = self.tab_manager.active_tab()?;
         let pane = tab.pane_manager()?.focused_pane()?;
-        self.tmux_state
-            .native_pane_to_tmux_pane
-            .get(&pane.id)
-            .copied()
+        self.tmux_state.tmux_pane_in_tab(tab.id, pane.id)
     }
 
     /// Route an encoded mouse report to the focused par-mux pane's daemon

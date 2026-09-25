@@ -243,13 +243,12 @@ impl WindowState {
             );
         }
 
-        // Compute set deltas between existing and new tmux pane IDs
-        let existing_tmux_ids: std::collections::HashSet<_> = self
-            .tmux_state
-            .tmux_pane_to_native_pane
-            .keys()
-            .copied()
-            .collect();
+        // Compute set deltas between existing and new tmux pane IDs —
+        // scoped to this tab: another daemon window's panes are not
+        // "existing" here, or its layout update would be read as a full
+        // recreation and its mappings dropped.
+        let existing_tmux_ids: std::collections::HashSet<_> =
+            self.tmux_state.tab_tmux_pane_ids(tab_id);
         let new_tmux_ids: std::collections::HashSet<_> = pane_ids.iter().copied().collect();
 
         if existing_tmux_ids == new_tmux_ids && !existing_tmux_ids.is_empty() {

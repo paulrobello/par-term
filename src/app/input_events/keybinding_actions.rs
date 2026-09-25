@@ -116,7 +116,7 @@ pub(crate) static ACTION_HANDLERS: &[(&str, ActionHandler)] = &[
         // scoped to panes the app maps, so every offered row is focusable.
         #[cfg(feature = "mux")]
         {
-            let map = &s.tmux_state.tmux_pane_to_native_pane;
+            let map = &s.tmux_state.tmux_pane_owners;
             plugin_rows.extend(
                 s.tmux_state
                     .agent_roster

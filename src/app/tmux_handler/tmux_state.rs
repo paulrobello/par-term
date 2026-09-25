@@ -98,10 +98,12 @@ pub(crate) struct TmuxState {
     /// drain that empties the queue takes `&mut`.
     #[cfg(feature = "mux")]
     pub(crate) pending_mux_paste: std::cell::RefCell<Option<PendingMuxPaste>>,
-    /// Mapping from tmux pane IDs to native pane IDs for output routing
-    pub(crate) tmux_pane_to_native_pane: std::collections::HashMap<TmuxPaneId, PaneId>,
-    /// Reverse mapping from native pane IDs to tmux pane IDs for input routing
-    pub(crate) native_pane_to_tmux_pane: std::collections::HashMap<PaneId, TmuxPaneId>,
+    /// Per-tab pane mappings keyed by the daemon-unique tmux pane id.
+    /// Native pane ids restart at 1 in every tab's PaneManager, so a flat
+    /// window-wide map lets two tabs' pane 1 collide — input, output, and
+    /// layout reconciliation then cross between daemon windows. The owning
+    /// tab travels with the pane id.
+    pub(crate) tmux_pane_owners: std::collections::HashMap<TmuxPaneId, (TabId, PaneId)>,
 }
 
 impl TmuxState {
@@ -124,8 +126,7 @@ impl TmuxState {
             mux_attach_pending: None,
             #[cfg(feature = "mux")]
             pending_mux_paste: std::cell::RefCell::new(None),
-            tmux_pane_to_native_pane: std::collections::HashMap::new(),
-            native_pane_to_tmux_pane: std::collections::HashMap::new(),
+            tmux_pane_owners: std::collections::HashMap::new(),
         }
     }
 
@@ -141,6 +142,68 @@ impl TmuxState {
             (name, false) => (name.clone(), None),
             (None, true) => (None, None),
         }
+    }
+
+    /// Replace `tab_id`'s pane mappings, keeping every other tab's entries
+    /// intact. Each arriving layout describes one daemon window; replacing
+    /// the whole table (the flat-map behavior) unmapped every other
+    /// window's panes.
+    pub(crate) fn set_tab_pane_mappings(
+        &mut self,
+        tab_id: TabId,
+        mappings: &std::collections::HashMap<TmuxPaneId, PaneId>,
+    ) {
+        self.tmux_pane_owners
+            .retain(|_, (owner, _)| *owner != tab_id);
+        self.tmux_pane_owners.extend(
+            mappings
+                .iter()
+                .map(|(&tmux, &native)| (tmux, (tab_id, native))),
+        );
+    }
+
+    /// The owning tab and native pane for a daemon pane.
+    pub(crate) fn tmux_pane_owner(&self, tmux_id: TmuxPaneId) -> Option<(TabId, PaneId)> {
+        self.tmux_pane_owners.get(&tmux_id).copied()
+    }
+
+    /// The daemon pane displayed by `native_id` inside `tab_id`. Input
+    /// routing resolves pane ids hit-tested in the active tab, so the
+    /// (tab, pane) pair — not the pane id alone — identifies the daemon
+    /// pane.
+    pub(crate) fn tmux_pane_in_tab(&self, tab_id: TabId, native_id: PaneId) -> Option<TmuxPaneId> {
+        self.tmux_pane_owners
+            .iter()
+            .find(|(_, (owner, pane))| *owner == tab_id && *pane == native_id)
+            .map(|(&tmux, _)| tmux)
+    }
+
+    /// `tab_id`'s daemon panes — the existing set for layout delta
+    /// reconciliation, which must not see other windows' panes.
+    pub(crate) fn tab_tmux_pane_ids(&self, tab_id: TabId) -> std::collections::HashSet<TmuxPaneId> {
+        self.tmux_pane_owners
+            .iter()
+            .filter(|(_, (owner, _))| *owner == tab_id)
+            .map(|(&tmux, _)| tmux)
+            .collect()
+    }
+
+    /// `tab_id`'s tmux→native mappings, materialized for the pane
+    /// manager's layout calls.
+    pub(crate) fn tab_mappings(
+        &self,
+        tab_id: TabId,
+    ) -> std::collections::HashMap<TmuxPaneId, PaneId> {
+        self.tmux_pane_owners
+            .iter()
+            .filter(|(_, (owner, _))| *owner == tab_id)
+            .map(|(&tmux, &(_, native))| (tmux, native))
+            .collect()
+    }
+
+    /// Drop a closed pane's mapping.
+    pub(crate) fn remove_tmux_pane_mapping(&mut self, tmux_id: TmuxPaneId) {
+        self.tmux_pane_owners.remove(&tmux_id);
     }
 }
 

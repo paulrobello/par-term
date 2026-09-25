@@ -70,10 +70,12 @@ impl WindowState {
                 // For tmux display panes: route via the gateway so the TUI app running
                 // inside the real tmux pane actually receives the mouse event.  Writing
                 // to the local virtual terminal (no PTY) silently drops the bytes.
+                // Tab-scoped: the handler hit-tested the active tab, and native pane
+                // ids restart at 1 in every tab.
                 if self.is_tmux_connected()
+                    && let Some(tab) = self.tab_manager.active_tab()
                     && let Some(native_id) = native_pane_id
-                    && let Some(&tmux_pane_id) =
-                        self.tmux_state.native_pane_to_tmux_pane.get(&native_id)
+                    && let Some(tmux_pane_id) = self.tmux_state.tmux_pane_in_tab(tab.id, native_id)
                 {
                     let escaped = crate::tmux::escape_keys_for_tmux(&encoded);
                     let cmd = format!("send-keys -t %{} {}\n", tmux_pane_id, escaped);

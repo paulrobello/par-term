@@ -43,12 +43,7 @@ impl WindowState {
             self.config.load().tabs.remote_tab_title_osc_priority,
         );
 
-        if let Some(tmux_pane_id) = self
-            .tmux_state
-            .native_pane_to_tmux_pane
-            .get(&pane_id)
-            .copied()
-        {
+        if let Some(tmux_pane_id) = self.tmux_state.tmux_pane_in_tab(tab.id, pane_id) {
             if name.contains(['\n', '\r', '\0']) {
                 // A newline would end the wire command mid-title; the local
                 // name stands, the daemon keeps the old one.

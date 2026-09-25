@@ -32,7 +32,7 @@ impl WindowState {
         };
 
         if let Some(pm) = tab.pane_manager_mut() {
-            pm.update_layout_from_tmux(parsed_layout, &self.tmux_state.tmux_pane_to_native_pane);
+            pm.update_layout_from_tmux(parsed_layout, &self.tmux_state.tab_mappings(tab_id));
             pm.recalculate_bounds();
 
             if let Some((_, _, _, _, cell_width, cell_height, _)) = bounds_info {
@@ -74,22 +74,20 @@ impl WindowState {
 
         if let Some(pm) = tab.pane_manager_mut() {
             for tmux_pane_id in panes_to_remove {
-                if let Some(native_pane_id) =
-                    self.tmux_state.tmux_pane_to_native_pane.get(tmux_pane_id)
-                {
+                if let Some((_, native_pane_id)) = self.tmux_state.tmux_pane_owner(*tmux_pane_id) {
                     crate::debug_info!(
                         "TMUX",
                         "Removing native pane {} for closed tmux pane %{}",
                         native_pane_id,
                         tmux_pane_id
                     );
-                    pm.close_pane(*native_pane_id);
+                    pm.close_pane(native_pane_id);
                 }
             }
 
             let kept_mappings: std::collections::HashMap<_, _> = self
                 .tmux_state
-                .tmux_pane_to_native_pane
+                .tab_mappings(tab_id)
                 .iter()
                 .filter(|(tmux_id, _)| panes_to_keep.contains(tmux_id))
                 .map(|(k, v)| (*k, *v))
@@ -105,13 +103,7 @@ impl WindowState {
 
         // Update mappings - remove closed panes
         for tmux_pane_id in panes_to_remove {
-            if let Some(native_id) = self
-                .tmux_state
-                .tmux_pane_to_native_pane
-                .remove(tmux_pane_id)
-            {
-                self.tmux_state.native_pane_to_tmux_pane.remove(&native_id);
-            }
+            self.tmux_state.remove_tmux_pane_mapping(*tmux_pane_id);
         }
 
         // The daemon sends no agent-roster removal push, so this
@@ -134,7 +126,7 @@ impl WindowState {
         crate::debug_info!(
             "TMUX",
             "After pane removal, mappings: {:?}",
-            self.tmux_state.tmux_pane_to_native_pane
+            self.tmux_state.tmux_pane_owners
         );
 
         self.focus_state.needs_redraw = true;
@@ -166,9 +158,8 @@ impl WindowState {
                 .iter()
                 .filter_map(|tmux_id| {
                     self.tmux_state
-                        .tmux_pane_to_native_pane
-                        .get(tmux_id)
-                        .map(|native_id| (*tmux_id, *native_id))
+                        .tmux_pane_owner(*tmux_id)
+                        .map(|(_, native_id)| (*tmux_id, native_id))
                 })
                 .collect();
 
@@ -180,11 +171,7 @@ impl WindowState {
                 std::sync::Arc::clone(&self.runtime),
             ) {
                 Ok(new_mappings) => {
-                    self.tmux_state.tmux_pane_to_native_pane = new_mappings.clone();
-                    self.tmux_state.native_pane_to_tmux_pane = new_mappings
-                        .iter()
-                        .map(|(tmux_id, native_id)| (*native_id, *tmux_id))
-                        .collect();
+                    self.tmux_state.set_tab_pane_mappings(tab_id, &new_mappings);
 
                     crate::debug_info!(
                         "TMUX",
@@ -208,7 +195,7 @@ impl WindowState {
         crate::debug_info!(
             "TMUX",
             "After pane addition, mappings: {:?}",
-            self.tmux_state.tmux_pane_to_native_pane
+            self.tmux_state.tmux_pane_owners
         );
 
         self.focus_state.needs_redraw = true;
@@ -224,12 +211,8 @@ impl WindowState {
         pane_ids: &[crate::tmux::TmuxPaneId],
         bounds_info: BoundsInfo,
     ) {
-        let existing_tmux_ids: std::collections::HashSet<_> = self
-            .tmux_state
-            .tmux_pane_to_native_pane
-            .keys()
-            .copied()
-            .collect();
+        let existing_tmux_ids: std::collections::HashSet<_> =
+            self.tmux_state.tab_tmux_pane_ids(tab_id);
         let new_tmux_ids: std::collections::HashSet<crate::tmux::TmuxPaneId> =
             pane_ids.iter().copied().collect();
 
@@ -252,11 +235,8 @@ impl WindowState {
             ) {
                 Ok(pane_mappings) => {
                     crate::debug_info!("TMUX", "Storing pane mappings: {:?}", pane_mappings);
-                    self.tmux_state.tmux_pane_to_native_pane = pane_mappings.clone();
-                    self.tmux_state.native_pane_to_tmux_pane = pane_mappings
-                        .iter()
-                        .map(|(tmux_id, native_id)| (*native_id, *tmux_id))
-                        .collect();
+                    self.tmux_state
+                        .set_tab_pane_mappings(tab_id, &pane_mappings);
 
                     crate::debug_info!(
                         "TMUX",

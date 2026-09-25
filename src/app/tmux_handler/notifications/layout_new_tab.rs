@@ -96,11 +96,8 @@ impl WindowState {
                                     "Storing pane mappings for new tab: {:?}",
                                     pane_mappings
                                 );
-                                self.tmux_state.native_pane_to_tmux_pane = pane_mappings
-                                    .iter()
-                                    .map(|(tmux_id, native_id)| (*native_id, *tmux_id))
-                                    .collect();
-                                self.tmux_state.tmux_pane_to_native_pane = pane_mappings;
+                                self.tmux_state
+                                    .set_tab_pane_mappings(new_tab_id, &pane_mappings);
 
                                 // Size every new pane terminal to its layout
                                 // cell. Panes are created at the config

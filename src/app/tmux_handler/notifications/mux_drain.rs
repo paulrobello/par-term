@@ -339,37 +339,56 @@ impl WindowState {
         title: &str,
         is_user: bool,
     ) -> bool {
-        let Some(native) = self
-            .tmux_state
-            .tmux_pane_to_native_pane
-            .get(&tmux_pane)
-            .copied()
-            .or_else(|| self.tmux_state.tmux_sync.get_native_pane(tmux_pane))
-        else {
+        fn apply_title(pane_obj: &mut crate::pane::Pane, title: &str, is_user: bool) {
+            if is_user {
+                if title.is_empty() {
+                    // The daemon's clear: back to automatic titles,
+                    // mirroring Rename Tab's blank branch.
+                    pane_obj.user_named = false;
+                    pane_obj.title = String::new();
+                    pane_obj.has_default_title = true;
+                } else {
+                    pane_obj.title = title.to_string();
+                    pane_obj.has_default_title = false;
+                    pane_obj.user_named = true;
+                }
+            } else if !title.is_empty() {
+                // OSC-sourced read-back: seed the title without
+                // freezing it — the auto-title loop may refine it.
+                pane_obj.title = title.to_string();
+                pane_obj.has_default_title = false;
+            }
+        }
+
+        // Per-tab mapping first — native pane ids restart at 1 in every
+        // tab, so the owning tab must resolve the pane or another
+        // window's pane takes the title.
+        if let Some((owner_tab_id, native)) = self.tmux_state.tmux_pane_owner(tmux_pane) {
+            if let Some(tab) = self.tab_manager.get_tab_mut(owner_tab_id)
+                && let Some(pane_manager) = tab.pane_manager_mut()
+                && let Some(pane_obj) = pane_manager.get_pane_mut(native)
+            {
+                apply_title(pane_obj, title, is_user);
+                self.tmux_state.mux_pane_titles.remove(&tmux_pane);
+                crate::debug_info!(
+                    "MUX",
+                    "applied daemon pane title for %{tmux_pane}: {:?} (user={is_user})",
+                    title
+                );
+                return true;
+            }
+            return false;
+        }
+
+        // Legacy fallback: the sync map carries no owning tab.
+        let Some(native) = self.tmux_state.tmux_sync.get_native_pane(tmux_pane) else {
             return false;
         };
         for tab in self.tab_manager.tabs_mut() {
             if let Some(pane_manager) = tab.pane_manager_mut()
                 && let Some(pane_obj) = pane_manager.get_pane_mut(native)
             {
-                if is_user {
-                    if title.is_empty() {
-                        // The daemon's clear: back to automatic titles,
-                        // mirroring Rename Tab's blank branch.
-                        pane_obj.user_named = false;
-                        pane_obj.title = String::new();
-                        pane_obj.has_default_title = true;
-                    } else {
-                        pane_obj.title = title.to_string();
-                        pane_obj.has_default_title = false;
-                        pane_obj.user_named = true;
-                    }
-                } else if !title.is_empty() {
-                    // OSC-sourced read-back: seed the title without
-                    // freezing it — the auto-title loop may refine it.
-                    pane_obj.title = title.to_string();
-                    pane_obj.has_default_title = false;
-                }
+                apply_title(pane_obj, title, is_user);
                 self.tmux_state.mux_pane_titles.remove(&tmux_pane);
                 crate::debug_info!(
                     "MUX",
@@ -390,22 +409,38 @@ impl WindowState {
     /// try_lock discipline as the PaneOutput consumer).
     ///
     /// The native pane resolves through the SAME lookup output routing
-    /// uses — app map first, sync map as fallback. The layout consumers
-    /// populate only `tmux_pane_to_native_pane`; resolving through
-    /// `tmux_sync.get_native_pane` alone (an earlier form) always missed in
-    /// production because nothing in the app populates the sync map, so
-    /// every seed sat pending forever and panes reattached blank.
+    /// uses — the per-tab app map first, the sync map as a legacy
+    /// fallback. Resolving through `tmux_sync.get_native_pane` alone (an
+    /// earlier form) always missed in production because nothing in the
+    /// app populates the sync map, so every seed sat pending forever and
+    /// panes reattached blank.
     pub(super) fn deliver_pending_mux_seed(&mut self, tmux_pane: TmuxPaneId) -> bool {
         let Some(data) = self.tmux_state.mux_screen_seeds.get(&tmux_pane).cloned() else {
             return false;
         };
-        let Some(native) = self
-            .tmux_state
-            .tmux_pane_to_native_pane
-            .get(&tmux_pane)
-            .copied()
-            .or_else(|| self.tmux_state.tmux_sync.get_native_pane(tmux_pane))
-        else {
+
+        // Per-tab mapping — the owning tab resolves the pane (native ids
+        // restart at 1 per tab).
+        if let Some((owner_tab_id, native)) = self.tmux_state.tmux_pane_owner(tmux_pane) {
+            if let Some(tab) = self.tab_manager.get_tab_mut(owner_tab_id)
+                && let Some(pane_manager) = tab.pane_manager_mut()
+                && let Some(pane_obj) = pane_manager.get_pane_mut(native)
+                && let Ok(term) = pane_obj.terminal.try_read()
+            {
+                term.process_data(&data);
+                self.tmux_state.mux_screen_seeds.remove(&tmux_pane);
+                crate::debug_info!(
+                    "MUX",
+                    "delivered pending mux seed before live output for %{}",
+                    tmux_pane
+                );
+                return true;
+            }
+            return false;
+        }
+
+        // Legacy fallback: the sync map carries no owning tab.
+        let Some(native) = self.tmux_state.tmux_sync.get_native_pane(tmux_pane) else {
             return false;
         };
         for tab in self.tab_manager.tabs_mut() {

@@ -101,9 +101,8 @@ impl WindowState {
             // Scope the widget to the attached session: a mapped pane is by
             // construction one of this session's panes, so other sessions'
             // agents and closed-but-unreconciled panes never render.
-            let visible = |pane: par_term_tmux::TmuxPaneId| {
-                tmux_state.tmux_pane_to_native_pane.contains_key(&pane)
-            };
+            let visible =
+                |pane: par_term_tmux::TmuxPaneId| tmux_state.tmux_pane_owners.contains_key(&pane);
             self.status_bar_ui.agent_roster_summary = roster.summary_line(&visible);
             self.status_bar_ui.agent_roster_tooltip = roster.tooltip_text(&visible);
         }
@@ -502,7 +501,7 @@ impl WindowState {
                                 );
                             #[cfg(feature = "mux")]
                             {
-                                let map = &self.tmux_state.tmux_pane_to_native_pane;
+                                let map = &self.tmux_state.tmux_pane_owners;
                                 plugin_rows.extend(
                                     self.tmux_state
                                         .agent_roster

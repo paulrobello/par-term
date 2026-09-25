@@ -16,20 +16,21 @@ impl WindowState {
             session.set_focused_pane(Some(tmux_pane_id));
         }
 
-        // Update the native pane focus to match
-        if let Some(native_pane_id) = self.tmux_state.tmux_pane_to_native_pane.get(&tmux_pane_id) {
-            // Find the tab containing this pane and update its focus
-            if let Some(tab) = self.tab_manager.active_tab_mut()
-                && let Some(pm) = tab.pane_manager_mut()
-            {
-                pm.focus_pane(*native_pane_id);
-                crate::debug_info!(
-                    "TMUX",
-                    "Updated native pane focus: tmux %{} -> native {}",
-                    tmux_pane_id,
-                    native_pane_id
-                );
-            }
+        // Update the native pane focus to match — inside the pane's owning
+        // tab (native pane ids restart at 1 in every tab; focusing by id in
+        // whichever tab happens to be active could focus another window's
+        // pane).
+        if let Some((owner_tab_id, native_pane_id)) = self.tmux_state.tmux_pane_owner(tmux_pane_id)
+            && let Some(tab) = self.tab_manager.get_tab_mut(owner_tab_id)
+            && let Some(pm) = tab.pane_manager_mut()
+        {
+            pm.focus_pane(native_pane_id);
+            crate::debug_info!(
+                "TMUX",
+                "Updated native pane focus: tmux %{} -> native {}",
+                tmux_pane_id,
+                native_pane_id
+            );
         }
     }
 

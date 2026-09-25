@@ -199,8 +199,7 @@ impl WindowState {
         self.tmux_state.mux_session_id = None;
 
         // Clear pane mappings
-        self.tmux_state.tmux_pane_to_native_pane.clear();
-        self.tmux_state.native_pane_to_tmux_pane.clear();
+        self.tmux_state.tmux_pane_owners.clear();
 
         // Reset window title (now without tmux info)
         self.update_window_title_with_tmux();

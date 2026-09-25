@@ -1102,7 +1102,7 @@ mod tests {
         // before the transport existed, so pumping would never map it.
         ws.handle_tmux_window_add(0);
         let deadline = Instant::now() + Duration::from_secs(10);
-        while !ws.tmux_state.tmux_pane_to_native_pane.contains_key(&0) {
+        while !ws.tmux_state.tmux_pane_owners.contains_key(&0) {
             if Instant::now() >= deadline {
                 // Push a layout for window @0 so the consumer maps %0.
                 break;
@@ -1117,7 +1117,7 @@ mod tests {
             std::thread::sleep(Duration::from_millis(50));
         }
         assert!(
-            ws.tmux_state.tmux_pane_to_native_pane.contains_key(&0),
+            ws.tmux_state.tmux_pane_owners.contains_key(&0),
             "the layout consumer never mapped %0"
         );
 
@@ -1159,6 +1159,152 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
+    /// Two daemon windows become two tabs whose PaneManagers each number
+    /// their panes from 1 again, so the pane mappings must be keyed per
+    /// tab. The window-wide maps were REPLACED by each arriving layout:
+    /// window @0's mappings vanished when @1's layout landed, and native
+    /// pane 1 in both tabs collided, letting input and output cross
+    /// between windows. Verified failing against the flat maps before the
+    /// fix; asserts mappings, output, input, and daemon focus pushes all
+    /// stay confined to each window's own tab.
+    #[test]
+    fn two_windows_keep_both_windows_panes_mapped() {
+        let path = socket_path("mux-two-windows");
+        spawn_daemon(&path);
+
+        // Attach through the app's own install path (poll arm).
+        let core_client = par_term_emu_core_rust::mux::MuxClient::connect(&path).expect("connect");
+        let (tx, rx) = std::sync::mpsc::channel();
+        tx.send(Ok(core_client)).unwrap();
+        drop(tx);
+        let mut ws = manners_state();
+        ws.tmux_state.mux_attach_pending = Some(MuxAttachPending {
+            name: "twowin".to_string(),
+            rx,
+        });
+        ws.poll_mux_attach();
+        assert!(ws.tmux_state.transport.is_some(), "attach must install");
+
+        // Window @0 -> tab A with pane %0 mapped. A created session's
+        // %window-add fired before the transport existed, so the tab is
+        // driven manually (the split test's pump).
+        ws.handle_tmux_window_add(0);
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !ws.tmux_state.tmux_pane_owners.contains_key(&0) {
+            assert!(
+                Instant::now() < deadline,
+                "window @0 never got a mapped pane"
+            );
+            ws.tmux_state
+                .transport
+                .as_ref()
+                .expect("transport")
+                .send_command("refresh-client -t %0 -C 80x24")
+                .expect("size push broadcasts %layout-change");
+            ws.check_mux_notifications();
+            std::thread::sleep(Duration::from_millis(50));
+        }
+
+        // Window @1 -> tab B. A fresh session numbers its panes %0, %1 in
+        // creation order, so the second window owns %1.
+        ws.tmux_state
+            .transport
+            .as_ref()
+            .expect("transport")
+            .send_command("new-window")
+            .expect("new-window");
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !ws.tmux_state.tmux_pane_owners.contains_key(&1) {
+            assert!(
+                Instant::now() < deadline,
+                "window @1 never got a mapped pane"
+            );
+            ws.tmux_state
+                .transport
+                .as_ref()
+                .expect("transport")
+                .send_command("refresh-client -t %1 -C 80x24")
+                .expect("size push broadcasts %layout-change for @1");
+            ws.check_mux_notifications();
+            std::thread::sleep(Duration::from_millis(50));
+        }
+
+        // The corruption under window-wide maps: @1's layout replaced the
+        // mappings, so @0's pane no longer resolved.
+        assert!(
+            ws.tmux_state.tmux_pane_owners.contains_key(&0),
+            "window @0's pane stayed mapped after window @1 arrived"
+        );
+        assert!(
+            ws.tmux_state.tmux_pane_owners.contains_key(&1),
+            "window @1's pane is mapped"
+        );
+        let (tab_a, pane_a) = ws.tmux_state.tmux_pane_owners[&0];
+        let (tab_b, pane_b) = ws.tmux_state.tmux_pane_owners[&1];
+        assert_ne!(tab_a, tab_b, "each daemon window owns its own tab");
+
+        // Output confinement: %1's bytes land in tab B's pane only. Under
+        // the flat maps the all-tabs scan found tab A's colliding pane id
+        // first and wrote there.
+        ws.handle_tmux_output(1, b"two-windows-b\r");
+        assert!(
+            pane_text(&ws, tab_b, pane_b).contains("two-windows-b"),
+            "window @1's output reaches its own pane"
+        );
+        assert!(
+            !pane_text(&ws, tab_a, pane_a).contains("two-windows-b"),
+            "window @1's output must not leak into window @0's pane"
+        );
+
+        // Daemon focus confinement: a %pane-focus-changed push for %1
+        // focuses the pane inside tab B, not the (active) tab A's pane.
+        ws.handle_tmux_pane_focus_changed(1);
+        let focused_in = |tab_id: crate::tab::TabId| {
+            ws.tab_manager
+                .get_tab(tab_id)
+                .and_then(|tab| tab.pane_manager())
+                .and_then(|pm| pm.focused_pane())
+                .map(|pane| pane.id)
+        };
+        assert_eq!(
+            focused_in(tab_b),
+            Some(pane_b),
+            "the daemon's focus push moves focus inside the owning tab"
+        );
+
+        // Input confinement: the focused tab's own pane picks the daemon
+        // target, whichever window is on screen.
+        ws.tab_manager.switch_to(tab_b);
+        assert_eq!(
+            ws.focused_mux_pane_from_native(),
+            Some(1),
+            "keys typed in window @1's tab target window @1's pane"
+        );
+        ws.tab_manager.switch_to(tab_a);
+        assert_eq!(
+            ws.focused_mux_pane_from_native(),
+            Some(0),
+            "keys typed in window @0's tab still target window @0's pane"
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// A pane terminal's screen text — the read side of output routing.
+    fn pane_text(
+        ws: &crate::app::window_state::WindowState,
+        tab_id: crate::tab::TabId,
+        pane: crate::pane::PaneId,
+    ) -> String {
+        ws.tab_manager
+            .get_tab(tab_id)
+            .and_then(|tab| tab.pane_manager())
+            .and_then(|pm| pm.get_pane(pane))
+            .and_then(|p| p.terminal.try_read().ok())
+            .map(|term| term.export_text())
+            .unwrap_or_default()
+    }
+
     /// Closing a focused mux pane goes daemon-side (`kill-pane -t %N`): the
     /// daemon's pane count drops, the killed pane's tmux→native mapping is
     /// removed by the %layout-change reconciliation (no dangling mapping),
@@ -1191,7 +1337,7 @@ mod tests {
         assert!(ws.tmux_state.transport.is_some(), "attach must install");
         ws.handle_tmux_window_add(0);
         let deadline = Instant::now() + Duration::from_secs(10);
-        while !ws.tmux_state.tmux_pane_to_native_pane.contains_key(&0) {
+        while !ws.tmux_state.tmux_pane_owners.contains_key(&0) {
             assert!(
                 Instant::now() < deadline,
                 "the layout consumer never mapped %0"
@@ -1212,11 +1358,11 @@ mod tests {
         // The split pane's mapping arrives with the %layout-change push,
         // not the command reply — pump until the consumer has mapped %1.
         let deadline = Instant::now() + Duration::from_secs(10);
-        while !ws.tmux_state.tmux_pane_to_native_pane.contains_key(&1) {
+        while !ws.tmux_state.tmux_pane_owners.contains_key(&1) {
             assert!(
                 Instant::now() < deadline,
                 "the layout consumer never mapped the split pane %1: {:?}",
-                ws.tmux_state.tmux_pane_to_native_pane
+                ws.tmux_state.tmux_pane_owners
             );
             ws.check_mux_notifications();
             std::thread::sleep(Duration::from_millis(50));
@@ -1240,17 +1386,17 @@ mod tests {
         // The %layout-change reconciliation removed the killed pane's
         // mapping — no dangling tmux→native entry for a dead daemon pane.
         let deadline = Instant::now() + Duration::from_secs(10);
-        while ws.tmux_state.tmux_pane_to_native_pane.contains_key(&1) {
+        while ws.tmux_state.tmux_pane_owners.contains_key(&1) {
             assert!(
                 Instant::now() < deadline,
                 "the killed pane's mapping was never reconciled away: {:?}",
-                ws.tmux_state.tmux_pane_to_native_pane
+                ws.tmux_state.tmux_pane_owners
             );
             ws.check_mux_notifications();
             std::thread::sleep(Duration::from_millis(50));
         }
         assert!(
-            ws.tmux_state.tmux_pane_to_native_pane.contains_key(&0),
+            ws.tmux_state.tmux_pane_owners.contains_key(&0),
             "the surviving pane's mapping must remain"
         );
 
@@ -1282,7 +1428,7 @@ mod tests {
         assert!(ws.tmux_state.transport.is_some(), "attach must install");
         ws.handle_tmux_window_add(0);
         let deadline = Instant::now() + Duration::from_secs(10);
-        while !ws.tmux_state.tmux_pane_to_native_pane.contains_key(&0) {
+        while !ws.tmux_state.tmux_pane_owners.contains_key(&0) {
             assert!(
                 Instant::now() < deadline,
                 "the layout consumer never mapped %0"
@@ -1296,7 +1442,7 @@ mod tests {
             ws.check_mux_notifications();
             std::thread::sleep(Duration::from_millis(50));
         }
-        let native = ws.tmux_state.tmux_pane_to_native_pane[&0];
+        let native = ws.tmux_state.tmux_pane_owners[&0].1;
         let pane_title = |ws: &WindowState| -> Option<String> {
             for tab in ws.tab_manager.tabs() {
                 if let Some(pane) = tab.pane_manager().and_then(|pm| pm.get_pane(native)) {
@@ -1390,7 +1536,7 @@ mod tests {
         assert!(ws.tmux_state.transport.is_some(), "attach must install");
         ws.handle_tmux_window_add(0);
         let deadline = Instant::now() + Duration::from_secs(10);
-        while !ws.tmux_state.tmux_pane_to_native_pane.contains_key(&0) {
+        while !ws.tmux_state.tmux_pane_owners.contains_key(&0) {
             assert!(
                 Instant::now() < deadline,
                 "the layout consumer never mapped %0"
@@ -1404,7 +1550,7 @@ mod tests {
             ws.check_mux_notifications();
             std::thread::sleep(Duration::from_millis(50));
         }
-        let native = ws.tmux_state.tmux_pane_to_native_pane[&0];
+        let native = ws.tmux_state.tmux_pane_owners[&0].1;
         let local_title = |ws: &WindowState| -> Option<String> {
             ws.tab_manager.tabs().iter().find_map(|tab| {
                 tab.pane_manager()
@@ -1547,7 +1693,7 @@ mod tests {
         assert!(ws.tmux_state.transport.is_some(), "attach must install");
         ws.handle_tmux_window_add(0);
         let deadline = Instant::now() + Duration::from_secs(10);
-        while !ws.tmux_state.tmux_pane_to_native_pane.contains_key(&0) {
+        while !ws.tmux_state.tmux_pane_owners.contains_key(&0) {
             assert!(
                 Instant::now() < deadline,
                 "the layout consumer never mapped %0"
@@ -1563,7 +1709,7 @@ mod tests {
         }
         assert!(ws.split_pane_via_mux(true), "split gives %1 to close");
         let deadline = Instant::now() + Duration::from_secs(10);
-        while !ws.tmux_state.tmux_pane_to_native_pane.contains_key(&1) {
+        while !ws.tmux_state.tmux_pane_owners.contains_key(&1) {
             assert!(
                 Instant::now() < deadline,
                 "the layout consumer never mapped the split pane %1"
@@ -1579,7 +1725,7 @@ mod tests {
             push("%1", "claude", "blocked", "hook"),
         ]);
         let scoped_summary = |ws: &WindowState| {
-            let map = &ws.tmux_state.tmux_pane_to_native_pane;
+            let map = &ws.tmux_state.tmux_pane_owners;
             ws.tmux_state
                 .agent_roster
                 .summary_line(&|pane| map.contains_key(&pane))
@@ -1596,7 +1742,7 @@ mod tests {
             "close must be consumed daemon-side"
         );
         let deadline = Instant::now() + Duration::from_secs(10);
-        while ws.tmux_state.tmux_pane_to_native_pane.contains_key(&1) {
+        while ws.tmux_state.tmux_pane_owners.contains_key(&1) {
             assert!(
                 Instant::now() < deadline,
                 "the killed pane's mapping was never reconciled away"
@@ -1614,7 +1760,7 @@ mod tests {
             Some("\u{1f465} 1 working"),
             "the widget must stop counting the closed pane's agent"
         );
-        let map = &ws.tmux_state.tmux_pane_to_native_pane;
+        let map = &ws.tmux_state.tmux_pane_owners;
         let rows = ws
             .tmux_state
             .agent_roster
@@ -1701,7 +1847,7 @@ mod tests {
         assert!(ws.tmux_state.mux_screen_seeds.is_empty());
         assert_eq!(ws.tmux_state.agent_roster.iter().count(), 0);
         assert_eq!(ws.tmux_state.tmux_session_name, None);
-        assert!(ws.tmux_state.tmux_pane_to_native_pane.is_empty());
+        assert!(ws.tmux_state.tmux_pane_owners.is_empty());
         assert_eq!(
             ws.overlay_state.toast_message.as_deref(),
             Some("par-mux: detached (session keeps running in the daemon)"),
@@ -1991,9 +2137,9 @@ out.flush()
         let deadline = Instant::now() + Duration::from_secs(10);
         let native_of = |ws: &crate::app::window_state::WindowState| {
             ws.tmux_state
-                .tmux_pane_to_native_pane
+                .tmux_pane_owners
                 .get(&0)
-                .copied()
+                .map(|&(_, native)| native)
                 .or_else(|| ws.tmux_state.tmux_sync.get_native_pane(0))
         };
         let native = loop {
@@ -2011,7 +2157,7 @@ out.flush()
                     .iter()
                     .map(|w| (*w, ws.tmux_state.tmux_sync.get_tab(*w)))
                     .collect::<Vec<_>>(),
-                ws.tmux_state.tmux_pane_to_native_pane,
+                ws.tmux_state.tmux_pane_owners,
                 ws.tab_manager.tab_count()
             );
             std::thread::sleep(Duration::from_millis(25));
@@ -2087,7 +2233,7 @@ out.flush()
         let mut split_landed = false;
         while Instant::now() < deadline && !split_landed {
             ws.check_mux_notifications();
-            split_landed = ws.tmux_state.tmux_pane_to_native_pane.contains_key(&1);
+            split_landed = ws.tmux_state.tmux_pane_owners.contains_key(&1);
             if !split_landed {
                 std::thread::sleep(Duration::from_millis(25));
             }
@@ -2096,7 +2242,7 @@ out.flush()
             split_landed,
             "the daemon-side split must create the second native pane via \
              %layout-change: map = {:?}",
-            ws.tmux_state.tmux_pane_to_native_pane
+            ws.tmux_state.tmux_pane_owners
         );
 
         // The daemon's focus push for the new pane must move NATIVE focus
@@ -2104,10 +2250,10 @@ out.flush()
         // batch as the layout that creates the pane, so it must be applied
         // after the layout consumer, or the new pane is not yet mapped and
         // the push is lost (reported live: split did not focus the new pane).
-        let new_native = ws.tmux_state.tmux_pane_to_native_pane[&1];
+        let (owner_tab, new_native) = ws.tmux_state.tmux_pane_owners[&1];
         assert_eq!(
-            ws.tmux_state.native_pane_to_tmux_pane.get(&new_native),
-            Some(&1),
+            ws.tmux_state.tmux_pane_in_tab(owner_tab, new_native),
+            Some(1),
             "the reverse map routes the new pane's input"
         );
         let focused_native = || {
@@ -2150,7 +2296,7 @@ out.flush()
             new_pane_text.contains("split-ok"),
             "the new pane must render its own output: app={new_pane_text:?} daemon={daemon_view:?} \
              map={:?}",
-            ws.tmux_state.tmux_pane_to_native_pane
+            ws.tmux_state.tmux_pane_owners
         );
 
         // Mouse reports for a focused mux pane go to the DAEMON pane — the
@@ -2217,7 +2363,7 @@ out.flush()
         let deadline = Instant::now() + Duration::from_secs(10);
         loop {
             ws.check_mux_notifications();
-            if ws.tmux_state.tmux_pane_to_native_pane.contains_key(&0)
+            if ws.tmux_state.tmux_pane_owners.contains_key(&0)
                 || ws.tmux_state.tmux_sync.get_native_pane(0).is_some()
             {
                 break;
@@ -2284,7 +2430,7 @@ out.flush()
         let deadline = Instant::now() + Duration::from_secs(10);
         loop {
             ws.check_mux_notifications();
-            if ws.tmux_state.tmux_pane_to_native_pane.contains_key(&0)
+            if ws.tmux_state.tmux_pane_owners.contains_key(&0)
                 || ws.tmux_state.tmux_sync.get_native_pane(0).is_some()
             {
                 break;
@@ -2351,7 +2497,7 @@ out.flush()
         let deadline = Instant::now() + Duration::from_secs(10);
         loop {
             ws.check_mux_notifications();
-            if ws.tmux_state.tmux_pane_to_native_pane.contains_key(&0)
+            if ws.tmux_state.tmux_pane_owners.contains_key(&0)
                 || ws.tmux_state.tmux_sync.get_native_pane(0).is_some()
             {
                 break;
@@ -2417,7 +2563,7 @@ out.flush()
     fn focused_mirror_bracketed(
         ws: &crate::app::window_state::WindowState,
     ) -> Option<(Vec<u8>, Vec<u8>)> {
-        let native = *ws.tmux_state.tmux_pane_to_native_pane.get(&0)?;
+        let native = ws.tmux_state.tmux_pane_owners.get(&0)?.1;
         for tab in ws.tab_manager.tabs() {
             if let Some(pane) = tab.pane_manager().and_then(|pm| pm.get_pane(native))
                 && let Ok(term) = pane.terminal.try_read()
@@ -2551,7 +2697,7 @@ out.flush()
         let deadline = Instant::now() + Duration::from_secs(10);
         loop {
             ws.check_mux_notifications();
-            if ws.tmux_state.tmux_pane_to_native_pane.contains_key(&0)
+            if ws.tmux_state.tmux_pane_owners.contains_key(&0)
                 || ws.tmux_state.tmux_sync.get_native_pane(0).is_some()
             {
                 break;
@@ -2860,7 +3006,7 @@ out.flush()
         // The mux tab is gone; only the tracked id survives.
         ws.tmux_state.mux_focused_pane = Some(0);
         assert!(
-            ws.tmux_state.native_pane_to_tmux_pane.is_empty(),
+            ws.tmux_state.tmux_pane_owners.is_empty(),
             "no mux pane is mapped — the user is not on a mux pane"
         );
 

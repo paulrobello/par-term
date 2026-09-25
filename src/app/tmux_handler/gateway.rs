@@ -257,13 +257,17 @@ impl WindowState {
     /// Update the tmux focused pane when a native pane is focused
     ///
     /// This should be called when the user clicks on a pane to ensure
-    /// input is routed to the correct tmux pane.
+    /// input is routed to the correct tmux pane. Callers hit-test the
+    /// ACTIVE tab's panes, so the pane resolves within that tab — native
+    /// pane ids restart at 1 in every tab, and the pane id alone would be
+    /// ambiguous across daemon windows.
     pub fn set_tmux_focused_pane_from_native(&mut self, native_pane_id: crate::pane::PaneId) {
+        let Some(active_tab) = self.tab_manager.active_tab() else {
+            return;
+        };
         let Some(tmux_pane_id) = self
             .tmux_state
-            .native_pane_to_tmux_pane
-            .get(&native_pane_id)
-            .copied()
+            .tmux_pane_in_tab(active_tab.id, native_pane_id)
         else {
             return;
         };
@@ -287,14 +291,15 @@ impl WindowState {
     /// the id (session ended, layout mid-rebuild) or the owning tab is gone;
     /// the caller logs and no-ops.
     pub(crate) fn focus_agent_roster_pane(&mut self, tmux_pane_id: u64) -> bool {
-        let Some(&native_pane_id) = self.tmux_state.tmux_pane_to_native_pane.get(&tmux_pane_id)
+        let Some((owner_tab_id, native_pane_id)) = self.tmux_state.tmux_pane_owner(tmux_pane_id)
         else {
             return false;
         };
-        let owning_tab_index = self.tab_manager.tabs().iter().position(|tab| {
-            tab.pane_manager()
-                .is_some_and(|pm| pm.get_pane(native_pane_id).is_some())
-        });
+        let owning_tab_index = self
+            .tab_manager
+            .tabs()
+            .iter()
+            .position(|tab| tab.id == owner_tab_id);
         let Some(tab_index) = owning_tab_index else {
             return false;
         };
@@ -530,12 +535,13 @@ impl WindowState {
             pm.all_panes()
                 .iter()
                 .filter_map(|pane| {
-                    // Get the tmux pane ID for this native pane
-                    let tmux_pane_id = self.tmux_state.native_pane_to_tmux_pane.get(&pane.id)?;
+                    // Get the tmux pane ID for this native pane (tab-scoped:
+                    // pane ids restart at 1 in every tab)
+                    let tmux_pane_id = self.tmux_state.tmux_pane_in_tab(tab.id, pane.id)?;
                     // Calculate size in columns/rows
                     let cols = (pane.bounds.width / cell_width).floor() as usize;
                     let rows = (pane.bounds.height / cell_height).floor() as usize;
-                    Some((*tmux_pane_id, cols.max(1), rows.max(1)))
+                    Some((tmux_pane_id, cols.max(1), rows.max(1)))
                 })
                 .collect()
         } else {

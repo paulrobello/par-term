@@ -48,19 +48,13 @@ impl WindowState {
         crate::debug_trace!(
             "TMUX",
             "Pane mappings: {:?}",
-            self.tmux_state.tmux_pane_to_native_pane
+            self.tmux_state.tmux_pane_owners
         );
 
-        // First, try to find a native pane mapping (for split panes)
-        // Check our direct mapping first, then fall back to tmux_sync
-        let native_pane_id = self
-            .tmux_state
-            .tmux_pane_to_native_pane
-            .get(&pane_id)
-            .copied()
-            .or_else(|| self.tmux_state.tmux_sync.get_native_pane(pane_id));
-
-        if let Some(native_pane_id) = native_pane_id {
+        // Direct per-tab mapping (split panes). Native pane ids restart at
+        // 1 in every tab, so the pane resolves inside its owning tab — an
+        // unscoped scan could land this output in another window's pane.
+        if let Some((owner_tab_id, native_pane_id)) = self.tmux_state.tmux_pane_owner(pane_id) {
             // Seed-before-live causality (the blank/partial mux render): a
             // pending reattach seed is OLDER than this chunk, so it must
             // land first — cursor-addressed TUI updates arriving after
@@ -68,20 +62,40 @@ impl WindowState {
             // full-screen paste over them. No-op without the mux feature.
             #[cfg(feature = "mux")]
             self.deliver_pending_mux_seed(pane_id);
-            // Find the pane across all tabs and route output to it
+            // try_lock: intentional — output routing is called from the sync event loop.
+            // On miss: this chunk of tmux output is dropped for this pane. Acceptable
+            // because tmux re-sends content via pane refresh (Ctrl+L) on next connect.
+            if let Some(tab) = self.tab_manager.get_tab_mut(owner_tab_id)
+                && let Some(pane_manager) = tab.pane_manager_mut()
+                && let Some(pane) = pane_manager.get_pane_mut(native_pane_id)
+                && let Ok(term) = pane.terminal.try_read()
+            {
+                // Route the data to this pane's terminal
+                term.process_data(data);
+                crate::debug_trace!(
+                    "TMUX",
+                    "Routed {} bytes to pane {} (tmux %{})",
+                    data.len(),
+                    native_pane_id,
+                    pane_id
+                );
+                return;
+            }
+        }
+
+        // Legacy single-pane fallback: the sync map carries no owning tab,
+        // so its panes resolve by scanning.
+        if let Some(native_pane_id) = self.tmux_state.tmux_sync.get_native_pane(pane_id) {
             for tab in self.tab_manager.tabs_mut() {
-                // try_lock: intentional — output routing is called from the sync event loop.
-                // On miss: this chunk of tmux output is dropped for this pane. Acceptable
-                // because tmux re-sends content via pane refresh (Ctrl+L) on next connect.
+                // try_lock: intentional — same discipline as the per-tab path.
                 if let Some(pane_manager) = tab.pane_manager_mut()
                     && let Some(pane) = pane_manager.get_pane_mut(native_pane_id)
                     && let Ok(term) = pane.terminal.try_read()
                 {
-                    // Route the data to this pane's terminal
                     term.process_data(data);
                     crate::debug_trace!(
                         "TMUX",
-                        "Routed {} bytes to pane {} (tmux %{})",
+                        "Routed {} bytes to pane {} (tmux %{}, sync fallback)",
                         data.len(),
                         native_pane_id,
                         pane_id
