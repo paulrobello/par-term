@@ -59,6 +59,13 @@ pub(crate) struct TmuxState {
     /// create the panes)
     #[cfg_attr(not(feature = "mux"), allow(dead_code))]
     pub(crate) mux_screen_seeds: std::collections::HashMap<TmuxPaneId, Vec<u8>>,
+    /// Daemon pane titles awaiting their pane mapping (reattach title
+    /// restore + pushes that arrived before the layout consumer created
+    /// the native pane), applied by the same end-of-poll sweep as the
+    /// seeds. `(title, is_user)`: a user `-T` title re-marks the pane
+    /// user-named; an OSC-sourced title is just the initial title.
+    #[cfg_attr(not(feature = "mux"), allow(dead_code))]
+    pub(crate) mux_pane_titles: std::collections::HashMap<TmuxPaneId, (String, bool)>,
     /// Cached par-mux agent roster (A2b task 1): the single owner of
     /// agent state on the app side — filled by `list-agents` on
     /// attach/reattach, updated by `%agent-state-changed` pushes, read by
@@ -92,6 +99,7 @@ impl TmuxState {
             mux_focused_pane: None,
             mux_session_id: None,
             mux_screen_seeds: std::collections::HashMap::new(),
+            mux_pane_titles: std::collections::HashMap::new(),
             #[cfg(feature = "mux")]
             agent_roster: super::notifications::agent_roster::AgentRoster::new(),
             #[cfg(feature = "mux")]

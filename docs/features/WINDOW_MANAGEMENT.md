@@ -220,6 +220,12 @@ pane_title_font: ""                       # Title font family (empty falls back 
 
 **Settings UI:** Settings > Window > Pane Appearance > "Show pane titles"
 
+### Renaming Panes
+
+A pane can be given a user title two ways: right-click its title bar (when `show_pane_titles` is on) and type a name, or trigger the bindable `rename_pane` action (also in the command palette as "Rename Pane"), which opens the same popup on the focused pane — title bars are not required for the action. Leave the field blank to revert to automatic titles.
+
+A user-named pane keeps its name when the program changes its OSC title or the directory changes — the same rule as a user-named tab. In a par-mux pane the name is pushed daemon-side (`select-pane -T`), so it survives detach and reattach, is visible to other clients, and can be used as a `-t` name target; a rename made from a shell (`par-mux -c`) or another client flows back through the `%pane-title-changed` notification. Local pane names persist per-leaf in saved sessions (and as the sole-pane title in saved arrangements); mux pane names persist through the daemon instead.
+
 ## Pane Divider Styles
 
 Four visual styles for split pane dividers:

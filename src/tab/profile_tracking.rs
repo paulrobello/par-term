@@ -57,6 +57,11 @@ impl Tab {
         // On contention: skip that pane this frame, no data loss.
         if let Some(pm) = self.pane_manager.as_mut() {
             for pane in pm.all_panes_mut() {
+                // A user-named pane is static, the same rule as a
+                // user-named tab: OSC titles and CWD never overwrite it.
+                if pane.user_named {
+                    continue;
+                }
                 if let Ok(term) = pane.terminal.try_read() {
                     let osc_title = term.get_title();
                     let hostname = term.shell_integration_hostname();
@@ -117,6 +122,65 @@ impl Tab {
             self.title = pane.title.clone();
             self.has_default_title = pane.has_default_title;
         }
+    }
+
+    /// Set (or clear) a pane's user title (card 01a0d95dd318).
+    ///
+    /// A non-empty `name` marks the pane user-named — `update_title`'s
+    /// per-pane loop then never overwrites it with an OSC title or CWD, the
+    /// same guard a user-named tab gets. An empty or blank `name` reverts
+    /// the pane to automatic titles. Returns whether the pane exists; the
+    /// caller re-derives titles afterwards (an `update_title` pass).
+    pub fn rename_pane(&mut self, pane_id: crate::pane::PaneId, name: &str) -> bool {
+        let Some(pm) = self.pane_manager.as_mut() else {
+            return false;
+        };
+        let Some(pane) = pm.get_pane_mut(pane_id) else {
+            return false;
+        };
+        let name = name.trim();
+        if name.is_empty() {
+            // Blank name: revert to automatic titles (RenameTab's blank branch).
+            pane.user_named = false;
+            pane.has_default_title = true;
+            pane.title = String::new();
+        } else {
+            pane.user_named = true;
+            pane.has_default_title = false;
+            pane.title = name.to_string();
+        }
+        true
+    }
+
+    /// The user title of this tab's sole pane, for persistence (card
+    /// 01a0d95dd318). `None` unless the tab has exactly one pane and that
+    /// pane is user-named — multi-pane layouts persist pane titles per-leaf
+    /// in the session pane tree instead, and arrangements (which restore
+    /// single-pane tabs only) can only carry this form.
+    pub fn sole_pane_user_title(&self) -> Option<String> {
+        let pm = self.pane_manager.as_ref()?;
+        if pm.pane_count() != 1 {
+            return None;
+        }
+        let panes = pm.all_panes();
+        let pane = panes.first()?;
+        pane.user_named.then(|| pane.title.clone())
+    }
+
+    /// Restore a persisted sole-pane user title (session/arrangement
+    /// restore). Same field writes as [`Tab::rename_pane`] — a restored
+    /// local pane has no daemon side, so nothing is pushed.
+    pub fn restore_sole_pane_title(&mut self, title: &str) {
+        let Some(pm) = self.pane_manager.as_mut() else {
+            return;
+        };
+        if pm.pane_count() != 1 {
+            return;
+        }
+        let Some(pane_id) = pm.focused_pane_id() else {
+            return;
+        };
+        self.rename_pane(pane_id, title);
     }
 
     /// Set the tab's default title based on its position
@@ -499,6 +563,161 @@ mod tests {
     }
 }
 
+#[cfg(test)]
+mod pane_rename_tests {
+    use crate::tab::Tab;
+
+    /// Card 01a0d95dd318 criterion 2: a user-named pane keeps its name
+    /// when the program changes its OSC title (the same skip that keeps a
+    /// user-named tab static; the CWD fallback is skipped by the same
+    /// guard).
+    #[test]
+    fn user_named_pane_keeps_its_title_against_osc() {
+        let mut tab = Tab::new_stub(1, 1);
+        // Feed an OSC 0 title into the stub pane's terminal — the
+        // auto-title loop must pick it up while the pane is not
+        // user-named.
+        {
+            let pm = tab.pane_manager.as_mut().expect("pane manager");
+            let pane = pm.focused_pane_mut().expect("focused pane");
+            if let Ok(term) = pane.terminal.try_read() {
+                term.process_data(b"\x1b]0;vim terminal\x07");
+            }
+        }
+        tab.update_title(
+            par_term_config::TabTitleMode::Auto,
+            par_term_config::RemoteTabTitleFormat::default(),
+            false,
+        );
+        {
+            let pm = tab.pane_manager.as_ref().expect("pane manager");
+            let pane = pm.focused_pane().expect("focused pane");
+            assert_eq!(
+                pane.title, "vim terminal",
+                "the OSC title applies while the pane is not user-named"
+            );
+        }
+
+        // User-name it: the same OSC title must not reclaim the pane.
+        {
+            let pm = tab.pane_manager.as_mut().expect("pane manager");
+            let pane = pm.focused_pane_mut().expect("focused pane");
+            pane.user_named = true;
+            pane.title = "my pane".to_string();
+        }
+        tab.update_title(
+            par_term_config::TabTitleMode::Auto,
+            par_term_config::RemoteTabTitleFormat::default(),
+            false,
+        );
+        let pm = tab.pane_manager.as_ref().expect("pane manager");
+        let pane = pm.focused_pane().expect("focused pane");
+        assert_eq!(pane.title, "my pane", "a user-named pane is static");
+        assert!(pane.user_named);
+    }
+
+    /// Card 01a0d95dd318 criterion 1: setting a name marks the pane
+    /// user-named; a blank name reverts it to automatic titles.
+    #[test]
+    fn rename_pane_sets_and_clears_the_user_name() {
+        let mut tab = Tab::new_stub(1, 1);
+        let pane_id = tab
+            .pane_manager
+            .as_ref()
+            .expect("pane manager")
+            .focused_pane_id()
+            .expect("focused pane");
+
+        assert!(tab.rename_pane(pane_id, "build box"));
+        {
+            let pane = tab
+                .pane_manager
+                .as_ref()
+                .expect("pane manager")
+                .focused_pane()
+                .expect("focused pane");
+            assert_eq!(pane.title, "build box");
+            assert!(pane.user_named);
+            assert!(!pane.has_default_title);
+        }
+
+        // Blank (whitespace-only) input reverts to automatic titles.
+        assert!(tab.rename_pane(pane_id, "   "));
+        let pane = tab
+            .pane_manager
+            .as_ref()
+            .expect("pane manager")
+            .focused_pane()
+            .expect("focused pane");
+        assert!(pane.title.is_empty(), "the old name must be dropped now");
+        assert!(!pane.user_named);
+        assert!(pane.has_default_title);
+    }
+
+    /// The name is trimmed before it lands, and an unknown pane id (a pane
+    /// closed while the rename popup was open) is reported, not silently
+    /// ignored.
+    #[test]
+    fn rename_pane_trims_and_reports_unknown_panes() {
+        let mut tab = Tab::new_stub(1, 1);
+        let pane_id = tab
+            .pane_manager
+            .as_ref()
+            .expect("pane manager")
+            .focused_pane_id()
+            .expect("focused pane");
+
+        assert!(tab.rename_pane(pane_id, "  spaced  "));
+        let pane = tab
+            .pane_manager
+            .as_ref()
+            .expect("pane manager")
+            .focused_pane()
+            .expect("focused pane");
+        assert_eq!(pane.title, "spaced", "surrounding whitespace is trimmed");
+
+        assert!(
+            !tab.rename_pane(u64::MAX, "nope"),
+            "an unmapped pane id must report failure"
+        );
+    }
+
+    /// Card 01a0d95dd318 criterion 4, local half: the sole pane's user
+    /// title round-trips through the persistence helpers (what
+    /// TabSnapshot.pane_user_title carries), and an automatic-titled pane
+    /// captures as None.
+    #[test]
+    fn sole_pane_user_title_round_trips_through_the_helpers() {
+        let mut tab = Tab::new_stub(1, 1);
+        assert_eq!(
+            tab.sole_pane_user_title(),
+            None,
+            "an automatic-titled pane captures as None"
+        );
+
+        tab.rename_pane(
+            tab.pane_manager
+                .as_ref()
+                .expect("pane manager")
+                .focused_pane_id()
+                .expect("focused pane"),
+            "build box",
+        );
+        assert_eq!(tab.sole_pane_user_title(), Some("build box".to_string()));
+
+        // Restore into a fresh tab: the pane comes back user-named.
+        let mut restored = Tab::new_stub(1, 1);
+        restored.restore_sole_pane_title("build box");
+        let pane = restored
+            .pane_manager
+            .as_ref()
+            .expect("pane manager")
+            .focused_pane()
+            .expect("focused pane");
+        assert_eq!(pane.title, "build box");
+        assert!(pane.user_named);
+    }
+}
 #[cfg(test)]
 mod default_title_tests {
     use crate::tab::Tab;

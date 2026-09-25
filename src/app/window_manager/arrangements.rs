@@ -174,6 +174,9 @@ impl WindowManager {
                                 tab.user_named = true;
                                 // has_default_title = false is already set by set_title()
                             }
+                            if let Some(ref pane_title) = snapshot.pane_user_title {
+                                tab.restore_sole_pane_title(pane_title);
+                            }
                             if let Some(color) = snapshot.custom_color {
                                 tab.set_custom_color(color);
                             }

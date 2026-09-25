@@ -12,6 +12,7 @@
 
 mod inspector;
 pub(crate) mod integrations;
+mod pane;
 mod tab_bar;
 
 use crate::app::window_state::WindowState;

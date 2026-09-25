@@ -62,6 +62,38 @@ impl WindowState {
         needs_redraw
     }
 
+    /// Apply `%pane-title-changed` pushes: the daemon emits these ONLY for
+    /// user `-T` titles (set from par-term's Rename Pane, a shell via
+    /// `par-mux -c`, or another client), so a push always carries user
+    /// semantics — non-empty re-marks the pane user-named, empty (the
+    /// clear operation) reverts it to automatic titles. A pane with no
+    /// native mapping yet waits in `mux_pane_titles` for the layout
+    /// consumer, the same pending-seed pattern as reattach screens.
+    pub(super) fn apply_pane_title_pushes(
+        &mut self,
+        pushes: Vec<par_term_emu_core_rust::tmux_control::TmuxNotification>,
+    ) -> bool {
+        let mut needs_redraw = false;
+        for push in pushes {
+            if let par_term_emu_core_rust::tmux_control::TmuxNotification::PaneTitleChanged {
+                pane_id,
+                title,
+            } = push
+                && let Some(pane) = pane_id.strip_prefix('%').and_then(|id| id.parse().ok())
+            {
+                crate::debug_info!(
+                    "MUX",
+                    "pane title push: %{pane} {:?} (user semantics)",
+                    title
+                );
+                self.tmux_state.mux_pane_titles.insert(pane, (title, true));
+                self.apply_pending_mux_pane_titles();
+                needs_redraw = true;
+            }
+        }
+        needs_redraw
+    }
+
     /// Drain the par-mux transport and dispatch through the same grouped
     /// consumer path as `check_tmux_notifications`: session/window
     /// structure before layout before output. Called from the shared poll
@@ -80,18 +112,27 @@ impl WindowState {
         }
         if core_notifications.is_empty() && !disconnected {
             self.apply_pending_mux_screen_seeds();
+            self.apply_pending_mux_pane_titles();
             return false;
         }
 
-        // The roster push is a core variant the ParserBridge deliberately
-        // drops (a named arm there cannot compile against the published
-        // pin), so partition it out here — the roster cache is its
-        // consumer. This destructure is the single push call site.
+        // The roster push and the daemon pane-title push are core variants
+        // the ParserBridge deliberately drops (a named arm there cannot
+        // compile against the published pin), so partition them out here —
+        // the roster cache and the pane-title applier are their consumers.
+        // This destructure is the single push call site for both.
         let (agent_pushes, core_notifications): (Vec<_>, Vec<_>) =
             core_notifications.into_iter().partition(|n| {
                 matches!(
                     n,
                     par_term_emu_core_rust::tmux_control::TmuxNotification::AgentStateChanged { .. }
+                )
+            });
+        let (title_pushes, core_notifications): (Vec<_>, Vec<_>) =
+            core_notifications.into_iter().partition(|n| {
+                matches!(
+                    n,
+                    par_term_emu_core_rust::tmux_control::TmuxNotification::PaneTitleChanged { .. }
                 )
             });
 
@@ -113,11 +154,13 @@ impl WindowState {
                 .any(|n| matches!(n, TmuxNotification::SessionEnded))
         {
             self.tmux_state.agent_roster.clear();
+            self.tmux_state.mux_pane_titles.clear();
         }
 
         crate::debug_info!("MUX", "Processing {} notifications", notifications.len());
 
         let mut needs_redraw = self.apply_agent_pushes(agent_pushes);
+        needs_redraw |= self.apply_pane_title_pushes(title_pushes);
 
         // Same bucket split as polling.rs — direct handlers TmuxSync cannot
         // translate, then the sync groups in dependency order.
@@ -237,6 +280,7 @@ impl WindowState {
         needs_redraw |= self.process_sync_actions(other_actions);
 
         self.apply_pending_mux_screen_seeds();
+        self.apply_pending_mux_pane_titles();
 
         needs_redraw
     }
@@ -255,6 +299,82 @@ impl WindowState {
         for pane in ready {
             self.deliver_pending_mux_seed(pane);
         }
+    }
+
+    /// Deliver daemon pane titles (reattach restore + pre-mapping pushes)
+    /// to native panes once their mappings exist — consumed once
+    /// delivered, mirroring the seed sweep. An entry for a pane that was
+    /// closed before mapping lingers until detach clears the map (bounded
+    /// by session lifetime, one string per closed pane).
+    fn apply_pending_mux_pane_titles(&mut self) {
+        if self.tmux_state.mux_pane_titles.is_empty() {
+            return;
+        }
+        let ready: Vec<(TmuxPaneId, String, bool)> = self
+            .tmux_state
+            .mux_pane_titles
+            .iter()
+            .map(|(pane, (title, is_user))| (*pane, title.clone(), *is_user))
+            .collect();
+        for (pane, title, is_user) in ready {
+            self.apply_daemon_pane_title(pane, &title, is_user);
+        }
+    }
+
+    /// Set one pane's title from the daemon on its mapped native pane —
+    /// the single delivery site for daemon pane titles. User titles
+    /// re-mark the pane user-named (auto-title updates stop overwriting
+    /// it); an OSC-sourced title (the reattach read-back) is only the
+    /// initial title, so live OSC updates keep flowing. A clear (empty
+    /// user title) reverts the pane to automatic titles. Returns whether
+    /// the title landed (a pane without a mapping stays pending).
+    fn apply_daemon_pane_title(
+        &mut self,
+        tmux_pane: TmuxPaneId,
+        title: &str,
+        is_user: bool,
+    ) -> bool {
+        let Some(native) = self
+            .tmux_state
+            .tmux_pane_to_native_pane
+            .get(&tmux_pane)
+            .copied()
+            .or_else(|| self.tmux_state.tmux_sync.get_native_pane(tmux_pane))
+        else {
+            return false;
+        };
+        for tab in self.tab_manager.tabs_mut() {
+            if let Some(pane_manager) = tab.pane_manager_mut()
+                && let Some(pane_obj) = pane_manager.get_pane_mut(native)
+            {
+                if is_user {
+                    if title.is_empty() {
+                        // The daemon's clear: back to automatic titles,
+                        // mirroring Rename Tab's blank branch.
+                        pane_obj.user_named = false;
+                        pane_obj.title = String::new();
+                        pane_obj.has_default_title = true;
+                    } else {
+                        pane_obj.title = title.to_string();
+                        pane_obj.has_default_title = false;
+                        pane_obj.user_named = true;
+                    }
+                } else if !title.is_empty() {
+                    // OSC-sourced read-back: seed the title without
+                    // freezing it — the auto-title loop may refine it.
+                    pane_obj.title = title.to_string();
+                    pane_obj.has_default_title = false;
+                }
+                self.tmux_state.mux_pane_titles.remove(&tmux_pane);
+                crate::debug_info!(
+                    "MUX",
+                    "applied daemon pane title for %{tmux_pane}: {:?} (user={is_user})",
+                    title
+                );
+                return true;
+            }
+        }
+        false
     }
 
     /// Feed one pane's pending reattach seed to its mapped native pane —

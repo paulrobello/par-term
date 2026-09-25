@@ -149,6 +149,7 @@ mod tests {
                     title: "work".to_string(),
                     custom_color: None,
                     user_title: None,
+                    pane_user_title: None,
                     custom_icon: None,
                 }],
                 active_tab_index: 0,
@@ -206,6 +207,7 @@ mod tests {
                         title: "My Custom Tab".to_string(),
                         custom_color: Some([255, 128, 0]),
                         user_title: Some("My Custom Tab".to_string()),
+                        pane_user_title: None,
                         custom_icon: Some("🔥".to_string()),
                     },
                     TabSnapshot {
@@ -213,6 +215,7 @@ mod tests {
                         title: "Tab 2".to_string(),
                         custom_color: None,
                         user_title: None,
+                        pane_user_title: None,
                         custom_icon: Some("📁".to_string()),
                     },
                     TabSnapshot {
@@ -220,6 +223,7 @@ mod tests {
                         title: "Colored Only".to_string(),
                         custom_color: Some([0, 200, 100]),
                         user_title: None,
+                        pane_user_title: None,
                         custom_icon: None,
                     },
                 ],

@@ -102,6 +102,10 @@ pub enum SessionPaneNode {
     Leaf {
         /// Working directory of this pane
         cwd: Option<String>,
+        /// User-set title of this pane (present only when the pane was
+        /// user-named at save time; automatic titles are re-derived)
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        user_title: Option<String>,
     },
     /// A split containing two children
     Split {
@@ -114,4 +118,54 @@ pub enum SessionPaneNode {
         /// Second child (bottom/right)
         second: Box<SessionPaneNode>,
     },
+}
+
+#[cfg(test)]
+mod pane_title_persistence_tests {
+    use super::SessionPaneNode;
+
+    /// Card 01a0d95dd318 criterion 4: a leaf's user title round-trips, and
+    /// a pre-rename session file (no `user_title` key) still loads.
+    #[test]
+    fn leaf_user_title_round_trips_and_old_files_load() {
+        let leaf = SessionPaneNode::Leaf {
+            cwd: Some("/tmp".to_string()),
+            user_title: Some("build box".to_string()),
+        };
+        let yaml = serde_yaml_ng::to_string(&leaf).expect("serialize");
+        let back: SessionPaneNode = serde_yaml_ng::from_str(&yaml).expect("deserialize");
+        let SessionPaneNode::Leaf { cwd, user_title } = back else {
+            panic!("round-trip must stay a leaf")
+        };
+        assert_eq!(cwd.as_deref(), Some("/tmp"));
+        assert_eq!(
+            user_title.as_deref(),
+            Some("build box"),
+            "the user title must survive the YAML round-trip"
+        );
+        assert!(
+            !yaml.contains("user_title: null"),
+            "absent titles are omitted"
+        );
+
+        // The pre-field form (saved by older par-term: same serializer,
+        // user_title absent via skip_serializing_if) loads with
+        // `user_title: None` via serde default.
+        let untitled = SessionPaneNode::Leaf {
+            cwd: Some("/tmp".to_string()),
+            user_title: None,
+        };
+        let old_yaml = serde_yaml_ng::to_string(&untitled).expect("serialize untitled");
+        assert!(
+            !old_yaml.contains("user_title"),
+            "an absent title is not written: {old_yaml}"
+        );
+        let parsed: SessionPaneNode =
+            serde_yaml_ng::from_str(&old_yaml).expect("old-format leaf loads");
+        let SessionPaneNode::Leaf { cwd, user_title } = parsed else {
+            panic!("old-format parse must stay a leaf")
+        };
+        assert_eq!(cwd.as_deref(), Some("/tmp"));
+        assert_eq!(user_title, None);
+    }
 }

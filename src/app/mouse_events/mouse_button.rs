@@ -247,12 +247,67 @@ impl WindowState {
                     self.cancel_pane_transfer();
                     return;
                 }
+                // Right-click on a pane title bar opens the rename popup —
+                // the pane equivalent of the tab bar's right-click Rename.
+                if state == ElementState::Pressed
+                    && let Some((pane_id, title)) =
+                        self.pane_title_bar_at(mouse_position.0, mouse_position.1)
+                {
+                    let pos = self.physical_to_logical_pos(mouse_position);
+                    self.overlay_ui.pane_rename_ui.open(pane_id, &title, pos);
+                    self.request_redraw();
+                    return; // consumed — never forwarded to mouse tracking
+                }
                 // Try to send to terminal if mouse tracking is enabled
                 let _ = self.try_send_mouse_event(2, state == ElementState::Pressed);
                 // Event consumed by terminal (or ignored)
             }
             _ => {}
         }
+    }
+
+    /// The pane whose title bar sits at `(x, y)` (physical px), with its
+    /// current title — `None` when pane titles are off or the point is not
+    /// on a title bar. The title bar is the pane's top (or bottom) strip
+    /// of `pane_title_height` logical pixels, matching pane_render's
+    /// geometry.
+    fn pane_title_bar_at(&self, x: f64, y: f64) -> Option<(crate::pane::PaneId, String)> {
+        let panes_cfg = &self.config.load().panes;
+        if !panes_cfg.show_pane_titles {
+            return None;
+        }
+        let scale = self
+            .renderer
+            .as_ref()
+            .map(|r| r.scale_factor() as f64)
+            .unwrap_or(1.0);
+        let bar_height = panes_cfg.pane_title_height as f64 * scale;
+        let tab = self.tab_manager.active_tab()?;
+        let pm = tab.pane_manager.as_ref()?;
+        pm.all_panes().iter().find_map(|pane| {
+            let b = pane.bounds;
+            let in_bar = match panes_cfg.pane_title_position {
+                par_term_config::PaneTitlePosition::Top => {
+                    y >= b.y as f64 && y < b.y as f64 + bar_height
+                }
+                par_term_config::PaneTitlePosition::Bottom => {
+                    y >= b.y as f64 + b.height as f64 - bar_height
+                        && y < b.y as f64 + b.height as f64
+                }
+            };
+            (in_bar && x >= b.x as f64 && x < b.x as f64 + b.width as f64)
+                .then_some((pane.id, pane.title.clone()))
+        })
+    }
+
+    /// Convert a physical-pixel position to egui logical coordinates.
+    fn physical_to_logical_pos(&self, pos: (f64, f64)) -> egui::Pos2 {
+        let scale = self
+            .renderer
+            .as_ref()
+            .map(|r| r.scale_factor())
+            .unwrap_or(1.0);
+        egui::pos2(pos.0 as f32 / scale, pos.1 as f32 / scale)
     }
 
     fn handle_left_mouse_button(

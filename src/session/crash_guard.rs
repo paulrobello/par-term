@@ -511,6 +511,7 @@ mod tests {
                         title: "work".to_string(),
                         custom_color: None,
                         user_title: None,
+                        pane_user_title: None,
                         custom_icon: None,
                     },
                     pane_layout: None,

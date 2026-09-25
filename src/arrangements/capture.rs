@@ -101,6 +101,7 @@ pub fn capture_arrangement(
                 } else {
                     None
                 },
+                pane_user_title: tab.sole_pane_user_title(),
                 custom_icon: tab.custom_icon.clone(),
             })
             .collect();

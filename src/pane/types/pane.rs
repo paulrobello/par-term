@@ -76,6 +76,11 @@ pub struct Pane {
     pub title: String,
     /// True when pane still has its default/fallback title
     pub has_default_title: bool,
+    /// True when the user named this pane (Rename Pane): auto-title updates
+    /// from OSC/CWD skip it, mirroring `Tab::user_named` for tabs. For mux
+    /// panes the daemon's `-T` user title is the source of truth and this
+    /// flag re-marks on reattach.
+    pub user_named: bool,
     /// State for shell restart behavior (None = shell running or closed normally)
     pub restart_state: Option<RestartState>,
     /// Whether the parent tab is active (shared with tab for refresh throttling)
@@ -145,6 +150,7 @@ impl Pane {
             bounds: PaneBounds::default(),
             title: String::new(),
             has_default_title: true,
+            user_named: false,
             background: PaneBackground::new(),
             restart_state: None,
             is_active: Arc::new(AtomicBool::new(false)),
@@ -212,6 +218,7 @@ impl Pane {
             bounds: PaneBounds::default(),
             title: String::new(),
             has_default_title: true,
+            user_named: false,
             background: PaneBackground::new(),
             restart_state: None,
             is_active: Arc::new(AtomicBool::new(false)),
@@ -261,6 +268,7 @@ impl Pane {
             bounds: PaneBounds::default(),
             title: String::new(),
             has_default_title: true,
+            user_named: false,
             background: PaneBackground::new(),
             restart_state: None,
             is_active,
@@ -312,6 +320,7 @@ impl Pane {
             bounds: PaneBounds::default(),
             title: String::new(),
             has_default_title: true,
+            user_named: false,
             background: PaneBackground::new(),
             restart_state: None,
             is_active: Arc::new(AtomicBool::new(false)),

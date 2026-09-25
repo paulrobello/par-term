@@ -57,12 +57,20 @@ impl PaneManager {
         runtime: Arc<Runtime>,
     ) -> Result<PaneNode> {
         match layout {
-            SessionPaneNode::Leaf { cwd } => {
+            SessionPaneNode::Leaf { cwd, user_title } => {
                 let id = self.next_pane_id;
                 self.next_pane_id += 1;
 
                 let validated_cwd = crate::session::restore::validate_cwd(cwd);
-                let pane = Pane::new(id, config, runtime, validated_cwd)?;
+                let mut pane = Pane::new(id, config, runtime, validated_cwd)?;
+                // A persisted user title re-marks the pane user-named so
+                // automatic titles never overwrite it; automatic titles are
+                // not persisted and re-derive from the fresh terminal.
+                if let Some(title) = user_title.as_deref().filter(|t| !t.is_empty()) {
+                    pane.user_named = true;
+                    pane.has_default_title = false;
+                    pane.title = title.to_string();
+                }
                 Ok(PaneNode::leaf(pane))
             }
             SessionPaneNode::Split {

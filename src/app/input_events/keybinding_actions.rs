@@ -147,6 +147,31 @@ pub(crate) static ACTION_HANDLERS: &[(&str, ActionHandler)] = &[
         true
     }),
     ("toggle_ai_inspector", toggle_ai_inspector),
+    ("rename_pane", |s: &mut WindowState| {
+        // Open the rename popup on the focused pane (the same popup a
+        // right-click on its title bar opens). The popup anchors at the
+        // pane's title bar, or its top edge when title bars are off.
+        let found = s.tab_manager.active_tab().and_then(|tab| {
+            let pm = tab.pane_manager.as_ref()?;
+            let pane = pm.focused_pane()?;
+            Some((pane.id, pane.title.clone(), pane.bounds))
+        });
+        if let Some((pane_id, title, bounds)) = found {
+            let scale = s.renderer.as_ref().map(|r| r.scale_factor()).unwrap_or(1.0);
+            let panes_cfg = &s.config.load().panes;
+            let bar_y = match panes_cfg.pane_title_position {
+                par_term_config::PaneTitlePosition::Top => bounds.y,
+                par_term_config::PaneTitlePosition::Bottom => {
+                    bounds.y + bounds.height - panes_cfg.pane_title_height * scale
+                }
+            };
+            let pos = egui::pos2(bounds.x / scale, bar_y / scale);
+            s.overlay_ui.pane_rename_ui.open(pane_id, &title, pos);
+            s.request_redraw();
+            log::info!("Pane rename popup opened via keybinding for pane {pane_id}");
+        }
+        true
+    }),
     ("new_tab", |s: &mut WindowState| {
         s.new_tab_or_show_profiles();
         true

@@ -198,6 +198,7 @@ mod tests {
                         title: "tab1".to_string(),
                         custom_color: None,
                         user_title: None,
+                        pane_user_title: None,
                         custom_icon: None,
                     },
                     TabSnapshot {
@@ -205,6 +206,7 @@ mod tests {
                         title: "tab2".to_string(),
                         custom_color: None,
                         user_title: None,
+                        pane_user_title: None,
                         custom_icon: None,
                     },
                 ],

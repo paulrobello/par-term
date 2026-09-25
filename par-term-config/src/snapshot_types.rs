@@ -46,6 +46,13 @@ pub struct TabSnapshot {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub user_title: Option<String>,
 
+    /// User-set title of the tab's sole pane (present only when the user
+    /// renamed a pane in a single-pane tab). Multi-pane layouts carry pane
+    /// titles per-leaf in the session pane tree instead — arrangements,
+    /// which do not restore pane trees, only ever have this form.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pane_user_title: Option<String>,
+
     /// Custom icon set by the user (persists across sessions)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub custom_icon: Option<String>,

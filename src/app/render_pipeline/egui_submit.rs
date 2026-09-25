@@ -249,6 +249,11 @@ impl WindowState {
             _ => None,
         };
 
+        // Pane-rename submit collected inside the egui closure below; the
+        // egui state borrow spans the closure, so the rename itself runs
+        // after the block ends.
+        let mut pane_rename_submit: Option<(crate::pane::PaneId, String)> = None;
+
         let result = if let Some(window) = self.window.as_ref() {
             if let (Some(egui_ctx), Some(egui_state)) = (&self.egui.ctx, &mut self.egui.state) {
                 let mut raw_input = egui_state.take_egui_input(window);
@@ -502,6 +507,17 @@ impl WindowState {
 
                     // Show paste special UI and collect action
                     actions.paste_special = self.overlay_ui.paste_special_ui.show(ctx);
+
+                    // Pane-title rename popup (right-click a pane title bar,
+                    // or the `rename_pane` action on the focused pane). The
+                    // closure cannot take a whole-&mut-self method (the
+                    // egui state borrow above), so the submit is applied
+                    // after the egui block ends.
+                    if let crate::pane_rename_ui::PaneRenameOutcome::Submit { pane_id, name } =
+                        self.overlay_ui.pane_rename_ui.render(ctx)
+                    {
+                        pane_rename_submit = Some((pane_id, name));
+                    }
 
                     // Show search UI and collect action
                     actions.search =
@@ -757,6 +773,12 @@ impl WindowState {
         // Mark egui as initialized after first ctx.run_ui() - makes is_using_pointer() reliable
         if !self.egui.initialized && result.is_some() {
             self.egui.initialized = true;
+        }
+
+        // Apply the pane rename collected above (the egui state borrow has
+        // ended here).
+        if let Some((pane_id, name)) = pane_rename_submit {
+            self.rename_pane(pane_id, &name);
         }
 
         // Apply the interactions the interactive overlays collected: focus

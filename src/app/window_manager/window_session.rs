@@ -218,6 +218,9 @@ impl WindowManager {
                                 tab.set_title(user_title);
                                 tab.user_named = true;
                             }
+                            if let Some(ref pane_title) = session_tab.snapshot.pane_user_title {
+                                tab.restore_sole_pane_title(pane_title);
+                            }
                             if let Some(color) = session_tab.snapshot.custom_color {
                                 tab.set_custom_color(color);
                             }

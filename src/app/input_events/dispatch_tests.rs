@@ -58,6 +58,7 @@ const FROZEN_ACTION_INVENTORY: &[&str] = &[
     "reload_config",
     "reload_dynamic_profiles",
     "reopen_closed_tab",
+    "rename_pane",
     "reset_font_size",
     "resize_pane_down",
     "resize_pane_left",

@@ -55,6 +55,7 @@ pub fn capture_session(windows: &HashMap<WindowId, WindowState>) -> SessionState
                         } else {
                             None
                         },
+                        pane_user_title: tab.sole_pane_user_title(),
                         custom_icon: tab.custom_icon.clone(),
                     },
                     pane_layout,
@@ -97,6 +98,7 @@ pub fn capture_pane_node(node: &PaneNode) -> SessionPaneNode {
     match node {
         PaneNode::Leaf(pane) => SessionPaneNode::Leaf {
             cwd: pane.get_cwd(),
+            user_title: pane.user_named.then(|| pane.title.clone()),
         },
         PaneNode::Split {
             direction,

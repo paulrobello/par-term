@@ -83,6 +83,7 @@ pub mod menu;
 pub mod mux_extension_installer;
 pub mod mux_hook_installer;
 pub mod pane;
+pub mod pane_rename_ui;
 pub mod paste_special_ui;
 pub mod paste_transform;
 pub mod platform;

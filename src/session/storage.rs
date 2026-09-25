@@ -108,6 +108,7 @@ mod tests {
                         title: "work".to_string(),
                         custom_color: None,
                         user_title: None,
+                        pane_user_title: None,
                         custom_icon: None,
                     },
                     pane_layout: None,
@@ -182,6 +183,7 @@ mod tests {
                             title: "My Custom Tab".to_string(),
                             custom_color: Some([255, 128, 0]),
                             user_title: Some("My Custom Tab".to_string()),
+                            pane_user_title: None,
                             custom_icon: Some("🔥".to_string()),
                         },
                         pane_layout: None,
@@ -192,6 +194,7 @@ mod tests {
                             title: "Tab 2".to_string(),
                             custom_color: None,
                             user_title: None,
+                            pane_user_title: None,
                             custom_icon: Some("📁".to_string()),
                         },
                         pane_layout: None,
@@ -202,6 +205,7 @@ mod tests {
                             title: "Colored Only".to_string(),
                             custom_color: Some([0, 200, 100]),
                             user_title: None,
+                            pane_user_title: None,
                             custom_icon: None,
                         },
                         pane_layout: None,
@@ -278,6 +282,7 @@ mod tests {
                         title: "dev".to_string(),
                         custom_color: None,
                         user_title: None,
+                        pane_user_title: None,
                         custom_icon: None,
                     },
                     pane_layout: Some(SessionPaneNode::Split {
@@ -285,15 +290,18 @@ mod tests {
                         ratio: 0.5,
                         first: Box::new(SessionPaneNode::Leaf {
                             cwd: Some("/home/user/code".to_string()),
+                            user_title: None,
                         }),
                         second: Box::new(SessionPaneNode::Split {
                             direction: SplitDirection::Horizontal,
                             ratio: 0.6,
                             first: Box::new(SessionPaneNode::Leaf {
                                 cwd: Some("/home/user/logs".to_string()),
+                                user_title: None,
                             }),
                             second: Box::new(SessionPaneNode::Leaf {
                                 cwd: Some("/home/user/tests".to_string()),
+                                user_title: None,
                             }),
                         }),
                     }),

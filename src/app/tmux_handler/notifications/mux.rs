@@ -204,13 +204,59 @@ pub(crate) fn attach_sequence(
         crate::debug_error!("MUX", "list-agents roster fill failed: {e}");
         Vec::new()
     });
+    // Read each pane's daemon title back — the reattach half of pane
+    // renaming. `pane-title` answers with the EFFECTIVE title (user `-T`
+    // when set, else the pane's OSC title), which does not say which kind
+    // it is; the clear-and-requery probe decides: clearing the user title
+    // changes the answer only when one was set. The probe restore re-sets
+    // a user title it found (its broadcast re-affirms the same value).
+    let mut titles = Vec::new();
+    // `panes` was consumed by the screens loop; its members survive there.
+    for pane in screens.iter().map(|(pane, _)| *pane) {
+        let effective = transport.client().pane_title(pane).unwrap_or_else(|e| {
+            crate::debug_error!("MUX", "pane-title query failed for %{pane}: {e}");
+            String::new()
+        });
+        if effective.is_empty() {
+            continue;
+        }
+        let is_user = probe_pane_title_is_user(transport, pane, &effective);
+        titles.push((pane, (effective, is_user)));
+    }
     Ok(AttachSequence {
         daemon_version,
         outcome,
         existing_windows,
         screens,
         agents,
+        titles,
     })
+}
+
+/// Decide whether `effective` (a pane's queried title) is a user `-T`
+/// title or the pane program's OSC title: clear the user title, re-query,
+/// and compare — the answer moves only when a user title was set. A user
+/// title is restored before returning, so the daemon keeps owning it.
+fn probe_pane_title_is_user(transport: &MuxTransport, pane: TmuxPaneId, effective: &str) -> bool {
+    let clear = format!("select-pane -t %{pane} -T ''");
+    if let Err(e) = transport.client().send(&clear) {
+        crate::debug_error!("MUX", "pane-title probe clear failed for %{pane}: {e}");
+        return false;
+    }
+    let after_clear = transport.client().pane_title(pane).unwrap_or_default();
+    if after_clear == effective {
+        // No user title was set — the clear changed nothing.
+        return false;
+    }
+    // A user title was set (and the clear just removed it): restore it.
+    let restore = format!(
+        "select-pane -t %{pane} -T {}",
+        par_term_mux::quote_env_value(effective)
+    );
+    if let Err(e) = transport.client().send(&restore) {
+        crate::debug_error!("MUX", "pane-title probe restore failed for %{pane}: {e}");
+    }
+    true
 }
 
 /// Why attaching to `target_socket` would render this window inside
@@ -262,13 +308,15 @@ fn stamp_pane_session_id(transport: &dyn TmuxTransport, session: Option<u64>) {
 /// What [`attach_sequence`] learned — the tuple it returned, named: the
 /// daemon's `version` reply (raw; `None` only when the query itself failed
 /// at transport level), the attach outcome, windows needing tabs,
-/// per-pane replayed screens, and the roster fill.
+/// per-pane replayed screens, the roster fill, and per-pane daemon titles
+/// (`(title, is_user)` — the reattach restore of pane renaming).
 pub(crate) struct AttachSequence {
     pub(crate) daemon_version: Option<String>,
     pub(crate) outcome: AttachOutcome,
     pub(crate) existing_windows: Vec<TmuxWindowId>,
     pub(crate) screens: Vec<(TmuxPaneId, Vec<u8>)>,
     pub(crate) agents: Vec<AgentEntry>,
+    pub(crate) titles: Vec<(TmuxPaneId, (String, bool))>,
 }
 
 impl TmuxState {
@@ -522,6 +570,7 @@ impl WindowState {
                  existing_windows,
                  screens,
                  agents,
+                 titles,
              }| {
                 // The stale-daemon check: the daemon outlives clients, so
                 // this attach may have landed on one built before the
@@ -553,6 +602,9 @@ impl WindowState {
                 self.tmux_state.mux_screen_seeds = screens
                     .into_iter()
                     .collect::<std::collections::HashMap<_, _>>();
+                // Daemon pane titles wait the same way — the reattach
+                // restore of pane renaming.
+                self.tmux_state.mux_pane_titles = titles.into_iter().collect();
                 self.tmux_state.agent_roster.fill_from_list(agents);
                 outcome
             },
@@ -596,6 +648,7 @@ impl WindowState {
         // Mux-only state the shared cleanup below does not know about.
         self.tmux_state.mux_focused_pane = None;
         self.tmux_state.mux_screen_seeds.clear();
+        self.tmux_state.mux_pane_titles.clear();
         self.tmux_state.agent_roster.clear();
         self.handle_tmux_session_ended();
         // Overwrite the shared cleanup's "tmux: Session ended" toast: the
@@ -1196,6 +1249,272 @@ mod tests {
         assert!(
             ws.tmux_state.tmux_pane_to_native_pane.contains_key(&0),
             "the surviving pane's mapping must remain"
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// Card 01a0d95dd318 criterion 3, read-back half: a daemon
+    /// `%pane-title-changed` push (set from a shell via `par-mux -c`, by
+    /// another client, or by par-term's own rename) applies to the mapped
+    /// native pane with user semantics — the name lands, the pane is
+    /// marked user-named, and the daemon's clear reverts it to automatic
+    /// titles.
+    #[test]
+    fn daemon_pane_title_pushes_apply_and_clear_reverts() {
+        let path = socket_path("title-push");
+        spawn_daemon(&path);
+
+        // Attach + map %0 (the roster test's ladder).
+        let core_client = par_term_emu_core_rust::mux::MuxClient::connect(&path).expect("connect");
+        let (tx, rx) = std::sync::mpsc::channel();
+        tx.send(Ok(core_client)).unwrap();
+        drop(tx);
+        let mut ws = manners_state();
+        ws.tmux_state.mux_attach_pending = Some(MuxAttachPending {
+            name: "titlepush".to_string(),
+            rx,
+        });
+        ws.poll_mux_attach();
+        assert!(ws.tmux_state.transport.is_some(), "attach must install");
+        ws.handle_tmux_window_add(0);
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !ws.tmux_state.tmux_pane_to_native_pane.contains_key(&0) {
+            assert!(
+                Instant::now() < deadline,
+                "the layout consumer never mapped %0"
+            );
+            ws.tmux_state
+                .transport
+                .as_ref()
+                .expect("transport")
+                .send_command("refresh-client -t %0 -C 80x24")
+                .expect("size push broadcasts %layout-change");
+            ws.check_mux_notifications();
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        let native = ws.tmux_state.tmux_pane_to_native_pane[&0];
+        let pane_title = |ws: &WindowState| -> Option<String> {
+            for tab in ws.tab_manager.tabs() {
+                if let Some(pane) = tab.pane_manager().and_then(|pm| pm.get_pane(native)) {
+                    return Some(pane.title.clone());
+                }
+            }
+            None
+        };
+        let pane_is_user_named = |ws: &WindowState| -> bool {
+            ws.tab_manager
+                .tabs()
+                .iter()
+                .find_map(|tab| {
+                    tab.pane_manager()
+                        .and_then(|pm| pm.get_pane(native))
+                        .map(|p| p.user_named)
+                })
+                .unwrap_or(false)
+        };
+
+        // Another client renames the pane daemon-side: the broadcast must
+        // land through the app's own drain → pane-title applier.
+        ws.tmux_state
+            .transport
+            .as_ref()
+            .expect("transport")
+            .send_command("select-pane -t %0 -T 'build box'")
+            .expect("rename daemon-side");
+        let mut titled = false;
+        while Instant::now() < deadline && !titled {
+            ws.check_mux_notifications();
+            titled = pane_title(&ws).as_deref() == Some("build box") && pane_is_user_named(&ws);
+            if !titled {
+                std::thread::sleep(Duration::from_millis(25));
+            }
+        }
+        assert!(
+            titled,
+            "the daemon title push must land as a user-named title: {:?} user={}",
+            pane_title(&ws),
+            pane_is_user_named(&ws)
+        );
+
+        // The daemon's clear reverts the pane to automatic titles.
+        ws.tmux_state
+            .transport
+            .as_ref()
+            .expect("transport")
+            .send_command("select-pane -t %0 -T ''")
+            .expect("clear daemon-side");
+        let mut reverted = false;
+        while Instant::now() < deadline && !reverted {
+            ws.check_mux_notifications();
+            reverted = !pane_is_user_named(&ws) && pane_title(&ws).as_deref() != Some("build box");
+            if !reverted {
+                std::thread::sleep(Duration::from_millis(25));
+            }
+        }
+        assert!(
+            reverted,
+            "the clear push must revert user-naming: {:?} user={}",
+            pane_title(&ws),
+            pane_is_user_named(&ws)
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// Card 01a0d95dd318 criterion 3, write half: renaming through
+    /// par-term's own write path (`WindowState::rename_pane`, what the
+    /// title-bar popup and the `rename_pane` action drive) pushes
+    /// `select-pane -T` daemon-side — the daemon owns the name — and a
+    /// blank rename clears it there.
+    #[cfg(unix)]
+    #[test]
+    fn rename_pane_pushes_select_pane_t_to_the_daemon() {
+        let path = socket_path("rename-push");
+        spawn_daemon(&path);
+
+        // Attach + map %0 (the title-push test's ladder).
+        let core_client = par_term_emu_core_rust::mux::MuxClient::connect(&path).expect("connect");
+        let (tx, rx) = std::sync::mpsc::channel();
+        tx.send(Ok(core_client)).unwrap();
+        drop(tx);
+        let mut ws = manners_state();
+        ws.tmux_state.mux_attach_pending = Some(MuxAttachPending {
+            name: "renamepush".to_string(),
+            rx,
+        });
+        ws.poll_mux_attach();
+        assert!(ws.tmux_state.transport.is_some(), "attach must install");
+        ws.handle_tmux_window_add(0);
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !ws.tmux_state.tmux_pane_to_native_pane.contains_key(&0) {
+            assert!(
+                Instant::now() < deadline,
+                "the layout consumer never mapped %0"
+            );
+            ws.tmux_state
+                .transport
+                .as_ref()
+                .expect("transport")
+                .send_command("refresh-client -t %0 -C 80x24")
+                .expect("size push broadcasts %layout-change");
+            ws.check_mux_notifications();
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        let native = ws.tmux_state.tmux_pane_to_native_pane[&0];
+        let local_title = |ws: &WindowState| -> Option<String> {
+            ws.tab_manager.tabs().iter().find_map(|tab| {
+                tab.pane_manager()
+                    .and_then(|pm| pm.get_pane(native))
+                    .map(|p| p.title.clone())
+            })
+        };
+
+        // Rename through the app's write path: the local pane is named
+        // immediately AND the daemon holds the title (queried back).
+        ws.rename_pane(native, "build box");
+        assert_eq!(
+            local_title(&ws).as_deref(),
+            Some("build box"),
+            "the local pane is named in the same call"
+        );
+        let reply = ws
+            .tmux_state
+            .transport
+            .as_ref()
+            .expect("transport")
+            .send_command("pane-title -t %0")
+            .expect("pane-title query");
+        assert!(
+            reply.iter().any(|l| l.trim() == "build box"),
+            "the daemon owns the name: {reply:?}"
+        );
+
+        // Blank rename clears the daemon-side title too.
+        ws.rename_pane(native, "");
+        let reply = ws
+            .tmux_state
+            .transport
+            .as_ref()
+            .expect("transport")
+            .send_command("pane-title -t %0")
+            .expect("pane-title query");
+        assert!(
+            !reply.iter().any(|l| l.trim() == "build box"),
+            "a blank rename clears the daemon title: {reply:?}"
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// Card 01a0d95dd318 criterion 4, mux half: a pane's daemon title
+    /// survives detach/reattach, and the attach probe tells a user `-T`
+    /// title (re-marked user-named) from the pane program's OSC title
+    /// (restored as a plain, still-live title).
+    #[cfg(unix)]
+    #[test]
+    fn reattach_probe_distinguishes_user_titles_from_osc_titles() {
+        let path = socket_path("title-probe");
+        spawn_daemon(&path);
+
+        let transport = connect(&path);
+        attach_sequence(&transport, "probe", None, &Default::default()).expect("attach");
+        // User-rename %0; give %1 (split) a program OSC title.
+        transport
+            .send_command("split-window -h -t %0")
+            .expect("split");
+        transport
+            .send_command("select-pane -t %0 -T 'renamed pane'")
+            .expect("user rename");
+        transport
+            .send_command("send-keys -t %1 -l 'printf \"\\033]0;osc pane\\007\"'")
+            .expect("send printf");
+        transport
+            .send_command("send-keys -t %1 Enter")
+            .expect("enter");
+        let deadline = Instant::now() + Duration::from_secs(15);
+        loop {
+            let title = transport.client().pane_title(1).expect("pane-title query");
+            if title == "osc pane" {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "the OSC title never reached the daemon: {title:?}"
+            );
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        drop(transport);
+
+        // Reattach through the app's sequence: the probe must report the
+        // user title as user (and restore it daemon-side) and the OSC
+        // title as plain.
+        let second = connect(&path);
+        let attach =
+            attach_sequence(&second, "probe", None, &Default::default()).expect("reattach");
+        let find = |pane: u64| {
+            attach
+                .titles
+                .iter()
+                .find(|(p, _)| *p == pane)
+                .map(|(_, (title, is_user))| (title.clone(), *is_user))
+        };
+        assert_eq!(
+            find(0).as_ref().map(|(t, u)| (t.as_str(), *u)),
+            Some(("renamed pane", true)),
+            "the user title survives and is marked user: {:?}",
+            attach.titles
+        );
+        assert_eq!(
+            find(1).as_ref().map(|(t, u)| (t.as_str(), *u)),
+            Some(("osc pane", false)),
+            "the OSC title survives and is marked plain: {:?}",
+            attach.titles
+        );
+        // The probe restored the user title it cleared to decide.
+        assert_eq!(
+            second.client().pane_title(0).expect("restored"),
+            "renamed pane"
         );
 
         let _ = std::fs::remove_file(&path);

@@ -14,6 +14,7 @@ use crate::command_palette::CommandPalette;
 use crate::config::Config;
 use crate::help_ui::HelpUI;
 use crate::integrations_ui::IntegrationsUI;
+use crate::pane_rename_ui::PaneRenameUI;
 use crate::paste_special_ui::PasteSpecialUI;
 use crate::profile::{ProfileManager, storage as profile_storage};
 use crate::profile_drawer_ui::ProfileDrawerUI;
@@ -42,6 +43,9 @@ pub(crate) struct OverlayUiState {
     /// Number of core command history entries already synced.
     pub(crate) synced_core_history_count: usize,
     pub(crate) paste_special_ui: PasteSpecialUI,
+    /// Inline pane-title rename popup (right-click a pane title bar, or the
+    /// `rename_pane` action on the focused pane).
+    pub(crate) pane_rename_ui: PaneRenameUI,
     pub(crate) tmux_session_picker_ui: TmuxSessionPickerUI,
     pub(crate) tmux_status_bar_ui: TmuxStatusBarUI,
     pub(crate) search_ui: SearchUI,
@@ -101,6 +105,7 @@ impl OverlayUiState {
             synced_mark_count: 0,
             synced_core_history_count: 0,
             paste_special_ui: PasteSpecialUI::new(),
+            pane_rename_ui: PaneRenameUI::default(),
             tmux_session_picker_ui: TmuxSessionPickerUI::new(),
             tmux_status_bar_ui: TmuxStatusBarUI::new(),
             search_ui: SearchUI::new(),

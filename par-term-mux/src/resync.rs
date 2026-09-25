@@ -77,6 +77,18 @@ impl MuxSessionClient {
             .collect()
     }
 
+    /// A pane's effective title (`pane-title -t %N`): the user `-T` title
+    /// when one is set, else the pane terminal's current OSC 0/2 title.
+    /// An empty reply means neither is set. One line; a title cannot
+    /// carry a newline on the line-framed wire.
+    pub fn pane_title(&mut self, pane: TmuxPaneId) -> io::Result<String> {
+        let lines = self.send(&format!("pane-title -t %{pane}"))?;
+        Ok(lines
+            .into_iter()
+            .find(|line| !line.trim().is_empty())
+            .unwrap_or_default())
+    }
+
     /// Attach to `name`, creating the session when it does not exist —
     /// par-mux's client-side analogue of `new-session -A`.
     ///
