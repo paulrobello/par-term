@@ -1,6 +1,6 @@
 //! Interactive plugin overlay rendering (overlay kind, phase 2).
 //!
-//! Display-only overlays paint shapes in [`super::egui_overlays`]; an
+//! Display-only overlays paint shapes in [`super::plugin_overlay_render`]; an
 //! overlay whose manifest carries the `overlay.interactive` capability
 //! AND whose `SetOverlay` requested `interactive: true` renders here
 //! instead — real egui widgets inside a fixed [`egui::Area`] at the

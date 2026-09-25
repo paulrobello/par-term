@@ -6,6 +6,7 @@
 //! in one place.
 
 use super::egui_overlays;
+use super::plugin_overlay_render;
 use super::types::PostRenderActions;
 use crate::app::window_state::WindowState;
 use crate::badge::{BadgeInsets, render_badge};
@@ -656,7 +657,7 @@ impl WindowState {
                     // Plugin overlays (overlay kind) sit above terminal
                     // content but below modal-mode chrome (mode-stack
                     // contract, docs/plans/2026-09-24-overlay-plugin-design.md).
-                    egui_overlays::render_plugin_overlays(
+                    plugin_overlay_render::render_plugin_overlays(
                         ctx,
                         &plugin_overlays,
                         &mut overlay_interactions,
