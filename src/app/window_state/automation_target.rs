@@ -217,6 +217,19 @@ impl WindowState {
                 continue;
             };
 
+            // A mux tab's `tab.terminal` is a hidden login shell — route the
+            // daemon pane first; an approved automation write must reach the
+            // pane the user is looking at.
+            if self.route_mux_tab_write(tab, text.as_bytes()) {
+                crate::debug_info!(
+                    "SCRIPT",
+                    "AUDIT approved automation write tab={} bytes={} (daemon pane)",
+                    target.tab_id,
+                    text.len()
+                );
+                continue;
+            }
+
             // blocking_read: the user approved this write in a dialog, so
             // dropping it on a contended lock would silently discard an
             // explicit decision. Mutating terminal methods take `&self` and

@@ -40,7 +40,10 @@ impl WindowState {
             }
             InspectorAction::WriteToTerminal(cmd) => {
                 self.with_active_tab(|tab| {
-                    if let Ok(term) = tab.terminal.try_read()
+                    // A mux tab's `tab.terminal` is a hidden login shell —
+                    // route the daemon pane first.
+                    if !self.route_mux_tab_write(tab, cmd.as_bytes())
+                        && let Ok(term) = tab.terminal.try_read()
                         && let Err(e) = term.write(cmd.as_bytes())
                     {
                         crate::debug_error!(
@@ -53,7 +56,10 @@ impl WindowState {
             InspectorAction::RunCommandAndNotify(cmd) => {
                 // Write command + Enter to terminal
                 self.with_active_tab(|tab| {
-                    if let Ok(term) = tab.terminal.try_read()
+                    // A mux tab's `tab.terminal` is a hidden login shell —
+                    // route the daemon pane first.
+                    if !self.route_mux_tab_write(tab, format!("{cmd}\n").as_bytes())
+                        && let Ok(term) = tab.terminal.try_read()
                         && let Err(e) = term.write(format!("{cmd}\n").as_bytes())
                     {
                         crate::debug_error!(

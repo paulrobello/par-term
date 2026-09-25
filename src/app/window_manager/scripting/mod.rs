@@ -443,13 +443,21 @@ impl WindowManager {
                     }
 
                     if let Some(tab) = ws.tab_manager.get_tab(tab_id) {
-                        // try_lock: acceptable — script WriteText in sync event
-                        // loop. On miss the write is skipped this frame; the
-                        // script can retry.
-                        if let Ok(term) = tab.terminal.try_read()
-                            && let Err(e) = term.write_str(&clean)
-                        {
-                            log::error!("Script[{}] WriteText write failed: {}", config_index, e);
+                        // A mux tab's `tab.terminal` is a hidden login shell —
+                        // route the daemon pane first.
+                        if !ws.route_mux_tab_write(tab, clean.as_bytes()) {
+                            // try_lock: acceptable — script WriteText in sync event
+                            // loop. On miss the write is skipped this frame; the
+                            // script can retry.
+                            if let Ok(term) = tab.terminal.try_read()
+                                && let Err(e) = term.write_str(&clean)
+                            {
+                                log::error!(
+                                    "Script[{}] WriteText write failed: {}",
+                                    config_index,
+                                    e
+                                );
+                            }
                         }
                         crate::debug_info!(
                             "SCRIPT",

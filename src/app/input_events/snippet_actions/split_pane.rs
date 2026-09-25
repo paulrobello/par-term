@@ -59,6 +59,13 @@ impl WindowState {
                 && let Some(pm) = tab.pane_manager()
                 && let Some(pane) = pm.get_pane(pane_id)
             {
+                // A daemon-mapped pane routes now: the boxed transport
+                // cannot cross into the delayed thread below. (Splits in a
+                // mux tab currently create local panes, so the daemon case
+                // is rare today.)
+                if self.route_mux_pane_write(tab.id, pane_id, text_with_nl.as_bytes()) {
+                    return new_pane_id.is_some();
+                }
                 let terminal = std::sync::Arc::clone(&pane.terminal);
                 std::thread::spawn(move || {
                     if delay_ms > 0 {

@@ -181,21 +181,36 @@ impl WindowState {
 
             if !commands_to_run.is_empty()
                 && let Some(tab) = self.tab_manager.active_tab()
-                && let Ok(term) = tab.terminal.try_read()
             {
+                // A mux tab's `tab.terminal` is a hidden login shell — an
+                // auto-executed agent command must run in the pane the user
+                // sees. Route the daemon pane first (one send-keys for the
+                // whole batch); only a local target falls through.
+                let mut joined = Vec::new();
                 for cmd in &commands_to_run {
-                    if let Err(e) = term.write(cmd.as_bytes()) {
-                        crate::debug_error!(
-                            "AI_INSPECTOR",
-                            "PTY write failed (auto-executed command): {e}"
-                        );
-                    }
+                    joined.extend_from_slice(cmd.as_bytes());
                 }
-                crate::debug_info!(
-                    "AI_INSPECTOR",
-                    "Auto-executed {} command(s) in terminal",
-                    commands_to_run.len()
-                );
+                if self.route_mux_tab_write(tab, &joined) {
+                    crate::debug_info!(
+                        "AI_INSPECTOR",
+                        "Auto-executed {} command(s) in terminal",
+                        commands_to_run.len()
+                    );
+                } else if let Ok(term) = tab.terminal.try_read() {
+                    for cmd in &commands_to_run {
+                        if let Err(e) = term.write(cmd.as_bytes()) {
+                            crate::debug_error!(
+                                "AI_INSPECTOR",
+                                "PTY write failed (auto-executed command): {e}"
+                            );
+                        }
+                    }
+                    crate::debug_info!(
+                        "AI_INSPECTOR",
+                        "Auto-executed {} command(s) in terminal",
+                        commands_to_run.len()
+                    );
+                }
             }
         }
 
