@@ -7,12 +7,13 @@
 //! snapshot keeping, directory watching, palette rows, and the pending-
 //! confirmation queue the egui dialog drains.
 //!
-//! Watching follows the config-update-file pattern (`ConfigWatcher` per
-//! file, polled from `about_to_wait`): the directory itself is watched via a
-//! single `ConfigWatcher` pointed at the directory path — `notify` treats a
-//! directory watch as recursive-non, which is exactly one level, and the
-//! atomic-rename writes from the MCP tool arrive as create/modify events on
-//! the final name.
+//! Watching uses `ConfigWatcher::new_yaml_dir`, polled from `about_to_wait`:
+//! it watches the directory itself (one level) and reacts to create/modify/
+//! remove of non-hidden `*.yaml` children, so the MCP tool's atomic-rename
+//! writes, hand edits, Settings edits, and deletes all trigger a rescan while
+//! `.confirmations.json` ledger writes do not. (The plain file-mode
+//! `ConfigWatcher::new` watches a path's parent for that exact filename and
+//! would never see a child of the directory.)
 
 use crate::config::watcher::ConfigWatcher;
 use par_term_config::agent_commands::{
@@ -100,7 +101,7 @@ impl AgentCommandStore {
             return;
         }
         let dir = par_term_config::agent_commands::commands_dir();
-        match ConfigWatcher::new(&dir, 300) {
+        match ConfigWatcher::new_yaml_dir(&dir, 300) {
             Ok(w) => self.watcher = Some(w),
             Err(e) => {
                 log::warn!("agent-commands watcher unavailable ({e}); palette rows are static")

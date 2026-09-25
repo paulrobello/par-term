@@ -36,16 +36,22 @@ fields. Validation on load: id charset (`[a-z0-9-]+`, ≤64 bytes) and
 
 - **Command palette** — rows appear automatically as `agent-cmd:<id>`
   (label: `<title> · agent (<source_agent>)` for agent commands, plain
-  `<title>` for user commands), hot-reloaded by a directory watcher.
+  `<title>` for user commands), hot-reloaded by a directory watcher
+  (`ConfigWatcher::new_yaml_dir`: create, modify, and delete of any
+  non-hidden `*.yaml` in the directory reach the running app without a
+  restart).
 - **Keybindings** — bind `agent-cmd:<id>` to any chord.
 - **CLI** — `par-term <id> [args...]` (external-subcommand fallthrough; real
   subcommands always win). Extra args append to a script's stored args;
   macros refuse with a pointer at the palette.
 - **Settings → Actions → Agent Commands** — lists every valid command file
-  (id, title, script/macro, author) and deletes one behind a two-step
-  confirm. Deleting here acts with the user's authority, so it removes
-  user-authored files too, and it prunes the id's confirmation-ledger entry.
-  The list refreshes on first display and on **Refresh**; editing is by hand.
+  (id, title, script/macro, author), edits one as YAML, and deletes one
+  behind a two-step confirm. Both act with the user's authority, so they
+  touch user-authored files too. An edit keeps the file's id and its
+  `created_by`/`source_agent` as on disk (owner decision D2), and a changed
+  script body re-arms first-run confirmation. A delete prunes the id's
+  confirmation-ledger entry. The list refreshes on first display and on
+  **Refresh**.
 
 ## Trust model (D4b/D4c)
 
@@ -105,11 +111,10 @@ The transcript shows `mcp__par-term-config__command_create … status=completed`
 | First-run confirmation dialog | `src/app/render_pipeline/egui_overlays.rs` |
 | MCP tools | `par-term-mcp/src/tools/agent_commands.rs` |
 | CLI fallthrough | `src/cli/mod.rs` (`Commands::External`) |
-| Settings list + delete | `par-term-settings-ui/src/actions_tab/agent_commands_section.rs` |
+| Settings list, edit, delete | `par-term-settings-ui/src/actions_tab/agent_commands_section.rs` |
 
 ## Out of scope (filed as follow-ups on the board)
 
-- Editing commands in Settings (list + delete shipped; edit is by hand)
 - User-approval flow for agent-modify-of-user-command (v1 refuses)
 - Command parameters / prompts beyond the first-run gate
 - Per-project command scope (global per D4c)

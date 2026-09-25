@@ -32,12 +32,49 @@ impl std::fmt::Debug for ConfigWatcher {
     }
 }
 
+/// Which events a watcher reacts to.
+#[derive(Debug, Clone)]
+enum WatchTarget {
+    /// One file: modify/create events whose file name matches.
+    File(std::ffi::OsString),
+    /// A directory's direct `*.yaml` children, hidden files excluded (so a
+    /// sidecar such as `.confirmations.json` never triggers a reload).
+    /// Removals count too — a deleted child changes the directory's set.
+    YamlChildren(PathBuf),
+}
+
+impl WatchTarget {
+    fn matches(&self, event: &Event) -> bool {
+        use notify::EventKind::{Create, Modify, Remove};
+        match self {
+            Self::File(filename) => {
+                matches!(event.kind, Modify(_) | Create(_))
+                    && event
+                        .paths
+                        .iter()
+                        .any(|p| p.file_name().is_some_and(|f| f == filename))
+            }
+            Self::YamlChildren(dir) => {
+                matches!(event.kind, Modify(_) | Create(_) | Remove(_))
+                    && event.paths.iter().any(|p| {
+                        p.parent() == Some(dir.as_path())
+                            && p.extension().is_some_and(|e| e == "yaml")
+                            && !p
+                                .file_name()
+                                .and_then(|n| n.to_str())
+                                .is_some_and(|n| n.starts_with('.'))
+                    })
+            }
+        }
+    }
+}
+
 /// Build the shared event-handler closure used by both watcher backends.
 ///
-/// Returns a closure that filters events to the given `filename`, applies
-/// debouncing, and sends `ConfigReloadEvent` values on `tx`.
+/// Returns a closure that filters events to `target`, applies debouncing,
+/// and sends `ConfigReloadEvent` values on `tx`.
 fn make_event_handler(
-    filename: std::ffi::OsString,
+    target: WatchTarget,
     canonical_path: PathBuf,
     debounce_delay: Duration,
     tx: std::sync::mpsc::Sender<ConfigReloadEvent>,
@@ -45,21 +82,8 @@ fn make_event_handler(
 ) -> impl Fn(std::result::Result<Event, notify::Error>) + Send + 'static {
     move |result: std::result::Result<Event, notify::Error>| {
         if let Ok(event) = result {
-            // Only process modify and create events (create handles atomic saves)
-            if !matches!(
-                event.kind,
-                notify::EventKind::Modify(_) | notify::EventKind::Create(_)
-            ) {
-                return;
-            }
-
-            // Check if any event path matches our config filename
-            let matches_config: bool = event
-                .paths
-                .iter()
-                .any(|p: &PathBuf| p.file_name().map(|f| f == filename).unwrap_or(false));
-
-            if !matches_config {
+            // Create handles atomic saves (temp + rename).
+            if !target.matches(&event) {
                 return;
             }
 
@@ -129,13 +153,47 @@ impl ConfigWatcher {
             .context("Config path has no parent directory")?
             .to_path_buf();
 
+        Self::start(
+            WatchTarget::File(filename),
+            canonical,
+            parent_dir,
+            debounce_delay_ms,
+        )
+    }
+
+    /// Watch a directory's direct `*.yaml` children (non-hidden): one reload
+    /// event per debounced burst of create/modify/remove. The event's `path`
+    /// is the directory. Same backend fallback as [`Self::new`].
+    ///
+    /// # Errors
+    /// Returns an error if the directory doesn't exist or watching fails on
+    /// both backends.
+    pub fn new_yaml_dir(dir: &Path, debounce_delay_ms: u64) -> Result<Self> {
+        if !dir.is_dir() {
+            anyhow::bail!("Watch directory not found: {}", dir.display());
+        }
+        let canonical: PathBuf = dir.canonicalize().unwrap_or_else(|_| dir.to_path_buf());
+        Self::start(
+            WatchTarget::YamlChildren(canonical.clone()),
+            canonical.clone(),
+            canonical,
+            debounce_delay_ms,
+        )
+    }
+
+    fn start(
+        target: WatchTarget,
+        canonical: PathBuf,
+        watch_dir: PathBuf,
+        debounce_delay_ms: u64,
+    ) -> Result<Self> {
         let (tx, rx) = channel::<ConfigReloadEvent>();
         let debounce_delay: Duration = Duration::from_millis(debounce_delay_ms);
         let last_event_time: Arc<Mutex<Option<Instant>>> = Arc::new(Mutex::new(None));
 
         // Try the platform-native watcher first; fall back to PollWatcher on failure.
         let mut watcher: Box<dyn Watcher + Send> = Self::create_watcher(
-            filename,
+            target,
             canonical.clone(),
             debounce_delay,
             tx,
@@ -143,10 +201,8 @@ impl ConfigWatcher {
         )?;
 
         watcher
-            .watch(&parent_dir, RecursiveMode::NonRecursive)
-            .with_context(|| {
-                format!("Failed to watch config directory: {}", parent_dir.display())
-            })?;
+            .watch(&watch_dir, RecursiveMode::NonRecursive)
+            .with_context(|| format!("Failed to watch directory: {}", watch_dir.display()))?;
 
         log::info!("Config hot reload: watching {}", canonical.display());
 
@@ -162,26 +218,21 @@ impl ConfigWatcher {
     /// container, network filesystem, or restricted environment), logs a warning
     /// and falls back to `PollWatcher` with a 500 ms poll interval.
     fn create_watcher(
-        filename: std::ffi::OsString,
+        target: WatchTarget,
         canonical_path: PathBuf,
         debounce_delay: Duration,
         tx: std::sync::mpsc::Sender<ConfigReloadEvent>,
         last_event_time: Arc<Mutex<Option<Instant>>>,
     ) -> Result<Box<dyn Watcher + Send>> {
         // Build the shared handler (clone inputs for the fallback path).
-        let filename2 = filename.clone();
+        let target2 = target.clone();
         let canonical_path2 = canonical_path.clone();
         let debounce_delay2 = debounce_delay;
         let tx2 = tx.clone();
         let last_event_time2 = Arc::clone(&last_event_time);
 
-        let handler = make_event_handler(
-            filename,
-            canonical_path,
-            debounce_delay,
-            tx,
-            last_event_time,
-        );
+        let handler =
+            make_event_handler(target, canonical_path, debounce_delay, tx, last_event_time);
 
         match notify::recommended_watcher(handler) {
             Ok(w) => {
@@ -194,7 +245,7 @@ impl ConfigWatcher {
                     e
                 );
                 let fallback_handler = make_event_handler(
-                    filename2,
+                    target2,
                     canonical_path2,
                     debounce_delay2,
                     tx2,
@@ -288,6 +339,39 @@ mod tests {
                 "Event path should end with config.yaml"
             );
         }
+    }
+
+    #[test]
+    fn yaml_dir_target_matches_children_and_skips_hidden_and_foreign() {
+        use notify::event::{CreateKind, EventKind, ModifyKind, RemoveKind};
+        let dir = PathBuf::from("/cfg/par-term/commands");
+        let target = WatchTarget::YamlChildren(dir.clone());
+        let ev = |kind: EventKind, p: &str| Event::new(kind).add_path(dir.join(p));
+        let create = EventKind::Create(CreateKind::File);
+
+        assert!(target.matches(&ev(create, "greet.yaml")));
+        assert!(target.matches(&ev(EventKind::Modify(ModifyKind::Any), "greet.yaml")));
+        assert!(target.matches(&ev(EventKind::Remove(RemoveKind::File), "greet.yaml")));
+        assert!(!target.matches(&ev(create, ".confirmations.json")));
+        assert!(!target.matches(&ev(create, ".greet.yaml.swp")));
+        assert!(!target.matches(&ev(create, "notes.txt")));
+        assert!(!target.matches(&ev(
+            EventKind::Access(notify::event::AccessKind::Any),
+            "greet.yaml"
+        )));
+        let nested = Event::new(create).add_path(dir.join("sub/greet.yaml"));
+        assert!(!target.matches(&nested));
+
+        // The store previously built a File target from the directory path;
+        // that can never match a child — the bug this mode exists for.
+        let old = WatchTarget::File(std::ffi::OsString::from("commands"));
+        assert!(!old.matches(&ev(create, "greet.yaml")));
+    }
+
+    #[test]
+    fn yaml_dir_watcher_rejects_missing_dir() {
+        let path = PathBuf::from("/tmp/nonexistent_yaml_dir_watcher_test");
+        assert!(ConfigWatcher::new_yaml_dir(&path, 100).is_err());
     }
 
     #[test]
