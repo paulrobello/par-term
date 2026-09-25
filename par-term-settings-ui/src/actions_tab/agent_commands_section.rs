@@ -39,7 +39,8 @@ fn show_commands_body(ui: &mut egui::Ui, state: &mut ActionsTabState, dir: &std:
     ));
     ui.add_space(4.0);
 
-    if state.agent_commands.is_none() || ui.button("Refresh").clicked() {
+    let refresh = ui.button("Refresh").clicked();
+    if refresh || state.agent_commands.is_none() {
         state.agent_commands = Some(load_all_commands(dir));
         state.agent_command_pending_delete = None;
     }
@@ -95,12 +96,18 @@ fn show_commands_body(ui: &mut egui::Ui, state: &mut ActionsTabState, dir: &std:
         });
 
     if let Some(id) = delete_now {
-        state.agent_command_error = delete_command_file_as_user(&id, dir)
-            .err()
-            .map(|e| format!("Delete failed: {e:#}"));
-        state.agent_command_pending_delete = None;
-        state.agent_commands = Some(load_all_commands(dir));
+        confirm_delete(state, dir, &id);
     }
+}
+
+/// The second click of a delete: remove the file, record any error, and
+/// reload so the list reflects the directory either way.
+fn confirm_delete(state: &mut ActionsTabState, dir: &std::path::Path, id: &str) {
+    state.agent_command_error = delete_command_file_as_user(id, dir)
+        .err()
+        .map(|e| format!("Delete failed: {e:#}"));
+    state.agent_command_pending_delete = None;
+    state.agent_commands = Some(load_all_commands(dir));
 }
 
 #[cfg(test)]
@@ -148,5 +155,36 @@ mod tests {
         state.agent_command_error = Some("Delete failed: example".to_string());
         render(&mut state, dir.path());
         assert_eq!(state.agent_command_pending_delete.as_deref(), Some("greet"));
+    }
+
+    #[test]
+    fn confirm_delete_removes_user_file_and_reports_failure() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("greet.yaml"),
+            "action:\n  type: insert_text\n  id: greet\n  title: Greet\n  text: hi\n",
+        )
+        .unwrap();
+        std::fs::write(dir.path().join(".confirmations.json"), r#"{"greet":"h"}"#).unwrap();
+        let mut state = ActionsTabState {
+            agent_commands: Some(load_all_commands(dir.path())),
+            agent_command_pending_delete: Some("greet".to_string()),
+            ..ActionsTabState::default()
+        };
+
+        confirm_delete(&mut state, dir.path(), "greet");
+        assert!(!dir.path().join("greet.yaml").exists());
+        assert!(
+            !par_term_config::agent_commands::load_confirmation_ledger(dir.path())
+                .contains_key("greet")
+        );
+        assert_eq!(state.agent_command_error, None);
+        assert_eq!(state.agent_command_pending_delete, None);
+        assert_eq!(state.agent_commands.as_deref().map(<[_]>::len), Some(0));
+
+        confirm_delete(&mut state, dir.path(), "greet");
+        let err = state.agent_command_error.as_deref().unwrap();
+        assert!(err.contains("no such command"), "{err}");
+        assert_eq!(state.agent_commands.as_deref().map(<[_]>::len), Some(0));
     }
 }
