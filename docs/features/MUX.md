@@ -42,7 +42,7 @@ par-mux has three levels, session → window → pane (tmux's model, with ids `$
 
 Opening a profile with `mux_session_name` in a window starts the attach; every window in the session then gets its own tab in that par-term window, and new session windows arrive as new tabs.
 
-A par-term window holds one par-mux session at a time. Opening a second mux profile in a window that is already attached (or still attaching) does nothing; open it in a new par-term window instead. There is no workspace or tab level above the session — to keep separate groups of sessions apart, run separate daemons (`par-mux <name>` gives each its own socket).
+A par-term window holds one par-mux session at a time. Opening a second mux profile in a window that is already attached (or still attaching) explains itself with a toast naming the attached (or attaching) session; open it in a new par-term window instead. There is no workspace or tab level above the session — to keep separate groups of sessions apart, run separate daemons (`par-mux <name>` gives each its own socket).
 
 A par-term launched **from inside a par-mux pane** refuses to attach to the session that owns that pane (it would render the session inside itself — a display feedback loop); the refusal surfaces as a toast. Attaching to a *different* daemon from inside a pane is allowed when that daemon is already running; starting one there follows the core's nesting rule (`PAR_MUX_ALLOW_NESTED=1` overrides, same as for the daemon itself).
 

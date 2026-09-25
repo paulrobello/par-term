@@ -414,6 +414,23 @@ impl WindowState {
     /// second request while one is already in flight is ignored.
     pub(crate) fn begin_mux_session_attach(&mut self, name: &str) {
         if self.tmux_state.transport.is_some() || self.tmux_state.mux_attach_pending.is_some() {
+            // One session per window: name the holder instead of returning
+            // silently, so a profile open that did nothing is explained.
+            let holding = self
+                .tmux_state
+                .mux_attach_pending
+                .as_ref()
+                .map(|pending| format!("still attaching to par-mux session '{}'", pending.name))
+                .or_else(|| {
+                    self.tmux_state
+                        .tmux_session_name
+                        .as_deref()
+                        .map(|name| format!("already attached to par-mux session '{name}'"))
+                })
+                .unwrap_or_else(|| "already attached to a par-mux session".to_string());
+            self.show_toast(format!(
+                "par-mux: this window is {holding} — open the profile in a new window"
+            ));
             return;
         }
         // The self-attach guard runs before the worker spawns so a refusal
@@ -2244,5 +2261,55 @@ out.flush()
             "the refusal must toast, got {:?}",
             ws.overlay_state.toast_message
         );
+    }
+
+    /// A pending state with no live worker — the channel's sender is
+    /// dropped, so nothing ever connects or spawns a daemon. Driving
+    /// `begin_mux_session_attach` against it must stay on the early
+    /// return: a real worker here would auto-spawn a daemon on the
+    /// default socket (the leak the card-1 negative control taught).
+    fn pending_without_worker(name: &str) -> MuxAttachPending {
+        let (tx, rx) = std::sync::mpsc::channel();
+        drop(tx);
+        MuxAttachPending {
+            name: name.to_string(),
+            rx,
+        }
+    }
+
+    #[test]
+    fn second_attach_while_attaching_explains_itself() {
+        let mut ws = manners_state();
+        ws.tmux_state.mux_attach_pending = Some(pending_without_worker("first"));
+        ws.begin_mux_session_attach("second");
+        assert!(
+            ws.tmux_state
+                .mux_attach_pending
+                .as_ref()
+                .is_some_and(|p| p.name == "first"),
+            "the in-flight attach must keep its place"
+        );
+        let toast = ws.overlay_state.toast_message.as_deref();
+        assert!(
+            toast.is_some_and(|t| t.contains("still attaching") && t.contains("first")),
+            "the second open must explain instead of doing nothing, got {toast:?}"
+        );
+    }
+
+    #[test]
+    fn second_attach_while_attached_explains_itself() {
+        let path = socket_path("second-attach");
+        spawn_daemon(&path);
+        let transport = connect(&path);
+        let mut ws = manners_state();
+        ws.tmux_state.transport = Some(Box::new(transport));
+        ws.tmux_state.tmux_session_name = Some("live".to_string());
+        ws.begin_mux_session_attach("other");
+        let toast = ws.overlay_state.toast_message.as_deref();
+        assert!(
+            toast.is_some_and(|t| t.contains("already attached") && t.contains("live")),
+            "the second open must name the attached session, got {toast:?}"
+        );
+        let _ = std::fs::remove_file(&path);
     }
 }
