@@ -209,14 +209,15 @@ impl WindowState {
 
         if self.overlay_ui.search_ui.visible {
             if let Some(tab) = self.tab_manager.active_tab()
-                && let Ok(term) = tab.terminal.try_read()
-            {
-                let lines_iter =
+                && let Some(lines) = tab.try_with_read_terminal(|term| {
                     crate::app::window_state::search_highlight::get_all_searchable_lines(
-                        &term,
+                        term,
                         visible_lines,
-                    );
-                self.overlay_ui.search_ui.update_search(lines_iter);
+                    )
+                    .collect::<Vec<_>>()
+                })
+            {
+                self.overlay_ui.search_ui.update_search(lines.into_iter());
             }
 
             // Force GPU cell update when search is visible: highlights are applied to

@@ -1305,6 +1305,135 @@ mod tests {
             .unwrap_or_default()
     }
 
+    /// Search and copy mode must read the focused pane's terminal — the
+    /// daemon mirror — in a mux tab. `tab.terminal` there is a hidden
+    /// local login shell, so Cmd+F, copy-mode entry/search, and line
+    /// motions looked at a screen the user cannot see. Proven red against
+    /// the tab-terminal reads before the fix.
+    #[test]
+    fn search_and_copy_mode_read_the_mux_mirror_not_the_hidden_shell() {
+        let path = socket_path("mux-search-mirror");
+        spawn_daemon(&path);
+
+        let core_client = par_term_emu_core_rust::mux::MuxClient::connect(&path).expect("connect");
+        let (tx, rx) = std::sync::mpsc::channel();
+        tx.send(Ok(core_client)).unwrap();
+        drop(tx);
+        let mut ws = manners_state();
+        ws.tmux_state.mux_attach_pending = Some(MuxAttachPending {
+            name: "findme".to_string(),
+            rx,
+        });
+        ws.poll_mux_attach();
+        assert!(ws.tmux_state.transport.is_some(), "attach must install");
+
+        ws.handle_tmux_window_add(0);
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !ws.tmux_state.tmux_pane_owners.contains_key(&0) {
+            assert!(
+                Instant::now() < deadline,
+                "window @0 never got a mapped pane"
+            );
+            ws.tmux_state
+                .transport
+                .as_ref()
+                .expect("transport")
+                .send_command("refresh-client -t %0 -C 80x24")
+                .expect("size push broadcasts %layout-change");
+            ws.check_mux_notifications();
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        let (tab_id, pane) = ws.tmux_state.tmux_pane_owners[&0];
+        ws.tab_manager.switch_to(tab_id);
+
+        // Seed ONLY the mirror: daemon output routes to the mapped mirror,
+        // never to the tab's hidden shell.
+        ws.handle_tmux_output(0, b"mux-mirror-needle 4999\r\n");
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while !pane_text(&ws, tab_id, pane).contains("mux-mirror-needle") {
+            assert!(
+                Instant::now() < deadline,
+                "the mirror never showed the marker"
+            );
+            ws.check_mux_notifications();
+            std::thread::sleep(Duration::from_millis(25));
+        }
+
+        // The mirror's own cursor state, for the entry assertions below.
+        let (mirror_col, mirror_row, mirror_sb) = ws
+            .tab_manager
+            .get_tab(tab_id)
+            .and_then(|tab| tab.pane_manager())
+            .and_then(|pm| pm.get_pane(pane))
+            .and_then(|p| p.terminal.try_read().ok())
+            .map(|term| {
+                let (col, row) = term.cursor_position();
+                (col, row, term.scrollback_len())
+            })
+            .expect("mirror terminal");
+
+        // Cmd+F's searchable lines come from the focused pane's terminal.
+        let searchable = ws
+            .tab_manager
+            .get_tab(tab_id)
+            .and_then(|tab| {
+                tab.try_with_read_terminal(|term| {
+                    crate::app::window_state::search_highlight::get_all_searchable_lines(
+                        term,
+                        mirror_row + 1,
+                    )
+                    .map(|(_, line)| line)
+                    .collect::<Vec<_>>()
+                })
+            })
+            .expect("a readable terminal");
+        assert!(
+            searchable.iter().any(|l| l.contains("mux-mirror-needle")),
+            "Cmd+F must search the mirror's screen, got {searchable:?}"
+        );
+
+        // Copy-mode entry anchors on the mirror's cursor, not the hidden
+        // shell's.
+        ws.enter_copy_mode();
+        assert!(
+            ws.copy_mode.active,
+            "copy mode must enter (copy_mode_enabled defaults on)"
+        );
+        assert_eq!(
+            (ws.copy_mode.cursor_col, ws.copy_mode.cursor_absolute_line),
+            (mirror_col, mirror_sb + mirror_row),
+            "copy-mode entry anchors on the mirror's cursor"
+        );
+
+        // Copy-mode search finds the marker through the mirror.
+        ws.copy_mode.search_query = "mux-mirror-needle".to_string();
+        ws.copy_mode.search_direction = crate::copy_mode::SearchDirection::Forward;
+        ws.execute_copy_mode_search(false);
+        let line = ws.get_copy_mode_line_text().expect("line under the cursor");
+        assert!(
+            line.contains("mux-mirror-needle"),
+            "copy-mode search must land on the mirror's marker line, got {line:?}"
+        );
+
+        // And the yank of that line reads the same mirror, so every read
+        // path agrees on one terminal. The daemon pane's shell prompt shares
+        // the marker's row (the raw write landed at the pane cursor), so the
+        // selection spans the marker's columns, not the whole row.
+        let (needle_line, needle_col) =
+            (ws.copy_mode.cursor_absolute_line, ws.copy_mode.cursor_col);
+        ws.copy_mode.visual_mode = crate::copy_mode::VisualMode::Char;
+        ws.copy_mode.selection_anchor = Some((needle_line, needle_col));
+        ws.copy_mode.cursor_col = needle_col + "mux-mirror-needle".len();
+        ws.sync_copy_mode_selection();
+        let yanked = ws.get_selected_text_for_copy().expect("selection text");
+        assert!(
+            yanked.contains("mux-mirror-needle"),
+            "yank must read the mirror, got {yanked:?}"
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
     /// Closing a focused mux pane goes daemon-side (`kill-pane -t %N`): the
     /// daemon's pane count drops, the killed pane's tmux→native mapping is
     /// removed by the %layout-change reconciliation (no dangling mapping),

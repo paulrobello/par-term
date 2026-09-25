@@ -105,12 +105,13 @@ impl WindowState {
         // Get all lines from terminal for searching
         // try_lock: intentional — copy mode search in sync event loop.
         // On miss: search is skipped this keypress; result stays at current position.
+        // Reads the focused pane's terminal (the daemon mirror in a mux tab).
         let total = self.copy_mode.scrollback_len + self.copy_mode.rows;
         let found = self
             .tab_manager
             .active_tab()
             .and_then(|tab| {
-                tab.try_with_terminal_mut(|term| {
+                tab.try_with_read_terminal(|term| {
                     if forward {
                         self.search_lines_forward(term, &query, current_line, current_col, total)
                     } else {
@@ -204,9 +205,10 @@ impl WindowState {
         let abs_line = self.copy_mode.cursor_absolute_line;
         // try_lock: intentional — reading line text for copy mode in sync event loop.
         // On miss: returns None (no text). The line action (yank/open) is skipped.
+        // Reads the focused pane's terminal (the daemon mirror in a mux tab).
         self.tab_manager
             .active_tab()
-            .and_then(|tab| tab.try_with_terminal_mut(|term| term.line_text_at_absolute(abs_line)))
+            .and_then(|tab| tab.try_with_read_terminal(|term| term.line_text_at_absolute(abs_line)))
             .flatten()
     }
 

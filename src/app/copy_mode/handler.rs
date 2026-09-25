@@ -23,9 +23,11 @@ impl WindowState {
 
         // try_lock: intentional — copy mode initialization in sync event loop.
         // On miss: copy mode is not entered this keypress. User can try again.
+        // Reads the focused pane's terminal: in a mux tab that is the daemon
+        // mirror on screen, while the tab terminal is a hidden local shell.
         let Some((cursor_col, cursor_row, cols, rows, scrollback_len)) =
             self.tab_manager.active_tab().and_then(|tab| {
-                tab.try_with_terminal_mut(|term| {
+                tab.try_with_read_terminal(|term| {
                     let (col, row) = term.cursor_position();
                     let (cols, rows) = term.dimensions();
                     let sb_len = term.scrollback_len();

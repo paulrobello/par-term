@@ -247,6 +247,28 @@ impl Tab {
         self.terminal.try_read().ok().map(|guard| f(&guard))
     }
 
+    /// Non-blocking read access to the terminal to READ screen state from
+    /// (search UI, copy mode): the focused pane's terminal when the tab has
+    /// panes — in a mux tab that is the mirror of the daemon pane on screen,
+    /// while `terminal` is a hidden local shell — else the tab terminal.
+    ///
+    /// # try_lock rationale
+    /// Same discipline as [`Self::try_with_terminal`]: skip on contention.
+    #[inline]
+    pub(crate) fn try_with_read_terminal<R>(
+        &self,
+        f: impl FnOnce(&TerminalManager) -> R,
+    ) -> Option<R> {
+        // try_lock: intentional — called from the sync event loop; skip on contention.
+        let terminal = self
+            .pane_manager
+            .as_ref()
+            .and_then(|pm| pm.focused_pane())
+            .map(|pane| &pane.terminal)
+            .unwrap_or(&self.terminal);
+        terminal.try_read().ok().map(|guard| f(&guard))
+    }
+
     /// Non-blocking write access to this tab's `TerminalManager`.
     ///
     /// Returns `None` on lock contention (expected: another async task holds it).
