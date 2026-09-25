@@ -135,7 +135,7 @@ While attached, par-term shows what agents are running in the session:
 - **Roster picker in the command palette**: runtime rows, blocked-first, each jumping to that agent's pane.
 - **Feed the roster honestly**: install the par-mux session hooks for Claude Code, Codex, or Grok (`par-term install-mux-hooks`), or agent-state extensions for pi/omp (`par-term install-mux-extensions`) — see [INTEGRATIONS.md](INTEGRATIONS.md#par-mux-agent-extensions) for details.
 
-Both surfaces are scoped to the attached session, and an entry disappears as soon as its pane closes — the widget and picker never count a closed pane or offer a row they cannot focus.
+Both surfaces are scoped to the attached session. An entry disappears as soon as its pane closes, or when the agent itself exits — the hooks and extensions send `pane.release_agent` on claude `SessionEnd` and pi/omp shutdown, so a quit agent leaves the roster at once instead of showing "working" until the pane dies. The widget and picker never count a closed pane or offer a row they cannot focus.
 
 ## Troubleshooting
 

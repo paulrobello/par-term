@@ -62,6 +62,29 @@ impl WindowState {
         needs_redraw
     }
 
+    /// Apply `%agent-released` pushes to the roster cache. Same manners
+    /// rule as [`Self::apply_agent_pushes`]: a release may set the redraw
+    /// flag (a roster row disappearing) and nothing else.
+    pub(super) fn apply_agent_releases(
+        &mut self,
+        releases: Vec<par_term_emu_core_rust::tmux_control::TmuxNotification>,
+    ) -> bool {
+        let mut needs_redraw = false;
+        for release in releases {
+            if let par_term_emu_core_rust::tmux_control::TmuxNotification::AgentReleased {
+                pane_id,
+                agent,
+            } = release
+                && let Some(pane) = pane_id.strip_prefix('%').and_then(|id| id.parse().ok())
+            {
+                crate::debug_info!("MUX", "agent release push: %{pane} {agent}");
+                self.tmux_state.agent_roster.apply_release(pane, &agent);
+                needs_redraw = true;
+            }
+        }
+        needs_redraw
+    }
+
     /// Apply `%pane-title-changed` pushes: the daemon emits these ONLY for
     /// user `-T` titles (set from par-term's Rename Pane, a shell via
     /// `par-mux -c`, or another client), so a push always carries user
@@ -120,16 +143,23 @@ impl WindowState {
             return paste_sent;
         }
 
-        // The roster push and the daemon pane-title push are core variants
-        // the ParserBridge deliberately drops (a named arm there cannot
-        // compile against the published pin), so partition them out here —
-        // the roster cache and the pane-title applier are their consumers.
-        // This destructure is the single push call site for both.
+        // The roster push, the agent release, and the daemon pane-title push
+        // are core variants the ParserBridge deliberately drops (a named arm
+        // there cannot compile against the published pin), so partition them
+        // out here — the roster cache and the pane-title applier are their
+        // consumers. This destructure is the single push call site for all.
         let (agent_pushes, core_notifications): (Vec<_>, Vec<_>) =
             core_notifications.into_iter().partition(|n| {
                 matches!(
                     n,
                     par_term_emu_core_rust::tmux_control::TmuxNotification::AgentStateChanged { .. }
+                )
+            });
+        let (agent_releases, core_notifications): (Vec<_>, Vec<_>) =
+            core_notifications.into_iter().partition(|n| {
+                matches!(
+                    n,
+                    par_term_emu_core_rust::tmux_control::TmuxNotification::AgentReleased { .. }
                 )
             });
         let (title_pushes, core_notifications): (Vec<_>, Vec<_>) =
@@ -165,6 +195,7 @@ impl WindowState {
 
         let mut needs_redraw = paste_sent;
         needs_redraw |= self.apply_agent_pushes(agent_pushes);
+        needs_redraw |= self.apply_agent_releases(agent_releases);
         needs_redraw |= self.apply_pane_title_pushes(title_pushes);
 
         // Same bucket split as polling.rs — direct handlers TmuxSync cannot

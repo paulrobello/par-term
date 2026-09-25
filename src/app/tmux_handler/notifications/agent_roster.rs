@@ -53,12 +53,25 @@ impl AgentRoster {
     }
 
     /// Apply one `%agent-state-changed` push: an upsert, because the push
-    /// is per pane and a later push replaces the earlier state. There is
-    /// no removal push — a pane leaves the roster at the next fill, at
-    /// the layout reconciliation's close signal ([`Self::remove_panes`]),
-    /// or when the roster clears.
+    /// is per pane and a later push replaces the earlier state.
     pub(crate) fn apply_push(&mut self, entry: AgentEntry) {
         self.entries.insert(entry.pane, entry);
+    }
+
+    /// Apply one `%agent-released` push: the claiming agent announced it is
+    /// gone (pane.release_agent, core aed41c2), so the pane leaves the
+    /// roster now instead of showing a dead agent working until the next
+    /// fill or close. Label-guarded: a release for an agent that no longer
+    /// owns the pane (the claim was superseded between release and
+    /// delivery) must not drop the successor's entry.
+    pub(crate) fn apply_release(&mut self, pane: TmuxPaneId, agent: &str) {
+        if self
+            .entries
+            .get(&pane)
+            .is_some_and(|entry| entry.agent == agent)
+        {
+            self.entries.remove(&pane);
+        }
     }
 
     /// Drop the entries for closed panes — the daemon sends no removal
@@ -257,6 +270,41 @@ mod tests {
             snapshot,
             vec![(0, "blocked".to_string()), (3, "idle".to_string())]
         );
+    }
+
+    #[test]
+    fn release_drops_the_pane_its_agent_claimed() {
+        let mut roster = AgentRoster::new();
+        roster.fill_from_list(vec![
+            entry(0, "pi", "working", AgentSource::Hook),
+            entry(3, "omp", "idle", AgentSource::Hook),
+        ]);
+        roster.apply_release(0, "pi");
+        let panes: Vec<_> = roster.iter().map(|e| e.pane).collect();
+        assert_eq!(panes, vec![3], "the released pane leaves, others stay");
+    }
+
+    #[test]
+    fn release_for_a_superseded_claim_keeps_the_successor() {
+        let mut roster = AgentRoster::new();
+        roster.fill_from_list(vec![entry(2, "claude", "working", AgentSource::Hook)]);
+        // A late release from the agent the pane no longer runs.
+        roster.apply_release(2, "pi");
+        let snapshot: Vec<_> = roster.iter().map(|e| e.pane).collect();
+        assert_eq!(
+            snapshot,
+            vec![2],
+            "a label mismatch must not drop the entry"
+        );
+    }
+
+    #[test]
+    fn release_for_an_unrostered_pane_is_a_noop() {
+        let mut roster = AgentRoster::new();
+        roster.fill_from_list(vec![entry(0, "kimi", "working", AgentSource::Hook)]);
+        roster.apply_release(9, "kimi");
+        let panes: Vec<_> = roster.iter().map(|e| e.pane).collect();
+        assert_eq!(panes, vec![0]);
     }
 
     #[test]

@@ -3242,6 +3242,36 @@ out.flush()
         );
     }
 
+    /// The release push (pane.release_agent, core aed41c2) is the roster's
+    /// one removal signal: an agent that quit leaves the cache at once
+    /// instead of showing working until the pane dies. Bound by the same
+    /// E3 manners rule as the state push — a disappearing row may redraw
+    /// and may do nothing else.
+    #[test]
+    fn agent_release_pushes_drop_the_roster_row_without_interrupting() {
+        let mut ws = manners_state();
+        assert!(ws.apply_agent_pushes(vec![push("%0", "kimi", "working", "hook")]));
+        assert_eq!(ws.tmux_state.agent_roster.iter().count(), 1);
+
+        let redraw = ws.apply_agent_releases(vec![
+            par_term_emu_core_rust::tmux_control::TmuxNotification::AgentReleased {
+                pane_id: "%0".to_string(),
+                agent: "kimi".to_string(),
+            },
+        ]);
+
+        assert!(redraw, "a row disappearing is a potential visual change");
+        assert!(
+            ws.tmux_state.agent_roster.iter().count() == 0,
+            "the released pane leaves the roster cache"
+        );
+        // E3: a release is not an interruption either.
+        assert!(!ws.overlay_ui.command_palette.visible);
+        assert!(ws.overlay_state.toast_message.is_none());
+        assert!(ws.tab_manager.active_tab_id().is_none());
+        assert!(ws.focus_state.pending_focus_tab_switch.is_none());
+    }
+
     /// Run `f` with the pane-identity env a par-mux pane exports (core
     /// `mux::pane`'s contract), restoring whatever the test process had
     /// before — the agent_usage env-test containment: sole writer of these
