@@ -725,6 +725,10 @@ mod tests {
             CLAUDE_HOOK_ASSET_WINDOWS.contains("pane.report_agent_session"),
             "speaks the same control-socket method"
         );
+        assert!(
+            CLAUDE_HOOK_ASSET_WINDOWS.contains("pane.release_agent"),
+            "the SessionEnd release arm cannot drift from the .sh either"
+        );
         assert!(CLAUDE_HOOK_ASSET_WINDOWS.contains("par-mux:claude"));
         assert!(CLAUDE_HOOK_ASSET_WINDOWS.contains("session_resume_argv"));
         assert!(CLAUDE_HOOK_ASSET_WINDOWS.contains("PAR_MUX_PANE_ID"));
