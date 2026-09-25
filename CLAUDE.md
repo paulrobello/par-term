@@ -200,7 +200,9 @@ Layer 4 — Root crate (bump last):
 
 ### par-mux daemon for local runs
 
-The pin is on the published crates.io line (`0.51`), `mux` is a default root feature, and every manifest forwards the core's `mux` feature normally — no vendoring machinery exists anymore (card 01a0d1cbc649 retired `scripts/with-local-core.sh` and its Makefile target; never pin a core version that is not on crates.io).
+The pin is on the published crates.io line (`0.51`), `mux` is a default root feature, and every manifest forwards the core's `mux` feature normally. Never commit a pin on a core version that is not on crates.io.
+
+To work against unpublished core changes locally, run `scripts/with-local-core.sh <cmd>` (or `make with-local-core CMD="<cmd>"`, default `cargo check --workspace`). It patches the root `Cargo.toml` with `[patch.crates-io]` pointing at `../par-term-emu-core-rust` (or `$PAR_TERM_LOCAL_CORE_DIR`), raises the pin if needed, stages the core's `par-mux` daemon next to the built binary, and restores `Cargo.toml`/`Cargo.lock` on exit. Never commit the patched state: stage explicit paths and check `grep patch.crates-io Cargo.toml` before committing.
 
 The crates.io release ships the **library only** — the `par-mux` daemon binary must be staged next to the par-term binary. `scripts/build-par-mux.sh` builds it pinned to the Cargo.lock core version (so client and daemon stamps match) and copies it wherever asked:
 

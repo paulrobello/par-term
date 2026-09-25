@@ -1,7 +1,7 @@
 # Makefile for par-term
 # Cross-platform terminal emulator frontend
 
-.PHONY: help build build-debug run run-release run-error run-warn run-info run-debug run-trace release test check typecheck clean fmt lint checkall secret-scan install install-shell-integration install-acp acp-harness acp-smoke doc doc-open doc-check check-line-counts coverage test-fonts benchmark-shaping test-text-shaping bundle bundle-install run-bundle deploy grind-start grind-start-anthropic grind-start-zai grind-start-grok grind-start-codex grind-start-omp grind-stop grind-clean-logs
+.PHONY: help build build-debug run run-release run-error run-warn run-info run-debug run-trace release test check typecheck clean fmt lint checkall with-local-core secret-scan install install-shell-integration install-acp acp-harness acp-smoke doc doc-open doc-check check-line-counts coverage test-fonts benchmark-shaping test-text-shaping bundle bundle-install run-bundle deploy grind-start grind-start-anthropic grind-start-zai grind-start-grok grind-start-codex grind-start-omp grind-stop grind-clean-logs
 
 ACP_AGENT ?= claude-ollama.local
 ACP_TIMEOUT ?= 45
@@ -229,6 +229,12 @@ lint-all: lint
 # Run all quality checks (format-check, lint, typecheck, test) — does NOT mutate files
 checkall: fmt-check lint typecheck test
 	@echo "All quality checks passed!"
+
+# Run CMD (default: cargo check --workspace) against the local core checkout.
+# Manifests auto-revert on exit; never commit the patched state.
+with-local-core:
+	@echo "Running against vendored local core (manifests auto-revert on exit)..."
+	scripts/with-local-core.sh $(CMD)
 
 # Clean build artifacts and project-root log files
 clean:
